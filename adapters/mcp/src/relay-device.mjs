@@ -10,6 +10,8 @@ import {createLocalRuntime} from './runtime.mjs';
 import {createMcpAdapter} from './server.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../../..');
+// Must match the relay's PROTOCOL (relay/src/relay-object.mjs).
+const RELAY_PROTOCOL='1';
 const RESULT_LIMIT=1_000_000,SESSION_IDLE_MS=30*60_000,HEARTBEAT_MS=30_000,BACKOFF_MS=[1000,30_000];
 // Per-call deadlines: Claude documents 240 s, so 225 s leaves margin; ChatGPT
 // targets one 450 s call (unverified). Clients are told apart by clientInfo.name.
@@ -59,7 +61,8 @@ function sessionTransport(reply){
 
 export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onStatus=()=>{}}){
   const url=new URL('/device/connect',device.relayUrl);url.protocol=url.protocol==='https:'?'wss:':'ws:';
-  const link={socket:null,closed:false,backoff:BACKOFF_MS[0],heartbeat:null,retry:null,inbox:Promise.resolve()};
+  // problem: why the relay refused this computer (unpaired, or an outdated SAAM); no retry follows.
+  const link={socket:null,closed:false,backoff:BACKOFF_MS[0],heartbeat:null,retry:null,inbox:Promise.resolve(),problem:null,release:null};
   const sessions=new Map();
   const current=()=>[...sessions.keys()][0]??null;
   function report(){if(link.socket?.readyState===WebSocket.OPEN)link.socket.send(JSON.stringify({type:'session',session:current()}));}
@@ -86,6 +89,7 @@ export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onSta
   }
   async function receive(packet){
     if(packet.type==='session-end')return end(packet.session);
+    if(packet.type==='release'){link.release=packet.release??null;return;}
     if(packet.type!=='mcp')return;
     const {call,message}=packet;
     const session=sessions.get(packet.session)??(message.method==='initialize'?await open(packet.session,message.params?.clientInfo?.name):null);
@@ -95,7 +99,7 @@ export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onSta
     session.transport.onmessage?.(message);
   }
   function connect(){
-    const socket=new WebSocket(url,{headers:{Authorization:`Bearer ${device.secret}`}});link.socket=socket;
+    const socket=new WebSocket(url,{headers:{Authorization:`Bearer ${device.secret}`,'X-SAAM-Protocol':RELAY_PROTOCOL}});link.socket=socket;
     socket.onopen=()=>{link.backoff=BACKOFF_MS[0];report();onStatus({connected:true});link.heartbeat=setInterval(()=>socket.send('ping'),HEARTBEAT_MS);};
     // Opening a session awaits the previous one's end; later messages queue behind it.
     socket.onmessage=({data})=>{if(data==='pong')return;link.inbox=link.inbox.then(()=>receive(JSON.parse(data))).catch(error=>console.error('SAAM relay message:',error));};
@@ -103,7 +107,8 @@ export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onSta
     socket.onclose=({code,reason})=>{
       clearInterval(link.heartbeat);if(link.socket===socket)link.socket=null;
       onStatus({connected:false,code,reason});
-      if(link.closed||code===4401)return;
+      if(code===4401||code===4426)link.problem=reason;
+      if(link.closed||link.problem)return;
       link.retry=setTimeout(connect,link.backoff);link.backoff=Math.min(link.backoff*2,BACKOFF_MS[1]);
     };
   }
@@ -112,7 +117,7 @@ export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onSta
     connected:()=>link.socket?.readyState===WebSocket.OPEN,
     sessions:()=>[...sessions.keys()],
     // What Studio shows: link state and the chat session, if any.
-    status:()=>({relayUrl:device.relayUrl,connected:link.socket?.readyState===WebSocket.OPEN,session:current()?{client:sessions.get(current()).client}:null}),
+    status:()=>({relayUrl:device.relayUrl,connected:link.socket?.readyState===WebSocket.OPEN,problem:link.problem,release:link.release,session:current()?{client:sessions.get(current()).client}:null}),
     // Drops the link without ending sessions, as a network loss would.
     disconnect(){link.socket?.close();},
     async close(){
@@ -122,14 +127,29 @@ export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onSta
   };
 }
 
+// major.minor.patch comparison; a pre-release suffix is ignored.
+const releaseParts=version=>String(version).split('-')[0].split('.').map(Number);
+export function newerRelease(candidate,current){
+  const a=releaseParts(candidate),b=releaseParts(current);
+  for(let i=0;i<3;i++)if((a[i]||0)!==(b[i]||0))return (a[i]||0)>(b[i]||0);
+  return false;
+}
 // What Studio's Connect chat panel reads. The runtime, and so every Studio it
 // opens, exists before the connection that needs the runtime; the provider
-// answers "not connected" until attach() hands it that connection.
-export function relayProvider(device){
+// answers "not connected" until attach() hands it that connection. With an
+// installed build's version, platform and update hook it also offers a newer
+// release the relay announced.
+export function relayProvider(device,{version=null,platform=null,update=null}={}){
   const link={connection:null};
+  const offer=status=>{
+    const release=status.release,asset=release?.assets?.[platform];
+    return update&&version&&asset&&newerRelease(release.version,version)?{version:release.version,...asset}:null;
+  };
+  const current=()=>link.connection?.status()??{relayUrl:device.relayUrl,connected:false,session:null,release:null};
   return {
-    status:()=>link.connection?.status()??{relayUrl:device.relayUrl,connected:false,session:null},
+    status:()=>{const {release,...status}=current(),offered=offer({release});return {...status,version,update:offered?{version:offered.version}:null};},
     linkCode:()=>linkCode(device),
+    update:()=>{const offered=offer(current());if(!offered)throw Error('No newer SAAM release is available.');return update(offered);},
     attach(connection){link.connection=connection;return connection;}
   };
 }
@@ -137,9 +157,10 @@ export function relayProvider(device){
 // SAAM on a paired computer: the runtime, its relay link and one Studio at
 // launch with no print. Its Connect chat panel issues codes, and request_review
 // later shows the chat's prints in it. The CLI and the installed launcher use this.
-export async function runPairedSaam({relayUrl,statePath,printsRoot,onStatus=()=>{}}){
+// installed: {version, platform, update(release)} for an installed build that can update itself.
+export async function runPairedSaam({relayUrl,statePath,printsRoot,onStatus=()=>{},installed={}}){
   const device=await loadDevice(relayUrl,statePath);
-  const relay=relayProvider(device),runtime=createLocalRuntime({printsRoot,relay});
+  const relay=relayProvider(device,installed),runtime=createLocalRuntime({printsRoot,relay});
   const connection=relay.attach(connectRelay({device,runtime,onStatus}));
   const studio=await runtime.openStudio();
   return {device,runtime,connection,studio,stop:async()=>{await connection.close();await runtime.close();}};

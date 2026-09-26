@@ -31,7 +31,7 @@ chat asks for a code the computer shows; unpairing revokes every chat grant.
 
 ```sh
 cd relay && npm ci
-npx wrangler dev
+npx wrangler dev --var PUBLIC_URL:http://localhost:8787
 SAAM_RELAY_URL=http://localhost:8787 node adapters/mcp/src/relay-device.mjs
 ```
 
@@ -54,7 +54,7 @@ It is not part of the root `npm test`.
 
 ## Deploy
 
-Needs a Workers Paid account. Create the KV namespace
+Deployed at https://saam-relay.remettub.workers.dev (free plan is enough for testing; the plan budgets Workers Paid for the alpha load). For another account, create the KV namespace
 (`npx wrangler kv namespace create OAUTH_KV`) and put its id in
 [wrangler.jsonc](wrangler.jsonc), set `PUBLIC_URL` to the deployed origin, then
 `npx wrangler deploy`.

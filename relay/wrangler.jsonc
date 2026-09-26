@@ -8,16 +8,21 @@
   "compatibility_flags": ["global_fetch_strictly_public"],
   "vars": {
     // The public origin chat clients reach; the MCP resource is PUBLIC_URL/mcp.
-    "PUBLIC_URL": "http://localhost:8787",
+    // Local development overrides it: wrangler dev --var PUBLIC_URL:http://localhost:8787
+    "PUBLIC_URL": "https://saam-relay.remettub.workers.dev",
     // Computers that may pair at all: 2 while testing, 150 for alpha.
-    "MAX_PAIRED_DEVICES": "2"
+    "MAX_PAIRED_DEVICES": "2",
+    // The release Studio offers as an update, as JSON:
+    // {"version":"0.1.1","assets":{"win-x64":{"url":"https://…/SAAM-0.1.1-win-x64.zip","sha256":"…"}}}
+    // Empty offers none. packaging/build.mjs prints each asset's entry.
+    "LATEST_RELEASE": ""
   },
   "durable_objects": {
     "bindings": [{ "name": "RELAY", "class_name": "RelayObject" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RelayObject"] }],
   "kv_namespaces": [
-    // Replace with the namespace created by `wrangler kv namespace create OAUTH_KV` before deploying.
-    { "binding": "OAUTH_KV", "id": "00000000000000000000000000000000" }
+    // Created with `wrangler kv namespace create OAUTH_KV`; another account creates its own.
+    { "binding": "OAUTH_KV", "id": "324f3d91a05d4afa9ad4b39da4774920" }
   ]
 }

@@ -53,12 +53,14 @@ async function main(){
   // The control server is listening before the record names it.
   const control=createServer();
   await new Promise(done=>control.listen(0,'127.0.0.1',done));
-  const running=await claimInstance(instanceFile,{pid:process.pid,port:control.address().port,token,version});
+  const record={pid:process.pid,port:control.address().port,token,version};
+  const running=await claimInstance(instanceFile,record);
   if(running){
-    control.close();
-    const shown=await showRunning(running);
-    log(`SAAM ${running.version} is already running. Studio: ${shown.url}`);
-    return;
+    // A record whose process answers is a running SAAM; one that doesn't (a reused pid) is stale.
+    const shown=await showRunning(running).catch(()=>null);
+    if(shown){control.close();log(`SAAM ${running.version} is already running. Studio: ${shown.url}`);return;}
+    await unlink(instanceFile).catch(()=>{});
+    if(await claimInstance(instanceFile,record))throw Error('Another SAAM is starting. Try again in a moment.');
   }
   log(`SAAM ${version} starting. Data: ${data}. Relay: ${relayUrl}`);
   const {runPairedSaam}=await import('../adapters/mcp/src/relay-device.mjs');

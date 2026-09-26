@@ -1,0 +1,5 @@
+# Installer scripts run on their own platform whatever checkout builds the package.
+packaging/macos/*.sh text eol=lf
+packaging/macos/README.txt text eol=lf
+packaging/windows/*.cmd text eol=crlf
+packaging/windows/*.ps1 text eol=crlf

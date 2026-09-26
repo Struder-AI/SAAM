@@ -7,15 +7,33 @@ const clock=ms=>{const s=Math.max(0,Math.ceil(ms/1000));return Math.floor(s/60)+
 // What the status line says for one relay status.
 export function describeRelay(status){
   if(!status)return {link:'offline',title:'Checking the relay…',detail:''};
+  if(status.problem)return {link:'offline',title:'The relay refused this computer.',detail:status.problem};
   if(!status.connected)return {link:'offline',title:'This computer is not connected to the relay.',detail:'Reconnecting. Check the network if this persists.'};
   if(status.session)return {link:'chat',title:'A chat is connected.',detail:'Client: '+(status.session.client??'unnamed')};
   return {link:'linked',title:'This computer is connected to the relay.',detail:'No chat is connected yet.'};
 }
 export function createRelayPanel({token}){
   const $=id=>document.getElementById(id);
-  const view={status:null,code:null,expiresAt:0,countdown:null,requesting:false,copied:null};
+  const view={status:null,code:null,expiresAt:0,countdown:null,requesting:false,copied:null,updating:false};
   const headers={'X-SAAM-Token':token};
+  function renderUpdate(){
+    const offer=view.status?.update,button=$('relay-update');
+    button.hidden=!offer;if(!offer||view.updating)return;
+    button.textContent='Update to '+offer.version;button.title='SAAM '+offer.version+' is available. Your prints are kept.';
+  }
+  // The update closes SAAM; the installer replaces it and starts it again.
+  async function update(){
+    const offer=view.status?.update;if(!offer||view.updating)return;
+    if(!confirm(`Update SAAM to ${offer.version}? SAAM closes, updates and opens again. Your prints and chat connection are kept.`))return;
+    view.updating=true;const button=$('relay-update');button.disabled=true;button.classList.remove('flash');button.textContent='Downloading update…';
+    try{
+      const response=await fetch('/api/relay/update',{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:'{}'});
+      const result=await response.json();if(!response.ok)throw Error(result.error);
+      button.textContent='Restarting SAAM…';
+    }catch(error){view.updating=false;button.disabled=false;button.classList.add('flash');alert(error.message);renderUpdate();}
+  }
   function renderStatus(){
+    renderUpdate();
     const {link,title,detail}=describeRelay(view.status),status=$('relay-status');
     $('relay-dot').dataset.link=link;$('relay-toggle').title=title;
     status.replaceChildren(title);
@@ -62,6 +80,7 @@ export function createRelayPanel({token}){
   function toggle(){if($('relay-panel').hidden)open();else close();}
   $('relay-toggle').hidden=false;
   $('relay-toggle').onclick=toggle;
+  $('relay-update').onclick=update;
   $('relay-close').onclick=close;
   $('relay-show-code').onclick=showCode;
   $('relay-copy').onclick=copyUrl;

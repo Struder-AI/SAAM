@@ -331,13 +331,20 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       if(req.method==='GET'&&playerModules.has(url.pathname.slice(1))){
         res.writeHead(200,{'Content-Type':'text/javascript'});res.end(await readFile(resolve(root,url.pathname.slice(1))));return;
       }
-      if(url.pathname==='/api/relay'||url.pathname==='/api/relay/link-code'){
-        // Link codes pair a chat with this computer: the same session token and
-        // origin checks as Studio's other routes guard both. Absent without a relay.
-        const reading=req.method==='GET'&&url.pathname==='/api/relay',issuing=req.method==='POST'&&url.pathname==='/api/relay/link-code';
-        if(!relay||!reading&&!issuing){send({error:'Not found'},404);return;}
-        if(req.headers['x-saam-token']!==token||(issuing?req.headers.origin!==origin:req.headers.origin&&req.headers.origin!==origin)){send({error:'Invalid local session'},403);return;}
+      if(url.pathname==='/api/relay'||url.pathname==='/api/relay/link-code'||url.pathname==='/api/relay/update'){
+        // Link codes pair a chat with this computer, and an update replaces SAAM:
+        // the same session token and origin checks as Studio's other routes guard
+        // them. Absent without a relay.
+        const reading=req.method==='GET'&&url.pathname==='/api/relay',issuing=req.method==='POST'&&url.pathname==='/api/relay/link-code',updating=req.method==='POST'&&url.pathname==='/api/relay/update';
+        if(!relay||!reading&&!issuing&&!updating){send({error:'Not found'},404);return;}
+        if(req.headers['x-saam-token']!==token||(reading?req.headers.origin&&req.headers.origin!==origin:req.headers.origin!==origin)){send({error:'Invalid local session'},403);return;}
         if(reading){send(relayView(relay.status()));return;}
+        if(updating){
+          // Update at an idle boundary: never under a running calculation.
+          if(['preparing','generating'].includes(generationStatus()?.status)){send({error:'Wait for the toolpath calculation to finish, then update.'},409);return;}
+          try{send(await relay.update());}catch(error){send({error:'SAAM could not update: '+error.message},502);}
+          return;
+        }
         try{const {code,expiresAt}=await relay.linkCode();send({code,expiresAt});}
         catch(error){send({error:'The relay could not issue a code: '+error.message},502);}
         return;

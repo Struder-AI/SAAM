@@ -125,7 +125,7 @@ vary by client and policy.
 
 | Screen or action | Permission granted |
 |---|---|
-| ZIP installer and possible OS open confirmation | Run SAAM as the local user and store application data/prints. Target signed per-user installation without administrator elevation; startup-at-login is a separate preference. |
+| ZIP installer and possible OS open confirmation | Run SAAM as the local user and store application data/prints. Per-user installation without administrator elevation; alpha builds are unsigned; startup-at-login is a separate preference. |
 | SAAM sign-in and confirmation of this computer | Pair the installation to the account and accept authenticated relay operations. |
 | ChatGPT developer-mode setup or Claude custom connector setup | Make SAAM tools available to the chat product, subject to workspace policy. |
 | Provider connection notice, then SAAM OAuth authorization | Read print/job information, create/revise prints and start/cancel preparation jobs. Explain that request text, parameters and compact results cross the relay and provider. Reuse an existing SAAM login where possible. |
@@ -335,10 +335,10 @@ missing compiler during ordinary first use.
 
 The installer sets up a per-user application, launch entry and separate persistent
 data directory, runs a lightweight first-use health check and opens Studio.
-Installation, update, rollback and uninstall must preserve prints by default.
-Use signed/notarized release artifacts as applicable to the supported platform,
-an authenticated release manifest, integrity checks and a recoverable install
-transaction. Install updates at an idle boundary; do not replace a running
+Installation, update, rollback and uninstall must preserve prints by default;
+prints live in a per-user data folder outside the application, so rollback is
+installing the older release. Alpha builds are unsigned and need no Apple
+Developer account: the macOS installer runs from Terminal ([packaging](../../packaging/README.md)). Install updates at an idle boundary; do not replace a running
 generation's code underneath it. Provide explicit protocol/version compatibility
 errors rather than leaving an old installation apparently connected but unusable.
 

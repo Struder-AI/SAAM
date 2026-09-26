@@ -6,6 +6,9 @@
 import {DurableObject} from 'cloudflare:workers';
 
 const LINK_CODE_MS=2*60_000,CALL_LIMIT_MS=15*60_000,FAILURES_PER_MINUTE=30,KEEPALIVE_MS=20_000,MESSAGE_LIMIT=1_000_000;
+// The device-relay message protocol. A device speaking another version is
+// told to update rather than left connected and unusable.
+const PROTOCOL='1';
 const ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 async function sha256(text){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(text)))].map(b=>b.toString(16).padStart(2,'0')).join('');}
@@ -86,12 +89,22 @@ export class RelayObject extends DurableObject{
     if(request.headers.get('Upgrade')?.toLowerCase()!=='websocket')return new Response('Expected a WebSocket upgrade.',{status:426});
     const deviceId=await this.deviceFor(/^Bearer (\S+)$/.exec(request.headers.get('Authorization')??'')?.[1]);
     if(!deviceId)return new Response('Unknown device credential.',{status:401});
+    if(request.headers.get('X-SAAM-Protocol')!==PROTOCOL){
+      const [client,server]=Object.values(new WebSocketPair());server.accept();
+      server.close(4426,'SAAM on this computer does not match the relay. Install the current SAAM release.');
+      return new Response(null,{status:101,webSocket:client});
+    }
     for(const socket of this.ctx.getWebSockets(deviceId))socket.close(4000,'Replaced by a newer connection.');
     const [client,server]=Object.values(new WebSocketPair()),connection=crypto.randomUUID();
     this.ctx.acceptWebSocket(server,[deviceId]);
     server.serializeAttachment({deviceId,connection,session:null});
+    // Deploying a new LATEST_RELEASE restarts this object and every device
+    // reconnects, so each learns of the release without any other push.
+    server.send(JSON.stringify({type:'release',release:this.latestRelease()}));
     return new Response(null,{status:101,webSocket:client});
   }
+  // {version, assets:{<platform>:{url, sha256}}} from configuration, or null.
+  latestRelease(){try{return JSON.parse(this.env.LATEST_RELEASE||'null');}catch{return null;}}
   socketFor(deviceId){
     return this.ctx.getWebSockets(deviceId).find(socket=>socket.readyState===WebSocket.OPEN)??null;
   }
