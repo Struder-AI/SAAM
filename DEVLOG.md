@@ -9021,3 +9021,28 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   under D-037; BR-058 now holds stages 2–6.
 - RELAY-PLAN: 419 → 393 lines, 4,233 → 3,920 words; three diagram labels
   updated to match. Documentation only; `check-repo` reports no new errors.
+
+## 2026-09-25 — Relay stage 2: Worker, pairing and device link (local)
+
+- Added [the relay](relay/README.md): a Cloudflare Worker using
+  `@cloudflare/workers-oauth-provider` 1.1.0 (DCR and client metadata documents,
+  PKCE) and one shared SQLite Durable Object holding devices, single-use
+  ten-minute link codes with a per-minute failure limit, and in-flight calls. No
+  print data is stored; session ids carry their device id, so sessions need no
+  storage. `/mcp` forwards one JSON-RPC message per request with JSON responses.
+- No SAAM accounts: the paired computer is the identity. The consent page asks for
+  the code the computer shows; unpairing deletes the device and revokes its grants.
+- [relay-device.mjs](adapters/mcp/src/relay-device.mjs) registers once, keeps its
+  credential in `.local/relay-device.json`, holds one outbound WebSocket (Node's
+  built-in client, 30 s heartbeat answered without waking the object, capped
+  backoff) and serves each chat session through `createMcpAdapter({runtime})`.
+  A new chat replaces the previous session; idle sessions end after ten minutes.
+  Results over 1 MB return an explicit error.
+- Plan change: offline tool discovery dropped; offline calls return a clear error.
+- Verification: `node --test relay/test/relay.test.mjs` passes against
+  `wrangler dev` 4.141.0 (local workerd), a real runtime and the SDK Streamable
+  HTTP client: 401 challenge with resource metadata, wrong then right code,
+  discovery matching the runtime, create/get, a stale repeat rejected, link loss
+  failing a pending wait in under 5 s, reconnection keeping the session, offline
+  error and unpair revoking the token. Exits cleanly with no workerd left.
+  Not deployed; no real chat product has connected.

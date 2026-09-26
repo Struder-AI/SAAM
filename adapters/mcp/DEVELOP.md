@@ -15,7 +15,8 @@ The adapter uses fixed known profiles and skills under [D-022](../../DECISIONS.m
 the print-work queue and the Studio/request state. It outlives its sessions: one
 is active at a time, an ended session fails its unfinished requests and rejects
 late calls, and Studio stays for the next. [The MCP server](src/server.mjs) is one
-session per connection; stdio owns and closes its runtime.
+session per connection; stdio owns and closes its runtime. [The relay device](src/relay-device.mjs)
+serves chat sessions from [the relay](../../relay/README.md) the same way.
 
 [The shared manual reader](../../core/agent/manuals.mjs), re-exported by
 [the adapter](src/manuals.mjs), accepts published repository Markdown paths

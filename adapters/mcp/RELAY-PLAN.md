@@ -159,7 +159,7 @@ and [Claude permission controls](https://support.claude.com/en/articles/13930452
 | Component | Owns |
 |---|---|
 | Chat host | Model inference, conversation lifetime, tool permissions and issuing subsequent calls. |
-| Worker | Public MCP endpoint, authentication, authorization, protocol handling and routing. Tool discovery works while an installation is offline. |
+| Worker | Public MCP endpoint, authentication, authorization and routing. While the computer is offline, calls return a clear offline error. |
 | Durable Object | Device routing, session leases and in-flight calls. |
 | Local runtime | Capability execution, print persistence, workers and Studio service; it outlives chat sessions. |
 | Studio | Geometry/process/toolpath presentation, user requests, file selection, human confirmation and local download. |

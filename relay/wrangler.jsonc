@@ -1,0 +1,21 @@
+{
+  // One Worker and one shared Durable Object relay chat MCP sessions to paired
+  // local SAAM runtimes. See README.md and adapters/mcp/RELAY-PLAN.md.
+  "name": "saam-relay",
+  "main": "src/worker.mjs",
+  "compatibility_date": "2026-09-01",
+  // Needed for OAuth Client ID Metadata Document fetches (SSRF protection).
+  "compatibility_flags": ["global_fetch_strictly_public"],
+  "vars": {
+    // The public origin chat clients reach; the MCP resource is PUBLIC_URL/mcp.
+    "PUBLIC_URL": "http://localhost:8787"
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "RELAY", "class_name": "RelayObject" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RelayObject"] }],
+  "kv_namespaces": [
+    // Replace with the namespace created by `wrangler kv namespace create OAUTH_KV` before deploying.
+    { "binding": "OAUTH_KV", "id": "00000000000000000000000000000000" }
+  ]
+}
