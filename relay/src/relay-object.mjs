@@ -4,7 +4,7 @@
 // owns their lifetime.
 import {DurableObject} from 'cloudflare:workers';
 
-const LINK_CODE_MS=10*60_000,CALL_LIMIT_MS=15*60_000,FAILURES_PER_MINUTE=30;
+const LINK_CODE_MS=2*60_000,CALL_LIMIT_MS=15*60_000,FAILURES_PER_MINUTE=30;
 const ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const encoder=new TextEncoder();
 
@@ -28,7 +28,11 @@ export class RelayObject extends DurableObject{
     // Heartbeats are answered without waking the object.
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping','pong'));
   }
+  // MAX_PAIRED_DEVICES caps the computers that can pair at all; unpairing frees a slot.
   async registerDevice(){
+    const limit=Number(this.env.MAX_PAIRED_DEVICES??0);// Unset closes pairing.
+    if(this.sql.exec('SELECT COUNT(*) AS count FROM devices').one().count>=limit)
+      return {error:`The SAAM relay is full: ${limit} computers are paired. Ask the operator for a slot.`};
     const id=crypto.randomUUID(),secret=token(32);
     this.sql.exec('INSERT INTO devices(id,secret_hash,created_at) VALUES(?,?,?)',id,await sha256(secret),Date.now());
     return {deviceId:id,secret};
@@ -55,7 +59,7 @@ export class RelayObject extends DurableObject{
     const row=this.sql.exec('SELECT device_id,expires_at FROM link_codes WHERE code_hash=?',hash).toArray()[0];
     if(!row||row.expires_at<Date.now()){
       this.sql.exec('INSERT INTO failures(minute,count) VALUES(?,1) ON CONFLICT(minute) DO UPDATE SET count=count+1',minute);
-      return {error:'That code is not valid. Create a new code in SAAM and enter it within ten minutes.'};
+      return {error:'That code is not valid. Create a new code in SAAM and enter it within two minutes.'};
     }
     this.sql.exec('DELETE FROM link_codes WHERE code_hash=?',hash);
     return {deviceId:row.device_id};

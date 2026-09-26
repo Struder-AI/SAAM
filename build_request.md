@@ -44,7 +44,7 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 - Session: Claude Code desktop, 2026-09-25; exact chat title and ID unavailable.
 - Source: current conversation, 2026-09-25.
 - Context: The D-024 temporary HTTP bridge was removed in `d686269`; only the stdio adapter remained. Stage 1 separated the operations into [the local runtime](adapters/mcp/src/runtime.mjs) from [MCP registration](adapters/mcp/src/server.mjs), and made the runtime outlive its sessions; per the user, ended sessions are not resumed.
-- Remaining: Stage 2: deployment to the user's Cloudflare account (KV namespace, public origin) and real ChatGPT/Claude connection; device-registration abuse limits. Stages 3–6 of the plan's roadmap. Stage 1 is done; the user cut idempotency records, job receipts and the cursor/acknowledgement event protocol as overbuilt (2026-09-25).
+- Remaining: Stage 2: deployment to the user's Cloudflare account (KV namespace, public origin) and real ChatGPT/Claude connection. Stages 3–6 of the plan's roadmap. Stage 1 is done; the user cut idempotency records, job receipts and the cursor/acknowledgement event protocol as overbuilt (2026-09-25).
 - Completion: Alpha acceptance A1–A5 in the plan.
 
 ### BR-057 — SAAMpath context labels on change, not on every action

@@ -9,16 +9,18 @@ owns the design; this file covers running it.
   `/mcp`, which forwards one JSON-RPC message per request. Responses are JSON;
   there is no server-initiated stream.
 - [relay-object.mjs](src/relay-object.mjs): paired devices, single-use link codes
-  (ten minutes, failures limited per minute) and the calls in flight to each
+  (two minutes, failures limited per minute) and the calls in flight to each
   device's WebSocket. It stores no print data. A dropped device link fails its
   in-flight calls at once; nothing is retried.
 - [relay-device.mjs](../adapters/mcp/src/relay-device.mjs): the computer's side.
   It registers once, keeps its credential in `.local/relay-device.json`, holds one
   outbound WebSocket and serves each chat session as an ordinary MCP adapter
   session of the local runtime. A new chat replaces the previous session; an idle
-  session ends after ten minutes.
+  session ends after 30 minutes.
 
-There are no SAAM accounts: pairing the computer is the identity. Connecting a
+There are no SAAM accounts: pairing the computer is the identity.
+`MAX_PAIRED_DEVICES` caps how many computers can pair (2 while testing, 150 for
+alpha); registration beyond it is refused and unpairing frees a slot. Connecting a
 chat asks for a code the computer shows; unpairing revokes every chat grant.
 
 ## Run locally

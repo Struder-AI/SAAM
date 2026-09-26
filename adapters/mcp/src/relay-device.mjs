@@ -10,7 +10,7 @@ import {createLocalRuntime} from './runtime.mjs';
 import {createMcpAdapter} from './server.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../../..');
-const RESULT_LIMIT=1_000_000,SESSION_IDLE_MS=10*60_000,HEARTBEAT_MS=30_000,BACKOFF_MS=[1000,30_000];
+const RESULT_LIMIT=1_000_000,SESSION_IDLE_MS=30*60_000,HEARTBEAT_MS=30_000,BACKOFF_MS=[1000,30_000];
 const rpcError=(id,code,message)=>({jsonrpc:'2.0',id:id??null,error:{code,message}});
 
 async function post(relayUrl,path,secret){

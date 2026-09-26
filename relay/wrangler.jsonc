@@ -8,7 +8,9 @@
   "compatibility_flags": ["global_fetch_strictly_public"],
   "vars": {
     // The public origin chat clients reach; the MCP resource is PUBLIC_URL/mcp.
-    "PUBLIC_URL": "http://localhost:8787"
+    "PUBLIC_URL": "http://localhost:8787",
+    // Computers that may pair at all: 2 while testing, 150 for alpha.
+    "MAX_PAIRED_DEVICES": "2"
   },
   "durable_objects": {
     "bindings": [{ "name": "RELAY", "class_name": "RelayObject" }]

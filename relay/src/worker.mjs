@@ -86,7 +86,7 @@ async function authorize(request,env){
 async function device(request,env,path){
   if(path==='/device/connect')return relay(env).fetch(request);
   if(request.method!=='POST')return new Response(null,{status:405});
-  if(path==='/device/register')return json(await relay(env).registerDevice(),201);
+  if(path==='/device/register'){const device=await relay(env).registerDevice();return device.error?json(device,403):json(device,201);}
   if(path==='/device/link-code'){const code=await relay(env).linkCode(bearer(request));return code?json(code):json({error:'Unknown device credential.'},401);}
   if(path==='/device/unpair'){
     const deviceId=await relay(env).unpair(bearer(request));if(!deviceId)return json({error:'Unknown device credential.'},401);

@@ -20,7 +20,7 @@ const until=async(check,label,ms=60_000)=>{const end=Date.now()+ms;for(;;){if(aw
 
 async function startRelay(t){
   const port=await freePort(),base=`http://127.0.0.1:${port}`,state=await mkdtemp(resolve(tmpdir(),'saam-relay-state-'));
-  const child=spawn(process.execPath,[resolve(relayRoot,'node_modules/wrangler/bin/wrangler.js'),'dev','--port',String(port),'--ip','127.0.0.1','--persist-to',state,'--var',`PUBLIC_URL:${base}`],
+  const child=spawn(process.execPath,[resolve(relayRoot,'node_modules/wrangler/bin/wrangler.js'),'dev','--port',String(port),'--ip','127.0.0.1','--persist-to',state,'--var',`PUBLIC_URL:${base}`,'--var','MAX_PAIRED_DEVICES:2'],
     {cwd:relayRoot,env:{...process.env,WRANGLER_SEND_METRICS:'false',CI:'1'},stdio:['ignore','pipe','pipe']});
   let log='';child.stdout.on('data',d=>log+=d);child.stderr.on('data',d=>log+=d);
   t.after(async()=>{
@@ -64,6 +64,11 @@ test('a chat reaches the paired computer through the relay; link loss fails fast
 
   const device=await loadDevice(base,statePath);
   assert.deepEqual(await loadDevice(base,statePath),device,'the pairing is reused');
+  // MAX_PAIRED_DEVICES is 2 here: a second computer pairs, a third is refused until one unpairs.
+  const second=await loadDevice(base,resolve(printsRoot,'.second.json'));
+  await assert.rejects(loadDevice(base,resolve(printsRoot,'.third.json')),/relay is full: 2 computers/);
+  await unpair(second);
+  const third=await loadDevice(base,resolve(printsRoot,'.third.json'));assert.notEqual(third.deviceId,second.deviceId);
   const runtime=createLocalRuntime({printsRoot,autoOpen:false});t.after(()=>runtime.close());
   const connection=connectRelay({device,runtime});t.after(()=>connection.close());
   await until(async()=>connection.connected(),'device connection');

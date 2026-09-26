@@ -9046,3 +9046,16 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   failing a pending wait in under 5 s, reconnection keeping the session, offline
   error and unpair revoking the token. Exits cleanly with no workerd left.
   Not deployed; no real chat product has connected.
+
+## 2026-09-25 — Relay limits: two-minute codes, paired-computer cap, 30-minute idle
+
+- User direction (D-037): pairing codes last two minutes; `MAX_PAIRED_DEVICES`
+  caps computers that can pair (2 while testing, 150 for alpha), refusing
+  registration beyond it with a clear message, fail-closed when unset; unpairing
+  frees a slot. The device ends a chat session after 30 minutes idle (a pending
+  call counts as activity). A live-users cap with idle eviction was considered
+  and declined.
+- Verification: the relay end-to-end test now also pairs a second computer,
+  sees a third refused, unpairs the second and pairs the third; it passes against
+  `wrangler dev`. The two-minute expiry and 30-minute lease are constants and
+  are not exercised by the test.
