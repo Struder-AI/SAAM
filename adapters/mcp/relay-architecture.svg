@@ -39,7 +39,7 @@
 
   <rect x="100" y="385" width="420" height="100" rx="14" class="node"/>
   <text x="310" y="423" class="title">Shared Durable Object</text>
-  <text x="310" y="453" class="detail">Sessions, records and pending waits</text>
+  <text x="310" y="453" class="detail">Sessions and pending calls</text>
 
   <path d="M 310 500 V 595" class="link"/>
   <text x="338" y="514" class="label">Outbound authenticated</text>
@@ -47,7 +47,7 @@
 
   <rect x="100" y="610" width="420" height="100" rx="14" class="local"/>
   <text x="310" y="649" class="title">Local SAAM runtime</text>
-  <text x="310" y="680" class="detail">Geometry, generation and job execution</text>
+  <text x="310" y="680" class="detail">Geometry, generation and Studio</text>
 
   <path d="M 230 725 V 765 H 165 V 807" class="link"/>
   <path d="M 390 725 V 765 H 455 V 807" class="link"/>
@@ -58,5 +58,5 @@
 
   <rect x="325" y="823" width="260" height="80" rx="12" class="local"/>
   <text x="455" y="855" class="title">Local print bundles</text>
-  <text x="455" y="882" class="detail">Files and job state</text>
+  <text x="455" y="882" class="detail">Files and review state</text>
 </svg>

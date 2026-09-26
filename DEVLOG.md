@@ -9010,3 +9010,14 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   unclaimed, fenced late call) and a work-state test that fails under the old
   per-owner Set. The sessions tests exit cleanly without `--test-force-exit`.
   Dev maps were not regenerated: a concurrent session is editing the generator.
+
+## 2026-09-25 — Relay scope trimmed; stage 1 closed
+
+- User judged the remaining stage 1 design overbuilt. The relay plan drops
+  idempotency keys and outcome records, generation job receipts and the
+  cursor/acknowledgement event protocol: revision checks reject repeated edits,
+  the relay fails an in-flight call on link loss, and generation moves to
+  Studio's worker only if a measured case exceeds a call deadline. Recorded
+  under D-037; BR-058 now holds stages 2–6.
+- RELAY-PLAN: 419 → 393 lines, 4,233 → 3,920 words; three diagram labels
+  updated to match. Documentation only; `check-repo` reports no new errors.

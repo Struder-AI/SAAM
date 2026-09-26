@@ -17,7 +17,7 @@ listening. Geometry, slicing, preview, print files and machine-program generatio
 run on the person's computer. The person reviews and confirms the current
 settings and exact toolpath in the existing browser-based Studio before delivery.
 
-The relay authenticates, routes and retains bounded coordination data. Model or manufacturing computations are run on the user's machine, not on the relay. Model usage belongs to the user's chat account; SAAM collects no model API key and makes no separately billed model API calls. The chat provider still runs the model and applies its own limits.
+The relay authenticates and routes calls, keeping only account, pairing and session records. Model or manufacturing computations are run on the user's machine, not on the relay. Model usage belongs to the user's chat account; SAAM collects no model API key and makes no separately billed model API calls. The chat provider still runs the model and applies its own limits.
 
 This milestone is built toward that interaction directly. There is no separate
 capability-research project or feasibility gate before implementation. Normal
@@ -160,20 +160,19 @@ and [Claude permission controls](https://support.claude.com/en/articles/13930452
 |---|---|
 | Chat host | Model inference, conversation lifetime, tool permissions and issuing subsequent calls. |
 | Worker | Public MCP endpoint, authentication, authorization, protocol handling and routing. Tool discovery works while an installation is offline. |
-| Durable Object | Device routing, session leases, bounded event/command records, compact status and pending waits. |
-| Local runtime | Capability execution, job lifecycle, print persistence, workers, Studio service and reconnect reconciliation. |
+| Durable Object | Device routing, session leases and in-flight calls. |
+| Local runtime | Capability execution, print persistence, workers and Studio service; it outlives chat sessions. |
 | Studio | Geometry/process/toolpath presentation, user requests, file selection, human confirmation and local download. |
 
 Local bundles own revisions, geometry, generation, approval and delivered bytes.
-Cloud status includes source revision, sequence and observation time. Mutations
-run through explicit local operations that check revisions; delayed status must
-not roll a bundle back. Relay receipts establish coordination, not local success.
+The relay stores no print state; mutations run through local operations that
+check revisions.
 
 Resolve the authenticated account to its one active installation. Replacement
 revokes the old device grant and ends its relay session; it does not migrate
 files. Bind an opaque SAAM session handle to the account and installation, with
-one active assistant session per installation. The handle routes calls and
-retries; it is not authorization and needs no provider conversation ID.
+one active assistant session per installation. The handle routes calls; it is
+not authorization and needs no provider conversation ID.
 
 Apply these boundaries:
 
@@ -270,22 +269,20 @@ and [DO requests, duration, SQLite and billing rounding](https://developers.clou
 
 ## Session protocol and recovery
 
-Adapt `wait_for_studio_request` into a cursor-based wait carrying Studio requests
-and relevant job events. A pending tool invocation lets its result reach the
+The existing `wait_for_studio_request` returns stored Studio requests and
+delivered Studio events. A pending tool invocation lets its result reach the
 model; an open socket alone does not establish that the assistant is listening.
 
 ### Normal sequence and timing
 
-1. Start the SAAM session and wait from the last acknowledged event cursor.
-   Return retained events immediately; otherwise keep the call pending.
-2. Journal Studio actions locally and durably accept them at the relay before
-   acknowledging delivery. Complete the wait with a structured event result.
-3. The assistant claims actionable requests with `begin_studio_work`, executes
+1. Start the SAAM session and call the listener. Queued requests return at once;
+   otherwise the call stays pending until a request or event arrives.
+2. The assistant claims actionable requests with `begin_studio_work`, executes
    revision-bound operations, publishes results and resolves the request.
    Observations such as progress do not authorize edits.
-4. Explain results visibly and call the listener again. A quiet expiry returns
-   `idle` and a renewal instruction; renew without a user message. Events arriving
-   between calls stay queued. Renewal neither cancels work nor ends the session.
+3. Explain results visibly and call the listener again. A quiet expiry returns
+   empty; renew without a user message. Requests arriving between calls stay
+   queued. Renewal neither cancels work nor ends the session.
 
 | Client | Per-call target | Quiet 7:30 interval |
 |---|---|---|
@@ -293,63 +290,40 @@ model; an open socket alone does not establish that the assistant is listening.
 | Claude | 225 seconds | Two calls with one automatic renewal, leaving 15 seconds below its documented 240-second deadline per call. |
 
 The interval excludes brief host renewal processing and is not a session or
-computation cap. Continue renewing while active. Expensive local work returns a
-job receipt and completes independently; its result can arrive in a later wait.
+computation cap. Continue renewing while active. Local work continues if its
+call is dropped, and its result is in the bundle. Route generation through
+Studio's generation worker only if a measured case exceeds a call deadline.
 Any shorter-call fallback must be disclosed rather than counted as meeting the
 requested per-call target.
 
-### Delivery and visible state
-
-Events carry ID/sequence, session, installation, Studio instance, print/revision
-where applicable, kind, request/job ID and source timestamp. Return bounded
-batches with cursors. Use at-least-once delivery, deduplication and explicit
-acknowledgment; reading cannot destructively consume a result before retry.
-Identify handled events so the assistant can avoid repeating completion messages.
-
-Retain actionable requests until resolved or visibly expired; coalesce transient
-progress. If a cursor predates retained history, return a resynchronization
-result and current snapshot. Old observations must not become new instructions.
-
-Show disconnected, connecting, listening, working, reconnecting and ended states,
-or clear equivalents. A pending wait establishes listening; an active claim
-establishes work. A bounded lease covers normal gaps between calls. On expiry,
-show that the assistant needs attention and retain requests. Device connectivity
-and assistant availability remain separate.
+Studio shows whether the assistant is listening, working or gone. A pending wait
+establishes listening, an active claim establishes work, and a bounded lease
+covers normal gaps between calls. Device connectivity and assistant
+availability remain separate.
 
 ### Interruptions
 
+No key or outcome records: revision checks already reject a repeated edit, and
+repeating generation or delivery is harmless.
+
 | Interruption | Required behavior |
 |---|---|
-| User stops the assistant, or host ends the turn/limits usage | Stop dispatch when cancellation is observable; otherwise expire the lease. The session ends: its unfinished requests fail visibly and Studio stays open. No automatic assistant restart or session resumption. Accepted local jobs continue unless explicitly cancelled. |
-| HTTP/network loss or relay restart/deploy | Preserve acknowledged requests/outcomes. Retry within the active lease safely, without repeating edits. If the host does not retry, expire the lease and show that chat needs attention. |
-| Local sleep or network loss | Mark offline, stop dispatch and retain committed requests/job identity. Reconcile on return; do not claim progress during sleep. |
-| Local process crash | Recover committed artifacts and receipts; report unfinished computation interrupted unless recovery is supported. |
-| Duplicate command/event | Reuse the recorded outcome; reject an idempotency key reused with different arguments. |
-| Concurrent edit or stale revision | Reject or supersede explicitly; never apply results to a different revision. |
-| New chat on an unfinished print | After the old session ends/expires, start a fresh session from the saved bundle and outstanding jobs. Nothing of the old session is resumed. |
+| User stops the assistant, or host ends the turn/limits usage | Expire the lease. The session ends: its unfinished requests fail visibly and Studio stays open. No automatic restart or session resumption. Local work continues. |
+| Link loss between relay and computer, or relay restart/deploy | Fail the in-flight call at once with an explicit error; the assistant rereads the print before retrying. |
+| Local sleep or network loss | Show the computer offline and fail calls until it returns. |
+| Local process crash | Reopen saved bundles; report unfinished computation interrupted. |
+| Concurrent edit or stale revision | Reject explicitly; never apply results to a different revision. |
+| New chat on an unfinished print | After the old session ends/expires, start a fresh session from the saved bundle. Nothing of the old session is resumed. |
 | Explicit end, unpair or revocation | Reject new commands under that grant. Listener loss alone does not approve, deliver or cancel a job. |
 
-Normal idle renewal is not an interruption. Lost HTTP responses still require
-deduplication because local execution may already have succeeded. A host-ended
-conversation may require the person to resume chat; automatic wake-up of ended
-chats is outside the goalpost.
+Automatic wake-up of ended chats is outside the goalpost.
 
 ## Local execution and packaging
 
-Give the local runtime an explicit lifecycle independent of individual MCP HTTP
-connections and Studio browser tabs. Reuse existing generation workers, progress,
-cancellation and shared print lifecycle. Keep status/cancel/event handling
-responsive while computation runs; do not hold the adapter's ordinary operation
-queue across a listener wait. Serialize conflicting print mutations, not every
-user or every installation behind a single global job queue.
-
-Each submitted operation records its idempotency key, input identity, print
-revision, state and terminal outcome. Distinguish accepted by relay, accepted
-locally, running, succeeded, failed, cancelled and interrupted. A relay receipt
-does not establish successful local execution. Cancellation acknowledges an
-actual cancellation outcome; a commit already in progress must be handled by
-the shared generation owner. Reuse BR-050's ownership/recovery work where it
-overlaps instead of creating a second cancellation or claim mechanism.
+The local runtime outlives chat sessions and Studio browser tabs. Reuse existing
+generation workers, progress, cancellation and the shared print lifecycle. Keep
+status/cancel/event handling responsive while computation runs; do not hold the
+print-work queue across a listener wait.
 
 Package the pinned runtime, production dependencies, kernels/assets, shared
 guidance, supported skills and machine definitions with the application. Exclude
@@ -374,9 +348,9 @@ change the linked sources. Acceptance identifiers refer to the checklist below.
 
 | Stage | Deliverable and existing owners | Acceptance |
 |---|---|---|
-| 1. Local execution boundary | Separate reusable [MCP operations](src/runtime.mjs) from [stdio registration](src/server.mjs); establish runtime ownership and recoverable jobs using [generation workers](../../studio/prepared-generation-job.mjs) and [BR-050](../../build_request.md#br-050--finish-studio-coordination-and-read-path-handoff) claim/cancellation work. BR-050's local database deferral does not prohibit relay storage. | A2, A3, A4 |
-| 2. Authenticated relay | Worker/MCP endpoint, OAuth, one-device pairing, shared DO, outbound connection, retained records and bounded retries. | A1, A3, A5 |
-| 3. Active session | Adapt [agent requests](../../studio/agent-requests.mjs), [events](../../studio/studio-events.mjs) and [Studio](../../studio/server.mjs) for cursor waits, renewal, visibility and recovery. | A2, A3 |
+| 1. Local execution boundary (done) | [Operations](src/runtime.mjs) separated from [MCP registration](src/server.mjs); the runtime outlives its sessions. | A2, A3 |
+| 2. Authenticated relay | Worker/MCP endpoint, OAuth, one-device pairing, shared DO, outbound connection and fail-fast call routing. | A1, A3, A5 |
+| 3. Active session | Adapt [agent requests](../../studio/agent-requests.mjs) and [Studio](../../studio/server.mjs) for listener timing, renewal and visible assistant state. | A2, A3 |
 | 4. Maker workflow | Agent-led creation or STL preparation, editing, generation/progress/cancel, local review and exact-byte delivery. | A2, A4 |
 | 5. Installable releases | Windows/macOS installers, bundled runtime, pairing, diagnostics and safe updates. Update [setup](../../SETUP.md) and [MCP guidance](DEVELOP.md). Can proceed alongside stages 2-4 after stage 1's runtime layout stabilizes. | A1 |
 | 6. Alpha release | Complete load/recovery coverage, cost projection and support instructions. Public-directory approval is not required. | All |
@@ -392,8 +366,8 @@ change the linked sources. Acceptance identifiers refer to the checklist below.
   listening. Cover the specified 7:30 timing, idle renewal, and computation longer
   than one wait while status/cancel remains responsive. Proposed scenario: at
   least 30 minutes, not a session cap. Report any client constraint.
-- **A3 — Isolation/recovery:** Exercise the interruption table. Retries cannot
-  duplicate edits, stale sessions/revisions cannot affect the wrong print, and
+- **A3 — Isolation/recovery:** Exercise the interruption table. Repeated calls
+  cannot apply stale edits, stale sessions/revisions cannot affect the wrong print, and
   device replacement revokes the old grant. Studio reports availability honestly.
 - **A4 — Output:** Agent creation and STL preparation both reach local review and
   delivery, with human confirmation bound to the current output and matching
