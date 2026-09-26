@@ -710,7 +710,7 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
     const linked={'ast-call-site':0,'receiver-value':0,'value-follow':0,'holder-reach':0},links={'receiver-value':0,'value-follow':0,'holder-reach':0};
     // Member calls on a receiver no value names, settled after every other call is: by where the
     // holders carrying that member can be held (holders.mjs).
-    const pending=[];
+    const pending=[],followed=[];
     // Full spans distinguish nested calls that share a starting expression.
     const external={},externalSites=[],unresolved=[],rules={},unlinked={},notes={};
     // Every call span that reached a target, in any scanned root. A later pass reads it to know
@@ -766,29 +766,31 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
             args:c.node.arguments.map(passed),params:(fn??declFn.get(decl.id))?.params.map(passed)??[]});
         continue;
       }
-      if(!inside)continue;
+      // Outside code is not accounted, but a value it is handed still flows: its calls with no
+      // target take part in settling (below) without being reported.
+      if(!inside){if(!externalCall(c.node,c.module,new Set()))followed.push(c.node);continue;}
       // No mapped target. Known callables this code can supply are still listed, so a finding
       // row says what the candidates are rather than only that the site is unresolved.
       const candidates=outside.size?[...outside].sort():null;
       const rule=externalCall(c.node,c.module,new Set());
       if(rule) {count(external,rule);count(rules,rule);unlinked[`${site.file}:${site.start}:${site.end}`]=rule;externalSites.push({from,site,rule});continue;}
-      if(key!==null){pending.push({c,from,site,candidates});continue;}
       const subscribers=key!==null?null:registeredSubscriber(callee,c.scope);
       const reason=key!==null?'member-receiver-unresolved':callee.type==='MemberExpression'?'computed-member'
         :subscribers?'registered-subscriber':unresolvedReason(callee,c.scope);
-      unresolved.push({from,site,name:key,reason,...(subscribers?{registration:subscribers}:{}),...(candidates?{candidates}:{})});
-      count(rules,reason);unlinked[`${site.file}:${site.start}:${site.end}`]=reason;
-      if(subscribers||candidates)notes[`${site.file}:${site.start}:${site.end}`]={...(subscribers?{registration:subscribers}:{}),...(candidates?{candidates}:{})};
+      pending.push({c,from,site,key,reason,subscribers,candidates});
     }
-    settleMemberCalls(pending,{linked,links,external,externalSites,unresolved,rules,unlinked,notes,accounted,count,holderFns,externalCall});
+    settleCalls(pending,followed,{linked,links,external,externalSites,unresolved,rules,unlinked,notes,accounted,count,holderFns,externalCall});
     return {states:{linked:Object.values(linked).reduce((a,b)=>a+b,0),external:Object.values(external).reduce((a,b)=>a+b,0),unresolved:unresolved.length},
       linked,links,external,externalSites,rules,unresolved,unlinked,notes,accounted};
   }
-  // A member call whose receiver no value names reaches mapped code only through a holder that
-  // carries the member. Every holder of it is followed to where it can be held: a receiver one
-  // reaches is a possible call of that holder's member; one none reaches is the platform's; and
-  // while any holder of the member has escaped what the scan follows, the call stays unresolved.
-  function settleMemberCalls(pending,{linked,links,external,externalSites,unresolved,rules,unlinked,notes,accounted,count,holderFns,externalCall}) {
+  // A call no value names is settled by what can arrive at it (holders.mjs). A member call
+  // reaches mapped code through a holder carrying the member, or a function stored under that
+  // key; any other callee is whatever function value arrives at it. Each call found this way is a
+  // target the next round follows values into, until nothing more arrives. Then a call something
+  // arrives at is a possible call of each; one nothing arrives at is the platform's. While a
+  // holder of the member, or any function value, has escaped what the scan follows, a call it
+  // might reach stays unresolved with the rule that stopped it.
+  function settleCalls(pending,followed,{linked,links,external,externalSites,unresolved,rules,unlinked,notes,accounted,count,holderFns,externalCall}) {
     if(!pending.length)return;
     // Holders by member: an object literal or a class, anywhere scanned, whose member of that
     // name is mapped code. A member only ever assigned (`x.k=fn`) is on no holder this can follow.
@@ -814,13 +816,15 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       if(node)(proved.get(at)??proved.set(at,[]).get(at)).push(node);
     }
     // A member call with no proved target, in any scanned code, may be any holder's member of its
-    // name, as well as the platform's.
+    // name, as well as the platform's. `found` holds what earlier rounds found arriving.
+    const found=new Map();
     const unproved=(n,m)=>!proved.has(`${m?.file}:${n.start}:${n.end}`)&&n.callee?.type==='MemberExpression'&&property(n.callee)!==null;
     const targetsOf=(n,m)=>{
       const at=`${m?.file}:${n.start}:${n.end}`;
       if(proved.has(at))return proved.get(at);
-      if(unproved(n,m))return (holders.get(property(n.callee))??[]).flatMap(h=>h.fns);
-      return [];
+      const arrived=found.get(n)??[];
+      if(unproved(n,m))return [...(holders.get(property(n.callee))??[]).flatMap(h=>h.fns),...arrived];
+      return arrived;
     };
     const exportedBindings=new Map();
     for(const m of modules.values())for(const [name,e] of m.exports)if(e.binding)
@@ -830,27 +834,49 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       const target=exportTarget(modules.get(importPath(m,b.source)),b.imported,new Set());
       if(target?.binding)(importers.get(target.binding)??importers.set(target.binding,[]).get(target.binding)).push(b);
     }
-    const reach=holderReach({modules,parents,nodeScope,lookup,property,functions,children,targetsOf,
-      platformCall:(n,m)=>unproved(n,m)||!!externalCall(n,m,new Set()),
-      exportedBindings,importsOf:b=>importers.get(b)??[]});
-    for(const {c,from,site,candidates} of pending) {
-      const key=property(c.node.callee),receiver=c.node.callee.object,span=`${site.file}:${site.start}:${site.end}`;
-      const carriers=holders.get(key)??[],reached=carriers.map(h=>({...h,...reach(h.holder)}));
-      if(!assigned.has(key)&&!reached.some(h=>h.escaped)) {
-        const fns=[...new Set(reached.filter(h=>h.held.has(receiver)).flatMap(h=>h.fns))];
-        if(fns.length) {
-          accounted.add(span);linked['holder-reach']++;links['holder-reach']+=fns.length;count(rules,'holder-reach');
-          for(const fn of fns)edge('call',from,nodeDecl.get(fn).id,[site],{resolution:[],resolvedBy:'holder-reach',receiver:key,possible:true,
-            args:c.node.arguments.map(passed),params:fn.params.map(passed)});
-          continue;
-        }
-        const rule='no-holder-reaches-receiver';
-        count(external,rule);count(rules,rule);unlinked[span]=rule;externalSites.push({from,site,rule});continue;
+    // A call whose callee is not a plain value (a computed member, an unsupported expression)
+    // keeps its rule: nothing here says what it names.
+    const settles=({key,reason})=>key!==null||['parameter-target','registered-subscriber','unresolved-local-value','mutated-binding','external-or-unbound','unresolved-import'].includes(reason);
+    const settle=[...pending.filter(settles).map(({c})=>c.node),...followed];
+    // Until the rounds end, a settling call nothing has arrived at is taken to be the platform's.
+    // That holds at the end when no value has escaped: every function is then followed to every
+    // call it reaches, so nothing arriving means no mapped function is called there.
+    const settling=new Set(settle);
+    const context={modules,parents,nodeScope,lookup,property,functions,children,targetsOf,
+      platformCall:(n,m)=>unproved(n,m)||!!externalCall(n,m,new Set())||settling.has(n)&&!found.get(n)?.length,
+      exportedBindings,importsOf:b=>importers.get(b)??[]};
+    let reach,arrivals;
+    for(let round=0;;round++) {
+      reach=holderReach(context);arrivals=reach.arriving();
+      let grew=false;
+      for(const node of settle) {
+        const next=[...(arrivals.at.get(node)??[])],held=found.get(node)??[];
+        if(next.some(fn=>!held.includes(fn))){found.set(node,[...new Set([...held,...next])]);grew=true;}
       }
-      const reason='member-receiver-unresolved';
-      unresolved.push({from,site,name:key,reason,...(candidates?{candidates}:{})});
-      count(rules,reason);unlinked[span]=reason;
-      if(candidates)notes[span]={candidates};
+      if(!grew)break;
+    }
+    const valuesEscaped=arrivals.escaped.length>0;globalThis.ARR=arrivals;globalThis.REACH=reach;
+    for(const {c,from,site,key,reason,subscribers,candidates} of pending) {
+      const span=`${site.file}:${site.start}:${site.end}`;
+      const keep=()=>{
+        unresolved.push({from,site,name:key,reason,...(subscribers?{registration:subscribers}:{}),...(candidates?{candidates}:{})});
+        count(rules,reason);unlinked[span]=reason;
+        if(subscribers||candidates)notes[span]={...(subscribers?{registration:subscribers}:{}),...(candidates?{candidates}:{})};
+      };
+      if(!settles({key,reason})){keep();continue;}
+      const carriers=key===null?[]:(holders.get(key)??[]).map(h=>({...h,...reach(h.holder)}));
+      if(valuesEscaped||carriers.some(h=>h.escaped)||key!==null&&assigned.has(key)){keep();continue;}
+      const receiver=key===null?null:c.node.callee.object;
+      const fns=[...new Set([...carriers.filter(h=>h.held.has(receiver)).flatMap(h=>h.fns),...found.get(c.node)??[]])];
+      const by=key===null?'callable-arrival':'holder-reach';
+      if(fns.length) {
+        accounted.add(span);linked[by]=(linked[by]??0)+1;links[by]=(links[by]??0)+fns.length;count(rules,by);
+        for(const fn of fns)edge('call',from,nodeDecl.get(fn).id,[site],{resolution:[],resolvedBy:by,...(key!==null?{receiver:key}:{}),possible:true,
+          args:c.node.arguments.map(passed),params:fn.params.map(passed)});
+        continue;
+      }
+      const rule=key===null?'no-function-reaches-callee':'no-holder-reaches-receiver';
+      count(external,rule);count(rules,rule);unlinked[span]=rule;externalSites.push({from,site,rule});
     }
   }
   // A local collection of callables, filled by a registration function in the same closure and

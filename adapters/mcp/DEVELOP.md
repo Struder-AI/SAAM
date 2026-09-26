@@ -11,6 +11,10 @@ not an account of the current adapter's capabilities.
 ## Local MCP access
 
 The adapter uses fixed known profiles and skills under [D-022](../../DECISIONS.md#d-022--defer-automatic-capability-discovery). It delegates manufacturing state to the shared print lifecycle.
+[The local runtime](src/runtime.mjs) owns every operation, its strict schema,
+the print-work queue and the Studio/request state; `invoke` returns a result or
+throws. [The MCP server](src/server.mjs) only registers those operations as
+tools, forwards request/event notifications and serves stdio.
 
 [The shared manual reader](../../core/agent/manuals.mjs), re-exported by
 [the adapter](src/manuals.mjs), accepts published repository Markdown paths

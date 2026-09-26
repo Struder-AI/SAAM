@@ -8969,3 +8969,22 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   manifest bytes/unrelated files, idempotence and rejection of conflicting output.
   No full-job files were staged on USB. Full path and helper still await controller
   syntax checks and Teach Check; the software model has no controller joint limits.
+
+## 2026-09-25 — Relay stage 1: operations separated from MCP registration
+
+- Started BR-058 on the user's request to begin the relay plan; developer role.
+- Moved every agent operation, its strict schema, the print-work queue and the
+  Studio/request state into [the local runtime](adapters/mcp/src/runtime.mjs)
+  (`createLocalRuntime`: `operations`, `invoke`, request/event subscriptions,
+  `close`). [The MCP server](adapters/mcp/src/server.mjs) now only registers the
+  operations as tools, forwards notifications and serves stdio. Tool names,
+  schemas, annotations, instructions, results and close behavior are unchanged;
+  the local extension's `registerMcp({tool,…})` hook keeps its interface.
+  `summary` is now imported from the runtime; the unused `openBrowser`
+  re-export was dropped.
+- Verification, in the shared checkout (concurrent edits there touch only
+  `dev-map/lib`): the six MCP-related suites passed 32/32 before the change and
+  33/33 after, including a new test that drives the runtime without a transport,
+  matches its operation list to MCP discovery and checks strict-schema rejection.
+- Not yet done: connection-independent runtime lifetime, recorded idempotent
+  operations and generation job receipts (see BR-058).

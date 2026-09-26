@@ -374,7 +374,7 @@ change the linked sources. Acceptance identifiers refer to the checklist below.
 
 | Stage | Deliverable and existing owners | Acceptance |
 |---|---|---|
-| 1. Local execution boundary | Separate reusable [MCP operations](src/server.mjs) from stdio registration; establish runtime ownership and recoverable jobs using [generation workers](../../studio/prepared-generation-job.mjs) and [BR-050](../../build_request.md#br-050--finish-studio-coordination-and-read-path-handoff) claim/cancellation work. BR-050's local database deferral does not prohibit relay storage. | A2, A3, A4 |
+| 1. Local execution boundary | Separate reusable [MCP operations](src/runtime.mjs) from [stdio registration](src/server.mjs); establish runtime ownership and recoverable jobs using [generation workers](../../studio/prepared-generation-job.mjs) and [BR-050](../../build_request.md#br-050--finish-studio-coordination-and-read-path-handoff) claim/cancellation work. BR-050's local database deferral does not prohibit relay storage. | A2, A3, A4 |
 | 2. Authenticated relay | Worker/MCP endpoint, OAuth, one-device pairing, shared DO, outbound connection, retained records and bounded retries. | A1, A3, A5 |
 | 3. Active session | Adapt [agent requests](../../studio/agent-requests.mjs), [events](../../studio/studio-events.mjs) and [Studio](../../studio/server.mjs) for cursor waits, renewal, visibility and recovery. | A2, A3 |
 | 4. Maker workflow | Agent-led creation or STL preparation, editing, generation/progress/cancel, local review and exact-byte delivery. | A2, A4 |

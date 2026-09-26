@@ -383,6 +383,24 @@ test('MCP preserves the shared regional recipe and configurable composition with
 });
 
 
+test('the local runtime runs operations without an MCP transport, under the same strict schemas',async t=>{
+  const {createLocalRuntime}=await import('../../adapters/mcp/src/runtime.mjs');
+  const {createMcpAdapter}=await import('../../adapters/mcp/src/server.mjs');
+  const printsRoot=await mkdtemp(resolve(tmpdir(),'saam-runtime-'));t.after(()=>rm(printsRoot,{recursive:true,force:true}));
+  const runtime=createLocalRuntime({printsRoot,autoOpen:false});t.after(()=>runtime.close());
+  const {InMemoryTransport}=await import('@modelcontextprotocol/sdk/inMemory.js');
+  const adapter=createMcpAdapter({printsRoot,autoOpen:false});t.after(()=>adapter.close());
+  const [ct,st]=InMemoryTransport.createLinkedPair(),client=new Client({name:'runtime-parity',version:'1'});
+  await adapter.server.connect(st);await client.connect(ct);t.after(()=>client.close());
+  assert.deepEqual(runtime.operations.map(o=>o.name).sort(),(await client.listTools()).tools.map(o=>o.name).sort());
+  assert.ok((await runtime.invoke('list_machines')).some(machine=>machine.id==='ultimaker-s5'));
+  const plan=await smallPlan((name,args)=>runtime.invoke(name,args));
+  await assert.rejects(runtime.invoke('create_print',{printId:'part',kind:'shell',machineId:'ultimaker-s5',plan,approved:true}),/unrecognized/i);
+  const created=await runtime.invoke('create_print',{printId:'part',kind:'shell',machineId:'ultimaker-s5',plan});
+  assert.equal(created.toolpathApproved,false);
+  await assert.rejects(runtime.invoke('grant_approval',{}),/Unknown SAAM operation/);
+});
+
 test('MCP transport close persists scoped failure and pushes it to Studio before shutdown',async t=>{
   const {InMemoryTransport}=await import('@modelcontextprotocol/sdk/inMemory.js');
   const {createMcpAdapter}=await import('../../adapters/mcp/src/server.mjs');
