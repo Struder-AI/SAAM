@@ -9232,3 +9232,14 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   remote results and not on local ones; the panel in six fake relay states in
   the browser. Not run: a deploy, a real chat client, the whole suite; no new
   tests, per the user.
+
+## 2026-09-27 — Relay deployed; 0.1.2 built
+
+- Relay deployed (version `e39e140a`) with records (`RECORD_DAYS` 30) and
+  `/device/chats`; with this computer's credential it answered
+  `[{"client":"Claude"}]`. `RECORDS_TOKEN` is not set, so records are kept but
+  the `/records` routes answer 404.
+- Built `dist/SAAM-0.1.2-win-x64.zip` (44.4 MB, update host github.com,
+  sha256 `90479fd1…cbbd7`); it holds `SAAM.vbs`, Quit SAAM, the Connect panel
+  and `maker_onboarding`. Not published as a release; `LATEST_RELEASE` stays
+  empty.
