@@ -1,20 +1,33 @@
-// "Connect chat": how to reach this computer from a web chat through the SAAM
-// relay. Shows the connector URL, a fresh link code with its expiry, and whether
-// this computer holds its relay link and a chat session. Studio includes it
-// only when it runs with a relay (see createStudio's relay option).
+// "Connect": how to reach this computer from a web chat through the SAAM relay.
+// Two lights show whether this computer holds its relay link and whether a chat
+// is connected. The connector URL and a link code are needed only to add a
+// chat app, so once one is authorized they wait behind "Connect another chat
+// app". Studio includes it only when it runs with a relay (see createStudio's
+// relay option).
 const STATUS_POLL_MS=5000;
 const clock=ms=>{const s=Math.max(0,Math.ceil(ms/1000));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');};
-// What the status line says for one relay status.
+// Each light's state (on, off or problem) and sentence for one relay status.
 export function describeRelay(status){
-  if(!status)return {link:'offline',title:'Checking the relay…',detail:''};
-  if(status.problem)return {link:'offline',title:'The relay refused this computer.',detail:status.problem};
-  if(!status.connected)return {link:'offline',title:'This computer is not connected to the relay.',detail:'Reconnecting. Check the network if this persists.'};
-  if(status.session)return {link:'chat',title:'A chat is connected.',detail:'Client: '+(status.session.client??'unnamed')};
-  return {link:'linked',title:'This computer is connected to the relay.',detail:'No chat is connected yet.'};
+  const chats=status?.chats??[];
+  const link=!status?{state:'off',text:'Checking the relay…'}
+    :status.problem?{state:'problem',text:'The relay refused this computer: '+status.problem}
+    :status.connected?{state:'on',text:'Paired with the SAAM relay.'}
+    :{state:'problem',text:'Not reaching the SAAM relay. Reconnecting; check the network if this persists.'};
+  const chat=status?.session?{state:'on',text:'Chat connected: '+(status.session.client??'unnamed')+'.'}
+    :{state:'off',text:chats.length?'No chat connected right now. It connects when you use SAAM from your chat.':'No chat connected.'};
+  return {link,chat};
+}
+// Connection action is needed when the relay refuses this computer, or when it
+// is paired and no chat app is authorized yet. Unknown until the relay says.
+export function relayActionNeeded(status){
+  if(status?.problem)return true;
+  return Boolean(status?.connected)&&Array.isArray(status.chats)?status.chats.length===0:null;
 }
 export function createRelayPanel({token}){
   const $=id=>document.getElementById(id);
-  const view={status:null,code:null,expiresAt:0,countdown:null,requesting:false,copied:null,updating:false};
+  // wantOpen: open as soon as the status shows action is needed; another: the
+  // person asked to connect another chat app.
+  const view={status:null,code:null,expiresAt:0,countdown:null,requesting:false,copied:null,updating:false,wantOpen:false,another:false};
   const headers={'X-SAAM-Token':token};
   function renderUpdate(){
     const offer=view.status?.update,button=$('relay-update');
@@ -44,10 +57,19 @@ export function createRelayPanel({token}){
   function renderStatus(){
     renderUpdate();
     $('relay-quit').hidden=!view.status?.canQuit;
-    const {link,title,detail}=describeRelay(view.status),status=$('relay-status');
-    $('relay-dot').dataset.link=link;$('relay-toggle').title=title;
-    status.replaceChildren(title);
-    if(detail){const line=document.createElement('span');line.textContent=detail;status.append(line);}
+    const {link,chat}=describeRelay(view.status),chats=view.status?.chats??[];
+    for(const [name,light] of [['link',link],['chat',chat]]){
+      $('relay-light-'+name).dataset.state=light.state;$('relay-row-'+name).dataset.state=light.state;$('relay-text-'+name).textContent=light.text;
+    }
+    $('relay-toggle').title=link.text+' '+chat.text;
+    $('relay-chats').hidden=!chats.length;
+    $('relay-chats').textContent='Authorized chat apps: '+[...new Set(chats.map(item=>item.client))].join(', ')+'.';
+    // The setup stays open while a code is on screen, even as its chat connects;
+    // a computer the relay refuses has nothing to set up until it is fixed.
+    const refused=Boolean(view.status?.problem),setup=!refused&&(!chats.length||view.another||Boolean(view.code));
+    $('relay-setup').hidden=!setup;$('relay-another').hidden=setup||refused;
+    $('relay-another').setAttribute('aria-expanded',String(setup));
+    if(view.wantOpen){const needed=relayActionNeeded(view.status);if(needed!==null){view.wantOpen=false;if(needed)open();}}
     if(view.status?.connectorUrl&&$('relay-url').value!==view.status.connectorUrl)$('relay-url').value=view.status.connectorUrl;
   }
   function renderCode(){
@@ -65,7 +87,7 @@ export function createRelayPanel({token}){
       const next=await response.json(),chatStarted=next.session&&!view.status?.session;
       view.status=next;
       // A chat that connects has used the code on screen.
-      if(chatStarted&&view.code){view.code=null;renderCode();}
+      if(chatStarted&&view.code){view.code=null;view.another=false;renderCode();}
     }catch{view.status={...view.status,connected:false,session:null};}
     renderStatus();
   }
@@ -86,7 +108,11 @@ export function createRelayPanel({token}){
     clearTimeout(view.copied);view.copied=setTimeout(()=>{$('relay-copy').textContent='Copy';},1600);
   }
   function open(){$('relay-panel').hidden=false;$('relay-toggle').setAttribute('aria-expanded','true');void refresh();}
-  function close(){$('relay-panel').hidden=true;$('relay-toggle').setAttribute('aria-expanded','false');}
+  function close(){view.wantOpen=false;view.another=false;$('relay-panel').hidden=true;$('relay-toggle').setAttribute('aria-expanded','false');renderStatus();}
+  // Opens the panel only if connecting needs the person, now or once the relay
+  // has answered; the header lights and the Connect button stay either way.
+  function openIfNeeded(){view.wantOpen=true;renderStatus();}
+  function connectAnother(){view.another=true;renderStatus();$('relay-copy').focus();}
   function toggle(){if($('relay-panel').hidden)open();else close();}
   $('relay-toggle').hidden=false;
   $('relay-toggle').onclick=toggle;
@@ -95,9 +121,10 @@ export function createRelayPanel({token}){
   $('relay-close').onclick=close;
   $('relay-show-code').onclick=showCode;
   $('relay-copy').onclick=copyUrl;
+  $('relay-another').onclick=connectAnother;
   $('relay-panel').addEventListener('keydown',event=>{if(event.key==='Escape'){close();$('relay-toggle').focus();}});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void refresh();});
   setInterval(()=>{if(document.visibilityState==='visible')void refresh();},STATUS_POLL_MS);
   renderStatus();renderCode();void refresh();
-  return {open,close,refresh};
+  return {open,openIfNeeded,close,refresh};
 }

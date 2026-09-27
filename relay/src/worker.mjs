@@ -81,6 +81,17 @@ async function device(request,env,path){
   if(request.method!=='POST')return new Response(null,{status:405});
   if(path==='/device/register'){const device=await relay(env).registerDevice();return device.error?json(device,403):json(device,201);}
   if(path==='/device/link-code'){const code=await relay(env).linkCode(bearer(request));return code?json(code):json({error:'Unknown device credential.'},401);}
+  // The chat apps holding a grant for this computer: a connector already added
+  // needs no URL or code, so Studio offers them only for another chat app.
+  if(path==='/device/chats'){
+    const deviceId=await relay(env).deviceFor(bearer(request));if(!deviceId)return json({error:'Unknown device credential.'},401);
+    const chats=[];
+    for(const grant of (await env.OAUTH_PROVIDER.listUserGrants(deviceId)).items){
+      const client=await env.OAUTH_PROVIDER.lookupClient(grant.clientId).catch(()=>null);
+      chats.push({client:client?.clientName??grant.clientId});
+    }
+    return json({chats});
+  }
   if(path==='/device/unpair'){
     const deviceId=await relay(env).unpair(bearer(request));if(!deviceId)return json({error:'Unknown device credential.'},401);
     for(const grant of (await env.OAUTH_PROVIDER.listUserGrants(deviceId)).items)await env.OAUTH_PROVIDER.revokeGrant(grant.id,deviceId);

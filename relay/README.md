@@ -27,6 +27,9 @@ There are no SAAM accounts: pairing the computer is the identity.
 `MAX_PAIRED_DEVICES` caps how many computers can pair (2 while testing, 150 for
 alpha); registration beyond it is refused and unpairing frees a slot. Connecting a
 chat asks for a code the computer shows; unpairing revokes every chat grant.
+`/device/chats` lists the chat apps holding a grant, so Studio's Connect panel
+opens by itself and offers the connector URL and code only while none is
+authorized (or for "Connect another chat app").
 
 ## Records
 

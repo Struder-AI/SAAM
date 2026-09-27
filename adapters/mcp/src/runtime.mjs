@@ -103,10 +103,10 @@ async function requireSystemFont(path){
   throw Error('From a web chat, fontPath must be a font installed in the system font folders.');
 }
 
-export const instructions = 'For a maker edit, your FIRST operation is begin_studio_work, before any acknowledgement, analysis, status check or other tool; printId may be omitted for the active tour. For a tour request with command access, first run node studio/server.mjs --toolkit start-tour --no-open and open the returned Studio URL; then use its returned participation context and listener. Do not read guidance or run onboarding before launching the tour. For ordinary new-part work with missing maker context and command access, run node scripts/agent-toolkit.mjs maker-onboarding once; it supplies makers, the skill digest and print-tools. Otherwise read those missing sources through read_guidance. Reuse current context and choose individual skill manuals for the task; do not reread sources already returned by onboarding. Follow relevant documentation links through read_guidance using their repository-relative path and optional #heading. Shared print-tool usage is available as "print-tools". Create a print and request_review for its geometry. Revisions happen through chat using adjust_print and expectedRevision. Geometry review is advisory: generation may proceed whenever it helps review. The person confirms the exact settings and toolpath together in Studio before export. Establish the printer and material before relying on the toolpath. For an edit to an existing print call begin_studio_work immediately, publish its saved geometry or toolpath target, then resolve its request ID after the requested result is displayed. Geometry-only work needs no slicing. Questions and guidance stay visually quiet. Normal use supports capabilities from any view; only the tour narrows requests to its current lesson under the tour manual. Send edit acknowledgements and lesson guidance immediately in chat commentary BEFORE calling a listener. Never hold an edit reply in a final answer while waiting through later lessons. During tours let Studio lead the early lessons. Keep wait_for_studio_request active, perform start-layer preparation silently, and initiate chat teaching only at the designated infill lesson and completion. Respond normally to participant-requested edits. Use get_tour for the selected print and set_tour_start_at for an explicit infill layer. deliver_print copies the reviewed bytes. No tool grants final settings/toolpath approval or runs hardware. Studio reports what the person does — lesson changes, opened prints, imports, exports, displayed results, failed or cancelled calculations — as studioEvents on tool results, in wait_for_studio_request returns and in notifications; read the queue any time with get_studio_events, which also reports toolpath calculation progress. Events are ordered observations, not simultaneous state: act on the latest.';
+export const instructions = 'For a maker edit, your FIRST operation is begin_studio_work, before any acknowledgement, analysis, status check or other tool; printId may be omitted for the active tour. For a tour request with command access, first run node studio/server.mjs --toolkit start-tour --no-open and open the returned Studio URL; then use its returned participation context and listener. Do not read guidance or run onboarding before launching the tour. For ordinary new-part work with missing maker context, run node scripts/agent-toolkit.mjs maker-onboarding once with command access, or otherwise call maker_onboarding once; either supplies makers, the skill digest and print-tools. Reuse current context and choose individual skill manuals for the task; do not reread sources already returned by onboarding. Follow relevant documentation links through read_guidance using their repository-relative path and optional #heading. Shared print-tool usage is available as "print-tools". Create a print and request_review for its geometry. Revisions happen through chat using adjust_print and expectedRevision. Geometry review is advisory: generation may proceed whenever it helps review. The person confirms the exact settings and toolpath together in Studio before export. Establish the printer and material before relying on the toolpath. For an edit to an existing print call begin_studio_work immediately, publish its saved geometry or toolpath target, then resolve its request ID after the requested result is displayed. Geometry-only work needs no slicing. Questions and guidance stay visually quiet. Normal use supports capabilities from any view; only the tour narrows requests to its current lesson under the tour manual. Send edit acknowledgements and lesson guidance immediately in chat commentary BEFORE calling a listener. Never hold an edit reply in a final answer while waiting through later lessons. During tours let Studio lead the early lessons. Keep wait_for_studio_request active, perform start-layer preparation silently, and initiate chat teaching only at the designated infill lesson and completion. Respond normally to participant-requested edits. Use get_tour for the selected print and set_tour_start_at for an explicit infill layer. deliver_print copies the reviewed bytes. No tool grants final settings/toolpath approval or runs hardware. Studio reports what the person does — lesson changes, opened prints, imports, exports, displayed results, failed or cancelled calculations — as studioEvents on tool results, in wait_for_studio_request returns and in notifications; read the queue any time with get_studio_events, which also reports toolpath calculation progress. Events are ordered observations, not simultaneous state: act on the latest.';
 
 // relay: on a computer paired with the SAAM relay, the provider every Studio
-// instance shows in its Connect chat panel ({status(), linkCode()}).
+// instance shows in its Connect panel ({status(), linkCode()}).
 export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoOpen = process.env.SAAM_NO_AUTO_OPEN !== '1',localExtension=installedExtension,thingi10kClient,relay } = {}) {
   const libraryRoot = resolve(printsRoot);
   const meshLibrary=thingi10kClient??createThingi10KClient({cacheDirectory:resolve(libraryRoot,'.thingi10k')});
@@ -221,6 +221,14 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     return run;
   }
 
+  // The maker's starting context for a client without command access, as the
+  // toolkit's maker-onboarding gives it to one with. A web chat also gets how its
+  // connection works, which its client may not show from the server instructions.
+  const MAKER_SOURCES=['MAKERS.md','skills/DIGEST.md','core/print/USAGE.md'];
+  tool('maker_onboarding','Start here: call this once per conversation, before any other SAAM tool. Returns how to work with SAAM — maker guidance, the digest of every skill and the shared print tools — and, from a web chat, how this connection to the person’s computer works. Reuse it for the whole conversation and read individual skill manuals from the digest as tasks need them.',
+    {}, async (input, session) => ({ role:'maker', ...(session?.guidance?{connection:session.guidance}:{}),
+      sources: await Promise.all(MAKER_SOURCES.map(id => readGuidance(root, id))),
+      nextStep: 'Follow connection first when present. Reuse these sources for the whole conversation; do not reread them or call maker_onboarding again. Choose individual skill manuals (read_skill) and linked references (read_guidance) when a task needs them.' }));
   tool('list_machines', 'List installed machine profiles and declared outputs. Catalog presence is not proof that a particular recipe is supported.', {}, async () => MACHINE_IDS.map(id => {
     const m = loadMachine(id);
     return { id, name: m.name, capabilities: m.capabilities, tools: m.tools, materials: m.materials,
@@ -452,6 +460,13 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     chat.working=working;
     for(const {server:studio} of studioSessions.values())studio.agentWorking?.(working);
   }
+  // A web chat's client may show neither the server instructions nor a tool
+  // description's "start here", so until it onboards the adapter adds this to
+  // every result (see onboardingReminder).
+  const ONBOARDING_REMINDER='You have not called maker_onboarding in this SAAM session. Unless you already have its context in this conversation, call it now, before continuing: it explains how SAAM works and how this connection to the person’s computer works.';
+  function noteOnboarding(session,name,args){
+    if(name==='maker_onboarding'||name==='read_guidance'&&['makers','MAKERS.md'].includes(args?.guidanceId))session.onboarded=true;
+  }
   function observed(session,name,pending){
     const activity=session.activity,listener=name==='wait_for_studio_request';
     if(listener)activity.listening++;else activity.lastCall=Date.now();
@@ -461,14 +476,16 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       return result;
     }).finally(()=>{if(listener)activity.listening--;publishWorking();});
   }
-  function beginSession({listen=LOCAL_LISTEN,remote=false}={}){
+  // guidance: how this session's client reaches SAAM, returned by maker_onboarding.
+  function beginSession({listen=LOCAL_LISTEN,remote=false,guidance=null}={}){
     if(runtime.closing)throw Error('The SAAM runtime is closing.');
     if(runtime.session)throw Error('A SAAM session is already active. End it before starting another.');
     if(!(listen.defaultMs<=listen.maxMs&&listen.maxMs<=LISTEN_LIMIT_MS))throw Error('Invalid listener limits.');
-    const session={id:randomUUID(),ending:null,listen,remote,activity:{listening:0,lastCall:0}};runtime.session=session;
+    const session={id:randomUUID(),ending:null,listen,remote,guidance,onboarded:false,activity:{listening:0,lastCall:0}};runtime.session=session;
     return {id:session.id,
       operations:[...operations.values()].filter(operation=>!(remote&&operation.localOnly)).map(({action,...definition})=>definition),
-      invoke:(name,args)=>session.ending?Promise.reject(Error('This SAAM session has ended. Start a new session; saved prints remain available.')):observed(session,name,invoke(name,args,session)),
+      invoke:(name,args)=>session.ending?Promise.reject(Error('This SAAM session has ended. Start a new session; saved prints remain available.')):(noteOnboarding(session,name,args),observed(session,name,invoke(name,args,session))),
+      onboardingReminder:()=>session.remote&&!session.onboarded?ONBOARDING_REMINDER:null,
       end:()=>endSession(session)};
   }
   function endSession(session){return session.ending??=Promise.resolve().then(async()=>{

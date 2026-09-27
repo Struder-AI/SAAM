@@ -9205,3 +9205,30 @@ from server generation, cold verification, JSON transfer and UI-ready time.
 - Recipe edits record their changed values: `planChanges` in the bundle's
   `plan-edited` history and Studio's `plan-updated` event.
 - Not run: tests (per the user), a deployment, a real pull of records.
+
+## 2026-09-27 — Connect panel with two lights; maker_onboarding for web chats
+
+- Owner direction: the link code and connector URL only matter while adding a
+  chat app, so the panel shouldn't push them once one is authorized, and it
+  opens by itself only when action is needed. The relay's new `/device/chats`
+  (device credential) lists the chat apps holding an OAuth grant. The device
+  reads it when its link opens and when a chat starts a session, and passes it
+  in its status. An unreadable list counts as none.
+- Studio: "Connect chat" is now "Connect", with two lights: paired with the
+  relay (red when unreachable or refused) and chat connected. The panel lists
+  the authorized chat apps and hides the URL and code behind "Connect another
+  chat app"; it opens at a print-free launch only when the relay refuses this
+  computer or no chat app is authorized, deciding once the relay has answered.
+  A refused computer shows no setup.
+- Web chats get the list of tools and not the server instructions, which told
+  them to run a CLI command they can't run. New `maker_onboarding` tool, listed
+  first: MAKERS, the skill digest and print tools (about 24 KB), plus the relay
+  guidance for a relayed session. Until a relayed session calls it (or reads
+  `makers`), every result carries a second text item asking it to. The
+  instructions and relay guidance now name it.
+- Checked: `core/tests/mcp.test.mjs`, `core/tests/studio-relay.test.mjs` and
+  `relay/test/relay.test.mjs` pass (the relay run exercised `/device/chats`
+  without error; its content was not asserted). Scratch checks: the reminder on
+  remote results and not on local ones; the panel in six fake relay states in
+  the browser. Not run: a deploy, a real chat client, the whole suite; no new
+  tests, per the user.

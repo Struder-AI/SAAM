@@ -31,12 +31,15 @@ start, Start Menu > "SAAM (with console)" shows its messages.
 
 Connect your chat (first time)
 ------------------------------
-1. In Studio, click "Connect chat" at the top right.
+1. In Studio, click "Connect" at the top right.
 2. Copy the connector URL and add it as a custom connector in your chat app.
 3. When the chat asks for a code, click "Show code" in Studio and type the
    code into the chat's approval page. A code is valid for two minutes;
    click "New code" for another.
-The panel shows whether this computer is connected and whether a chat is.
+Studio opens this panel by itself until a chat app is set up.
+The two lights on "Connect" show whether this computer is paired with the
+relay and whether a chat is connected. To add another chat app later, open
+the panel and click "Connect another chat app".
 
 
 Where your prints live

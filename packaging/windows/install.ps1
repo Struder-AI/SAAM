@@ -107,7 +107,7 @@ Write-Host ''
 Write-Step "SAAM $version is installed."
 Write-Host "Start it any time from the SAAM shortcut on the Start Menu or Desktop; stop it with Quit SAAM in Studio."
 Write-Host "Your prints and settings stay in $(Get-SaamDataFolder)."
-Write-Host 'Starting SAAM now. Studio opens in your browser; use its Connect chat panel to link your chat.'
+Write-Host 'Starting SAAM now. Studio opens in your browser; use its Connect panel to link your chat.'
 Start-Process -FilePath $wscript -ArgumentList $launcher -WorkingDirectory $env:USERPROFILE
 Write-Log 'Started SAAM.'
 exit 0

@@ -870,7 +870,7 @@ function connectStudioSession(){
 function showNoPrint(error){
   $('#kind-label').textContent='SAAM STUDIO';$('#view-title').textContent='No print open';
   $('#guidance').textContent=error.message;message('');
-  relayPanel?.open();
+  relayPanel?.openIfNeeded();
 }
 function reportOpening(error){
   if(error.code==='NO_PRINT')showNoPrint(error);

@@ -13,12 +13,15 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 // connection ends only its session; otherwise the adapter owns the runtime.
 // `guidance` adds instructions for how this session's client reaches SAAM.
 export function createMcpAdapter({ runtime: shared, listen, remote, guidance, ...options } = {}) {
-  const runtime = shared ?? createLocalRuntime(options), session = runtime.beginSession({ listen, remote });
+  const runtime = shared ?? createLocalRuntime(options), session = runtime.beginSession({ listen, remote, guidance });
   const server = new McpServer({ name: 'saam', version: '0.2.0' }, { capabilities:{logging:{}}, instructions: guidance ? guidance + ' ' + instructions : instructions });
   for (const {name,description,schema,readOnly,openWorld} of session.operations)
     server.registerTool(name, { description, inputSchema: schema,
       annotations: { readOnlyHint: readOnly, destructiveHint: false, openWorldHint: openWorld } }, async args => {
-      try { return {content:[{type:'text',text:JSON.stringify(await session.invoke(name,args))}]}; }
+      try {
+        const result = await session.invoke(name,args), reminder = session.onboardingReminder();
+        return {content:[{type:'text',text:JSON.stringify(result)},...(reminder?[{type:'text',text:reminder}]:[])]};
+      }
       catch (error) { return { isError: true, content: [{ type: 'text', text: error.message }] }; }
     });
   const connection={closing:null,notifying:false,notified:new Set()};

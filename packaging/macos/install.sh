@@ -158,7 +158,7 @@ LAUNCHER
   echo 'Start it any time from SAAM in your Applications folder (~/Applications/SAAM.app),'
   echo 'and stop it with Quit SAAM in Studio.'
   echo "Your prints and settings stay in $(data_folder)."
-  echo 'Starting SAAM now. Studio opens in your browser; use its Connect chat panel'
+  echo 'Starting SAAM now. Studio opens in your browser; use its Connect panel'
   echo 'to link your chat.'
   open "$HOME/Applications/SAAM.app"
   log 'Started SAAM.'

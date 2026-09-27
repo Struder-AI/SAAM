@@ -46,6 +46,7 @@ saved IDs; there is no single global plan that overwrites another job.
 
 | Tool | Role |
 |---|---|
+| `maker_onboarding` | Listed first. The maker's starting context for a client without command access: MAKERS, the skill digest and shared print tools, plus how a relayed session reaches the computer. Until a relayed session calls it (or reads `makers`), every result carries a second text item asking it to. |
 | `list_machines`, `list_skills`, `read_skill` | Read this checkout's known profiles and manuals. Skill entries distinguish toolpath skills from geometry skills such as mesh tools. These small fixed lists are not an automatic discovery or installation system. |
 | `read_guidance` | Read a published Markdown path, optionally ending in `#heading`, or a short ID: `makers`, `development`, `glossary`, `mcp`, `print-tools`. The response resolves documentation links into IDs for further reading. |
 | `get_plan_template` | Read a complete proposed shell recipe, reusing remembered setup. |
@@ -98,8 +99,8 @@ the MCP adapter does not expose a tour-start tool.
 
 For ordinary new-part work with command access and missing maker context, run
 `node scripts/agent-toolkit.mjs maker-onboarding` once. It supplies MAKERS, the
-complete skill digest and shared print tools. In an MCP-only client, read those
-missing sources through `read_guidance`. Reuse supplied/current context in either
+complete skill digest and shared print tools. In an MCP-only client, call
+`maker_onboarding` once instead. Reuse supplied/current context in either
 case, choose and read the relevant skill manuals individually, create the first
 reasonable geometry, and call
 `request_review`. Studio opens in the default browser where available; the
