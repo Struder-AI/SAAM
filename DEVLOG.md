@@ -9277,3 +9277,8 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   the retry page's warning, removal forgetting the credential and pairing again.
   The panel's unpaired state was checked in the browser. Not run: the whole
   suite, a real chat client against the new relay, a real update.
+- Deployed (version `d7f59a40`, `OPERATOR_TOKEN` set) and the one paired
+  computer (0.1.2, with a Claude grant) removed at the user's request; the live
+  relay refuses registration without an invite. Built
+  `dist/SAAM-0.1.3-win-x64.zip` (44.4 MB, sha256 `2b1a900f…7422c`); not
+  published, `LATEST_RELEASE` stays empty.
