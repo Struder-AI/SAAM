@@ -1,11 +1,16 @@
 #!/usr/bin/env node
-// Reads the relay's alpha records (D-039) for SAAM's developers.
-//   node relay/scripts/records.mjs devices
-//   node relay/scripts/records.mjs sessions [--since 7d]
-//   node relay/scripts/records.mjs pull [SESSION] [--device ID] [--since 1d]
+// The relay operator's commands: invites, paired computers and the alpha
+// records (D-039).
+//   node relay/scripts/operator.mjs invite --for "NAME" [--days 14]
+//   node relay/scripts/operator.mjs invites
+//   node relay/scripts/operator.mjs revoke-invite ID
+//   node relay/scripts/operator.mjs devices
+//   node relay/scripts/operator.mjs remove DEVICE [DEVICE…]
+//   node relay/scripts/operator.mjs sessions [--since 7d]
+//   node relay/scripts/operator.mjs pull [SESSION] [--device ID] [--since 1d]
 // pull writes each session's full records as JSONL and a readable timeline as
-// Markdown under .local/relay-records/. The token is SAAM_RECORDS_TOKEN or the
-// first line of .local/relay-records-token; the relay is SAAM_RELAY_URL,
+// Markdown under .local/relay-records/. The token is SAAM_OPERATOR_TOKEN or the
+// first line of .local/relay-operator-token; the relay is SAAM_RELAY_URL,
 // --relay URL or the deployed one.
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {resolve,dirname} from 'node:path';
@@ -28,17 +33,18 @@ function since(text){
   return at;
 }
 async function token(){
-  if(process.env.SAAM_RECORDS_TOKEN)return process.env.SAAM_RECORDS_TOKEN.trim();
-  try{return (await readFile(resolve(root,'.local/relay-records-token'),'utf8')).split(/\r?\n/)[0].trim();}
-  catch{throw Error('Set SAAM_RECORDS_TOKEN, or put the token in .local/relay-records-token.');}
+  if(process.env.SAAM_OPERATOR_TOKEN)return process.env.SAAM_OPERATOR_TOKEN.trim();
+  try{return (await readFile(resolve(root,'.local/relay-operator-token'),'utf8')).split(/\r?\n/)[0].trim();}
+  catch{throw Error('Set SAAM_OPERATOR_TOKEN, or put the token in .local/relay-operator-token.');}
 }
-async function get(relay,secret,path,query={}){
+async function send(relay,secret,method,path,{query={},body}={}){
   const url=new URL(path,relay);
   for(const [key,value] of Object.entries(query))if(value!==undefined&&value!==null)url.searchParams.set(key,String(value));
-  const response=await fetch(url,{headers:{Authorization:`Bearer ${secret}`}});
-  if(!response.ok)throw Error(`${url.pathname} answered ${response.status}: ${await response.text()}`);
+  const response=await fetch(url,{method,headers:{Authorization:`Bearer ${secret}`,...body?{'Content-Type':'application/json'}:{}},body:body?JSON.stringify(body):undefined});
+  if(!response.ok)throw Error(`${method} ${url.pathname} answered ${response.status}: ${await response.text()}`);
   return response.json();
 }
+const get=(relay,secret,path,query)=>send(relay,secret,'GET',path,{query});
 async function allRecords(relay,secret,query){
   const records=[];let after=0;
   for(;;){
@@ -49,7 +55,7 @@ async function allRecords(relay,secret,query){
   }
 }
 
-const time=at=>new Date(at).toISOString().replace('T',' ').slice(0,19);
+const time=at=>at?new Date(at).toISOString().replace('T',' ').slice(0,19):'never';
 const clip=text=>text.length>DETAIL_CHARS?text.slice(0,DETAIL_CHARS)+'…':text;
 const cell=text=>clip(String(text??'')).replace(/\|/g,'\\|').replace(/\r?\n/g,' ');
 function detail(record){
@@ -88,16 +94,43 @@ function timeline(session,records,devices){
 async function main(){
   const {named,positional}=options(process.argv.slice(2)),[command,sessionId]=positional;
   const relay=named.relay??process.env.SAAM_RELAY_URL??DEPLOYED,secret=await token();
-  if(command==='devices'){console.log(JSON.stringify(await get(relay,secret,'/records/devices'),null,2));return;}
+  if(command==='invite'){
+    if(!named.for)throw Error('Name who the invite is for: invite --for "NAME" [--days 14].');
+    const invite=await send(relay,secret,'POST','/operator/invites',{body:{label:named.for,days:named.days?Number(named.days):undefined}});
+    console.log(`Invite for ${invite.label} (id ${invite.id}), single use, valid until ${time(invite.expiresAt)} UTC:
+
+  ${invite.code}
+
+They paste it in SAAM Studio's Connect panel. It is shown only now.`);
+    return;
+  }
+  if(command==='invites'){
+    const {invites}=await get(relay,secret,'/operator/invites');
+    for(const item of invites)console.log(`${item.id}  ${item.state.padEnd(7)}  ${item.label}  created ${time(item.created)}  ${item.used?`used ${time(item.used)} by ${item.device}`:`expires ${time(item.expires)}`}`);
+    if(!invites.length)console.log('No invites.');
+    return;
+  }
+  if(command==='revoke-invite'){if(!sessionId)throw Error('revoke-invite ID (see invites).');console.log(JSON.stringify(await send(relay,secret,'DELETE',`/operator/invites/${encodeURIComponent(sessionId)}`)));return;}
+  if(command==='devices'){
+    const {devices,limit,recordDays,databaseBytes}=await get(relay,secret,'/operator/devices');
+    for(const item of devices)console.log(`${item.id}  ${item.online?'online ':'offline'}  ${item.label??'(no invite)'}  SAAM ${item.saam?.version??'?'} ${item.saam?.platform??item.saam?.os??''}  paired ${time(item.paired)}  connected ${time(item.connected)}  seen ${time(item.lastSeen)}  chats: ${item.chats.map(chat=>chat.client).join(', ')||'none'}`);
+    console.log(`${devices.length} of ${limit} computers paired. Records kept ${recordDays} days; ${(databaseBytes/1e6).toFixed(1)} MB stored.`);
+    return;
+  }
+  if(command==='remove'){
+    const ids=positional.slice(1);if(!ids.length)throw Error('remove DEVICE [DEVICE…] (see devices).');
+    for(const id of ids)console.log(JSON.stringify(await send(relay,secret,'DELETE',`/operator/devices/${encodeURIComponent(id)}`)));
+    return;
+  }
   if(command==='sessions'){
     const sessions=await get(relay,secret,'/records/sessions',{since:since(named.since)});
     for(const item of sessions)console.log(`${time(item.last)}  ${item.session}  ${item.client??'?'}  ${item.requests} requests  ${item.errors} errors  (from ${time(item.first)})`);
     if(!sessions.length)console.log('No sessions recorded in that window.');
     return;
   }
-  if(command!=='pull')throw Error('Commands: devices, sessions [--since 7d], pull [SESSION] [--device ID] [--since 1d].');
+  if(command!=='pull')throw Error('Commands: invite --for NAME [--days N], invites, revoke-invite ID, devices, remove DEVICE…, sessions [--since 7d], pull [SESSION] [--device ID] [--since 1d].');
   if(!sessionId&&!named.device&&!named.since)throw Error('pull needs a session, --device or --since.');
-  const [records,{devices}]=await Promise.all([allRecords(relay,secret,{session:sessionId,device:named.device,since:since(named.since)}),get(relay,secret,'/records/devices')]);
+  const [records,{devices}]=await Promise.all([allRecords(relay,secret,{session:sessionId,device:named.device,since:since(named.since)}),get(relay,secret,'/operator/devices')]);
   const bySession=Map.groupBy(records,record=>record.session??'no-session');
   const folder=resolve(root,'.local/relay-records');await mkdir(folder,{recursive:true});
   for(const [session,group] of bySession){

@@ -202,8 +202,8 @@ work can idle; partition later only if load, locality or failure isolation warra
 
 **Alpha target: $5/month for the Cloudflare relay, with a cap of 150 active
 users at five prints per day.** Use one Workers Paid account and one shared
-SQLite-backed Durable Object. The relay enforces it as a cap on paired computers
-(`MAX_PAIRED_DEVICES`). This is a budget-derived admission cap, not a
+SQLite-backed Durable Object. Each computer pairs with an operator-issued invite,
+and the relay also caps paired computers (`MAX_PAIRED_DEVICES`). This is a budget-derived admission cap, not a
 Cloudflare seat limit or measured throughput result. The $5 covers relay hosting
 before tax; domains, signing, download hosting and any paid identity service are
 separate. Assume no unrelated workloads consume the account's allowances.

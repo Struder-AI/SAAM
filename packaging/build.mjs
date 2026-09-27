@@ -5,9 +5,9 @@
 // Terminal and the bundled Node is the official notarized build.
 //
 //   node packaging/build.mjs --platform win-x64 --version 0.1.0 --relay-url https://relay.example.com
-//   [--update-host https://releases.example.com] [--node-version v24.19.0 | --node <node binary for that platform>] [--out dist]
-// --update-host is the only origin this build accepts updates from; without it the
-// build never offers an update.
+//   [--update-host https://github.com/Struder-AI/SAAM/releases/download] [--node-version v24.19.0 | --node <node binary for that platform>] [--out dist]
+// --update-host is the release folder this build accepts updates from (see
+// packaging/update.mjs); without it the build never offers an update.
 //
 // The ZIP holds one folder: the installer, README.txt, the application as one
 // archive (app.tar, so unpacking the ZIP writes a handful of files rather than
@@ -127,7 +127,9 @@ async function main(){
   if(!/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(values.version??''))throw Error('Give --version as major.minor.patch.');
   const relayUrl=new URL(values['relay-url']??'').origin;
   if(!relayUrl.startsWith('https://')&&!/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(relayUrl))throw Error('The relay URL must be https (or loopback for a local test build).');
-  const updateHost=values['update-host']?new URL(values['update-host']).origin:null;
+  // The release folder updates come from, e.g. https://github.com/Struder-AI/SAAM/releases/download:
+  // an installed SAAM accepts only <update host>/v<version>/SAAM-<version>-<platform>.zip.
+  const updateHost=values['update-host']?(({origin,pathname})=>origin+pathname.replace(/\/+$/,''))(new URL(values['update-host'])):null;
   if(updateHost&&!updateHost.startsWith('https://'))throw Error('The update host must be https.');
   // stage/app is the application; stage/<top> becomes the ZIP.
   const top=`SAAM-${values.version}-${platform}`,out=resolve(root,values.out),app=resolve(out,'stage','app'),folder=resolve(out,'stage',top);
@@ -170,7 +172,7 @@ async function main(){
   console.log(`Built ${zip}: ${((await stat(zip)).size/1e6).toFixed(1)} MB (${JSON.stringify(release)}).`);
   // To offer this build as an update, host the ZIP under the update host and add
   // this entry to the relay's LATEST_RELEASE assets (see relay/wrangler.jsonc).
-  console.log('LATEST_RELEASE asset:',JSON.stringify({[platform]:{url:(updateHost??'https://<update host>')+'/<path>/'+top+'.zip',sha256:sha256(await readFile(zip))}}));
+  console.log('LATEST_RELEASE asset:',JSON.stringify({[platform]:{url:(updateHost??'https://<update host>')+`/v${values.version}/${top}.zip`,sha256:sha256(await readFile(zip))}}));
 }
 
 main().catch(error=>{console.error('Build failed:',error.message);process.exitCode=1;});

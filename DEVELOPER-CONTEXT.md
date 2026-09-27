@@ -127,6 +127,9 @@ All of this is authored in one place, `dev-map/lib/scope.mjs`.
   clusters, repeats included, to lower the energy. Placement is total: every
   leaf is in the tree whatever `tree.json` says or leaves out, and nothing
   fails for a leaf that is new or gone.
+- The solver runs only when the owner asks for it. `regenerate` places a new
+  leaf beside its links in the existing tree and never re-solves; an agent
+  that thinks the clustering needs a solve asks the owner, never runs one.
 - No map draws a single box, and a cluster homes at least one node. A repeat
   is drawn where it keeps a link on the map. There is no cap on map size or
   depth; the score judges them.
@@ -183,7 +186,6 @@ node scripts/agent-toolkit.mjs read-map core/path/compose.mjs::planComposition
 node scripts/agent-toolkit.mjs read-map 6.3.1 --code
 node scripts/agent-toolkit.mjs regenerate
 node dev-map/cli.mjs check
-node dev-map/cli.mjs solve
 ```
 
 Reads come from the stored map and never scan; `regenerate` scans, and a read

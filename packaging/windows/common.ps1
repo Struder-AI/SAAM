@@ -57,7 +57,7 @@ function Test-SaamRunning {
 
 function Assert-SaamStopped([string]$Action) {
   if (Test-SaamRunning) {
-    Stop-WithMessage "SAAM is running. Click Quit SAAM in Studio, then $Action again."
+    Stop-WithMessage "SAAM is running. Click Quit in SAAM Studio, then $Action again."
   }
 }
 

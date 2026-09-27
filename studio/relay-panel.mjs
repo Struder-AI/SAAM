@@ -1,15 +1,17 @@
 // "Connect": how to reach this computer from a web chat through the SAAM relay.
 // Two lights show whether this computer holds its relay link and whether a chat
-// is connected. The connector URL and a link code are needed only to add a
-// chat app, so once one is authorized they wait behind "Connect another chat
-// app". Studio includes it only when it runs with a relay (see createStudio's
-// relay option).
+// is connected. An unpaired computer first takes the invite its person was
+// sent. The connector URL and a link code are needed only to add a chat app,
+// so once one is authorized they wait behind "Connect another chat app".
+// Studio includes it only when it runs with a relay (see createStudio's relay
+// option).
 const STATUS_POLL_MS=5000;
 const clock=ms=>{const s=Math.max(0,Math.ceil(ms/1000));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');};
 // Each light's state (on, off or problem) and sentence for one relay status.
 export function describeRelay(status){
   const chats=status?.chats??[];
   const link=!status?{state:'off',text:'Checking the relay…'}
+    :status.paired===false?{state:'off',text:status.notice?'This computer was removed from the SAAM relay. Paste a new invite to pair it again.':'Not paired yet. Paste your invite code to pair this computer.'}
     :status.problem?{state:'problem',text:'The relay refused this computer: '+status.problem}
     :status.connected?{state:'on',text:'Paired with the SAAM relay.'}
     :{state:'problem',text:'Not reaching the SAAM relay. Reconnecting; check the network if this persists.'};
@@ -17,10 +19,11 @@ export function describeRelay(status){
     :{state:'off',text:chats.length?'No chat connected right now. It connects when you use SAAM from your chat.':'No chat connected.'};
   return {link,chat};
 }
-// Connection action is needed when the relay refuses this computer, or when it
-// is paired and no chat app is authorized yet. Unknown until the relay says.
+// Connection action is needed when this computer is not paired, the relay
+// refuses it, or it is paired and no chat app is authorized yet. Unknown until
+// the relay says.
 export function relayActionNeeded(status){
-  if(status?.problem)return true;
+  if(status?.paired===false||status?.problem)return true;
   return Boolean(status?.connected)&&Array.isArray(status.chats)?status.chats.length===0:null;
 }
 export function createRelayPanel({token}){
@@ -45,13 +48,17 @@ export function createRelayPanel({token}){
       button.textContent='Restarting SAAM…';
     }catch(error){view.updating=false;button.disabled=false;button.classList.add('flash');alert(error.message);renderUpdate();}
   }
-  // Quitting stops SAAM on this computer; its prints stay saved.
+  // Quitting stops SAAM on this computer and closes Studio's tab where the
+  // browser allows; its prints stay saved.
   async function quit(){
     if(!confirm('Quit SAAM? Chats cannot reach this computer until you start SAAM again. Your prints are saved.'))return;
     try{
       const response=await fetch('/api/relay/quit',{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:'{}'});
       const result=await response.json();if(!response.ok)throw Error(result.error);
       document.body.replaceChildren(Object.assign(document.createElement('p'),{className:'stopped',textContent:'SAAM has stopped. You can close this tab; start SAAM again from its shortcut.'}));
+      // Chrome and Edge close a tab SAAM opened that has not navigated; other
+      // browsers refuse, and the message above stays.
+      window.close();
     }catch(error){alert(error.message);}
   }
   function renderStatus(){
@@ -66,8 +73,10 @@ export function createRelayPanel({token}){
     $('relay-chats').textContent='Authorized chat apps: '+[...new Set(chats.map(item=>item.client))].join(', ')+'.';
     // The setup stays open while a code is on screen, even as its chat connects;
     // a computer the relay refuses has nothing to set up until it is fixed.
-    const refused=Boolean(view.status?.problem),setup=!refused&&(!chats.length||view.another||Boolean(view.code));
-    $('relay-setup').hidden=!setup;$('relay-another').hidden=setup||refused;
+    const unpaired=view.status?.paired===false,refused=Boolean(view.status?.problem);
+    const setup=!unpaired&&!refused&&(!chats.length||view.another||Boolean(view.code));
+    $('relay-pair').hidden=!unpaired;
+    $('relay-setup').hidden=!setup;$('relay-another').hidden=unpaired||setup||refused;
     $('relay-another').setAttribute('aria-expanded',String(setup));
     if(view.wantOpen){const needed=relayActionNeeded(view.status);if(needed!==null){view.wantOpen=false;if(needed)open();}}
     if(view.status?.connectorUrl&&$('relay-url').value!==view.status.connectorUrl)$('relay-url').value=view.status.connectorUrl;
@@ -101,6 +110,17 @@ export function createRelayPanel({token}){
     }catch(error){$('relay-message').textContent=error.message;}
     finally{view.requesting=false;renderCode();}
   }
+  // Pairing spends the invite; the relay link and chat setup follow.
+  async function pair(){
+    const invite=$('relay-invite').value.trim();if(!invite){$('relay-invite').focus();return;}
+    $('relay-pair-button').disabled=true;$('relay-message').textContent='';
+    try{
+      const response=await fetch('/api/relay/pair',{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify({invite})});
+      const result=await response.json();if(!response.ok)throw Error(result.error);
+      $('relay-invite').value='';
+    }catch(error){$('relay-message').textContent=error.message;}
+    finally{$('relay-pair-button').disabled=false;await refresh();}
+  }
   async function copyUrl(){
     const input=$('relay-url');
     try{await navigator.clipboard.writeText(input.value);$('relay-copy').textContent='Copied';}
@@ -121,6 +141,8 @@ export function createRelayPanel({token}){
   $('relay-close').onclick=close;
   $('relay-show-code').onclick=showCode;
   $('relay-copy').onclick=copyUrl;
+  $('relay-pair-button').onclick=pair;
+  $('relay-invite').addEventListener('keydown',event=>{if(event.key==='Enter')void pair();});
   $('relay-another').onclick=connectAnother;
   $('relay-panel').addEventListener('keydown',event=>{if(event.key==='Escape'){close();$('relay-toggle').focus();}});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void refresh();});

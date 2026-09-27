@@ -1,7 +1,7 @@
 @echo off
 rem Starts SAAM from this installed version with a console window, for
 rem troubleshooting (Start Menu "SAAM (with console)"): the SAAM shortcuts start
-rem it without one (SAAM.vbs). Quit SAAM in Studio or close this window to stop
+rem it without one (SAAM.vbs). Quit in SAAM Studio or close this window to stop
 rem SAAM. Prints stay in %LOCALAPPDATA%\SAAM.
 title SAAM - close this window to stop SAAM
 rem Run from the home folder, so this window never holds the program folder

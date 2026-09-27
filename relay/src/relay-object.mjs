@@ -1,12 +1,20 @@
-// The one shared relay object: paired devices, single-use link codes, the
-// calls in flight to each device's outbound WebSocket and the alpha records.
+// The one shared relay object: invites, paired devices, chat sign-ins and
+// single-use link codes, per-address limits, the calls in flight to each
+// device's outbound WebSocket and the alpha records.
 // A device has at most one chat session; its socket attachment records which,
 // so a call for any other session is answered 404 at once and the chat starts a
 // new one. The device owns session lifetime and reports every change.
 import {DurableObject} from 'cloudflare:workers';
 
-const LINK_CODE_MS=2*60_000,CALL_LIMIT_MS=15*60_000,FAILURES_PER_MINUTE=30,KEEPALIVE_MS=20_000,MESSAGE_LIMIT=1_000_000;
+const LINK_CODE_MS=2*60_000,CALL_LIMIT_MS=15*60_000,KEEPALIVE_MS=20_000,MESSAGE_LIMIT=1_000_000;
 const DAY_MS=86_400_000,PRUNE_EVERY_MS=60*60_000,PAGE_ROWS=500,PAGE_CHARS=8_000_000;
+// A sign-in lives as long as the OAuth library's consent transaction (600 s).
+// Wrong link codes are limited per sign-in and per network address, so no one
+// can lock out anyone else; a registered computer that never connects within
+// a day gives its slot back. CALLS_IN_FLIGHT bounds one computer's share of
+// the shared object.
+const SIGN_IN_MS=10*60_000,CODE_TRIES_PER_SIGN_IN=5,CODE_FAILURES_PER_ADDRESS=20,INVITE_FAILURES_PER_ADDRESS=10;
+const UNCONNECTED_MS=DAY_MS,CALLS_IN_FLIGHT=8,INVITE_DAYS=14;
 // The device-relay message protocol. A device speaking another version is
 // told to update rather than left connected and unusable.
 const PROTOCOL='1';
@@ -14,11 +22,28 @@ const ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 async function sha256(text){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(text)))].map(b=>b.toString(16).padStart(2,'0')).join('');}
 function token(bytes){const value=crypto.getRandomValues(new Uint8Array(bytes));return btoa(String.fromCharCode(...value)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
-function newLinkCode(){const value=crypto.getRandomValues(new Uint8Array(8));const code=[...value].map(b=>ALPHABET[b&31]).join('');return code.slice(0,4)+'-'+code.slice(4);}
+// Groups of four letters and digits: two for a link code (typed, two minutes),
+// four for an invite (pasted, single use, 80 bits).
+function newCode(groups){const value=crypto.getRandomValues(new Uint8Array(groups*4));const code=[...value].map(b=>ALPHABET[b&31]).join('');return code.match(/.{4}/g).join('-');}
 const normalizedCode=code=>String(code??'').toUpperCase().replace(/[^A-Z0-9]/g,'');
 export const rpcError=(id,code,message)=>({jsonrpc:'2.0',id:id??null,error:{code,message}});
 const json=(value,status=200,headers={})=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json',...headers}});
 const encoder=new TextEncoder();
+// A request body read no further than limit bytes; bytes over limit means refused.
+export async function boundedText(request,limit){
+  const declared=Number(request.headers.get('Content-Length'));
+  if(declared>limit){request.body?.cancel().catch(()=>{});return {body:'',bytes:declared};}
+  if(!request.body)return {body:'',bytes:0};
+  const reader=request.body.getReader(),chunks=[];let bytes=0;
+  for(;;){
+    const {done,value}=await reader.read();if(done)break;
+    bytes+=value.length;
+    if(bytes>limit){reader.cancel().catch(()=>{});return {body:'',bytes};}
+    chunks.push(value);
+  }
+  const joined=new Uint8Array(bytes);let offset=0;for(const chunk of chunks){joined.set(chunk,offset);offset+=chunk.length;}
+  return {body:new TextDecoder().decode(joined),bytes};
+}
 
 // Alpha records (D-039): one row per message between a chat and its computer,
 // per device event and per link change, kept RECORD_DAYS days (0 records
@@ -52,12 +77,20 @@ export class RelayObject extends DurableObject{
     ctx.blockConcurrencyWhile(async()=>{
       this.sql.exec(`CREATE TABLE IF NOT EXISTS devices(id TEXT PRIMARY KEY,secret_hash TEXT UNIQUE NOT NULL,created_at INTEGER NOT NULL);
         CREATE TABLE IF NOT EXISTS link_codes(code_hash TEXT PRIMARY KEY,device_id TEXT NOT NULL,expires_at INTEGER NOT NULL);
-        CREATE TABLE IF NOT EXISTS failures(minute INTEGER PRIMARY KEY,count INTEGER NOT NULL);
+        DROP TABLE IF EXISTS failures;
+        CREATE TABLE IF NOT EXISTS invites(id TEXT PRIMARY KEY,code_hash TEXT UNIQUE NOT NULL,label TEXT NOT NULL,created_at INTEGER NOT NULL,
+          expires_at INTEGER NOT NULL,used_at INTEGER,device_id TEXT);
+        CREATE TABLE IF NOT EXISTS sign_ins(handle_hash TEXT PRIMARY KEY,client_id TEXT,client_name TEXT,redirect_uri TEXT,expires_at INTEGER NOT NULL,failures INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS limits(key TEXT NOT NULL,start INTEGER NOT NULL,count INTEGER NOT NULL,PRIMARY KEY(key,start));
         CREATE TABLE IF NOT EXISTS records(id INTEGER PRIMARY KEY AUTOINCREMENT,at INTEGER NOT NULL,device TEXT,session TEXT,call TEXT,
           kind TEXT NOT NULL,name TEXT,ms INTEGER,bytes INTEGER,error TEXT,body TEXT);
         CREATE INDEX IF NOT EXISTS records_at ON records(at);
         CREATE INDEX IF NOT EXISTS records_session ON records(session,id);
         CREATE INDEX IF NOT EXISTS records_device ON records(device,id);`);
+      // Invited computers carry their invite's label and when they last connected.
+      const columns=new Set(this.sql.exec('PRAGMA table_info(devices)').toArray().map(column=>column.name));
+      for(const [name,type] of [['label','TEXT'],['invite_id','TEXT'],['connected_at','INTEGER']])
+        if(!columns.has(name))this.sql.exec(`ALTER TABLE devices ADD COLUMN ${name} ${type}`);
     });
     // Heartbeats are answered without waking the object.
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping','pong'));
@@ -92,21 +125,74 @@ export class RelayObject extends DurableObject{
         MAX(CASE WHEN kind='request' AND name='initialize' THEN json_extract(body,'$.params.clientInfo.name') END) AS client
       FROM records WHERE session IS NOT NULL AND at>=? GROUP BY session ORDER BY last DESC`,since).toArray();
   }
-  recordDevices(){
-    const devices=this.sql.exec(`SELECT d.id,d.created_at AS paired,
+  // The paired computers, for the operator: whose invite, when paired, last
+  // connected and seen, online now and the SAAM version they last reported.
+  listDevices(){
+    const devices=this.sql.exec(`SELECT d.id,d.label,d.created_at AS paired,d.connected_at AS connected,
         (SELECT MAX(at) FROM records WHERE device=d.id) AS lastSeen,
         (SELECT body FROM records WHERE device=d.id AND kind='device-hello' ORDER BY id DESC LIMIT 1) AS hello
-      FROM devices d ORDER BY d.created_at`).toArray().map(({hello,...device})=>({...device,saam:hello?JSON.parse(hello):null}));
-    return {devices,recordDays:this.recordDays(),databaseBytes:this.sql.databaseSize};
+      FROM devices d ORDER BY d.created_at`).toArray()
+      .map(({hello,...device})=>({...device,online:Boolean(this.socketFor(device.id)),saam:hello?JSON.parse(hello):null}));
+    return {devices,limit:this.deviceLimit(),recordDays:this.recordDays(),databaseBytes:this.sql.databaseSize};
   }
-  // MAX_PAIRED_DEVICES caps the computers that can pair at all; unpairing frees a slot.
-  async registerDevice(){
-    const limit=Number(this.env.MAX_PAIRED_DEVICES??0);// Unset closes pairing.
+  // MAX_PAIRED_DEVICES caps the computers that can pair at all, a backstop
+  // behind invites; unset closes pairing.
+  deviceLimit(){return Number(this.env.MAX_PAIRED_DEVICES??0);}
+  // Counts one event under key in the current window and says whether the
+  // window already held max; with max Infinity it only counts.
+  overLimit(key,max,windowMs,{count=true}={}){
+    const now=Date.now(),start=Math.floor(now/windowMs)*windowMs;
+    this.sql.exec('DELETE FROM limits WHERE start<?',now-DAY_MS);
+    const seen=this.sql.exec('SELECT count FROM limits WHERE key=? AND start=?',key,start).toArray()[0]?.count??0;
+    if(seen>=max)return true;
+    if(count)this.sql.exec('INSERT INTO limits(key,start,count) VALUES(?,?,1) ON CONFLICT(key,start) DO UPDATE SET count=count+1',key,start);
+    return false;
+  }
+  // Registration spends one unused invite. address: the caller's IP, to bound invite guessing.
+  async registerDevice({invite,address}={}){
+    if(!invite)return {error:'Pairing needs an invite code. Install the current SAAM release and paste your invite in Studio\'s Connect panel.'};
+    if(this.overLimit('invite:'+address,INVITE_FAILURES_PER_ADDRESS,60*60_000,{count:false}))return {error:'Too many invite attempts. Wait an hour and try again.'};
+    const now=Date.now(),row=this.sql.exec('SELECT id,label,expires_at,used_at FROM invites WHERE code_hash=?',await sha256(normalizedCode(invite))).toArray()[0];
+    if(!row||row.used_at||row.expires_at<now){
+      this.overLimit('invite:'+address,Infinity,60*60_000);
+      return {error:row?.used_at?'That invite has already been used. Ask for a new one.':row?'That invite has expired. Ask for a new one.':'That invite code is not valid. Check that it was pasted whole.'};
+    }
+    // Registered computers that never connected give their slot back.
+    for(const {id} of this.sql.exec('SELECT id FROM devices WHERE connected_at IS NULL AND created_at<?',now-UNCONNECTED_MS).toArray())this.forgetDevice(id);
+    const limit=this.deviceLimit();
     if(this.sql.exec('SELECT COUNT(*) AS count FROM devices').one().count>=limit)
       return {error:`The SAAM relay is full: ${limit} computers are paired. Ask the operator for a slot.`};
     const id=crypto.randomUUID(),secret=token(32);
-    this.sql.exec('INSERT INTO devices(id,secret_hash,created_at) VALUES(?,?,?)',id,await sha256(secret),Date.now());
+    this.sql.exec('INSERT INTO devices(id,secret_hash,created_at,label,invite_id) VALUES(?,?,?,?,?)',id,await sha256(secret),now,row.label,row.id);
+    this.sql.exec('UPDATE invites SET used_at=?,device_id=? WHERE id=?',now,id,row.id);
+    this.record({device:id,kind:'link',name:'registered',body:{invite:row.id,label:row.label}});
     return {deviceId:id,secret};
+  }
+  // Invites for the operator: the code is shown once, only its hash is kept.
+  async createInvite({label,days=INVITE_DAYS}){
+    if(!label?.trim())return {error:'Name who the invite is for.'};
+    const code=newCode(4),id=token(6),now=Date.now(),expiresAt=now+Math.max(1,Number(days)||INVITE_DAYS)*DAY_MS;
+    this.sql.exec('INSERT INTO invites(id,code_hash,label,created_at,expires_at) VALUES(?,?,?,?,?)',id,await sha256(normalizedCode(code)),label.trim().slice(0,200),now,expiresAt);
+    return {id,code,label:label.trim(),expiresAt};
+  }
+  listInvites(){
+    return this.sql.exec('SELECT id,label,created_at AS created,expires_at AS expires,used_at AS used,device_id AS device FROM invites ORDER BY created_at').toArray()
+      .map(invite=>({...invite,state:invite.used?'used':invite.expires<Date.now()?'expired':'open'}));
+  }
+  revokeInvite(id){
+    return this.sql.exec('DELETE FROM invites WHERE id=? AND used_at IS NULL',id).rowsWritten>0;
+  }
+  // Removing a computer: its credential, codes and socket. The Worker revokes its chat grants.
+  removeDevice(id){
+    if(!this.deviceExists(id))return false;
+    this.forgetDevice(id);
+    this.record({device:id,kind:'link',name:'removed'});
+    return true;
+  }
+  forgetDevice(id){
+    this.sql.exec('DELETE FROM link_codes WHERE device_id=?',id);
+    this.sql.exec('DELETE FROM devices WHERE id=?',id);
+    for(const socket of this.ctx.getWebSockets(id))socket.close(4401,'This computer was unpaired.');
   }
   async deviceFor(secret){
     if(!secret)return null;
@@ -115,31 +201,48 @@ export class RelayObject extends DurableObject{
   deviceExists(id){return this.sql.exec('SELECT 1 FROM devices WHERE id=?',id).toArray().length>0;}
   async linkCode(secret){
     const deviceId=await this.deviceFor(secret);if(!deviceId)return null;
-    const code=newLinkCode(),expiresAt=Date.now()+LINK_CODE_MS;
+    const code=newCode(2),expiresAt=Date.now()+LINK_CODE_MS;
     this.sql.exec('DELETE FROM link_codes WHERE device_id=? OR expires_at<?',deviceId,Date.now());
     this.sql.exec('INSERT INTO link_codes(code_hash,device_id,expires_at) VALUES(?,?,?)',await sha256(normalizedCode(code)),deviceId,expiresAt);
     return {code,expiresAt};
   }
-  // Single use; failures are counted per minute across all codes to bound guessing.
-  async redeemLinkCode(code){
-    const minute=Math.floor(Date.now()/60_000);
-    this.sql.exec('DELETE FROM failures WHERE minute<?',minute);
-    if((this.sql.exec('SELECT count FROM failures WHERE minute=?',minute).toArray()[0]?.count??0)>=FAILURES_PER_MINUTE)
-      return {error:'Too many attempts. Wait a minute and try again.'};
+  // A consent page shown to someone (Worker's /authorize GET): only a sign-in
+  // started here may try a code, and the retry page shows the same client and
+  // destination as the first.
+  async beginSignIn({handle,clientId,clientName,redirectUri}){
+    const now=Date.now();
+    this.sql.exec('DELETE FROM sign_ins WHERE expires_at<?',now);
+    this.sql.exec('INSERT INTO sign_ins(handle_hash,client_id,client_name,redirect_uri,expires_at) VALUES(?,?,?,?,?)',await sha256(handle),clientId,clientName,redirectUri,now+SIGN_IN_MS);
+  }
+  // Checks the sign-in before the code, then the code; single use. A wrong
+  // code counts against this sign-in and the caller's address, never globally.
+  async redeemLinkCode({handle,code,address}){
+    const handleHash=await sha256(String(handle??''));
+    const signIn=this.sql.exec('SELECT client_id AS clientId,client_name AS clientName,redirect_uri AS redirectUri,expires_at,failures FROM sign_ins WHERE handle_hash=?',handleHash).toArray()[0];
+    if(!signIn||signIn.expires_at<Date.now())return {expired:true,error:'This sign-in has expired. Start connecting again from your chat app.'};
+    const {expires_at,failures,...client}=signIn;
+    if(failures>=CODE_TRIES_PER_SIGN_IN)return {client,expired:true,error:'Too many wrong codes for this sign-in. Start connecting again from your chat app.'};
+    if(this.overLimit('code:'+address,CODE_FAILURES_PER_ADDRESS,10*60_000,{count:false}))return {client,error:'Too many attempts from this network. Wait ten minutes and try again.'};
     const hash=await sha256(normalizedCode(code));
     const row=this.sql.exec('SELECT device_id,expires_at FROM link_codes WHERE code_hash=?',hash).toArray()[0];
     if(!row||row.expires_at<Date.now()){
-      this.sql.exec('INSERT INTO failures(minute,count) VALUES(?,1) ON CONFLICT(minute) DO UPDATE SET count=count+1',minute);
-      return {error:'That code is not valid. Create a new code in SAAM and enter it within two minutes.'};
+      this.sql.exec('UPDATE sign_ins SET failures=failures+1 WHERE handle_hash=?',handleHash);
+      this.overLimit('code:'+address,Infinity,10*60_000);
+      return {client,error:'That code is not valid. Create a new code in SAAM and enter it within two minutes.'};
     }
     this.sql.exec('DELETE FROM link_codes WHERE code_hash=?',hash);
-    return {deviceId:row.device_id};
+    this.sql.exec('DELETE FROM sign_ins WHERE handle_hash=?',handleHash);
+    return {client,deviceId:row.device_id};
+  }
+  // How often an address may start a sign-in or register an OAuth client,
+  // each of which writes to OAuth storage (free-plan KV allows 1,000 writes a day).
+  admit(kind,address){
+    const [max,windowMs]={authorize:[30,60*60_000],register:[10,60*60_000]}[kind];
+    return !this.overLimit(`${kind}:${address}`,max,windowMs);
   }
   async unpair(secret){
     const deviceId=await this.deviceFor(secret);if(!deviceId)return null;
-    this.sql.exec('DELETE FROM link_codes WHERE device_id=?',deviceId);
-    this.sql.exec('DELETE FROM devices WHERE id=?',deviceId);
-    for(const socket of this.ctx.getWebSockets(deviceId))socket.close(4401,'This computer was unpaired.');
+    this.forgetDevice(deviceId);
     return deviceId;
   }
   // Reached only through the Worker: the device's socket, or /mcp with the
@@ -154,14 +257,13 @@ export class RelayObject extends DurableObject{
   async connect(request){
     if(request.headers.get('Upgrade')?.toLowerCase()!=='websocket')return new Response('Expected a WebSocket upgrade.',{status:426});
     const deviceId=await this.deviceFor(/^Bearer (\S+)$/.exec(request.headers.get('Authorization')??'')?.[1]);
-    if(!deviceId)return new Response('Unknown device credential.',{status:401});
-    if(request.headers.get('X-SAAM-Protocol')!==PROTOCOL){
-      const [client,server]=Object.values(new WebSocketPair());server.accept();
-      server.close(4426,'SAAM on this computer does not match the relay. Install the current SAAM release.');
-      return new Response(null,{status:101,webSocket:client});
-    }
+    // Refusals are close codes the device can read: 4401 forgets the pairing, 4426 asks for an update.
+    const refuse=(code,reason)=>{const [client,server]=Object.values(new WebSocketPair());server.accept();server.close(code,reason);return new Response(null,{status:101,webSocket:client});};
+    if(!deviceId)return refuse(4401,'This computer was unpaired.');
+    if(request.headers.get('X-SAAM-Protocol')!==PROTOCOL)return refuse(4426,'SAAM on this computer does not match the relay. Install the current SAAM release.');
     for(const socket of this.ctx.getWebSockets(deviceId))socket.close(4000,'Replaced by a newer connection.');
     const [client,server]=Object.values(new WebSocketPair()),connection=crypto.randomUUID();
+    this.sql.exec('UPDATE devices SET connected_at=? WHERE id=?',Date.now(),deviceId);
     this.ctx.acceptWebSocket(server,[deviceId]);
     server.serializeAttachment({deviceId,connection,session:null});
     this.record({device:deviceId,kind:'link',name:'open',body:{connection}});
@@ -184,8 +286,9 @@ export class RelayObject extends DurableObject{
       const socket=this.socketFor(deviceId);if(socket&&session===socket.deserializeAttachment().session)socket.send(JSON.stringify({type:'session-end',session}));return new Response(null,{status:204});
     }
     if(request.method!=='POST')return new Response(null,{status:405,headers:{Allow:'POST, DELETE'}});
-    // The body itself is measured: a request without Content-Length is not exempt.
-    const body=await request.text(),bytes=encoder.encode(body).length,call=crypto.randomUUID();
+    // Stops reading at the limit: a declared length over it is refused unread,
+    // and a request without Content-Length is measured as it arrives.
+    const {body,bytes}=await boundedText(request,MESSAGE_LIMIT),call=crypto.randomUUID();
     let message=null,parsed=false;
     if(bytes<=MESSAGE_LIMIT)try{message=JSON.parse(body);parsed=true;}catch{/* Answered below. */}
     const initialize=message?.method==='initialize',name=message?.params?.name??message?.method??null;
@@ -207,6 +310,8 @@ export class RelayObject extends DurableObject{
     const attachment=socket.deserializeAttachment();
     if(!initialize&&(!session||session!==attachment.session))return refuse(rpcError(message.id,-32001,'Session not found; initialize a new session.'),session?404:400);
     if(initialize)socket.serializeAttachment({...attachment,session:routed});
+    if(awaitsResult&&[...this.pending.values()].filter(waiting=>waiting.device===deviceId).length>=CALLS_IN_FLIGHT)
+      return refuse(rpcError(message.id,-32000,`SAAM is already working on ${CALLS_IN_FLIGHT} calls from this chat. Wait for one to finish, then try again.`),200);
     if(!awaitsResult){try{socket.send(JSON.stringify({type:'mcp',session:routed,message}));}catch(error){console.error(JSON.stringify({event:'device-send-failed',deviceId,error:error.message}));}return new Response(null,{status:202});}
     const result=this.call(socket,routed,message,{call,device:deviceId,name});
     if(initialize||!/text\/event-stream/.test(request.headers.get('Accept')??'')){

@@ -24,7 +24,7 @@ an older version, install its ZIP the same way; your prints are not affected.
 Start and stop
 --------------
 Start SAAM from its Start Menu or Desktop shortcut: Studio opens in your
-browser and no window stays open. To stop SAAM, click Quit SAAM in Studio.
+browser and no window stays open. To stop SAAM, click Quit in SAAM Studio.
 Starting SAAM again while it runs just shows Studio. If SAAM does not
 start, Start Menu > "SAAM (with console)" shows its messages.
 

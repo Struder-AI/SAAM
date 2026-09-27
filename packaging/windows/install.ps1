@@ -93,7 +93,7 @@ function Set-Shortcut([string]$Path, [string]$Target, [string]$Arguments, [strin
   if ($Target -eq $wscript) { $link.IconLocation = (Join-Path $SaamRoot 'runtime\node.exe') + ',0' }
   $link.Save()
 }
-# The SAAM shortcuts start it without a window; Quit SAAM in Studio stops it.
+# The SAAM shortcuts start it without a window; Quit in SAAM Studio stops it.
 $wscript = Join-Path $env:SystemRoot 'System32\wscript.exe'
 $launcher = "`"$(Join-Path $SaamRoot 'SAAM.vbs')`""
 Set-Shortcut $StartMenuLink $wscript $launcher "SAAM $version"
@@ -105,7 +105,7 @@ Set-Shortcut $UninstallLink $powershell "-NoProfile -ExecutionPolicy Bypass -Fil
 
 Write-Host ''
 Write-Step "SAAM $version is installed."
-Write-Host "Start it any time from the SAAM shortcut on the Start Menu or Desktop; stop it with Quit SAAM in Studio."
+Write-Host "Start it any time from the SAAM shortcut on the Start Menu or Desktop; stop it with Quit in SAAM Studio."
 Write-Host "Your prints and settings stay in $(Get-SaamDataFolder)."
 Write-Host 'Starting SAAM now. Studio opens in your browser; use its Connect panel to link your chat.'
 Start-Process -FilePath $wscript -ArgumentList $launcher -WorkingDirectory $env:USERPROFILE

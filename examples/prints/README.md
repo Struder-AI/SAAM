@@ -23,7 +23,7 @@ the lesson guidance. To continue saved progress, open its print path and choose
 |---|---|
 | A simple block with a raised fin | Ask the agent to change its geometry; Next unlocks once the change is displayed. |
 | The wavy roof | Change it or proceed. Active work locks Next; the displayed change unlocks it. |
-| Open print | Choose one of the two saved parts; this confirms its geometry. |
+| Open | Choose one of the two saved parts; this confirms its geometry. |
 | Import STL | See where normal Studio imports a model; import stays unavailable until the tour ends. Continue keeps the selected part. |
 | Playback | Press Play. Next unlocks immediately; playback, scrubbing and speed stay free. |
 | Chat guidance | The agent explains the toolpath and suggests process changes; Next unlocks once the changed toolpath is displayed. |
@@ -33,7 +33,7 @@ the lesson guidance. To continue saved progress, open its print path and choose
 ### Maker agent participation
 
 **Scope.** The tour narrows the conversation to its current lesson: shape edits
-in the first two, Open print in its lesson, pointing out that STL import comes
+in the first two, Open in its lesson, pointing out that STL import comes
 after the tour, playback while watching, recipe changes in the chat lesson,
 printer and material in setup, and export last. Questions about the current
 lesson are always welcome. For anything else, redirect gently: "We can do that

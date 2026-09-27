@@ -33,8 +33,10 @@ expressions, traces, byte offsets. Reads are compact JSON: `range` is
 `[first,last]` inclusive, nested locations inherit `file`, empty arrays omitted.
 
 `regenerate` is the only command that scans; it always regenerates everything
-(about a minute) and redraws the viewer. `solve` anneals the tree, writes
-`tree.json` and regenerates. `flow-evidence` re-derives one node from source, to audit the generator;
+(about a minute) and redraws the viewer; it keeps the stored tree and places
+new leaves in it. `solve` anneals the tree, writes `tree.json` and
+regenerates. It runs only when the owner asks; an agent may ask for one, never
+start one. `flow-evidence` re-derives one node from source, to audit the generator;
 `build` redraws `view/index.html` from the store, no scan (needs Python 3; set
 `PYTHON` otherwise); `watch-freshness` keeps the viewer's live status current.
 

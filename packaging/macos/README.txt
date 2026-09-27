@@ -33,7 +33,7 @@ Start and stop
 --------------
 Open SAAM from your Applications folder (in Finder: Go > Home, then
 Applications > SAAM), Spotlight or the Dock: Studio opens in your browser
-and no window stays open. To stop SAAM, click Quit SAAM in Studio.
+and no window stays open. To stop SAAM, click Quit in SAAM Studio.
 Starting SAAM again while it runs just shows Studio. If SAAM does not
 start, double-click SAAM.command in ~/Applications/SAAM: a Terminal window
 shows its messages.

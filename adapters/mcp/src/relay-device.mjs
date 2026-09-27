@@ -3,7 +3,7 @@
 // WebSocket. Each chat session is an MCP session of the ordinary adapter over
 // that socket; nothing on this computer listens publicly. A session ends when
 // the chat ends it, a newer chat starts, or it stays idle past its lease.
-import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {readFile,writeFile,mkdir,rm} from 'node:fs/promises';
 import {resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createLocalRuntime} from './runtime.mjs';
@@ -23,21 +23,29 @@ export function listenFor(clientName=''){
 export const RELAY_GUIDANCE='This SAAM session reaches the person’s own computer through the SAAM relay. You cannot run commands or read files there: skip every step that needs command access. Call maker_onboarding first, once per conversation, and read further context with read_skill and read_guidance. SAAM Studio is open on that computer; the person imports files and confirms output there. Keep listening: after each reply, call wait_for_studio_request again without waiting for a chat message, and omit waitMs. A wait that returns no requests is normal; call it again.';
 const rpcError=(id,code,message)=>({jsonrpc:'2.0',id:id??null,error:{code,message}});
 
-async function post(relayUrl,path,secret){
-  const response=await fetch(new URL(path,relayUrl),{method:'POST',headers:secret?{Authorization:`Bearer ${secret}`}:{}});
+async function post(relayUrl,path,secret,fields){
+  const headers={...secret?{Authorization:`Bearer ${secret}`}:{},...fields?{'Content-Type':'application/json'}:{}};
+  const response=await fetch(new URL(path,relayUrl),{method:'POST',headers,body:fields?JSON.stringify(fields):undefined})
+    .catch(()=>{throw Error('SAAM could not reach the relay. Check the internet connection and try again.');});
   const body=await response.json().catch(()=>({}));
   if(!response.ok)throw Error(body.error??`Relay answered ${response.status} for ${path}.`);
   return body;
 }
-// The device credential is this computer's pairing; it never leaves the state file.
-export async function loadDevice(relayUrl,statePath){
-  try{const saved=JSON.parse(await readFile(statePath,'utf8'));if(saved.relayUrl===relayUrl)return saved;}
-  catch(error){if(error.code!=='ENOENT')throw error;}
-  const device={relayUrl,...await post(relayUrl,'/device/register')};
+// The device credential is this computer's pairing; it never leaves the state
+// file. null: this computer is not paired with this relay.
+export async function savedDevice(relayUrl,statePath){
+  try{const saved=JSON.parse(await readFile(statePath,'utf8'));return saved.relayUrl===relayUrl?saved:null;}
+  catch(error){if(error.code!=='ENOENT')throw error;return null;}
+}
+// Pairing spends one invite the relay operator issued.
+export async function registerDevice(relayUrl,statePath,invite){
+  const device={relayUrl,...await post(relayUrl,'/device/register',null,{invite:String(invite??'').trim()})};
   await mkdir(dirname(statePath),{recursive:true});
   await writeFile(statePath,JSON.stringify(device,null,2)+'\n',{mode:0o600});
   return device;
 }
+// A computer the relay removed forgets its credential, so it can pair again.
+export const forgetDevice=statePath=>rm(statePath,{force:true});
 export const linkCode=device=>post(device.relayUrl,'/device/link-code',device.secret);
 export const unpair=device=>post(device.relayUrl,'/device/unpair',device.secret);
 // The chat apps this computer has authorized: [{client}].
@@ -159,59 +167,86 @@ export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onSta
   };
 }
 
-// major.minor.patch comparison; a pre-release suffix is ignored.
+// major.minor.patch comparison. An offered version must be exactly that: it
+// names a folder and a download path (see packaging/update.mjs).
+export const RELEASE_VERSION=/^\d{1,6}\.\d{1,6}\.\d{1,6}$/;
 const releaseParts=version=>String(version).split('-')[0].split('.').map(Number);
 export function newerRelease(candidate,current){
+  if(!RELEASE_VERSION.test(String(candidate)))return false;
   const a=releaseParts(candidate),b=releaseParts(current);
   for(let i=0;i<3;i++)if((a[i]||0)!==(b[i]||0))return (a[i]||0)>(b[i]||0);
   return false;
 }
 // What Studio's Connect panel reads. The runtime, and so every Studio it
 // opens, exists before the connection that needs the runtime; the provider
-// answers "not connected" until attach() hands it that connection. With an
-// installed build's version, platform and update hook it also offers a newer
-// release the relay announced.
-export function relayProvider(device,{version=null,platform=null,update=null,quit=null}={}){
-  const link={connection:null};
+// answers "not paired" or "not connected" until attach() hands it that
+// connection. pair(invite) pairs an unpaired computer (runPairedSaam supplies
+// it). With an installed build's version, platform and update hook it also
+// offers a newer release the relay announced.
+export function relayProvider(relayUrl,{version=null,platform=null,update=null,quit=null,pair=null}={}){
+  // notice: why the relay last dropped this computer's pairing, until it pairs again.
+  const link={connection:null,notice:null};
   const offer=status=>{
     const release=status.release,asset=release?.assets?.[platform];
     return update&&version&&asset&&newerRelease(release.version,version)?{version:release.version,...asset}:null;
   };
-  const current=()=>link.connection?.status()??{relayUrl:device.relayUrl,connected:false,session:null,release:null,chats:null};
+  const current=()=>link.connection?.status()??{relayUrl,connected:false,session:null,release:null,chats:null};
   return {
-    status:()=>{const {release,...status}=current(),offered=offer({release});return {...status,version,update:offered?{version:offered.version}:null,canQuit:Boolean(quit)};},
+    status:()=>{const {release,...status}=current(),offered=offer({release});return {...status,paired:Boolean(link.connection),notice:link.notice,version,update:offered?{version:offered.version}:null,canQuit:Boolean(quit)};},
     quit:()=>{if(!quit)throw Error('This SAAM stops from its terminal.');return quit();},
-    linkCode:()=>linkCode(device),
+    linkCode:()=>{if(!link.connection)throw Error('Pair this computer with an invite first.');return link.connection.linkCode();},
+    pair:async invite=>{
+      if(link.connection)throw Error('This computer is already paired.');
+      if(!pair)throw Error('This SAAM cannot pair from Studio.');
+      await pair(invite);return {paired:true};
+    },
     update:()=>{const offered=offer(current());if(!offered)throw Error('No newer SAAM release is available.');return update(offered);},
-    attach(connection){link.connection=connection;return connection;}
+    attach(connection){link.connection=connection;link.notice=null;return connection;},
+    detach(notice){link.connection=null;link.notice=notice??null;}
   };
 }
 
-// SAAM on a paired computer: the runtime, its relay link and one Studio at
-// launch with no print. Its Connect panel issues codes, and request_review
-// later shows the chat's prints in it. The CLI and the installed launcher use this.
+// SAAM on a computer paired with the relay, or waiting to be: the runtime, its
+// relay link once paired and one Studio at launch with no print. Its Connect
+// panel takes the invite, then issues chat codes, and request_review later
+// shows the chat's prints in it. A computer the relay removes forgets its
+// pairing and waits for a new invite. The CLI and the installed launcher use this.
 // installed: {version, platform, update(release), quit()} for an installed build.
 export async function runPairedSaam({relayUrl,statePath,printsRoot,onStatus=()=>{},onCall=()=>{},installed={}}){
-  const device=await loadDevice(relayUrl,statePath);
-  const relay=relayProvider(device,installed),runtime=createLocalRuntime({printsRoot,relay});
-  const connection=relay.attach(connectRelay({device,runtime,onStatus,onCall,about:installed}));
-  // Studio's events reach the relay's records; the local folder path stays here.
-  runtime.observeEvents(({directory,...event})=>connection.event(event));
+  const state={connection:null,unobserve:null};
+  const start=device=>{
+    const connection=connectRelay({device,runtime,onCall,about:installed,onStatus:status=>{
+      onStatus(status);
+      if(status.code===4401&&state.connection?.link===connection)void unpaired(status.reason);
+    }});
+    state.connection=relay.attach({link:connection,status:connection.status,close:connection.close,linkCode:()=>linkCode(device)});
+    // Studio's events reach the relay's records; the local folder path stays here.
+    state.unobserve?.();state.unobserve=runtime.observeEvents(({directory,...event})=>connection.event(event));
+  };
+  async function unpaired(reason){
+    const connection=state.connection;state.connection=null;relay.detach(reason);
+    await connection?.close();await forgetDevice(statePath);
+  }
+  const relay=relayProvider(relayUrl,{...installed,pair:async invite=>start(await registerDevice(relayUrl,statePath,invite))});
+  const runtime=createLocalRuntime({printsRoot,relay});
+  const saved=await savedDevice(relayUrl,statePath);if(saved)start(saved);
   const studio=await runtime.openStudio();
-  return {device,runtime,connection,studio,stop:async()=>{await connection.close();await runtime.close();}};
+  return {runtime,relay,studio,connection:()=>state.connection?.link??null,stop:async()=>{await state.connection?.close();await runtime.close();}};
 }
 
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   const relayUrl=process.env.SAAM_RELAY_URL,statePath=process.env.SAAM_RELAY_STATE??resolve(root,'.local','relay-device.json');
   if(!relayUrl){console.error('Set SAAM_RELAY_URL to the relay origin, for example https://relay.example.com.');process.exit(1);}
   const command=process.argv[2];
-  if(command==='link'||command==='unpair'){
-    const device=await loadDevice(relayUrl,statePath);
+  if(command==='pair'){await registerDevice(relayUrl,statePath,process.argv[3]);console.log('This computer is paired with',relayUrl);}
+  else if(command==='link'||command==='unpair'){
+    const device=await savedDevice(relayUrl,statePath);
+    if(!device){console.error('This computer is not paired: run with "pair INVITE", or paste the invite in Studio\'s Connect panel.');process.exit(1);}
     if(command==='link'){const {code,expiresAt}=await linkCode(device);console.log(`Connect your chat: add ${relayUrl}/mcp as a custom connector and enter code ${code} (valid until ${new Date(expiresAt).toLocaleTimeString()}).`);}
-    else{await unpair(device);console.log('This computer is unpaired. Delete',statePath,'to pair again.');}
+    else{await unpair(device);await forgetDevice(statePath);console.log('This computer is unpaired. Pair again with a new invite.');}
   }else{
     const saam=await runPairedSaam({relayUrl,statePath,printsRoot:process.env.SAAM_PRINTS_ROOT??resolve(root,'Prints'),onStatus:status=>console.error('SAAM relay:',JSON.stringify(status)),onCall:call=>console.error('SAAM call:',JSON.stringify(call))});
-    console.log(`SAAM Studio: ${saam.studio.url}${saam.studio.browserOpenRequested?'':' (open it in your browser)'}. Connect a chat from its Connect panel.`);
+    console.log(`SAAM Studio: ${saam.studio.url}${saam.studio.browserOpenRequested?'':' (open it in your browser)'}. Pair and connect a chat from its Connect panel.`);
     const stop=async()=>{await saam.stop();process.exit(0);};
     process.on('SIGINT',stop);process.on('SIGTERM',stop);
   }

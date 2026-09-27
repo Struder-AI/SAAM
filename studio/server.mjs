@@ -335,14 +335,21 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       if(req.method==='GET'&&playerModules.has(url.pathname.slice(1))){
         res.writeHead(200,{'Content-Type':'text/javascript'});res.end(await readFile(resolve(root,url.pathname.slice(1))));return;
       }
-      if(url.pathname==='/api/relay'||url.pathname==='/api/relay/link-code'||url.pathname==='/api/relay/update'||url.pathname==='/api/relay/quit'){
-        // Link codes pair a chat with this computer, and an update replaces SAAM:
-        // the same session token and origin checks as Studio's other routes guard
-        // them. Absent without a relay.
-        const reading=req.method==='GET'&&url.pathname==='/api/relay',issuing=req.method==='POST'&&url.pathname==='/api/relay/link-code',updating=req.method==='POST'&&url.pathname==='/api/relay/update',quitting=req.method==='POST'&&url.pathname==='/api/relay/quit';
-        if(!relay||!reading&&!issuing&&!updating&&!quitting){send({error:'Not found'},404);return;}
+      if(url.pathname==='/api/relay'||url.pathname==='/api/relay/link-code'||url.pathname==='/api/relay/pair'||url.pathname==='/api/relay/update'||url.pathname==='/api/relay/quit'){
+        // An invite pairs this computer, link codes pair a chat with it, and an
+        // update replaces SAAM: the same session token and origin checks as
+        // Studio's other routes guard them. Absent without a relay.
+        const reading=req.method==='GET'&&url.pathname==='/api/relay',issuing=req.method==='POST'&&url.pathname==='/api/relay/link-code',pairing=req.method==='POST'&&url.pathname==='/api/relay/pair',updating=req.method==='POST'&&url.pathname==='/api/relay/update',quitting=req.method==='POST'&&url.pathname==='/api/relay/quit';
+        if(!relay||!reading&&!issuing&&!pairing&&!updating&&!quitting){send({error:'Not found'},404);return;}
         if(req.headers['x-saam-token']!==token||(reading?req.headers.origin&&req.headers.origin!==origin:req.headers.origin!==origin)){send({error:'Invalid local session'},403);return;}
         if(reading){send(relayView(relay.status()));return;}
+        if(pairing){
+          const chunks=[];let size=0;
+          for await(const chunk of req){size+=chunk.length;if(size>4_000)throw Error('Request too large.');chunks.push(chunk);}
+          const {invite}=JSON.parse(Buffer.concat(chunks).toString()||'{}');
+          try{send(await relay.pair(String(invite??'')));}catch(error){send({error:error.message},400);}
+          return;
+        }
         // Update or quit at an idle boundary: never under a running calculation.
         if((updating||quitting)&&['preparing','generating'].includes(generationStatus()?.status)){send({error:`Wait for the toolpath calculation to finish, then ${updating?'update':'quit'}.`},409);return;}
         if(updating){try{send(await relay.update());}catch(error){send({error:'SAAM could not update: '+error.message},502);}return;}

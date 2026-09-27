@@ -241,7 +241,7 @@ A path display alone cannot establish arbitrary machine-program behavior.
 
 ## Opening local prints in Studio
 
-**Open print** lists saved bundles below `Prints/` (up to three directory levels).
+**Open** lists saved bundles below `Prints/` (up to three directory levels).
 It also accepts a local bundle folder, `plan.json`, or an export/delivery file
 inside the bundle. It opens the owning bundle through the same adapter and
 integrity checks; standalone machine-program import is not implemented.

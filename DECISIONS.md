@@ -424,7 +424,7 @@ Historical approved wording; current persistence direction is [D-027](#d-027--ex
 
 ## D-039 — Alpha relay records
 
-- Decision: For the alpha, the relay records every message between a chat and a paired computer (requests with their arguments, results, and the relay's own answers such as timeouts and lost links), each computer's Studio events and SAAM version, and link changes, in its Durable Object for `RECORD_DAYS` (30) days. Recipe edits carry their changed values in the bundle's review history and in Studio's `plan-updated` event. Long number arrays and encoded files are stored as their length. Records are read through token-protected `/records` routes and `relay/scripts/records.mjs`. The consent page tells testers.
+- Decision: For the alpha, the relay records every message between a chat and a paired computer (requests with their arguments, results, and the relay's own answers such as timeouts and lost links), each computer's Studio events and SAAM version, and link changes, in its Durable Object for `RECORD_DAYS` (30) days. Recipe edits carry their changed values in the bundle's review history and in Studio's `plan-updated` event. Long number arrays and encoded files are stored as their length. Records are read through token-protected `/records` routes and `relay/scripts/operator.mjs`. The consent page tells testers.
 - Status: proposed
 - Recorded: 2026-09-27
 - Approvals: Current user (remettub) directed the work; contributor approval not recorded.

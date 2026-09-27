@@ -9243,3 +9243,37 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   sha256 `90479fd1…cbbd7`); it holds `SAAM.vbs`, Quit SAAM, the Connect panel
   and `maker_onboarding`. Not published as a release; `LATEST_RELEASE` stays
   empty.
+
+## 2026-09-27 — Relay hardening: invites, sign-in limits, redirect allowlist, pinned updates
+
+- From the relay security report (six findings). Pairing a computer now spends
+  a single-use invite the operator issues (`relay/scripts/operator.mjs`, renamed
+  from `records.mjs`, behind the new `OPERATOR_TOKEN` secret that also guards
+  the records). Studio starts unpaired and takes the invite in the Connect
+  panel; a computer removed by the operator (or never connected within a day)
+  forgets its credential and asks for a new invite. `MAX_PAIRED_DEVICES` is 150
+  as a backstop.
+- Chat sign-in: a code is tried only within a sign-in the consent page started
+  (junk posts get "expired" and count nowhere); five wrong codes end a sign-in,
+  twenty in ten minutes pause an address. The global per-minute counter is gone.
+  Link codes stay 8 characters: the lockout, not the length, was the weakness.
+- Sign-ins go only to `CHAT_REDIRECTS` origins (Claude, ChatGPT), checked at
+  client registration and at the consent page; the retry page keeps the
+  destination warning. Registrations and consent pages are limited per address;
+  a computer has at most 8 calls in flight; request bodies stop being read at
+  their limit.
+- Updates: an installed build accepts only
+  `<update host>/v<x.y.z>/SAAM-<x.y.z>-<platform>.zip` with a plain version, and
+  the update folder must stay inside `updates`. `--update-host` is now the
+  release folder, `https://github.com/Struder-AI/SAAM/releases/download`.
+  Installed 0.1.2 builds keep their old check.
+- Studio: "Open print" is "Open", "Quit SAAM" is "Quit", and Quit closes the tab
+  where the browser allows (Chrome and Edge).
+- Verification: `relay/test/relay.test.mjs` (adapted to invites) and
+  `core/tests/studio-relay.test.mjs` pass. A scratch run against `wrangler dev`
+  passed 25 checks: the update URL and version checks, the operator token, invite
+  refusal and reuse, the foreign-redirect registration refused, pairing from
+  Studio's route, 40 junk posts not blocking a right code, the per-sign-in end,
+  the retry page's warning, removal forgetting the credential and pairing again.
+  The panel's unpaired state was checked in the browser. Not run: the whole
+  suite, a real chat client against the new relay, a real update.

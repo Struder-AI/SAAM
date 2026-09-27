@@ -26,7 +26,7 @@ main() {
   local target answer
   target="$HOME/Applications/SAAM"
   [ -d "$target" ] || fail "SAAM is not installed in $target."
-  if saam_running; then fail 'SAAM is running. Click Quit SAAM in Studio, then uninstall again.'; fi
+  if saam_running; then fail 'SAAM is running. Click Quit in SAAM Studio, then uninstall again.'; fi
   if [ "${1:-}" != '--yes' ]; then
     echo "This removes SAAM from $target and $target.app."
     echo "Your prints and settings in $(data_folder) are kept."

@@ -66,7 +66,7 @@ write_app() {
 PLIST
   cat > "$bundle/Contents/MacOS/SAAM" <<LAUNCHER
 #!/bin/bash
-# Starts SAAM $version in the background and exits; stop SAAM with Quit SAAM in
+# Starts SAAM $version in the background and exits; stop SAAM with Quit in SAAM
 # Studio. Written by install.sh; prints stay in ~/Library/Application Support/SAAM.
 # Run from the home folder, so SAAM never holds the program folder open.
 cd "\$HOME"
@@ -118,7 +118,7 @@ main() {
   fi
   say "Installing SAAM ${version:-(unknown version)} for $(id -un) into $target."
   # The SAAM being updated has exited, so this refuses only another running SAAM.
-  if saam_running; then fail 'SAAM is running. Click Quit SAAM in Studio, then run install.sh again.'; fi
+  if saam_running; then fail 'SAAM is running. Click Quit in SAAM Studio, then run install.sh again.'; fi
 
   # Unpack into a staging folder next to the installation first, so a failed
   # unpack leaves any installed SAAM as it was.
@@ -138,7 +138,7 @@ main() {
   cat > "$launcher" <<LAUNCHER
 #!/bin/bash
 # Starts SAAM $version in a Terminal window, for troubleshooting: SAAM.app starts
-# it without one. Quit SAAM in Studio or close this window to stop SAAM.
+# it without one. Quit in SAAM Studio or close this window to stop SAAM.
 # Written by install.sh; prints stay in ~/Library/Application Support/SAAM.
 printf '\\033]0;SAAM - close this window to stop SAAM\\007'
 "$target/runtime/node" "$target/packaging/launch.mjs"
@@ -156,7 +156,7 @@ LAUNCHER
   echo
   say "SAAM ${version} is installed."
   echo 'Start it any time from SAAM in your Applications folder (~/Applications/SAAM.app),'
-  echo 'and stop it with Quit SAAM in Studio.'
+  echo 'and stop it with Quit in SAAM Studio.'
   echo "Your prints and settings stay in $(data_folder)."
   echo 'Starting SAAM now. Studio opens in your browser; use its Connect panel'
   echo 'to link your chat.'

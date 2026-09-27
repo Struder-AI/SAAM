@@ -27,7 +27,7 @@ or [macos/](macos/) unpacks straight into the installation, and `app/` with only
   `%LOCALAPPDATA%\SAAM`, macOS `~/Library/Application Support/SAAM`, override
   with `SAAM_DATA`), outside the application, so install, update, rollback and
   uninstall never touch them. One SAAM runs per user, without a window
-  (`SAAM.vbs`, `SAAM.app`); launching again shows Studio; Quit SAAM stops it.
+  (`SAAM.vbs`, `SAAM.app`); launching again shows Studio; Quit in Studio stops it.
 - Installers are per-user and need no administrator rights. Installing refuses
   while SAAM is running, so an update never replaces code under a running
   generation. To roll back, install the older ZIP.
@@ -42,10 +42,13 @@ Windows may warn about an unsigned download; the README says to run it anyway.
 
 ## Releasing an update
 
-Builds pass `--update-host https://github.com`; releases are GitHub Releases on
-the public Struder-AI/SAAM repository, so SAAM downloads them without a login.
+Releases are GitHub Releases on the public Struder-AI/SAAM repository, so SAAM
+downloads them without a login. Builds pass
+`--update-host https://github.com/Struder-AI/SAAM/releases/download`, and an
+installed SAAM accepts only `<update host>/v<version>/SAAM-<version>-<platform>.zip`
+for a plain `major.minor.patch` version, with the checksum the relay names.
 
-1. Build each platform with the new version and `--update-host https://github.com`.
+1. Build each platform with the new version and that `--update-host`.
 2. Create release `v<version>` and attach the ZIPs:
    `gh release create v<version> dist/SAAM-<version>-*.zip -R Struder-AI/SAAM`.
 3. Set `LATEST_RELEASE` in [the relay configuration](../relay/wrangler.jsonc) to
