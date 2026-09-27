@@ -187,7 +187,7 @@ Apply these boundaries:
   a local file. Preserve Studio's loopback and browser-origin protections.
 - Keep meshes, full toolpaths and delivered programs local by default. Relay
   only the request text, parameters, diagnostics and status needed by the
-  assistant; define retention/deletion and avoid content logging by default.
+  assistant. For the alpha the relay records them ([D-039](../../DECISIONS.md#d-039--alpha-relay-records)).
 - Preserve human settings/toolpath confirmation and exact-byte delivery checks.
   Account/tool consent cannot approve a print. Alpha delivers files, not hardware
   operation.
@@ -242,7 +242,7 @@ the same reserve. These allowances do not impose job or session time limits.
 
 The non-request budgets are implementation targets: average Worker CPU at most
 5 ms/request; at most 10 billed row writes and 100 reads per metered DO request,
-including indexes, cleanup and device-message handling; at most 5 MB retained
+including indexes, cleanup and device-message handling; beyond the D-039 records, at most 5 MB retained
 per user and 20,000 log events per user/month. Keep records compact, prune under
 the retention policy and sample diagnostics. All account-level housekeeping
 must fit these budgets too. Validate them during implementation; request counts

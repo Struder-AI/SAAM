@@ -67,17 +67,25 @@ function sessionTransport(reply,onCall){
   return transport;
 }
 
-// onCall receives one record per answered chat call (see callRecord).
-export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onStatus=()=>{},onCall=()=>{}}){
+// onCall receives one record per answered chat call (see callRecord). about
+// names this SAAM ({version, platform}) in the hello the relay records.
+export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onStatus=()=>{},onCall=()=>{},about={}}){
   const url=new URL('/device/connect',device.relayUrl);url.protocol=url.protocol==='https:'?'wss:':'ws:';
   // problem: why the relay refused this computer (unpaired, or an outdated SAAM); no retry follows.
-  const link={socket:null,closed:false,backoff:BACKOFF_MS[0],heartbeat:null,retry:null,inbox:Promise.resolve(),problem:null,release:null};
+  // outbox: device events awaiting an open link.
+  const link={socket:null,closed:false,backoff:BACKOFF_MS[0],heartbeat:null,retry:null,inbox:Promise.resolve(),problem:null,release:null,outbox:[]};
   const sessions=new Map();
   const current=()=>[...sessions.keys()][0]??null;
   function report(){if(link.socket?.readyState===WebSocket.OPEN)link.socket.send(JSON.stringify({type:'session',session:current()}));}
   function reply(call,message,status=200){
     if(link.socket?.readyState===WebSocket.OPEN)link.socket.send(JSON.stringify({type:'result',call,status,message}));
     // Otherwise the relay has already failed this call; the work itself is saved locally.
+  }
+  // A device event for the relay's records: what Studio saw or this computer
+  // failed at. Sent at once, or held until the link opens again.
+  function notify(event){
+    const packet=JSON.stringify({type:'event',at:Date.now(),event});
+    if(link.socket?.readyState===WebSocket.OPEN)link.socket.send(packet);else link.outbox.push(packet);
   }
   function lease(session){
     clearTimeout(session.idle);
@@ -109,9 +117,14 @@ export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onSta
   }
   function connect(){
     const socket=new WebSocket(url,{headers:{Authorization:`Bearer ${device.secret}`,'X-SAAM-Protocol':RELAY_PROTOCOL}});link.socket=socket;
-    socket.onopen=()=>{link.backoff=BACKOFF_MS[0];report();onStatus({connected:true});link.heartbeat=setInterval(()=>socket.send('ping'),HEARTBEAT_MS);};
+    socket.onopen=()=>{
+      link.backoff=BACKOFF_MS[0];
+      socket.send(JSON.stringify({type:'hello',version:about.version??null,platform:about.platform??null,node:process.version,os:process.platform}));
+      for(const packet of link.outbox.splice(0))socket.send(packet);
+      report();onStatus({connected:true});link.heartbeat=setInterval(()=>socket.send('ping'),HEARTBEAT_MS);
+    };
     // Opening a session awaits the previous one's end; later messages queue behind it.
-    socket.onmessage=({data})=>{if(data==='pong')return;link.inbox=link.inbox.then(()=>receive(JSON.parse(data))).catch(error=>console.error('SAAM relay message:',error));};
+    socket.onmessage=({data})=>{if(data==='pong')return;link.inbox=link.inbox.then(()=>receive(JSON.parse(data))).catch(error=>{console.error('SAAM relay message:',error);notify({kind:'device-error',error:String(error?.message??error).slice(0,2000)});});};
     socket.onerror=()=>{};
     socket.onclose=({code,reason})=>{
       clearInterval(link.heartbeat);if(link.socket===socket)link.socket=null;
@@ -127,6 +140,7 @@ export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onSta
     sessions:()=>[...sessions.keys()],
     // What Studio shows: link state and the chat session, if any.
     status:()=>({relayUrl:device.relayUrl,connected:link.socket?.readyState===WebSocket.OPEN,problem:link.problem,release:link.release,session:current()?{client:sessions.get(current()).client}:null}),
+    event:notify,
     // Drops the link without ending sessions, as a network loss would.
     disconnect(){link.socket?.close();},
     async close(){
@@ -171,7 +185,9 @@ export function relayProvider(device,{version=null,platform=null,update=null,qui
 export async function runPairedSaam({relayUrl,statePath,printsRoot,onStatus=()=>{},onCall=()=>{},installed={}}){
   const device=await loadDevice(relayUrl,statePath);
   const relay=relayProvider(device,installed),runtime=createLocalRuntime({printsRoot,relay});
-  const connection=relay.attach(connectRelay({device,runtime,onStatus,onCall}));
+  const connection=relay.attach(connectRelay({device,runtime,onStatus,onCall,about:installed}));
+  // Studio's events reach the relay's records; the local folder path stays here.
+  runtime.observeEvents(({directory,...event})=>connection.event(event));
   const studio=await runtime.openStudio();
   return {device,runtime,connection,studio,stop:async()=>{await connection.close();await runtime.close();}};
 }

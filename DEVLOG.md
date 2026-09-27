@@ -9188,3 +9188,20 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   Windows installer in a sandboxed LOCALAPPDATA (install, reinstall, update mode);
   install.sh under Git Bash with stubs. Unverified: a real Mac, a real install,
   Quit end to end, and an update through the relay.
+
+## 2026-09-27 — Alpha relay records (D-039)
+
+- Owner direction: capture what we can from the relay rather than rely on
+  testers sharing transcripts. The relay object records every chat↔computer
+  message (arguments, results, its own timeouts and lost links), link changes,
+  the computer's hello (SAAM version, platform) and its Studio events, kept
+  `RECORD_DAYS` (30) days; long number arrays and encoded files become their
+  length. Token-protected `/records` routes, read with
+  `relay/scripts/records.mjs` (JSONL plus a Markdown timeline in
+  `.local/relay-records/`). The consent page tells testers.
+- The device forwards Studio events through a new non-draining
+  `observeEvents` (local folder path removed), holding them while the link is
+  down, and reports its own message failures as `device-error`.
+- Recipe edits record their changed values: `planChanges` in the bundle's
+  `plan-edited` history and Studio's `plan-updated` event.
+- Not run: tests (per the user), a deployment, a real pull of records.

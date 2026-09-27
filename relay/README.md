@@ -9,7 +9,8 @@ owns the design; this file covers running it.
   `/mcp` passes the verified device id to the relay object.
 - [relay-object.mjs](src/relay-object.mjs): paired devices, single-use link codes
   (two minutes, failures limited per minute), each device's current chat session
-  and the calls in flight to its WebSocket. It stores no print data. It answers
+  and the calls in flight to its WebSocket. It keeps no print state, only the
+  alpha records (below). It answers
   one JSON-RPC message per request: a call for any session but the device's
   current one gets 404 at once, so the chat starts a new session, and a call
   that waits streams its one result as server-sent events with a keepalive every
@@ -26,6 +27,24 @@ There are no SAAM accounts: pairing the computer is the identity.
 `MAX_PAIRED_DEVICES` caps how many computers can pair (2 while testing, 150 for
 alpha); registration beyond it is refused and unpairing frees a slot. Connecting a
 chat asks for a code the computer shows; unpairing revokes every chat grant.
+
+## Records
+
+For the alpha ([D-039](../DECISIONS.md#d-039--alpha-relay-records)) the relay keeps
+every message between a chat and its computer, the computer's Studio events
+(recipe edits as diffs, requests, generation, imports, exports, errors) and link
+changes for `RECORD_DAYS` days. Long number arrays and encoded files are stored
+as their length. Reading them needs the `RECORDS_TOKEN` secret
+(`npx wrangler secret put RECORDS_TOKEN`), kept locally in `.local/relay-records-token`:
+
+```sh
+node relay/scripts/records.mjs sessions --since 7d
+node relay/scripts/records.mjs pull SESSION          # or --device ID, --since 1d
+```
+
+`pull` writes each session's records as JSONL and a Markdown timeline to
+`.local/relay-records/`; `devices` lists paired computers, their SAAM version
+and the storage used.
 
 ## Run locally
 

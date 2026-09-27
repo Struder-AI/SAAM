@@ -2,6 +2,7 @@
 // endpoints and an MCP endpoint that forwards each JSON-RPC message to the
 // paired computer through the shared relay object. It runs no SAAM operation.
 import {OAuthProvider,AuthorizationError} from '@cloudflare/workers-oauth-provider';
+import {recordDaysFor} from './relay-object.mjs';
 export {RelayObject} from './relay-object.mjs';
 
 const SCOPE='saam';
@@ -17,7 +18,7 @@ const mcpHandler={fetch(request,env,ctx){
   return relay(env).fetch(new Request(request,{headers}));
 }};
 
-function consentPage({client,request,handle,error}){
+function consentPage({client,request,handle,error,recordDays}){
   const name=escape(client?.clientName??client?.clientId??'Your chat app');
   const host=request?new URL(request.redirectUri).hostname:null;
   const local=host&&/^(localhost|127(\.\d{1,3}){3}|\[::1\])$/.test(host);
@@ -33,6 +34,7 @@ button{font:inherit;padding:.5rem 1rem;margin-right:.5rem}.error{color:#b00020}
 ${host?`<p>${origin} Access will be sent to <strong>${escape(host)}</strong>.</p>`:''}
 ${local?'<p><strong>This sends access to an app on your computer.</strong> Continue only if you just started connecting from it.</p>':''}
 <p>${name} will be able to read, create and change prints on the computer running SAAM, and start toolpath generation. It cannot confirm a print or run a machine: you confirm settings and toolpath in SAAM Studio.</p>
+${recordDays?`<p>During the alpha, the relay keeps a record of every request and result between your chat and SAAM, and of what you do in SAAM Studio, for ${recordDays} days, so SAAM's developers can find and fix problems. Your chat messages themselves stay with your chat app.</p>`:''}
 ${error?`<p class="error">${escape(error)}</p>`:''}
 <form method="post">
   <input type="hidden" name="handle" value="${escape(handle)}">
@@ -49,14 +51,14 @@ async function authorize(request,env){
       const parsed=await oauth.parseAuthRequest(request),client=await oauth.lookupClient(parsed.clientId);
       if(!client)return text('Unknown OAuth client.',400);
       const consent=await oauth.beginConsent(parsed);
-      return page(consentPage({client,request:parsed,handle:consent.handle}),consent.headers);
+      return page(consentPage({client,request:parsed,handle:consent.handle,recordDays:recordDaysFor(env)}),consent.headers);
     }
     if(request.method!=='POST')return new Response(null,{status:405});
     const form=await request.formData(),handle=String(form.get('handle')??'');
     if(form.get('decision')!=='approve'){const denied=await oauth.denyConsent(request,handle);return new Response(null,{status:302,headers:denied.headers});}
     // Check the code before consuming the single-use consent handle.
     const linked=await relay(env).redeemLinkCode(form.get('code'));
-    if(linked.error)return page(consentPage({handle,error:linked.error}),new Headers({'X-Frame-Options':'DENY','Content-Security-Policy':"frame-ancestors 'none'"}));
+    if(linked.error)return page(consentPage({handle,error:linked.error,recordDays:recordDaysFor(env)}),new Headers({'X-Frame-Options':'DENY','Content-Security-Policy':"frame-ancestors 'none'"}));
     const approved=await oauth.approveConsent(request,handle,{scope:[SCOPE]});
     const {redirectTo}=await oauth.completeAuthorization({request:approved.request,userId:linked.deviceId,metadata:{},scope:[SCOPE],props:{deviceId:linked.deviceId}});
     approved.headers.set('Location',redirectTo);
@@ -87,10 +89,30 @@ async function device(request,env,path){
   return new Response(null,{status:404});
 }
 
+// The alpha records, for SAAM's developers: GET /records/devices,
+// /records/sessions?since=MS and /records?session=|device=&since=&until=&after=
+// (a page; its next continues). Bearer RECORDS_TOKEN, a Wrangler secret; unset, no route.
+async function records(request,env,path){
+  if(!env.RECORDS_TOKEN)return new Response(null,{status:404});
+  if(!await sameSecret(bearer(request),env.RECORDS_TOKEN))return json({error:'Unknown records token.'},401);
+  if(request.method!=='GET')return new Response(null,{status:405});
+  const query=new URL(request.url).searchParams,number=name=>query.has(name)?Number(query.get(name)):undefined;
+  if(path==='/records/devices')return json(await relay(env).recordDevices());
+  if(path==='/records/sessions')return json(await relay(env).recordSessions({since:number('since')}));
+  if(path==='/records')return json(await relay(env).readRecords({session:query.get('session'),device:query.get('device'),since:number('since'),until:number('until'),after:number('after')}));
+  return new Response(null,{status:404});
+}
+async function sameSecret(given,expected){
+  if(!given)return false;
+  const [a,b]=await Promise.all([given,expected].map(value=>crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))));
+  return crypto.subtle.timingSafeEqual(a,b);
+}
+
 const defaultHandler={async fetch(request,env){
   const path=new URL(request.url).pathname;
   if(path==='/authorize')return authorize(request,env);
   if(path.startsWith('/device/'))return device(request,env,path);
+  if(path==='/records'||path.startsWith('/records/'))return records(request,env,path);
   if(path==='/')return text('SAAM relay. Add PUBLIC_URL/mcp as a custom connector in your chat app.',200);
   return new Response(null,{status:404});
 }};

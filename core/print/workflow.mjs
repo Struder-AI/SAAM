@@ -57,9 +57,22 @@ export function applyPlanPatch(previous, patch, geometryTemplate) {
   return resolvePlanPatch(previous,patch,{geometryTemplate});
 }
 
-export function editedPlanReview(review, previousGenerationHash, geometryChanged, time = new Date().toISOString()) {
-  const event = {event:'plan-edited', time, previousGenerationHash, geometryChanged, invalidated:['toolpath']};
+// changes: each recipe value the edit changed, from planChanges.
+export function editedPlanReview(review, previousGenerationHash, geometryChanged, changes = [], time = new Date().toISOString()) {
+  const event = {event:'plan-edited', time, previousGenerationHash, geometryChanged, changes, invalidated:['toolpath']};
   return invalidateReview(review,event);
+}
+
+// The recipe values that differ between two plans, as {path, before, after};
+// objects are compared key by key and arrays whole. Geometry is reported by
+// geometryChanged rather than listed.
+export function planChanges(before, after, path = []) {
+  const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
+  if(object(before)&&object(after))
+    return [...new Set([...Object.keys(before),...Object.keys(after)])].sort()
+      .filter(key=>!(path.length===0&&key==='geometry'))
+      .flatMap(key=>planChanges(before[key],after[key],[...path,key]));
+  return canonical(before)===canonical(after)?[]:[{path:path.join('.'),before:before??null,after:after??null}];
 }
 
 function invalidateReview(review,event) {
@@ -450,7 +463,7 @@ async function updatePlan(directory, plan, revision) {
 
   // Build before committing anything; plan.json remains the edit commit point.
   const geometry = change.geometryChanged ? await createGeometry(change.plan.geometry) : null;
-  const review = editedPlanReview(state.review, state.generationHash, change.geometryChanged);
+  const review = editedPlanReview(state.review, state.generationHash, change.geometryChanged, planChanges(state.plan, change.plan));
   await persistPlanUpdate(state,change.plan,geometry,review);
   return loadBundle(directory);
 }

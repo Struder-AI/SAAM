@@ -503,6 +503,8 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     queuedRequests:()=>agentRequests.query({status:'queued'}),
     subscribeRequests:listener=>agentRequests.subscribe(listener),
     subscribeEvents:listener=>studioEvents.subscribe(listener),
+    // Every Studio event as it is recorded, without draining the agent's queue.
+    observeEvents:observer=>studioEvents.observe(observer),
     openStudio,
     close
   };

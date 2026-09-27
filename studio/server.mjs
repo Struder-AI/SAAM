@@ -546,7 +546,11 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           note('print-opened',{name:await printName(dir,state.plan),tour:progress.active,revision:state.revision});
         }
         else if(await localExtension.studioPost?.({url,data,dir,printId:printId(),send}))return;
-        else if(url.pathname==='/api/plan'){await current.updatePlan(dir,data.plan,data.revision);note('plan-updated',{revision:data.revision??null});}
+        else if(url.pathname==='/api/plan'){
+          const updated=await current.updatePlan(dir,data.plan,data.revision),edit=updated?.review?.history?.at(-1);
+          const changes=updated?.revision!==data.revision&&edit?.event==='plan-edited'?edit.changes??[]:[];
+          note('plan-updated',{revision:data.revision??null,changes});
+        }
         else if(url.pathname==='/api/approve'){
           const approved=await approvePrint(current,data,progress);send({ok:true,approval:approved.response});return;
         }
