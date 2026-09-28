@@ -1,6 +1,7 @@
-// Fixed-size loose NURBS curve offsets: to one side of a reference normal, and
-// within a spline surface as a (u,v) curve. Control count, knots, degree and
-// weights are preserved; only control positions move.
+// Fixed-size loose NURBS curve offsets, horizontally in XY or within a spline
+// surface as a (u,v) curve. Control count, knots, degree and weights are
+// preserved; only control positions move. A surface offset is trimmed to the
+// patch, and each trimmed end adds controls.
 import {basisDerivatives,findSpan,evaluate,evaluateCurve} from './nurbs.mjs';
 import {requireThat,cross,dot} from './tolerance.mjs';
 const MARGIN=.05;
@@ -128,36 +129,131 @@ function sideAt(curve,t,periodic,unitSide){
   return [0,1,2].map(k=>(left[k]+right[k])/(1+cosine));
 }
 
-// Positive depth is to the right of travel seen from the normal's side: for an
-// XY curve and the default +Z normal, outward from a counterclockwise loop. A
-// space curve offsets perpendicular to both its tangent and the normal.
-export function prepareCurveOffsets({curve,normal=[0,0,1],periodic=false}){
-  requireCurve(curve);
-  requireThat(Array.isArray(normal)&&normal.length===3&&normal.every(Number.isFinite)&&Math.hypot(...normal)>0&&typeof periodic==='boolean',
-    'Curve offsets need a finite nonzero normal and an explicit periodic flag.');
-  const axis=normal.map(v=>v/Math.hypot(...normal));
-  const field=looseCurveField(curve,periodic,t=>sideAt(curve,t,periodic,tangent=>{
-    const side=cross(tangent,axis),size=Math.hypot(...side);
-    requireThat(size>1e-12,'Curve offset reference has a collapsed tangent or one parallel to its normal.');
-    return side.map(v=>v/size);
-  }));
-  return {offsetCurve:field.offsetCurve,report:field.report,
-    at:(t,depth=0)=>evaluateCurve(field.offsetCurve(depth),wrap(t,curve.domain,periodic)).point};
+// Boehm knot insertion of t up to multiplicity degree. The control at index
+// `at` is then the curve point at t.
+function clampAt(curve,t){
+  let {n,knots,cp}=curve;const {order}=curve,p=order-1;
+  for(let s=knots.filter(k=>k===t).length;s<p;s++){
+    const k=findSpan(knots,n,order,t),next=new Float64Array((n+1)*4);
+    next.set(cp.subarray(0,(k-p+1)*4));next.set(cp.subarray(k*4),(k+1)*4);
+    for(let i=k-p+1;i<=k;i++){
+      const alpha=(t-knots[i])/(knots[i+p]-knots[i]);
+      for(let c=0;c<4;c++)next[i*4+c]=alpha*cp[i*4+c]+(1-alpha)*cp[(i-1)*4+c];
+    }
+    knots=Float64Array.from([...knots.subarray(0,k+1),t,...knots.subarray(k+1)]);cp=next;n++;
+  }
+  return {curve:{...curve,n,knots,cp},at:Math.min(knots.lastIndexOf(t)-p,n-1)};
 }
 
-// A (u,v) curve on a patch, offset within the surface. Positive depth is to the
-// right of travel seen from the surface normal's side. The collocated side
-// directions are (u,v) images of in-surface millimetre directions, so depth is
-// millimetres to first order. The offset stays a (u,v) curve of the
-// same size; its 3D image is the surface evaluated along it.
-export function prepareSurfaceCurveOffsets({patch,curve,periodic=false,periodicU=false,periodicV=false}){
+// The clamped piece of a curve on [a, b].
+function extract(curve,a,b){
+  const left=clampAt(curve,a),right=clampAt(left.curve,b),{order}=curve,n=right.at-left.at+1;
+  const knots=Float64Array.from([...Array(order).fill(a),...right.curve.knots.filter(k=>k>a&&k<b),...Array(order).fill(b)]);
+  requireThat(knots.length===n+order,'Curve trimming produced an inconsistent knot vector.');
+  return {n,order,knots,cp:right.curve.cp.slice(left.at*4,(right.at+1)*4),domain:[a,b]};
+}
+
+// B continues A at A's end once its parameter is shifted; the joint is C0.
+function join(A,B,shift){
+  const knots=Float64Array.from([...A.knots.subarray(0,A.n),...Array(A.order-1).fill(A.domain[1]),...[...B.knots.subarray(B.order)].map(k=>k+shift)]);
+  const cp=new Float64Array((A.n+B.n-1)*4);cp.set(A.cp);cp.set(B.cp.subarray(4),A.n*4);
+  return {n:A.n+B.n-1,order:A.order,knots,cp,domain:[A.domain[0],B.domain[1]+shift]};
+}
+
+// De Casteljau split of scalar Bezier coefficients at s.
+function casteljau(h,s){
+  const left=[],right=[];let row=[...h];
+  while(row.length){left.push(row[0]);right.unshift(row.at(-1));row=row.slice(1).map((v,i)=>row[i]+(v-row[i])*s);}
+  return [left,right];
+}
+
+// Roots of a scalar Bezier polynomial on [a, b]: no sign change in the
+// coefficients means no root; exactly one, with opposite ends, means one root,
+// bisected to the floating-point floor; otherwise split and recurse.
+function bezierRoots(h,a,b,out){
+  const signs=h.filter(x=>x!==0).map(Math.sign);
+  let changes=0;for(let i=1;i<signs.length;i++)if(signs[i]!==signs[i-1])changes++;
+  if(changes===0)return;
+  const m=(a+b)/2;
+  if(m<=a||m>=b){out.push(m);return;}
+  if(changes===1&&h[0]*h.at(-1)<0){
+    let lo=a,hi=b;
+    for(let mid=m;mid>lo&&mid<hi;mid=(lo+hi)/2){
+      const v=casteljau(h,(mid-a)/(b-a))[0].at(-1);
+      if(v===0){lo=hi=mid;break;}
+      if(Math.sign(v)===Math.sign(h[0]))lo=mid;else hi=mid;
+    }
+    out.push((lo+hi)/2);return;
+  }
+  const [l,r]=casteljau(h,.5);bezierRoots(l,a,m,out);bezierRoots(r,m,b,out);
+}
+
+// Parameter intervals where a (u,v) curve lies inside the nonperiodic domain
+// bounds. Each knot span whose controls straddle a bound is converted to Bezier
+// form for exact root isolation; touching a bound counts as inside.
+function insideIntervals(curve,bounds,inside){
+  const {n,order,knots,domain}=curve,p=order-1,roots=[];
+  const values=(c,axis,value)=>Array.from({length:order},(_,j)=>c.cp[j*4+axis]-value*c.cp[j*4+3]);
+  for(let i=p;i<n;i++){
+    const a=knots[i],b=knots[i+1];if(!(b>a))continue;
+    const local={n:order,order,knots:knots.slice(i-p,i+p+2),cp:curve.cp.slice((i-p)*4,(i+1)*4),domain:[a,b]};
+    let bezier=null;
+    for(const {axis,value} of bounds){
+      const g=values(local,axis,value);
+      if(g.every(x=>x>=0)||g.every(x=>x<=0))continue;
+      bezier??=extract(local,a,b);bezierRoots(values(bezier,axis,value),a,b,roots);
+    }
+  }
+  const ts=[domain[0],...roots.filter(t=>t>domain[0]&&t<domain[1]).sort((x,y)=>x-y),domain[1]],out=[];
+  for(let i=1;i<ts.length;i++){
+    const a=ts[i-1],b=ts[i];
+    if(!(b>a)||!inside(evaluateCurve(curve,(a+b)/2).point))continue;
+    if(out.length&&out.at(-1)[1]===a)out.at(-1)[1]=b;else out.push([a,b]);
+  }
+  return out;
+}
+
+// Signed area of the curve in its first two coordinates, from knot
+// quarter-span samples: the orientation of a closed loop.
+function signedArea(curve){
+  const {knots,domain}=curve,breaks=[...new Set([...knots].filter(x=>x>=domain[0]&&x<=domain[1]))],points=[];
+  for(let b=1;b<breaks.length;b++)for(let j=0;j<4;j++)points.push(evaluateCurve(curve,breaks[b-1]+(breaks[b]-breaks[b-1])*j/4).point);
+  return points.reduce((sum,p,i)=>{const q=points[(i+1)%points.length];return sum+(p[0]*q[1]-q[0]*p[1])/2;},0);
+}
+
+// Without a patch the curve is XYZ and offsets horizontally, perpendicular to
+// its XY tangent. With a patch it is a (u,v) curve offset within the surface;
+// depth is millimetres to first order, and the result keeps only what lies
+// inside the patch, as (u,v) curves on the reference's parameters (a piece
+// joined across a periodic curve's seam runs past its end by one period).
+// Positive depth is outward from a closed loop (periodic, with coinciding
+// ends) and otherwise to the right of travel, seen from +Z or from the
+// surface normal's side.
+export function prepareCurveOffsets({curve,patch=null,periodic=false,periodicU=false,periodicV=false}){
   requireCurve(curve);
-  requireThat(patch?.cp&&patch.domainU&&patch.domainV&&[periodic,periodicU,periodicV].every(p=>typeof p==='boolean'),
-    'Surface curve offsets need a patch and explicit periodic flags.');
+  requireThat([periodic,periodicU,periodicV].every(p=>typeof p==='boolean')&&(patch===null||patch?.cp&&patch.domainU&&patch.domainV),
+    'Curve offsets need explicit periodic flags and, on a surface, a patch.');
+  const [start,end]=curve.domain.map(t=>evaluateCurve(curve,t).point);
+  const loop=periodic&&Math.hypot(start[0]-end[0],start[1]-end[1],start[2]-end[2])<=1e-9;
+  requireThat(!periodic||loop||patch,'A periodic curve must end where it starts.');
+  const area=loop?signedArea(curve):0;
+  requireThat(!loop||Math.abs(area)>1e-12,'A closed curve with no enclosed area has no outward side.');
+  const sign=area<0?-1:1;
+  if(!patch){
+    const field=looseCurveField(curve,periodic,t=>sideAt(curve,t,periodic,tangent=>{
+      const side=[tangent[1],-tangent[0],0],size=Math.hypot(...side);
+      requireThat(size>1e-12,'Curve offset reference has a vertical or collapsed tangent.');
+      return side.map(v=>v/size);
+    }).map(v=>v*sign));
+    return {offsetCurves:depth=>[field.offsetCurve(depth)],report:field.report,
+      at:(t,depth=0)=>({point:evaluateCurve(field.offsetCurve(depth),wrap(t,curve.domain,periodic)).point})};
+  }
   const domains=[[patch.domainU,periodicU],[patch.domainV,periodicV]];
+  const bounds=domains.flatMap(([range,wraps],axis)=>wraps?[]:range.map(value=>({axis,value})));
   const inside=([u,v])=>[u,v].every((x,k)=>domains[k][1]||x>=domains[k][0][0]-1e-9&&x<=domains[k][0][1]+1e-9);
   const surfaceUv=([u,v])=>[wrap(u,...domains[0]),wrap(v,...domains[1])];
-  for(let i=0;i<curve.n;i++)requireThat(inside([0,1].map(k=>curve.cp[i*4+k]/curve.cp[i*4+3])),'Surface curve controls must lie inside the patch domain.');
+  const whole=(c,parts)=>parts.length===1&&parts[0][0]===c.domain[0]&&parts[0][1]===c.domain[1];
+  requireThat(whole(curve,insideIntervals(curve,bounds,inside)),'The reference curve must lie inside the patch domain.');
   const field=looseCurveField(curve,periodic,t=>{
     const e=evaluate(patch,...surfaceUv(evaluateCurve(curve,t).point));
     requireThat(e.normal,'Surface curve offset reference crosses a singular surface point.');
@@ -168,17 +264,17 @@ export function prepareSurfaceCurveOffsets({patch,curve,periodic=false,periodicU
     });
     // Solve [du dv] x = side through the first fundamental form.
     const E=dot(e.du,e.du),F=dot(e.du,e.dv),G=dot(e.dv,e.dv),det=E*G-F*F,a=dot(e.du,side),b=dot(e.dv,side);
-    return [(G*a-F*b)/det,(E*b-F*a)/det,0];
+    return [sign*(G*a-F*b)/det,sign*(E*b-F*a)/det,0];
   });
-  const offsetCurveUv=depth=>{
-    const result=field.offsetCurve(depth);
-    // Controls inside the domain keep the curve inside it (convex hull).
-    for(let i=0;i<result.n;i++)requireThat(inside([0,1].map(k=>result.cp[i*4+k]/result.cp[i*4+3])),
-      `Surface curve offset at depth ${depth} mm leaves the patch domain; reduce the depth.`);
-    return result;
-  };
-  return {offsetCurveUv,report:field.report,at:(t,depth=0)=>{
-    const uv=surfaceUv(evaluateCurve(offsetCurveUv(depth),wrap(t,curve.domain,periodic)).point);
-    return {uv,point:evaluate(patch,...uv,false).point};
+  function offsetCurves(depth){
+    const offset=field.offsetCurve(depth),parts=insideIntervals(offset,bounds,inside),[d0,d1]=offset.domain;
+    if(whole(offset,parts))return [offset];
+    const pieces=parts.map(([a,b])=>extract(offset,a,b));
+    if(periodic&&pieces.length>1&&parts[0][0]===d0&&parts.at(-1)[1]===d1)pieces.unshift(join(pieces.pop(),pieces.shift(),d1-d0));
+    return pieces;
+  }
+  return {offsetCurves,report:field.report,at:(t,depth=0)=>{
+    const uv=evaluateCurve(field.offsetCurve(depth),wrap(t,curve.domain,periodic)).point.slice(0,2);
+    return inside(uv)?{uv:surfaceUv(uv),point:evaluate(patch,...surfaceUv(uv),false).point}:null;
   }};
 }

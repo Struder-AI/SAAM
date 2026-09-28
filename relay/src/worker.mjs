@@ -187,6 +187,8 @@ const defaultHandler={async fetch(request,env){
   const path=new URL(request.url).pathname;
   if(path==='/authorize')return authorize(request,env);
   if(path.startsWith('/device/'))return device(request,env,path);
+  // A chat's SAAM panel; its first message carries the key the relay object checks.
+  if(path==='/panel')return relay(env).fetch(request);
   if(path==='/records'||path.startsWith('/records/')||path.startsWith('/operator/'))return operator(request,env,path);
   if(path==='/')return text('SAAM relay. Add PUBLIC_URL/mcp as a custom connector in your chat app.',200);
   return new Response(null,{status:404});

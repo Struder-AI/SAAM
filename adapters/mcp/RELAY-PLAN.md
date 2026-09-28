@@ -1,9 +1,6 @@
 # Packaged SAAM with a Cloudflare MCP relay
 
-Status: alpha milestone specification and implementation roadmap. This document
-describes intended behavior, not shipped functionality. Beta distribution is
-included for context, not as an alpha release gate. The current task is planning;
-implementation and production deployment are subsequent work.
+Status: alpha specification and roadmap; beta is context, not a release gate.
 [D-037](../../DECISIONS.md#d-037--cloudflare-relay-and-studio-driven-chat-sessions)
 records the user's direction and its scope.
 
@@ -43,7 +40,7 @@ publication work remains deferred; see
 | Hosting | Cloudflare Worker and Durable Objects as a relay. |
 | Installation | Downloadable OS-specific ZIP containing an installer and a complete local runtime. Windows and macOS carry forward [D-023](../../DECISIONS.md#d-023--future-deployment-local-saam-application-with-a-hosted-relay). |
 | Interface | Retain Studio in a browser. The initial supported review flow is on the computer running SAAM. |
-| Interaction | Pending MCP event waits deliver Studio requests to the active assistant; the assistant renews its listener after responding. |
+| Interaction | The [SAAM panel](#saam-panel) posts Studio requests into the chat. A client without MCP Apps uses pending MCP event waits, renewed after each response. |
 | Quiet wait | Support a 7 minute 30 second quiet interval. Target one 450-second call in ChatGPT, or two 225-second calls with one automatic renewal in Claude. These are not session or computation caps; ChatGPT's deadline remains an implementation target to satisfy. |
 | Pairing | One active paired installation per SAAM account. No installation picker in the normal workflow; replacing the paired computer is an explicit settings action. |
 | Workload and hosting target | $5/month Cloudflare relay budget; alpha cap 150 active users at five prints/day and 30 ordinary MCP calls/print, plus the explicit listening/transport allowances below. The original 200-user case remains a cost comparison. |
@@ -270,11 +267,35 @@ and [DO requests, duration, SQLite and billing rounding](https://developers.clou
 
 ## Session protocol and recovery
 
-The existing `wait_for_studio_request` returns stored Studio requests and
-delivered Studio events. A pending tool invocation lets its result reach the
-model; an open socket alone does not establish that the assistant is listening.
+The model hears SAAM only through a tool result or a chat message, so an open
+socket alone does not mean the assistant is listening. The SAAM panel posts
+Studio requests as chat messages; other clients hold `wait_for_studio_request`,
+whose result carries queued requests and delivered Studio events.
 
-### Normal sequence and timing
+### SAAM panel
+
+A held listener keeps the person's own chat messages waiting and may need a tool
+approval at every renewal. A client advertising MCP Apps (`io.modelcontextprotocol/ui`,
+as Claude web does) instead shows the panel with `maker_onboarding`'s result,
+and the turn ends after each reply.
+
+- It runs in the host's sandboxed frame and connects only to the relay's
+  `/panel` WebSocket. Its first message carries a per-session key from the
+  result's `_meta`, checked against the hash the device reported and redacted
+  from the records. No geometry or toolpath reaches it; Studio is not embedded.
+- One light: **working** while a Studio request is queued or claimed, a
+  toolpath calculates or the chat called SAAM in the last 45 s; **error** while
+  the computer is offline, the panel's connection or session is lost, or this
+  session's latest request failed; **done** otherwise, with a line saying why.
+- It posts each queued request with its `requestId` (`ui/message`), retrying a
+  refused post while the request stays queued. "Open Studio" asks the host to
+  open Studio's loopback address, which holds no secret.
+- While it is connected the session does not idle out and the listener returns
+  at once. A new session closes the old one's panels.
+- Unmeasured, for A2: whether a host keeps a panel running out of view, and
+  accepts `ui/message` without a click in it.
+
+### Listener sequence and timing
 
 1. Start the SAAM session and call the listener. Queued requests return at once;
    otherwise the call stays pending until a request or event arrives.
@@ -297,10 +318,9 @@ Studio's generation worker only if a measured case exceeds a call deadline.
 Any shorter-call fallback must be disclosed rather than counted as meeting the
 requested per-call target.
 
-Studio shows whether the assistant is listening, working or gone. A pending wait
-establishes listening, an active claim establishes work, and a 30-minute idle lease
-covers normal gaps between calls. Device connectivity and assistant
-availability remain separate.
+Studio shows whether the assistant is listening, working or gone: a pending wait
+or connected panel, an active claim, and a 30-minute idle lease between calls.
+Device connectivity and assistant availability remain separate.
 
 ### Interruptions
 
@@ -317,7 +337,7 @@ repeating generation or delivery is harmless.
 | New chat on an unfinished print | After the old session ends/expires, start a fresh session from the saved bundle. Nothing of the old session is resumed. |
 | Explicit end, unpair or revocation | Reject new commands under that grant. Listener loss alone does not approve, deliver or cancel a job. |
 
-Automatic wake-up of ended chats is outside the goalpost.
+A listener cannot wake an ended chat; a showing SAAM panel can.
 
 ## Local execution and packaging
 
@@ -355,6 +375,7 @@ change the linked sources. Acceptance identifiers refer to the checklist below.
 | 4. Maker workflow | Agent-led creation or STL preparation, editing, generation/progress/cancel, local review and exact-byte delivery. | A2, A4 |
 | 5. Installable releases | Windows/macOS installers, bundled runtime, pairing, diagnostics and safe updates. Update [setup](../../SETUP.md) and [MCP guidance](DEVELOP.md). Can proceed alongside stages 2-4 after stage 1's runtime layout stabilizes. | A1 |
 | 6. Alpha release | Complete load/recovery coverage, cost projection and support instructions. Public-directory approval is not required. | All |
+| 7. SAAM panel | [Panel](src/panel.html), its [registration](src/server.mjs), [device status](src/relay-device.mjs) and the relay's `/panel` route. | A2, A3 |
 
 ## Alpha acceptance
 

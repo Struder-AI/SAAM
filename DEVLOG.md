@@ -1,5 +1,45 @@
 # Development log
 
+## 2026-09-28 — SAAM panel: Studio requests reach a web chat without a listener
+
+- Why: relay records (session `uj5OgdB6…`) showed a chat message waiting behind
+  a full 225 s `wait_for_studio_request` (07:47:37 → 07:51:22) before the model
+  read it, and every renewal can need a tool approval. Claude web advertises MCP
+  Apps (`io.modelcontextprotocol/ui`) in every initialize.
+- [panel.html](adapters/mcp/src/panel.html): an MCP App shown with
+  `maker_onboarding`'s result ([server.mjs](adapters/mcp/src/server.mjs)
+  registers `ui://saam/panel` and the tool's `_meta.ui.resourceUri` only for such
+  clients). One light (done/working/error), a line, "Open Studio"
+  (`ui/open-link` to the loopback URL). It posts each queued Studio request with
+  `ui/message` and retries a refused post every 10 s while the request stays queued.
+- [relay-device.mjs](adapters/mcp/src/relay-device.mjs) mints a per-session key,
+  reports its hash with the session, sends `panel-status` while the relay says a
+  panel is connected, and keeps that session past the idle lease.
+  `PANEL_GUIDANCE` replaces the keep-listening guidance for those clients.
+  [runtime.mjs](adapters/mcp/src/runtime.mjs): `chatStatus`/`subscribeStatus`;
+  with a panel connected the listener returns at once and the chat counts as
+  working 45 s after its last call (5 min otherwise).
+- [relay-object.mjs](relay/src/relay-object.mjs): `/panel` WebSocket
+  (hibernatable, tag `panel`), hello with the key within 10 s, at most 4 panels
+  per session and 120 opens per address per 10 min; close 4001 when the session
+  ends, 4403 for a bad key, 4503 while offline; an offline device sends its panels
+  an error status. Records redact `saam/panel.key`.
+- Checks: `relay/test/relay.test.mjs` passes, as does `core/tests/mcp.test.mjs`
+  (21/21). A scratch end-to-end check under `wrangler dev`, with a real runtime
+  and an SDK client advertising MCP Apps, covered: panel tool and resource, wrong
+  key refused, status stream, instant listener, request delivery, claim, failed
+  edit shown as error, offline and recovery, a new chat closing the old panel
+  (4001), a client without MCP Apps getting the old guidance and no panel, and no
+  key in the records. `panel.html` framed by a stand-in host in the browser pane
+  showed the three colours, dark theme, "Open Studio" and a refused-then-retried
+  `ui/message`. A `srcdoc` frame with an opaque origin could not open a WebSocket
+  to the loopback relay; with a real origin it could. The public HTTPS relay is not loopback.
+- Not run: the whole suite; Claude web itself (needs a relay deploy and a SAAM
+  release). Unmeasured: whether Claude keeps the panel running out of view, and
+  whether it accepts `ui/message` without a click in the panel. The checkpoint
+  also carries a concurrent session's uncommitted `core/geom/curve-offset.mjs`
+  and `core/geom/README.md` work.
+
 ## 2026-09-28 — Loose curve, polyline and on-surface curve offsets
 
 - Inventory before this: the loose surface offset existed

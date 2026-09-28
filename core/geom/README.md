@@ -260,17 +260,17 @@ clearance. Exact normal offsets and blends toward them can still fold. The
 depth-independent `frameAt` exposes the original field; consumers requiring the
 limited geometry use `at` or `offsetPatch`.
 
-[Curve offsets](./curve-offset.mjs) are loose only, on curve records from
-`referenceCurve` (XY, XYZ or XYZW controls). `prepareCurveOffsets` offsets to
-the right of travel seen from `normal` (default +Z: outward from a
-counterclockwise loop); `prepareSurfaceCurveOffsets` offsets a (u,v) curve
-within a patch and returns a (u,v) curve, depth in millimetres to first order,
-refusing an offset whose controls leave a nonperiodic domain. Control directions
-are collocated at Greville parameters, so lines and circular arcs offset
-exactly; at a kink the direction is the miter, so a degree-1 curve is the loose
-polyline offset with every edge parallel at depth. `periodic` joins the ends,
-including a clamped closed curve. Tangent speed along the reference direction
-must keep 5% at the same samples, limited as above.
+[Curve offsets](./curve-offset.mjs) are loose only: `prepareCurveOffsets` takes a
+curve record from `referenceCurve` (XY, XYZ or XYZW controls). Without a patch
+the curve offsets horizontally, perpendicular to its XY tangent, keeping Z.
+With a patch it is a (u,v) curve offset within the surface, depth in millimetres
+to first order, and `offsetCurves(depth)` returns the pieces inside the patch
+on the reference's parameters; trimmed ends add controls. Positive depth is
+outward from a closed loop (`periodic` with coinciding ends) and otherwise to
+the right of travel seen from +Z or the surface normal. Control directions are
+collocated at Greville parameters, so lines and circular arcs offset exactly; at
+a kink, the vertex moves to where the adjoining offset pieces meet. Tangent speed
+along the reference direction must keep 5% at the same samples, limited as above.
 
 `prepareLooseSleeveOffsets` in `sleeve-frame.mjs` specializes this API for
 periodic U and a V chart linear in actual Z. Its `at(u, zMm, depth, tightness)`

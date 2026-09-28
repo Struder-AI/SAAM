@@ -15,6 +15,14 @@ const DAY_MS=86_400_000,PRUNE_EVERY_MS=60*60_000,PAGE_ROWS=500,PAGE_CHARS=8_000_
 // the shared object.
 const SIGN_IN_MS=10*60_000,CODE_TRIES_PER_SIGN_IN=5,CODE_FAILURES_PER_ADDRESS=20,INVITE_FAILURES_PER_ADDRESS=10;
 const UNCONNECTED_MS=DAY_MS,CALLS_IN_FLIGHT=8,INVITE_DAYS=14;
+// A chat's SAAM panel (adapters/mcp/src/panel.html) says hello within
+// PANEL_HELLO_MS; a session keeps its newest PANELS_PER_SESSION panels, and an
+// address opens at most PANEL_OPENS_PER_ADDRESS in ten minutes.
+const PANEL_HELLO_MS=10_000,PANELS_PER_SESSION=4,PANEL_OPENS_PER_ADDRESS=120,PANEL_KEY_LIMIT=256;
+// Close codes the panel reads: 4001 its session ended, 4403 its key was refused
+// (neither retried), 4503 the computer is offline (retried).
+const SESSION_ENDED='This chat’s SAAM session ended. Ask the chat to call maker_onboarding to show the SAAM panel again.';
+const OFFLINE='SAAM is not running on your computer, or it is offline.';
 // The device-relay message protocol. A device speaking another version is
 // told to update rather than left connected and unusable.
 const PROTOCOL='1';
@@ -59,7 +67,8 @@ export function compact(value){
     if(value.type==='text'&&typeof value.text==='string'&&/^[[{]/.test(value.text)){
       try{const {text,...rest}=value;return {...compact(rest),json:compact(JSON.parse(text))};}catch{/* Not JSON: kept as text. */}
     }
-    return Object.fromEntries(Object.entries(value).map(([key,item])=>[key,compact(item)]));
+    // A panel key admits a panel to its session; the records keep none.
+    return Object.fromEntries(Object.entries(value).map(([key,item])=>[key,key==='saam/panel'&&item&&typeof item==='object'?{...item,key:'[redacted]'}:compact(item)]));
   }
   return typeof value==='string'&&value.length>4096&&/^[A-Za-z0-9+/=_-]+$/.test(value)?{elided:'encoded',length:value.length}:value;
 }
@@ -251,6 +260,7 @@ export class RelayObject extends DurableObject{
     const path=new URL(request.url).pathname;
     if(path==='/device/connect')return this.connect(request);
     if(path==='/mcp')return this.mcp(request,request.headers.get('X-SAAM-Device'));
+    if(path==='/panel')return this.openPanel(request);
     return new Response(null,{status:404});
   }
   // A newer connection replaces an older one.
@@ -276,6 +286,44 @@ export class RelayObject extends DurableObject{
   latestRelease(){try{return JSON.parse(this.env.LATEST_RELEASE||'null');}catch{return null;}}
   socketFor(deviceId){
     return this.ctx.getWebSockets(deviceId).find(socket=>socket.readyState===WebSocket.OPEN)??null;
+  }
+  // A chat's SAAM panel: admitted by its hello, a key the device minted for its
+  // current session, and sent that session's status while it stays connected.
+  openPanel(request){
+    if(request.headers.get('Upgrade')?.toLowerCase()!=='websocket')return new Response('Expected a WebSocket upgrade.',{status:426});
+    if(this.overLimit('panel:'+(request.headers.get('CF-Connecting-IP')??'local'),PANEL_OPENS_PER_ADDRESS,10*60_000))return new Response('Too many SAAM panels from this network.',{status:429});
+    const [client,server]=Object.values(new WebSocketPair());
+    this.ctx.acceptWebSocket(server,['panel']);
+    server.serializeAttachment({panel:true,deviceId:null,session:null,opened:Date.now()});
+    setTimeout(()=>{if(server.readyState===WebSocket.OPEN&&!server.deserializeAttachment()?.session)server.close(4403,'The SAAM panel did not identify itself.');},PANEL_HELLO_MS);
+    return new Response(null,{status:101,webSocket:client});
+  }
+  panelsFor(deviceId,session=null){
+    return this.ctx.getWebSockets('panel').filter(socket=>{const attachment=socket.deserializeAttachment();return attachment?.deviceId===deviceId&&(!session||attachment.session===session);});
+  }
+  // Tells the device whether its session has a panel, which then keeps the session and hears its status.
+  panelPresence(deviceId,session,connected=this.panelsFor(deviceId,session).length>0){
+    try{this.socketFor(deviceId)?.send(JSON.stringify({type:'panel',session,connected}));}catch{/* The device reconnects and reports again. */}
+  }
+  async panelHello(socket,packet){
+    const key=typeof packet.key==='string'&&packet.key.length<=PANEL_KEY_LIMIT?packet.key:'';
+    const session=key.slice(0,Math.max(0,key.lastIndexOf('.'))),deviceId=session.split('.')[0];
+    if(!session||!deviceId)return socket.close(4403,'This SAAM panel’s key is not valid.');
+    const device=this.socketFor(deviceId);
+    if(!device)return socket.close(4503,OFFLINE);
+    const current=device.deserializeAttachment();
+    if(current.session!==session)return socket.close(4001,SESSION_ENDED);
+    if(!current.panelHash||current.panelHash!==await sha256(key))return socket.close(4403,'This SAAM panel’s key is not valid.');
+    socket.serializeAttachment({panel:true,deviceId,session,opened:Date.now()});
+    const panels=this.panelsFor(deviceId,session).sort((a,b)=>a.deserializeAttachment().opened-b.deserializeAttachment().opened);
+    for(const older of panels.slice(0,-PANELS_PER_SESSION))older.close(4001,'A newer SAAM panel replaced this one.');
+    this.record({device:deviceId,session,kind:'panel',name:'open'});
+    this.panelPresence(deviceId,session,true);
+  }
+  // A status for the device's panels: of one session, or of all of them.
+  panelStatus(deviceId,session,status){
+    const packet=JSON.stringify({type:'status',...status});
+    for(const panel of this.panelsFor(deviceId,session))try{panel.send(packet);}catch{/* Closing; its close is handled. */}
   }
   // Streamable HTTP. Long calls stream their one result as server-sent events,
   // with comment keepalives so no proxy sees an idle response.
@@ -347,12 +395,22 @@ export class RelayObject extends DurableObject{
   }
   webSocketMessage(socket,data){
     if(typeof data!=='string')return;
-    const packet=JSON.parse(data),attachment=socket.deserializeAttachment(),device=attachment.deviceId;
+    const attachment=socket.deserializeAttachment();
+    if(attachment?.panel){
+      let packet=null;try{packet=JSON.parse(data);}catch{/* Ignored below. */}
+      if(!attachment.session&&packet?.type==='hello')return this.panelHello(socket,packet);
+      return;
+    }
+    const packet=JSON.parse(data),device=attachment.deviceId;
     if(packet.type==='result')this.settle(packet.call,{status:packet.status===404?404:200,message:packet.message,origin:'device',bytes:encoder.encode(data).length});
     else if(packet.type==='session'){
-      socket.serializeAttachment({...attachment,session:packet.session??null});
-      this.record({device,session:packet.session??null,kind:'device-session',name:packet.session?'active':'none'});
+      const session=packet.session??null;
+      socket.serializeAttachment({...attachment,session,panelHash:typeof packet.panel==='string'?packet.panel:null});
+      this.record({device,session,kind:'device-session',name:session?'active':'none'});
+      for(const panel of this.panelsFor(device))if(panel.deserializeAttachment().session!==session)panel.close(4001,SESSION_ENDED);
+      if(session&&this.panelsFor(device,session).length)this.panelPresence(device,session,true);
     }
+    else if(packet.type==='panel-status'&&packet.session&&packet.session===attachment.session&&packet.status)this.panelStatus(device,packet.session,packet.status);
     // Held while offline, an event keeps the time the device saw it.
     else if(packet.type==='event')this.record({at:Number.isFinite(packet.at)?Math.min(packet.at,Date.now()):Date.now(),device,session:attachment.session,kind:'device-event',name:packet.event?.kind??null,error:packet.event?.error??null,body:packet.event});
     else if(packet.type==='hello'){const {type,...hello}=packet;this.record({device,kind:'device-hello',name:hello.version??null,body:hello});}
@@ -365,14 +423,27 @@ export class RelayObject extends DurableObject{
     for(const [call,waiting] of lost)
       this.settle(call,{status:200,origin:'relay',message:rpcError(waiting.id,-32000,'The connection to your computer dropped during this call. Check the print before retrying.')});
   }
+  // A panel's end: the device hears when its session has none left.
+  panelClosed(socket,attachment){
+    try{socket.close();}catch{/* already closed */}
+    if(!attachment.session)return;
+    this.record({device:attachment.deviceId,session:attachment.session,kind:'panel',name:'closed'});
+    this.panelPresence(attachment.deviceId,attachment.session);
+  }
   webSocketClose(socket,code,reason){
-    const {deviceId,connection}=socket.deserializeAttachment()??{};
+    const attachment=socket.deserializeAttachment();
+    if(attachment?.panel)return this.panelClosed(socket,attachment);
+    const {deviceId,connection}=attachment??{};
     if(code!==1000&&code!==4000)console.warn(JSON.stringify({event:'device-link-closed',deviceId,code,reason}));
     this.record({device:deviceId??null,kind:'link',name:'closed',error:code===1000||code===4000?null:`${code} ${reason}`.trim(),body:{connection,code,reason}});
     this.dropped(socket);try{socket.close(code,reason);}catch{/* already closed */}
+    // A replaced connection already has its successor; only a lost one leaves the panels offline.
+    if(deviceId&&!this.socketFor(deviceId))this.panelStatus(deviceId,null,{state:'error',text:OFFLINE+' The light returns when SAAM reconnects.'});
   }
   webSocketError(socket,error){
-    const deviceId=socket.deserializeAttachment()?.deviceId??null,problem=String(error?.message??error);
+    const attachment=socket.deserializeAttachment();
+    if(attachment?.panel)return this.panelClosed(socket,attachment);
+    const deviceId=attachment?.deviceId??null,problem=String(error?.message??error);
     console.error(JSON.stringify({event:'device-link-error',deviceId,error:problem}));
     this.record({device:deviceId,kind:'link',name:'error',error:problem});
     this.dropped(socket);

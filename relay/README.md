@@ -15,12 +15,14 @@ owns the design; this file covers running it.
   current one gets 404 at once, so the chat starts a new session, and a call
   that waits streams its one result as server-sent events with a keepalive every
   20 s. A dropped device link fails its in-flight calls at once; nothing is
-  retried. There is no server-initiated stream.
+  retried. There is no server-initiated stream: the [SAAM panel](../adapters/mcp/RELAY-PLAN.md#saam-panel)
+  opens `/panel`, a WebSocket admitted by its session's key, and hears that
+  session's status from the device.
 - [relay-device.mjs](../adapters/mcp/src/relay-device.mjs): the computer's side.
   It pairs once with an invite, keeps its credential in `.local/relay-device.json`, holds one
   outbound WebSocket and serves each chat session as an ordinary MCP adapter
   session of the local runtime. A new chat replaces the previous session; an idle
-  session ends after 30 minutes. A relay session may listen for up to 225 s per
+  session ends after 30 minutes, unless its SAAM panel is connected. A relay session may listen for up to 225 s per
   call, or 450 s when the client name looks like ChatGPT; stdio stays at 25 s.
 
 ## Pairing

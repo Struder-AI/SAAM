@@ -6,6 +6,7 @@
 import {readFile,writeFile,mkdir,rm} from 'node:fs/promises';
 import {resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {createHash,randomBytes} from 'node:crypto';
 import {createLocalRuntime} from './runtime.mjs';
 import {createMcpAdapter} from './server.mjs';
 
@@ -21,6 +22,16 @@ export function listenFor(clientName=''){
 // A web chat has no command access on this computer and must keep listening
 // for Studio itself; the general instructions follow this.
 export const RELAY_GUIDANCE='This SAAM session reaches the person’s own computer through the SAAM relay. You cannot run commands or read files there: skip every step that needs command access. Call maker_onboarding first, once per conversation, and read further context with read_skill and read_guidance. SAAM Studio is open on that computer; the person imports files and confirms output there. Keep listening: after each reply, call wait_for_studio_request again without waiting for a chat message, and omit waitMs. A wait that returns no requests is normal; call it again.';
+// A chat client that shows MCP Apps gets the SAAM panel (server.mjs), which
+// posts Studio requests into the chat, so the chat ends its turns instead of
+// holding a wait that would keep the person's own messages back.
+export const PANEL_GUIDANCE='This SAAM session reaches the person’s own computer through the SAAM relay. You cannot run commands or read files there: skip every step that needs command access. Call maker_onboarding first, once per conversation: its result shows the SAAM panel in this chat. Read further context with read_skill and read_guidance. SAAM Studio is open on that computer; the person imports files and confirms output there. The panel posts each Studio request into this chat as a message naming its requestId; claim it with begin_studio_work. Do not call wait_for_studio_request while the panel is showing: after each reply, end your turn.';
+const PANEL_EXTENSION='io.modelcontextprotocol/ui',PANEL_MIME='text/html;profile=mcp-app';
+export const showsPanel=capabilities=>Boolean(capabilities?.extensions?.[PANEL_EXTENSION]?.mimeTypes?.includes(PANEL_MIME));
+const sha256=text=>createHash('sha256').update(text).digest('hex');
+// Status changes arrive in bursts (a calculation's progress); the panel hears
+// at most one per PANEL_STATUS_MS.
+const PANEL_STATUS_MS=250;
 const rpcError=(id,code,message)=>({jsonrpc:'2.0',id:id??null,error:{code,message}});
 
 async function post(relayUrl,path,secret,fields){
@@ -87,7 +98,8 @@ export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onSta
   const link={socket:null,closed:false,backoff:BACKOFF_MS[0],heartbeat:null,retry:null,inbox:Promise.resolve(),problem:null,release:null,outbox:[],chats:null};
   const sessions=new Map();
   const current=()=>[...sessions.keys()][0]??null;
-  function report(){if(link.socket?.readyState===WebSocket.OPEN)link.socket.send(JSON.stringify({type:'session',session:current()}));}
+  // The relay keeps only the hash of the session's panel key, to admit its panel.
+  function report(){if(link.socket?.readyState===WebSocket.OPEN)link.socket.send(JSON.stringify({type:'session',session:current(),panel:sessions.get(current())?.panelHash??null}));}
   function reply(call,message,status=200){
     if(link.socket?.readyState===WebSocket.OPEN)link.socket.send(JSON.stringify({type:'result',call,status,message}));
     // Otherwise the relay has already failed this call; the work itself is saved locally.
@@ -106,27 +118,53 @@ export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onSta
   }
   function lease(session){
     clearTimeout(session.idle);
-    session.idle=setTimeout(()=>{if(session.transport.calls.size)lease(session);else void end(session.id);},sessionIdleMs);
+    // A connected panel keeps its session, since that chat makes no calls while it waits for Studio.
+    session.idle=setTimeout(()=>{if(session.transport.calls.size||session.watch)lease(session);else void end(session.id);},sessionIdleMs);
     session.idle.unref?.();
   }
-  async function open(id,clientName){
+  async function open(id,clientName,capabilities){
     for(const other of [...sessions.keys()])await end(other);
-    const transport=sessionTransport(reply,onCall),adapter=createMcpAdapter({runtime,listen:listenFor(clientName),remote:true,guidance:RELAY_GUIDANCE});
+    const panel=showsPanel(capabilities)?{relayUrl:device.relayUrl,key:`${id}.${randomBytes(24).toString('base64url')}`}:null;
+    const transport=sessionTransport(reply,onCall),adapter=createMcpAdapter({runtime,listen:listenFor(clientName),remote:true,guidance:panel?PANEL_GUIDANCE:RELAY_GUIDANCE,panel});
     await adapter.server.connect(transport);
-    const session={id,transport,adapter,idle:null,client:clientName??null};sessions.set(id,session);report();onStatus({session:id,active:true,client:clientName});readChats();
+    const session={id,transport,adapter,idle:null,client:clientName??null,panelHash:panel?sha256(panel.key):null,watch:null};
+    sessions.set(id,session);report();onStatus({session:id,active:true,client:clientName});readChats();
     return session;
+  }
+  // While the relay says a panel of this session is connected, its status goes
+  // to the relay at once and on every change.
+  function panelConnected(session,connected){
+    session.adapter.setPanel(connected);
+    if(!connected){unwatch(session);lease(session);return;}
+    session.watch??={stop:runtime.subscribeStatus(()=>sendStatus(session)),timer:null,last:null};
+    session.watch.last=null;sendStatus(session);lease(session);
+  }
+  function unwatch(session){
+    if(!session.watch)return;
+    clearTimeout(session.watch.timer);session.watch.stop();session.watch=null;
+  }
+  function sendStatus(session){
+    const watch=session.watch;if(!watch||watch.timer)return;
+    watch.timer=setTimeout(async()=>{
+      watch.timer=null;if(session.watch!==watch)return;
+      const status=await runtime.chatStatus(),text=JSON.stringify(status);
+      if(session.watch!==watch||text===watch.last||link.socket?.readyState!==WebSocket.OPEN)return;
+      watch.last=text;link.socket.send(JSON.stringify({type:'panel-status',session:session.id,status}));
+    },PANEL_STATUS_MS);
+    watch.timer.unref?.();
   }
   async function end(id){
     const session=sessions.get(id);if(!session)return;
-    sessions.delete(id);clearTimeout(session.idle);report();
+    sessions.delete(id);clearTimeout(session.idle);unwatch(session);report();
     await session.adapter.close();onStatus({session:id,active:false});
   }
   async function receive(packet){
     if(packet.type==='session-end')return end(packet.session);
     if(packet.type==='release'){link.release=packet.release??null;return;}
+    if(packet.type==='panel'){const session=sessions.get(packet.session);if(session)panelConnected(session,Boolean(packet.connected));return;}
     if(packet.type!=='mcp')return;
     const {call,message}=packet;
-    const session=sessions.get(packet.session)??(message.method==='initialize'?await open(packet.session,message.params?.clientInfo?.name):null);
+    const session=sessions.get(packet.session)??(message.method==='initialize'?await open(packet.session,message.params?.clientInfo?.name,message.params?.capabilities):null);
     if(!session){if(call)reply(call,rpcError(message.id,-32001,'Session not found; initialize a new session.'),404);return;}
     if(call)session.transport.calls.set(message.id,{call,method:message.method,tool:message.params?.name??null,started:Date.now(),bytes:Buffer.byteLength(JSON.stringify(message))});
     lease(session);
