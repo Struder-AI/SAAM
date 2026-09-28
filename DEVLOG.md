@@ -1,5 +1,15 @@
 # Development log
 
+## 2026-09-28 — 0.1.8: the panel fix released
+
+- Published `v0.1.8` from `9e04f0b` (worktree build, Node v24.19.0):
+  `win-x64` 44.5 MB `078e32a7…`, `darwin-arm64` 48.8 MB `b4f16185…`,
+  `darwin-x64` 50.0 MB `7ba137c1…`; the three downloads matched, and the app
+  archive's `panel.html` posts events. Relay deployed (version `b4a910ab`) with
+  `LATEST_RELEASE` 0.1.8.
+- The commit also carries a concurrent session's uncommitted `core/geom`
+  curve-offset and curve-ops work.
+
 ## 2026-09-28 — SAAM panel fix: offer it always, listen until it connects
 
 - First Claude web try on 0.1.7 (session `PoiAsQQY…`): no panel, the Tour

@@ -43,9 +43,11 @@ export function reverseCurve(curve,sum=curve.domain[0]+curve.domain[1]){
   return {n,order,knots:Float64Array.from([...knots].reverse().map(t=>sum-t)),cp:out,domain:[sum-domain[1],sum-domain[0]]};
 }
 
-// A straight degree-1 curve from p to q.
-export function segmentCurve(p,q){
-  return {n:2,order:2,knots:Float64Array.from([0,0,1,1]),cp:Float64Array.from([p[0],p[1],p[2]??0,1,q[0],q[1],q[2]??0,1]),domain:[0,1]};
+// A rational quadratic from p to r with corner q: a quarter circle when
+// p, q and r are the corners of a square's quarter.
+export function arcCurve(p,q,r){
+  const w=Math.SQRT1_2;
+  return {n:3,order:3,knots:Float64Array.from([0,0,0,1,1,1]),cp:Float64Array.from([p[0],p[1],p[2]??0,1,q[0]*w,q[1]*w,(q[2]??0)*w,w,r[0],r[1],r[2]??0,1]),domain:[0,1]};
 }
 
 // The single-span curve over knot span i, with its supporting controls.
@@ -190,13 +192,13 @@ function refine(A,B,s,t,tol,x,y){
 export function curveCrossings(curves,tol,closed=curves.map(()=>false)){
   const pieces=curves.flatMap((curve,ci)=>monotonePieces(curve).map(p=>({...p,ci})));
   pieces.sort((p,q)=>p.box.min[0]-q.box.min[0]);
-  const params=curves.map(()=>[]),points=[];
+  const params=curves.map(()=>[]),points=[],pairs=[];
   const end=(c,t)=>{const [d0,d1]=curves[c].domain,e=1e-12*(d1-d0);return Math.abs(t-d0)<=e||Math.abs(t-d1)<=e;};
   const record=(p,q,hit)=>{
     const [d0,d1]=curves[p.ci].domain,e=1e-9*(d1-d0);
     if(p.ci===q.ci&&(Math.abs(hit.s-hit.t)<=e||closed[p.ci]&&end(p.ci,hit.s)&&end(q.ci,hit.t)))return;
     if(p.ci!==q.ci&&end(p.ci,hit.s)&&end(q.ci,hit.t))return;
-    params[p.ci].push(hit.s);params[q.ci].push(hit.t);points.push(hit.point);
+    params[p.ci].push(hit.s);params[q.ci].push(hit.t);points.push(hit.point);pairs.push({a:p.ci,s:hit.s,b:q.ci,t:hit.t});
   };
   const overlap=(x,y)=>x.min[0]<=y.max[0]+tol&&y.min[0]<=x.max[0]+tol&&x.min[1]<=y.max[1]+tol&&y.min[1]<=x.max[1]+tol;
   const halves=x=>{const m=(x.a+x.b)/2;if(!(m>x.a&&m<x.b))return null;const [l,r]=splitBezier(x.cp,.5);return [{a:x.a,b:m,cp:l,box:box(l)},{a:m,b:x.b,cp:r,box:box(r)}];};
@@ -221,15 +223,19 @@ export function curveCrossings(curves,tol,closed=curves.map(()=>false)){
     const [d0,d1]=curves[c].domain,e=1e-10*(d1-d0),out=[];
     for(const t of list.sort((x,y)=>x-y))if(t>d0+e&&t<d1-e&&!(out.length&&t-out.at(-1)<=e))out.push(t);
     return out;
-  }),points};
+  }),points,pairs};
 }
 
 // Winding number of the oriented curves about q, by a ray toward +x. The
-// curves' spans are prepared once by prepareWinding.
+// curves' spans are prepared once by prepareWinding. The ray is raised by a
+// tiny irrational fraction of the extent so it never passes exactly through a
+// knot, a seam or a joint between curves, where a crossing would be missed or
+// counted twice.
 export function prepareWinding(curves){
   const spans=curves.map(curve=>bezierSpans(curve).map(s=>({...s,box:box(s.cp)})));
-  return q=>{
-    let w=0;
+  const extent=Math.max(1e-9,...spans.flat().map(s=>size(s.box))),lift=extent*1e-11*Math.SQRT1_2;
+  return point=>{
+    const q=[point[0],point[1]+lift];let w=0;
     curves.forEach((curve,c)=>{
       const roots=[];
       for(const s of spans[c]){

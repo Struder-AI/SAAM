@@ -5,7 +5,7 @@
 // degree and weights; control counts change only where a piece is cut.
 import {basisDerivatives,findSpan,evaluate,evaluateCurve} from './nurbs.mjs';
 import {requireThat,cross,dot} from './tolerance.mjs';
-import {extract,join,reverseCurve,segmentCurve,insideIntervals,curveCrossings,prepareWinding} from './curve-ops.mjs';
+import {extract,join,reverseCurve,arcCurve,insideIntervals,curveCrossings,prepareWinding} from './curve-ops.mjs';
 
 export function requireCurve(curve){
   const {n,order,knots,cp,domain}=curve??{};
@@ -167,21 +167,31 @@ export function prepareCurveOffsets({curves,patch=null}){
     const E=dot(e.du,e.du),F=dot(e.du,e.dv),G=dot(e.dv,e.dv),det=E*G-F*F,a=dot(e.du,side),b=dot(e.dv,side);
     return [(G*a-F*b)/det,(E*b-F*a)/det,0];
   }));
+  // The unit tangent at t, per millimetre on the surface for a patch.
+  const tangentPerMm=(curve,t)=>{
+    const {point,derivative}=evaluateCurve(curve,t);
+    const length=patch?Math.hypot(...[0,1,2].map(k=>{const e=evaluate(patch,point[0],point[1]);return e.du[k]*derivative[0]+e.dv[k]*derivative[1];})):Math.hypot(derivative[0],derivative[1]);
+    requireThat(length>1e-12,'Curve offset reference has a collapsed tangent at an end.');
+    return [derivative[0]/length,derivative[1]/length];
+  };
   function offset(depth){
     requireThat(Number.isFinite(depth),'Curve offset depth must be finite.');
     if(depth===0)return {curves:inputs.map(({curve,closed})=>({closed,pieces:[curve]})),report:{crossings:0,keptPieces:inputs.length}};
     // The oriented curves whose positive-winding region is the result: each
-    // closed curve's offset, and for each open curve the band between it and
-    // its offset, closed by straight caps.
-    const system=[];
+    // closed curve's offset, and around each open curve everything within the
+    // depth of it (both offsets joined by round end caps), so an open curve's
+    // offset keeps only what is at least the depth from every source curve.
+    const system=[],size=Math.abs(depth),at=(c,t)=>evaluateCurve(c,t).point;
+    const shift=(p,v,k)=>[p[0]+k*v[0],p[1]+k*v[1],p[2]];
     inputs.forEach(({curve,closed},i)=>{
-      const moved=fields[i](depth),sum=moved.domain[0]+moved.domain[1];
-      if(closed){system.push({curve:moved,closed,source:i,parent:moved,reference:curve});return;}
-      const at=(c,t)=>evaluateCurve(c,t).point,[d0,d1]=curve.domain;
-      if(depth>0)system.push({curve:moved,source:i,parent:moved,reference:curve},{curve:segmentCurve(at(moved,d1),at(curve,d1))},
-        {curve:reverseCurve(curve)},{curve:segmentCurve(at(curve,d0),at(moved,d0))});
-      else system.push({curve},{curve:segmentCurve(at(curve,d1),at(moved,d1))},
-        {curve:reverseCurve(moved),source:i,parent:moved,reversed:sum,reference:curve},{curve:segmentCurve(at(moved,d0),at(curve,d0))});
+      if(closed){const moved=fields[i](depth);system.push({curve:moved,closed,source:i,parent:moved,reference:curve});return;}
+      const right=fields[i](size),left=fields[i](-size),sum=left.domain[0]+left.domain[1],[d0,d1]=curve.domain;
+      const e0=at(curve,d0),e1=at(curve,d1),t0=tangentPerMm(curve,d0),t1=tangentPerMm(curve,d1);
+      const [r0,r1,l0,l1]=[at(right,d0),at(right,d1),at(left,d0),at(left,d1)];
+      system.push(depth>0?{curve:right,source:i,parent:right,reference:curve}:{curve:right},
+        {curve:arcCurve(r1,shift(r1,t1,size),shift(e1,t1,size))},{curve:arcCurve(shift(e1,t1,size),shift(l1,t1,size),l1)},
+        depth<0?{curve:reverseCurve(left),source:i,parent:left,reversed:sum,reference:curve}:{curve:reverseCurve(left)},
+        {curve:arcCurve(l0,shift(l0,t0,-size),shift(e0,t0,-size))},{curve:arcCurve(shift(e0,t0,-size),shift(r0,t0,-size),r0)});
     });
     const all=system.map(s=>s.curve),mins=[Infinity,Infinity],maxs=[-Infinity,-Infinity];
     for(const c of all)for(let i=0;i<c.n;i++)for(let k=0;k<2;k++){const v=c.cp[i*4+k]/c.cp[i*4+3];mins[k]=Math.min(mins[k],v);maxs[k]=Math.max(maxs[k],v);}
@@ -192,11 +202,12 @@ export function prepareCurveOffsets({curves,patch=null}){
       if(s.source===undefined)return;
       const ts=[s.curve.domain[0],...crossings.params[c],s.curve.domain[1]];
       for(let k=1;k<ts.length;k++){
-        const {point,derivative}=evaluateCurve(s.curve,(ts[k-1]+ts[k])/2),size=Math.hypot(derivative[0],derivative[1]);
+        // Sampled off the middle, which on a uniform polyline is a vertex.
+        const sample=ts[k-1]+(ts[k]-ts[k-1])*.381966,{point,derivative}=evaluateCurve(s.curve,sample),size=Math.hypot(derivative[0],derivative[1]);
         if(!(size>0))continue;
         // A piece running against its source is inverted (a collapse); it
         // bounds no material whatever the winding says.
-        const t=s.reversed===undefined?(ts[k-1]+ts[k])/2:s.reversed-(ts[k-1]+ts[k])/2;
+        const t=s.reversed===undefined?sample:s.reversed-sample;
         if(dot(evaluateCurve(s.parent,t).derivative,evaluateCurve(s.reference,t).derivative)<=0)continue;
         const r=[derivative[1]/size*eps,-derivative[0]/size*eps];
         if(!(winding([point[0]-r[0],point[1]-r[1]])>=1&&winding([point[0]+r[0],point[1]+r[1]])<=0))continue;
