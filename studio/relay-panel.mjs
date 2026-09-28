@@ -45,20 +45,24 @@ export function createRelayPanel({token}){
     try{
       const response=await fetch('/api/relay/update',{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:'{}'});
       const result=await response.json();if(!response.ok)throw Error(result.error);
-      button.textContent='Restarting SAAM…';
+      // The updated SAAM listens on another port and opens its own tab.
+      closeTab(`SAAM is updating to ${offer.version} and opens again in a new tab. You can close this one.`);
     }catch(error){view.updating=false;button.disabled=false;button.classList.add('flash');alert(error.message);renderUpdate();}
   }
-  // Quitting stops SAAM on this computer and closes Studio's tab where the
-  // browser allows; its prints stay saved.
+  // Replaces Studio with a message and closes the tab where the browser allows:
+  // Chrome and Edge close a tab SAAM opened that has not navigated; other
+  // browsers refuse, and the message stays.
+  function closeTab(message){
+    document.body.replaceChildren(Object.assign(document.createElement('p'),{className:'stopped',textContent:message}));
+    window.close();
+  }
+  // Quitting stops SAAM on this computer; its prints stay saved.
   async function quit(){
     if(!confirm('Quit SAAM? Chats cannot reach this computer until you start SAAM again. Your prints are saved.'))return;
     try{
       const response=await fetch('/api/relay/quit',{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:'{}'});
       const result=await response.json();if(!response.ok)throw Error(result.error);
-      document.body.replaceChildren(Object.assign(document.createElement('p'),{className:'stopped',textContent:'SAAM has stopped. You can close this tab; start SAAM again from its shortcut.'}));
-      // Chrome and Edge close a tab SAAM opened that has not navigated; other
-      // browsers refuse, and the message above stays.
-      window.close();
+      closeTab('SAAM has stopped. You can close this tab; start SAAM again from its shortcut.');
     }catch(error){alert(error.message);}
   }
   function renderStatus(){

@@ -1,5 +1,17 @@
 # Development log
 
+## 2026-09-28 — First update from within Studio; the old tab closes
+
+- 0.1.5 → 0.1.6 through Studio's Update button: download and checksum 2.4 s,
+  installer running at once (`update.log`: waited for SAAM, installed in 4 s,
+  started SAAM), 0.1.6 connected to the relay 11.6 s after the download began.
+- The restarted SAAM listens on a new port and opens a new tab; the old tab
+  stayed on "Restarting SAAM…" with a dead connection. After Update is
+  accepted, `studio/relay-panel.mjs` now replaces Studio with a message and
+  closes the tab where the browser allows, as Quit does. The page doing the
+  update is the old version's, so this first shows when updating from a build
+  that has it (after 0.1.6). Not checked in a browser.
+
 ## 2026-09-28 — Closing Studio stops SAAM; 0.1.6
 
 - User ruling: an installed SAAM stops when its last Studio tab closes or
