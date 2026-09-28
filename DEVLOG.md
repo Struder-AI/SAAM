@@ -1,5 +1,35 @@
 # Development log
 
+## 2026-09-28 — Surface ribbon and surface offset (BR-059 item 2)
+
+- [surface-offset.mjs](core/geom/surface-offset.mjs): `prepareSurfaceOffsets`
+  (modes normal/horizontal/projected-normal, tightness, fold limiter) is
+  replaced by `prepareSurfaceRibbon` (unit plan-view normal, Z kept exactly)
+  and `prepareSurfaceOffset` (unit normal), each `{at, exactAt, offsetPatch,
+  report}`. Directions are collocated at the Greville grid (two separable
+  square solves, periodic seam duplicates sharing one unknown), so the loose
+  patch is exact at Greville points. `offset-curvature.mjs` (the limiter) is
+  deleted; folds are left for trimmed-surface records.
+- [sleeve-frame.mjs](core/geom/sleeve-frame.mjs) `prepareLooseSleeveOffsets`
+  becomes `prepareSleeveRibbon`. vase-wall [reference.mjs](skills/vase-wall/scripts/reference.mjs)
+  and pipe-cladding [surface-clad.mjs](skills/pipe-cladding/scripts/surface-clad.mjs)
+  keep `offsetTightness` by blending `at` toward `exactAt` themselves; the
+  standard sleeve's report mode is `loose-ribbon`.
+- Scratch checks (worktree; baseline f49c252 via `git archive`): on 16-control
+  periodic cubic cylinder, cone and tilted-ring patches the ribbon and offset
+  are exact at Greville points (≤2e-15 mm) and within 0.9 µm between at −2 mm;
+  ribbon Z change 0. Vase-wall (level end, z 1.2 to top) on the nudge-cup
+  frustum, a wavy revolved vase and a 20×16×10 box, standard and meshSleeve
+  (tightness 0 and 0.5): the loose path moves toward the exact wall, e.g.
+  frustum 10519.10 → 10516.42 mm (exact 10516.25), wavy 12790.99 → 12787.19
+  (exact 12787.55); frustum mean radial error +1.6 µm → −3.5 µm (exact
+  −4.4 µm, polygon facets); exact-path runs identical. Pipe cladding on a spline
+  tube (tightness 0/0.5): round 2128.054 → 2128.418 mm, wavy 2184.062 →
+  2184.602, where tightness 1 gives 2128.418 and 2184.605; tightness 1
+  unchanged. `node --test skills/vase-wall/tests/vase.test.mjs`: 4 pass.
+- Not run: any test suite, `core/tests/denso.test.mjs` (tightness 1 path
+  untouched).
+
 ## 2026-09-28 — Curve offsets: seam contacts and inversion curls (BR-059)
 
 - Fixes the two defects the previous entry recorded. [curve-ops.mjs](core/geom/curve-ops.mjs)

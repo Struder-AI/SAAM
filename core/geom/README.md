@@ -225,44 +225,22 @@ A loose offset moves control points only: control count, degrees, knots,
 domains and weights (including periodic duplicates) are kept, and no control is
 added or refitted. Input controls remain unchanged.
 
-`prepareSurfaceOffsets` in `surface-offset.mjs` accepts a NURBS patch,
-`mode: 'normal' | 'horizontal' | 'projected-normal'`, and explicit periodic U/V
-flags. It builds a direction control net from unit reference normals at the
-Greville parameters. Nonperiodic outer Greville values are clamped to the active
-domain. Horizontal mode uses the clockwise XY perpendicular to the U tangent;
-normal mode uses the full surface normal. Projected-normal mode normalizes the
-XY projection of the full normal, a horizontal direction that stays defined on
-charts whose U tangent rises in Z.
-
-`at(u, v, depth, tightness = 0)` evaluates the offset continuum. Zero uses the
-loose control field with local depth limiting at over-curvature; one uses
-the unit reference normal at the query. Intermediate values blend these positions.
-Reference parameters are retained across depths without reparameterization.
-This setting is independent of subsequent mesh-contact fidelity.
-
-`offsetPatch(depth)` returns the loose NURBS patch. Tightness above zero is a
-functional evaluator, not a same-size NURBS offset.
-
-[Local curvature limiting](./offset-curvature.mjs) retains one smooth patch rather
-than trimming away loops or splitting its topology. At knot quarter-span samples,
-the oriented surface area must retain at least 5% of its reference value throughout
-the displacement from the source to the loose offset. The area is quadratic in
-that displacement, so checking its first limiting root also catches offsets that
-would pass through two reversals and end with a positive Jacobian. Failing samples
-reduce the depths of their supporting controls together; periodic duplicate
-controls share reductions. Passes repeat until every sample clears the area
-floor; since each incomplete pass shrinks at least one depth, the only explicit
-failure is a pass that no longer changes any depth at all. Safe offsets retain
-their original control displacements.
-
-Preparation is reused per reference; at most 128 limited depth results are cached.
-Reports expose sample count, area floor, limited-patch construction count, maximum
-control-depth reduction, unscaled direction lengths and queried tightness. Loose
-depth is approximate, and limiting can reduce it further. This sampled local
-regularity check does not certify unsampled folds, global self-intersections or
-clearance. Exact normal offsets and blends toward them can still fold. The
-depth-independent `frameAt` exposes the original field; consumers requiring the
-limited geometry use `at` or `offsetPatch`.
+[surface-offset.mjs](./surface-offset.mjs) has two separate operations
+([D-041](../../DECISIONS.md#d-041--offsets-resolve-collisions-ribbons-displace-without-a-surface)):
+`prepareSurfaceRibbon({patch, periodicU, periodicV})` displaces a patch
+horizontally, along the plan-view projection of its unit normal, with Z kept
+exactly (the direction net has no Z); `prepareSurfaceOffset` displaces it along
+its unit normal. The direction net is collocated: the direction patch, with the
+patch's own basis and weights, equals the unit direction times the rational
+weight at every Greville point, found by two small square solves (along U, then
+V). The moved patch is therefore exact there (to about 1e-15 mm; under 1 µm
+between on a 16-control r 10 cylinder at 2 mm). Periodic seam duplicates share
+one direction; nonperiodic outer Greville values are clamped to the domain.
+Each returns `at(u, v, depth)` (the loose patch's point), `exactAt(u, v,
+depth)` (the source point moved the depth along the unit direction there),
+`offsetPatch(depth)` and `report()`. Nothing limits depth: past a curvature
+radius the loose patch folds, and folds are for trimmed-surface records to cut.
+A consumer's tightness blends `at` toward `exactAt`.
 
 [Curve offsets](./curve-offset.mjs) resolve collisions as a region offset does
 ([D-041](../../DECISIONS.md#d-041--offsets-resolve-collisions-ribbons-displace-without-a-surface)).
@@ -298,11 +276,11 @@ closes it within half a turn of the source, leaving a small Z step; when nothing
 closes it, only the backwards part is cut. Crossings between distant parts stay.
 Reversals are found from 32 samples per knot span.
 
-`prepareLooseSleeveOffsets` in `sleeve-frame.mjs` specializes the surface offset for
-periodic U and a V chart linear in actual Z. Its `at(u, zMm, depth, tightness)`
-preserves authored Z. Vase mapping adds the signed nominal half-bead offset
-to tile depth, evaluates the field, then applies unilateral mesh contact.
-A loose half-bead offset gives approximate standoff.
+`prepareSleeveRibbon` in `sleeve-frame.mjs` is the surface ribbon of a sleeve
+(periodic U, a V chart linear in actual Z): `at(phase, zMm, depth)` and
+`exactAt` answer at the authored Z. Vase mapping adds the signed nominal
+half-bead offset to tile depth, evaluates the ribbon, then applies unilateral
+mesh contact.
 
 ### Geometry contract
 

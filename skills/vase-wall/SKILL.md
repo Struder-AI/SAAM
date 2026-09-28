@@ -42,7 +42,7 @@ faces and open uncapped meshes are unsupported.
 
 Standard mode follows changing-height geometry sections. On a mesh it fits one
 periodic NURBS **sleeve** (a surface periodic around the part and open along its
-height, the side of a tube; never itself deposited) to the wall interval and follows its loose offset, which
+height, the side of a tube; never itself deposited) to the wall interval and follows its loose horizontal ribbon (the sleeve moved inward by half a bead, Z kept), which
 avoids rebuilding a section, offset and contour at every rising sample and is
 dramatically faster on curved walls. `sleeveToleranceMm` (default 0.08 mm) is the
 target deviation from the true section: the fit scales its resolution toward it

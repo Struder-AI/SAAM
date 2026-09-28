@@ -2,7 +2,7 @@
 // this skill only chooses courses, local cell widths, poses and dependencies.
 import {CONNECT_MOVE_MM} from '../../../core/path/planning.mjs';
 import {surfaceRegion} from '../../../core/geom/surface-region.mjs';
-import {prepareSurfaceOffsets} from '../../../core/geom/surface-offset.mjs';
+import {prepareSurfaceOffset} from '../../../core/geom/surface-offset.mjs';
 import {sampleSurfaceCurve} from '../../../core/region/normal-surface.mjs';
 import {requireThat,distance,normalize,cross,scale,add,dot,findRoot,subtract} from '../../../core/geom/tolerance.mjs';
 import {lineSpacing,spacingFactor} from '../../../core/path/spacing.mjs';
@@ -11,14 +11,18 @@ import {claddingCourse} from './course.mjs';
 export function surfaceCladdingResult({shell,plan,after=[],id='pipe-cladding',finishedSurface=null}){
   const s=plan.skills['pipe-cladding'],p=plan.process,chart=finishedSurface??surfaceRegion(shell,s.surface),w=p.lineWidthMm;
   // Mesh strips retain their interpolated normal metric. The optional loose
-  // field is only meaningful for an explicit native spline chart.
-  let offsetField=null;
-  if(s.surface?.kind==='spline'&&s.offsetTightness<1){
-    const patch=shell.patches?.find(p=>p.name===s.surface.patch);
-    requireThat(patch,'Selected native spline patch is missing.');
-    offsetField=prepareSurfaceOffsets({patch,mode:'normal',periodicU:s.surface.periodicU});
-  }
-  const offsetChart=(depth)=>offsetField?{...chart,at:(u,v)=>{const e=chart.at(u,v);return {...e,point:offsetField.at(s.surface.uvBounds[0][0]+u*(s.surface.uvBounds[0][1]-s.surface.uvBounds[0][0]),s.surface.uvBounds[1][0]+v*(s.surface.uvBounds[1][1]-s.surface.uvBounds[1][0]),depth*s.surface.normalSide,s.offsetTightness)};}}:chart;
+  // surface offset is only meaningful for an explicit native spline chart;
+  // offsetTightness blends its point toward the exact unit-normal offset.
+  const patch=s.surface?.kind==='spline'&&s.offsetTightness<1?shell.patches?.find(p=>p.name===s.surface.patch):null;
+  requireThat(patch!==undefined,'Selected native spline patch is missing.');
+  const offsetField=patch?prepareSurfaceOffset({patch,periodicU:s.surface.periodicU}):null;
+  const offsetPoint=(u,v,depth)=>{
+    const [[u0,u1],[v0,v1]]=s.surface.uvBounds,U=u0+u*(u1-u0),V=v0+v*(v1-v0),d=depth*s.surface.normalSide,loose=offsetField.at(U,V,d);
+    if(s.offsetTightness===0)return loose;
+    const exact=offsetField.exactAt(U,V,d);
+    return loose.map((x,k)=>x+s.offsetTightness*(exact[k]-x));
+  };
+  const offsetChart=(depth)=>offsetField?{...chart,at:(u,v)=>({...chart.at(u,v),point:offsetPoint(u,v,depth)})}:chart;
   const trackPitch=lineSpacing(w,s),factor=spacingFactor(s);
   requireThat(chart.periodicU,'This wrapping producer needs a periodic U region; open-patch raster cladding is not yet implemented.');
   const center=plan.setup.denso.rotaryCenterMm;
