@@ -48,8 +48,10 @@ downloads them without a login. Builds pass
 installed SAAM accepts only `<update host>/v<version>/SAAM-<version>-<platform>.zip`
 for a plain `major.minor.patch` version, with the checksum the relay names.
 
-The build copies tracked files as they are on disk, so it runs in a detached
-worktree of the pushed commit, never in a checkout other sessions edit.
+A release follows only a push the maintainer asked for, when the pushed work
+warrants one; ask when that is unclear. The build copies tracked files as they
+are on disk, so it runs in a detached worktree of the pushed commit, never in a
+checkout other sessions edit.
 
 1. Choose a version above every one built so far (`dist/`), including unpublished
    builds and the installed `release.json`.
