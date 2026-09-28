@@ -1,5 +1,20 @@
 # Development log
 
+## 2026-09-28 — 0.1.4 built and released
+
+- Built 0.1.4 from `dbdd702` (relay `saam-relay.remettub.workers.dev`, update
+  host github.com, Node v24.19.0): `win-x64` 44.4 MB (sha256 `65020296…47325`),
+  `darwin-arm64` 48.8 MB (`aec7242a…4222b`), `darwin-x64` 50.0 MB
+  (`5d706251…b18ce`). It carries the blob field, boolean tools and hybrid skills.
+- First GitHub release: `v0.1.4` on Struder-AI/SAAM; `LATEST_RELEASE` names all
+  three assets. The relay source is unchanged since `d7f59a40`, so its deploy
+  only offers the update. The GitHub CLI was installed (winget) for publishing.
+- [packaging/README.md](packaging/README.md#releasing-an-update) now owns the
+  whole release sequence (version choice, three builds, commit and push,
+  release, relay); 59 → 65 lines.
+- Not run: installing a 0.1.4 ZIP or an update from 0.1.3; the macOS builds
+  were not opened on a Mac.
+
 ## 2026-09-28 — MCP manual matches the registered tools
 
 - Checked every operation in `adapters/mcp/src/runtime.mjs` against the MCP

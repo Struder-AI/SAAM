@@ -48,11 +48,18 @@ downloads them without a login. Builds pass
 installed SAAM accepts only `<update host>/v<version>/SAAM-<version>-<platform>.zip`
 for a plain `major.minor.patch` version, with the checksum the relay names.
 
-1. Build each platform with the new version and that `--update-host`.
-2. Create release `v<version>` and attach the ZIPs:
-   `gh release create v<version> dist/SAAM-<version>-*.zip -R Struder-AI/SAAM`.
-3. Set `LATEST_RELEASE` in [the relay configuration](../relay/wrangler.jsonc) to
-   the version and each asset's URL,
-   `https://github.com/Struder-AI/SAAM/releases/download/v<version>/SAAM-<version>-<platform>.zip`,
-   with the sha256 the build printed, then deploy the relay. Devices reconnect
-   and Studio offers the update.
+Each release ships everything committed, so work is committed and pushed first.
+
+1. Choose a version above every one built so far (`dist/`), including unpublished
+   builds and the installed `release.json`.
+2. Build `win-x64`, `darwin-arm64` and `darwin-x64` with it, the deployed
+   relay's `--relay-url` and that `--update-host`. Each build prints its
+   `LATEST_RELEASE` asset entry.
+3. Add a DEVLOG entry (version, sizes, sha256s), commit and push.
+4. Publish with the [GitHub CLI](https://cli.github.com) signed in to an account
+   that can write the repository: `gh release create v<version>
+   dist/SAAM-<version>-*.zip -R Struder-AI/SAAM --target <pushed commit>`.
+5. Set `LATEST_RELEASE` in [the relay configuration](../relay/wrangler.jsonc) to
+   `{"version":…,"assets":{…}}`, merging the printed entries, and
+   [deploy the relay](../relay/README.md#deploy). Devices reconnect and Studio
+   offers the update. Commit and push the configuration.
