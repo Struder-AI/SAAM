@@ -217,6 +217,10 @@ optional approximate contour preparation.
 
 ### Loose and tight spline offsets
 
+A loose offset moves control points only: control count, degrees, knots,
+domains and weights (including periodic duplicates) are kept, and no control is
+added or refitted. Input controls remain unchanged.
+
 `prepareSurfaceOffsets` in `surface-offset.mjs` accepts a NURBS patch,
 `mode: 'normal' | 'horizontal' | 'projected-normal'`, and explicit periodic U/V
 flags. It builds a direction control net from unit reference normals at the
@@ -232,11 +236,8 @@ the unit reference normal at the query. Intermediate values blend these position
 Reference parameters are retained across depths without reparameterization.
 This setting is independent of subsequent mesh-contact fidelity.
 
-`offsetPatch(depth)` returns the loose NURBS patch, preserving control counts,
-degrees, knots, domains and weights, including periodic duplicates. Tightness
-above zero uses a functional evaluator; it is not claimed to be an exact
-same-size NURBS offset. No control points are added or refitted. Adaptive path
-samples are separate from the control net. Input controls remain unchanged.
+`offsetPatch(depth)` returns the loose NURBS patch. Tightness above zero is a
+functional evaluator, not a same-size NURBS offset.
 
 [Local curvature limiting](./offset-curvature.mjs) retains one smooth patch rather
 than trimming away loops or splitting its topology. At knot quarter-span samples,
@@ -250,7 +251,7 @@ floor; since each incomplete pass shrinks at least one depth, the only explicit
 failure is a pass that no longer changes any depth at all. Safe offsets retain
 their original control displacements.
 
-Preparation is reused per reference; at most 128 limited depth patches are cached.
+Preparation is reused per reference; at most 128 limited depth results are cached.
 Reports expose sample count, area floor, limited-patch construction count, maximum
 control-depth reduction, unscaled direction lengths and queried tightness. Loose
 depth is approximate, and limiting can reduce it further. This sampled local
@@ -258,6 +259,18 @@ regularity check does not certify unsampled folds, global self-intersections or
 clearance. Exact normal offsets and blends toward them can still fold. The
 depth-independent `frameAt` exposes the original field; consumers requiring the
 limited geometry use `at` or `offsetPatch`.
+
+[Curve offsets](./curve-offset.mjs) are loose only, on curve records from
+`referenceCurve` (XY, XYZ or XYZW controls). `prepareCurveOffsets` offsets to
+the right of travel seen from `normal` (default +Z: outward from a
+counterclockwise loop); `prepareSurfaceCurveOffsets` offsets a (u,v) curve
+within a patch and returns a (u,v) curve, depth in millimetres to first order,
+refusing an offset whose controls leave a nonperiodic domain. Control directions
+are collocated at Greville parameters, so lines and circular arcs offset
+exactly; at a kink the direction is the miter, so a degree-1 curve is the loose
+polyline offset with every edge parallel at depth. `periodic` joins the ends,
+including a clamped closed curve. Tangent speed along the reference direction
+must keep 5% at the same samples, limited as above.
 
 `prepareLooseSleeveOffsets` in `sleeve-frame.mjs` specializes this API for
 periodic U and a V chart linear in actual Z. Its `at(u, zMm, depth, tightness)`

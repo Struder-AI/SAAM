@@ -165,3 +165,57 @@ export function surfaceRegion(P, geometry, options) {
   if (geometry.operation === 'intersection') return rest.reduce((a, b) => intersect(a, b), first);
   return difference(first, rest.reduce((a, b) => union(a, b), []));
 }
+
+// A solid's boundary as patches: a spline shell's own, or each mesh triangle
+// as a flat patch.
+export function solidPatches(solid) {
+  return solid.kind === 'triangle-mesh' ? solid.triangles.map((_, i) => trianglePatch(solid, i).patch) : solid.patches;
+}
+
+function patchBox(patch) { return bezierHull(patch); }
+
+// Where two solids' boundaries meet (spline shells, meshes, or one of each):
+// every pair of patches whose control hulls overlap is intersected, and the
+// pieces are joined end to end into 3D polylines.
+export function boundaryCurves(a, b, { chordMm = 1e-3, seedMm = 0.4 } = {}) {
+  const A = solidPatches(a), B = solidPatches(b), boxesB = B.map(patchBox), pieces = [];
+  // Uniform grid over B's boxes, one cell per typical patch size.
+  const sizes = boxesB.map(x => Math.max(...[0, 1, 2].map(k => x.max[k] - x.min[k]))).sort((p, q) => p - q);
+  const cell = Math.max(sizes[Math.floor(sizes.length / 2)] ?? 1, 1e-3), grid = new Map(), key = (i, j, k) => i + ',' + j + ',' + k;
+  const cells = x => { const lo = x.min.map(v => Math.floor(v / cell)), hi = x.max.map(v => Math.floor(v / cell)), out = [];
+    for (let i = lo[0]; i <= hi[0]; i++) for (let j = lo[1]; j <= hi[1]; j++) for (let k = lo[2]; k <= hi[2]; k++) out.push(key(i, j, k));
+    return out; };
+  boxesB.forEach((x, n) => { for (const c of cells(x)) { if (!grid.has(c)) grid.set(c, []); grid.get(c).push(n); } });
+  let pairs = 0;
+  for (const p of A) {
+    const box = patchBox(p), candidates = new Set(cells(box).flatMap(c => grid.get(c) ?? []));
+    for (const n of candidates) {
+      const q = boxesB[n];
+      if (![0, 1, 2].every(k => box.min[k] <= q.max[k] + 1e-9 && q.min[k] <= box.max[k] + 1e-9)) continue;
+      pairs++;
+      for (const c of intersectPatches(p, B[n], { chordMm, seedMm }).curves) pieces.push(c.points);
+    }
+  }
+  return { polylines: joinPolylines(pieces), pairs, patches: [A.length, B.length] };
+}
+
+function joinPolylines(pieces, tolerance = 1e-6) {
+  const pool = pieces.map(p => [...p]), out = [], near = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) <= tolerance;
+  while (pool.length) {
+    let line = pool.pop();
+    for (let grown = true; grown;) {
+      grown = false;
+      for (let i = 0; i < pool.length; i++) {
+        const q = pool[i];
+        if (near(line.at(-1), q[0])) line = [...line, ...q.slice(1)];
+        else if (near(line.at(-1), q.at(-1))) line = [...line, ...[...q].reverse().slice(1)];
+        else if (near(line[0], q.at(-1))) line = [...q, ...line.slice(1)];
+        else if (near(line[0], q[0])) line = [...[...q].reverse(), ...line.slice(1)];
+        else continue;
+        pool.splice(i, 1);grown = true;break;
+      }
+    }
+    out.push(line);
+  }
+  return out;
+}

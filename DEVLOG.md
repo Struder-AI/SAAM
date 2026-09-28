@@ -1,5 +1,36 @@
 # Development log
 
+## 2026-09-28 — Loose curve, polyline and on-surface curve offsets
+
+- Inventory before this: the loose surface offset existed
+  (`prepareSurfaceOffsets().offsetPatch`, fixed control count, no growth
+  option); polyline offsets were tight only (`offsetRegion`, Clipper2, which
+  adds and trims vertices; `offsetSurfaceRegion`, geodesic). There was no
+  spline curve record and no loose curve offset.
+- [curve-offset.mjs](core/geom/curve-offset.mjs): `prepareCurveOffsets`
+  (right of travel about a reference normal) and `prepareSurfaceCurveOffsets`
+  (a (u,v) curve offset within a patch, returned as a (u,v) curve). Control
+  count, knots, degree and weights are kept. Control directions are collocated
+  at Greville parameters (sparse pivoted solve), miters at kinks, so a degree-1
+  curve is the loose polyline offset. Fold limiting mirrors
+  `offset-curvature.mjs` with tangent speed (linear in depth) in place of area.
+  `referenceCurve` (reference-surface.mjs) and `evaluateCurve` (nurbs.mjs,
+  with a left-limit option) are new.
+- Scratch checks (no committed tests): rational circle r 10 at ±2 and −9.8
+  gives radius 12/8/0.5 exactly over 2000 samples (the Greville-normal rule
+  the surface offset uses gave 11.657–12.000 at +2); an open zigzag polyline's
+  vertices are 1.000000000 from both adjoining edge lines; a closed square
+  offsets to exact miter corners, and at −6 limits to a 0.5 mm square;
+  periodic seam duplicates stay bit-identical; a curve on a flat patch matches
+  the planar offset to 1e-14; an iso curve on a rational half cylinder offsets
+  to exactly x ± 3; a diagonal curve there stays 0.986–1.006 mm from its
+  reference at depth 1 and 2.45–2.51 at 2.5 (first-order (u,v) mapping); a
+  4000-control periodic cubic took 376 ms, within 7e-15 mm of 0.4 mm.
+- Not run: any test suite. The surface offset keeps its Greville-normal rule;
+  collocating it the same way is a possible follow-up. The checkpoint also
+  carries a concurrent session's uncommitted `boundaryCurves` work in
+  `core/geom/slice-region.mjs`.
+
 ## 2026-09-28 — First update from within Studio; the old tab closes
 
 - 0.1.5 → 0.1.6 through Studio's Update button: download and checksum 2.4 s,
