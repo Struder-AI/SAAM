@@ -73,6 +73,13 @@ function unionTopAt(shell,x,y){
 // is outside this parity test.
 const COINCIDENT_MM=1e-7,PROBE_MM=1e-6;
 function booleanTopAt(shell,x,y){
+  const leaves=columnCrossings(shell,x,y);
+  const candidates=[...leaves.values()].flat().sort((a,b)=>b.zMm-a.zMm);
+  return candidates.find(c=>holdsHeight(shell,leaves,c.zMm-PROBE_MM)&&!holdsHeight(shell,leaves,c.zMm+PROBE_MM))??null;
+}
+
+// Each solid's distinct crossings of the vertical line through (x, y), highest first.
+function columnCrossings(shell,x,y){
   const leaves=new Map();
   const collect=node=>{
     if(node.kind==='boolean'){for(const operand of node.operands)collect(operand);return;}
@@ -80,11 +87,18 @@ function booleanTopAt(shell,x,y){
     leaves.set(node,sorted.filter((c,i)=>!i||sorted[i-1].zMm-c.zMm>COINCIDENT_MM));
   };
   collect(shell);
-  const holds=(node,z)=>{
-    if(node.kind!=='boolean')return leaves.get(node).filter(c=>c.zMm>z).length%2===1;
-    const inside=node.operands.map(operand=>holds(operand,z));
-    return node.operation==='union'?inside.some(Boolean):node.operation==='intersection'?inside.every(Boolean):inside[0]&&!inside.slice(1).some(Boolean);
-  };
-  const candidates=[...leaves.values()].flat().sort((a,b)=>b.zMm-a.zMm);
-  return candidates.find(c=>holds(shell,c.zMm-PROBE_MM)&&!holds(shell,c.zMm+PROBE_MM))??null;
+  return leaves;
+}
+function holdsHeight(node,leaves,z){
+  if(node.kind!=='boolean')return leaves.get(node).filter(c=>c.zMm>z).length%2===1;
+  const inside=node.operands.map(operand=>holdsHeight(operand,leaves,z));
+  return node.operation==='union'?inside.some(Boolean):node.operation==='intersection'?inside.every(Boolean):inside[0]&&!inside.slice(1).some(Boolean);
+}
+
+// Whether a point is inside the solid: an odd number of distinct surface
+// crossings above it. A point on the surface, or a column grazing a vertical
+// wall exactly, is outside what this test decides; callers sample off both.
+export function containsPoint(geometry,[x,y,z]){
+  requireGeometry(geometry,['bounds']);
+  return holdsHeight(geometry,columnCrossings(geometry,x,y),z);
 }

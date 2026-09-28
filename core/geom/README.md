@@ -141,6 +141,8 @@ Mesh conversion is not required before SAAMpath generation.
 |---|---|
 | Spline shell / triangle mesh | Part geometry behind common queries. |
 | [Blob field](blob-field.mjs) | Points with reach and strength whose cubic B-spline falloffs sum; explicitly extracted to the shared manufacturing mesh backend for slicing and Studio. |
+| [Surface intersection](surface-intersection.mjs) | Curves where two NURBS patches meet, with both patches' parameters: boundary points first (each patch's edges against the other surface), then marching between them; interior loops seeded by Bezier subdivision; edges lying in the other surface are curves themselves. |
+| [Surface region](slice-region.mjs) | The part of a spline surface inside a solid (spline shell or triangle mesh) as loops in the surface's (u,v): intersection curves chained, oriented by the partner's outward normal and closed along the domain boundary. The basis of curved slices and trimmed patches. |
 | [Boolean solid](boolean-solid.mjs) | Operands of any backend behind the common queries: sections combined per layer with Clipper2, tops from operand crossings. [boolean-display.mjs](boolean-display.mjs) meshes it with Manifold for Studio and solid modifiers only. |
 | Closed regions with holes | Planar sections, offsets, solid masks and infill clipping. |
 | Surface height and normal | Accessible roof sampling for drape; faceted normals stay faceted. |

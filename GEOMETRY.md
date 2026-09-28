@@ -147,8 +147,8 @@ mesh repair.
 ## Checking geometry
 
 `intersect_geometry` (CLI `intersect`) intersects a print, one `part`, or a
-`geometry` you are about to write with horizontal planes and vertical lines, in
-the geometry's own coordinates:
+`geometry` you are about to write with horizontal planes, vertical lines and
+spline surfaces, in the geometry's own coordinates:
 
 ```json
 {"sectionsAtZ": [1, 4.5], "topsAtXY": [[10, 10], [2, 2]], "includeLoops": false}
@@ -157,7 +157,11 @@ the geometry's own coordinates:
 Each section gives its area, islands, holes and loop bounds (`includeLoops` adds
 the points; outer loops run counterclockwise, holes clockwise). Each top gives
 the highest surface crossing, its normal, slope and surface name, or `zMm: null`
-where the line misses the part.
+where the line misses the part. Each entry of `surfaces` is a control net
+(`degreeU`, `degreeV`, `controlPoints`, optional knots and `offsetMm` to shift
+it, as a stacked curved slice) and gives the region of that surface inside the
+part as loops in the surface's own (u,v), from exact surface-surface
+intersection with spline parts and with each mesh triangle.
 
 ## Writing and checking
 

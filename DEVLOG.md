@@ -1,5 +1,28 @@
 # Development log
 
+## 2026-09-28 — Surface-surface intersection and surface regions
+
+- [surface-intersection.mjs](core/geom/surface-intersection.mjs): NURBS patch ∩
+  patch. Boundary points first (each patch's four edges against the other
+  surface, seeded by rational Bezier subdivision and solved by Newton), then
+  marching along n1 × n2 with chord control that lands exactly on the next known
+  endpoint; closed interior loops are seeded by subdivision; an edge lying in the
+  other surface (a flush face) is reported as a curve. The first version stepped
+  past boundaries and corrected afterwards; the user rejected that, and no step
+  leaves a patch now.
+- [slice-region.mjs](core/geom/slice-region.mjs): the region of a spline surface
+  inside a solid, spline shell or triangle mesh (each triangle as a flat
+  degenerate bilinear patch), as (u,v) loops. `intersect_geometry` takes
+  `surfaces` (a control net and optional `offsetMm`): the basis for the planned
+  curved-slice toolpaths. New `containsPoint` in the shared queries.
+- Verification: surface-intersection 4 (plane ∩ cylinder on the seam, crossed
+  cylinders 39.549 vs 39.552 mm analytic, coincident edge, wavy surface in a
+  spline box equal to the same box as a mesh and to a 200² sample), boolean-solid 5.
+  Timing: 16,666 triangles, one surface, 2.1 s; per-piece spatial culling will
+  be needed for many layers.
+- Next: trimmed spline booleans (user choice: the boolean of spline operands is
+  a trimmed spline solid), built on the surface regions.
+
 ## 2026-09-28 — Self-update never started its installer on Windows
 
 - Updating 0.1.3 to 0.1.4 downloaded and unpacked the package, then SAAM quit

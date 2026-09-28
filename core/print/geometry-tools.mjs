@@ -7,10 +7,13 @@ import {buildShell,translateShell} from './generate.mjs';
 import {sectionGeometry,topAt} from '../geom/query.mjs';
 import {booleanShell,BOOLEAN_OPERATIONS,BOOLEAN_OPERAND_SHAPES} from '../geom/boolean-solid.mjs';
 import {loopArea} from '../region/region2d.mjs';
+import {surfaceRegion} from '../geom/slice-region.mjs';
+import {referencePatch} from '../geom/reference-surface.mjs';
+import {evaluate} from '../geom/nurbs.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
 
 const round=v=>Math.round(v*1e4)/1e4;
-const INTERSECT_FIELDS=['geometry','part','sectionsAtZ','topsAtXY','includeLoops'];
+const INTERSECT_FIELDS=['geometry','part','sectionsAtZ','topsAtXY','surfaces','includeLoops'];
 
 // An assembly is queried as the union of its placed components.
 function queryShell(r,geometry){
@@ -21,10 +24,11 @@ function queryShell(r,geometry){
 // Horizontal planes give section loops (outer loops counterclockwise, holes
 // clockwise); vertical lines give the highest surface crossing. Coordinates are
 // the geometry's own, before the recipe's placement.
-export async function intersectGeometry(geometry,{sectionsAtZ=[],topsAtXY=[],includeLoops=false}={}){
+export async function intersectGeometry(geometry,{sectionsAtZ=[],topsAtXY=[],surfaces=[],includeLoops=false}={}){
   requireThat(Array.isArray(sectionsAtZ)&&sectionsAtZ.every(Number.isFinite),'sectionsAtZ lists heights in millimetres.');
   requireThat(Array.isArray(topsAtXY)&&topsAtXY.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)),'topsAtXY lists [x, y] points in millimetres.');
-  requireThat(sectionsAtZ.length+topsAtXY.length>0,'Ask for at least one section height or top point.');
+  requireThat(Array.isArray(surfaces),'surfaces lists spline surfaces to intersect.');
+  requireThat(sectionsAtZ.length+topsAtXY.length+surfaces.length>0,'Ask for at least one section height, top point or surface.');
   const shell=queryShell(await rhino(),geometry);
   const sections=sectionsAtZ.map(z=>{
     const {loops,nudgedByMm}=sectionGeometry(shell,z),areas=loops.map(loopArea);
@@ -38,7 +42,18 @@ export async function intersectGeometry(geometry,{sectionsAtZ=[],topsAtXY=[],inc
     const top=topAt(shell,x,y);
     return top?{xyMm:[x,y],zMm:round(top.zMm),normal:top.normal.map(round),slopeDeg:round(top.slopeDeg),surface:top.patch}:{xyMm:[x,y],zMm:null};
   });
-  return {boundsMm:{min:shell.bounds.min.map(round),max:shell.bounds.max.map(round)},sections,tops};
+  const surfaceRegions=surfaces.map(spec=>surfaceSection(shell,spec,includeLoops));
+  return {boundsMm:{min:shell.bounds.min.map(round),max:shell.bounds.max.map(round)},sections,tops,surfaces:surfaceRegions};
+}
+
+// A spline surface (optionally shifted by offsetMm, as a stacked slice) cut by
+// the part: the region of the surface inside it, in the surface's own (u,v).
+function surfaceSection(shell,{offsetMm=[0,0,0],...spec},includeLoops){
+  requireThat(Array.isArray(offsetMm)&&offsetMm.length===3&&offsetMm.every(Number.isFinite),'offsetMm is [x, y, z] in millimetres.');
+  const shifted={...spec,controlPoints:spec.controlPoints?.map(row=>row.map(([x,y,z,w])=>w===undefined?[x+offsetMm[0],y+offsetMm[1],z+offsetMm[2]]:[x+offsetMm[0],y+offsetMm[1],z+offsetMm[2],w]))};
+  const P={...referencePatch(shifted),name:'surface'},loops=surfaceRegion(P,shell),areas=loops.map(loopArea);
+  return {domainUv:[P.domainU,P.domainV],areaUv:round(areas.reduce((a,b)=>a+b,0)),islands:areas.filter(a=>a>0).length,holes:areas.filter(a=>a<0).length,
+    loops:loops.map((loop,i)=>({areaUv:round(areas[i]),points:loop.length,...(includeLoops?{uv:loop.map(p=>p.map(round)),pointsMm:loop.map(([u,v])=>evaluate(P,u,v,false).point.map(round))}:{})}))};
 }
 
 // Query a supplied geometry, or a print's geometry or one of its parts.
