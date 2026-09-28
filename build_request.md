@@ -36,6 +36,17 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 
 ## Outstanding work
 
+### BR-059 — One offset with collision resolution, ribbons and trimmed surfaces
+
+- Status: in progress
+- Contributor: `remettub`, inferred from the checkout's contributor branch and account; attribution unconfirmed.
+- Authorization: human requested — the loose spline, on-surface and surface offsets ("we need them if we don't"), then the rulings in [D-041](DECISIONS.md#d-041--offsets-resolve-collisions-ribbons-displace-without-a-surface) and "Yes migrate vase wall". Scope is core geometry, its consumers and vase-wall.
+- Session: Claude Code desktop, 2026-09-28; exact chat title and ID unavailable.
+- Source: current conversation, 2026-09-28.
+- Context: [curve-offset.mjs](core/geom/curve-offset.mjs) offset curves loosely without resolving collisions; `prepareSurfaceOffsets` bundles a horizontal ribbon and a normal offset and limits folds instead of trimming them.
+- Remaining: (1) curve offsets on XY and patches with collision resolution; periodic patches. (2) Split `prepareSurfaceOffsets` into a surface ribbon and a surface offset with collocated directions and no limiter. (3) Trimmed-surface records produced by resolving their folds and self-intersections. (4) Curve ribbons with plan-view fold trimming. (5) Vase-wall on the ribboned sleeve. (6) Migrate `offsetRegion` and `offsetSurfaceRegion` consumers, including corner treatment. (7) Trimmed faces in printable shells.
+- Completion: Every offset in core resolves collisions; no fold limiter remains; vase-wall and pipe cladding run on the new operations.
+
 ### BR-058 — Implement the Cloudflare relay alpha milestone
 
 - Status: in progress

@@ -1,5 +1,18 @@
 # Development log
 
+## 2026-09-28 — 0.1.7: the SAAM panel released
+
+- Published `v0.1.7` from `0315fa4` (worktree build, Node v24.19.0):
+  `win-x64` 44.5 MB `750d1cd8…`, `darwin-arm64` 48.8 MB `d0726cf4…`,
+  `darwin-x64` 50.0 MB `c51fe2ea…`; the three downloads matched. The app
+  archive carries `adapters/mcp/src/panel.html`.
+- Relay deployed (version `1ffcb047`) with the `/panel` route and
+  `LATEST_RELEASE` 0.1.7. A live `/panel` hello for an unknown device closed
+  4503 as intended. This computer was offline on 0.1.6 at deploy, so the update
+  offer and the panel in Claude web are not yet seen.
+- The commit also carries a concurrent session's uncommitted D-041 and BR-059
+  entries.
+
 ## 2026-09-28 — SAAM panel: Studio requests reach a web chat without a listener
 
 - Why: relay records (session `uj5OgdB6…`) showed a chat message waiting behind
