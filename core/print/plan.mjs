@@ -20,12 +20,11 @@ import {VASE_WALL_DEFAULTS} from '../../skills/vase-wall/scripts/vase.mjs';
 import {THICK_LIP_DEFAULTS} from '../../skills/thick-lip/scripts/lip.mjs';
 import {validateVasePattern} from '../../skills/vase-wall/scripts/paths.mjs';
 import {SUPPORT_DEFAULTS,validateSupports} from '../../skills/supports/scripts/supports.mjs';
-import {RIMMING_DEFAULTS,validateRimming} from '../../skills/rimming-planar/scripts/rimming.mjs';
 import {PIPE_CLADDING_DEFAULTS,validateCladding} from '../../skills/pipe-cladding/scripts/clad.mjs';
 import {splineSolidTemplate,validateSplineSolid,splineSolidBounds,splineBlock} from '../geom/spline-solid.mjs';
 import {gridfinityTemplate,validateGridfinityRecord} from '../../skills/gridfinity/scripts/record.mjs';
 import {textTemplate,validateTextRecord} from '../geom/text-record.mjs';
-import {voxelTemplate,validateVoxelRecord} from '../geom/voxel-record.mjs';
+import {splineFieldTemplate,validateSplineFieldRecord} from '../geom/spline-field-record.mjs';
 import {geometrySelections} from '../geom/selections.mjs';
 import {SPACING_SKILLS,lineSpacing} from '../path/spacing.mjs';
 import {WAVE_DEFAULTS,validateWaves} from '../../skills/wave-overhangs/scripts/wave.mjs';
@@ -70,8 +69,6 @@ export function defaults(machine=loadMachine()) {
       'wave-overhangs':structuredClone(WAVE_DEFAULTS),
       'pipe-cladding':structuredClone(PIPE_CLADDING_DEFAULTS),
       supports: structuredClone(SUPPORT_DEFAULTS),
-      'rimming-planar':structuredClone(RIMMING_DEFAULTS),
-      'rimming-normal':structuredClone(RIMMING_DEFAULTS),
       'full-fill': { enabled: true, parts: [], ...FULL_FILL_DEFAULTS },
       'planar-infill': {enabled:false,parts:[],...PLANAR_INFILL_DEFAULTS},
       'line-network': structuredClone(LINE_NETWORK_DEFAULTS),
@@ -104,7 +101,7 @@ function domeHeights(cpU, cpV, peak = 6, rise = 1.2) {
 // Each shape carries its own parameters, so the strict field check is made
 // against the selected shape rather than against whichever shape is the default.
 export function geometryTemplate(shape,geometry) {
-  if(shape==='voxel')return voxelTemplate();
+  if(shape==='spline-field')return splineFieldTemplate();
   if(shape==='heat-set')return heatSetTemplate();
   if(shape==='gridfinity')return gridfinityTemplate();
   if(shape==='text')return textTemplate(geometry);
@@ -127,7 +124,7 @@ export function validatePlan(plan,machine) {
 
 // Authored forms (spline patches, meshes, assemblies of them) and the
 // compiled records of geometry skills.
-export const GEOMETRY_SHAPES=['spline','voxel','mesh','assembly','text','gridfinity','heat-set'];
+export const GEOMETRY_SHAPES=['spline','spline-field','mesh','assembly','text','gridfinity','heat-set'];
 
 export function validatePlanFields(plan,machine) {
   requireThat(plan && typeof plan === 'object' && GEOMETRY_SHAPES.includes(plan.geometry?.shape), `Unsupported shape; geometry.shape is one of ${GEOMETRY_SHAPES.join(', ')}.`);
@@ -159,9 +156,9 @@ export function validatePlanGeometry(plan,machine) {
   if(geometry.shape==='text')validateTextRecord(geometry);
   if(geometry.shape==='heat-set')validateHeatSetRecord(geometry);
   if(geometry.shape==='gridfinity')validateGridfinityRecord(geometry);
-  if(geometry.shape==='voxel')validateVoxelRecord(geometry);
+  if(geometry.shape==='spline-field')validateSplineFieldRecord(geometry);
   validateCladding(plan,machine);
-  if(['mesh','voxel','text','gridfinity','heat-set'].includes(geometry.shape)) {
+  if(['mesh','spline-field','text','gridfinity','heat-set'].includes(geometry.shape)) {
     const mesh=makeMesh(geometry.vertices,geometry.triangles),bounds=toolBounds(machine,setup.tool);
     requireThat(machine.motionChecks==='deferred'||mesh.bounds.min.every((v,i)=>v+[placement.xMm,placement.yMm,0][i]>=bounds.min[i]-1e-8)&&mesh.bounds.max.every((v,i)=>v+[placement.xMm,placement.yMm,0][i]<=bounds.max[i]+1e-8),'Placed mesh exceeds selected tool bounds.');
     if(geometry.shape==='mesh')requireThat(geometry.source===null||(geometry.source?.format==='stl'&&/^[a-f0-9]{64}$/.test(geometry.source.sha256)&&['mm','inch'].includes(geometry.source.units)&&Number.isFinite(geometry.source.scale)&&geometry.source.scale>0),'Invalid mesh source provenance.');
@@ -222,19 +219,6 @@ export function validatePlanAuxiliary(plan,machine) {
     }
   }
   validateSupports(skills.supports,process);
-  const rimSurfaces=new Set();
-  for(const name of ['rimming-planar','rimming-normal']){
-    validateRimming(skills[name]);
-    if(skills[name].enabled){
-      requireMachine(machine,name==='rimming-normal'?['xyz-extrusion','nonplanar']:['xyz-extrusion','planar'],name);
-      for(const surface of skills[name].surfaces){
-        const key=JSON.stringify(surface.controlPoints);
-        requireThat(!rimSurfaces.has(key),'Choose one rimming offset skill for a given surface; compare the two in separate prints.');rimSurfaces.add(key);
-        if(geometry.shape==='assembly')requireThat([surface.basePart,surface.supportedPart].every(id=>id===null||geometry.parts.some(p=>p.id===id)),'Unknown rimming component.');
-        else requireThat(surface.basePart===null&&surface.supportedPart===null,'Rimming component names require an assembly.');
-      }
-    }
-  }
   if(skills.supports.enabled)requireMachine(machine,['xyz-extrusion','planar'],'supports');
   requireThat(typeof setup.startupVerified === 'boolean' && typeof setup.firmwareVersion === 'string' && /^[\w .+-]{0,80}$/.test(setup.firmwareVersion), 'Invalid firmware setup.');
 
@@ -320,7 +304,6 @@ export function validatePlanSelections(plan,machine) {
       child.skills['pipe-cladding'].enabled=false;child.skills['pipe-cladding'].part=null;
       child.skills['wave-overhangs'].enabled=false;
       child.skills['plastic-weld'].enabled=false;
-      for(const name of ['rimming-planar','rimming-normal'])child.skills[name].enabled=false;
       child.composition.regions=[];
       if(regional){for(const settings of Object.values(child.skills))settings.enabled=false;child.skills['full-fill'].enabled=true;child.skills['full-fill'].mode='body';}
       validatePlan(child,machine);
@@ -409,7 +392,7 @@ export function validatePlanRegions(plan,machine) {
       Object.assign(child.process,region.process);
     }
     for(const [name,overrides] of Object.entries(region.skills)) {
-      requireThat(!['supports','rimming-planar','rimming-normal','pipe-cladding','wave-overhangs','plastic-weld','bridging'].includes(name),'Assign supports, exterior cladding, wave slices, plastic welds and bridging through their global skill settings, outside part material regions.');
+      requireThat(!['supports','pipe-cladding','wave-overhangs','plastic-weld','bridging'].includes(name),'Assign supports, exterior cladding, wave slices, plastic welds and bridging through their global skill settings, outside part material regions.');
       const settings=child.skills[name];
       requireThat(settings&&overrides&&typeof overrides==='object'&&!Array.isArray(overrides),'Unknown region skill or invalid overrides.');
       requireThat(Object.keys(overrides).every(key=>Object.hasOwn(settings,key)&&!['enabled','part','parts','zStartMm','zEndMm'].includes(key)),'Unknown or region-owned skill override.');

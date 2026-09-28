@@ -1,12 +1,12 @@
 // Exact homogeneous knot insertion: densification changes the design space,
 // not the represented material. Tensor-product insertions span whole planes.
-import {validateVoxelField} from './voxel.mjs';
+import {validateSplineField} from './spline-field.mjs';
 import {findSpan} from './nurbs.mjs';
 import {requireThat} from './tolerance.mjs';
-import {hierarchical,hierarchyControlPoint,hierarchyControlBounds} from './voxel-hierarchy.mjs';
+import {hierarchical,hierarchyControlPoint,hierarchyControlBounds} from './spline-field-hierarchy.mjs';
 
-export function insertVoxelKnot(input,axis,t){
-  validateVoxelField(input);
+export function insertSplineFieldKnot(input,axis,t){
+  validateSplineField(input);
   requireThat(!hierarchical(input),'Use local hierarchy refinement for a hierarchical field.');
   requireThat(Number.isInteger(axis)&&axis>=0&&axis<3&&Number.isFinite(t)&&t>0&&t<1,'Knot insertion needs an axis and an interior parameter.');
   const f=structuredClone(input),p=f.degrees[axis],U=f.knots[axis],n=f.counts[axis],k=findSpan(U,n,p+1,t),s=U.filter(v=>v===t).length;
@@ -21,7 +21,7 @@ export function insertVoxelKnot(input,axis,t){
     const id=index(counts,q);values[id]=v/w;if(weights)weights[id]=w;
   }
   f.counts=counts;f.values=values;f.weights=weights;f.knots[axis].splice(k+1,0,t);
-  return validateVoxelField(f);
+  return validateSplineField(f);
 }
 
 export function controlPoint(field,index){

@@ -190,11 +190,9 @@ for cross section and segment volume. Agents never need to match independent
 pitch and extrusion settings. Plan validation checks regional overrides through
 the same contract.
 
-Full-fill, planar-infill, draped-skin, supports, both rimming modes and
-pipe-cladding implement it. Existing infill and support density divides the
+Full-fill, planar-infill, draped-skin, supports and pipe-cladding implement it. Existing infill and support density divides the
 derived pitch as before. Full-fill walls retain the exterior contacting bead
-and space successive walls inward; rimming retains its contacting bead and
-separates the paired bead. Planar infill's complementary solid masks use the
+and space successive walls inward. Planar infill's complementary solid masks use the
 full-fill factor. Cladding uses its own factor for axial cells and helix pitch,
 while its substrate retains the settings of its producing patterns. Normal shell/layer separation is
 unchanged. Vase-wall's vertical spiral progression is outside this interface.

@@ -6,7 +6,7 @@ import {importSTLBundle,setSTLUnits} from './import-stl.mjs';
 import {repairSTLFiles} from './repair-stl.mjs';
 import {applyText} from './text.mjs';
 import {applyHeatSet} from './heat-set.mjs';
-import {createVoxelBundle,updateVoxelBundle} from './voxel.mjs';
+import {createSplineFieldBundle,updateSplineFieldBundle} from './spline-field.mjs';
 const readJson=async file=>JSON.parse(await readFile(file,'utf8'));
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].replace(/\\/g, '/')}`).href) {
   const args=process.argv.slice(2),revisionIndex=args.indexOf('--revision');
@@ -23,7 +23,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
   }, null, 2);
 
   const run = async () => {
-    if(revisionIndex>=0&&(!expectedRevision||!['adjust','text','heat-set','voxel-update','change-machine','stl-units'].includes(command)))throw new Error('--revision requires a revision hash and is supported by adjust, text, heat-set, voxel-update, change-machine and stl-units.');
+    if(revisionIndex>=0&&(!expectedRevision||!['adjust','text','heat-set','spline-field-update','change-machine','stl-units'].includes(command)))throw new Error('--revision requires a revision hash and is supported by adjust, text, heat-set, spline-field-update, change-machine and stl-units.');
     if (command === 'init') {
       const plan = argument&&argument!=='--machine' ? await readJson(resolve(argument)) : undefined;
       const machineId=argument==='--machine'?extra:extra==='--machine'?last:extra;
@@ -33,10 +33,10 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log('Nothing is approved yet; review the geometry and generate freely, then confirm the exact settings/toolpath together in Studio before export.');
     } else if(command==='migrate') {
       console.log(JSON.stringify(await migrateBundle(bundleDirectory()),null,2));
-    } else if(command==='voxel-create'||command==='voxel-update') {
-      if(!argument)throw new Error('Use voxel-create|voxel-update <print-directory> <voxel-request.json> [machine-id | --revision <revision>].');
+    } else if(command==='spline-field-create'||command==='spline-field-update') {
+      if(!argument)throw new Error('Use spline-field-create|spline-field-update <print-directory> <spline-field-request.json> [machine-id | --revision <revision>].');
       const request=await readJson(resolve(argument));
-      const state=command==='voxel-create'?await createVoxelBundle(bundleDirectory(),request,{machineId:extra}):await updateVoxelBundle(bundleDirectory(),request,{expectedRevision});
+      const state=command==='spline-field-create'?await createSplineFieldBundle(bundleDirectory(),request,{machineId:extra}):await updateSplineFieldBundle(bundleDirectory(),request,{expectedRevision});
       console.log(report(state));
     } else if(command==='text') {
       if(!argument)throw new Error('Use text <print-directory> <text-request.json> [--revision <revision>].');
@@ -89,8 +89,8 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.error('       cli.mjs adjust <print-directory> <patch.json> [--revision <revision>]');
       console.error('       cli.mjs change-machine <print-directory> <machine-id> [--revision <revision>]');
       console.error('       cli.mjs text <print-directory> <text-request.json> [--revision <revision>]');
-      console.error('       cli.mjs voxel-create <print-directory> <voxel-request.json> [machine-id]');
-      console.error('       cli.mjs voxel-update <print-directory> <voxel-request.json> --revision <revision>');
+      console.error('       cli.mjs spline-field-create <print-directory> <spline-field-request.json> [machine-id]');
+      console.error('       cli.mjs spline-field-update <print-directory> <spline-field-request.json> --revision <revision>');
       console.error('       cli.mjs heat-set <print-directory> <heat-set-request.json> [--revision <revision>]');
       console.error('       cli.mjs stl-units <print-directory> <mm|inch> [--revision HASH]');
       console.error('       cli.mjs import-stl <print-directory> <source.stl> [auto|mm|inch] [machine-id]');

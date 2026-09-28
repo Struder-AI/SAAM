@@ -155,10 +155,10 @@ exist. See the [validation work record](../../DEVLOG.md#br-039--remove-repeated-
 
 ## Print bundle and current formats
 
-[Volumetric fields](../geom/VOXEL.md) use `shape: "voxel"` records with the field,
+[Spline fields](../geom/SPLINE-FIELD.md) use `shape: "spline-field"` records with the field,
 extraction settings and checked manufacturing mesh retained together in the
 native JSON asset. Shared generation sections that mesh; Studio displays it.
-Field edits explicitly rebuild the mesh through the [voxel task](../../skills/voxel-tools/SKILL.md)
+Field edits explicitly rebuild the mesh through the `spline_field` tool ([authoring](../../GEOMETRY.md#spline-field))
 and invalidate the final confirmation through this same lifecycle.
 
 The shared workflow stores one directory per print:
@@ -223,7 +223,7 @@ Use `examples/prints/` only for explicitly curated examples.
 Skills return operations to the [shared composer](../path/README.md#skill-result-composition).
 Their manuals own supported settings and process limits; software checks do not
 establish successful physical printing. The plan's geometry is authored
-([print tools](USAGE.md#author-geometry)): spline patches, indexed triangle meshes,
+([GEOMETRY.md](../../GEOMETRY.md)): spline patches, indexed triangle meshes,
 spline fields and an `assembly` of these components. An edited or imported 3DM
 is still not accepted as input.
 

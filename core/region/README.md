@@ -45,7 +45,7 @@ the [Clipper2 tool](#shared-planar-intersections), re-exported from
 `core/region/boolean.mjs`. Both bundle adapters hash the shared kernel and exact
 WASM/JS dependency bytes; the public CLI/MCP and review workflow are unchanged.
 
-Rimming and surface cladding use native 3D differential offsets through the
+Surface cladding uses native 3D differential offsets through the
 shared surface/section functions. Those are distinct from closed planar polygon
 offsetting and remain there. Native mesh/spline sectioning and scanline stroke
 construction likewise keep their appropriate geometry algorithms; universal

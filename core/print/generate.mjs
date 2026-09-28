@@ -22,8 +22,6 @@ import {planarInfillResults} from '../../skills/planar-infill/scripts/infill.mjs
 import {vaseWallResult} from '../../skills/vase-wall/scripts/vase.mjs';
 import {generateRegionResults,planarSupportTopAt} from './regions.mjs';
 import {supportResults} from '../../skills/supports/scripts/supports.mjs';
-import {rimmingPlanarResults} from '../../skills/rimming-planar/scripts/rimming.mjs';
-import {rimmingNormalResults} from '../../skills/rimming-normal/scripts/rimming.mjs';
 import {surfaceCladdingResult} from '../../skills/pipe-cladding/scripts/surface-clad.mjs';
 import {publishFinishedBoundary,consumeFinishedSurface} from '../path/finished-surface.mjs';
 import {waveResults} from '../../skills/wave-overhangs/scripts/wave.mjs';
@@ -33,7 +31,7 @@ import {heatSetDetails} from '../../skills/heat-set-inserts/scripts/reinforcemen
 import {geometrySelections} from '../geom/selections.mjs';
 import {lineNetworkResult} from '../../skills/line-network/scripts/network.mjs';
 
-export const hasMesh=geometry=>['mesh','voxel','text','gridfinity','heat-set'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
+export const hasMesh=geometry=>['mesh','spline-field','text','gridfinity','heat-set'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
 
 function primeLineResult(plan,machine){
   const p=plan.process.primeLine;if(p===null)return null;
@@ -58,7 +56,7 @@ function primeLineResult(plan,machine){
 
 export function buildShell(rhino, geometry) {
   if(geometry.shape==='spline')return splineSolidShell(rhino,geometry);
-  if(['mesh','voxel','text','gridfinity','heat-set'].includes(geometry.shape)){
+  if(['mesh','spline-field','text','gridfinity','heat-set'].includes(geometry.shape)){
     const mesh=makeMesh(geometry.vertices,geometry.triangles),features=heatSetFeatures(geometry);
     if(features.length)mesh.planarDetails=heatSetDetails(features);
     return mesh;
@@ -238,14 +236,8 @@ export function addComplementaryResults(plan,machine,{placed,componentShells,wel
   const waves=waveResults({plan,machine,placed,componentShells,modelResults:results});
   const wavedResults=[...applyResultDependencies(results,waves.dependencyChanges),...waves.results];
   if(waves.results.length)summary.waveOverhangs=waves.results.map(r=>r.report);
-  const planarRims=rimmingPlanarResults({plan,modelResults:wavedResults});
-  const planarLinked=applyResultDependencies(wavedResults,planarRims.dependencyChanges);
-  const normalRims=rimmingNormalResults({plan,modelResults:planarLinked});
-  const rims=[...planarRims.results,...normalRims.results];
-  const rimmedResults=[...rims,...applyResultDependencies(planarLinked,normalRims.dependencyChanges)];
-  if(rims.length)summary.rimming=rims.map(r=>r.report);
-  const supports=supportResults({plan,machine,shells:componentShells?[...componentShells.values()]:[placed],modelResults:rimmedResults});
-  const supportedResults=[...supports.results,...applyResultDependencies(rimmedResults,supports.dependencyChanges)];
+  const supports=supportResults({plan,machine,shells:componentShells?[...componentShells.values()]:[placed],modelResults:wavedResults});
+  const supportedResults=[...supports.results,...applyResultDependencies(wavedResults,supports.dependencyChanges)];
   if(supports.results.length)summary.supports=supports.results.map(r=>r.report);
   const welds=plasticWeldResult({plan,sites:weldSites,modelResults:supportedResults});
   const weldedResults=applyResultDependencies(supportedResults,welds.dependencyChanges);

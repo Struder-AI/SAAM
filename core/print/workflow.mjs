@@ -310,7 +310,7 @@ async function describeBundle({dir,plan,machine,geometry,geometryArtifact,review
     exportName: exportName(plan,machine), limitations: limitationsFor(plan, machine),
     outputAvailability:machine.outputs.find(o=>o.id===plan.output)?.implemented===false?`Machine-file export for ${machine.name} is not available yet; geometry and settings can be reviewed.`:null,
     skills: plan.composition?.regions?.length
-      ? [...new Set([...plan.composition.regions.flatMap(region=>Object.keys(region.skills)),...['supports','rimming-planar','rimming-normal','wave-overhangs'].filter(name=>plan.skills?.[name]?.enabled)])]
+      ? [...new Set([...plan.composition.regions.flatMap(region=>Object.keys(region.skills)),...['supports','wave-overhangs'].filter(name=>plan.skills?.[name]?.enabled)])]
       : plan.skills ? Object.entries(plan.skills).filter(([, settings]) => settings.enabled).map(([name]) => name) : []
   };
   if(machine.id==='denso-vs068a4-rc8a'){

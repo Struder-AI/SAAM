@@ -98,19 +98,18 @@ test('MCP follows tour chat gates while production generation remains available 
 
 
 
-test('MCP voxel task discovers its manual and rebuilds field geometry through revision checks',async t=>{
+test('MCP spline field is described in geometry guidance and rebuilds through revision checks',async t=>{
   const {call}=await fixture(t);
-  assert.equal((await call('list_skills')).find(s=>s.id==='voxel-tools').kind,'geometry');
-  assert.match((await call('read_skill',{skillId:'voxel-tools'})).manual,/voxel-create/);
-  const request={field:{schema:'saam-voxel-field/1',originMm:[0,0,0],sizeMm:[8,8,2],counts:[2,2,2],degrees:[1,1,1],
+  assert.match(JSON.stringify(await call('read_guidance',{guidanceId:'geometry'})),/spline_field/);
+  const request={field:{schema:'saam-spline-field/1',originMm:[0,0,0],sizeMm:[8,8,2],counts:[2,2,2],degrees:[1,1,1],
     knots:[[0,0,1,1],[0,0,1,1],[0,0,1,1]],values:Array(8).fill(1),weights:null,isoValue:0.5},extraction:{edgeMm:1}};
-  let state=await call('voxel',{printId:'volume',action:'create',machineId:'ultimaker-s5',request});
+  let state=await call('spline_field',{printId:'volume',action:'create',machineId:'ultimaker-s5',request});
   assert.notEqual(state.toolpathApproved,true);
-  await call('voxel',{printId:'volume',action:'update',expectedRevision:'stale',request},/stale/);
+  await call('spline_field',{printId:'volume',action:'update',expectedRevision:'stale',request},/stale/);
   request.field.values[0]=0;
-  state=await call('voxel',{printId:'volume',action:'update',expectedRevision:state.revision,request});
+  state=await call('spline_field',{printId:'volume',action:'update',expectedRevision:state.revision,request});
   const saved=await call('get_print',{printId:'volume',includeGeometry:true});
-  assert.equal(saved.plan.geometry.shape,'voxel');assert.equal(saved.plan.geometry.field.values[0],0);
+  assert.equal(saved.plan.geometry.shape,'spline-field');assert.equal(saved.plan.geometry.field.values[0],0);
   assert.notEqual(state.toolpathApproved,true);
 });
 

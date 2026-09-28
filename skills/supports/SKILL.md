@@ -38,11 +38,6 @@ construction, not Bambu's tree algorithm or a claim of equivalent print quality.
 [Bambu Studio](https://github.com/bambulab/BambuStudio) provides normal/tree/custom
 support features under AGPL-3.0. SAAM uses its own implementation and manual.
 
-Rimming supports are separate experimental skills:
-[rimming-planar](../rimming-planar/SKILL.md) and
-[rimming-normal](../rimming-normal/SKILL.md). Use their edge/surface assignments
-rather than adding a rimming style to this skill's standard/tree assignments.
-
 ## Assignments
 
 Each assignment has exactly `id`, `style`, `reason`, `contactZMm`, `footprint`,

@@ -14,6 +14,7 @@ relative to `Prints/` (`Prints/my-part` is `"my-part"`).
 |---|---|---|
 | Create from a recipe | `init Prints/my-part plan.json --machine ultimaker-s5` | `get_plan_template`, `create_print` |
 | Import an STL | `import-stl Prints/my-part source.stl auto ultimaker-s5` | `import_stl_print` |
+| Create or rebuild a spline field | `spline-field-create Prints/my-part request.json ultimaker-s5`, `spline-field-update … --revision REV` | `spline_field` |
 | Open in Studio | `node studio/server.mjs --toolkit open-print Prints/my-part` | `list_prints`, `get_print`, `request_review` |
 | Adjust the recipe | `adjust Prints/my-part patch.json --revision REV` | `adjust_print` |
 | Change printer | `change-machine Prints/my-part MACHINE --revision REV` | `change_machine` |
@@ -39,6 +40,8 @@ or MCP `get_plan_template`. The template enables full-fill **and draped-skin**;
 disable what the part doesn't need. STL imports and Gridfinity start with
 draped-skin off.
 
+The recipe's `geometry` is authored as described in [GEOMETRY.md](../../GEOMETRY.md).
+
 A patch is a JSON object in the recipe's field names: nested objects merge,
 arrays replace, unknown fields are rejected. The editable recipe is the
 top-level of `plan.json`; don't copy its `bundle` envelope into a patch. After
@@ -47,36 +50,6 @@ asked (`get_print` `includeGeometry: true`, `--include-geometry`). Any geometry,
 process or setup change invalidates the final confirmation. Changing printer
 applies its declared process defaults and keeps other choices; an incompatible
 recipe is rejected, not overridden.
-
-### Author geometry
-
-Write the part's geometry yourself in `geometry`, in millimetres, relative to
-`placement` with Z = 0 on the bed. There are no shape templates; the starter
-recipe's geometry is just an example of the first form below.
-
-| Form | Write | Suits |
-|---|---|---|
-| `spline` | `patches`: a closed shell of untrimmed NURBS patches | Smooth and curved bodies; exact circles and revolutions |
-| `mesh` | `vertices` `[[x,y,z],…]` and `triangles` `[[i,j,k],…]` (`source: null`) | Flat faces and sharp edges |
-| `voxel` | A spline field, through the [voxel-tools](../../skills/voxel-tools/SKILL.md) task | Organic volumes, holes and blends that no single control net carries |
-| `assembly` | `parts: [{id, xMm, yMm, zMm, geometry}]` | Components of the forms above that touch; each is sliced on its own, so overlapping parts print twice |
-
-A spline patch is `{name, degreeU, degreeV, controlPoints, knotsU?, knotsV?}`:
-`controlPoints` is rows along U of points along V, each `[x,y,z]` or
-`[x,y,z,weight]`; omitted knots are clamped uniform, supplied knots are full
-vectors (count + degree + 1). The shell must close: every patch edge coincides
-geometrically with another edge, the same patch's opposite edge (a seam), or
-collapses to a point (a pole). Sharing control points along seams is the simple
-way to guarantee it; an open shell is rejected naming the unmatched `patch:edge`.
-Patch names are how skills select surfaces (a roof to drape, a sleeve to clad).
-
-A mesh must be closed, free of self-intersections and consistently wound,
-counterclockwise seen from outside.
-
-Edit geometry with `adjust_print` like any setting; arrays replace, so send the
-whole `patches` array or the whole mesh. Scripts may compute any of these for
-large or repetitive geometry, and write the same recipe
-([spline-solid.mjs](../geom/spline-solid.mjs) has block and tube helpers).
 
 ### Import an STL
 
@@ -92,8 +65,8 @@ the reported failure.
 
 For an open pattern, set `skills.<skill>.spacingFactor` (default `1`): `3`
 spaces lines three times wider without widening the bead or its extrusion per
-length. It applies to full-fill, planar-infill, draped-skin, supports, both
-rimming skills and pipe-cladding, including regional overrides where supported,
+length. It applies to full-fill, planar-infill, draped-skin, supports and
+pipe-cladding, including regional overrides where supported,
 but not to single-wall vase spirals. See the
 [spacing contract](../path/README.md#line-spacing).
 

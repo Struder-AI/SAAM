@@ -1,5 +1,27 @@
 # Development log
 
+## 2026-09-28 — Spline field renamed, rimming removed, geometry-first maker guidance
+
+- Renamed the voxel field to the spline field throughout: `shape: "spline-field"`,
+  schemas `saam-spline-field/1` and `/2`, `core/geom/spline-field*.mjs`, the
+  `spline_field` MCP tool and `spline-field-create`/`-update` CLI. Its separate
+  skill entry is gone; [GEOMETRY.md](GEOMETRY.md#spline-field) carries the maker
+  reference, [SPLINE-FIELD.md](core/geom/SPLINE-FIELD.md) the contract, and the
+  demo moved to `scripts/spline-field-demo.mjs`.
+- Removed rimming-planar and rimming-normal with their only core consumers,
+  `support-surface.mjs` and `section-offset.mjs` (D-040). Gridfinity stays.
+- Guidance: new [GEOMETRY.md](GEOMETRY.md) is the authoring reference for the
+  three forms, returned by maker onboarding (CLI and MCP) and readable as
+  `geometry`. MAKERS.md became a capability map (149 → 89 lines); its Studio
+  request procedure moved unchanged to
+  [studio/README.md](studio/README.md#carrying-a-maker-request); USAGE.md drops
+  its authoring section (128 → 101). Onboarding text is 20.3k → 20.8k characters.
+- Verification (targeted files only): spline-field 11, spline-field-refine 1,
+  mcp 20, workflow 12, denso 7 — all pass; starter, tour and DENSO recipes
+  validate and section; maker onboarding returns the four sources; dev map
+  regenerated and checked; `check-repo` passes apart from existing BR-055 and
+  D-038/D-039 findings. Not run: the full suite.
+
 ## 2026-09-28 — Authored geometry: general spline solids, spline field restored, templates removed
 
 - Added `shape: "spline"` ([spline-solid.mjs](core/geom/spline-solid.mjs)): named

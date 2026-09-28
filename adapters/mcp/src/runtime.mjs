@@ -18,7 +18,7 @@ import { importSTLBundle,setSTLUnits } from '../../../core/print/import-stl.mjs'
 import {createThingi10KClient} from '../../../skills/thingi10k/scripts/library.mjs';
 import {importThingi10KBundle} from '../../../skills/thingi10k/scripts/import.mjs';
 import {createGridfinityBundle,updateGridfinityBundle} from '../../../skills/gridfinity/scripts/bundle.mjs';
-import {createVoxelBundle,updateVoxelBundle} from '../../../core/print/voxel.mjs';
+import {createSplineFieldBundle,updateSplineFieldBundle} from '../../../core/print/spline-field.mjs';
 import { applyText } from '../../../core/print/text.mjs';
 import { applyHeatSet } from '../../../core/print/heat-set.mjs';
 import { INSERT_CATALOG } from '../../../skills/heat-set-inserts/scripts/catalog.mjs';
@@ -104,7 +104,7 @@ async function requireSystemFont(path){
   throw Error('From a web chat, fontPath must be a font installed in the system font folders.');
 }
 
-export const instructions = 'For a maker edit, your FIRST operation is begin_studio_work, before any acknowledgement, analysis, status check or other tool; printId may be omitted for the active tour. For a tour request with command access, first run node studio/server.mjs --toolkit start-tour --no-open and open the returned Studio URL; then use its returned participation context and listener. Do not read guidance or run onboarding before launching the tour. For ordinary new-part work with missing maker context, run node scripts/agent-toolkit.mjs maker-onboarding once with command access, or otherwise call maker_onboarding once; either supplies makers, the skill digest and print-tools. Reuse current context and choose individual skill manuals for the task; do not reread sources already returned by onboarding. Follow relevant documentation links through read_guidance using their repository-relative path and optional #heading. Shared print-tool usage is available as "print-tools". Create a print and request_review for its geometry. Revisions happen through chat using adjust_print and expectedRevision. Geometry review is advisory: generation may proceed whenever it helps review. The person confirms the exact settings and toolpath together in Studio before export. Establish the printer and material before relying on the toolpath. For an edit to an existing print call begin_studio_work immediately, publish its saved geometry or toolpath target, then resolve its request ID after the requested result is displayed. Geometry-only work needs no slicing. Questions and guidance stay visually quiet. Normal use supports capabilities from any view; only the tour narrows requests to its current lesson under the tour manual. Send edit acknowledgements and lesson guidance immediately in chat commentary BEFORE calling a listener. Never hold an edit reply in a final answer while waiting through later lessons. During tours let Studio lead the early lessons. Keep wait_for_studio_request active, perform start-layer preparation silently, and initiate chat teaching only at the designated infill lesson and completion. Respond normally to participant-requested edits. Use get_tour for the selected print and set_tour_start_at for an explicit infill layer. deliver_print copies the reviewed bytes. No tool grants final settings/toolpath approval or runs hardware. Studio reports what the person does — lesson changes, opened prints, imports, exports, displayed results, failed or cancelled calculations — as studioEvents on tool results, in wait_for_studio_request returns and in notifications; read the queue any time with get_studio_events, which also reports toolpath calculation progress. Events are ordered observations, not simultaneous state: act on the latest.';
+export const instructions = 'For a maker edit, your FIRST operation is begin_studio_work, before any acknowledgement, analysis, status check or other tool; printId may be omitted for the active tour. For a tour request with command access, first run node studio/server.mjs --toolkit start-tour --no-open and open the returned Studio URL; then use its returned participation context and listener. Do not read guidance or run onboarding before launching the tour. For ordinary new-part work with missing maker context, run node scripts/agent-toolkit.mjs maker-onboarding once with command access, or otherwise call maker_onboarding once; either supplies makers, geometry, the skill digest and print-tools. Reuse current context and choose individual skill manuals for the task; do not reread sources already returned by onboarding. Follow relevant documentation links through read_guidance using their repository-relative path and optional #heading. Shared print-tool usage is available as "print-tools". Create a print and request_review for its geometry. Revisions happen through chat using adjust_print and expectedRevision. Geometry review is advisory: generation may proceed whenever it helps review. The person confirms the exact settings and toolpath together in Studio before export. Establish the printer and material before relying on the toolpath. For an edit to an existing print call begin_studio_work immediately, publish its saved geometry or toolpath target, then resolve its request ID after the requested result is displayed. Geometry-only work needs no slicing. Questions and guidance stay visually quiet. Normal use supports capabilities from any view; only the tour narrows requests to its current lesson under the tour manual. Send edit acknowledgements and lesson guidance immediately in chat commentary BEFORE calling a listener. Never hold an edit reply in a final answer while waiting through later lessons. During tours let Studio lead the early lessons. Keep wait_for_studio_request active, perform start-layer preparation silently, and initiate chat teaching only at the designated infill lesson and completion. Respond normally to participant-requested edits. Use get_tour for the selected print and set_tour_start_at for an explicit infill layer. deliver_print copies the reviewed bytes. No tool grants final settings/toolpath approval or runs hardware. Studio reports what the person does — lesson changes, opened prints, imports, exports, displayed results, failed or cancelled calculations — as studioEvents on tool results, in wait_for_studio_request returns and in notifications; read the queue any time with get_studio_events, which also reports toolpath calculation progress. Events are ordered observations, not simultaneous state: act on the latest.';
 
 // relay: on a computer paired with the SAAM relay, the provider every Studio
 // instance shows in its Connect panel ({status(), linkCode()}).
@@ -225,8 +225,8 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   // The maker's starting context for a client without command access, as the
   // toolkit's maker-onboarding gives it to one with. A web chat also gets how its
   // connection works, which its client may not show from the server instructions.
-  const MAKER_SOURCES=['MAKERS.md','skills/DIGEST.md','core/print/USAGE.md'];
-  tool('maker_onboarding','Start here: call this once per conversation, before any other SAAM tool. Returns how to work with SAAM — maker guidance, the digest of every skill and the shared print tools — and, from a web chat, how this connection to the person’s computer works. Reuse it for the whole conversation and read individual skill manuals from the digest as tasks need them.',
+  const MAKER_SOURCES=['MAKERS.md','GEOMETRY.md','skills/DIGEST.md','core/print/USAGE.md'];
+  tool('maker_onboarding','Start here: call this once per conversation, before any other SAAM tool. Returns how to work with SAAM — maker guidance, the geometry authoring reference, the digest of every skill and the shared print tools — and, from a web chat, how this connection to the person’s computer works. Reuse it for the whole conversation and read individual skill manuals from the digest as tasks need them.',
     {}, async (input, session) => ({ role:'maker', ...(session?.guidance?{connection:session.guidance}:{}),
       sources: await Promise.all(MAKER_SOURCES.map(id => readGuidance(root, id))),
       nextStep: 'Follow connection first when present. Reuse these sources for the whole conversation; do not reread them or call maker_onboarding again. Choose individual skill manuals (read_skill) and linked references (read_guidance) when a task needs them.' }));
@@ -245,7 +245,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     const { text: manual, ...reference } = await readGuidance(root, `skills/${skillId}/SKILL.md`);
     return { skillId, manual, ...reference };
   });
-  tool('read_guidance', 'Read published repository Markdown by relative path, optionally with #heading for one section. Results include resolved documentation links and headings. Short IDs: makers, development, glossary, mcp, print-tools. This reader does not expose private files, source code or register capabilities.',
+  tool('read_guidance', 'Read published repository Markdown by relative path, optionally with #heading for one section. Results include resolved documentation links and headings. Short IDs: makers, geometry, development, glossary, mcp, print-tools. This reader does not expose private files, source code or register capabilities.',
     { guidanceId: z.string().min(1).max(1024) }, async ({ guidanceId }) => readGuidance(root, guidanceId));
   tool('get_plan_template', 'Get the current complete proposed recipe for a bundle kind and machine, including remembered setup when available. Defaults and remembered setup never confer job approval.',
     { kind: kindSchema, machineId: z.string() }, async ({ kind, machineId }) => ({ kind, machineId,
@@ -306,7 +306,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     {printId:printIdSchema,units:z.enum(['mm','inch']),expectedRevision:z.string()},async({printId,units,expectedRevision})=>{
       const dir=await directory(printId);return summary(printId,await setSTLUnits(dir,units,{expectedRevision}));
     },false);
-  tool('voxel', 'Create or update a volumetric scalar-field (spline field) part. Read the voxel-tools skill for control lattices, threshold and explicit mesh resolution. Uses shared slicing and Studio review.',
+  tool('spline_field', 'Create or rebuild a spline-field part: a B-spline scalar field over a box, material where it exceeds isoValue, extracted to a mesh at extraction.edgeMm. Request {field, extraction}; GEOMETRY.md#spline-field describes it. Uses shared slicing and Studio review.',
     {printId:printIdSchema,action:z.enum(['create','update']),request:objectSchema,machineId:z.string().optional(),expectedRevision:z.string().optional(),part:idSchema.optional()},
     async({printId,action,request,machineId,expectedRevision,part})=>{
       noApprovalFields(request);
@@ -314,12 +314,12 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
         if(!machineId||expectedRevision!==undefined||part!==undefined)throw new Error('Creation requires machineId; revision and part apply to updates.');
         loadMachine(machineId);
         const dir=await directory(printId,{create:true});
-        return summary(printId,await createVoxelBundle(dir,request,{machineId,setupFile:await setupFile(machineId)}));
+        return summary(printId,await createSplineFieldBundle(dir,request,{machineId,setupFile:await setupFile(machineId)}));
       }
       if(machineId!==undefined)throw new Error('Use the existing print machine for updates.');
       const {dir,state}=await read(printId,{program:false});
       if(state.kind!=='shell')throw new Error('Select a shared shell/mesh print.');
-      return summary(printId,await updateVoxelBundle(dir,request,{expectedRevision,part}));
+      return summary(printId,await updateSplineFieldBundle(dir,request,{expectedRevision,part}));
     },false);
   tool('gridfinity', 'gridfinity',
     {printId:printIdSchema,action:z.enum(['create','update']),parameters:objectSchema,machineId:z.string().optional(),expectedRevision:z.string().optional(),part:idSchema.optional()},

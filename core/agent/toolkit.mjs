@@ -125,8 +125,8 @@ export async function onboarding({role, areas = []}) {
   const outside = areas.filter(area => Object.hasOwn(outsideAreas, area));
   const targets = [...new Set(areas.filter(area => !Object.hasOwn(developmentAreas, area)))];
   const builderAreaIds = [...new Set(areas.flatMap(area => developmentAreas[area] ?? []))];
-  const ids = role === 'maker' ? ['MAKERS.md', 'skills/DIGEST.md', 'core/print/USAGE.md']
-    : role === 'builder' ? ['BUILDERS.md', 'MAKERS.md', 'skills/DIGEST.md', 'core/print/USAGE.md', 'skills/AUTHORING.md', ...builderAreaIds]
+  const ids = role === 'maker' ? ['MAKERS.md', 'GEOMETRY.md', 'skills/DIGEST.md', 'core/print/USAGE.md']
+    : role === 'builder' ? ['BUILDERS.md', 'MAKERS.md', 'GEOMETRY.md', 'skills/DIGEST.md', 'core/print/USAGE.md', 'skills/AUTHORING.md', ...builderAreaIds]
     : ['DEVELOPER-CONTEXT.md#orientation', ...new Set(outside.flatMap(area => outsideAreas[area]))];
   const mapKeys = role === 'maker' ? [] : [...(role === 'developer' ? ['0'] : []), ...targets];
   if (mapKeys.length) {

@@ -3,9 +3,9 @@
 // preserve both numerator and denominator exactly; no global control grid grows.
 import {basisFunctions,basisDerivatives,findSpan} from './nurbs.mjs';
 import {requireThat} from './tolerance.mjs';
-import {validateVoxelField} from './voxel.mjs';
+import {validateSplineField} from './spline-field.mjs';
 
-export const hierarchical=f=>f.schema==='saam-voxel-field/2';
+export const hierarchical=f=>f.schema==='saam-spline-field/2';
 const countsFor=(f,l)=>f.hierarchy.levels[l].knots.map((u,a)=>u.length-f.degrees[a]-1);
 const xyz=(n,i)=>[i%n[0],Math.floor(i/n[0])%n[1],Math.floor(i/(n[0]*n[1]))];
 const index=(n,q)=>q[0]+n[0]*(q[1]+n[1]*q[2]);
@@ -28,7 +28,7 @@ export function validateHierarchy(f){
   requireThat(Object.keys(f).sort().join()==='counts,degrees,hierarchy,isoValue,knots,originMm,schema,sizeMm,values,weights','Unexpected hierarchical field fields.');
   const {hierarchy,...base}=f,n=f.counts?.reduce((a,b)=>a*b,1);
   requireThat(Number.isSafeInteger(n)&&n>0&&n<=100000,'Invalid hierarchical base size.');
-  validateVoxelField({...base,schema:'saam-voxel-field/1',values:Array(n).fill(0),weights:null});
+  validateSplineField({...base,schema:'saam-spline-field/1',values:Array(n).fill(0),weights:null});
   requireThat(hierarchy&&Object.keys(hierarchy).sort().join()==='controls,levels'&&Array.isArray(hierarchy.levels)&&hierarchy.levels.length>=1&&hierarchy.levels.length<=6,'Invalid hierarchy levels.');
   hierarchy.levels.forEach((l,i)=>{
     requireThat(l&&Object.keys(l).sort().join()==='knots,regions'&&JSON.stringify(l.knots)===JSON.stringify(i?hierarchy.levels[i-1].knots.map(refinedKnots):f.knots),'Hierarchy knots must be nested dyadic refinements.');
@@ -64,8 +64,8 @@ export function validateHierarchy(f){
   return f;
 }
 export function toHierarchy(input){
-  validateVoxelField(input);if(hierarchical(input))return structuredClone(input);
-  return {...structuredClone(input),schema:'saam-voxel-field/2',weights:input.weights?[...input.weights]:input.values.map(()=>1),hierarchy:{levels:[{knots:structuredClone(input.knots),regions:[structuredClone(full)]}],controls:input.values.map((_,index)=>({level:0,index}))}};
+  validateSplineField(input);if(hierarchical(input))return structuredClone(input);
+  return {...structuredClone(input),schema:'saam-spline-field/2',weights:input.weights?[...input.weights]:input.values.map(()=>1),hierarchy:{levels:[{knots:structuredClone(input.knots),regions:[structuredClone(full)]}],controls:input.values.map((_,index)=>({level:0,index}))}};
 }
 
 // Sparse univariate knot-insertion matrix, cached per level/axis by the refiner.

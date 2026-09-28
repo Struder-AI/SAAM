@@ -52,7 +52,7 @@ dim the viewport.
 
 **Requests.** Edit the current selected copy returned by begin-work or
 `get_tour`, keeping its tour marker, through the
-[maker request lifecycle](../../MAKERS.md#existing-studio-work). Studio queues
+[maker request lifecycle](../../studio/README.md#carrying-a-maker-request). Studio queues
 requests for the chat lesson, the playback start layer and completion; lesson
 changes also arrive as Studio events. Claim each, do its work, resolve it.
 

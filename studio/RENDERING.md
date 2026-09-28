@@ -117,7 +117,7 @@ internal surfaces cannot accumulate opacity; the ghost machine composites
 underneath afterwards. Bead templates are indexed and wound outward, back faces
 are culled, and a layer/operation group whose projected bounds miss the viewport
 is skipped. These match the earlier two-pass image to rounding (DEVLOG 2026-09-18).
-Draped skin and normal rimming currently lack source surface normals and retain
+Draped skin and wave overhangs currently lack source surface normals and retain
 an explicitly labeled line fallback. Browsers without WebGL2 also use lines.
 Fallback line width scales with the same camera, with a 0.04 mm current-layer
 inset. Canvas device-pixel scaling applies once; travel stays a thin screen-space

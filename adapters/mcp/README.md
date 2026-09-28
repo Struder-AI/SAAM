@@ -48,7 +48,7 @@ saved IDs; there is no single global plan that overwrites another job.
 |---|---|
 | `maker_onboarding` | Listed first. The maker's starting context for a client without command access: MAKERS, the skill digest and shared print tools, plus how a relayed session reaches the computer. Until a relayed session calls it (or reads `makers`), every result carries a second text item asking it to. |
 | `list_machines`, `list_skills`, `read_skill` | Read this checkout's known profiles and manuals. Skill entries distinguish toolpath skills from geometry skills such as mesh tools. These small fixed lists are not an automatic discovery or installation system. |
-| `read_guidance` | Read a published Markdown path, optionally ending in `#heading`, or a short ID: `makers`, `development`, `glossary`, `mcp`, `print-tools`. The response resolves documentation links into IDs for further reading. |
+| `read_guidance` | Read a published Markdown path, optionally ending in `#heading`, or a short ID: `makers`, `geometry`, `development`, `glossary`, `mcp`, `print-tools`. The response resolves documentation links into IDs for further reading. |
 | `get_plan_template` | Read a complete proposed shell recipe, reusing remembered setup. |
 | `create_print` | Initialize a new unapproved bundle, optionally from a complete recipe. |
 | `import_stl_print` | Read an absolute local `.stl` source path with optional `auto` (default), `mm` or `inch` units; preserve its bytes/hash and use the shared CLI importer and remembered setup. Sources are limited to 64 MiB. |

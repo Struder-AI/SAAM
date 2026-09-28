@@ -1,14 +1,14 @@
-# Volumetric scalar fields
+# Spline fields
 
-[voxel.mjs](voxel.mjs) represents a scalar field over a bounded, axis-aligned
+[spline-field.mjs](spline-field.mjs) represents a scalar field over a bounded, axis-aligned
 millimeter domain. Material is the set `value > isoValue` intersected with that
 box. A threshold surface supplies the boundary; material can contain holes,
 cavities and disconnected components without changing a boundary control net.
-The [voxel task](../../skills/voxel-tools/SKILL.md) owns creation and editing tools.
+[GEOMETRY.md](../../GEOMETRY.md#spline-field) describes authoring; the `spline_field` tool creates and edits.
 
 ## Representation
 
-`saam-voxel-field/1` stores `originMm`, `sizeMm`, `counts`, `degrees`, `knots`,
+`saam-spline-field/1` stores `originMm`, `sizeMm`, `counts`, `degrees`, `knots`,
 `values`, `weights` and `isoValue`. All XYZ arrays have three entries. Controls
 use `x + nx * (y + ny * z)`, with X fastest. Domain coordinates map affinely
 to normalized spline parameters `[0,1]` in each direction. This is a scalar
@@ -30,7 +30,7 @@ import, warped parameter domains and vector/tensor channel storage are not
 implemented. The current JSON layout suits bounded prototypes; dense storage
 grows as the product of the control counts for schema `/1`.
 
-`saam-voxel-field/2` adds sparse hierarchical refinement. Root `counts` and
+`saam-spline-field/2` adds sparse hierarchical refinement. Root `counts` and
 `knots` describe the base lattice; `values` and positive `weights` correspond to
 `hierarchy.controls`, each `{level,index}` using X-fast indexing in that level.
 `hierarchy.levels` contains `{knots,regions}`; regions are normalized `{min,max}`
@@ -49,7 +49,7 @@ A complete constant-filled 12 × 12 × 2 mm request is:
 ```json
 {
   "field": {
-    "schema": "saam-voxel-field/1",
+    "schema": "saam-spline-field/1",
     "originMm": [0, 0, 0],
     "sizeMm": [12, 12, 2],
     "counts": [2, 2, 2],
@@ -63,7 +63,7 @@ A complete constant-filled 12 × 12 × 2 mm request is:
 }
 ```
 
-`createVoxelEvaluator(field)` owns an independent snapshot and returns an
+`createSplineFieldEvaluator(field)` owns an independent snapshot and returns an
 evaluator for XYZ millimeters. Queries outside the domain return `null`.
 `{derivatives: true}` returns the physical gradient in scalar units/mm;
 `{influences: true}` returns each local control index and its rational basis
@@ -73,7 +73,7 @@ shared NURBS basis algorithms A2.2/A2.3 in [nurbs.mjs](nurbs.mjs).
 
 ## Extraction, slicing and identity
 
-[voxel-compile.mjs](voxel-compile.mjs) uses pinned `manifold-3d@3.5.3` through
+[spline-field-compile.mjs](spline-field-compile.mjs) uses pinned `manifold-3d@3.5.3` through
 the [shared solid runtime](solid.mjs). Its level-set extraction uses upstream
 body-centered-cubic marching tetrahedra, preserving its topology construction.
 SAAM supplies `value - isoValue`, positive inside. Scalar values are not assumed
@@ -99,13 +99,13 @@ convergence by rebuilding at smaller values. `maxEvaluations` bounds callback
 work; a lower-bound grid-size estimate rejects oversized work before allocation.
 Existing mesh vertex, triangle and intersection-check budgets also apply.
 Empty extraction fails explicitly. No automatic repair or detail reduction runs.
-`previewVoxel` performs the same extraction without the manufacturing mesh
-checker, solely for asynchronous simulation display. `compileVoxel` always runs
+`previewSplineField` performs the same extraction without the manufacturing mesh
+checker, solely for asynchronous simulation display. `compileSplineField` always runs
 that checker; display output is never used as an authorization to manufacture.
 
-The result is a `shape: "voxel"` geometry record containing the original field,
+The result is a `shape: "spline-field"` geometry record containing the original field,
 extraction settings and compiler identity, checked indexed triangles, and a
-content digest. [voxel-record.mjs](voxel-record.mjs) owns validation. Compilation
+content digest. [spline-field-record.mjs](spline-field-record.mjs) owns validation. Compilation
 is explicit at creation/edit time. Reopening checks stored identity and mesh
 validity without re-extracting unchanged data. A digest detects a changed
 record; it is not proof of equivalence to the continuous field or authenticity.
@@ -114,16 +114,16 @@ The native `model.mesh.json` retains the complete record. Geometry review,
 planar sections, roof queries and Studio all consume its manufacturing mesh.
 This is an additional source geometry type behind the existing mesh query
 backend, not direct continuous-field sectioning. Spline sources keep their
-existing native slicing. Voxel components can join mixed assemblies and material
+existing native slicing. Spline field components can join mixed assemblies and material
 regions through the common interfaces. Other mesh skills retain their limits;
 for example, an arbitrary topology does not imply an accessible roof for drape.
 
 ## Local refinement and field consumers
 
-[voxel-refine.mjs](voxel-refine.mjs) inserts knots exactly in homogeneous form,
+[spline-field-refine.mjs](spline-field-refine.mjs) inserts knots exactly in homogeneous form,
 preserving scalar values and gradients, including rational weights. This adds
 design freedom without changing the current field. Those tensor-product
-insertions extend across planes. [voxel-hierarchy.mjs](voxel-hierarchy.mjs)
+insertions extend across planes. [spline-field-hierarchy.mjs](spline-field-hierarchy.mjs)
 instead refines a bounded 3D support region and stores only active coefficients
 in schema `/2`.
 
@@ -147,10 +147,10 @@ compatibility is claimed by this implementation.
 
 ## Verification scope
 
-[voxel tests](../tests/voxel.test.mjs) cover affine and quadratic reference fields,
+[spline field tests](../tests/spline-field.test.mjs) cover affine and quadratic reference fields,
 physical derivatives, rational sensitivities, knot validation, section-area
 convergence, clipping, holes/islands, mixed assembly slicing and native identity,
 approval invalidation and exact-byte delivery. The
-[MCP tests](../tests/mcp.test.mjs) cover discovery and create/edit access.
+[MCP tests](../tests/mcp.test.mjs) cover create/edit access.
 [DEVLOG](../../DEVLOG.md) records performed checks and preview observations.
 These are software checks; no physical optimization or print is validated.

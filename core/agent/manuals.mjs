@@ -2,12 +2,12 @@
 import { lstat, readFile } from 'node:fs/promises';
 import { resolve, posix } from 'node:path';
 
-const rootManuals = new Set(['AGENTS.md', 'README.md', 'MAKERS.md', 'BUILDERS.md', 'DEVELOPER-CONTEXT.md',
+const rootManuals = new Set(['AGENTS.md', 'README.md', 'MAKERS.md', 'GEOMETRY.md', 'BUILDERS.md', 'DEVELOPER-CONTEXT.md',
   'CONTRIBUTING.md', 'CONTRIBUTING-AGENTS.md', 'SETUP.md', 'GLOSSARY.md', 'DECISIONS.md', 'DEVLOG.md', 'build_request.md', 'CLAUDE.md', 'examples/prints/README.md']);
 const documentRoots = new Set(['core', 'skills', 'studio', 'machines', 'adapters', 'scripts', 'dev-map']);
 const excluded = new Set(['prints', 'node_modules', 'dist', 'build']);
 const aliases = {
-  makers: 'MAKERS.md', builders: 'BUILDERS.md', development: 'BUILDERS.md',
+  makers: 'MAKERS.md', geometry: 'GEOMETRY.md', builders: 'BUILDERS.md', development: 'BUILDERS.md',
   'developer-context': 'DEVELOPER-CONTEXT.md', glossary: 'GLOSSARY.md',
   mcp: 'adapters/mcp/README.md', 'print-tools': 'core/print/USAGE.md'
 };

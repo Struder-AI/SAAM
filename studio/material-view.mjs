@@ -29,7 +29,7 @@ function beadFrame(move,plan,geometry,clad){
   }
   // Source records do not yet retain these skills' local surface normals.
   // Keep an explicitly labelled line fallback rather than inventing a frame.
-  if(['draped-skin','rimming-normal','wave-overhangs'].includes(move.phase))return null;
+  if(['draped-skin','wave-overhangs'].includes(move.phase))return null;
   const layerNormal=()=>[0,0,1];
   return {normal:layerNormal,height:move.layer===0?p.firstLayerMm:p.layerMm,centered:false};
 }

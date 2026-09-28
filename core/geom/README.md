@@ -140,7 +140,7 @@ Mesh conversion is not required before SAAMpath generation.
 | Representation | Role |
 |---|---|
 | Spline shell / triangle mesh | Part geometry behind common queries. |
-| [Volumetric scalar field](VOXEL.md) | Editable voxel samples or rational B-spline controls; explicitly extracted to the shared manufacturing mesh backend for slicing and Studio. |
+| [Spline field](SPLINE-FIELD.md) | Editable samples or rational B-spline controls of a scalar field; explicitly extracted to the shared manufacturing mesh backend for slicing and Studio. |
 | Closed regions with holes | Planar sections, offsets, solid masks and infill clipping. |
 | Surface height and normal | Accessible roof sampling for drape; faceted normals stay faceted. |
 | Skill operation result | Composable strokes, dependencies, layer references and travel policies. |
@@ -220,7 +220,7 @@ flags. It builds a direction control net from unit reference normals at the
 Greville parameters. Nonperiodic outer Greville values are clamped to the active
 domain. Horizontal mode uses the clockwise XY perpendicular to the U tangent;
 normal mode uses the full surface normal. Projected-normal mode normalizes the
-XY projection of the full normal, retaining planar rimming's direction on
+XY projection of the full normal, a horizontal direction that stays defined on
 charts whose U tangent rises in Z.
 
 `at(u, v, depth, tightness = 0)` evaluates the offset continuum. Zero uses the

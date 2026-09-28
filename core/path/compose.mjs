@@ -135,7 +135,7 @@ export function validateOperationBatch(skillResults,batchLayers) {
 export function prepareOperationPriorities(operations,resultIndex,batchLayers) {
   // Dependencies express what must exist first. Among ready operations, keep
   // skills near the same physical height, even when a skill's rank is merely
-  // its construction order (for example surface-normal rimming or draped skin).
+  // its construction order (for example draped skin).
   // An atomic continuous operation stays intact; this is a preference, not a
   // height-difference gate or permission to split its deposition.
   const heights=new Map(operations.map(op=>[op.id,op.strokes.reduce((z,s)=>s.points.reduce((h,p)=>Math.max(h,p[2]),z),-Infinity)]));

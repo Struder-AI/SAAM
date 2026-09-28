@@ -24,7 +24,7 @@ export function validateSupports(settings,process) {
   for(const a of settings.assignments){
     requireThat(exact(a,'id,style,reason,contactZMm,footprint,treeNodes'),'Support assignments need id, style, reason, contactZMm, footprint and treeNodes.');
     requireThat(typeof a.id==='string'&&/^[a-z][a-z0-9-]*$/.test(a.id)&&!ids.has(a.id),'Invalid or duplicate support assignment ID.');ids.add(a.id);
-    requireThat(['standard','tree'].includes(a.style),'Support style must be standard or tree; use a rimming skill for edge supports.');
+    requireThat(['standard','tree'].includes(a.style),'Support style must be standard or tree.');
     requireThat(typeof a.reason==='string'&&a.reason.trim().length>0,'Describe why this support area was assigned.');
     requireThat(finite(a.contactZMm,process.firstLayerMm+settings.topGapMm,1000),'Support contact height must leave room for a first layer and top gap.');
     requireThat(Array.isArray(a.footprint)&&Array.isArray(a.treeNodes),'Invalid support footprint or tree nodes.');
