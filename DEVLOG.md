@@ -1,5 +1,22 @@
 # Development log
 
+## 2026-09-28 — Self-update never started its installer on Windows
+
+- Updating 0.1.3 to 0.1.4 downloaded and unpacked the package, then SAAM quit
+  and nothing followed: no `update.log`, no staging folder, 0.1.3 untouched.
+  `packaging/update.mjs` spawned `powershell.exe` with `detached: true`, which
+  on Windows means no console, and Windows PowerShell 5.1 then exits 0 without
+  running the script (reproduced with a one-line script). Every build so far
+  has this, so 0.1.3 and 0.1.4 cannot update themselves.
+- Fix: `conhost.exe` starts the installer with a hidden console. A scratch run
+  from a parent that exits confirmed the script runs, waits for the parent,
+  writes to the console and survives it, with a path containing spaces.
+- The first 0.1.5 build ran in the shared checkout and picked up another
+  session's uncommitted `core/geom/query.mjs`; it was discarded. Releases are
+  now built in a detached worktree of the pushed commit
+  ([packaging/README.md](packaging/README.md#releasing-an-update)).
+- Not run: the macOS updater (`bash` detached) on a Mac.
+
 ## 2026-09-28 — 0.1.4 built and released
 
 - Built 0.1.4 from `dbdd702` (relay `saam-relay.remettub.workers.dev`, update

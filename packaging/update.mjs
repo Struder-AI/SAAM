@@ -46,8 +46,10 @@ export async function installUpdate({version,url,sha256},{platform,updateHost,da
   const windows=platform.startsWith('win');
   const installer=resolve(top,'app','packaging',windows?'windows':'macos',windows?'install.ps1':'install.sh');
   await stat(installer).catch(()=>{throw Error('The downloaded package has no installer.');});
+  // A detached Windows child has no console, and Windows PowerShell 5.1 then
+  // exits 0 without running the script, so conhost gives it a hidden one.
   const child=windows
-    ?spawn('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',installer,'-WaitPid',String(process.pid)],{detached:true,stdio:'ignore',windowsHide:true})
+    ?spawn('conhost.exe',['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-File',installer,'-WaitPid',String(process.pid)],{detached:true,stdio:'ignore',windowsHide:true})
     :spawn('bash',[installer,'--wait-pid',String(process.pid)],{detached:true,stdio:'ignore'});
   child.unref();
   log(`Installer for SAAM ${version} started; SAAM closes now and opens again when it finishes.`);

@@ -48,13 +48,14 @@ downloads them without a login. Builds pass
 installed SAAM accepts only `<update host>/v<version>/SAAM-<version>-<platform>.zip`
 for a plain `major.minor.patch` version, with the checksum the relay names.
 
-Each release ships everything committed, so work is committed and pushed first.
+The build copies tracked files as they are on disk, so it runs in a detached
+worktree of the pushed commit, never in a checkout other sessions edit.
 
 1. Choose a version above every one built so far (`dist/`), including unpublished
    builds and the installed `release.json`.
-2. Build `win-x64`, `darwin-arm64` and `darwin-x64` with it, the deployed
-   relay's `--relay-url` and that `--update-host`. Each build prints its
-   `LATEST_RELEASE` asset entry.
+2. In that worktree, build `win-x64`, `darwin-arm64` and `darwin-x64` with it,
+   the deployed relay's `--relay-url`, that `--update-host` and `--out` the
+   checkout's `dist`. Each build prints its `LATEST_RELEASE` asset entry.
 3. Add a DEVLOG entry (version, sizes, sha256s), commit and push.
 4. Publish with the [GitHub CLI](https://cli.github.com) signed in to an account
    that can write the repository: `gh release create v<version>
@@ -63,3 +64,7 @@ Each release ships everything committed, so work is committed and pushed first.
    `{"version":…,"assets":{…}}`, merging the printed entries, and
    [deploy the relay](../relay/README.md#deploy). Devices reconnect and Studio
    offers the update. Commit and push the configuration.
+
+Builds before 0.1.5 cannot update themselves: their updater starts the
+installer without a console, so Windows PowerShell exits without running it
+and SAAM just quits. Install those from the ZIP.
