@@ -260,19 +260,32 @@ clearance. Exact normal offsets and blends toward them can still fold. The
 depth-independent `frameAt` exposes the original field; consumers requiring the
 limited geometry use `at` or `offsetPatch`.
 
-[Curve offsets](./curve-offset.mjs) are loose only: `prepareCurveOffsets` takes a
-curve record from `referenceCurve` (XY, XYZ or XYZW controls). Without a patch
-the curve offsets horizontally, perpendicular to its XY tangent, keeping Z.
-With a patch it is a (u,v) curve offset within the surface, depth in millimetres
-to first order, and `offsetCurves(depth)` returns the pieces inside the patch
-on the reference's parameters; trimmed ends add controls. Positive depth is
-outward from a closed loop (`periodic` with coinciding ends) and otherwise to
-the right of travel seen from +Z or the surface normal. Control directions are
-collocated at Greville parameters, so lines and circular arcs offset exactly; at
-a kink, the vertex moves to where the adjoining offset pieces meet. Tangent speed
-along the reference direction must keep 5% at the same samples, limited as above.
+[Curve offsets](./curve-offset.mjs) resolve collisions as a region offset does
+([D-041](../../DECISIONS.md#d-041--offsets-resolve-collisions-ribbons-displace-without-a-surface)).
+`prepareCurveOffsets({curves: [{curve, closed}], patch})` takes curve records
+from `referenceCurve` lying in one XY plane, or in a patch's (u,v) with depth in
+millimetres to first order; `offset(depth)` returns chains of pieces. Each curve
+moves loosely: control directions are collocated at Greville parameters, so
+lines and circular arcs move exactly, and at a kink the vertex moves to where
+the adjoining pieces meet. The moved curves are cut where they cross
+([curve-ops.mjs](./curve-ops.mjs)), and a piece is kept when it runs with its
+source and the winding is at least one on its left and at most zero on its
+right. Closed curves follow the region convention: material left of travel,
+positive depth grows it. An open curve's offset is one-sided and keeps only what
+is at least the depth from every source curve. A patch is treated as
+nonperiodic, and pieces past its edges are trimmed off; control counts change
+only where pieces are cut. Loose accuracy depends on the control net: a turn
+spanning few controls lands short (a 4-control U offset 2 mm outward is 0.84 mm
+from its bottom).
 
-`prepareLooseSleeveOffsets` in `sleeve-frame.mjs` specializes this API for
+[Ribbons](./curve-ribbon.mjs) displace a 3D curve horizontally with Z kept:
+`prepareCurveRibbon({curve, closed}).ribbon(depth)`. Where the displaced curve
+runs backwards in plan view, the fold is cut at the plan-view crossing that
+closes it within half a turn of the source, leaving a small Z step; when nothing
+closes it, only the backwards part is cut. Crossings between distant parts stay.
+Reversals are found from 32 samples per knot span.
+
+`prepareLooseSleeveOffsets` in `sleeve-frame.mjs` specializes the surface offset for
 periodic U and a V chart linear in actual Z. Its `at(u, zMm, depth, tightness)`
 preserves authored Z. Vase mapping adds the signed nominal half-bead offset
 to tile depth, evaluates the field, then applies unilateral mesh contact.

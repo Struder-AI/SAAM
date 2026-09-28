@@ -88,36 +88,44 @@
   also carries a concurrent session's uncommitted `core/geom/curve-offset.mjs`
   and `core/geom/README.md` work.
 
-## 2026-09-28 — Loose curve, polyline and on-surface curve offsets
+## 2026-09-28 — Curve offsets resolve collisions; curve ribbons (BR-059 phases 1 and 4)
 
-- Inventory before this: the loose surface offset existed
-  (`prepareSurfaceOffsets().offsetPatch`, fixed control count, no growth
-  option); polyline offsets were tight only (`offsetRegion`, Clipper2, which
-  adds and trims vertices; `offsetSurfaceRegion`, geodesic). There was no
-  spline curve record and no loose curve offset.
-- [curve-offset.mjs](core/geom/curve-offset.mjs): `prepareCurveOffsets`
-  (right of travel about a reference normal) and `prepareSurfaceCurveOffsets`
-  (a (u,v) curve offset within a patch, returned as a (u,v) curve). Control
-  count, knots, degree and weights are kept. Control directions are collocated
-  at Greville parameters (sparse pivoted solve), miters at kinks, so a degree-1
-  curve is the loose polyline offset. Fold limiting mirrors
-  `offset-curvature.mjs` with tangent speed (linear in depth) in place of area.
-  `referenceCurve` (reference-surface.mjs) and `evaluateCurve` (nurbs.mjs,
-  with a left-limit option) are new.
-- Scratch checks (no committed tests): rational circle r 10 at ±2 and −9.8
-  gives radius 12/8/0.5 exactly over 2000 samples (the Greville-normal rule
-  the surface offset uses gave 11.657–12.000 at +2); an open zigzag polyline's
-  vertices are 1.000000000 from both adjoining edge lines; a closed square
-  offsets to exact miter corners, and at −6 limits to a 0.5 mm square;
-  periodic seam duplicates stay bit-identical; a curve on a flat patch matches
-  the planar offset to 1e-14; an iso curve on a rational half cylinder offsets
-  to exactly x ± 3; a diagonal curve there stays 0.986–1.006 mm from its
-  reference at depth 1 and 2.45–2.51 at 2.5 (first-order (u,v) mapping); a
-  4000-control periodic cubic took 376 ms, within 7e-15 mm of 0.4 mm.
-- Not run: any test suite. The surface offset keeps its Greville-normal rule;
-  collocating it the same way is a possible follow-up. The checkpoint also
-  carries a concurrent session's uncommitted `boundaryCurves` work in
-  `core/geom/slice-region.mjs`.
+- Before: the loose surface offset (`prepareSurfaceOffsets().offsetPatch`,
+  fixed control count, fold limiter); region offsets `offsetRegion` (Clipper2)
+  and `offsetSurfaceRegion` (geodesic); no spline curve record. `9262208` added
+  a loose curve offset with a fold limiter and no collision resolution; the
+  user then ruled ([D-041](DECISIONS.md#d-041--offsets-resolve-collisions-ribbons-displace-without-a-surface))
+  that every offset resolves collisions like a region offset, that a 3D curve
+  without a surface takes a ribbon, and that no fold limiter remains.
+- [curve-offset.mjs](core/geom/curve-offset.mjs) `prepareCurveOffsets`: curves
+  in one XY plane or in a patch's (u,v), moved loosely (collocated Greville
+  directions, kinks move to where adjoining pieces meet), cut at their
+  crossings and kept by positive winding and direction against the source.
+  Open curves use their two-sided neighbourhood with round caps; pieces past a
+  patch edge are trimmed. [curve-ops.mjs](core/geom/curve-ops.mjs) holds
+  trimming, joining, Bezier root isolation, crossings (monotone Bezier pieces,
+  subdivision, Newton) and winding. [curve-ribbon.mjs](core/geom/curve-ribbon.mjs)
+  `prepareCurveRibbon` cuts plan-view folds at their closing crossing. New
+  `referenceCurve` and `evaluateCurve`.
+- Scratch checks against `offsetRegion` (no committed tests): circle r 10 at
+  −9, +3 and −11 (vanishes), a dumbbell inset past its neck (two loops), two
+  circles merging, a ring whose hole shrinks and one whose hole vanishes, and a
+  polyline square at +1 (miter) and −6 (vanishes) match in loop count and area
+  to 0.001 mm². A 10-control dent grown by 5 has the same corner but 1958
+  against 1983 mm²: the loose offset is 3.78–5.54 mm from the source there. Open
+  curves: nothing kept is closer than the depth to another curve (two crossing
+  lines at 1.000 mm); a 4-control U lands 0.84 mm out at +2. A circle on a
+  40 mm patch offset by 12 gives four pieces cut at the edges on radius 22 to
+  1e-14. A 4000-control loop offsets in 0.7 s after a 0.36 s preparation.
+  Ribbons: a five-turn helix at ±3 has no cuts (10 ms); a dense rounded V at −3
+  is cut at the plan crossing (0, 4.071) with a Z step 0.854→1.146; a hairpin
+  whose inside offsets pass each other keeps both arms.
+- Fixed while checking: Newton at tangent contacts ran toward underflow (58 s
+  for two circles; now 12 ms), a ray through a seam missed crossings, and a
+  polyline sampled at its middle vertex.
+- Not run: any test suite. No consumer uses these yet. Commits `0315fa4` and
+  `99a3c15` (0.1.7) carried this work in progress from a concurrent session;
+  nothing released calls it.
 
 ## 2026-09-28 — First update from within Studio; the old tab closes
 
