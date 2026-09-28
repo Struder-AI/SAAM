@@ -242,6 +242,25 @@ depth)` (the source point moved the depth along the unit direction there),
 radius the loose patch folds, and folds are for trimmed-surface records to cut.
 A consumer's tightness blends `at` toward `exactAt`.
 
+`trimmed(depth, {toleranceMm = 0.01})` returns the moved patch as a
+[trimmed-surface](./trimmed-surface.mjs) record, `{kind: 'trimmed-surface',
+version: 1, patch, periodicU, periodicV, boundary}`: chains in the curve-offset
+format in the patch's (u,v), material left of travel. The domain edges are part
+of the boundary (a counterclockwise rectangle; periodic U: a +U loop at the
+bottom edge and a −U loop at the top; periodic V: −V at the low U edge, +V at
+the high), and fold holes run clockwise, unwrapped across a seam. A **sleeve's
+ribbon** (every U isocurve at one Z: control Z constant along U, weights
+separable) has its folds trimmed exactly per level: each U isocurve of the
+moved patch is the curve ribbon of the source's, cut by `foldCuts`
+(curve-ribbon.mjs), with levels refined in V until cut ends are within the
+tolerance of linear and a fold's start and end height within it. A hole that
+meets a V edge runs along it; folds that merge or split between levels are
+rejected, naming the height. Any other patch, and every surface offset, is
+checked for orientation reversal against the source, (M_u × M_v)·(S_u × S_v) ≤ 0,
+at 8 × 8 samples per knot span, and rejected naming the first fold found
+(provisional ruling pending the owner). Self-intersections between distant
+parts are not resolved.
+
 [Curve offsets](./curve-offset.mjs) resolve collisions as a region offset does
 ([D-041](../../DECISIONS.md#d-041--offsets-resolve-collisions-ribbons-displace-without-a-surface)).
 `prepareCurveOffsets({curves: [{curve, closed}], patch})` takes curve records
@@ -273,7 +292,9 @@ from its bottom).
 `prepareCurveRibbon({curve, closed}).ribbon(depth)`. Where the displaced curve
 runs backwards in plan view, the fold is cut at the plan-view crossing that
 closes it within half a turn of the source, leaving a small Z step; when nothing
-closes it, only the backwards part is cut. Crossings between distant parts stay.
+closes it, only the backwards part is cut. A closed curve's fold may straddle its
+seam (the search runs on three copies). `foldCuts(moved, source, closed)`
+returns the cut intervals for other callers. Crossings between distant parts stay.
 Reversals are found from 32 samples per knot span.
 
 `prepareSleeveRibbon` in `sleeve-frame.mjs` is the surface ribbon of a sleeve

@@ -1,5 +1,31 @@
 # Development log
 
+## 2026-09-28 — Trimmed-surface records from surface ribbons (BR-059 item 3)
+
+- [trimmed-surface.mjs](core/geom/trimmed-surface.mjs): `trimmedSurface`
+  builds `{kind: 'trimmed-surface', version: 1, patch, periodicU, periodicV,
+  boundary}` (domain edges as boundary chains, fold holes clockwise, degree-1
+  chains in (u,v)); `sleeveFoldHoles` trims a sleeve ribbon's folds per U
+  isocurve with adaptive V levels; `rejectFolds` rejects any other fold naming
+  (u, v) and the point. Surface ribbons and offsets gain `trimmed(depth)`.
+  Provisional ruling (lead, pending the owner): only sleeve ribbons are trimmed.
+- [curve-ribbon.mjs](core/geom/curve-ribbon.mjs): fold cutting moves into an
+  exported `foldCuts`. Two fixes: a closing crossing was dropped when
+  `curveCrossings` listed the pair in the other order (a symmetric ellipse
+  ribbon got one fold cut at its loop's crossing and the other only across the
+  reversal), and a closed curve's fold across its seam is now searched on three
+  copies and cut through the seam; `folds` counts it once.
+- Scratch checks: ellipse ribbon (a 10, b 4, 24 controls) at −2.5 mm now cuts
+  both folds at their closing crossings (length 28.993 mm whatever the start
+  phase, including a fold through the seam; before 30.159/31.324 depending on
+  phase); an open 3D wave's first fold now closes at its crossing. Tapered
+  elliptic sleeve (b 3 → 7 mm over 20 mm, a 10) ribboned −2.5 mm: two holes
+  from the bottom edge to v 0.495 (analytic onset v 0.5), centred on the
+  x-extremes, one unwrapped across the seam (u 0.80–1.11); 82.3% of the chart
+  kept by winding; +1 mm has no holes; the surface offset at −2.5 mm is
+  rejected at (u 0.0026, v 0.0625). About 1.7 s per trimmed ribbon.
+- Not run: any test suite (no test imports these modules).
+
 ## 2026-09-28 — Surface ribbon and surface offset (BR-059 item 2)
 
 - [surface-offset.mjs](core/geom/surface-offset.mjs): `prepareSurfaceOffsets`

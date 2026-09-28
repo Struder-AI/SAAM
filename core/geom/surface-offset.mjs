@@ -10,6 +10,7 @@
 import {evaluate,findSpan,basisFunctions} from './nurbs.mjs';
 import {requireThat} from './tolerance.mjs';
 import {leastSquares} from './least-squares.mjs';
+import {trimmedSurface,isSleeve,sleeveFoldHoles,rejectFolds} from './trimmed-surface.mjs';
 
 const wrapped=(t,[a,b])=>a+(((t-a)/(b-a))%1+1)%1*(b-a);
 
@@ -109,7 +110,16 @@ function prepareLooseSurface(kind,{patch,periodicU=false,periodicV=false}){
     const evaluated=evaluate(patch,u,v),direction=unitDirection(kind,evaluated);
     return evaluated.point.map((p,k)=>p+depth*direction[k]);
   };
-  return {at,exactAt,offsetPatch,report:()=>({offsetKind:kind,offsetQueries:queries,offsetControlCount:patch.nu*patch.nv,offsetOrderU:patch.orderU,offsetOrderV:patch.orderV,periodicU,periodicV,
+  // The loose moved patch as a trimmed-surface record with its folds resolved:
+  // a sleeve's ribbon (every U isocurve at one Z) has them trimmed per level;
+  // any other patch is rejected where it folds.
+  const trimmed=(depth,{toleranceMm=0.01}={})=>{
+    requireThat(toleranceMm>0,'Surface fold trimming needs a positive toleranceMm.');
+    const moved=offsetPatch(depth);
+    const holes=kind==='ribbon'&&!periodicV&&isSleeve(patch)?sleeveFoldHoles({source:patch,moved,periodic:periodicU,toleranceMm}):rejectFolds({source:patch,moved,kind});
+    return trimmedSurface({patch:moved,periodicU,periodicV,holes});
+  };
+  return {at,exactAt,offsetPatch,trimmed,report:()=>({offsetKind:kind,offsetQueries:queries,offsetControlCount:patch.nu*patch.nv,offsetOrderU:patch.orderU,offsetOrderV:patch.orderV,periodicU,periodicV,
     sampledDirectionLengthRange:queries?[minLength,maxLength]:null,
     offsetScope:kind==='ribbon'
       ?'Loose surface ribbon: controls move horizontally along directions collocated with the unit plan-view normal at Greville points; Z is kept exactly. Depth is exact at Greville points and approximate between them. Folds are not limited or trimmed.'
