@@ -1,5 +1,15 @@
 # Development log
 
+## 2026-09-28 — 0.1.9: the status-only panel released
+
+- Published `v0.1.9` from `5d57df5` (worktree build, Node v24.19.0):
+  `win-x64` 44.5 MB `8cd8097e…`, `darwin-arm64` 48.8 MB `c70d11c6…`,
+  `darwin-x64` 50.0 MB `82c7f90b…`; the three downloads matched, and the app
+  archive's `panel.html` has no `ui/message` and `runtime.mjs` no
+  `PANEL_LISTENING`. Relay deployed (version `50c473f7`) with
+  `LATEST_RELEASE` 0.1.9; an earlier accidental deploy (`ed36d5fa`) still
+  offered 0.1.8.
+
 ## 2026-09-28 — SAAM panel shows status only; the listener is back
 
 - User direction: SAAM must not talk to the chat agent by writing messages into
