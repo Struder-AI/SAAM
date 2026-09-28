@@ -15,6 +15,10 @@
 - The earlier 0.1.6 build (from `e24bbc0`) was never published and is
   replaced; its Windows ZIP had been deleted from `dist/` by something outside
   that session.
+- Published `v0.1.6` from `ac35d96` (worktree build): `win-x64` `db8c3865…`,
+  `darwin-arm64` `04c52378…`, `darwin-x64` `31f97a54…`; downloads matched.
+  This computer was put on 0.1.5 from its ZIP, then the relay (version
+  `2547cc5d`) began offering 0.1.6 for the first update from within Studio.
 
 ## 2026-09-28 — Surface-surface intersection and surface regions
 
