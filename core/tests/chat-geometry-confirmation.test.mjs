@@ -9,7 +9,7 @@ import {createMcpAdapter} from '../../adapters/mcp/src/server.mjs';
 import {initBundle,loadBundle,generateBundle,approve,deliver} from '../print/bundle.mjs';
 import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
-import {splineBox} from '../geom/spline-solid.mjs';
+import {splineBox} from './fixtures/spline-shapes.mjs';
 
 async function fixture(t){
   const root=await mkdtemp(join(tmpdir(),'saam-final-confirmation-'));

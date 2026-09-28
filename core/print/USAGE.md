@@ -14,7 +14,9 @@ relative to `Prints/` (`Prints/my-part` is `"my-part"`).
 |---|---|---|
 | Create from a recipe | `init Prints/my-part plan.json --machine ultimaker-s5` | `get_plan_template`, `create_print` |
 | Import an STL | `import-stl Prints/my-part source.stl auto ultimaker-s5` | `import_stl_print` |
-| Create or rebuild a spline field | `spline-field-create Prints/my-part request.json ultimaker-s5`, `spline-field-update … --revision REV` | `spline_field` |
+| Create or rebuild a blob field | `blob-field-create Prints/my-part request.json ultimaker-s5`, `blob-field-update … --revision REV` | `blob_field` |
+| Combine with another solid ([booleans](../../GEOMETRY.md#booleans)) | `combine Prints/my-part request.json --revision REV` | `combine_geometry` |
+| Section a part or find its top ([checking](../../GEOMETRY.md#checking-geometry)) | `intersect Prints/my-part request.json` | `intersect_geometry` |
 | Open in Studio | `node studio/server.mjs --toolkit open-print Prints/my-part` | `list_prints`, `get_print`, `request_review` |
 | Adjust the recipe | `adjust Prints/my-part patch.json --revision REV` | `adjust_print` |
 | Change printer | `change-machine Prints/my-part MACHINE --revision REV` | `change_machine` |

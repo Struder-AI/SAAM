@@ -1,5 +1,46 @@
 # Development log
 
+## 2026-09-28 — Blob field, booleans as tools, hybrid skills, spline helpers out of core
+
+- Replaced the tensor-grid spline field with the blob field (D-040 revision):
+  points with `positionMm`, `reachMm` and `strength` whose cubic B-spline
+  falloffs sum; material above `threshold` (default 0.25, where a lone strength-1
+  point is a ball of radius reach/2), cut flat at Z = 0, extracted to a mesh with
+  Manifold as before. `blob_field` MCP tool, `blob-field-create`/`-update` CLI.
+  Removed the field's hierarchy, knot refinement, rational weights, demo and
+  contract, and its fixed `maxEvaluations` budget (core/README kept-limits rule).
+- Booleans: `shape: "boolean"` (union, difference, intersection; spline, mesh,
+  blob-field and nested boolean operands). The shared queries section every
+  operand natively and combine the loops with Clipper2, so spline operands stay
+  exact per layer; tops of any boolean come from the operands' vertical-line
+  crossings (new `crossingsAt` for splines and meshes) by parity. Studio and the
+  text and heat-set modifiers use a Manifold mesh of the combined solid
+  (`boolean-display.mjs`); `combineSolids` gained intersect. Tools:
+  `combine_geometry` / CLI `combine` and `intersect_geometry` / CLI `intersect`
+  (plane sections and vertical-line tops of a print, part or unsaved geometry).
+- The spline-surface boolean the user asked about is the layer construction in
+  core/region/README ("section each solid on its own and combine the layers");
+  no surface-surface intersection engine exists in any branch. It was documented
+  but never exposed as a recipe form or tool until now.
+- Fixes found on the way: spline tessellation matched closed partner edges
+  (revolved rings) in a fixed direction and never converged on a revolved
+  cylinder; spline tops dropped a revolved cap's pole for want of a normal.
+- Skills gained a `hybrid` kind (catalog, digest, AUTHORING, glossary); heat-set
+  inserts is the first.
+- `splineBlock`, `splineBox` and `splineTube` left `spline-solid.mjs`.
+  GEOMETRY.md now teaches the box, shaped-top block, cylinder, tube and the
+  periodic-circle radius correction. The starter recipe and setup check write
+  literal patches; examples and skill demos write their own box or block, and
+  the pipe-cladding demo owns the periodic tube. Tests and benches use
+  `core/tests/fixtures/spline-shapes.mjs` (not shipped).
+- Docs: GEOMETRY.md 118 → 168 lines; all touched manuals together +140 −226
+  (net −86), mostly the removed SPLINE-FIELD.md.
+- Verification (targeted files only): blob-field 7, boolean-solid 5, mcp 21,
+  demos 2, heat-set MCP 1 — all pass; scratch checks for heat-set on a boolean,
+  analytic section areas and generation of a drilled print; skill digest current;
+  dev map regenerated and checked. Not run: the other 17 test files whose
+  imports moved to the fixture, and the full suite.
+
 ## 2026-09-28 — Spline field renamed, rimming removed, geometry-first maker guidance
 
 - Renamed the voxel field to the spline field throughout: `shape: "spline-field"`,

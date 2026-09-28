@@ -29,9 +29,11 @@ import {preparePlasticWeld,plasticWeldResult} from '../../skills/plastic-weld/sc
 import {heatSetFeatures,validateHeatSetAssignments} from '../../skills/heat-set-inserts/scripts/feature.mjs';
 import {heatSetDetails} from '../../skills/heat-set-inserts/scripts/reinforcement.mjs';
 import {geometrySelections} from '../geom/selections.mjs';
+import {booleanShell} from '../geom/boolean-solid.mjs';
 import {lineNetworkResult} from '../../skills/line-network/scripts/network.mjs';
 
-export const hasMesh=geometry=>['mesh','spline-field','text','gridfinity','heat-set'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
+// Booleans are stored as their recipe in the native JSON file, like meshes.
+export const hasMesh=geometry=>['mesh','blob-field','text','gridfinity','heat-set','boolean'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
 
 function primeLineResult(plan,machine){
   const p=plan.process.primeLine;if(p===null)return null;
@@ -56,7 +58,8 @@ function primeLineResult(plan,machine){
 
 export function buildShell(rhino, geometry) {
   if(geometry.shape==='spline')return splineSolidShell(rhino,geometry);
-  if(['mesh','spline-field','text','gridfinity','heat-set'].includes(geometry.shape)){
+  if(geometry.shape==='boolean')return booleanShell(geometry.operation,geometry.operands.map(operand=>buildShell(rhino,operand)));
+  if(['mesh','blob-field','text','gridfinity','heat-set'].includes(geometry.shape)){
     const mesh=makeMesh(geometry.vertices,geometry.triangles),features=heatSetFeatures(geometry);
     if(features.length)mesh.planarDetails=heatSetDetails(features);
     return mesh;
@@ -85,6 +88,7 @@ export function translateShell(shell, dx, dy, dz = 0) {
     if(shell.planarDetails)moved.planarDetails=shell.planarDetails.translated(dx,dy,dz);
     return moved;
   }
+  if(shell.kind==='boolean')return booleanShell(shell.operation,shell.operands.map(s=>translateShell(s,dx,dy,dz)));
   if(shell.kind==='assembly')return {...shell,components:shell.components.map(s=>translateShell(s,dx,dy,dz)),bounds:{min:shell.bounds.min.map((v,i)=>v+[dx,dy,dz][i]),max:shell.bounds.max.map((v,i)=>v+[dx,dy,dz][i])}};
   const patches = shell.patches.map(patch => {
     const cp = Float64Array.from(patch.cp);

@@ -10,7 +10,7 @@ import {tmpdir} from 'node:os';
 import {resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
-import {splineBox} from '../../core/geom/spline-solid.mjs';
+import {splineBox} from '../../core/tests/fixtures/spline-shapes.mjs';
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import {createLocalRuntime} from '../../adapters/mcp/src/runtime.mjs';
 import {bundleFor} from '../../studio/adapter-resolution.mjs';

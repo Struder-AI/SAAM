@@ -10,7 +10,8 @@ export function skillMetadata(id, manual) {
   const metadata = /^metadata:[ \t]*\r?\n((?:[ \t]+[^\r\n]*(?:\r?\n|$))*)/m.exec(frontmatter)?.[1] ?? '';
   return {
     id,
-    kind: /^[ \t]+saam-kind:[ \t]*geometry[ \t]*$/m.test(metadata) ? 'geometry' : 'toolpath',
+    // Hybrid skills change the geometry and deposit their own toolpath.
+    kind: /^[ \t]+saam-kind:[ \t]*(geometry|hybrid)[ \t]*\r?$/m.exec(metadata)?.[1] ?? 'toolpath',
     description: frontmatter.match(/^description:[ \t]*(.*)$/m)?.[1]?.trim() ?? ''
   };
 }

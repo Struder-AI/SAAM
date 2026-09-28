@@ -3,7 +3,7 @@
 // explicitly assigned material boundaries through lowerSurfaceFrom.
 import {defaults} from '../../print/plan.mjs';
 import {syntheticDobotSetup} from './dobot.mjs';
-import {splineBox,splineBlock} from '../../geom/spline-solid.mjs';
+import {splineBox,splineBlock} from './spline-shapes.mjs';
 
 function wavyMesh() {
   const n=4,vertices=[],triangles=[],index=(x,y,top)=>top*(n+1)*(n+1)+x*(n+1)+y;

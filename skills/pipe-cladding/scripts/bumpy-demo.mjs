@@ -1,5 +1,4 @@
-import {developmentPipePlan,tubeSurface} from './demo.mjs';
-import {splineTube} from '../../../core/geom/spline-solid.mjs';
+import {developmentPipePlan,tubeSurface,splineTube} from './demo.mjs';
 import {initBundle,generateBundle} from '../../../core/print/bundle.mjs';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';

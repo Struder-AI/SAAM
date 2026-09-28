@@ -10,7 +10,7 @@ pivot, suggest a fresh chat. Tour guidance comes with `start-tour` in the
 
 | Part of the work | Reference |
 |---|---|
-| **Geometry**: spline surfaces, spline fields and meshes you write | [GEOMETRY.md](GEOMETRY.md) |
+| **Geometry**: spline surfaces, blob fields and meshes you write, and booleans of them | [GEOMETRY.md](GEOMETRY.md) |
 | **Toolpaths**: how material is laid down | The [skill digest](skills/DIGEST.md), then each chosen skill's manual |
 | **Recipe and commands**: create, adjust, generate, deliver | [Print tools](core/print/USAGE.md) |
 | **Printers**: setup, output and playback limits | That machine's contract under [machine interoperability](core/export/README.md#machine-interoperability-design) |
@@ -19,11 +19,12 @@ pivot, suggest a fresh chat. Tour guidance comes with `start-tour` in the
 ## Geometry
 
 Author the geometry the request calls for, in the form that suits it: spline
-surfaces for smooth and exact shapes, a spline field for organic volumes and
-blended or hollowed forms, a mesh for flat faces and sharp edges. When an existing
+surfaces for smooth and exact shapes, a blob field for organic volumes and
+blended or hollowed forms, a mesh for flat faces and sharp edges, and a boolean
+to drill, join or trim them. When an existing
 mesh serves better, or the person asks to fetch one or gives a Thingiverse link,
-use [thingi10k](skills/thingi10k/SKILL.md). Text, heat-set inserts and Gridfinity
-are geometry skills in the digest.
+use [thingi10k](skills/thingi10k/SKILL.md). Text and Gridfinity
+are geometry skills in the digest; heat-set inserts is a hybrid skill.
 
 ## Toolpaths
 

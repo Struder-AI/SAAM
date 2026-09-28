@@ -1,6 +1,6 @@
 import {loadMachine} from '../../machine/profile.mjs';
 import {defaults} from '../../print/plan.mjs';
-import {splineBox} from '../../geom/spline-solid.mjs';
+import {splineBox} from './spline-shapes.mjs';
 
 export function x1ColourFixture(){
   const machine=loadMachine('bambu-x1-carbon'),plan=defaults(machine);

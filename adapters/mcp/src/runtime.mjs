@@ -18,9 +18,10 @@ import { importSTLBundle,setSTLUnits } from '../../../core/print/import-stl.mjs'
 import {createThingi10KClient} from '../../../skills/thingi10k/scripts/library.mjs';
 import {importThingi10KBundle} from '../../../skills/thingi10k/scripts/import.mjs';
 import {createGridfinityBundle,updateGridfinityBundle} from '../../../skills/gridfinity/scripts/bundle.mjs';
-import {createSplineFieldBundle,updateSplineFieldBundle} from '../../../core/print/spline-field.mjs';
+import {createBlobFieldBundle,updateBlobFieldBundle} from '../../../core/print/blob-field.mjs';
 import { applyText } from '../../../core/print/text.mjs';
 import { applyHeatSet } from '../../../core/print/heat-set.mjs';
+import {intersectRequest,combineGeometry} from '../../../core/print/geometry-tools.mjs';
 import { INSERT_CATALOG } from '../../../skills/heat-set-inserts/scripts/catalog.mjs';
 import {loadLocalExtension} from '../../../core/local-extension.mjs';
 import {lifecycleReview} from '../../../core/print/review-state.mjs';
@@ -236,7 +237,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       outputs: m.outputs.map(({ id, extension, flavor, implemented, experimental, constraints, reason }) => ({ id, extension, flavor, implemented: implemented !== false, experimental, constraints, reason })),
       defaultSetup: m.defaultSetup };
   }));
-  tool('list_skills', 'List the known local toolpath and geometry skill manuals. This fixed list does not establish recipe compatibility; geometry skills are not deposition operations. Select the manual relevant to the requested task.', {}, skills);
+  tool('list_skills', 'List the known local toolpath, geometry and hybrid skill manuals. This fixed list does not establish recipe compatibility; geometry skills are not deposition operations, and hybrid skills change geometry and deposit their own toolpath. Select the manual relevant to the requested task.', {}, skills);
   tool('read_skill', 'Read a known skill manual by ID. Follow its relevant documentation links with read_guidance.', { skillId: idSchema }, async ({ skillId }) => {
     if (!SKILL_IDS.includes(skillId)) {
       const local=await localExtension.readSkill?.(skillId);if(local)return local;
@@ -306,7 +307,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     {printId:printIdSchema,units:z.enum(['mm','inch']),expectedRevision:z.string()},async({printId,units,expectedRevision})=>{
       const dir=await directory(printId);return summary(printId,await setSTLUnits(dir,units,{expectedRevision}));
     },false);
-  tool('spline_field', 'Create or rebuild a spline-field part: a B-spline scalar field over a box, material where it exceeds isoValue, extracted to a mesh at extraction.edgeMm. Request {field, extraction}; GEOMETRY.md#spline-field describes it. Uses shared slicing and Studio review.',
+  tool('blob_field', 'Create or rebuild a blob-field part: freely placed points, each with positionMm, reachMm and strength, whose smooth falloffs add up; material is where the sum exceeds the threshold (default 0.25, where a lone strength-1 point is a ball of radius reach/2), cut flat at Z = 0. Negative strength carves. Request {points, threshold?, edgeMm?}; GEOMETRY.md#blob-field describes it. Extracted to a mesh for shared slicing and Studio review.',
     {printId:printIdSchema,action:z.enum(['create','update']),request:objectSchema,machineId:z.string().optional(),expectedRevision:z.string().optional(),part:idSchema.optional()},
     async({printId,action,request,machineId,expectedRevision,part})=>{
       noApprovalFields(request);
@@ -314,12 +315,12 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
         if(!machineId||expectedRevision!==undefined||part!==undefined)throw new Error('Creation requires machineId; revision and part apply to updates.');
         loadMachine(machineId);
         const dir=await directory(printId,{create:true});
-        return summary(printId,await createSplineFieldBundle(dir,request,{machineId,setupFile:await setupFile(machineId)}));
+        return summary(printId,await createBlobFieldBundle(dir,request,{machineId,setupFile:await setupFile(machineId)}));
       }
       if(machineId!==undefined)throw new Error('Use the existing print machine for updates.');
       const {dir,state}=await read(printId,{program:false});
       if(state.kind!=='shell')throw new Error('Select a shared shell/mesh print.');
-      return summary(printId,await updateSplineFieldBundle(dir,request,{expectedRevision,part}));
+      return summary(printId,await updateBlobFieldBundle(dir,request,{expectedRevision,part}));
     },false);
   tool('gridfinity', 'gridfinity',
     {printId:printIdSchema,action:z.enum(['create','update']),parameters:objectSchema,machineId:z.string().optional(),expectedRevision:z.string().optional(),part:idSchema.optional()},
@@ -352,6 +353,16 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       const {dir,state}=await read(printId,{program:false});
       if(state.kind!=='shell')throw new Error('Heat-set inserts modify shared shell/mesh prints.');
       return summary(printId,await applyHeatSet(dir,request,{expectedRevision}));
+    },false);
+  tool('intersect_geometry', 'Intersect geometry with horizontal planes (sectionsAtZ: section area, islands, holes and loop bounds; includeLoops adds the loop points) and vertical lines (topsAtXY: the highest surface crossing, its normal, slope and surface name). Query a print, one part, or a geometry you are about to write, in its own coordinates before placement. Spline patches are sectioned exactly, not tessellated. Read-only; GEOMETRY.md#checking-geometry.',
+    {printId:printIdSchema.optional(),request:objectSchema},async({printId,request})=>
+      intersectRequest(printId===undefined?null:(await read(printId,{program:false})).dir,request));
+  tool('combine_geometry', 'Combine a print’s geometry (or one part) with a new operand: request {operation: union|difference|intersection, operand, part?}. The result is a boolean solid; repeating an operation appends to it, and a difference subtracts every later operand. Operands are spline, mesh, blob-field or boolean geometry in the same coordinates. Spline operands stay native: each layer combines their exact sections. Invalidates approvals; use request_review afterward. GEOMETRY.md#booleans.',
+    {printId:printIdSchema,expectedRevision:z.string().min(1),request:objectSchema},async({printId,expectedRevision,request})=>{
+      noApprovalFields(request);
+      const {dir,state}=await read(printId,{program:false});
+      if(state.kind!=='shell')throw new Error('Booleans combine shared shell/mesh prints.');
+      return summary(printId,await combineGeometry(dir,request,{expectedRevision}));
     },false);
   tool('adjust_print', 'Apply a validated chat recipe patch at expectedRevision. Geometry or process edits invalidate the final settings/toolpath confirmation. Read fresh state if stale.',
     { printId: printIdSchema, expectedRevision: z.string().min(1), patch: objectSchema }, async ({ printId, expectedRevision, patch }) => {

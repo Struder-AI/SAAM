@@ -5,7 +5,7 @@ import { exportGriffin, interpretGriffin } from '../export/griffin.mjs';
 import { defaults, VERSION, BUILD_DATE } from '../print/plan.mjs';
 import { generatePath } from '../print/generate.mjs';
 import { rhino } from '../print/geometry.mjs';
-import {splineBox} from '../geom/spline-solid.mjs';
+import {splineBox} from './fixtures/spline-shapes.mjs';
 
 const machine=JSON.parse(readFileSync('machines/ultimaker-s5.json','utf8'));
 const plan=defaults();

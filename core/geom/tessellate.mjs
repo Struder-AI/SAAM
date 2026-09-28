@@ -42,8 +42,13 @@ function sampleSharedBoundaries(edges,count){
     const partner=edges.find(other=>other!==edge&&!paired.has(other)&&!other.degenerate&&
       [0,0.25,0.5,0.75,1].every(t=>distance(other.curve(closest(other.curve,edge.curve(t))),edge.curve(t))<1e-5));
     requireThat(partner,'Could not match spline boundaries for text tessellation.');
-    const ordered=distance(points[0],partner.curve(0))<distance(points.at(-1),partner.curve(0))?points:[...points].reverse();
-    curves.set(partner,{points:ordered,parameters:ordered.map(p=>closest(partner.curve,p))});paired.add(partner);
+    // Both ends of a closed curve are one point, so a point just past the start
+    // decides whether the partner runs the same way.
+    const closed=distance(partner.curve(0),partner.curve(1))<1e-7;
+    const forward=closed?closest(partner.curve,edge.curve(0.1))<0.5:distance(points[0],partner.curve(0))<distance(points.at(-1),partner.curve(0));
+    const ordered=forward?points:[...points].reverse(),parameters=ordered.map(p=>closest(partner.curve,p));
+    if(closed){parameters[0]=0;parameters[count]=1;}
+    curves.set(partner,{points:ordered,parameters});paired.add(partner);
   }
   return curves;
 }

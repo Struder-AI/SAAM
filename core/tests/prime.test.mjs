@@ -7,7 +7,7 @@ import {rhino} from '../print/geometry.mjs';
 import {createPlanningState,planningPath} from '../path/planning.mjs';
 import {planPriming} from '../path/prime.mjs';
 import {exportGriffin,interpretGriffin} from '../export/griffin.mjs';
-import {splineBox} from '../geom/spline-solid.mjs';
+import {splineBox} from './fixtures/spline-shapes.mjs';
 
 test('S5 shell exports recover, sacrificial strokes, then the part on either nozzle',async()=>{
   const native=await rhino();

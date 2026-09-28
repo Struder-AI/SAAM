@@ -1,6 +1,7 @@
 // Development fixtures only. These feed the existing geometry/skill interfaces;
 // they are not a CAD importer or a second production generation route.
-import { splineBlock, splineBox, splineSolidShell } from '../../core/geom/spline-solid.mjs';
+import {splineSolidShell} from '../../core/geom/spline-solid.mjs';
+import {splineBlock,splineBox} from '../../core/tests/fixtures/spline-shapes.mjs';
 import { evaluate } from '../../core/geom/nurbs.mjs';
 import { makeMesh } from '../../core/geom/mesh.mjs';
 

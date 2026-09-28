@@ -21,10 +21,11 @@ import {THICK_LIP_DEFAULTS} from '../../skills/thick-lip/scripts/lip.mjs';
 import {validateVasePattern} from '../../skills/vase-wall/scripts/paths.mjs';
 import {SUPPORT_DEFAULTS,validateSupports} from '../../skills/supports/scripts/supports.mjs';
 import {PIPE_CLADDING_DEFAULTS,validateCladding} from '../../skills/pipe-cladding/scripts/clad.mjs';
-import {splineSolidTemplate,validateSplineSolid,splineSolidBounds,splineBlock} from '../geom/spline-solid.mjs';
+import {splineSolidTemplate,validateSplineSolid,splineSolidBounds} from '../geom/spline-solid.mjs';
 import {gridfinityTemplate,validateGridfinityRecord} from '../../skills/gridfinity/scripts/record.mjs';
 import {textTemplate,validateTextRecord} from '../geom/text-record.mjs';
-import {splineFieldTemplate,validateSplineFieldRecord} from '../geom/spline-field-record.mjs';
+import {blobFieldTemplate,validateBlobFieldRecord} from '../geom/blob-field-record.mjs';
+import {booleanSolidTemplate,validateBooleanSolid,booleanShell} from '../geom/boolean-solid.mjs';
 import {geometrySelections} from '../geom/selections.mjs';
 import {SPACING_SKILLS,lineSpacing} from '../path/spacing.mjs';
 import {WAVE_DEFAULTS,validateWaves} from '../../skills/wave-overhangs/scripts/wave.mjs';
@@ -51,7 +52,7 @@ export function defaults(machine=loadMachine()) {
   const plan = {
     schema: 'saam-shell-plan/1',
     generatorVersion: VERSION,
-    geometry: splineBlock({ runMm: 40, widthMm: 30, heightsMm: domeHeights(5, 5) }),
+    geometry: starterGeometry(),
     placement: centeredPlacement(machine, machine.defaultSetup.tool, { runMm: 40, widthMm: 30 }) ?? { xMm: 140, yMm: 100 },
     setup: structuredClone(machine.defaultSetup),
     process: {
@@ -85,23 +86,28 @@ export function defaults(machine=loadMachine()) {
   return plan;
 }
 
-// The starter recipe's roof: a gentle dome whose slope stays inside the S5's
-// non-planar limit.
-function domeHeights(cpU, cpV, peak = 6, rise = 1.2) {
-  const grid = [];
-  for (let i = 0; i < cpU; i++) {
-    const row = [];
-    for (let j = 0; j < cpV; j++)
-      row.push(Number((peak + rise * Math.sin(Math.PI * i / (cpU - 1)) * Math.sin(Math.PI * j / (cpV - 1))).toFixed(4)));
-    grid.push(row);
-  }
-  return grid;
+// The starter recipe: a 40 × 30 mm block whose cubic top is a gentle dome, its
+// slope inside the S5's non-planar limit. The walls are ruled down from the
+// top's boundary rows, sharing their control points, as GEOMETRY.md describes.
+function starterGeometry() {
+  const x = [0, 20/3, 20, 100/3, 40], y = [0, 5, 15, 25, 30];
+  const top = [[6, 6, 6, 6, 6], [6, 6.6, 6.8485, 6.6, 6], [6, 6.8485, 7.2, 6.8485, 6], [6, 6.6, 6.8485, 6.6, 6], [6, 6, 6, 6, 6]];
+  const wall = points => ({ degreeU: 3, degreeV: 1, controlPoints: points.map(([px, py, h]) => [[px, py, 0], [px, py, h]]) });
+  return { shape: 'spline', patches: [
+    { name: 'top', degreeU: 3, degreeV: 3, controlPoints: x.map((px, i) => y.map((py, j) => [px, py, top[i][j]])) },
+    { name: 'bottom', degreeU: 1, degreeV: 1, controlPoints: [[[0, 0, 0], [0, 30, 0]], [[40, 0, 0], [40, 30, 0]]] },
+    { name: 'front', ...wall(x.map((px, i) => [px, 0, top[i][0]])) },
+    { name: 'right', ...wall(y.map((py, j) => [40, py, top[4][j]])) },
+    { name: 'back', ...wall(x.map((px, i) => [px, 30, top[i][4]])) },
+    { name: 'left', ...wall(y.map((py, j) => [0, py, top[0][j]])) }
+  ] };
 }
 
 // Each shape carries its own parameters, so the strict field check is made
 // against the selected shape rather than against whichever shape is the default.
 export function geometryTemplate(shape,geometry) {
-  if(shape==='spline-field')return splineFieldTemplate();
+  if(shape==='blob-field')return blobFieldTemplate();
+  if(shape==='boolean')return booleanSolidTemplate();
   if(shape==='heat-set')return heatSetTemplate();
   if(shape==='gridfinity')return gridfinityTemplate();
   if(shape==='text')return textTemplate(geometry);
@@ -124,7 +130,7 @@ export function validatePlan(plan,machine) {
 
 // Authored forms (spline patches, meshes, assemblies of them) and the
 // compiled records of geometry skills.
-export const GEOMETRY_SHAPES=['spline','spline-field','mesh','assembly','text','gridfinity','heat-set'];
+export const GEOMETRY_SHAPES=['spline','blob-field','mesh','boolean','assembly','text','gridfinity','heat-set'];
 
 export function validatePlanFields(plan,machine) {
   requireThat(plan && typeof plan === 'object' && GEOMETRY_SHAPES.includes(plan.geometry?.shape), `Unsupported shape; geometry.shape is one of ${GEOMETRY_SHAPES.join(', ')}.`);
@@ -153,18 +159,34 @@ export function validatePlanGeometry(plan,machine) {
     const hull=splineSolidBounds(validateSplineSolid(geometry)),bounds=toolBounds(machine,setup.tool),at=[placement.xMm,placement.yMm,0];
     requireThat(machine.motionChecks==='deferred'||hull.min.every((v,i)=>v+at[i]>=bounds.min[i]-1e-8)&&hull.max.every((v,i)=>v+at[i]<=bounds.max[i]+1e-8),'Placed spline control net exceeds selected tool bounds.');
   }
+  if(geometry.shape==='boolean'){
+    const hull=authoredBounds(geometry),bounds=toolBounds(machine,setup.tool),at=[placement.xMm,placement.yMm,0];
+    requireThat(machine.motionChecks==='deferred'||hull.min.every((v,i)=>v+at[i]>=bounds.min[i]-1e-8)&&hull.max.every((v,i)=>v+at[i]<=bounds.max[i]+1e-8),'Placed boolean operands exceed selected tool bounds.');
+  }
   if(geometry.shape==='text')validateTextRecord(geometry);
   if(geometry.shape==='heat-set')validateHeatSetRecord(geometry);
   if(geometry.shape==='gridfinity')validateGridfinityRecord(geometry);
-  if(geometry.shape==='spline-field')validateSplineFieldRecord(geometry);
+  if(geometry.shape==='blob-field')validateBlobFieldRecord(geometry);
   validateCladding(plan,machine);
-  if(['mesh','spline-field','text','gridfinity','heat-set'].includes(geometry.shape)) {
+  if(['mesh','blob-field','text','gridfinity','heat-set'].includes(geometry.shape)) {
     const mesh=makeMesh(geometry.vertices,geometry.triangles),bounds=toolBounds(machine,setup.tool);
     requireThat(machine.motionChecks==='deferred'||mesh.bounds.min.every((v,i)=>v+[placement.xMm,placement.yMm,0][i]>=bounds.min[i]-1e-8)&&mesh.bounds.max.every((v,i)=>v+[placement.xMm,placement.yMm,0][i]<=bounds.max[i]+1e-8),'Placed mesh exceeds selected tool bounds.');
-    if(geometry.shape==='mesh')requireThat(geometry.source===null||(geometry.source?.format==='stl'&&/^[a-f0-9]{64}$/.test(geometry.source.sha256)&&['mm','inch'].includes(geometry.source.units)&&Number.isFinite(geometry.source.scale)&&geometry.source.scale>0),'Invalid mesh source provenance.');
+    if(geometry.shape==='mesh')validateMeshSource(geometry);
   }
 
   return plan;
+}
+
+const validateMeshSource=geometry=>requireThat(geometry.source===null||(geometry.source?.format==='stl'&&/^[a-f0-9]{64}$/.test(geometry.source.sha256)&&['mm','inch'].includes(geometry.source.units)&&Number.isFinite(geometry.source.scale)&&geometry.source.scale>0),'Invalid mesh source provenance.');
+
+// A boolean's operands are validated by their own forms and bounded without
+// building them: control-net hulls for splines, vertices for meshes.
+function authoredBounds(geometry){
+  if(geometry.shape==='boolean')return booleanShell(validateBooleanSolid(geometry).operation,geometry.operands.map(operand=>({bounds:authoredBounds(operand)}))).bounds;
+  if(geometry.shape==='spline')return splineSolidBounds(validateSplineSolid(geometry));
+  if(geometry.shape==='blob-field')validateBlobFieldRecord(geometry);
+  else {keys(geometry,{shape:'mesh',vertices:[],triangles:[],source:null},'boolean operand');validateMeshSource(geometry);}
+  return makeMesh(geometry.vertices,geometry.triangles).bounds;
 }
 
 // Layer height, bead width, flow and retraction ceilings are declared by the

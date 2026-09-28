@@ -12,6 +12,7 @@ import { makeShell, assertClosed } from '../geom/shell.mjs';
 import { buildShell,hasMesh } from './generate.mjs';
 import { hash } from './plan.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
+import { booleanDisplayMesh } from '../geom/boolean-display.mjs';
 
 // Display resolution of the proxy mesh: steps per knot span, per direction,
 // within a per-patch range. The proxy is for the viewer only; every toolpath
@@ -31,7 +32,7 @@ const round = value => Number(value.toFixed(9));
 
 export async function createGeometry(parameters) {
   const r = await rhino();
-  if(hasMesh(parameters))return createMeshGeometry(r,parameters);
+  if(hasMesh(parameters))return await createMeshGeometry(r,parameters);
   const shell = buildShell(r, parameters);
   requireThat(shell.surfaces?.length === shell.patches.length, 'The shape builder did not supply one Rhino surface per patch.');
 
@@ -75,7 +76,7 @@ export async function verifyGeometry(bytes, descriptor) {
   if(descriptor.nativeFile==='model.mesh.json') {
     const saved=JSON.parse(Buffer.from(bytes).toString('utf8'));
     requireThat(saved.schema==='saam-native-geometry/1'&&hash(saved.geometry)===hash(descriptor.parameters),'Native mesh differs from reviewed geometry.');
-    const expected=createMeshGeometry(await rhino(),saved.geometry).descriptor;
+    const expected=(await createMeshGeometry(await rhino(),saved.geometry)).descriptor;
     for(const key of ['vertices','faces','labels','features','boundsMm','geometryVersion'])
       requireThat(hash(descriptor[key])===hash(expected[key]),'Mesh display/identity differs from the native reviewed geometry.');
     return;
@@ -119,11 +120,13 @@ function proxyMesh(shell) {
 
 // A native mesh is stored as indexed triangles. Mixed assemblies retain the
 // source spline recipes too; each component still uses its own query backend.
-function createMeshGeometry(r,parameters) {
+// A boolean is shown as its Manifold display mesh, one selectable body.
+async function createMeshGeometry(r,parameters) {
   const shell=buildShell(r,parameters),vertices=[],faces=[],labels=[],features=[];
-  const append=(geometry,id,translation=[0,0,0])=>{
-    const component=buildShell(r,geometry);
-    const proxy=component.kind==='triangle-mesh'?{vertices:component.vertices,faces:component.triangles,labels:component.triangles.map((_,i)=>`triangle:${i}`)}:proxyMesh(component);
+  const append=async(geometry,id,translation=[0,0,0])=>{
+    const component=buildShell(r,geometry),display=component.kind==='boolean'?await booleanDisplayMesh(component):null;
+    const proxy=display?{vertices:display.vertices,faces:display.triangles,labels:display.triangles.map(()=>'boolean')}
+      :component.kind==='triangle-mesh'?{vertices:component.vertices,faces:component.triangles,labels:component.triangles.map((_,i)=>`triangle:${i}`)}:proxyMesh(component);
     const offset=vertices.length;
     for(const p of proxy.vertices)vertices.push(p.map((v,i)=>v+translation[i]));
     for(const f of proxy.faces)faces.push(f.map(v=>v+offset));
@@ -131,8 +134,8 @@ function createMeshGeometry(r,parameters) {
     // STL supplies no semantic CAD faces. Select the imported component as a whole.
     features.push({id:id||'mesh',objectId:hash({geometry,id}).slice(0,32)});
   };
-  if(parameters.shape==='assembly')for(const part of parameters.parts)append(part.geometry,part.id,[part.xMm,part.yMm,part.zMm]);
-  else append(parameters,'');
+  if(parameters.shape==='assembly')for(const part of parameters.parts)await append(part.geometry,part.id,[part.xMm,part.yMm,part.zMm]);
+  else await append(parameters,'');
   const bytes=Buffer.from(JSON.stringify({schema:'saam-native-geometry/1',units:'mm',geometry:parameters}));
   return {bytes,descriptor:{schema:'saam-shell-geometry/1',nativeFile:'model.mesh.json',parameters,geometryVersion:hash(parameters),fileHash:hash(bytes),
     nativeForm:'indexed manufacturing mesh; procedural components retain their source recipes and extraction settings',features,boundsMm:shell.bounds,vertices,faces,labels}};

@@ -6,7 +6,7 @@ import {resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
-import {splineBox} from '../../../core/geom/spline-solid.mjs';
+import {splineBox} from '../../../core/tests/fixtures/spline-shapes.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../../..');
 

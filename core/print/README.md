@@ -155,10 +155,10 @@ exist. See the [validation work record](../../DEVLOG.md#br-039--remove-repeated-
 
 ## Print bundle and current formats
 
-[Spline fields](../geom/SPLINE-FIELD.md) use `shape: "spline-field"` records with the field,
+[Blob fields](../../GEOMETRY.md#blob-field) use `shape: "blob-field"` records with the points,
 extraction settings and checked manufacturing mesh retained together in the
 native JSON asset. Shared generation sections that mesh; Studio displays it.
-Field edits explicitly rebuild the mesh through the `spline_field` tool ([authoring](../../GEOMETRY.md#spline-field))
+Field edits explicitly rebuild the mesh through the `blob_field` tool
 and invalidate the final confirmation through this same lifecycle.
 
 The shared workflow stores one directory per print:
@@ -224,7 +224,8 @@ Skills return operations to the [shared composer](../path/README.md#skill-result
 Their manuals own supported settings and process limits; software checks do not
 establish successful physical printing. The plan's geometry is authored
 ([GEOMETRY.md](../../GEOMETRY.md)): spline patches, indexed triangle meshes,
-spline fields and an `assembly` of these components. An edited or imported 3DM
+blob fields, [booleans](../../GEOMETRY.md#booleans) of these and an `assembly` of any of them. A boolean is stored
+as its recipe in the native JSON asset with a display mesh; generation sections its operands. An edited or imported 3DM
 is still not accepted as input.
 
 ## Print bundle and review

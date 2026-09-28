@@ -8,7 +8,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createStudio} from '../../studio/server.mjs';
 import {createLocalRuntime} from '../../adapters/mcp/src/runtime.mjs';
-import {splineBox} from '../geom/spline-solid.mjs';
+import {splineBox} from './fixtures/spline-shapes.mjs';
 
 function fakeRelay({fail=false}={}){
   const calls={status:0,linkCode:0};

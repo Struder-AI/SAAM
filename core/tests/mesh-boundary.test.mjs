@@ -9,7 +9,7 @@ import {loadMachine} from '../machine/profile.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {rhino} from '../print/geometry.mjs';
 import {buildShell} from '../print/generate.mjs';
-import {splineBox} from '../geom/spline-solid.mjs';
+import {splineBox} from './fixtures/spline-shapes.mjs';
 
 test('prepared sections exactly match direct cuts across heights, holes, islands and placement',async()=>{
   const boxes=Array.from({length:12},(_,i)=>boxMesh(8,6,2+i%3,.5));

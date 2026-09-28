@@ -1,7 +1,7 @@
 import {loadMachine} from '../../machine/profile.mjs';
 import {defaults} from '../../print/plan.mjs';
 import {boxMesh} from './mesh.mjs';
-import {splineBox} from '../../geom/spline-solid.mjs';
+import {splineBox} from './spline-shapes.mjs';
 
 export function mixedNozzleFixture(){
   const machine=loadMachine('bambu-h2d'),plan=defaults(machine);

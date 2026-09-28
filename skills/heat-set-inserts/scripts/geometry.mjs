@@ -1,5 +1,5 @@
 import {solidKernel,solidFromMesh,meshFromSolid} from '../../../core/geom/solid.mjs';
-import {tessellateShell} from '../../../core/geom/tessellate.mjs';
+import {tessellateSolid} from '../../../core/geom/boolean-display.mjs';
 import {topAt} from '../../../core/geom/query.mjs';
 import {requireThat} from '../../../core/geom/tolerance.mjs';
 import {heatSetFeature,dimensions,heatSetTemplate,heatSetDigest} from './feature.mjs';
@@ -8,7 +8,7 @@ export async function compileHeatSet(base,features,{buildGeometry,toleranceMm=0.
   const normalized=features.map(heatSetFeature),shell=buildGeometry(base),kernel=await solidKernel();
   requireThat(normalized.length>0&&normalized.length<=40,'Choose 1–40 heat-set features.');
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0&&toleranceMm<=0.1,'Invalid heat-set tolerance.');
-  let solid=solidFromMesh(kernel,tessellateShell(shell,{toleranceMm}));
+  let solid=solidFromMesh(kernel,await tessellateSolid(shell,{toleranceMm}));
   try{
     for(const f of normalized){
       const {diameterMm,depthMm}=dimensions(f),[x,y,z]=f.positionMm,r=diameterMm/2;

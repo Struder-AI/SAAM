@@ -209,17 +209,17 @@ const views={
     names:{},
     facts(state,tab) {
       const {geometry:g,setup:s,process:p}=state.plan,fill=state.plan.skills['full-fill'],skin=state.plan.skills['draped-skin'],normal=state.plan.skills['planar-infill'],network=state.plan.skills['line-network'];
-      const shape={'spline-field':'Volumetric field',assembly:'Assembly',spline:'Spline surfaces',mesh:'Mesh'}[g.shape]??g.shape;
+      const shape={'blob-field':'Blob field',assembly:'Assembly',spline:'Spline surfaces',mesh:'Mesh'}[g.shape]??g.shape;
       if(tab==='geometry') {
         const bounds=state.geometry.boundsMm;
         const rows=[['Shape',shape],['Footprint',round2(bounds.max[0]-bounds.min[0])+' × '+round2(bounds.max[1]-bounds.min[1])+' mm'],['Height',round2(bounds.max[2]-bounds.min[2])+' mm']];
         if(g.shape==='mesh'&&g.source?.format==='stl')rows.push(['STL units',g.source.units+(g.source.unitsInferred?' · assumed from size':'')+' · change in chat']);
         if(g.shape==='spline')rows.push(['Patches',g.patches.map(p=>p.name+' '+p.controlPoints.length+' × '+p.controlPoints[0].length).join(' · ')]);
         const textRows=(geometry,prefix='')=>{if(geometry.shape==='text')for(const feature of geometry.features)rows.push([prefix+feature.id,(feature.mode==='raised'?'Raised':'Recessed')+' “'+feature.text+'” · '+feature.depthMm+' mm']);};
-        const splineFieldRows=(geometry,prefix='')=>{if(geometry.shape==='spline-field')rows.push([prefix+'Surface sampling',geometry.extraction.edgeMm+' mm · finer features may be missed'],[prefix+'Material threshold',String(geometry.field.isoValue)]);};
+        const blobFieldRows=(geometry,prefix='')=>{if(geometry.shape==='blob-field')rows.push([prefix+'Points',String(geometry.field.points.length)],[prefix+'Surface sampling',geometry.extraction.edgeMm+' mm · finer features may be missed'],[prefix+'Material threshold',String(geometry.field.threshold)]);};
         textRows(g);
-        splineFieldRows(g);
-        if(g.shape==='assembly')for(const part of g.parts){rows.push([part.id,part.geometry.shape+' at '+[part.xMm,part.yMm,part.zMm].join(', ')+' mm']);textRows(part.geometry,part.id+' · ');splineFieldRows(part.geometry,part.id+' · ');}
+        blobFieldRows(g);
+        if(g.shape==='assembly')for(const part of g.parts){rows.push([part.id,part.geometry.shape+' at '+[part.xMm,part.yMm,part.zMm].join(', ')+' mm']);textRows(part.geometry,part.id+' · ');blobFieldRows(part.geometry,part.id+' · ');}
         return rows;
       }
       if(tab==='plan'&&state.plan.composition?.regions?.length)return [materialSetup(state),

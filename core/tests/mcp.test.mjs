@@ -12,7 +12,7 @@ import { syntheticDobotSetup } from './fixtures/dobot.mjs';
 import { boxMesh } from './fixtures/mesh.mjs';
 import {createTour} from '../../studio/tour.mjs';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
-import {splineBox} from '../geom/spline-solid.mjs';
+import {splineBox} from './fixtures/spline-shapes.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 async function clientFor(t, printsRoot) {
@@ -98,19 +98,31 @@ test('MCP follows tour chat gates while production generation remains available 
 
 
 
-test('MCP spline field is described in geometry guidance and rebuilds through revision checks',async t=>{
+test('MCP blob field is described in geometry guidance and rebuilds through revision checks',async t=>{
   const {call}=await fixture(t);
-  assert.match(JSON.stringify(await call('read_guidance',{guidanceId:'geometry'})),/spline_field/);
-  const request={field:{schema:'saam-spline-field/1',originMm:[0,0,0],sizeMm:[8,8,2],counts:[2,2,2],degrees:[1,1,1],
-    knots:[[0,0,1,1],[0,0,1,1],[0,0,1,1]],values:Array(8).fill(1),weights:null,isoValue:0.5},extraction:{edgeMm:1}};
-  let state=await call('spline_field',{printId:'volume',action:'create',machineId:'ultimaker-s5',request});
+  assert.match(JSON.stringify(await call('read_guidance',{guidanceId:'geometry'})),/blob_field/);
+  const request={points:[{positionMm:[0,0,1],reachMm:8,strength:1}],edgeMm:0.5};
+  let state=await call('blob_field',{printId:'volume',action:'create',machineId:'ultimaker-s5',request});
   assert.notEqual(state.toolpathApproved,true);
-  await call('spline_field',{printId:'volume',action:'update',expectedRevision:'stale',request},/stale/);
-  request.field.values[0]=0;
-  state=await call('spline_field',{printId:'volume',action:'update',expectedRevision:state.revision,request});
+  await call('blob_field',{printId:'volume',action:'update',expectedRevision:'stale',request},/stale/);
+  request.points.push({positionMm:[4,0,1],reachMm:6,strength:1});
+  state=await call('blob_field',{printId:'volume',action:'update',expectedRevision:state.revision,request});
   const saved=await call('get_print',{printId:'volume',includeGeometry:true});
-  assert.equal(saved.plan.geometry.shape,'spline-field');assert.equal(saved.plan.geometry.field.values[0],0);
+  assert.equal(saved.plan.geometry.shape,'blob-field');assert.equal(saved.plan.geometry.field.points.length,2);
   assert.notEqual(state.toolpathApproved,true);
+});
+
+test('MCP intersect and combine drill a print without scripts',async t=>{
+  const {call}=await fixture(t),plan=await smallPlan(call);
+  let state=await call('create_print',{printId:'drilled',kind:'shell',machineId:'ultimaker-s5',plan});
+  const hole={shape:'mesh',source:null,vertices:[[4,3,-1],[6,3,-1],[6,5,-1],[4,5,-1],[4,3,3],[6,3,3],[6,5,3],[4,5,3]],
+    triangles:[[0,2,1],[0,3,2],[4,5,6],[4,6,7],[0,1,5],[0,5,4],[1,2,6],[1,6,5],[2,3,7],[2,7,6],[3,0,4],[3,4,7]]};
+  state=await call('combine_geometry',{printId:'drilled',expectedRevision:state.revision,request:{operation:'difference',operand:hole}});
+  assert.notEqual(state.toolpathApproved,true);
+  await call('combine_geometry',{printId:'drilled',expectedRevision:'stale',request:{operation:'difference',operand:hole}},/stale/);
+  const answer=await call('intersect_geometry',{printId:'drilled',request:{sectionsAtZ:[0.5],topsAtXY:[[5,4],[1,1]]}});
+  assert.equal(answer.sections[0].holes,1);assert.equal(answer.tops[0].zMm,null);assert.equal(answer.tops[1].zMm,1);
+  assert.equal((await call('intersect_geometry',{request:{geometry:hole,sectionsAtZ:[1]}})).sections[0].areaMm2,4);
 });
 
 test('MCP text task edits actual geometry with a local font and stale-revision protection',async t=>{

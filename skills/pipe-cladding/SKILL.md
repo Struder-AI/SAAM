@@ -64,8 +64,8 @@ is not deposited.
   or reordering the mesh requires rebuilding the rows.
 
 A spline tube is four patches that share one periodic cubic U basis (exterior,
-bore, and two annular ends ruled between them); `splineTube` in
-[spline-solid.mjs](../../core/geom/spline-solid.mjs) writes one for scripts.
+bore, and two annular ends ruled between them); [GEOMETRY.md](../../GEOMETRY.md#spline-surfaces)
+describes periodic sleeves and the tube.
 
 For a hollow vase substrate, enable vase-wall and disable full-fill unless a solid
 base is wanted, and select the same geometry's side as the sleeve. A level vase

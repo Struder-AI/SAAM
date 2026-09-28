@@ -12,7 +12,7 @@ import {packZip,unpackZip} from '../export/zip.mjs';
 import {LuaRuntime} from '../export/dobot-lua-subset.mjs';
 import {initBundle,generateBundle,loadBundle,approve,deliver,adjustBundle} from '../print/bundle.mjs';
 import {syntheticDobotSetup} from './fixtures/dobot.mjs';
-import {splineBox} from '../geom/spline-solid.mjs';
+import {splineBox} from './fixtures/spline-shapes.mjs';
 const release={generatorVersion:'SYNTHETIC TEST',buildDate:'2026-09-09'};
 const actor='SYNTHETIC DOBOT TEST — not a real approval';
 function fixture(){

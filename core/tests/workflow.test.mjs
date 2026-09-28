@@ -19,7 +19,7 @@ import {
 import { createStudio } from '../../studio/server.mjs';
 import { approvedReview, machineChangedReview } from '../print/workflow.mjs';
 
-import {splineBlock,splineBox} from '../geom/spline-solid.mjs';
+import {splineBlock,splineBox} from './fixtures/spline-shapes.mjs';
 const ACTOR = 'SYNTHETIC TEST REVIEWER — not a real approval';
 const clone = value => structuredClone(value);
 

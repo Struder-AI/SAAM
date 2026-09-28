@@ -64,6 +64,8 @@ saved IDs; there is no single global plan that overwrites another job.
 | `set_tour_start_at` | Set explicit `{startAt:{layer:12}}` for the playback lesson; choose a layer with sparse infill. |
 | `change_machine` | Change printer with current `expectedRevision`, using remembered/default setup and shared compatibility checks. Final review is invalidated. |
 | `adjust_print` | Apply a recipe patch with the latest `expectedRevision` from state. |
+| `blob_field` | Create or rebuild a [blob field](../../GEOMETRY.md#blob-field) part from its points. |
+| `combine_geometry`, `intersect_geometry` | Combine a print or part with another solid as a [boolean](../../GEOMETRY.md#booleans); section it or find its top at given points ([checking](../../GEOMETRY.md#checking-geometry)). `intersect_geometry` also takes a geometry without a print. |
 | `apply_text` | Add, edit or remove text geometry using the [text skill](../../skills/text/SKILL.md), a local font and current `expectedRevision`. Reuses the shared preparation and review lifecycle. |
 | `heat_set_catalog` | Read packaged heat-set insert IDs and dimensions before choosing a profile. |
 | `apply_heat_set` | Add, edit or remove insert holes with six loops and connecting fins using the [heat-set insert skill](../../skills/heat-set-inserts/SKILL.md) and current `expectedRevision`. Reuses the shared preparation and review lifecycle. |

@@ -9,7 +9,7 @@ import {createStudio} from '../../studio/server.mjs';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
 import {PreparedGenerationJob} from '../../studio/prepared-generation-job.mjs';
 import {EventEmitter} from 'node:events';
-import {splineBox} from '../geom/spline-solid.mjs';
+import {splineBox} from './fixtures/spline-shapes.mjs';
 
 class SyntheticWorker extends EventEmitter {
   messages=[];terminations=0;

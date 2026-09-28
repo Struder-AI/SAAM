@@ -13,7 +13,7 @@ import { defaults as shellDefaults } from '../print/plan.mjs';
 import { loadMachine } from '../machine/profile.mjs';
 import { boxMesh } from './fixtures/mesh.mjs';
 import { readGuidance } from '../../adapters/mcp/src/manuals.mjs';
-import {splineBox} from '../geom/spline-solid.mjs';
+import {splineBox} from './fixtures/spline-shapes.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..'), run = promisify(execFile);
 

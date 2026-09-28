@@ -16,7 +16,7 @@ import {syncBuiltinESMExports} from 'node:module';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
 import {summarizeWork} from '../../studio/work-state.mjs';
 
-import {splineBox} from '../geom/spline-solid.mjs';
+import {splineBox} from './fixtures/spline-shapes.mjs';
 test('an explicit scratch resolver follows Studio opening and listing without changing the default registry',async t=>{
   const library=await mkdtemp(join(tmpdir(),'saam-studio-scratch-'));t.after(()=>rm(library,{recursive:true,force:true}));
   const {mkdir}=await import('node:fs/promises');

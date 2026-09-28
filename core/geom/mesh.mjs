@@ -233,6 +233,22 @@ function cutMesh(mesh,z,nearVertex,trianglesAt,contoursAt=null) {
   throw new Error('Mesh cut is ambiguous within section tolerance.');
 }
 
+// Every non-vertical triangle the vertical line through (x, y) crosses.
+export function meshCrossingsAt(mesh,x,y) {
+  const crossings=[];
+  for(const [i,t] of mesh.triangles.entries()) {
+    const [a,b,c]=t.map(k=>mesh.vertices[k]);
+    const det=(b[1]-c[1])*(a[0]-c[0])+(c[0]-b[0])*(a[1]-c[1]);
+    if(Math.abs(det)<1e-12)continue;
+    const u=((b[1]-c[1])*(x-c[0])+(c[0]-b[0])*(y-c[1]))/det;
+    const v=((c[1]-a[1])*(x-c[0])+(a[0]-c[0])*(y-c[1]))/det,w=1-u-v;
+    if(Math.min(u,v,w)<-1e-9)continue;
+    const n=mesh.normals[i],normal=n[2]<0?n.map(v=>-v):n;
+    crossings.push({zMm:u*a[2]+v*b[2]+w*c[2],normal,slopeDeg:Math.acos(Math.min(1,normal[2]))*180/Math.PI,feature:`triangle:${i}`,patch:`triangle:${i}`});
+  }
+  return crossings;
+}
+
 export function meshTopAt(mesh,x,y) {
   let best=null;
   for(const [i,t] of mesh.triangles.entries()) {

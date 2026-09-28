@@ -38,8 +38,12 @@ export async function checkSetup({log=console.log}={}) {
     try{
       const {initBundle}=await import('../core/print/bundle.mjs');
       const {defaults}=await import('../core/print/plan.mjs');
-      const {splineBox}=await import('../core/geom/spline-solid.mjs');
-      const plan=defaults();plan.geometry=splineBox({runMm:10,widthMm:10,heightMm:2});plan.skills['draped-skin'].enabled=false;
+      // A 10 × 10 × 2 mm box: six flat patches, each a 2 × 2 net of shared corners.
+      const face=(name,a,b,c,d)=>({name,degreeU:1,degreeV:1,controlPoints:[[a,b],[c,d]]});
+      const box={shape:'spline',patches:[face('top',[0,0,2],[0,10,2],[10,0,2],[10,10,2]),face('bottom',[0,0,0],[0,10,0],[10,0,0],[10,10,0]),
+        face('front',[0,0,0],[0,0,2],[10,0,0],[10,0,2]),face('right',[10,0,0],[10,0,2],[10,10,0],[10,10,2]),
+        face('back',[0,10,0],[0,10,2],[10,10,0],[10,10,2]),face('left',[0,0,0],[0,0,2],[0,10,0],[0,10,2])]};
+      const plan=defaults();plan.geometry=box;plan.skills['draped-skin'].enabled=false;
       await initBundle(directory,plan);
       const {createStudio}=await import('../studio/server.mjs');
       server=createStudio(directory);

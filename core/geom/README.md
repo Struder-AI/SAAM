@@ -140,7 +140,8 @@ Mesh conversion is not required before SAAMpath generation.
 | Representation | Role |
 |---|---|
 | Spline shell / triangle mesh | Part geometry behind common queries. |
-| [Spline field](SPLINE-FIELD.md) | Editable samples or rational B-spline controls of a scalar field; explicitly extracted to the shared manufacturing mesh backend for slicing and Studio. |
+| [Blob field](blob-field.mjs) | Points with reach and strength whose cubic B-spline falloffs sum; explicitly extracted to the shared manufacturing mesh backend for slicing and Studio. |
+| [Boolean solid](boolean-solid.mjs) | Operands of any backend behind the common queries: sections combined per layer with Clipper2, tops from operand crossings. [boolean-display.mjs](boolean-display.mjs) meshes it with Manifold for Studio and solid modifiers only. |
 | Closed regions with holes | Planar sections, offsets, solid masks and infill clipping. |
 | Surface height and normal | Accessible roof sampling for drape; faceted normals stay faceted. |
 | Skill operation result | Composable strokes, dependencies, layer references and travel policies. |
@@ -526,8 +527,11 @@ or physical printability.
 The spline backend uses Rhino and native 3DM files. Imported meshes use
 [native indexed geometry](#geometry-interoperability-for-skill-authors), with
 the user-confirmed shared interface preserving direct spline slicing.
-General edited-3DM import, spline-surface intersections and full Rhino
-computation remain deferred. rhino3dm is a geometry/file library, not the
+Spline solids intersect planes exactly ([sectioning](#sectioning-untrimmed-spline-shells))
+and vertical lines ([field.mjs](field.mjs)); booleans of them are combined one
+layer at a time ([boolean-solid.mjs](boolean-solid.mjs)). General edited-3DM
+import, surface-surface intersection curves and full Rhino computation remain
+deferred. rhino3dm is a geometry/file library, not the
 complete Rhino computation engine.
 
 ## Explicit mesh repair

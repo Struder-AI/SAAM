@@ -7,7 +7,7 @@ import {rhino} from '../print/geometry.mjs';
 import {exportProgram,interpretProgram} from '../export/registry.mjs';
 import {exportMotion} from '../export/griffin.mjs';
 import {readFileSync} from 'node:fs';
-import {splineBox} from '../geom/spline-solid.mjs';
+import {splineBox} from './fixtures/spline-shapes.mjs';
 
 test('modal writer retains captured bytes across coordinate/E rounding and command transitions',()=>{
   const fixture=JSON.parse(readFileSync(new URL('./fixtures/modal-motion-bytes.json',import.meta.url),'utf8'));

@@ -45,6 +45,6 @@ export function meshFromSolid(solid){
   return makeMesh(vertices,triangles);
 }
 export function combineSolids(left,right,operation){
-  requireThat(['add','subtract'].includes(operation),'Solid operation must be add or subtract.');
-  return operation==='add'?left.add(right):left.subtract(right);
+  requireThat(['add','subtract','intersect'].includes(operation),'Solid operation must be add, subtract or intersect.');
+  return operation==='add'?left.add(right):operation==='subtract'?left.subtract(right):left.intersect(right);
 }

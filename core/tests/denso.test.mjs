@@ -18,7 +18,7 @@ import {unpackZip} from '../export/zip.mjs';
 import {bedPoint,uprightPose} from '../path/pose.mjs';
 import {surfaceCladdingResult} from '../../skills/pipe-cladding/scripts/surface-clad.mjs';
 import {buildShell} from '../print/generate.mjs';
-import {splineTube} from '../geom/spline-solid.mjs';
+import {splineTube} from './fixtures/spline-shapes.mjs';
 import {scheduleOperations} from '../path/compose.mjs';
 import {frameAtTime,displayPoint} from '../../studio/playback.mjs';
 import {decodeSource,fetchSources} from '../../studio/source-player.mjs';

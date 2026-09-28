@@ -49,8 +49,8 @@ sole live instance, so switching prints opens no second Studio;
 an instance never crosses adapter ownership, while print bundles remain shared.
 Tour start-layer writes require the run and lesson identities they were prepared
 for. See [coordination and its concurrency limits](../../studio/README.md#agent-request-coordination).
-Geometry skill manuals identify themselves with `metadata.saam-kind: geometry` in their
-frontmatter; toolpath skill manuals keep the default `toolpath` kind.
+Geometry and hybrid skill manuals identify themselves with `metadata.saam-kind: geometry` or
+`hybrid` in their frontmatter; toolpath skill manuals keep the default `toolpath` kind.
 
 `apply_text` delegates to [shared text preparation](../../core/print/text.mjs),
 including local font reading, stale-revision checks and geometry updates. The
