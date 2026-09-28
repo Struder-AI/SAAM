@@ -19,11 +19,10 @@ session per connection; stdio owns and closes its runtime. [The relay device](sr
 serves chat sessions from [the relay](../../relay/README.md) the same way.
 
 [The shared manual reader](../../core/agent/manuals.mjs), re-exported by
-[the adapter](src/manuals.mjs), accepts published repository Markdown paths
-and returns the document's own links as resolved IDs. New references therefore
-use ordinary links without a parallel per-document registry. It confines reads
-to the public documentation trees and rejects private locations and filesystem
-links. Optional heading fragments select one section, including its subsections.
+[the adapter](src/manuals.mjs), accepts published repository Markdown paths and
+assembles them by [context layer](../../core/agent/README.md#context-layers) with
+repository-path links, confined to the public documentation trees without
+private locations or filesystem links. A heading fragment selects one section.
 The fixed skill catalog distinguishes toolpath, geometry and hybrid skills;
 making a manual readable does not register a new plan operation or MCP tool.
 Its IDs and frontmatter reader come from the shared [skill catalog](../../skills/catalog.mjs),

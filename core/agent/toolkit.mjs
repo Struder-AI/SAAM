@@ -5,8 +5,9 @@ import {resolve, dirname, relative, isAbsolute} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
-import {createHash,randomUUID} from 'node:crypto';
-import {readGuidance} from './manuals.mjs';
+import {randomUUID} from 'node:crypto';
+import {readManual} from './manuals.mjs';
+import {ONBOARDING} from './layers.mjs';
 import {SKILL_IDS} from '../../skills/catalog.mjs';
 import {lifecycleReview} from '../print/review-state.mjs';
 
@@ -34,12 +35,10 @@ export const componentManuals = {
 export const developmentAreas = {...outsideAreas, ...componentManuals};
 const json = async path => JSON.parse(await readFile(path, 'utf8'));
 
-export async function contextPacket(ids) {
-  const documents = await Promise.all([...new Set(ids)].map(async id => {
-    const {guidanceId, path, text, links} = await readGuidance(root, id);
-    return {guidanceId, path, sha256: createHash('sha256').update(text).digest('hex'), text, links};
-  }));
-  return {documents};
+// Manuals as this command-line agent reads them: script sections included, advanced ones for
+// the named machine (see manuals.mjs#assembleGuidance).
+export async function contextPacket(ids, context = {}) {
+  return {documents: await Promise.all([...new Set(ids)].map(id => readManual(root, id, {client: 'script', ...context})))};
 }
 
 // What of main this checkout holds, for the one-line report a maker or builder gives at session
@@ -74,8 +73,11 @@ async function environmentStatus() {
     clientPermissions: 'Not inspected; follow studio/README.md#studio-agent-permissions.'};
 }
 
-export async function readSkill(id, {maker = false, builder = false, developer = false} = {}) {
+// `ID#heading` reads one section of the maker manual, whatever its gate.
+export async function readSkill(name, {maker = false, builder = false, developer = false, machine: machineId, all = false} = {}) {
+  const [id, anchor] = name.split('#');
   if (!SKILL_IDS.includes(id)) throw Error(`Unknown skill: ${id}. Known skills: ${SKILL_IDS.join(', ')}.`);
+  if (anchor && (builder || developer)) throw Error('A #heading reads the maker manual; drop --builder and --developer.');
   const roles = {maker, builder, developer};
   if (!Object.values(roles).some(Boolean)) roles.maker = true;
   const files = {maker: 'SKILL.md', builder: 'BUILDER.md', developer: 'DEVELOPER.md'};
@@ -90,8 +92,10 @@ export async function readSkill(id, {maker = false, builder = false, developer =
     }
     ids.push(path);
   }
-  return {skillId: id, roles: Object.keys(roles).filter(role => roles[role]), unavailableRoles,
-    ...await contextPacket(ids)};
+  const documents = await Promise.all(ids.map(path => path.endsWith('/SKILL.md')
+    ? readManual(root, anchor ? `${path}#${anchor}` : path, {client: 'script', machineId, all})
+    : readManual(root, path, {all: true})));
+  return {skillId: id, roles: Object.keys(roles).filter(role => roles[role]), unavailableRoles, documents};
 }
 
 // One page of the stored map per key: an index, or the declaration path that index is for.
@@ -120,22 +124,24 @@ export async function regenerateMap() {
 // Three roles, three readings. A maker reads prose and no map. A builder reads prose — its own
 // manual, skill authoring and the component manual for the area — and may walk the map. A
 // developer reads the map from `0` and one orientation file, and opens a manual when the work calls for it.
-export async function onboarding({role, areas = []}) {
+// A maker's manuals open by client and machine; a builder's and developer's are read whole.
+export async function onboarding({role, areas = [], machine: machineId}) {
   if (!['maker', 'builder', 'developer'].includes(role)) throw Error('Choose maker, builder or developer onboarding.');
   const outside = areas.filter(area => Object.hasOwn(outsideAreas, area));
   const targets = [...new Set(areas.filter(area => !Object.hasOwn(developmentAreas, area)))];
   const builderAreaIds = [...new Set(areas.flatMap(area => developmentAreas[area] ?? []))];
-  const ids = role === 'maker' ? ['MAKERS.md', 'GEOMETRY.md', 'skills/DIGEST.md', 'core/print/USAGE.md']
-    : role === 'builder' ? ['BUILDERS.md', 'MAKERS.md', 'GEOMETRY.md', 'skills/DIGEST.md', 'core/print/USAGE.md', 'skills/AUTHORING.md', ...builderAreaIds]
+  const ids = role === 'maker' ? ONBOARDING
+    : role === 'builder' ? ['BUILDERS.md', ...ONBOARDING, 'skills/AUTHORING.md', ...builderAreaIds]
     : ['DEVELOPER-CONTEXT.md#orientation', ...new Set(outside.flatMap(area => outsideAreas[area]))];
   const mapKeys = role === 'maker' ? [] : [...(role === 'developer' ? ['0'] : []), ...targets];
   if (mapKeys.length) {
     const {readIndex, storeDir} = await import('../../dev-map/lib/store.mjs');
     if (!await readIndex(storeDir(root))) await regenerateMap();
   }
-  const [context, environment, maps] = await Promise.all([contextPacket(ids), environmentStatus(), mapKeys.length ? readMaps(mapKeys) : []]);
+  const [context, environment, maps] = await Promise.all([contextPacket(ids, role === 'maker' ? {machineId} : {all: true}),
+    environmentStatus(), mapKeys.length ? readMaps(mapKeys) : []]);
   return {role, environment, ...context, maps,
-    nextStep: role === 'maker' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context and choose individual skill manuals when an edit needs them.'
+    nextStep: role === 'maker' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context and choose individual skill manuals when an edit needs them. The digest indexes gated sections; read one by name when its gate applies.'
       : role === 'builder' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context. The component manual for the area you are changing owns its behaviour, contracts and limits; read the one for the code you touch. The dev maps own structure: walk them from 0, or from a node you name with --area, for what calls what, with read-map INDEX|DECLARATION and --code, and run regenerate [INDEX] after an edit. Skills and adapters keep their own authoring references.'
       : 'Reuse the returned context. Walk the dev maps from the returned top map: every map numbers the leaves and clusters it homes under itself; a cluster opens as its map and a leaf as its code, and a repeat box names its node’s home. Read a node with read-map INDEX|DECLARATION, and its source with --code. After an edit run regenerate [INDEX] and read again. Indexes are for talking about a node, not for writing down; the declaration path is the durable name. Skills and adapters keep their own authoring references. The dev maps and DEVELOPER-CONTEXT.md are your orientation; open a component manual when the work calls for it, as when a change needs it rewritten.'};
 }

@@ -46,9 +46,9 @@ saved IDs; there is no single global plan that overwrites another job.
 
 | Tool | Role |
 |---|---|
-| `maker_onboarding` | Listed first. The maker's starting context for a client without command access: MAKERS, GEOMETRY, the skill digest and shared print tools, plus how a relayed session reaches the computer. A relayed session also offers the [SAAM panel](RELAY-PLAN.md#saam-panel) with its result. Until a relayed session calls it (or reads `makers`), every result carries a second text item asking it to. |
-| `list_machines`, `list_skills`, `read_skill` | Read this checkout's known profiles and manuals. Each skill entry is a toolpath, geometry (such as mesh tools) or hybrid skill. These small fixed lists are not an automatic discovery or installation system. |
-| `read_guidance` | Read a published Markdown path, optionally ending in `#heading`, or a short ID: `makers`, `geometry`, `development`, `glossary`, `mcp`, `print-tools`. The response resolves documentation links into IDs for further reading. |
+| `maker_onboarding` | Listed first. The maker's starting context for a client without command access, as a web client of the [context layers](../../core/agent/README.md#context-layers): MAKERS, the digest (the index) and shared print tools, with a `machineId`'s advanced sections, plus how a relayed session reaches the computer. A relayed session also offers the [SAAM panel](RELAY-PLAN.md#saam-panel) with its result. Until a relayed session calls it (or reads `makers`), every result carries a second text item asking it to. |
+| `list_machines`, `list_skills`, `read_skill` | Read this checkout's known profiles and manuals. Each skill entry is a toolpath, geometry (such as mesh tools) or hybrid skill. `read_skill` takes `ID` or `ID#heading` and an optional `machineId`. These small fixed lists are not an automatic discovery or installation system. |
+| `read_guidance` | Read a published Markdown path, optionally ending in `#heading`, or a short ID: `makers`, `geometry`, `development`, `glossary`, `mcp`, `print-tools`, with an optional `machineId`. |
 | `get_plan_template` | Read a complete proposed shell recipe, reusing remembered setup. |
 | `create_print` | Initialize a new unapproved bundle, optionally from a complete recipe. |
 | `import_stl_print` | Read an absolute local `.stl` source path with optional `auto` (default), `mm` or `inch` units; preserve its bytes/hash and use the shared CLI importer and remembered setup. Sources are limited to 64 MiB. |
@@ -79,20 +79,19 @@ saved IDs; there is no single global plan that overwrites another job.
 | `deliver_print` | Copy the exact current approved export into the print's delivery directory. |
 
 The [shared print-tool manual](../../core/print/USAGE.md) owns importing,
-recipe adjustments, setup reuse, reopening and delivery. Read it through
-`read_guidance` with `guidanceId: "print-tools"`; individual pattern manuals own
-their settings and limits. Mesh diagnostics route to the
-[mesh-tools manual](../../skills/mesh-tools/SKILL.md). Mesh repair currently runs
-through the local CLI; this adapter exposes STL import, with no repair tool.
+recipe adjustments, setup reuse, reopening and delivery; skill manuals own their
+settings and limits. Mesh repair runs through the local CLI; this adapter has no
+repair tool. `create_print` and `change_machine` results carry `gatedGuidance`
+when the printer opens advanced sections.
 
-Manual responses include their repository-relative `path`, available `headings`,
-and `links` whose `guidanceId` values can be passed straight to `read_guidance`.
-For example, `core/export/griffin.md#s5-startup-observations` reads that section
-and its subsections. This follows the same Markdown files as a local collaborator.
-The reader accepts public root manuals and Markdown in the component, skill,
-Studio, machine, adapter and script trees. Private/hidden paths, dependencies,
-build output, source code, traversal and filesystem links are unavailable.
-The selected skill's links provide the normal reference route.
+Manual responses carry their repository-relative `path`, the gated sections
+`omitted` from this read and, from `read_guidance`, the `headings` with their
+gates. Links in the text are repository paths `read_guidance` takes as they
+stand: `core/export/griffin.md#s5-startup-observations` reads that section and
+its subsections. The reader accepts public root manuals and Markdown in the
+component, skill, Studio, machine, adapter and script trees; private or hidden
+paths, dependencies, build output, source code, traversal and filesystem links
+are unavailable.
 
 For a tour request in a client with command access, first run
 `node studio/server.mjs --toolkit start-tour --no-open`, open its Studio URL,
@@ -101,9 +100,8 @@ then use its returned context and listener. Do not precede that launch with
 the MCP adapter does not expose a tour-start tool.
 
 For ordinary new-part work with command access and missing maker context, run
-`node scripts/agent-toolkit.mjs maker-onboarding` once. It supplies MAKERS, the
-complete skill digest and shared print tools. In an MCP-only client, call
-`maker_onboarding` once instead. Reuse supplied/current context in either
+`node scripts/agent-toolkit.mjs maker-onboarding` once; in an MCP-only client,
+call `maker_onboarding` once instead. Reuse supplied/current context in either
 case, choose and read the relevant skill manuals individually, create the first
 reasonable geometry, and call
 `request_review`. Studio opens in the default browser where available; the

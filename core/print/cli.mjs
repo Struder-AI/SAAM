@@ -1,13 +1,14 @@
 // Every command uses the same print bundle; Studio previews the checked export.
 import {readFile,access} from 'node:fs/promises';
 import {resolve} from 'node:path';
-import {initBundle,loadBundle,generateBundle,adjustBundle,rememberSetup,deliver,checkPathBundle,changeMachine,migrateBundle} from './bundle.mjs';
+import {root,initBundle,loadBundle,generateBundle,adjustBundle,rememberSetup,deliver,checkPathBundle,changeMachine,migrateBundle} from './bundle.mjs';
 import {importSTLBundle,setSTLUnits} from './import-stl.mjs';
 import {repairSTLFiles} from './repair-stl.mjs';
 import {applyText} from './text.mjs';
 import {applyHeatSet} from './heat-set.mjs';
 import {createBlobFieldBundle,updateBlobFieldBundle} from './blob-field.mjs';
 import {intersectRequest,combineGeometry} from './geometry-tools.mjs';
+import {printHint} from '../agent/layers.mjs';
 const readJson=async file=>JSON.parse(await readFile(file,'utf8'));
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].replace(/\\/g, '/')}`).href) {
   const args=process.argv.slice(2),revisionIndex=args.indexOf('--revision');
@@ -32,6 +33,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(`Print created at ${directory}`);
       console.log(`Open it for review with: npm run studio -- ${directory}`);
       console.log('Nothing is approved yet; review the geometry and generate freely, then confirm the exact settings/toolpath together in Studio before export.');
+      const hint=await printHint(root,await loadBundle(directory,{program:false}),null);if(hint)console.log(hint);
     } else if(command==='migrate') {
       console.log(JSON.stringify(await migrateBundle(bundleDirectory()),null,2));
     } else if(command==='blob-field-create'||command==='blob-field-update') {
@@ -75,7 +77,10 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(`Print: ${directory}`);
       console.log(`Open Studio with: npm run studio -- ${directory}`);
     } else if (command === 'change-machine') {
-      console.log(report(await changeMachine(bundleDirectory(),argument,{expectedRevision})));
+      const from=(await loadBundle(bundleDirectory(),{program:false})).machine.id;
+      const state=await changeMachine(bundleDirectory(),argument,{expectedRevision});
+      console.log(report(state));
+      const hint=await printHint(root,state,from);if(hint)console.log(hint);
     } else if (command === 'generate') {
       console.log(JSON.stringify(await generateBundle(bundleDirectory()), null, 2));
     } else if (command === 'adjust') {

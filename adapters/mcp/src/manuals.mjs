@@ -1,2 +1,2 @@
-// CLI and MCP read the same published sources and section boundaries.
-export { readGuidance, guidanceIds } from '../../../core/agent/manuals.mjs';
+// CLI and MCP read the same published sources, section boundaries and gates.
+export { readGuidance, readManual, guidanceIds } from '../../../core/agent/manuals.mjs';

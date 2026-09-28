@@ -151,12 +151,10 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   assert.ok((await call('list_skills')).some(skill => skill.id === 'text' && skill.kind === 'geometry'));
   assert.equal((await call('read_skill', {skillId:'supports'})).skillId,'supports');
   const guidance = await call('read_guidance', { guidanceId: 'makers' });
-  assert.equal(guidance.text, await readFile(resolve(root, 'MAKERS.md'), 'utf8'));
   assert.equal(guidance.path, 'MAKERS.md');
-  assert.ok(guidance.links.some(link => link.guidanceId.startsWith('skills/')));
-  const digestLink = guidance.links.find(link => link.guidanceId === 'skills/DIGEST.md');
-  assert.ok(digestLink);
-  const digest = await call('read_guidance', { guidanceId: digestLink.guidanceId });
+  assert.match(guidance.text, /\]\(skills\/DIGEST\.md\)/, 'links are repository paths');
+  assert.ok(guidance.omitted.some(section => section.gate === 'command access'), 'a web read omits script sections');
+  const digest = await call('read_guidance', { guidanceId: 'skills/DIGEST.md' });
   assert.equal(digest.path, 'skills/DIGEST.md');
   assert.equal((await call('read_guidance', { guidanceId: 'print-tools' })).path, 'core/print/USAGE.md');
   const section = await call('read_guidance', { guidanceId: 'core/export/griffin.md#s5-startup-observations' });
@@ -370,9 +368,9 @@ test('MCP rejected mesh import retains its diagnostic and routes to a readable g
   const manual = await call('read_skill', { skillId: 'mesh-tools' });
   assert.equal(manual.path, 'skills/mesh-tools/SKILL.md');
   assert.match(manual.manual, /repair-stl/);
-  const reference = manual.links.find(link => link.guidanceId.startsWith('core/geom/README.md'));
-  assert.ok(reference);
-  assert.equal((await call('read_guidance', { guidanceId: reference.guidanceId })).path, 'core/geom/README.md');
+  const reference = /\]\((core\/print\/USAGE\.md#[^)]+)\)/.exec(manual.manual)?.[1];
+  assert.ok(reference, 'manual links are repository paths');
+  assert.equal((await call('read_guidance', { guidanceId: reference })).path, 'core/print/USAGE.md');
 });
 
 test('MCP reopens shared nested names and rejects ancestor junctions and invalid names', async t => {

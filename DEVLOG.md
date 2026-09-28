@@ -1,5 +1,37 @@
 # Development log
 
+## 2026-09-28 — Context layers (0.2.0): index, operate, script, advanced
+
+- Owner direction (0.2.0 spec): every agent gets a one-line index including gated
+  capabilities, and loads more only for its client, machine or request; web
+  index + operate at 12 KB or less. Mechanism in
+  [manuals.mjs](core/agent/manuals.mjs) and [layers.mjs](core/agent/layers.mjs),
+  documented at [context layers](core/agent/README.md#context-layers):
+  `<!-- layer: script -->`, `<!-- layer: advanced -->` and
+  `<!-- requires: capability, … | nonplanar>=N -->` above a heading; MCP reads as
+  a web client, the toolkit as a script client; `machineId`/`--machine` opens a
+  machine's sections and `ID#heading` or `PATH#heading` reads any by name, with
+  `omitted` listing the rest. The digest generator writes the advanced sections
+  as index lines; `create_print`, `change_machine` and the CLI `init` and
+  `change-machine` return one `gatedGuidance` line for sections a new printer
+  opens. New `context-budget` command.
+- Onboarding is MAKERS, the digest and print tools; GEOMETRY.md is read by form
+  (MAKERS indexes it). Onboarding drops links, headings and hashes; links become
+  repository paths. Maker/builder split with new `BUILDER.md` for text,
+  gridfinity, thingi10k, mesh-tools and heat-set-inserts. Toolpath manuals are
+  untouched: they fold into slice/trace/inject in 0.2.0.
+- Measured with `context-budget` (bytes): web index + operate 24,579 → 11,880;
+  MCP `maker_onboarding` JSON 32,437 → 12,645; CLI `maker-onboarding` 30,957 →
+  14,702; builder onboarding 70,133 → 45,715. MCP instructions 2,786 and tool
+  descriptions 10,106 are unchanged in scope. Lines: MAKERS 90 → 83, GEOMETRY
+  172 → 159, USAGE 103 → 89, text 310 → 219 with BUILDER, gridfinity 207 → 150,
+  thingi10k 124 → 95, mesh-tools 104 → 72, heat-set-inserts 110 → 98,
+  core/agent README 263 → 261.
+- Checks, in the isolated worktree: `core/tests/mcp-access.test.mjs` (4/4) and
+  `core/tests/mcp.test.mjs` (21/21, two assertions updated for the new read
+  shape), `scripts/check-repo.mjs` (no new findings), anchors of every changed
+  manual, and CLI/MCP smoke reads and hints. Not run: the whole suite.
+
 ## 2026-09-28 — 0.1.9: the status-only panel released
 
 - Published `v0.1.9` from `5d57df5` (worktree build, Node v24.19.0):
@@ -8295,7 +8327,7 @@ not full bundle generation, export or Studio. The manual owns pattern limits.
 - Implemented: [text task skill](skills/text/SKILL.md), CLI `text` and MCP `apply_text`; saved fonts, layout/variation controls, Bezier baseline, rigid or bent glyphs, normal relief, independent rational spline/plane references and named original-part patches. Text modifies selected assembly components or becomes standalone geometry. Edits rebuild from the retained original part.
 - Geometry: existing planar Clipper2 union owns outline normalization; pinned Fontkit supplies shaped outlines and Manifold supplies shared 3D solid union/subtraction. Text-modified spline targets are explicitly tessellated; their recipes are retained. The actual resulting mesh is shared by Studio and slicing, with normal review invalidation and original STL integrity checks.
 - Evidence: analytical volume/section checks, glyph counters, curved spline convergence, cylindrical and doubly curved references, baseline/mirror/normal direction, persistent edits, CLI/MCP and shared generation tests. Twelve text tests pass at this checkpoint, including a regression that checks deposition above the curved roof for every letter. The saved G-code was independently interpreted to verify those deposition moves; this is software evidence, not a physical print result.
-- Correction and user confirmation: the user reported that the curved-roof example's visible text was not reproduced by its toolpath. The 6 mm Abel font lost narrow C/U strokes with the selected 0.4 mm bead. Explicit `outlineOffsetMm: 0.15` expands each stroke boundary before layout and warping; the revised saved export contains deposition for all five letters of CURVE, reaching approximately 0.77 mm above the roof for the requested 0.8 mm relief. After inspecting the updated Studio result, the user confirmed it working. This records visual/toolpath confirmation; no physical print outcome is claimed. Reproduction commands are in the [text manual](skills/text/SKILL.md#reproduce-the-development-examples).
+- Correction and user confirmation: the user reported that the curved-roof example's visible text was not reproduced by its toolpath. The 6 mm Abel font lost narrow C/U strokes with the selected 0.4 mm bead. Explicit `outlineOffsetMm: 0.15` expands each stroke boundary before layout and warping; the revised saved export contains deposition for all five letters of CURVE, reaching approximately 0.77 mm above the roof for the requested 0.8 mm relief. After inspecting the updated Studio result, the user confirmed it working. This records visual/toolpath confirmation; no physical print outcome is claimed. Reproduction commands are in the [text manual](skills/text/BUILDER.md#development-examples).
 - Limits: current font/geometry/precision boundaries are owned by the [manual](skills/text/SKILL.md#supported-scope-and-quality) and [geometry reference](core/geom/README.md#text-and-solid-modifiers). Automatic mixed-script paragraph layout, arbitrary trimmed CAD surfaces and a certified global surface-error bound are not implemented.
 
 ## 2026-09-12 — Separate current documentation from work history

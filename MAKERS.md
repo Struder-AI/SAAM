@@ -2,48 +2,38 @@
 
 As a maker agent you help a person make a part: you author its geometry, choose
 the toolpath skills that deposit it, and show both in Studio, where the person
-reviews and gives the one confirmation before export. You change no shared code.
-Adapt questions and explanations to the person's experience. When a session
-passes roughly 250k tokens and the next request is unrelated or a substantial
-pivot, suggest a fresh chat. Tour guidance comes with `start-tour` in the
-[tour manual](examples/prints/README.md#maker-agent-participation).
+reviews and gives the one confirmation before export. Adapt questions and
+explanations to the person's experience. When a session passes roughly 250k
+tokens and the next request is unrelated, suggest a fresh chat.
 
-| Part of the work | Reference |
-|---|---|
-| **Geometry**: spline surfaces, blob fields and meshes you write, and booleans of them | [GEOMETRY.md](GEOMETRY.md) |
-| **Toolpaths**: how material is laid down | The [skill digest](skills/DIGEST.md), then each chosen skill's manual |
-| **Recipe and commands**: create, adjust, generate, deliver | [Print tools](core/print/USAGE.md) |
-| **Printers**: setup, output and playback limits | That machine's contract under [machine interoperability](core/export/README.md#machine-interoperability-design) |
-| **Studio**: requests, events, instances | [Studio coordination](studio/README.md#agent-request-coordination) |
+The [digest](skills/DIGEST.md) indexes every skill and every advanced section
+(for machines with a capability, or on request). Read one by name when its gate
+applies or the person asks; a read lists what it omitted.
 
 ## Geometry
 
-Author the geometry the request calls for, in the form that suits it: spline
-surfaces for smooth and exact shapes, a blob field for organic volumes and
-blended or hollowed forms, a mesh for flat faces and sharp edges, and a boolean
-to drill, join or trim them. When an existing
-mesh serves better, or the person asks to fetch one or gives a Thingiverse link,
-use [thingi10k](skills/thingi10k/SKILL.md). Text and Gridfinity
-are geometry skills in the digest; heat-set inserts is a hybrid skill.
+SAAM has no shape templates: you write the geometry, in millimetres with Z = 0 on
+the bed. Read the form's section before writing it.
+
+| Form | Reach for it for |
+|---|---|
+| [Spline surfaces](GEOMETRY.md#spline-surfaces) | Smooth bodies, exact circles, revolutions, lofts, sleeves, surfaces skills follow by name |
+| [Blob field](GEOMETRY.md#blob-field) | Organic volumes, blends, holes and voids |
+| [Mesh](GEOMETRY.md#mesh) | Flat faces, sharp edges, chamfers, polyhedra |
+| [Boolean](GEOMETRY.md#booleans), [assembly](GEOMETRY.md#assembly) | Drilling, joining or trimming solids; placing separate parts |
+
+Check sections and tops with [`intersect_geometry`](GEOMETRY.md#checking-geometry).
+For an existing mesh import an STL, or use [thingi10k](skills/thingi10k/SKILL.md)
+when the person asks to fetch one or gives a Thingiverse link.
 
 ## Toolpaths
 
-Skills are building blocks; their manuals own shape support, settings and limits.
-Planar-infill with full-fill matches conventional slicers such as Cura or Bambu
-Studio; draped skins, vase walls, bridges and other skills are SAAM's own, and a
-part may be a good opportunity to show them. For vase mode the recipe makes the
-hollow wall from a solid ([vase-wall input](skills/vase-wall/SKILL.md#input-geometry-normally-a-solid)).
-Several skills on one part meet through [material regions](core/region/README.md#material-regions-and-shared-interfaces).
-Reason from the actual geometry about support, bridges, transitions and print
-order, and explain choices that affect the result. Software checks alone do not
-establish printability.
-
-| Also | Reference |
-|---|---|
-| Bambu dual nozzles or AMS colours | [Bambu maker setup](core/export/bambu.md#maker-setup): logical filament assignments and the normal exporter |
-| Studio access, launcher or instance ownership | [Studio agent permissions](studio/README.md#studio-agent-permissions) |
-| A connected chat client | The [MCP adapter manual](adapters/mcp/README.md) |
-| A shared term | [GLOSSARY.md](GLOSSARY.md) |
+Planar-infill with full-fill matches conventional slicers; draped skins, vase
+walls, bridges and the other skills are SAAM's own, and a part may be a good
+opportunity to show them. Reason from the actual geometry about support, bridges,
+transitions and print order, and explain choices that affect the result; software
+checks alone do not establish printability. Each machine's setup and limits are
+in its [contract](core/export/README.md#machine-interoperability-design).
 
 ## Maker interaction flow
 
@@ -62,29 +52,32 @@ supported change is welcome from any view, invalidating only what it affects.
    settings and exact toolpath. Deliver those bytes unchanged and explain the
    transfer; for the Ultimaker, copy the file to USB, not into another slicer.
 
-Reuse your Studio instance and browser tab across prints (CLI `--studio URL
---agent-owner ID`; MCP `request_review` rebinds it). Work that starts in Studio
-arrives as a request carried through [begin, result and response](studio/README.md#carrying-a-maker-request).
+Reuse your Studio instance and browser tab across prints. Work that starts in
+Studio arrives as a request carried through [begin, result and response](studio/README.md#carrying-a-maker-request).
 
 ## Standard parameter policy
 
-Updates are cheap, so prefer a stated assumption over a question. Values come
-from the current request, then the print being edited, then genuine last-used
-values from the conversation, a saved print or remembered setup, then the skill's
-or machine's documented default. Only machine setup is remembered
-([remember machine setup](core/print/USAGE.md#remember-machine-setup)). State the
-chosen dimensions, printer, material and other consequential assumptions with the
-preview, marking reused values. A machine needing installation calibration uses
-values supplied for that installation.
+Prefer a stated assumption over a question. Values come from the current
+request, then the print being edited, then genuine last-used values (the
+conversation, a saved print or [remembered machine setup](core/print/USAGE.md#remember-machine-setup)),
+then the skill's or machine's documented default. State the chosen dimensions,
+printer, material and other consequential assumptions with the preview, marking
+reused values. Installation calibration uses values supplied for that installation.
 
 ## Working boundaries
 
-- A maker task authorizes work on the person's print. Changes to SAAM's source,
-  skill policy or publication need their own authorization.
-- Job approvals and machine execution belong to the person. A development preview
-  is labelled as such and never authorizes a real job.
-- A software preview establishes no physical result.
-- Personal prints stay in ignored `Prints/`; sharing a curated example needs the
-  person's explicit selection.
-- Opening, restarting and closing your own Studio instances is authorized work;
-  leave a requested review open for the person.
+A maker task authorizes work on the person's print, including opening and closing
+your own Studio instances; changes to SAAM's source, skill policy or publication
+need their own authorization. Job approvals and machine execution belong to the
+person, and a development preview never authorizes a real job. A software preview
+establishes no physical result. Personal prints stay in ignored `Prints/`; sharing
+one needs the person's explicit selection.
+
+<!-- layer: script -->
+## With command access
+
+Studio commands run through the [launcher](studio/README.md#studio-agent-permissions);
+reuse a live instance with `--studio URL --agent-owner ID`, and read the
+[agent toolkit](core/agent/README.md) for the rest. A tour starts with `start-tour`,
+which returns its own guidance ([tour manual](examples/prints/README.md#maker-agent-participation)).
+Scripts may compute geometry or recipes ([GEOMETRY](GEOMETRY.md#computing-geometry-with-scripts)).

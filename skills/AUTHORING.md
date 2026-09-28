@@ -7,16 +7,14 @@ operation lacks a suitable manual. Geometry skills cover preparation and recover
 toolpath skills cover deposition; hybrid skills change the geometry and deposit
 their own toolpath there.
 
-Skill use and skill implementation are different reads. `read-skill ID --maker`
-reads the package's `SKILL.md` (operations, settings, limits and recovery);
-`--builder` reads its optional `BUILDER.md` (skill-authoring details); `--developer`
-reads its optional `DEVELOPER.md` (additional implementation context). Combine
-flags for missing context, for example `--maker --builder`; no flags means maker.
-Flags select independent reads, not an inheritance chain. Missing optional files
-are reported in `unavailableRoles`, without substituting another role's text.
-Keep each fact at one owner; create optional manuals only when they add context.
-The CLI returns the source files unchanged, and ordinary file/section reads remain
-valid. Reuse previously read context rather than requesting it again.
+Skill use and skill implementation are different reads. `SKILL.md` holds
+operations, settings, limits and recovery for makers; implementation detail,
+tests and development examples go in `BUILDER.md` (`read-skill ID --builder`),
+and further implementation context in optional `DEVELOPER.md`. In `SKILL.md`, tag
+command-line sections `<!-- layer: script -->` and machine-dependent ones with
+`<!-- requires: capability -->` ([context layers](../core/agent/README.md#context-layers));
+untagged text is what every agent reads, so keep it to what a web agent can act
+on. Keep each fact at one owner; create optional manuals only when they add context.
 
 Shared geometry and composition contracts are builder context when a skill
 consumes them. Dev maps cover core and Studio. Changes confined to skill scripts
@@ -36,7 +34,7 @@ boundary that rules it out, starting with "Experimental." for a new printing tec
 behaviour is still unknown. A
 [keyword skill](../GLOSSARY.md)'s description is only its keyword. Details that
 matter once the skill is chosen belong in the manual. The description is reused
-by the [digest](DIGEST.md) and MCP catalog. After changing descriptions or catalog membership, run
+by the [digest](DIGEST.md) and MCP catalog. After changing descriptions, catalog membership or advanced markers, run
 `node scripts/skill-digest.mjs` from the repository root to refresh the digest.
 Generated agreement does not establish that capability claims are true.
 

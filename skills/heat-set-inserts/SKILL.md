@@ -7,104 +7,74 @@ metadata:
 
 # Heat-set inserts
 
-Prepare blind holes for heat/ultrasonic inserts in a closed part. The initial
-[catalog](CATALOG.md) covers 60 unheaded SPIROL Series 19/29 short/long selections,
-M2–M8 and 2-56–5/16-18 where offered. These are receiving-hole dimensions, not
-thread diameters or negative copies of the metal knurl. Additional families can
-be added to [catalog.mjs](scripts/catalog.mjs) with manufacturer provenance.
+Prepare blind holes for heat or ultrasonic inserts in a closed part. The
+[catalog](CATALOG.md) covers 60 unheaded SPIROL Series 19/29 short and long
+selections, M2–M8 and 2-56–5/16-18 where offered. These are receiving-hole
+dimensions, not thread diameters or copies of the knurl.
 
 Use the [standard parameter policy](../../MAKERS.md#standard-parameter-policy).
-Existing feature edits retain omitted settings; a new named hole inherits the
-previous hole's insert and fin choices in that component. Placement uses its
-explicit value or the stated example default, never an invented remembered
-position. Cross-print reuse uses actual saved recipe/conversation evidence.
+Feature edits keep omitted settings; a new named hole inherits the previous
+hole's insert and fin choices in that component. Placement is explicit or the
+stated example default, never an invented remembered position.
 
-## Public tools
+## Tools
 
-Start with an existing [print bundle](../../core/print/USAGE.md). MCP
-`heat_set_catalog` lists the catalog. `apply_heat_set` accepts `printId`, the
-current `expectedRevision`, and `request`. The local equivalent is:
-
-```sh
-node core/print/cli.mjs heat-set Prints/my-part insert-request.json
-```
+Start with an existing print. `heat_set_catalog` lists the catalog;
+`apply_heat_set` takes `printId`, the current `expectedRevision` and `request`:
 
 ```json
 {
   "feature": {
-    "id": "mount",
-    "insertId": "spirol-29-m3-long",
-    "positionMm": [15, 15, 12],
-    "finCount": 6,
-    "finLengthMm": 4,
-    "finWidthMm": 0.8
+    "id": "mount", "insertId": "spirol-29-m3-long", "positionMm": [15, 15, 12],
+    "finCount": 6, "finLengthMm": 4, "finWidthMm": 0.8
   }
 }
 ```
 
-`positionMm` is the mouth center in component coordinates; the bore points down
-Z from its flat insertion face. For an assembly, add `part` with the component
-ID. Edit with the same feature ID and only changed fields. Remove with
-`{"remove":"mount"}` (plus `part` for an assembly). Geometry changes use the
-normal revision and approval invalidation workflow. Show the updated geometry,
-settings, and exact toolpath in Studio through the shared tools.
+`positionMm` is the mouth centre in component coordinates; the bore points down
+Z from its flat insertion face. For an assembly add `part` with the component id.
+Edit with the same feature id and only changed fields; remove with
+`{"remove":"mount"}` (plus `part`). Changes follow the normal revision and
+confirmation workflow.
 
 | Field | Default and meaning |
 |---|---|
 | `id` | `insert`; unique within its feature group |
 | `insertId` | `spirol-29-m3-long`; catalog selection |
 | `positionMm` | `[15,15,12]`; propose a suitable position for the actual part |
-| `depthMm` | `null`: insert length plus two thread pitches; explicit depth must fit the insert |
+| `depthMm` | `null`: insert length plus two thread pitches; an explicit depth must fit the insert |
 | `diameterAdjustmentMm` | `0`; signed printer/material hole calibration, ±1 mm |
 | `finCount` | `6`; 2–24 radial ribs |
 | `finLengthMm` | `4`; maximum extension beyond the bore wall, at the insertion face |
-| `finWidthMm` | `0.8` at the outer tip, twice that at the bore-wall joint; nominal width rounded to at least one whole bead |
+| `finWidthMm` | `0.8` at the outer tip, twice that at the bore wall; at least one bead |
 | `finAngleDeg` | `0`; rotates the fin pattern around the bore |
 
-The request can also set `toleranceMm` (default 0.01, maximum 0.1) for compiled
-hole geometry. Dimensions and settings remain editable; regeneration does not
-make a physical fit claim.
+The request can also set `toleranceMm` (default 0.01, maximum 0.1) for the hole
+geometry. Regeneration makes no physical fit claim.
 
 ## Deposition and composition
 
-Each bore layer has **six contiguous loops**, independent of global perimeter
-count and spacing factor. Actual section offsets follow the compiled hole.
-The radial fins are triangular gussets in vertical section: zero radial reach
-at the bore floor, growing linearly to `finLengthMm` at the front insertion face.
-Their thickness tapers from twice `finWidthMm` at the bore-wall joint to
-`finWidthMm` at the outer tip. Layers with less than one bead of radial reach
-retain the bore wall alone. Normal solid top layers supply the front face.
-Shared scanline fill follows each tapered layer footprint. Fins overlap the bore wall to
-weld to it. Shared fill reserves their material, preventing a second interior
-deposition pass through the bore wall or fins. Ordinary exterior walls retain their
-own settings. Select full-fill or planar-infill with solid surface layers for
-the insertion zone.
+Each bore layer has **six contiguous loops**, whatever the perimeter count and
+spacing factor. The fins are triangular gussets in vertical section: no reach at
+the bore floor, growing to `finLengthMm` at the insertion face, tapering from
+twice `finWidthMm` at the bore wall to `finWidthMm` at the tip. Layers with less
+than one bead of reach keep the bore wall alone, and normal solid top layers
+supply the face. Fill reserves the loops and fins, so nothing deposits through
+them twice. Select full-fill or planar-infill with solid surface layers for the
+insertion zone.
 
-This is a local detail in the shared planar producer, with shared layer heights,
-bead volumes, material ownership, travel, composition, machine output, and Studio.
-It works with native meshes or supported spline hosts compiled through the shared
-solid kernel, named assembly parts, and planar material-region assignments.
-Lettering applied over the result preserves the hole details. Other skills can
-occupy other compatible regions/components; inserting a hole does not make a
-vase or nonplanar-only region acquire six planar loops automatically.
+It works with meshes, supported spline hosts, named assembly parts and planar
+material regions, and lettering over the result keeps the holes. A vase or
+nonplanar-only region does not acquire the loops. The bore axis is Z and the
+insertion face flat: reorient side-entry parts first. Blind floors need remaining
+material, and the loops and fins need room inside the exterior walls; the tool
+reports insufficient room or conflicting reservations so placement, fin length,
+host size or process can be revised. Intersecting holes and fins are not merged.
+Manufacturer dimensions are a starting point: printed fit and strength need
+physical evidence.
 
-The current bore axis is Z and the insertion face is flat. Reorient side-entry
-parts before preparing them. Blind floors require remaining host material. Six
-complete loops and the fins need enough room inside the ordinary exterior walls;
-the tool reports insufficient room or conflicting reservations so placement,
-fin length, host size, or process choices can be revised. Intersecting reinforced
-holes and fins are not merged automatically. Manufacturer dimensions are a
-starting point; printed fit and installed strength require physical evidence.
+<!-- layer: script -->
+## Command line
 
-## Reproducible Studio example
-
-```sh
-node skills/heat-set-inserts/scripts/demo.mjs Prints/development/heat-set-example
-node studio/server.mjs Prints/development/heat-set-example
-```
-
-The command refuses an existing bundle. It creates a 54 × 32 × 12 mm block with
-an M3 Series 29 long hole and a 4-40 Series 19 short hole, two ordinary perimeter
-loops, 15% infill and solid top/bottom surfaces. It generates a development
-toolpath without approvals. Review a middle bore layer to see the six loops and
-fins before the solid top covers them.
+`node core/print/cli.mjs heat-set Prints/my-part insert-request.json` takes the
+same request as `apply_heat_set`.

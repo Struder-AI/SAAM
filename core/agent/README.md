@@ -8,12 +8,6 @@ regular non-symlink file. Local capability implementations and their guidance
 remain local. The shared guidance reader does not publish their manuals or infer
 that those capabilities exist in another checkout.
 
-For a tour request, immediately run
-`node studio/server.mjs --toolkit start-tour --no-open` in the managed command
-session, open its returned Studio URL, then use its returned context and listener.
-The onboarding commands below apply to ordinary maker/builder/developer work; they are
-not prerequisites for a tour. Reuse completed setup and permissions.
-
 Small bundles of existing SAAM operations for agents using a command tool.
 [MAKERS](../../MAKERS.md) owns maker behavior, [BUILDERS](../../BUILDERS.md) owns
 builder guidance, [developer context](../../DEVELOPER-CONTEXT.md) indexes developer
@@ -27,9 +21,7 @@ node scripts/agent-toolkit.mjs --help
 node scripts/agent-toolkit.mjs maker-onboarding
 node scripts/agent-toolkit.mjs builder-onboarding --area studio
 node scripts/agent-toolkit.mjs developer-onboarding --area core/geom
-node scripts/agent-toolkit.mjs read-skill planar-infill
-node scripts/agent-toolkit.mjs read-skill planar-infill --maker --builder
-node scripts/agent-toolkit.mjs read-skill planar-infill --builder
+node scripts/agent-toolkit.mjs read-skill text --maker --builder --machine ultimaker-s5
 node scripts/agent-toolkit.mjs read-map 0
 node scripts/agent-toolkit.mjs read-map core/path/compose.mjs::planComposition --code
 node scripts/agent-toolkit.mjs regenerate 6
@@ -55,13 +47,14 @@ the OS browser when a client opens the returned URL itself or a test is headless
 
 | Command | Operations in order | Result |
 |---|---|---|
-| `maker-onboarding` | Read MAKERS, the complete skill digest and shared print-tool guidance; inspect Node and dependency entry-point availability; fetch `main` for `environment.sync`, the checkout's one-line sync report. | Current source text, paths, resolved links and content hashes, environment observations, and an instruction to choose further reads. |
-| `builder-onboarding [--area AREA]` | Read BUILDERS, maker context, skill authoring and the complete skill digest; add the named area's component manual, or, for a node index or declaration path, that map; inspect entry-point availability and sync. | The same context format, with builder sources and an instruction to read the component manual for what is changed and walk the map for its structure. |
+| `maker-onboarding [--machine ID]` | Read MAKERS, the skill digest (the index) and print tools as a [script client](#context-layers), with the machine's advanced sections; inspect Node and dependency entry-point availability; fetch `main` for `environment.sync`, the checkout's one-line sync report. | Assembled text and paths, environment observations, and an instruction to choose further reads. |
+| `builder-onboarding [--area AREA]` | Read BUILDERS, the maker manuals whole, skill authoring and the digest; add the named area's component manual, or, for a node index or declaration path, that map; inspect entry-point availability and sync. | The same context format, with builder sources and an instruction to read the component manual for what is changed and walk the map for its structure. |
 | `developer-onboarding [--area AREA]` | Read the developer orientation and map page `0`; add the named node’s map, or an outside area’s own references; inspect entry-point availability and sync. Component manuals are not bundled; a developer opens one when the work calls for it. | The same context format, with the orientation, the map pages and an instruction to walk the map. |
-| `read-skill ID [--maker] [--builder] [--developer]` | Read the selected role manuals for one cataloged skill; default to maker. | Text, source paths, hashes and links, selected `roles`, and `unavailableRoles` for absent optional manuals. |
+| `read-skill ID[#HEADING] [--maker] [--builder] [--developer] [--machine ID] [--all]` | Read the selected role manuals for one cataloged skill; default to maker, assembled as a script client. | Text, paths, `omitted` gated sections, selected `roles`, and `unavailableRoles` for absent optional manuals. |
+| `context-budget [--machine ID]` | Assemble every layer for both clients and each machine. | Bytes per layer and client, and per on-demand manual. |
 | `read-map INDEX|DECLARATION [--code] [--details]` | Read one compact stored page: `0` for the top map, `N.…` or a declaration path for a cluster's map or a leaf's code block. | `maps`: that graph or terminal source. `range` is `[first,last]` inclusive; nested locations inherit `file`; empty arrays are omitted. `--code` returns source and edit-safety metadata; only `0` is refused. `--details` returns the full stored packet and scanner evidence. Reads never scan. |
 | `regenerate [INDEX]` | Scan the source and write the stored map. | Always generates everything; an index is accepted. The only command that scans. |
-| `read-guidance PATH#HEADING` | Read one published manual or section chosen by the agent. | The same individual-read format. |
+| `read-guidance PATH#HEADING [--machine ID] [--all]` | Read one published manual or section chosen by the agent. | The same individual-read format, with headings and their gates. |
 | `start-tour` | Create fresh copies of both examples through the tour API; select lesson one and playback start layer; read geometry; start an exclusively owned Studio; emit its URL/instance ID; request browser opening; read participation guidance, tour state and `sync`. | A live bidirectional Studio session, initial recipe summary, MAKERS and tour-participation context, plus event-stream and recovery-listener details. |
 | `open-print DIRECTORY` | Resolve the folder or a saved file to its bundle; read geometry; launch Studio and request browser opening, or with `--studio URL --agent-owner ID` show the print in that live owned Studio and exit; read current recipe and validate any stored export through the owning adapter. | URL, process ID, recipe/revision, geometry bounds, confirmations and generation status. No regeneration. |
 | `create-preview DIRECTORY` | Initialize a recipe or import an STL through the owning print API; read geometry; launch Studio and request browser opening, or with `--studio URL --agent-owner ID` show the new print in that live owned Studio and exit; return current state. | An unapproved bundle, URL, dimensions, recipe/setup assumptions, and explicit or inferred STL units. |
@@ -83,56 +76,66 @@ the OS browser when a client opens the returned URL itself or a test is headless
 | Build (skill, Studio, isolated core) | Run `builder-onboarding` only if builder context is missing; include a known `--area` when useful. | Choose missing skill guidance and API contracts; read the component manual for the core/Studio code being changed and walk the map when you need to see what calls it. Load contribution guidance when checkpointing/publishing. |
 | Core or cross-cutting development | Run `developer-onboarding` only if developer context is missing; include a known `--area` when useful. | Work map-first: walk from `0` with `read-map INDEX|DECLARATION`, read the source with `--code`, and `regenerate [INDEX]` after an edit. |
 
-Developer onboarding returns `DEVELOPER-CONTEXT.md#orientation`, map page `0`
-and the map of each node named with `--area`. It bundles no component manual, BUILDERS
-or maker workflow: developers are maps-native, and open those when the work
-calls for it. Builder onboarding returns the prose — BUILDERS, maker
-context, skill authoring, the skill digest and the selected area’s component
-manual — and adds a map only for a named node; `--area skills` loads no
-map. The `maps` array is empty for makers. Repeated areas are deduplicated. Load maker workflow, print tools or skill-authoring context when the task
-needs them. Inherited responsibilities do not require every lower-role read.
+Developers are maps-native and open prose manuals when the work calls for it; a
+builder gets a map only for a named node (`--area skills` loads none), and makers
+none. Inherited responsibilities do not require every lower-role read.
 
-Returned text counts as reading its source. Do not precede onboarding with the
-manuals it supplies, repeat those reads through links, or rerun onboarding for
-each request. Reuse current context; refresh an affected source only when it
-changed or the earlier context is unavailable. Onboarding does not repeat AGENTS,
-the entry point that routed the agent here. Existing setup and permissions are
-also reused. No onboarding command belongs before tour launch.
+Returned text counts as reading its source: don't precede onboarding with the
+manuals it supplies, reread them through links, or rerun it per request. Refresh
+a source only when it changed. Onboarding does not repeat AGENTS, and none
+belongs before tour launch.
 
 ### Individual follow-up reads
 
-Maker and builder onboarding include the complete [skill digest](../../skills/DIGEST.md).
-Developers read it when selecting or changing skills. The agent
-must judge which manuals and further references fit the task, then read those
-individually before using or changing a skill. Onboarding is starting context;
-it does not select skills or bundle their manuals. Tour participation guidance
-remains bundled with tour startup.
+Onboarding is starting context: it does not select skills or bundle their manuals
+or GEOMETRY.md. The agent judges which manuals and sections fit the task and reads
+them with `read-skill ID` and `read-guidance PATH#HEADING`. Tour participation
+guidance stays bundled with tour startup.
 
-Skill flags are additive and independent: `--maker` selects `SKILL.md`, `--builder`
-selects optional `BUILDER.md`, and `--developer` selects optional `DEVELOPER.md`
-inside the selected skill package. No flags selects maker for compatibility.
-Use `--maker --builder` for both, or `--builder` alone if maker context was already
-consumed. Developer does not imply either lower-role read. An absent optional
-manual yields no document for that role and names it in `unavailableRoles`;
-unknown skills and unreadable existing manuals fail. No empty manuals are needed.
+Skill flags are additive and independent: `--maker` selects `SKILL.md` (the
+default), `--builder` optional `BUILDER.md` and `--developer` optional
+`DEVELOPER.md`; neither implies another. An absent optional manual is named in
+`unavailableRoles`; unknown skills and unreadable manuals fail. `--area` repeats
+and takes an area from `--help` or a map node; the toolkit does not guess areas
+from prose. Identical guidance IDs are read once per packet, and there is no
+separately maintained summary or persistent context cache.
 
-Use `read-skill ID` for one chosen skill and `read-guidance PATH#HEADING` for one
-additional published reference or section. Onboarding has no `--skill` or `--guide`
-option. `builder-onboarding` and `developer-onboarding` accept repeated `--area`
-values: `geometry`, `regions`, `path`, `print`, `machine`, `studio`, `mcp`,
-`skills`, `tests`, `setup`, `agent`.
-Select areas from the task; the toolkit does not guess them from prose.
-Identical guidance IDs are read once per packet. Text comes directly from the
-owning Markdown files, with a SHA-256 hash of each returned section; there is no
-separately maintained summary or automatic persistent context cache.
+Onboarding inspects dependency entry points without importing geometry kernels;
+it installs nothing, runs no setup and claims no earlier setup check ([SETUP](../../SETUP.md)
+owns first use), and leaves client permissions uninspected. The manual reader
+accepts published docs only (under examples, only `examples/prints/README.md`).
 
-Onboarding inspects dependency entry points without importing geometry kernels.
-It does not install packages, run setup/regressions, or claim that an earlier
-setup check passed. Reuse existing evidence under [SETUP](../../SETUP.md), and
-complete setup on first use. Browser/client permissions remain explicitly
-uninspected. The manual reader accepts published docs only; the sole readable
-file under examples is `examples/prints/README.md`. Private prints, local
-experiments and redirected paths stay outside this reader.
+## Context layers
+
+Every agent gets the **index**: the [digest](../../skills/DIGEST.md), one line per
+skill and per advanced section with its gate. It loads more only for its client,
+its machine or an explicit request:
+
+| Layer | Who reads it | Source |
+|---|---|---|
+| Index | Everyone, in onboarding and tool descriptions | The digest, generated by `node scripts/skill-digest.mjs` |
+| Operate | Everyone: tools, settings, decisive limits, the maker flow | Untagged sections of maker manuals |
+| Script | Agents with command access (CLI reads) | Sections tagged `<!-- layer: script -->` |
+| Advanced | A print whose machine meets the gate, or on request | Sections tagged `<!-- requires: capability, … -->` or `<!-- layer: advanced -->` |
+| Builder | Builders and developers | `BUILDER.md`, `DEVELOPER.md` and the component manuals |
+
+A marker is an HTML comment on the line directly above a heading and gates that
+heading's section with its subsections. `requires` names machine capabilities
+(`machines/*.json` `capabilities`), any of which opens it, or `nonplanar>=N` for a
+nonplanar limit of at least N degrees; `layer: advanced` alone opens only by
+request. The digest generator rejects a capability no machine declares.
+
+[manuals.mjs](manuals.mjs) assembles a read: a web client (MCP) gets operate
+sections, a script client (this toolkit) adds script sections, `--machine` or
+`machineId` adds the advanced sections that machine meets, and `--all` everything.
+A `#heading` read returns that section whatever its gate. Closed sections are cut
+and listed in `omitted` with their gate; frontmatter and markers are dropped, line
+endings are LF, and relative links become repository paths that `read-guidance`
+takes directly. Builder and developer onboarding read the maker manuals whole.
+[layers.mjs](layers.mjs) owns the onboarding sources, the index, the one-line
+`gatedGuidance` hint that creating a print or changing its printer returns when
+the new machine opens sections the old one did not (among the maker manuals, the
+print's skills and its geometry skill), and `context-budget`.
 
 ## Preview options and lifetime
 
@@ -142,19 +145,14 @@ node studio/server.mjs --toolkit create-preview Prints/part --recipe recipe.json
 node studio/server.mjs --toolkit start-tour --start-at-layer 12 --no-open
 ```
 
-`create-preview` accepts either `--recipe FILE` or `--stl FILE`.
-STL creates a shell print. `--units auto|mm|inch` applies to STL only
-and defaults to automatic size-based inference. Without a recipe or STL, the
-owning adapter's proposed recipe and remembered/default machine setup apply.
-The shell template includes full-fill and draped-skin; select a complete recipe
-when those are unsuitable. Existing print directories are never overwritten.
+`create-preview` takes `--recipe FILE` or `--stl FILE` (a shell print; `--units
+auto|mm|inch`, default size-based inference); with neither, the proposed recipe and
+remembered or default setup apply. Existing print directories are never overwritten.
 
-`--library DIRECTORY` selects the tour/request library and defaults to this
-checkout's `Prints`. New previews and work requests must be within that library.
-A custom library uses its own `.machine-setups` store, matching MCP test isolation.
-`open-print` can also resolve a saved bundle outside the library, as Studio can;
-use the appropriate library for subsequent request coordination. Other relative
-file arguments resolve from the command's working directory.
+`--library DIRECTORY` selects the tour/request library (default this checkout's
+`Prints`, which must hold new previews and work requests); a custom library has
+its own `.machine-setups` store. `open-print` also resolves a bundle outside the
+library. Other relative file arguments resolve from the working directory.
 
 Studio commands stay alive in their managed command session. They emit a
 `studio-ready` JSON line immediately after listening, then a `result` line with

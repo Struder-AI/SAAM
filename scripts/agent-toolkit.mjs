@@ -3,15 +3,17 @@ import {parseArgs} from 'node:util';
 import {createInterface} from 'node:readline';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {onboarding, readSkill, readMaps, regenerateMap, contextPacket, preview, showPrint, beginWork, waitForRequests, readStudioEvents, respondToRequest, recordRequestActivity, inspectFailure, developmentAreas} from '../core/agent/toolkit.mjs';
+import {contextBudget} from '../core/agent/layers.mjs';
+import {root, onboarding, readSkill, readMaps, regenerateMap, contextPacket, preview, showPrint, beginWork, waitForRequests, readStudioEvents, respondToRequest, recordRequestActivity, inspectFailure, developmentAreas} from '../core/agent/toolkit.mjs';
 
 const string = {type: 'string'}, boolean = {type: 'boolean'}, many = {type: 'string', multiple: true};
 const schemas = {
-  'maker-onboarding': {},
+  'maker-onboarding': {machine: string},
   'builder-onboarding': {area: many},
   'developer-onboarding': {area: many},
-  'read-skill': {maker: boolean, builder: boolean, developer: boolean},
-  'read-guidance': {},
+  'read-skill': {maker: boolean, builder: boolean, developer: boolean, machine: string, all: boolean},
+  'read-guidance': {machine: string, all: boolean},
+  'context-budget': {machine: many},
   'read-map': {code: boolean, details: boolean},
   'regenerate': {},
   'start-tour': {library: string, 'start-at-layer': string, 'no-open': boolean,'agent-owner':string},
@@ -26,13 +28,14 @@ const schemas = {
 };
 export const help = {
   commands: {
-    'maker-onboarding': 'Maker guidance, complete skill digest and print tools; choose follow-up reads for the task.',
+    'maker-onboarding [--machine ID]': 'Maker guidance, the index of skills and gated sections, and print tools, with script sections and the machine’s advanced sections; choose follow-up reads for the task.',
     'builder-onboarding [--area AREA]': 'Builder and maker context, skill authoring and digest; each --area adds its component manual, or, for a node index or declaration path, that map.',
     'developer-onboarding [--area AREA]': 'The developer orientation and map page 0 — no component manuals; each --area adds that node’s map (index or declaration path) or an outside area’s references.',
     'read-map INDEX|DECLARATION [--code] [--details]': 'Read one compact stored graph; terminal pages open source. --code returns the page’s source span (a cluster, its members’ spans); refused on 0. --details returns the full stored packet and scanner evidence. Reads never scan. range is [first,last] inclusive; nested locations inherit file. Empty lists are omitted.',
     'regenerate [INDEX]': 'Scan the source and write the stored map. It always generates everything; an index is accepted and ignored.',
-    'read-skill ID [--maker] [--builder] [--developer]': 'Read only the selected skill roles; defaults to maker. Missing optional manuals are reported in unavailableRoles.',
-    'read-guidance PATH#HEADING': 'Read one published manual or section chosen for the task.',
+    'read-skill ID[#HEADING] [--maker] [--builder] [--developer] [--machine ID] [--all]': 'Read only the selected skill roles; defaults to maker. The maker manual opens advanced sections for --machine, or every section with --all; #HEADING reads one section whatever its gate. Missing optional manuals are reported in unavailableRoles.',
+    'read-guidance PATH#HEADING [--machine ID] [--all]': 'Read one published manual or section chosen for the task, with its headings and their gates.',
+    'context-budget [--machine ID]': 'Bytes of each context layer per client (web, script) and machine, for onboarding and each skill manual.',
     'start-tour [--start-at-layer 12] [--no-open] [--agent-owner ID]': 'Fresh tour copies, live Studio, browser dispatch and participation context. --agent-owner resumes the agent owner of an earlier launch on this new Studio.',
     'open-print DIRECTORY [--no-open] [--studio URL] [--agent-owner ID]': 'Open saved geometry/toolpath and return current recipe/review state. With the live Studio URL and agentOwnerId from studio-ready it shows the print in that Studio and exits instead of launching another; --agent-owner alone launches a new Studio under that resumed owner.',
     'create-preview DIRECTORY [--recipe FILE | --stl FILE] [--machine ID] [--units auto|mm|inch] [--no-open] [--studio URL] [--agent-owner ID]': 'Create/import unapproved geometry, open Studio and report assumptions. With --studio and --agent-owner the new print is shown in that live Studio instead of a new one; --agent-owner alone launches a new Studio under that resumed owner.',
@@ -96,9 +99,10 @@ export async function runCLI(args = process.argv.slice(2), {write = value => con
       startAtLayer: v['start-at-layer'] === undefined ? 12 : Number(v['start-at-layer']),
       instruction: v.instruction, requestId: v.request, includeGeometry: v['include-geometry'],studioInstanceId:v['studio-instance'],ownerId:v['agent-owner']};
     let result;
-    if (command.endsWith('-onboarding')) result = await onboarding({role: command.replace('-onboarding', ''), areas: v.area});
+    if (command.endsWith('-onboarding')) result = await onboarding({role: command.replace('-onboarding', ''), areas: v.area, machine: v.machine});
+    else if (command === 'context-budget') result = await contextBudget(root, v.machine ? {machineIds: v.machine} : {});
     else if (command === 'read-skill') result = await readSkill(positionals[0], v);
-    else if (command === 'read-guidance') result = await contextPacket([positionals[0]]);
+    else if (command === 'read-guidance') result = await contextPacket([positionals[0]], {machineId: v.machine, all: v.all, headings: true});
     else if (command === 'read-map') result = {maps: await readMaps([positionals[0]], v)};
     else if (command === 'regenerate') result = await regenerateMap(positionals[0]);
     else if (['open-print', 'create-preview'].includes(command) && v.studio) result = await showPrint({...options, studio: v.studio});

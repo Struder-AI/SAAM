@@ -1,10 +1,10 @@
 # Skills
 
-Choose skills here, then read each chosen manual (`read-skill ID`; MCP
-`read_skill`) before using it. The manual owns tools, settings and limits.
-Experimental skills are new printing techniques whose physical behaviour is
-still unknown. A description that is only a keyword marks a
-[keyword skill](../GLOSSARY.md): use it only when the person names it.
+Read each chosen skill's manual (`read_skill`) before using it. "Experimental"
+marks a technique whose physical behaviour is unknown; a keyword-only description
+marks a skill to use only when the person names it. Read an advanced section
+(`title: gate; name`) by name when the print's machine meets its gate or the
+person asks: `read_skill ID#heading`, otherwise `read_guidance`.
 
 <!-- BEGIN GENERATED SKILL DIGEST -->
 
@@ -40,5 +40,11 @@ still unknown. A description that is only a keyword marks a
 | Skill | Use |
 |---|---|
 | [heat-set-inserts](heat-set-inserts/SKILL.md) | Bores for SPIROL Series 19/29 heat-set inserts, metric and imperial, with local wall loops and fins; insertion faces must be flat and face up. |
+
+## Advanced sections
+
+- Surface regions: nonplanar machines; GEOMETRY.md#surface-regions
+- Curved lettering above a draped roof: nonplanar machines; text#curved-lettering-above-a-draped-roof
+- Cladding a vase body: coordinated-rotary machines; gridfinity#cladding-a-vase-body
 
 <!-- END GENERATED SKILL DIGEST -->

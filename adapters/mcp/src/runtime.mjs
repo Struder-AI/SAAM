@@ -25,7 +25,8 @@ import {intersectRequest,combineGeometry} from '../../../core/print/geometry-too
 import { INSERT_CATALOG } from '../../../skills/heat-set-inserts/scripts/catalog.mjs';
 import {loadLocalExtension} from '../../../core/local-extension.mjs';
 import {lifecycleReview} from '../../../core/print/review-state.mjs';
-import { readGuidance } from './manuals.mjs';
+import { readGuidance, readManual } from './manuals.mjs';
+import { onboardingSources, printHint } from '../../../core/agent/layers.mjs';
 import { SKILL_IDS, skillMetadata } from '../../../skills/catalog.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -105,7 +106,7 @@ async function requireSystemFont(path){
   throw Error('From a web chat, fontPath must be a font installed in the system font folders.');
 }
 
-export const instructions = 'For a maker edit, your FIRST operation is begin_studio_work, before any acknowledgement, analysis, status check or other tool; printId may be omitted for the active tour. For a tour request with command access, first run node studio/server.mjs --toolkit start-tour --no-open and open the returned Studio URL; then use its returned participation context and listener. Do not read guidance or run onboarding before launching the tour. For ordinary new-part work with missing maker context, run node scripts/agent-toolkit.mjs maker-onboarding once with command access, or otherwise call maker_onboarding once; either supplies makers, geometry, the skill digest and print-tools. Reuse current context and choose individual skill manuals for the task; do not reread sources already returned by onboarding. Follow relevant documentation links through read_guidance using their repository-relative path and optional #heading. Shared print-tool usage is available as "print-tools". Create a print and request_review for its geometry. Revisions happen through chat using adjust_print and expectedRevision. Geometry review is advisory: generation may proceed whenever it helps review. The person confirms the exact settings and toolpath together in Studio before export. Establish the printer and material before relying on the toolpath. For an edit to an existing print call begin_studio_work immediately, publish its saved geometry or toolpath target, then resolve its request ID after the requested result is displayed. Geometry-only work needs no slicing. Questions and guidance stay visually quiet. Normal use supports capabilities from any view; only the tour narrows requests to its current lesson under the tour manual. Send edit acknowledgements and lesson guidance immediately in chat commentary BEFORE calling a listener. Never hold an edit reply in a final answer while waiting through later lessons. During tours let Studio lead the early lessons. Keep wait_for_studio_request active, perform start-layer preparation silently, and initiate chat teaching only at the designated infill lesson and completion. Respond normally to participant-requested edits. Use get_tour for the selected print and set_tour_start_at for an explicit infill layer. deliver_print copies the reviewed bytes. No tool grants final settings/toolpath approval or runs hardware. Studio reports what the person does — lesson changes, opened prints, imports, exports, displayed results, failed or cancelled calculations — as studioEvents on tool results, in wait_for_studio_request returns and in notifications; read the queue any time with get_studio_events, which also reports toolpath calculation progress. Events are ordered observations, not simultaneous state: act on the latest.';
+export const instructions = 'For a maker edit, your FIRST operation is begin_studio_work, before any acknowledgement, analysis, status check or other tool; printId may be omitted for the active tour. For a tour request with command access, first run node studio/server.mjs --toolkit start-tour --no-open and open the returned Studio URL; then use its returned participation context and listener. Do not read guidance or run onboarding before launching the tour. For ordinary new-part work with missing maker context, run node scripts/agent-toolkit.mjs maker-onboarding once with command access, or otherwise call maker_onboarding once; either supplies the maker flow, the index of skills and advanced sections, and print-tools. Reuse current context and choose individual skill manuals for the task; do not reread sources already returned by onboarding. Follow relevant documentation links through read_guidance using their repository-relative path and optional #heading. Shared print-tool usage is available as "print-tools". Create a print and request_review for its geometry. Revisions happen through chat using adjust_print and expectedRevision. Geometry review is advisory: generation may proceed whenever it helps review. The person confirms the exact settings and toolpath together in Studio before export. Establish the printer and material before relying on the toolpath. For an edit to an existing print call begin_studio_work immediately, publish its saved geometry or toolpath target, then resolve its request ID after the requested result is displayed. Geometry-only work needs no slicing. Questions and guidance stay visually quiet. Normal use supports capabilities from any view; only the tour narrows requests to its current lesson under the tour manual. Send edit acknowledgements and lesson guidance immediately in chat commentary BEFORE calling a listener. Never hold an edit reply in a final answer while waiting through later lessons. During tours let Studio lead the early lessons. Keep wait_for_studio_request active, perform start-layer preparation silently, and initiate chat teaching only at the designated infill lesson and completion. Respond normally to participant-requested edits. Use get_tour for the selected print and set_tour_start_at for an explicit infill layer. deliver_print copies the reviewed bytes. No tool grants final settings/toolpath approval or runs hardware. Studio reports what the person does — lesson changes, opened prints, imports, exports, displayed results, failed or cancelled calculations — as studioEvents on tool results, in wait_for_studio_request returns and in notifications; read the queue any time with get_studio_events, which also reports toolpath calculation progress. Events are ordered observations, not simultaneous state: act on the latest.';
 
 // relay: on a computer paired with the SAAM relay, the provider every Studio
 // instance shows in its Connect panel ({status(), linkCode()}).
@@ -177,6 +178,12 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     const {dir,bundle}=await locate(printId);
     return {dir,bundle,state:await bundle.loadBundle(dir,{program})};
   }
+  // A print's summary with one line naming the gated guidance its printer opens
+  // that `from` did not (layers.mjs#machineHint).
+  async function withMachineHint(printId,state,from){
+    const result=summary(printId,state),hint=await printHint(root,state,from);
+    return hint?{...result,gatedGuidance:hint}:result;
+  }
   async function skills() {
     const found = [];
     for (const id of SKILL_IDS) {
@@ -224,13 +231,14 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   }
 
   // The maker's starting context for a client without command access, as the
-  // toolkit's maker-onboarding gives it to one with. A web chat also gets how its
-  // connection works, which its client may not show from the server instructions.
-  const MAKER_SOURCES=['MAKERS.md','GEOMETRY.md','skills/DIGEST.md','core/print/USAGE.md'];
-  tool('maker_onboarding','Start here: call this once per conversation, before any other SAAM tool. Returns how to work with SAAM — maker guidance, the geometry authoring reference, the digest of every skill and the shared print tools — and, from a web chat, how this connection to the person’s computer works. Reuse it for the whole conversation and read individual skill manuals from the digest as tasks need them.',
-    {}, async (input, session) => ({ role:'maker', ...(session?.guidance?{connection:session.guidance}:{}),
-      sources: await Promise.all(MAKER_SOURCES.map(id => readGuidance(root, id))),
-      nextStep: 'Follow connection first when present. Reuse these sources for the whole conversation; do not reread them or call maker_onboarding again. Choose individual skill manuals (read_skill) and linked references (read_guidance) when a task needs them.' }));
+  // toolkit's maker-onboarding gives it to one with, less its script sections. A web
+  // chat also gets how its connection works, which its client may not show from the
+  // server instructions.
+  const machineIdSchema=z.string().optional().describe('The print’s printer: adds the sections its capabilities open.');
+  tool('maker_onboarding','Start here: call this once per conversation, before any other SAAM tool. Returns how to work with SAAM: maker guidance, the index of every skill and advanced section, the shared print tools and, from a web chat, how this connection works. Reuse it for the whole conversation.',
+    {machineId:machineIdSchema}, async ({machineId}, session) => ({ role:'maker', ...(session?.guidance?{connection:session.guidance}:{}),
+      sources: await onboardingSources(root,{client:'web',machineId}),
+      nextStep: 'Follow connection first when present. Reuse these sources for the whole conversation; do not reread them or call maker_onboarding again. Read skill manuals (read_skill) and linked references (read_guidance) when a task needs them, and a gated section by name when its gate applies or the person asks.' }));
   tool('list_machines', 'List installed machine profiles and declared outputs. Catalog presence is not proof that a particular recipe is supported.', {}, async () => MACHINE_IDS.map(id => {
     const m = loadMachine(id);
     return { id, name: m.name, capabilities: m.capabilities, tools: m.tools, materials: m.materials,
@@ -238,16 +246,18 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       defaultSetup: m.defaultSetup };
   }));
   tool('list_skills', 'List the known local toolpath, geometry and hybrid skill manuals. This fixed list does not establish recipe compatibility; geometry skills are not deposition operations, and hybrid skills change geometry and deposit their own toolpath. Select the manual relevant to the requested task.', {}, skills);
-  tool('read_skill', 'Read a known skill manual by ID. Follow its relevant documentation links with read_guidance.', { skillId: idSchema }, async ({ skillId }) => {
+  tool('read_skill', 'Read a skill manual by ID, or one section as ID#heading whatever its gate. Sections gated to command access or to machine capabilities are listed in omitted; machineId opens the ones that printer meets. Links are repository paths for read_guidance.',
+    { skillId: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}(#[^\s#]{1,200})?$/), machineId: machineIdSchema }, async ({ skillId: name, machineId }) => {
+    const [skillId, anchor] = name.split('#');
     if (!SKILL_IDS.includes(skillId)) {
       const local=await localExtension.readSkill?.(skillId);if(local)return local;
       throw new Error('Unknown skill ID. Use list_skills.');
     }
-    const { text: manual, ...reference } = await readGuidance(root, `skills/${skillId}/SKILL.md`);
+    const { text: manual, ...reference } = await readManual(root, `skills/${skillId}/SKILL.md${anchor ? '#' + anchor : ''}`, { client: 'web', machineId });
     return { skillId, manual, ...reference };
   });
-  tool('read_guidance', 'Read published repository Markdown by relative path, optionally with #heading for one section. Results include resolved documentation links and headings. Short IDs: makers, geometry, development, glossary, mcp, print-tools. This reader does not expose private files, source code or register capabilities.',
-    { guidanceId: z.string().min(1).max(1024) }, async ({ guidanceId }) => readGuidance(root, guidanceId));
+  tool('read_guidance', 'Read published repository Markdown by relative path, optionally with #heading for one section whatever its gate. Results list the headings with their gates and the gated sections omitted; machineId opens the ones that printer meets. Short IDs: makers, geometry, development, glossary, mcp, print-tools. This reader does not expose private files, source code or register capabilities.',
+    { guidanceId: z.string().min(1).max(1024), machineId: machineIdSchema }, async ({ guidanceId, machineId }) => readManual(root, guidanceId, { client: 'web', machineId, headings: true }));
   tool('get_plan_template', 'Get the current complete proposed recipe for a bundle kind and machine, including remembered setup when available. Defaults and remembered setup never confer job approval.',
     { kind: kindSchema, machineId: z.string() }, async ({ kind, machineId }) => ({ kind, machineId,
       plan: await (await bundles[kind]()).proposedPlan(machineId, { setupFile: await setupFile(machineId) }) }));
@@ -279,7 +289,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       if (plan) recipe.validatePlan(plan, machine);
       const dir = await directory(printId, { create: true }), bundle = await bundles[kind]();
       await bundle.initBundle(dir, plan, { machineId, setupFile: await setupFile(machineId) });
-      return summary(printId, await bundle.loadBundle(dir));
+      return withMachineHint(printId, await bundle.loadBundle(dir), null);
     }, false);
   tool('import_stl_print', 'Import a local STL into a new named bundle. Default units auto chooses a reasonable mm/inch assumption from model size and printer bounds, without interrupting the person; honor explicit units when supplied. Preserves source bytes and hash and reuses remembered setup. Show geometry dimensions; units can be corrected with set_stl_units.',
     { printId: printIdSchema, sourcePath: z.string().min(1).max(4096), units: z.enum(['auto','mm', 'inch']).default('auto'), machineId: z.string() },
@@ -429,8 +439,8 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     {startAt:z.object({layer:z.number().int().min(1)}).strict(),runId:z.string(),lessonId:z.string()},async({startAt,...scope})=>tour.setStartAt(startAt,scope),false);
   tool('change_machine','Change a print to a supported printer using its remembered or default setup. Invalidates final settings/toolpath confirmation and validates compatibility before saving.',
     {printId:printIdSchema,machineId:z.string(),expectedRevision:z.string()},async({printId,machineId,expectedRevision})=>{
-      const {dir,bundle}=await locate(printId);if(!bundle.changeMachine)throw Error('This adapter cannot change its printer.');
-      return summary(printId,await bundle.changeMachine(dir,machineId,{expectedRevision,setupFile:await setupFile(machineId)}));
+      const {dir,bundle,state:before}=await read(printId,{program:false});if(!bundle.changeMachine)throw Error('This adapter cannot change its printer.');
+      return withMachineHint(printId,await bundle.changeMachine(dir,machineId,{expectedRevision,setupFile:await setupFile(machineId)}),before.machine.id);
     },false);
   tool('request_review', 'Serve this bundle through an exclusively owned SAAM Studio instance. Reuse is the default: the instance already showing this print, else the sole live instance, is rebound to it in the same browser tab. With several live instances supply studioInstanceId to choose the one to rebind; otherwise an unshown print opens another. Use newInstance only when the person asks for another Studio, or for a compelling reason you tell them. Optional startAt selects the tour infill layer. No approval or generation is performed.', { printId: printIdSchema,studioInstanceId:z.string().optional(),newInstance:z.boolean().default(false),startAt:z.object({layer:z.number().int().min(1)}).strict().optional(),...localExtension.reviewSchema?.(z) }, async ({ printId,studioInstanceId,newInstance,startAt,...viewOptions }) => {
     if(studioInstanceId&&newInstance)throw Error('Choose an existing studioInstanceId or request a new instance, not both.');
