@@ -7,8 +7,10 @@
   `darwin-arm64` 48.8 MB (`aec7242a…4222b`), `darwin-x64` 50.0 MB
   (`5d706251…b18ce`). It carries the blob field, boolean tools and hybrid skills.
 - First GitHub release: `v0.1.4` on Struder-AI/SAAM; `LATEST_RELEASE` names all
-  three assets. The relay source is unchanged since `d7f59a40`, so its deploy
-  only offers the update. The GitHub CLI was installed (winget) for publishing.
+  three assets, and the downloaded assets matched the built sha256s. Relay
+  deployed (version `6fac5763`); its source is unchanged since `d7f59a40`, so
+  the deploy only offers the update. The GitHub CLI was installed (winget) for
+  publishing.
 - [packaging/README.md](packaging/README.md#releasing-an-update) now owns the
   whole release sequence (version choice, three builds, commit and push,
   release, relay); 59 → 65 lines.
