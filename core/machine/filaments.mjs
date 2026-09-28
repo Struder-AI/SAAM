@@ -15,6 +15,11 @@ export function validateBambuConnections(connections,machine){
   'Bambu AMS connections need unique units within the machine device capacities and connected logical tools.');
 }
 
+// Filaments a recipe assigns to material regions and slice owners, in recipe
+// order; the setup's own filament is not included.
+export const assignedFilaments=plan=>[...plan.composition.regions.map(r=>r.filament).filter(v=>v!==undefined),
+  ...(plan.slices?.assignments??[]).map(a=>a.filament).filter(v=>v!==null)];
+
 // A logical material selection, separate from installed nozzle and feed route.
 // No device/tray number is ever substituted for the logical filament index.
 export function filamentPlan(plan,machine,index){

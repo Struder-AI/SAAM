@@ -10,13 +10,12 @@ import rhino3dm from 'rhino3dm';
 import { fixtures, fixtureShell, disposeShell, meshAtTolerance, binarySTL, rhino6Bytes } from './fixtures.mjs';
 import { makeMesh, parseSTL } from '../../core/geom/mesh.mjs';
 import { topAt } from '../../core/geom/query.mjs';
-import { section, horizontalSlice } from '../../core/geom/slice.mjs';
+import { section, horizontalSlice, sliceFamily } from '../../core/geom/slice.mjs';
 import { signedArea } from '../../core/geom/shell.mjs';
 import { translateShell } from '../../core/print/generate.mjs';
 import { defaults, VERSION, BUILD_DATE } from '../../core/print/plan.mjs';
 import { loadMachine, startupPosition, toolBounds, checkMachinePath } from '../../core/machine/profile.mjs';
-import { fullFillResult, layerHeights } from '../../skills/full-fill/scripts/fill.mjs';
-import { planarInfillResults } from '../../skills/planar-infill/scripts/infill.mjs';
+import { sliceResults } from '../../core/print/slices.mjs';
 import { surveySurface, drapedSkinResult } from '../../skills/draped-skin/scripts/drape.mjs';
 import {createPlanningState,planContext,planFan,planRetraction,planMove,planningPath} from '../../core/path/planning.mjs';
 import { planComposition } from '../../core/path/compose.mjs';
@@ -57,14 +56,13 @@ function compose(shell, plan, results) {
 function skillTrial(shell, mode) {
   const plan = defaults(machine); plan.process.minimumLayerSeconds = 0;
   plan.skills['draped-skin'].enabled = mode === 'draped';
-  plan.skills['planar-infill'].enabled = mode === 'planar';
-  plan.skills['full-fill'].mode = mode === 'planar' ? 'solid-surfaces' : 'body';
+  // full and draped: a solid body; planar: the default slice (loops, sparse fill, solid top and bottom).
+  if (mode !== 'planar') plan.slices.assignments[0].fillDensity = 1;
   let survey = null, results;
   const time = {};
   const t = performance.now();
   if (mode === 'draped') { const m = measure(() => surveySurface(shell, plan.skills['draped-skin'], machine.nonplanar.maxAngleDeg)); survey = m.value; time.surveyMs = m.ms; }
-  const p = measure(() => mode === 'planar' ? planarInfillResults({ shell, plan, solid: true }).filter(Boolean)
-    : [fullFillResult({ shell, plan, reserve: survey })]);
+  const p = measure(() => sliceResults({ plan, machine, shells: [[null, shell, true]], volumes: new Map(), bands: [], reserves: survey ? [survey] : [] }).results);
   results = p.value; time.bodyMs = p.ms;
   if (mode === 'draped') { const m = measure(() => drapedSkinResult({ shell, plan, machine, survey,
     supportTopAt: planarSupportTopAt([{ shell }], plan.process, { allowBridge: true }),
@@ -87,7 +85,9 @@ async function worker() {
   const prepare = [];
   for (let i = 0; i < trials; i++) { const m = measure(build); prepare.push(m.ms); disposeShell(m.value); }
   result.phases.prepare = stats(prepare);
-  const zs = layerHeights(defaults(machine).process, 0, fixtures[config.name].height + fixtures[config.name].roofControlRise * 0.5625);
+  const stack = defaults(machine).process, top = fixtures[config.name].height + fixtures[config.name].roofControlRise * 0.5625;
+  const zs = sliceFamily({ base: horizontalSlice(0), pitchMm: stack.layerMm, firstLayerMm: stack.firstLayerMm }, { min: [0, 0, 0], max: [0, 0, top] })
+    .layers.map(layer => layer.slice.origin[2]);
   const points = roofPoints(config.name);
   for (const [name, fn] of [['sections', () => sectionBatch(shell, zs)], ['roof256', () => points.map(p => topAt(shell, ...p))]]) {
     try { const cold = measure(fn), samples = []; let value = cold.value;
@@ -177,7 +177,7 @@ async function main() {
   const report = { date: new Date().toISOString(), node: process.version, platform: process.platform, cpu: os.cpus()[0].model,
     logicalCpus: os.cpus().length, totalMemoryGiB: os.totalmem() / 2 ** 30, commit: git('rev-parse', 'HEAD'), dirty: git('status', '--short'),
     sourceHashes, runtimeHash: sha(sourceHashes), trials, modes, targets, results: [], fixtures: [], errors: [],
-    process: { ...defaults(machine).process, minimumLayerSeconds: 0 }, skillSettings: defaults(machine).skills,
+    process: { ...defaults(machine).process, minimumLayerSeconds: 0 }, skillSettings: defaults(machine).skills, slices: defaults(machine).slices,
     timingBoundary: 'Prepared-geometry skills, shared composition + machine checks. Excludes production plan validation, bundle I/O, runtime hashing, native reopening, Studio, delivery and OS process launch. Export/interpretation reported separately. All workers serial; one first run plus warm repeats. No forced GC.' };
   const r = await rhino3dm();
   for (const name of names) {

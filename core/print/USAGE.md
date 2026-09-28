@@ -18,8 +18,8 @@ Creating or importing makes geometry only; generation is a separate step.
 ## Recipes
 
 `get_plan_template` returns the complete proposed recipe with remembered machine
-setup, to evaluate against the request. It enables full-fill **and draped-skin**;
-disable what the part doesn't need (STL imports and gridfinity start with
+setup, to evaluate against the request. It holds one default [slice](../../skills/slice/SKILL.md)
+assignment **and enables draped-skin**; disable what the part doesn't need (STL imports and gridfinity start with
 draped-skin off).
 
 A patch uses the recipe's field names: nested objects merge, arrays replace,
@@ -43,7 +43,7 @@ the reported failure.
 
 `{"skills":{"pipe-cladding":{"spacingFactor":3}}}` spaces lines three times wider
 for an open pattern without widening the bead (default `1`). It applies to
-full-fill, planar-infill, draped-skin, supports and pipe-cladding, including
+slice assignments (their own `spacingFactor`), draped-skin and pipe-cladding, including
 regional overrides where supported, but not to single-wall vase spirals.
 
 ## Check, generate and deliver

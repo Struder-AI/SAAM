@@ -357,7 +357,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     },false);
   tool('heat_set_catalog', 'Read the packaged heat-set insert profiles and their dimensions. Use an exact insert ID with apply_heat_set and read the heat-set-inserts skill for geometry and reinforcement limits.',
     {},async()=>({inserts:INSERT_CATALOG}));
-  tool('apply_heat_set', 'Add, edit or remove a heat-set insert hole and its six-loop reinforcement with connecting fins. Read the heat-set-inserts skill for request fields and supported geometry. Rebuilds geometry and invalidates affected approvals; use request_review afterward.',
+  tool('apply_heat_set', 'Add, edit or remove a heat-set insert hole; its reinforcement (a six-loop annulus and connecting fins) is written as slice assignments ahead of the others. Read the heat-set-inserts skill for request fields and supported geometry. Rebuilds geometry and invalidates affected approvals; use request_review afterward.',
     {printId:printIdSchema,expectedRevision:z.string().min(1),request:objectSchema},async({printId,expectedRevision,request})=>{
       noApprovalFields(request);
       const {dir,state}=await read(printId,{program:false});

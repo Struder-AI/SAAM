@@ -28,7 +28,7 @@ when the person asks to fetch one or gives a Thingiverse link.
 
 ## Toolpaths
 
-Planar-infill with full-fill matches conventional slicers; draped skins, vase
+[Slices](skills/slice/SKILL.md) match conventional slicers; draped skins, vase
 walls, bridges and the other skills are SAAM's own, and a part may be a good
 opportunity to show them. Reason from the actual geometry about support, bridges,
 transitions and print order, and explain choices that affect the result; software

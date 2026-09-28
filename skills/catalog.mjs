@@ -6,7 +6,7 @@ export const SKILL_IDS = Object.freeze([
 ]);
 // Skills whose settings carry spacingFactor (core/path/spacing.mjs); slice
 // assignments carry their own.
-export const SPACING_SKILLS = Object.freeze(['draped-skin', 'supports', 'pipe-cladding']);
+export const SPACING_SKILLS = Object.freeze(['draped-skin', 'pipe-cladding']);
 
 export function skillMetadata(id, manual) {
   const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(manual)?.[1] ?? '';

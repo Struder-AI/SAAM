@@ -98,7 +98,7 @@ interfaces are not implemented. Shared
 offsets and refine curves; they do not use the intrinsic boundary-offset tool.
 The selected surface describes the substrate, and cladding adds outside it.
 The bumpy development tube is a periodic 16-by-8 spline exterior in native 3DM;
-full-fill consumes its real sections with three perimeters. Arc-length cells
+slices consume its real sections with three loops. Arc-length cells
 create partial axial passes as local area varies. Scope, mesh normal
 interpolation, sampled coverage, unsupported topology and normal-field limits are
 owned by the [cladding manual](../../skills/pipe-cladding/SKILL.md#coverage-and-pose).

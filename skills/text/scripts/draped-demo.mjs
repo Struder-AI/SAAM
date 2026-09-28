@@ -11,8 +11,9 @@ await initBundle(directory,plan,{machineId:'ultimaker-s5'});
 const state=await applyText(directory,{feature:{id:'label',text,
   fontPath:fileURLToPath(new URL('../tests/fixtures/Abel-Regular.ttf',import.meta.url)),
   sizeMm:20,align:'center',positionMm:[50,23],outlineOffsetMm:0.15,depthMm:0.8,reference:{kind:'top'}}});
-await adjustBundle(directory,{composition:{regions:[
-  {id:'finished-roof',part:'base',zStartMm:0,zEndMm:null,skills:{'planar-infill':{},'full-fill':{mode:'solid-surfaces'},'draped-skin':{}},lowerSurfaceFrom:null},
+// The base is sliced under its draped roof; the letters are skin only.
+await adjustBundle(directory,{slices:{...state.plan.slices,assignments:state.plan.slices.assignments.map(a=>({...a,part:'base'}))},composition:{regions:[
+  {id:'finished-roof',part:'base',zStartMm:0,zEndMm:null,skills:{'draped-skin':{}},lowerSurfaceFrom:null},
   {id:'raised-lettering',part:'text/label',zStartMm:0,zEndMm:null,skills:{'draped-skin':{layers:4,normalMm:0.2,sampleStepMm:0.2,surveyStepMm:0.1}},lowerSurfaceFrom:'finished-roof'}
 ]}},{expectedRevision:state.revision});
 console.log(JSON.stringify({directory,text,roofLayers:3,letterLayers:4,letterReliefMm:0.8,approvals:'none'}));

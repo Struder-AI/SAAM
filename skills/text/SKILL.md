@@ -126,9 +126,9 @@ can fail at glyph contour transitions.
 ## Curved lettering above a draped roof
 
 The lettering shape and its layers are separate choices: assign `draped-skin` to
-the lettering for curved layers (full-fill still emits horizontal ones). Apply
-raised text to the original roof with `reference: {"kind":"top"}`, then assign
-the usual body and draped finish to a region selecting `base`, and only
+the lettering for curved layers (slices still emit horizontal ones). Apply
+raised text to the original roof with `reference: {"kind":"top"}`, then give the
+slice assignments `part: 'base'`, the draped finish to a region selecting `base`, and only
 `draped-skin` to a region selecting `text/label` with `lowerSurfaceFrom` naming
 the roof region. For 0.8 mm lettering, four 0.2 mm skins form the relief.
 

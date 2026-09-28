@@ -12,7 +12,7 @@ The two manuals share the existing `skills.vase-wall` recipe and slicer;
 
 Use for an open single-wall vessel or tube. The selected solid or closed sleeve
 is a reference envelope; vase-wall deposits the wall and leaves the interior and
-roof open. A modeled bore is unnecessary. A base is a separate full-fill choice.
+roof open. A modeled bore is unnecessary. A base is a separate slice assignment.
 A looping tile can resemble a gyroid; it is a self-crossing toolpath, not an
 implicit gyroid solid. The pattern may leave openings between deposited strokes.
 
@@ -28,7 +28,7 @@ and `tiltDeg` belong to the tile, `cellsPerTurn` and `courseRiseMm` to the patte
 ## Workflow
 
 Use the [shared print tools](../../core/print/USAGE.md) for import, recipe changes, generation, Studio review
-and delivery. Enable `skills.vase-wall` and select an optional full-fill base.
+and delivery. Enable `skills.vase-wall`; keep a slice assignment for a base.
 For a base, set a positive `zStartMm` aligned to the process layer grid. Set
 `zEndMm` explicitly when the upper geometry is unsuitable; generation never
 shortens a requested wall.
@@ -72,8 +72,8 @@ does not generate a program or grant approval. Existing tile/repeat choices are
 retained unless explicitly replaced; conflicting producers and regional plans
 must be changed through the ordinary recipe tools.
 
-Use `composition.regions` for a same-part stack: assign full-fill to a base or
-cap, vase-wall to the intervening wall, and later skills to their own material
+Use `composition.regions` for a same-part stack: vase-wall on the wall's band
+(slices own the base and cap below and above it), and later skills to their own material
 regions. The [shared lifecycle](../../core/print/README.md) carries geometry, operation dependencies, machine
 checks, Studio review and the exact delivered machine bytes.
 

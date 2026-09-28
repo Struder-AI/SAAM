@@ -31,7 +31,8 @@ export function irregularLoopDemoPlan(){
   const plan=defaults();
   plan.geometry=irregularLoopHost();plan.placement={xMm:140,yMm:100};
   for(const settings of Object.values(plan.skills))settings.enabled=false;
-  plan.skills['full-fill'].enabled=true;
+  // A solid base below the vase wall.
+  plan.slices.assignments[0].fillDensity=1;
   Object.assign(plan.skills['vase-wall'],{enabled:true,endTransition:'spiral',zStartMm:.6,
     pattern:{tile:loopTile({widthCells:2.8,depthMm:4.8,samples:64,beadHeightMm:.2,exterior:'smooth'}),
       cellsPerTurn:20,courseRiseMm:.2,repeats:145,tiltDeg:0}});

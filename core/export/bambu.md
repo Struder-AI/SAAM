@@ -410,15 +410,13 @@ line width 0.4 and first/subsequent layers 0.2):
 
 This is `setup.bambu` input, not a complete plan. Colours, PLA Basic IDs,
 temperatures and the unit number are example values; confirm the actual job.
-For independent STLs, put them in separate assembly parts and assign each
-part's region to the corresponding filament. For different patterns in one
-part, use the normal regional composition and support/dependency rules.
-Neither workflow requires Bambu Studio to slice unequal diameters.
-For example, an assembly part `left-part` can have region
-`{"id":"left-body","part":"left-part","filament":0,"zStartMm":0,"zEndMm":null,"lowerSurfaceFrom":null,"skills":{"full-fill":{"mode":"body"}}}`;
-the other part uses its own region with `filament: 1`. These are ordinary
-composition inputs; use the chosen pattern's skills and support dependencies
-for the requested geometry. Do not copy the verification pads as a required part.
+For independent STLs, put them in separate assembly parts and give each part's
+[slice assignment](../../skills/slice/SKILL.md) (or region) the corresponding
+`filament`; a slice owner then uses that filament's layer heights and bead width.
+Colour bands in one part are slab owners with their own filaments. Neither
+workflow requires Bambu Studio to slice unequal diameters. For example, part
+`left-part` can have `{"id":"left-part","part":"left-part","filament":0,"fillDensity":1,…}`
+and the other part its own assignment with `filament: 1`. Do not copy the verification pads as a required part.
 
 ## Making an H2D two-colour print
 

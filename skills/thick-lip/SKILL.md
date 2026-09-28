@@ -14,7 +14,7 @@ version of this project: growing inward perimeters from a frozen rim. That
 version derived its geometry by hand for one regular hexagon, and grew every
 added perimeter purely inward from the frozen outer wall. This version
 replaces the hand-derived corner math with the same convex-section offset
-that vase-wall and full-fill already share, so it works for any convex
+that vase-wall and the slices already share, so it works for any convex
 vase-wall section, not just a hexagon — and centers every added ring set on
 the wall's own printed centerline instead of keeping it flush with the outer
 face, so whatever prints here always straddles the exact line the terminal

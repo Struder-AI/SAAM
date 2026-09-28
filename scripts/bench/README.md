@@ -35,7 +35,7 @@ Course throughput is only a provisional time estimate: mesh ledges, local folds,
 composition and checked export can change the remaining cost or reject the job.
 
 `scripts/bench/slicing.mjs` is an opt-in development measurement harness over
-the existing geometry queries, full-fill, planar-infill, draped-skin, composer,
+the existing geometry queries, slices, draped-skin, composer,
 machine checks, Griffin exporter and interpreter. It adds no product geometry
 type, approval route, toolpath viewer or manufacturing pipeline. Its twisted
 fixture is not yet a shape accepted by the public plan parser. It calls skill
@@ -69,7 +69,7 @@ they form a waist, not a constant-width helical extrusion. The large fixture
 doubles all dimensions. All three use the same skill settings: 0.2 mm layers,
 0.4 mm line width and two walls. `full` fills the planar body at 100%; `planar`
 uses 20% rectilinear infill with three top/bottom solid layers; `draped` combines
-full-fill with two 0.2 mm skins at 0.5 mm survey/stroke sampling and the S5's
+a solid slice with two 0.2 mm skins at 0.5 mm survey/stroke sampling and the S5's
 15 degree limit. Cooling delay is zero in the benchmark. Draping uses the
 same planar support-height callback as shared generation. All results are
 software-only development data, with no approval or machine execution.

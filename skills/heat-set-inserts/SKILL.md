@@ -54,14 +54,14 @@ geometry. Regeneration makes no physical fit claim.
 
 ## Deposition and composition
 
-Each bore layer has **six contiguous loops**, whatever the perimeter count and
-spacing factor. The fins are triangular gussets in vertical section: no reach at
+The reinforcement is [slice](../slice/SKILL.md) data: `apply_heat_set` writes,
+ahead of the other assignments, an annulus owner whose **six contiguous loops**
+follow the bore on every layer, and one solid owner per fin. The fins are triangular gussets in vertical section: no reach at
 the bore floor, growing to `finLengthMm` at the insertion face, tapering from
 twice `finWidthMm` at the bore wall to `finWidthMm` at the tip. Layers with less
-than one bead of reach keep the bore wall alone, and normal solid top layers
-supply the face. Fill reserves the loops and fins, so nothing deposits through
-them twice. Select full-fill or planar-infill with solid surface layers for the
-insertion zone.
+than one bead of reach keep the bore wall alone, and the part's solid top layers
+supply the face. The part's other owners wall and fill around the
+reinforcement.
 
 It works with meshes, supported spline hosts, named assembly parts and planar
 material regions, and lettering over the result keeps the holes. A vase or

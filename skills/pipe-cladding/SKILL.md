@@ -15,7 +15,7 @@ axis coaxial with the rotary remains provisional. No physical print is validated
 
 Cladding coats the finished outer boundary of a printed substrate, selected as a
 [sleeve](#select-the-sleeve). Author the substrate like any other part: a spline
-or mesh tube printed by full-fill, planar-infill, vase-wall or draped-skin, in
+or mesh tube printed by slices, vase-wall or draped-skin, in
 whole components or `composition.regions`. Keep cladding in the global skill
 settings and set `part` when selecting an assembly component. Cladding waits for
 that component's surface producers, then builds outward.
@@ -67,8 +67,8 @@ A spline tube is four patches that share one periodic cubic U basis (exterior,
 bore, and two annular ends ruled between them); [GEOMETRY.md](../../GEOMETRY.md#spline-surfaces)
 describes periodic sleeves and the tube.
 
-For a hollow vase substrate, enable vase-wall and disable full-fill unless a solid
-base is wanted, and select the same geometry's side as the sleeve. A level vase
+For a hollow vase substrate, enable vase-wall and keep a slice assignment only for a
+solid base, and select the same geometry's side as the sleeve. A level vase
 ending supplies the complete side height; a spiral ending publishes only the side
 below its lowest unfinished rim. The [finished-surface interface](../../core/path/README.md#finished-surfaces)
 binds chart geometry, material extent, coverage and source operation IDs.
@@ -161,7 +161,7 @@ node studio/server.mjs Prints/development/denso-rc8a-pipe
 
 The first is a 16 mm bore, 20.8 mm outside, 12 mm tall spline tube clad with four
 0.2 mm shells. The second is a 16-column bumpy exterior with eight vertical
-controls around a 16 mm bore, 32 mm tall, printed with three full-fill perimeters
+controls around a 16 mm bore, 32 mm tall, printed solid with three loops
 and six shells; its pseudo-random phases are fixed. Both use invented installation
 values labeled in the plan and never remembered, create no approvals and execute
 no hardware. For another provisional RC8A part, call `developmentPipePlan()` from

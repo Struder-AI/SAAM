@@ -22,14 +22,14 @@ set `pattern: null`, `pathMode: "continuous"` and `meshSleeve: null`.
 When converting an advanced recipe, reset all three explicitly.
 Disable other wall/interior producers on the same material region.
 
-For a solid base, enable [full-fill](../full-fill/SKILL.md) and set a positive
-`zStartMm` on the process layer grid. The vase wall begins above that base.
-Without a base, disable full-fill and use `zStartMm: 0`.
+For a solid base, keep a [slice](../slice/SKILL.md) assignment (`fillDensity: 1`)
+and set a positive `zStartMm` on the process layer grid; the wall claims the part
+above it. Without a base, remove the slice assignments and use `zStartMm: 0`.
 Disable unwanted default skills, including draped-skin, through ordinary recipe
 adjustment. A closed top is not part of standard vase mode.
 
-For a same-part stack, use `composition.regions` to assign full-fill to the base
-and vase-wall to the wall above it. An optional [thick lip](../thick-lip/SKILL.md)
+For a same-part stack, assign vase-wall to the wall's band in
+`composition.regions`; slice assignments own the base below it. An optional [thick lip](../thick-lip/SKILL.md)
 can follow a level-ended wall through that regional workflow.
 
 ## Input geometry: normally a solid

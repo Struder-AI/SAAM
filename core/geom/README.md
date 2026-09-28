@@ -25,15 +25,11 @@ regions; [composition](../path/README.md) consumes the resulting skill operation
 
 ## Geometry interoperability for skill authors
 
-Compiled heat-set and text geometry retains editable feature recipes. The
-builder attaches optional `planarDetails` to geometry with local deposition
-requirements. `translated(dx,dy,dz)` preserves them under placement;
-`at(region,z,{widthMm,perimeters,pitchMm})` supplies local wall/fin strokes,
-material regions, fill exclusions, an interior boundary and a wall-ownership
-predicate. The [shared planar producer](../../skills/full-fill/scripts/fill.mjs)
-consumes those details, including through sparse/solid partners and regional
-composition. This in-memory interface adds no file, exporter or scheduler.
-The [heat-set manual](../../skills/heat-set-inserts/SKILL.md) owns its constraints.
+Compiled heat-set and text geometry retains editable feature recipes. Local
+deposition around a feature is slice data, not geometry: heat-set inserts
+write slice assignments that own their volumes
+([slices.mjs](../../skills/heat-set-inserts/scripts/slices.mjs)); the
+[heat-set manual](../../skills/heat-set-inserts/SKILL.md) owns its constraints.
 
 Skills consume common geometry queries with explicit supported representations.
 The sections below define numerical assumptions, query semantics and the
@@ -132,8 +128,9 @@ Current XYZ behavior is specified under [formats](../print/README.md#formats).
 the solid's region on a slice (a plane with an orthonormal chart, the
 horizontal plane's being XY, or a spline patch in its (u,v)) as loops in that
 chart, and `sliceFamily` stacks one slice into layers.
-[layer-region.mjs](../region/layer-region.mjs) assigns each layer's region to
-owners by volume. `core/geom/query.mjs` holds `topAt`, `sampleTopSurface` and
+[slices.mjs](../print/slices.mjs) assigns each layer's region to owners by
+volume ([layer-region.mjs](../region/layer-region.mjs) sections volumes and
+solid masks). `core/geom/query.mjs` holds `topAt`, `sampleTopSurface` and
 `containsPoint`. All take closed untrimmed spline shells, validated indexed
 triangle meshes and booleans of them. Pattern skills use these queries;
 pattern code must not branch on triangle versus spline internals. Declare new

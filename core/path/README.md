@@ -76,7 +76,8 @@ collision or swept-head model. Results must describe compatible regions and
 material ownership; the composer does not infer arbitrary geometric overlap, support,
 bridge printability or a safe order from arbitrary strokes alone.
 
-Full-fill produces separate wall and interior-fill operations for each layer.
+Each slice owner produces separate wall, sparse-fill and solid-fill operations
+for each layer.
 Scanline-based interiors and draped skins label uninterrupted zigzags with
 `scanlineCell` and request `order: 'nearest-cells'`. The shared composer chooses
 the closest endpoint of either end row of each remaining cell by XYZ distance
@@ -90,13 +91,13 @@ No lookahead, travel-time scoring or heat balancing is included; see
 [D-026](../../DECISIONS.md#d-026--closest-region-entry-first-defer-heat-considerations).
 An assembly's `geometry.parts` holds named components with `geometry` and
 `xMm/yMm/zMm` translations; native geometry preserves each component's representation.
-`skills.full-fill.parts` selects the components to fill (empty means all),
-producing one skill instance per component. `skills.draped-skin.part` selects
+A slice assignment's `part` selects its component (`null` means all), producing
+one owner per component. `skills.draped-skin.part` selects
 the roof component for an assembly. Assemblies accept supported spline builders
 and validated meshes; they are not automatic boolean solids. Assign regions
 and geometry deliberately; component selection is part of the reviewed recipe.
 
-Full-fill and draped-skin do **not** weave through each other. All supporting fill
+Slices and draped-skin do **not** weave through each other. All supporting slice
 operations precede the first skin, and skin layers remain ordered. Two supporting
 columns may alternate or batch before a spanning roof. The current skin bead
 model is approximate and does not prove that an unsupported span will print.
@@ -190,10 +191,9 @@ for cross section and segment volume. Agents never need to match independent
 pitch and extrusion settings. Plan validation checks regional overrides through
 the same contract.
 
-Full-fill, planar-infill, draped-skin, supports and pipe-cladding implement it. Existing infill and support density divides the
-derived pitch as before. Full-fill walls retain the exterior contacting bead
-and space successive walls inward. Planar infill's complementary solid masks use the
-full-fill factor. Cladding uses its own factor for axial cells and helix pitch,
+Slice assignments, draped-skin and pipe-cladding implement it. Fill density divides the
+derived pitch. Slice loops retain the exterior contacting bead
+and space successive loops inward. Cladding uses its own factor for axial cells and helix pitch,
 while its substrate retains the settings of its producing patterns. Normal shell/layer separation is
 unchanged. Vase-wall's vertical spiral progression is outside this interface.
 
@@ -230,7 +230,7 @@ automatic print rejection or another maker approval. Shared travel handling
 still routes the transitions that remain. Nearest-entry guidance does not
 claim a globally optimal route or implement lookahead by itself.
 
-`planning.mjs::planTravel` is the shared travel stage for full-fill, planar-infill,
+`planning.mjs::planTravel` is the shared travel stage for slices,
 draped-skin and vase-wall. `planMove` returns updated planning state with the highest
 deposited Z from both endpoints of every emitted positive-volume segment,
 including prime lines, sloping strokes and previous components. Travel without
@@ -252,7 +252,7 @@ Nearest wall starts, alternating infill and verified combing reduce travel.
 The shared scanline fill completes disconnected components and splits each
 connected component into uninterrupted runs of rows at interval splits/merges.
 This also orders the sides of holes and concavities, rather than crossing each
-hole on every row. Full-fill, planar-infill and draped-skin
+hole on every row. Slices and draped-skin
 use the same scanline implementation. Ordering changes neither row endpoints
 nor deposition coverage; connections still use the shared travel checks.
 
@@ -267,8 +267,8 @@ operations, not retracted and directly after deposition. Planar regions check it
 with `connectClearanceMm`, the half-line-width standoff less 0.05 mm, because
 wall centerlines lie on that standoff less the offset kernel's arc chords.
 Oriented strokes have no footprint query; they connect only across the
-producer's declared `poseJoinMm` index within one operation. Full-fill and its
-callers (planar-infill, supports, regional fill), draped-skin, thick-lip and
+producer's declared `poseJoinMm` index within one operation. Slices (supports
+included), draped-skin, thick-lip and
 axial pipe/surface cladding opt in. Line networks, mapped vase patterns, rims,
 waves and welds do not: their gaps are authored. A short distance never permits
 crossing an opening or bypassing an earlier operation's clearance restriction.
@@ -298,7 +298,7 @@ Mesh sections remove numerical triangle seams with `cleanPlanarLoop` before
 offsetting. The distance bound is the existing 0.0000001 mm plane tolerance,
 tested against every original point in the replacement span; it does not use
 an angle cutoff or accumulate successive local simplifications. Closed contours
-retain winding, corners and reversals. Full-fill/planar-infill also clean offset
+retain winding, corners and reversals. Slice loops also clean offset
 deposition contours at that tolerance, while retaining the offset kernel's region
 output for booleans. No curve-resolution or Clipper precision setting is relaxed.
 

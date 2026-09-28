@@ -6,44 +6,73 @@
 //
 // Offsets run through Clipper2 offsetRegion. BR-059 item 6 (D-041) asks for
 // the curve offset with the slice as reference surface instead; measured on
-// the 0.2.0 baseline prints it was 5x to over 1000x slower per layer, so the
-// switch waits for a decision (.local/0.2.0/worker-A2.md).
+// the 0.2.0 baseline prints it was 5x to over 1000x slower per layer (DEVLOG,
+// 2026-09-28 slice skill), so the switch waits for a decision.
 import { offsetRegion } from './offset.mjs';
 import { perimeterLoops } from './perimeters.mjs';
 import { scanlineFill } from './region2d.mjs';
-import { difference, intersect, union } from './boolean.mjs';
+import { clipOpenPaths, difference, intersect, union } from './intersection.mjs';
 import { fillPatternStrokes } from './fill-patterns.mjs';
 import { lineSpacing } from '../path/spacing.mjs';
 import { cleanPlanarLoop } from '../geom/polyline.mjs';
 import { slicePoint } from '../geom/slice.mjs';
 import { requireThat, TOLERANCE } from '../geom/tolerance.mjs';
 
-// region: owned loops in the chart. solid: the part of the region filled solid
-// (null when no solid mask applies). Settings: widthMm, loops, fillDensity,
-// fillPattern, fillAngleDeg and solidDensity (solid rows), patternAngleDeg (sparse pattern),
-// fillOverlap, spacingFactor, sampleStepMm, phaseMm (the gyroid's third
-// coordinate), wallToleranceMm.
+// Loops on boundaries between owners: the one place this choice is made (the
+// owner is deciding, 2026-09-28). true: every owner lays its loops along every
+// boundary of its own region, those it shares with other owners included.
+// false: loops follow only the part's material boundary, clipped to the owner's
+// region, and fill reaches past an owner boundary by fillOverlap.
+export const LOOPS_ON_OWNER_BOUNDARIES = true;
+
+// The boundary a layer's loops and fill are measured from, and whether loops
+// are clipped to the region: see LOOPS_ON_OWNER_BOUNDARIES.
+export function loopBoundary(region, { material = region, share = null, outward = false }) {
+  if (outward) return { boundary: material, clipped: false };
+  return LOOPS_ON_OWNER_BOUNDARIES || !share ? { boundary: region, clipped: false } : { boundary: material, clipped: true };
+}
+
+// region: owned loops in the chart. material: the part's sliced material on
+// the layer (the region itself by default). share: null when the owner holds
+// all of material, else {within, claims}: its volume section (null for the
+// whole plane) and the sections it yields. loopBoundary chooses what the loops
+// follow. outward: loops grow out of material (a brim) and no fill is laid.
+// solid: the part of the region filled solid (null when no mask applies).
+// Settings: widthMm, loops, fillDensity, fillPattern, fillAngleDeg and
+// solidDensity (solid rows), patternAngleDeg (sparse pattern), fillOverlap,
+// spacingFactor, sampleStepMm, phaseMm (the gyroid's third coordinate),
+// wallToleranceMm.
 // -> {walls, infill, fill, interior, sparseRegion, solidRegion}: walls are
-// closed loops, outermost first; infill is the sparse pattern and fill the
-// solid rows, alternating in direction so each row starts where the last ended.
+// loops, outermost first (open where the region cuts them); infill is the
+// sparse pattern and fill the solid rows, alternating in direction so each
+// row starts where the last ended.
 export function layerStrokes(region, { widthMm, loops, fillDensity, fillPattern, fillAngleDeg, patternAngleDeg,
-  solidDensity = 1, fillOverlap, spacingFactor, sampleStepMm, phaseMm = 0, wallToleranceMm = 0, solid = null }) {
+  solidDensity = 1, fillOverlap, spacingFactor, sampleStepMm, phaseMm = 0, wallToleranceMm = 0, solid = null,
+  material = region, share = null, outward = false }) {
   requireThat(Number.isInteger(loops) && loops >= 0 && Number.isFinite(fillDensity) && fillDensity >= 0 && fillDensity <= 1,
     'A slice layer needs a whole loop count and a fill density from 0 to 1.');
   const pitch = lineSpacing(widthMm, { spacingFactor });
+  const { boundary, clipped } = loopBoundary(region, { material, share, outward });
   const walls = [];
   for (let ring = 0; ring < loops; ring++) {
-    const found = perimeterLoops(region, widthMm / 2 + ring * pitch);
+    const distance = widthMm / 2 + ring * pitch;
+    const found = outward ? offsetRegion(boundary, distance) : perimeterLoops(boundary, distance);
     if (!found.length) break;
     // Simplify only the finished deposition contour to machine precision; the
     // offset region keeps owning material topology.
-    for (const loop of found) walls.push({ role: ring === 0 ? 'perimeter' : 'perimeter-inner', closed: true,
-      points: cleanPlanarLoop(loop, wallToleranceMm === 0 ? TOLERANCE.plane : wallToleranceMm), beadWidthMm: widthMm });
+    const cleaned = found.map(loop => cleanPlanarLoop(loop, wallToleranceMm === 0 ? TOLERANCE.plane : wallToleranceMm));
+    for (const { points, closed } of clipped ? clipLoops(cleaned, region, widthMm) : cleaned.map(points => ({ points, closed: true })))
+      walls.push({ role: ring === 0 ? 'perimeter' : 'perimeter-inner', closed, points, beadWidthMm: widthMm });
   }
   // Fill starts half a bead inside the last loop, less the overlap that welds
-  // fill to loops.
+  // fill to loops; past a boundary between owners it reaches by the overlap.
   const inset = widthMm * (loops + 0.5 - fillOverlap) - widthMm / 2 + Math.max(0, loops - 1) * (pitch - widthMm);
-  const interior = offsetRegion(region, loops > 0 ? -(widthMm / 2 + inset) : -widthMm / 2);
+  let interior = outward ? [] : offsetRegion(boundary, loops > 0 ? -(widthMm / 2 + inset) : -widthMm / 2);
+  if (clipped && interior.length) {
+    const reach = widthMm * (0.5 - fillOverlap);
+    if (share.within) interior = intersect(interior, offsetRegion(share.within, -reach));
+    if (share.claims.length) interior = difference(interior, offsetRegion(share.claims, reach));
+  }
   const dense = fillDensity >= 1;
   const solidRegion = dense ? interior : solid?.length ? intersect(interior, solid) : [];
   const sparseRegion = dense ? [] : solid ? difference(interior, solid) : interior;
@@ -55,13 +84,38 @@ export function layerStrokes(region, { widthMm, loops, fillDensity, fillPattern,
   return { walls, infill, fill, interior, sparseRegion, solidRegion };
 }
 
-// Material the loops of a layer cover: the band from the region's boundary
-// inward, one ring per loop when loops are spaced wider than a bead.
-export function loopMaterial(region, { widthMm, loops, spacingFactor }) {
+const pathLength = points => points.reduce((sum, p, i) => i ? sum + Math.hypot(p[0] - points[i - 1][0], p[1] - points[i - 1][1]) : 0, 0);
+const same = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) <= 1e-7;
+// Closed loops clipped to a region. A loop wholly inside stays closed; a cut
+// loop becomes open pieces, the two meeting at its start joined into one.
+// Pieces shorter than half a bead are dropped: they would deposit a blob.
+function clipLoops(loops, region, widthMm) {
+  const out = [];
+  for (const loop of loops) {
+    const path = [...loop, loop[0]], total = pathLength(path);
+    const pieces = clipOpenPaths([path], region);
+    if (total - pieces.reduce((sum, piece) => sum + pathLength(piece), 0) <= 1e-6 * Math.max(1, total)) { out.push({ points: loop, closed: true }); continue; }
+    const head = pieces.find(p => same(p[0], loop[0])), tail = pieces.find(p => p !== head && same(p.at(-1), loop[0]));
+    const joined = head && tail ? [[...tail, ...head.slice(1)], ...pieces.filter(p => p !== head && p !== tail)] : pieces;
+    for (const points of joined) if (pathLength(points) >= widthMm / 2) out.push({ points, closed: false });
+  }
+  return out;
+}
+
+// Material the loops of a layer cover: the band inward from the loop boundary,
+// one ring per loop when loops are spaced wider than a bead, within the region.
+// options: {material, share, outward} as for layerStrokes.
+export function loopMaterial(region, { widthMm, loops, spacingFactor }, options = {}) {
+  const { boundary, clipped } = loopBoundary(region, options);
+  if (options.outward) return region;
+  const band = loopBand(boundary, { widthMm, loops, spacingFactor });
+  return clipped ? intersect(band, region) : band;
+}
+function loopBand(material, { widthMm, loops, spacingFactor }) {
   const pitch = lineSpacing(widthMm, { spacingFactor });
-  if (pitch === widthMm) return difference(region, offsetRegion(region, -widthMm * loops));
-  return union(Array.from({ length: loops }, (_, ring) => difference(ring ? offsetRegion(region, -ring * pitch) : region,
-    offsetRegion(region, -ring * pitch - widthMm))).flat(), []);
+  if (pitch === widthMm) return difference(material, offsetRegion(material, -widthMm * loops));
+  return union(Array.from({ length: loops }, (_, ring) => difference(ring ? offsetRegion(material, -ring * pitch) : material,
+    offsetRegion(material, -ring * pitch - widthMm))).flat(), []);
 }
 
 // Material fill strokes cover: their region grown by half a bead. Coverage

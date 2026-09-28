@@ -21,8 +21,8 @@ and arc-tolerance options remain separate, as for closed region offsets.
 and a signed distance: positive expands material, negative erodes it. Pass the
 whole region together, including CCW outer/island loops and CW holes. Nonzero
 winding determines material; loop order and seams do not assign ownership.
-The `region2d.mjs` compatibility export is an alias to this exact function. Full-fill,
-planar-infill, draped-skin, vase-wall and shared rim coverage/travel all use it.
+The `region2d.mjs` compatibility export is an alias to this exact function. Slices,
+draped-skin, vase-wall and shared rim coverage/travel all use it.
 Draped-skin uses an XY footprint inset.
 
 Offsets return closed material polygons: an inset yields remaining material,
@@ -51,8 +51,7 @@ offsetting and remain there. Native mesh/spline sectioning and scanline stroke
 construction likewise keep their appropriate geometry algorithms; universal
 Clipper2 integration does not mean flattening those operations into polygons.
 
-`perimeterLoops` in [perimeters.mjs](./perimeters.mjs) supplies deposition contours
-for full-fill and planar-infill. It retains a single central closed track when
+`perimeterLoops` in [perimeters.mjs](./perimeters.mjs) supplies slice loops. It retains a single central closed track when
 an outer/hole pair meets and material erosion loses that hole, without changing
 region erosion or fill masks. General medial-axis, open centerline and
 variable-width gap fill are unsupported.
@@ -134,11 +133,11 @@ in the inputs. This is a precision-grid contract, not exact arithmetic or a
 guarantee about unsampled spline/mesh detail.
 
 Existing imports through [boolean.mjs](./boolean.mjs) alias this tool:
-full-fill, planar-infill, draped reservations and regional composition, including
+slices, draped reservations and regional composition, including
 vase/cap transitions. Planar offsets and experimental surface-offset swept-band
 cleanup use this same kernel. Mesh/spline sectioning and sampled level sets
 retain their separate geometry-construction roles.
-Full-fill's bead-coverage expansion uses the existing 0.001 mm `TOLERANCE.chord`
+Slice fill's bead-coverage expansion uses the existing 0.001 mm `TOLERANCE.chord`
 arc target. This construction avoids artificial corner gaps without deleting
 material or changing deposition strokes; the
 [construction correction](../../DEVLOG.md#2026-09-09--intersection-construction-correction)
@@ -172,13 +171,11 @@ draping; an assembly is not a boolean union.
 
 ### Temporary process cavities
 
-A native shell can carry generation-local `processReservations`. Each entry
-supplies a `footprint` and `regionAt(z)` through the existing reservation clipper.
-Planar walls and interiors subtract that region, including precomputed solid
-masks. An optional `solidRegionAt(z)` assigns an enclosing solid mask through
-planar-infill's existing complementary full-fill producer. The same material
-cannot also receive sparse deposition. These callbacks are reconstructed from
-the locked recipe; they are not a new persisted geometry or artifact format.
+A process reservation (a plastic-weld shaft) supplies a `footprint` and
+`regionAt(z)`; generation passes it to the slices, which subtract it from the
+part's material through the reservation clipper, and its `solidRegionAt(z)`
+keeps the envelope around it solid. Reservations are rebuilt from the locked
+recipe, not persisted.
 
 A `completion: {z, region, operationId}` declares the material surface supplied
 when the process finishes. Regional surface publication includes completed
@@ -217,9 +214,8 @@ is a process choice and does not change saved geometry. The
 [text manual](../../skills/text/SKILL.md#material-selections-and-toolpath-skills)
 owns creation and editing of these prepared partitions.
 
-`core/print/regions.mjs` resolves those assignments through the existing skill
-generators. Full-fill can own separate base and cap regions; planar-infill and
-full-fill solid-surfaces can share complementary material in another region.
+`core/print/regions.mjs` resolves those assignments for vase-wall, thick-lip and
+draped-skin; flat layers are slice assignments, which yield a region's band.
 Assignments retain their component layer grid and dependencies. Conflicting
 ownership, unassigned height boundaries, unknown references and cycles are rejected.
 Bridging over hollow or sparse material is a process choice assessed in the
@@ -229,9 +225,8 @@ Where a drape crosses a void, its initial volume uses the
 assigned supporting components' layer grid, as in whole-component composition;
 this is a bead-volume approximation, not a claim of deposited material in the void.
 
-`lowerSurfaceFrom` consumes a preceding region's published material top. It can
-bound horizontal full fill above a nonflat draped surface without changing those
-paths into curved layers. The producer supplies a footprint, surface query,
+`lowerSurfaceFrom` consumes a preceding region's published material top (flat
+layers above a nonflat surface wait for height-field slices). The producer supplies a footprint, surface query,
 sampled field and operation dependencies. The selected consumer geometry supplies
 the other boundaries. A referenced surface must cover the requested region;
 unknown areas are rejected instead of silently omitted. Published sparse or rim
@@ -259,8 +254,8 @@ as supported single-valued height fields; arbitrary undercuts and swept-head
 clearance are outside this contract.
 
 The synthetic [regional stack fixture](../tests/fixtures/regional-stack.mjs)
-exercises base, vase wall, cap, sparse/solid body, wavy draped roof, and horizontal
-full fill above the roof through the shared pipeline. Regional settings, surface
+exercises slab owners, vase wall, cap, sparse/solid body and a wavy draped roof
+through the shared pipeline. Regional settings, surface
 references and runtime helpers participate in the existing approval hashes;
 they introduce no new approval or artifact format. Studio shows effective regional
 settings and surface references. Tests and fixture calibration never authorize hardware.

@@ -1,9 +1,9 @@
 import {planarWallTolerance} from '../core/machine/rules.mjs';
-import {filamentPlan} from '../core/machine/filaments.mjs';
+import {filamentPlan,assignedFilaments} from '../core/machine/filaments.mjs';
 // Human-readable review of the same locked recipe used by every adapter.
 const supportSkills=['supports'];
 const globalSkills=[...supportSkills,'pipe-cladding','wave-overhangs'];
-export const skillName=name=>({'line-network':'Line network','pipe-cladding':'Surface cladding','full-fill':'Full fill','planar-infill':'Planar infill','vase-wall':'Vase wall','draped-skin':'Draped skin',supports:'Supports'}[name]??name);
+export const skillName=name=>({'line-network':'Line network','pipe-cladding':'Surface cladding','vase-wall':'Vase wall','draped-skin':'Draped skin',supports:'Tree supports'}[name]??name);
 export const pathModeName=settings=>settings?.pathMode==='segmented'?'Segmented paths':settings?.pattern?'Continuous sleeve pattern':'Vase wall';
 export const hasSkill=(plan,name)=>globalSkills.includes(name)?Boolean(plan.skills?.[name]?.enabled):plan.composition?.regions?.length
   ?plan.composition.regions.some(region=>Object.hasOwn(region.skills,name))
@@ -13,21 +13,19 @@ export const claddingPatternName=settings=>settings.pattern==='crossed-helices'?
 export function claddingSubstrateName(plan){
   const clad=plan.skills['pipe-cladding'];
   const regions=plan.composition?.regions??[],part=clad.part;
+  const sliced=(plan.slices?.assignments??[]).some(a=>a.preset!=='support'&&(a.part===null||a.part===part))?['Slices']:[];
   const names=regions.length?regions.filter(r=>r.part===part).flatMap(r=>Object.keys(r.skills)):
-    ['full-fill','planar-infill','vase-wall','draped-skin'].filter(name=>{
-      const s=plan.skills[name];return s.enabled&&(plan.geometry.shape!=='assembly'||(s.parts?!s.parts.length||s.parts.includes(part):s.part===part));
+    ['vase-wall','draped-skin'].filter(name=>{
+      const s=plan.skills[name];return s.enabled&&(plan.geometry.shape!=='assembly'||s.part===part);
     });
-  return [...new Set(names)].map(skillName).join(' + ')+' · finished surface';
+  return [...new Set([...sliced,...names.map(skillName)])].join(' + ')+' · finished surface';
 }
 const fields={
   lineSpacingMm:['Wave spacing along surface',' mm'],beadHeightMm:['Bead height',' mm'],speedMmS:['Deposition speed',' mm/s'],
   fanPercent:['Part cooling','%'],propagationStepMm:['Surface propagation step',' mm'],
   spacingFactor:['Line spacing','× nominal spacing; bead width unchanged'],
-  pattern:['Pattern',''],interfaceDensity:['Interface fraction',''],
-  interfaceLayers:['Interface layers',''],topGapMm:['Minimum top gap',' mm'],xyGapMm:['Part clearance',' mm'],treeChordMm:['Branch contour tolerance',' mm'],
-  mode:['Fill mode',''],bottomLayers:['Solid bottom layers',''],topLayers:['Solid top layers',''],
-  perimeters:['Walls',''],density:['Infill fraction',''],fillAnglesDeg:['Fill directions','°'],fillOverlap:['Wall overlap (bead fraction)',''],
-  minFeatureMm:['Smallest sampled feature',' mm'],layers:['Skin layers',''],normalMm:['Skin thickness per layer',' mm'],
+  pattern:['Pattern',''],topGapMm:['Minimum top gap',' mm'],xyGapMm:['Part clearance',' mm'],treeChordMm:['Branch contour tolerance',' mm'],
+  perimeters:['Walls',''],layers:['Skin layers',''],normalMm:['Skin thickness per layer',' mm'],
   strokeAngleDeg:['Stroke direction','°'],sampleStepMm:['Maximum sampling step',' mm'],surveyStepMm:['Surface survey grid',' mm'],
   maxAngleDegOverride:['Experimental angle override','°'],zStartMm:['Start above component base',' mm'],zEndMm:['End above component base',' mm'],
   toleranceMm:['Contour tolerance',' mm'],boundaryToleranceMm:['Boundary tolerance',' mm'],offsetTightness:['Offset tightness',' · 0 loose / 1 exact'],endTransition:['Wall ending','']
@@ -112,10 +110,9 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
     }
     if(key==='assignments'){
       for(const a of v){
-        rows.push([prefix+' · '+a.id,a.style+' · '+a.reason],
+        rows.push([prefix+' · '+a.id,a.reason],
           [a.id+' · Contact height',a.contactZMm+' mm above bed']);
-        if(a.style==='standard')rows.push([a.id+' · Footprint',a.footprint.map(loop=>loop.map(p=>'('+p.join(', ')+')').join(' → ')).join('; ')+' mm from part placement']);
-        else for(const n of a.treeNodes)rows.push([a.id+' · '+n.id,n.point.join(', ')+' mm · radius '+n.radiusMm+' mm · '+(n.parent===null?'bed root':'from '+n.parent)]);
+        for(const n of a.treeNodes)rows.push([a.id+' · '+n.id,n.point.join(', ')+' mm · radius '+n.radiusMm+' mm · '+(n.parent===null?'bed root':'from '+n.parent)]);
       }
       continue;
     }
@@ -129,6 +126,24 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
   }
   return rows;
 }
+// Slice assignments in definition order: where each owner slices and how.
+const volumeName=v=>v.kind==='slab'?(v.toMm===null?v.fromMm+' mm to top':v.fromMm+'–'+v.toMm+' mm'):v.kind==='geometry'?'assigned volume'
+  :v.kind==='outline'?'first-layer outline':'footprint to '+v.contactZMm+' mm';
+export function sliceSummary(a){
+  if(a.preset==='brim')return a.loops+(a.loops===1?' loop':' loops')+' around the first-layer outline';
+  const fill=a.fillDensity>=1?'solid':a.fillDensity===0?'no fill':Math.round(a.fillDensity*100)+'% '+a.fillPattern+' fill';
+  const solid=a.fillDensity<1&&(a.solidBottom||a.solidTop)?[a.preset==='support'?a.solidTop+' interface layers':a.solidBottom+' bottom / '+a.solidTop+' top solid layers']:[];
+  return [a.loops+(a.loops===1?' loop':' loops'),fill,...solid].join(' · ');
+}
+export function sliceRows(plan){
+  return (plan.slices?.assignments??[]).flatMap(a=>[
+    [a.id,(a.preset==='support'?'Support':(a.part??'Part'))+' · '+(a.within.length?a.within.map(volumeName).join(' within '):'the rest of the part')+' · '+sliceSummary(a)],
+    [a.id+' · Fill directions',a.fillAnglesDeg.join(', ')+'°'+(a.rotateFill&&a.fillAnglesDeg.length>1?', alternating by layer':'')],
+    ...(a.stack?[[a.id+' · Layers',a.stack.firstLayerMm+' mm first, then '+a.stack.layerMm+' mm']]:[]),
+    ...(a.filament!==null?[[a.id+' · Filament',String(a.filament+1)]]:[]),
+    ...(a.spacingFactor!==1?[[a.id+' · Line spacing',a.spacingFactor+'× nominal spacing; bead width unchanged']]:[])
+  ]);
+}
 export function regionRows(plan){
   return (plan.composition?.regions??[]).flatMap(region=>[
     [region.id,(region.part??'Part')+' · '+(region.zEndMm===null?region.zStartMm+' mm to geometry top':region.zStartMm+'–'+region.zEndMm+' mm')+' · '+Object.keys(region.skills).map(name=>name==='vase-wall'?pathModeName({...plan.skills[name],...region.skills[name]}):skillName(name)).join(' + ')],
@@ -139,7 +154,7 @@ export function recipeRows(plan,machine){
   const composition=plan.composition,regions=composition?.regions??[],rows=[];
   if(plan.setup.bambu){
     rows.push(['Bambu startup',plan.setup.bambu.fast_start?'Fast — reuse calibration; skip optional scans and vibration tests':'Full — calibration follows startup controls / printer choices']);
-    const used=[...new Set([plan.setup.bambu.filament,...regions.map(r=>r.filament)].filter(i=>i!==undefined))];
+    const used=[...new Set([plan.setup.bambu.filament,...assignedFilaments(plan)].filter(i=>i!==undefined))];
     const change=machine.outputs.find(o=>o.id===plan.output)?.constraints;
     if(used.length>1&&change?.materialChangeMode==='single-nozzle-ams')rows.push(['AMS colour changes',`${change.materialChangeFlushMm3} mm³ purged into the rear chute per change, plus priming. No tower; service time/material are additional to part totals.`]);
     for(const id of used){
@@ -150,7 +165,7 @@ export function recipeRows(plan,machine){
     }
     for(const region of regions)rows.push([region.id+' · Filament',String((region.filament??plan.setup.bambu.filament)+1)]);
   }
-  rows.push(['Machine · Planar wall tolerance',planarWallTolerance(machine)+' mm']);
+  rows.push(['Machine · Planar wall tolerance',planarWallTolerance(machine)+' mm'],...sliceRows(plan));
   if(composition){
     rows.push(['Layer batching',composition.batchLayers+' layer(s) per component'],
       ['Requested operation order',composition.order.length?composition.order.join(' → '):'Shared dependency order'],

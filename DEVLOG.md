@@ -1,5 +1,83 @@
 # Development log
 
+## 2026-09-28 — Slice skill (0.2.0 phase 2, step 2): shared sections, part-based solids, support preset
+
+- Loops on boundaries between owners are one switch,
+  `LOOPS_ON_OWNER_BOUNDARIES` in [layer-strokes.mjs](core/region/layer-strokes.mjs)
+  (`loopBoundary`), while the owner decides. It is on: every owner lays its
+  loops along every boundary of its region, as in step 1. Off, loops follow
+  only the part's sliced material, clipped to the owner's region (open where
+  cut), and fill reaches past owner boundaries by `fillOverlap`. Solid top
+  and bottom layers come from the part's sliced material (section less region
+  bands and reservations) in [slices.mjs](core/print/slices.mjs), so
+  alternating owners never make an overlap solid. `solidDensity` is gone; the `support` preset prints its
+  interface rows at a fixed 0.8.
+- `ownedLayers` cuts each part section, sliced material and volume section
+  once per height and shares them among owners (`layerRegion` and
+  `validateOwner` are removed from layer-region.mjs); leader probes skip owner
+  pairs whose volume boxes do not meet. Heat-set generation went from 2.9 s to
+  0.87 s (0.50 s for the 7c44c79 tree on the same machine: the remainder is
+  485 operations against 157 and per-owner strokes). Surface-drape and
+  wavy-denso were not slower: side by side with the baseline tree under the
+  same load, 103.8 s against 115.0 s and 42.0 s against 45.4 s; the recorded
+  46 s and 22 s were taken on a less loaded machine.
+- Support preset: `{ kind: 'support', footprint, contactZMm, topGapMm,
+  xyGapMm }` replaces the supports skill's standard style (bed to contact less
+  the gap, clearance checked against every part section); `skills.supports`
+  keeps tree branches, sliced by the same preset. `supportDependencies` orders
+  both before what they hold up.
+- A slice owner uses its filament's process (layer grid, bead width);
+  `assignedFilaments` (filaments.mjs) counts slice and region filaments for
+  bounds, selections, the Bambu export and Studio rows. Bundle state lists the
+  `slice` skill. Studio shows slice assignments (settings.mjs `sliceRows`)
+  and slice layers.
+- Heat-set fins use `fillOverlap: 0`. Heat-set inserts against the 7c44c79
+  baseline: annulus loops 7,220 mm (old heat-set-loop 7,213); the body's two
+  loops now also run around each annulus and fin, 26,416 mm of body loops
+  against 20,290 (+6,126); body fill 22,090 mm (22,896) and infill 29,363
+  (30,042) give up that band; fins 1,796 mm (3,006: old fin rows all ran one
+  way, joined by extruded diagonals; now serpentine with 0.4 mm links);
+  6,966.8 mm³ (6,691.8, +4.1%); 485 operations (157: every fin and annulus is
+  its own owner); travel 13,678 mm (12,994). With the switch off the body
+  loops match the baseline (20,290 mm) and loops total 27,502 mm. Starter, surface-drape and wavy-denso:
+  same layers, operations, per-role length and volume, and travel.
+- Tests updated and run one file at a time (all pass unless noted): workflow,
+  mesh-boundary, regional-workflow (fixture: the upper part no longer consumes
+  the roof's lower surface, which waits for height-field slices; it stands at
+  x 10), denso, bambu, bambu-dual (5 of 6; the diameter-pair test fails at
+  f147053 too: it sets `heightMm` on a spline), bambu-h2d-change,
+  bambu-x1-change, bambu-project, dobot, vase. bambu-hardware-regression fails:
+  the colour print deposits the same segments except loop joins (705.663 →
+  705.096 mm³, travel 250.5 → 213.5 mm, walls start on the inner loop after
+  a tool change) and the dual print's right part now starts at its own layer 0
+  (first-layer speed, 45° fill) where the regional grid numbered it 1
+  (102.94 → 103.04 mm³). The hashes guard physically tested files and are left
+  for review.
+- A slice `part` is any geometry selection (a component or a prepared
+  material part such as `base` or `text/label`); `sliceShells` builds the
+  named ones and plan validation rejects two cut parts that share material.
+  Loops a boundary between owners cuts open are laid in the order found.
+- Rewired: nudge-cup (slab lip owner, vase band, solid foot under a skin
+  region; it generates again, 14,344 mm³), the draped lettering demo (slices
+  on `base`), the vase irregular demo, gridfinity creation, the plastic-weld
+  example (solid by default: same 9,786 moves and 3,514.743 mm³ as 7c44c79;
+  `--sparse` is now the default slice with solid top and bottom, 1,653 mm³
+  against planar-infill's 1,347), `scripts/bench/slicing.mjs` and
+  `diagnose-regions.mjs`, query.mjs's deferred forms (vase-wall only), the
+  MCP `apply_heat_set` description and the package description.
+  `tools/denso/*` still imports the removed full-fill producer (stale).
+- Exercised in scratch plans: a brim (five loops, 352.8 mm around a 20 × 12 mm
+  box, printed first when defined first), two overlapping geometry owners
+  alternating (the follower reports its leader; solid layers only at the part's
+  top and bottom), a support under a ledge (19 layers to 3.8 mm, two interface
+  layers), multi-filament owners (Bambu fixtures). Studio shows a support-preset
+  print: slice rows, `Layers 32 flat`, body summary.
+- Docs: [slice SKILL.md](skills/slice/SKILL.md) (146 lines) replaces full-fill,
+  planar-infill (SKILL and BUILDER) and bed-adhesion (433 lines at 7c44c79);
+  the supports manual keeps tree branches (62 lines, was 137 + 26 BUILDER).
+  Other manuals lose their full-fill/planar-infill references (4,580 → 4,564
+  lines). BR-054 notes the brim preset; a test and a brim bead of its own remain.
+
 ## 2026-09-28 — Slice skill (0.2.0 phase 2, step 1): horizontal slices replace full-fill and planar-infill
 
 - One versioned list of slice assignments, `plan.slices` (version 1), replaces

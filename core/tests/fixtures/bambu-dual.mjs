@@ -1,5 +1,6 @@
 import {loadMachine} from '../../machine/profile.mjs';
 import {defaults} from '../../print/plan.mjs';
+import {sliceAssignment} from '../../print/slices.mjs';
 import {boxMesh} from './mesh.mjs';
 import {splineBox} from './spline-shapes.mjs';
 
@@ -12,7 +13,8 @@ export function mixedNozzleFixture(){
   ]});
   plan.geometry={shape:'assembly',parts:['left-part','right-part'].map((id,i)=>({id,xMm:i*20,yMm:0,zMm:0,geometry:splineBox({runMm:8,widthMm:8,heightMm:1.2})}))};
   plan.placement={xMm:120,yMm:110};plan.process.minimumLayerSeconds=0;
-  plan.composition.regions=['left-part','right-part'].map((part,filament)=>({id:part,part,filament,zStartMm:0,zEndMm:null,lowerSurfaceFrom:null,skills:{'full-fill':{mode:'body'}}}));
+  plan.skills['draped-skin'].enabled=false;
+  plan.slices.assignments=['left-part','right-part'].map((part,filament)=>sliceAssignment({id:part,part,filament,fillDensity:1}));
   return {plan,machine};
 }
 

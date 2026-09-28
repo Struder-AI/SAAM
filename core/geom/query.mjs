@@ -10,9 +10,9 @@ export function requireGeometry(geometry, capabilities) {
   if(geometry.kind==='boolean')for(const operand of geometry.operands)requireGeometry(operand,capabilities);
   return geometry;
 }
-// Deferred z-only forms, kept for callers phase 2 of 0.2.0 replaces (full-fill,
-// planar-infill, supports) and for vase-wall and its test. New code sections
-// with section(geometry, slice) in slice.mjs.
+// Deferred z-only forms, kept only for vase-wall and its test until vase-wall
+// sections by slice. New code sections with section(geometry, slice) in
+// slice.mjs.
 export function sectionGeometry(geometry,z,options={}) {
   requireGeometry(geometry,['planar-section']);
   return section(geometry,horizontalSlice(z),options);

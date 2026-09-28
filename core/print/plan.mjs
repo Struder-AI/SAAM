@@ -23,7 +23,7 @@ import {gridfinityTemplate,validateGridfinityRecord} from '../../skills/gridfini
 import {textTemplate,validateTextRecord} from '../geom/text-record.mjs';
 import {blobFieldTemplate,validateBlobFieldRecord} from '../geom/blob-field-record.mjs';
 import {booleanSolidTemplate,validateBooleanSolid,booleanShell} from '../geom/boolean-solid.mjs';
-import {geometrySelections} from '../geom/selections.mjs';
+import {geometrySelections,selectionsOverlap} from '../geom/selections.mjs';
 import {lineSpacing} from '../path/spacing.mjs';
 import {SPACING_SKILLS} from '../../skills/catalog.mjs';
 import {defaultSlices,validateSlices} from './slices.mjs';
@@ -287,7 +287,13 @@ export function validatePlanSelections(plan,machine) {
   const regional=plan.composition.regions.length>0;
   const skin=skills['draped-skin'],network=skills['line-network'],vase=skills['vase-wall'],lip=skills['thick-lip'];
   const sliced=plan.slices.assignments.length>0;
-  validateSlices(plan.slices,{parts:geometry.shape==='assembly'?geometry.parts.map(p=>p.id):[],lineWidthMm:plan.process.lineWidthMm});
+  // A slice part is a geometry selection: a component or a prepared material
+  // part; two cut parts never share material.
+  const selections=geometrySelections(geometry);
+  validateSlices(plan.slices,{parts:[...selections.keys()].filter(key=>key!==null),lineWidthMm:plan.process.lineWidthMm,firstLayerMm:plan.process.firstLayerMm});
+  const cut=[...new Set(plan.slices.assignments.filter(a=>a.preset!=='support').flatMap(a=>a.part!==null?[a.part]:geometry.shape==='assembly'?geometry.parts.map(p=>p.id):[null]))];
+  for(const [i,a] of cut.entries())for(const b of cut.slice(i+1))requireThat(!selectionsOverlap(selections.get(a),selections.get(b)),
+    `Slice assignments cut overlapping parts ${a??'the whole print'} and ${b??'the whole print'}; give that material to one of them.`);
   // Course, group, stroke and point counts follow the authored frame; only the
   // shape of each entry is checked.
   requireThat(typeof network.enabled==='boolean'&&Number.isInteger(network.layers)&&network.layers>=1&&Array.isArray(network.networks),'Invalid line-network settings.');
@@ -310,8 +316,8 @@ export function validatePlanSelections(plan,machine) {
       ids.add(part.id);
       requireThat(part.geometry?.shape!=='assembly','Nested assemblies are not supported.');
       number(part.xMm,-200,200,'Component X');number(part.yMm,-200,200,'Component Y');number(part.zMm,0,200,'Component Z');
-      const assigned=plan.composition.regions.find(r=>r.part===part.id&&r.filament!==undefined);
-      const child=structuredClone(assigned?filamentPlan(plan,machine,assigned.filament):plan);child.geometry=part.geometry;
+      const assigned=[...plan.composition.regions.filter(r=>r.part===part.id).map(r=>r.filament),...plan.slices.assignments.filter(a=>a.part===part.id).map(a=>a.filament??undefined)].find(f=>f!==undefined);
+      const child=structuredClone(assigned!==undefined?filamentPlan(plan,machine,assigned):plan);child.geometry=part.geometry;
       child.placement={xMm:placement.xMm+part.xMm,yMm:placement.yMm+part.yMm};
       child.skills['draped-skin'].part=null;
       child.slices={...child.slices,assignments:child.slices.assignments.filter(a=>a.part===null||a.part===part.id).map(a=>({...a,part:null}))};

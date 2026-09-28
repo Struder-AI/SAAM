@@ -144,7 +144,7 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   assert.ok(names.includes('request_review'));
   assert.ok(!names.includes('confirm_geometry'));
   assert.ok(!names.some(name => /^(approve|post_process|compile_plan)$/.test(name)));
-  assert.ok((await call('list_skills')).some(skill => skill.id === 'full-fill'));
+  assert.ok((await call('list_skills')).some(skill => skill.id === 'slice'));
   assert.ok((await call('list_skills')).some(skill => skill.id === 'supports'));
   assert.ok((await call('list_skills')).some(skill => skill.id === 'pipe-cladding'));
   assert.ok((await call('list_skills')).some(skill => skill.id === 'mesh-tools' && skill.kind === 'geometry'));
@@ -392,10 +392,10 @@ test('MCP reopens shared nested names and rejects ancestor junctions and invalid
 test('MCP preserves the shared regional recipe and configurable composition without a narrower transport schema', async t => {
   const { call, printsRoot } = await fixture(t), printId = 'Regional Plan';
   const plan = await smallPlan(call);
-  plan.composition.regions = [{ id: 'body', part: null, zStartMm: 0, zEndMm: null,
-    skills: { 'planar-infill': { density: 0.3 } }, lowerSurfaceFrom: null }];
+  plan.composition.regions = [{ id: 'wall', part: null, zStartMm: 0.6, zEndMm: null,
+    skills: { 'vase-wall': { endTransition: 'level' } }, lowerSurfaceFrom: null }];
   const created = await call('create_print', { printId, kind: 'shell', machineId: 'ultimaker-s5', plan });
-  assert.deepEqual(created.skills, ['planar-infill']);
+  assert.deepEqual(created.skills, ['slice', 'vase-wall']);
   const checked = await call('check_path', { printId });
   assert.ok(checked.composition.operationOrder.length > 0);
   const changed = await call('adjust_print', { printId, expectedRevision: created.revision,
@@ -403,7 +403,7 @@ test('MCP preserves the shared regional recipe and configurable composition with
   const reopened = await call('get_print', { printId, includeGeometry: true });
   assert.deepEqual(reopened.plan.composition.regions, plan.composition.regions);
   assert.equal(reopened.plan.composition.batchLayers, 2);
-  assert.deepEqual(reopened.skills, ['planar-infill']);
+  assert.deepEqual(reopened.skills, ['slice', 'vase-wall']);
   assert.notEqual(changed.revision, created.revision);
   await assert.rejects(access(resolve(printsRoot, printId, 'path.saampath')), { code: 'ENOENT' });
 });

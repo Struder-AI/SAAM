@@ -12,7 +12,7 @@ import {vaseWallResult} from '../scripts/vase.mjs';
 
 function vasePlan(machine=loadMachine(),geometry=boxMesh(8,6,1)) {
   const plan=defaults(machine);plan.geometry=geometry;
-  plan.skills['full-fill'].enabled=false;plan.skills['draped-skin'].enabled=false;plan.skills['vase-wall'].enabled=true;plan.skills['vase-wall'].endTransition='spiral';
+  plan.slices.assignments=[];plan.skills['draped-skin'].enabled=false;plan.skills['vase-wall'].enabled=true;plan.skills['vase-wall'].endTransition='spiral';
   // These regressions assert the exact per-section wall (kernels, topology,
   // section-following within boundaryToleranceMm).
   plan.skills['vase-wall'].sleeveToleranceMm=0;

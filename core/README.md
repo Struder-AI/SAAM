@@ -50,8 +50,8 @@ order and transitions without duplicate deposition. Report the unsupported
 transition, support need or geometry constraint. A vase-to-cap transition, for
 example, needs a level interface and support/bridging assessment. The user's
 acceptance example is a flat base and vase wall, flat cap, normal walls/infill
-under a wavy roof, draped roof, and horizontal full fill above that roof with a
-wavy bottom. Region interfaces therefore include nonflat surfaces as well as
+under a wavy roof, draped roof, and flat layers above that roof with a wavy bottom (waiting for
+height-field slices). Region interfaces therefore include nonflat surfaces as well as
 height bands; see [material regions](./region/README.md#material-regions-and-shared-interfaces).
 
 Mesh and NURBS backends share geometry queries, downstream regions, composition,

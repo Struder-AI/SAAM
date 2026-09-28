@@ -10,6 +10,7 @@ import {gcodeLines} from './gcode-lines.mjs';
 import {packZip,unpackZip,crc32} from './zip.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
 import {validateSetup,toolBounds,startupPosition} from '../machine/profile.mjs';
+import {assignedFilaments} from '../machine/filaments.mjs';
 import {resolveBambuJob} from './bambu-job.mjs';
 import {materializeBambuProject,serializeBambuProject} from './bambu-project.mjs';
 const digest=(bytes,algorithm='sha256')=>createHash(algorithm).update(bytes).digest('hex');
@@ -48,7 +49,7 @@ function contextFor(path,plan,machine,release){
   checkContext(context,plan,machine);return context;
 }
 function checkContext(c,plan,machine){
-  const b=plan.composition.regions.some(r=>r.filament!==undefined)?machine.bounds:toolBounds(machine,plan.setup.tool),output=machine.outputs.find(o=>o.id===plan.output),k=output.constraints;
+  const b=assignedFilaments(plan).length?machine.bounds:toolBounds(machine,plan.setup.tool),output=machine.outputs.find(o=>o.id===plan.output),k=output.constraints;
   requireThat(c?.schema==='saam-bambu-artifact/1'&&c.contract===output.program.contract&&JSON.stringify(c.initialPosition)===JSON.stringify(startupPosition(machine,plan)),'Invalid Bambu artifact context.');
   requireThat(c.bounds&&['min','max'].every(side=>Array.isArray(c.bounds[side])&&c.bounds[side].length===3&&c.bounds[side].every(Number.isFinite)),'Missing Bambu geometry bounds.');
   requireThat(c.bounds.min.every((v,i)=>v>=b.min[i]&&v<c.bounds.max[i])&&c.bounds.max.every((v,i)=>v<=b.max[i]),'Bambu geometry bounds exceed selected nozzle area.');

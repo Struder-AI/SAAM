@@ -8,7 +8,7 @@
 // hexagon (edge cutback, corner chord midpoints) and grew every added
 // perimeter purely inward from the frozen outer wall. Here the corner-cutback
 // math is replaced entirely by the shared convex-section offset that
-// vase-wall and full-fill already use, so it works for any convex vase-wall
+// vase-wall and the slices already use, so it works for any convex vase-wall
 // section, not just a hexagon - and every step's ring set is centered on the
 // wall's own printed centerline rather than kept flush with its outer face,
 // so a bead directly below is never left without support on one side.

@@ -217,7 +217,7 @@ previous toolpath approval. Local records detect changes relative to recorded
 content; they are not signatures authenticating the files or human statements.
 Use `examples/prints/` only for explicitly curated examples.
 
-## Shell pipeline (full-fill and draped-skin)
+## Shell pipeline (slices and draped-skin)
 
 `core/print/bundle.mjs` adapts shell plans to the [shared lifecycle](#generation-and-review).
 Skills return operations to the [shared composer](../path/README.md#skill-result-composition).

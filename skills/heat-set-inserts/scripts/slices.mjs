@@ -1,6 +1,7 @@
 // Slice records for heat-set reinforcement, written into the recipe by
-// apply_heat_set: around each bore a six-loop annulus owner, and each fin a
-// solid, fixed-angle owner with no loops. Every owner is ordinary slice data
+// apply_heat_set: around each bore a six-loop annulus owner, six beads wide,
+// and each fin a solid, fixed-angle owner with no loops whose rows
+// stop half a bead inside the fin (no fill overlap). Every owner is ordinary slice data
 // with a geometry volume in the part's own frame; the core slices them like
 // any other owner, and the part's default owner takes the rest.
 import {sliceAssignment} from '../../../core/print/slices.mjs';
@@ -37,7 +38,7 @@ export function heatSetSlices(feature,part,{lineWidthMm}){
     const at=(r,t,z)=>[x+r*u[0]+t*v[0],y+r*u[1]+t*v[1],z];
     const face=(length,z)=>[at(radial,-root/2,z),at(radial+length,-tip(length)/2,z),at(radial+length,tip(length)/2,z),at(radial,root/2,z)];
     const across=((degrees+90)%360+540)%360-180;
-    return sliceAssignment({id:`${name}-fin-${n}`,part,loops:0,fillDensity:1,solidTop:0,solidBottom:0,
+    return sliceAssignment({id:`${name}-fin-${n}`,part,loops:0,fillDensity:1,solidTop:0,solidBottom:0,fillOverlap:0,
       rotateFill:false,fillAnglesDeg:[across],within:[{kind:'geometry',geometry:prism(face(w,start),face(feature.finLengthMm,top))}]});
   });
   return [annulus,...fins];

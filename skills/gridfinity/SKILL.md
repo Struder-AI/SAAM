@@ -70,12 +70,11 @@ fit sample before a large organizer. No shrink compensation is applied.
 
 ## Composition with SAAM
 
-Creation proposes [planar-infill](../planar-infill/SKILL.md) at 20% density and two
-perimeters, with [full-fill](../full-fill/SKILL.md) in `solid-surfaces` mode and
-three top/bottom layers, so solid masks close the floor and wall tops without
-capping the bin. These are editable proposals, not a validated recipe; inspect
-thin walls, dividers, foot joins and pockets. Whole-body full-fill, regional
-assignments and assemblies work as for any mesh.
+Creation keeps the default [slice](../slice/SKILL.md) (two loops, 20% fill,
+three solid layers top and bottom), so solid layers close the floor and wall tops
+without capping the bin. It is an editable proposal, not a validated recipe;
+inspect thin walls, dividers, foot joins and pockets. Other slice assignments,
+regions and assemblies work as for any mesh.
 
 Use [text](../text/SKILL.md) for lettering on the floor, walls or a blank: a plane
 at Z = 7 reaches the default bin floor. Text features are rebuilt after a
@@ -99,7 +98,7 @@ between feet, and assign supports explicitly when appropriate.
 
 A vase body can publish its exterior to
 [finished-surface cladding](../pipe-cladding/SKILL.md#select-the-sleeve): select
-the body for both vase-wall and cladding, print the blank with full-fill, and
+the body for both vase-wall and cladding, slice the blank solid, and
 keep the cladding away from the mating foot. The body still needs supported
 sections and a valid cladding chart, and cladding needs the configured DENSO
 robot with its external rotary.

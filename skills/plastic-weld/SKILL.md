@@ -17,14 +17,14 @@ quality or strength. No physical result has been validated.
 
 ## Material and interoperability
 
-Full-fill is the natural host. The shaft and basin are reserved through shared
-planar material regions before walls and fill are generated. The bottom basin
+A solid slice is the natural host. The shaft and basin are reserved from the
+part's sliced material before loops and fill are generated. The bottom basin
 narrows upward as a stepped cone; the shaft continues to the injection height.
 The exterior CAD model remains the intended finished part. These temporary
 process cavities are visible in the generated toolpath, not as permanent CAD holes.
 
-For **planar-infill**, shared complementary solid masks add a solid envelope
-around the entire cavity and a floor beneath it. Sparse lines are excluded from
+In a **sparse** slice, a solid envelope surrounds the entire cavity with a floor
+beneath it. Sparse lines are excluded from
 that material. Ordinary sparse infill alone cannot contain an injection. The
 envelope is a nominal planned seal, not proof of pressure-tight printed material.
 Its reinforcement value inside an otherwise sparse body remains unmeasured.
@@ -33,8 +33,8 @@ Supported combinations:
 
 - Native closed mesh and supported spline components, including translated
   assembly parts, imported STL, text and Gridfinity bodies.
-- Full-fill and planar-infill in whole components or material regions. Global
-  weld sites can cross region boundaries when the required solid host is continuous.
+- Slice assignments of any fill density. Global weld sites can cross owner and
+  region boundaries when the required solid host is continuous.
   Regional surface consumers can use the completed mouth after injection.
   For an unfinished cavity crossing a boundary, use ordinary contiguous flat
   bands; `lowerSurfaceFrom` still sees that cavity's deeper floor.
@@ -50,8 +50,8 @@ Supported combinations:
 The skill does not insert arbitrary holes into a one-bead vase wall, infer
 pressure-tightness from spaced fill, or turn supports into permanent rivets.
 The same feature can occupy a solid base beneath a vase or a solid band beneath
-a curved roof. Required solid masks use the existing full-fill spacing setting;
-use factor 1 so their envelope does not become sparse.
+a curved roof. Solid envelopes use the slice's `spacingFactor`; keep it 1
+so the envelope does not become sparse.
 
 ## Recipe and initial trial values
 

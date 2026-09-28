@@ -11,8 +11,6 @@ export async function createGridfinityBundle(directory,parameters,options={}){
   plan.geometry=geometry;
   plan.placement={xMm:20,yMm:20};
   plan.skills['draped-skin'].enabled=false;
-  plan.skills['planar-infill'].enabled=true;
-  plan.skills['full-fill'].mode='solid-surfaces';
   await initBundle(directory,plan,options);
   return loadBundle(directory,{program:false});
 }

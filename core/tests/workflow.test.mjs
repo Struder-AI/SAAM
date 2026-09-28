@@ -87,7 +87,7 @@ test('a shell print stores native geometry that reopens as the same closed shell
   assert.equal(state.kind, 'shell');
   assert.equal(state.geometry.schema, 'saam-shell-geometry/1');
   assert.deepEqual(state.geometry.features.map(feature => feature.id), ['top', 'bottom', 'front', 'right', 'back', 'left']);
-  assert.deepEqual(state.skills, ['full-fill', 'draped-skin']);
+  assert.deepEqual(state.skills, ['slice', 'draped-skin']);
 
   // Reopening the stored file must rebuild the same closed shell.
   const bytes = await readFile(resolve(dir,state.geometryArtifact.file));
@@ -237,14 +237,14 @@ test('geometry and settings edits invalidate the approvals they affect', async t
   const stale = state.revision;
 
   // A settings change drops the final plan/export approval.
-  await adjustBundle(dir, { skills: { 'full-fill': { perimeters: 3 } } });
+  await adjustBundle(dir, { slices: { assignments: [{ ...state.plan.slices.assignments[0], loops: 3 }] } });
   state = await loadBundle(dir);
-  assert.equal(state.plan.skills['full-fill'].perimeters, 3);
+  assert.equal(state.plan.slices.assignments[0].loops, 3);
   assert.equal(state.toolpathApproved, false);
   assert.notEqual(fingerprint, await bundleFingerprint(dir));
 
   await assert.rejects(updatePlan(dir, state.plan, stale), /stale/);
-  await assert.rejects(adjustBundle(dir, { skills: { 'full-fill': { perimeter: 3 } } }), /Unknown setting/);
+  await assert.rejects(adjustBundle(dir, { skills: { 'draped-skin': { layer: 3 } } }), /Unknown setting/);
   // The selected tool's declared layer range owns this rejection, not a fixed cap.
   await assert.rejects(adjustBundle(dir, { process: { layerMm: 0.9 } }), /Layer height outside profile limits/);
   await adjustBundle(dir,{process:{primeLine:{startMm:[5,5],endMm:[20,5],zMm:.2,widthMm:.4,heightMm:.2,speedMmS:10}}});
@@ -288,7 +288,7 @@ test('selecting one skill still produces one program from one plan', async t => 
   const dir = await fixture(t, plan);
   await generateBundle(dir, { development: true });
   const state = await loadBundle(dir);
-  assert.deepEqual(state.skills, ['full-fill']);
+  assert.deepEqual(state.skills, ['slice']);
   assert.ok(!state.program.moves.some(move => move.phase === 'draped-skin'), 'no skin is printed when it is not selected');
   assert.equal(state.pathSummary.nonplanarLimit, undefined);
 });

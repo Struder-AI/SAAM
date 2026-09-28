@@ -20,7 +20,7 @@ faceted, with the steeper normal chosen at a shared crease; they are not smoothe
 
 Survey the roof, exclude area steeper than the selected limit, reserve thickness
 under skinnable surface, and generate surface-following strokes. The reserve is
-subtracted from full-fill and planar-infill. All supporting body operations must
+subtracted from the slices, which put solid top layers under it. All supporting body operations must
 finish before the skins; skins remain ordered. Surface height means the highest
 exposed surface at XY, not the underside of an overhang or a general wrapped skin.
 Closed footprint/reservation booleans use the
@@ -53,12 +53,10 @@ component's translated layer grid. Across voids, the assigned components' layer
 grid supplies the approximate initial gap; bridging is a recipe judgment for
 the maker and agent, with no bridge permission flag. After deposition the skinned
 footprint publishes its native material top as a shared surface interface;
-another region may consume it through `lowerSurfaceFrom`. For example full-fill
-can deposit horizontal layers above this wavy bottom, with variable initial
-gaps and the same shared composer. That consumer must have complete footprint
-coverage; excluded steep or absent roof areas are not invented as support.
-See [full-fill composition](../full-fill/SKILL.md#composition-and-limits) and the
-[synthetic full-stack example](../../core/tests/fixtures/regional-stack.mjs).
+another non-planar region may consume it through `lowerSurfaceFrom`; flat layers
+above it wait for height-field slices. A consumer must have complete footprint
+coverage; excluded steep or absent roof areas are not invented as support. See
+the [synthetic stack example](../../core/tests/fixtures/regional-stack.mjs).
 Bead coverage and bridging remain numerical approximations without physical
 validation; the fixture's robot setup is explicitly synthetic.
 

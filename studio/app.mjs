@@ -1,7 +1,7 @@
 import {createTourUI,needsTourToolpath} from './tour-ui.mjs';
 import { advancePlayback, exportMovie } from './playback.mjs';
 import { createLayerFade, layerEndSeconds, stepLayerIndex, TOOLPATH_COLORS } from './toolpath-view.mjs';
-import {hasSkill,regionRows,recipeRows,robotRows,materialGrams,claddingPatternName,claddingSubstrateName,nextExportName} from './settings.mjs';
+import {hasSkill,sliceSummary,regionRows,recipeRows,robotRows,materialGrams,claddingPatternName,claddingSubstrateName,nextExportName} from './settings.mjs';
 import {sourceSession,machineCameras} from './studio/machine-session.mjs';
 import {machineFitBounds,boundsCorners,machinePalette} from './machine-view.mjs';
 import {point,invert} from '../core/machine/rigid.mjs';
@@ -208,7 +208,8 @@ const views={
     // Faces are named by the shape that built them, so the label is the name.
     names:{},
     facts(state,tab) {
-      const {geometry:g,setup:s,process:p}=state.plan,fill=state.plan.skills['full-fill'],skin=state.plan.skills['draped-skin'],normal=state.plan.skills['planar-infill'],network=state.plan.skills['line-network'];
+      const {geometry:g,setup:s,process:p}=state.plan,skin=state.plan.skills['draped-skin'],network=state.plan.skills['line-network'];
+      const slices=state.plan.slices?.assignments??[],body=slices.find(a=>a.preset===null&&!a.within.length);
       const shape={'blob-field':'Blob field',assembly:'Assembly',spline:'Spline surfaces',mesh:'Mesh'}[g.shape]??g.shape;
       if(tab==='geometry') {
         const bounds=state.geometry.boundsMm;
@@ -232,16 +233,16 @@ const views={
           ...(clad.pattern==='crossed-helices'?[['Helices','Opposite winding on successive shells; each rises from bottom to top']]:[['Axial passes','Local surface spacing with partial passes']]),['Between passes','Extrusion off'],...robotRows(state.plan,state.machine)];
       }
       if(tab==='plan')return [materialSetup(state),['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],
-        ['Body',network?.enabled?network.networks.length+' independent line networks · '+network.layers+' courses':normal?.enabled?normal.perimeters+' walls · '+(normal.density===0?'hollow':Math.round(normal.density*100)+'% '+(normal.pattern??'rectilinear')+' infill'):fill.enabled?fill.perimeters+' perimeters + solid fill':'Not printed'],...vaseSettings(state),
-        ...(normal?.enabled&&fill.enabled?[['Solid surfaces',fill.bottomLayers+' bottom / '+fill.topLayers+' top layers']]:[]),
+        ['Body',network?.enabled?network.networks.length+' independent line networks · '+network.layers+' courses':body?sliceSummary(body):slices.length?'Assigned volumes only':'Not printed'],...vaseSettings(state),
+        ...(slices.length>(body?1:0)?[['Other slice owners',slices.filter(a=>a!==body).map(a=>a.id).join(', ')]]:[]),
         ...(skin.enabled?[['Draped skin',skin.layers+' × '+skin.normalMm+' mm along the surface'],['Roof component',skin.part??'Part roof']]:[]),
         ...(hasSkill(state.plan,'wave-overhangs')?[['Wave overhangs',state.plan.skills['wave-overhangs'].slices.length+' spline slices · '+state.plan.skills['wave-overhangs'].lineSpacingMm+' mm surface spacing']]:[]),
-        ...(state.plan.geometry.shape==='assembly'?[['Fill sequencing',(state.plan.composition?.batchLayers??1)+' layer(s) per component'],['Filled components',fill.parts?.join(', ')||'All']]:[])];
+        ...(state.plan.geometry.shape==='assembly'?[['Fill sequencing',(state.plan.composition?.batchLayers??1)+' layer(s) per component'],['Sliced components',slices.some(a=>a.part===null)?'All':[...new Set(slices.map(a=>a.part))].join(', ')||'None']]:[])];
       if(!state.program)return [];
       const limit=state.pathSummary?.nonplanarLimit;
       const pathCount=state.pathSummary?.vaseWall?.paths;
       const waveLayers=state.pathSummary?.waveOverhangs?.length??0;
-      const rows=[state.pathSummary?.lineNetwork?['Network courses',state.pathSummary.lineNetwork.layers+' × '+state.pathSummary.lineNetwork.networks+' faces']:pathCount&&!state.pathSummary?.fullFill&&!state.pathSummary?.drapedSkin?['Deposition paths',String(pathCount)]:['Layers',(state.pathSummary?.fullFill?.layers??0)+' flat + '+(state.pathSummary?.drapedSkin?.skinLayers??0)+' draped'+(waveLayers?' + '+waveLayers+' wave slice(s)':'')],
+      const rows=[state.pathSummary?.lineNetwork?['Network courses',state.pathSummary.lineNetwork.layers+' × '+state.pathSummary.lineNetwork.networks+' faces']:pathCount&&!state.pathSummary?.slices&&!state.pathSummary?.drapedSkin?['Deposition paths',String(pathCount)]:['Layers',(state.pathSummary?.slices?.layers??0)+' flat + '+(state.pathSummary?.drapedSkin?.skinLayers??0)+' draped'+(waveLayers?' + '+waveLayers+' wave slice(s)':'')],
         [state.program.envelope?'Printing motion':'Estimated motion',Math.round(duration()/60)+' min'],materialFact(state.program)];
       if(state.program.summary?.materialModel==='relay-estimate')rows.push(['Material intent',round2(materialGrams(state.program.volumeMm3))+' g; not metered']);
       if(hasSkill(state.plan,'vase-wall')){
@@ -260,7 +261,7 @@ const views={
       return rows;
     },
     settings(state) {
-      const {setup:s,process:p}=state.plan,fill=state.plan.skills['full-fill'],skin=state.plan.skills['draped-skin'];
+      const {setup:s,process:p}=state.plan,skin=state.plan.skills['draped-skin'];
       const contract=state.machine.outputs.find(o=>o.id===state.plan.output)?.constraints;
       const declaredLimit=state.machine.nonplanar?.maxAngleDeg,effectiveLimit=skin.maxAngleDegOverride??declaredLimit;
       return [['Bed temperature',s.bedC+'°C'],['Build volume temperature',s.buildVolumeC===0?'Heating off':s.buildVolumeC+'°C'],

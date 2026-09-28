@@ -18,7 +18,6 @@ const actor='SYNTHETIC DOBOT TEST — not a real approval';
 function fixture(){
   const machine=loadMachine('dobot-mg400'),plan=syntheticDobotSetup(defaults(machine));
   plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:2});plan.process.minimumLayerSeconds=0;
-  plan.skills['full-fill'].mode='solid-surfaces';plan.skills['planar-infill'].enabled=true;
   return {machine,plan};
 }
 test('Dobot unconfigured profile is discoverable and allows geometry review, but refuses export',async()=>{
@@ -39,8 +38,8 @@ test('Dobot executes actual archived Lua, preserves three skill paths and report
   assert.deepEqual(bytes,exportProgram(path,plan,machine,release));
   const expected=path.actions.filter(a=>a.kind==='move');assert.equal(program.moves.length,expected.length);
   expected.forEach((m,i)=>{m.to.forEach((v,k)=>assert.ok(Math.abs(v-program.moves[i].to[k])<6e-6));assert.equal(m.volumeMm3,program.moves[i].volumeMm3);});
-  assert.ok(program.moves.some(m=>m.operation?.includes(':solid:')),'full-fill solid surfaces');
-  assert.ok(program.moves.some(m=>/^planar-infill:\d+:fill$/.test(m.operation)),'sparse infill');
+  assert.ok(program.moves.some(m=>/^body:\d+:fill$/.test(m.operation)),'solid top and bottom layers');
+  assert.ok(program.moves.some(m=>/^body:\d+:infill$/.test(m.operation)),'sparse infill');
   assert.ok(program.moves.some(m=>m.phase==='draped-skin'));
   assert.notDeepEqual(program.moves[0].to,program.moves[0].controllerTo,'display is inverse-calibrated to geometry');
   assert.equal(program.summary.filamentMm,null);assert.equal(program.summary.materialModel,'relay-estimate');
