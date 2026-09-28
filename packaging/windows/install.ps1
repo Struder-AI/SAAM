@@ -105,7 +105,7 @@ Set-Shortcut $UninstallLink $powershell "-NoProfile -ExecutionPolicy Bypass -Fil
 
 Write-Host ''
 Write-Step "SAAM $version is installed."
-Write-Host "Start it any time from the SAAM shortcut on the Start Menu or Desktop; stop it with Quit in SAAM Studio."
+Write-Host "Start it any time from the SAAM shortcut on the Start Menu or Desktop; stop it by closing the Studio tab or with Quit."
 Write-Host "Your prints and settings stay in $(Get-SaamDataFolder)."
 Write-Host 'Starting SAAM now. Studio opens in your browser; use its Connect panel to link your chat.'
 Start-Process -FilePath $wscript -ArgumentList $launcher -WorkingDirectory $env:USERPROFILE

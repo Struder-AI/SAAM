@@ -1,5 +1,21 @@
 # Development log
 
+## 2026-09-28 — Closing Studio stops SAAM; 0.1.6
+
+- User ruling: an installed SAAM stops when its last Studio tab closes or
+  navigates away, not only on Quit. `packaging/launch.mjs` watches the Studio
+  `viewer-opened`/`viewer-closed` events and stops 3 s after the count reaches
+  zero (only a reload reconnects in that time); before the first tab there is
+  no deadline. Chats cannot reach the computer while SAAM is stopped. Installer
+  messages, both README.txt files, SAAM.vbs and packaging/README say so.
+- Checked with the real launcher (scratch data folder, unreachable relay) and a
+  script opening Studio's viewer stream: running with no tab after 5 s, running
+  after a disconnect and reconnect 0.8 s apart, stopped 3.0 s after the close.
+  Not checked in a real browser.
+- The earlier 0.1.6 build (from `e24bbc0`) was never published and is
+  replaced; its Windows ZIP had been deleted from `dist/` by something outside
+  that session.
+
 ## 2026-09-28 — Surface-surface intersection and surface regions
 
 - [surface-intersection.mjs](core/geom/surface-intersection.mjs): NURBS patch ∩

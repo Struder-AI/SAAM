@@ -46,6 +46,21 @@ async function showRunning(running){
   return response.json();
 }
 
+// Closing the last Studio tab stops SAAM at once: the grace period only lets a
+// reload or a bfcache return reconnect. Until the first tab connects there is
+// no deadline, so a slow browser cannot stop SAAM.
+export const TAB_GRACE_MS=3_000;
+export function stopWithoutTabs(observeEvents,onNoTabs,graceMs=TAB_GRACE_MS){
+  const tabs=new Map(),watch={seen:false,timer:null};
+  return observeEvents(event=>{
+    if(event.kind!=='viewer-opened'&&event.kind!=='viewer-closed')return;
+    tabs.set(event.studioInstanceId,event.viewers);
+    const open=[...tabs.values()].reduce((sum,count)=>sum+count,0);
+    watch.seen||=open>0;clearTimeout(watch.timer);
+    if(watch.seen&&!open)watch.timer=setTimeout(onNoTabs,graceMs);
+  });
+}
+
 const logFile=()=>resolve(dataFolder(),'logs','saam.log');
 const log=(...parts)=>{const line=`${new Date().toISOString()} ${parts.join(' ')}`;console.log(line);return appendFile(logFile(),line+'\n').catch(()=>{});};
 
@@ -67,7 +82,7 @@ async function main(){
     if(await claimInstance(instanceFile,record))throw Error('Another SAAM is starting. Try again in a moment.');
   }
   log(`SAAM ${version} starting. Data: ${data}. Relay: ${relayUrl}`);
-  // Quit in Studio, updating and a signal (closing a console window) all end
+  // Quit in Studio, closing its last tab, updating and a signal (closing a console window) all end
   // with stop(); it needs the SAAM they belong to.
   const app={saam:null,stopping:null};
   const stop=()=>app.stopping??=(async()=>{
@@ -87,7 +102,8 @@ async function main(){
     try{const shown=await saam.runtime.openStudio();res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify(shown));}
     catch(error){res.writeHead(500);res.end(error.message);}
   });
-  log(`SAAM Studio: ${saam.studio.url}. To stop SAAM, click Quit in SAAM Studio.`);
+  stopWithoutTabs(saam.runtime.observeEvents,()=>{log('No Studio tab is open.');void stop();});
+  log(`SAAM Studio: ${saam.studio.url}. To stop SAAM, close Studio or click Quit.`);
   process.on('SIGINT',stop);process.on('SIGTERM',stop);process.on('SIGHUP',stop);
 }
 
