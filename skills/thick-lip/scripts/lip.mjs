@@ -21,7 +21,7 @@
 // the section requires a phase-neutral, fully closed boundary to grow from,
 // which is exactly what vase-wall's endTransition:'level' produces and a raw
 // spiral does not; composition enforces that dependency, not this file.
-import {createSectionQuery} from '../../../core/geom/query.mjs';
+import {section,horizontalSlice} from '../../../core/geom/slice.mjs';
 import {offsetRegion} from '../../../core/region/offset.mjs';
 import {loopArea} from '../../../core/region/region2d.mjs';
 import {cleanPlanarLoop} from '../../../core/geom/polyline.mjs';
@@ -42,8 +42,7 @@ const OFFSET_PRECISION_MM = 0.00001;
 
 export function thickLipResult({shell, plan, id = 'thick-lip', after = [], zStartMm}) {
   const settings = {...THICK_LIP_DEFAULTS, ...plan.skills['thick-lip']}, process = plan.process, width = process.lineWidthMm;
-  const sectionAt = createSectionQuery(shell, {minFeatureMm: settings.minFeatureMm});
-  const cut = sectionAt(zStartMm), outer = convexLoop(cut.loops);
+  const cut = section(shell, horizontalSlice(zStartMm), {minFeatureMm: settings.minFeatureMm}), outer = convexLoop(cut.loops);
   requireThat(Math.abs(cut.nudgedByMm ?? 0) <= settings.minFeatureMm / 4, 'Lip boundary section needed an unexpectedly large nudge; check the vase-wall ending Z.');
   // insetMm is measured from the true (unbeaded) outer surface, exactly as
   // vase-wall measures its own single centerline (insetMm = width/2). A

@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseSTL, makeMesh } from '../../core/geom/mesh.mjs';
-import { sectionGeometry } from '../../core/geom/query.mjs';
+import { section, horizontalSlice } from '../../core/geom/slice.mjs';
 import { translateShell } from '../../core/print/generate.mjs';
 import { defaults } from '../../core/print/plan.mjs';
 import { fullFillResult, layerHeights } from '../../skills/full-fill/scripts/fill.mjs';
@@ -31,13 +31,13 @@ try {
   for (const z of heights) {
     try { fullFillResult({ shell, plan, zStartMm: z - plan.process.layerMm / 2, zEndMm: z }); }
     catch (error) {
-      const finding = { phase: 'full-fill', z, error: error.message, dangerous, section: sectionGeometry(shell, z).loops };
+      const finding = { phase: 'full-fill', z, error: error.message, dangerous, section: section(shell,horizontalSlice(z)).loops };
       save('offset-failure', finding); report.findings.push({ phase: finding.phase, z, error: finding.error, cells: dangerous?.cellsForOneSegment }); break;
     }
   }
 } finally { SegmentIndex.prototype.add = original; }
 
-const regions = heights.map(z => sectionGeometry(shell, z).loops);
+const regions = heights.map(z => section(shell,horizontalSlice(z)).loops);
 let current;
 const op = (name, a, b, info) => { current = { operation: name, a, b, ...info }; return ({ intersect, difference, union })[name](a, b); };
 try {

@@ -128,10 +128,14 @@ Current XYZ behavior is specified under [formats](../print/README.md#formats).
 
 ### Geometry query boundary
 
-`core/geom/query.mjs` is the skill-facing boundary: `sectionGeometry`, `topAt`
-and `sampleTopSurface`, with conservative bounds on the geometry object. It
-supports the existing closed untrimmed spline shells and validated indexed
-triangle meshes. Full-fill, planar-infill and draped-skin use these queries;
+`core/geom/slice.mjs` sections every backend: `section(geometry, slice)` returns
+the solid's region on a slice (a plane with an orthonormal chart, the
+horizontal plane's being XY, or a spline patch in its (u,v)) as loops in that
+chart, and `sliceFamily` stacks one slice into layers.
+[layer-region.mjs](../region/layer-region.mjs) assigns each layer's region to
+owners by volume. `core/geom/query.mjs` holds `topAt`, `sampleTopSurface` and
+`containsPoint`. All take closed untrimmed spline shells, validated indexed
+triangle meshes and booleans of them. Pattern skills use these queries;
 pattern code must not branch on triangle versus spline internals. Declare new
 capabilities here and provide a backend implementation or an explicit rejection.
 Both backends are supported under [D-021](../../DECISIONS.md#d-021--native-mesh-geometry).

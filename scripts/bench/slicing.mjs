@@ -9,7 +9,8 @@ import { createHash } from 'node:crypto';
 import rhino3dm from 'rhino3dm';
 import { fixtures, fixtureShell, disposeShell, meshAtTolerance, binarySTL, rhino6Bytes } from './fixtures.mjs';
 import { makeMesh, parseSTL } from '../../core/geom/mesh.mjs';
-import { sectionGeometry, topAt } from '../../core/geom/query.mjs';
+import { topAt } from '../../core/geom/query.mjs';
+import { section, horizontalSlice } from '../../core/geom/slice.mjs';
 import { signedArea } from '../../core/geom/shell.mjs';
 import { translateShell } from '../../core/print/generate.mjs';
 import { defaults, VERSION, BUILD_DATE } from '../../core/print/plan.mjs';
@@ -35,7 +36,7 @@ const measure = fn => { const t = performance.now(), value = fn(); return { ms: 
 const stats = values => { const a = [...values].sort((x, y) => x - y); return { medianMs: a[Math.floor(a.length / 2)], minMs: a[0], maxMs: a.at(-1), samplesMs: values }; };
 
 function sectionBatch(shell, zs) {
-  return zs.map(z => { const s = sectionGeometry(shell, z, { minFeatureMm: 0.4 });
+  return zs.map(z => { const s = section(shell, horizontalSlice(z), { minFeatureMm: 0.4 });
     return { z, loops: s.loops, nudge: s.nudgedByMm, area: s.loops.reduce((a, l) => a + signedArea(l), 0) }; });
 }
 function roofPoints(name) {
@@ -131,7 +132,7 @@ function fidelity(source, mesh, name) {
   if (f.roofControlRise) zs.push(f.height + f.roofControlRise * 0.13, f.height + f.roofControlRise * 0.41);
   let maxContourMm = 0, maxAreaRelative = 0;
   for (const z of zs) {
-    const [a, b] = [source, mesh].map(s => sectionGeometry(s, z).loops);
+    const [a, b] = [source, mesh].map(s => section(s,horizontalSlice(z)).loops);
     if (!a.length || a.length !== b.length) throw new Error('Section topology mismatch at ' + z);
     maxContourMm = Math.max(maxContourMm, directedDistance(a, b), directedDistance(b, a));
     const areas = [a, b].map(loops => loops.reduce((v, l) => v + signedArea(l), 0));

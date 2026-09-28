@@ -302,14 +302,12 @@ retain winding, corners and reversals. Full-fill/planar-infill also clean offset
 deposition contours at that tolerance, while retaining the offset kernel's region
 output for booleans. No curve-resolution or Clipper precision setting is relaxed.
 
-`createSectionQuery` in `core/geom/query.mjs` prepares repeated sections of one
-fixed geometry. Vase-wall uses it for its changing-Z samples. Mesh queries build
-a Z-bound hierarchy and sorted vertex heights once, preserving triangle order,
-vertex nudges and contour construction while skipping irrelevant triangles.
-Each triangle is stored once, so tall triangles do not multiply index storage.
-The query belongs to one generation; recreate it after any geometry edit or
-placement change. Direct one-off cuts and spline sectioning remain available
-through the same shared boundary. The index changes no sampling tolerance.
+`prepareSection` in `core/geom/slice.mjs` prepares repeated sections of one
+fixed geometry by slices of one orientation: each mesh gets sorted vertex
+heights and a height-interval tree in the slice's frame, storing each triangle
+once and keeping triangle order, vertex nudges and contour construction. It
+belongs to one generation; prepare again after any geometry edit or placement
+change. The index changes no sampling tolerance.
 
 The shared S5/H2D motion emitter establishes XYZ/feed state on first use, then
 omits unchanged fields. Retractions update the same modal feed state. E remains

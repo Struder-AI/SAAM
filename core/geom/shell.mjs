@@ -12,7 +12,7 @@
 
 import { evaluate } from './nurbs.mjs';
 import { sectionPatch } from './section.mjs';
-import { TOLERANCE, requireThat, distance, distance2 } from './tolerance.mjs';
+import { TOLERANCE, requireThat, distance, distance2, dot, subtract } from './tolerance.mjs';
 
 const BOUNDARY_SAMPLES = 16;
 const JOIN_TOLERANCE = 1e-5;
@@ -112,38 +112,41 @@ function distanceToCurve(point, curve, scan = 32) {
   return Math.min(best, fc, fd);
 }
 
-// Section the shell at height z.
+// Section the shell by a plane slice (core/geom/slice.mjs): loops in the
+// slice's chart.
 //
 // A plane through a critical point of the surface (a saddle, where the contour
 // self-touches) or flush with a whole face is genuinely ambiguous: the contour
 // there is not a set of disjoint curves. Both cases are resolved the way
-// slicers resolve them, by displacing the plane far below process resolution
-// and re-cutting. The displacement is reported, and a section that still will
-// not close raises rather than returning a part with a gap in it.
+// slicers resolve them, by displacing the plane along its normal far below
+// process resolution and re-cutting. The displacement is reported, and a
+// section that still will not close raises rather than returning a part with a
+// gap in it.
 const NUDGES = [0, 1e-6, -1e-6, 1e-5, -1e-5, 1e-4, -1e-4];
 
-export function sectionShell(shell, z, options = {}) {
+export function sectionShell(shell, slice, options = {}) {
   let first = null;
   for (const nudge of NUDGES) {
-    const result = sectionAt(shell, z + nudge, options);
+    const result = sectionShellAt(shell, slice, nudge, options);
     first ??= result;
     const clean = result.openChains.length === 0 && result.coincidentPatches.length === 0;
     // A displacement must not be accepted just because it produced a tidy empty
     // answer: nudging past the top of the part would silently drop the layer.
-    if (clean && result.loops.length > 0) return { ...result, requestedZ: z, nudgedByMm: nudge };
+    if (clean && result.loops.length > 0) return { loops: result.loops, nudgedByMm: nudge };
   }
   // Genuinely nothing there: the plane misses the part.
-  if (first.openChains.length === 0 && first.loops.length === 0) return { ...first, requestedZ: z, nudgedByMm: 0 };
+  if (first.openChains.length === 0 && first.loops.length === 0) return { loops: [], nudgedByMm: 0 };
   requireThat(first.openChains.length === 0,
-    `Section at z=${z.toFixed(4)} did not close: ${first.openChains.length} open chain(s) after nudging. ` +
+    `Section through ${slice.origin.map(v => +v.toFixed(4)).join(', ')} did not close: ${first.openChains.length} open chain(s) after nudging. ` +
     'This is a degenerate cut (a critical point or a coincident face); move the layer rather than printing an open contour.');
-  return { ...first, requestedZ: z, nudgedByMm: 0 };
+  return { loops: first.loops, nudgedByMm: 0 };
 }
 
-// Returns closed 2D loops, oriented so outer loops run counter-clockwise and
-// enclosed holes run clockwise.
-export function sectionAt(shell, z, { minFeatureMm = 0.4 } = {}) {
-  const plane = { normal: [0, 0, 1], offset: z };
+// Closed loops of the plane displaced by nudge along its normal, in the slice's
+// chart, oriented so outer loops run counter-clockwise and enclosed holes
+// clockwise (seen from the normal).
+function sectionShellAt(shell, slice, nudge, { minFeatureMm = 0.4 } = {}) {
+  const plane = { normal: slice.normal, offset: dot(slice.normal, slice.origin) + nudge };
   const chains = [], coincident = [];
   for (const patch of shell.patches) {
     const result = sectionPatch(patch, plane, { minFeatureMm });
@@ -151,7 +154,7 @@ export function sectionAt(shell, z, { minFeatureMm = 0.4 } = {}) {
     for (const chain of result.chains) if (chain.length > 1) chains.push(chain.map(p => p.point));
   }
   const { loops, open } = joinChains(chains);
-  return { z, loops: orientLoops(loops), openChains: open, coincidentPatches: coincident };
+  return { loops: orientLoops(loops.map(loop => toChart(loop, slice))), openChains: open, coincidentPatches: coincident };
 }
 
 // Join per-patch chains into closed loops using 3D endpoint proximity. Adjacent
@@ -176,11 +179,13 @@ function joinChains(chains) {
     }
     if (chain) open.push(chain);
   }
-  return { loops: loops.map(toPlanar), open };
+  return { loops, open };
 }
 
-const toPlanar = points => {
-  const loop = points.map(p => [p[0], p[1]]);
+// A closed 3D loop on a plane slice as chart points [x·(p - o), y·(p - o)].
+const toChart = (points, { origin: o, xAxis: x, yAxis: y }) => {
+  const horizontal = x[0] === 1 && x[1] === 0 && x[2] === 0 && y[0] === 0 && y[1] === 1 && y[2] === 0;
+  const loop = points.map(p => horizontal ? [p[0] - o[0], p[1] - o[1]] : [dot(subtract(p, o), x), dot(subtract(p, o), y)]);
   // Drop the duplicated closing point and any repeats introduced by joining.
   const out = [];
   for (const point of loop) if (!out.length || distance2(out[out.length - 1], point) > TOLERANCE.point) out.push(point);

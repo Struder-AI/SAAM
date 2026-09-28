@@ -121,78 +121,64 @@ export function translateMesh(mesh,dx,dy,dz=0) {
     bounds:data({min:mesh.bounds.min.map((v,i)=>v+[dx,dy,dz][i]),max:mesh.bounds.max.map((v,i)=>v+[dx,dy,dz][i])})});
 }
 
-// Repeated cuts share only search data. The caller keeps geometry fixed for the
-// lifetime of this query; a newly built/translated mesh gets a fresh query.
-// A Z-bound hierarchy stores each triangle once, including tall triangles that
-// would occupy many bins in a uniform layer index.
-export function createMeshSectionQuery(mesh) {
-  // A prepared query owns the geometry behind its indices. Public meshes remain
-  // mutable, but later caller edits cannot mix changed faces with this tree.
-  const fixedMesh={vertices:mesh.vertices.map(p=>[...p]),triangles:mesh.triangles.map(t=>[...t]),
-    bounds:{min:[...mesh.bounds.min],max:[...mesh.bounds.max]}};
-  const heights=fixedMesh.vertices.map(p=>p[2]).sort((a,b)=>a-b);
-  const ranges=fixedMesh.triangles.map((t,i)=>({i,
-    min:Math.min(...t.map(v=>fixedMesh.vertices[v][2])),
-    max:Math.max(...t.map(v=>fixedMesh.vertices[v][2]))}));
-  function build(items) {
-    let min=Infinity,max=-Infinity;
-    for(const item of items){min=Math.min(min,item.min);max=Math.max(max,item.max);}
-    if(items.length<=16)return {min,max,items};
-    items.sort((a,b)=>(a.min/2+a.max/2)-(b.min/2+b.max/2)||a.i-b.i);
-    const middle=Math.floor(items.length/2);
-    return {min,max,left:build(items.slice(0,middle)),right:build(items.slice(middle))};
+// Mesh sections in a slice frame: three orthonormal axes [x, y, n]. The mesh is
+// re-expressed as [x·p, y·p, n·p], so the plane n·p = h cuts it as the
+// horizontal plane z = h cuts that copy and the loops come out in the frame's
+// (x, y). The identity frame keeps the mesh's own coordinates. With search
+// data (sorted vertex heights and a height-interval tree storing each triangle
+// once, tall ones included) repeated cuts visit only the triangles they cross;
+// a one-off cut scans every triangle instead of paying for the tree.
+export function meshSectionIndex(mesh,axes,{search=true}={}) {
+  const identity=axes.every((axis,i)=>axis.every((v,k)=>v===(i===k?1:0)));
+  const vertices=identity?mesh.vertices:mesh.vertices.map(p=>[dot(p,axes[0]),dot(p,axes[1]),dot(p,axes[2])]);
+  const bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
+  if(identity){bounds.min=[...mesh.bounds.min];bounds.max=[...mesh.bounds.max];}
+  else for(const p of vertices)for(let k=0;k<3;k++){bounds.min[k]=Math.min(bounds.min[k],p[k]);bounds.max[k]=Math.max(bounds.max[k],p[k]);}
+  const framed={kind:'mesh-section-index',axes,vertices,triangles:mesh.triangles,bounds};
+  if(!search)return {...framed,heights:null,tree:null};
+  const heights=vertices.map(p=>p[2]).sort((a,b)=>a-b);
+  const ranges=mesh.triangles.map((t,i)=>({i,
+    min:Math.min(vertices[t[0]][2],vertices[t[1]][2],vertices[t[2]][2]),
+    max:Math.max(vertices[t[0]][2],vertices[t[1]][2],vertices[t[2]][2])}));
+  return {...framed,heights,tree:heightTree(ranges)};
+}
+function heightTree(items) {
+  let min=Infinity,max=-Infinity;
+  for(const item of items){min=Math.min(min,item.min);max=Math.max(max,item.max);}
+  if(items.length<=16)return {min,max,items};
+  items.sort((a,b)=>(a.min/2+a.max/2)-(b.min/2+b.max/2)||a.i-b.i);
+  const middle=Math.floor(items.length/2);
+  return {min,max,left:heightTree(items.slice(0,middle)),right:heightTree(items.slice(middle))};
+}
+function nearVertex(index,cut) {
+  if(!index.heights)return index.vertices.some(p=>Math.abs(p[2]-cut)<1e-10);
+  const heights=index.heights;let lo=0,hi=heights.length;
+  while(lo<hi){const mid=(lo+hi)>>1;if(heights[mid]<cut)lo=mid+1;else hi=mid;}
+  return (lo<heights.length&&Math.abs(heights[lo]-cut)<1e-10)||(lo>0&&Math.abs(heights[lo-1]-cut)<1e-10);
+}
+// Triangles strictly spanning the cut, in index order: contour traversal and
+// the shared-edge record below depend on that order.
+function trianglesAt(index,cut) {
+  if(!index.tree)return index.triangles;
+  const found=[],pending=[index.tree];
+  while(pending.length){
+    const node=pending.pop();
+    if(cut<=node.min||cut>=node.max)continue;
+    if(node.items){for(const item of node.items)if(cut>item.min&&cut<item.max)found.push(item.i);}
+    else pending.push(node.left,node.right);
   }
-  const tree=build(ranges);
-  const nearVertex=cut=>{
-    let lo=0,hi=heights.length;
-    while(lo<hi){const mid=Math.floor((lo+hi)/2);if(heights[mid]<cut)lo=mid+1;else hi=mid;}
-    return (lo<heights.length&&Math.abs(heights[lo]-cut)<1e-10)
-      ||(lo>0&&Math.abs(heights[lo-1]-cut)<1e-10);
-  };
-  const trianglesAt=cut=>{
-    const found=[];
-    function visit(node) {
-      if(cut<=node.min||cut>=node.max)return;
-      if(node.items){for(const item of node.items)if(cut>item.min&&cut<item.max)found.push(item.i);}
-      else {visit(node.left);visit(node.right);}
-    }
-    visit(tree);
-    // Preserve the original edge overwrite and contour traversal order exactly.
-    return found.sort((a,b)=>a-b).map(i=>fixedMesh.triangles[i]);
-  };
-  // Between consecutive vertex heights the intersected edges and their
-  // connectivity are fixed. Reuse that topology, not sampled coordinates.
-  // A small cache also covers nonmonotonic cuts from adaptive surface paths.
-  const bands=new Map();
-  const contoursAt=cut=>{
-    let lo=0,hi=heights.length;
-    while(lo<hi){const mid=(lo+hi)>>1;if(heights[mid]<cut)lo=mid+1;else hi=mid;}
-    if(!bands.has(lo)){
-      const contours=meshContourEdges(fixedMesh,cut,trianglesAt(cut));
-      if(bands.size>=8)bands.delete(bands.keys().next().value);
-      bands.set(lo,contours);
-    }
-    return bands.get(lo);
-  };
-  const sectionAt=z=>cutMesh(fixedMesh,z,nearVertex,trianglesAt,contoursAt);
-  return sectionAt;
+  return found.sort((a,b)=>a-b).map(i=>index.triangles[i]);
 }
 
-export function sectionMesh(mesh,z) {
-  const nearVertex=cut=>mesh.vertices.some(p=>Math.abs(p[2]-cut)<1e-10);
-  const trianglesAt=()=>mesh.triangles;
-  return cutMesh(mesh,z,nearVertex,trianglesAt);
-}
-
-function meshContourEdges(mesh,cut,triangles){
+function meshContourEdges(vertices,cut,triangles){
   const edges=new Map(),graph=new Map();
   for(const t of triangles){
     const hits=[];
     for(let k=0;k<3;k++){
-      const a=t[k],b=t[(k+1)%3],p=mesh.vertices[a],q=mesh.vertices[b];
+      const a=t[k],b=t[(k+1)%3],p=vertices[a],q=vertices[b];
       if((p[2]>cut)===(q[2]>cut))continue;
       const key=edgeKey(a,b);
-      // Preserve the last triangle's edge orientation and interpolation order.
+      // Keep the last triangle's edge orientation and interpolation order.
       edges.set(key,[p,q]);hits.push(key);
     }
     if(hits.length===2)for(let k=0;k<2;k++){const list=graph.get(hits[k])??[];list.push(hits[1-k]);graph.set(hits[k],list);}
@@ -210,25 +196,29 @@ function meshContourEdges(mesh,cut,triangles){
   return contours;
 }
 
-function cutMesh(mesh,z,nearVertex,trianglesAt,contoursAt=null) {
-  requireThat(Number.isFinite(z),'Section height must be finite.');
+// The section at frame height h: loops in the frame's (x, y), outer loops
+// counterclockwise and holes clockwise, and the nudge that moved the cut off
+// a vertex.
+export function sectionMeshIndex(index,h) {
+  requireThat(Number.isFinite(h),'Section height must be finite.');
+  const [min,max]=[index.bounds.min[2],index.bounds.max[2]];
   // Layer-grid arithmetic can land a few floating-point ulps beyond an exact
   // boundary (0.2 + 29 * 0.2 > 6). Keep that numerical error distinct from the
   // geometric nudge below; genuinely outside layers must still be empty.
-  const roundoff=16*Number.EPSILON*Math.max(1,Math.abs(z),Math.abs(mesh.bounds.min[2]),Math.abs(mesh.bounds.max[2]));
-  if(z<mesh.bounds.min[2]-roundoff||z>mesh.bounds.max[2]+roundoff)return {loops:[],requestedZ:z,nudgedByMm:0};
+  const roundoff=16*Number.EPSILON*Math.max(1,Math.abs(h),Math.abs(min),Math.abs(max));
+  if(h<min-roundoff||h>max+roundoff)return {loops:[],nudgedByMm:0};
   // Move a cut off vertices/edges; prefer the interior side at the top bound.
   for(const nudge of [0,-1e-6,1e-6,-1e-5,1e-5]) {
-    const cut=z+nudge;
-    if(cut<=mesh.bounds.min[2]||cut>=mesh.bounds.max[2]||nearVertex(cut))continue;
-    const contours=contoursAt?contoursAt(cut):meshContourEdges(mesh,cut,trianglesAt(cut)),loops=[];
-    for(const edges of contours){
+    const cut=h+nudge;
+    if(cut<=min||cut>=max||nearVertex(index,cut))continue;
+    const loops=[];
+    for(const edges of meshContourEdges(index.vertices,cut,trianglesAt(index,cut))){
       const loop=edges.map(([p,q])=>{const f=(cut-p[2])/(q[2]-p[2]);return [p[0]+f*(q[0]-p[0]),p[1]+f*(q[1]-p[1])];});
       // Remove collinear triangle seams before offsetting regions.
       const clean=cleanPlanarLoop(loop);
       requireThat(clean.length>=3,'Mesh section collapsed below tolerance.');loops.push(clean);
     }
-    return {loops:orientLoops(loops),requestedZ:z,nudgedByMm:nudge};
+    return {loops:orientLoops(loops),nudgedByMm:nudge};
   }
   throw new Error('Mesh cut is ambiguous within section tolerance.');
 }

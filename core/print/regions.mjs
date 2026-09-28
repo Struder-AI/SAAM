@@ -1,7 +1,8 @@
 // Resolve explicit material assignments to existing skill results. Regions keep
 // the native geometry and one shared operation/dependency/approval pipeline.
 import {requireThat} from '../geom/tolerance.mjs';
-import {sectionGeometry,topAt} from '../geom/query.mjs';
+import {topAt} from '../geom/query.mjs';
+import {section,horizontalSlice} from '../geom/slice.mjs';
 import {pointInRegion,pointSegmentDistance,regionArea,loopArea} from '../region/region2d.mjs';
 import {offsetRegion} from '../region/offset.mjs';
 import {strokeRegion} from '../region/stroke.mjs';
@@ -107,8 +108,8 @@ function publishSurface(record,results) {
       }
       footprint=strokeRegion(paths,boundary.widthMm,{arcToleranceMm:plan.skills['vase-wall'].boundaryToleranceMm/4});
     }else{
-      const section=sectionGeometry(shell,end).loops,outer=section.filter(loop=>loopArea(loop)>0);
-      footprint=intersect(section,difference(outer,offsetRegion(outer,-plan.process.lineWidthMm)));
+      const loops=section(shell,horizontalSlice(end)).loops,outer=loops.filter(loop=>loopArea(loop)>0);
+      footprint=intersect(loops,difference(outer,offsetRegion(outer,-plan.process.lineWidthMm)));
     }
     query=(x,y)=>covered(x,y,footprint)?end:null;kind='rim';
     // A constant plane needs no raster search for a narrow bead footprint.
