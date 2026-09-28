@@ -276,9 +276,12 @@ the adjoining pieces meet. The moved curves are cut where they cross
 source and the winding is at least one on its left and at most zero on its
 right. Closed curves follow the region convention: material left of travel,
 positive depth grows it. An open curve's offset is one-sided and keeps only what
-is at least the depth from every source curve. A patch is treated as
-nonperiodic, and pieces past its edges are trimmed off; control counts change
-only where pieces are cut. Loose accuracy depends on the control net: a turn
+is at least the depth from every source curve. Pieces past a patch's edges are
+trimmed off; control counts change only where pieces are cut. With `periodicU`
+or `periodicV` (a seam), curves lie in the unwrapped chart and may cross the
+seam; a closed curve may end whole periods from its start, wrapping the seam
+(a +U loop has its material above it). Crossings and winding count every
+whole-period copy; each chain continues itself and reports its `wraps`. Loose accuracy depends on the control net: a turn
 spanning few controls lands short (a 4-control U offset 2 mm outward is 0.84 mm
 from its bottom).
 

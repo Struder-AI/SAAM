@@ -1,5 +1,35 @@
 # Development log
 
+## 2026-09-28 — Curve offsets on periodic patches (BR-059 item 1)
+
+- [curve-offset.mjs](core/geom/curve-offset.mjs) `prepareCurveOffsets` takes
+  `periodicU`/`periodicV`: curves lie in the unwrapped chart, may cross the
+  seam, and a closed curve may end whole periods from its start (a course
+  around a sleeve). [curve-ops.mjs](core/geom/curve-ops.mjs) adds
+  `translateCurve`, `periodicCurveCrossings` (every whole-period copy reaching
+  the curves' span, crossings listed on the originals) and
+  `preparePeriodicWinding` (ray toward the non-periodic axis's low side through
+  every copy, plus a base winding of 0 or 1 found just left of a source loop).
+  Chains meet modulo the period, each piece moved to continue the one before,
+  and report `wraps`. Loose-field controls of a closed curve now share an
+  unknown by wrapped Greville parameter instead of identical coordinates, so a
+  wrapping loop's repeated controls (moved by a period) collocate once.
+- Scratch checks on a periodic cubic cylinder (r 10, height 20 over v): an
+  ellipse straddling the seam and the same ellipse at u 0.5 give identical
+  loops and (u,v) areas at +1, −1 and −4 mm; a band between a +U loop at v 0.3
+  and a −U loop at v 0.7 gives v 0.2/0.8 at +2, 0.45/0.55 at −3 (wraps +1/−1),
+  vanishes at −5, and is trimmed away past the edges at +7, identically when
+  the loops start at u 0.3; the complementary band grows to 0.4/0.6; a hole
+  straddling the seam grown past the band edges leaves one contractible loop of
+  area 0.0846 (expected about 0.0844); a 1.5-turn open course offsets to one
+  chain; the transposed cylinder with `periodicV` matches. A planar circle
+  still matches before. Periodic and nonperiodic runs of an off-seam ellipse
+  agree exactly, including two defects that predate this change: a smooth
+  ellipse offset reports one spurious crossing (three kept pieces rejoined), and
+  at −4 mm, where the loose offset inverts, four zero-area open pieces are kept
+  instead of nothing.
+- Not run: any test suite. No consumer uses periodic offsets yet.
+
 ## 2026-09-28 — Context layers (0.2.0): index, operate, script, advanced
 
 - Owner direction (0.2.0 spec): every agent gets a one-line index including gated

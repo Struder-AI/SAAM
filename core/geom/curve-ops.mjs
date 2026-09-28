@@ -43,6 +43,13 @@ export function reverseCurve(curve,sum=curve.domain[0]+curve.domain[1]){
   return {n,order,knots:Float64Array.from([...knots].reverse().map(t=>sum-t)),cp:out,domain:[sum-domain[1],sum-domain[0]]};
 }
 
+// The same curve moved by [du, dv] in its first two coordinates.
+export function translateCurve(curve,[du,dv]){
+  const cp=Float64Array.from(curve.cp);
+  for(let i=0;i<curve.n;i++){cp[i*4]+=du*cp[i*4+3];cp[i*4+1]+=dv*cp[i*4+3];}
+  return {...curve,cp};
+}
+
 // A rational quadratic from p to r with corner q: a quarter circle when
 // p, q and r are the corners of a square's quarter.
 export function arcCurve(p,q,r){
@@ -219,11 +226,44 @@ export function curveCrossings(curves,tol,closed=curves.map(()=>false)){
     if(i===j||!overlap(pieces[i].box,pieces[j].box))continue;
     pair(pieces[i],pieces[j]);
   }
-  return {params:params.map((list,c)=>{
+  return {params:distinctParams(curves,params),points,pairs};
+}
+
+// Sorted interior crossing parameters per curve, repeats merged.
+function distinctParams(curves,params){
+  return params.map((list,c)=>{
     const [d0,d1]=curves[c].domain,e=1e-10*(d1-d0),out=[];
     for(const t of list.sort((x,y)=>x-y))if(t>d0+e&&t<d1-e&&!(out.length&&t-out.at(-1)<=e))out.push(t);
     return out;
-  }),points,pairs};
+  });
+}
+
+// The range of a curve's controls along one axis.
+function axisRange(curve,axis){
+  let lo=Infinity,hi=-Infinity;
+  for(let j=0;j<curve.n;j++){const x=curve.cp[j*4+axis]/curve.cp[j*4+3];lo=Math.min(lo,x);hi=Math.max(hi,x);}
+  return [lo,hi];
+}
+
+// On a chart periodic along one axis (period {axis, length}: a seam), a curve
+// also meets the others' and its own copies moved by whole periods. Every copy
+// reaching the curves' span is intersected with the originals, and crossings
+// are listed on the originals as by curveCrossings.
+export function periodicCurveCrossings(curves,tol,closed,{axis,length}){
+  const ranges=curves.map(c=>axisRange(c,axis)),lo=Math.min(...ranges.map(r=>r[0])),hi=Math.max(...ranges.map(r=>r[1])),copies=[];
+  curves.forEach((curve,index)=>{
+    const [a,b]=ranges[index];
+    for(let k=Math.ceil((lo-b)/length);k<=Math.floor((hi-a)/length);k++)
+      if(k!==0)copies.push({index,curve:translateCurve(curve,axis===0?[k*length,0]:[0,k*length])});
+  });
+  const n=curves.length,all=curveCrossings([...curves,...copies.map(c=>c.curve)],tol,[...closed,...copies.map(c=>closed[c.index])]);
+  const source=i=>i<n?i:copies[i-n].index,params=curves.map(()=>[]),points=[],pairs=[];
+  all.pairs.forEach((p,i)=>{
+    // A crossing between two copies repeats one between a copy and an original.
+    if(p.a>=n&&p.b>=n)return;
+    params[source(p.a)].push(p.s);params[source(p.b)].push(p.t);points.push(all.points[i]);pairs.push({a:source(p.a),s:p.s,b:source(p.b),t:p.t});
+  });
+  return {params:distinctParams(curves,params),points,pairs};
 }
 
 // Winding number of the oriented curves about q, by a ray toward +x. The
@@ -249,6 +289,27 @@ export function prepareWinding(curves){
         if(point[0]>q[0])w+=Math.sign(derivative[1]);
       }
     });
+    return w;
+  };
+}
+
+// Winding number on a chart periodic along one axis, counted along a ray
+// toward the other axis's low side (toward -v when U is periodic, -u when V
+// is) through every whole-period copy of the curves, plus base: the winding
+// far along that ray, which loops wrapping around the seam make 0 or 1.
+export function preparePeriodicWinding(curves,{axis,length},base=0){
+  // A quarter (U periodic) or half (V periodic) turn puts the ray on +x and
+  // the period on y, keeping orientation.
+  const turn=c=>{
+    const cp=Float64Array.from(c.cp);
+    for(let j=0;j<c.n;j++){const x=c.cp[j*4],y=c.cp[j*4+1];[cp[j*4],cp[j*4+1]]=axis===0?[-y,x]:[-x,-y];}
+    return {...c,cp};
+  };
+  const turned=curves.map(turn),winding=prepareWinding(turned),ranges=turned.map(c=>axisRange(c,1));
+  const lo=Math.min(...ranges.map(r=>r[0])),hi=Math.max(...ranges.map(r=>r[1]));
+  return ([u,v])=>{
+    const q=axis===0?[-v,u]:[-u,-v];let w=base;
+    for(let k=Math.ceil((q[1]-hi)/length);k<=Math.floor((q[1]-lo)/length);k++)w+=winding([q[0],q[1]-k*length]);
     return w;
   };
 }

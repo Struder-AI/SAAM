@@ -44,7 +44,7 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 - Session: Claude Code desktop, 2026-09-28; exact chat title and ID unavailable.
 - Source: current conversation, 2026-09-28.
 - Context: [curve-offset.mjs](core/geom/curve-offset.mjs) offset curves loosely without resolving collisions; `prepareSurfaceOffsets` bundles a horizontal ribbon and a normal offset and limits folds instead of trimming them.
-- Remaining: (1) curve offsets on periodic patches (phase 1 is otherwise done). (2) Split `prepareSurfaceOffsets` into a surface ribbon and a surface offset with collocated directions and no limiter. (3) Trimmed-surface records produced by resolving their folds and self-intersections. (5) Vase-wall on the ribboned sleeve; where the wall splits, the spiral's behaviour awaits the user's answer on the "pinch" version. (6) Migrate `offsetRegion` and `offsetSurfaceRegion` consumers, including corner treatment. (7) Trimmed faces in printable shells. Curve ribbons (4) are done.
+- Remaining: (2) Split `prepareSurfaceOffsets` into a surface ribbon and a surface offset with collocated directions and no limiter. (3) Trimmed-surface records produced by resolving their folds and self-intersections. (5) Vase-wall on the ribboned sleeve; where the wall splits, the spiral's behaviour awaits the user's answer on the "pinch" version. (6) Migrate `offsetRegion` and `offsetSurfaceRegion` consumers, including corner treatment. (7) Trimmed faces in printable shells. Curve ribbons (4) and periodic-patch curve offsets (1) are done.
 - Completion: Every offset in core resolves collisions; no fold limiter remains; vase-wall and pipe cladding run on the new operations.
 
 ### BR-058 — Implement the Cloudflare relay alpha milestone
