@@ -109,17 +109,13 @@ fidelity are separate. The default fit is 12 by 6 independent controls (72;
 4–32 height controls.
 
 `meshSleeve.offsetTightness` is independent of mesh fidelity. It defaults to `0` for a
-fitted sleeve. At zero, the loose offset preserves the fitted NURBS control
-count, degrees, knots and weights. At one, queries use the exact unit-normal
-offset. Intermediate values blend the offset positions at query time; they do
-not refit or add control points. The loose endpoint is an actual same-structure
-NURBS patch; intermediate values are functional evaluators. Loose distance is
-an approximate standoff and its direction-length range is reported. At sampled
-over-curvature, local control offsets are reduced to preserve one smooth sleeve;
-the maximum depth reduction is reported. This preserves the same control layout,
-but not the full requested offset everywhere. The [shared offset contract](../../core/geom/README.md#loose-and-tight-spline-offsets)
-defines the sampled regularity check and its global self-intersection limits.
-This limiting is separate from source-mesh contact and does not remove source folds.
+fitted sleeve. At zero, the sleeve's loose horizontal ribbon preserves the
+fitted NURBS control count, degrees, knots and weights, and is exact at its
+Greville points. At one, queries use the exact offset along the unit horizontal
+normal. Intermediate values blend the two positions at query time; they do not
+refit or add control points. Nothing limits depth: where the bead offset passes
+a curvature radius the ribbon folds. The [shared offset contract](../../core/geom/README.md#loose-and-tight-spline-offsets)
+defines the ribbon. This is separate from source-mesh contact.
 
 ## Sleeve patterns
 

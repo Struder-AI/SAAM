@@ -36,6 +36,119 @@
   example, vase irregular demo, scripts/bench, tools/denso, and the manuals
   (slice SKILL.md replacing full-fill/planar-infill/bed-adhesion).
 
+## 2026-09-28 — Trimmed-surface records from surface ribbons (BR-059 item 3)
+
+- [trimmed-surface.mjs](core/geom/trimmed-surface.mjs): `trimmedSurface`
+  builds `{kind: 'trimmed-surface', version: 1, patch, periodicU, periodicV,
+  boundary}` (domain edges as boundary chains, fold holes clockwise, degree-1
+  chains in (u,v)); `sleeveFoldHoles` trims a sleeve ribbon's folds per U
+  isocurve with adaptive V levels; `rejectFolds` rejects any other fold naming
+  (u, v) and the point. Surface ribbons and offsets gain `trimmed(depth)`.
+  Provisional ruling (lead, pending the owner): only sleeve ribbons are trimmed.
+- [curve-ribbon.mjs](core/geom/curve-ribbon.mjs): fold cutting moves into an
+  exported `foldCuts`. Two fixes: a closing crossing was dropped when
+  `curveCrossings` listed the pair in the other order (a symmetric ellipse
+  ribbon got one fold cut at its loop's crossing and the other only across the
+  reversal), and a closed curve's fold across its seam is now searched on three
+  copies and cut through the seam; `folds` counts it once.
+- Scratch checks: ellipse ribbon (a 10, b 4, 24 controls) at −2.5 mm now cuts
+  both folds at their closing crossings (length 28.993 mm whatever the start
+  phase, including a fold through the seam; before 30.159/31.324 depending on
+  phase); an open 3D wave's first fold now closes at its crossing. Tapered
+  elliptic sleeve (b 3 → 7 mm over 20 mm, a 10) ribboned −2.5 mm: two holes
+  from the bottom edge to v 0.495 (analytic onset v 0.5), centred on the
+  x-extremes, one unwrapped across the seam (u 0.80–1.11); 82.3% of the chart
+  kept by winding; +1 mm has no holes; the surface offset at −2.5 mm is
+  rejected at (u 0.0026, v 0.0625). About 1.7 s per trimmed ribbon.
+- Not run: any test suite (no test imports these modules).
+
+## 2026-09-28 — Surface ribbon and surface offset (BR-059 item 2)
+
+- [surface-offset.mjs](core/geom/surface-offset.mjs): `prepareSurfaceOffsets`
+  (modes normal/horizontal/projected-normal, tightness, fold limiter) is
+  replaced by `prepareSurfaceRibbon` (unit plan-view normal, Z kept exactly)
+  and `prepareSurfaceOffset` (unit normal), each `{at, exactAt, offsetPatch,
+  report}`. Directions are collocated at the Greville grid (two separable
+  square solves, periodic seam duplicates sharing one unknown), so the loose
+  patch is exact at Greville points. `offset-curvature.mjs` (the limiter) is
+  deleted; folds are left for trimmed-surface records.
+- [sleeve-frame.mjs](core/geom/sleeve-frame.mjs) `prepareLooseSleeveOffsets`
+  becomes `prepareSleeveRibbon`. vase-wall [reference.mjs](skills/vase-wall/scripts/reference.mjs)
+  and pipe-cladding [surface-clad.mjs](skills/pipe-cladding/scripts/surface-clad.mjs)
+  keep `offsetTightness` by blending `at` toward `exactAt` themselves; the
+  standard sleeve's report mode is `loose-ribbon`.
+- Scratch checks (worktree; baseline f49c252 via `git archive`): on 16-control
+  periodic cubic cylinder, cone and tilted-ring patches the ribbon and offset
+  are exact at Greville points (≤2e-15 mm) and within 0.9 µm between at −2 mm;
+  ribbon Z change 0. Vase-wall (level end, z 1.2 to top) on the nudge-cup
+  frustum, a wavy revolved vase and a 20×16×10 box, standard and meshSleeve
+  (tightness 0 and 0.5): the loose path moves toward the exact wall, e.g.
+  frustum 10519.10 → 10516.42 mm (exact 10516.25), wavy 12790.99 → 12787.19
+  (exact 12787.55); frustum mean radial error +1.6 µm → −3.5 µm (exact
+  −4.4 µm, polygon facets); exact-path runs identical. Pipe cladding on a spline
+  tube (tightness 0/0.5): round 2128.054 → 2128.418 mm, wavy 2184.062 →
+  2184.602, where tightness 1 gives 2128.418 and 2184.605; tightness 1
+  unchanged. `node --test skills/vase-wall/tests/vase.test.mjs`: 4 pass.
+- Not run: any test suite, `core/tests/denso.test.mjs` (tightness 1 path
+  untouched).
+
+## 2026-09-28 — Curve offsets: seam contacts and inversion curls (BR-059)
+
+- Fixes the two defects the previous entry recorded. [curve-ops.mjs](core/geom/curve-ops.mjs)
+  `curveCrossings` judged a curve meeting itself (a closed curve's seam,
+  adjacent monotone pieces) or another end to end by a parameter tolerance of
+  1e-12 (ends) or 1e-9 (same point) of the domain; Newton converges only
+  linearly where the tangents are parallel, so a smooth periodic cubic's seam
+  came back 2e-10 from its ends and counted as a crossing. It now judges these
+  contacts by arc length (parameter gap times speed) within twice the crossing
+  tolerance, the gap wrapping across a closed curve's seam.
+- [curve-offset.mjs](core/geom/curve-offset.mjs) `curlArcs`: where the exact
+  offset has an inversion cusp the loose curve turned through a thin loop (a
+  curl) whose winding was +1, so its forward half was kept as an open piece.
+  A loop of one offset curve closed by one self-crossing, with no other
+  crossing on it, entered running with its source and left against it (the
+  shorter arc if both qualify on a closed curve) bounds no material and its
+  pieces are dropped. No area threshold.
+- Scratch check (B2's periodic.mjs, 24 cases, against f49c252 extracted with
+  `git archive`): only B1 changes. The ellipse (u half-width 3.77 mm, v 4 mm on
+  the r 10 cylinder), at the seam and at u 0.5, now reports 0 crossings and one
+  kept piece (the whole curve) at ±1 mm (areas unchanged, 0.057382545 and
+  0.019287011); at −4 mm it returns nothing (was 4 open zero-area chains, 11
+  crossings; now 6 crossings, 0 kept). The planar r 10 circle reports 0
+  crossings (was 1) with areas unchanged. Bands, holes, open courses and
+  periodic V are identical.
+- Not run: any test suite; no test imports these modules.
+
+## 2026-09-28 — Curve offsets on periodic patches (BR-059 item 1)
+
+- [curve-offset.mjs](core/geom/curve-offset.mjs) `prepareCurveOffsets` takes
+  `periodicU`/`periodicV`: curves lie in the unwrapped chart, may cross the
+  seam, and a closed curve may end whole periods from its start (a course
+  around a sleeve). [curve-ops.mjs](core/geom/curve-ops.mjs) adds
+  `translateCurve`, `periodicCurveCrossings` (every whole-period copy reaching
+  the curves' span, crossings listed on the originals) and
+  `preparePeriodicWinding` (ray toward the non-periodic axis's low side through
+  every copy, plus a base winding of 0 or 1 found just left of a source loop).
+  Chains meet modulo the period, each piece moved to continue the one before,
+  and report `wraps`. Loose-field controls of a closed curve now share an
+  unknown by wrapped Greville parameter instead of identical coordinates, so a
+  wrapping loop's repeated controls (moved by a period) collocate once.
+- Scratch checks on a periodic cubic cylinder (r 10, height 20 over v): an
+  ellipse straddling the seam and the same ellipse at u 0.5 give identical
+  loops and (u,v) areas at +1, −1 and −4 mm; a band between a +U loop at v 0.3
+  and a −U loop at v 0.7 gives v 0.2/0.8 at +2, 0.45/0.55 at −3 (wraps +1/−1),
+  vanishes at −5, and is trimmed away past the edges at +7, identically when
+  the loops start at u 0.3; the complementary band grows to 0.4/0.6; a hole
+  straddling the seam grown past the band edges leaves one contractible loop of
+  area 0.0846 (expected about 0.0844); a 1.5-turn open course offsets to one
+  chain; the transposed cylinder with `periodicV` matches. A planar circle
+  still matches before. Periodic and nonperiodic runs of an off-seam ellipse
+  agree exactly, including two defects that predate this change: a smooth
+  ellipse offset reports one spurious crossing (three kept pieces rejoined), and
+  at −4 mm, where the loose offset inverts, four zero-area open pieces are kept
+  instead of nothing.
+- Not run: any test suite. No consumer uses periodic offsets yet.
+
 ## 2026-09-28 — Context layers (0.2.0): index, operate, script, advanced
 
 - Owner direction (0.2.0 spec): every agent gets a one-line index including gated
