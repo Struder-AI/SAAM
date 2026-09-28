@@ -32,6 +32,44 @@
   shape), `scripts/check-repo.mjs` (no new findings), anchors of every changed
   manual, and CLI/MCP smoke reads and hints. Not run: the whole suite.
 
+## 2026-09-28 — 0.2.0 phase 1: section by any slice; layer ownership by volume
+
+- 0.2.0 replaces full-fill and planar-infill with one slice operation (the
+  slice skill). This is its first core piece; the producers are not replaced
+  yet.
+- [slice.mjs](core/geom/slice.mjs): slice records (`horizontalSlice`,
+  `planeSlice` with an orthonormal chart, `patchSlice` in (u,v)),
+  `translateSlice`, `slicePoint`, `sliceNormal`; `section(geometry, slice)` for
+  spline shells, meshes, booleans and assemblies, returning loops in the chart
+  and `touchesEdge` for a patch that stops inside the solid; `prepareSection`
+  for repeated cuts; `sliceFamily` stacks a base slice along a direction by
+  first-layer height and pitch, bit-identical to `layerHeights` when
+  horizontal. Mesh sections take any plane
+  ([mesh.mjs](core/geom/mesh.mjs) `meshSectionIndex`/`sectionMeshIndex`, the
+  band cache dropped), and so do spline shells
+  ([shell.mjs](core/geom/shell.mjs) `sectionShell(shell, slice)`).
+- [layer-region.mjs](core/region/layer-region.mjs): owners `{id, part,
+  within, family}` with geometry, slab and per-layer volumes;
+  `layerRegion(owner, k, others)` = part ∩ within − other owners' claims, all
+  in the chart, rejecting a layer whose slice ends inside the owned volume;
+  `solidMasks` gives bottom/top solid from neighbouring layers.
+- Rewired onto `section`: geometry tools, region rim publication, finished
+  boundaries, mesh sleeves, thick-lip, bench scripts and the mesh, blob and
+  boolean tests. Removed `sectionMesh`, `createMeshSectionQuery` and
+  `combineSections`. `sectionGeometry` and `createSectionQuery` remain as
+  horizontal forms of `section` only for full-fill, planar-infill and supports
+  (replaced in phase 2) and vase-wall and its test.
+- Checks: export hashes of starter, surface-drape, wavy-denso and the
+  heat-set demo identical to 7c44c79; horizontal `layerRegion` areas match the
+  7c44c79 sections of all 390 layers of those prints (≤ 5e-7 mm², the baseline
+  rounding), solid masks match planar-infill's selected areas; tilted planes
+  agree between spline and mesh; three STL meshes give identical loops to the
+  old query at similar speed. Test files run singly and passing:
+  mesh-boundary, mesh-large, mesh-repair, blob-field, boolean-solid,
+  vase-wall. Not run: the whole suite; thick-lip (no example uses it). The
+  nudge-cup example already fails at 7c44c79 ("Unknown composition
+  dependency"), so it has no baseline.
+
 ## 2026-09-28 — 0.1.9: the status-only panel released
 
 - Published `v0.1.9` from `5d57df5` (worktree build, Node v24.19.0):

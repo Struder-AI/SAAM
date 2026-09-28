@@ -9,7 +9,8 @@ import {compileBlobField} from '../geom/blob-field-compile.mjs';
 import {solidKernel,preciseSolidMesh} from '../geom/solid.mjs';
 import {validateBlobFieldRecord} from '../geom/blob-field-record.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
-import {sectionGeometry,topAt} from '../geom/query.mjs';
+import {topAt} from '../geom/query.mjs';
+import {section,horizontalSlice} from '../geom/slice.mjs';
 import {regionArea} from '../region/region2d.mjs';
 import {createBlobFieldBundle,updateBlobFieldBundle,compileRequest} from '../print/blob-field.mjs';
 import {loadBundle,generateBundle,approve,deliver} from '../print/bundle.mjs';
@@ -42,19 +43,19 @@ test('falloff sums: a lone point reaches the threshold at half its reach, gradie
 test('a lone ball extracts to its radius with a flat bed cut',async()=>{
   const f=field([blob([0,0,3],10)]),g=await compileBlobField(f,{edgeMm:0.25}),mesh=makeMesh(g.vertices,g.triangles);
   close(mesh.bounds.min[2],0,1e-9);close(mesh.bounds.max[2],8,0.05);
-  close(regionArea(sectionGeometry(mesh,3).loops),Math.PI*25,0.2);
+  close(regionArea(section(mesh,horizontalSlice(3)).loops),Math.PI*25,0.2);
   await assert.rejects(compileBlobField(field([blob([0,0,3],10,0.01)]),{edgeMm:0.5}),/empty/);
   const changed=structuredClone(g);changed.field.threshold=0.3;assert.throws(()=>validateBlobFieldRecord(changed),/Rebuild/);
 });
 
 test('neighbouring points blend, distant ones stay separate, and negative points carve holes and voids',async()=>{
   const at=async points=>{const g=await compileBlobField(field(points),{edgeMm:0.3});return makeMesh(g.vertices,g.triangles);};
-  assert.equal(sectionGeometry(await at([blob([0,0,2],8),blob([9,0,2],8)]),2).loops.length,1);
-  assert.equal(sectionGeometry(await at([blob([0,0,2],8),blob([11,0,2],8)]),2).loops.length,2);
+  assert.equal(section(await at([blob([0,0,2],8),blob([9,0,2],8)]),horizontalSlice(2)).loops.length,1);
+  assert.equal(section(await at([blob([0,0,2],8),blob([11,0,2],8)]),horizontalSlice(2)).loops.length,2);
   const ring=await at(Array.from({length:12},(_,i)=>blob([12*Math.cos(i*Math.PI/6),12*Math.sin(i*Math.PI/6),3],8)));
-  assert.equal(sectionGeometry(ring,3).loops.length,2);assert.equal(topAt(ring,0,0),null);
+  assert.equal(section(ring,horizontalSlice(3)).loops.length,2);assert.equal(topAt(ring,0,0),null);
   const hollow=await at([blob([0,0,4],20,2),blob([0,0,4],8,-3)]);
-  assert.equal(sectionGeometry(hollow,4).loops.length,2);assert.ok(topAt(hollow,0,0).zMm>12);
+  assert.equal(section(hollow,horizontalSlice(4)).loops.length,2);assert.ok(topAt(hollow,0,0).zMm>12);
 });
 
 test('requests default the threshold and sampling and store them explicitly',async()=>{

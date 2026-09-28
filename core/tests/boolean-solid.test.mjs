@@ -6,7 +6,8 @@ import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {buildShell} from '../print/generate.mjs';
 import {rhino} from '../print/geometry.mjs';
-import {sectionGeometry,topAt} from '../geom/query.mjs';
+import {topAt} from '../geom/query.mjs';
+import {section,horizontalSlice} from '../geom/slice.mjs';
 import {splineSolidShell} from '../geom/spline-solid.mjs';
 import {tessellateShell} from '../geom/tessellate.mjs';
 import {regionArea} from '../region/region2d.mjs';
@@ -27,13 +28,13 @@ const close=(a,b,tolerance)=>assert.ok(Math.abs(a-b)<=tolerance,`${a} != ${b}`);
 
 test('layer booleans of spline solids follow their exact sections: through hole, union and intersection',async()=>{
   const r=await rhino(),shell=g=>buildShell(r,g);
-  const drilled=shell({shape:'boolean',operation:'difference',operands:[box,cylinder(10,10,4,-1,6)]}),cut=sectionGeometry(drilled,2.5);
+  const drilled=shell({shape:'boolean',operation:'difference',operands:[box,cylinder(10,10,4,-1,6)]}),cut=section(drilled,horizontalSlice(2.5));
   assert.equal(cut.loops.length,2);close(regionArea(cut.loops),400-16*Math.PI,0.02);
   assert.equal(topAt(drilled,10,10),null);close(topAt(drilled,2,2).zMm,5,1e-9);
   const post=shell({shape:'boolean',operation:'union',operands:[box,cylinder(10,10,4,0,9)]});
-  close(topAt(post,10,10).zMm,9,1e-9);close(regionArea(sectionGeometry(post,7).loops),16*Math.PI,0.02);
+  close(topAt(post,10,10).zMm,9,1e-9);close(regionArea(section(post,horizontalSlice(7)).loops),16*Math.PI,0.02);
   const half=shell({shape:'boolean',operation:'intersection',operands:[box,cylinder(20,10,6,0,9)]});
-  close(regionArea(sectionGeometry(half,2).loops),18*Math.PI,0.02);close(half.bounds.max[2],5,1e-9);
+  close(regionArea(section(half,horizontalSlice(2)).loops),18*Math.PI,0.02);close(half.bounds.max[2],5,1e-9);
 });
 
 test('a blind pocket reports its floor as the top, and nested booleans combine',async()=>{

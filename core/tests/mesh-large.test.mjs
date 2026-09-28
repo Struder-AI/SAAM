@@ -8,7 +8,8 @@ import {pipeline} from 'node:stream/promises';
 import {subdividedBox} from './fixtures/mesh.mjs';
 import {encodeRepairSTLChunks} from '../geom/mesh-repair.mjs';
 import {decodeSTLFile} from '../geom/stl-file.mjs';
-import {makeMesh,sectionMesh} from '../geom/mesh.mjs';
+import {makeMesh} from '../geom/mesh.mjs';
+import {section,horizontalSlice} from '../geom/slice.mjs';
 import {checkMeshCapacity,meshAllocation,meshAllocationError} from '../geom/mesh-capacity.mjs';
 import {repairMemoryError} from '../print/mesh-repair-job.mjs';
 import {regionArea} from '../region/region2d.mjs';
@@ -24,7 +25,7 @@ test('196608-face ASCII file streams, validates and sections without simplificat
   await pipeline(encodeRepairSTLChunks(source),createWriteStream(path));source=null;
   let last=0,calls=0;const decoded=await decodeSTLFile(path,{units:'mm',progress:p=>{assert.ok(p.completed>=last);last=p.completed;calls++;}});
   assert.equal(decoded.triangles.length,count);assert.equal(count,196608);assert.equal(last,(await stat(path)).size);assert.ok(calls>10);
-  const mesh=makeMesh(decoded.vertices,decoded.triangles);assert.equal(regionArea(sectionMesh(mesh,1.234).loops),16);assert.deepEqual(mesh.bounds,{min:[0,0,0],max:[4,4,4]});
+  const mesh=makeMesh(decoded.vertices,decoded.triangles);assert.equal(regionArea(section(mesh,horizontalSlice(1.234)).loops),16);assert.deepEqual(mesh.bounds,{min:[0,0,0],max:[4,4,4]});
 });
 test('index capacity is the only size limit; a real allocation failure names its stage and mesh',()=>{
   checkMeshCapacity(0x7ffffffe,0x3ffffffe);

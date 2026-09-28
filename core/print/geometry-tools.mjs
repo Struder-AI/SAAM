@@ -4,10 +4,10 @@
 import {loadBundle,updatePlan} from './bundle.mjs';
 import {rhino} from './geometry.mjs';
 import {buildShell,translateShell} from './generate.mjs';
-import {sectionGeometry,topAt} from '../geom/query.mjs';
+import {topAt} from '../geom/query.mjs';
+import {section,horizontalSlice,patchSlice} from '../geom/slice.mjs';
 import {booleanShell,BOOLEAN_OPERATIONS,BOOLEAN_OPERAND_SHAPES} from '../geom/boolean-solid.mjs';
 import {loopArea} from '../region/region2d.mjs';
-import {surfaceRegion} from '../geom/slice-region.mjs';
 import {referencePatch} from '../geom/reference-surface.mjs';
 import {evaluate} from '../geom/nurbs.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
@@ -31,7 +31,7 @@ export async function intersectGeometry(geometry,{sectionsAtZ=[],topsAtXY=[],sur
   requireThat(sectionsAtZ.length+topsAtXY.length+surfaces.length>0,'Ask for at least one section height, top point or surface.');
   const shell=queryShell(await rhino(),geometry);
   const sections=sectionsAtZ.map(z=>{
-    const {loops,nudgedByMm}=sectionGeometry(shell,z),areas=loops.map(loopArea);
+    const {loops,nudgedByMm}=section(shell,horizontalSlice(z)),areas=loops.map(loopArea);
     return {zMm:z,areaMm2:round(areas.reduce((a,b)=>a+b,0)),islands:areas.filter(a=>a>0).length,holes:areas.filter(a=>a<0).length,
       ...(nudgedByMm?{nudgedByMm}:{}),
       loops:loops.map((loop,i)=>({areaMm2:round(areas[i]),points:loop.length,
@@ -51,7 +51,7 @@ export async function intersectGeometry(geometry,{sectionsAtZ=[],topsAtXY=[],sur
 function surfaceSection(shell,{offsetMm=[0,0,0],...spec},includeLoops){
   requireThat(Array.isArray(offsetMm)&&offsetMm.length===3&&offsetMm.every(Number.isFinite),'offsetMm is [x, y, z] in millimetres.');
   const shifted={...spec,controlPoints:spec.controlPoints?.map(row=>row.map(([x,y,z,w])=>w===undefined?[x+offsetMm[0],y+offsetMm[1],z+offsetMm[2]]:[x+offsetMm[0],y+offsetMm[1],z+offsetMm[2],w]))};
-  const P={...referencePatch(shifted),name:'surface'},loops=surfaceRegion(P,shell),areas=loops.map(loopArea);
+  const P={...referencePatch(shifted),name:'surface'},loops=section(shell,patchSlice(P)).loops,areas=loops.map(loopArea);
   return {domainUv:[P.domainU,P.domainV],areaUv:round(areas.reduce((a,b)=>a+b,0)),islands:areas.filter(a=>a>0).length,holes:areas.filter(a=>a<0).length,
     loops:loops.map((loop,i)=>({areaUv:round(areas[i]),points:loop.length,...(includeLoops?{uv:loop.map(p=>p.map(round)),pointsMm:loop.map(([u,v])=>evaluate(P,u,v,false).point.map(round))}:{})}))};
 }
