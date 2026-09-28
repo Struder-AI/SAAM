@@ -38,6 +38,11 @@
   session's uncommitted `core/geom/query.mjs`; it was discarded. Releases are
   now built in a detached worktree of the pushed commit
   ([packaging/README.md](packaging/README.md#releasing-an-update)).
+- Published `v0.1.5` from `2e3e9c3` (built in a worktree): `win-x64`
+  `2e410ebf…`, `darwin-arm64` `b1090613…`, `darwin-x64` `0cb9faa1…`; downloads
+  matched. The 0.1.4 notes now say it cannot update itself. The relay
+  (version `a3322f77`) offers no release: any offer only makes a 0.1.3 or
+  0.1.4 computer quit, so the first self-update is the next release, from 0.1.5.
 - Not run: the macOS updater (`bash` detached) on a Mac.
 
 ## 2026-09-28 — 0.1.4 built and released

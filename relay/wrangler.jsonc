@@ -22,7 +22,7 @@
     // The release Studio offers as an update, as JSON:
     // {"version":"0.1.1","assets":{"win-x64":{"url":"https://…/SAAM-0.1.1-win-x64.zip","sha256":"…"}}}
     // Empty offers none. packaging/build.mjs prints each asset's entry.
-    "LATEST_RELEASE": "{\"version\":\"0.1.4\",\"assets\":{\"win-x64\":{\"url\":\"https://github.com/Struder-AI/SAAM/releases/download/v0.1.4/SAAM-0.1.4-win-x64.zip\",\"sha256\":\"650202969e3d4c5c8202ffa85aa806f5b57c9ef8f9e3e76670569611bdc47325\"},\"darwin-arm64\":{\"url\":\"https://github.com/Struder-AI/SAAM/releases/download/v0.1.4/SAAM-0.1.4-darwin-arm64.zip\",\"sha256\":\"aec7242a8e5b38367b262d42d190f6ce04f213403ed94f23ea2aedf44c54222b\"},\"darwin-x64\":{\"url\":\"https://github.com/Struder-AI/SAAM/releases/download/v0.1.4/SAAM-0.1.4-darwin-x64.zip\",\"sha256\":\"5d706251d7fff2c9c57e5dad1120482c23b4ed200fd40717f5e691ea537b18ce\"}}}",
+    "LATEST_RELEASE": "",
     // Days the alpha records (D-039) are kept; "0" records nothing. Reading them,
     // and issuing invites, needs the OPERATOR_TOKEN secret (README.md#operating).
     "RECORD_DAYS": "30"
