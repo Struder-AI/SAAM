@@ -1,26 +1,26 @@
-// Fixed-size loose NURBS curve offsets, horizontally in XY or within a spline
-// surface as a (u,v) curve. Control count, knots, degree and weights are
-// preserved; only control positions move. A surface offset is trimmed to the
-// patch, and each trimmed end adds controls.
+// Loose NURBS curve offsets within a reference surface (the XY plane or a
+// spline patch), resolved as a region offset: every curve is offset by moving
+// its controls, then the offset curves are cut where they cross and only the
+// pieces bounding the offset region are kept. Pieces keep their curve's knots,
+// degree and weights; control counts change only where a piece is cut.
 import {basisDerivatives,findSpan,evaluate,evaluateCurve} from './nurbs.mjs';
 import {requireThat,cross,dot} from './tolerance.mjs';
-const MARGIN=.05;
+import {extract,join,reverseCurve,segmentCurve,insideIntervals,curveCrossings,prepareWinding} from './curve-ops.mjs';
 
-function requireCurve(curve){
+export function requireCurve(curve){
   const {n,order,knots,cp,domain}=curve??{};
   requireThat(Number.isInteger(n)&&Number.isInteger(order)&&order>=2&&n>=order&&knots?.length===n+order&&cp?.length===n*4&&domain?.[1]>domain[0],
     'Curve offsets need a NURBS curve record; build one with referenceCurve.');
   for(let i=0;i<n;i++)requireThat(Number.isFinite(cp[i*4+3])&&cp[i*4+3]>0,'Curve offset reference weights must be positive and finite.');
 }
-const wrap=(t,[a,b],periodic)=>periodic?a+(((t-a)/(b-a)%1+1)%1)*(b-a):Math.max(a,Math.min(b,t));
+const wrap=(t,[a,b],closed)=>closed?a+(((t-a)/(b-a)%1+1)%1)*(b-a):Math.max(a,Math.min(b,t));
 
 // Rational basis values R_i(t) = N_i(t) w_i / w(t) of the controls supporting t.
 function rationalBasis({n,order,knots,cp},t){
-  const span=findSpan(knots,n,order,t),basis=basisDerivatives(knots,span,t,order,1),out=[];
-  let w=0,wt=0;
-  for(let i=0;i<order;i++){const weight=cp[(span-order+1+i)*4+3];w+=basis[0][i]*weight;wt+=basis[1][i]*weight;}
-  for(let i=0;i<order;i++){const index=span-order+1+i,weight=cp[index*4+3];
-    out.push({index,value:basis[0][i]*weight/w,rate:(basis[1][i]-basis[0][i]*wt/w)*weight/w});}
+  const span=findSpan(knots,n,order,t),basis=basisDerivatives(knots,span,t,order,0),out=[];
+  let w=0;
+  for(let i=0;i<order;i++)w+=basis[0][i]*cp[(span-order+1+i)*4+3];
+  for(let i=0;i<order;i++){const index=span-order+1+i;out.push({index,value:basis[0][i]*cp[index*4+3]/w});}
   return out;
 }
 
@@ -50,231 +50,185 @@ function solveSparse(rows,rhs){
 }
 
 // Control directions are collocated: the direction curve, with the curve's own
-// basis and weights, equals the unit side direction at each distinct control's
-// Greville parameter, so lines and circular arcs offset exactly. Tangent speed
-// along the reference tangent must retain 5% of its value at knot quarter-span
-// samples; it is linear in depth, so the endpoint check covers the whole
-// displacement. Failing samples reduce the depths of their supporting controls
-// together, as in offset-curvature.mjs.
-function looseCurveField(curve,periodic,directionAt){
+// basis and weights, equals the side direction at each distinct control's
+// Greville parameter, so lines and circular arcs move exactly. The moved curve
+// may fold or cross itself; callers resolve that.
+export function looseCurveField(curve,closed,directionAt){
   const {n,order,knots,cp,domain}=curve,groups=new Int32Array(n),first=[],seen=new Map();
   for(let i=0;i<n;i++){
-    // Repeated periodic seam controls share one unknown and one reduction.
-    const key=periodic?cp.slice(4*i,4*i+4).join(','):i;
+    // Repeated periodic seam controls share one unknown.
+    const key=closed?cp.slice(4*i,4*i+4).join(','):i;
     if(!seen.has(key)){seen.set(key,first.length);first.push(i);}groups[i]=seen.get(key);
   }
-  const groupCount=first.length,rhs=[],matrix=first.map(i=>{
+  const rhs=[],matrix=first.map(i=>{
     let t=0;for(let k=1;k<order;k++)t+=knots[i+k];
-    t=wrap(t/(order-1),domain,periodic);rhs.push([...directionAt(t)]);
+    t=wrap(t/(order-1),domain,closed);rhs.push([...directionAt(t)]);
     const row=new Map();
     for(const {index,value} of rationalBasis(curve,t))if(value!==0)row.set(groups[index],(row.get(groups[index])??0)+value);
     return row;
   });
-  const solved=solveSparse(matrix,rhs),directions=new Float64Array(n*3);
-  for(let i=0;i<n;i++)directions.set(solved[groups[i]],i*3);
-  const breaks=[...new Set([...knots].filter(x=>x>=domain[0]&&x<=domain[1]))],rows=[];
-  for(let b=1;b<breaks.length;b++)for(let j=0;j<=4;j++){
-    if(j===4&&b<breaks.length-1)continue;
-    const t=breaks[b-1]+(breaks[b]-breaks[b-1])*j/4,tangent=evaluateCurve(curve,t).derivative,speed=dot(tangent,tangent);
-    requireThat(Number.isFinite(speed)&&speed>1e-24,'Loose curve offset needs a regular reference curve.');
-    const entries=rationalBasis(curve,t).map(({index,rate})=>({group:groups[index],rate:rate*dot(directions.subarray(index*3,index*3+3),tangent)/speed}));
-    rows.push({entries,unit:entries.reduce((sum,e)=>sum+e.rate,0)});
-  }
-  const cache=new Map(),report={offsetControlCount:n,offsetOrder:order,periodic,curvatureSampleCount:rows.length,curvatureSpeedRatioFloor:MARGIN,
-    curvatureLimitedCurves:0,maxControlDepthReductionMm:0,
-    curvatureScope:'Local control-depth reduction keeps the reference direction of travel at knot quarter-span samples. Requested depth is approximate; unsampled cusps and global self-intersections are not certified.'};
-  const rootOf=rate=>rate<0?(MARGIN-1)/rate:Infinity;
-  function offsetCurve(depth){
+  const solved=solveSparse(matrix,rhs),cache=new Map();
+  return depth=>{
     requireThat(Number.isFinite(depth),'Curve offset depth must be finite.');
     if(cache.has(depth))return cache.get(depth);
-    const depths=new Float64Array(groupCount).fill(depth);
-    if(rows.some(row=>1+depth*row.unit<MARGIN)){
-      // Every incomplete pass shrinks at least one control depth; a pass that
-      // changes none has reached the floating-point floor.
-      for(let complete=false;!complete;){
-        complete=true;const factors=new Float64Array(groupCount).fill(1);
-        for(const row of rows){
-          const root=rootOf(row.entries.reduce((sum,e)=>sum+e.rate*depths[e.group],0));
-          if(root>=1)continue;
-          complete=false;
-          for(const e of row.entries)factors[e.group]=Math.min(factors[e.group],root*(1-1e-8));
-        }
-        if(complete)break;
-        let reduced=false;
-        for(let g=0;g<groupCount;g++){const next=depths[g]*factors[g];if(next!==depths[g])reduced=true;depths[g]=next;}
-        requireThat(reduced,'Loose curve offset limiting stopped reducing its control depths before the curve unfolded; no folded curve was returned.');
-      }
-      report.curvatureLimitedCurves++;
-      for(let g=0;g<groupCount;g++)report.maxControlDepthReductionMm=Math.max(report.maxControlDepthReductionMm,Math.abs(depth-depths[g]));
-    }
     const out=cp.slice();
-    for(let i=0;i<n;i++)for(let k=0;k<3;k++)out[i*4+k]+=depths[groups[i]]*directions[i*3+k]*cp[i*4+3];
+    for(let i=0;i<n;i++)for(let k=0;k<3;k++)out[i*4+k]+=depth*solved[groups[i]][k]*cp[i*4+3];
     const result={...curve,cp:out};
     if(cache.size>=128)cache.delete(cache.keys().next().value);
     cache.set(depth,result);return result;
-  }
-  return {offsetCurve,report:()=>({...report})};
+  };
 }
 
 // The side direction at t: one unit direction where the curve is smooth, and
-// at a kink (a polyline vertex) the miter m with m.s = 1 for the unit side s of
-// each tangent, so both adjoining pieces stay parallel at the offset depth. A
-// periodic curve's left tangent at its start is its end tangent.
-function sideAt(curve,t,periodic,unitSide){
+// at a kink (a polyline vertex) the vertex's move m with m.s = 1 for the unit
+// side s of each tangent, so both adjoining pieces move by the depth. A closed
+// curve's left tangent at its start is its end tangent.
+export function sideAt(curve,t,closed,unitSide){
   const right=unitSide(evaluateCurve(curve,t).derivative);
-  const left=t>curve.domain[0]?unitSide(evaluateCurve(curve,t,true).derivative):periodic?unitSide(evaluateCurve(curve,curve.domain[1],true).derivative):right;
+  const left=t>curve.domain[0]?unitSide(evaluateCurve(curve,t,true).derivative):closed?unitSide(evaluateCurve(curve,curve.domain[1],true).derivative):right;
   const cosine=dot(left,right);
   if(1-cosine<1e-12)return right;
   requireThat(1+cosine>1e-9,'Curve offset reference reverses direction at a cusp.');
   return [0,1,2].map(k=>(left[k]+right[k])/(1+cosine));
 }
 
-// Boehm knot insertion of t up to multiplicity degree. The control at index
-// `at` is then the curve point at t.
-function clampAt(curve,t){
-  let {n,knots,cp}=curve;const {order}=curve,p=order-1;
-  for(let s=knots.filter(k=>k===t).length;s<p;s++){
-    const k=findSpan(knots,n,order,t),next=new Float64Array((n+1)*4);
-    next.set(cp.subarray(0,(k-p+1)*4));next.set(cp.subarray(k*4),(k+1)*4);
-    for(let i=k-p+1;i<=k;i++){
-      const alpha=(t-knots[i])/(knots[i+p]-knots[i]);
-      for(let c=0;c<4;c++)next[i*4+c]=alpha*cp[i*4+c]+(1-alpha)*cp[(i-1)*4+c];
+// Kept pieces joined end to end. Consecutive pieces of one offset curve are
+// rejoined into one piece of that curve.
+function chainPieces(pieces,tol){
+  const near=(p,q)=>Math.hypot(p[0]-q[0],p[1]-q[1])<=tol,used=new Set(),chains=[];
+  const ends=pieces.map(p=>[evaluateCurve(p.curve,p.curve.domain[0]).point,evaluateCurve(p.curve,p.curve.domain[1]).point]);
+  const next=i=>pieces.findIndex((_,j)=>!used.has(j)&&near(ends[i][1],ends[j][0]));
+  const starts=pieces.map((_,i)=>i).filter(i=>!pieces.some((_,j)=>j!==i&&near(ends[j][1],ends[i][0])));
+  for(const i of [...starts,...pieces.map((_,i)=>i)]){
+    if(used.has(i))continue;
+    const chain=[i];used.add(i);
+    for(let j=next(i);j>=0;j=next(j)){chain.push(j);used.add(j);}
+    chains.push({closed:near(ends[chain.at(-1)][1],ends[chain[0]][0]),pieces:chain.map(k=>pieces[k])});
+  }
+  return chains.map(({closed,pieces})=>{
+    const merged=[];
+    for(const p of pieces){
+      const last=merged.at(-1);
+      if(last&&last.source===p.source&&last.b===p.a){merged[merged.length-1]={...last,b:p.b,curve:extract(p.parent,last.a,p.b)};continue;}
+      merged.push(p);
     }
-    knots=Float64Array.from([...knots.subarray(0,k+1),t,...knots.subarray(k+1)]);cp=next;n++;
-  }
-  return {curve:{...curve,n,knots,cp},at:Math.min(knots.lastIndexOf(t)-p,n-1)};
-}
-
-// The clamped piece of a curve on [a, b].
-function extract(curve,a,b){
-  const left=clampAt(curve,a),right=clampAt(left.curve,b),{order}=curve,n=right.at-left.at+1;
-  const knots=Float64Array.from([...Array(order).fill(a),...right.curve.knots.filter(k=>k>a&&k<b),...Array(order).fill(b)]);
-  requireThat(knots.length===n+order,'Curve trimming produced an inconsistent knot vector.');
-  return {n,order,knots,cp:right.curve.cp.slice(left.at*4,(right.at+1)*4),domain:[a,b]};
-}
-
-// B continues A at A's end once its parameter is shifted; the joint is C0.
-function join(A,B,shift){
-  const knots=Float64Array.from([...A.knots.subarray(0,A.n),...Array(A.order-1).fill(A.domain[1]),...[...B.knots.subarray(B.order)].map(k=>k+shift)]);
-  const cp=new Float64Array((A.n+B.n-1)*4);cp.set(A.cp);cp.set(B.cp.subarray(4),A.n*4);
-  return {n:A.n+B.n-1,order:A.order,knots,cp,domain:[A.domain[0],B.domain[1]+shift]};
-}
-
-// De Casteljau split of scalar Bezier coefficients at s.
-function casteljau(h,s){
-  const left=[],right=[];let row=[...h];
-  while(row.length){left.push(row[0]);right.unshift(row.at(-1));row=row.slice(1).map((v,i)=>row[i]+(v-row[i])*s);}
-  return [left,right];
-}
-
-// Roots of a scalar Bezier polynomial on [a, b]: no sign change in the
-// coefficients means no root; exactly one, with opposite ends, means one root,
-// bisected to the floating-point floor; otherwise split and recurse.
-function bezierRoots(h,a,b,out){
-  const signs=h.filter(x=>x!==0).map(Math.sign);
-  let changes=0;for(let i=1;i<signs.length;i++)if(signs[i]!==signs[i-1])changes++;
-  if(changes===0)return;
-  const m=(a+b)/2;
-  if(m<=a||m>=b){out.push(m);return;}
-  if(changes===1&&h[0]*h.at(-1)<0){
-    let lo=a,hi=b;
-    for(let mid=m;mid>lo&&mid<hi;mid=(lo+hi)/2){
-      const v=casteljau(h,(mid-a)/(b-a))[0].at(-1);
-      if(v===0){lo=hi=mid;break;}
-      if(Math.sign(v)===Math.sign(h[0]))lo=mid;else hi=mid;
+    // Across a closed offset curve's seam; the whole curve is returned as is.
+    if(closed&&merged.length>1){
+      const first=merged[0],last=merged.at(-1),[d0,d1]=first.parent.domain;
+      if(first.source===last.source&&last.b===d1&&first.a===d0){
+        const whole=merged.length===2&&last.a===first.b;
+        merged.splice(0,1);merged[merged.length-1]={...last,curve:whole?first.parent:join(last.curve,first.curve,d1-d0)};
+      }
     }
-    out.push((lo+hi)/2);return;
-  }
-  const [l,r]=casteljau(h,.5);bezierRoots(l,a,m,out);bezierRoots(r,m,b,out);
+    return {closed,pieces:merged.map(p=>p.curve)};
+  });
 }
 
-// Parameter intervals where a (u,v) curve lies inside the nonperiodic domain
-// bounds. Each knot span whose controls straddle a bound is converted to Bezier
-// form for exact root isolation; touching a bound counts as inside.
-function insideIntervals(curve,bounds,inside){
-  const {n,order,knots,domain}=curve,p=order-1,roots=[];
-  const values=(c,axis,value)=>Array.from({length:order},(_,j)=>c.cp[j*4+axis]-value*c.cp[j*4+3]);
-  for(let i=p;i<n;i++){
-    const a=knots[i],b=knots[i+1];if(!(b>a))continue;
-    const local={n:order,order,knots:knots.slice(i-p,i+p+2),cp:curve.cp.slice((i-p)*4,(i+1)*4),domain:[a,b]};
-    let bezier=null;
-    for(const {axis,value} of bounds){
-      const g=values(local,axis,value);
-      if(g.every(x=>x>=0)||g.every(x=>x<=0))continue;
-      bezier??=extract(local,a,b);bezierRoots(values(bezier,axis,value),a,b,roots);
-    }
+// Curves lie on the XY plane (at one Z) or, with a patch, in its (u,v).
+// Closed curves bound a region: material to the left of travel, outer loops
+// counterclockwise and holes clockwise, seen from +Z or the surface normal.
+// Open curves offset one-sided. Positive depth is to the right of travel,
+// growing a region. With a patch, depth is millimetres to first order, the
+// patch is treated as nonperiodic, and pieces past its edges are trimmed off.
+export function prepareCurveOffsets({curves,patch=null}){
+  requireThat(Array.isArray(curves)&&curves.length>0&&(patch===null||patch?.cp&&patch.domainU&&patch.domainV),
+    'Curve offsets need a list of { curve, closed } and, on a surface, a patch.');
+  const inputs=curves.map(({curve,closed=false})=>{
+    requireCurve(curve);
+    const [start,end]=curve.domain.map(t=>evaluateCurve(curve,t).point);
+    requireThat(!closed||Math.hypot(start[0]-end[0],start[1]-end[1])<=1e-9,'A closed curve must end where it starts.');
+    return {curve,closed};
+  });
+  const domains=patch&&[patch.domainU,patch.domainV];
+  const bounds=patch?domains.flatMap((range,axis)=>range.map(value=>({axis,value}))):[];
+  const inside=([u,v])=>[u,v].every((x,k)=>x>=domains[k][0]-1e-9&&x<=domains[k][1]+1e-9);
+  if(patch)for(const {curve} of inputs){
+    const parts=insideIntervals(curve,bounds,inside);
+    requireThat(parts.length===1&&parts[0][0]===curve.domain[0]&&parts[0][1]===curve.domain[1],'A curve to offset must lie inside the patch domain.');
+  }else{
+    const z=inputs[0].curve.cp[2]/inputs[0].curve.cp[3];
+    for(const {curve} of inputs)for(let i=0;i<curve.n;i++)
+      requireThat(Math.abs(curve.cp[i*4+2]/curve.cp[i*4+3]-z)<=1e-9,'Curves offset without a patch lie in one XY plane; a 3D curve takes a ribbon.');
   }
-  const ts=[domain[0],...roots.filter(t=>t>domain[0]&&t<domain[1]).sort((x,y)=>x-y),domain[1]],out=[];
-  for(let i=1;i<ts.length;i++){
-    const a=ts[i-1],b=ts[i];
-    if(!(b>a)||!inside(evaluateCurve(curve,(a+b)/2).point))continue;
-    if(out.length&&out.at(-1)[1]===a)out.at(-1)[1]=b;else out.push([a,b]);
-  }
-  return out;
-}
-
-// Signed area of the curve in its first two coordinates, from knot
-// quarter-span samples: the orientation of a closed loop.
-function signedArea(curve){
-  const {knots,domain}=curve,breaks=[...new Set([...knots].filter(x=>x>=domain[0]&&x<=domain[1]))],points=[];
-  for(let b=1;b<breaks.length;b++)for(let j=0;j<4;j++)points.push(evaluateCurve(curve,breaks[b-1]+(breaks[b]-breaks[b-1])*j/4).point);
-  return points.reduce((sum,p,i)=>{const q=points[(i+1)%points.length];return sum+(p[0]*q[1]-q[0]*p[1])/2;},0);
-}
-
-// Without a patch the curve is XYZ and offsets horizontally, perpendicular to
-// its XY tangent. With a patch it is a (u,v) curve offset within the surface;
-// depth is millimetres to first order, and the result keeps only what lies
-// inside the patch, as (u,v) curves on the reference's parameters (a piece
-// joined across a periodic curve's seam runs past its end by one period).
-// Positive depth is outward from a closed loop (periodic, with coinciding
-// ends) and otherwise to the right of travel, seen from +Z or from the
-// surface normal's side.
-export function prepareCurveOffsets({curve,patch=null,periodic=false,periodicU=false,periodicV=false}){
-  requireCurve(curve);
-  requireThat([periodic,periodicU,periodicV].every(p=>typeof p==='boolean')&&(patch===null||patch?.cp&&patch.domainU&&patch.domainV),
-    'Curve offsets need explicit periodic flags and, on a surface, a patch.');
-  const [start,end]=curve.domain.map(t=>evaluateCurve(curve,t).point);
-  const loop=periodic&&Math.hypot(start[0]-end[0],start[1]-end[1],start[2]-end[2])<=1e-9;
-  requireThat(!periodic||loop||patch,'A periodic curve must end where it starts.');
-  const area=loop?signedArea(curve):0;
-  requireThat(!loop||Math.abs(area)>1e-12,'A closed curve with no enclosed area has no outward side.');
-  const sign=area<0?-1:1;
-  if(!patch){
-    const field=looseCurveField(curve,periodic,t=>sideAt(curve,t,periodic,tangent=>{
-      const side=[tangent[1],-tangent[0],0],size=Math.hypot(...side);
-      requireThat(size>1e-12,'Curve offset reference has a vertical or collapsed tangent.');
-      return side.map(v=>v/size);
-    }).map(v=>v*sign));
-    return {offsetCurves:depth=>[field.offsetCurve(depth)],report:field.report,
-      at:(t,depth=0)=>({point:evaluateCurve(field.offsetCurve(depth),wrap(t,curve.domain,periodic)).point})};
-  }
-  const domains=[[patch.domainU,periodicU],[patch.domainV,periodicV]];
-  const bounds=domains.flatMap(([range,wraps],axis)=>wraps?[]:range.map(value=>({axis,value})));
-  const inside=([u,v])=>[u,v].every((x,k)=>domains[k][1]||x>=domains[k][0][0]-1e-9&&x<=domains[k][0][1]+1e-9);
-  const surfaceUv=([u,v])=>[wrap(u,...domains[0]),wrap(v,...domains[1])];
-  const whole=(c,parts)=>parts.length===1&&parts[0][0]===c.domain[0]&&parts[0][1]===c.domain[1];
-  requireThat(whole(curve,insideIntervals(curve,bounds,inside)),'The reference curve must lie inside the patch domain.');
-  const field=looseCurveField(curve,periodic,t=>{
-    const e=evaluate(patch,...surfaceUv(evaluateCurve(curve,t).point));
+  const fields=inputs.map(({curve,closed})=>looseCurveField(curve,closed,t=>{
+    if(!patch)return sideAt(curve,t,closed,tangent=>{
+      const size=Math.hypot(tangent[0],tangent[1]);
+      requireThat(size>1e-12,'Curve offset reference has a collapsed tangent.');
+      return [tangent[1]/size,-tangent[0]/size,0];
+    });
+    const e=evaluate(patch,...evaluateCurve(curve,t).point.slice(0,2));
     requireThat(e.normal,'Surface curve offset reference crosses a singular surface point.');
-    const side=sideAt(curve,t,periodic,([tu,tv])=>{
+    const side=sideAt(curve,t,closed,([tu,tv])=>{
       const s=cross([0,1,2].map(k=>e.du[k]*tu+e.dv[k]*tv),e.normal),size=Math.hypot(...s);
       requireThat(size>1e-12,'Surface curve offset reference has a collapsed tangent.');
       return s.map(v=>v/size);
     });
     // Solve [du dv] x = side through the first fundamental form.
     const E=dot(e.du,e.du),F=dot(e.du,e.dv),G=dot(e.dv,e.dv),det=E*G-F*F,a=dot(e.du,side),b=dot(e.dv,side);
-    return [sign*(G*a-F*b)/det,sign*(E*b-F*a)/det,0];
-  });
-  function offsetCurves(depth){
-    const offset=field.offsetCurve(depth),parts=insideIntervals(offset,bounds,inside),[d0,d1]=offset.domain;
-    if(whole(offset,parts))return [offset];
-    const pieces=parts.map(([a,b])=>extract(offset,a,b));
-    if(periodic&&pieces.length>1&&parts[0][0]===d0&&parts.at(-1)[1]===d1)pieces.unshift(join(pieces.pop(),pieces.shift(),d1-d0));
-    return pieces;
+    return [(G*a-F*b)/det,(E*b-F*a)/det,0];
+  }));
+  function offset(depth){
+    requireThat(Number.isFinite(depth),'Curve offset depth must be finite.');
+    if(depth===0)return {curves:inputs.map(({curve,closed})=>({closed,pieces:[curve]})),report:{crossings:0,keptPieces:inputs.length}};
+    // The oriented curves whose positive-winding region is the result: each
+    // closed curve's offset, and for each open curve the band between it and
+    // its offset, closed by straight caps.
+    const system=[];
+    inputs.forEach(({curve,closed},i)=>{
+      const moved=fields[i](depth),sum=moved.domain[0]+moved.domain[1];
+      if(closed){system.push({curve:moved,closed,source:i,parent:moved,reference:curve});return;}
+      const at=(c,t)=>evaluateCurve(c,t).point,[d0,d1]=curve.domain;
+      if(depth>0)system.push({curve:moved,source:i,parent:moved,reference:curve},{curve:segmentCurve(at(moved,d1),at(curve,d1))},
+        {curve:reverseCurve(curve)},{curve:segmentCurve(at(curve,d0),at(moved,d0))});
+      else system.push({curve},{curve:segmentCurve(at(curve,d1),at(moved,d1))},
+        {curve:reverseCurve(moved),source:i,parent:moved,reversed:sum,reference:curve},{curve:segmentCurve(at(moved,d0),at(curve,d0))});
+    });
+    const all=system.map(s=>s.curve),mins=[Infinity,Infinity],maxs=[-Infinity,-Infinity];
+    for(const c of all)for(let i=0;i<c.n;i++)for(let k=0;k<2;k++){const v=c.cp[i*4+k]/c.cp[i*4+3];mins[k]=Math.min(mins[k],v);maxs[k]=Math.max(maxs[k],v);}
+    const scale=Math.max(maxs[0]-mins[0],maxs[1]-mins[1],1e-9),tol=1e-9*scale,eps=1e-7*scale;
+    const crossings=curveCrossings(all,tol,system.map(s=>!!s.closed)),winding=prepareWinding(all);
+    const kept=[];
+    system.forEach((s,c)=>{
+      if(s.source===undefined)return;
+      const ts=[s.curve.domain[0],...crossings.params[c],s.curve.domain[1]];
+      for(let k=1;k<ts.length;k++){
+        const {point,derivative}=evaluateCurve(s.curve,(ts[k-1]+ts[k])/2),size=Math.hypot(derivative[0],derivative[1]);
+        if(!(size>0))continue;
+        // A piece running against its source is inverted (a collapse); it
+        // bounds no material whatever the winding says.
+        const t=s.reversed===undefined?(ts[k-1]+ts[k])/2:s.reversed-(ts[k-1]+ts[k])/2;
+        if(dot(evaluateCurve(s.parent,t).derivative,evaluateCurve(s.reference,t).derivative)<=0)continue;
+        const r=[derivative[1]/size*eps,-derivative[0]/size*eps];
+        if(!(winding([point[0]-r[0],point[1]-r[1]])>=1&&winding([point[0]+r[0],point[1]+r[1]])<=0))continue;
+        const piece=ts.length===2?s.curve:extract(s.curve,ts[k-1],ts[k]);
+        // A band's reversed offset is returned in the curve's own direction.
+        if(s.reversed===undefined)kept.push({source:s.source,parent:s.parent,a:ts[k-1],b:ts[k],curve:piece});
+        else kept.push({source:s.source,parent:s.parent,a:s.reversed-ts[k],b:s.reversed-ts[k-1],curve:reverseCurve(piece,s.reversed)});
+      }
+    });
+    kept.sort((p,q)=>p.source-q.source||p.a-q.a);
+    let result=chainPieces(kept,Math.max(tol*1e3,eps));
+    if(patch){
+      const trimmed=[];
+      for(const chain of result){
+        const runs=[[]];let cut=false;
+        for(const piece of chain.pieces){
+          const parts=insideIntervals(piece,bounds,inside);
+          if(parts.length===1&&parts[0][0]===piece.domain[0]&&parts[0][1]===piece.domain[1]){runs.at(-1).push(piece);continue;}
+          cut=true;
+          parts.forEach(([a,b],k)=>{
+            if(k>0||a!==piece.domain[0])runs.push([]);
+            runs.at(-1).push(extract(piece,a,b));
+          });
+          if(!parts.length||parts.at(-1)[1]!==piece.domain[1])runs.push([]);
+        }
+        if(!cut){trimmed.push(chain);continue;}
+        if(chain.closed&&runs.length>1&&runs[0].length&&runs.at(-1).length)runs[0]=[...runs.pop(),...runs[0]];
+        for(const run of runs)if(run.length)trimmed.push({closed:false,pieces:run});
+      }
+      result=trimmed;
+    }
+    return {curves:result,report:{crossings:crossings.points.length,keptPieces:kept.length}};
   }
-  return {offsetCurves,report:field.report,at:(t,depth=0)=>{
-    const uv=evaluateCurve(field.offsetCurve(depth),wrap(t,curve.domain,periodic)).point.slice(0,2);
-    return inside(uv)?{uv:surfaceUv(uv),point:evaluate(patch,...surfaceUv(uv),false).point}:null;
-  }};
+  return {offset};
 }

@@ -87,7 +87,7 @@ export function summary(printId, state) {
 }
 
 // What the listener says instead of waiting while the chat's SAAM panel is connected.
-const PANEL_LISTENING='The SAAM panel in this chat delivers Studio requests as chat messages. Do not wait: end your turn.';
+const PANEL_LISTENING='The SAAM panel in this chat is connected: it posts Studio requests and events here as messages. End your turn now.';
 
 // Local clients keep the short bounded wait; a relay session raises it to its
 // client's per-call deadline (see relay-device.mjs).
@@ -507,8 +507,12 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     // Only this session's failures: an earlier chat's are not this one's error.
     const since=runtime.session?.started??Infinity;
     const latest=requests.filter(r=>!r.connectionClosed&&r.updatedAt>=since).reduce((a,b)=>!a||b.updatedAt>a.updatedAt?b:a,null);
-    // studio: the loopback address of the newest live Studio, carrying no secret.
-    const shown={requests:queued.map(({id,printId,kind,instruction})=>({id,printId,kind,instruction})),
+    // events: the queued Studio events that would wake a listener, less the
+    // request-queued ones the requests stand for. studio: the loopback address
+    // of the newest live Studio, carrying no secret.
+    const events=studioEvents.peek().filter(e=>e.delivery==='delivered'&&e.kind!=='request-queued')
+      .map(({seq,kind,printId,lesson,error})=>({seq,kind,printId:printId??null,...(lesson?.title?{lesson:clip(lesson.title)}:{}),...(error?{error:clip(error)}:{})}));
+    const shown={requests:queued.map(({id,printId,kind,instruction})=>({id,printId,kind,instruction})),events,
       studio:[...studioSessions.values()].filter(({server:studio})=>studio.listening).at(-1)?.url??null};
     const light=(state,text)=>({state,text,...shown});
     if(working)return light('working','Working on: '+clip(working.instruction));

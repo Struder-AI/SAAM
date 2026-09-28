@@ -165,15 +165,18 @@ function monotonePieces(curve){
 }
 
 // Newton on A(s) = B(t) in the first two coordinates, from the middle of two
-// small pieces. It stops when a step no longer reduces the residual.
-function refine(A,B,s,t){
+// small pieces and within them. It stops a thousand times inside the crossing
+// tolerance, or when a step cuts the residual by less than a tenth: a tangent
+// contact converges only linearly and a curve against itself not at all.
+function refine(A,B,s,t,tol,x,y){
   let best=null;
   for(;;){
+    if(!(s>=x.a&&s<=x.b&&t>=y.a&&t<=y.b))return best;
     const a=evaluateCurve(A,s),b=evaluateCurve(B,t),r=[a.point[0]-b.point[0],a.point[1]-b.point[1]],residual=Math.hypot(...r);
-    if(best&&!(residual<best.residual))return best;
+    if(best&&!(residual<.9*best.residual))return best;
     best={s,t,residual,point:a.point};
     const det=-a.derivative[0]*b.derivative[1]+a.derivative[1]*b.derivative[0];
-    if(residual===0||Math.abs(det)<1e-300)return best;
+    if(residual<=tol*1e-3||Math.abs(det)<1e-300)return best;
     s-=(-b.derivative[1]*r[0]+b.derivative[0]*r[1])/det;
     t-=(-a.derivative[1]*r[0]+a.derivative[0]*r[1])/det;
     if(!Number.isFinite(s)||!Number.isFinite(t))return best;
@@ -204,9 +207,9 @@ export function curveCrossings(curves,tol,closed=curves.map(()=>false)){
       const sx=size(x.box),sy=size(y.box),split=sx>tol||sy>tol?(sx>=sy?[halves(x),null]:[null,halves(y)]):[null,null];
       if(split[0])return split[0].forEach(h=>visit(h,y));
       if(split[1])return split[1].forEach(h=>visit(x,h));
-      const hit=refine(curves[p.ci],curves[q.ci],(x.a+x.b)/2,(y.a+y.b)/2);
+      const hit=refine(curves[p.ci],curves[q.ci],(x.a+x.b)/2,(y.a+y.b)/2,tol,p,q);
       const within=(t,piece)=>t>=piece.a-1e-12*(piece.b-piece.a+1)&&t<=piece.b+1e-12*(piece.b-piece.a+1);
-      if(hit.residual<=tol&&within(hit.s,p)&&within(hit.t,q)&&!hits.some(h=>Math.hypot(h.point[0]-hit.point[0],h.point[1]-hit.point[1])<=tol))hits.push(hit);
+      if(hit&&hit.residual<=tol&&within(hit.s,p)&&within(hit.t,q)&&!hits.some(h=>Math.hypot(h.point[0]-hit.point[0],h.point[1]-hit.point[1])<=tol))hits.push(hit);
     };
     visit(p,q);for(const hit of hits)record(p,q,hit);
   };

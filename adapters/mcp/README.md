@@ -46,7 +46,7 @@ saved IDs; there is no single global plan that overwrites another job.
 
 | Tool | Role |
 |---|---|
-| `maker_onboarding` | Listed first. The maker's starting context for a client without command access: MAKERS, GEOMETRY, the skill digest and shared print tools, plus how a relayed session reaches the computer. A relayed client that shows MCP Apps also gets the [SAAM panel](RELAY-PLAN.md#saam-panel) with its result. Until a relayed session calls it (or reads `makers`), every result carries a second text item asking it to. |
+| `maker_onboarding` | Listed first. The maker's starting context for a client without command access: MAKERS, GEOMETRY, the skill digest and shared print tools, plus how a relayed session reaches the computer. A relayed session also offers the [SAAM panel](RELAY-PLAN.md#saam-panel) with its result. Until a relayed session calls it (or reads `makers`), every result carries a second text item asking it to. |
 | `list_machines`, `list_skills`, `read_skill` | Read this checkout's known profiles and manuals. Each skill entry is a toolpath, geometry (such as mesh tools) or hybrid skill. These small fixed lists are not an automatic discovery or installation system. |
 | `read_guidance` | Read a published Markdown path, optionally ending in `#heading`, or a short ID: `makers`, `geometry`, `development`, `glossary`, `mcp`, `print-tools`. The response resolves documentation links into IDs for further reading. |
 | `get_plan_template` | Read a complete proposed shell recipe, reusing remembered setup. |

@@ -1,5 +1,30 @@
 # Development log
 
+## 2026-09-28 — SAAM panel fix: offer it always, listen until it connects
+
+- First Claude web try on 0.1.7 (session `PoiAsQQY…`): no panel, the Tour
+  button went unnoticed, and Studio showed its working dots after the geometry
+  landed. The records show one cause. Claude never listed tools or read
+  `ui://saam/panel` in that session. It reuses a tool list read earlier, the
+  first one by `Anthropic/Toolbox`, which advertised no MCP Apps and so got no
+  panel `_meta`. The capability-based `PANEL_GUIDANCE` still told the model not
+  to listen. With no panel and no listener, `tour-started` (08:52:53) reached
+  nobody, and the chat counted as working for 5 min after `request_review`.
+  Claude also sends `server/discover` (protocol 2026-07-28) before
+  initialize; the relay refuses it, and Claude falls back.
+- Now every relay session offers the panel. One `RELAY_GUIDANCE` keeps the
+  model listening until the listener answers that the panel is connected. The
+  panel also posts unread delivered Studio events (not `request-queued`) as one
+  message; `chatStatus` carries them as `events`.
+- Checks: the scratch end-to-end check under `wrangler dev` passes again, adding
+  a `print-opened` event reaching the panel, a client without MCP Apps still
+  offered the panel in its tool list, and its listener waiting (2 s) with no
+  panel connected. `relay/test/relay.test.mjs` passes. Not checked in a browser:
+  the panel's event post (script parses; same retry path as request posts).
+  Claude must re-read SAAM's tool list before it can show the panel. The
+  checkpoint also carries a concurrent session's uncommitted `core/geom`
+  curve-offset and curve-ops work.
+
 ## 2026-09-28 — 0.1.7: the SAAM panel released
 
 - Published `v0.1.7` from `0315fa4` (worktree build, Node v24.19.0):

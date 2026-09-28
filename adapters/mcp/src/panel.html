@@ -7,7 +7,8 @@
 <!-- The SAAM panel, an MCP App (see server.mjs). The chat host shows it in a
      sandboxed frame with maker_onboarding's result, whose _meta names the relay
      and this session's panel key. It shows one light for the session and posts
-     each queued Studio request into the chat, so the chat needs no listener. -->
+     each queued Studio request, and the Studio events that would wake a
+     listener, into the chat, so the chat needs no listener. -->
 <style>
 :root{--text:#1d1d1f;--muted:#6b6b70;--bg:#ffffff;--done:#1f9d55;--working:#d98e04;--error:#d0312d;--link:#0b63c5}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--text:#f2f2f2;--muted:#a1a1a6;--bg:#1b1b1d;--done:#3ccf7a;--working:#f0b429;--error:#ff6b61;--link:#6aa9ff}}
@@ -40,7 +41,7 @@ const PROTOCOL='2026-01-26',RETRY_MS=[2000,30000],PING_MS=25000,POST_RETRY_MS=10
 const FINAL_CLOSES=new Set([4001,4403]);
 const $=id=>document.getElementById(id);
 const panel={relay:null,key:null,socket:null,retry:null,ping:null,backoff:RETRY_MS[0],studio:null,
-  queued:[],posted:new Set(),posting:new Set(),nextId:1,replies:new Map()};
+  queued:[],posted:new Set(),posting:new Set(),events:[],postedSeq:0,postingEvents:false,nextId:1,replies:new Map()};
 
 // JSON-RPC with the chat host over postMessage.
 function send(message){window.parent.postMessage({jsonrpc:'2.0',...message},'*');}
@@ -102,9 +103,20 @@ function stop(){
   clearTimeout(panel.retry);clearInterval(panel.ping);
   const socket=panel.socket;panel.socket=null;socket?.close(1000);
 }
-function status({state,text,requests=[],studio=null}){
-  panel.studio=studio;panel.queued=requests;show(['done','working','error'].includes(state)?state:'error',text||state);
+function status({state,text,requests=[],events=[],studio=null}){
+  panel.studio=studio;panel.queued=requests;panel.events=events;show(['done','working','error'].includes(state)?state:'error',text||state);
   for(const queued of requests)post(queued);
+  postEvents();
+}
+// Studio events not yet posted go as one message; a refused post is tried again.
+async function postEvents(){
+  const fresh=panel.events.filter(e=>e.seq>panel.postedSeq);
+  if(panel.postingEvents||!fresh.length)return;
+  panel.postingEvents=true;
+  const line=e=>'- '+e.kind+(e.printId?` (print ${e.printId})`:'')+(e.lesson?`: lesson "${e.lesson}"`:'')+(e.error?`: ${e.error}`:'');
+  const text='SAAM Studio events:\n'+fresh.map(line).join('\n')+'\nRead them with get_studio_events; for a tour, get_tour.';
+  try{await request('ui/message',{role:'user',content:[{type:'text',text}]});panel.postedSeq=Math.max(...fresh.map(e=>e.seq));panel.postingEvents=false;postEvents();}
+  catch{setTimeout(()=>{panel.postingEvents=false;postEvents();},POST_RETRY_MS);}
 }
 // A queued Studio request becomes a chat message; one the chat refuses, as
 // during a turn, is tried again while it stays queued.

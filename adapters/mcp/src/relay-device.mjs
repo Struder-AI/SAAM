@@ -21,13 +21,7 @@ export function listenFor(clientName=''){
 }
 // A web chat has no command access on this computer and must keep listening
 // for Studio itself; the general instructions follow this.
-export const RELAY_GUIDANCE='This SAAM session reaches the person’s own computer through the SAAM relay. You cannot run commands or read files there: skip every step that needs command access. Call maker_onboarding first, once per conversation, and read further context with read_skill and read_guidance. SAAM Studio is open on that computer; the person imports files and confirms output there. Keep listening: after each reply, call wait_for_studio_request again without waiting for a chat message, and omit waitMs. A wait that returns no requests is normal; call it again.';
-// A chat client that shows MCP Apps gets the SAAM panel (server.mjs), which
-// posts Studio requests into the chat, so the chat ends its turns instead of
-// holding a wait that would keep the person's own messages back.
-export const PANEL_GUIDANCE='This SAAM session reaches the person’s own computer through the SAAM relay. You cannot run commands or read files there: skip every step that needs command access. Call maker_onboarding first, once per conversation: its result shows the SAAM panel in this chat. Read further context with read_skill and read_guidance. SAAM Studio is open on that computer; the person imports files and confirms output there. The panel posts each Studio request into this chat as a message naming its requestId; claim it with begin_studio_work. Do not call wait_for_studio_request while the panel is showing: after each reply, end your turn.';
-const PANEL_EXTENSION='io.modelcontextprotocol/ui',PANEL_MIME='text/html;profile=mcp-app';
-export const showsPanel=capabilities=>Boolean(capabilities?.extensions?.[PANEL_EXTENSION]?.mimeTypes?.includes(PANEL_MIME));
+export const RELAY_GUIDANCE='This SAAM session reaches the person’s own computer through the SAAM relay. You cannot run commands or read files there: skip every step that needs command access. Call maker_onboarding first, once per conversation, and read further context with read_skill and read_guidance. SAAM Studio is open on that computer; the person imports files and confirms output there. Keep listening: after each reply, call wait_for_studio_request again without waiting for a chat message, and omit waitMs. A wait that returns no requests is normal; call it again. When it answers that the SAAM panel is connected, end your turn instead: the panel posts Studio requests and events into this chat as messages.';
 const sha256=text=>createHash('sha256').update(text).digest('hex');
 // Status changes arrive in bursts (a calculation's progress); the panel hears
 // at most one per PANEL_STATUS_MS.
@@ -122,12 +116,15 @@ export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onSta
     session.idle=setTimeout(()=>{if(session.transport.calls.size||session.watch)lease(session);else void end(session.id);},sessionIdleMs);
     session.idle.unref?.();
   }
-  async function open(id,clientName,capabilities){
+  async function open(id,clientName){
     for(const other of [...sessions.keys()])await end(other);
-    const panel=showsPanel(capabilities)?{relayUrl:device.relayUrl,key:`${id}.${randomBytes(24).toString('base64url')}`}:null;
-    const transport=sessionTransport(reply,onCall),adapter=createMcpAdapter({runtime,listen:listenFor(clientName),remote:true,guidance:panel?PANEL_GUIDANCE:RELAY_GUIDANCE,panel});
+    // Every relay session offers the SAAM panel (server.mjs): a chat client
+    // reuses a tool list it read earlier, possibly from a session that did not
+    // advertise MCP Apps, so the offer cannot depend on this session's client.
+    const panel={relayUrl:device.relayUrl,key:`${id}.${randomBytes(24).toString('base64url')}`};
+    const transport=sessionTransport(reply,onCall),adapter=createMcpAdapter({runtime,listen:listenFor(clientName),remote:true,guidance:RELAY_GUIDANCE,panel});
     await adapter.server.connect(transport);
-    const session={id,transport,adapter,idle:null,client:clientName??null,panelHash:panel?sha256(panel.key):null,watch:null};
+    const session={id,transport,adapter,idle:null,client:clientName??null,panelHash:sha256(panel.key),watch:null};
     sessions.set(id,session);report();onStatus({session:id,active:true,client:clientName});readChats();
     return session;
   }
@@ -164,7 +161,7 @@ export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onSta
     if(packet.type==='panel'){const session=sessions.get(packet.session);if(session)panelConnected(session,Boolean(packet.connected));return;}
     if(packet.type!=='mcp')return;
     const {call,message}=packet;
-    const session=sessions.get(packet.session)??(message.method==='initialize'?await open(packet.session,message.params?.clientInfo?.name,message.params?.capabilities):null);
+    const session=sessions.get(packet.session)??(message.method==='initialize'?await open(packet.session,message.params?.clientInfo?.name):null);
     if(!session){if(call)reply(call,rpcError(message.id,-32001,'Session not found; initialize a new session.'),404);return;}
     if(call)session.transport.calls.set(message.id,{call,method:message.method,tool:message.params?.name??null,started:Date.now(),bytes:Buffer.byteLength(JSON.stringify(message))});
     lease(session);

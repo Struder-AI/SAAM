@@ -275,9 +275,11 @@ whose result carries queued requests and delivered Studio events.
 ### SAAM panel
 
 A held listener keeps the person's own chat messages waiting and may need a tool
-approval at every renewal. A client advertising MCP Apps (`io.modelcontextprotocol/ui`,
-as Claude web does) instead shows the panel with `maker_onboarding`'s result,
-and the turn ends after each reply.
+approval at every renewal. Every relay session offers the panel with
+`maker_onboarding`'s result: Claude reuses a tool list read earlier, even by a
+client (`Anthropic/Toolbox`) that advertised no MCP Apps. The assistant keeps
+listening until the panel connects; the listener then says so, and the turn ends
+after each reply.
 
 - It runs in the host's sandboxed frame and connects only to the relay's
   `/panel` WebSocket. Its first message carries a per-session key from the
@@ -287,8 +289,9 @@ and the turn ends after each reply.
   toolpath calculates or the chat called SAAM in the last 45 s; **error** while
   the computer is offline, the panel's connection or session is lost, or this
   session's latest request failed; **done** otherwise, with a line saying why.
-- It posts each queued request with its `requestId` (`ui/message`), retrying a
-  refused post while the request stays queued. "Open Studio" asks the host to
+- It posts each queued request with its `requestId`, and the unread Studio
+  events that would wake a listener (a tour starting, say) as one message
+  (`ui/message`), retrying a refused post while they stay unread. "Open Studio" asks the host to
   open Studio's loopback address, which holds no secret.
 - While it is connected the session does not idle out and the listener returns
   at once. A new session closes the old one's panels.
