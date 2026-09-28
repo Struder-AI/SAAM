@@ -7,13 +7,10 @@
 // identical to the reviewed one.
 
 import { createHash } from 'node:crypto';
-import { FULL_FILL_DEFAULTS } from '../../skills/full-fill/scripts/fill.mjs';
 import { DRAPED_SKIN_DEFAULTS } from '../../skills/draped-skin/scripts/drape.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 import {loadMachine,validateSetup,toolBounds,requireMachine,centeredPlacement} from '../machine/profile.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
-import {PLANAR_INFILL_DEFAULTS} from '../../skills/planar-infill/scripts/infill.mjs';
-import {INFILL_PATTERNS} from '../../skills/planar-infill/scripts/patterns.mjs';
 import {LINE_NETWORK_DEFAULTS} from '../../skills/line-network/scripts/network.mjs';
 import {BRIDGING_DEFAULTS,validateBridging} from '../../skills/bridging/scripts/bridge.mjs';
 import {VASE_WALL_DEFAULTS} from '../../skills/vase-wall/scripts/vase.mjs';
@@ -27,7 +24,9 @@ import {textTemplate,validateTextRecord} from '../geom/text-record.mjs';
 import {blobFieldTemplate,validateBlobFieldRecord} from '../geom/blob-field-record.mjs';
 import {booleanSolidTemplate,validateBooleanSolid,booleanShell} from '../geom/boolean-solid.mjs';
 import {geometrySelections} from '../geom/selections.mjs';
-import {SPACING_SKILLS,lineSpacing} from '../path/spacing.mjs';
+import {lineSpacing} from '../path/spacing.mjs';
+import {SPACING_SKILLS} from '../../skills/catalog.mjs';
+import {defaultSlices,validateSlices} from './slices.mjs';
 import {WAVE_DEFAULTS,validateWaves} from '../../skills/wave-overhangs/scripts/wave.mjs';
 import {PLASTIC_WELD_DEFAULTS,validatePlasticWeld} from '../../skills/plastic-weld/scripts/weld.mjs';
 import {heatSetTemplate,validateHeatSetRecord} from '../../skills/heat-set-inserts/scripts/feature.mjs';
@@ -70,14 +69,13 @@ export function defaults(machine=loadMachine()) {
       'wave-overhangs':structuredClone(WAVE_DEFAULTS),
       'pipe-cladding':structuredClone(PIPE_CLADDING_DEFAULTS),
       supports: structuredClone(SUPPORT_DEFAULTS),
-      'full-fill': { enabled: true, parts: [], ...FULL_FILL_DEFAULTS },
-      'planar-infill': {enabled:false,parts:[],...PLANAR_INFILL_DEFAULTS},
       'line-network': structuredClone(LINE_NETWORK_DEFAULTS),
       bridging: structuredClone(BRIDGING_DEFAULTS),
       'vase-wall': {enabled:false,part:null,...VASE_WALL_DEFAULTS},
       'thick-lip': {enabled:false,part:null,...THICK_LIP_DEFAULTS},
       'draped-skin': { enabled: machine.capabilities.includes('nonplanar'), part: null, ...DRAPED_SKIN_DEFAULTS }
     },
+    slices: defaultSlices(),
     composition: { order: [], dependencies: [], batchLayers: 1, regions: [] },
     output: 'griffin-gcode'
   };
@@ -230,7 +228,6 @@ export function validatePlanProcess(plan,machine) {
 
 export function validatePlanAuxiliary(plan,machine) {
   const {geometry,process,setup,skills}=plan;
-  const normal=skills['planar-infill'];
   validateSetup(plan,machine);
   validateWaves(skills['wave-overhangs']);
   if(skills['wave-overhangs'].enabled){
@@ -288,8 +285,9 @@ export function validatePlanSelections(plan,machine) {
   if(plan.skills.bridging.enabled)requireMachine(machine,['xyz-extrusion','nonplanar'],'bridging');
   const {geometry,placement,skills}=plan;
   const regional=plan.composition.regions.length>0;
-  const fill=skills['full-fill'],skin=skills['draped-skin'],normal=skills['planar-infill'],network=skills['line-network'],vase=skills['vase-wall'],lip=skills['thick-lip'];
-  requireThat(typeof normal.enabled==='boolean'&&Array.isArray(normal.parts)&&new Set(normal.parts).size===normal.parts.length&&normal.parts.every(id=>typeof id==='string'),'Invalid planar-infill selection.');
+  const skin=skills['draped-skin'],network=skills['line-network'],vase=skills['vase-wall'],lip=skills['thick-lip'];
+  const sliced=plan.slices.assignments.length>0;
+  validateSlices(plan.slices,{parts:geometry.shape==='assembly'?geometry.parts.map(p=>p.id):[],lineWidthMm:plan.process.lineWidthMm});
   // Course, group, stroke and point counts follow the authored frame; only the
   // shape of each entry is checked.
   requireThat(typeof network.enabled==='boolean'&&Number.isInteger(network.layers)&&network.layers>=1&&Array.isArray(network.networks),'Invalid line-network settings.');
@@ -302,11 +300,7 @@ export function validatePlanSelections(plan,machine) {
       requireThat(stroke.layers===undefined||Array.isArray(stroke.layers)&&stroke.layers.length>0&&new Set(stroke.layers).size===stroke.layers.length&&stroke.layers.every(layer=>Number.isInteger(layer)&&layer>=0&&layer<network.layers),'Invalid line-network stroke layers.');
     }
   }
-  requireThat(!network.enabled||(!regional&&!fill.enabled&&!skin.enabled&&!normal.enabled&&!vase.enabled&&!lip.enabled),'line-network is a standalone planar path; disable filled, skin, vase and regional patterns.');
-  requireThat(['body','solid-surfaces'].includes(fill.mode),'Invalid full-fill mode.');
-  for(const key of ['bottomLayers','topLayers'])requireThat(Number.isInteger(fill[key])&&fill[key]>=0&&fill[key]<=20,`${key} must be 0–20.`);
-  requireThat(regional||!fill.enabled||fill.mode!=='solid-surfaces'||normal.enabled,'Solid surface masks require planar-infill.');
-  requireThat(Array.isArray(fill.parts)&&new Set(fill.parts).size===fill.parts.length&&fill.parts.every(id=>typeof id==='string'),'Invalid full-fill component selection.');
+  requireThat(!network.enabled||(!regional&&!sliced&&!skin.enabled&&!vase.enabled&&!lip.enabled),'line-network is a standalone planar path; remove slice assignments and disable skin, vase and regional patterns.');
   requireThat(skin.part===null||typeof skin.part==='string','Invalid draped surface component.');
   if(geometry.shape==='assembly') {
     requireThat(Array.isArray(geometry.parts)&&geometry.parts.length>=2&&geometry.parts.length<=20,'An assembly needs 2–20 components.');
@@ -319,52 +313,36 @@ export function validatePlanSelections(plan,machine) {
       const assigned=plan.composition.regions.find(r=>r.part===part.id&&r.filament!==undefined);
       const child=structuredClone(assigned?filamentPlan(plan,machine,assigned.filament):plan);child.geometry=part.geometry;
       child.placement={xMm:placement.xMm+part.xMm,yMm:placement.yMm+part.yMm};
-      child.skills['full-fill'].parts=[];child.skills['draped-skin'].part=null;
-      child.skills['planar-infill'].parts=[];
+      child.skills['draped-skin'].part=null;
+      child.slices={...child.slices,assignments:child.slices.assignments.filter(a=>a.part===null||a.part===part.id).map(a=>({...a,part:null}))};
       child.skills['vase-wall'].part=null;
       child.skills['thick-lip'].part=null;
       child.skills['pipe-cladding'].enabled=false;child.skills['pipe-cladding'].part=null;
       child.skills['wave-overhangs'].enabled=false;
       child.skills['plastic-weld'].enabled=false;
       child.composition.regions=[];
-      if(regional){for(const settings of Object.values(child.skills))settings.enabled=false;child.skills['full-fill'].enabled=true;child.skills['full-fill'].mode='body';}
+      // A component checked on its own is sliced whole by one default owner.
+      if(regional||!child.slices.assignments.length){for(const settings of Object.values(child.skills))settings.enabled=false;child.slices=defaultSlices();}
       validatePlan(child,machine);
     }
-    requireThat(fill.parts.every(id=>ids.has(id))&&(skin.part===null||ids.has(skin.part)),'Unknown selected component.');
-    requireThat(normal.parts.every(id=>ids.has(id)),'Unknown planar-infill component.');
+    requireThat(skin.part===null||ids.has(skin.part),'Unknown selected component.');
     requireThat(regional||!skin.enabled||skin.part!==null,'An assembly must select the component whose roof is draped.');
     requireThat((vase.part===null||ids.has(vase.part))&&(regional||!vase.enabled||vase.part!==null),'An assembly must select a known vase-wall component.');
     requireThat(lip.part===null||ids.has(lip.part),'Unknown thick-lip component.');
-  } else requireThat(fill.parts.length===0&&normal.parts.length===0&&skin.part===null&&vase.part===null&&lip.part===null,'Component selection requires assembly geometry.');
-  requireThat(typeof fill.enabled === 'boolean' && typeof skin.enabled === 'boolean', 'Each skill needs an enabled flag.');
-  requireThat(regional||fill.enabled || skin.enabled || normal.enabled || vase.enabled || lip.enabled || network.enabled || skills['wave-overhangs'].enabled, 'Select at least one pattern skill.');
+  } else requireThat(skin.part===null&&vase.part===null&&lip.part===null,'Component selection requires assembly geometry.');
+  requireThat(typeof skin.enabled === 'boolean', 'Each skill needs an enabled flag.');
+  requireThat(regional||sliced || skin.enabled || vase.enabled || lip.enabled || network.enabled || skills['wave-overhangs'].enabled, 'Add a slice assignment or select a pattern skill.');
+  if(sliced)requireMachine(machine,['xyz-extrusion','planar'],'slice');
   if(!regional&&vase.enabled)requireMachine(machine,['xyz-extrusion','nonplanar'],'vase-wall');
   if(!regional&&lip.enabled)requireMachine(machine,['xyz-extrusion','planar'],'thick-lip');
-  if(!regional&&normal.enabled)requireMachine(machine,['xyz-extrusion','planar'],'planar-infill');
   if(network.enabled)requireMachine(machine,['xyz-extrusion','planar'],'line-network');
-  if(!regional&&fill.enabled)requireMachine(machine,['xyz-extrusion','planar'],'full-fill');
   if(!regional&&skin.enabled)requireMachine(machine,['xyz-extrusion','nonplanar'],'draped-skin');
   return plan;
 }
 
 export function validatePlanDeposition(plan) {
-  const {process,skills}=plan;
-  const fill=skills['full-fill'],skin=skills['draped-skin'],normal=skills['planar-infill'];
-  requireThat(Number.isInteger(fill.perimeters), 'perimeters must be an integer.');
-  requireThat(fill.perimeters >= 0, 'perimeters must be zero or more.');
-  requireThat(['all','outer'].includes(fill.perimeterScope),'Full-fill perimeterScope must be all or outer.');
-  requireThat(fill.holeLineWidthMm===null||(Number.isFinite(fill.holeLineWidthMm)&&fill.holeLineWidthMm>=0.3&&fill.holeLineWidthMm<=process.lineWidthMm),'Full-fill holeLineWidthMm must be null or 0.3 mm through the main line width.');
-  requireThat(Array.isArray(fill.fillAnglesDeg) && fill.fillAnglesDeg.length >= 1 && fill.fillAnglesDeg.every(angle => typeof angle === 'number' && angle >= -180 && angle <= 180), 'Invalid fill angles.');
-  number(fill.fillOverlap, 0, 0.5, 'fillOverlap');
-  number(fill.minFeatureMm, 0.05, 5, 'minFeatureMm');
-  number(normal.density,0,1,'Infill density');
-  requireThat(normal.density===0||normal.density>=0.01,'Infill density must be zero or 0.01–1.');
-  requireThat(INFILL_PATTERNS.includes(normal.pattern),'Unknown infill pattern.');
-  number(normal.sampleStepMm,0.01,2,'Infill sample step');
-  requireThat(Number.isInteger(normal.perimeters)&&normal.perimeters>=0,'Infill perimeters must be a whole number, zero or more.');
-  requireThat(['all','outer'].includes(normal.perimeterScope),'Planar-infill perimeterScope must be all or outer.');
-  requireThat(Array.isArray(normal.fillAnglesDeg)&&normal.fillAnglesDeg.length>0&&normal.fillAnglesDeg.every(v=>Number.isFinite(v)&&v>=-180&&v<=180),'Invalid infill angles.');
-  number(normal.fillOverlap,0,0.5,'Infill overlap');number(normal.minFeatureMm,0.05,5,'Infill feature size');
+  const {skills}=plan;
+  const skin=skills['draped-skin'];
   requireThat(Number.isInteger(skin.layers), 'draped skin layers must be an integer.');
   requireThat(skin.layers >= 1, 'draped skin layers must be one or more.');
   number(skin.normalMm, 0.05, 0.5, 'skin normal thickness');
@@ -390,7 +368,6 @@ export function validatePlanPlacement(plan,machine) {
 
 export function validatePlanRegions(plan,machine) {
   const {geometry,placement,process,skills}=plan;
-  const normal=skills['planar-infill'];
   const regionIds=new Set(),selections=geometrySelections(geometry);
   for(const region of plan.composition.regions) {
     // Optional process overrides layer/bead settings; filament selects a Bambu material/nozzle.
@@ -404,7 +381,7 @@ export function validatePlanRegions(plan,machine) {
     requireThat(region.zEndMm===null||(Number.isFinite(region.zEndMm)&&region.zEndMm>region.zStartMm),'Region end must exceed its start or be null.');
     requireThat(region.lowerSurfaceFrom===null||typeof region.lowerSurfaceFrom==='string','Invalid region lower-surface reference.');
     requireThat(region.skills&&typeof region.skills==='object'&&!Array.isArray(region.skills)&&Object.keys(region.skills).length>0,'A region needs selected skills.');
-    const child=structuredClone(region.filament===undefined?plan:filamentPlan(plan,machine,region.filament));child.composition.regions=[];
+    const child=structuredClone(region.filament===undefined?plan:filamentPlan(plan,machine,region.filament));child.composition.regions=[];child.slices={...child.slices,assignments:[]};
     if(part){child.geometry=part.geometry;child.placement={xMm:placement.xMm+part.xMm,yMm:placement.yMm+part.yMm};}
     for(const [name,settings] of Object.entries(child.skills)){settings.enabled=Object.hasOwn(region.skills,name);if('part' in settings)settings.part=null;if('parts' in settings)settings.parts=[];}
     if(Object.hasOwn(region,'process')){

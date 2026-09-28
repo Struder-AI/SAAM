@@ -13,7 +13,7 @@ export function bumpyPlan(){
   const radiusAt=(angle,v)=>{const t=v<.1?0:v>.9?1:v;
     return 13.40+2.34*Math.sin(2*angle+phase[0]+2.8*t)+1.00*Math.cos(3*angle+phase[1]-4*t)+.445*Math.sin(angle+phase[2]+6*t);};
   plan.geometry=splineTube({columns,rows:8,heightMm:32,boreRadiusMm:8,radiusAt});
-  plan.skills['full-fill'].perimeters=3;plan.skills['full-fill'].fillOverlap=.15;
+  Object.assign(plan.slices.assignments[0],{loops:3,fillDensity:1});
   Object.assign(plan.skills['pipe-cladding'],{shells:6,sampleStepMm:.65,toleranceMm:.01,surface:tubeSurface(columns)});
   return plan;
 }

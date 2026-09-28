@@ -24,8 +24,7 @@ const plan=defaults(loadMachine('ultimaker-s5'));
 const wave=[0,2,4,0,-4,-2,0],rise=[0,1,3,5,6];
 plan.geometry=splineBlock({runMm:100,widthMm:60,heightsMm:wave.map(z=>rise.map(y=>10+z+y))});
 plan.placement={xMm:135,yMm:95};
-Object.assign(plan.skills['planar-infill'],{enabled:true,pattern:'gyroid',density:0.25,perimeters:3});
-Object.assign(plan.skills['full-fill'],{mode:'solid-surfaces',bottomLayers:4,topLayers:4});
+Object.assign(plan.slices.assignments[0],{fillPattern:'gyroid',fillDensity:0.25,loops:3,solidTop:4,solidBottom:4});
 Object.assign(plan.skills['draped-skin'],{layers:3,normalMm:0.2,strokeAngleDeg:0,sampleStepMm:0.4,surveyStepMm:0.4});
 return plan;
 }

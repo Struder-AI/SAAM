@@ -1,9 +1,12 @@
 // Explicit discovery catalog, shared by MCP and the generated maker digest.
 // Order introduces familiar printing approaches before specialized ones.
 export const SKILL_IDS = Object.freeze([
-  'planar-infill', 'full-fill', 'line-network', 'bridging', 'plastic-weld', 'supports', 'bed-adhesion',
+  'slice', 'line-network', 'bridging', 'plastic-weld', 'supports',
   'draped-skin', 'wave-overhangs', 'vase-wall', 'advanced-vase-wall', 'thick-lip', 'pipe-cladding', 'thingi10k', 'mesh-tools', 'text', 'gridfinity', 'heat-set-inserts'
 ]);
+// Skills whose settings carry spacingFactor (core/path/spacing.mjs); slice
+// assignments carry their own.
+export const SPACING_SKILLS = Object.freeze(['draped-skin', 'supports', 'pipe-cladding']);
 
 export function skillMetadata(id, manual) {
   const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(manual)?.[1] ?? '';

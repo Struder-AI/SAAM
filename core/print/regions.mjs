@@ -7,8 +7,6 @@ import {pointInRegion,pointSegmentDistance,regionArea,loopArea} from '../region/
 import {offsetRegion} from '../region/offset.mjs';
 import {strokeRegion} from '../region/stroke.mjs';
 import {difference,union,intersect} from '../region/boolean.mjs';
-import {fullFillResult,layerHeights} from '../../skills/full-fill/scripts/fill.mjs';
-import {planarInfillResults} from '../../skills/planar-infill/scripts/infill.mjs';
 import {vaseWallResult} from '../../skills/vase-wall/scripts/vase.mjs';
 import {thickLipResult} from '../../skills/thick-lip/scripts/lip.mjs';
 import {drapedSkinResult,surveySurface,machineMaxAngle,bodyTopAt} from '../../skills/draped-skin/scripts/drape.mjs';
@@ -18,7 +16,6 @@ import {selectionsOverlap} from '../geom/selections.mjs';
 import {filamentPlan} from '../machine/filaments.mjs';
 
 const has=(record,name)=>Object.hasOwn(record.assignment.skills,name);
-const planar=record=>has(record,'full-fill')||has(record,'planar-infill');
 const ids=results=>results.flatMap(r=>r.operations.map(op=>op.id));
 const inBounds=(x,y,b)=>x>=b.min[0]-1e-8&&x<=b.max[0]+1e-8&&y>=b.min[1]-1e-8&&y<=b.max[1]+1e-8;
 const covered=(x,y,region)=>pointInRegion([x,y],region)||region.some(loop=>loop.some((p,i)=>pointSegmentDistance([x,y],p,loop[(i+1)%loop.length])<=1e-7));
@@ -114,147 +111,97 @@ function publishSurface(record,results) {
     query=(x,y)=>covered(x,y,footprint)?end:null;kind='rim';
     // A constant plane needs no raster search for a narrow bead footprint.
     field={xs:[shell.bounds.min[0],shell.bounds.max[0]],ys:[shell.bounds.min[1],shell.bounds.max[1]],values:[[end,end],[end,end]]};
-  } else if(has(record,'thick-lip')) {
+  } else {
     // A rolled/thickened rim is a terminal finish: nothing is expected to
     // print above it, so it publishes no consumable material top.
     return null;
-  } else {
-    const layers=planarLayers(results).sort((a,b)=>b.z-a.z);
-    // A reserved process void can publish material completed by a later
-    // operation. Consumers inherit that operation, so its mouth is usable as
-    // a final surface without pretending the surrounding fill deposited it.
-    for(const {completion:c} of shell.processReservations??[])if(c&&c.z>start+1e-8&&c.z<=end+1e-8)
-      layers.push({z:c.z,region:c.region,materialRegion:c.region,coverage:'area'});
-    layers.sort((a,b)=>b.z-a.z);
-    query=(x,y)=>{for(const layer of layers)if(covered(x,y,layer.region))return layer.z;return null;};
-    // Top ownership follows emitted solid masks and walls. Sparse interiors
-    // remain explicitly sparse; a real solid top mask can publish area support.
-    const topLevels=[...new Set(layers.map(layer=>layer.z))].sort((a,b)=>b-a);
-    let seen=[],missing=[];solidFootprint=[];
-    for(const z of topLevels){
-      const same=layers.filter(layer=>layer.z===z),uniqueRegions=[...new Set(same.map(layer=>layer.region))];
-      const envelope=uniqueRegions.reduce((area,region)=>union(area,region),[]);
-      const newlyExposed=difference(envelope,seen);
-      // A higher emitted surface already owns these XY locations. Lower solid
-      // masks cannot change either their top or coverage classification.
-      if(newlyExposed.length===0)continue;
-      const solid=same.filter(layer=>layer.coverage==='area').reduce((area,layer)=>union(area,layer.materialRegion),[]);
-      missing=union(missing,difference(newlyExposed,solid));seen=union(seen,envelope);
-      solidFootprint=union(solidFootprint,intersect(newlyExposed,solid));
-    }
-    footprint=seen;
-    kind=Math.abs(regionArea(missing))<=1e-5?'area':'sparse';
   }
   field??=surfaceField(shell,query,plan.skills['draped-skin'].surveyStepMm);
-  return {footprint,solidFootprint:solidFootprint??footprint,topAt:query,field,
-    sourceOperationIds:[...ids(results),...(shell.processReservations??[]).map(r=>r.completion).filter(c=>c&&c.z>start+1e-8&&c.z<=end+1e-8).map(c=>c.operationId)],kind,sourceRegionId:record.assignment.id};
+  return {footprint,solidFootprint:footprint,topAt:query,field,sourceOperationIds:ids(results),kind,sourceRegionId:record.assignment.id};
 }
 
-export function prepareRegionRecords(plan,placed,componentShells,machine) {
+// Region records of the skills not yet folded into the slice skill, with
+// their dependencies and draped-skin surveys. Planar material is slice data
+// (plan.slices); a region band claims its part's layers from the slices.
+export function prepareRegions({plan,machine,componentShells,selections}) {
   const records=plan.composition.regions.map(assignment=>{
-    const shell=componentShells?componentShells.get(assignment.part):placed;
+    const shell=componentShells.get(assignment.part);
     const localPlan=structuredClone(assignment.filament===undefined?plan:filamentPlan(plan,machine,assignment.filament));localPlan.composition.regions=[];
-    // A region with process overrides owns its own layer grid from its start Z.
-    const ownsGrid=Object.hasOwn(assignment,'process');
-    if(ownsGrid)Object.assign(localPlan.process,assignment.process);
+    if(Object.hasOwn(assignment,'process'))Object.assign(localPlan.process,assignment.process);
     for(const [name,settings] of Object.entries(localPlan.skills)) {
       settings.enabled=Object.hasOwn(assignment.skills,name);
       if(settings.enabled)Object.assign(settings,assignment.skills[name]);
     }
     const start=shell.bounds.min[2]+assignment.zStartMm;
     // A rim finish generates its own geometry above its start Z and never
-    // samples the modeled shell there, unlike every other region skill - so
-    // it alone is exempt from needing real geometry to reach its own "end."
-    // Leaving zEndMm null gives it a nominal one-layer span; a caller-given
-    // zEndMm still must clear zStartMm, same as any other region.
-    const isLip=Object.hasOwn(assignment.skills,'thick-lip');
+    // samples the modeled shell there, so it alone may end above the part;
+    // left open it spans one nominal layer.
+    const isLip=has({assignment},'thick-lip');
     const end=assignment.zEndMm===null?(isLip?start+localPlan.process.layerMm:shell.bounds.max[2]):shell.bounds.min[2]+assignment.zEndMm;
     requireThat(start>=shell.bounds.min[2]-1e-8&&(isLip||end<=shell.bounds.max[2]+1e-8)&&end>start,'Region bounds exceed its selected native geometry.');
-    return {assignment,shell,plan:localPlan,start,end,ownsGrid,after:new Set(),results:[]};
+    return {assignment,shell,plan:localPlan,start,end,after:new Set()};
   });
-  return records;
-}
-
-export function prepareRegionDependencies(prepared,machine,selections) {
-  const records=prepared.map(record=>({...record,after:new Set(record.after)}));
   for(const record of records) {
     const {assignment}=record;
     if(assignment.lowerSurfaceFrom)record.after.add(assignment.lowerSurfaceFrom);
     if(has(record,'vase-wall'))requireThat(Object.keys(assignment.skills).length===1,'A continuous outer-wall region cannot also assign another wall or interior owner; use separate material regions.');
     if(has(record,'thick-lip'))requireThat(Object.keys(assignment.skills).length===1,'A rim finish cannot also assign another wall or interior owner; use a separate material region.');
-    if(has(record,'full-fill')&&has(record,'planar-infill'))requireThat(record.plan.skills['full-fill'].mode==='solid-surfaces','Overlapping body fill and sparse fill require complementary solid-surfaces ownership.');
-    for(const previous of records)if(previous!==record&&(selections
-      ?selectionsOverlap(selections.get(previous.assignment.part),selections.get(assignment.part))
-      :previous.assignment.part===assignment.part)) {
+    for(const previous of records)if(previous!==record&&selectionsOverlap(selections.get(previous.assignment.part),selections.get(assignment.part))) {
       const overlap=Math.min(previous.end,record.end)-Math.max(previous.start,record.start);
       requireThat(overlap<=1e-8||assignment.lowerSurfaceFrom===previous.assignment.id||previous.assignment.lowerSurfaceFrom===assignment.id,
-        'Overlapping material regions need an explicit consumed lower surface; put complementary sparse and solid masks in one region.');
+        'Overlapping material regions need an explicit consumed lower surface.');
       if(previous.end<=record.start+1e-8)record.after.add(previous.assignment.id);
     }
     if(has(record,'draped-skin')) {
       const settings=record.plan.skills['draped-skin'],declared=machineMaxAngle(machine),limit=settings.maxAngleDegOverride??declared;
-      record.survey=surveySurface(record.shell,settings,limit);
-      Object.assign(record.survey,{declaredLimitDeg:declared,experimentalOverride:Boolean(machine.nonplanar?.experimental)||(settings.maxAngleDegOverride!==null&&settings.maxAngleDegOverride!==declared)});
+      record.survey={...surveySurface(record.shell,settings,limit),declaredLimitDeg:declared,
+        experimentalOverride:Boolean(machine.nonplanar?.experimental)||(settings.maxAngleDegOverride!==null&&settings.maxAngleDegOverride!==declared)};
     }
   }
   return records;
 }
 
-export function generateAssignedRegion(prepared,{plan,machine,records,byId,ordered,planarZ,onProgress}) {
+// Bands whose material a wall or rim region deposits itself; slices yield it.
+export const regionBands=records=>records.filter(r=>has(r,'vase-wall')||has(r,'thick-lip'))
+  .map(r=>({part:r.assignment.part,startMm:r.start,endMm:r.end}));
+
+// Slice operations of a part at or below a height, and the supporting
+// slice results a skin rests on.
+const sliceOpsBelow=(sliced,part,z)=>sliced.filter(r=>r.report.part===part).flatMap(r=>r.operations).filter(op=>op.rank<=z+1e-8).map(op=>op.id);
+
+export function generateAssignedRegion(prepared,{plan,machine,byId,sliced,onProgress}) {
   const record={...prepared,results:[]}, {assignment,shell,start,end}=record,localPlan=record.plan;
   const predecessors=[...record.after].map(id=>byId.get(id));
   const touching=predecessors.filter(p=>Math.abs(p.end-start)<=1e-8&&p.assignment.part===assignment.part);
   const lowerSurface=assignment.lowerSurfaceFrom?byId.get(assignment.lowerSurfaceFrom).surface:null;
-  if(assignment.lowerSurfaceFrom) {
-    requireThat(lowerSurface,'The referenced region does not publish a consumable material top; finish its boundary transition first.');
-    const minimum=lowerSurface.field.values.reduce((best,row)=>row.reduce((min,z)=>Math.min(min,z),best),Infinity);
-    // A planar consumer starts on a global horizontal layer grid. A curved
-    // skin instead begins above its local support at each sampled stroke;
-    // valleys outside its footprint must not constrain its bounding-box Z.
-    if(planar(record))requireThat(start<=minimum+1e-6,'Consumer start skips material above the lower surface; start at or below its minimum height.');
-  }
-  if(start>shell.bounds.min[2]+1e-8&&!lowerSurface)requireThat(touching.length,'Region starts above unassigned material; assign its supporting region or consume a published lower surface.');
+  if(assignment.lowerSurfaceFrom)requireThat(lowerSurface,'The referenced region does not publish a consumable material top; finish its boundary transition first.');
+  const below=sliceOpsBelow(sliced,assignment.part,start);
+  if(start>shell.bounds.min[2]+1e-8&&!lowerSurface)requireThat(touching.length||below.length,'Region starts above unassigned material; give its part a slice owner below it or consume a published lower surface.');
   for(const previous of touching)if(has(previous,'vase-wall')) {
     requireThat(previous.plan.skills['vase-wall'].endTransition==='level',`Region ${assignment.id} needs a level vase ending at its flat boundary; set region ${previous.assignment.id}'s vase-wall endTransition to level in the proposed recipe.`);
   }
   if(has(record,'thick-lip'))requireThat(touching.some(p=>has(p,'vase-wall')),`Region ${assignment.id} is a rim finish; it must sit directly above a level-ended vase-wall region on the same component.`);
-  if(planar(record)||has(record,'vase-wall')) {
-    if(record.ownsGrid){
-      const span=end-start,{firstLayerMm,layerMm}=localPlan.process,index=(span-firstLayerMm)/layerMm;
-      requireThat(lowerSurface||Math.abs(index-Math.round(index))<1e-8,'A flat region span must contain its first layer plus a whole number of local layer pitches.');
-    } else {
-      const relative=start-shell.bounds.min[2],index=(relative-plan.process.firstLayerMm)/plan.process.layerMm;
-      requireThat(lowerSurface||relative<1e-8||Math.abs(index-Math.round(index))<1e-8,'A flat region boundary must align with the component layer grid.');
-    }
-  }
-  const consumed=new Set();let source=assignment.lowerSurfaceFrom;
-  while(source){consumed.add(source);source=byId.get(source).assignment.lowerSurfaceFrom;}
-  const reserve=records.filter(r=>r.survey&&!consumed.has(r.assignment.id)&&r.end>=start-1e-8).map(r=>r.survey);
   const prefix=assignment.id;
-  const layerOriginMm=record.ownsGrid?start:null;
-  const firstZ=Number(((layerOriginMm??shell.bounds.min[2])+localPlan.process.firstLayerMm).toFixed(9));
-  const layerIndexOffset=Math.max(0,planarZ.indexOf(firstZ));
-  if(has(record,'planar-infill'))record.results.push(...planarInfillResults({shell,plan:localPlan,machine,reserve,id:prefix+':planar-infill',solid:has(record,'full-fill'),zStartMm:start,zEndMm:end,layerOriginMm,layerIndexOffset,lowerSurface}));
-  else if(has(record,'full-fill'))record.results.push(fullFillResult({shell,plan:localPlan,machine,reserve,id:prefix+':full-fill',zStartMm:start,zEndMm:end,layerOriginMm,layerIndexOffset,lowerSurface}));
   if(has(record,'vase-wall')) {
     requireThat(!lowerSurface,'A vase foundation ring requires a flat lower boundary; use a planar transition region above the supplied surface.');
-    const result=vaseWallResult({shell,plan:localPlan,machine,id:prefix+':vase-wall',zStartMm:start,zEndMm:end,onProgress});
-    record.results.push(result);
+    const relative=start-shell.bounds.min[2],index=(relative-plan.process.firstLayerMm)/plan.process.layerMm;
+    requireThat(relative<1e-8||Math.abs(index-Math.round(index))<1e-8,'A vase region must start on the part\'s layer grid.');
+    record.results.push(vaseWallResult({shell,plan:localPlan,machine,id:prefix+':vase-wall',zStartMm:start,zEndMm:end,onProgress}));
   }
   if(has(record,'thick-lip')) {
     requireThat(!lowerSurface,'A rim finish requires a flat lower boundary; use a planar transition region above the supplied surface.');
     record.results.push(thickLipResult({shell,plan:localPlan,id:prefix+':thick-lip',zStartMm:start}));
   }
   if(has(record,'draped-skin')) {
-    const supports=[...ordered,record].filter(r=>planar(r)).map(r=>({shell:r.shell,start:r.start,end:r.end,results:r.results}));
-    const supportTopAt=lowerSurface?((x,y,ceiling)=>{
+    const supports=sliced.filter(r=>r.report.part===assignment.part&&r.operations.length).map(r=>({shell,results:[r]}));
+    const supportTopAt=lowerSurface?((x,y)=>{
       const value=lowerSurface.topAt(x,y),z=typeof value==='number'?value:value?.zMm;
       // The nominal reserve is not the first deposited surface. A measured
       // support slightly above it gives a thinner first bead; samplePath
       // checks the actual positive deposition gap against that support.
       requireThat(Number.isFinite(z),'Drape lower surface does not cover the skin stroke.');return z;
     }):planarSupportTopAt(supports,plan.process);
-    const skin=drapedSkinResult({shell,plan:localPlan,machine,survey:record.survey,id:prefix+':draped-skin',after:ids(record.results),supportTopAt});
+    const skin=drapedSkinResult({shell,plan:localPlan,machine,survey:record.survey,id:prefix+':draped-skin',after:sliceOpsBelow(sliced,assignment.part,end),supportTopAt});
     for(const op of skin.operations)for(const stroke of op.strokes)for(const point of stroke.points)
       requireThat(point[2]>start-1e-8&&point[2]<=end+1e-8,'Draped roof lies outside its assigned region; extend the region to include the actual roof and skin stack.');
     record.results.push(skin);
@@ -265,9 +212,9 @@ export function generateAssignedRegion(prepared,{plan,machine,records,byId,order
     if(wall&&(localPlan.skills['vase-wall'].pattern!=null||localPlan.skills['vase-wall'].meshSleeve))return result;
     return publishFinishedBoundary(result,{shell,startMm:start,endMm:end-(wall&&localPlan.skills['vase-wall'].endTransition!=='level'?plan.process.layerMm:0),
       boundary:wall?'side':roof?'top':'shell',maxSlopeDeg:record.survey?.limitDeg??90,
-      coverage:result.operations.some(op=>op.materialCoverage==='sparse')||(roof&&localPlan.skills['draped-skin'].spacingFactor>1)?'sparse':'nominal'});
+      coverage:roof&&localPlan.skills['draped-skin'].spacingFactor>1?'sparse':'nominal'});
   });
-  const prerequisiteIds=[...ids(predecessors.flatMap(p=>p.results)),...(lowerSurface?.sourceOperationIds??[])];
+  const prerequisiteIds=[...ids(predecessors.flatMap(p=>p.results)),...(lowerSurface?.sourceOperationIds??[]),...below];
   record.results=publishedResults.map(result=>({...result,operations:result.operations.map(op=>({...op,
     regionId:assignment.id,...(assignment.filament===undefined?{}:{filament:assignment.filament}),after:[...new Set([...(op.after??[]),...prerequisiteIds])]}))}));
   record.surface=publishSurface(record,record.results);
@@ -275,15 +222,12 @@ export function generateAssignedRegion(prepared,{plan,machine,records,byId,order
     skills:Object.keys(assignment.skills),process:assignment.process??null,lowerSurfaceFrom:assignment.lowerSurfaceFrom,
     publishedSurface:record.surface?.kind??null,operationIds:ids(record.results)};
   return {record,summary};
-
 }
 
 export function summarizeRegionResults(results,records,summaries) {
-  const full=results.filter(r=>r.id.includes(':full-fill')||r.id.endsWith(':solid')),sparse=results.filter(r=>r.id.endsWith(':planar-infill')),vases=results.filter(r=>r.id.endsWith(':vase-wall')),skins=results.filter(r=>r.id.endsWith(':draped-skin')),lips=results.filter(r=>r.id.endsWith(':thick-lip'));
+  const vases=results.filter(r=>r.id.endsWith(':vase-wall')),skins=results.filter(r=>r.id.endsWith(':draped-skin')),lips=results.filter(r=>r.id.endsWith(':thick-lip'));
   const aggregate=items=>Object.fromEntries([...new Set(items.flatMap(r=>Object.keys(r.report)))].filter(key=>items.every(r=>r.report[key]===undefined||typeof r.report[key]==='number')).map(key=>[key,items.reduce((sum,r)=>sum+(r.report[key]??0),0)]));
   const summary={regions:summaries};
-  if(full.length)summary.fullFill={...aggregate(full),instances:full.map(r=>({id:r.id,...r.report}))};
-  if(sparse.length)summary.planarInfill={instances:sparse.map(r=>({id:r.id,...r.report}))};
   if(vases.length)summary.vaseWall={...vases[0].report,instances:vases.map(r=>({id:r.id,...r.report}))};
   if(skins.length)summary.drapedSkin={...aggregate(skins),instances:skins.map(r=>({id:r.id,...r.report}))};
   if(lips.length)summary.thickLip={instances:lips.map(r=>({id:r.id,...r.report}))};
@@ -292,24 +236,20 @@ export function summarizeRegionResults(results,records,summaries) {
   return summary;
 }
 
-export function generateRegionResults({plan,machine,placed,componentShells,selections,onProgress}) {
-  const prepared=prepareRegionRecords(plan,placed,componentShells,machine);
-  // Compute the shared lattice before dependency validation, retaining validation order.
-  const records=prepared;
-  const planarZ=[...new Set(records.filter(planar).flatMap(record=>{
-    const origin=record.ownsGrid?record.start:record.shell.bounds.min[2];
-    return layerHeights(record.plan.process,origin,record.end).filter(z=>z>record.start+1e-9).map(z=>Number(z.toFixed(9)));
-  }))].sort((a,b)=>a-b);
-  const dependencies=prepareRegionDependencies(prepared,machine,selections);
-  const byId=new Map(dependencies.map(record=>[record.assignment.id,record]));
-  const results=[],completed=new Set(),ordered=[],summaries=[];
-  while(completed.size<dependencies.length) {
-    const ready=dependencies.filter(r=>!completed.has(r.assignment.id)&&[...r.after].every(id=>completed.has(id))).sort((a,b)=>a.start-b.start||dependencies.indexOf(a)-dependencies.indexOf(b));
+// Region results after the slices. Slice layers above a region's band wait
+// for it: those operations come back as dependency changes.
+export function generateRegionResults(records,{plan,machine,sliced,onProgress}) {
+  const byId=new Map(records.map(record=>[record.assignment.id,record]));
+  const results=[],completed=new Set(),summaries=[],dependencyChanges=[];
+  while(completed.size<records.length) {
+    const ready=records.filter(r=>!completed.has(r.assignment.id)&&[...r.after].every(id=>completed.has(id))).sort((a,b)=>a.start-b.start||records.indexOf(a)-records.indexOf(b));
     requireThat(ready.length,'Region surface/dependency references contain a cycle.');
-    const generated=generateAssignedRegion(ready[0],{plan,machine,records:dependencies,byId,ordered,planarZ,onProgress});
-    const {record,summary}=generated;
+    const {record,summary}=generateAssignedRegion(ready[0],{plan,machine,byId,sliced,onProgress});
     byId.set(record.assignment.id,record);
-    results.push(...record.results);ordered.push(record);completed.add(record.assignment.id);summaries.push(summary);
+    results.push(...record.results);completed.add(record.assignment.id);summaries.push(summary);
+    const regionOps=ids(record.results);
+    for(const op of sliced.filter(r=>r.report.part===record.assignment.part).flatMap(r=>r.operations))
+      if(op.rank>record.end+1e-8)dependencyChanges.push({operationId:op.id,after:regionOps,mode:'union'});
   }
-  return {results,summary:summarizeRegionResults(results,dependencies,summaries)};
+  return {results,dependencyChanges,summary:summarizeRegionResults(results,records,summaries)};
 }

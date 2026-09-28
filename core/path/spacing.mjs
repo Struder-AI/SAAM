@@ -1,8 +1,8 @@
 import {requireThat} from '../geom/tolerance.mjs';
 
 // One optional control; neither bead width nor extrusion is inferred from a gap.
+// Which skills take it is catalog metadata (skills/catalog.mjs SPACING_SKILLS).
 // Vase turns are vertical layer pitch.
-export const SPACING_SKILLS=Object.freeze(['full-fill','planar-infill','draped-skin','supports','pipe-cladding']);
 export function spacingFactor(settings={}) {
   const factor=settings.spacingFactor===undefined?1:settings.spacingFactor;
   requireThat(Number.isFinite(factor)&&factor>=0.5,'spacingFactor must be a finite number at least 0.5.');

@@ -1,7 +1,7 @@
 import {requireThat} from '../../../core/geom/tolerance.mjs';
 import {difference,union} from '../../../core/region/boolean.mjs';
 import {regionArea,pointSegmentDistance} from '../../../core/region/region2d.mjs';
-import {layerHeights} from '../../full-fill/scripts/fill.mjs';
+import {horizontalSlice,sliceFamily} from '../../../core/geom/slice.mjs';
 import {requireProcessControl,validateNozzleC} from '../../../core/path/process-controls.mjs';
 
 export const PLASTIC_WELD_DEFAULTS={enabled:false,sites:[],shaftDiameterMm:1.2,basinDiameterMm:3,
@@ -62,9 +62,9 @@ export function preparePlasticWeld({plan,placed,componentShells}){
     const solidRegionAt=z=>z>bottom-settings.floorMm+1e-8&&z<=top+1e-8?
       difference(circle(x,y,settings.basinDiameterMm/2+settings.wallMm),regionAt(z)):[];
     const completion={z:top,region:regionAt(top),operationId:'plastic-weld:'+site.id};
-    const reservation={footprint,regionAt,solidRegionAt,completion};
-    shell.processReservations??=[];shell.processReservations.push(reservation);
-    return {...site,x,y,bottom,top,shell,regionAt,radiusAt,settings};
+    // Slice owners of the part yield the cavity and fill the envelope solid.
+    const reservation={part:site.part,footprint,regionAt,solidRegionAt,completion};
+    return {...site,x,y,bottom,top,shell,regionAt,radiusAt,settings,reservation};
   });
   for(let i=0;i<sites.length;i++)for(let j=0;j<i;j++){
     const a=sites[i],b=sites[j];
@@ -86,7 +86,8 @@ export function plasticWeldResult({plan,sites,modelResults}){
   }
   for(const site of sites){
     const {settings:s,shell,x,y,bottom,top}=site;
-    const levels=layerHeights(plan.process,shell.bounds.min[2],top).filter(z=>z>bottom-s.floorMm+1e-8);
+    const levels=sliceFamily({base:horizontalSlice(shell.bounds.min[2]),pitchMm:plan.process.layerMm,firstLayerMm:plan.process.firstLayerMm},
+      {min:shell.bounds.min,max:[shell.bounds.max[0],shell.bounds.max[1],top]}).layers.map(l=>l.slice.origin[2]).filter(z=>z>bottom-s.floorMm+1e-8);
     const hostIds=new Set();let cavityVolumeMm3=0;
     for(const z of levels){
       const cavity=site.regionAt(z),outer=circle(x,y,(z<=bottom+1e-8?s.basinDiameterMm/2:site.radiusAt(z-plan.process.layerMm))+s.wallMm);

@@ -12,7 +12,7 @@ import {requireThat} from '../../../core/geom/tolerance.mjs';
 import {MESH_SLEEVE_SETTINGS} from './reference.mjs';
 import {isTiledPattern,loopTile,tileVasePattern} from './tile.mjs';
 import {validateVasePattern} from './paths.mjs';
-import {layerHeights} from '../../full-fill/scripts/fill.mjs';
+import {horizontalSlice,sliceFamily} from '../../../core/geom/slice.mjs';
 
 const keys=(value,allowed,label)=>requireThat(value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).every(k=>allowed.includes(k)),`Unknown or invalid ${label} options.`);
 const same=isDeepStrictEqual;
@@ -33,7 +33,7 @@ export async function prepareMeshVase(directory,options={}, {expectedRevision}={
   requireThat(!plan.composition.regions.length&&!plan.composition.order.length&&!plan.composition.dependencies.length,
     'This print has an existing composition. Configure its vase region through normal adjustment tools; mesh preparation does not replace composition.');
   const initial=defaults(state.machine),wall=plan.skills['vase-wall'],disabled=[];
-  for(const [name,settings] of Object.entries(plan.skills))if(settings.enabled&&!['vase-wall','full-fill'].includes(name)){
+  for(const [name,settings] of Object.entries(plan.skills))if(settings.enabled&&name!=='vase-wall'){
     requireThat(name==='draped-skin'&&same(settings,initial.skills[name]),
       `Mesh vase preparation cannot replace enabled ${name}. Disable it explicitly or configure the existing composition with normal adjustment tools.`);
     disabled.push(name);
@@ -42,14 +42,14 @@ export async function prepareMeshVase(directory,options={}, {expectedRevision}={
   const detected=detectMeshSleeveInterval(mesh,{marginMm:Math.min(Math.max(plan.process.lineWidthMm,plan.process.layerMm),(mesh.bounds.max[2]-low)/4),toleranceMm:wall.boundaryToleranceMm,...options.detect});
   const minimumBase=Math.max(plan.process.firstLayerMm+2*plan.process.layerMm,detected.rangeMm[0]-low);
   const baseHeight=options.baseHeightMm??(wall.enabled?wall.zStartMm:
-    layerHeights(plan.process,0,minimumBase+plan.process.layerMm).find(z=>z>=minimumBase-1e-9));
+    sliceFamily({base:horizontalSlice(0),pitchMm:plan.process.layerMm,firstLayerMm:plan.process.firstLayerMm},{min:[0,0,0],max:[0,0,minimumBase+plan.process.layerMm]}).layers.map(l=>l.slice.origin[2]).find(z=>z>=minimumBase-1e-9));
   requireThat(Number.isFinite(baseHeight)&&baseHeight>=0,'baseHeightMm must be nonnegative.');
   const base=low+baseHeight,end=detected.rangeMm[1];
   requireThat(base>=detected.rangeMm[0]-1e-9,'baseHeightMm must reach the detected sleeve start; choose a taller base explicitly.');
   const firstHeight=baseHeight<1e-9?plan.process.firstLayerMm:plan.process.layerMm,start=base+firstHeight,span=end-start;
   requireThat(span>0,'The detected sleeve has no room above the selected base and first bead.');
-  if(baseHeight===0&&plan.skills['full-fill'].enabled)requireThat(same(plan.skills['full-fill'],initial.skills['full-fill']),
-    'Mesh vase preparation cannot discard customized full-fill settings. Disable full-fill explicitly before selecting a wall without a base.');
+  if(baseHeight===0&&plan.slices.assignments.length)requireThat(same(plan.slices,initial.slices),
+    'Mesh vase preparation cannot discard customized slice assignments. Remove them explicitly before selecting a wall without a base.');
   const selectors=['pattern','tile','loop'].filter(k=>Object.hasOwn(options,k));
   requireThat(selectors.length<=1,'Select one pattern, tile or loop preset.');
   const meshSleeve={...MESH_SLEEVE_SETTINGS,...wall.meshSleeve,...options.meshSleeve};
@@ -87,9 +87,11 @@ export async function prepareMeshVase(directory,options={}, {expectedRevision}={
   }
   const settings={enabled:true,part:null,zStartMm:baseHeight,zEndMm:end-low,endTransition,pathMode:'continuous',pattern,
     meshSleeve};
-  const skills={'vase-wall':settings,'full-fill':{enabled:baseHeight>0}};
+  const skills={'vase-wall':settings};
+  // Slices own the base below the wall; a wall without a base leaves none.
+  const slices={assignments:baseHeight>0?(plan.slices.assignments.length?plan.slices.assignments:initial.slices.assignments):[]};
   for(const name of disabled)skills[name]={enabled:false};
-  const updated=await adjustBundle(directory,{skills},{expectedRevision:state.revision});
+  const updated=await adjustBundle(directory,{skills,slices},{expectedRevision:state.revision});
   return {directory:updated.dir,revision:updated.revision,geometryHash:updated.geometryHash,
     toolpathApproved:updated.toolpathApproved,settings:updated.plan.skills['vase-wall'],
     report:{detectedSleeve:detected,baseHeightMm:baseHeight,wallRangeMm:[start,end],automaticCourseCount:automaticCount,

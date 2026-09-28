@@ -11,23 +11,21 @@ import {shellFromSurfaces,splineSolidShell} from '../geom/spline-solid.mjs';
 import {planToolpath} from '../path/toolpath.mjs';
 import {filamentSelection} from '../machine/filaments.mjs';
 import {planarPolicy} from '../path/builder.mjs';
-import { fullFillResult } from '../../skills/full-fill/scripts/fill.mjs';
 import { drapedSkinResult, surveySurface, machineMaxAngle, DRAPED_SKIN_DEFAULTS } from '../../skills/draped-skin/scripts/drape.mjs';
 import { validatePlan, VERSION } from './plan.mjs';
 import {bridgingResult} from '../../skills/bridging/scripts/bridge.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 import {makeMesh,translateMesh} from '../geom/mesh.mjs';
 import {toolBounds,startupPosition,startupRetracted} from '../machine/profile.mjs';
-import {planarInfillResults} from '../../skills/planar-infill/scripts/infill.mjs';
 import {vaseWallResult} from '../../skills/vase-wall/scripts/vase.mjs';
-import {generateRegionResults,planarSupportTopAt} from './regions.mjs';
+import {prepareRegions,regionBands,generateRegionResults,planarSupportTopAt} from './regions.mjs';
+import {sliceResults} from './slices.mjs';
 import {supportResults} from '../../skills/supports/scripts/supports.mjs';
 import {surfaceCladdingResult} from '../../skills/pipe-cladding/scripts/surface-clad.mjs';
 import {publishFinishedBoundary,consumeFinishedSurface} from '../path/finished-surface.mjs';
 import {waveResults} from '../../skills/wave-overhangs/scripts/wave.mjs';
 import {preparePlasticWeld,plasticWeldResult} from '../../skills/plastic-weld/scripts/weld.mjs';
-import {heatSetFeatures,validateHeatSetAssignments} from '../../skills/heat-set-inserts/scripts/feature.mjs';
-import {heatSetDetails} from '../../skills/heat-set-inserts/scripts/reinforcement.mjs';
+import {validateHeatSetAssignments} from '../../skills/heat-set-inserts/scripts/feature.mjs';
 import {geometrySelections} from '../geom/selections.mjs';
 import {booleanShell} from '../geom/boolean-solid.mjs';
 import {lineNetworkResult} from '../../skills/line-network/scripts/network.mjs';
@@ -60,9 +58,7 @@ export function buildShell(rhino, geometry) {
   if(geometry.shape==='spline')return splineSolidShell(rhino,geometry);
   if(geometry.shape==='boolean')return booleanShell(geometry.operation,geometry.operands.map(operand=>buildShell(rhino,operand)));
   if(['mesh','blob-field','text','gridfinity','heat-set'].includes(geometry.shape)){
-    const mesh=makeMesh(geometry.vertices,geometry.triangles),features=heatSetFeatures(geometry);
-    if(features.length)mesh.planarDetails=heatSetDetails(features);
-    return mesh;
+    return makeMesh(geometry.vertices,geometry.triangles);
   }
   if(geometry.shape==='assembly'&&hasMesh(geometry)) {
     const components=geometry.parts.map(part=>translateShell(buildShell(rhino,part.geometry),part.xMm,part.yMm,part.zMm));
@@ -84,9 +80,7 @@ export function buildShell(rhino, geometry) {
 // unaffected apart from the translation.
 export function translateShell(shell, dx, dy, dz = 0) {
   if(shell.kind==='triangle-mesh'){
-    const moved=translateMesh(shell,dx,dy,dz);
-    if(shell.planarDetails)moved.planarDetails=shell.planarDetails.translated(dx,dy,dz);
-    return moved;
+    return translateMesh(shell,dx,dy,dz);
   }
   if(shell.kind==='boolean')return booleanShell(shell.operation,shell.operands.map(s=>translateShell(s,dx,dy,dz)));
   if(shell.kind==='assembly')return {...shell,components:shell.components.map(s=>translateShell(s,dx,dy,dz)),bounds:{min:shell.bounds.min.map((v,i)=>v+[dx,dy,dz][i]),max:shell.bounds.max.map((v,i)=>v+[dx,dy,dz][i])}};
@@ -122,93 +116,59 @@ export function preparePathGeometry(plan,machine,rhino) {
   return {placed,componentShells,weldSites,bounds};
 }
 
-export function generatePlanarComponent(plan,machine,{id,shell,componentShells},survey,onProgress) {
-  const process=plan.process,fill=plan.skills['full-fill'],normal=plan.skills['planar-infill'],vase=plan.skills['vase-wall'];
-  let vaseShell=null;
-  const selected=settings=>settings.enabled&&(!componentShells||!settings.parts.length||settings.parts.includes(id));
-  const useFill=selected(fill),useNormal=selected(normal);
-  const useVase=vase.enabled&&(!componentShells||vase.part===id);
-  let baseTop=null;
-  if(useVase) {
-    vaseShell=shell;
-    requireThat(!useNormal,'Vase wall and planar-infill overlap on the same component.');
-    if(useFill) {
-      requireThat(fill.mode==='body'&&vase.zStartMm>=process.firstLayerMm,'Full-fill below a vase requires body mode and an explicit positive vase zStartMm for its base.');
-      const baseLayers=(vase.zStartMm-process.firstLayerMm)/process.layerMm;
-      requireThat(Math.abs(baseLayers-Math.round(baseLayers))<1e-8,'Vase base height must align with the full-fill layer grid.');
-      baseTop=shell.bounds.min[2]+vase.zStartMm;
-    } else requireThat(vase.zStartMm===0,'A raised vase wall requires full-fill on the same component for its base.');
-  }
-  requireThat(!(useFill&&useNormal&&fill.mode==='body'),'Full-fill body and planar-infill overlap; select full-fill solid-surfaces mode or separate components.');
-  requireThat(!(useFill&&fill.mode==='solid-surfaces'&&!useNormal),'Solid-surface selection requires planar-infill on the same component.');
-  if(useNormal){
-    const [sparse,solid]=planarInfillResults({shell,plan,machine,reserve:survey,id:componentShells?id+':planar-infill':'planar-infill',solid:useFill,onProgress});
-    const publishedSparse=publishFinishedBoundary(sparse,{shell,coverage:normal.perimeters?'nominal':'sparse'});
-    const publishedSolid=solid?publishFinishedBoundary(solid,{shell}):solid;
-    return {results:publishedSolid?[publishedSparse,publishedSolid]:[publishedSparse],fill:publishedSolid,normal:publishedSparse,support:{shell},vaseShell};
-  } else if(useFill){const result=fullFillResult({id,shell,plan,machine,reserve:useVase?null:survey,zEndMm:baseTop,onProgress});
-    const published=publishFinishedBoundary(result,{shell,endMm:baseTop??shell.bounds.max[2],coverage:fill.perimeters||fill.spacingFactor<=1?'nominal':'sparse'});
-    return {results:[published],fill:published,normal:null,support:{shell},vaseShell};}
-  return {results:[],fill:null,normal:null,support:null,vaseShell};
+// Geometry volumes named by slice assignments, placed like their part.
+export function sliceVolumes(plan,rhino) {
+  return new Map(plan.slices.assignments.map(assignment=>{
+    const part=plan.geometry.shape==='assembly'&&assignment.part!==null?plan.geometry.parts.find(p=>p.id===assignment.part):{xMm:0,yMm:0,zMm:0};
+    return [assignment.id,assignment.within.map(volume=>volume.kind==='geometry'
+      ?translateShell(buildShell(rhino,volume.geometry),plan.placement.xMm+part.xMm,plan.placement.yMm+part.yMm,part.zMm):null)];
+  }));
 }
 
-export function generatePlanarResults(plan,machine,{placed,componentShells},survey,onProgress) {
-  const results=[],summary={},fillResults=[],normalResults=[];
-  const planarSupports=[];
-  let vaseShell=null;
-  for(const [id,shell] of componentShells??[['full-fill',placed]]) {
-    const component=generatePlanarComponent(plan,machine,{id,shell,componentShells},survey,onProgress);
-    results.push(...component.results);
-    if(component.fill)fillResults.push(component.fill);
-    if(component.normal)normalResults.push(component.normal);
-    if(component.support)planarSupports.push(component.support);
-    if(component.vaseShell)vaseShell=component.vaseShell;
-  }
-  if(fillResults.length){
-    summary.fullFill=Object.fromEntries(Object.keys(fillResults[0].report).map(key=>[key,fillResults.reduce((sum,r)=>sum+(r.report[key]??0),0)]));
-    summary.fullFill.instances=fillResults.map(r=>({id:r.id,...r.report}));
-  }
-  if(normalResults.length)summary.planarInfill={instances:normalResults.map(r=>({id:r.id,...r.report}))};
-  return {results,summary,planarSupports,vaseShell};
+// The draped-skin survey of a non-regional recipe: it reserves the skin's
+// thickness under the top surface from every planar owner.
+export function surveyDrapedSkin(plan,machine,shell) {
+  const skin=plan.skills['draped-skin'];
+  const declaredLimitDeg=machineMaxAngle(machine),effectiveLimitDeg=skin.maxAngleDegOverride??declaredLimitDeg;
+  const survey=surveySurface(shell,{...DRAPED_SKIN_DEFAULTS,...skin},effectiveLimitDeg);
+  requireThat(Number.isFinite(survey.maxMm),'The top surface survey found no surface to skin.');
+  return {...survey,declaredLimitDeg,experimentalOverride:Boolean(machine.nonplanar?.experimental)||(skin.maxAngleDegOverride!==null&&skin.maxAngleDegOverride!==declaredLimitDeg)};
 }
 
-export function generateModelResults(plan,machine,rhino,{placed,componentShells,bounds},onProgress) {
+export function generateModelResults(plan,machine,rhino,{placed,componentShells,bounds,weldSites=[]},onProgress) {
+  const welds=weldSites.map(site=>site.reservation);
   const process=plan.process,skin=plan.skills['draped-skin'],vase=plan.skills['vase-wall'],network=plan.skills['line-network'];
   const summary = { generatorVersion: VERSION, shape: plan.geometry.shape };
   const results=[];
   let survey=null,regionShells=null;
+  const shells=componentShells?[...componentShells]:[[null,placed]];
   if(network.enabled){const result=lineNetworkResult({plan,bounds:machine.motionChecks==='deferred'?null:bounds});results.push(result);summary.lineNetwork=result.report;}
   else if(plan.composition.regions.length) {
     const selections=geometrySelections(plan.geometry);regionShells=new Map();
     for(const assignment of plan.composition.regions){
       if(regionShells.has(assignment.part))continue;
       const part=selections.get(assignment.part);
-      let shell=buildShell(rhino,part.geometry);
-      if(part.detailsFrom){
-        const features=heatSetFeatures(part.detailsFrom);
-        if(features.length)shell.planarDetails=heatSetDetails(features);
-      }
-      regionShells.set(assignment.part,translateShell(shell,plan.placement.xMm+part.xMm,plan.placement.yMm+part.yMm,part.zMm));
+      regionShells.set(assignment.part,translateShell(buildShell(rhino,part.geometry),plan.placement.xMm+part.xMm,plan.placement.yMm+part.yMm,part.zMm));
     }
-    const regional=generateRegionResults({plan,machine,placed,componentShells:regionShells,selections,onProgress});
-    results.push(...regional.results);Object.assign(summary,regional.summary);
+    const records=prepareRegions({plan,machine,placed,componentShells:regionShells,selections});
+    const sliced=sliceResults({plan,machine,shells,volumes:sliceVolumes(plan,rhino),bands:regionBands(records),
+      reserves:[...records.filter(r=>r.survey).map(r=>r.survey),...welds],envelopes:welds,onProgress});
+    const regional=generateRegionResults(records,{plan,machine,sliced:sliced.results,onProgress});
+    results.push(...applyResultDependencies(sliced.results,regional.dependencyChanges),...regional.results);
+    if(sliced.summary)summary.slices=sliced.summary;
+    Object.assign(summary,regional.summary);
   } else {
   requireThat(!plan.skills['thick-lip'].enabled,'thick-lip only applies through composition.regions, assigned directly above a level-ended vase-wall region.');
   const skinShell=componentShells&&skin.part ? componentShells.get(skin.part):placed;
-  if (skin.enabled) {
-    const declaredLimitDeg = machineMaxAngle(machine);
-    const effectiveLimitDeg = skin.maxAngleDegOverride ?? declaredLimitDeg;
-    survey = surveySurface(skinShell, { ...DRAPED_SKIN_DEFAULTS, ...skin }, effectiveLimitDeg);
-    survey.declaredLimitDeg = declaredLimitDeg;
-    survey.experimentalOverride = Boolean(machine.nonplanar?.experimental)||(skin.maxAngleDegOverride !== null && skin.maxAngleDegOverride !== declaredLimitDeg);
-    requireThat(Number.isFinite(survey.maxMm), 'The top surface survey found no surface to skin.');
-  }
-
-  const planar=generatePlanarResults(plan,machine,{placed,componentShells},survey,onProgress);
-  const {planarSupports,vaseShell}=planar;
-  results.push(...planar.results);Object.assign(summary,planar.summary);
+  if (skin.enabled) survey=surveyDrapedSkin(plan,machine,skinShell);
+  const vaseShell=vase.enabled?(componentShells?componentShells.get(vase.part):placed):null;
+  requireThat(!vase.enabled||vaseShell,'No component selected for vase wall.');
+  // A vase wall claims its part above its start; slices own what is below.
+  const bands=vase.enabled?[{part:componentShells?vase.part:null,startMm:vaseShell.bounds.min[2]+vase.zStartMm,endMm:vaseShell.bounds.max[2]}]:[];
+  const sliced=sliceResults({plan,machine,shells,volumes:sliceVolumes(plan,rhino),bands,reserves:[...(survey?[survey]:[]),...welds],envelopes:welds,onProgress});
+  results.push(...sliced.results);if(sliced.summary)summary.slices=sliced.summary;
   if(vase.enabled) {
-    requireThat(vaseShell,'No component selected for vase wall.');
+    requireThat(vase.zStartMm===0||sliced.results.some(r=>r.report.part===(componentShells?vase.part:null)&&r.operations.length),'A raised vase wall needs a slice owner of its part for its base.');
     const result=vaseWallResult({shell:vaseShell,plan,machine,id:componentShells?vase.part+':vase-wall':'vase-wall',after:results.flatMap(r=>r.operations.map(op=>op.id)),onProgress});
     const published=vase.pattern==null&&!vase.meshSleeve?publishFinishedBoundary(result,{shell:vaseShell,boundary:'side',startMm:result.report.baseTopMm,
       endMm:result.report.endMm-(vase.endTransition==='level'?0:process.layerMm),toleranceMm:vase.boundaryToleranceMm}):result;
@@ -216,8 +176,9 @@ export function generateModelResults(plan,machine,rhino,{placed,componentShells,
   }
   if(skin.enabled){
     // Every skin operation depends transitively on the ENTIRE supporting body.
+    const supports=sliced.results.filter(r=>r.operations.length).map(r=>({shell:shells.find(([part])=>part===r.report.part)[1]}));
     const result=drapedSkinResult({shell:skinShell,plan,machine,survey,after:results.flatMap(r=>r.operations.map(op=>op.id)),
-      supportTopAt:planarSupports.length?planarSupportTopAt(planarSupports,process):null});
+      supportTopAt:supports.length?planarSupportTopAt(supports,process):null});
     const published=publishFinishedBoundary(result,{shell:skinShell,boundary:'top',maxSlopeDeg:survey.limitDeg,coverage:skin.spacingFactor>1?'sparse':'nominal'});
     results.push(published);summary.drapedSkin=published.report;
   }

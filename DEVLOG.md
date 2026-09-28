@@ -1,5 +1,41 @@
 # Development log
 
+## 2026-09-28 — Slice skill (0.2.0 phase 2, step 1): horizontal slices replace full-fill and planar-infill
+
+- One versioned list of slice assignments, `plan.slices` (version 1), replaces
+  `skills.full-fill` and `skills.planar-infill`; `bed-adhesion` is gone (a
+  `brim` preset: loops in a ring grown from the first-layer outline). Defaults
+  are the normal case (2 loops, 20% fill, 3 solid top/bottom); solid, shell and
+  fill-only are `fillDensity: 1`, `fillDensity: 0`, `loops: 0`. Settings:
+  loops, fillDensity, solidDensity, fillPattern, fillAnglesDeg, rotateFill,
+  solidTop, solidBottom, fillOverlap, spacingFactor, sampleStepMm, within
+  (slab, geometry, outline), surface (horizontal), stack, filament.
+- [slices.mjs](core/print/slices.mjs): `sliceOwners`, `ownedLayers` (owners in
+  definition order; a later explicit owner overlapping an earlier one adopts
+  its family and alternates layer by layer, the leader first; region bands of
+  vase-wall/thick-lip and draped-skin/weld reservations claim material),
+  `sliceResult`, `sliceResults`. [layer-strokes.mjs](core/region/layer-strokes.mjs):
+  `layerStrokes`, `liftStrokes`; offsets stay Clipper2: the D-041 curve offset
+  measured 5x to over 1000x slower per layer on the baseline prints
+  (.local/0.2.0/worker-A2.md), so the switch waits for a decision. Patterns
+  moved to [fill-patterns.mjs](core/region/fill-patterns.mjs).
+- Heat-set reinforcement is slice data written by `apply_heat_set` (six-loop
+  annulus owner, fins as solid fixed-angle owners); `planarDetails` and
+  `reinforcement.mjs` are removed. Plastic-weld reservations are passed to the
+  slices as data instead of mutating the shell. Supports run through one
+  `sliceResult` (interface as solid rows at `interfaceDensity`).
+  `SPACING_SKILLS` moved to the skill catalog.
+- Baselines (generated in the worktree, compared with .local/0.2.0/baseline):
+  starter, surface-drape and wavy-denso give the same layers, operations,
+  length and volume per role and travel; the programs differ only in
+  operation-id comments. Heat-set inserts: 60 layers, 485 operations (157),
+  7019.2 mm³ (6691.8): the part's default owner now walls around each
+  reinforcement volume. Path time for wavy-denso rose from 22 s to 37 s (open).
+- Not yet rewired in this step: Studio settings/summary, core tests and
+  fixtures, nudge-cup, gridfinity bundle, text draped demo, plastic-weld
+  example, vase irregular demo, scripts/bench, tools/denso, and the manuals
+  (slice SKILL.md replacing full-fill/planar-infill/bed-adhesion).
+
 ## 2026-09-28 — Context layers (0.2.0): index, operate, script, advanced
 
 - Owner direction (0.2.0 spec): every agent gets a one-line index including gated

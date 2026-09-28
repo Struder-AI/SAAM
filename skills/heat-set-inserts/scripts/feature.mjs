@@ -1,7 +1,6 @@
 import {createHash} from 'node:crypto';
 import {requireThat} from '../../../core/geom/tolerance.mjs';
 import {INSERT_CATALOG} from './catalog.mjs';
-import {geometrySelections} from '../../../core/geom/selections.mjs';
 
 export const HEAT_SET_DEFAULTS={id:'insert',insertId:'spirol-29-m3-long',positionMm:[15,15,12],depthMm:null,diameterAdjustmentMm:0,finCount:6,finLengthMm:4,finWidthMm:0.8,finAngleDeg:0};
 export function heatSetFeature(input){
@@ -41,27 +40,12 @@ export function heatSetFeatures(geometry){
   return [...(geometry?.shape==='heat-set'?geometry.features:[]),...(geometry?.base&&!geometry.standalone?heatSetFeatures(geometry.base):[])];
 }
 
+// Each insert's reinforcement is slice data apply_heat_set wrote; a recipe
+// edited around it must still carry those owners.
 export function validateHeatSetAssignments(plan){
-  const parts=plan.geometry.shape==='assembly'?plan.geometry.parts:[{id:null,geometry:plan.geometry,zMm:0}];
+  const parts=plan.geometry.shape==='assembly'?plan.geometry.parts:[{id:null,geometry:plan.geometry}];
   for(const part of parts)for(const f of heatSetFeatures(part.geometry)){
-    const end=f.positionMm[2],start=end-dimensions(f).depthMm;
-    if(!plan.composition.regions.length){
-      const selected=name=>{const s=plan.skills[name];return s.enabled&&(part.id===null||!s.parts.length||s.parts.includes(part.id));};
-      requireThat(selected('full-fill')||selected('planar-infill'),`Heat-set ${f.id} needs a planar fill/infill owner for its bore layers.`);
-    }else{
-      // Region heights are relative to component bounds; compiled hosts can
-      // have nonzero native Z, so use their actual vertex minimum.
-      const selections=geometrySelections(plan.geometry);
-      const spans=plan.composition.regions.filter(r=>{
-        const selection=selections.get(r.part);
-        return selection?.owner===part.id&&(selection.material===null||selection.material==='base')&&('full-fill' in r.skills||'planar-infill' in r.skills);
-      }).map(r=>{
-        const geometry=selections.get(r.part).geometry;
-        const origin=geometry.vertices?Math.min(...geometry.vertices.map(p=>p[2])):0;
-        return [origin+r.zStartMm,r.zEndMm===null?Infinity:origin+r.zEndMm];
-      }).sort((a,b)=>a[0]-b[0]);
-      let covered=start;for(const [a,b] of spans)if(a<=covered+1e-7)covered=Math.max(covered,b);
-      requireThat(covered>=end-1e-7,`Heat-set ${f.id} needs planar material regions covering its entire bore depth.`);
-    }
+    const name='heat-set-'+f.id.toLowerCase().replace(/[^a-z0-9-]/g,'-');
+    requireThat(plan.slices.assignments.some(a=>a.id===name&&a.part===part.id),`Heat-set ${f.id} has no reinforcement slices; apply it again with apply_heat_set.`);
   }
 }

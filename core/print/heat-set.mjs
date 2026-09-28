@@ -3,6 +3,8 @@ import {rhino} from './geometry.mjs';
 import {buildShell} from './generate.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
 import {compileHeatSet} from '../../skills/heat-set-inserts/scripts/geometry.mjs';
+import {heatSetFeature} from '../../skills/heat-set-inserts/scripts/feature.mjs';
+import {heatSetSlices,HEAT_SET_SLICE_PREFIX} from '../../skills/heat-set-inserts/scripts/slices.mjs';
 import {unwrapTextGeometry,rebuildTextGeometry} from './text.mjs';
 
 export async function applyHeatSet(directory,request,{expectedRevision}={}){
@@ -28,5 +30,10 @@ export async function applyHeatSet(directory,request,{expectedRevision}={}){
   const r=await rhino(),buildGeometry=g=>buildShell(r,g);
   const rebuilt=features.length?await compileHeatSet(base,features,{buildGeometry,toleranceMm:request.toleranceMm??old?.toleranceMm??0.01}):base;
   owner.geometry=await rebuildTextGeometry(rebuilt,layers,{buildGeometry});
+  // Reinforcement is slice data: this part's heat-set owners are rewritten
+  // ahead of every other slice assignment, so they claim their volumes first.
+  const part=request.part??null;
+  const kept=plan.slices.assignments.filter(a=>!(a.part===part&&a.id.startsWith(HEAT_SET_SLICE_PREFIX)));
+  plan.slices={...plan.slices,assignments:[...features.flatMap(f=>heatSetSlices(heatSetFeature(f),part,plan.process)),...kept]};
   return updatePlan(directory,plan,state.revision);
 }

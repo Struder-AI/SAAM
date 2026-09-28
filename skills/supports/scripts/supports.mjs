@@ -1,11 +1,10 @@
 // Explicitly assigned sacrificial material. No overhang/angle area discovery.
-import {fullFillResult,layerHeights} from '../../full-fill/scripts/fill.mjs';
-import {createSectionQuery} from '../../../core/geom/query.mjs';
+import {horizontalSlice,sliceFamily,prepareSection,section} from '../../../core/geom/slice.mjs';
+import {sliceAssignment,sliceResult} from '../../../core/print/slices.mjs';
 import {offsetRegion} from '../../../core/region/offset.mjs';
-import {union,intersect,difference} from '../../../core/region/intersection.mjs';
+import {union,intersect} from '../../../core/region/intersection.mjs';
 import {regionArea} from '../../../core/region/region2d.mjs';
 import {requireThat} from '../../../core/geom/tolerance.mjs';
-import {lineSpacing} from '../../../core/path/spacing.mjs';
 
 export const SUPPORT_DEFAULTS={enabled:false,spacingFactor:1,assignments:[],density:0.15,interfaceDensity:0.8,
   interfaceLayers:2,topGapMm:0.2,xyGapMm:0.3,perimeters:1,fillAnglesDeg:[0,90],treeChordMm:0.02};
@@ -88,12 +87,13 @@ export function supportResults({plan,machine,shells,modelResults}) {
   // The shared plan boundary already ran validateSupports. This producer owns
   // checks on newly derived support/part sections, not another settings pass.
   const top=Math.max(...settings.assignments.map(a=>a.contactZMm-settings.topGapMm));
-  const heights=layerHeights(process,0,top),cache=new Map();
+  const family=sliceFamily({base:horizontalSlice(0),pitchMm:process.layerMm,firstLayerMm:process.firstLayerMm},{min:[0,0,0],max:[0,0,top]});
   const lastLayer=a=>Math.floor((a.contactZMm-settings.topGapMm-process.firstLayerMm+1e-8)/process.layerMm);
   const assigned=settings.assignments.map(a=>({sectionAt:supportSectionQuery(a,settings,plan.placement),lastLayer:lastLayer(a)}));
-  const obstacles=shells.map(shell=>({shell,sectionAt:createSectionQuery(shell,{minFeatureMm:0.4})}));
-  for(let index=0;index<heights.length;index++){
-    const z=heights[index];let region=[],interfaceRegion=[];
+  const obstacles=shells.map(shell=>({shell,part:prepareSection(shell,family.base)}));
+  const layers=[],interfaces=new Map();
+  for(const layer of family.layers){
+    const {index}=layer,z=layer.slice.origin[2];let region=[],interfaceRegion=[];
     for(const a of assigned){
       const area=a.sectionAt(z);
       region=union(region,area);
@@ -101,36 +101,23 @@ export function supportResults({plan,machine,shells,modelResults}) {
     }
     // This checks only assigned material at slicing planes. It does not scan
     // normals or create support areas, silently trim branches, or reroute them.
-    for(const {shell,sectionAt} of obstacles){
+    for(const {shell,part} of obstacles){
       if(z<shell.bounds.min[2]-1e-8||z>shell.bounds.max[2]+1e-8)continue;
-      const obstacle=offsetRegion(sectionAt(z).loops,settings.xyGapMm);
+      const obstacle=offsetRegion(section(part,layer.slice).loops,settings.xyGapMm);
       requireThat(regionArea(intersect(region,obstacle))<1e-8,`Assigned support intersects part clearance at Z ${z.toFixed(3)} mm; revise its footprint or branches.`);
     }
-    cache.set(index,{region,interfaceRegion});
+    layers.push({...layer,region});interfaces.set(index,interfaceRegion);
   }
+  // One slice owner of the derived support volume: sparse rows in the body,
+  // the interface below each contact as solid rows at the interface density.
   const shell={bounds:{min:[0,0,0],max:[0,0,top]}};
-  const indexAt=z=>Math.round((z-process.firstLayerMm)/process.layerMm);
-  const shared={shell,plan,machine,sectionAt:z=>({loops:cache.get(indexAt(z)).region}),settings:{...settings,spacingFactor:settings.spacingFactor??1,minFeatureMm:0.4,fillOverlap:0.15}};
-  const interiors=new Map();
-  const body=fullFillResult({...shared,id:'supports',spacingMm:lineSpacing(process.lineWidthMm,settings)/settings.density,
-    interiorRegion:(region,i)=>{interiors.set(i,region);return difference(region,cache.get(i).interfaceRegion);}});
-  const surface=fullFillResult({...shared,id:'supports:interface',settings:{...shared.settings,perimeters:0},spacingMm:lineSpacing(process.lineWidthMm,settings)/settings.interfaceDensity,
-    fillRegionAt:(_region,i)=>cache.get(i).interfaceRegion.length?intersect(interiors.get(i),cache.get(i).interfaceRegion):[]});
-  const all=[...body.operations,...surface.operations];
-  const byLayer=new Map(),wallsByLayer=new Map(),byRank=new Map();
-  for(const op of all){
-    if(!byLayer.has(op.layer))byLayer.set(op.layer,[]);byLayer.get(op.layer).push(op);
-    if(!byRank.has(op.rank))byRank.set(op.rank,[]);byRank.get(op.rank).push(op.id);
-    if(op.id.endsWith(':walls'))wallsByLayer.set(op.layer,op);
-  }
-  for(const op of all){
-    op.phase='supports';
-    for(const stroke of op.strokes)stroke.role=op.id.startsWith('supports:interface')?'support-interface':stroke.role==='fill'?'support':'support-wall';
-    const walls=wallsByLayer.get(op.layer);
-    if(walls&&walls!==op&&!op.after.includes(walls.id))op.after.push(walls.id);
-    const lower=byLayer.get(op.layer-1)??[];
-    for(const p of lower)if(!op.after.includes(p.id))op.after.push(p.id);
-  }
+  const body=sliceResult({id:'supports',layers,solidRegions:interfaces,settings:{...sliceAssignment({id:'supports'}),loops:settings.perimeters,
+    fillDensity:settings.density,solidDensity:settings.interfaceDensity,fillAnglesDeg:settings.fillAnglesDeg,solidTop:0,solidBottom:0,spacingFactor:settings.spacingFactor??1}},
+  {process,machine,shell,startMm:0,endMm:top});
+  const roles={walls:'support-wall',infill:'support',fill:'support-interface'};
+  const all=body.operations.map(op=>({...op,phase:'supports',strokes:op.strokes.map(stroke=>({...stroke,role:roles[op.id.split(':').at(-1)]}))}));
+  const byRank=new Map();
+  for(const op of all){if(!byRank.has(op.rank))byRank.set(op.rank,[]);byRank.get(op.rank).push(op.id);}
   // Preserve support-before-part even when the locked composer batches layers.
   // For continuous/nonplanar operations use their highest deposition point,
   // rather than treating scheduling rank as physical height.
@@ -141,9 +128,9 @@ export function supportResults({plan,machine,shells,modelResults}) {
     while(low<end){const mid=(low+end)>>>1;if(ranks[mid]<=high+1e-8)low=mid+1;else end=mid;}
     if(low)dependencyChanges.push({operationId:op.id,after:[...byRank.get(ranks[low-1])],mode:'append'});
   }
-  body.report.assignments=settings.assignments.map(a=>({id:a.id,style:a.style,reason:a.reason,
-    contactZMm:a.contactZMm,actualTopGapMm:a.contactZMm-(process.firstLayerMm+lastLayer(a)*process.layerMm)}));
-  body.report.limitations='Bed-rooted supports, explicit branch skeletons, planar contact heights; slice-plane clearance checks only. No automatic support selection or branch routing; physical performance unvalidated.';
+  const report={...body.report,assignments:settings.assignments.map(a=>({id:a.id,style:a.style,reason:a.reason,
+    contactZMm:a.contactZMm,actualTopGapMm:a.contactZMm-(process.firstLayerMm+lastLayer(a)*process.layerMm)})),
+  limitations:'Bed-rooted supports, explicit branch skeletons, planar contact heights; slice-plane clearance checks only. No automatic support selection or branch routing; physical performance unvalidated.'};
   requireThat(all.length>0,'Assigned support produced no strokes; enlarge its footprint or branches.');
-  return {results:[body,surface],dependencyChanges};
+  return {results:[{id:'supports',operations:all,report}],dependencyChanges};
 }
