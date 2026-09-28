@@ -1,5 +1,32 @@
 # Development log
 
+## 2026-09-28 — Curve offsets: seam contacts and inversion curls (BR-059)
+
+- Fixes the two defects the previous entry recorded. [curve-ops.mjs](core/geom/curve-ops.mjs)
+  `curveCrossings` judged a curve meeting itself (a closed curve's seam,
+  adjacent monotone pieces) or another end to end by a parameter tolerance of
+  1e-12 (ends) or 1e-9 (same point) of the domain; Newton converges only
+  linearly where the tangents are parallel, so a smooth periodic cubic's seam
+  came back 2e-10 from its ends and counted as a crossing. It now judges these
+  contacts by arc length (parameter gap times speed) within twice the crossing
+  tolerance, the gap wrapping across a closed curve's seam.
+- [curve-offset.mjs](core/geom/curve-offset.mjs) `curlArcs`: where the exact
+  offset has an inversion cusp the loose curve turned through a thin loop (a
+  curl) whose winding was +1, so its forward half was kept as an open piece.
+  A loop of one offset curve closed by one self-crossing, with no other
+  crossing on it, entered running with its source and left against it (the
+  shorter arc if both qualify on a closed curve) bounds no material and its
+  pieces are dropped. No area threshold.
+- Scratch check (B2's periodic.mjs, 24 cases, against f49c252 extracted with
+  `git archive`): only B1 changes. The ellipse (u half-width 3.77 mm, v 4 mm on
+  the r 10 cylinder), at the seam and at u 0.5, now reports 0 crossings and one
+  kept piece (the whole curve) at ±1 mm (areas unchanged, 0.057382545 and
+  0.019287011); at −4 mm it returns nothing (was 4 open zero-area chains, 11
+  crossings; now 6 crossings, 0 kept). The planar r 10 circle reports 0
+  crossings (was 1) with areas unchanged. Bands, holes, open courses and
+  periodic V are identical.
+- Not run: any test suite; no test imports these modules.
+
 ## 2026-09-28 — Curve offsets on periodic patches (BR-059 item 1)
 
 - [curve-offset.mjs](core/geom/curve-offset.mjs) `prepareCurveOffsets` takes

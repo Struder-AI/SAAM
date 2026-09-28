@@ -200,10 +200,17 @@ export function curveCrossings(curves,tol,closed=curves.map(()=>false)){
   const pieces=curves.flatMap((curve,ci)=>monotonePieces(curve).map(p=>({...p,ci})));
   pieces.sort((p,q)=>p.box.min[0]-q.box.min[0]);
   const params=curves.map(()=>[]),points=[],pairs=[];
-  const end=(c,t)=>{const [d0,d1]=curves[c].domain,e=1e-12*(d1-d0);return Math.abs(t-d0)<=e||Math.abs(t-d1)<=e;};
+  // Where a curve meets itself or another end to end its tangents are
+  // parallel, so Newton converges only linearly and the parameters it returns
+  // are good to the coordinate tolerance, not to the floating-point floor:
+  // such a contact is recognised by arc length (parameter gap times speed)
+  // within the tolerance, never by a parameter tolerance.
+  const arc=(c,t,gap)=>{const d=evaluateCurve(curves[c],t).derivative;return gap*Math.hypot(d[0],d[1])<=2*tol;};
+  const end=(c,t)=>{const [d0,d1]=curves[c].domain;return arc(c,t,Math.min(t-d0,d1-t));};
   const record=(p,q,hit)=>{
-    const [d0,d1]=curves[p.ci].domain,e=1e-9*(d1-d0);
-    if(p.ci===q.ci&&(Math.abs(hit.s-hit.t)<=e||closed[p.ci]&&end(p.ci,hit.s)&&end(q.ci,hit.t)))return;
+    const [d0,d1]=curves[p.ci].domain,gap=Math.abs(hit.s-hit.t);
+    // A closed curve continues across its seam, so the gap there wraps.
+    if(p.ci===q.ci&&arc(p.ci,hit.s,closed[p.ci]?Math.min(gap,d1-d0-gap):gap))return;
     if(p.ci!==q.ci&&end(p.ci,hit.s)&&end(q.ci,hit.t))return;
     params[p.ci].push(hit.s);params[q.ci].push(hit.t);points.push(hit.point);pairs.push({a:p.ci,s:hit.s,b:q.ci,t:hit.t});
   };

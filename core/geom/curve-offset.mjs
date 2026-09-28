@@ -137,6 +137,30 @@ function chainPieces(pieces,tol,period){
   });
 }
 
+// Where the exact offset has an inversion cusp, turning from running with its
+// source to running against it, the loose curve may turn through a small loop
+// instead of a point: a curl. It is a loop of one offset curve closed by one
+// self-crossing, with no other crossing on it, entered running one way
+// against the source and left running the other (the shorter such arc when
+// both arcs of a closed curve qualify). Whatever its winding, it is the cusp
+// and bounds no material. Returns, per system curve, tests of whether a
+// parameter lies on one of its curls.
+function curlArcs(system,{params,pairs},forward,tol){
+  const out=system.map(()=>[]);
+  for(const {a,s,b,t} of pairs){
+    const S=system[a];
+    if(a!==b||S.source===undefined)continue;
+    const c=S.curve,[d0,d1]=c.domain,P=d1-d0,e=2e-10*P,p=evaluateCurve(c,s).point,q=evaluateCurve(c,t).point;
+    // A crossing with the curve's own copy a period away closes no loop.
+    if(Math.hypot(p[0]-q[0],p[1]-q[1])>2*tol)continue;
+    const lo=Math.min(s,t),hi=Math.max(s,t),on=([x,y])=>r=>r>x&&r<y||r+P>x&&r+P<y;
+    const arcs=S.closed?[[lo,hi],[hi,lo+P]]:[[lo,hi]],wrap=r=>r>d1?r-P:r;
+    const curls=arcs.filter(([x,y])=>!params[a].some(on([x+e,y-e]))&&forward(S,wrap(x+(y-x)*1e-3))!==forward(S,wrap(y-(y-x)*1e-3)));
+    if(curls.length)out[a].push(on(curls.sort((f,g)=>f[1]-f[0]-(g[1]-g[0]))[0]));
+  }
+  return out;
+}
+
 // Curves lie on the XY plane (at one Z) or, with a patch, in its (u,v).
 // Closed curves bound a region: material to the left of travel, outer loops
 // counterclockwise and holes clockwise, seen from +Z or the surface normal.
@@ -244,6 +268,10 @@ export function prepareCurveOffsets({curves,patch=null,periodicU=false,periodicV
     const scale=Math.max(maxs[0]-mins[0],maxs[1]-mins[1],1e-9),tol=1e-9*scale,eps=1e-7*scale;
     const crossings=period?periodicCurveCrossings(all,tol,system.map(s=>!!s.closed),period):curveCrossings(all,tol,system.map(s=>!!s.closed));
     const winding=period?preparePeriodicWinding(all,period,base):prepareWinding(all);
+    // A piece running against its source is inverted (a collapse); it bounds
+    // no material whatever the winding says.
+    const forward=(s,sample)=>{const t=s.reversed===undefined?sample:s.reversed-sample;return dot(evaluateCurve(s.parent,t).derivative,evaluateCurve(s.reference,t).derivative)>0;};
+    const curls=curlArcs(system,crossings,forward,tol);
     const kept=[];
     system.forEach((s,c)=>{
       if(s.source===undefined)return;
@@ -251,11 +279,7 @@ export function prepareCurveOffsets({curves,patch=null,periodicU=false,periodicV
       for(let k=1;k<ts.length;k++){
         // Sampled off the middle, which on a uniform polyline is a vertex.
         const sample=ts[k-1]+(ts[k]-ts[k-1])*.381966,{point,derivative}=evaluateCurve(s.curve,sample),size=Math.hypot(derivative[0],derivative[1]);
-        if(!(size>0))continue;
-        // A piece running against its source is inverted (a collapse); it
-        // bounds no material whatever the winding says.
-        const t=s.reversed===undefined?sample:s.reversed-sample;
-        if(dot(evaluateCurve(s.parent,t).derivative,evaluateCurve(s.reference,t).derivative)<=0)continue;
+        if(!(size>0)||!forward(s,sample)||curls[c].some(inArc=>inArc(sample)))continue;
         const r=[derivative[1]/size*eps,-derivative[0]/size*eps];
         if(!(winding([point[0]-r[0],point[1]-r[1]])>=1&&winding([point[0]+r[0],point[1]+r[1]])<=0))continue;
         const piece=ts.length===2?s.curve:extract(s.curve,ts[k-1],ts[k]);

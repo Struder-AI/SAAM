@@ -274,7 +274,13 @@ lines and circular arcs move exactly, and at a kink the vertex moves to where
 the adjoining pieces meet. The moved curves are cut where they cross
 ([curve-ops.mjs](./curve-ops.mjs)), and a piece is kept when it runs with its
 source and the winding is at least one on its left and at most zero on its
-right. Closed curves follow the region convention: material left of travel,
+right. Where a curve meets itself or another end to end (a closed curve's seam,
+a smooth joint) the contact is judged by arc length within the crossing
+tolerance, since Newton is only linear there. Where the exact offset has an
+inversion cusp the loose curve can turn through a small loop instead (a
+**curl**: one self-crossing, no other crossing on it, entered running with the
+source and left against it); a curl bounds nothing whatever its winding.
+Closed curves follow the region convention: material left of travel,
 positive depth grows it. An open curve's offset is one-sided and keeps only what
 is at least the depth from every source curve. Pieces past a patch's edges are
 trimmed off; control counts change only where pieces are cut. With `periodicU`
