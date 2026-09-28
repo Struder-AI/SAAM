@@ -4,16 +4,17 @@ import {fileURLToPath} from 'node:url';
 import {defaults} from '../../../core/print/plan.mjs';
 import {initBundle,loadBundle} from '../../../core/print/bundle.mjs';
 import {applyText} from '../../../core/print/text.mjs';
+import {splineBox,splineBlock,splineTube} from '../../../core/geom/spline-solid.mjs';
 
 const directory=resolve(process.argv[2]??'Prints/text-development');
 const fontPath=fileURLToPath(new URL('../tests/fixtures/Abel-Regular.ttf',import.meta.url));
-const box={shape:'box',runMm:24,widthMm:14,heightMm:3};
+const box=splineBox({runMm:24,widthMm:14,heightMm:3});
 const plan=defaults();plan.skills['draped-skin'].enabled=false;
 plan.geometry={shape:'assembly',parts:[
   {id:'raised',xMm:0,yMm:0,zMm:0,geometry:box},
   {id:'recessed',xMm:30,yMm:0,zMm:0,geometry:box},
-  {id:'curved-roof',xMm:0,yMm:20,zMm:0,geometry:{shape:'spline-top',runMm:24,widthMm:14,cpU:4,cpV:4,heightsMm:[[3,3,3,3],[3,7,7,3],[3,7,7,3],[3,3,3,3]]}},
-  {id:'wrapped-pipe',xMm:43,yMm:31,zMm:0,geometry:{shape:'pipe',innerRadiusMm:8,outerRadiusMm:10.4,heightMm:12,toleranceMm:0.01}}
+  {id:'curved-roof',xMm:0,yMm:20,zMm:0,geometry:splineBlock({runMm:24,widthMm:14,heightsMm:[[3,3,3,3],[3,7,7,3],[3,7,7,3],[3,3,3,3]]})},
+  {id:'wrapped-pipe',xMm:43,yMm:31,zMm:0,geometry:splineTube({columns:24,heightMm:12,boreRadiusMm:8,radiusAt:()=>10.4})}
 ]};
 await initBundle(directory,plan);
 for(const part of ['raised','recessed'])await applyText(directory,{part,feature:{fontPath,text:'SAAM',sizeMm:7,positionMm:[4,4],mode:part==='raised'?'raised':'recessed',depthMm:0.8,

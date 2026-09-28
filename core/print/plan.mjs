@@ -22,10 +22,10 @@ import {validateVasePattern} from '../../skills/vase-wall/scripts/paths.mjs';
 import {SUPPORT_DEFAULTS,validateSupports} from '../../skills/supports/scripts/supports.mjs';
 import {RIMMING_DEFAULTS,validateRimming} from '../../skills/rimming-planar/scripts/rimming.mjs';
 import {PIPE_CLADDING_DEFAULTS,validateCladding} from '../../skills/pipe-cladding/scripts/clad.mjs';
-import {pipeMesh} from '../geom/cylinder.mjs';
-import {validateSplineTube} from '../geom/spline-tube.mjs';
+import {splineSolidTemplate,validateSplineSolid,splineSolidBounds,splineBlock} from '../geom/spline-solid.mjs';
 import {gridfinityTemplate,validateGridfinityRecord} from '../../skills/gridfinity/scripts/record.mjs';
 import {textTemplate,validateTextRecord} from '../geom/text-record.mjs';
+import {voxelTemplate,validateVoxelRecord} from '../geom/voxel-record.mjs';
 import {geometrySelections} from '../geom/selections.mjs';
 import {SPACING_SKILLS,lineSpacing} from '../path/spacing.mjs';
 import {WAVE_DEFAULTS,validateWaves} from '../../skills/wave-overhangs/scripts/wave.mjs';
@@ -52,7 +52,7 @@ export function defaults(machine=loadMachine()) {
   const plan = {
     schema: 'saam-shell-plan/1',
     generatorVersion: VERSION,
-    geometry: { shape: 'spline-top', runMm: 40, widthMm: 30, cpU: 5, cpV: 5, heightsMm: domeHeights(5, 5) },
+    geometry: splineBlock({ runMm: 40, widthMm: 30, heightsMm: domeHeights(5, 5) }),
     placement: centeredPlacement(machine, machine.defaultSetup.tool, { runMm: 40, widthMm: 30 }) ?? { xMm: 140, yMm: 100 },
     setup: structuredClone(machine.defaultSetup),
     process: {
@@ -88,8 +88,9 @@ export function defaults(machine=loadMachine()) {
   return plan;
 }
 
-// A gentle dome whose slope stays inside the S5's non-planar limit.
-export function domeHeights(cpU, cpV, peak = 6, rise = 1.2) {
+// The starter recipe's roof: a gentle dome whose slope stays inside the S5's
+// non-planar limit.
+function domeHeights(cpU, cpV, peak = 6, rise = 1.2) {
   const grid = [];
   for (let i = 0; i < cpU; i++) {
     const row = [];
@@ -103,24 +104,13 @@ export function domeHeights(cpU, cpV, peak = 6, rise = 1.2) {
 // Each shape carries its own parameters, so the strict field check is made
 // against the selected shape rather than against whichever shape is the default.
 export function geometryTemplate(shape,geometry) {
+  if(shape==='voxel')return voxelTemplate();
   if(shape==='heat-set')return heatSetTemplate();
   if(shape==='gridfinity')return gridfinityTemplate();
   if(shape==='text')return textTemplate(geometry);
-  if(shape==='spline-tube')return {shape,innerRadiusMm:8,heightMm:24,controlPoints:[]};
-  if(shape==='pipe')return {shape:'pipe',innerRadiusMm:8,outerRadiusMm:10.4,heightMm:12,toleranceMm:0.01};
   if(shape==='mesh')return {shape:'mesh',vertices:[],triangles:[],source:null};
   if(shape==='assembly')return {shape:'assembly',parts:[]};
-  if (shape === 'box') return { shape: 'box', runMm: 30, widthMm: 20, heightMm: 10 };
-  if (shape === 'wedge') return { shape: 'wedge', runMm: 30, widthMm: 20, baseMm: 2, angleDeg: 15 };
-  if (shape === 'spline-shell') return {
-    shape: 'spline-shell', runMm: 40, widthMm: 30, cpU: 5, cpV: 5,
-    longSideInsetMm: 1, shortSideOutsetMm: 1, heightsMm: []
-  };
-  if (shape === 'vertical-spline-shell') return {
-    shape: 'vertical-spline-shell', runMm: 40, widthMm: 30, cpU: 4, cpV: 4,
-    xBulgeMm: 4, yInsetMm: 3, heightsMm: []
-  };
-  return { shape: 'spline-top', runMm: 40, widthMm: 30, cpU: 5, cpV: 5, heightsMm: [] };
+  return splineSolidTemplate();
 }
 
 export function validatePlan(plan,machine) {
@@ -135,8 +125,12 @@ export function validatePlan(plan,machine) {
   return validatePlanRegions(placement,machine);
 }
 
+// Authored forms (spline patches, meshes, assemblies of them) and the
+// compiled records of geometry skills.
+export const GEOMETRY_SHAPES=['spline','voxel','mesh','assembly','text','gridfinity','heat-set'];
+
 export function validatePlanFields(plan,machine) {
-  requireThat(plan && typeof plan === 'object' && ['box', 'wedge', 'spline-top', 'spline-shell', 'vertical-spline-shell', 'assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set'].includes(plan.geometry?.shape), 'Unsupported shape.');
+  requireThat(plan && typeof plan === 'object' && GEOMETRY_SHAPES.includes(plan.geometry?.shape), `Unsupported shape; geometry.shape is one of ${GEOMETRY_SHAPES.join(', ')}.`);
   // Validation is check-only: a plan carries every current field or it is
   // rejected. Pre-policy bundles are recreated from their skills, not migrated.
   const expected = { ...defaults(machine), geometry: geometryTemplate(plan.geometry.shape,plan.geometry) };
@@ -156,41 +150,21 @@ export function validatePlanFields(plan,machine) {
 export function validatePlanGeometry(plan,machine) {
   const {geometry,placement,setup}=plan;
   validatePlasticWeld(plan,machine);
-  if(geometry.shape==='spline-tube')validateSplineTube(geometry);
+  if(geometry.shape==='spline'){
+    // The control-net hull contains the surface, so this check can only be
+    // conservative; generation checks the actual moves.
+    const hull=splineSolidBounds(validateSplineSolid(geometry)),bounds=toolBounds(machine,setup.tool),at=[placement.xMm,placement.yMm,0];
+    requireThat(machine.motionChecks==='deferred'||hull.min.every((v,i)=>v+at[i]>=bounds.min[i]-1e-8)&&hull.max.every((v,i)=>v+at[i]<=bounds.max[i]+1e-8),'Placed spline control net exceeds selected tool bounds.');
+  }
   if(geometry.shape==='text')validateTextRecord(geometry);
   if(geometry.shape==='heat-set')validateHeatSetRecord(geometry);
   if(geometry.shape==='gridfinity')validateGridfinityRecord(geometry);
-  if(!['assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set'].includes(geometry.shape)) for (const [key, min, max] of [['runMm', 5, 200], ['widthMm', 5, 200]]) number(geometry[key], min, max, key);
-  if(geometry.shape==='pipe'){
-    for(const key of ['innerRadiusMm','outerRadiusMm','heightMm','toleranceMm'])requireThat(Number.isFinite(geometry[key])&&geometry[key]>0,'Invalid pipe '+key+'.');
-    requireThat(geometry.toleranceMm<geometry.innerRadiusMm/4,'Pipe mesh tolerance exceeds its bore radius.');pipeMesh(geometry);
-  }
+  if(geometry.shape==='voxel')validateVoxelRecord(geometry);
   validateCladding(plan,machine);
-  if(['mesh','text','gridfinity','heat-set'].includes(geometry.shape)) {
+  if(['mesh','voxel','text','gridfinity','heat-set'].includes(geometry.shape)) {
     const mesh=makeMesh(geometry.vertices,geometry.triangles),bounds=toolBounds(machine,setup.tool);
     requireThat(machine.motionChecks==='deferred'||mesh.bounds.min.every((v,i)=>v+[placement.xMm,placement.yMm,0][i]>=bounds.min[i]-1e-8)&&mesh.bounds.max.every((v,i)=>v+[placement.xMm,placement.yMm,0][i]<=bounds.max[i]+1e-8),'Placed mesh exceeds selected tool bounds.');
     if(geometry.shape==='mesh')requireThat(geometry.source===null||(geometry.source?.format==='stl'&&/^[a-f0-9]{64}$/.test(geometry.source.sha256)&&['mm','inch'].includes(geometry.source.units)&&Number.isFinite(geometry.source.scale)&&geometry.source.scale>0),'Invalid mesh source provenance.');
-  }
-  if (geometry.shape === 'box') number(geometry.heightMm, 0.5, 200, 'heightMm');
-  if (geometry.shape === 'wedge') {
-    number(geometry.baseMm, 0.5, 50, 'baseMm');
-    number(geometry.angleDeg, 0.5, 60, 'angleDeg');
-  }
-  if (geometry.shape === 'spline-top' || geometry.shape === 'spline-shell' || geometry.shape === 'vertical-spline-shell') {
-    for (const [key, min, max] of [['cpU', 3, 12], ['cpV', 3, 12]]) number(geometry[key], min, max, key);
-    requireThat(Array.isArray(geometry.heightsMm) && geometry.heightsMm.length === geometry.cpU, 'heightsMm must have cpU rows.');
-    for (const row of geometry.heightsMm) {
-      requireThat(Array.isArray(row) && row.length === geometry.cpV, 'heightsMm rows must have cpV entries.');
-      for (const value of row) number(value, 0.5, 200, 'control height');
-    }
-  }
-  if (geometry.shape === 'spline-shell') {
-    number(geometry.longSideInsetMm, 0, (geometry.widthMm - 5) / 2, 'Long-side inset');
-    number(geometry.shortSideOutsetMm, 0, 50, 'Short-side outset');
-  }
-  if (geometry.shape === 'vertical-spline-shell') {
-    number(geometry.xBulgeMm, 0, 50, 'X-side bulge');
-    number(geometry.yInsetMm, 0, (geometry.widthMm - 5) / 2, 'Y-side inset');
   }
 
   return plan;
@@ -400,16 +374,11 @@ export function validatePlanDeposition(plan) {
 }
 
 export function validatePlanPlacement(plan,machine) {
-  const {geometry,placement,setup,skills}=plan;
+  const {placement,skills}=plan;
   const regional=plan.composition.regions.length>0;
   const skin=skills['draped-skin'];
   requireThat(machine.schema === 'saam-machine/1' && machine.outputs.some(option => option.id === plan.output), 'Unsupported machine or output.');
   if (!regional&&skin.enabled) requireThat(Number.isFinite(machine.nonplanar?.maxAngleDeg), 'The machine file must declare nonplanar.maxAngleDeg.');
-  const xBulgeMm = geometry.shape === 'spline-shell' ? geometry.shortSideOutsetMm
-    : geometry.shape === 'vertical-spline-shell' ? geometry.xBulgeMm : 0;
-  const bounds=toolBounds(machine,setup.tool);
-  if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set'].includes(geometry.shape)) number(placement.xMm, bounds.min[0]+5 + xBulgeMm, bounds.max[0] - geometry.runMm - xBulgeMm - 5, 'Placement X');
-  if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set'].includes(geometry.shape)) number(placement.yMm, bounds.min[1]+5, bounds.max[1] - geometry.widthMm - 5, 'Placement Y');
   requireThat(Number.isFinite(placement.xMm)&&Number.isFinite(placement.yMm),'Placement must be finite.');
   return plan;
 }

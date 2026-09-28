@@ -19,13 +19,14 @@ import {
 import { createStudio } from '../../studio/server.mjs';
 import { approvedReview, machineChangedReview } from '../print/workflow.mjs';
 
+import {splineBlock,splineBox} from '../geom/spline-solid.mjs';
 const ACTOR = 'SYNTHETIC TEST REVIEWER — not a real approval';
 const clone = value => structuredClone(value);
 
 // Small enough to slice quickly, still a spline top surface with a real skin.
 function smallPlan() {
   const plan = defaults();
-  plan.geometry = { shape: 'spline-top', runMm: 16, widthMm: 12, cpU: 4, cpV: 4, heightsMm: [[3, 3, 3, 3], [3, 4, 4, 3], [3, 4, 4, 3], [3, 3, 3, 3]] };
+  plan.geometry = splineBlock({runMm:16,widthMm:12,heightsMm:[[3, 3, 3, 3], [3, 4, 4, 3], [3, 4, 4, 3], [3, 3, 3, 3]]});
   plan.process = { ...plan.process, minimumLayerSeconds: 0 };
   return plan;
 }
@@ -93,7 +94,8 @@ test('a shell print stores native geometry that reopens as the same closed shell
   await verifyGeometry(bytes, state.geometry);
 
   // A 3DM written for other parameters is not this print's geometry.
-  const other = await createGeometry({ ...smallPlan().geometry, runMm: 17 });
+  const raised = structuredClone(smallPlan().geometry); raised.patches[0].controlPoints[1][1][2] += 1;
+  const other = await createGeometry(raised);
   await assert.rejects(verifyGeometry(other.bytes, state.geometry), /Geometry file changed/);
   await assert.rejects(verifyGeometry(other.bytes, { ...state.geometry, fileHash: hash(other.bytes) }),
     /written for different geometry parameters/);
@@ -253,15 +255,13 @@ test('geometry and settings edits invalidate the approvals they affect', async t
   ]}}});
   state=await loadBundle(dir);assert.equal(state.plan.process.primeLine.passes.length,2);
 
-  // A chat request can switch shapes with different strict fields. It starts
-  // from the new shape's template, keeps shared roof controls and rewrites the
-  // 3DM and invalidates final review as well.
-  await adjustBundle(dir, { geometry: { shape: 'spline-shell', longSideInsetMm: 1, shortSideOutsetMm: 1 } });
+  // A chat request replaces the patch list as a whole (arrays replace), which
+  // rewrites the 3DM and invalidates final review as well.
+  await adjustBundle(dir, { geometry: { patches: splineBox({ runMm: 16, widthMm: 12, heightMm: 5 }).patches } });
   state = await loadBundle(dir);
   assert.equal(state.toolpathApproved, false);
-  assert.equal(state.geometry.parameters.shape, 'spline-shell');
-  assert.equal(state.geometry.parameters.longSideInsetMm, 1);
-  assert.equal(state.geometry.parameters.shortSideOutsetMm, 1);
+  assert.equal(state.geometry.parameters.shape, 'spline');
+  assert.equal(state.geometry.boundsMm.max[2], 5);
   await verifyGeometry(await readFile(resolve(dir,state.geometryArtifact.file)), state.geometry);
 });
 
@@ -350,7 +350,7 @@ test('Studio reviews a shell print and delivers it under its own export name', a
 
 test('a manifest cannot claim geometry that its immutable artifact does not contain', async t => {
   const dir = await fixture(t), before = await loadBundle(dir, { program: false });
-  const manifest=JSON.parse(await readFile(resolve(dir,'plan.json'),'utf8'));manifest.geometry.runMm+=2;
+  const manifest=JSON.parse(await readFile(resolve(dir,'plan.json'),'utf8'));manifest.geometry.patches[0].controlPoints[1][1][2]+=1;
   await writeFile(resolve(dir,'plan.json'),JSON.stringify(manifest));
   await assert.rejects(loadBundle(dir,{program:false}),/Plan and geometry disagree/);
   manifest.geometry=before.plan.geometry;await writeFile(resolve(dir,'plan.json'),JSON.stringify(manifest));

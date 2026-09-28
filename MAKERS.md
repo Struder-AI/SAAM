@@ -62,8 +62,9 @@ Choose skills from the [digest](skills/DIGEST.md) and read each chosen manual; t
 manuals own shape support, settings and limits. Treat skills as building blocks
 and consider combinations that serve the part.
 
-Prefer making geometry tailored to the request when that is attractive. When an
-existing mesh serves better, or the person asks to fetch one or gives a
+Prefer authoring geometry for the request yourself, as spline patches, a mesh
+or a spline field ([author geometry](core/print/USAGE.md#author-geometry)). When
+an existing mesh serves better, or the person asks to fetch one or gives a
 Thingiverse link, use [thingi10k](skills/thingi10k/SKILL.md).
 
 For ordinary planar walls, hollow vessels or patterned fill, start with

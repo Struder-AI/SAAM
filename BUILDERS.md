@@ -331,7 +331,7 @@ without human approvals; an existing recipe can be initialized first. Developmen
 output cannot authorize delivery, and MCP does not expose this mode. It still
 needs explicit robot command settings; for a new provisional part use the
 reusable setup instructions for
-[DENSO](skills/pipe-cladding/SKILL.md#public-workflow-and-development-demo) or
+[DENSO](skills/pipe-cladding/SKILL.md#development-demos) or
 [Dobot](core/export/dobot.md#dobot-output-contract), independently of its shape.
 
 A demo's setup, assets and recipe assumptions must be reachable from its skill

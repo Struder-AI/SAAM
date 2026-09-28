@@ -2,10 +2,11 @@
 import {resolve} from 'node:path';
 import {defaults} from '../../../core/print/plan.mjs';
 import {initBundle,generateBundle} from '../../../core/print/bundle.mjs';
+import {splineTube} from '../../../core/geom/spline-solid.mjs';
 const mode=process.argv[3]??'continuous';
 if(!['continuous','segmented'].includes(mode))throw new Error('Choose continuous or segmented.');
 const plan=defaults();
-plan.geometry={shape:'pipe',innerRadiusMm:12,outerRadiusMm:14,heightMm:10.5,toleranceMm:.01};
+plan.geometry=splineTube({columns:32,heightMm:10.5,boreRadiusMm:12,radiusAt:()=>14});
 for(const settings of Object.values(plan.skills))settings.enabled=false;
 plan.placement={xMm:125,yMm:105};
 const points=Array.from({length:33},(_,i)=>{const u=i/32;return [u,.2*u+(i%4===2?.06:0)];});

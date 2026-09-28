@@ -8,6 +8,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createStudio} from '../../studio/server.mjs';
 import {createLocalRuntime} from '../../adapters/mcp/src/runtime.mjs';
+import {splineBox} from '../geom/spline-solid.mjs';
 
 function fakeRelay({fail=false}={}){
   const calls={status:0,linkCode:0};
@@ -99,7 +100,7 @@ test('the runtime opens a print-free launch Studio with the relay panel, and req
   assert.equal(listed.instanceId,launched.studioInstanceId);assert.equal(listed.directory,null);
   await assert.rejects(invoke('begin_studio_work',{instruction:'Which print?'}),/Specify printId/);
   const {plan}=await invoke('get_plan_template',{kind:'shell',machineId:'ultimaker-s5'});
-  plan.process.minimumLayerSeconds=0;plan.geometry={shape:'box',runMm:12,widthMm:10,heightMm:1};plan.skills['draped-skin'].enabled=false;
+  plan.process.minimumLayerSeconds=0;plan.geometry=splineBox({runMm:12,widthMm:10,heightMm:1});plan.skills['draped-skin'].enabled=false;
   await invoke('create_print',{printId:'part',kind:'shell',machineId:'ultimaker-s5',plan});
   const review=await invoke('request_review',{printId:'part'});
   assert.equal(review.studioInstanceId,launched.studioInstanceId,'the sole launch instance shows the chat\'s print');

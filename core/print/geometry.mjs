@@ -13,9 +13,12 @@ import { buildShell,hasMesh } from './generate.mjs';
 import { hash } from './plan.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 
-// Display resolution of the proxy mesh, per patch, per direction. The proxy is
-// for the viewer only; every toolpath comes from the patches themselves.
-const PROXY_STEPS = 8;
+// Display resolution of the proxy mesh: steps per knot span, per direction,
+// within a per-patch range. The proxy is for the viewer only; every toolpath
+// comes from the patches themselves.
+const PROXY_STEPS_PER_SPAN = 8, PROXY_STEPS_MAX = 64;
+const spans = (knots, order, count) => { let n = 0; for (let i = order - 1; i < count; i++) if (knots[i + 1] > knots[i]) n++; return n; };
+const proxySteps = (knots, order, count) => Math.min(PROXY_STEPS_MAX, PROXY_STEPS_PER_SPAN * spans(knots, order, count));
 
 let runtime;
 export const rhino = () => runtime ??= rhino3dm();
@@ -100,7 +103,7 @@ function proxyMesh(shell) {
   const vertices = [], faces = [], labels = [];
   for (const patch of shell.patches) {
     const [u0, u1] = patch.domainU, [v0, v1] = patch.domainV;
-    const stepsU=shell.name==='spline-tube'?64:PROXY_STEPS,stepsV=shell.name==='spline-tube'?32:PROXY_STEPS;
+    const stepsU = proxySteps(patch.knotsU, patch.orderU, patch.nu), stepsV = proxySteps(patch.knotsV, patch.orderV, patch.nv);
     const base = vertices.length, row = stepsV + 1;
     for (let i = 0; i <= stepsU; i++)
       for (let j = 0; j <= stepsV; j++)
@@ -111,7 +114,7 @@ function proxyMesh(shell) {
         labels.push(patch.name);
       }
   }
-  return { vertices, faces, labels, proxyStepsPerPatch: shell.name==='spline-tube'?[64,32]:PROXY_STEPS };
+  return { vertices, faces, labels };
 }
 
 // A native mesh is stored as indexed triangles. Mixed assemblies retain the

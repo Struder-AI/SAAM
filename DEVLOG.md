@@ -1,5 +1,34 @@
 # Development log
 
+## 2026-09-28 — Authored geometry: general spline solids, spline field restored, templates removed
+
+- Added `shape: "spline"` ([spline-solid.mjs](core/geom/spline-solid.mjs)): named
+  patches with authored control nets (XYZ or XYZW), optional full knot vectors,
+  numerical closure (seams and poles close; one patch may close on itself), 3DM
+  storage and native slicing. The four-patch minimum became one patch. Viewer
+  proxy sampling now follows each patch's knot spans.
+- Removed the seven templated shapes, `core/geom/shapes.mjs`, `spline-tube.mjs`,
+  `pipeMesh` and the circular-pipe cladding branch (D-040). Cladding needs a
+  sleeve. The starter recipe, tour examples, skill demos, bench fixtures, setup
+  check and tests now write spline patches (`splineBlock`, `splineBox`,
+  `splineTube` helpers). DENSO dev tools keep their analytic pipe in
+  `tools/denso/pipe.mjs`.
+- Restored the spline field as it was removed on 2026-09-14 (`voxel` shape,
+  hierarchy/refinement, Manifold level-set extraction, `preciseSolidMesh`,
+  voxel-tools manual, `voxel` MCP tool, `voxel-create`/`voxel-update` CLI,
+  Studio rows), ported to the single final confirmation.
+- Guidance: [author geometry](core/print/USAGE.md#author-geometry) seeds the three
+  forms; the pipe-cladding manual loses its circular-pipe mode.
+- Verification (targeted files only, not the full suite): voxel 11, voxel-refine 1,
+  denso 7, mcp 20, workflow 12, mesh-boundary 3 — all pass. Scratch checks: an
+  exact rational cylinder and one-patch sphere section to circles within 1e-10 mm;
+  an open shell is rejected naming its unmatched edges; starter, tour and DENSO
+  recipes validate and section; an advanced vase with a fitted mesh sleeve
+  generates through recipe adjustment alone (26,346 moves). Dev map regenerated
+  and checked. `check-repo` passes apart from existing BR-055 and D-038/D-039
+  findings. Not run: the full suite, including the studio, tour and relay test
+  files touched by fixture edits.
+
 ## 2026-09-25 — Dev maps: state links drawn, holders followed (orange 2041 → 649)
 
 - Owner direction: a finding that knows what to draw is drawn. Owned state is

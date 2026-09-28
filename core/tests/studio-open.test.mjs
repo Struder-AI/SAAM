@@ -8,7 +8,7 @@ import * as shell from '../print/bundle.mjs';
 import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 // A small planar box keeps these Studio-lifecycle tests fast and machine-neutral.
-const boxPlan=(machine=loadMachine())=>{const p=defaults(machine);p.geometry={shape:'box',runMm:10,widthMm:10,heightMm:2};p.skills['draped-skin'].enabled=false;p.process.minimumLayerSeconds=0;return p;};
+const boxPlan=(machine=loadMachine())=>{const p=defaults(machine);p.geometry=splineBox({runMm:10,widthMm:10,heightMm:2});p.skills['draped-skin'].enabled=false;p.process.minimumLayerSeconds=0;return p;};
 import {Worker} from 'node:worker_threads';
 import {once} from 'node:events';
 import workerThreads from 'node:worker_threads';
@@ -16,6 +16,7 @@ import {syncBuiltinESMExports} from 'node:module';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
 import {summarizeWork} from '../../studio/work-state.mjs';
 
+import {splineBox} from '../geom/spline-solid.mjs';
 test('an explicit scratch resolver follows Studio opening and listing without changing the default registry',async t=>{
   const library=await mkdtemp(join(tmpdir(),'saam-studio-scratch-'));t.after(()=>rm(library,{recursive:true,force:true}));
   const {mkdir}=await import('node:fs/promises');

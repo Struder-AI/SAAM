@@ -89,21 +89,19 @@ collision validation. Vendor compilation, coordinated execution and physical
 printing remain open commissioning work.
 
 Interoperability is shared at geometry storage, ordinary section/offset/boolean
-tools, full-fill/concentric substrate generation, operations, motion, output
-registry, exact-source Studio, approvals, cold reopening and delivery. The circular
-radial skill is restricted to a native circular pipe aligned with the rotary;
-general CAD cylindrical recognition and inward radial material-region interfaces are
-not implemented. Explicit surface cladding also accepts a periodic native
+tools, substrate generation, operations, motion, output registry, exact-source
+Studio, approvals, cold reopening and delivery. Cladding accepts a periodic native
 spline patch or mapped native triangle strip through
-[surface-region](../geom/surface-region.mjs). Shared
+[surface-region](../geom/surface-region.mjs); inward radial material-region
+interfaces are not implemented. Shared
 [normal-surface](../region/normal-surface.mjs) operations evaluate outward normal
 offsets and refine curves; they do not use the intrinsic boundary-offset tool.
 The selected surface describes the substrate, and cladding adds outside it.
-The `spline-tube` builder stores a periodic 16-by-8 example in native 3DM with a
-rational circular bore; full-fill consumes its real sections with three
-perimeters. Arc-length cells create partial axial passes as local area varies.
-Scope, mesh normal interpolation, sampled coverage, unsupported topology and
-normal-field limits are owned by the [cladding manual](../../skills/pipe-cladding/SKILL.md#bumpy-spline-and-explicit-surface-cladding).
+The bumpy development tube is a periodic 16-by-8 spline exterior in native 3DM;
+full-fill consumes its real sections with three perimeters. Arc-length cells
+create partial axial passes as local area varies. Scope, mesh normal
+interpolation, sampled coverage, unsupported topology and normal-field limits are
+owned by the [cladding manual](../../skills/pipe-cladding/SKILL.md#coverage-and-pose).
 The producer uses the same composer, oriented travel, RC8A export and approval
 workflow. General inward reservations, arbitrary chart unwrapping and multi-patch
 cladding remain unimplemented.

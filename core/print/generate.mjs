@@ -7,7 +7,7 @@
 // it. With no skin selected the body simply fills the whole solid.
 
 import { makeShell, assertClosed } from '../geom/shell.mjs';
-import { boxShell, wedgeShell, splineTopShell, splineSideShell, verticalSplineSideShell, shellFromSurfaces } from '../geom/shapes.mjs';
+import {shellFromSurfaces,splineSolidShell} from '../geom/spline-solid.mjs';
 import {planToolpath} from '../path/toolpath.mjs';
 import {filamentSelection} from '../machine/filaments.mjs';
 import {planarPolicy} from '../path/builder.mjs';
@@ -24,10 +24,7 @@ import {generateRegionResults,planarSupportTopAt} from './regions.mjs';
 import {supportResults} from '../../skills/supports/scripts/supports.mjs';
 import {rimmingPlanarResults} from '../../skills/rimming-planar/scripts/rimming.mjs';
 import {rimmingNormalResults} from '../../skills/rimming-normal/scripts/rimming.mjs';
-import {pipeMesh} from '../geom/cylinder.mjs';
-import {pipeCladdingResult,substrateSection,substrateLoops} from '../../skills/pipe-cladding/scripts/clad.mjs';
-import {infillStrokes} from '../../skills/planar-infill/scripts/patterns.mjs';
-import {splineTubeShell} from '../geom/spline-tube.mjs';
+import {surfaceCladdingResult} from '../../skills/pipe-cladding/scripts/surface-clad.mjs';
 import {publishFinishedBoundary,consumeFinishedSurface} from '../path/finished-surface.mjs';
 import {waveResults} from '../../skills/wave-overhangs/scripts/wave.mjs';
 import {preparePlasticWeld,plasticWeldResult} from '../../skills/plastic-weld/scripts/weld.mjs';
@@ -36,7 +33,7 @@ import {heatSetDetails} from '../../skills/heat-set-inserts/scripts/reinforcemen
 import {geometrySelections} from '../geom/selections.mjs';
 import {lineNetworkResult} from '../../skills/line-network/scripts/network.mjs';
 
-export const hasMesh=geometry=>['mesh','pipe','text','gridfinity','heat-set'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
+export const hasMesh=geometry=>['mesh','voxel','text','gridfinity','heat-set'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
 
 function primeLineResult(plan,machine){
   const p=plan.process.primeLine;if(p===null)return null;
@@ -60,9 +57,8 @@ function primeLineResult(plan,machine){
 }
 
 export function buildShell(rhino, geometry) {
-  if(geometry.shape==='spline-tube')return splineTubeShell(rhino,geometry);
-  if(geometry.shape==='pipe')return pipeMesh(geometry);
-  if(['mesh','text','gridfinity','heat-set'].includes(geometry.shape)){
+  if(geometry.shape==='spline')return splineSolidShell(rhino,geometry);
+  if(['mesh','voxel','text','gridfinity','heat-set'].includes(geometry.shape)){
     const mesh=makeMesh(geometry.vertices,geometry.triangles),features=heatSetFeatures(geometry);
     if(features.length)mesh.planarDetails=heatSetDetails(features);
     return mesh;
@@ -79,22 +75,7 @@ export function buildShell(rhino, geometry) {
     }));
     return assertClosed(shellFromSurfaces(rhino,entries,'assembly'));
   }
-  if (geometry.shape === 'box') return boxShell(rhino, { xMm: geometry.runMm, yMm: geometry.widthMm, zMm: geometry.heightMm ?? 10 });
-  if (geometry.shape === 'wedge') return wedgeShell(rhino, { runMm: geometry.runMm, widthMm: geometry.widthMm, baseMm: geometry.baseMm ?? 2, angleDeg: geometry.angleDeg ?? 15 });
-  if (geometry.shape === 'spline-shell') return splineSideShell(rhino, {
-    runMm: geometry.runMm, widthMm: geometry.widthMm, cpU: geometry.cpU, cpV: geometry.cpV,
-    longSideInsetMm: geometry.longSideInsetMm, shortSideOutsetMm: geometry.shortSideOutsetMm,
-    heights: (i, j) => geometry.heightsMm[i][j]
-  });
-  if (geometry.shape === 'vertical-spline-shell') return verticalSplineSideShell(rhino, {
-    runMm: geometry.runMm, widthMm: geometry.widthMm, cpU: geometry.cpU, cpV: geometry.cpV,
-    xBulgeMm: geometry.xBulgeMm, yInsetMm: geometry.yInsetMm,
-    heights: (i, j) => geometry.heightsMm[i][j]
-  });
-  return splineTopShell(rhino, {
-    runMm: geometry.runMm, widthMm: geometry.widthMm, cpU: geometry.cpU, cpV: geometry.cpV,
-    heights: (i, j) => geometry.heightsMm[i][j]
-  });
+  throw new Error(`Unsupported geometry shape: ${geometry.shape}.`);
 }
 
 // Placement moves the whole shell onto the bed by shifting control points; the
@@ -163,8 +144,7 @@ export function generatePlanarComponent(plan,machine,{id,shell,componentShells},
     const publishedSparse=publishFinishedBoundary(sparse,{shell,coverage:normal.perimeters?'nominal':'sparse'});
     const publishedSolid=solid?publishFinishedBoundary(solid,{shell}):solid;
     return {results:publishedSolid?[publishedSparse,publishedSolid]:[publishedSparse],fill:publishedSolid,normal:publishedSparse,support:{shell},vaseShell};
-  } else if(useFill){const clad=plan.skills['pipe-cladding'].enabled&&!plan.skills['pipe-cladding'].surface;const result=fullFillResult({id,shell,plan,machine,reserve:useVase?null:survey,zEndMm:baseTop,onProgress,
-    ...(clad?{sectionAt:substrateSection(shell,plan),interiorStrokes:fill.perimeters===0?()=>substrateLoops(plan):region=>infillStrokes(region,{pattern:'concentric',widthMm:process.lineWidthMm,density:1,spacingFactor:fill.spacingFactor})}:{})});
+  } else if(useFill){const result=fullFillResult({id,shell,plan,machine,reserve:useVase?null:survey,zEndMm:baseTop,onProgress});
     const published=publishFinishedBoundary(result,{shell,endMm:baseTop??shell.bounds.max[2],coverage:fill.perimeters||fill.spacingFactor<=1?'nominal':'sparse'});
     return {results:[published],fill:published,normal:null,support:{shell},vaseShell};}
   return {results:[],fill:null,normal:null,support:null,vaseShell};
@@ -252,7 +232,7 @@ export function addComplementaryResults(plan,machine,{placed,componentShells,wel
   if(plan.skills['pipe-cladding'].enabled){
     const settings=plan.skills['pipe-cladding'],shell=batch.regionShells?.get(settings.part)??(componentShells?componentShells.get(settings.part):placed);
     const finishedSurface=settings.surface?consumeFinishedSurface({shell,selection:settings.surface,results}):null;
-    const result=pipeCladdingResult({plan,shell,finishedSurface,after:finishedSurface?[]:results.flatMap(r=>r.operations.map(op=>op.id))});
+    const result=surfaceCladdingResult({plan,shell,finishedSurface,after:finishedSurface?[]:results.flatMap(r=>r.operations.map(op=>op.id))});
     results.push(result);summary.pipeCladding=result.report;
   }
   const waves=waveResults({plan,machine,placed,componentShells,modelResults:results});

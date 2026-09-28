@@ -2,6 +2,7 @@ import {pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
 import {defaults} from '../../../core/print/plan.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
+import {splineBox} from '../../../core/geom/spline-solid.mjs';
 import {referencePatch} from '../../../core/geom/reference-surface.mjs';
 import {offsetSurfaceRegion} from '../../../core/region/surface-offset.mjs';
 import {regionArea} from '../../../core/region/region2d.mjs';
@@ -29,7 +30,7 @@ export function canopyExamplePlan(machine=loadMachine(),progress=()=>{}){
   // The designed canopy has one exterior and no holes. Offset-union rounding
   // can leave microscopic internal loops; those do not define this outline.
   domainUv=[domainUv.reduce((a,b)=>Math.abs(regionArea([a]))>Math.abs(regionArea([b]))?a:b)];
-  plan.geometry={shape:'box',runMm:boxWidth,widthMm:boxWidth,heightMm:10};
+  plan.geometry=splineBox({runMm:boxWidth,widthMm:boxWidth,heightMm:10});
   plan.skills['draped-skin'].enabled=false;
   plan.skills['wave-overhangs']={...plan.skills['wave-overhangs'],enabled:true,
     lineSpacingMm:.3,propagationStepMm:.3,

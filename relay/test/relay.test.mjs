@@ -10,6 +10,7 @@ import {tmpdir} from 'node:os';
 import {resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import {splineBox} from '../../core/geom/spline-solid.mjs';
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import {createLocalRuntime} from '../../adapters/mcp/src/runtime.mjs';
 import {bundleFor} from '../../studio/adapter-resolution.mjs';
@@ -95,7 +96,7 @@ test('a chat reaches the paired computer through the relay; link loss fails fast
   assert.match(JSON.stringify(await client.callTool({name:'import_stl_print',arguments:{printId:'x',sourcePath:'C:/x.stl',machineId:'ultimaker-s5'}}).catch(error=>({error:error.message}))),/Unknown|not found/i);
   assert.match(client.getInstructions(),/^This SAAM session reaches the person’s own computer through the SAAM relay/,'relay sessions get relay guidance first');
   const {plan}=await call('get_plan_template',{kind:'shell',machineId:'ultimaker-s5'});
-  plan.process.minimumLayerSeconds=0;plan.geometry={shape:'box',runMm:12,widthMm:10,heightMm:1};plan.skills['draped-skin'].enabled=false;
+  plan.process.minimumLayerSeconds=0;plan.geometry=splineBox({runMm:12,widthMm:10,heightMm:1});plan.skills['draped-skin'].enabled=false;
   const created=await call('create_print',{printId:'relayed',kind:'shell',machineId:'ultimaker-s5',plan});
   assert.equal(created.toolpathApproved,false);
   const repeated=await client.callTool({name:'adjust_print',arguments:{printId:'relayed',expectedRevision:'stale',patch:{}}});

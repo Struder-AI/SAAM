@@ -209,32 +209,27 @@ const views={
     names:{},
     facts(state,tab) {
       const {geometry:g,setup:s,process:p}=state.plan,fill=state.plan.skills['full-fill'],skin=state.plan.skills['draped-skin'],normal=state.plan.skills['planar-infill'],network=state.plan.skills['line-network'];
-      const shape={assembly:'Assembly',box:'Box',wedge:'Wedge','spline-tube':'Bumpy spline tube',"spline-top":'Spline top surface',"spline-shell":'Tapered spline shell',"vertical-spline-shell":'Vertical spline shell'}[g.shape]??g.shape;
+      const shape={voxel:'Volumetric field',assembly:'Assembly',spline:'Spline surfaces',mesh:'Mesh'}[g.shape]??g.shape;
       if(tab==='geometry') {
         const bounds=state.geometry.boundsMm;
         const rows=[['Shape',shape],['Footprint',round2(bounds.max[0]-bounds.min[0])+' × '+round2(bounds.max[1]-bounds.min[1])+' mm'],['Height',round2(bounds.max[2]-bounds.min[2])+' mm']];
         if(g.shape==='mesh'&&g.source?.format==='stl')rows.push(['STL units',g.source.units+(g.source.unitsInferred?' · assumed from size':'')+' · change in chat']);
-        if(g.shape==='pipe')rows.push(['Bore / outside diameter',2*g.innerRadiusMm+' / '+2*g.outerRadiusMm+' mm'],['Wall thickness',round2(g.outerRadiusMm-g.innerRadiusMm)+' mm']);
-        if(g.shape==='spline-top'||g.shape==='spline-shell')rows.push(['Surface',g.cpU+' × '+g.cpV+' control points']);
-        if(g.shape==='spline-shell')rows.push(['Side taper','Long sides in '+g.longSideInsetMm+' mm · short sides out '+g.shortSideOutsetMm+' mm']);
-        if(g.shape==='vertical-spline-shell'){
-          rows.push(['Surface',g.cpU+' × '+g.cpV+' control points']);
-          rows.push(['Vertical wall outline','X out '+g.xBulgeMm+' mm · Y in '+g.yInsetMm+' mm']);
-        }
+        if(g.shape==='spline')rows.push(['Patches',g.patches.map(p=>p.name+' '+p.controlPoints.length+' × '+p.controlPoints[0].length).join(' · ')]);
         const textRows=(geometry,prefix='')=>{if(geometry.shape==='text')for(const feature of geometry.features)rows.push([prefix+feature.id,(feature.mode==='raised'?'Raised':'Recessed')+' “'+feature.text+'” · '+feature.depthMm+' mm']);};
+        const voxelRows=(geometry,prefix='')=>{if(geometry.shape==='voxel')rows.push([prefix+'Surface sampling',geometry.extraction.edgeMm+' mm · finer features may be missed'],[prefix+'Material threshold',String(geometry.field.isoValue)]);};
         textRows(g);
-        if(g.shape==='assembly')for(const part of g.parts){rows.push([part.id,part.geometry.shape+' at '+[part.xMm,part.yMm,part.zMm].join(', ')+' mm']);textRows(part.geometry,part.id+' · ');}
-        if(g.shape==='spline-tube')rows.push(['Circular bore',2*g.innerRadiusMm+' mm'],['Substrate height',g.heightMm+' mm'],['Outer spline',g.controlPoints.length+' × '+g.controlPoints[0].length+' control points'],['Surface meaning','Full-fill boundary; cladding builds outward']);
+        voxelRows(g);
+        if(g.shape==='assembly')for(const part of g.parts){rows.push([part.id,part.geometry.shape+' at '+[part.xMm,part.yMm,part.zMm].join(', ')+' mm']);textRows(part.geometry,part.id+' · ');voxelRows(part.geometry,part.id+' · ');}
         return rows;
       }
       if(tab==='plan'&&state.plan.composition?.regions?.length)return [materialSetup(state),
         ['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],...regionRows(state.plan)];
       if(tab==='plan'&&hasSkill(state.plan,'pipe-cladding')){
-        const clad=state.plan.skills['pipe-cladding'],surface=Boolean(clad.surface);
+        const clad=state.plan.skills['pipe-cladding'];
         return [materialSetup(state),['Substrate',claddingSubstrateName(state.plan)],
-          ['Exterior',clad.shells+' shells · '+claddingPatternName(clad)],[surface?'Normal thickness per shell':'Radial thickness per shell',clad.normalMm+' mm'],
-          ['Nozzle tilt',clad.tiltDeg+(surface?'° from the downward surface tangent toward the surface':'° inward from downward')],
-          ...(clad.pattern==='crossed-helices'?[['Helices','Opposite winding on successive shells; each rises from bottom to top']]:[['Axial passes',surface?'Local surface spacing with partial passes':'Full height']]),['Between passes','Extrusion off'],...robotRows(state.plan,state.machine)];
+          ['Exterior',clad.shells+' shells · '+claddingPatternName(clad)],['Normal thickness per shell',clad.normalMm+' mm'],
+          ['Nozzle tilt',clad.tiltDeg+'° from the downward surface tangent toward the surface'],
+          ...(clad.pattern==='crossed-helices'?[['Helices','Opposite winding on successive shells; each rises from bottom to top']]:[['Axial passes','Local surface spacing with partial passes']]),['Between passes','Extrusion off'],...robotRows(state.plan,state.machine)];
       }
       if(tab==='plan')return [materialSetup(state),['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],
         ['Body',network?.enabled?network.networks.length+' independent line networks · '+network.layers+' courses':normal?.enabled?normal.perimeters+' walls · '+(normal.density===0?'hollow':Math.round(normal.density*100)+'% '+(normal.pattern??'rectilinear')+' infill'):fill.enabled?fill.perimeters+' perimeters + solid fill':'Not printed'],...vaseSettings(state),

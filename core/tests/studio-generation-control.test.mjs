@@ -9,6 +9,7 @@ import {createStudio} from '../../studio/server.mjs';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
 import {PreparedGenerationJob} from '../../studio/prepared-generation-job.mjs';
 import {EventEmitter} from 'node:events';
+import {splineBox} from '../geom/spline-solid.mjs';
 
 class SyntheticWorker extends EventEmitter {
   messages=[];terminations=0;
@@ -58,7 +59,7 @@ test('prepared generation job retains failure and cancellation outcomes',async()
 async function fixture(t){
   const root=await mkdtemp(resolve(tmpdir(),'saam-generation-control-')),dir=resolve(root,'part');
   t.after(()=>rm(root,{recursive:true,force:true,maxRetries:5,retryDelay:100}));
-  const plan=await bundle.proposedPlan('ultimaker-s5');plan.geometry={shape:'box',runMm:8,widthMm:8,heightMm:1};
+  const plan=await bundle.proposedPlan('ultimaker-s5');plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:1});
   plan.skills['draped-skin'].enabled=false;plan.process.minimumLayerSeconds=0;
   await bundle.initBundle(dir,plan,{machineId:'ultimaker-s5'});
   const server=createStudio(dir,{libraryRoot:root,localExtension:{}});t.after(()=>server.shutdown());

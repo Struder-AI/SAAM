@@ -2,10 +2,11 @@ import {pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
 import {defaults} from '../../../core/print/plan.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
+import {splineBox} from '../../../core/geom/spline-solid.mjs';
 
 export function waveExamplePlan(machine=loadMachine()){
   const plan=defaults(machine);
-  plan.geometry={shape:'box',runMm:5,widthMm:5,heightMm:1};
+  plan.geometry=splineBox({runMm:5,widthMm:5,heightMm:1});
   plan.skills['draped-skin'].enabled=false;
   plan.skills['wave-overhangs']={...plan.skills['wave-overhangs'],enabled:true,
     lineSpacingMm:0.3,propagationStepMm:0.3,slices:[{id:'cantilever',

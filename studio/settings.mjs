@@ -12,7 +12,6 @@ const value=v=>v===null||v===undefined?'Not set':Array.isArray(v)?v.join(', '):S
 export const claddingPatternName=settings=>settings.pattern==='crossed-helices'?'crossed helices':'axial / circumferential';
 export function claddingSubstrateName(plan){
   const clad=plan.skills['pipe-cladding'];
-  if(!clad.surface)return 'Concentric horizontal loops';
   const regions=plan.composition?.regions??[],part=clad.part;
   const names=regions.length?regions.filter(r=>r.part===part).flatMap(r=>Object.keys(r.skills)):
     ['full-fill','planar-infill','vase-wall','draped-skin'].filter(name=>{

@@ -1,7 +1,6 @@
 // Development fixtures only. These feed the existing geometry/skill interfaces;
 // they are not a CAD importer or a second production generation route.
-import { shellFromSurfaces, boxShell, splineTopShell } from '../../core/geom/shapes.mjs';
-import { assertClosed } from '../../core/geom/shell.mjs';
+import { splineBlock, splineBox, splineSolidShell } from '../../core/geom/spline-solid.mjs';
 import { evaluate } from '../../core/geom/nurbs.mjs';
 import { makeMesh } from '../../core/geom/mesh.mjs';
 
@@ -14,28 +13,19 @@ export const fixtures = {
 export function fixtureShell(r, name) {
   const f = fixtures[name];
   if (!f) throw new Error('Unknown benchmark fixture: ' + name);
-  if (name === 'box') return boxShell(r, { xMm: f.width, yMm: f.depth, zMm: f.height });
+  if (name === 'box') return splineSolidShell(r, splineBox({ runMm: f.width, widthMm: f.depth, heightMm: f.height }));
   // A bicubic roof with a planar boundary, rotated about the footprint centre.
-  // Each side is an exact ruled NURBS patch between the base and roof edge.
+  // Each side is ruled from its unrotated base edge to the rotated roof edge.
   // Linear interpolation of rotated corners creates a waist, not a helical extrusion.
-  const source = splineTopShell(r, { runMm: f.width, widthMm: f.depth, cpU: 4, cpV: 4,
-    heights: (i, j) => f.height + (i > 0 && i < 3 && j > 0 && j < 3 ? f.roofControlRise : 0) });
-  const top = source.surfaces.find(s => s.name === 'top').surface.duplicate();
+  const solid = splineBlock({ runMm: f.width, widthMm: f.depth,
+    heightsMm: [0, 1, 2, 3].map(i => [0, 1, 2, 3].map(j => f.height + (i > 0 && i < 3 && j > 0 && j < 3 ? f.roofControlRise : 0))) });
+  const patch = id => solid.patches.find(p => p.name === id), top = patch('top').controlPoints;
   const angle = f.twistDeg * Math.PI / 180, c = Math.cos(angle), s = Math.sin(angle);
-  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
-    const p = top.points().get(i, j), x = p[0] - f.width / 2, y = p[1] - f.depth / 2;
-    top.points().set(i, j, [f.width / 2 + c * x - s * y, f.depth / 2 + s * x + c * y, p[2], p[3]]);
-  }
-  const bottom = source.surfaces.find(s => s.name === 'bottom').surface.duplicate();
-  const corners = [[0, 0, 0], [f.width, 0, 0], [f.width, f.depth, 0], [0, f.depth, 0]];
-  const [u0, u1] = top.domain(0), [v0, v1] = top.domain(1);
-  const topEdges = [top.isoCurve(0, v0), top.isoCurve(1, u1), top.isoCurve(0, v1), top.isoCurve(1, u0)];
-  const pairs = [[0, 1], [1, 2], [3, 2], [0, 3]], names = ['front', 'right', 'back', 'left'];
-  const entries = [{ name: 'top', surface: top }, { name: 'bottom', surface: bottom },
-    ...pairs.map(([a, b], i) => ({ name: names[i], surface: r.NurbsSurface.createRuledSurface(new r.LineCurve(corners[a], corners[b]), topEdges[i]) }))];
-  const shell = assertClosed(shellFromSurfaces(r, entries, name));
-  for (const e of source.surfaces) e.surface.delete();
-  return shell;
+  const turn = ([px, py, z]) => { const x = px - f.width / 2, y = py - f.depth / 2; return [f.width / 2 + c * x - s * y, f.depth / 2 + s * x + c * y, z]; };
+  for (const row of top) row.forEach((p, j) => { row[j] = turn(p); });
+  const edges = { front: top.map(row => row[0]), back: top.map(row => row[3]), left: top[0], right: top[3] };
+  for (const [id, edge] of Object.entries(edges)) patch(id).controlPoints.forEach((row, i) => { row[1] = edge[i]; });
+  return splineSolidShell(r, solid);
 }
 
 export function disposeShell(shell) { for (const e of shell.surfaces ?? []) e.surface.delete(); }

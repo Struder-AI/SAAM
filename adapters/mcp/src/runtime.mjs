@@ -18,6 +18,7 @@ import { importSTLBundle,setSTLUnits } from '../../../core/print/import-stl.mjs'
 import {createThingi10KClient} from '../../../skills/thingi10k/scripts/library.mjs';
 import {importThingi10KBundle} from '../../../skills/thingi10k/scripts/import.mjs';
 import {createGridfinityBundle,updateGridfinityBundle} from '../../../skills/gridfinity/scripts/bundle.mjs';
+import {createVoxelBundle,updateVoxelBundle} from '../../../core/print/voxel.mjs';
 import { applyText } from '../../../core/print/text.mjs';
 import { applyHeatSet } from '../../../core/print/heat-set.mjs';
 import { INSERT_CATALOG } from '../../../skills/heat-set-inserts/scripts/catalog.mjs';
@@ -304,6 +305,21 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   tool('set_stl_units','Correct an imported mesh to mm or inch units, rescaling its current geometry and preserving the original STL bytes and printing settings. Invalidates geometry/toolpath confirmations; show the corrected size for geometry review.',
     {printId:printIdSchema,units:z.enum(['mm','inch']),expectedRevision:z.string()},async({printId,units,expectedRevision})=>{
       const dir=await directory(printId);return summary(printId,await setSTLUnits(dir,units,{expectedRevision}));
+    },false);
+  tool('voxel', 'Create or update a volumetric scalar-field (spline field) part. Read the voxel-tools skill for control lattices, threshold and explicit mesh resolution. Uses shared slicing and Studio review.',
+    {printId:printIdSchema,action:z.enum(['create','update']),request:objectSchema,machineId:z.string().optional(),expectedRevision:z.string().optional(),part:idSchema.optional()},
+    async({printId,action,request,machineId,expectedRevision,part})=>{
+      noApprovalFields(request);
+      if(action==='create'){
+        if(!machineId||expectedRevision!==undefined||part!==undefined)throw new Error('Creation requires machineId; revision and part apply to updates.');
+        loadMachine(machineId);
+        const dir=await directory(printId,{create:true});
+        return summary(printId,await createVoxelBundle(dir,request,{machineId,setupFile:await setupFile(machineId)}));
+      }
+      if(machineId!==undefined)throw new Error('Use the existing print machine for updates.');
+      const {dir,state}=await read(printId,{program:false});
+      if(state.kind!=='shell')throw new Error('Select a shared shell/mesh print.');
+      return summary(printId,await updateVoxelBundle(dir,request,{expectedRevision,part}));
     },false);
   tool('gridfinity', 'gridfinity',
     {printId:printIdSchema,action:z.enum(['create','update']),parameters:objectSchema,machineId:z.string().optional(),expectedRevision:z.string().optional(),part:idSchema.optional()},

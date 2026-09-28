@@ -7,6 +7,7 @@ import {rhino} from '../print/geometry.mjs';
 import {exportProgram,interpretProgram} from '../export/registry.mjs';
 import {exportMotion} from '../export/griffin.mjs';
 import {readFileSync} from 'node:fs';
+import {splineBox} from '../geom/spline-solid.mjs';
 
 test('modal writer retains captured bytes across coordinate/E rounding and command transitions',()=>{
   const fixture=JSON.parse(readFileSync(new URL('./fixtures/modal-motion-bytes.json',import.meta.url),'utf8'));
@@ -20,7 +21,7 @@ test('modal writer retains captured bytes across coordinate/E rounding and comma
 test('modal fields retain exact machine moves across speed, travel, retract and relative-E transitions',async()=>{
   for(const id of ['ultimaker-s5','bambu-h2d']) {
     const machine=loadMachine(id),plan=defaults(machine);
-    plan.geometry={shape:'box',runMm:8,widthMm:8,heightMm:.6};plan.skills['draped-skin'].enabled=false;
+    plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:.6});plan.skills['draped-skin'].enabled=false;
     plan.process.maxCombMm=0;plan.process.minimumLayerSeconds=0;
     const path=generatePath(plan,machine,await rhino());
     const code=exportProgram(path,plan,machine,{generatorVersion:'test',buildDate:'2026-09-09'});

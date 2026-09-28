@@ -48,6 +48,36 @@ process or setup change invalidates the final confirmation. Changing printer
 applies its declared process defaults and keeps other choices; an incompatible
 recipe is rejected, not overridden.
 
+### Author geometry
+
+Write the part's geometry yourself in `geometry`, in millimetres, relative to
+`placement` with Z = 0 on the bed. There are no shape templates; the starter
+recipe's geometry is just an example of the first form below.
+
+| Form | Write | Suits |
+|---|---|---|
+| `spline` | `patches`: a closed shell of untrimmed NURBS patches | Smooth and curved bodies; exact circles and revolutions |
+| `mesh` | `vertices` `[[x,y,z],…]` and `triangles` `[[i,j,k],…]` (`source: null`) | Flat faces and sharp edges |
+| `voxel` | A spline field, through the [voxel-tools](../../skills/voxel-tools/SKILL.md) task | Organic volumes, holes and blends that no single control net carries |
+| `assembly` | `parts: [{id, xMm, yMm, zMm, geometry}]` | Components of the forms above that touch; each is sliced on its own, so overlapping parts print twice |
+
+A spline patch is `{name, degreeU, degreeV, controlPoints, knotsU?, knotsV?}`:
+`controlPoints` is rows along U of points along V, each `[x,y,z]` or
+`[x,y,z,weight]`; omitted knots are clamped uniform, supplied knots are full
+vectors (count + degree + 1). The shell must close: every patch edge coincides
+geometrically with another edge, the same patch's opposite edge (a seam), or
+collapses to a point (a pole). Sharing control points along seams is the simple
+way to guarantee it; an open shell is rejected naming the unmatched `patch:edge`.
+Patch names are how skills select surfaces (a roof to drape, a sleeve to clad).
+
+A mesh must be closed, free of self-intersections and consistently wound,
+counterclockwise seen from outside.
+
+Edit geometry with `adjust_print` like any setting; arrays replace, so send the
+whole `patches` array or the whole mesh. Scripts may compute any of these for
+large or repetitive geometry, and write the same recipe
+([spline-solid.mjs](../geom/spline-solid.mjs) has block and tube helpers).
+
 ### Import an STL
 
 Units default to `auto`: SAAM assumes mm unless the raw size only fits the

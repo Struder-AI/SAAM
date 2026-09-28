@@ -1,13 +1,19 @@
 // Explicit development setup; never remembered as an installation calibration.
 import {defaults} from '../../../core/print/plan.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
+import {splineTube} from '../../../core/geom/spline-solid.mjs';
 import {initBundle,generateBundle} from '../../../core/print/bundle.mjs';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
+
+// The exterior patch, over its whole periodic domain, is the clad surface.
+export const tubeSurface=columns=>({kind:'spline',patch:'outer',periodicU:true,normalSide:1,uvBounds:[[0,columns],[0,1]]});
+
 export function developmentPipePlan(machine=loadMachine('denso-vs068a4-rc8a')){
-  const plan=defaults(machine);
-  plan.geometry={shape:'pipe',innerRadiusMm:8,outerRadiusMm:10.4,heightMm:12,toleranceMm:0.01};
-  plan.placement={xMm:0,yMm:0};plan.skills['draped-skin'].enabled=false;plan.skills['pipe-cladding'].enabled=true;
+  const plan=defaults(machine),columns=24;
+  plan.geometry=splineTube({columns,heightMm:12,boreRadiusMm:8,radiusAt:()=>10.4});
+  plan.placement={xMm:0,yMm:0};plan.skills['draped-skin'].enabled=false;
+  Object.assign(plan.skills['pipe-cladding'],{enabled:true,surface:tubeSurface(columns)});
   plan.setup.nozzleC=210;plan.process.skinSpeedMmS=8;
   Object.assign(plan.setup.denso,{configurationSource:'SYNTHETIC DEVELOPMENT FIXTURE. Not calibration of the user installation.',toolFrame:1,workFrame:1,armGroup:1,figure:1,
     extrusionOutput:64,extrusionRateMm3S:0.64,rotaryInterface:'rc8a-relative-ex'});

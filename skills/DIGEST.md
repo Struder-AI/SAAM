@@ -26,7 +26,7 @@ still unknown. A description that is only a keyword marks a
 | [vase-wall](vase-wall/SKILL.md) | A hollow vase or tube as one continuous rising spiral wall, with an optional solid base. |
 | [advanced-vase-wall](advanced-vase-wall/SKILL.md) | Vase walls patterned with repeated tiles or authored paths on a sleeve, with optional smooth mesh fitting. |
 | [thick-lip](thick-lip/SKILL.md) | A vase wall's top edge thickened into a rigid, optionally rolled rim. |
-| [pipe-cladding](pipe-cladding/SKILL.md) | Experimental. Lengthwise, helical or crossed-helix cladding around a pipe, a spline or mesh sleeve, or a finished vase wall. Development only; needs a configured DENSO RC8A robot with external rotary. |
+| [pipe-cladding](pipe-cladding/SKILL.md) | Experimental. Lengthwise, helical or crossed-helix cladding around a spline or mesh sleeve, or a finished vase wall. Development only; needs a configured DENSO RC8A robot with external rotary. |
 
 ## Geometry skills
 
@@ -34,6 +34,7 @@ still unknown. A description that is only a keyword marks a
 |---|---|
 | [thingi10k](thingi10k/SKILL.md) | Find meshes by keyword or Thingiverse link and download STLs from the Thingi10K mirror. Always link the file's license. |
 | [mesh-tools](mesh-tools/SKILL.md) | Diagnose failed mesh imports, clean duplicate or collapsed facets, repair self-intersections and fill explicitly bounded holes. |
+| [voxel-tools](voxel-tools/SKILL.md) | Create and edit volumetric parts from scalar voxel samples or smooth B-spline control lattices. Extract at an explicit resolution for shared planar slicing and Studio review; no optimization or physical solver is included. |
 | [text](text/SKILL.md) | Raised or recessed lettering on a part, or standalone text, from an outline font; flat, along a spline, or bent onto a surface. |
 | [gridfinity](gridfinity/SKILL.md) | gridfinity |
 | [heat-set-inserts](heat-set-inserts/SKILL.md) | Bores for SPIROL Series 19/29 heat-set inserts, metric and imperial, with local wall loops and fins; insertion faces must be flat and face up. |

@@ -1,10 +1,11 @@
 import {resolve} from 'node:path';
 import {initBundle,proposedPlan,generateBundle,loadBundle} from '../../../core/print/bundle.mjs';
 import {applyHeatSet} from '../../../core/print/heat-set.mjs';
+import {splineBox} from '../../../core/geom/spline-solid.mjs';
 
 const directory=resolve(process.argv[2]??'Prints/development/heat-set-inserts');
 const plan=await proposedPlan('ultimaker-s5');
-plan.geometry={shape:'box',runMm:54,widthMm:32,heightMm:12};
+plan.geometry=splineBox({runMm:54,widthMm:32,heightMm:12});
 plan.placement={xMm:80,yMm:80};
 plan.skills['draped-skin'].enabled=false;
 plan.skills['planar-infill'].enabled=true;

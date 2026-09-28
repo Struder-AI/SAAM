@@ -12,6 +12,7 @@ import { syntheticDobotSetup } from './fixtures/dobot.mjs';
 import { boxMesh } from './fixtures/mesh.mjs';
 import {createTour} from '../../studio/tour.mjs';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
+import {splineBox} from '../geom/spline-solid.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 async function clientFor(t, printsRoot) {
@@ -42,7 +43,7 @@ async function syntheticApproval(dir, stage) {
 async function smallPlan(call, machineId = 'ultimaker-s5') {
   const { plan } = await call('get_plan_template', { kind: 'shell', machineId });
   plan.process.minimumLayerSeconds = 0;
-  plan.geometry = { shape: 'box', runMm: 12, widthMm: 10, heightMm: 1 };
+  plan.geometry = splineBox({runMm:12,widthMm:10,heightMm:1});
   plan.skills['draped-skin'].enabled = false;
   return plan;
 }
@@ -83,7 +84,7 @@ test('MCP follows tour chat gates while production generation remains available 
   assert.equal(before.step,0);assert.equal(before.canNext,false);
   await call('set_tour_start_at',{startAt:{layer:12},runId:before.runId,lessonId:before.lessonId});
   const saved=await call('get_print',{printId:'tour/handle',includeGeometry:true});
-  saved.plan.geometry.parts[1].geometry.heightMm=11;
+  saved.plan.geometry.parts[1].geometry=splineBox({runMm:36,widthMm:8,heightMm:11});
   await call('adjust_print',{printId:'tour/handle',expectedRevision:saved.revision,patch:{geometry:saved.plan.geometry}});
   const after=await call('get_tour',{after:before.cursor,waitMs:50});assert.equal(after.canNext,false,'wait for the browser to render the edit');
   const generated=await call('generate_print',{printId:'tour/handle'});assert.equal(generated.checks.mode,'production');
@@ -96,6 +97,22 @@ test('MCP follows tour chat gates while production generation remains available 
 });
 
 
+
+test('MCP voxel task discovers its manual and rebuilds field geometry through revision checks',async t=>{
+  const {call}=await fixture(t);
+  assert.equal((await call('list_skills')).find(s=>s.id==='voxel-tools').kind,'geometry');
+  assert.match((await call('read_skill',{skillId:'voxel-tools'})).manual,/voxel-create/);
+  const request={field:{schema:'saam-voxel-field/1',originMm:[0,0,0],sizeMm:[8,8,2],counts:[2,2,2],degrees:[1,1,1],
+    knots:[[0,0,1,1],[0,0,1,1],[0,0,1,1]],values:Array(8).fill(1),weights:null,isoValue:0.5},extraction:{edgeMm:1}};
+  let state=await call('voxel',{printId:'volume',action:'create',machineId:'ultimaker-s5',request});
+  assert.notEqual(state.toolpathApproved,true);
+  await call('voxel',{printId:'volume',action:'update',expectedRevision:'stale',request},/stale/);
+  request.field.values[0]=0;
+  state=await call('voxel',{printId:'volume',action:'update',expectedRevision:state.revision,request});
+  const saved=await call('get_print',{printId:'volume',includeGeometry:true});
+  assert.equal(saved.plan.geometry.shape,'voxel');assert.equal(saved.plan.geometry.field.values[0],0);
+  assert.notEqual(state.toolpathApproved,true);
+});
 
 test('MCP text task edits actual geometry with a local font and stale-revision protection',async t=>{
   const {call}=await fixture(t),plan=await smallPlan(call);
@@ -265,7 +282,7 @@ for (const machineId of ['ultimaker-s5', 'bambu-h2d', 'dobot-mg400']) {
     await call('check_print', { printId }, /changed|stale/);
     await call('deliver_print', { printId }, /approval/);
     const staleProgram = await call('get_approval_status', { printId });
-    const reshaped = await call('adjust_print', { printId, expectedRevision: staleProgram.revision, patch: { geometry: { heightMm: 1.2 } } });
+    const reshaped = await call('adjust_print', { printId, expectedRevision: staleProgram.revision, patch: { geometry: { patches: splineBox({runMm:12,widthMm:10,heightMm:1.2}).patches } } });
     assert.equal(reshaped.toolpathApproved, false);
   });
 }

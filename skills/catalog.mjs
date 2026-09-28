@@ -2,7 +2,7 @@
 // Order introduces familiar printing approaches before specialized ones.
 export const SKILL_IDS = Object.freeze([
   'planar-infill', 'full-fill', 'line-network', 'bridging', 'plastic-weld', 'supports', 'bed-adhesion', 'rimming-planar', 'rimming-normal',
-  'draped-skin', 'wave-overhangs', 'vase-wall', 'advanced-vase-wall', 'thick-lip', 'pipe-cladding', 'thingi10k', 'mesh-tools', 'text', 'gridfinity', 'heat-set-inserts'
+  'draped-skin', 'wave-overhangs', 'vase-wall', 'advanced-vase-wall', 'thick-lip', 'pipe-cladding', 'thingi10k', 'mesh-tools', 'voxel-tools', 'text', 'gridfinity', 'heat-set-inserts'
 ]);
 
 export function skillMetadata(id, manual) {

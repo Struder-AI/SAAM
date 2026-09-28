@@ -38,7 +38,8 @@ export async function checkSetup({log=console.log}={}) {
     try{
       const {initBundle}=await import('../core/print/bundle.mjs');
       const {defaults}=await import('../core/print/plan.mjs');
-      const plan=defaults();plan.geometry={shape:'box',runMm:10,widthMm:10,heightMm:2};plan.skills['draped-skin'].enabled=false;
+      const {splineBox}=await import('../core/geom/spline-solid.mjs');
+      const plan=defaults();plan.geometry=splineBox({runMm:10,widthMm:10,heightMm:2});plan.skills['draped-skin'].enabled=false;
       await initBundle(directory,plan);
       const {createStudio}=await import('../studio/server.mjs');
       server=createStudio(directory);
