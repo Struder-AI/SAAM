@@ -86,9 +86,6 @@ export function summary(printId, state) {
   };
 }
 
-// What the listener says instead of waiting while the chat's SAAM panel is connected.
-const PANEL_LISTENING='The SAAM panel in this chat is connected: it posts Studio requests and events here as messages. End your turn now.';
-
 // Local clients keep the short bounded wait; a relay session raises it to its
 // client's per-call deadline (see relay-device.mjs).
 export const LOCAL_LISTEN=Object.freeze({defaultMs:25000,maxMs:25000}),LISTEN_LIMIT_MS=450000;
@@ -412,8 +409,6 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   tool('wait_for_studio_request','Wait for Studio to request maker-agent input. Send any completed edit acknowledgement in chat commentary BEFORE this call. Do not defer it to the final response. While guiding a tour, call this between lessons instead of ending the turn and requiring the participant to ask for guidance. Claim a returned request and resolve it after doing its work. Prepare imported-model start layers silently; Studio leads the early lessons. Give proactive chat guidance only at the designated infill lesson and completion. Repeat after a timeout while the participant is navigating, without waiting for a chat message. Omit waitMs: the session uses the longest wait its client allows.',
     {after:z.array(z.string()).optional(),waitMs:z.number().int().min(0).max(LISTEN_LIMIT_MS).optional(),claim:z.boolean().optional(),studioInstanceId:z.string().optional()},async(args,session)=>{
       if(args.studioInstanceId&&!studioSessions.has(args.studioInstanceId))throw Error('That Studio instance is not owned by this agent.');
-      // A pending wait would hold back the person's own chat messages.
-      if(session?.panel)return {requests:[],panel:PANEL_LISTENING};
       const {defaultMs,maxMs}=session.listen,waitMs=Math.min(maxMs,args.waitMs??defaultMs);
       const result=await agentRequests.wait({...args,waitMs}),generation=generationStatus();
       return generation.length?{...result,generation}:result;
@@ -478,27 +473,25 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   // The chat is working from any call other than the listener, and from a
   // listener that returned something to act on, until it listens again or
   // WORKING_MS pass without a call. Studio shows it as its waiting indicators.
-  // A chat with the SAAM panel connected never calls the listener to end its
-  // turn, so it counts as working only PANEL_WORKING_MS after its last call.
-  const WORKING_MS=5*60_000,PANEL_WORKING_MS=45_000;
+  const WORKING_MS=5*60_000;
   const chat={working:false,timer:null};
-  const workingSpan=session=>session.panel?PANEL_WORKING_MS:WORKING_MS;
   function chatWorking(session){
     const activity=session?.activity;
-    return Boolean(activity&&!session.ending&&!activity.listening&&activity.lastCall&&Date.now()-activity.lastCall<workingSpan(session));
+    return Boolean(activity&&!session.ending&&!activity.listening&&activity.lastCall&&Date.now()-activity.lastCall<WORKING_MS);
   }
   function publishWorking(){
     const working=chatWorking(runtime.session);
     clearTimeout(chat.timer);
-    if(working){chat.timer=setTimeout(publishWorking,runtime.session.activity.lastCall+workingSpan(runtime.session)-Date.now()+50);chat.timer.unref?.();}
+    if(working){chat.timer=setTimeout(publishWorking,runtime.session.activity.lastCall+WORKING_MS-Date.now()+50);chat.timer.unref?.();}
     if(working===chat.working)return;
     chat.working=working;
     for(const {server:studio} of studioSessions.values())studio.agentWorking?.(working);
     for(const listener of statusListeners)listener();
   }
   // What the chat's SAAM panel shows: one light, done, working or error, a line
-  // saying why, and the queued Studio requests it posts into the chat. The
-  // relay reports an offline computer and the panel its own lost connection.
+  // saying why and the Studio address. It only shows: Studio requests and
+  // events reach the model through the listener. The relay reports an offline
+  // computer and the panel its own lost connection.
   const statusListeners=new Set();
   async function chatStatus(){
     const requests=await agentRequests.query(),clip=text=>String(text??'').replace(/\s+/g,' ').trim().slice(0,120);
@@ -507,16 +500,11 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     // Only this session's failures: an earlier chat's are not this one's error.
     const since=runtime.session?.started??Infinity;
     const latest=requests.filter(r=>!r.connectionClosed&&r.updatedAt>=since).reduce((a,b)=>!a||b.updatedAt>a.updatedAt?b:a,null);
-    // events: the queued Studio events that would wake a listener, less the
-    // request-queued ones the requests stand for. studio: the loopback address
-    // of the newest live Studio, carrying no secret.
-    const events=studioEvents.peek().filter(e=>e.delivery==='delivered'&&e.kind!=='request-queued')
-      .map(({seq,kind,printId,lesson,error})=>({seq,kind,printId:printId??null,...(lesson?.title?{lesson:clip(lesson.title)}:{}),...(error?{error:clip(error)}:{})}));
-    const shown={requests:queued.map(({id,printId,kind,instruction})=>({id,printId,kind,instruction})),events,
-      studio:[...studioSessions.values()].filter(({server:studio})=>studio.listening).at(-1)?.url??null};
+    // studio: the loopback address of the newest live Studio, carrying no secret.
+    const shown={studio:[...studioSessions.values()].filter(({server:studio})=>studio.listening).at(-1)?.url??null};
     const light=(state,text)=>({state,text,...shown});
     if(working)return light('working','Working on: '+clip(working.instruction));
-    if(queued.length)return light('working',queued.length>1?`${queued.length} Studio requests sent to the chat`:'Studio request sent to the chat');
+    if(queued.length)return light('working',queued.length>1?`${queued.length} Studio requests waiting for the chat`:'Studio request waiting for the chat');
     if(calculating)return light('working','Calculating the toolpath');
     if(chat.working)return light('working','Working');
     if(latest?.status==='failed')return light('error','Failed: '+clip(latest.message||latest.instruction));
@@ -550,13 +538,11 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     if(runtime.closing)throw Error('The SAAM runtime is closing.');
     if(runtime.session)throw Error('A SAAM session is already active. End it before starting another.');
     if(!(listen.defaultMs<=listen.maxMs&&listen.maxMs<=LISTEN_LIMIT_MS))throw Error('Invalid listener limits.');
-    const session={id:randomUUID(),started:Date.now(),ending:null,listen,remote,guidance,onboarded:false,panel:false,activity:{listening:0,lastCall:0}};runtime.session=session;
+    const session={id:randomUUID(),started:Date.now(),ending:null,listen,remote,guidance,onboarded:false,activity:{listening:0,lastCall:0}};runtime.session=session;
     return {id:session.id,
       operations:[...operations.values()].filter(operation=>!(remote&&operation.localOnly)).map(({action,...definition})=>definition),
       invoke:(name,args)=>session.ending?Promise.reject(Error('This SAAM session has ended. Start a new session; saved prints remain available.')):(noteOnboarding(session,name,args),observed(session,name,invoke(name,args,session))),
       onboardingReminder:()=>session.remote&&!session.onboarded?ONBOARDING_REMINDER:null,
-      // Whether this chat's SAAM panel is connected (see relay-device.mjs).
-      setPanel:connected=>{session.panel=Boolean(connected);publishWorking();},
       end:()=>endSession(session)};
   }
   function endSession(session){return session.ending??=Promise.resolve().then(async()=>{

@@ -1,5 +1,23 @@
 # Development log
 
+## 2026-09-28 — SAAM panel shows status only; the listener is back
+
+- User direction: SAAM must not talk to the chat agent by writing messages into
+  the person's chat box. Keep the panel; the chat keeps listening, and the person
+  interrupts a pending wait with Claude's "send now", as before the panel.
+- [panel.html](adapters/mcp/src/panel.html) no longer sends `ui/message`: it
+  keeps the light, the line and "Open Studio". `chatStatus` drops the
+  `requests` and `events` it carried for posting; a queued request now reads
+  "waiting for the chat".
+- [runtime.mjs](adapters/mcp/src/runtime.mjs): `wait_for_studio_request`
+  always waits (no `PANEL_LISTENING` return), and a panel session counts as
+  working on the usual 5 min rule, not 45 s; `setPanel` is gone.
+  `RELAY_GUIDANCE` loses its end-your-turn sentence. A connected panel still
+  keeps its session past the idle lease.
+- Checks: `core/tests/mcp.test.mjs` (21/21) and `relay/test/relay.test.mjs`
+  pass; the panel script parses. Not run: the whole suite, the `wrangler dev`
+  end-to-end check, Claude web itself (needs a release).
+
 ## 2026-09-28 — 0.1.8: the panel fix released
 
 - Published `v0.1.8` from `9e04f0b` (worktree build, Node v24.19.0):

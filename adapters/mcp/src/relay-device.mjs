@@ -21,7 +21,7 @@ export function listenFor(clientName=''){
 }
 // A web chat has no command access on this computer and must keep listening
 // for Studio itself; the general instructions follow this.
-export const RELAY_GUIDANCE='This SAAM session reaches the person’s own computer through the SAAM relay. You cannot run commands or read files there: skip every step that needs command access. Call maker_onboarding first, once per conversation, and read further context with read_skill and read_guidance. SAAM Studio is open on that computer; the person imports files and confirms output there. Keep listening: after each reply, call wait_for_studio_request again without waiting for a chat message, and omit waitMs. A wait that returns no requests is normal; call it again. When it answers that the SAAM panel is connected, end your turn instead: the panel posts Studio requests and events into this chat as messages.';
+export const RELAY_GUIDANCE='This SAAM session reaches the person’s own computer through the SAAM relay. You cannot run commands or read files there: skip every step that needs command access. Call maker_onboarding first, once per conversation, and read further context with read_skill and read_guidance. SAAM Studio is open on that computer; the person imports files and confirms output there. Keep listening: after each reply, call wait_for_studio_request again without waiting for a chat message, and omit waitMs. A wait that returns no requests is normal; call it again.';
 const sha256=text=>createHash('sha256').update(text).digest('hex');
 // Status changes arrive in bursts (a calculation's progress); the panel hears
 // at most one per PANEL_STATUS_MS.
@@ -112,7 +112,7 @@ export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onSta
   }
   function lease(session){
     clearTimeout(session.idle);
-    // A connected panel keeps its session, since that chat makes no calls while it waits for Studio.
+    // A connected panel keeps its session, so its light stays live between the chat's calls.
     session.idle=setTimeout(()=>{if(session.transport.calls.size||session.watch)lease(session);else void end(session.id);},sessionIdleMs);
     session.idle.unref?.();
   }
@@ -131,7 +131,6 @@ export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onSta
   // While the relay says a panel of this session is connected, its status goes
   // to the relay at once and on every change.
   function panelConnected(session,connected){
-    session.adapter.setPanel(connected);
     if(!connected){unwatch(session);lease(session);return;}
     session.watch??={stop:runtime.subscribeStatus(()=>sendStatus(session)),timer:null,last:null};
     session.watch.last=null;sendStatus(session);lease(session);

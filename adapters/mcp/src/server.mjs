@@ -10,8 +10,8 @@ import { createLocalRuntime, instructions } from './runtime.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 // The SAAM panel: an MCP App a chat client that supports them shows with
-// maker_onboarding's result. It hears this session's status from the relay and
-// posts Studio requests into the chat, so the chat needs no listener.
+// maker_onboarding's result. It shows this session's status, heard from the
+// relay; the chat still listens for Studio with wait_for_studio_request.
 const PANEL_URI='ui://saam/panel',PANEL_TOOL='maker_onboarding',PANEL_MIME='text/html;profile=mcp-app';
 const PANEL_HTML=readFileSync(resolve(dirname(fileURLToPath(import.meta.url)),'panel.html'),'utf8');
 // The origins the panel may connect to: the relay, over HTTPS and WebSocket.
@@ -64,7 +64,7 @@ export function createMcpAdapter({ runtime: shared, listen, remote, guidance, pa
     await server.close();
   });}
   server.server.onclose=()=>{void close().catch(error=>console.error('SAAM connection cleanup:',error));};
-  return {server,close,setPanel:session.setPanel};
+  return {server,close};
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
