@@ -1,5 +1,17 @@
 # Development log
 
+## 2026-09-28 — MCP manual matches the registered tools
+
+- Checked every operation in `adapters/mcp/src/runtime.mjs` against the MCP
+  README table: `blob_field`, `combine_geometry` and `intersect_geometry` were
+  current; `gridfinity` had no row and gained one with its one-word
+  description. The `maker_onboarding` row now names GEOMETRY, and the
+  `list_skills` row and DEVELOP.md name hybrid skills. README 181 → 182 lines,
+  DEVELOP.md unchanged.
+- The installed SAAM app (`AppData/Local/Programs/SAAM`) serves the relay's
+  tools from its packaged build, so a web chat lacks the new geometry tools
+  until a new package is built and installed.
+
 ## 2026-09-28 — Blob field, booleans as tools, hybrid skills, spline helpers out of core
 
 - Replaced the tensor-grid spline field with the blob field (D-040 revision):

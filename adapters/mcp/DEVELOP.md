@@ -24,7 +24,7 @@ and returns the document's own links as resolved IDs. New references therefore
 use ordinary links without a parallel per-document registry. It confines reads
 to the public documentation trees and rejects private locations and filesystem
 links. Optional heading fragments select one section, including its subsections.
-The fixed skill catalog distinguishes geometry skills from toolpath skills;
+The fixed skill catalog distinguishes toolpath, geometry and hybrid skills;
 making a manual readable does not register a new plan operation or MCP tool.
 Its IDs and frontmatter reader come from the shared [skill catalog](../../skills/catalog.mjs),
 which also supplies the generated maker digest.

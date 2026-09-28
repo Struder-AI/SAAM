@@ -46,8 +46,8 @@ saved IDs; there is no single global plan that overwrites another job.
 
 | Tool | Role |
 |---|---|
-| `maker_onboarding` | Listed first. The maker's starting context for a client without command access: MAKERS, the skill digest and shared print tools, plus how a relayed session reaches the computer. Until a relayed session calls it (or reads `makers`), every result carries a second text item asking it to. |
-| `list_machines`, `list_skills`, `read_skill` | Read this checkout's known profiles and manuals. Skill entries distinguish toolpath skills from geometry skills such as mesh tools. These small fixed lists are not an automatic discovery or installation system. |
+| `maker_onboarding` | Listed first. The maker's starting context for a client without command access: MAKERS, GEOMETRY, the skill digest and shared print tools, plus how a relayed session reaches the computer. Until a relayed session calls it (or reads `makers`), every result carries a second text item asking it to. |
+| `list_machines`, `list_skills`, `read_skill` | Read this checkout's known profiles and manuals. Each skill entry is a toolpath, geometry (such as mesh tools) or hybrid skill. These small fixed lists are not an automatic discovery or installation system. |
 | `read_guidance` | Read a published Markdown path, optionally ending in `#heading`, or a short ID: `makers`, `geometry`, `development`, `glossary`, `mcp`, `print-tools`. The response resolves documentation links into IDs for further reading. |
 | `get_plan_template` | Read a complete proposed shell recipe, reusing remembered setup. |
 | `create_print` | Initialize a new unapproved bundle, optionally from a complete recipe. |
@@ -66,6 +66,7 @@ saved IDs; there is no single global plan that overwrites another job.
 | `adjust_print` | Apply a recipe patch with the latest `expectedRevision` from state. |
 | `blob_field` | Create or rebuild a [blob field](../../GEOMETRY.md#blob-field) part from its points. |
 | `combine_geometry`, `intersect_geometry` | Combine a print or part with another solid as a [boolean](../../GEOMETRY.md#booleans); section it or find its top at given points ([checking](../../GEOMETRY.md#checking-geometry)). `intersect_geometry` also takes a geometry without a print. |
+| `gridfinity` | gridfinity |
 | `apply_text` | Add, edit or remove text geometry using the [text skill](../../skills/text/SKILL.md), a local font and current `expectedRevision`. Reuses the shared preparation and review lifecycle. |
 | `heat_set_catalog` | Read packaged heat-set insert IDs and dimensions before choosing a profile. |
 | `apply_heat_set` | Add, edit or remove insert holes with six loops and connecting fins using the [heat-set insert skill](../../skills/heat-set-inserts/SKILL.md) and current `expectedRevision`. Reuses the shared preparation and review lifecycle. |
