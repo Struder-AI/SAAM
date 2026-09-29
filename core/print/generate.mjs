@@ -177,7 +177,7 @@ export function addComplementaryResults(plan,machine,{placed,componentShells,wel
     requireThat(shell,'Cladding needs a selected component or the single solid.');
     const sources=assignment.source===null?results:results.filter(r=>(r.report?.owner??r.id)===assignment.source&&r.report?.part===assignment.part);
     requireThat(sources.length,`Cladding ${assignment.id}: source names an absent producer or a different part.`);
-    const finishedSurface=consumeFinishedSurface({shell,selection:assignment.surface,results:sources});
+    const finishedSurface=consumeFinishedSurface({shell,selection:assignment.surface,results:sources,substrateAdaptation:plan.experimental.substrateAdaptation});
     const selected=assignmentPlan(plan,machine,assignment);
     const result=claddingResult({shell,assignment,process:selected.process,motion:selected.setup.denso,finishedSurface});
     const finalized=finalizeDepositionResult(result,plan,machine);
@@ -322,6 +322,10 @@ export function generatePath(plan, machine, rhino, {onProgress,modulations,modul
   const primed=addPrimeResult(plan,machine,complemented);
   const {placed,bounds}=prepared,{results,survey,prime}=primed,process=plan.process;
   const summary=summarizeGeneratedPath(placed,survey,primed.summary);
+  summary.substrateAdaptation={experimental:true,enabled:plan.experimental.substrateAdaptation,
+    sliceQueries:results.reduce((sum,result)=>sum+(result.report.substrateContactQueries??0),0),
+    sliceHits:results.reduce((sum,result)=>sum+(result.report.contactSamples??0),0),
+    sliceMisses:results.reduce((sum,result)=>sum+(result.report.uncoveredContactSamples??0),0)};
   summary.inspection=depositionInspection(results);
   if(modulationPreparation.length)summary.modulationGeometry=modulationPreparation;
   const assigned=[...new Set([plan.setup.bambu?.filament,...assignedFilaments(plan)].filter(v=>v!==undefined))];

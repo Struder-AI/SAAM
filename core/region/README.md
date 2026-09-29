@@ -178,11 +178,9 @@ Prepared text exposes `base` and `text/<feature-id>` selections, prefixed by the
 component ID in an assembly. [Geometry selections](../geom/selections.mjs)
 resolves these with their component placement without changing saved geometry.
 
-Each assignment may supply `process:null` or overrides for `firstLayerMm`,
-`layerMm`, `lineWidthMm`, `planarSpeedMmS` and `firstLayerSpeedMmS`.
-[assignmentPlan](../print/assignment-process.mjs) resolves the selected filament
-before these overrides. An ordinary assignment's explicit stack controls its
-slicing pitch; process values control deposition defaults.
+[assignmentPlan](../print/assignment-process.mjs) resolves filament defaults then
+assignment process overrides. Explicit stack gaps govern slice-family geometry;
+process values supply deposition defaults.
 
 [reservation.mjs](./reservation.mjs) removes temporary process cavities from
 owned material. A plastic-weld reservation supplies a
@@ -199,12 +197,13 @@ and [surface-curves.mjs](./surface-curves.mjs). Seeded fronts use
 Mapping preserves surface normals and checks physical sample spacing and chord
 error. Fixed-axis production checks both surface and mapped-path inclination.
 
-A skin's `supportFrom` selects a finalized source assignment and prerequisites.
-The shared family scheduler selects nominal predecessor courses per chart column,
-then measures actual beads where present. Missing material retains nominal gap
-without moving or rejecting the authored path; it is diagnostic, not a support
-requirement. Local normal gaps set volume independently of support assignment.
-Absent source identities, dependency cycles and machine constraints still reject.
+A skin's `supportFrom` selects a finalized source and prerequisites.
+Experimental `plan.experimental.substrateAdaptation` defaults OFF: use nominal
+reference gaps without final-bead queries. ON selects nominal predecessor courses
+per chart column and measures actual bead gaps; missing required substrate and
+machine-limit violations reject. This changes volume, not authored slice XYZ.
+3D-printing support assignment is a separate judgment. Absent named sources and
+dependency cycles remain invalid in either mode.
 
 [Finalization](../print/finalize.mjs) applies modulation before dependent
 construction and republishes boundaries from final strokes.

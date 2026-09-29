@@ -47,6 +47,7 @@ export function defaults(machine=loadMachine()) {
     generatorVersion: VERSION,
     placement: centeredPlacement(machine, machine.defaultSetup.tool, { runMm: 0, widthMm: 0 }) ?? { xMm: 140, yMm: 100 },
     setup: structuredClone(machine.defaultSetup),
+    experimental: {substrateAdaptation:false},
     process: {
       firstLayerMm: 0.2, layerMm: 0.2, lineWidthMm: 0.4,
       planarSpeedMmS: 20, skinSpeedMmS: 10, firstLayerSpeedMmS: 12, travelSpeedMmS: 60, zSpeedMmS: 5,
@@ -107,6 +108,7 @@ export function validatePlanFields(plan,machine) {
   // rejected. Pre-policy bundles are recreated from their skills, not migrated.
   const expected = { ...defaults(machine), ...(plan.geometry?{geometry:geometryTemplate(plan.geometry.shape,plan.geometry)}:{}) };
   keys(plan, expected);
+  requireThat(typeof plan.experimental.substrateAdaptation==='boolean','experimental.substrateAdaptation must be true or false.');
   requireThat(plan.schema === expected.schema && plan.generatorVersion === VERSION, 'Unsupported plan or generator version.');
   requireThat(Number.isInteger(plan.composition.batchLayers)&&plan.composition.batchLayers>=1&&plan.composition.batchLayers<=20,'Batch size must be 1–20 layers.');
   requireThat(Array.isArray(plan.composition.order) && plan.composition.order.every(id=>typeof id==='string') && Array.isArray(plan.composition.dependencies) && plan.composition.dependencies.every(e=>e && typeof e.before==='string' && typeof e.after==='string' && Object.keys(e).sort().join()==='after,before'), 'Invalid composition rules.');

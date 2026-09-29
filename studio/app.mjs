@@ -1,7 +1,7 @@
 import {createTourUI,needsTourToolpath} from './tour-ui.mjs';
 import { advancePlayback, exportMovie } from './playback.mjs';
 import { createLayerFade, layerEndSeconds, stepLayerIndex, TOOLPATH_COLORS } from './toolpath-view.mjs';
-import {hasConstruction,sliceSummary,recipeRows,robotRows,materialGrams,claddingPatternName,claddingSubstrateName,nextExportName} from './settings.mjs';
+import {hasConstruction,sliceSummary,recipeRows,robotRows,materialGrams,claddingPatternName,claddingSubstrateName,nextExportName,injectionPoints} from './settings.mjs';
 import {sourceSession,machineCameras} from './studio/machine-session.mjs';
 import {machineFitBounds,boundsCorners,machinePalette} from './machine-view.mjs';
 import {point,invert} from '../core/machine/rigid.mjs';
@@ -208,8 +208,9 @@ const views={
     facts(state,tab) {
       const {geometry:g,setup:s,process:p}=state.plan;
       const slices=state.plan.slices?.assignments??[],owners=slices.filter(a=>!a.construction),body=owners.find(a=>a.preset===null&&!a.within.length);
-      const shape={'blob-field':'Blob field',assembly:'Assembly',spline:'Spline surfaces',mesh:'Mesh'}[g.shape]??g.shape;
+      const shape=g?({'blob-field':'Blob field',assembly:'Assembly',spline:'Spline surfaces',mesh:'Mesh'}[g.shape]??g.shape):'Authored injection points';
       if(tab==='geometry') {
+        if(!g)return [['Source',shape],...slices.map(a=>[a.id,sliceSummary(a)]),['Markers','Authored locations; no occupied material shape is inferred']];
         const bounds=state.geometry.boundsMm;
         const rows=[['Shape',shape],['Footprint',round2(bounds.max[0]-bounds.min[0])+' × '+round2(bounds.max[1]-bounds.min[1])+' mm'],['Height',round2(bounds.max[2]-bounds.min[2])+' mm']];
         if(g.shape==='mesh'&&g.source?.format==='stl')rows.push(['STL units',g.source.units+(g.source.unitsInferred?' · assumed from size':'')+' · change in chat']);
@@ -231,12 +232,12 @@ const views={
       if(tab==='plan')return [materialSetup(state),['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],
         ['Body',body?sliceSummary(body):owners.length?'Assigned volumes only':'Not printed'],...vaseSettings(state),
         ...(slices.length>(body?1:0)?[['Other deposition assignments',slices.filter(a=>a!==body).map(a=>a.id+' · '+sliceSummary(a)).join('; ')]]:[]),
-        ...(state.plan.geometry.shape==='assembly'?[['Fill sequencing',(state.plan.composition?.batchLayers??1)+' layer(s) per component'],['Sliced components',owners.some(a=>a.part===null)?'All':[...new Set(owners.map(a=>a.part))].join(', ')||'None']]:[])];
+        ...(state.plan.geometry?.shape==='assembly'?[['Fill sequencing',(state.plan.composition?.batchLayers??1)+' layer(s) per component'],['Sliced components',owners.some(a=>a.part===null)?'All':[...new Set(owners.map(a=>a.part))].join(', ')||'None']]:[])];
       if(!state.program)return [];
       const limit=state.pathSummary?.nonplanarLimit;
       const pathCount=state.pathSummary?.vaseWall?.paths;
       const waveLayers=state.pathSummary?.waveOverhangs?.length??0;
-      const rows=[pathCount&&!state.pathSummary?.slices&&!state.pathSummary?.drapedSkin?['Deposition paths',String(pathCount)]:['Slices',(state.pathSummary?.slices?.layers??0)+' body + '+(state.pathSummary?.drapedSkin?.skinLayers??0)+' skin'+(waveLayers?' + '+waveLayers+' wave':'')],
+      const rows=[!state.geometry?['Injection points',String(injectionPoints(state.plan).length)]:pathCount&&!state.pathSummary?.slices&&!state.pathSummary?.drapedSkin?['Deposition paths',String(pathCount)]:['Slices',(state.pathSummary?.slices?.layers??0)+' body + '+(state.pathSummary?.drapedSkin?.skinLayers??0)+' skin'+(waveLayers?' + '+waveLayers+' wave':'')],
         [state.program.envelope?'Printing motion':'Estimated motion',Math.round(duration()/60)+' min'],materialFact(state.program)];
       for(const c of state.pathSummary?.curves??[])rows.push([c.id,c.construction==='curves'?c.strokes+' strokes · '+c.courses+' courses':c.bridges.length+' bridges']);
       if(state.program.summary?.materialModel==='relay-estimate')rows.push(['Material intent',round2(materialGrams(state.program.volumeMm3))+' g; not metered']);
@@ -279,11 +280,11 @@ let waveBoundsMoves=null,waveDisplayBounds=null;
 function partBounds() {
   const shown=tab==='toolpath'?(presentedState()??state):state;
   const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
-  for(const point of shown.geometry.vertices)for(let i=0;i<3;i++){min[i]=Math.min(min[i],point[i]);max[i]=Math.max(max[i],point[i]);}
-  if(tab==='toolpath'&&shown.program&&hasConstruction(shown.plan,'fronts')){
+  for(const point of [...(shown.geometry?.vertices??[]),...injectionPoints(shown.plan).flatMap(p=>[p.point,[p.point[0],p.point[1],p.point[2]+p.approachMm]])])for(let i=0;i<3;i++){min[i]=Math.min(min[i],point[i]);max[i]=Math.max(max[i],point[i]);}
+  if(tab==='toolpath'&&shown.program){
     if(waveBoundsMoves!==shown.program.moves){
       waveBoundsMoves=shown.program.moves;waveDisplayBounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
-      for(const move of waveBoundsMoves)if(move.extruding&&move.phase==='fronts')for(const p of [move.from,move.to])for(let i=0;i<3;i++){
+      for(const move of waveBoundsMoves)if(move.extruding&&move.phase!=='prime')for(const p of [move.from,move.to])for(let i=0;i<3;i++){
         const v=p[i]-(i===0?shown.plan.placement.xMm:i===1?shown.plan.placement.yMm:0);
         waveDisplayBounds.min[i]=Math.min(waveDisplayBounds.min[i],v);waveDisplayBounds.max[i]=Math.max(waveDisplayBounds.max[i],v);
       }
@@ -339,7 +340,7 @@ async function loadAndAdoptStudioState(follow=false,reopen=false,fetchedState=nu
   const loaded=state?.printId===fetched.printId?state:null,previous=!reopen?loaded:null;
   agentUI.received(fetched.work);
   const presentationChanged=!previous||previous.generationHash!==fetched.generationHash||previous.exportHash!==fetched.exportHash
-    ||previous.geometry.geometryVersion!==fetched.geometry.geometryVersion;
+    ||previous.geometry?.geometryVersion!==fetched.geometry?.geometryVersion;
   if(presentationChanged)clearManual();
   const scenes=viewer.sceneState();
   const adopted=await prepareStudioState(fetched,{previous,follow,presentation:activePresentation,
@@ -357,7 +358,7 @@ async function presentStudioState({adopted,loaded,previous,presentationChanged,f
   // Geometry keys off the previously loaded state's version (null on a print
   // switch), not a value stored on geometryScene, so a different print always
   // rebuilds even when the two share a geometryVersion counter.
-  if(!viewer.sceneState().hasGeometry||!loaded||loaded.geometry.geometryVersion!==state.geometry.geometryVersion)
+  if(!viewer.sceneState().hasGeometry||!loaded||loaded.geometry?.geometryVersion!==state.geometry?.geometryVersion)
     viewer.publishGeometry({geometry:state.geometry,featureEdges:state.tourExample?.id==='surface-drape'?['top']:[]});
   const presentation=await applyProgramPresentation(adopted.presentation,state);state=presentation.state;
   if(presentationChanged)layerFade.reset();
@@ -456,6 +457,8 @@ function render() {
   $('#guidance').textContent=presentation.guidance;$('#guidance').hidden=!presentation.guidance;
   $('#facts').replaceChildren(table(presentation.facts));
   $('#more-settings').hidden=tab!=='toolpath';
+  $('#substrate-option').hidden=tab!=='toolpath';$('#substrate-adaptation').checked=state.plan.experimental.substrateAdaptation;
+  $('#substrate-adaptation').disabled=busy||generating;
   $('#print-setup').hidden=tab!=='toolpath';
   $('#print-setup-values').textContent=state.machine.name+' · '+state.plan.setup.material;
   const suggestedName=state.printName??'';
@@ -515,6 +518,13 @@ function render() {
 }
 function selectFeature(id){selected=id;$('#selection').textContent=id?label(id):'Click a surface or edge to see its name';requestDraw();}
 function setTab(next){if(!state)return;clearManual();if(next!=='toolpath'&&cameras.mode==='machine')useCamera(cameras.switch('ghost',cameraState()));tab=next;stop();layerFade.reset();render();}
+$('#substrate-adaptation').onchange=async event=>{
+  const enabled=event.target.checked;
+  try{await working('Updating substrate adaptation…',async()=>{
+    await api('plan',{revision:state.revision,plan:{...state.plan,experimental:{...state.plan.experimental,substrateAdaptation:enabled}}});
+    await refresh();message('Substrate adaptation '+(enabled?'on':'off')+'. Regenerate to review the changed toolpath.');
+  },{preview:false});}catch(error){message(error.message,true);render();}
+};
 
 function readViewerSnapshot(options={}) {
   if(!state)return {state:null,target:options.target??canvas,updateUI:options.updateUI??true};

@@ -26,8 +26,10 @@ and set a positive `zStartMm` on the process layer grid; the wall claims the par
 above it. Without a base, remove the slice assignments and use `zStartMm: 0`.
 Remove unwanted overlapping assignments. A closed top is not part of this mode.
 
-Sleeve `zStartMm`/`zEndMm` select its band; ordinary assignments own material
-outside it. A [rim assignment](../thick-lip/SKILL.md) can follow a level ending.
+Sleeve bounds select its band; a [rim](../thick-lip/SKILL.md) can follow a level end.
+Experimental [substrate adaptation](../../GLOSSARY.md) defaults off. When enabled,
+a raised first wall course retains XYZ but recalculates local bead gaps from
+final deposited material, rejecting missing/out-of-range contact. It creates no Supports.
 
 ## Input geometry: normally a solid
 
@@ -61,11 +63,9 @@ polygon offsets. Choose `zEndMm` if the upper geometry is unsuitable.
 | `boundaryToleranceMm`, `minFeatureMm` | Centerline standoff/section allowance and smallest sampled feature. |
 | `sleeveToleranceMm` | Target deviation for the fitted-sleeve fast path on meshes (default 0.08 mm); `0` forces the exact per-section wall. |
 
-A wall takes as many points as its geometry, pitch and tolerances require;
-there is no construction cap to exhaust. An ordinary 100 mm × 250 mm vase at
-0.2 mm pitch needs about 640k points. Memory scales with the emitted program
-(about 0.2 KB per point through generation and export), bounded only by the
-Node heap; raise `--max-old-space-size` for extreme programs.
+Sampling follows geometry and tolerances without a construction cap. Memory
+scales with emitted points and the Node heap; extreme programs may need
+`--max-old-space-size`.
 
 The process layer height controls rise per turn; line width controls the nominal
 wall bead. Cooling can slow the continuous stroke rather than parking between

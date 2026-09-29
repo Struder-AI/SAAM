@@ -73,10 +73,11 @@ solid base, and select the same geometry's side as the sleeve. A level vase
 ending supplies the complete side height; a spiral ending publishes only the side
 below its lowest unfinished rim. The [finished-surface interface](../../core/path/README.md#finished-surfaces)
 binds chart geometry, material extent, coverage and source operation IDs.
-Unprinted components and selections outside a published extent are rejected.
-Membership is checked against finalized deposited beads, including modulation;
-a nominal chart displaced outside that coverage is rejected. Pose-bearing
-cladding modulation is unsupported. Authored free-form paths do not publish a filled surface.
+Unprinted components are rejected. Experimental [substrate adaptation](../../GLOSSARY.md)
+defaults off: cladding uses the nominal selected chart and source prerequisites.
+When `experimental.substrateAdaptation: true`, the chart follows finalized beads,
+including modulation; missing contact rejects. It creates no Supports. Pose-bearing
+cladding modulation remains unsupported; free-form paths imply no filled surface.
 
 ### Coverage and pose
 

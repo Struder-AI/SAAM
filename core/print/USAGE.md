@@ -22,8 +22,8 @@ assignment, with no geometry or automatic skin. Before `create_bundle`, author
 `geometry` or replace assignments with [points-only inject](../../skills/inject/SKILL.md).
 
 `slice` adds/edits/removes one assignment; `adjust_recipe` patches the recipe. Objects merge, arrays replace,
-unknown fields are rejected; leave out the `bundle` envelope. After a
-stale-revision error, reload state and reassess. Reads omit geometry unless asked
+unknown fields reject; omit `bundle`. `experimental.substrateAdaptation` defaults false; true adapts gap/volume and surface-following placement to deposited substrate. Existing recipes require explicit `migrate` before generation.
+After a stale revision, reload and reassess. Reads omit geometry unless asked
 (`includeGeometry: true`). Any geometry, process or setup change invalidates the
 final confirmation. Changing printer applies its process defaults and keeps other
 choices, rejects an incompatible recipe, and names any gated guidance it opens.

@@ -13,8 +13,9 @@ records share process settings, dependencies and finalization. For maker work,
 read [MAKERS.md](../../MAKERS.md); `slice` and bulk `adjust_recipe` edit the same
 assignments through the [shared tools](../../core/print/USAGE.md).
 
-The user reports physical fill-pattern checks (2026-09-24). Tilted ownership,
-presets and alternation have software evidence only.
+User-reported fill-pattern prints (2026-09-24) do not validate the new ownership pipeline.
+Experimental `plan.experimental.substrateAdaptation` defaults false: ON measures
+final-material gaps and requires declared contact; OFF keeps nominal reference gaps.
 
 ## Assignments
 

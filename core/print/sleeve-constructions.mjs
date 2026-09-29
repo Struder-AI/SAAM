@@ -65,9 +65,9 @@ export function convexLoop(loops) {
   }
   return loop;
 }
-export function sleeveResult({shell,assignment,process,machine,id=assignment.id,after=assignment.after,zStartMm=null,zEndMm=null,foundationSegments=[],maxBeadHeightMm=Infinity,onProgress}) {
+export function sleeveResult({shell,assignment,process,machine,id=assignment.id,after=assignment.after,zStartMm=null,zEndMm=null,foundationSegments=[],maxBeadHeightMm=Infinity,substrateAdaptation=false,onProgress}) {
   const constructed=constructContourSleeve({shell,assignment,process,machine,zStartMm,zEndMm,onProgress});
-  const courses=constructed.courses.map(({layerIdSuffix,...course})=>({...course,layerId:id+layerIdSuffix,...(foundationSegments.length?{curves:contactCurveGaps(course.curves,{segments:foundationSegments,maxHeightMm:maxBeadHeightMm})}:{})}));
+  const courses=constructed.courses.map(({layerIdSuffix,...course})=>({...course,layerId:id+layerIdSuffix,...(substrateAdaptation&&foundationSegments.length?{curves:contactCurveGaps(course.curves,{segments:foundationSegments,maxHeightMm:maxBeadHeightMm})}:{})}));
   const operations=depositCurveCourses({id,courses,process,after,filament:assignment.filament}),strokes=operations.flatMap(o=>o.strokes);
   const level=constructed.levelBoundary;
   const levelStrokes=level?.tailCount?strokes.slice(-level.tailCount):level?[{...strokes[0],points:strokes[0].points.slice(level.startIndex),volumesMm3:strokes[0].volumesMm3.slice(level.startIndex),segmentMetadata:strokes[0].segmentMetadata.slice(level.startIndex)}]:null;
@@ -75,13 +75,13 @@ export function sleeveResult({shell,assignment,process,machine,id=assignment.id,
 }
 
 
-export function rimResult({shell,assignment,process,sourceAssignment,sourceResult,machine=null}) {
+export function rimResult({shell,assignment,process,sourceAssignment,sourceResult,machine=null,substrateAdaptation=false}) {
   const width=process.lineWidthMm,id=assignment.id;
   requireThat(sourceAssignment?.id===assignment.source&&sourceAssignment.part===assignment.part,'A rim must name a source assignment on the same part.');
   requireThat(sourceResult?.levelBoundary,'A rim needs an explicit terminal boundary from its source.');
   const sourceWidth=sourceResult.levelBoundary.widthMm;
   requireThat(sourceWidth>0,'A rim source needs a deposited width.');
-  const after=[...new Set([...assignment.after,...sourceResult.operations.map(op=>op.id)])],modified=!!sourceResult.report?.modulation?.changed;
+  const after=[...new Set([...assignment.after,...sourceResult.operations.map(op=>op.id)])],modified=substrateAdaptation&&!!sourceResult.report?.modulation?.changed;
   let boundary,baselineInsetMm,zStartMm=sourceResult.levelBoundary.zMm;
   if(!modified){
     const cut=geometrySection(shell,horizontalSlice(zStartMm),{minFeatureMm:assignment.minFeatureMm});
@@ -98,7 +98,7 @@ export function rimResult({shell,assignment,process,sourceAssignment,sourceResul
     boundary=[loopArea(projected)>0?projected:projected.toReversed()];baselineInsetMm=0;
     zStartMm=Math.max(...strands.map(p=>p[2]));
   }
-  const operations=[];let supporting=depositedBeadSegments(sourceResult.operations,{widthMm:sourceWidth}),previous=after,top=zStartMm;
+  const operations=[];let supporting=substrateAdaptation?depositedBeadSegments(sourceResult.operations,{widthMm:sourceWidth}):[],previous=after,top=zStartMm;
   for(const [step,n] of assignment.steps.entries()){
     const curves=[];
     for(let i=0;i<n;i++){
@@ -107,13 +107,13 @@ export function rimResult({shell,assignment,process,sourceAssignment,sourceResul
       requireThat(loops.length,'Requested rim offset collapsed; reduce the loop count or width.');
       curves.push(...loops.map(loop=>({role:`lip-step-${step}`,closed:true,points:cleanPlanarLoop(loop).map(p=>[...p,0])})));
     }
-    const mapped=contactCurveCourses(curves,{segments:supporting,gapMm:process.layerMm,ceilingMm:zStartMm+step*process.layerMm,sampleStepMm:Math.min(width/2,.2),toleranceMm:Math.min(.01,width/20),footprintRadiusMm:width/2});
+    const mapped=substrateAdaptation?contactCurveCourses(curves,{segments:supporting,gapMm:process.layerMm,ceilingMm:zStartMm+step*process.layerMm,sampleStepMm:Math.min(width/2,.2),toleranceMm:Math.min(.01,width/20),footprintRadiusMm:width/2}):curves.map(curve=>({...curve,points:curve.points.map(p=>[p[0],p[1],zStartMm+(step+1)*process.layerMm]),heightMm:process.layerMm}));
     top=Math.max(...mapped.flatMap(c=>c.points.map(p=>p[2])));
     const planar=mapped.every(c=>c.points.every(p=>Math.abs(p[2]-top)<1e-8));
     const travel=planar?{kind:'planar',zMm:top,region:(n-1)/2>0?offsetRegion(boundary,(n-1)/2*width,{precisionMm:OFFSET_PRECISION_MM}):boundary}:{kind:'clearance',clearanceZ:top+process.liftMm};
     const [operation]=depositCurveCourses({id,process,after:previous,filament:assignment.filament,courses:[{key:step,layerId:'lip:'+top,phase:planar?'planar':'curves',layer:step,rank:top,curves:mapped,order:'nearest',connectNearby:planar,travel}]});
-    operations.push(operation);supporting=[...supporting,...depositedBeadSegments([operation],{widthMm:width})];previous=[operation.id];
+    operations.push(operation);if(substrateAdaptation)supporting=[...supporting,...depositedBeadSegments([operation],{widthMm:width})];previous=[operation.id];
   }
   return {id,operations,report:{steps:assignment.steps,startMm:zStartMm,topMm:top,construction:'rim',part:assignment.part,reconstructedContact:modified,
-    scope:'Offset boundary courses raised from finalized deposited contact, including preceding rim courses. Unsupported steps reject rather than invent material.'}};
+    substrateAdaptation,scope:substrateAdaptation?'Offset boundary courses raised from finalized deposited contact, including preceding rim courses. Missing contact rejects.':'Offset boundary courses on the nominal terminal reference and declared layer gap.'}};
 }

@@ -5,91 +5,52 @@ description: A vase wall's top edge thickened into a rigid, optionally rolled ri
 
 # Thick lip
 
-A finishing skill: it does not print a part on its own, it thickens the top
-edge an existing [sleeve assignment](../vase-wall/SKILL.md) already produced.
-Read [MAKERS.md](../../MAKERS.md); builders and developers also read [BUILDERS.md](../../BUILDERS.md).
-
-This recovers a real, robot-tested idea from an earlier StruderBot-only
-version of this project: growing inward perimeters from a frozen rim. That
-version derived its geometry by hand for one regular hexagon, and grew every
-added perimeter purely inward from the frozen outer wall. This version
-replaces the hand-derived corner math with the same convex-section offset
-that vase-wall and the slices already share, so it works for any convex
-vase-wall section, not just a hexagon — and centers every added ring set on
-the wall's own printed centerline instead of keeping it flush with the outer
-face, so whatever prints here always straddles the exact line the terminal
-wall bead below it followed, rather than depending on which side of a
-computed envelope it happened to land on.
-
-It also structurally avoids that version's one recorded robot failure — a
-lip torn by growing off a raw spiral end — by requiring a phase-neutral,
-fully closed boundary to grow from, which is what vase-wall's
-`endTransition: 'level'` produces and a raw spiral does not.
-
-Toolpath reliability across a wide perimeter-count jump is still unproven, so
-this skill does not compute a schedule from a target width. The maker writes
-an explicit, inspectable `steps` list instead — this is deliberately literal
-rather than automatic while that gets validated.
+Thicken the terminal boundary of an existing [sleeve](../vase-wall/SKILL.md).
+The source must be on the same part and have `endTransition: "level"`.
+A raw rising spiral does not supply the required closed terminal boundary.
 
 ## Use
 
-Add `construction: "rim"` to `plan.slices.assignments`, naming its source sleeve
-assignment. The source must be on the same part and have a level ending:
+Add a rim record to `plan.slices.assignments`:
 
 ```json
 {"id": "lip", "construction": "rim", "part": null, "filament": null,
  "process": null, "after": [], "source": "wall", "steps": [2, 3, 2], "minFeatureMm": 0.4}
 ```
 
-The source's finalized level boundary sets the rim height and dependencies.
-Its bead width sets the centerline; the rim's process sets added-loop spacing.
-Modified sources, boundary mismatch and gaps reject until contact is reconstructed.
+The source provides its boundary, bead width and operation prerequisites. The
+rim process provides added-loop spacing and layer height. With experimental
+[substrate adaptation](../../GLOSSARY.md) off (default), the nominal terminal
+section and declared layer gap determine the courses. When
+`experimental.substrateAdaptation: true`, finalized source beads reconstruct a
+modified terminal boundary and each course follows actual local contact,
+including preceding rim courses. Missing contact or a disconnected terminal
+boundary rejects that experimental construction; this does not create Supports.
 
-## Locked settings
+## Settings
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `source` | Required | ID of the supporting sleeve assignment. |
-| `part` | `null` | Required component ID in an assembly; null for a single part. |
-| `steps` | `[2]` | One entry per lip layer: how many perimeters that layer prints, one or more each, 1–50 layers. More than about eight perimeters in a step is rarely useful. |
-| `minFeatureMm` | `0.4` | Shared section feature scale for the frozen boundary query, 0.05–5 mm. |
+| `source` | Required | Source sleeve assignment ID. |
+| `part` | `null` | Component ID in an assembly; null for a single part. |
+| `steps` | `[2]` | Perimeter counts per layer, 1–50 layers; each count is positive. |
+| `minFeatureMm` | `0.4` | Section feature scale, 0.05–5 mm. |
 
-## Geometry
+For `n` perimeters, offsets span `-(n-1)/2` through `+(n-1)/2` bead-width
+spacings around the source centerline. One perimeter follows that centerline;
+two straddle it. Larger counts can extend outside the modeled wall. Schedules
+may rise, fall or repeat; `[2,3,2]` doubles, triples, then doubles the ring.
+There is no automatic width-to-schedule calculation.
 
-The vase-wall region's top section is queried once, at the shared boundary
-Z, and frozen: every lip layer reuses that exact 2D outer loop, only Z
-advances. For a step of `n` perimeters, ring offsets run symmetrically from
-`-(n-1)/2` to `+(n-1)/2` bead-width spacings around the wall's own centerline
-(`lineWidthMm / 2` in from the true outer surface — the same centerline
-vase-wall itself prints). `n=1` reproduces that centerline exactly; `n=2`
-straddles it with one bead just outside and one just inside; larger `n`
-keeps straddling it symmetrically, which can put the outermost ring's
-centerline outside the modeled surface — centering is not bounded to stay
-inside the wall printed below it, on the reasoning that every ring should
-sit a predictable distance from the bead directly below it, not from
-whichever side of a computed envelope it happened to land on.
+Nominal rings use ordinary planar operations and shared travel/connector
+planning. Experimental adapted courses may become nonplanar and require a
+compatible machine. All source operations precede the rim.
 
-There is no automatic width-to-schedule math: `steps` is written out
-explicitly, layer by layer, so its actual toolpath is fully inspectable
-before printing. A schedule can rise, fall, or repeat in any order — for
-example `[2, 3, 2]` prints a doubled ring, then a tripled ring centered on
-the same line, then back to doubled.
+## Physical limits
 
-Every lip layer is an ordinary planar operation — independently closed rings
-with the shared travel policy between them, not a continuous nonplanar
-stroke — so it only needs `xyz-extrusion`/`planar` on the selected machine,
-even though the vase-wall underneath needs `nonplanar`.
-
-## Limitations
-
-The user reports this skill demonstrated in physical prints (2026-09-24). Adjacent rings of one step are
-joined by a short printed connector inside that step's own ring band, checked
-by the same shared travel policy as every other planar skill; it is
-not specially modeled for the hollow interior beneath a single-wall vase.
-A `steps` entry large enough to push a ring's centerline well outside the
-modeled surface has not been tested for adhesion or overhang at that
-overhang; review the result in Studio, and prefer a short schedule change
-over a large jump between steps until this is validated on hardware.
-
-This skill has no stored tests; write the checks you need from the contract
-above, then run the repository's `npm test` after changes.
+The user reports the underlying rim technique demonstrated in prints
+(2026-09-24); the experimental adaptation is not physically qualified. Shared
+connectors are checked against the current ring band, not a structural model
+of the hollow interior. Wide perimeter-count jumps and adhesion outside the
+preceding wall remain unproven. Prefer small schedule changes and review the
+actual path in Studio. [MAKERS](../../MAKERS.md) owns confirmation and delivery.

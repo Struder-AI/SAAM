@@ -395,8 +395,8 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       const {dir}=await locate(bundleId),result=await applyModulation(dir,request,{expectedRevision});
       return {...summary(bundleId,result.state),edit:result.edit};
     },false);
-  tool('adjust_recipe', 'Apply a validated chat recipe patch at expectedRevision. Geometry or process edits invalidate the final settings/toolpath confirmation. Read fresh state if stale.',
-    { bundleId: bundleIdSchema, expectedRevision: z.string().min(1), patch: objectSchema }, async ({ bundleId, expectedRevision, patch }) => {
+  tool('adjust_recipe', 'Apply a validated recipe patch at expectedRevision. experimental.substrateAdaptation is boolean, default false: on adapts gap/volume and surface-following placement to deposited substrate. Edits invalidate final confirmation; read fresh state if stale.',
+    { bundleId: bundleIdSchema, expectedRevision: z.string().min(1), patch: z.object({experimental:z.object({substrateAdaptation:z.boolean().describe('Experimental deposited-substrate adaptation; default false.').optional()}).strict().optional()}).passthrough() }, async ({ bundleId, expectedRevision, patch }) => {
       noApprovalFields(patch);
       const { dir, bundle, state } = await read(bundleId,{program:false});
       const next = await bundle.adjustBundle(dir, patch, { expectedRevision, setupFile: await setupFile(state.machine.id) });

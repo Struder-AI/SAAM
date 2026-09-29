@@ -1,9 +1,9 @@
 import {distance,dot,cross,normalize,requireThat} from './tolerance.mjs';
-import {referenceHeight} from './height-slice.mjs';
 
 const sub=(a,b)=>a.map((x,k)=>x-b[k]);
 const add=(a,b,s=1)=>a.map((x,k)=>x+s*b[k]);
 const cross2=(a,b)=>a[0]*b[1]-a[1]*b[0];
+const dot2=(a,b)=>a[0]*b[0]+a[1]*b[1];
 
 // A local, indexed chart atlas for the two piecewise references SAAM authors:
 // contour sleeves and a mesh roof's visible facets. It preserves seams, creases
@@ -39,19 +39,64 @@ export function piecewiseChart(surface,{toleranceMm=.01,normalMm=0}={}){
         }
     }
   }else{
-    const slice=surface.slice,reference=slice.reference,mesh=reference.geometry;
-    requireThat(mesh.kind==='triangle-mesh','Piecewise roof charts require their authored mesh facets.');
-    for(const indices of mesh.triangles){
-      const points=indices.map(i=>mesh.vertices[i]),normal=cross(sub(points[1],points[0]),sub(points[2],points[0]));
-      if(normal[2]<=1e-12)continue;
-      const center=points[0].map((_,k)=>points.reduce((sum,p)=>sum+p[k],0)/3),top=referenceHeight(reference,center[0],center[1]);
-      if(!top||Math.abs(top.zMm-center[2])>1e-7)continue;
-      triangles.push(points.map(point=>({uv:point.slice(0,2),point:[point[0],point[1],point[2]+slice.offsetMm-(slice.normalDepthMm??0)/normalize(normal)[2]]})));
-    }
+    const slice=surface.slice,mesh=slice.reference.geometry;
+    requireThat(mesh.kind==='triangle-mesh','Piecewise bands on a native-shell roof are unfinished: use the native patch or spline height-field reference; tessellated-shell bands have unresolved facet-assembly artifacts.');
+    triangles.push(...roofChartTriangles(mesh,slice));
   }
   requireThat(triangles.length,'Piecewise chart has no nondegenerate surface facets.');
   const periodic=surface.kind==='sleeve-chart',base=chartFromTriangles(triangles,periodic);
   return normalMm?roundedChart(base,{normalMm,toleranceMm}):{...base,toleranceMm,method:periodic?'ruled-sleeve-facet-unfolding':'authored-roof-facet-unfolding'};
+}
+
+// A roof is the upper envelope, not the set of facets whose centroids happen
+// to be visible. Clip each planar facet against every higher overlapping
+// facet's half planes; convex remainders retain exact crossing boundaries.
+function roofChartTriangles(mesh,slice){
+  const facets=mesh.triangles.map(indices=>{
+    const points=indices.map(i=>mesh.vertices[i]),raw=cross(sub(points[1],points[0]),sub(points[2],points[0]));
+    if(raw[2]<=1e-12)return null;
+    const normal=normalize(raw),polygon=points.map(p=>p.slice(0,2)),origin=points[0];
+    return {normal,polygon,min:[0,1].map(k=>Math.min(...polygon.map(p=>p[k]))),max:[0,1].map(k=>Math.max(...polygon.map(p=>p[k]))),height:p=>origin[2]-(normal[0]*(p[0]-origin[0])+normal[1]*(p[1]-origin[1]))/normal[2]};
+  }).filter(Boolean);
+  const split=(polygon,field)=>{
+    const inside=[],outside=[];
+    for(let i=0;i<polygon.length;i++){
+      const a=polygon[i],b=polygon[(i+1)%polygon.length],fa=field(a),fb=field(b);
+      if(fa>=0)inside.push(a);if(fa<=0)outside.push(a);
+      if(fa>0&&fb<0||fa<0&&fb>0){const point=add(a,sub(b,a),fa/(fa-fb));inside.push(point);outside.push(point);}
+    }
+    return {inside,outside};
+  };
+  const regions=[];
+  for(const [index,facet] of facets.entries()){
+    let pieces=[facet.polygon];
+    for(const [otherIndex,other] of facets.entries()){
+      if(otherIndex===index||[0,1].some(k=>other.max[k]<=facet.min[k]||other.min[k]>=facet.max[k]))continue;
+      const differences=facet.polygon.map(p=>other.height(p)-facet.height(p));
+      if(Math.max(...differences)<-1e-9||differences.every(d=>Math.abs(d)<1e-9))continue;
+      const fields=other.polygon.map((a,i)=>{const edge=sub(other.polygon[(i+1)%3],a);return p=>cross2(edge,sub(p,a));});
+      fields.push(p=>other.height(p)-facet.height(p)+(otherIndex<index?1e-12:-1e-12));
+      const retained=[];
+      for(const piece of pieces){let remainder=piece;for(const field of fields){if(remainder.length<3)break;const {inside,outside}=split(remainder,field);if(outside.length>=3)retained.push(outside);remainder=inside;}}
+      pieces=retained;if(!pieces.length)break;
+    }
+    for(const polygon of pieces)regions.push({facet,polygon});
+  }
+  const vertices=regions.flatMap(r=>r.polygon),triangles=[];
+  for(const {facet,polygon} of regions){
+    const boundary=[];
+    for(let i=0;i<polygon.length;i++){
+      const a=polygon[i],b=polygon[(i+1)%polygon.length],edge=sub(b,a),length2=dot2(edge,edge);if(length2<1e-20)continue;
+      const cuts=[{t:0,point:a}];
+      for(const p of vertices){const v=sub(p,a),t=dot2(v,edge)/length2;if(t>1e-9&&t<1-1e-9&&Math.abs(cross2(edge,v))<=1e-9*Math.sqrt(length2))cuts.push({t,point:p});}
+      for(const {point} of cuts.sort((a,b)=>a.t-b.t))if(!boundary.length||distance(point,boundary.at(-1))>1e-9)boundary.push(point);
+    }
+    if(boundary.length<3)continue;
+    const center=boundary.reduce((s,p)=>add(s,p,1/boundary.length),[0,0]);
+    const vertex=uv=>({uv,point:[...uv,facet.height(uv)+slice.offsetMm-(slice.normalDepthMm??0)/facet.normal[2]]});
+    for(let i=0;i<boundary.length;i++)if(Math.abs(cross2(sub(boundary[i],center),sub(boundary[(i+1)%boundary.length],center)))>1e-15)triangles.push([vertex(center),vertex(boundary[i]),vertex(boundary[(i+1)%boundary.length])]);
+  }
+  return triangles;
 }
 
 function chartFromTriangles(triangles,periodic){
@@ -191,7 +236,7 @@ export function piecewiseChartRay(chart,uv,direction,lengthMm,hint=null){
     const other=chart.faces[adjacent.face],a=face.vertices[edgeIndex],b=face.vertices[(edgeIndex+1)%3],axis=normalize(sub(b.point,a.point));
     const parallel=dot(velocity,axis),across=Math.sqrt(Math.max(0,1-parallel*parallel));
     const oa=other.vertices[adjacent.edge],ob=other.vertices[(adjacent.edge+1)%3],interior=normalize(cross(other.normal,sub(ob.point,oa.point)));
-    velocity=add(axis.map(v=>v*parallel),interior,across);
+    if(dot(face.normal,other.normal)<1-1e-12)velocity=add(axis.map(v=>v*parallel),interior,across);
     const delta=a.uv[0]-ob.uv[0];
     if(chart.periodic&&Math.abs(delta)>.5){p[0]-=delta;shift+=delta;}
     const key=`${index}:${edgeIndex}:${remaining}`;

@@ -1,7 +1,6 @@
 # SAAM glossary
 
-Target terminology; the [technical overview](TECHNICAL-OVERVIEW.md) explains the
-layers and [0.2.0 plan](plans/0.2.0.md) distinguishes intended and implemented scope.
+Terminology: [architecture](TECHNICAL-OVERVIEW.md), [release scope](plans/0.2.0.md).
 
 | Term | Meaning |
 |---|---|
@@ -18,6 +17,9 @@ layers and [0.2.0 plan](plans/0.2.0.md) distinguishes intended and implemented s
 | Slice surface / family | The cutting geometry / a related sequence of slices; neither means complete program generation. |
 | Surface region | A bounded portion of a surface, possibly with holes or disconnected components. |
 | Material ownership | Spatial responsibility resolved before execution order; overlap policy and compatible slicing constrain scheduling. |
+| Supports | Sacrificial printed structures assigned to help fabricate other material, later removed where appropriate. Support judgment/assignment is separate from local deposition calculations; 0.2.0 does not claim fully tested support planning. |
+| Substrate | The surface or previously deposited material beneath a deposition location, including the build plate. It need not be a sacrificial support structure. |
+| Substrate adaptation | Experimental adjustment of local bead gaps/volume, or explicitly surface-following paths, using finalized deposited material. Controlled by `experimental.substrateAdaptation`, default off. It neither creates Supports nor calculates an overhang percentage. |
 | Compound geometry | Component solids with an optional boolean operation. Assembly preserves components; boolean modes combine their material. |
 | Sleeve | A surface closed around one direction and open along the other, or a mesh with equivalent tube-side topology. Smooth periodicity is stronger than coincident seam edges. |
 | Tile | One continuous curve drawn in one cell of a sleeve's unwrapped strip, repeated to make a pattern. |

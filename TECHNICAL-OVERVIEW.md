@@ -1,5 +1,18 @@
 # SAAM technical overview
 
+<!-- Owner clarification, 2026-09-29:
+The first-layer footprint derives from the part/build-plate intersection, not a
+separately authored foundation curve. A raised sleeve course is a different case.
+Use "substrate adaptation" for experimental final-material gap/volume adjustment
+or explicitly surface-following placement. experimental.substrateAdaptation is
+default false; OFF uses nominal reference geometry, ON preserves required-contact
+and gap rejection. Explicit construction dependencies remain in either mode.
+"Supports" means separately judged/assigned sacrificial printed structures; this
+feature does not create Supports or calculate an overhang percentage. Support
+planning is not claimed fully working/tested for 0.2.0. See GLOSSARY.md.
+Creation also accepts standalone injection points without a geometry object.
+-->
+
 Target architecture, revised with the owner on 2026-09-29. This is intent, not a
 claim that every item works today. The [0.2.0 plan](plans/0.2.0.md) owns scope and
 completion; component/skill manuals describe implemented behavior.

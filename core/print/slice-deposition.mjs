@@ -13,7 +13,7 @@ function combineCourses(record,courses){
   if(!courses.length)return {id:record.spec.id,report:record.context.report,operations:[],family:{...record.family,layers:[]}};
   if(courses.length===1)return courses[0];
   const report={...record.context.report};
-  for(const key of ['layers','skippedLayers','areaMm2','loops','fillRows','solidAreaMm2','uncoveredContactSamples'])report[key]=courses.reduce((sum,r)=>sum+(r.report[key]??0),0);
+  for(const key of ['layers','skippedLayers','areaMm2','loops','fillRows','solidAreaMm2','uncoveredContactSamples','substrateContactQueries'])report[key]=courses.reduce((sum,r)=>sum+(r.report[key]??0),0);
   const contacts=courses.filter(r=>r.report.contactSamples);
   if(contacts.length){report.contactSamples=contacts.reduce((n,r)=>n+r.report.contactSamples,0);report.minContactGapMm=Math.min(...contacts.map(r=>r.report.minContactGapMm));report.maxContactGapMm=Math.max(...contacts.map(r=>r.report.maxContactGapMm));}
   const connections=courses.map(result=>result.report.depositionConnections).filter(Boolean);
@@ -77,6 +77,7 @@ export function readyDepositionWork(nodes,completed){
 }
 
 export function executeDepositionWork(node,completed,{plan,machine,onProgress}){
+  const substrateAdaptation=plan.experimental.substrateAdaptation;
   const predecessors=[...completed.values()],samePart=predecessors.filter(item=>item.node.part===node.part);
   const prerequisiteIds=key=>{const prior=completed.get(key);return prior.result.operations.length?prior.result.operations.map(op=>op.id):prior.node.requires.flatMap(prerequisiteIds);};
   const after=[...new Set(node.requires.flatMap(prerequisiteIds))];
@@ -84,18 +85,18 @@ export function executeDepositionWork(node,completed,{plan,machine,onProgress}){
   if(node.kind==='slice'){
     const record=node.record,layer=record.spec.layers.find(layer=>layer.index===node.index)??record.spec.layers[0];
     const own=samePart.filter(item=>item.node.kind==='slice'&&item.node.record.familyId===record.familyId&&item.node.index===node.index-1);
-    const contacts=own.filter(item=>item.result.report.modulation?.materialChanged).flatMap(item=>depositedBeadSegments(item.result.operations,{widthMm:item.node.record.context.process.lineWidthMm}));
+    const contacts=substrateAdaptation?own.filter(item=>item.result.report.modulation?.materialChanged).flatMap(item=>depositedBeadSegments(item.result.operations,{widthMm:item.node.record.context.process.lineWidthMm})):[];
     const source=node.first?record.contact?.source:null;
-    const candidates=samePart.filter(item=>item.node.sourceId!==node.sourceId&&(!source||item.node.sourceId===source));
+    const candidates=substrateAdaptation?samePart.filter(item=>item.node.sourceId!==node.sourceId&&(!source||item.node.sourceId===source)):[];
     const contactFragments=candidates.map(item=>({layers:(item.result.family?.layers??[]).map(layer=>({...layer,
       region:layer.region??(layer.slice?.kind==='plane'?layer.curves?.filter(curve=>curve.closed).map(curve=>curve.points.map(point=>{
         const relative=point.map((v,k)=>v-layer.slice.origin[k]);return [layer.slice.xAxis,layer.slice.yAxis].map(axis=>axis.reduce((sum,v,k)=>sum+v*relative[k],0));
       })):undefined)})),operations:item.result.operations,
       widthMm:item.node.kind==='slice'?item.node.record.context.process.lineWidthMm:item.node.context.process.lineWidthMm}));
     const seedSegments=record.spec.settings.fillOrder?.kind==='fronts'?samePart.filter(item=>item.node.sourceId!==node.sourceId||item.node.index===node.index-1).flatMap(item=>depositedBeadSegments(item.result.operations)):[];
-    const predecessorReference=node.first&&record.contact?record.contact.predecessorReference:
+    const predecessorReference=substrateAdaptation&&node.first&&record.contact?record.contact.predecessorReference:
       contactFragments.length?translateSlice(layer.slice,(layer.direction??layer.slice.normal).map(v=>-v*layer.translationMm)):null;
-    result=sliceContextResult(record,{layerIndex:node.index,contactSegments:contacts,contactFragments,predecessorReference,seedSegments});
+    result=sliceContextResult(record,{layerIndex:node.index,contactSegments:contacts,contactFragments,predecessorReference,seedSegments,substrateAdaptation,requiredContact:node.first&&record.contact?.source!==null&&record.contact?.source!==undefined});
   }else if(node.kind==='sleeve'){
     const context=node.context,assignment=context.assignment;
     const foundations=samePart.filter(item=>item.node.nominalRank<=context.startMm+1e-8);
@@ -104,14 +105,14 @@ export function executeDepositionWork(node,completed,{plan,machine,onProgress}){
       requireThat(Math.abs(grid-Math.round(grid))<1e-8,'A raised sleeve must start on its resolved process layer grid.');
       requireThat(foundations.some(item=>item.result.operations.length),'A raised sleeve needs supporting deposition below its start.');
     }
-    const foundationSegments=assignment.zStartMm>0?depositedBeadSegments(foundations.flatMap(item=>item.result.operations),{widthMm:context.process.lineWidthMm}):[];
-    result=sleeveResult({...context,machine,after,onProgress,foundationSegments});
+    const foundationSegments=substrateAdaptation&&assignment.zStartMm>0?depositedBeadSegments(foundations.flatMap(item=>item.result.operations),{widthMm:context.process.lineWidthMm}):[];
+    result=sleeveResult({...context,machine,after,onProgress,foundationSegments,substrateAdaptation});
     if(assignment.pattern===null&&!assignment.meshSleeve)result=publishFinishedBoundary(result,{shell:context.shell,boundary:'side',startMm:result.report.baseTopMm,
       endMm:result.report.endMm-(assignment.endTransition==='level'?0:context.process.layerMm),toleranceMm:assignment.boundaryToleranceMm});
   }else if(node.kind==='rim'){
     const context=node.context,sourceResult=predecessors.find(item=>item.node.sourceId===context.assignment.source&&item.node.part===node.part)?.result;
     const sourceAssignment=plan.slices.assignments.find(a=>a.id===context.assignment.source);
-    result=rimResult({...context,machine,sourceResult,sourceAssignment});
+    result=rimResult({...context,machine,sourceResult,sourceAssignment,substrateAdaptation});
   }else if(node.kind==='inject')result=injectionResult(node.context.assignment,{plan,machine});
   else throw new Error(`Unsupported deposition construction ${node.kind}.`);
   const assignment=node.kind==='slice'?node.record.spec.settings:node.context.assignment;

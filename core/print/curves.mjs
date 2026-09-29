@@ -62,9 +62,10 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,bounds
   const operations=[],count=indices?.length??assignment.repeat?.count??1,translation=assignment.repeat?.translation??[0,0,0];
   let lengthMm=0,strokeCount=0;
   for(let course=0;course<count;course++){
-    const active=assignment.curves.filter(curve=>!curve.courses||curve.courses.includes(course));
+    const index=indices?.[course]??course;
+    const active=assignment.curves.filter(curve=>!curve.courses||curve.courses.includes(index));
     if(!active.length)continue;
-    const curves=active.flatMap(curve=>constructAuthoredCurves(curve,{references,course:indices?.[course]??course,offset:curve.uv?[0,0,0]:[plan.placement.xMm+course*translation[0],plan.placement.yMm+course*translation[1],course*translation[2]]}));
+    const curves=active.flatMap(curve=>constructAuthoredCurves(curve,{references,course:index,offset:[(curve.uv?0:plan.placement.xMm)+course*translation[0],(curve.uv?0:plan.placement.yMm)+course*translation[1],course*translation[2]]}));
     const heightMm=course===0?process.firstLayerMm:process.layerMm,speedMmS=course===0?process.firstLayerSpeedMmS:process.planarSpeedMmS;
     if(family){const layer=family.layers.find(l=>l.index===(indices?.[course]??course));
       for(const curve of curves)if(curve.heightMm===undefined&&!curve.heightsMm&&curve.frameSamples)curve.heightsMm=curve.points.slice(1).map((_,i)=>{

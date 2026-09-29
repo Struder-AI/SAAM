@@ -108,10 +108,11 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
 const volumeName=v=>v.kind==='slab'?(v.toMm===null?v.fromMm+' mm to top':v.fromMm+'–'+v.toMm+' mm'):v.kind==='geometry'?'assigned volume'
   :v.kind==='outline'?'first-layer outline':'footprint to '+v.contactZMm+' mm';
 export function sliceSummary(a){
+  if(a.construction==='inject')return a.points.length+' injection point(s) · '+a.points.reduce((sum,p)=>sum+p.volumeMm3,0)+' mm³ authored volume';
   if(a.construction==='rim')return a.steps.join(', ')+' rings per course · source '+a.source;
   if(a.construction==='cladding')return a.shells+' surface courses · '+claddingPatternName(a);
   if(a.construction==='sleeve')return pathModeName(a)+' · '+a.zStartMm+'–'+(a.zEndMm??'geometry top')+' mm';
-  if(a.construction==='skin')return a.layers+' roof courses · '+a.normalMm+' mm normal gap';
+  if(a.construction==='skin')return a.layers+' roof courses · '+a.pitchMm+' mm mean normal gap';
   if(a.construction==='fronts')return 'Seeded surface fronts · '+a.lineSpacingMm+' mm spacing';
   if(a.construction==='curves')return a.curves.length+' centerline(s) · '+(a.repeat?.count??1)+' course(s)';
   if(a.construction==='bridges')return a.bridges.length+' bridge(s)';
@@ -121,7 +122,7 @@ export function sliceSummary(a){
   return [a.loops+(a.loops===1?' loop':' loops'),fill,...solid].join(' · ');
 }
 export function sliceRows(plan){
-  return (plan.slices?.assignments??[]).flatMap(a=>[...(a.construction?(['skin','fronts'].includes(a.construction)?surfaceAssignmentRows(a):curveAssignmentRows(a)):[
+  return (plan.slices?.assignments??[]).flatMap(a=>[...(a.construction?(a.construction==='inject'?injectionRows(a):['skin','fronts'].includes(a.construction)?surfaceAssignmentRows(a):curveAssignmentRows(a)):[
     [a.id,(a.preset==='support'?'Support':(a.part??'Part'))+' · '+(a.within.length?a.within.map(volumeName).join(' within '):'the rest of the part')+' · '+sliceSummary(a)],
     [a.id+' · Fill directions',a.fillAnglesDeg.join(', ')+'°'+(a.rotateFill&&a.fillAnglesDeg.length>1?', alternating by layer':'')],
     ...(a.stack?[[a.id+' · Layers',a.stack.firstLayerMm+' mm first, then '+a.stack.layerMm+' mm']]:[]),
@@ -129,26 +130,35 @@ export function sliceRows(plan){
     ...(a.spacingFactor!==1?[[a.id+' · Line spacing',a.spacingFactor+'× nominal spacing; bead width unchanged']]:[])
   ]),
     ...(a.filament!==null?[[a.id+' · Filament',String(a.filament+1)]]:[]),
-    ...Object.entries(a.process??{}).map(([key,v])=>[a.id+' · '+({firstLayerMm:'First layer',layerMm:'Layer pitch',lineWidthMm:'Bead width',planarSpeedMmS:'Deposition speed',firstLayerSpeedMmS:'First-layer speed'}[key]),v+(key.endsWith('MmS')?' mm/s':' mm')])
+    ...Object.entries(a.process??{}).map(([key,v])=>[a.id+' · '+({firstLayerMm:'First layer',layerMm:'Layer pitch',lineWidthMm:'Bead width',planarSpeedMmS:'Deposition speed',firstLayerSpeedMmS:'First-layer speed',fanPercent:'Part cooling'}[key]??key),v+(key==='fanPercent'?'%':key.endsWith('MmS')?' mm/s':' mm')])
   ]);
 }
+export function injectionPoints(plan){
+  return (plan.slices?.assignments??[]).filter(a=>a.construction==='inject').flatMap(a=>a.points.map((p,index)=>({...p,id:`${a.id}:${index}`})));
+}
+function injectionRows(a){
+  return [[a.id,sliceSummary(a)],[a.id+' · Temperature',a.nozzleC===null?'Selected material setup':a.nozzleC+'°C, then restore setup'],
+    ...a.points.flatMap((p,index)=>[[a.id+' · Point '+(index+1),p.point.join(', ')+' mm before XY placement'],
+      [a.id+' · Injection '+(index+1),p.volumeMm3+' mm³ at '+p.flowMm3S+' mm³/s · '+p.holdSeconds+' s hold · '+p.approachMm+' mm vertical approach']])];
+}
 function sliceReferenceName(surface){
-  if(surface.kind==='horizontal')return 'Horizontal plane';
+  if(!surface||surface.kind==='horizontal')return 'Horizontal plane';
   if(surface.kind==='plane')return 'Plane at '+surface.origin.join(', ')+' mm · normal '+surface.normal.join(', ');
   return (surface.kind==='roof'?'Part roof':'Spline surface')+' · vertical offset '+surface.offsetMm+' mm';
 }
 function curveAssignmentRows(a){
-  const rows=[[a.id,sliceSummary(a)],[a.id+' · Print after',a.after.join(', ')||'Shared dependency order']];
+  const rows=[[a.id,sliceSummary(a)],[a.id+' · Print after',(a.after??a.dependencies?.after??[]).join(', ')||'Shared dependency order']];
   if(a.construction==='sleeve')return [...rows,[a.id+' · Part',a.part??'Part'],...skillSettingsRows('vase-wall',a,a.id)];
   if(a.construction==='rim')return [...rows,[a.id+' · Part',a.part??'Part'],[a.id+' · Minimum feature',a.minFeatureMm+' mm']];
   if(a.construction==='cladding')return [...rows,[a.id+' · Part',a.part??'Part'],[a.id+' · Source',a.source??'Finalized producers of the selected part'],
     [a.id+' · Thickness / tilt',a.normalMm+' mm per course · '+a.tiltDeg+'°'],[a.id+' · Line spacing',a.spacingFactor+'× nominal'],
     [a.id+' · Offset tightness',a.offsetTightness+' · 0 loose / 1 normal distance']];
   if(a.construction==='curves'){
-    if(a.repeat)rows.push([a.id+' · Course translation',a.repeat.translation.join(', ')+' mm']);
+    if(a.repeat)rows.push([a.id+' · Repetition',a.repeat.family?'Family '+a.repeat.family+' · '+(a.repeat.indices?.join(', ')??'all layers'):a.repeat.translation.join(', ')+' mm × '+a.repeat.count]);
     for(const [i,c] of a.curves.entries()){
       const label=a.id+' · Curve '+(i+1);
-      rows.push([label,(c.closed?'Closed':'Open')+' · '+c.points.length+' points · '+(c.role??'trace')]);
+      const source=c.text?'Text “'+c.text.text+'” · '+c.text.fontId:c.uv?'UV '+c.uv.reference.kind+' reference':c.nurbs?'NURBS degree '+c.nurbs.degree:c.points.length+' points';
+      rows.push([label,(c.closed?'Closed':'Open')+' · '+source+' · '+(c.role??'trace')]);
       if(c.courses)rows.push([label+' courses',c.courses.map(n=>n+1).join(', ')]);
       for(const [key,title,unit] of [['beadWidthMm','Bead width',' mm'],['heightMm','Bead height',' mm'],['speedMmS','Speed',' mm/s'],['flowMultiplier','Flow multiplier','×']])
         if(c[key]!==undefined)rows.push([label+' · '+title,c[key]+unit]);
@@ -167,8 +177,8 @@ function curveAssignmentRows(a){
   return rows;
 }
 function surfaceAssignmentRows(a){
-  const rows=[[a.id,sliceSummary(a)],[a.id+' · Print after',a.after.join(', ')||'Shared dependency order']];
-  if(a.construction==='skin')rows.push([a.id+' · Roof',a.part??'Part'],[a.id+' · Support',a.supportFrom??'Part body'],[a.id+' · Stroke direction',a.strokeAngleDeg+'°'],
+  const rows=[[a.id,sliceSummary(a)],[a.id+' · Print after',(a.after??a.dependencies?.after??[]).join(', ')||'Shared dependency order']];
+  if(a.construction==='skin')rows.push([a.id+' · Roof',a.part??'Part'],[a.id+' · Substrate source',a.supportFrom??'Part body'],[a.id+' · Stroke direction',a.strokeAngleDeg+'°'],
     [a.id+' · Spacing',a.spacingFactor+'× nominal'],[a.id+' · Angle limit',a.maxAngleDegOverride===null?'Machine profile':a.maxAngleDegOverride+'° experimental override']);
   else rows.push([a.id+' · Surface',a.surface.kind==='patch'?(a.surface.part??'Part')+' / '+a.surface.patch:'Authored spline reference'],
     [a.id+' · Seed',a.seedUv.length+' supported loop(s) · '+a.reason],
@@ -179,6 +189,7 @@ function surfaceAssignmentRows(a){
 }
 export function recipeRows(plan,machine){
   const composition=plan.composition,rows=[];
+  rows.push(['Experimental substrate adaptation',plan.experimental?.substrateAdaptation?'On · final deposited contact sets gap and volume; surface-following constructions may change placement':'Off · nominal reference geometry and bead rules']);
   if(plan.setup.bambu){
     rows.push(['Bambu startup',plan.setup.bambu.fast_start?'Fast — reuse calibration; skip optional scans and vibration tests':'Full — calibration follows startup controls / printer choices']);
     const used=[...new Set([plan.setup.bambu.filament,...assignedFilaments(plan)].filter(i=>i!==undefined))];
@@ -194,7 +205,8 @@ export function recipeRows(plan,machine){
   rows.push(['Machine · Planar wall tolerance',planarWallTolerance(machine)+' mm'],...sliceRows(plan));
   for(const m of plan.modulations?.modifiers??[])rows.push([m.id+' · Modulation',m.channel+' · '+m.field.kind+' field · amplitude '+m.amplitude+(m.channel==='displacement'?' mm':'')],
     [m.id+' · Applies to',(m.assignments?.join(', ')??'All assignments')+' · '+(m.roles?.join(', ')??'All stroke roles')],
-    ...(m.channel==='displacement'?[[m.id+' · Direction',m.direction==='lateral'?'Across the source path':m.direction.join(', ')+' in world coordinates']]:[]));
+    ...(m.direction?[[m.id+' · Direction',typeof m.direction==='string'?m.direction:m.direction.join(', ')+' in '+(m.frame??'world')+' coordinates']]:[]),
+    [m.id+' · Placement',(m.frame??'world')+' frame'+(m.layers?' · layers '+m.layers.from+'–'+m.layers.to:'')+(m.topN?' · top '+m.topN+' layers':'')+(m.phasePerLayerRad?' · '+m.phasePerLayerRad+' rad phase per layer':'')]);
   if(composition){
     rows.push(['Layer batching',composition.batchLayers+' layer(s) per component'],
       ['Requested operation order',composition.order.length?composition.order.join(' → '):'Shared dependency order'],

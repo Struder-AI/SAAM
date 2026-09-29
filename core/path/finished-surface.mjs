@@ -26,12 +26,13 @@ export function publishFinishedBoundary(result,{shell,startMm=shell.bounds.min[2
   return {...result,finishedSurfaces};
 }
 
-export function consumeFinishedSurface({shell,selection,results}){
+export function consumeFinishedSurface({shell,selection,results,substrateAdaptation=false}){
   requireThat(!results.some(result=>result.modulationPendingPublication),
     'A deposited boundary changed; finalize its bead coverage before constructing a dependent surface.');
   const sources=results.flatMap(result=>result.finishedSurfaces??[]).filter(source=>source.shell===shell);
   requireThat(sources.length,'Selected cladding surface has no finished material producer. Select a printed component or publish its finished boundary.');
   const chart=surfaceRegion(shell,selection),sourceOperationIds=[...new Set(sources.flatMap(source=>source.sourceOperationIds))];
+  if(!substrateAdaptation)return {...chart,sourceOperationIds,coverage:['nominal-reference'],substrateAdaptation:false};
   if(sources.some(source=>source.depositedSegments)){
     const selected=new Set(sourceOperationIds);
     const segments=depositedBeadSegments(results.flatMap(result=>result.operations.filter(op=>selected.has(op.id))));

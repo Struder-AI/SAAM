@@ -257,13 +257,13 @@ async function migrateCurrentRecipe(dir,document,planText,before,{beforeCommit})
   const {bundle,...previous}=document,{plan,changes}=migrateRecipeFields(previous);
   if(!changes.length)return {status:'current',directory:dir,created:[],updated:[],removed:[],retained:before};
   const geometry=bundle.geometry;
-  requireThat(geometry&&/^[a-f0-9]{64}$/.test(geometry.hash)&&geometry.file===`geometry/${geometry.hash}${nativeSuffix(geometry.descriptor)}`,'Invalid geometry artifact reference.');
-  const bytes=await readFile(resolve(dir,geometry.file)),machine=bundle.machine;
+  requireThat(geometry===null&&!plan.geometry||geometry&&/^[a-f0-9]{64}$/.test(geometry.hash)&&geometry.file===`geometry/${geometry.hash}${nativeSuffix(geometry.descriptor)}`,'Invalid geometry artifact reference.');
+  const bytes=geometry?await readFile(resolve(dir,geometry.file)):null,machine=bundle.machine;
   const review=invalidateReview(migrateReview(bundle.review),{event:'recipe-migrated',time:new Date().toISOString(),changes,previousGenerationHash:bundle.review.generation?.generationHash??null,invalidated:['generation','toolpath']});
   const state={plan,machine,geometry,review},manifest=manifestDocument(state);
   const checked=await validateBundleInput({dir,planText:JSON.stringify(manifest),...state,bytes},{});
   if(checked.error)throw checked.error;
-  const inputs=new Map([['plan.json',Buffer.from(planText)],[geometry.file,bytes]]),source=originalSource(plan.geometry);
+  const inputs=new Map([['plan.json',Buffer.from(planText)],...(geometry?[[geometry.file,bytes]]:[])]),source=originalSource(plan.geometry);
   if(source){const sourceBytes=await readFile(resolve(dir,'geometry/source.stl'));requireThat(hash(sourceBytes)===source.sha256,'Imported source changed; repair it before recipe migration.');inputs.set('geometry/source.stl',sourceBytes);}
   await beforeCommit?.();await requireLegacyCurrent(dir,inputs);
   const file=resolve(dir,'plan.json'),serialized=`${JSON.stringify(manifest,null,2)}\n`;
@@ -329,7 +329,7 @@ async function describeBundle({dir,plan,machine,geometry,geometryArtifact,review
   const {geometryHash,generationHash}=identity;
   if(originalSource(plan.geometry))requireThat(await hashFile(resolve(dir,'geometry/source.stl'))===originalSource(plan.geometry).sha256,'Imported STL source changed; reload the current geometry.');
   const state = {
-    kind, dir, plan, machine, geometry, review, geometryHash, generationHash, programChecked:Boolean(program),
+    kind, dir, plan, machine, geometry, review, geometryHash, generationHash, programChecked:Boolean(program&&review.generation),
     exportName: exportName(plan,machine), limitations: limitationsFor(plan, machine),
     outputAvailability:machine.outputs.find(o=>o.id===plan.output)?.implemented===false?`Machine-file export for ${machine.name} is not available yet; geometry and settings can be reviewed.`:null,
     skills: [...new Set((plan.slices?.assignments??[]).map(a=>a.construction==='inject'?'inject':['curves','bridges'].includes(a.construction)?'trace':'slice')),

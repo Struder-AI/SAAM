@@ -1,5 +1,40 @@
 # Development log
 
+## 2026-09-29 — Requested milestone stop (0.2.0 remains unfinished)
+
+- Owner requested three workers stop after their current milestone, followed by
+  an all-work local checkpoint. No next milestone, publication or release.
+- Substrate adaptation is experimental, default OFF, with a recipe/Studio switch
+  and explicit migration for older recipes. Supports are separately assigned
+  sacrificial structures; glossary and manuals distinguish them. Overview/spec
+  amendments are comments as requested, preserving their existing prose.
+- Lead reran slice ON/OFF evidence: OFF makes zero measured contact queries;
+  ON changes skin volume 8.19 -> 7.16625 mm3 over a displaced source with identical
+  XYZ, and rejects missing required substrate or excessive actual gap. Nominal
+  machine/process limits and explicit construction dependencies remain OFF.
+- Rounded square-sleeve curves pass lead generation/export/interpretation:
+  884 moves, 31.79890175535 mm3. Native spline-shell roof tessellation introduced
+  spurious band holes; that new faceted-chart extension explicitly rejects.
+  Repair remains unfinished; existing smooth charts and checked mesh cases differ.
+- Studio browser checks cover points-only markers, approach, settings, generated
+  path and toggle invalidation. Lead reran API/migration: reading an old recipe
+  does not rewrite it; explicit migration adds OFF and clears generation; repeat
+  migration is current; invalid boolean rejects. No dummy geometry is created.
+- Worker cladding ON/OFF generation/export/interpretation passes: one run took
+  1.131 s OFF versus 97.681 s ON, with volumes 162.113858/162.109133 mm3.
+  This is a single-run diagnostic under ongoing work, not a controlled benchmark.
+- Evidence: `.local/0.2.0/slice-geometry/substrate-mode.json`,
+  `general-curves/rounded-production.json`, `general-curves/native-roof-band.json`
+  and `c6-studio-1790706800883/evidence.json` under `.local/0.2.0`.
+- Remaining: native roof atlas repair, dense mesh/partial-occlusion band coverage,
+  broader rounded/curved production and repeat checks, cladding/trace reverse
+  dependencies, mixed-family Studio acceptance, historical seam/travel comparison,
+  controlled timing comparisons, context budget and final maps. No new tests,
+  suites, physical qualification, map regeneration, solver or hardware execution.
+- Changed manuals/glossary since takeover: 1,293 -> 1,210 lines, including new
+  Trace/Inject manuals. Requested intent comments and checkpoint log are additive.
+  Complete first-use web context is 81,141 bytes; the 15 KB soft target is unmet.
+
 ## 2026-09-29 — Resumed 0.2.0 integration checkpoint (unfinished)
 
 - Restored explicit depositing connectors before machine adaptation, modulation

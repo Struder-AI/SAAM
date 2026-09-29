@@ -97,6 +97,10 @@ export function applyCurveProfiles(source,curve){
 function sampleRoundedCurve(curve,options,chart){
   const source=sampleAuthoredCurve({...curve,vary:undefined,uv:{...curve.uv,normalMm:0}},options);
   const path=mapPiecewiseChartPath(chart,{points:source.frameSamples.map(f=>f.point.slice(0,2)),parameters:source.curveParameters});
+  if(curve.closed){
+    const first=[...path.points[0]],last=path.points.at(-1);if(chart.periodic)first[0]+=Math.round(last[0]-first[0]);
+    if(distance(first,last)>1e-12){path.points.push(first);path.parameters.push(1);}
+  }
   return samplePiecewiseCurve(source,chart,path,{...options,toleranceMm:curve.toleranceMm??options.toleranceMm,sampleStepMm:curve.sampleStepMm??options.sampleStepMm});
 }
 

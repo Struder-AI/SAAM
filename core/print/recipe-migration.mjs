@@ -4,6 +4,7 @@ import {requireThat} from '../geom/tolerance.mjs';
 // Explicit migration only. Loading never changes a recipe or its meaning.
 export function migrateRecipeFields(plan){
   const changes=[];
+  if(!Object.hasOwn(plan,'experimental'))changes.push({path:'experimental',before:null,after:{substrateAdaptation:false},meaning:'Explicitly default experimental substrate adaptation off; regenerate before review.'});
   const assignments=plan.slices.assignments.map((assignment,index)=>{
     let source=assignment;
     if(assignment.construction==='skin'&&Object.hasOwn(assignment,'normalMm')){
@@ -16,5 +17,5 @@ export function migrateRecipeFields(plan){
     for(const key of new Set([...Object.keys(source),...Object.keys(canonical)]))if(JSON.stringify(source[key])!==JSON.stringify(canonical[key]))changes.push({path:`slices.assignments.${index}.${key}`,assignment:assignment.id,before:source[key]??null,after:canonical[key]??null,meaning:Object.hasOwn(source,key)?'Explicit shared-construction migration.':'Explicitly added current shared default.'});
     return canonical;
   });
-  return {plan:changes.length?{...plan,slices:{...plan.slices,assignments}}:plan,changes};
+  return {plan:changes.length?{...plan,experimental:plan.experimental??{substrateAdaptation:false},slices:{...plan.slices,assignments}}:plan,changes};
 }
