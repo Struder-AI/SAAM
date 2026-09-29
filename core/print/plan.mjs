@@ -24,6 +24,7 @@ import {assignmentPlan} from './assignment-process.mjs';
 import {PLASTIC_WELD_DEFAULTS,validatePlasticWeld} from '../../skills/plastic-weld/scripts/weld.mjs';
 import {heatSetTemplate,validateHeatSetRecord} from '../../skills/heat-set-inserts/scripts/feature.mjs';
 import {filamentPlan} from '../machine/filaments.mjs';
+import {requireProcessControl,validateNozzleC} from '../path/process-controls.mjs';
 
 export const VERSION = '0.1.0';
 // Fixed release metadata, so regenerating a reviewed plan is byte-identical.
@@ -96,11 +97,15 @@ export function validatePlan(plan,machine) {
 // compiled records of geometry skills.
 export const GEOMETRY_SHAPES=['spline','blob-field','mesh','boolean','assembly','text','gridfinity','heat-set'];
 
+export function pointOnlyPlan(plan){
+  return plan?.geometry===undefined&&plan.slices?.assignments?.length>0&&plan.slices.assignments.every(a=>a.construction==='inject');
+}
+
 export function validatePlanFields(plan,machine) {
-  requireThat(plan && typeof plan === 'object' && GEOMETRY_SHAPES.includes(plan.geometry?.shape), `Unsupported shape; geometry.shape is one of ${GEOMETRY_SHAPES.join(', ')}.`);
+  requireThat(plan && typeof plan === 'object' && (pointOnlyPlan(plan)||GEOMETRY_SHAPES.includes(plan.geometry?.shape)), `Author geometry (${GEOMETRY_SHAPES.join(', ')}) or a points-only inject recipe.`);
   // Validation is check-only: a plan carries every current field or it is
   // rejected. Pre-policy bundles are recreated from their skills, not migrated.
-  const expected = { ...defaults(machine), geometry: geometryTemplate(plan.geometry.shape,plan.geometry) };
+  const expected = { ...defaults(machine), ...(plan.geometry?{geometry:geometryTemplate(plan.geometry.shape,plan.geometry)}:{}) };
   keys(plan, expected);
   requireThat(plan.schema === expected.schema && plan.generatorVersion === VERSION, 'Unsupported plan or generator version.');
   requireThat(Number.isInteger(plan.composition.batchLayers)&&plan.composition.batchLayers>=1&&plan.composition.batchLayers<=20,'Batch size must be 1–20 layers.');
@@ -111,7 +116,9 @@ export function validatePlanFields(plan,machine) {
 
 export function validatePlanGeometry(plan,machine) {
   const {geometry,placement,setup}=plan;
+  if(!geometry)requireThat(Object.values(plan.skills).every(settings=>!settings.enabled),'Points-only injection cannot enable geometry-dependent skills.');
   validatePlasticWeld(plan,machine);
+  if(!geometry)return plan;
   if(geometry.shape==='spline'){
     // The control-net hull contains the surface, so this check can only be
     // conservative; generation checks the actual moves.
@@ -213,11 +220,15 @@ export function validatePlanSelections(plan,machine) {
   const sliced=plan.slices.assignments.length>0;
   // A slice part is a geometry selection: a component or a prepared material
   // part; two cut parts never share material.
-  const selections=geometrySelections(geometry);
+  const selections=geometry?geometrySelections(geometry):new Map();
   validateSlices(plan.slices,{parts:[...selections.keys()].filter(key=>key!==null),lineWidthMm:plan.process.lineWidthMm,firstLayerMm:plan.process.firstLayerMm});
   for(const assignment of plan.slices.assignments){
     const selected=assignmentPlan(plan,machine,assignment);
     validatePlanProcess(selected,machine);validateSetup(selected,machine);
+    if(assignment.construction==='inject'){
+      requireProcessControl(machine);
+      if(assignment.nozzleC!==null)validateNozzleC(assignment.nozzleC,selected,machine);
+    }
   }
   validateModulations(plan.modulations,{assignmentIds:plan.slices.assignments.map(a=>a.id)});
   for(const {geometry:source} of modulationGeometrySources(plan.modulations)){
@@ -228,7 +239,7 @@ export function validatePlanSelections(plan,machine) {
   const cut=[...new Set(plan.slices.assignments.filter(a=>!a.construction&&a.preset!=='support').flatMap(a=>a.part!==null?[a.part]:geometry.shape==='assembly'?geometry.parts.map(p=>p.id):[null]))];
   for(const [i,a] of cut.entries())for(const b of cut.slice(i+1))requireThat(!selectionsOverlap(selections.get(a),selections.get(b)),
     `Slice assignments cut overlapping parts ${a??'the whole print'} and ${b??'the whole print'}; give that material to one of them.`);
-  if(geometry.shape==='assembly') {
+  if(geometry?.shape==='assembly') {
     requireThat(Array.isArray(geometry.parts)&&geometry.parts.length>=2&&geometry.parts.length<=20,'An assembly needs 2–20 components.');
     const ids=new Set();
     for(const part of geometry.parts){
@@ -239,12 +250,10 @@ export function validatePlanSelections(plan,machine) {
       const assigned=plan.slices.assignments.filter(a=>a.part===part.id).map(a=>a.filament??undefined).find(f=>f!==undefined);
       const child=structuredClone(assigned!==undefined?filamentPlan(plan,machine,assigned):plan);child.geometry=part.geometry;
       child.placement={xMm:placement.xMm+part.xMm,yMm:placement.yMm+part.yMm};
-      child.slices={...child.slices,assignments:child.slices.assignments.filter(a=>a.part===null||a.part===part.id).map(a=>({...a,part:null}))};
       child.skills['plastic-weld'].enabled=false;
-      child.modulations=defaultModulations();
-      // A component checked on its own is sliced whole by one default owner.
-      if(!child.slices.assignments.length){for(const settings of Object.values(child.skills))settings.enabled=false;child.slices=defaultSlices();}
-      validatePlan(child,machine);
+      // Global assignment/process/dependency validation has already run. Only
+      // this component's geometry and placement change in the local check.
+      validatePlanFields(child,machine);validatePlanGeometry(child,machine);validatePlanPlacement(child,machine);
     }
   }
   requireThat(sliced, 'Add a slice assignment.');

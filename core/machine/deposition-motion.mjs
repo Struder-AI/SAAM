@@ -30,6 +30,7 @@ export function prepareDepositionMotion(result,machine){
       stroke.poses.forEach(validatePose);
       return stroke;
     }
+    if(stroke.volumesMm3?.length&&stroke.volumesMm3.every(volume=>volume===0))return stroke;
     const normals=stroke.points.map((_,i)=>stroke.frameSamples?.[i]?.normal??stroke.normals?.[i]??
       stroke.segmentMetadata?.[Math.min(i,stroke.segmentMetadata.length-1)]?.surfaceNormal??[0,0,1]);
     if(oriented){

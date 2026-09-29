@@ -1,14 +1,8 @@
-// Common surface-course and seeded-front assignments. The stages return data:
-// reserve/survey -> chart curves -> mapping -> local gaps -> deposition.
-// Callers finalize/modulate strokes before publishing any supporting boundary.
-import {heightSlice,heightSlicePoint,heightReferenceMetric,referenceHeight} from '../geom/height-slice.mjs';
+// Surface presets lower to ordinary family and ownership data. The shared
+// course scheduler constructs, connects and finalizes their deposition.
+import {heightReferenceMetric} from '../geom/height-slice.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
 import {surveyRoofRegion} from '../region/roof-region.mjs';
-import {offsetRegion} from '../region/offset.mjs';
-import {directedFillStrokes,mapSliceStrokes} from '../region/layer-strokes.mjs';
-import {surfaceGapCurves} from '../region/surface-curves.mjs';
-import {depositCurves} from '../path/deposition.mjs';
-import {surfacePolicy} from '../path/builder.mjs';
 import {lineSpacing} from '../path/spacing.mjs';
 import {ordinarySliceAssignment} from './slice-settings.mjs';
 
@@ -65,48 +59,5 @@ export function lowerSkinAssignment({assignment,survey,process}) {
     surface:{kind:'roof',offsetMm:0},stack:{firstLayerMm:assignment.pitchMm,layerMm:assignment.pitchMm},
     within:[{kind:'surface-domain',loopsUv:survey.skinRegion,fromLayer:-assignment.layers,toLayer:0}],
     dependencies:{afterParts:[],beforeParts:[],after:assignment.after},description:'Roof courses with a target mean normal gap.'});
-}
-
-// A horizontal body's last available grid plane below a reserved reference.
-export const stackTopAt=(reserveZ,process,originZ=0)=>originZ+process.firstLayerMm+Math.max(0,Math.floor((reserveZ-originZ-process.firstLayerMm+1e-9)/process.layerMm))*process.layerMm;
-
-export function constructSkinCurves({assignment,shell,process,survey,supportTopAt=null}) {
-  const width=process.lineWidthMm,region=offsetRegion(survey.skinRegion,-width/2);
-  requireThat(region.length,'No surface remains for skin: the allowed roof is narrower than one bead or exceeds its fixed-axis angle limit.');
-  const reference={kind:'roof',geometry:shell},courses=[];
-  const step=survey.translationStepMm,reserve=heightSlice(reference,{offsetMm:-assignment.layers*step,sampleStepMm:assignment.sampleStepMm});
-  for(let index=0;index<assignment.layers;index++) {
-    const depth=(assignment.layers-index-1)*step;
-    const slice=heightSlice(reference,{offsetMm:-depth,sampleStepMm:assignment.sampleStepMm});
-    const lower=heightSlice(reference,{offsetMm:-depth-step,sampleStepMm:assignment.sampleStepMm});
-    const chart=directedFillStrokes(region,{spacingMm:lineSpacing(width,assignment),angleDeg:assignment.strokeAngleDeg,reverseRows:index%2===1,role:'skin'});
-    const mapped=mapSliceStrokes(chart,slice,{frames:true});
-    const lowerHeightsMm=mapped.map(curve=>curve.points.map(point=>{
-      if(index)return heightSlicePoint(lower,point)[2];
-      const reservedZ=heightSlicePoint(reserve,point)[2];
-      return supportTopAt?supportTopAt(point[0],point[1],reservedZ):stackTopAt(reservedZ,process,shell.bounds.min[2]);
-    }));
-    const gaps=surfaceGapCurves(mapped,{slice,lowerHeightsMm,maxAngleDeg:survey.limitDeg});
-    courses.push({index,slice,direction:[0,0,1],heightMm:step,translationMm:step,targetGapMm:assignment.pitchMm,region,curves:gaps.curves,report:gaps.report});
-  }
-  return {courses,region:survey.skinRegion};
-}
-
-export function skinResult({assignment,shell,process,machine,survey,after=[],supportTopAt=null}) {
-  const {courses,region}=constructSkinCurves({assignment,shell,process,survey,supportTopAt});
-  const operations=[],id=assignment.id;
-  for(const {index,slice,curves} of courses) {
-    const surfaceZ=(x,y)=>{const top=referenceHeight(slice.reference,x,y);return !top||top.patch==='bottom'||top.slopeDeg>survey.limitDeg+1e-6?null:heightSlicePoint(slice,[x,y])[2];};
-    const strokes=depositCurves(curves,{widthMm:process.lineWidthMm,heightMm:assignment.pitchMm,speedMmS:process.skinSpeedMmS});
-    operations.push({id:`${id}:${index}`,layerId:`${id}:${index}`,phase:'skin',layer:index,layerIndex:index,layerCount:courses.length,stackDirection:[0,0,1],rank:shell.bounds.max[2]+index+1,slice,region,
-      after:index?[`${id}:${index-1}`]:[...new Set([...assignment.after,...after])],strokes,order:'nearest-cells',connectNearby:true,
-      travelPolicy:surfacePolicy(region,{surfaceZ,maxZ:shell.bounds.max[2],maxCombMm:process.maxCombMm,lineWidthMm:process.lineWidthMm,liftMm:process.liftMm,
-        sampleStepMm:assignment.sampleStepMm,sagMm:Math.min(.05,assignment.pitchMm/4)}),...(assignment.filament===null?{}:{filament:assignment.filament})});
-  }
-  const reports=courses.map(course=>course.report);
-  return {id,operations,family:{base:courses[0].slice,direction:[0,0,1],pitchMm:assignment.pitchMm,firstLayerMm:assignment.pitchMm,translationStepMm:survey.translationStepMm,layers:courses},report:{construction:'skin',stackMetric:'target-mean-normal-gap',targetGapMm:assignment.pitchMm,translationStepMm:survey.translationStepMm,meanProjectedGapMm:assignment.pitchMm,minProjectedGapMm:survey.minProjectedGapMm,maxProjectedGapMm:survey.maxProjectedGapMm,skinLayers:courses.length,strokes:operations.reduce((n,op)=>n+op.strokes.length,0),excludedFraction:survey.steepFraction,
-    maxSlopeDeg:survey.maxSlopeDeg,limitDeg:survey.limitDeg,skinAreaMm2:survey.skinAreaMm2,minGapMm:Math.min(...reports.map(r=>r.minGapMm)),maxGapMm:Math.max(...reports.map(r=>r.maxGapMm)),
-    minNormalGapMm:Math.min(...reports.map(r=>r.minNormalGapMm)),maxNormalGapMm:Math.max(...reports.map(r=>r.maxNormalGapMm)),maxMappedSlopeDeg:Math.max(...reports.map(r=>r.maxMappedSlopeDeg)),gapMetric:'local-normal-projection'},
-    boundaryRequest:{shell,startMm:shell.bounds.min[2],endMm:shell.bounds.max[2],boundary:'top',maxSlopeDeg:survey.limitDeg}};
 }
 

@@ -17,7 +17,7 @@ export function planPriming(state,geometryBounds,results) {
 }
 
 export function preparePrimingFootprint(geometryBounds,results,widthMm) {
-  const lo=[...geometryBounds.min],hi=[...geometryBounds.max];
+  const lo=[...(geometryBounds?.min??[Infinity,Infinity,Infinity])],hi=[...(geometryBounds?.max??[-Infinity,-Infinity,-Infinity])];
   let hasDeposition=false;
   // Include supports/rims and every component, even when they extend beyond
   // the source geometry. Never consume a skirt into a later operation's footprint.

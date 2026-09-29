@@ -84,7 +84,7 @@ export function depositedContactChart(chart,segments,{toleranceMm=.01}={}){
 export function contactCurveGaps(curves,{segments,maxHeightMm=Infinity,direction=[0,0,1],toleranceMm=.001}){
   requireThat(toleranceMm>0&&Number.isFinite(toleranceMm),'Foundation contact needs a positive physical tolerance.');
   const contact=depositedContact(segments);
-  const stepMm=Math.min(...segments.map(s=>s.radius));
+  const stepMm=segments.reduce((smallest,s)=>Math.min(smallest,s.radius),Infinity);
   return curves.map(curve=>{
     const heightsMm=curve.heightsMm?[...curve.heightsMm]:curve.points.slice(1).map(()=>curve.heightMm);
     const segmentMetadata=curve.points.slice(1).map((b,i)=>{

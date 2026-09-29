@@ -287,15 +287,14 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     const { state } = await read(bundleId);
     const plan = structuredClone(state.plan);
     if (!includeGeometry) delete plan.geometry;
-    return { ...summary(bundleId, state), plan, planComplete: includeGeometry,
-      ...(!includeGeometry ? { geometry: { omitted: true, shape: state.plan.geometry.shape ?? 'unknown',
+    return { ...summary(bundleId, state), plan, planComplete: includeGeometry||!state.plan.geometry,
+      ...(!includeGeometry&&state.geometry ? { geometry: { omitted: true, shape: state.plan.geometry?.shape ?? 'unknown',
         nativeFile: state.geometry.nativeFile, boundsMm: state.geometry.boundsMm } } : {}) };
   });
-  tool('create_bundle', 'Create an unapproved persistent bundle. Supply a complete plan with authored/imported geometry; defaults alone are incomplete. Then request_review.',
+  tool('create_bundle', 'Create an unapproved bundle with authored/imported geometry or points-only inject assignments. Defaults alone are incomplete. Then request_review.',
     { bundleId: bundleIdSchema, kind: kindSchema, machineId: z.string(), plan: objectSchema }, async ({ bundleId, kind, machineId, plan }) => {
       noApprovalFields(plan);
       const machine = loadMachine(machineId), recipe = await recipes[kind]();
-      if (!plan.geometry) throw Error('create_bundle requires authored/imported geometry in plan.geometry; recipe defaults contain none.');
       recipe.validatePlan(plan, machine);
       const dir = await directory(bundleId, { create: true }), bundle = await bundles[kind]();
       await bundle.initBundle(dir, plan, { machineId, setupFile: await setupFile(machineId) });
@@ -406,7 +405,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   tool('check_bundle', 'Validate saved native geometry, recipe and any exact generated export using the shared bundle checks. Does not generate or approve.', { bundleId: bundleIdSchema }, async ({ bundleId }) => {
     const { state } = await read(bundleId);
     if (state.programError) throw new Error(state.programError);
-    return { ...summary(bundleId, state), checked: state.program ? ['geometry', 'plan', 'exact-export'] : ['geometry', 'plan'], physicalValidation: 'not performed' };
+    return { ...summary(bundleId, state), checked: [...(state.geometry?['geometry']:[]),'plan',...(state.program?['exact-export']:[])], physicalValidation: 'not performed' };
   });
   tool('check_path', 'Check path feasibility using the same generator, without approvals or persisted SAAMpath/export artifacts. Reports software checks only; production generation and exact-export review remain required.', { bundleId: bundleIdSchema }, async ({ bundleId }) => {
     const { dir, bundle } = await locate(bundleId);

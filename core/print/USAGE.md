@@ -13,13 +13,13 @@ is relative to `Prints/` (`Prints/my-part` is `"my-part"`).
 | Generate for review; deliver the confirmed export | `generate_toolpath`; `deliver_toolpath` |
 | Path feasibility, when needed; save setup as the machine's default | `check_path`; `remember_setup` |
 
-Creating or importing makes geometry only; generation is a separate step.
+Creating saves authored inputs; generation is a separate step.
 
 ## Recipes
 
 `get_recipe_defaults` returns process/setup defaults and one common [slice](../../skills/slice/SKILL.md)
-assignment, with no geometry or automatic skin. Add authored/imported
-`geometry` to this `plan` before `create_bundle`; choose placement for its bounds.
+assignment, with no geometry or automatic skin. Before `create_bundle`, author
+`geometry` or replace assignments with [points-only inject](../../skills/inject/SKILL.md).
 
 `slice` adds/edits/removes one assignment; `adjust_recipe` patches the recipe. Objects merge, arrays replace,
 unknown fields are rejected; leave out the `bundle` envelope. After a
@@ -73,7 +73,7 @@ Run from the repository root with a directory under `Prints/`; quote paths with
 spaces. Each command is the tool of the same name through `node core/print/cli.mjs`:
 
 ```sh
-init Prints/my-part plan.json --machine ultimaker-s5   # authored geometry required
+init Prints/my-part plan.json --machine ultimaker-s5   # authored geometry or injection points
 import-stl Prints/my-part source.stl auto ultimaker-s5
 blob-field-create Prints/my-part request.json ultimaker-s5   # blob-field-update … --revision REV
 combine|intersect|adjust Prints/my-part request.json --revision REV   # intersect takes no revision

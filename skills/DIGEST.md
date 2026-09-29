@@ -14,7 +14,7 @@ person asks: `read_skill ID#heading`, otherwise `read_guidance`.
 |---|---|
 | [slice](slice/SKILL.md) | Derive loops, fill, brim, skin, fronts, sleeves, rims and cladding from owned surface slices, with shared process and modulation. |
 | [trace](trace/SKILL.md) | Deposit authored curves, NURBS, surface UV paths and line text, with varying bead dimensions, process and tool pose; no filled solid is inferred. |
-| [inject](inject/SKILL.md) | Meter stationary extrusion by volume and flow, with optional hold; currently authored through the plastic-weld cavity recipe rather than a generic injection tool. |
+| [inject](inject/SKILL.md) | Meter stationary material at authored points, with explicit volume, flow, vertical approach and hold, through the shared recipe or slice editor. |
 | [supports](supports/SKILL.md) | Tree branches at placed contacts; placement trades support against surface contact and removal access. Area supports under a footprint are slices with the support preset. |
 
 ## Geometry skills

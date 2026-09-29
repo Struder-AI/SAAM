@@ -4,6 +4,7 @@
 // its own family. Internal owner boundaries have walls; solid masks follow part
 // material rather than ownership seams.
 import { curveAssignment, validateCurveAssignment } from './curves.mjs';
+import {injectionAssignment,validateInjectionAssignment} from './injection.mjs';
 import {skinAssignment,frontAssignment,lowerSkinAssignment,validateSurfaceConstruction} from './surface-constructions.mjs';
 import {sleeveAssignment,rimAssignment,validateSleeveAssignment,validateRimAssignment} from './sleeve-constructions.mjs';
 import {claddingAssignment,validateCladdingAssignment} from './cladding-constructions.mjs';
@@ -47,6 +48,7 @@ const FIELDS = ['id', 'part', 'preset', 'filament', 'process', ...Object.keys(SL
 
 // A complete assignment from a preset and overrides.
 export function sliceAssignment({ id, part = null, preset = null, ...overrides }) {
+  if(overrides.construction==='inject')return injectionAssignment({id,...overrides});
   if(overrides.construction==='skin')return skinAssignment({id,part,...overrides});
   if(overrides.construction==='fronts')return frontAssignment({id,...overrides});
   if(overrides.construction==='sleeve')return sleeveAssignment({id,part,...overrides});
@@ -67,6 +69,7 @@ export function validateSlices(slices, { parts, lineWidthMm, firstLayerMm }) {
   const ids = new Set();
   for (const a of slices.assignments) {
     validateAssignmentProcess(a?.process);
+    if(a.construction==='inject'){validateInjectionAssignment(a,{parts});requireThat(!ids.has(a.id),'Duplicate slice assignment id.');ids.add(a.id);continue;}
     if(a.construction==='sleeve'){validateSleeveAssignment(a,{parts});requireThat(!ids.has(a.id),'Duplicate slice assignment id.');ids.add(a.id);continue;}
     if(a.construction==='rim'){validateRimAssignment(a,{parts});requireThat(!ids.has(a.id),'Duplicate slice assignment id.');ids.add(a.id);continue;}
     if(a.construction==='cladding'){validateCladdingAssignment(a,{parts});requireThat(!ids.has(a.id),'Duplicate slice assignment id.');ids.add(a.id);continue;}
@@ -416,7 +419,7 @@ function sliceTravelPolicy(slice, region, worldRegion, maxZ, process) {
 // solid, filament}; context: {process, machine, shell, startMm, endMm, report}.
 // A support preset's operations are sacrificial: support roles, the supports
 // phase and no finished boundary.
-export function sliceResult({ id, settings, layers, material = null, solidRegions = new Map(), filament = null,totalLayerCount=layers.length,contactSegments=[],otherFamilyContactSegments=[],seedSegments=[],contactFragments=[],predecessorReference=null,predecessorRegions=new Map(),requiredContact=false }, { process, machine, shell, startMm, endMm,maxBeadHeightMm=Infinity,report: extra = {} }) {
+export function sliceResult({ id, settings, layers, material = null, solidRegions = new Map(), filament = null,totalLayerCount=layers.length,contactSegments=[],otherFamilyContactSegments=[],seedSegments=[],contactFragments=[],predecessorReference=null,predecessorRegions=new Map() }, { process, machine, shell, startMm, endMm,maxBeadHeightMm=Infinity,report: extra = {} }) {
   const width = process.lineWidthMm, pitch = lineSpacing(width, settings), wallToleranceMm = planarWallTolerance(machine);
   const support = settings.preset === 'support', solidDensity = support ? SUPPORT_INTERFACE_DENSITY : 1;
   const masked = settings.fillDensity < 1 && (settings.solidTop > 0 || settings.solidBottom > 0 || solidRegions.size > 0);
@@ -456,13 +459,14 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
       const spacing = group === 'infill' ? pitch / settings.fillDensity : pitch / solidDensity;
       const opId = `${id}:${index}:${group}`;
       let covered;
-      const framed=slice.kind==='patch'||slice.kind==='height-field'||predecessorReference!==null||contactFragments.length>0||contactSegments.length>0||otherFamilyContactSegments.length>0||requiredContact;
+      const framed=slice.kind==='patch'||slice.kind==='height-field'||predecessorReference!==null||contactFragments.length>0||contactSegments.length>0||otherFamilyContactSegments.length>0;
       let mapped = mapSliceStrokes(found, slice,{frames:true,sampleStepMm:settings.sampleStepMm});
       if(framed)mapped=mapped.map(curve=>!curve.closed?curve:{...curve,closed:false,points:[...curve.points,curve.points[0]],chartPoints:[...curve.chartPoints,curve.chartPoints[0]],normals:[...curve.normals,curve.normals[0]],frameSamples:[...curve.frameSamples,curve.frameSamples[0]]});
       let contactAfter=[];
       if(framed){
-        const contact=materialContact(mapped,{layer,bounds:shell.bounds,support:{previousRegion:predecessorRegions.get(index)??[],previousSegments:contactSegments,surroundingSegments:otherFamilyContactSegments},contactFragments,predecessorReference,maxNormalGapMm:maxBeadHeightMm,required:requiredContact});
+        const contact=materialContact(mapped,{layer,bounds:shell.bounds,support:{previousRegion:predecessorRegions.get(index)??[],previousSegments:contactSegments,surroundingSegments:otherFamilyContactSegments},contactFragments,predecessorReference,maxNormalGapMm:maxBeadHeightMm});
         contactAfter=contact.after;
+        report.uncoveredContactSamples=(report.uncoveredContactSamples??0)+contact.report.uncoveredSamples;
         if(contact.report.samples){report.contactSamples=(report.contactSamples??0)+contact.report.samples;report.minContactGapMm=Math.min(report.minContactGapMm??Infinity,contact.report.minGapMm);report.maxContactGapMm=Math.max(report.maxContactGapMm??0,contact.report.maxGapMm);}
         mapped=surfaceGapCurves(mapped,{slice,direction:contact.direction,distancesMm:contact.distancesMm,allowZero:true}).curves;
       }
@@ -505,7 +509,7 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
 // envelopes: [{part, solidRegionAt(z)}] regions a process (a plastic-weld
 // rivet) needs solid in the slices of its part.
 export function prepareSliceContexts({ plan, machine, shells, volumes, bands, reserves, envelopes = [],surfaceAssignments=[], onProgress }) {
-  const lowered=new Map(surfaceAssignments.map(input=>[input.assignment.id,{assignment:lowerSkinAssignment(input),contact:{source:input.assignment.supportFrom,required:input.assignment.supportFrom!==null},survey:input.survey}]));
+  const lowered=new Map(surfaceAssignments.map(input=>[input.assignment.id,{assignment:lowerSkinAssignment(input),contact:{source:input.assignment.supportFrom},survey:input.survey}]));
   const assignments = plan.slices.assignments.flatMap(a=>!a.construction?[a]:lowered.has(a.id)?[lowered.get(a.id).assignment]:[]);
   if (!assignments.length) return {contexts:[]};
   const processes = assignments.map(a => assignmentPlan(plan,machine,a).process);
@@ -531,12 +535,12 @@ export function prepareSliceContexts({ plan, machine, shells, volumes, bands, re
   return {contexts};
 }
 
-export function sliceContextResult(record,{layerIndex=null,contactSegments=[],otherFamilyContactSegments=[],seedSegments=[],contactFragments=[],predecessorReference=null,requiredContact=false}={}){
+export function sliceContextResult(record,{layerIndex=null,contactSegments=[],otherFamilyContactSegments=[],seedSegments=[],contactFragments=[],predecessorReference=null}={}){
   const layers=layerIndex===null?record.spec.layers:record.spec.layers.filter(layer=>layer.index===layerIndex);
   requireThat(layers.length,'Slice construction context has no requested layer.');
   requireThat(layerIndex===null||!record.spec.settings.join,'A joined family must be constructed as one context.');
   const context=layerIndex===null?record.context:{...record.context,report:{...record.context.report,layerStartOrdinal:record.spec.layers.findIndex(layer=>layer.index===layerIndex)}};
-  const result=sliceResult({...record.spec,layers,contactSegments,otherFamilyContactSegments,seedSegments,contactFragments,predecessorReference,requiredContact},context);
+  const result=sliceResult({...record.spec,layers,contactSegments,otherFamilyContactSegments,seedSegments,contactFragments,predecessorReference},context);
   return {...result,family:{...record.family,layers:result.familyLayers},ownershipGroup:record.owner.ownershipGroup,familyId:record.familyId};
 }
 

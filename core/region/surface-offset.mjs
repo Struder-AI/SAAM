@@ -12,8 +12,9 @@ import { requireThat, dot, cross, normalize } from '../geom/tolerance.mjs';
 import { surfaceDerivatives } from '../geom/surface-derivatives.mjs';
 import { evaluatedSurfaceDerivatives } from '../geom/evaluated-surface.mjs';
 import { clipperContext, clipPaths, simplifyPaths } from './clipper.mjs';
-import {intersect,difference,clipOpenPaths} from './intersection.mjs';
+import {intersect,difference,union,clipOpenPaths} from './intersection.mjs';
 import {pointSegmentDistance} from './region2d.mjs';
+import {piecewiseChart,piecewiseChartFrame,piecewiseChartRay,splitPiecewiseChartPath} from '../geom/piecewise-chart.mjs';
 
 const plus=(a,b,s=1)=>a.map((x,k)=>x+b[k]*s);
 const midpoint=(a,b)=>a.map((x,k)=>(x+b[k])/2);
@@ -29,7 +30,8 @@ export function offsetSurfaceRegion(patch,loopsUv,deltaMm,settings={}){
 // and full vertex disks are unioned by the same offset topology stage.
 export function strokeSurfaceRegion(patch,paths,radiusMm,settings={}){
   requireThat(Number.isFinite(radiusMm)&&radiusMm>0&&Array.isArray(paths)&&paths.every(p=>p.points?.length>=2),'Surface stroke buffer needs paths and a positive radius.');
-  const prepared={...prepareSurfaceOffset(patch,[],radiusMm,settings),strokePaths:paths};
+  const base=prepareSurfaceOffset(patch,[],radiusMm,settings);
+  const prepared={...base,strokePaths:base.atlas?paths.map(path=>splitPiecewiseChartPath(base.atlas,path)):paths};
   return finishSurfaceOffset(patch,prepared,sweepSurfaceOffset(patch,prepared));
 }
 
@@ -40,7 +42,10 @@ export function prepareSurfaceOffset(patch, loopsUv, deltaMm, {
   requireThat(Number.isFinite(deltaMm), 'Surface offset distance must be finite.');
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0&&Number.isFinite(maxStepMm)&&maxStepMm>0,
     'Surface offset toleranceMm and maxStepMm must be positive and finite.');
-  requireThat((patch?.cp||patch?.kind==='slice-chart') && patch.domainU && patch.domainV, 'Surface offset requires a native patch or evaluated slice chart.');
+  requireThat((patch?.cp||['slice-chart','sleeve-chart'].includes(patch?.kind)) && patch.domainU && patch.domainV, 'Surface offset requires a native patch or evaluated chart.');
+  const piecewise=patch.kind==='sleeve-chart'||patch.kind==='slice-chart'&&patch.slice?.reference?.kind==='roof';
+  const atlas=patch.atlas??(piecewise?piecewiseChart(patch,{toleranceMm:toleranceMm/4,normalMm}):null);
+  if(atlas)patch={...patch,atlas};
   // Geodesic ODE needs a continuous second derivative through internal knots.
   const native=patch.cp?patch:patch.slice?.reference?.patch;
   for(const [knots,order,domain] of native?[[native.knotsU,native.orderU,native.domainU],[native.knotsV,native.orderV,native.domainV]]:[]) {
@@ -59,11 +64,12 @@ export function prepareSurfaceOffset(patch, loopsUv, deltaMm, {
   const {at,samples}=createSurfaceSampler(patch,settings);
   const simplified=constraint===null?{loops:source,simplificationUv:0}:
     simplifySurfaceLoops(source,{constraint,initial,toleranceMm,precisionUv},at);
-  return {source:simplified.loops,constraint,initial,settings,surfaceSamples:samples,
+  return {source:simplified.loops,constraint,initial,settings,atlas,surfaceSamples:samples,
     work:{evaluations:samples.size,simplificationUv:simplified.simplificationUv}};
 }
 
 export function sweepSurfaceOffset(patch,prepared){
+  if(prepared.atlas)patch={...patch,atlas:prepared.atlas};
   const {source,constraint,settings}=prepared;
   const {deltaMm,toleranceMm,maxStepMm,precisionUv,origin}=settings;
   const options={precisionMm:precisionUv,origin};
@@ -103,7 +109,8 @@ export function sweepSurfaceOffset(patch,prepared){
     const a=rhs(s),b=rhs(plus(s,a,h/2)),c=rhs(plus(s,b,h/2)),d=rhs(plus(s,c,h));
     return s.map((x,k)=>x+h*(a[k]+2*b[k]+2*c[k]+d[k])/6);
   };
-  const shoot=(uv,direction)=>{
+  const shoot=(uv,direction,hint=null)=>{
+    if(prepared.atlas){const ray=piecewiseChartRay(prepared.atlas,uv,direction,radius,hint);integrations+=ray.length-1;return ray;}
     const frame=at(uv),velocity=frame.uvOf(normalize(direction));
     let state=[...uv,...velocity],travel=0,h=Math.min(maxStepMm,radius);
     const ray=[uv];
@@ -161,10 +168,10 @@ export function sweepSurfaceOffset(patch,prepared){
     const tangentUv=plus(b,a,-1), samples=new Map();
     const sample=t=>{
       if(samples.has(t))return samples.get(t);
-      const uv=plus(a,tangentUv,t),frame=at(uv);
+      const uv=plus(a,tangentUv,t),hint=midpoint(a,b),frame=at(uv,hint);
       const tangent=frame.du.map((x,k)=>x*tangentUv[0]+frame.dv[k]*tangentUv[1]);
       const normal=cross(tangent,frame.normal).map(x=>x*Math.sign(deltaMm));
-      const value={uv,point:frame.point,offset:shoot(uv,normal)};
+      const value={uv,point:frame.point,offset:shoot(uv,normal,hint)};
       samples.set(t,value);return value;
     };
     const connect=(l,r,side)=>{
@@ -183,9 +190,9 @@ export function sweepSurfaceOffset(patch,prepared){
       let error=distance(m.point,midpoint(l.point,r.point));
       for(const side of ['offset']) {
         const p=l[side].at(-1),q=r[side].at(-1),s=m[side].at(-1);
-        error=Math.max(error,distance(at(s).point,at(midpoint(p,q)).point));
+        error=Math.max(error,distance(at(s).point,prepared.atlas?midpoint(at(p).point,at(q).point):at(midpoint(p,q)).point));
       }
-      if((error>toleranceMm/4||distance(l.point,r.point)>maxStepMm)&&!(constraint!==null&&distance(l.point,r.point)<=toleranceMm*1e-3)) {
+      if((error>toleranceMm/4||distance(l.point,r.point)>maxStepMm)&&!((constraint!==null||prepared.atlas)&&distance(l.point,r.point)<=toleranceMm*1e-3)) {
         requireThat(mid>lo&&mid<hi,'Surface offset subdivision cannot resolve the requested tolerance: the strip parameter is one representable step wide.');
         subdivisions++;subdivide(lo,mid);subdivide(mid,hi);
       }else {connect(l,r,'offset');}
@@ -210,7 +217,7 @@ export function sweepSurfaceOffset(patch,prepared){
     };
     const sector=(a,b)=>{
       const p=ray(a).at(-1),q=ray(b).at(-1),m=ray((a+b)/2).at(-1);
-      if(distance(at(m).point,at(midpoint(p,q)).point)>toleranceMm/4&&!(constraint!==null&&radius*Math.abs(b-a)<=toleranceMm*1e-3)) {
+      if(distance(at(m).point,prepared.atlas?midpoint(at(p).point,at(q).point):at(midpoint(p,q)).point)>toleranceMm/4&&!((constraint!==null||prepared.atlas)&&radius*Math.abs(b-a)<=toleranceMm*1e-3)) {
         requireThat((a+b)/2!==a&&(a+b)/2!==b,'Surface offset disk cannot resolve the requested tolerance: the sector is one representable step of angle.');
         subdivisions++;sector(a,(a+b)/2);sector((a+b)/2,b);
       }else {
@@ -254,6 +261,7 @@ export function sweepSurfaceOffset(patch,prepared){
 }
 
 export function finishSurfaceOffset(patch,prepared,swept){
+  if(prepared.atlas)patch={...patch,atlas:prepared.atlas};
   const {source,constraint,initial,settings}=prepared,{bands}=swept;
   const {deltaMm,toleranceMm,precisionUv,origin}=settings,radius=Math.abs(deltaMm);
   const options={precisionMm:precisionUv,origin};
@@ -261,6 +269,12 @@ export function finishSurfaceOffset(patch,prepared,swept){
   const context=clipperContext([source,bands],precisionUv,0,origin);
   const region=context.encode(source), buffer=clipPaths(context.encode(bands));
   let result=radius===0?source:context.decode(deltaMm>0?clipPaths([...region,...buffer]):clipPaths(region,buffer,'difference'));
+  if(prepared.atlas&&result.length){
+    const extent=result.reduce((range,loop)=>loop.reduce(([lo,hi],p)=>[Math.min(lo,p[0]),Math.max(hi,p[0])],range),[Infinity,-Infinity]);
+    const first=prepared.atlas.periodic?Math.floor(extent[0]):0,last=prepared.atlas.periodic?Math.floor(extent[1]):0,domain=[];
+    for(let shift=first;shift<=last;shift++)domain.push(...prepared.atlas.faces.map(face=>face.vertices.map(v=>[v.uv[0]+shift,v.uv[1]])));
+    result=intersect(result,union(domain,[],options),options);
+  }
   let simplificationUv=prepared.work.simplificationUv;
   if(constraint!==null){
     result=intersect(result,constraint,options);
@@ -271,7 +285,7 @@ export function finishSurfaceOffset(patch,prepared,swept){
     }
   }
   const loops=result.map(loop=>loop.map(uv=>[...at(uv).point]));
-  return {loopsUv:result,loops,report:{status:'experimental',method:'geodesic-bands-clipper2',normalMm:settings.normalMm??0,metric:patch.kind==='slice-chart'?'adaptive-numerical-slice-chart':settings.normalMm?'analytic-rational-normal-offset':'native-patch',
+  return {loopsUv:result,loops,report:{status:'experimental',method:'geodesic-bands-clipper2',normalMm:settings.normalMm??0,metric:prepared.atlas?.method??(patch.kind==='slice-chart'?'adaptive-numerical-slice-chart':settings.normalMm?'analytic-rational-normal-offset':'native-patch'),
     toleranceMm,precisionUv,evaluations:prepared.work.evaluations+swept.work.evaluations+samples.size,
     integrationSteps:swept.work.integrationSteps,subdivisions:swept.work.subdivisions,
     inverseMappings:0,bandTriangles:bands.length,boundaryStops:swept.work.boundaryStops,simplificationUv}};
@@ -281,15 +295,15 @@ export function finishSurfaceOffset(patch,prepared,swept){
 // their records are reused without copying the accumulated cache per ray.
 function createSurfaceSampler(patch,{constrained,precisionUv,normalMm=0,toleranceMm=.01},priorSamples=[]){
   const samples=new Map();
-  const at=uv=>{
+  const at=(uv,hint=null)=>{
     if(constrained)uv=uv.map((x,k)=>{
       const [lo,hi]=[patch.domainU,patch.domainV][k];
       return x>=lo-precisionUv*8&&x<=hi+precisionUv*8?Math.max(lo,Math.min(hi,x)):x;
     });
-    const key=uv.join(',');
+    const key=uv.join(',')+(patch.atlas&&hint?`:${hint.join(',')}`:'');
     if(samples.has(key))return samples.get(key);
     for(const prior of priorSamples)if(prior.has(key))return prior.get(key);
-    const result=patch.cp?surfaceDerivatives(patch,...uv,{normalMm}):evaluatedSurfaceDerivatives(patch,...uv,{normalMm,toleranceMm});
+    const result=patch.atlas?piecewiseChartFrame(patch.atlas,uv,hint):patch.cp?surfaceDerivatives(patch,...uv,{normalMm}):evaluatedSurfaceDerivatives(patch,...uv,{normalMm,toleranceMm});
     samples.set(key,result);return result;
   };
   return {at,samples};

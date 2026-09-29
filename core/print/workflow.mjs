@@ -138,9 +138,8 @@ async function initBundle(directory, plan, { setupFile, machineId, sourceBytes,s
   }
   const machine = machineId?loadMachine(machineId):await json(machineFile);
   setupFile??=setupFor(machine);
-  requireThat(plan?.geometry, 'Creating a bundle requires authored or imported geometry; add geometry to the proposed recipe first.');
   validatePlan(plan, machine);
-  const geometry = await createGeometry(plan.geometry);
+  const geometry = plan.geometry?await createGeometry(plan.geometry):null;
   if(originalSource(plan.geometry)){
     if(sourcePath){
       const target=resolve(dir,'geometry/source.stl'),temporary=target+'.tmp';await mkdir(dirname(target),{recursive:true});
@@ -154,6 +153,7 @@ async function initBundle(directory, plan, { setupFile, machineId, sourceBytes,s
 }
 
 async function saveGeometry(dir, geometry) {
+  if(!geometry)return null;
   const geometryHash=hash({file:hash(geometry.bytes),descriptor:geometry.descriptor});
   const file=`geometry/${geometryHash}${nativeSuffix(geometry.descriptor)}`;
   try{await access(resolve(dir,file));}catch(error){if(error.code!=='ENOENT')throw error;await save(resolve(dir,file),geometry.bytes);}
@@ -285,10 +285,10 @@ async function readBundleInput(directory) {
   }else{
     throw Error(`Legacy split-file bundle requires explicit migration. Run: node core/print/cli.mjs migrate ${JSON.stringify(dir)}`);
   }
-  requireThat(state.geometry&&/^[a-f0-9]{64}$/.test(state.geometry.hash)
+  requireThat(state.geometry===null&&!state.plan.geometry||state.geometry&&/^[a-f0-9]{64}$/.test(state.geometry.hash)
     &&new RegExp(`^geometry/${state.geometry.hash.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\.(?:3dm|mesh\\.json)$`).test(state.geometry.file),
   'Invalid geometry artifact reference.');
-  const bytes=await readFile(resolve(dir,state.geometry.file));
+  const bytes=state.geometry?await readFile(resolve(dir,state.geometry.file)):null;
   return {dir,planText,...state,bytes};
 }
 
@@ -302,13 +302,13 @@ async function validateBundleInput(input,previousCache) {
     const fileHash=hash(bytes),identityKey=hash([hash(planText),fileHash]);
     let identity=cache.identity;
     if(identity?.key!==identityKey){
-      const geometryHash=hash({file:fileHash,descriptor:geometry.descriptor});
-      requireThat(geometryHash===geometry.hash,'Saved geometry artifact changed; rebuild the print geometry.');
-      requireThat(geometry.file===`geometry/${geometry.hash}${nativeSuffix(geometry.descriptor)}`,'Invalid geometry artifact reference.');
+      const geometryHash=geometry?hash({file:fileHash,descriptor:geometry.descriptor}):hash(null);
+      requireThat(!geometry||geometryHash===geometry.hash,'Saved geometry artifact changed; rebuild the print geometry.');
+      requireThat(!geometry||geometry.file===`geometry/${geometry.hash}${nativeSuffix(geometry.descriptor)}`,'Invalid geometry artifact reference.');
       if(review.generation)requireThat(review.generation.file===exportArtifactPath(plan,machine,review.generation.exportHash),
         'Invalid generated program reference. Regenerate the print.');
       const inputsHash=hash({plan,machine});
-      if(cache.verifiedGeometryHash!==geometryHash){
+      if(geometry&&cache.verifiedGeometryHash!==geometryHash){
         await verifyGeometry(bytes,geometry.descriptor);
         cache.verifiedGeometryHash=geometryHash;
       }
@@ -317,11 +317,11 @@ async function validateBundleInput(input,previousCache) {
         cache.validatedInputsHash=inputsHash;
         cache.validatedPlanText=JSON.stringify(plan);
       }
-      requireThat(canonical(plan.geometry)===canonical(geometry.descriptor.parameters),'Plan and geometry disagree. Rebuild the print geometry.');
+      requireThat(canonical(plan.geometry)===canonical(geometry?.descriptor.parameters),'Plan and geometry disagree. Rebuild the print geometry.');
       identity={key:identityKey,geometryHash,generationHash:hash({plan,machine,geometryHash})};
       cache.identity=identity;
     }
-    return {dir,plan,machine,geometry:geometry.descriptor,geometryArtifact:geometry,review,identity,cache};
+    return {dir,plan,machine,geometry:geometry?.descriptor??null,geometryArtifact:geometry,review,identity,cache};
   } catch(error) {return {cache,error};}
 }
 
@@ -332,8 +332,8 @@ async function describeBundle({dir,plan,machine,geometry,geometryArtifact,review
     kind, dir, plan, machine, geometry, review, geometryHash, generationHash, programChecked:Boolean(program),
     exportName: exportName(plan,machine), limitations: limitationsFor(plan, machine),
     outputAvailability:machine.outputs.find(o=>o.id===plan.output)?.implemented===false?`Machine-file export for ${machine.name} is not available yet; geometry and settings can be reviewed.`:null,
-    // The slice skill first when the recipe has slice assignments.
-    skills: [...(plan.slices?.assignments?.length?['slice']:[]),...Object.entries(plan.skills??{}).filter(([,settings])=>settings.enabled).map(([name])=>name)]
+    skills: [...new Set((plan.slices?.assignments??[]).map(a=>a.construction==='inject'?'inject':['curves','bridges'].includes(a.construction)?'trace':'slice')),
+      ...Object.entries(plan.skills??{}).filter(([,settings])=>settings.enabled).map(([name])=>name)]
   };
   if(machine.id==='denso-vs068a4-rc8a'){
     state.machineConfiguration=validateDensoConfiguration(plan);
@@ -484,7 +484,7 @@ async function updatePlan(directory, plan, revision) {
   if (!change.changed) return state;
 
   // Build before committing anything; plan.json remains the edit commit point.
-  const geometry = change.geometryChanged ? await createGeometry(change.plan.geometry) : null;
+  const geometry = change.geometryChanged&&change.plan.geometry ? await createGeometry(change.plan.geometry) : null;
   const review = editedPlanReview(state.review, state.generationHash, change.geometryChanged, planChanges(state.plan, change.plan));
   await persistPlanUpdate(state,change.plan,geometry,review);
   return loadBundle(directory);
@@ -499,7 +499,7 @@ function validatePlanUpdate(state, candidate) {
 }
 
 async function persistPlanUpdate(state,plan,geometry,review) {
-  const geometryArtifact=geometry?await saveGeometry(state.dir,geometry):state.geometryArtifact;
+  const geometryArtifact=!plan.geometry?null:geometry?await saveGeometry(state.dir,geometry):state.geometryArtifact;
   await saveManifest(state.dir,{plan,machine:state.machine,review,geometry:geometryArtifact});
 }
 
@@ -577,7 +577,7 @@ function generationChecks(state,prepared,development){
     travel: summary.travel,
     shortTravel: program.summary.shortTravel,
     nonplanarLimit: summary.nonplanarLimit ?? null,
-    checks: ['plan-inputs', 'closed-geometry', 'native-geometry-round-trip', 'declared-output', ...(program.checks??(program.envelope?['fixed-firmware-envelope','archive-integrity','strict-print-body-interpretation']:['strict-gcode-interpretation'])),
+    checks: ['plan-inputs', ...(state.geometry?['closed-geometry','native-geometry-round-trip']:[]), 'declared-output', ...(program.checks??(program.envelope?['fixed-firmware-envelope','archive-integrity','strict-print-body-interpretation']:['strict-gcode-interpretation'])),
       ...(state.machine.motionChecks==='deferred'?[]:['xyz-bounds','axis-feed']), ...(program.summary.materialModel==='relay-estimate'?['commanded-flow-intent']:['extrusion-flow','temperature-state'])],
     clearance: 'operator responsibility; no collision model implemented',
     physicalValidation: 'not performed',

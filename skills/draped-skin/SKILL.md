@@ -1,74 +1,56 @@
 ---
 name: draped-skin
-description: Roof-following courses authored as common skin assignments; steep regions and local bead gaps are reported.
+description: Roof-following courses through common slice families, ownership and deposition.
 ---
 
 # Draped skin
 
-This is a construction of the [general slice/deposition skill](../slice/SKILL.md).
-Add a `construction: 'skin'` record to `plan.slices.assignments`; there is no
-separate enabled skill record. Use the [shared tools](../../core/print/USAGE.md)
-and normal geometry/toolpath review.
+Use the [slice skill](../slice/SKILL.md) and normal geometry/toolpath review.
+`skinAssignment({id,...settings})` in
+[shared constructions](../../core/print/surface-constructions.mjs) writes a
+`construction:'skin'` preset; generation lowers it to an ordinary roof family
+and a finite chart-region volume. There is no separate skin producer.
 
-Native spline and mesh roof queries retain their geometry. In an assembly,
-select a component with `part`; `null` selects a single solid. The reference is
-the highest exposed surface at XY, not an underside or a wrapped sleeve.
-Mesh normals remain faceted. A discontinuous, absent or excessive-slope mapped
-reference rejects rather than silently flattening the path.
-
-## Assignment
-
-`skinAssignment({id, ...settings})` in
-[shared constructions](../../core/print/surface-constructions.mjs) supplies defaults.
+Native spline and mesh roof queries retain their geometry. Select an assembly
+component with `part`; `null` selects a single solid. The reference is the highest
+exposed surface at XY. Mesh normals remain faceted; discontinuities and absent
+reference domains cannot be silently flattened.
 
 | Field | Default | Meaning |
 |---|---|---|
-| `part` | `null` | Selected roof component, required for assemblies. |
-| `filament`, `process` | `null` | Shared material selection and local process overrides. |
-| `after` | `[]` | Additional operation prerequisites. |
-| `supportFrom` | `null` | Explicit finalized producer assignment for first contact. |
-| `layers` | `2` | Positive whole number of roof courses. |
-| `pitchMm` | `0.2` | Vertical translation between roof courses. |
-| `spacingFactor` | `1` | XY row pitch as a multiple of bead width. |
+| `part` | `null` | Selected roof component. |
+| `filament`, `process` | `null` | Material selection and local process overrides. |
+| `after` | `[]` | Operation prerequisites. |
+| `supportFrom` | `null` | Finalized source assignment for first-course contact; not a support requirement. |
+| `layers` | `2` | Number of translated roof courses before ownership allocation. |
+| `pitchMm` | `0.2` | Target area-weighted mean normal gap over the entire reference. |
+| `spacingFactor` | `1` | XY row pitch divided by bead width. |
 | `strokeAngleDeg` | `0` | Row direction in the XY chart. |
-| `sampleStepMm` | `0.5` | Maximum physical mapping step; chord error also refines. |
-| `surveyStepMm` | `0.5` | Roof/reservation topology sampling step. |
-| `maxAngleDegOverride` | `null` | Explicit experimental override of the declared limit. |
+| `sampleStepMm` | `0.5` | Physical mapping step, with chord-error refinement. |
+| `surveyStepMm` | `0.5` | Roof-domain sampling step. |
+| `maxAngleDegOverride` | `null` | Explicit experimental survey angle override. |
 
-Survey first, reserve the printable roof courses, then construct the supporting
-body. Excluded steep regions retain ordinary body material. Reservations affect
-only their actual footprint. The body finishes before its skin, and courses stay
-ordered. Each course maps shared directed fill strokes onto its height reference;
-shared deposition computes volume from local gaps and actual mapped normals.
-Courses translate vertically; their normal bead thickness is pitch times the
-local normal's Z component. True constant-normal offset stacks are not implied.
-Legacy `normalMm` described projected normal depth and requires an explicit
-process migration; it is not an alias for `pitchMm`.
+Whole-reference normals calibrate the vertical translation; local normal gaps
+vary. Constant-normal offset stacks are not implied. The surveyed skin volume
+participates in ordinary ownership; unclaimed steep regions retain body
+material. Multiple overlapping claims use shared precedence and alternation.
+Dependencies schedule body, sleeve, rim and skin courses through one graph.
 
-With `supportFrom`, the first gap and prerequisites come from that producer's
-final positive-volume beads. Missing support or support at/above the new stroke
-rejects. Modulated support also uses actual finalized coverage. Unmodulated body
-courses retain the declared layer-lattice approximation across sparse voids;
-bridging remains a recipe judgment, without a separate permission flag.
-Modulation runs before final bead coverage is published to later consumers.
+At an interface, finalized beads supply actual contact distance where present.
+Missing material uses the nominal predecessor reference and is reported without
+rejecting or moving the authored path. `supportFrom` selects a source and its
+prerequisites; it does not certify support. Local volume is segment length ×
+width × projected normal gap. No overhang percentage, automatic support, adhesion
+or sag model is applied. Support assignment remains a separate judgment.
 
-## Travel and limits
+Machine angle, bead-height, flow and bounds constraints still apply. A .2 mm
+skin over a .2 mm horizontal lattice can have a first local gap near .4 mm;
+that exceeds a tool limited to .3 mm. Revise the authored process when needed;
+generation does not insert transition courses. Finalization publishes sparse
+beads after connections and modulation, retaining the selected geometry identity.
 
-Nearest-entry scanline groups retain their segment volumes and normals when
-reversed. Shared surface travel checks the footprint and local height. Short
-turnarounds allow up to one-quarter course thickness of sag, capped at 0.05 mm;
-lifted travel clears all previously deposited material. See
-[shared travel](../../core/path/README.md#whole-plan-travel-requirement).
-
-The configured machine's fixed-axis slope limit applies. On a machine with
-tool orientation, mapped surface frames command the nozzle along the negative
-surface normal. An explicit fixed-axis override remains experimental.
-Sampling can miss between-grid features, and projected XY spacing is not a
-geodesic metric. Pressure, adhesion, full head collisions and physical bead shape
-are not modeled. The user reported physical draped-skin prints on 2026-09-24;
-head clearance and finish were not measured. New software checks are not new
-physical validation.
-
-The [surface-drape example](../../examples/prints/surface-drape/README.md) and
-[common stack fixture](../../core/tests/fixtures/regional-stack.mjs) illustrate
-construction. New examples remain unapproved until the normal review workflow.
+Sampling can miss between-grid features; XY spacing is projected, not geodesic.
+See [shared travel](../../core/path/README.md#whole-plan-travel-requirement).
+Pressure, full-head clearance and physical bead shape are not modeled. Earlier
+user-reported prints do not validate this revised pipeline physically.
+Legacy `normalMm` requires explicit migration to target-gap `pitchMm`.

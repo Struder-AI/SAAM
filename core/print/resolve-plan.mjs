@@ -25,7 +25,12 @@ export function mergeRecord(previous,changes,{geometryTemplate,key}={}){
 }
 
 export function resolvePlanPatch(previous,patch,{geometryTemplate}){
-  let plan=mergeRecord(previous,patch,{geometryTemplate});
+  const {geometry,...settings}=patch;
+  let plan=mergeRecord(previous,settings,{geometryTemplate});
+  if(Object.hasOwn(patch,'geometry')){
+    if(geometry===null){const {geometry:removed,...withoutGeometry}=plan;plan=withoutGeometry;}
+    else plan={...plan,geometry:previous.geometry?mergeRecord(previous.geometry,geometry,{geometryTemplate,key:'geometry'}):structuredClone(geometry)};
+  }
   if(patch.setup?.firmwareVersion!==undefined
     &&patch.setup.firmwareVersion!==previous.setup.firmwareVersion
     &&patch.setup.startupVerified===undefined)

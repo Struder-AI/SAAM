@@ -3,6 +3,7 @@ import {difference,union} from '../../../core/region/boolean.mjs';
 import {regionArea,pointSegmentDistance} from '../../../core/region/region2d.mjs';
 import {horizontalSlice,sliceFamily} from '../../../core/geom/slice.mjs';
 import {requireProcessControl,validateNozzleC} from '../../../core/path/process-controls.mjs';
+import {pointInjectionOperation} from '../../../core/path/injection.mjs';
 
 export const PLASTIC_WELD_DEFAULTS={enabled:false,sites:[],shaftDiameterMm:1.2,basinDiameterMm:3,
   basinHeightMm:1.2,wallMm:1.2,floorMm:0.8,seatDepthMm:0,volumeFactor:1,flowMm3S:0.5,holdSeconds:1,nozzleC:null};
@@ -75,7 +76,7 @@ export function preparePlasticWeld({plan,placed,componentShells}){
   return sites;
 }
 
-export function plasticWeldResult({plan,sites,modelResults}){
+export function plasticWeldResult({plan,machine,sites,modelResults}){
   if(!sites.length)return {result:null,dependencyChanges:[]};
   const model=modelResults.flatMap(r=>r.operations),operations=[],reports=[],dependencyChanges=[];
   const planarLayers=new Map();
@@ -124,12 +125,11 @@ export function plasticWeldResult({plan,sites,modelResults}){
     for(const op of model)if(height(op)>top+1e-8)dependencyChanges.push({operationId:op.id,after:[id],mode:'union'});
     const volumeMm3=cavityVolumeMm3*s.volumeFactor;
     const layerZ=shell.bounds.min[2]+plan.process.firstLayerMm+layer*plan.process.layerMm;
-    operations.push({id,phase:'plastic-weld',layer,layerId:'planar:'+layerZ,rank:top,after,order:'given',
-      strokes:[{points:[[x,y,top-s.seatDepthMm]],role:'plastic-rivet',stationaryExtrusion:{volumeMm3,flowMm3S:s.flowMm3S,holdSeconds:s.holdSeconds}}],
-      ...(s.nozzleC!==null?{nozzleC:s.nozzleC,restoreNozzleC:plan.setup.nozzleC}:{}),
-      travelPolicy:{clearanceFor:()=>top,constantClearanceZ:top,canTravelDirect:()=>false,maxCombMm:0}});
+    operations.push(pointInjectionOperation({point:[x,y,top-s.seatDepthMm],volumeMm3,
+      flowMm3S:s.flowMm3S,holdSeconds:s.holdSeconds,approachMm:s.seatDepthMm},
+      {id,phase:'plastic-weld',layer,layerId:'planar:'+layerZ,rank:top,after,plan,machine,nozzleC:s.nozzleC,role:'plastic-rivet'}));
     reports.push({id:site.id,part:site.part,positionMm:[x,y,top-s.seatDepthMm],openingMm:top,bottomMm:bottom,cavityVolumeMm3,volumeMm3,
-      nozzleC:s.nozzleC??plan.setup.nozzleC,flowMm3S:Math.min(s.flowMm3S,plan.process.maxFlowMm3S)});
+      nozzleC:s.nozzleC??plan.setup.nozzleC,flowMm3S:s.flowMm3S});
   }
   return {result:{id:'plastic-weld',operations,report:{sites:reports,physicalValidation:'not performed'}},dependencyChanges};
 }

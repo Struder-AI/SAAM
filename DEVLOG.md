@@ -16,6 +16,15 @@
   curve metrics, API reconciliation and Studio remain unfinished. This checkpoint
   preserves the shared intermediate tree; it does not verify every saved change.
   No new tests, whole suites, map regeneration, push, release or hardware run.
+- Injection now shares approach, metered volume and hold machinery with rivets;
+  points-only bundles need no geometry artifact. Lead reran export/interpretation:
+  2 mm3 becomes 2.00000462 mm3 at program precision, with the authored 1.2 mm
+  approach and 65.125 s hold. Studio runtime verification remains open.
+- Adaptive foundation-gap integration retains XYZ and metadata; lead rerun mean
+  gap error was 0.00000098 mm. Piecewise square-sleeve corner/seam and roof-ridge
+  checks retained 1 mm physical ray length; rounded offset joins remain active.
+  Existing completed offset trimming was found intact; an unfinished historical
+  sleeve patch remains preserved in its old worktree and was not restored.
 
 ## 2026-09-29 — General geometry, modulation and contact checkpoint (unfinished)
 

@@ -1,25 +1,25 @@
 ---
 name: inject
-description: Meter stationary extrusion by volume and flow, with optional hold; currently authored through the plastic-weld cavity recipe rather than a generic injection tool.
+description: Meter stationary material at authored points, with explicit volume, flow, vertical approach and hold, through the shared recipe or slice editor.
 ---
 
 # Inject
 
-Inject deposits a specified material volume while the nozzle remains at one
-point. The shared stationary-extrusion core carries volumeMm3, flowMm3S and
-holdSeconds; volume divided by flow gives extrusion duration. It is distinct
-from [trace](../trace/SKILL.md), which deposits while following a curve.
+Inject deposits at a point; [trace](../trace/SKILL.md) deposits along a curve.
+Points-only bundles omit `geometry`. Use `slice` or `adjust_recipe` for `plan.slices`
+assignment: `{id:"spot",construction:"inject",points:[{point:[5,5,2],volumeMm3:1,flowMm3S:.5,approachMm:1,holdSeconds:2}]}`.
+The editor fills `filament:null`, `process:null`, `nozzleC:null`, empty
+`dependencies:{afterParts:[],beforeParts:[],after:[]}` and `description:""`.
+XYZ follows authored traces: add recipe XY placement; no component transform.
+Each point executes in list order: descend without deposition from `approachMm`
+above it, extrude for volume/flow seconds, then hold. Dependencies name part
+prerequisites or exact operation IDs; injection IDs are `assignmentId:index`.
 
-The current public authoring route is the [plastic-weld](../plastic-weld/SKILL.md)
-recipe: enable `skills.plastic-weld`, author its sites and cavity settings with
-the shared recipe tools, then generate and review the complete host and injection
-sequence. There is no generic injection-point tool or standalone injection
-assignment. Plastic-weld adds host reservation, sealing material and dependencies;
-the underlying stationary primitive alone makes none of those guarantees.
-
-World-frame `flow` modulation applies to role `injection`, multiplying volume and
-flow rate together so extrusion duration stays fixed. Hold time stays unchanged.
-Moving-path channels or curve/slice frames on a stationary point report an error.
-The selected material's flow limit and exporter support are checked. Metered
-volume does not measure pressure, fusion or cavity sealing; physical qualification
-remains necessary for the intended joint.
+Select a filament/material, override common process values (including fan), or
+set an operation `nozzleC` restored afterward. Bounds, temperature and material
+flow limits apply. Stationary injection requires a supported filament-axis
+G-code output; robot outputs reject it. World-frame flow modulation scales volume
+and rate together, retaining extrusion duration and hold; moving-path channels
+reject stationary points. Approach strokes carry zero material and no effects.
+No occupied support shape follows from volume alone. [Plastic-weld](../plastic-weld/SKILL.md)
+uses this same operation with cavity geometry, enclosure checks and cover dependencies.

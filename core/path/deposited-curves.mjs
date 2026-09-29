@@ -140,7 +140,10 @@ export function beadContactAlong(segments,point,direction,{maxDistanceMm=Infinit
   for(const [segmentIndex,segment] of segments.entries()){
     const {x,y,z,length,tangent,side}=beadCoordinates(segment,point);
     const vx=dot(ray,tangent),vy=dot(ray,side),vz=dot(ray,segment.normal);
-    const radius=segment.radius+toleranceMm;
+    // Subtracting world coordinates loses precision before the local slab and
+    // disk predicates run. Cover that arithmetic roundoff, not a physical gap.
+    const rounding=32*Number.EPSILON*Math.max(1,...point.map(Math.abs),...segment.a.map(Math.abs),...segment.b.map(Math.abs));
+    const radius=segment.radius+toleranceMm+rounding;
     const depth=slabInterval(z,vz,-segment.heightMm,0);
     const candidates=[
       [slabInterval(x,vx,0,length),slabInterval(y,vy,-radius,radius)],

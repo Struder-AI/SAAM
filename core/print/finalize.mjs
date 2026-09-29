@@ -17,7 +17,7 @@ function finalizedOperation(operation,plan,machine,result){
   for(const stroke of operation.strokes){
     if(stroke.stationaryExtrusion)requireThat(stroke.stationaryExtrusion.flowMm3S<=selected.process.maxFlowMm3S+1e-7,
       `Modulated operation ${operation.id} exceeds the selected stationary extrusion flow limit.`);
-    const displaced=matchingModulations(result,stroke.role,plan.modulations,operation).some(m=>m.channel==='displacement');
+    const displaced=!stroke.volumesMm3?.every(volume=>volume===0)&&matchingModulations(result,stroke.role,plan.modulations,operation).some(m=>m.channel==='displacement');
     const oriented=!!stroke.poses;
     requireThat(!oriented||machine.capabilities.includes('tool-orientation'),`Modulated operation ${operation.id} needs tool-orientation support.`);
     if(oriented){
@@ -29,8 +29,9 @@ function finalizedOperation(operation,plan,machine,result){
     requireThat(angle<=1e-7||machine.capabilities.includes('nonplanar')&&Number.isFinite(machine.nonplanar?.maxAngleDeg)&&angle<=machine.nonplanar.maxAngleDeg+1e-7,
       `Modulated operation ${operation.id} exceeds the machine's fixed-axis path slope limit.`);
     for(const [i,p] of stroke.points.entries()){
-      const width=Math.max(stroke.segmentMetadata?.[i]?.beadWidthMm??stroke.beadWidthMm,
-        stroke.segmentMetadata?.[i-1]?.beadWidthMm??stroke.beadWidthMm);
+      const width=stroke.stationaryExtrusion||stroke.volumesMm3?.every(volume=>volume===0)?0:
+        Math.max(stroke.segmentMetadata?.[i]?.beadWidthMm??stroke.beadWidthMm,
+          stroke.segmentMetadata?.[i-1]?.beadWidthMm??stroke.beadWidthMm);
       requireThat(!bounds||p.every((v,axis)=>v>=bounds.min[axis]+(axis===2?0:width/2)-1e-8&&v<=bounds.max[axis]-(axis===2?0:width/2)+1e-8),
         `Modulated operation ${operation.id} exceeds the selected tool bounds.`);
       high=Math.max(high,p[2]);
@@ -64,7 +65,7 @@ export function finalizeDepositionResult(result,plan,machine){
     matchingModulations(result,stroke.role,plan.modulations,op).some(m=>['displacement','width','flow'].includes(m.channel)))).map(op=>op.id):[];
   result=resolveDepositionConnections(result,{excludedOperationIds});
   result=prepareDepositionMotion(result,machine);
-  if(result.report.depositionConnections.count)result=republishDepositedBoundary(result,{widthMm:plan.process.lineWidthMm});
+  if(result.report?.depositionConnections?.count)result=republishDepositedBoundary(result,{widthMm:plan.process.lineWidthMm});
   if(!plan.modulations?.modifiers.length||!result.operations.some(op=>op.strokes.some(stroke=>matchingModulations(result,stroke.role,plan.modulations,op).length)))return result;
   requireThat(!result.operations.some(op=>op.phase==='bridging'&&op.strokes.some(stroke=>matchingModulations(result,stroke.role,plan.modulations,op).some(m=>m.channel==='displacement'))),
     'Bridge attachment displacement is not supported; modulate supporting assignments before constructing the bridge.');

@@ -170,8 +170,8 @@ draping; an assembly is not a boolean union.
 ## Material ownership and surface contact
 
 `plan.slices.assignments` owns deposition selection. Ordinary assignments combine
-surface references, a stack and material restrictions; construction assignments
-select skin, fronts, sleeves, rims or authored curves. See the
+surface references, a stack and material restrictions; skin/front presets lower
+to these same records. Sleeves, rims and trace curves share core stages. See the
 [slice manual](../../skills/slice/SKILL.md) for records and limits. Assembly
 components remain separate selections; they are not implicitly unioned.
 Prepared text exposes `base` and `text/<feature-id>` selections, prefixed by the
@@ -184,8 +184,8 @@ Each assignment may supply `process:null` or overrides for `firstLayerMm`,
 before these overrides. An ordinary assignment's explicit stack controls its
 slicing pitch; process values control deposition defaults.
 
-[reservation.mjs](./reservation.mjs) removes skin roof reserves and temporary
-process cavities from owned material. A plastic-weld reservation supplies a
+[reservation.mjs](./reservation.mjs) removes temporary process cavities from
+owned material. A plastic-weld reservation supplies a
 footprint, `regionAt(z)` and a solid envelope `solidRegionAt(z)`. Height-field
 slices evaluate reservations in world space before returning chart regions.
 Reservations are rebuilt from the recipe; they do not claim deposited coverage.
@@ -199,17 +199,12 @@ and [surface-curves.mjs](./surface-curves.mjs). Seeded fronts use
 Mapping preserves surface normals and checks physical sample spacing and chord
 error. Fixed-axis production checks both surface and mapped-path inclination.
 
-A skin's optional `supportFrom` names a common assignment, including an ordinary
-owner whose output spans several surface families. Generation gathers that
-source's results on its selected part and waits for their final operations.
-The first course measures its local gap to finalized deposited beads. Required
-contacts without coverage, nonpositive gaps, absent sources and dependency
-cycles reject. A thin curved component or raised-text selection can consume a
-preceding skin; later courses follow its own top geometry and normal depth.
-Without an explicit source, unchanged ordinary support retains the declared
-layer-lattice approximation in [support-surface.mjs](./support-surface.mjs).
-Changed support always uses final bead coverage; the lattice approximation does
-not turn a void into deposited material.
+A skin's `supportFrom` selects a finalized source assignment and prerequisites.
+The shared family scheduler selects nominal predecessor courses per chart column,
+then measures actual beads where present. Missing material retains nominal gap
+without moving or rejecting the authored path; it is diagnostic, not a support
+requirement. Local normal gaps set volume independently of support assignment.
+Absent source identities, dependency cycles and machine constraints still reject.
 
 [Finalization](../print/finalize.mjs) applies modulation before dependent
 construction and republishes boundaries from final strokes.

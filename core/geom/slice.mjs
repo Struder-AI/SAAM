@@ -18,7 +18,7 @@
 // direction, so every layer keeps the same chart and a chart point names the
 // same column of material in every layer. Neighbouring layers therefore
 // compare by 2D booleans alone.
-import { heightSlicePoint, heightSliceNormal, sectionHeightSlice, heightReferenceBounds,heightReferenceMetric,sampledChartRegion } from './height-slice.mjs';
+import { heightSlicePoint, heightSliceNormal, sectionHeightSlice, heightReferenceBounds,heightReferenceMetric,sampledChartRegion,referenceHeight } from './height-slice.mjs';
 import {chartPrismContains} from './chart-prism.mjs';
 import { sectionShell } from './shell.mjs';
 import { meshSectionIndex, sectionMeshIndex } from './mesh.mjs';
@@ -160,6 +160,7 @@ function sectionLoops(geometry, slice, options) {
     }else extent={min:geometry.bounds.min.slice(0,2),max:geometry.bounds.max.slice(0,2)};
     const loops=sampledChartRegion(extent,sliceChartStep(slice,options.sampleStepMm??.2),uv=>{
       if(uv.some((v,k)=>v<extent.min[k]||v>extent.max[k]))return false;
+      if(slice.kind==='height-field'&&!referenceHeight(slice.reference,...uv))return false;
       return chartPrismContains(geometry,slicePoint(slice,uv));
     });
     return {loops,nudgedByMm:0};

@@ -38,7 +38,7 @@ presets and alternation have software evidence only.
 | `sampleStepMm` | `0.2` | Gyroid sampling step. |
 | `within` | `[]` | The owned volume, below; empty owns the rest of the part. |
 | `surface` | `{ kind: 'horizontal' }` | Horizontal; `{kind:'plane',origin,normal,xAxis?}`; `{kind:'roof',offsetMm}`; or `{kind:'spline',patch,offsetMm}` using a named spline control net. Coordinates precede selected geometry placement. |
-| `stack` | `null` | `{ firstLayerMm, layerMm }` for the owner's own layer grid; `null` uses the process. |
+| `stack` | `null` | `{firstLayerMm,layerMm,direction?}`: whole-reference mean normal gaps and optional translation direction; `null` uses process gaps. |
 
 ## Owners and volumes
 
@@ -112,7 +112,7 @@ approximate ([measurement](../../DEVLOG.md#2026-09-10--gyroid-contour-constructi
   [tiles](../advanced-vase-wall/SKILL.md), [rims](../thick-lip/SKILL.md) and
   [cladding](../pipe-cladding/SKILL.md). These apply the same core operations.
 - Sleeves reserve their part band; raised walls need a printed base. Skin
-  reserves thickness below its roof. Explicit sources carry support dependencies.
+  claims translated roof material. Explicit sources carry contact prerequisites.
 - [plastic-weld](../plastic-weld/SKILL.md) rivets reserve their shafts and keep
   the envelope around them solid.
 - Ownership determines compatible slicing before sequence; assemblies can batch
@@ -122,8 +122,10 @@ approximate ([measurement](../../DEVLOG.md#2026-09-10--gyroid-contour-constructi
 
 Tilted planes stack along their upward normal; `layerMm` is normal spacing.
 The base precedes material; fixed-axis deposition obeys the machine angle limit.
-Roof/spline stacks translate in Z; pitch is vertical and bead gaps project onto
-the local normal. XY offsets/spacing are projected, not geodesic. Sampled cuts,
+Whole-reference area-weighted normals choose the default family direction and
+calibrate translation to target mean normal gap. Roofs translate in Z; native
+spline references retain their chart. Local gaps vary and set volume. XY roof
+offsets/spacing are projected, not geodesic. Sampled cuts,
 slabs and reservations can miss between-grid features. Curves refine to chord
 tolerance; folds/discontinuities reject. First contact tapers to the horizontal
 part base. Walls close per layer. Opposing fronts of a thin wall share their last loop (a 2 mm ring at 0.4 mm with
@@ -140,15 +142,13 @@ Optional effects on an otherwise valid toolpath, primarily visual and surface ef
 `modulate` and bulk `adjust_recipe` write `plan.modulations` version1. Add needs `id,channel,amplitude,field`; displacement also needs `direction`. Assignment, role, layer-range and `topN` selectors locate effects. Periodic waves, smooth seeded noise, bumps, ramps and geometry masks can shape them. Tool schemas give exact fields.
 World, slice and curve frames locate patterns; native spline UV is not millimetres. Physical displacement transitions are intrinsically smooth; flow/width multiply by a strictly positive factor. Applicable machine and crossing checks still apply. Valid input edits report immediate diagnostics.
 
-Finalize affected deposition before dependent contact queries, preserving sparse holes and bead dimensions. No replacement distorted CAD surface is required. The paused implementation still exposes broader speed/tilt/injection modifiers; the plan records their pending reconciliation, not a release requirement.
+Finalize affected deposition before dependent contact queries, preserving sparse holes and bead dimensions. No replacement distorted CAD surface is required. Broader speed/tilt/injection channels are not a release requirement.
 
 <!-- layer: script -->
 ## Script interfaces
 
-`sliceResults({ plan, machine, shells, volumes, bands, reserves, envelopes })`
-returns `{ results, supports, summary }`: results per owner/family with operations
-`<owner>:<layer>:walls|infill|fill`, support results apart. `ownedLayers`
-exposes each owner's regions and shares; shared IDs include `:shared:<principal>`; `layerStrokes(region, settings)`
-fills a chart region; `mapSliceStrokes` maps XYZ before shared `depositCurves`. The
-[nudge-cup](../../examples/prints/nudge-cup/README.md) recipe combines a slab
-owner, a vase wall and a solid foot under a draped skin.
+`finalizedSliceResults` resolves common prepared contexts and construction
+prerequisites, returning `{results,supports,summary}` per owner/family with operations
+`<owner>:<layer>:walls|infill|fill`, support results apart. `ownedLayers` exposes
+regions and shares; shared IDs include `:shared:<principal>`. `layerStrokes`
+fills a chart; `mapSliceStrokes` maps XYZ before shared `depositCurves`.

@@ -1,10 +1,6 @@
-// Generation: locked plan in, SAAMpath out.
-//
-// The order is fixed by the geometry, not by a further planning step. If a
-// draped skin is selected, its survey runs first because it decides how much
-// material the planar body must leave under the top surface; the body then
-// fills up to that reserved surface, and the skin follows the surface down to
-// it. With no skin selected the body simply fills the whole solid.
+// Generation: authored geometry and recipe into finalized deposition and SAAMpath.
+// Ownership precedes construction; one dependency graph schedules shared courses
+// and their finalized-material consumers.
 
 import { makeShell, assertClosed } from '../geom/shell.mjs';
 import {shellFromSurfaces,splineSolidShell} from '../geom/spline-solid.mjs';
@@ -12,20 +8,17 @@ import {planToolpath} from '../path/toolpath.mjs';
 import {filamentSelection,assignedFilaments} from '../machine/filaments.mjs';
 import {planarPolicy} from '../path/builder.mjs';
 import {assignmentPlan} from './assignment-process.mjs';
-import {surveySkinAssignment,skinResult} from './surface-constructions.mjs';
-import {depositedBeadSegments,depositedTopAt} from '../path/deposited-curves.mjs';
+import {surveySkinAssignment} from './surface-constructions.mjs';
 import { validatePlan, VERSION } from './plan.mjs';
 import {curveAssignmentResults} from './curves.mjs';
 import {finalizeDepositionResult} from './finalize.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 import {makeMesh,translateMesh} from '../geom/mesh.mjs';
 import {toolBounds,startupPosition,startupRetracted} from '../machine/profile.mjs';
-import {sleeveResult,rimResult} from './sleeve-constructions.mjs';
-import {planarSupportTopAt} from '../region/support-surface.mjs';
 import {finalizedSliceResults} from './slice-deposition.mjs';
 import {supportResults,supportDependencies} from '../../skills/supports/scripts/supports.mjs';
 import {claddingResult} from './cladding-constructions.mjs';
-import {publishFinishedBoundary,consumeFinishedSurface,republishDepositedBoundary} from '../path/finished-surface.mjs';
+import {consumeFinishedSurface} from '../path/finished-surface.mjs';
 import {preparePlasticWeld,plasticWeldResult} from '../../skills/plastic-weld/scripts/weld.mjs';
 import {validateHeatSetAssignments} from '../../skills/heat-set-inserts/scripts/feature.mjs';
 import {geometrySelections} from '../geom/selections.mjs';
@@ -34,7 +27,7 @@ import {scanlineFill} from '../region/region2d.mjs';
 import {sampleAuthoredCurve} from '../path/authored-curves.mjs';
 
 // Booleans are stored as their recipe in the native JSON file, like meshes.
-export const hasMesh=geometry=>['mesh','blob-field','text','gridfinity','heat-set','boolean'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
+export const hasMesh=geometry=>!!geometry&&(['mesh','blob-field','text','gridfinity','heat-set','boolean'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry))));
 
 function primeLineResult(plan,machine){
   const p=plan.process.primeLine;if(p===null)return null;
@@ -104,6 +97,7 @@ export function translateShell(shell, dx, dy, dz = 0) {
 
 export function preparePathGeometry(plan,machine,rhino) {
   validatePlan(plan, machine);
+  if(!plan.geometry)return {placed:null,componentShells:null,weldSites:[],bounds:toolBounds(machine,plan.setup.tool)};
   validateHeatSetAssignments(plan);
   const placed = translateShell(buildShell(rhino, plan.geometry), plan.placement.xMm, plan.placement.yMm);
   const componentShells=plan.geometry.shape==='assembly' ? new Map(plan.geometry.parts.map(part=>[part.id,
@@ -117,6 +111,7 @@ export function preparePathGeometry(plan,machine,rhino) {
 
 // Geometry volumes named by slice assignments, placed like their part.
 export function sliceVolumes(plan,rhino) {
+  if(!plan.geometry)return new Map();
   const selections=geometrySelections(plan.geometry);
   return new Map(plan.slices.assignments.filter(assignment=>!assignment.construction).map(assignment=>{
     const part=assignment.part!==null?selections.get(assignment.part):{xMm:0,yMm:0,zMm:0};
@@ -129,6 +124,7 @@ export function sliceVolumes(plan,rhino) {
 // component (or the whole print) for assignments without a part, and each
 // geometry selection an assignment names, placed like the print.
 export function sliceShells(plan,rhino,{placed,componentShells}) {
+  if(!plan.geometry)return [];
   const selections=geometrySelections(plan.geometry);
   const named=[...new Set(plan.slices.assignments.filter(a=>a.part!==undefined&&a.preset!=='support').map(a=>a.part).filter(p=>p!==null&&!componentShells?.has(p)))];
   return [...(componentShells?[...componentShells]:[[null,placed]]).map(([part,shell])=>[part,shell,true]),
@@ -139,15 +135,14 @@ export function sliceShells(plan,rhino,{placed,componentShells}) {
 // supporting producer before constructing surface consumers.
 export function generateModelResults(plan,machine,rhino,{placed,componentShells,bounds,weldSites=[]},onProgress) {
   const welds=weldSites.map(site=>site.reservation),process=plan.process;
-  const summary={generatorVersion:VERSION,shape:plan.geometry.shape},results=[];
-  const shells=sliceShells(plan,rhino,{placed,componentShells}),selections=geometrySelections(plan.geometry);
+  const summary={generatorVersion:VERSION,shape:plan.geometry?.shape??null},results=[];
+  const shells=sliceShells(plan,rhino,{placed,componentShells});
   const skins=plan.slices.assignments.filter(a=>a.construction==='skin').map(assignment=>{
     const shell=shells.find(([part])=>part===assignment.part)?.[1];
     requireThat(shell,'Skin needs a selected component or the single solid.');
     const selectedProcess=assignmentPlan(plan,machine,assignment).process;
     return {assignment,shell,process:selectedProcess,survey:surveySkinAssignment({assignment,shell,machine})};
   });
-  requireThat(new Set(skins.map(s=>s.assignment.part)).size===skins.length,'Only one skin assignment may reserve a selected part roof.');
   const sleeves=plan.slices.assignments.filter(a=>a.construction==='sleeve').map(assignment=>{
     const shell=shells.find(([part])=>part===assignment.part)?.[1];
     requireThat(shell,'Sleeve needs a selected component or the single solid.');
@@ -156,74 +151,23 @@ export function generateModelResults(plan,machine,rhino,{placed,componentShells,
   });
   for(let i=0;i<sleeves.length;i++)for(let j=i+1;j<sleeves.length;j++)requireThat(sleeves[i].assignment.part!==sleeves[j].assignment.part||Math.min(sleeves[i].endMm,sleeves[j].endMm)<=Math.max(sleeves[i].startMm,sleeves[j].startMm)+1e-8,'Sleeve assignments cannot claim overlapping material bands.');
   const bands=sleeves.map(s=>({part:s.assignment.part,startMm:s.startMm,endMm:s.endMm}));
-  const sliced=finalizedSliceResults({plan,machine,shells,volumes:sliceVolumes(plan,rhino),bands,reserves:[...skins.map(s=>s.survey),...welds],envelopes:welds,onProgress});
-  const finalizedSlices=sliced.results;
+  const rims=plan.slices.assignments.filter(a=>a.construction==='rim').map(assignment=>{
+    const shell=shells.find(([part])=>part===assignment.part)?.[1];
+    requireThat(shell,'Rim needs a selected component or single solid.');
+    return {assignment,shell,process:assignmentPlan(plan,machine,assignment).process};
+  });
+  const injections=plan.slices.assignments.filter(a=>a.construction==='inject').map(assignment=>({assignment,process:assignmentPlan(plan,machine,assignment).process}));
+  const constructions=[...sleeves,...rims,...injections].map(context=>({...context,maxBeadHeightMm:machine.tools.find(tool=>tool.index===assignmentPlan(plan,machine,context.assignment).setup.tool)?.layerHeightMm?.[1]??Infinity}));
+  const sliced=finalizedSliceResults({plan,machine,shells,volumes:sliceVolumes(plan,rhino),bands,reserves:welds,envelopes:welds,surfaceAssignments:skins,constructions,onProgress});
+  results.push(...sliced.results);
   if(sliced.summary)summary.slices=sliced.summary;
-  results.push(...finalizedSlices);
-  const sleeveResults=new Map(),changes=[];
-  for(const context of sleeves) {
-    const {assignment,shell,startMm,endMm}=context;
-    const samePart=finalizedSlices.filter(r=>r.report.part===assignment.part).flatMap(r=>r.operations);
-    const below=samePart.filter(op=>(op.nominalRank??op.rank)<=startMm+1e-8).map(op=>op.id);
-    if(assignment.zStartMm>1e-8&&below.length){
-      const grid=(assignment.zStartMm-context.process.firstLayerMm)/context.process.layerMm;
-      requireThat(Math.abs(grid-Math.round(grid))<1e-8,'A raised sleeve must start on its resolved process layer grid.');
-    }
-    const previousSleeves=sleeves.filter(other=>other!==context&&other.assignment.part===assignment.part&&other.endMm<=startMm+1e-8);
-    requireThat(!previousSleeves.some(other=>!sleeveResults.has(other.assignment.id)),'Stacked sleeve assignments must be defined bottom to top.');
-    requireThat(assignment.zStartMm===0||below.length||previousSleeves.length,'A raised sleeve needs supporting deposition below its start.');
-    const foundations=[...finalizedSlices.filter(r=>r.report.part===assignment.part),...previousSleeves.map(other=>sleeveResults.get(other.assignment.id))];
-    const changedFoundation=foundations.some(r=>r.report.modulation?.materialChanged??r.report.modulation?.changed);
-    const foundationSegments=assignment.zStartMm>0&&changedFoundation?depositedBeadSegments(foundations.flatMap(r=>r.operations.filter(op=>(op.nominalRank??op.rank)<=startMm+1e-8)),{widthMm:context.process.lineWidthMm}):[];
-    const after=[...new Set([...assignment.after,...below,...previousSleeves.flatMap(other=>sleeveResults.get(other.assignment.id).operations.map(op=>op.id))])];
-    const resolved=assignmentPlan(plan,machine,assignment),maxBeadHeightMm=machine.tools.find(tool=>tool.index===resolved.setup.tool)?.layerHeightMm?.[1]??Infinity;
-    const result=sleeveResult({...context,machine,after,onProgress,foundationSegments,maxBeadHeightMm});
-    const published=assignment.pattern===null&&!assignment.meshSleeve?publishFinishedBoundary(result,{shell,boundary:'side',startMm:result.report.baseTopMm,
-      endMm:result.report.endMm-(assignment.endTransition==='level'?0:context.process.layerMm),toleranceMm:assignment.boundaryToleranceMm}):result;
-    const selected={...published,report:{...published.report,part:assignment.part,construction:'sleeve'},operations:published.operations.map(op=>({...op,part:assignment.part,...(assignment.filament===null?{}:{filament:assignment.filament})}))};
-    const finalized=finalizeDepositionResult(selected,plan,machine);results.push(finalized);sleeveResults.set(assignment.id,finalized);
-    const above=samePart.filter(op=>op.rank>endMm+1e-8);
-    requireThat(!above.length||assignment.endTransition==='level','Slices above a sleeve need its ending transition to be level.');
-    for(const op of above)changes.push({operationId:op.id,after:finalized.operations.map(op=>op.id),mode:'union'});
+  for(const [kind,key] of [['sleeve','vaseWall'],['rim','thickLip'],['skin','drapedSkin']]){
+    const instances=results.filter(result=>result.report.construction===kind).map(result=>({id:result.id,...result.report}));
+    if(instances.length)summary[key]={...instances[0],instances};
   }
-  if(sleeveResults.size)summary.vaseWall={...sleeveResults.values().next().value.report,instances:[...sleeveResults.values()].map(r=>({id:r.id,...r.report}))};
-  for(const assignment of plan.slices.assignments.filter(a=>a.construction==='rim')) {
-    const sourceAssignment=plan.slices.assignments.find(a=>a.id===assignment.source),sourceResult=sleeveResults.get(assignment.source);
-    const shell=shells.find(([part])=>part===assignment.part)?.[1];requireThat(shell,'Rim needs a selected component or single solid.');
-    const selectedProcess=assignmentPlan(plan,machine,assignment).process;
-    const result=rimResult({assignment,shell,process:selectedProcess,sourceAssignment,sourceResult});
-    const selected={...result,report:{...result.report,part:assignment.part,construction:'rim'},operations:result.operations.map(op=>({...op,part:assignment.part,...(assignment.filament===null?{}:{filament:assignment.filament})}))};
-    const finalized=finalizeDepositionResult(selected,plan,machine);results.push(finalized);
-    summary.thickLip={instances:[...(summary.thickLip?.instances??[]),{id:assignment.id,...finalized.report}]};
-  }
-  const skinReports=[],pendingSkins=[...skins];
-  const skinSourceMatches=(result,sourceId)=>{
-    const source=plan.slices.assignments.find(a=>a.id===sourceId);
-    return source&&(result.report?.owner??result.id)===sourceId&&(source.part===undefined||result.report?.part===source.part);
-  };
-  while(pendingSkins.length) {
-    const ready=pendingSkins.findIndex(s=>s.assignment.supportFrom===null||results.some(r=>skinSourceMatches(r,s.assignment.supportFrom)));
-    requireThat(ready>=0,'Skin supportFrom names an absent producer, a later-stage producer or a dependency cycle.');
-    const [context]=pendingSkins.splice(ready,1);
-    const supporting=results.filter(r=>context.assignment.supportFrom!==null?skinSourceMatches(r,context.assignment.supportFrom):r.report?.part===context.assignment.part||r.finishedSurfaces?.some(surface=>surface.shell===context.shell));
-    const supports=finalizedSlices.filter(r=>r.report.part===context.assignment.part&&r.operations.length).map(r=>({shell:context.shell,results:[r]}));
-    const actual=context.assignment.supportFrom!==null||!supports.length||supporting.some(r=>r.report?.modulation?.changed);
-    const segments=actual?depositedBeadSegments(supporting.flatMap(r=>r.operations),{widthMm:context.process.lineWidthMm}):null;
-    requireThat(supporting.length,`Skin ${context.assignment.id} needs supporting deposition; add a body assignment.`);
-    const supportTopAt=actual?(x,y)=>{
-      const top=depositedTopAt(segments,[x,y],Infinity);
-      requireThat(top!==null,`Skin ${context.assignment.id}: finalized supporting strokes do not cover a required contact; revise fill or the modulation.`);return top;
-    }:supports.length?planarSupportTopAt(supports,context.process):null;
-    const produced=skinResult({...context,machine,after:results.flatMap(r=>r.operations.map(op=>op.id)),supportTopAt});
-    const result={...produced,report:{...produced.report,part:context.assignment.part}};
-    const published=publishFinishedBoundary(result,result.boundaryRequest);
-    const finalized=republishDepositedBoundary(finalizeDepositionResult(published,plan,machine),{widthMm:context.process.lineWidthMm});
-    results.push(finalized);skinReports.push({id:result.id,part:context.assignment.part,...finalized.report});
-  }
-  if(skinReports.length)summary.drapedSkin={...skinReports[0],instances:skinReports};
   const survey=skins[0]?.survey??null;
   if(skins.length)summary.nonplanarLimit={machineMaxAngleDeg:skins[0].survey.declaredLimitDeg,effectiveMaxAngleDeg:Math.max(...skins.map(s=>s.survey.limitDeg)),experimentalOverride:skins.some(s=>s.survey.experimentalOverride),surfaceMaxSlopeDeg:Math.max(...skins.map(s=>s.survey.maxSlopeDeg)),excludedAreaPercent:Math.max(...skins.map(s=>s.survey.steepFraction))*100};
-  return {results:applyResultDependencies(results,changes),summary,survey,shells,slicedSupports:sliced.supports};
+  return {results,summary,survey,shells,slicedSupports:sliced.supports};
 }
 
 export function addComplementaryResults(plan,machine,{placed,componentShells,weldSites,bounds},batch) {
@@ -244,10 +188,10 @@ export function addComplementaryResults(plan,machine,{placed,componentShells,wel
   const constructedResults=[...results,...curves];
   if(curves.length)summary.curves=curves.map(result=>({id:result.id,...result.report}));
   // Support-preset slices and tree supports print before what they hold up.
-  const supports=[...(batch.slicedSupports??[]),...supportResults({plan,machine,shells:componentShells?[...componentShells.values()]:[placed]})];
+  const supports=[...(batch.slicedSupports??[]),...supportResults({plan,machine,shells:componentShells?[...componentShells.values()]:placed?[placed]:[]})];
   const supportedResults=[...supports,...applyResultDependencies(constructedResults,supportDependencies(supports,constructedResults))];
   if(supports.length)summary.supports=supports.map(r=>({id:r.id,...r.report}));
-  const welds=plasticWeldResult({plan,sites:weldSites,modelResults:supportedResults});
+  const welds=plasticWeldResult({plan,machine,sites:weldSites,modelResults:supportedResults});
   const weldedResults=applyResultDependencies(supportedResults,welds.dependencyChanges);
   if(welds.result)summary.plasticWeld=welds.result.report;
   const completed=welds.result?[...weldedResults,welds.result]:weldedResults;
@@ -333,7 +277,7 @@ export function summarizeGeneratedPath(placed,survey,modelSummary) {
   const summary={...modelSummary};
   summary.composition=null;
 
-  summary.boundsMm = placed.bounds;
+  summary.boundsMm = placed?.bounds??null;
   summary.clearance = 'operator responsibility; no collision model implemented';
   summary.physicalValidation = 'not performed';
   if (survey&&!summary.nonplanarLimit) summary.nonplanarLimit = {
@@ -385,5 +329,5 @@ export function generatePath(plan, machine, rhino, {onProgress,modulations,modul
   return planToolpath({start:startupPosition(machine,plan),process,machine,generatorVersion:VERSION,
     selection:selections?.[plan.setup.bambu.filament]??null,selections,
     motion:plan.setup.denso??null,motionBounds:bounds,retracted:startupRetracted(machine,plan)},results,
-  {geometryBounds:placed.bounds,rules:plan.composition,prime:!prime,summary,onProgress});
+  {geometryBounds:placed?.bounds??null,rules:plan.composition,prime:!prime,summary,onProgress});
 }

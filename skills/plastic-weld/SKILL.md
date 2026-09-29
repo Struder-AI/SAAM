@@ -153,10 +153,8 @@ dependencies, inspect the atomic operation and injection height: a continuous
 path cannot be interrupted mid-operation. Test modest coupons and adjust the
 dimensions, seating, volume, flow and temperature using observed results.
 
-For developer callers, `plasticWeldResult({plan, sites, modelResults})` returns
-`{result, dependencyChanges}`; `result` is null when there are no sites.
-It does not modify the supplied model operations. Cover prerequisites are
-`{operationId, after, mode: 'union'}` records: apply them with
-`applyResultDependencies` from `core/print/generate.mjs` before adding the weld
-result and scheduling. Union preserves first occurrence order while removing
-duplicate prerequisites, including duplicates already present on the operation.
+Developer callers use `plasticWeldResult({plan,machine,sites,modelResults})`:
+`{result,dependencyChanges}` leaves input operations untouched; no sites gives
+null result. Injection reuses the [shared point operation](../inject/SKILL.md).
+Apply cover `{operationId,after,mode:'union'}` prerequisites with
+`applyResultDependencies` before composition; union preserves first occurrence.

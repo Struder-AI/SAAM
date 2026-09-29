@@ -173,7 +173,7 @@ export function validateFillModulation(stroke,modifiers,{layerIndex}={}){
 
 export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}) {
   modifiers=modifiers.filter(m=>m.amplitude!==0);
-  if(!modifiers.length)return {stroke,changed:false,maxExcursionMm:0};
+  if(!modifiers.length||stroke.volumesMm3?.every(volume=>volume===0))return {stroke,changed:false,maxExcursionMm:0};
   if(stroke.stationaryExtrusion){
     requireThat(stroke.points.length===1&&modifiers.every(m=>m.channel==='flow'&&(m.frame??'world')==='world'),'Stationary extrusion supports world-space flow modulation; geometric, speed, width, tilt and curve/chart channels need a moving path.');
     const factor=modifiers.reduce((value,m)=>{
