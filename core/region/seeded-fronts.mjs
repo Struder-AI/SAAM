@@ -2,13 +2,33 @@
 // clipping, physical mapping and short in-domain connections. Original SAAM
 // implementation; research provenance: skills/wave-overhangs/BUILDER.md.
 import {surfaceDerivatives} from '../geom/surface-derivatives.mjs';
-import {patchSlice} from '../geom/slice.mjs';
+import {patchSlice,sliceChartStep,slicePoint} from '../geom/slice.mjs';
+import {sampledChartRegion} from '../geom/height-slice.mjs';
+import {beadContactAlong} from '../path/deposited-curves.mjs';
 import {offsetSurfaceRegion} from './surface-offset.mjs';
 import {intersect,difference,clipOpenPaths,union} from './intersection.mjs';
-import {regionArea,pointSegmentDistance} from './region2d.mjs';
+import {regionArea,pointSegmentDistance,pointInRegion} from './region2d.mjs';
 import {offsetRegion} from './offset.mjs';
 import {mapSliceStroke} from './layer-strokes.mjs';
 import {requireThat,distance} from '../geom/tolerance.mjs';
+
+// Front order is a region-to-chart-curves construction on any patch layer.
+// An authored seed can be supplied; otherwise the seed is the actual footprint
+// of finalized predecessor beads within one translation step below the layer.
+export function frontLayerStrokes(layer,{seedUv=null,lineSpacingMm,propagationStepMm,sampleStepMm,toleranceMm,lineWidthMm,supportSegments=[]}){
+  requireThat(layer.slice.kind==='patch','Seeded front order needs a native patch chart.');
+  const patch=layer.slice.patch,domain=layer.region;
+  const settings={lineSpacingMm,propagationStepMm,sampleStepMm,toleranceMm};
+  const bounds={min:[patch.domainU[0],patch.domainV[0]],max:[patch.domainU[1],patch.domainV[1]]};
+  const seed=seedUv??sampledChartRegion(bounds,sliceChartStep(layer.slice,sampleStepMm),uv=>{
+    if(!pointInRegion(uv,domain))return false;
+    return beadContactAlong(supportSegments,slicePoint(layer.slice,uv),layer.direction,{maxDistanceMm:layer.heightMm+toleranceMm})!==null;
+  });
+  requireThat(seed.length,`Front layer ${layer.index} has no supporting seed; supply an authored seed or preceding deposited material.`);
+  const generated=seededSurfaceFronts(patch,domain,intersect(seed,domain),settings);
+  const connected=connectSurfacePasses(patch,generated.waves,domain,settings,lineWidthMm);
+  return {curves:connected.passes.map(pass=>({role:'fill',closed:false,points:pass.chartPoints,fillFamily:{spacingMm:lineSpacingMm}})),report:{...generated.report,continuity:connected.report,seed:seedUv?'authored':'deposited'},seed};
+}
 
 // Build continuous meanders using short surface connections. A connector must
 // lie wholly in the assigned domain; proximity alone cannot authorize crossing
@@ -39,7 +59,7 @@ export function connectSurfacePasses(patch,waves,domain,settings,lineWidthMm){
       }
       if(!best){
         const item=available.shift(),path=item.path;
-        const pass={points:[...path.points],normals:[...path.normals],endUv:path.uv.at(-1),fronts:[item.wave],connectors:[]};
+        const pass={points:[...path.points],normals:[...path.normals],chartPoints:[...path.chartPoints],frameSamples:[...path.frameSamples],endUv:path.uv.at(-1),fronts:[item.wave],connectors:[]};
         passes.push(pass);next.push(pass);continue;
       }
       const {pass,index,reverse,uv}=best,item=available.splice(index,1)[0];
@@ -49,13 +69,15 @@ export function connectSurfacePasses(patch,waves,domain,settings,lineWidthMm){
       if(lengthMm>limit){
         // A short XYZ chord can conceal a long surface route. Leave this front
         // separate instead of introducing an unbounded extruded connection.
-        const path=item.path,newPass={points:[...path.points],normals:[...path.normals],endUv:path.uv.at(-1),fronts:[item.wave],connectors:[]};
+        const path=item.path,newPass={points:[...path.points],normals:[...path.normals],chartPoints:[...path.chartPoints],frameSamples:[...path.frameSamples],endUv:path.uv.at(-1),fronts:[item.wave],connectors:[]};
         passes.push(newPass);next.push(newPass);continue;
       }
       pass.connectors.push({from:pass.endUv,to:uv,lengthMm});
       pass.points.push(...connector.points.slice(1));pass.normals.push(...connector.normals.slice(1));
+      pass.chartPoints.push(...connector.chartPoints.slice(1));pass.frameSamples.push(...connector.frameSamples.slice(1));
       const points=reverse?item.path.points.toReversed():item.path.points,normals=reverse?item.path.normals.toReversed():item.path.normals;
       pass.points.push(...points.slice(1));pass.normals.push(...normals.slice(1));
+      for(const key of ['chartPoints','frameSamples'])pass[key].push(...(reverse?item.path[key].toReversed():item.path[key]).slice(1));
       pass.endUv=reverse?item.path.uv[0]:item.path.uv.at(-1);pass.fronts.push(item.wave);
       pending=pending.filter(p=>p!==pass);next.push(pass);
     }
@@ -69,7 +91,7 @@ export function connectSurfacePasses(patch,waves,domain,settings,lineWidthMm){
 // connection diagnostics; it does not assign a machine tool pose.
 function mapFrontPath(patch,path,settings) {
   const mapped=mapSliceStroke({points:path,closed:false},patchSlice(patch),{sampleStepMm:settings.sampleStepMm,toleranceMm:settings.toleranceMm,frames:true});
-  return {points:mapped.points,normals:mapped.normals,chartPoints:mapped.chartPoints,report:mapped.mappingReport};
+  return {points:mapped.points,normals:mapped.normals,chartPoints:mapped.chartPoints,frameSamples:mapped.frameSamples,report:mapped.mappingReport};
 }
 
 // Walk the boundary in its original cyclic order. Clipping an open outline

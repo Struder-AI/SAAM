@@ -1,5 +1,7 @@
 import {requireThat,distance} from '../geom/tolerance.mjs';
-import {attachmentCurves,placeCenterlines,curveLength} from '../path/curve-construction.mjs';
+import {attachmentCurves,curveLength} from '../path/curve-construction.mjs';
+import {authoredNurbs,validateCurveProfiles,validateLineTextSource,constructAuthoredCurves} from '../path/authored-curves.mjs';
+import {beadWidthRule} from '../path/parallel-curves.mjs';
 import {depositCurves} from '../path/deposition.mjs';
 import {depositedCurveSegments,curveSupportsPoint} from '../path/deposited-curves.mjs';
 import {planarPolicy} from '../path/builder.mjs';
@@ -21,32 +23,58 @@ export function validateCurveAssignment(a) {
   requireThat(a.filament===null||Number.isInteger(a.filament)&&a.filament>=0,'Curve filament must be null or a filament index.');
   requireThat(Array.isArray(a.after)&&a.after.every(id=>typeof id==='string'&&id.length),'Curve after must list operation ids.');
   if(a.construction==='bridges'){validateBridgeConstruction(a);return;}
-  requireThat(a.repeat===null||a.repeat&&Object.keys(a.repeat).sort().join()==='count,translation'&&Number.isInteger(a.repeat.count)&&a.repeat.count>0&&point(a.repeat.translation),
-    'Curve repeat must be null or {count,translation:XYZ}.');
+  const translationRepeat=a.repeat&&Object.keys(a.repeat).sort().join()==='count,translation'&&Number.isInteger(a.repeat.count)&&a.repeat.count>0&&point(a.repeat.translation);
+  const familyRepeat=a.repeat&&Object.keys(a.repeat).sort().join()==='family,indices'&&typeof a.repeat.family==='string'&&a.repeat.family.length&&(a.repeat.indices===null||Array.isArray(a.repeat.indices)&&a.repeat.indices.length&&new Set(a.repeat.indices).size===a.repeat.indices.length&&a.repeat.indices.every(n=>Number.isInteger(n)&&n>=0));
+  requireThat(a.repeat===null||translationRepeat||familyRepeat,'Curve repeat needs {count,translation:XYZ} or {family,indices:null|layer indices}.');
   const count=a.repeat?.count??1;
   requireThat(Array.isArray(a.curves)&&a.curves.length>0,'Curve assignment needs explicit centerlines.');
   for(const curve of a.curves){
-    requireThat(curve&&Object.keys(curve).every(k=>['points','closed','role','beadWidthMm','heightMm','speedMmS','flowMultiplier','courses'].includes(k))&&
-      typeof curve.closed==='boolean'&&Array.isArray(curve.points)&&curve.points.length>=(curve.closed?3:2)&&curve.points.every(point),'Invalid authored curve.');
+    if(familyRepeat)requireThat(curve.uv?.reference?.kind==='slice'&&curve.uv.reference.assignment===a.repeat.family&&curve.uv.reference.index===undefined,'Family repeats need UV curves on that slice family without a fixed layer index.');
+    requireThat(curve&&Object.keys(curve).every(k=>['points','nurbs','uv','text','closed','role','beadWidthMm','heightMm','speedMmS','flowMultiplier','courses','vary','widthRule','sampleStepMm','toleranceMm'].includes(k))&&typeof curve.closed==='boolean','Invalid authored curve.');
+    requireThat(['points','nurbs','uv','text'].filter(k=>curve[k]!==undefined).length===1,'Curve needs exactly one of points, nurbs, uv or text.');
+    const input=curve.uv??curve,dimensions=curve.uv?2:3;
+    if(curve.text){requireThat(curve.closed===false,'Text source closure is determined by its glyph strokes.');validateLineTextSource(curve.text);}
+    else if(input.nurbs)authoredNurbs(input.nurbs,dimensions);
+    else requireThat(Array.isArray(input.points)&&input.points.length>=(curve.closed?3:2)&&input.points.every(p=>Array.isArray(p)&&p.length===dimensions&&p.every(Number.isFinite))&&input.points.some(p=>p.some((v,i)=>v!==input.points[0][i])),'Curve needs distinct finite points.');
+    if(input.points)requireThat(input.points.every((p,i)=>!i||p.some((v,k)=>v!==input.points[i-1][k]))&&(!curve.closed||input.points[0].some((v,k)=>v!==input.points.at(-1)[k])),'Polyline points must not repeat consecutive vertices or the implicit closed endpoint.');
+    if(curve.uv){
+      requireThat(Object.keys(curve.uv).every(k=>['reference','points','nurbs','normalMm'].includes(k))&&['points','nurbs'].filter(k=>curve.uv[k]!==undefined).length===1,'UV curve needs exactly one points or nurbs source.');
+      const r=curve.uv.reference;requireThat(r&&['patch','slice','sleeve'].includes(r.kind),'UV curve needs a named patch, slice or sleeve reference.');
+      const allowed=r.kind==='patch'?['kind','name','part']:r.kind==='slice'?['kind','assignment','index']:['kind','assignment'];
+      requireThat(Object.keys(r).every(k=>allowed.includes(k))&&(r.kind==='patch'?typeof r.name==='string'&&r.name.length&&(r.part===undefined||r.part===null||typeof r.part==='string'):typeof r.assignment==='string'&&r.assignment.length),'Invalid named curve reference.');
+      requireThat(r.index===undefined||Number.isInteger(r.index)&&r.index>=0,'Slice reference index must be nonnegative.');
+      requireThat(curve.uv.normalMm===undefined||Number.isFinite(curve.uv.normalMm),'UV normal distance must be finite.');
+    }
+    validateCurveProfiles(curve.vary);
+    if(curve.widthRule)beadWidthRule(curve.widthRule);
+    for(const key of ['sampleStepMm','toleranceMm'])requireThat(curve[key]===undefined||Number.isFinite(curve[key])&&curve[key]>0,`Curve ${key} must be positive.`);
     requireThat(curve.role===undefined||typeof curve.role==='string'&&curve.role.length>0,'Curve role must be a nonempty string.');
     for(const field of ['beadWidthMm','heightMm','speedMmS','flowMultiplier'])requireThat(curve[field]===undefined||Number.isFinite(curve[field])&&curve[field]>0,`Curve ${field} must be positive.`);
-    requireThat(curve.courses===undefined||Array.isArray(curve.courses)&&curve.courses.length>0&&new Set(curve.courses).size===curve.courses.length&&curve.courses.every(n=>Number.isInteger(n)&&n>=0&&n<count),
+    requireThat(curve.courses===undefined||Array.isArray(curve.courses)&&curve.courses.length>0&&new Set(curve.courses).size===curve.courses.length&&curve.courses.every(n=>Number.isInteger(n)&&n>=0&&(a.repeat?.family||n<count)),
       'Curve courses must select distinct indices within its repeat count.');
-    requireThat(curve.points.some(p=>distance(p,curve.points[0])>1e-9),'An authored curve needs nonzero length.');
   }
 }
 
-export function authoredCurveResult(assignment,{plan,process=plan.process,bounds=null}) {
-  const operations=[],count=assignment.repeat?.count??1,translation=assignment.repeat?.translation??[0,0,0];
+export function authoredCurveResult(assignment,{plan,process=plan.process,bounds=null,references={}}) {
+  const family=assignment.repeat?.family?references[`slice:${assignment.repeat.family}`]:null;
+  requireThat(!assignment.repeat?.family||family?.layers?.length,'Curve repeat needs an available named slice family.');
+  const indices=family?(assignment.repeat.indices??family.layers.map(l=>l.index)):null;
+  const operations=[],count=indices?.length??assignment.repeat?.count??1,translation=assignment.repeat?.translation??[0,0,0];
   let lengthMm=0,strokeCount=0;
   for(let course=0;course<count;course++){
     const active=assignment.curves.filter(curve=>!curve.courses||curve.courses.includes(course));
     if(!active.length)continue;
-    const curves=placeCenterlines(active,{offset:[plan.placement.xMm+course*translation[0],plan.placement.yMm+course*translation[1],course*translation[2]]});
+    const curves=active.flatMap(curve=>constructAuthoredCurves(curve,{references,course:indices?.[course]??course,offset:curve.uv?[0,0,0]:[plan.placement.xMm+course*translation[0],plan.placement.yMm+course*translation[1],course*translation[2]]}));
     const heightMm=course===0?process.firstLayerMm:process.layerMm,speedMmS=course===0?process.firstLayerSpeedMmS:process.planarSpeedMmS;
+    if(family){const layer=family.layers.find(l=>l.index===(indices?.[course]??course));
+      for(const curve of curves)if(curve.heightMm===undefined&&!curve.heightsMm&&curve.frameSamples)curve.heightsMm=curve.points.slice(1).map((_,i)=>{
+        const n=curve.frameSamples[i].normal,d=family.direction??n;return (layer.heightMm??heightMm)*Math.abs(n.reduce((sum,x,k)=>sum+x*d[k],0));
+      });
+    }
+
     const strokes=depositCurves(curves,{widthMm:process.lineWidthMm,heightMm,speedMmS});
     for(const stroke of strokes){
-      const width=stroke.beadWidthMm??process.lineWidthMm;
+      const width=Math.max(stroke.beadWidthMm??process.lineWidthMm,...(stroke.segmentMetadata??[]).map(m=>m.beadWidthMm??0));
       if(bounds)requireThat(stroke.points.every(p=>p.every((v,i)=>v>=(i===2?bounds.min[i]:bounds.min[i]+width/2)-1e-8&&v<=(i===2?bounds.max[i]:bounds.max[i]-width/2)+1e-8)),
         `Curve assignment ${assignment.id} exceeds selected tool bounds on course ${course}.`);
       lengthMm+=curveLength(stroke.points);strokeCount++;
@@ -58,7 +86,7 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,bounds
     const region=[[[min[0],min[1]],[max[0],min[1]],[max[0],max[1]],[min[0],max[1]]]],planar=high-low<1e-9;
     const travelPolicy=planar?planarPolicy(region,{layerZ:high,liftMm:process.liftMm,maxCombMm:0,lineWidthMm:width})
       :{maxCombMm:0,canTravelDirect:()=>false,clearanceFor:()=>high+process.liftMm};
-    operations.push({id:`${assignment.id}:${course}`,layerId:planar?`planar:${high}`:`${assignment.id}:${course}`,phase:planar?'planar':'curves',layer:course,rank:course,
+    operations.push({id:`${assignment.id}:${course}`,layerId:planar?`planar:${high}`:`${assignment.id}:${course}`,phase:planar?'planar':'curves',layer:course,layerIndex:course,layerCount:count,rank:course,
       after:[...assignment.after],order:'given',regionId:assignment.id,region,strokes,travelPolicy,clearanceZ:high+process.liftMm,
       ...(assignment.filament===null?{}:{filament:assignment.filament})});
   }
@@ -67,15 +95,17 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,bounds
 
 // Model deposition is finalized before this boundary. Authored centerlines
 // join it first; bridges then consume those actual strands and prior bridges.
-export function curveAssignmentResults({plan,machine,modelResults,bounds=null}) {
+export function curveAssignmentResults({plan,machine,modelResults,bounds=null,references={}}) {
   const assignments=plan.slices.assignments.filter(a=>['curves','bridges'].includes(a.construction)),results=[];
   for(const assignment of assignments.filter(a=>a.construction==='curves')){
     validateCurveAssignment(assignment);
-    const nonplanar=assignment.curves.some(curve=>curve.points.some(p=>Math.abs(p[2]-curve.points[0][2])>1e-9));
+    const nonplanar=assignment.curves.some(curve=>curve.uv||curve.nurbs||curve.points?.some(p=>Math.abs(p[2]-curve.points[0][2])>1e-9));
+    if(assignment.curves.some(c=>c.vary?.toolAxis||c.vary?.toolUp))requireMachine(machine,['tool-orientation'],'authored tool axis');
+    if(assignment.curves.some(c=>c.vary?.rotaryDeg))requireMachine(machine,['coordinated-rotary'],'authored rotary angle');
     requireMachine(machine,['xyz-extrusion',nonplanar?'nonplanar':'planar'],'authored curves');
     const selected=assignmentPlan(plan,machine,assignment);
     const selectedBounds=bounds===null?null:toolBounds(machine,selected.setup.tool);
-    results.push(finalizeDepositionResult(authoredCurveResult(assignment,{plan,process:selected.process,bounds:selectedBounds}),plan,machine));
+    results.push(finalizeDepositionResult(authoredCurveResult(assignment,{plan,process:selected.process,bounds:selectedBounds,references}),plan,machine));
   }
   for(const assignment of assignments.filter(a=>a.construction==='bridges')){
     validateCurveAssignment(assignment);

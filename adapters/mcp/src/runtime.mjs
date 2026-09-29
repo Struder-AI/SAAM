@@ -29,6 +29,7 @@ import {lifecycleReview} from '../../../core/print/review-state.mjs';
 import { readGuidance, readManual } from './manuals.mjs';
 import { onboardingSources, printHint } from '../../../core/agent/layers.mjs';
 import { SKILL_IDS, TECHNIQUE_IDS, skillMetadata } from '../../../skills/catalog.mjs';
+import {slicePatchSchema,modulationPatchSchema,geometrySchema,patchSchema,draftFamilySchema} from './deposition-schemas.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const installedExtension=await loadLocalExtension(root);
@@ -371,8 +372,8 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       if(state.kind!=='shell')throw new Error('Heat-set inserts modify shared shell/mesh prints.');
       return summary(bundleId,await applyHeatSet(dir,request,{expectedRevision}));
     },false);
-  tool('intersect_geometry', 'Intersect geometry with horizontal planes (sectionsAtZ: section area, islands, holes and loop bounds; includeLoops adds the loop points), vertical lines (topsAtXY: the highest surface crossing, its normal, slope and surface name) and spline surfaces (surfaces: control-net specs with optional offsetMm; the region of each surface inside the part, in its own (u,v)), for curved slices. Query a print, one part, or a geometry you are about to write, in its own coordinates before placement. Spline patches are sectioned exactly, not tessellated. Read-only; GEOMETRY.md#checking-geometry.',
-    {bundleId:bundleIdSchema.optional(),request:objectSchema},async({bundleId,request})=>
+  tool('intersect_geometry', 'Query saved or draft geometry before placement: horizontal sections, vertical top crossings, spline surface cuts, or draft slice families. Families report layer counts, ownership, full-crossing findings and sampled local thickness; no recipe is saved. includeLoops adds chart/world points. Geometry findings are not machine/export approval.',
+    {bundleId:bundleIdSchema.optional(),request:z.object({geometry:geometrySchema.optional(),part:z.string().optional(),sectionsAtZ:z.array(z.number()).optional(),topsAtXY:z.array(z.tuple([z.number(),z.number()])).optional(),surfaces:z.array(patchSchema.omit({name:true}).extend({offsetMm:z.tuple([z.number(),z.number(),z.number()]).optional()})).optional(),families:z.array(draftFamilySchema).describe('Ordinary assignment patches; default first/pitch 0.2mm and width0.4mm, override stack/process explicitly. Geometry belongs to outer request; part null inside drafts.').optional(),includeLoops:z.boolean().optional()}).strict()},async({bundleId,request})=>
       intersectRequest(bundleId===undefined?null:(await read(bundleId,{program:false})).dir,request));
   tool('combine_geometry', 'Combine a print’s geometry (or one part) with a new operand: request {operation: union|difference|intersection, operand, part?}. The result is a boolean solid; repeating an operation appends to it, and a difference subtracts every later operand. Operands are spline, mesh, blob-field or boolean geometry in the same coordinates. Spline operands stay native: each layer combines their exact sections. Invalidates approvals; use request_review afterward. GEOMETRY.md#booleans.',
     {bundleId:bundleIdSchema,expectedRevision:z.string().min(1),request:objectSchema},async({bundleId,expectedRevision,request})=>{
@@ -381,15 +382,15 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       if(state.kind!=='shell')throw new Error('Booleans combine shared shell/mesh prints.');
       return summary(bundleId,await combineGeometry(dir,request,{expectedRevision}));
     },false);
-  tool('slice', 'Add, edit or remove one general deposition assignment in plan.slices. Uses the same recipe validation as adjust_recipe; add fills shared defaults, edit merges objects and replaces arrays. Order controls ownership: before names an existing assignment or null appends. Returns saved settings and deferred generation checks, not feasibility claims. Read slice for surface/stack/curve fields.',
-    {bundleId:bundleIdSchema,expectedRevision:z.string().min(1),action:z.enum(['add','edit','remove']),id:z.string().regex(/^[a-z][a-z0-9-]*$/),assignment:objectSchema.describe('Add overrides or edit patch. Volume: part, preset, filament, process, loops, fillDensity, fillPattern, fillAnglesDeg, rotateFill, solidTop, solidBottom, fillOverlap, spacingFactor, sampleStepMm, within, surface, stack. Common construction records include skin, fronts, sleeve, rim, cladding, curves and bridges; read slice and its technique manuals.').optional(),before:z.string().nullable().describe('Existing assignment id to insert before; null appends; omitted retains edit position or appends an add.').optional()},
+  tool('slice', 'Add, edit or remove one general deposition assignment in plan.slices. Shared recipe validation; add fills defaults, edit merges objects and replaces arrays. before controls ownership order. Returns saved settings and immediate deposition diagnostics; blocked findings leave valid intermediate recipes editable. No export or confirmation is created.',
+    {bundleId:bundleIdSchema,expectedRevision:z.string().min(1),action:z.enum(['add','edit','remove']),id:z.string().regex(/^[a-z][a-z0-9-]*$/),assignment:slicePatchSchema.optional(),before:z.string().nullable().describe('Existing assignment id to insert before; null appends; omitted retains edit position or appends an add.').optional()},
     async({bundleId,expectedRevision,...request})=>{
       noApprovalFields(request.assignment);
       const {dir}=await locate(bundleId),result=await applySlice(dir,request,{expectedRevision});
       return {...summary(bundleId,result.state),edit:result.edit};
     },false);
-  tool('modulate', 'Add, edit or remove a world-space field modifier in plan.modulations. Applied to selected assignment/role deposition before final support publication; changes invalidate dependent output and confirmation. Read slice#modulation for field records, channel units and unsupported cases.',
-    {bundleId:bundleIdSchema,expectedRevision:z.string().min(1),action:z.enum(['add','edit','remove']),id:z.string().regex(/^[a-z][a-z0-9-]*$/),modifier:objectSchema.describe('Add requires channel displacement|flow|width, amplitude and field; displacement also needs direction XYZ or lateral. Optional assignments/roles (null means all), sampleStepMm (0.2), tolerance (0.01). Edit patches a saved modifier; remove omits it.').optional()},
+  tool('modulate', 'Add, edit or remove a field modifier in plan.modulations. Select world/slice/curve frame, assignment/role and layer scope. Runs before final support publication; changes invalidate dependent output and confirmation. Add requires channel, amplitude, field and direction for displacement/tilt; edit patches saved settings. Read slice#modulation.',
+    {bundleId:bundleIdSchema,expectedRevision:z.string().min(1),action:z.enum(['add','edit','remove']),id:z.string().regex(/^[a-z][a-z0-9-]*$/),modifier:modulationPatchSchema.optional()},
     async({bundleId,expectedRevision,...request})=>{
       noApprovalFields(request.modifier);
       const {dir}=await locate(bundleId),result=await applyModulation(dir,request,{expectedRevision});

@@ -24,6 +24,22 @@ export function heightReferenceBounds(reference) {
   return splineSolidBounds({patches:[{controlPoints:[points]}]});
 }
 
+// Area-weighted normal projection over the complete reference footprint.
+// A height graph's area element is dX dY / nZ, not uniform XY weight.
+export function heightReferenceMetric(reference,{sampleStepMm=.5}={}){
+  const bounds=heightReferenceBounds(reference),counts=[0,1].map(k=>Math.max(2,Math.ceil((bounds.max[k]-bounds.min[k])/sampleStepMm)));
+  let areaMm2=0,projectedAreaMm2=0,minProjection=1,maxProjection=0;
+  for(let i=0;i<counts[0];i++)for(let j=0;j<counts[1];j++){
+    const point=[i,j].map((v,k)=>bounds.min[k]+(v+.5)*(bounds.max[k]-bounds.min[k])/counts[k]),top=referenceHeight(reference,...point);
+    if(!top||top.patch==='bottom')continue;
+    const projected=(bounds.max[0]-bounds.min[0])*(bounds.max[1]-bounds.min[1])/(counts[0]*counts[1]);
+    requireThat(top.normal[2]>1e-9,'A height reference has no positive vertical advance.');
+    projectedAreaMm2+=projected;areaMm2+=projected/top.normal[2];minProjection=Math.min(minProjection,top.normal[2]);maxProjection=Math.max(maxProjection,top.normal[2]);
+  }
+  requireThat(areaMm2>0,'The height reference has no measurable surface area.');
+  return {meanProjection:projectedAreaMm2/areaMm2,minProjection,maxProjection,areaMm2,sampleStepMm};
+}
+
 export function heightSlice(reference,{offsetMm=0,normalDepthMm=0,sampleStepMm=.5}={}) {
   requireThat(['roof','spline'].includes(reference?.kind),'Height slices need a roof or spline reference.');
   requireThat(Number.isFinite(offsetMm)&&Number.isFinite(normalDepthMm)&&normalDepthMm>=0&&Number.isFinite(sampleStepMm)&&sampleStepMm>0,'Invalid height slice offsets/sampling.');
@@ -75,8 +91,8 @@ export function heightSliceNormal(slice,[x,y]) {
 // and bisected to point tolerance at each detected crossing. Features wholly
 // between grid samples are outside this explicitly sampled topology contract.
 export function sampledChartRegion(bounds,stepMm,contains) {
-  requireThat(Number.isFinite(stepMm)&&stepMm>0,'Chart sampling pitch must be positive.');
-  const counts=[0,1].map(i=>Math.max(2,Math.ceil((bounds.max[i]-bounds.min[i])/stepMm)));
+  requireThat((Array.isArray(stepMm)?stepMm:[stepMm]).every(s=>Number.isFinite(s)&&s>0),'Chart sampling pitch must be positive.');
+  const counts=[0,1].map(i=>Math.max(2,Math.ceil((bounds.max[i]-bounds.min[i])/(Array.isArray(stepMm)?stepMm[i]:stepMm))));
   const axes=[0,1].map(axis=>Array.from({length:counts[axis]+3},(_,i)=>bounds.min[axis]+(i-1)*(bounds.max[axis]-bounds.min[axis])/counts[axis]));
   const [xs,ys]=axes,values=xs.map(x=>Float64Array.from(ys,y=>contains([x,y])?SENTINEL:-SENTINEL));
   const refine=(inside,outside)=>{

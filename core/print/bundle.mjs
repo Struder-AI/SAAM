@@ -2,7 +2,9 @@
 import { createBundleWorkflow } from './workflow.mjs';
 import { defaults,validatePlan,geometryTemplate,VERSION,BUILD_DATE } from './plan.mjs';
 import { createGeometry,verifyGeometry,rhino } from './geometry.mjs';
-import { generatePath } from './generate.mjs';
+import { generatePath,buildShell,translateShell } from './generate.mjs';
+import {modulationGeometrySources,prepareModulationFields} from './modulation-fields.mjs';
+import {booleanShell} from '../geom/boolean-solid.mjs';
 
 export const LIMITATIONS = [
   'Physical clearance is the operator’s responsibility; no collision model is implemented.',
@@ -21,10 +23,18 @@ const limitationsFor = (plan, machine) => {
   return limits;
 };
 
+export async function generatePreparedPath(plan,machine,options){
+  const native=await rhino(),sources=modulationGeometrySources(plan.modulations);
+  const material=geometry=>geometry.shape==='assembly'
+    ?booleanShell('union',geometry.parts.map(part=>translateShell(material(part.geometry),part.xMm,part.yMm,part.zMm)))
+    :geometry.shape==='boolean'?booleanShell(geometry.operation,geometry.operands.map(material)):buildShell(native,geometry);
+  const fields=await prepareModulationFields(plan.modulations,{solids:sources.map(source=>({key:source.key,geometry:material(source.geometry)}))});
+  return generatePath(plan,machine,native,{...options,modulations:fields.record,modulationPreparation:fields.report});
+}
 
 export const {root, EXPORT_NAME, atomicManifest, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, bundleFingerprint, bundleFingerprints, rememberSetup, migrateBundle, prepareGeneration, commitGeneration, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, changeMachine}=createBundleWorkflow({
   kind:'shell',defaults,validatePlan,geometryTemplate,createGeometry,verifyGeometry,
-  generatePath:async(plan,machine,options)=>generatePath(plan,machine,await rhino(),options),
+  generatePath:generatePreparedPath,
   version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode',machineFile:'machines/ultimaker-s5.json',
   limitations:limitationsFor
 });

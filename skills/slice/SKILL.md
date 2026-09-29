@@ -134,19 +134,24 @@ combing and lifts follow [shared travel](../../core/path/README.md#whole-plan-tr
 
 ## Modulation
 
-`modulate` adds/edits/removes `plan.modulations.modifiers` (version 1); bulk `adjust_recipe` uses the same records. Each modifier has `id, assignments, roles, channel, amplitude, field, sampleStepMm, tolerance`; displacement also needs `direction` (XYZ or `lateral`, the source curve's XY right normal). Target lists are assignment IDs/role names; `null` means all. Tool adds default both lists to null, sampleStepMm to 0.2 and tolerance to 0.01. Fields use world XYZ after placement:
+`modulate` and bulk `adjust_recipe` write `plan.modulations` version1. Add needs `id,channel,amplitude,field`; displacement/tilt also need `direction` (vector in selected frame, `lateral` right normal, or `stack` along stacking direction). Defaults: `assignments:null,roles:null,frame:"world",layers:null,topN:null,phasePerLayerRad:0,sampleStepMm:0.2,tolerance:0.01`. Null targets mean all; roles include `perimeter,perimeter-inner,infill`. `layers:{from,to}` uses inclusive zero-based producer-family indices; `topN` selects its last N layers. Phase adds index × phasePerLayerRad to periodic fields.
 
-| Field | Record beside `kind` |
+Frames: world XYZ after placement; slice native chart coordinates with unit tangent basis; curve arc-length mm, normalized authored parameter and normal coordinate. Spline UV is **not millimetres**, despite historical `periodMm` names. Directions use the frame basis; `lateral` follows the source curve, except parallel fill uses its common directed-line basis to keep alternate rows in phase. `stack` differs from a curved slice's local normal.
+
+| Field kind | Required data and meaning |
 |---|---|
-| `periodic` | `axis, periodMm, phaseRad`; sine in [-1,1]. |
-| `ramp` | `axis, fromMm, toMm`; clamped [0,1]. |
-| `noise` | `cellMm, seed`; deterministic smooth lattice values in [-1,1]. |
-| `blob` | `field`: existing blob source (schema, threshold, points); native scalar strengths. |
+| `periodic` | `axis,periodMm,phaseRad`; optional waveform `sine` (default), `triangle`, `square`. |
+| `noise` / `bumps` | Noise: `cellMm,seed`, deterministic smooth [-1,1]. Bumps: XYZ `periodMm,originMm`, `radiusMm`, summed blob lattice. |
+| `ramp` / `blob` | Ramp: `axis,fromMm,toMm`, clamped [0,1]. Blob: `field` with source schema/threshold/points. |
+| `solid-distance` | `geometry,toleranceMm,signed`; world-space authored solid, explicitly tessellated at tolerance; signed distance negative inside. |
+| `transfer` | `source,input:[low,high],output:[a,b]`; clamps outside increasing input range. |
+| `add` / `multiply` | Nonempty `sources` of any fields above, including nested compositions. |
 
-`displacement` adds amplitude × field millimetres along the normalized direction; `flow` and `width` multiply by 1 + amplitude × field, which must remain positive. Multiple modifiers compose in list order, sampling the original source positions. Role examples: `perimeter`, `perimeter-inner`, `infill`. Noise/lateral makes fuzzy walls, periodic transverse displacement waves fill, and vertical displacement textures tops. Process sampling tolerance is dimensionless; geometric tolerance is mm. Feature spacing and adaptive chord refinement bound sampling; source segment metadata and volume density survive subdivision.
+Square phase0 rises through zero. Optional `transitionFraction` is each transition's width as a fraction of the full cycle: default0.05 for displacement/tilt with an intrinsic rounded C1 transition; these require a positive value. Flow/width/speed default0 and split exactly at step boundaries; positive values round them too. Firmware may change the commanded shape/timing; no acceleration model or physical approval is implied.
 
-Modifiers finalize before deposited support and dependent paths are constructed. Width updates nominal bead width; flow changes volume. Changed strokes need regenerated travel/coverage and machine checks, invalidating prior confirmation. Zero/no matching modulation preserves exact source output. This first engine rejects posed or stationary strokes, mixed per-segment roles and reversing lateral corners. It does not reconstruct a CAD surface or grant physical print approval.
+Displacement adds amplitude × field mm; tilt rotates tool axis/up by that many degrees and requires tool-orientation. Flow/width/speed multiply by 1 + amplitude × field (strictly positive). Fields sample original source coordinates; modifiers compose in order. Sampling follows feature spacing and chord/process tolerance (mm for displacement, unit-vector error for orientation, dimensionless for factors); volume density, metadata and source frames survive subdivision. Lateral fill must be provably in-phase or its summed maximum excursion below half line spacing. Width, slope, bounds, flow and orientation remain machine-checked.
 
+Modifiers finalize before coverage and dependent construction. Edits immediately dry-run deposition: `diagnostics.status:blocked` names a production blocker while retaining a structurally valid intermediate recipe; checked diagnostics do not create an export or confirmation. Changed strokes regenerate travel/support and invalidate confirmation; zero/no matching modulation preserves exact source output. Stationary extrusion supports world-flow scaling of volume and rate together (duration unchanged); moving-path channels, mixed-role strokes and degenerate reversing frames reject explicitly. No CAD-surface reconstruction or swept-head collision proof is claimed.
 <!-- layer: script -->
 ## Script interfaces
 

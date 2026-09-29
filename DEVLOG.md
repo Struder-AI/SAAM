@@ -1,5 +1,30 @@
 # Development log
 
+## 2026-09-29 — General geometry, modulation and contact checkpoint (unfinished)
+
+- Added native curved families, authored NURBS/UV curves and profiles, text and
+  parallel bead construction, full modulation fields/frames/scopes, and actual
+  three-dimensional deposited-bead contact. Machine pose selection now has a
+  downstream stage. Public pitch means target mean normal gap; default direction
+  uses the entire reference. Square position/tilt fields transition intrinsically.
+- Added nested tool schemas, immediate checked/blocked edit diagnostics and an
+  explicit saved-skin migration that preserves geometry and invalidates stale
+  generation/confirmation. Studio now carries family identity and previews mapped
+  slice-region boundaries and wire grids. Context cost remains above the 15 KB
+  soft target when full schemas are included; final measurement is pending.
+- Direct checks cover curved/tilted families and contact gaps, curve/text export,
+  offset-surface metrics, modulation limits and current-format migration. Root
+  reran the tilted example: DENSO generates; S5 rejects the 45-degree requirement
+  against its 15-degree limit. Studio inspection contains 34 operations, 21 slice
+  references and 252 finite grid curves. Existing studio-material test passes.
+  No new tests or whole suites. Physical qualification has not occurred.
+- This saves all concurrent unfinished work. Front/skin orchestration, shared
+  sleeve mapping, final-material consumption for sleeve/cladding and combined
+  workflow review remain active obligations. Common records alone do not close
+  the architecture requirement. Map rebuilding is deferred until implementation
+  finishes at the owner's request; earlier diagnostic scans were stopped. No
+  solver, push, release or hardware execution.
+
 ## 2026-09-29 — Common deposition and finalized support integration
 
 - Replaced the skin, wave, sleeve, rim and cladding producers with common

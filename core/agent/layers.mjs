@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import { gatedSections, readManual, machineOpens } from './manuals.mjs';
 import { SKILL_IDS, TECHNIQUE_IDS } from '../../skills/catalog.mjs';
 import { MACHINE_IDS } from '../machine/profile.mjs';
+import {z} from 'zod';
 
 // The maker's starting context, for both clients: the index (the digest) and the maker flow and
 // print tools, plus their script sections for a script client. GEOMETRY.md, like a skill manual,
@@ -62,10 +63,13 @@ export async function contextBudget(root, { machineIds = MACHINE_IDS } = {}) {
   const { instructions, createLocalRuntime } = await import('../../adapters/mcp/src/runtime.mjs');
   const { mkdtemp, rm } = await import('node:fs/promises'), { tmpdir } = await import('node:os');
   const printsRoot = await mkdtemp(resolve(tmpdir(), 'saam-context-budget-'));
-  let tools = 0;
+  let tools = 0,toolSchemas=0;const operations={};
   try {
     const runtime = createLocalRuntime({ printsRoot, autoOpen: false });
-    for (const operation of runtime.operations) tools += size(operation.description);
+    for (const operation of runtime.beginSession({remote:true}).operations){
+      const description=size(operation.description),schema=size(JSON.stringify(z.toJSONSchema(operation.schema,{unrepresentable:'any'})));
+      operations[operation.name]={description,schema,total:description+schema};tools+=description;toolSchemas+=schema;
+    }
     await runtime.close();
   } finally { await rm(printsRoot, { recursive: true, force: true }); }
   const operate = await manuals({ client: 'web' }), script = await manuals({ client: 'script' }) - operate;
@@ -93,7 +97,9 @@ export async function contextBudget(root, { machineIds = MACHINE_IDS } = {}) {
   }
   return {
     unit: 'bytes of assembled UTF-8 text; onboardingJson is the serialized onboarding sources',
-    clients: { web: { ...web, indexPlusOperate: index + operate, mcpInstructions: size(instructions), toolDescriptions: tools },
+    clients: { web: { ...web, indexPlusOperate: index + operate, mcpInstructions: size(instructions), toolDescriptions: tools,toolSchemas,
+      firstUseBytes:web.onboardingJson+size(instructions)+tools+toolSchemas,sliceAndModulateBytes:operations.slice.total+operations.modulate.total,
+      target:{bytes:15000,mode:'soft; no capability omission'},operations },
       script: { ...scriptClient, indexPlusOperatePlusScript: index + operate + script } },
     advancedByMachine: advanced, manualsOnDemand: skills,
     onDemandTotals: Object.values(skills).reduce((sum, row) => ({ operate: sum.operate + row.operate, script: sum.script + row.script,

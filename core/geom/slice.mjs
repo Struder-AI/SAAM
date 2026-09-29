@@ -18,11 +18,13 @@
 // direction, so every layer keeps the same chart and a chart point names the
 // same column of material in every layer. Neighbouring layers therefore
 // compare by 2D booleans alone.
-import { heightSlicePoint, heightSliceNormal, sectionHeightSlice, heightReferenceBounds } from './height-slice.mjs';
+import { heightSlicePoint, heightSliceNormal, sectionHeightSlice, heightReferenceBounds,heightReferenceMetric,sampledChartRegion } from './height-slice.mjs';
+import {chartPrismContains} from './chart-prism.mjs';
 import { sectionShell } from './shell.mjs';
 import { meshSectionIndex, sectionMeshIndex } from './mesh.mjs';
 import { surfaceRegion } from './slice-region.mjs';
 import { evaluate } from './nurbs.mjs';
+import { regionArea } from '../region/region2d.mjs';
 import { union, intersect, difference } from '../region/intersection.mjs';
 import { requireThat, add, scale, dot, cross, normalize } from './tolerance.mjs';
 
@@ -47,7 +49,7 @@ export function planeSlice({ origin, normal, xAxis = null }) {
 
 export function patchSlice(patch) {
   requireThat(patch?.cp && patch.domainU && patch.domainV, 'A patch slice needs a NURBS patch.');
-  return { kind: 'patch', patch };
+  return { kind: 'patch', patch,referencePatch:patch,translation:[0,0,0] };
 }
 
 export function translateSlice(slice, v) {
@@ -60,7 +62,7 @@ export function translateSlice(slice, v) {
   requireThat(slice.kind === 'patch', `Unsupported slice kind ${slice.kind}.`);
   const cp = Float64Array.from(slice.patch.cp);
   for (let i = 0; i < cp.length; i += 4) for (let k = 0; k < 3; k++) cp[i + k] += v[k] * cp[i + 3];
-  return { ...slice, patch: { ...slice.patch, cp } };
+  return { ...slice, patch: { ...slice.patch, cp },translation:add(slice.translation??[0,0,0],v) };
 }
 
 export function slicePoint(slice, [a, b]) {
@@ -77,6 +79,17 @@ export function sliceNormal(slice, [a, b]) {
   const { normal } = evaluate(slice.patch, a, b);
   requireThat(normal, 'The patch slice has no normal at this chart point.');
   return normal;
+}
+
+export function sliceChartStep(slice,stepMm){
+  if(slice.kind!=='patch')return [stepMm,stepMm];
+  const {domainU:[u0,u1],domainV:[v0,v1]}=slice.patch,speeds=[0,0];
+  for(let i=0;i<=4;i++)for(let j=0;j<=4;j++){
+    const e=evaluate(slice.patch,u0+(u1-u0)*i/4,v0+(v1-v0)*j/4);
+    speeds[0]=Math.max(speeds[0],Math.hypot(...e.du));speeds[1]=Math.max(speeds[1],Math.hypot(...e.dv));
+  }
+  requireThat(speeds.every(v=>v>0),'Slice chart has a singular sampling metric.');
+  return speeds.map(v=>stepMm/v);
 }
 
 // Search data for many sections of one geometry by slices sharing a chart
@@ -104,6 +117,23 @@ export function section(geometry, slice, options = {}) {
 }
 
 function sectionLoops(geometry, slice, options) {
+  if(geometry.kind==='chart-prism'){
+    if(slice.kind==='patch'&&slice.referencePatch===geometry.reference.referencePatch){
+      const delta=(slice.translation??[0,0,0]).map((v,k)=>v-(geometry.reference.translation?.[k]??0)),offset=dot(delta,geometry.direction);
+      if(Math.hypot(...delta.map((v,k)=>v-offset*geometry.direction[k]))<1e-8)return {loops:offset>geometry.fromMm+1e-8&&offset<=geometry.toMm+1e-8?geometry.loopsUv:[],nudgedByMm:0};
+    }
+    let extent;
+    if(slice.kind==='patch')extent={min:[slice.patch.domainU[0],slice.patch.domainV[0]],max:[slice.patch.domainU[1],slice.patch.domainV[1]]};
+    else if(slice.kind==='plane'){
+      const corners=Array.from({length:8},(_,i)=>[0,1,2].map(k=>((i>>k)&1?geometry.bounds.max[k]:geometry.bounds.min[k])-slice.origin[k]));
+      const points=corners.map(p=>[dot(p,slice.xAxis),dot(p,slice.yAxis)]);extent={min:[0,1].map(k=>Math.min(...points.map(p=>p[k]))),max:[0,1].map(k=>Math.max(...points.map(p=>p[k])))};
+    }else extent={min:geometry.bounds.min.slice(0,2),max:geometry.bounds.max.slice(0,2)};
+    const loops=sampledChartRegion(extent,sliceChartStep(slice,options.sampleStepMm??.2),uv=>{
+      if(uv.some((v,k)=>v<extent.min[k]||v>extent.max[k]))return false;
+      return chartPrismContains(geometry,slicePoint(slice,uv));
+    });
+    return {loops,nudgedByMm:0};
+  }
   if (geometry.kind === 'boolean') return combine(geometry.operation, geometry.operands.map(o => sectionLoops(o, slice, options)));
   if (geometry.kind === 'assembly') return combine('union', geometry.components.map(c => sectionLoops(c, slice, options)));
   if (slice.kind === 'height-field') return sectionHeightSlice(geometry, slice, options);
@@ -146,10 +176,42 @@ function combine(operation, sections) {
 // Whether region loops reach the slice's own edge. A plane has none; a patch's
 // is its (u,v) domain boundary.
 export function touchesSliceEdge(slice, loops) {
-  if (slice.kind !== 'patch') return false;
+  return sliceBoundaryEdges(slice,loops).length>0;
+}
+
+export function sliceBoundaryEdges(slice,loops) {
+  if (slice.kind !== 'patch') return [];
   const { domainU: [u0, u1], domainV: [v0, v1] } = slice.patch;
   const eu = 1e-7 * (u1 - u0) + 1e-9, ev = 1e-7 * (v1 - v0) + 1e-9;
-  return loops.some(loop => loop.some(([u, v]) => u - u0 <= eu || u1 - u <= eu || v - v0 <= ev || v1 - v <= ev));
+  const tests=[['u-min',([u])=>u-u0<=eu],['u-max',([u])=>u1-u<=eu],['v-min',([,v])=>v-v0<=ev],['v-max',([,v])=>v1-v<=ev]];
+  return tests.filter(([,test])=>loops.some(loop=>loop.some(test))).map(([edge])=>edge);
+}
+
+// Integrate the oriented area vector, not unweighted vertex normals. The UV
+// grid is bounded by a physical pitch derived from the patch control net.
+export function patchMeanNormal(patch,region=null,{sampleStepMm=.5}={}) {
+  const [u0,u1]=patch.domainU,[v0,v1]=patch.domainV;
+  const extents=[0,1].map(axis=>{
+    let max=0;
+    for(let i=0;i<patch.nu;i++)for(let j=0;j<patch.nv;j++){
+      const ni=i+(axis===0?1:0),nj=j+(axis===1?1:0);if(ni>=patch.nu||nj>=patch.nv)continue;
+      const a=(i*patch.nv+j)*4,b=(ni*patch.nv+nj)*4;
+      max=Math.max(max,Math.hypot(...[0,1,2].map(k=>patch.cp[a+k]/patch.cp[a+3]-patch.cp[b+k]/patch.cp[b+3])));
+    }
+    return max*(axis===0?patch.nu-1:patch.nv-1);
+  });
+  const counts=extents.map(length=>Math.max(2,Math.ceil(length/sampleStepMm))),sum=[0,0,0];let areaMm2=0;
+  for(let i=0;i<counts[0];i++)for(let j=0;j<counts[1];j++){
+    const uv=[u0+(i+.5)*(u1-u0)/counts[0],v0+(j+.5)*(v1-v0)/counts[1]];
+    const hu=(u1-u0)/counts[0]/2,hv=(v1-v0)/counts[1]/2;
+    const weight=region?regionArea(intersect(region,[[[uv[0]-hu,uv[1]-hv],[uv[0]+hu,uv[1]-hv],[uv[0]+hu,uv[1]+hv],[uv[0]-hu,uv[1]+hv]]])):4*hu*hv;
+    if(!weight)continue;
+    const e=evaluate(patch,...uv),area=cross(e.du,e.dv);
+    for(let k=0;k<3;k++)sum[k]+=area[k]*weight;
+    areaMm2+=Math.hypot(...area)*weight;
+  }
+  requireThat(areaMm2>0&&Math.hypot(...sum)>areaMm2*1e-9,'The in-part patch has no unambiguous mean stacking normal; specify stack.direction.');
+  return {normal:normalize(sum),meanNormal:sum.map(v=>v/areaMm2),areaMm2,sampleStepMm};
 }
 
 // A stack of one base slice: layer k is the base translated along the unit
@@ -163,7 +225,7 @@ export function touchesSliceEdge(slice, loops) {
 //
 // {base, direction?, pitchMm, firstLayerMm}, {min, max} ->
 // {base, direction, pitchMm, firstLayerMm, layers: [{index, offsetMm, heightMm, slice}]}
-export function sliceFamily({ base, direction = null, pitchMm, firstLayerMm }, bounds) {
+export function sliceFamily({ base, direction = null, normalRegion = null, pitchMm, firstLayerMm }, bounds) {
   requireThat(['plane', 'patch', 'height-field'].includes(base?.kind), 'A slice family needs a plane, patch or height reference.');
   requireThat(Number.isFinite(pitchMm) && pitchMm > 0 && Number.isFinite(firstLayerMm) && firstLayerMm > 0,
     'A slice family needs a positive pitch and first-layer height; it would never advance.');
@@ -171,19 +233,23 @@ export function sliceFamily({ base, direction = null, pitchMm, firstLayerMm }, b
   if(base.kind==='height-field') {
     requireThat(!direction||direction[0]===0&&direction[1]===0&&direction[2]>0,'Height-reference families translate along positive Z.');
     requireThat(!base.normalDepthMm,'Translated height families do not imply normal-offset stacks.');
-    const referenceBounds=heightReferenceBounds(base.reference),layers=[];
+    const referenceBounds=heightReferenceBounds(base.reference),metric=heightReferenceMetric(base.reference,{sampleStepMm:base.sampleStepMm}),translationStepMm=pitchMm/metric.meanProjection,firstTranslationMm=firstLayerMm/metric.meanProjection,layers=[];
     for(let index=0;;index++) {
-      const offsetMm=firstLayerMm+index*pitchMm;
+      const offsetMm=firstTranslationMm+index*translationStepMm;
       if(referenceBounds.min[2]+base.offsetMm+offsetMm>bounds.max[2]+1e-9)break;
       if(referenceBounds.max[2]+base.offsetMm+offsetMm<=bounds.min[2]+1e-9)continue;
-      layers.push({index,offsetMm,heightMm:index?pitchMm:firstLayerMm,thicknessMetric:'vertical',slice:translateSlice(base,[0,0,offsetMm])});
+      const translationMm=index?translationStepMm:firstTranslationMm;
+      layers.push({index,offsetMm,targetGapMm:index?pitchMm:firstLayerMm,translationMm,heightMm:translationMm,direction:[0,0,1],thicknessMetric:'normal-projection',slice:translateSlice(base,[0,0,offsetMm])});
     }
-    return {base,direction:[0,0,1],pitchMm,firstLayerMm,layers};
+    return {base,direction:[0,0,1],pitchMm,firstLayerMm,translationStepMm,firstTranslationMm,meanProjection:metric.meanProjection,gapMetric:'area-mean-normal-projection',layers};
   }
-  requireThat(base.kind === 'plane' || direction, 'A patch slice family needs a stacking direction.');
-  const d = normalize(direction ?? base.normal);
+  const metric=base.kind==='patch'?patchMeanNormal(base.patch):null;
+  const d = normalize(direction ?? (metric?metric.normal:base.normal));
   const advance = base.kind === 'plane' ? dot(d, base.normal) : 1;
   requireThat(advance > 1e-9, 'The stacking direction must advance the plane along its normal.');
+  const meanProjection=metric?dot(metric.meanNormal,d):advance;
+  requireThat(meanProjection>1e-9,'The stacking direction has no positive mean normal advance.');
+  const translationStepMm=pitchMm/meanProjection,firstTranslationMm=firstLayerMm/meanProjection;
   const corners = [0, 1, 2, 3, 4, 5, 6, 7].map(i => [0, 1, 2].map(k => (i >> k) & 1 ? bounds.max[k] : bounds.min[k]));
   const along = base.kind === 'plane' ? base.normal : d;
   const lo = Math.min(...corners.map(c => dot(along, c))), hi = Math.max(...corners.map(c => dot(along, c)));
@@ -191,17 +257,19 @@ export function sliceFamily({ base, direction = null, pitchMm, firstLayerMm }, b
   const [low, high] = base.kind === 'patch' ? patchExtent(base.patch, d) : [0, 0];
   // Translating by the first layer, then by whole pitches, keeps a horizontal
   // family's heights bit-identical to base + first + k·pitch.
-  const start = translateSlice(base, scale(d, firstLayerMm)), layers = [];
-  for (let index = 0; ; index++) {
-    const slice = index ? translateSlice(start, scale(d, index * pitchMm)) : start;
-    const t = firstLayerMm + index * pitchMm;
+  const start = translateSlice(base, scale(d, firstTranslationMm)), layers = [];
+  const baseHigh=base.kind==='plane'?dot(base.normal,base.origin):high;
+  const firstIndex=Math.min(0,Math.floor(((lo-baseHigh)/advance-firstTranslationMm)/translationStepMm+1e-9)+1);
+  for (let referenceIndex = firstIndex; ; referenceIndex++) {
+    const slice = referenceIndex ? translateSlice(start, scale(d, referenceIndex * translationStepMm)) : start;
+    const t = firstTranslationMm + referenceIndex * translationStepMm;
     const [bottom, top] = base.kind === 'plane' ? [dot(base.normal, slice.origin), dot(base.normal, slice.origin)] : [low + t, high + t];
     if (bottom > hi + 1e-9) break;
     if (top <= lo + 1e-9) continue;
-    const stepMm = index ? pitchMm : firstLayerMm;
-    layers.push({ index, offsetMm: firstLayerMm + index * pitchMm, heightMm: stepMm * advance, slice });
+    const index=referenceIndex-firstIndex,stepMm=referenceIndex===0?firstTranslationMm:translationStepMm;
+    layers.push({ index, referenceIndex, offsetMm:t, targetGapMm:referenceIndex===0?firstLayerMm:pitchMm,translationMm:stepMm,heightMm: stepMm * advance, direction:d, slice });
   }
-  return { base, direction: d, pitchMm, firstLayerMm, layers };
+  return { base, direction: d, pitchMm, firstLayerMm,translationStepMm,firstTranslationMm,gapMetric:'area-mean-normal-projection',meanProjection,layers };
 }
 
 // Range of a patch along a unit direction, from its control hull.

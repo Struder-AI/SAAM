@@ -427,7 +427,7 @@ async function decodeInWorker(snapshot){
   machineSession?.dispose();requestingPose=null;
   machineSession=sourceSession(new Worker('/studio/source-worker.mjs',{type:'module'}));
   return machineSession.load({printId:snapshot.printId,revision:snapshot.revision,exportHash:snapshot.exportHash,
-    plan:snapshot.plan,machine:snapshot.machine,program:{sources:snapshot.program.sources}});
+    plan:snapshot.plan,machine:snapshot.machine,inspection:snapshot.pathSummary?.inspection,program:{sources:snapshot.program.sources}});
 }
 function bindCachedProgram(snapshot){return machineSession?.bind(snapshot);}
 function table(entries) {
@@ -524,7 +524,7 @@ function readViewerSnapshot(options={}) {
     playbackSpeed:options.playbackSpeed??(playing?Number($('#playback-speed').value):0),machineState:options.machineState??machineDisplay(position),
     state,shown,tab,selected,selectionLabel:selected?label(selected):'',showGeometry:showingGeometry(),
     camera:{yaw,tilt,zoom,pan:[...pan],fitBounds},bounds:partBounds(),skinPhase:view().skinPhase,cameraMode:cameras.mode,machineColors,
-    settings:{showTravel:$('#travel').checked,followPlate:$('#follow-plate').checked,previousLayerOpacity:Number($('#previous-layer-opacity').value)/100},
+    settings:{showTravel:$('#travel').checked,showSlice:$('#slice-reference').checked,followPlate:$('#follow-plate').checked,previousLayerOpacity:Number($('#previous-layer-opacity').value)/100},
     playing,manualPose:Boolean(manualValues),duration:duration(),interaction:drag?(drag.pan?'pan':'orbit'):null,
     performanceContext:{tab,view:cameras.mode,solid:tab==='toolpath'&&viewer.sceneState().solid,moves:state?.program?.moves.length??0,canvasCss:[canvas.clientWidth,canvas.clientHeight],
       devicePixelRatio:+(devicePixelRatio||1).toFixed(3),userAgent:navigator.userAgent}};
@@ -715,6 +715,7 @@ $('#stl-file').onchange=async()=>{
 };
 $('#open-path').onsubmit=event=>{event.preventDefault();openPrint($('#print-path').value.trim());};
 $('#travel').onchange=requestDraw;
+$('#slice-reference').onchange=requestDraw;
 $('#follow-plate').onchange=()=>{const fit=mode=>mode==='machine'?fitMachine():fitDisplayedPart();cameras.refit(fit);fitBounds=fit(cameras.mode);$('#fit-program').textContent='Fit all moves';saveView();requestDraw();};
 $('#playback-speed').oninput=()=>{$('#speed-label').value=$('#playback-speed').value+'×';};
 $('#previous-layer-opacity').oninput=()=>{$('#previous-layer-opacity-label').value=$('#previous-layer-opacity').value+'%';saveView();requestDraw();};

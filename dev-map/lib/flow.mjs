@@ -2028,15 +2028,18 @@ export function flowPacket(context,target,{evidence=false}={}) {
   return packet;
 }
 
-export async function loadFlow({repo=fileURLToPath(new URL('../../',import.meta.url)),files,readSource=file=>readFile(resolve(repo,file),'utf8')}={}) {
+export async function loadFlow({repo=fileURLToPath(new URL('../../',import.meta.url)),files,onProgress,readSource=file=>readFile(resolve(repo,file),'utf8')}={}) {
   const list=files??await sourceFiles(repo,scanRoots),sources=new Map();
   const read=async file=>{const text=await readSource(file);sources.set(file,text);return text;};
   const started=Date.now();
-  const graph=await extractGraph({repo,files:list,importAliases,literalCouplings:true,receiverCalls:true,readSource:read});
+  onProgress?.({stage:'link',files:list.length});
+  const graph=await extractGraph({repo,files:list,importAliases,literalCouplings:true,receiverCalls:true,readSource:read,onProgress});
   const linked=Date.now();
+  onProgress?.({stage:'parse',elapsedMs:linked-started});
   const projection=projectGraph(graph),asts=new Map();
   for(const [file,text] of sources)asts.set(file,parse(text,{ecmaVersion:'latest',sourceType:'module',locations:true}));
   const parsed=Date.now();
+  onProgress?.({stage:'classify',elapsedMs:parsed-linked});
   const shapes=classify({graph,projection,asts});
   return {graph,projection,sources,asts,shapes,
     timings:{link:linked-started,parse:parsed-linked,shapes:Date.now()-parsed}};

@@ -2,7 +2,7 @@ import {requireThat} from '../geom/tolerance.mjs';
 import {validateSurfaceSelection} from '../geom/surface-region.mjs';
 import {CLADDING_PATTERNS} from '../path/surface-courses.mjs';
 import {constructCladdingCourses} from '../region/wrapping-curves.mjs';
-import {depositCurves} from '../path/deposition.mjs';
+import {depositCurveCourses} from '../path/curve-courses.mjs';
 import {CONNECT_MOVE_MM} from '../path/planning.mjs';
 import {lineSpacing} from '../path/spacing.mjs';
 
@@ -32,16 +32,11 @@ export function claddingResult({shell,assignment,process,motion,finishedSurface,
     'Cladding requires a finalized deposited surface with source operation prerequisites.');
   requireThat(motion&&Array.isArray(motion.rotaryCenterMm),'Cladding requires declared coordinated rotary motion settings.');
   const constructed=constructCladdingCourses({shell,settings:assignment,process,motion,chart:finishedSurface});
-  const operations=[];let previous=[...new Set([...after,...finishedSurface.sourceOperationIds])];
-  for(const course of constructed.courses){
-    const id=assignment.id+':'+course.layer;
-    const strokes=depositCurves(course.curves,{widthMm:process.lineWidthMm});
-    operations.push({id,layerId:id,phase:course.phase,layer:course.layer,rank:course.layer,after:previous,
-      strokes,order:'given',continuous:true,connectNearby:course.axial,regionId:id,
-      ...(assignment.filament===null?{}:{filament:assignment.filament}),
-      travelPolicy:{maxCombMm:0,clearanceFor:()=>course.maxZ+process.liftMm,poseJoinMm:course.axial?CONNECT_MOVE_MM:0}});
-    previous=[id];
-  }
+  const afterSources=[...new Set([...after,...finishedSurface.sourceOperationIds])];
+  const courses=constructed.courses.map(course=>({key:course.layer,layer:course.layer,phase:course.phase,curves:course.curves,
+    join:{mode:'ordered'},connectNearby:course.axial,regionId:assignment.id+':'+course.layer,
+    travel:{kind:'clearance',clearanceZ:course.maxZ+process.liftMm,poseJoinMm:course.axial?CONNECT_MOVE_MM:0}}));
+  const operations=depositCurveCourses({id:assignment.id,courses,process,after:afterSources,filament:assignment.filament});
   return {id:assignment.id,operations,report:{...constructed.report,part:assignment.part,construction:'cladding',
     substrate:{sourceOperationIds:finishedSurface.sourceOperationIds,coverage:finishedSurface.coverage,part:assignment.part}}};
 }

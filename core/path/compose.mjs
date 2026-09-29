@@ -77,7 +77,7 @@ export function planStrokeApproach(state,stroke,op,policy) {
   requireThat(stroke.points.length>=(stroke.stationaryExtrusion?1:2),'An operation stroke needs at least two points or an explicit stationary extrusion.');
   requireThat(!stroke.poses||stroke.poses.length===stroke.points.length,'Stroke pose/point count differs.');
   const connection=op.connectNearby&&!stroke.stationaryExtrusion
-    ?planConnection(state,stroke.points[0],policy,stroke.speedMmS,
+    ?planConnection(state,stroke.points[0],policy,stroke.segmentMetadata?.[0]?.speedMmS??stroke.speedMmS,
       stroke.volumesMm3?stroke.volumesMm3[0]/distance(stroke.points[0],stroke.points[1]):stroke.beadAreaMm2,
       segmentExtras(stroke,op,0),stroke.poses?.[0])
     :planningResult(state,undefined,{connected:false});
@@ -99,7 +99,9 @@ export function planStrokeDeposition(initialState,stroke,op) {
   for(let i=1;i<stroke.points.length;i++){
     const volume=stroke.volumesMm3?stroke.volumesMm3[i-1]:distance(stroke.points[i-1],stroke.points[i])*stroke.beadAreaMm2;
     requireThat(Number.isFinite(volume)&&volume>=0,'Invalid operation deposition volume.');
-    const moved=planMove(state,stroke.points[i],stroke.speedMmS,volume,segmentExtras(stroke,op,i-1));
+    const speed=stroke.segmentMetadata?.[i-1]?.speedMmS??stroke.speedMmS;
+    requireThat(Number.isFinite(speed)&&speed>0,'Invalid operation deposition speed.');
+    const moved=planMove(state,stroke.points[i],speed,volume,segmentExtras(stroke,op,i-1));
     state=moved.state;actions.add(moved.actions);
   }
   return planningResult(state,actions.finish());

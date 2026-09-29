@@ -1,6 +1,6 @@
 // Patterns use sleeve coordinates, never independent world XYZ.
 import {distance,requireThat} from '../geom/tolerance.mjs';
-import {depositCurves,maximumPathAngle,trimVanishingEnd} from './deposition.mjs';
+import {maximumPathAngle} from './deposition.mjs';
 import {isTiledPattern,tileSleevePattern} from './sleeve-tile.mjs';
 import {patternCourses} from './sleeve-boundary-courses.mjs';
 const sameSurfacePoint=(a,b)=>Math.abs((a[0]-b[0])-Math.round(a[0]-b[0]))<=1e-10&&Math.abs(a[1]-b[1])<=1e-9;
@@ -48,7 +48,7 @@ export function validateSleevePattern(pattern,mode='continuous') {
   }
 }
 
-export function mappedSleevePatternResult({settings,process,machine,id,after,base,start,end,firstHeight,referenceLengthMm,mappedPoint,mappingErrorMm=0,sectionReport,onProgress}) {
+export function mappedSleevePatternCurves({settings,process,base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm=0,onProgress}) {
   const tiled=isTiledPattern(settings.pattern),pattern=tiled?tileSleevePattern(settings.pattern):settings.pattern;
   const continuous=settings.pathMode==='continuous',role=continuous?'vase-wall':'segmented-path';
   // Every course is authored and finite, and each mapped interval subdivides
@@ -59,7 +59,8 @@ export function mappedSleevePatternResult({settings,process,machine,id,after,bas
     const at=(a,b,t)=>{
       const u=a[0]+(b[0]-a[0])*t,z=start+a[1]+(b[1]-a[1])*t;
       requireThat(z>=start-1e-9&&z<=end+1e-9,'Mapped pattern exceeds its selected sleeve height interval; adjust repeats, advance or tile heights.');
-      return mappedPoint(u,z,(a[2]??0)+((b[2]??0)-(a[2]??0))*t);
+      const depth=(a[2]??0)+((b[2]??0)-(a[2]??0))*t;
+      return mapping.reference?mapping.reference.map(mapping.reference.pointAt(u,z,depth)):[...mapping.contours.at(u,z,depth),z];
     };
     const points=[at(vertices[0],vertices[0],0)],segmentHeights=[];
     count++;
@@ -91,7 +92,7 @@ export function mappedSleevePatternResult({settings,process,machine,id,after,bas
     for(const p of points){minZ=Math.min(minZ,p[2]);maxZ=Math.max(maxZ,p[2]);}
     const length=points.slice(1).reduce((sum,p,i)=>sum+distance(points[i],p),0);
     const speed=Math.min(process.planarSpeedMmS,process.firstLayerSpeedMmS,process.minimumLayerSeconds>0?length/process.minimumLayerSeconds:Infinity);
-    paths.push(...depositCurves([{closed:false,points,heightsMm:segmentHeights,speedMmS:speed,role,segmentMetadata:segmentHeights.map(()=>({layer}))}],{widthMm:process.lineWidthMm}));
+    paths.push({closed:false,points,heightsMm:segmentHeights,speedMmS:speed,role,segmentMetadata:segmentHeights.map((_,i)=>({layer,...(level&&Math.abs(points[i][2]-end)<1e-8&&Math.abs(points[i+1][2]-end)<1e-8?{boundaryRole:'rim'}:{})}))});
   };
   const total=pattern.repeats+(level?2:0);let completed=0;
   onProgress?.({stage:'Mapping vase pattern courses',completed:0,total});
@@ -99,12 +100,10 @@ export function mappedSleevePatternResult({settings,process,machine,id,after,bas
     for(const {vertices,heights} of course.paths)emitPath(vertices,heights,course.repeat+(level?2:1));
     onProgress?.({stage:'Mapping vase pattern courses',completed:++completed,total});
   }
-  const strokes=level&&paths.length?[...paths.slice(0,-1),trimVanishingEnd(paths.at(-1))]:paths;
-  return {id,...(level?{levelBoundary:{zMm:end,strokes:strokes.slice(-pattern.paths.length),widthMm:process.lineWidthMm}}:{}),operations:[{id:id+':wall',layerId:id+':pattern',phase:continuous?'vase-wall':'segmented-paths',layer:0,rank:minZ,after,
-    strokes,order:'given',continuous,fanPercent:process.fanPercent,
-    travelPolicy:{maxCombMm:0,constantClearanceZ:maxZ+process.liftMm,clearanceFor:()=>maxZ+process.liftMm}}],
+  return {courses:[{key:'wall',layerIdSuffix:':pattern',phase:continuous?'vase-wall':'segmented-paths',layer:0,rank:minZ,curves:paths,join:{mode:continuous?'continuous':'separate'},fanPercent:process.fanPercent,trimEnd:level,travel:{kind:'clearance',clearanceZ:maxZ+process.liftMm,constant:true}}],
+    levelBoundary:level?{zMm:end,widthMm:process.lineWidthMm,tailCount:pattern.paths.length}:null,
     report:{mode:continuous?'continuous-sleeve-pattern':'segmented-sleeve-pattern',startMm:minZ,endMm:maxZ,baseTopMm:base,paths:paths.length,repeats:pattern.repeats,
       ...(tiled?{tileCellsPerTurn:settings.pattern.cellsPerTurn,tilePoints:settings.pattern.tile.points.length,tiltDeg:settings.pattern.tiltDeg}:{}),
-      points:count,...sectionReport(),endTransition:settings.endTransition,levelRimMm:level?end:null,...(level?{flatStartMm:start,boundaryCourses:2}:{}),maximumAngleDeg,maximumBeadHeightMm,volumeMm3:strokes.reduce((sum,s)=>sum+s.volumesMm3.reduce((a,b)=>a+b,0),0),
+      points:count,endTransition:settings.endTransition,levelRimMm:level?end:null,...(level?{flatStartMm:start,boundaryCourses:2}:{}),maximumAngleDeg,maximumBeadHeightMm,
       scope:'Repeated tiles mapped to actual inset sleeve sections. Only supplied pattern strokes deposit, with nominal bead heights; arbitrary crossing contact and strength are not inferred.'}};
 }

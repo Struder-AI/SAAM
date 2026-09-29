@@ -11,6 +11,7 @@ import {validateDensoConfiguration} from '../machine/denso.mjs';
 import {consumeCheckedProgram,createPendingCheckedProgramStore} from './program-handoff.mjs';
 import {replaceFile} from '../file-write.mjs';
 import {resolveInitialPlan,resolveMachinePlan,resolvePlanPatch} from './resolve-plan.mjs';
+import {migrateRecipeFields} from './recipe-migration.mjs';
 
 export const root=resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const setupFor=machine=>resolve(root,`.local/machine-setups/${machine.id}.json`);
@@ -221,7 +222,7 @@ async function requireLegacyCurrent(dir,inputs){
 async function migrateBundle(directory,{beforeCommit}={}){
   const dir=resolve(directory),planFile=resolve(dir,'plan.json'),planText=await readFile(planFile,'utf8'),document=JSON.parse(planText);
   const before=await bundleFiles(dir);
-  if(document.bundle?.schema===BUNDLE_SCHEMA)return {status:'current',directory:dir,created:[],updated:[],removed:[],retained:before};
+  if(document.bundle?.schema===BUNDLE_SCHEMA)return migrateCurrentRecipe(dir,document,planText,before,{beforeCommit});
   const prepared=await prepareLegacyMigration(dir,document,planText),created=[],retained=new Set(before);
   await requireLegacyCurrent(dir,prepared.inputs);
   for(const [name,bytes] of prepared.artifacts){
@@ -250,6 +251,28 @@ async function migrateBundle(directory,{beforeCommit}={}){
     if(planUnchanged)await Promise.all(created.map(name=>rm(resolve(dir,name),{force:true})));
     throw error;
   }
+}
+
+async function migrateCurrentRecipe(dir,document,planText,before,{beforeCommit}){
+  const {bundle,...previous}=document,{plan,changes}=migrateRecipeFields(previous);
+  if(!changes.length)return {status:'current',directory:dir,created:[],updated:[],removed:[],retained:before};
+  const geometry=bundle.geometry;
+  requireThat(geometry&&/^[a-f0-9]{64}$/.test(geometry.hash)&&geometry.file===`geometry/${geometry.hash}${nativeSuffix(geometry.descriptor)}`,'Invalid geometry artifact reference.');
+  const bytes=await readFile(resolve(dir,geometry.file)),machine=bundle.machine;
+  const review=invalidateReview(migrateReview(bundle.review),{event:'recipe-migrated',time:new Date().toISOString(),changes,previousGenerationHash:bundle.review.generation?.generationHash??null,invalidated:['generation','toolpath']});
+  const state={plan,machine,geometry,review},manifest=manifestDocument(state);
+  const checked=await validateBundleInput({dir,planText:JSON.stringify(manifest),...state,bytes},{});
+  if(checked.error)throw checked.error;
+  const inputs=new Map([['plan.json',Buffer.from(planText)],[geometry.file,bytes]]),source=originalSource(plan.geometry);
+  if(source){const sourceBytes=await readFile(resolve(dir,'geometry/source.stl'));requireThat(hash(sourceBytes)===source.sha256,'Imported source changed; repair it before recipe migration.');inputs.set('geometry/source.stl',sourceBytes);}
+  await beforeCommit?.();await requireLegacyCurrent(dir,inputs);
+  const file=resolve(dir,'plan.json'),serialized=`${JSON.stringify(manifest,null,2)}\n`;
+  await save(file,manifest);
+  try{
+    const reopened=await loadBundle(dir,{program:false});
+    return {status:'migrated',directory:dir,changes,created:[],updated:['plan.json'],removed:[],retained:before.filter(name=>name!=='plan.json'),
+      verification:{geometryHash:reopened.geometryHash,toolpathApproved:reopened.toolpathApproved,generation:reopened.review.generation,revision:reopened.revision}};
+  }catch(error){if(await readFile(file,'utf8').then(text=>text===serialized,()=>false))await save(file,planText);throw error;}
 }
 
 async function readBundleInput(directory) {

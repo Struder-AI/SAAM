@@ -19,7 +19,7 @@ self.onmessage=async({data})=>{
   try{
     if(type==='load'){
       const state=data.state;
-      const sources=await fetchSources(state);program=decodeSource(sources,state.plan,state.machine);
+      const sources=await fetchSources(state);program=decodeSource(sources,state.plan,state.machine,{inspection:state.inspection});
       const machine=await bind(state),moves=program.moves.snapshot();
       self.postMessage({id,program:{...program,moves},...machine},provider?[]:moveBuffers(moves));
     }else if(type==='bind')self.postMessage({id,...await bind(data.state)});

@@ -40,6 +40,7 @@ export function holderReach(ctx) {
   // A simple declarator's name is not walked by the graph, so it is scoped by its declarator.
   const declScope=new WeakMap(),scopeOf=n=>nodeScope.get(n)??declScope.get(n);
   const refs=new Map(),keyReads=new Map(),keyPatterns=new Map(),thisNodes=[],moduleOf=new WeakMap(),extended=new Set();
+  const nodeIndex=new WeakMap();let nodeCount=0;
   // Element reads before their collection is known: the receiver read, and what receives the
   // element (`node` takes it as a value, `target` is a pattern or parameter it is assigned to).
   const reads=[];
@@ -67,6 +68,7 @@ export function holderReach(ctx) {
     ||p?.type==='UnaryExpression'&&p.operator==='delete';};
   const calleeName=call=>call.callee.type==='Identifier'?call.callee.name:call.callee.type==='MemberExpression'?property(call.callee):null;
   for(const m of modules.values())(function walk(n){
+    nodeIndex.set(n,nodeCount++);
     if(n.type==='Identifier'&&isReference(n)){const b=lookup(nodeScope.get(n),n.name);if(b)push(refs,b,n);}
     if(n.type==='MemberExpression'&&!isWritten(n)){const k=property(n);
       if(k!==null&&k!==undefined)push(keyReads,k,n);else reads.push({receiver:n.object,node:n});}
@@ -146,31 +148,37 @@ export function holderReach(ctx) {
   // are wherever it arrives as a callee. Returns the expressions that may hold it, the calls it
   // arrives at as the callee, the platform calls it is handed to, and whether it escaped.
   function follow(starts) {
-    const held=new Set(),bindings=new Set(),keys=new Set(),done=new Set(),calls=new Set(),handed=new Set(),pooled=new Set();let escaped=false,why=null;
+    // Per-value membership is dense over this scan's fixed AST. A byte per node
+    // avoids retaining huge object hash tables in nested return-value walks.
+    // 0 = unseen, 1 = queued, 2 = reached; only reached nodes are published.
+    const membership=new Uint8Array(nodeCount),held={has:n=>membership[nodeIndex.get(n)]===2};
+    const bindings=new Set(),keys=new Set(),done=new Set(),calls=new Set(),handed=new Set(),pooled=new Set();let escaped=false,why=null;
     // Where the value left what the scan follows, said the way a finding row says a site.
     const escape=(n,reason)=>{escaped=true;why??={reason,line:n?.loc?.start.line,file:moduleOf.get(n)?.file??null,
       call:n&&(n.type==='CallExpression'||n.type==='NewExpression')?calleeName(n):null};};
-    const work=[...starts];
+    const work=[];
+    const enqueue=(...nodes)=>{for(const node of nodes){const index=nodeIndex.get(node);if(membership[index]===0){membership[index]=1;work.push(node);}}};
+    enqueue(...starts);
     // An exported binding is read by name wherever it is imported, and as a member of any
     // namespace it is imported through.
-    const bind=b=>{if(!b||bindings.has(b))return;bindings.add(b);work.push(...refs.get(b)??[]);
+    const bind=b=>{if(!b||bindings.has(b))return;bindings.add(b);enqueue(...refs.get(b)??[]);
       for(const name of exportedBindings.get(b)??[]){key(name);for(const other of importsOf(b))bind(other);}};
     // A value stored under a key also comes out of reading an object's values whole
     // (`Object.values(o)`, `Object.entries(o)`), as an element of the shared pool.
     const key=k=>{if(k===null||k===undefined){toPool(SHARED);return;}if(keys.has(k))return;keys.add(k);
-      work.push(...keyReads.get(k)??[]);for(const target of keyPatterns.get(k)??[])assign(target);
+      enqueue(...keyReads.get(k)??[]);for(const target of keyPatterns.get(k)??[])assign(target);
       if(valueReads.length)toPool(SHARED);};
     function toPool(pool) {
       if(pooled.has(pool))return;pooled.add(pool);
-      for(const r of readsOf.get(pool)??[])r.target?assign(r.target):work.push(r.node);
+      for(const r of readsOf.get(pool)??[])r.target?assign(r.target):enqueue(r.node);
     }
     // What a function returns reaches every call of it (`callers`). The platform, handed a
     // callback, returns what it makes of it: the call's result or a shared element.
     const returned=fn=>{if(!fn||done.has(fn))return;done.add(fn);
       const found=callers(fn);
       if(found.escaped){escaped=true;why??=found.why;return;}
-      work.push(...found.calls);
-      if(found.handed.length){work.push(...found.handed);toPool(SHARED);}};
+      enqueue(...found.calls);
+      if(found.handed.length){enqueue(...found.handed);toPool(SHARED);}};
     // A value arriving at a pattern or a binding target.
     function assign(target) {
       if(!target)return;
@@ -186,10 +194,10 @@ export function holderReach(ctx) {
     }
     while(work.length&&!escaped) {
       const n=work.pop();
-      if(held.has(n))continue;held.add(n);
+      membership[nodeIndex.get(n)]=2;
       const p=parents.get(n);if(!p)continue;
       if(pure.has(p.type)||p.type==='ConditionalExpression'&&p.test!==n||p.type==='LogicalExpression'
-        ||p.type==='SequenceExpression'&&p.expressions.at(-1)===n||p.type==='AssignmentExpression'&&p.right===n)work.push(p);
+        ||p.type==='SequenceExpression'&&p.expressions.at(-1)===n||p.type==='AssignmentExpression'&&p.right===n)enqueue(p);
       if((p.type==='CallExpression'||p.type==='NewExpression')&&p.callee===n)calls.add(p);
       else if(p.type==='VariableDeclarator'&&p.init===n)assign(p.id);
       else if(p.type==='AssignmentExpression'&&p.right===n)assign(p.left);
@@ -201,7 +209,7 @@ export function holderReach(ctx) {
         if(loop?.type==='ForOfStatement'&&loop.right===p)assign(loop.left.type==='VariableDeclaration'?loop.left.declarations[0].id:loop.left);
         else toPool(literalPool(p));
       }
-      else if(p.type==='SpreadElement'&&parents.get(p)?.type==='ObjectExpression')work.push(parents.get(p));
+      else if(p.type==='SpreadElement'&&parents.get(p)?.type==='ObjectExpression')enqueue(parents.get(p));
       else if(p.type==='ReturnStatement')returned(enclosingFunction(p));
       else if(functions.has(p.type)&&p.body===n)returned(p);
       // A generator hands what it yields to whatever iterates it: a shared element.
@@ -217,7 +225,7 @@ export function holderReach(ctx) {
         if(platformCall(p,m)) {
           handed.add(p);
           const name=calleeName(p);
-          if(wrappers.has(name)&&p.arguments[0]===n)work.push(p);
+          if(wrappers.has(name)&&p.arguments[0]===n)enqueue(p);
           if(storing.has(name)&&p.callee.type==='MemberExpression')for(const pool of pools(p.callee.object))toPool(pool);
           else if(containerCalls.has(name)||storing.has(name))toPool(SHARED);
         }
@@ -267,12 +275,13 @@ export function holderReach(ctx) {
   let arrivals=null;
   function arriving() {
     if(arrivals)return arrivals;
-    const at=new Map(),escaped=[];
+    const at=new Map(),escaped=[];let completed=0;
     for(const m of modules.values())(function walk(n){
       if(functions.has(n.type)&&!['Property','MethodDefinition'].includes(parents.get(n)?.type)) {
         const found=callers(n);
         if(found.escaped)escaped.push({fn:n,why:found.why});
         for(const call of found.calls)(at.get(call)??at.set(call,new Set()).get(call)).add(n);
+        if(++completed%100===0)ctx.onProgress?.({stage:'callable-values',completed,calls:at.size,escaped:escaped.length});
       }
       for(const c of children(n))walk(c);
     })(m.ast);

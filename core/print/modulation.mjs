@@ -1,6 +1,7 @@
 import {loadBundle,updatePlan} from './bundle.mjs';
 import {mergeRecord} from './resolve-plan.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
+import {diagnoseDepositionPlan} from './deposition-diagnostics.mjs';
 
 export function editModulations(record,{action,id,modifier}) {
   requireThat(['add','edit','remove'].includes(action),'Modulation action must be add, edit or remove.');
@@ -10,8 +11,8 @@ export function editModulations(record,{action,id,modifier}) {
   requireThat(action==='remove'?modifier===undefined:modifier&&typeof modifier==='object'&&!Array.isArray(modifier),'Add/edit needs modifier settings; remove takes no modifier.');
   requireThat(modifier?.id===undefined||modifier.id===id,'Modifier id must match id; remove/add to rename.');
   if(action==='remove')return {...record,modifiers:record.modifiers.filter(item=>item.id!==id)};
-  const defaults={id,assignments:null,roles:null,sampleStepMm:.2,tolerance:.01};
-  const current=record.modifiers[index];
+  const defaults={id,assignments:null,roles:null,sampleStepMm:.2,tolerance:.01,frame:'world',layers:null,topN:null,phasePerLayerRad:0};
+  const current=record.modifiers[index]?{...defaults,...record.modifiers[index]}:undefined;
   const replacement=action==='add'||modifier.channel!==undefined&&modifier.channel!==current.channel;
   const base=replacement?defaults:modifier.field?.kind!==undefined?{...current,field:structuredClone(modifier.field)}:current;
   const next=replacement?{...base,...structuredClone(modifier),id}:mergeRecord(base,modifier);
@@ -22,8 +23,9 @@ export async function applyModulation(directory,request,{expectedRevision}={}) {
   const previous=await loadBundle(directory,{program:false});
   requireThat(expectedRevision===previous.revision,'This review is stale. Reload before changing modulation.');
   const modulations=editModulations(previous.plan.modulations,request);
-  const state=await updatePlan(directory,{...previous.plan,modulations},previous.revision),changed=state.revision!==previous.revision;
+  const plan={...previous.plan,modulations},diagnostics=await diagnoseDepositionPlan(plan,previous.machine);
+  const state=await updatePlan(directory,plan,previous.revision),changed=state.revision!==previous.revision;
   return {state,edit:{action:request.action,id:request.id,changed,modifier:state.plan.modulations.modifiers.find(m=>m.id===request.id)??null,
     generationRequired:changed||!state.review.generation,confirmationInvalidated:changed,
-    deferredChecks:['field sampling and positive process factors','final deposited support and dependent construction','machine path feasibility']}};
+    diagnostics,deferredChecks:['exact exported program interpretation','physical acceptance']}};
 }

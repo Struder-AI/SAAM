@@ -2,6 +2,7 @@ import {loadBundle,updatePlan} from './bundle.mjs';
 import {sliceAssignment} from './slices.mjs';
 import {mergeRecord} from './resolve-plan.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
+import {diagnoseDepositionPlan} from './deposition-diagnostics.mjs';
 
 // One assignment editor; bulk adjust_recipe writes this same plan.slices list.
 export function editSliceAssignments(slices,{action,id,assignment,before}) {
@@ -25,10 +26,11 @@ export async function applySlice(directory,request,{expectedRevision}={}) {
   const previous=await loadBundle(directory,{program:false});
   requireThat(expectedRevision===previous.revision,'This review is stale. Reload before changing slices.');
   const slices=editSliceAssignments(previous.plan.slices,request);
-  const state=await updatePlan(directory,{...previous.plan,slices},previous.revision);
+  const plan={...previous.plan,slices},diagnostics=await diagnoseDepositionPlan(plan,previous.machine);
+  const state=await updatePlan(directory,plan,previous.revision);
   const changed=state.revision!==previous.revision;
   return {state,edit:{action:request.action,id:request.id,changed,assignment:state.plan.slices.assignments.find(a=>a.id===request.id)??null,
     order:state.plan.slices.assignments.map(a=>a.id),validated:['recipe','geometry'],
     generationRequired:changed||!state.review.generation,confirmationInvalidated:changed,
-    deferredChecks:['slice crossings and local thickness','ownership and support dependencies','machine path feasibility']}};
+    diagnostics,deferredChecks:['exact exported program interpretation','physical acceptance']}};
 }

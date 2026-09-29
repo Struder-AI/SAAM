@@ -24,9 +24,17 @@ export function offsetSurfaceRegion(patch,loopsUv,deltaMm,settings={}){
   return finishSurfaceOffset(patch,prepared,swept);
 }
 
+// Physical geodesic buffer of open or closed chart centerlines. Both sides
+// and full vertex disks are unioned by the same offset topology stage.
+export function strokeSurfaceRegion(patch,paths,radiusMm,settings={}){
+  requireThat(Number.isFinite(radiusMm)&&radiusMm>0&&Array.isArray(paths)&&paths.every(p=>p.points?.length>=2),'Surface stroke buffer needs paths and a positive radius.');
+  const prepared={...prepareSurfaceOffset(patch,[],radiusMm,settings),strokePaths:paths};
+  return finishSurfaceOffset(patch,prepared,sweepSurfaceOffset(patch,prepared));
+}
+
 export function prepareSurfaceOffset(patch, loopsUv, deltaMm, {
   toleranceMm=0.01, maxStepMm=0.5, precisionUv=1e-10,
-  constraintLoopsUv=null
+  constraintLoopsUv=null,normalMm=0
 }={}) {
   requireThat(Number.isFinite(deltaMm), 'Surface offset distance must be finite.');
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0&&Number.isFinite(maxStepMm)&&maxStepMm>0,
@@ -45,7 +53,7 @@ export function prepareSurfaceOffset(patch, loopsUv, deltaMm, {
   const options={precisionMm:precisionUv,origin};
   const constraint=constraintLoopsUv===null?null:intersect(constraintLoopsUv,[domain],options);
   requireThat(constraint===null||deltaMm>=0,'Constrained surface offsets currently support outward growth only.');
-  const settings={deltaMm,toleranceMm,maxStepMm,precisionUv,origin,constrained:constraintLoopsUv!==null};
+  const settings={deltaMm,toleranceMm,maxStepMm,precisionUv,origin,normalMm,constrained:constraintLoopsUv!==null};
   const {at,samples}=createSurfaceSampler(patch,settings);
   const simplified=constraint===null?{loops:source,simplificationUv:0}:
     simplifySurfaceLoops(source,{constraint,initial,toleranceMm,precisionUv},at);
@@ -182,7 +190,7 @@ export function sweepSurfaceOffset(patch,prepared){
     };
     subdivide(0,1);
   };
-  const addDisk=(uv,previous,next)=>{
+  const addDisk=(uv,previous,next,full=false)=>{
     const frame=at(uv), incoming=plus(uv,previous,-1),outgoing=plus(next,uv,-1);
     const tangent=t=>normalize(frame.du.map((x,k)=>x*t[0]+frame.dv[k]*t[1]));
     const before=tangent(incoming),after=tangent(outgoing);
@@ -190,10 +198,10 @@ export function sweepSurfaceOffset(patch,prepared){
     // Same corner distinction as Clipper: closing sides overlap in the strips;
     // only opening sides require a round join. No disks outside an inward
     // offset's material side, including when the source is the patch boundary.
-    if(turn*Math.sign(deltaMm)<=1e-14)return;
+    if(!full&&turn*Math.sign(deltaMm)<=1e-14)return;
     const x=cross(before,frame.normal).map(v=>v*Math.sign(deltaMm)),y=cross(frame.normal,x);
     const end=cross(after,frame.normal).map(v=>v*Math.sign(deltaMm));
-    const sweep=Math.atan2(dot(end,y),dot(end,x)),rays=new Map();
+    const sweep=full?2*Math.PI:Math.atan2(dot(end,y),dot(end,x)),rays=new Map();
     const ray=angle=>{
       if(!rays.has(angle))rays.set(angle,shoot(uv,x.map((v,k)=>v*Math.cos(angle)+y[k]*Math.sin(angle))));
       return rays.get(angle);
@@ -231,6 +239,14 @@ export function sweepSurfaceOffset(patch,prepared){
     if(distance(a,b)===0)continue;
     addStrip(a,b);addDisk(a,loop[(i+loop.length-1)%loop.length],b);
   }
+  if(radius>0)for(const path of prepared.strokePaths??[]){
+    const points=path.closed?[...path.points,path.points[0]]:path.points;
+    for(let i=1;i<points.length;i++)if(distance(points[i-1],points[i])>0){addStrip(points[i-1],points[i]);addStrip(points[i],points[i-1]);}
+    for(let i=0;i<path.points.length;i++){
+      const point=path.points[i],next=path.points[i+1]??path.points[i-1];
+      if(distance(point,next)>0)addDisk(point,plus(point,plus(point,next,-1)),next,true);
+    }
+  }
   return {bands,surfaceSamples:samples,work:{evaluations:samples.size,
     integrationSteps:integrations,subdivisions,boundaryStops}};
 }
@@ -253,7 +269,7 @@ export function finishSurfaceOffset(patch,prepared,swept){
     }
   }
   const loops=result.map(loop=>loop.map(uv=>[...at(uv).point]));
-  return {loopsUv:result,loops,report:{status:'experimental',method:'geodesic-bands-clipper2',
+  return {loopsUv:result,loops,report:{status:'experimental',method:'geodesic-bands-clipper2',normalMm:settings.normalMm??0,metric:settings.normalMm?'analytic-rational-normal-offset':'native-patch',
     toleranceMm,precisionUv,evaluations:prepared.work.evaluations+swept.work.evaluations+samples.size,
     integrationSteps:swept.work.integrationSteps,subdivisions:swept.work.subdivisions,
     inverseMappings:0,bandTriangles:bands.length,boundaryStops:swept.work.boundaryStops,simplificationUv}};
@@ -261,7 +277,7 @@ export function finishSurfaceOffset(patch,prepared,swept){
 
 // A phase owns only new samples. Earlier completed phase maps are read-only;
 // their records are reused without copying the accumulated cache per ray.
-function createSurfaceSampler(patch,{constrained,precisionUv},priorSamples=[]){
+function createSurfaceSampler(patch,{constrained,precisionUv,normalMm=0},priorSamples=[]){
   const samples=new Map();
   const at=uv=>{
     if(constrained)uv=uv.map((x,k)=>{
@@ -271,7 +287,7 @@ function createSurfaceSampler(patch,{constrained,precisionUv},priorSamples=[]){
     const key=uv.join(',');
     if(samples.has(key))return samples.get(key);
     for(const prior of priorSamples)if(prior.has(key))return prior.get(key);
-    const result=surfaceDerivatives(patch,...uv);
+    const result=surfaceDerivatives(patch,...uv,{normalMm});
     samples.set(key,result);return result;
   };
   return {at,samples};
@@ -287,7 +303,8 @@ function simplifySurfaceLoops(loops,{constraint,initial,toleranceMm,precisionUv}
       const frame=at(uv);
       stretch=Math.max(stretch,Math.hypot(...frame.du)+Math.hypot(...frame.dv));
     }
-    const epsilon=toleranceMm/(8*stretch);    const contact=uv=>constraint.some(loop=>loop.some((a,i)=>pointSegmentDistance(uv,a,loop[(i+1)%loop.length])<=precisionUv*8));
+    const epsilon=toleranceMm/(8*stretch);
+    const contact=uv=>constraint.some(loop=>loop.some((a,i)=>pointSegmentDistance(uv,a,loop[(i+1)%loop.length])<=precisionUv*8));
     const result=[];
     for(const loop of loops){
       const start=loop.findIndex(contact);

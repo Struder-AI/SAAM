@@ -1,0 +1,393 @@
+{
+  "version": 1,
+  "fonts": [
+    {
+      "id": "relief-single-line",
+      "file": "relief/ReliefSingleLineSVG-Regular.svg",
+      "source": "https://github.com/isdat-type/Relief-SingleLine",
+      "license": "SIL Open Font License 1.1",
+      "licenseFile": "relief/OFL.txt",
+      "tags": [
+        "sans",
+        "technical",
+        "label",
+        "kerned"
+      ],
+      "summary": "Modern kerned monoline sans with round bowls; the best-spaced label face.",
+      "measured": {
+        "id": "relief-single-line",
+        "family": "Relief SingleLine SVG",
+        "sha256": "75f05a5b64ed6039c9816628ee051d98e16c19148a8268c63f5eccf8382479e2",
+        "glyphCount": 423,
+        "kerningPairs": 17574,
+        "missingAscii": "",
+        "capHeightUnits": 680,
+        "xHeightRatio": 0.816,
+        "descenderRatio": -0.279,
+        "strokesPerGlyph": {
+          "mean": 1.58,
+          "max": 4
+        },
+        "retracedGlyphs": "",
+        "joinRate": 0,
+        "fusionOverCap": {
+          "median": 0.375,
+          "p10": 0.181,
+          "min": 0.075
+        }
+      }
+    },
+    {
+      "id": "hershey-sans-1",
+      "file": "hershey/HersheySans1.svg",
+      "source": "https://gitlab.com/oskay/svg-fonts",
+      "license": "Hershey fonts: free for any use if the acknowledgement carried in the font file is distributed with the data; not the NTIS format.",
+      "licenseFile": null,
+      "tags": [
+        "sans",
+        "technical",
+        "label"
+      ],
+      "summary": "Plain one-stroke sans. Roomy counters, so it takes the heaviest strokes of any bundled face.",
+      "measured": {
+        "id": "hershey-sans-1",
+        "family": "Hershey Sans 1-stroke",
+        "sha256": "998705d56cf5148e5b6ef8149801edda3e594ff778f65c84e97977e809db5ed3",
+        "glyphCount": 216,
+        "kerningPairs": 0,
+        "missingAscii": "",
+        "capHeightUnits": 662,
+        "xHeightRatio": 0.666,
+        "descenderRatio": -0.332,
+        "strokesPerGlyph": {
+          "mean": 2,
+          "max": 4
+        },
+        "retracedGlyphs": "",
+        "joinRate": 0,
+        "fusionOverCap": {
+          "median": 0.41,
+          "p10": 0.234,
+          "min": 0.067
+        }
+      }
+    },
+    {
+      "id": "ems-readability",
+      "file": "ems/EMSReadability.svg",
+      "source": "https://gitlab.com/oskay/svg-fonts",
+      "license": "SIL Open Font License 1.1 (derivative of the named Google font): Source Sans Pro Light",
+      "licenseFile": "ems/OFL.txt",
+      "tags": [
+        "sans",
+        "readable",
+        "light"
+      ],
+      "summary": "Humanist sans (Source Sans Light). Open forms, good for body-size labels.",
+      "measured": {
+        "id": "ems-readability",
+        "family": "EMS Readability",
+        "sha256": "f922afa80fdab77ddc8f960d8ce32ebba907aa483c3d8c661676fe0bed942094",
+        "glyphCount": 216,
+        "kerningPairs": 0,
+        "missingAscii": "",
+        "capHeightUnits": 652,
+        "xHeightRatio": 0.744,
+        "descenderRatio": -0.31,
+        "strokesPerGlyph": {
+          "mean": 1.15,
+          "max": 3
+        },
+        "retracedGlyphs": "",
+        "joinRate": 0,
+        "fusionOverCap": {
+          "median": 0.39,
+          "p10": 0.077,
+          "min": 0.048
+        }
+      }
+    },
+    {
+      "id": "ems-tech",
+      "file": "ems/EMSTech.svg",
+      "source": "https://gitlab.com/oskay/svg-fonts",
+      "license": "SIL Open Font License 1.1 (derivative of the named Google font): Architects Daughter",
+      "licenseFile": "ems/OFL.txt",
+      "tags": [
+        "handwriting",
+        "technical",
+        "casual"
+      ],
+      "summary": "Architect-style hand lettering; unjoined, open counters.",
+      "measured": {
+        "id": "ems-tech",
+        "family": "EMS Tech",
+        "sha256": "6da30b0e44022a07043204f6936ba929a3cf756609921a48ce1a7309a5270775",
+        "glyphCount": 216,
+        "kerningPairs": 0,
+        "missingAscii": "",
+        "capHeightUnits": 677,
+        "xHeightRatio": 0.688,
+        "descenderRatio": -0.628,
+        "strokesPerGlyph": {
+          "mean": 1.1,
+          "max": 2
+        },
+        "retracedGlyphs": "",
+        "joinRate": 0,
+        "fusionOverCap": {
+          "median": 0.379,
+          "p10": 0.213,
+          "min": 0.036
+        }
+      }
+    },
+    {
+      "id": "ems-casual-hand",
+      "file": "ems/EMSCasualHand.svg",
+      "source": "https://gitlab.com/oskay/svg-fonts",
+      "license": "SIL Open Font License 1.1 (derivative of the named Google font): Covered By Your Grace",
+      "licenseFile": "ems/OFL.txt",
+      "tags": [
+        "handwriting",
+        "casual"
+      ],
+      "summary": "Loose marker handwriting; unjoined, few strokes per letter.",
+      "measured": {
+        "id": "ems-casual-hand",
+        "family": "EMS Casual Hand",
+        "sha256": "e8c64afb9739ff78b3cd0ae1bfb95d21fb1077eda569e0eef5d262b64da38041",
+        "glyphCount": 216,
+        "kerningPairs": 0,
+        "missingAscii": "",
+        "capHeightUnits": 910,
+        "xHeightRatio": 0.596,
+        "descenderRatio": -0.509,
+        "strokesPerGlyph": {
+          "mean": 1.23,
+          "max": 3
+        },
+        "retracedGlyphs": "",
+        "joinRate": 0,
+        "fusionOverCap": {
+          "median": 0.256,
+          "p10": 0.159,
+          "min": 0.032
+        }
+      }
+    },
+    {
+      "id": "ems-invite",
+      "file": "ems/EMSInvite.svg",
+      "source": "https://gitlab.com/oskay/svg-fonts",
+      "license": "SIL Open Font License 1.1 (derivative of the named Google font): Tangerine",
+      "licenseFile": "ems/OFL.txt",
+      "tags": [
+        "script",
+        "formal",
+        "calligraphic"
+      ],
+      "summary": "Slanted calligraphic script with a small x-height and unjoined letters.",
+      "measured": {
+        "id": "ems-invite",
+        "family": "EMS Invite",
+        "sha256": "e99ca4e993eec003df11a67423b379376ef16372fb3fa2c74c8c737d5eba5f6d",
+        "glyphCount": 216,
+        "kerningPairs": 0,
+        "missingAscii": "",
+        "capHeightUnits": 939,
+        "xHeightRatio": 0.368,
+        "descenderRatio": -0.359,
+        "strokesPerGlyph": {
+          "mean": 1.31,
+          "max": 4
+        },
+        "retracedGlyphs": "",
+        "joinRate": 0,
+        "fusionOverCap": {
+          "median": 0.2,
+          "p10": 0.119,
+          "min": 0.057
+        }
+      }
+    },
+    {
+      "id": "ems-allure",
+      "file": "ems/EMSAllure.svg",
+      "source": "https://gitlab.com/oskay/svg-fonts",
+      "license": "SIL Open Font License 1.1 (derivative of the named Google font): Allura",
+      "licenseFile": "ems/OFL.txt",
+      "tags": [
+        "script",
+        "formal",
+        "joined",
+        "signature"
+      ],
+      "summary": "Formal joined script (Allura); loops fuse early, so keep strokes light.",
+      "measured": {
+        "id": "ems-allure",
+        "family": "EMS Allure",
+        "sha256": "d9ef1032a2059d3b90189b9cacc26124812962503d6e7bdfe8b09b09904ce379",
+        "glyphCount": 216,
+        "kerningPairs": 0,
+        "missingAscii": "",
+        "capHeightUnits": 718,
+        "xHeightRatio": 0.606,
+        "descenderRatio": -0.579,
+        "strokesPerGlyph": {
+          "mean": 1.55,
+          "max": 4
+        },
+        "retracedGlyphs": "",
+        "joinRate": 0.29,
+        "fusionOverCap": {
+          "median": 0.136,
+          "p10": 0.042,
+          "min": 0.032
+        }
+      }
+    },
+    {
+      "id": "ems-swiss",
+      "file": "ems/EMSSwiss.svg",
+      "source": "https://gitlab.com/oskay/svg-fonts",
+      "license": "SIL Open Font License 1.1 (derivative of the named Google font): Italianno",
+      "licenseFile": "ems/OFL.txt",
+      "tags": [
+        "script",
+        "formal",
+        "joined",
+        "italic"
+      ],
+      "summary": "Italic joined script (Italianno); the tightest counters of the set.",
+      "measured": {
+        "id": "ems-swiss",
+        "family": "EMS Swiss",
+        "sha256": "e899a4b7bca4c9321d0b3da76e5e399ae9c404a16024f671d65d13d6bf1eb417",
+        "glyphCount": 216,
+        "kerningPairs": 0,
+        "missingAscii": "",
+        "capHeightUnits": 936,
+        "xHeightRatio": 0.512,
+        "descenderRatio": -0.559,
+        "strokesPerGlyph": {
+          "mean": 1.55,
+          "max": 3
+        },
+        "retracedGlyphs": "",
+        "joinRate": 0.29,
+        "fusionOverCap": {
+          "median": 0.185,
+          "p10": 0.034,
+          "min": 0.03
+        }
+      }
+    },
+    {
+      "id": "ems-brush",
+      "file": "ems/EMSBrush.svg",
+      "source": "https://gitlab.com/oskay/svg-fonts",
+      "license": "SIL Open Font License 1.1 (derivative of the named Google font): Alex Brush",
+      "licenseFile": "ems/OFL.txt",
+      "tags": [
+        "script",
+        "brush",
+        "signature"
+      ],
+      "summary": "Brush-pen script with mostly separate letters.",
+      "measured": {
+        "id": "ems-brush",
+        "family": "EMS Brush",
+        "sha256": "77738f622b5c448a47a4b61ccb4c7680a65cfc77667fa8bc360e389211a9fa59",
+        "glyphCount": 216,
+        "kerningPairs": 0,
+        "missingAscii": "",
+        "capHeightUnits": 885,
+        "xHeightRatio": 0.533,
+        "descenderRatio": -0.349,
+        "strokesPerGlyph": {
+          "mean": 1.31,
+          "max": 3
+        },
+        "retracedGlyphs": "",
+        "joinRate": 0.17,
+        "fusionOverCap": {
+          "median": 0.107,
+          "p10": 0.038,
+          "min": 0.03
+        }
+      }
+    },
+    {
+      "id": "ems-society",
+      "file": "ems/EMSSociety.svg",
+      "source": "https://gitlab.com/oskay/svg-fonts",
+      "license": "SIL Open Font License 1.1 (derivative of the named Google font): Mrs Saint Delafield",
+      "licenseFile": "ems/OFL.txt",
+      "tags": [
+        "script",
+        "formal",
+        "flourish",
+        "signature"
+      ],
+      "summary": "Signature-style flourish script with very tall capitals.",
+      "measured": {
+        "id": "ems-society",
+        "family": "EMS Society",
+        "sha256": "191f6a4f7aedfd02d98e2dadcad1518bb2fefb2b91e658b596230c8bdf35568c",
+        "glyphCount": 216,
+        "kerningPairs": 0,
+        "missingAscii": "",
+        "capHeightUnits": 1052,
+        "xHeightRatio": 0.315,
+        "descenderRatio": -0.533,
+        "strokesPerGlyph": {
+          "mean": 1.19,
+          "max": 2
+        },
+        "retracedGlyphs": "",
+        "joinRate": 0.25,
+        "fusionOverCap": {
+          "median": 0.098,
+          "p10": 0.043,
+          "min": 0.032
+        }
+      }
+    },
+    {
+      "id": "hershey-script-1",
+      "file": "hershey/HersheyScript1.svg",
+      "source": "https://gitlab.com/oskay/svg-fonts",
+      "license": "Hershey fonts: free for any use if the acknowledgement carried in the font file is distributed with the data; not the NTIS format.",
+      "licenseFile": null,
+      "tags": [
+        "script",
+        "joined",
+        "cursive"
+      ],
+      "summary": "Classic engraver cursive; the most consistently joined face.",
+      "measured": {
+        "id": "hershey-script-1",
+        "family": "Hershey Script 1-stroke",
+        "sha256": "26854b00c2147c2a0a27dba488d7a696db581603ff43f4b85f07b435246d473f",
+        "glyphCount": 216,
+        "kerningPairs": 0,
+        "missingAscii": "",
+        "capHeightUnits": 662,
+        "xHeightRatio": 0.429,
+        "descenderRatio": -0.571,
+        "strokesPerGlyph": {
+          "mean": 2.1,
+          "max": 6
+        },
+        "retracedGlyphs": "",
+        "joinRate": 0.63,
+        "fusionOverCap": {
+          "median": 0.171,
+          "p10": 0.042,
+          "min": 0.033
+        }
+      }
+    }
+  ]
+}

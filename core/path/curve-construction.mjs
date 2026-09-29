@@ -44,7 +44,7 @@ export function spiralBeadCurve({profile,points,turns,role='spiral',speedMmS,min
     return turns[i+1]<=1+1e-9?profile.firstHeightMm:spiralHeight(profile,mid)-spiralHeight(profile,mid-1);
   });
   return {role,closed:false,points,heightsMm,speedMmS:speed,
-    segmentMetadata:turns.slice(1).map((t,i)=>({layer:Math.floor((turns[i]+t)/2)}))};
+    segmentMetadata:turns.slice(1).map((t,i)=>({layer:Math.floor((turns[i]+t)/2),...(profile.levelEnd&&turns[i]>=profile.risingTurns-1e-9?{boundaryRole:'rim'}:{})}))};
 }
 
 export function railAnchors(rails,overlapsMm) {

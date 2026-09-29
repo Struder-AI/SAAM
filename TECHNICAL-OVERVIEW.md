@@ -55,7 +55,7 @@ These are operations; complete generation orchestrates them.
 | c1 | Evaluate geometry | Points, tangents, normals, inside/outside and top crossings, with explicit numerical contracts. |
 | c2 | Extract a mesh | Mesh a field's threshold surface or tessellate spline geometry when a mesh consumer requires it. Preserve the source and approximation meaning. |
 | c3 | Slice geometry | Intersect geometry with a cutting surface and return its surface region/reference. Native spline and mesh backends may differ. |
-| c4 | Construct slice families | Place cutting surfaces by direction and spacing, checking full crossing and local thickness. Translating a curved surface does not imply constant normal thickness. |
+| c4 | Construct slice families | Translate a reference so its area-weighted mean normal gap matches the target layer height. Default direction comes from the entire reference surface. Local gaps vary with slope; report them and check full crossing. |
 | c5 | Resolve material ownership | Resolve claims/reservations/overlaps first, select a principal, establish compatible spacing and allocate alternating deposition. These decisions constrain scheduling. Internal assignment boundaries intentionally receive walls. |
 | c6 | Evaluate owned slice regions | Evaluate spatial ownership on each cutting surface, lazily if useful. Neighboring slices identify solid top/bottom material; ownership seams do not create artificial solid tops. |
 | c7 | Boolean surface regions | Union, intersect or subtract areas on a common surface/chart. Polygon and NURBS boundaries require explicit representation support; unrelated UV charts cannot be compared directly. |
@@ -69,8 +69,8 @@ These are operations; complete generation orchestrates them.
 | c15 | Construct strokes | Loops, directed fill, patterns, seeded fronts and supplied centerlines in an allowed region/reference. Density, angle and width are data. |
 | c16 | Connect/order strokes | Ordinary joining, front connection, spirals between slices, tile repetition and attachment motions with explicit continuity rules. |
 | c17 | Map strokes to surfaces | Evaluate chart/sleeve coordinates in XYZ. Curved mapping is not merely a rigid coordinate transformation. |
-| c18 | Calculate deposition/orientation | Determine bead dimensions, volume, speed and tool axis from local gaps and process rules, including free spans. |
-| c19 | Modulate deposition | Apply periodic, ramp, noise or geometry-driven fields by role/channel before final coverage publication and downstream dependency construction. |
+| c18 | Calculate deposition | Determine bead dimensions, volume and speed from local gaps and process rules, including free spans. Geometry supplies local surface frames; downstream machine adaptation chooses fixed or surface-following nozzle orientation and preserves authored tilt. |
+| c19 | Modulate deposition | Apply periodic, ramp, noise or geometry-driven fields by role/channel before final coverage publication and downstream dependency construction. Position/orientation square waves have intrinsic smooth transitions; scalar channels may step. |
 | c20 | Deposit at a point | Meter volume at a location, with approach and hold; the rivet skill supplies the enclosing process construction. |
 | c21 | Publish deposited boundaries | Describe finalized strokes' nominal occupied/supporting material, preserving sparse holes and openwork. Never publish an unmodulated or filled surrogate. |
 | c22 | Compose operations | Order deposition and travel into SAAMpath, obeying ownership/support constraints while managing shared machine state. |

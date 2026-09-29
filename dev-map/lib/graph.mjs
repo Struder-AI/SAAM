@@ -71,7 +71,7 @@ export async function sourceFiles(repo, roots=['core','studio','skills','adapter
 // The projection's mapped set; uniqueness of a method name is asked of that code only.
 const mappedCode=isMapped;
 
-export async function extractGraph({repo,files,importAliases={},literalCouplings=false,receiverCalls=false,readSource=file=>readFile(resolve(repo,file),'utf8')}) {
+export async function extractGraph({repo,files,importAliases={},literalCouplings=false,receiverCalls=false,onProgress,readSource=file=>readFile(resolve(repo,file),'utf8')}) {
   const modules=new Map(), declarations=[], calls=[], assignments=[], relations=[], unresolved=[], declFn=new Map(),declarationPaths=new Map();
   const nodeScope=new WeakMap(), nodeOwner=new WeakMap(), nodeDecl=new WeakMap(), parents=new WeakMap();
   const parameterDefaultNames=new WeakMap(),listenerNames=new WeakMap();
@@ -844,18 +844,20 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
     const settling=new Set(settle);
     const context={modules,parents,nodeScope,lookup,property,functions,children,targetsOf,
       platformCall:(n,m)=>unproved(n,m)||!!externalCall(n,m,new Set())||settling.has(n)&&!found.get(n)?.length,
-      exportedBindings,importsOf:b=>importers.get(b)??[]};
+      exportedBindings,importsOf:b=>importers.get(b)??[],onProgress};
     let reach,arrivals;
     for(let round=0;;round++) {
+      onProgress?.({stage:'callable-reach',round,settling:settle.length});
       reach=holderReach(context);arrivals=reach.arriving();
       let grew=false;
       for(const node of settle) {
         const next=[...(arrivals.at.get(node)??[])],held=found.get(node)??[];
         if(next.some(fn=>!held.includes(fn))){found.set(node,[...new Set([...held,...next])]);grew=true;}
       }
+      onProgress?.({stage:'callable-reach-complete',round,grew,calls:arrivals.at.size,escaped:arrivals.escaped.length});
       if(!grew)break;
     }
-    const valuesEscaped=arrivals.escaped.length>0;globalThis.ARR=arrivals;globalThis.REACH=reach;
+    const valuesEscaped=arrivals.escaped.length>0;
     for(const {c,from,site,key,reason,subscribers,candidates} of pending) {
       const span=`${site.file}:${site.start}:${site.end}`;
       const keep=()=>{

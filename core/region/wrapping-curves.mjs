@@ -50,7 +50,7 @@ export function constructCladdingCourses({shell,settings,process,motion,chart}){
         // perpendicular to the actual stroke to account for skewed charts.
         const across=normalize(stroke.role==='axial'?e.du:e.dv),tangent=normalize(subtract(e.point,a.point));
         const effective=width*Math.hypot(...cross(across,tangent));
-        stroke.widthsMm.push(effective);stroke.segmentMetadata.push({beadNormal:[...e.normal]});
+        stroke.widthsMm.push(effective);stroke.segmentMetadata.push({surfaceNormal:[...e.normal]});
         report.minBeadWidthMm=Math.min(report.minBeadWidthMm,effective);report.maxBeadWidthMm=Math.max(report.maxBeadWidthMm,effective);
       }
     }

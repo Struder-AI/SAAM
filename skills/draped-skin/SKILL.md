@@ -28,7 +28,7 @@ reference rejects rather than silently flattening the path.
 | `after` | `[]` | Additional operation prerequisites. |
 | `supportFrom` | `null` | Explicit finalized producer assignment for first contact. |
 | `layers` | `2` | Positive whole number of roof courses. |
-| `normalMm` | `0.2` | Normal-projected depth parameter; not an exact offset stack. |
+| `pitchMm` | `0.2` | Vertical translation between roof courses. |
 | `spacingFactor` | `1` | XY row pitch as a multiple of bead width. |
 | `strokeAngleDeg` | `0` | Row direction in the XY chart. |
 | `sampleStepMm` | `0.5` | Maximum physical mapping step; chord error also refines. |
@@ -40,7 +40,10 @@ body. Excluded steep regions retain ordinary body material. Reservations affect
 only their actual footprint. The body finishes before its skin, and courses stay
 ordered. Each course maps shared directed fill strokes onto its height reference;
 shared deposition computes volume from local gaps and actual mapped normals.
-Translating/projecting a roof does not establish constant normal thickness.
+Courses translate vertically; their normal bead thickness is pitch times the
+local normal's Z component. True constant-normal offset stacks are not implied.
+Legacy `normalMm` described projected normal depth and requires an explicit
+process migration; it is not an alias for `pitchMm`.
 
 With `supportFrom`, the first gap and prerequisites come from that producer's
 final positive-volume beads. Missing support or support at/above the new stroke
@@ -57,8 +60,9 @@ turnarounds allow up to one-quarter course thickness of sag, capped at 0.05 mm;
 lifted travel clears all previously deposited material. See
 [shared travel](../../core/path/README.md#whole-plan-travel-requirement).
 
-The configured machine's fixed-axis slope limit applies; reference normals do
-not command nozzle rotation. An explicit override remains experimental.
+The configured machine's fixed-axis slope limit applies. On a machine with
+tool orientation, mapped surface frames command the nozzle along the negative
+surface normal. An explicit fixed-axis override remains experimental.
 Sampling can miss between-grid features, and projected XY spacing is not a
 geodesic metric. Pressure, adhesion, full head collisions and physical bead shape
 are not modeled. The user reported physical draped-skin prints on 2026-09-24;

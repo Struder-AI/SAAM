@@ -3,9 +3,10 @@ import { topAt as splineTopAt,crossingsAt as splineCrossingsAt } from './field.m
 import { meshTopAt,meshCrossingsAt } from './mesh.mjs';
 import { section,prepareSection,horizontalSlice } from './slice.mjs';
 import { requireThat } from './tolerance.mjs';
+import {chartPrismContains} from './chart-prism.mjs';
 
 export function requireGeometry(geometry, capabilities) {
-  requireThat(geometry?.bounds&&((geometry.kind==='triangle-mesh')||geometry.kind==='boolean'||Array.isArray(geometry.patches)),'Unsupported geometry backend.');
+  requireThat(geometry?.bounds&&((geometry.kind==='triangle-mesh')||geometry.kind==='chart-prism'||geometry.kind==='boolean'||Array.isArray(geometry.patches)),'Unsupported geometry backend.');
   requireThat(capabilities.every(c=>['bounds','planar-section','top-surface'].includes(c)),'Unsupported geometry capability.');
   if(geometry.kind==='boolean')for(const operand of geometry.operands)requireGeometry(operand,capabilities);
   return geometry;
@@ -85,6 +86,7 @@ function holdsHeight(node,leaves,z){
 // crossings above it. A point on the surface, or a column grazing a vertical
 // wall exactly, is outside what this test decides; callers sample off both.
 export function containsPoint(geometry,[x,y,z]){
+  if(geometry.kind==='chart-prism')return chartPrismContains(geometry,[x,y,z]);
   requireGeometry(geometry,['bounds']);
   return holdsHeight(geometry,columnCrossings(geometry,x,y),z);
 }

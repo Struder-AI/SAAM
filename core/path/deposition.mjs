@@ -7,25 +7,27 @@ import {distance,requireThat} from '../geom/tolerance.mjs';
 // contain one height per segment, including the implicit closing segment.
 export function depositCurves(curves,{widthMm,heightMm,speedMmS,flowMultiplier=1}) {
   return curves.map(curve=>{
-    const {heightMm:localHeight,heightsMm,widthsMm,flowMultiplier:localFlow,...stroke}=curve;
+    const {heightMm:localHeight,heightsMm,widthsMm,flowMultipliers,flowMultiplier:localFlow,...stroke}=curve;
     const width=curve.beadWidthMm??widthMm,height=localHeight??heightMm,flow=localFlow??flowMultiplier;
     const speed=curve.speedMmS??speedMmS;
     requireThat(Number.isFinite(width)&&width>0&&Number.isFinite(flow)&&flow>0&&Number.isFinite(speed)&&speed>0,
       'Curve deposition needs positive bead width, flow and speed.');
     requireThat(curve.points.length>=2&&curve.points.every(p=>p.length===3&&p.every(Number.isFinite)),
       'Curve deposition needs at least two finite XYZ points.');
-    if(heightsMm||widthsMm){
+    if(heightsMm||widthsMm||flowMultipliers){
       const points=curve.closed?[...curve.points,curve.points[0]]:curve.points;
+      if(flowMultipliers)requireThat(flowMultipliers.length===points.length-1&&flowMultipliers.every(f=>Number.isFinite(f)&&f>0),'Curve flow needs one positive multiplier per segment.');
       if(widthsMm)requireThat(widthsMm.length===points.length-1&&widthsMm.every(w=>Number.isFinite(w)&&w>=0),'Curve deposition needs one finite nonnegative width per segment.');
-      const segmentMetadata=widthsMm?widthsMm.map((beadWidthMm,i)=>({...curve.segmentMetadata?.[i],beadWidthMm})):curve.segmentMetadata;
+      const segmentMetadata=points.slice(1).map((_,i)=>({...curve.segmentMetadata?.[i],...(widthsMm?{beadWidthMm:widthsMm[i]}:{}),beadHeightMm:(heightsMm?.[i]??height)*flow*(flowMultipliers?.[i]??1)}));
       const deposited=depositionStroke({points,heightsMm:heightsMm??points.slice(1).map(()=>height),widthMm:width*flow,
-        widthsMm:widthsMm?.map(w=>w*flow),speedMmS:speed,role:curve.role,segmentMetadata});
+        widthsMm:flowMultipliers?flowMultipliers.map((f,i)=>(widthsMm?.[i]??width)*flow*f):widthsMm?.map(w=>w*flow),speedMmS:speed,role:curve.role,segmentMetadata});
       return {...stroke,points:deposited.points,closed:false,beadWidthMm:width,speedMmS:speed,volumesMm3:deposited.volumesMm3,
         ...(segmentMetadata?{segmentMetadata}:{}),
-        ...(curve.closed&&curve.poses?{poses:[...curve.poses,curve.poses[0]]}:{})};
+        ...(curve.closed?Object.fromEntries(['poses','normals','frameSamples'].filter(key=>curve[key]).map(key=>[key,[...curve[key],curve[key][0]]])):{}),
+        ...(curve.closed&&curve.curveParameters?{curveParameters:[...curve.curveParameters,1]}:{})};
     }
     requireThat(Number.isFinite(height)&&height>0,'Curve deposition needs a positive normal bead height.');
-    return {...stroke,beadWidthMm:width,speedMmS:speed,beadAreaMm2:width*height*flow};
+    return {...stroke,beadWidthMm:width,beadHeightMm:height*flow,speedMmS:speed,beadAreaMm2:width*height*flow};
   });
 }
 
@@ -49,6 +51,7 @@ export function trimVanishingEnd(stroke,minimumMm3=1e-3) {
   let tail=0,keep=stroke.volumesMm3.length;
   while(keep>1&&tail+stroke.volumesMm3[keep-1]<minimumMm3)tail+=stroke.volumesMm3[--keep];
   return {...stroke,points:stroke.points.slice(0,keep+1),volumesMm3:stroke.volumesMm3.slice(0,keep),
+    ...Object.fromEntries(['poses','normals','frameSamples','curveParameters'].filter(key=>stroke[key]).map(key=>[key,stroke[key].slice(0,keep+1)])),
     ...(stroke.segmentMetadata?{segmentMetadata:stroke.segmentMetadata.slice(0,keep)}:{})};
 }
 

@@ -22,7 +22,7 @@ import {makeMesh,translateMesh} from '../geom/mesh.mjs';
 import {toolBounds,startupPosition,startupRetracted} from '../machine/profile.mjs';
 import {sleeveResult,rimResult} from './sleeve-constructions.mjs';
 import {planarSupportTopAt} from '../region/support-surface.mjs';
-import {sliceResults} from './slices.mjs';
+import {finalizedSliceResults} from './slice-deposition.mjs';
 import {supportResults,supportDependencies} from '../../skills/supports/scripts/supports.mjs';
 import {claddingResult} from './cladding-constructions.mjs';
 import {publishFinishedBoundary,consumeFinishedSurface,republishDepositedBoundary} from '../path/finished-surface.mjs';
@@ -30,6 +30,8 @@ import {preparePlasticWeld,plasticWeldResult} from '../../skills/plastic-weld/sc
 import {validateHeatSetAssignments} from '../../skills/heat-set-inserts/scripts/feature.mjs';
 import {geometrySelections} from '../geom/selections.mjs';
 import {booleanShell} from '../geom/boolean-solid.mjs';
+import {scanlineFill} from '../region/region2d.mjs';
+import {sampleAuthoredCurve} from '../path/authored-curves.mjs';
 
 // Booleans are stored as their recipe in the native JSON file, like meshes.
 export const hasMesh=geometry=>['mesh','blob-field','text','gridfinity','heat-set','boolean'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
@@ -154,8 +156,8 @@ export function generateModelResults(plan,machine,rhino,{placed,componentShells,
   });
   for(let i=0;i<sleeves.length;i++)for(let j=i+1;j<sleeves.length;j++)requireThat(sleeves[i].assignment.part!==sleeves[j].assignment.part||Math.min(sleeves[i].endMm,sleeves[j].endMm)<=Math.max(sleeves[i].startMm,sleeves[j].startMm)+1e-8,'Sleeve assignments cannot claim overlapping material bands.');
   const bands=sleeves.map(s=>({part:s.assignment.part,startMm:s.startMm,endMm:s.endMm}));
-  const sliced=sliceResults({plan,machine,shells,volumes:sliceVolumes(plan,rhino),bands,reserves:[...skins.map(s=>s.survey),...welds],envelopes:welds,onProgress});
-  const finalizedSlices=finalizeDepositionResults(sliced.results,plan,machine);
+  const sliced=finalizedSliceResults({plan,machine,shells,volumes:sliceVolumes(plan,rhino),bands,reserves:[...skins.map(s=>s.survey),...welds],envelopes:welds,onProgress});
+  const finalizedSlices=sliced.results;
   if(sliced.summary)summary.slices=sliced.summary;
   results.push(...finalizedSlices);
   const sleeveResults=new Map(),changes=[];
@@ -219,7 +221,7 @@ export function generateModelResults(plan,machine,rhino,{placed,componentShells,
   if(skinReports.length)summary.drapedSkin={...skinReports[0],instances:skinReports};
   const survey=skins[0]?.survey??null;
   if(skins.length)summary.nonplanarLimit={machineMaxAngleDeg:skins[0].survey.declaredLimitDeg,effectiveMaxAngleDeg:Math.max(...skins.map(s=>s.survey.limitDeg)),experimentalOverride:skins.some(s=>s.survey.experimentalOverride),surfaceMaxSlopeDeg:Math.max(...skins.map(s=>s.survey.maxSlopeDeg)),excludedAreaPercent:Math.max(...skins.map(s=>s.survey.steepFraction))*100};
-  return {results:applyResultDependencies(results,changes),summary,survey,shells,slicedSupports:finalizeDepositionResults(sliced.supports,plan,machine)};
+  return {results:applyResultDependencies(results,changes),summary,survey,shells,slicedSupports:sliced.supports};
 }
 
 export function addComplementaryResults(plan,machine,{placed,componentShells,weldSites,bounds},batch) {
@@ -238,7 +240,8 @@ export function addComplementaryResults(plan,machine,{placed,componentShells,wel
   const waves=frontResults({assignments:plan.slices.assignments.filter(a=>a.construction==='fronts'),plan,machine,placed,componentShells,modelResults:results});
   const wavedResults=[...applyResultDependencies(results,waves.dependencyChanges),...finalizeDepositionResults(waves.results,plan,machine)];
   if(waves.results.length)summary.waveOverhangs=waves.results.map(r=>r.report);
-  const curves=curveAssignmentResults({plan,machine,modelResults:wavedResults,bounds:machine.motionChecks==='deferred'?null:bounds});
+  const references=depositionReferences(batch.shells,wavedResults);
+  const curves=curveAssignmentResults({plan,machine,modelResults:wavedResults,references,bounds:machine.motionChecks==='deferred'?null:bounds});
   const constructedResults=[...wavedResults,...curves];
   if(curves.length)summary.curves=curves.map(result=>({id:result.id,...result.report}));
   // Support-preset slices and tree supports print before what they hold up.
@@ -249,6 +252,31 @@ export function addComplementaryResults(plan,machine,{placed,componentShells,wel
   const weldedResults=applyResultDependencies(supportedResults,welds.dependencyChanges);
   if(welds.result)summary.plasticWeld=welds.result.report;
   return {...batch,results:welds.result?[...weldedResults,welds.result]:weldedResults,summary};
+}
+
+// References carry evaluated data in placed world coordinates. A shared-owner
+// result keeps its own family identity instead of replacing the owner's base.
+export function depositionReferences(shells,results){
+  const references={};
+  for(const [part,shell] of shells)for(const patch of shell.patches??[])references[`patch:${part??''}:${patch.name}`]={patch};
+  const families=new Map();
+  for(const result of results){
+    const family=result.family??(result.familyLayers?{layers:result.familyLayers}:null);
+    if(!family?.layers?.length)continue;
+    const owner=result.report?.owner??result.id;
+    references[`slice:${result.id}`]=family;
+    references[`sleeve:${result.id}`]=family;
+    if(!result.familyId||result.familyId===owner){
+      const key=`slice:${owner}`;
+      (families.get(key)??families.set(key,[]).get(key)).push(family);
+    }
+  }
+  for(const [key,found] of families){
+    const sleeveKey=key.replace(/^slice:/,'sleeve:');
+    if(found.length===1){references[key]=found[0];references[sleeveKey]=found[0];}
+    else {delete references[key];delete references[sleeveKey];}
+  }
+  return references;
 }
 
 // Dependency changes address operation IDs, which are unique within a composed
@@ -302,13 +330,40 @@ export function summarizeGeneratedPath(placed,survey,modelSummary) {
   return summary;
 }
 
-export function generatePath(plan, machine, rhino, {onProgress} = {}) {
+export function depositionInspection(results){
+  const operations={},slices={};
+  for(const result of results){
+    const family=result.familyId??result.report?.owner??result.id;
+    for(const layer of result.family?.layers??[]){
+      const key=`${result.id}:${layer.index}`;
+      if(layer.slice&&layer.region?.length){
+        const points=layer.region.flat(),extent=[0,1].map(k=>Math.max(...points.map(p=>p[k]))-Math.min(...points.map(p=>p[k])));
+        const map=(points,closed=false)=>sampleAuthoredCurve({closed,uv:{points,reference:{kind:'slice',assignment:key,index:layer.index}}},
+          {references:{[`slice:${key}`]:{layers:[layer]}},toleranceMm:.05,sampleStepMm:2}).points;
+        const grid=[0,90].flatMap((angle,i)=>extent[1-i]>1e-9?scanlineFill(layer.region,extent[1-i]/6,angle).map(row=>map([row.from,row.to])):[]);
+        slices[key]={family,index:layer.index,loops:layer.region.map(loop=>map(loop,true)),grid};
+      }
+    }
+    for(const operation of result.operations){
+      const index=operation.layerIndex??operation.layer,key=`${result.id}:${index}`;
+      const changed=result.report?.modulation?.changedOperations?.includes(operation.id);
+      operations[operation.id]={family,index,roles:[...new Set(operation.strokes.map(stroke=>stroke.role))],
+        modifiers:changed?result.report.modulation.modifiers:[],slice:slices[key]?key:null};
+    }
+  }
+  return {operations,slices};
+}
+
+export function generatePath(plan, machine, rhino, {onProgress,modulations,modulationPreparation=[]} = {}) {
   const prepared=preparePathGeometry(plan,machine,rhino);
-  const model=generateModelResults(plan,machine,rhino,prepared,onProgress);
-  const complemented=addComplementaryResults(plan,machine,prepared,model);
+  const evaluated=modulations?{...plan,modulations}:plan;
+  const model=generateModelResults(evaluated,machine,rhino,prepared,onProgress);
+  const complemented=addComplementaryResults(evaluated,machine,prepared,model);
   const primed=addPrimeResult(plan,machine,complemented);
   const {placed,bounds}=prepared,{results,survey,prime}=primed,process=plan.process;
   const summary=summarizeGeneratedPath(placed,survey,primed.summary);
+  summary.inspection=depositionInspection(results);
+  if(modulationPreparation.length)summary.modulationGeometry=modulationPreparation;
   const assigned=[...new Set([plan.setup.bambu?.filament,...assignedFilaments(plan)].filter(v=>v!==undefined))];
   const selections=assignedFilaments(plan).length?Object.fromEntries(assigned.map(i=>[i,filamentSelection(plan,machine,i)])):null;
   return planToolpath({start:startupPosition(machine,plan),process,machine,generatorVersion:VERSION,

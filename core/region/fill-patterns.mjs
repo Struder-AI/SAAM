@@ -51,6 +51,12 @@ function gyroid(region,{periodMm,zMm,sampleStepMm}) {
     const sinX=Math.sin(k*x),cosX=Math.cos(k*x);
     return Float64Array.from(ys,(_,j)=>sinX*cosY[j]+sinY[j]*cz+sz*cosX);
   });
+  return sampledFieldStrokes({xs,ys,values},region);
+}
+
+// Contours retain chart coordinates; callers may evaluate the scalar in XYZ.
+export function sampledFieldStrokes({xs,ys,values},region) {
+  const min=[xs[0],ys[0]],max=[xs.at(-1),ys.at(-1)];
   const loops=levelSetRegion({xs,ys,values},0),paths=[];
   const border=(a,b)=>[0,1].some(i=>[min[i],max[i]].some(v=>Math.abs(a[i]-v)<1e-8&&Math.abs(b[i]-v)<1e-8));
   for(const loop of loops){

@@ -16,7 +16,8 @@ import { fillPatternStrokes } from './fill-patterns.mjs';
 import { lineSpacing } from '../path/spacing.mjs';
 import { cleanPlanarLoop } from '../geom/polyline.mjs';
 import { slicePoint, sliceNormal } from '../geom/slice.mjs';
-import { requireThat, TOLERANCE } from '../geom/tolerance.mjs';
+import { evaluate } from '../geom/nurbs.mjs';
+import { requireThat, TOLERANCE, normalize, cross, dot } from '../geom/tolerance.mjs';
 
 // Loops on boundaries between owners: the one place this choice is made (the
 // owner is deciding, 2026-09-28). true: every owner lays its loops along every
@@ -78,7 +79,7 @@ export function layerStrokes(region, { widthMm, loops, fillDensity, fillPattern,
   const sparseRegion = dense ? [] : solid ? difference(interior, solid) : interior;
   const infill = fillPatternStrokes(sparseRegion, { pattern: fillPattern, widthMm, density: fillDensity, angleDeg: patternAngleDeg,
     zMm: phaseMm, sampleStepMm, spacingFactor })
-    .map(stroke => ({ ...stroke, role: 'infill', points: stroke.closed ? [...stroke.points, stroke.points[0]] : stroke.points }));
+    .map((stroke,lineIndex) => ({ ...stroke, role: 'infill',fillFamily:{spacingMm:pitch/fillDensity,lineIndex},points: stroke.closed ? [...stroke.points, stroke.points[0]] : stroke.points }));
   const fill = directedFillStrokes(solidRegion,{spacingMm:pitch/solidDensity,angleDeg:fillAngleDeg});
   return { walls, infill, fill, interior, sparseRegion, solidRegion };
 }
@@ -86,7 +87,8 @@ export function layerStrokes(region, { widthMm, loops, fillDensity, fillPattern,
 export function directedFillStrokes(region,{spacingMm,angleDeg,reverseRows=false,role='fill'}) {
   const rows=region.length?scanlineFill(region,spacingMm,angleDeg):[];
   const sequence=reverseRows?rows.toReversed():rows;
-  return sequence.map((row,position)=>({role,closed:false,points:position%2?[row.to,row.from]:[row.from,row.to],scanlineCell:row.cellId}));
+  const radians=angleDeg*Math.PI/180;
+  return sequence.map((row,position)=>({role,closed:false,points:position%2?[row.to,row.from]:[row.from,row.to],scanlineCell:row.cellId,fillFamily:{direction:[Math.cos(radians),Math.sin(radians)],spacingMm,lineIndex:position}}));
 }
 
 const pathLength = points => points.reduce((sum, p, i) => i ? sum + Math.hypot(p[0] - points[i - 1][0], p[1] - points[i - 1][1]) : 0, 0);
@@ -130,8 +132,14 @@ export const fillMaterial = (region, widthMm) => region.length ? offsetRegion(re
 // Coordinate mapping is independent of bead/process calculation. The plane
 // chart is isometric; mapped XYZ curve lengths keep physical millimetres.
 export function mapSliceStrokes(strokes, slice, options={}) {
-  if(slice.kind==='plane'&&!options.frames)return strokes.map(stroke=>({...stroke,points:stroke.points.map(point=>slicePoint(slice,point))}));
+  if(slice.kind==='plane')return strokes.map(stroke=>({...stroke,points:stroke.points.map(point=>slicePoint(slice,point)),...(options.frames?{chartPoints:stroke.points,normals:stroke.points.map(()=>[...slice.normal]),frameSamples:stroke.points.map(point=>sliceFrame(slice,point))}:{})}));
   return strokes.map(stroke=>mapSliceStroke(stroke,slice,options));
+}
+
+export function sliceFrame(slice,point){
+  const normal=sliceNormal(slice,point),seed=slice.kind==='plane'?slice.xAxis:slice.kind==='patch'?evaluate(slice.patch,...point).du:[1,0,-normal[0]/normal[2]];
+  const u=normalize(seed.map((value,k)=>value-dot(seed,normal)*normal[k])),v=cross(normal,u);
+  return {point:[...point,0],u,v,normal};
 }
 
 // UV and XY charts have different metrics. Step/chord tolerances are always
@@ -159,5 +167,7 @@ export function mapSliceStroke(stroke,slice,{sampleStepMm=slice.sampleStepMm??.2
     }else {points.push(pb);chartPoints.push(b);}
   };
   for(let i=1;i<source.length;i++) {counts.evaluations++;split(source[i-1],source[i],points.at(-1),slicePoint(slice,source[i]));}
-  return {...stroke,closed:false,points,...(frames?{chartPoints,normals:chartPoints.map(point=>sliceNormal(slice,point)),mappingReport:{evaluations:counts.evaluations+chartPoints.length,points:points.length}}:{})};
+  const normals=frames?chartPoints.map(point=>sliceNormal(slice,point)):null;
+  const frameSamples=frames?chartPoints.map(point=>sliceFrame(slice,point)):null;
+  return {...stroke,closed:false,points,...(frames?{chartPoints,normals,frameSamples,mappingReport:{evaluations:counts.evaluations+chartPoints.length,points:points.length}}:{})};
 }

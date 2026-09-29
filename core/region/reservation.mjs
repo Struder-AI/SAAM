@@ -4,7 +4,7 @@
 import {difference,intersect,levelSetCoverage,levelSetRegion} from './boolean.mjs';
 import {regionArea,pointInRegion,pointSegmentDistance} from './region2d.mjs';
 import {requireThat,TOLERANCE} from '../geom/tolerance.mjs';
-import {slicePoint} from '../geom/slice.mjs';
+import {slicePoint,sliceChartStep} from '../geom/slice.mjs';
 import {sampledChartRegion} from '../geom/height-slice.mjs';
 
 // Sample a reservation in the cutting surface's chart. Pointwise world-space
@@ -13,7 +13,7 @@ import {sampledChartRegion} from '../geom/height-slice.mjs';
 export function clipReservedSlice(region,slice,reserve,{sampleStepMm=.2}={}) {
   if(!reserve||!region.length)return region;
   const footprint=reservationFootprint(reserve);
-  const blocked=sampledChartRegion(bounds(region),sampleStepMm,chart=>{
+  const blocked=sampledChartRegion(bounds(region),sliceChartStep(slice,sampleStepMm),chart=>{
     if(!insideOrBoundary(chart,region))return false;
     const point=slicePoint(slice,chart);
     if(!insideOrBoundary(point,footprint))return false;

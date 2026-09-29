@@ -19,6 +19,7 @@ import {booleanSolidTemplate,validateBooleanSolid,booleanShell} from '../geom/bo
 import {geometrySelections,selectionsOverlap} from '../geom/selections.mjs';
 import {defaultSlices,validateSlices} from './slices.mjs';
 import {defaultModulations,validateModulations} from '../path/modulation.mjs';
+import {modulationGeometrySources} from '../path/modulation-field.mjs';
 import {assignmentPlan} from './assignment-process.mjs';
 import {PLASTIC_WELD_DEFAULTS,validatePlasticWeld} from '../../skills/plastic-weld/scripts/weld.mjs';
 import {heatSetTemplate,validateHeatSetRecord} from '../../skills/heat-set-inserts/scripts/feature.mjs';
@@ -139,9 +140,21 @@ const validateMeshSource=geometry=>requireThat(geometry.source===null||(geometry
 // A boolean's operands are validated by their own forms and bounded without
 // building them: control-net hulls for splines, vertices for meshes.
 function authoredBounds(geometry){
+  if(geometry.shape==='assembly'){
+    requireThat(Array.isArray(geometry.parts)&&geometry.parts.length>0,'Assembly field geometry needs components.');
+    const bounds=geometry.parts.map(part=>{
+      requireThat([part.xMm,part.yMm,part.zMm].every(Number.isFinite),'Assembly field component placement must be finite.');
+      const box=authoredBounds(part.geometry),at=[part.xMm,part.yMm,part.zMm];
+      return {min:box.min.map((v,i)=>v+at[i]),max:box.max.map((v,i)=>v+at[i])};
+    });
+    return {min:[0,1,2].map(i=>Math.min(...bounds.map(b=>b.min[i]))),max:[0,1,2].map(i=>Math.max(...bounds.map(b=>b.max[i])))};
+  }
   if(geometry.shape==='boolean')return booleanShell(validateBooleanSolid(geometry).operation,geometry.operands.map(operand=>({bounds:authoredBounds(operand)}))).bounds;
   if(geometry.shape==='spline')return splineSolidBounds(validateSplineSolid(geometry));
   if(geometry.shape==='blob-field')validateBlobFieldRecord(geometry);
+  else if(geometry.shape==='text')validateTextRecord(geometry);
+  else if(geometry.shape==='heat-set')validateHeatSetRecord(geometry);
+  else if(geometry.shape==='gridfinity')validateGridfinityRecord(geometry);
   else {keys(geometry,{shape:'mesh',vertices:[],triangles:[],source:null},'boolean operand');validateMeshSource(geometry);}
   return makeMesh(geometry.vertices,geometry.triangles).bounds;
 }
@@ -207,6 +220,11 @@ export function validatePlanSelections(plan,machine) {
     validatePlanProcess(selected,machine);validateSetup(selected,machine);
   }
   validateModulations(plan.modulations,{assignmentIds:plan.slices.assignments.map(a=>a.id)});
+  for(const {geometry:source} of modulationGeometrySources(plan.modulations)){
+    requireThat(GEOMETRY_SHAPES.includes(source.shape),'Unsupported solid-distance geometry shape.');
+    keys(source,geometryTemplate(source.shape,source),'modulation geometry');authoredBounds(source);
+  }
+  if(plan.modulations.modifiers.some(m=>m.channel==='tilt'&&m.amplitude!==0))requireMachine(machine,['tool-orientation'],'tool tilt modulation');
   const cut=[...new Set(plan.slices.assignments.filter(a=>!a.construction&&a.preset!=='support').flatMap(a=>a.part!==null?[a.part]:geometry.shape==='assembly'?geometry.parts.map(p=>p.id):[null]))];
   for(const [i,a] of cut.entries())for(const b of cut.slice(i+1))requireThat(!selectionsOverlap(selections.get(a),selections.get(b)),
     `Slice assignments cut overlapping parts ${a??'the whole print'} and ${b??'the whole print'}; give that material to one of them.`);
@@ -231,7 +249,8 @@ export function validatePlanSelections(plan,machine) {
   }
   requireThat(sliced, 'Add a slice assignment.');
   for(const assignment of plan.slices.assignments.filter(a=>['skin','fronts','sleeve'].includes(a.construction))){
-    requireMachine(machine,['xyz-extrusion','nonplanar'],assignment.construction);
+    requireMachine(machine,['xyz-extrusion'],assignment.construction);
+    requireThat(machine.capabilities.includes('nonplanar')||machine.capabilities.includes('tool-orientation'),`${assignment.construction} requires nonplanar or tool-orientation capability.`);
     if(['skin','sleeve'].includes(assignment.construction)&&geometry.shape==='assembly')requireThat(assignment.part!==null,'An assembly skin or sleeve must select a component.');
   }
   for(const assignment of plan.slices.assignments.filter(a=>a.construction==='rim')){

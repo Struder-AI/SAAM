@@ -6,7 +6,7 @@ import {requireThat,TOLERANCE} from '../geom/tolerance.mjs';
 
 // Survey the top surface once: the reserve height the body must stay under, and
 // the area the angle limit allows to be skinned.
-export function surveyRoofRegion(shell, { layers, normalMm, surveyStepMm }, maxAngleDeg) {
+export function surveyRoofRegion(shell, { layers, pitchMm, translationStepMm=pitchMm, surveyStepMm }, maxAngleDeg) {
   requireThat(Number.isFinite(surveyStepMm)&&surveyStepMm>0,'Sampling step must be positive.');
   const [minX, minY] = shell.bounds.min, [maxX, maxY] = shell.bounds.max;
   const columns = Math.max(2, Math.ceil((maxX - minX) / surveyStepMm));
@@ -42,7 +42,7 @@ export function surveyRoofRegion(shell, { layers, normalMm, surveyStepMm }, maxA
       // The body only gives space back to a skin that will actually be printed.
       // An over-limit side is excluded from draping, but it must still receive
       // its ordinary planar body layers instead of becoming a hollow omission.
-      const thickness = layers * normalMm / Math.cos(top.slopeDeg * Math.PI / 180);
+      const thickness = layers * translationStepMm;
       reserve[i][j] = skinnable ? top.zMm - thickness : shell.bounds.max[2];
       allowed[i][j] = maxAngleDeg - top.slopeDeg;
       if (!skinnable) steepCount++;
