@@ -160,8 +160,8 @@ export function generateModelResults(plan,machine,rhino,{placed,componentShells,
     requireThat(shell,'Cladding needs a selected component or the single solid.');
     return {assignment,shell,process:assignmentPlan(plan,machine,assignment).process};
   });
-  const constructions=[...sleeves,...rims,...injections,...remaining].map(context=>({...context,maxBeadHeightMm:machine.tools.find(tool=>tool.index===assignmentPlan(plan,machine,context.assignment).setup.tool)?.layerHeightMm?.[1]??Infinity}));
-  const sliced=finalizedSliceResults({plan,machine,shells,volumes:sliceVolumes(plan,rhino),bands,reserves:welds,envelopes:welds,surfaceAssignments:skins,referenceAssignments,constructions,onProgress});
+  const constructions=[...sleeves,...injections,...remaining].map(context=>({...context,maxBeadHeightMm:machine.tools.find(tool=>tool.index===assignmentPlan(plan,machine,context.assignment).setup.tool)?.layerHeightMm?.[1]??Infinity}));
+  const sliced=finalizedSliceResults({plan,machine,shells,volumes:sliceVolumes(plan,rhino),bands,reserves:welds,envelopes:welds,surfaceAssignments:skins,referenceAssignments,terminalAssignments:rims,constructions,onProgress});
   results.push(...sliced.results);
   if(sliced.summary)summary.slices=sliced.summary;
   for(const [kind,key] of [['sleeve','vaseWall'],['rim','thickLip'],['skin','drapedSkin']]){

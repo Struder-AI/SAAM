@@ -1,5 +1,28 @@
 # Development log
 
+## 2026-09-29 — Requested stop after travel investigation (0.2.0 unfinished)
+
+- Lip now constructs one common Slice course per step and finalizes it before the
+  next consumes its material. Terminal boundary metadata selects the source beads;
+  actual bead bounds remain intact. Removed the separate rim producer.
+- Four OFF/ON and displaced-course cases export and interpret successfully.
+  Lead reviewed the diff and reran the saved parity comparison: unchanged cases
+  retain exact geometry/material/dependencies; ON now carries a +0.05 mm first-step
+  displacement through later steps, yielding tops 1.25, 1.45, 1.65 mm.
+- Historical starter/box comparisons isolated the travel regression to ordering
+  from the producer's first stroke instead of actual machine entry. A scratch-only
+  prototype using the existing scheduler/finalizer recovers 3899.498/291.648 mm
+  travel, matching historical behavior with cross-operation depositing joins removed.
+  No production optimizer change: one schedule owner must supply entry state before
+  finalization/publication, including dependent Slice producers and prime motion.
+- Travel optimization targets all Slice use cases; Inject and Trace retain their
+  ordering/continuity constraints without requiring elaborate optimization.
+- Evidence lives under `.local/0.2.0`: `slice-geometry/rim-parity.json`, C9 comparison
+  and C10 investigation receipts. No new tests, suites, push, release or hardware.
+  Remaining includes optimizer integration, vase/tile/support/rivet consolidation,
+  broader ownership/workflows, small-radius ON sampling, controlled timings and maps.
+  Owner requested this local checkpoint and a stop after the interface milestone.
+
 ## 2026-09-29 — Three construction families and resumed 0.2.0 milestones
 
 - Owner resumed the build and settled Inject at points, Trace along authored or

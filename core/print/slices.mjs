@@ -6,10 +6,10 @@
 import { curveAssignment, validateCurveAssignment } from './curves.mjs';
 import {injectionAssignment,validateInjectionAssignment} from './injection.mjs';
 import {skinAssignment,frontAssignment,lowerSkinAssignment,validateSurfaceConstruction} from './surface-constructions.mjs';
-import {sleeveAssignment,rimAssignment,validateSleeveAssignment,validateRimAssignment} from './sleeve-constructions.mjs';
+import {sleeveAssignment,rimAssignment,validateSleeveAssignment,validateRimAssignment,terminalBoundaryReference,boundaryOffsetField} from './sleeve-constructions.mjs';
 import {claddingAssignment,validateCladdingAssignment} from './cladding-constructions.mjs';
 import {assignmentPlan,validateAssignmentProcess} from './assignment-process.mjs';
-import {depositedBeadSegments,depositedBeadsContain} from '../path/deposited-curves.mjs';
+import {depositedBeadSegments,depositedBeadsContain,depositedBeadBounds} from '../path/deposited-curves.mjs';
 import {materialContact} from '../region/material-contact.mjs';
 import { heightSlice, heightSliceNormal, heightReferencePatch, heightReferenceBounds } from '../geom/height-slice.mjs';
 import { validateSplineSolid } from '../geom/spline-solid.mjs';
@@ -31,6 +31,7 @@ import { difference, intersect, union } from '../region/boolean.mjs';
 import { clipReservedRegion, clipReservedSlice } from '../region/reservation.mjs';
 import { depositCurves } from '../path/deposition.mjs';
 import {depositCurveCourses} from '../path/curve-courses.mjs';
+import {contactCurveCourses} from '../path/contact-curves.mjs';
 import {surfaceCellField} from '../region/wrapping-curves.mjs';
 import {CONNECT_MOVE_MM} from '../path/planning.mjs';
 import { lineSpacing } from '../path/spacing.mjs';
@@ -425,9 +426,10 @@ function sliceTravelPolicy(slice, region, worldRegion, maxZ, process) {
 // One evaluated region-course boundary for cut regions and reference families.
 // Geometry strokes retain their chart/metric; gap adaptation precedes the same
 // joining and bead construction for every Slice producer.
-export function evaluateRegionCourse({id,course,process,filament=null,contact=null,baseZMm=null,sampleStepMm=.2}){
+export function evaluateRegionCourse({id,course,process,filament=null,contact=null,contactPlacement=null,baseZMm=null,sampleStepMm=.2}){
   const {reference,strokes,...construction}=course;
-  let curves=mapSliceStrokes(strokes,reference,{frames:true,sampleStepMm}),measured=null;
+  let curves=mapSliceStrokes(strokes,reference,{frames:!contactPlacement,sampleStepMm}),measured=null;
+  if(contactPlacement)curves=contactCurveCourses(curves,contactPlacement);
   if(contact){
     curves=curves.map(curve=>!curve.closed?curve:{...curve,closed:false,
       ...Object.fromEntries(['points','chartPoints','normals','frameSamples'].map(key=>[key,[...curve[key],curve[key][0]]]))});
@@ -527,11 +529,11 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
 // -> {results, supports, summary: {layers, instances}}
 // envelopes: [{part, solidRegionAt(z)}] regions a process (a plastic-weld
 // rivet) needs solid in the slices of its part.
-export function prepareSliceContexts({ plan, machine, shells, volumes, bands, reserves, envelopes = [],surfaceAssignments=[],referenceAssignments=[], onProgress }) {
+export function prepareSliceContexts({ plan, machine, shells, volumes, bands, reserves, envelopes = [],surfaceAssignments=[],referenceAssignments=[],terminalAssignments=[], onProgress }) {
   const lowered=new Map(surfaceAssignments.map(input=>[input.assignment.id,{assignment:lowerSkinAssignment(input),contact:{source:input.assignment.supportFrom},survey:input.survey}]));
   const assignments = plan.slices.assignments.flatMap(a=>!a.construction?[a]:lowered.has(a.id)?[lowered.get(a.id).assignment]:[]);
 
-  if(!assignments.length&&!referenceAssignments.length)return {contexts:[]};
+  if(!assignments.length&&!referenceAssignments.length&&!terminalAssignments.length)return {contexts:[]};
   const processes = assignments.map(a => assignmentPlan(plan,machine,a).process);
   const owners = sliceOwners(assignments, { shells, processes, volumes, placement: plan.placement, selections: geometrySelections(plan.geometry) });
   const owned = ownedLayers(owners, { shells, bands, reserves, onProgress });
@@ -562,10 +564,38 @@ export function prepareSliceContexts({ plan, machine, shells, volumes, bands, re
       family:{constructTogether:true,region:{kind:'normal-band',selection:assignment.surface,fromMm:0,toMm:assignment.shells*assignment.normalMm},layers:[]},
       layerOrder:[{index:null,rank:shell.bounds.max[2]}]});
   }
+  for(const {assignment,shell,process} of terminalAssignments){
+    const id=assignment.id;
+    contexts.push({spec:{id,settings:assignment,layers:[],filament:assignment.filament},reference:{kind:'terminal',source:assignment.source},
+      regionField:{kind:'boundary-offsets',settings:assignment},context:{shell,process,machine,report:{owner:id,part:assignment.part,construction:'rim',steps:assignment.steps}},
+      owner:{id,assignment,part:assignment.part},familyId:id,family:{layers:[]},
+      layerOrder:assignment.steps.map((count,index)=>({index,rank:shell.bounds.max[2]+(index+1)*process.layerMm}))});
+  }
   return {contexts};
 }
 
-export function sliceContextResult(record,{layerIndex=null,contactSegments=[],otherFamilyContactSegments=[],seedSegments=[],contactFragments=[],predecessorReference=null,substrateAdaptation=false,requiredContact=false,reference=null,motion=null}={}){
+export function sliceContextResult(record,{layerIndex=null,contactSegments=[],otherFamilyContactSegments=[],seedSegments=[],contactFragments=[],predecessorReference=null,substrateAdaptation=false,requiredContact=false,reference=null,motion=null,sourceResult=null,sourceAssignment=null,predecessorResults=[]}={}){
+  if(record.regionField?.kind==='boundary-offsets'){
+    const {shell,process}=record.context,assignment=record.spec.settings,index=layerIndex;
+    requireThat(Number.isInteger(index)&&index>=0&&index<assignment.steps.length,'A terminal region needs a valid course index.');
+    const terminal=terminalBoundaryReference({shell,assignment,process,sourceResult,sourceAssignment,substrateAdaptation});
+    const field=boundaryOffsetField(terminal,{count:assignment.steps[index],index,widthMm:process.lineWidthMm,minFeatureMm:assignment.minFeatureMm});
+    const segments=substrateAdaptation?[...depositedBeadSegments(sourceResult.operations,{widthMm:terminal.sourceWidth,boundaryRole:'rim'}),
+      ...depositedBeadSegments(predecessorResults.flatMap(result=>result.operations),{widthMm:process.lineWidthMm})]:[];
+    const nominalZ=terminal.zStartMm+(index+1)*process.layerMm,slice=horizontalSlice(nominalZ);
+    const evaluated=evaluateRegionCourse({id:record.spec.id,process,filament:record.spec.filament,course:{key:index,layer:index,rank:nominalZ,reference:slice,
+      strokes:field.strokes,heightMm:process.layerMm,order:'nearest'},contactPlacement:substrateAdaptation?{
+        segments,gapMm:process.layerMm,ceilingMm:depositedBeadBounds(segments).max[2],sampleStepMm:Math.min(process.lineWidthMm/2,.2),
+        toleranceMm:Math.min(.01,process.lineWidthMm/20),footprintRadiusMm:process.lineWidthMm/2}:null});
+    const strokes=evaluated.operation.strokes,top=strokes.reduce((z,stroke)=>stroke.points.reduce((z,p)=>Math.max(z,p[2]),z),-Infinity);
+    const planar=strokes.every(stroke=>stroke.points.every(point=>Math.abs(point[2]-top)<1e-8));
+    const operation={...evaluated.operation,layerId:'lip:'+top,phase:planar?'planar':'curves',rank:top,connectNearby:planar,
+      travelPolicy:planar?planarPolicy(field.region,{layerZ:top,liftMm:process.liftMm,maxCombMm:process.maxCombMm,lineWidthMm:process.lineWidthMm}):
+        {maxCombMm:0,clearanceFor:()=>top+process.liftMm}};
+    return {id:record.spec.id,operations:[operation],family:{...record.family,layers:[{index,slice,region:field.region}]},familyId:record.familyId,
+      report:{...record.context.report,layers:1,startMm:terminal.zStartMm,topMm:top,reconstructedContact:terminal.modified,substrateAdaptation,
+        scope:substrateAdaptation?'Offset boundary courses raised from finalized deposited contact, including preceding rim courses. Missing contact rejects.':'Offset boundary courses on the nominal terminal reference and declared layer gap.'}};
+  }
   if(record.regionField){
     requireThat(record.regionField.kind==='periodic-cells','Unknown Slice region stroke field.');
     requireThat(reference?.sourceOperationIds?.length,'A reference family needs finalized source operation prerequisites.');

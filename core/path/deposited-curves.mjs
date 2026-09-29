@@ -53,7 +53,9 @@ export function depositedBeadFrames(result){
 // Rectangular normal-gap beads in their local surface frame, with round ends. Width
 // and gap come from the final positive-volume strokes; no filled envelope is
 // inferred between them. The normal is the declared deposition reference.
-export function depositedBeadSegments(operations,{widthMm}={}){
+// An optional boundaryRole selects finalized source segments by their published
+// geometric boundary identity; ordinary material queries retain all segments.
+export function depositedBeadSegments(operations,{widthMm,boundaryRole=null}={}){
   const segments=[];
   for(const op of operations)for(const stroke of op.strokes){
     const points=stroke.closed?[...stroke.points,stroke.points[0]]:stroke.points;
@@ -62,6 +64,7 @@ export function depositedBeadSegments(operations,{widthMm}={}){
       const volume=stroke.volumesMm3?.[i-1]??length*(stroke.beadAreaMm2??0);
       if(length<1e-9||volume<=0)continue;
       const metadata=stroke.segmentMetadata?.[i-1];
+      if(boundaryRole!==null&&metadata?.boundaryRole!==boundaryRole)continue;
       const width=metadata?.beadWidthMm??stroke.beadWidthMm??widthMm;
       const normal=metadata?.surfaceNormal??stroke.frameSamples?.[i-1]?.normal??stroke.normals?.[i-1]??(op.slice
         ?sliceNormal(op.slice,op.slice.kind==='height-field'?a.slice(0,2):[0,0]):[0,0,1]);

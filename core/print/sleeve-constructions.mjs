@@ -1,4 +1,4 @@
-import {contactCurveCourses,contactCurveGaps} from '../path/contact-curves.mjs';
+import {contactCurveGaps} from '../path/contact-curves.mjs';
 import {constructContourSleeve} from '../geom/contour-sleeve.mjs';
 // Section-derived spirals and sleeve-relative patterns share stroke semantics.
 import {cleanPlanarLoop} from '../geom/polyline.mjs';
@@ -75,13 +75,12 @@ export function sleeveResult({shell,assignment,process,machine,id=assignment.id,
 }
 
 
-export function rimResult({shell,assignment,process,sourceAssignment,sourceResult,machine=null,substrateAdaptation=false}) {
-  const width=process.lineWidthMm,id=assignment.id;
+export function terminalBoundaryReference({shell,assignment,sourceAssignment,sourceResult,substrateAdaptation=false}) {
   requireThat(sourceAssignment?.id===assignment.source&&sourceAssignment.part===assignment.part,'A rim must name a source assignment on the same part.');
   requireThat(sourceResult?.levelBoundary,'A rim needs an explicit terminal boundary from its source.');
   const sourceWidth=sourceResult.levelBoundary.widthMm;
   requireThat(sourceWidth>0,'A rim source needs a deposited width.');
-  const after=[...new Set([...assignment.after,...sourceResult.operations.map(op=>op.id)])],modified=substrateAdaptation&&!!sourceResult.report?.modulation?.changed;
+  const modified=substrateAdaptation&&!!sourceResult.report?.modulation?.changed;
   let boundary,baselineInsetMm,zStartMm=sourceResult.levelBoundary.zMm;
   if(!modified){
     const cut=geometrySection(shell,horizontalSlice(zStartMm),{minFeatureMm:assignment.minFeatureMm});
@@ -98,22 +97,18 @@ export function rimResult({shell,assignment,process,sourceAssignment,sourceResul
     boundary=[loopArea(projected)>0?projected:projected.toReversed()];baselineInsetMm=0;
     zStartMm=Math.max(...strands.map(p=>p[2]));
   }
-  const operations=[];let supporting=substrateAdaptation?depositedBeadSegments(sourceResult.operations,{widthMm:sourceWidth}):[],previous=after,top=zStartMm;
-  for(const [step,n] of assignment.steps.entries()){
-    const curves=[];
-    for(let i=0;i<n;i++){
-      const inset=baselineInsetMm+(i-(n-1)/2)*width;
-      const loops=offsetRegion(boundary,-inset,{precisionMm:OFFSET_PRECISION_MM,arcToleranceMm:assignment.minFeatureMm/4});
-      requireThat(loops.length,'Requested rim offset collapsed; reduce the loop count or width.');
-      curves.push(...loops.map(loop=>({role:`lip-step-${step}`,closed:true,points:cleanPlanarLoop(loop).map(p=>[...p,0])})));
-    }
-    const mapped=substrateAdaptation?contactCurveCourses(curves,{segments:supporting,gapMm:process.layerMm,ceilingMm:zStartMm+step*process.layerMm,sampleStepMm:Math.min(width/2,.2),toleranceMm:Math.min(.01,width/20),footprintRadiusMm:width/2}):curves.map(curve=>({...curve,points:curve.points.map(p=>[p[0],p[1],zStartMm+(step+1)*process.layerMm]),heightMm:process.layerMm}));
-    top=Math.max(...mapped.flatMap(c=>c.points.map(p=>p[2])));
-    const planar=mapped.every(c=>c.points.every(p=>Math.abs(p[2]-top)<1e-8));
-    const travel=planar?{kind:'planar',zMm:top,region:(n-1)/2>0?offsetRegion(boundary,(n-1)/2*width,{precisionMm:OFFSET_PRECISION_MM}):boundary}:{kind:'clearance',clearanceZ:top+process.liftMm};
-    const [operation]=depositCurveCourses({id,process,after:previous,filament:assignment.filament,courses:[{key:step,layerId:'lip:'+top,phase:planar?'planar':'curves',layer:step,rank:top,curves:mapped,order:'nearest',connectNearby:planar,travel}]});
-    operations.push(operation);if(substrateAdaptation)supporting=[...supporting,...depositedBeadSegments([operation],{widthMm:width})];previous=[operation.id];
+  return {boundary,baselineInsetMm,zStartMm,sourceWidth,modified};
+}
+
+// Offset fields on the terminal region; they carry no operations or publication.
+export function boundaryOffsetField(reference,{count,index,widthMm,minFeatureMm}){
+  const {boundary,baselineInsetMm}=reference,strokes=[];
+  for(let i=0;i<count;i++){
+    const inset=baselineInsetMm+(i-(count-1)/2)*widthMm;
+    const loops=offsetRegion(boundary,-inset,{precisionMm:OFFSET_PRECISION_MM,arcToleranceMm:minFeatureMm/4});
+    requireThat(loops.length,'Requested rim offset collapsed; reduce the loop count or width.');
+    strokes.push(...loops.map(loop=>({role:`lip-step-${index}`,closed:true,points:cleanPlanarLoop(loop)})));
   }
-  return {id,operations,report:{steps:assignment.steps,startMm:zStartMm,topMm:top,construction:'rim',part:assignment.part,reconstructedContact:modified,
-    substrateAdaptation,scope:substrateAdaptation?'Offset boundary courses raised from finalized deposited contact, including preceding rim courses. Missing contact rejects.':'Offset boundary courses on the nominal terminal reference and declared layer gap.'}};
+  const region=count>1?offsetRegion(boundary,(count-1)/2*widthMm,{precisionMm:OFFSET_PRECISION_MM}):boundary;
+  return {strokes,region};
 }
