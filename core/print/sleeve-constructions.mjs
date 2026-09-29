@@ -1,16 +1,56 @@
 // Section-derived spirals and sleeve-relative patterns share stroke semantics.
-import {createSectionQuery} from '../../../core/geom/query.mjs';
-import {cleanPlanarLoop} from '../../../core/geom/polyline.mjs';
-import {loopArea,dedupe,pointSegmentDistance,pointInRegion} from '../../../core/region/region2d.mjs';
-import {offsetRegion} from '../../../core/region/offset.mjs';
-import {requireThat,distance} from '../../../core/geom/tolerance.mjs';
-import {contourPath} from '../../../core/geom/contour-path.mjs';
-import {depositionStroke,maximumPathAngle,trimVanishingEnd} from '../../../core/path/deposition.mjs';
-import {mappedPatternResult} from './paths.mjs';
-import {prepareContourFamily} from '../../../core/geom/prepared-contours.mjs';
-import {createVaseMeshReference,createStandardVaseSleeve} from './reference.mjs';
+import {createSectionQuery} from '../geom/query.mjs';
+import {cleanPlanarLoop} from '../geom/polyline.mjs';
+import {loopArea,dedupe,pointSegmentDistance,pointInRegion} from '../region/region2d.mjs';
+import {offsetRegion} from '../region/offset.mjs';
+import {requireThat,distance} from '../geom/tolerance.mjs';
+import {contourPath} from '../geom/contour-path.mjs';
+import {depositCurves,maximumPathAngle,trimVanishingEnd} from '../path/deposition.mjs';
+import {spiralProfile,spiralHeight,spiralBeadCurve} from '../path/curve-construction.mjs';
+import {mappedSleevePatternResult} from '../path/sleeve-pattern.mjs';
+import {prepareContourFamily} from '../geom/prepared-contours.mjs';
+import {createFittedSleeveReference,createAutomaticSleeveReference} from '../geom/sleeve-reference.mjs';
+import {validateSleevePattern} from '../path/sleeve-pattern.mjs';
+import {section as geometrySection,horizontalSlice} from '../geom/slice.mjs';
+import {planarPolicy} from '../path/builder.mjs';
+import {depositedCurveSegments,curveSupportsPoint} from '../path/deposited-curves.mjs';
 
-export const VASE_WALL_DEFAULTS={zStartMm:0,zEndMm:null,endTransition:'level',pattern:null,pathMode:'continuous',meshSleeve:null,sampleStepMm:1,toleranceMm:0.02,boundaryToleranceMm:0.02,minFeatureMm:0.4,sleeveToleranceMm:0.08};
+export const SLEEVE_DEFAULTS={zStartMm:0,zEndMm:null,endTransition:'level',pattern:null,pathMode:'continuous',meshSleeve:null,sampleStepMm:1,toleranceMm:0.02,boundaryToleranceMm:0.02,minFeatureMm:0.4,sleeveToleranceMm:0.08};
+export const sleeveAssignment=({id,...options})=>structuredClone({id,construction:'sleeve',part:null,filament:null,process:null,after:[],...SLEEVE_DEFAULTS,...options});
+export const RIM_DEFAULTS={steps:[2],minFeatureMm:.4};
+export const rimAssignment=({id,...options})=>structuredClone({id,construction:'rim',part:null,filament:null,process:null,after:[],source:null,...RIM_DEFAULTS,...options});
+
+export function validateRimAssignment(a,{parts}={}){
+  requireThat(a&&a.construction==='rim'&&Object.keys(a).sort().join()===Object.keys(rimAssignment({id:a.id})).sort().join(),'Invalid rim assignment fields.');
+  requireThat(typeof a.id==='string'&&/^[a-z][a-z0-9-]*$/.test(a.id),'Invalid rim assignment id.');
+  requireThat(a.part===null||parts?.includes(a.part),'Rim names an unknown part.');
+  requireThat(a.filament===null||Number.isInteger(a.filament)&&a.filament>=0,'Rim filament must be null or a filament index.');
+  requireThat(Array.isArray(a.after)&&a.after.every(id=>typeof id==='string'&&id.length),'Rim after lists operation ids.');
+  requireThat(typeof a.source==='string'&&/^[a-z][a-z0-9-]*$/.test(a.source)&&a.source!==a.id,'Rim source names a separate sleeve assignment.');
+  requireThat(Array.isArray(a.steps)&&a.steps.length>=1&&a.steps.length<=50&&a.steps.every(n=>Number.isInteger(n)&&n>=1),'Rim steps need 1–50 entries, each a positive whole number of loops.');
+  requireThat(Number.isFinite(a.minFeatureMm)&&a.minFeatureMm>=.05&&a.minFeatureMm<=5,'Rim minimum section feature must be .05–5 mm.');
+}
+
+export function validateSleeveAssignment(a,{parts}={}){
+  requireThat(a&&a.construction==='sleeve'&&Object.keys(a).sort().join()===Object.keys(sleeveAssignment({id:a.id})).sort().join(),'Invalid sleeve assignment fields.');
+  requireThat(typeof a.id==='string'&&/^[a-z][a-z0-9-]*$/.test(a.id),'Invalid sleeve assignment id.');
+  requireThat(a.part===null||parts?.includes(a.part),'Sleeve names an unknown part.');
+  requireThat(a.filament===null||Number.isInteger(a.filament)&&a.filament>=0,'Sleeve filament must be null or a filament index.');
+  requireThat(Array.isArray(a.after)&&a.after.every(id=>typeof id==='string'&&id.length),'Sleeve after lists operation ids.');
+  requireThat(['continuous','segmented'].includes(a.pathMode),'Sleeve path mode must be continuous or segmented.');
+  validateSleevePattern(a.pattern,a.pathMode);
+  requireThat(a.pattern!==null||a.pathMode==='continuous','Segmented mode requires a sleeve pattern.');
+  requireThat(['spiral','level'].includes(a.endTransition),'Sleeve ending transition must be spiral or level.');
+  requireThat(Number.isFinite(a.zStartMm)&&a.zStartMm>=0&&(a.zEndMm===null||Number.isFinite(a.zEndMm)&&a.zEndMm>a.zStartMm),'Sleeve needs nonnegative start and null or greater end height.');
+  const bounds={sampleStepMm:[.1,5],toleranceMm:[.002,.05],boundaryToleranceMm:[.002,.05],minFeatureMm:[.05,5],sleeveToleranceMm:[0,.5]};
+  for(const [key,[low,high]] of Object.entries(bounds))requireThat(Number.isFinite(a[key])&&a[key]>=low&&a[key]<=high,`Sleeve ${key} must be ${low}–${high}.`);
+  if(a.meshSleeve===null)return;
+  const fit=a.meshSleeve;
+  requireThat(fit&&Object.keys(fit).sort().join()==='circumferentialControls,contactSide,detailToleranceMm,fidelity,heightControls','Invalid mesh sleeve settings.');
+  requireThat(Number.isFinite(fit.fidelity)&&fit.fidelity>=0&&fit.fidelity<=1&&['inside','outside'].includes(fit.contactSide),'Mesh sleeve needs fidelity 0–1 and inside/outside contact.');
+  requireThat(Number.isInteger(fit.circumferentialControls)&&fit.circumferentialControls>=8&&fit.circumferentialControls<=48&&Number.isInteger(fit.heightControls)&&fit.heightControls>=4&&fit.heightControls<=32,'Mesh sleeve controls must be 8–48 circumferential and 4–32 along height.');
+  requireThat(Number.isFinite(fit.detailToleranceMm)&&fit.detailToleranceMm>=.005&&fit.detailToleranceMm<=.5,'Mesh sleeve detail tolerance must be .005–.5 mm.');
+}
 // Ten-nanometer integer grid: independent of contour/chord and boundary
 // tolerances; shared Clipper2 offsets use this same grid by default.
 const OFFSET_PRECISION_MM=0.00001;
@@ -52,8 +92,8 @@ function outerLoop(loops) {
   return loop;
 }
 
-export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStartMm=null,zEndMm=null,onProgress}) {
-  const settings={...VASE_WALL_DEFAULTS,...plan.skills['vase-wall']},process=plan.process;
+export function sleeveResult({shell,assignment,process,machine,id=assignment.id,after=assignment.after,zStartMm=null,zEndMm=null,onProgress}) {
+  const settings=assignment;
   const width=process.lineWidthMm,pitch=process.layerMm,base=zStartMm??(shell.bounds.min[2]+settings.zStartMm);
   const firstHeight=Math.abs(base-shell.bounds.min[2])<1e-9?process.firstLayerMm:pitch;
   const start=base+firstHeight,end=zEndMm??(settings.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+settings.zEndMm);
@@ -72,8 +112,8 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     if(cache.size>=256)cache.delete(cache.keys().next().value);
     cache.set(key,value);return value;
   };
-  const reference=createVaseMeshReference({shell,settings,start,end,width,onProgress})
-    ??(settings.pattern===null?createStandardVaseSleeve({shell,settings,start,end,width,onProgress}):null);
+  const reference=createFittedSleeveReference({shell,settings,start,end,width,onProgress})
+    ??(settings.pattern===null?createAutomaticSleeveReference({shell,settings,start,end,width,onProgress}):null);
   const centerlineOffset=reference&&settings.meshSleeve?.contactSide==='outside'?width/2:-width/2;
   const sectionAt=reference?.sectionAt??createSectionQuery(shell,{minFeatureMm:settings.minFeatureMm});
   function section(z) {
@@ -121,8 +161,9 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
   }
   if(!reference)section(start);
   // t=0..1 is a flat foundation ring; subsequent turns rise by exactly pitch.
-  const spiralTurns=1+(end-start)/pitch,turns=spiralTurns+(settings.endTransition==='level'?1:0);
-  const zAt=t=>t<=1?start:Math.min(end,start+(t-1)*pitch);
+  const profile=spiralProfile({startMm:start,endMm:end,pitchMm:pitch,firstHeightMm:firstHeight,levelEnd:settings.endTransition==='level'});
+  const spiralTurns=profile.risingTurns,turns=profile.turns;
+  const zAt=t=>spiralHeight(profile,t);
   const offsetCurves=new WeakMap();
   function mappedPoint(u,z,offsetMm=0) {
     const frame=section(z),{curve,outer,holes}=frame,xy=curve.at(u);
@@ -144,9 +185,9 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     return [...xy,z];
   }
   if(settings.pattern!==null){
-    if(reference)return mappedPatternResult({settings,process,machine,id,after,base,start,end,firstHeight,
+    if(reference)return mappedSleevePatternResult({settings,process,machine,id,after,base,start,end,firstHeight,
       referenceLengthMm:reference.referenceLengthMm,mappedPoint:(u,z,offset)=>reference.map(reference.pointAt(u,z,offset)),
-      mappingErrorMm:0,onProgress,sectionReport:()=>({sectionQueries:0,nudgedSections:0,...reference.report()})});
+      mappingErrorMm:reference.mappingErrorMm,onProgress,sectionReport:()=>({sectionQueries:0,nudgedSections:0,...reference.report()})});
     const validatedFrames=new WeakSet();
     const curveAt=(z,offset)=>{
       const frame=section(z);
@@ -160,7 +201,7 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     };
     const mappingErrorMm=Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/8;
     const prepared=prepareContourFamily({curveAt,startMm:start,endMm:end,stepMm:settings.minFeatureMm,toleranceMm:mappingErrorMm});
-    return mappedPatternResult({settings,process,machine,id,after,base,start,end,firstHeight,referenceLengthMm:section(start).curve.length,
+    return mappedSleevePatternResult({settings,process,machine,id,after,base,start,end,firstHeight,referenceLengthMm:section(start).curve.length,
       mappedPoint:(u,z,offset)=>{const p=[...prepared.at(u,z,offset),z];return reference?reference.map(p):p;},mappingErrorMm,onProgress,
       sectionReport:()=>({sectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,...prepared.report(),...reference?.report()})});
   }
@@ -179,25 +220,12 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     const next=Math.min(turns,t<spiralTurns-1e-10?spiralTurns:Infinity,(Math.floor(t*16+1e-8)+1)/16);
     append(t,next,points.at(-1),point(next));t=next;
   }
-  const lengths=points.slice(1).map((p,i)=>distance(points[i],p)),turnLengths=new Map();
   const maximumAngleDeg=maximumPathAngle(points);
   requireThat(Number.isFinite(machine?.nonplanar?.maxAngleDeg)&&maximumAngleDeg<=machine.nonplanar.maxAngleDeg+1e-8,'Vase wall rise exceeds the machine declared non-planar angle limit.');
-  for(let i=0;i<lengths.length;i++) {
-    const turn=Math.floor((times[i]+times[i+1])/2);turnLengths.set(turn,(turnLengths.get(turn)??0)+lengths[i]);
-  }
-  // One speed for the entire uninterrupted stroke; use the shortest full turn
-  // to meet minimum cooling time by slowing deposition, never parking per turn.
-  const completeLengths=[...turnLengths].filter(([turn])=>turn+1<=turns+1e-9).map(([,length])=>length);
-  const speed=Math.min(process.planarSpeedMmS,process.firstLayerSpeedMmS,
-    process.minimumLayerSeconds>0?Math.min(...completeLengths)/process.minimumLayerSeconds:Infinity);
-  // Over the foundation ring the first rising turn fills only the local gap:
-  // its thickness ramps from zero to pitch, avoiding a doubled first bead.
-  const heightsMm=lengths.map((length,i)=>{
-    const middle=(times[i]+times[i+1])/2;
-    return times[i+1]<=1+1e-9?firstHeight:zAt(middle)-zAt(middle-1);
-  });
-  const depositedStroke=depositionStroke({role:'vase-wall',points,heightsMm,widthMm:width,speedMmS:speed,
-    segmentMetadata:times.slice(1).map((t,i)=>({layer:Math.floor((times[i]+t)/2)}))});
+  const curve=spiralBeadCurve({profile,points,turns:times,role:'vase-wall',speedMmS:Math.min(process.planarSpeedMmS,process.firstLayerSpeedMmS),
+    minimumTurnSeconds:process.minimumLayerSeconds});
+  const speed=curve.speedMmS;
+  const [depositedStroke]=depositCurves([curve],{widthMm:width});
   const stroke=settings.endTransition==='level'?trimVanishingEnd(depositedStroke):depositedStroke;
   const volumesMm3=stroke.volumesMm3,strokeTimes=times.slice(0,stroke.points.length);
   const rimStart=settings.endTransition==='level'?strokeTimes.findIndex(t=>t>=spiralTurns-1e-9):-1;
@@ -209,4 +237,72 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     report:{startMm:start,endMm:end,baseTopMm:base,turns,spiralTurns,endTransition:settings.endTransition,levelRimMm:settings.endTransition==='level'?end:null,points:stroke.points.length,sectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,
       volumeMm3:volumesMm3.reduce((sum,v)=>sum+v,0),speedMmS:speed,maximumAngleDeg,...reference?.report(),
       scope:'One outer section with arc-length correspondence from a fixed projected seam; concavity is supported while the inset remains one loop. Sampled topology and boundary checks; no physical validation.'}};
+}
+
+
+export function rimResult({shell,assignment,process,sourceAssignment,sourceResult}) {
+  const settings=assignment,width=process.lineWidthMm,id=assignment.id;
+  requireThat(sourceAssignment?.id===assignment.source&&sourceAssignment.construction==='sleeve'&&sourceAssignment.part===assignment.part,'A rim must name a sleeve assignment on the same part.');
+  requireThat(sourceResult?.levelBoundary&&sourceAssignment.endTransition==='level','A rim needs its source sleeve to end with a level boundary.');
+  requireThat(!sourceResult.report?.modulation?.changed,'A rim cannot yet consume a modulated sleeve: finalized width/flow and displaced rim contact gaps require explicit reconstruction.');
+  const zStartMm=sourceResult.levelBoundary.zMm,after=[...new Set([...assignment.after,...sourceResult.operations.map(op=>op.id)])];
+  const cut = geometrySection(shell, horizontalSlice(zStartMm), {minFeatureMm: settings.minFeatureMm}), outer = convexLoop(cut.loops);
+  requireThat(Math.abs(cut.nudgedByMm ?? 0) <= settings.minFeatureMm / 4, 'Lip boundary section needed an unexpectedly large nudge; check the vase-wall ending Z.');
+  const sourceWidth=sourceResult.levelBoundary.widthMm;
+  requireThat(Number.isFinite(sourceWidth)&&sourceWidth>0,'A rim needs the finalized source bead width.');
+  const sourcePoints=sourceResult.levelBoundary.strokes.flatMap(stroke=>stroke.points);
+  requireThat(sourcePoints.every(p=>Math.abs(p[2]-zStartMm)<=1e-8&&Math.abs(Math.min(...outer.map((q,i)=>pointSegmentDistance(p,q,outer[(i+1)%outer.length])))-sourceWidth/2)<=sourceAssignment.boundaryToleranceMm),
+    'The source rim differs from its frozen convex contour; patterned or fitted rim contact requires explicit reconstruction.');
+  // insetMm is measured from the true (unbeaded) outer surface, exactly as
+  // vase-wall measures its own single centerline (insetMm = width/2). A
+  // centered ring set can need insetMm below that - even negative, an
+  // outward dilation - once a step asks for more than a couple of
+  // perimeters; that is the intended behavior; centering is not bounded to
+  // stay inside the wall printed below it.
+  function ringAt(insetMm) {
+    const inset = offsetRegion([outer], -insetMm, {precisionMm: OFFSET_PRECISION_MM, arcToleranceMm: settings.minFeatureMm / 4});
+    requireThat(inset.length === 1 && loopArea(inset[0]) > 0, `Lip ring offset ${insetMm.toFixed(3)} mm from the outer wall (positive = inward) collapsed; adjust the steps schedule.`);
+    return cleanPlanarLoop(inset[0]);
+  }
+  const spacing = width, baselineInsetMm = sourceWidth / 2;
+  const supporting=depositedCurveSegments([{id:sourceResult.id,strokes:sourceResult.levelBoundary.strokes}],{widthMm:sourceWidth});
+  const centerline=ringAt(baselineInsetMm);
+  for(let i=0;i<centerline.length;i++){
+    const a=centerline[i],b=centerline[(i+1)%centerline.length],count=Math.max(1,Math.ceil(distance(a,b)/Math.min(sourceWidth/4,.1)));
+    for(let j=0;j<=count;j++)requireThat(curveSupportsPoint(supporting,[a[0]+(b[0]-a[0])*j/count,a[1]+(b[1]-a[1])*j/count,zStartMm],zStartMm,{toleranceMm:sourceAssignment.boundaryToleranceMm}),
+      'The source sleeve leaves a gap beneath the rim centerline; a continuous supporting rim is required.');
+  }
+
+  const operations = [];
+  let previous = after, z = zStartMm;
+  settings.steps.forEach((n, stepIndex) => {
+    z += process.layerMm;
+    // Rings are centered on the wall's own centerline (offset 0 from
+    // baselineInsetMm), not flush with its outer face: for n rings, offsets
+    // run symmetrically from -(n-1)/2 to +(n-1)/2 spacing units, so whatever
+    // is printed here always straddles the exact same line the terminal
+    // wall bead below it followed.
+    const mid = (n - 1) / 2;
+    const curves = Array.from({length: n}, (_, i) => ({
+      role: `lip-step-${stepIndex}`, closed: true,
+      points: ringAt(baselineInsetMm + (i - mid) * spacing).map(p => [...p, z])
+    }));
+    const strokes=depositCurves(curves,{widthMm:width,heightMm:process.layerMm,speedMmS:process.planarSpeedMmS});
+    const operationId = `${id}:${operations.length}`;
+    operations.push({
+      id: operationId, layerId: 'lip:' + z, phase: 'planar', layer: operations.length, rank: z,
+      after: [...previous], strokes, order: 'nearest', connectNearby: true,
+      // Centered rings can lie outside the wall section; travel and ring-to-ring
+      // connectors are checked against the material this step itself deposits.
+      travelPolicy: planarPolicy(mid > 0 ? offsetRegion([outer], mid * spacing, {precisionMm: OFFSET_PRECISION_MM}) : [outer], {layerZ: z, liftMm: process.liftMm, maxCombMm: process.maxCombMm, lineWidthMm: width})
+    });
+    previous = [operationId];
+  });
+  return {
+    id, operations,
+    report: {
+      steps: settings.steps, startMm: zStartMm, topMm: z,
+      scope: 'Independently closed rings stacked above a level vase-wall rim, each step centered on the wall\'s own centerline rather than kept flush with its outer face; adjacent rings joined by a short printed connector, no continuous-spiral phase constraint to preserve. No physical validation.'
+    }
+  };
 }

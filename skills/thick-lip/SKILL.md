@@ -6,7 +6,7 @@ description: A vase wall's top edge thickened into a rigid, optionally rolled ri
 # Thick lip
 
 A finishing skill: it does not print a part on its own, it thickens the top
-edge an existing [vase-wall](../vase-wall/SKILL.md) region already produced.
+edge an existing [sleeve assignment](../vase-wall/SKILL.md) already produced.
 Read [MAKERS.md](../../MAKERS.md); builders and developers also read [BUILDERS.md](../../BUILDERS.md).
 
 This recovers a real, robot-tested idea from an earlier StruderBot-only
@@ -33,28 +33,23 @@ rather than automatic while that gets validated.
 
 ## Use
 
-Only through `composition.regions`, in a region assigned directly above a
-`vase-wall` region on the same component, with that vase-wall region's
-`endTransition` set to `level`. There is no simple/global recipe for this
-skill, and no other skill may share its region:
+Add `construction: "rim"` to `plan.slices.assignments`, naming its source sleeve
+assignment. The source must be on the same part and have a level ending:
 
 ```json
-{"id": "wall", "part": null, "zStartMm": 0, "zEndMm": 40,
- "skills": {"vase-wall": {"endTransition": "level"}}},
-{"id": "lip", "part": null, "zStartMm": 40, "zEndMm": null,
- "skills": {"thick-lip": {"steps": [2, 3, 2]}}}
+{"id": "lip", "construction": "rim", "part": null, "filament": null,
+ "process": null, "after": [], "source": "wall", "steps": [2, 3, 2], "minFeatureMm": 0.4}
 ```
 
-`zStartMm` of the lip region must equal the vase-wall region's `zEndMm`
-(the composer's normal touching-region rule); `zEndMm` is unused by this
-skill's own geometry and can be left `null`. The agent proposes `steps` and
-the other settings with the maker; the maker need not edit JSON.
+The source's finalized level boundary sets the rim height and dependencies.
+Its bead width sets the centerline; the rim's process sets added-loop spacing.
+Modified sources, boundary mismatch and gaps reject until contact is reconstructed.
 
 ## Locked settings
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `enabled` | `false` | Select thick-lip (only meaningful inside a region). |
+| `source` | Required | ID of the supporting sleeve assignment. |
 | `part` | `null` | Required component ID in an assembly; null for a single part. |
 | `steps` | `[2]` | One entry per lip layer: how many perimeters that layer prints, one or more each, 1–50 layers. More than about eight perimeters in a step is rarely useful. |
 | `minFeatureMm` | `0.4` | Shared section feature scale for the frozen boundary query, 0.05–5 mm. |

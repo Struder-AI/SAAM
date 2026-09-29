@@ -60,7 +60,7 @@ test('intersect reports sections and tops of a supplied geometry in its own coor
 
 test('CLI combine drills a print, which reopens, generates, and answers intersect',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-boolean-'));t.after(()=>rm(dir,{recursive:true,force:true}));
-  const bundle=join(dir,'print'),plan=defaults();plan.geometry=box;plan.skills['draped-skin'].enabled=false;
+  const bundle=join(dir,'print'),plan=defaults();plan.geometry=box;
   await initBundle(bundle,plan);let state=await loadBundle(bundle,{program:false});
   const combine=join(dir,'combine.json'),query=join(dir,'query.json');
   await writeFile(combine,JSON.stringify({operation:'difference',operand:cylinder(10,10,4,-1,6)}));

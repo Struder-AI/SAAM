@@ -33,7 +33,7 @@ const splineBlock=({runMm,widthMm,heightsMm})=>{
 const directory=resolve(process.argv[2]??'Prints/text-development');
 const fontPath=fileURLToPath(new URL('../tests/fixtures/Abel-Regular.ttf',import.meta.url));
 const box=splineBox({runMm:24,widthMm:14,heightMm:3});
-const plan=defaults();plan.skills['draped-skin'].enabled=false;
+const plan=defaults();
 plan.geometry={shape:'assembly',parts:[
   {id:'raised',xMm:0,yMm:0,zMm:0,geometry:box},
   {id:'recessed',xMm:30,yMm:0,zMm:0,geometry:box},

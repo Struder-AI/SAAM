@@ -39,7 +39,7 @@ function mixColor(from,to,t){
 export function toolpathStyle(move,current,skinPhase='draped-skin',emphasis,{lineWidthMm=0.4,pixelsPerMm=1,previousLayerOpacity=0.5}={}) {
   lineWidthMm=move.lineWidthMm??lineWidthMm;
   const active=!!current&&move.layer===current.layer&&move.phase===current.phase;
-  const skin=move.phase===skinPhase||move.phase==='wave-overhangs'||move.phase==='vase-wall'||move.phase==='segmented-paths'||move.phase==='cladding-hoop'||move.phase==='cladding-helix-reverse';
+  const skin=move.phase===skinPhase||move.phase==='skin'||move.phase==='fronts'||move.phase==='vase-wall'||move.phase==='segmented-paths'||move.phase==='cladding-hoop'||move.phase==='cladding-helix-reverse';
   const baseline=Math.max(0.5,Math.min(1,previousLayerOpacity));
   const opacity=active?1:baseline+(1-baseline)*(emphasis??0);
   const strength=(opacity-0.5)*2;

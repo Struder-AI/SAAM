@@ -13,7 +13,7 @@ const directory=resolve(process.argv[2]??'Prints/development/heat-set-inserts');
 const plan=await proposedPlan('ultimaker-s5');
 plan.geometry=splineBox({runMm:54,widthMm:32,heightMm:12});
 plan.placement={xMm:80,yMm:80};
-plan.skills['draped-skin'].enabled=false;
+
 Object.assign(plan.slices.assignments[0],{loops:2,fillDensity:0.15});
 await initBundle(directory,plan,{machineId:'ultimaker-s5'});
 await applyHeatSet(directory,{feature:{id:'metric',insertId:'spirol-29-m3-long',positionMm:[14,16,12]}});

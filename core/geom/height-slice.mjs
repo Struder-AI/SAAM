@@ -53,6 +53,11 @@ export function heightSliceNormal(slice,[x,y]) {
   const top=referenceHeight(slice.reference,x,y);
   requireThat(top,'The height reference does not cover this chart point.');
   if(!slice.normalDepthMm)return top.normal;
+  // Each mesh facet has constant normal, so its projected-depth graph is a
+  // translated plane with that exact one-sided normal. A finite difference
+  // across facets would mistake a crease/jump for a smooth local derivative.
+  // Mapping still checks chord convergence and actual path slope across it.
+  if(top.feature?.startsWith('triangle:'))return top.normal;
   const h=Math.max(TOLERANCE.point*10,Math.min(.001,slice.sampleStepMm/100));
   const z=heightSlicePoint(slice,[x,y])[2],gradient=[];
   for(const axis of [0,1]) {

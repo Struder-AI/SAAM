@@ -7,25 +7,19 @@
 // identical to the reviewed one.
 
 import { createHash } from 'node:crypto';
-import { DRAPED_SKIN_DEFAULTS } from '../../skills/draped-skin/scripts/drape.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 import {loadMachine,validateSetup,toolBounds,requireMachine,centeredPlacement} from '../machine/profile.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
-import {VASE_WALL_DEFAULTS} from '../../skills/vase-wall/scripts/vase.mjs';
-import {THICK_LIP_DEFAULTS} from '../../skills/thick-lip/scripts/lip.mjs';
-import {validateVasePattern} from '../../skills/vase-wall/scripts/paths.mjs';
 import {SUPPORT_DEFAULTS,validateSupports} from '../../skills/supports/scripts/supports.mjs';
-import {PIPE_CLADDING_DEFAULTS,validateCladding} from '../../skills/pipe-cladding/scripts/clad.mjs';
 import {splineSolidTemplate,validateSplineSolid,splineSolidBounds} from '../geom/spline-solid.mjs';
 import {gridfinityTemplate,validateGridfinityRecord} from '../../skills/gridfinity/scripts/record.mjs';
 import {textTemplate,validateTextRecord} from '../geom/text-record.mjs';
 import {blobFieldTemplate,validateBlobFieldRecord} from '../geom/blob-field-record.mjs';
 import {booleanSolidTemplate,validateBooleanSolid,booleanShell} from '../geom/boolean-solid.mjs';
 import {geometrySelections,selectionsOverlap} from '../geom/selections.mjs';
-import {lineSpacing} from '../path/spacing.mjs';
-import {SPACING_SKILLS} from '../../skills/catalog.mjs';
 import {defaultSlices,validateSlices} from './slices.mjs';
-import {WAVE_DEFAULTS,validateWaves} from '../../skills/wave-overhangs/scripts/wave.mjs';
+import {defaultModulations,validateModulations} from '../path/modulation.mjs';
+import {assignmentPlan} from './assignment-process.mjs';
 import {PLASTIC_WELD_DEFAULTS,validatePlasticWeld} from '../../skills/plastic-weld/scripts/weld.mjs';
 import {heatSetTemplate,validateHeatSetRecord} from '../../skills/heat-set-inserts/scripts/feature.mjs';
 import {filamentPlan} from '../machine/filaments.mjs';
@@ -63,15 +57,11 @@ export function defaults(machine=loadMachine()) {
     },
     skills: {
       'plastic-weld':structuredClone(PLASTIC_WELD_DEFAULTS),
-      'wave-overhangs':structuredClone(WAVE_DEFAULTS),
-      'pipe-cladding':structuredClone(PIPE_CLADDING_DEFAULTS),
       supports: structuredClone(SUPPORT_DEFAULTS),
-      'vase-wall': {enabled:false,part:null,...VASE_WALL_DEFAULTS},
-      'thick-lip': {enabled:false,part:null,...THICK_LIP_DEFAULTS},
-      'draped-skin': { enabled: false, part: null, ...DRAPED_SKIN_DEFAULTS }
     },
     slices: defaultSlices(),
-    composition: { order: [], dependencies: [], batchLayers: 1, regions: [] },
+    modulations: defaultModulations(),
+    composition: { order: [], dependencies: [], batchLayers: 1 },
     output: 'griffin-gcode'
   };
   Object.assign(plan.process,machine.defaultProcess??{});
@@ -97,11 +87,8 @@ export function validatePlan(plan,machine) {
   const geometry=validatePlanGeometry(fields,machine);
   const process=validatePlanProcess(geometry,machine);
   const auxiliary=validatePlanAuxiliary(process,machine);
-  const walls=validatePlanWalls(auxiliary);
-  const selections=validatePlanSelections(walls,machine);
-  const deposition=validatePlanDeposition(selections);
-  const placement=validatePlanPlacement(deposition,machine);
-  return validatePlanRegions(placement,machine);
+  const selections=validatePlanSelections(auxiliary,machine);
+  return validatePlanPlacement(selections,machine);
 }
 
 // Authored forms (spline patches, meshes, assemblies of them) and the
@@ -115,13 +102,8 @@ export function validatePlanFields(plan,machine) {
   const expected = { ...defaults(machine), geometry: geometryTemplate(plan.geometry.shape,plan.geometry) };
   keys(plan, expected);
   requireThat(plan.schema === expected.schema && plan.generatorVersion === VERSION, 'Unsupported plan or generator version.');
-  requireThat(Array.isArray(plan.composition.regions)&&plan.composition.regions.length<=80,'Composition regions must be an array of at most 80 assignments.');
-  const regional=plan.composition.regions.length>0;
   requireThat(Number.isInteger(plan.composition.batchLayers)&&plan.composition.batchLayers>=1&&plan.composition.batchLayers<=20,'Batch size must be 1–20 layers.');
   requireThat(Array.isArray(plan.composition.order) && plan.composition.order.every(id=>typeof id==='string') && Array.isArray(plan.composition.dependencies) && plan.composition.dependencies.every(e=>e && typeof e.before==='string' && typeof e.after==='string' && Object.keys(e).sort().join()==='after,before'), 'Invalid composition rules.');
-  // Regional overrides use these same settings through the ordinary child-plan
-  // validation below.
-  for(const name of SPACING_SKILLS)lineSpacing(plan.process.lineWidthMm,plan.skills[name]);
 
   return plan;
 }
@@ -143,7 +125,6 @@ export function validatePlanGeometry(plan,machine) {
   if(geometry.shape==='heat-set')validateHeatSetRecord(geometry);
   if(geometry.shape==='gridfinity')validateGridfinityRecord(geometry);
   if(geometry.shape==='blob-field')validateBlobFieldRecord(geometry);
-  validateCladding(plan,machine);
   if(['mesh','blob-field','text','gridfinity','heat-set'].includes(geometry.shape)) {
     const mesh=makeMesh(geometry.vertices,geometry.triangles),bounds=toolBounds(machine,setup.tool);
     requireThat(machine.motionChecks==='deferred'||mesh.bounds.min.every((v,i)=>v+[placement.xMm,placement.yMm,0][i]>=bounds.min[i]-1e-8)&&mesh.bounds.max.every((v,i)=>v+[placement.xMm,placement.yMm,0][i]<=bounds.max[i]+1e-8),'Placed mesh exceeds selected tool bounds.');
@@ -207,14 +188,6 @@ export function validatePlanProcess(plan,machine) {
 export function validatePlanAuxiliary(plan,machine) {
   const {geometry,process,setup,skills}=plan;
   validateSetup(plan,machine);
-  validateWaves(skills['wave-overhangs']);
-  if(skills['wave-overhangs'].enabled){
-    requireMachine(machine,['xyz-extrusion','nonplanar'],'wave-overhangs');
-    for(const slice of skills['wave-overhangs'].slices){
-      const parts=[...slice.afterParts,...slice.beforeParts,...(Object.hasOwn(slice.surface,'patch')?[slice.surface.part]:[])];
-      requireThat(parts.every(id=>geometry.shape==='assembly'?id!==null&&geometry.parts.some(p=>p.id===id):id===null),'Wave dependencies and native surfaces must name existing assembly parts, or null for a single part.');
-    }
-  }
   validateSupports(skills.supports,process);
   if(skills.supports.enabled)requireMachine(machine,['xyz-extrusion','planar'],'supports');
   requireThat(typeof setup.startupVerified === 'boolean' && typeof setup.firmwareVersion === 'string' && /^[\w .+-]{0,80}$/.test(setup.firmwareVersion), 'Invalid firmware setup.');
@@ -222,55 +195,21 @@ export function validatePlanAuxiliary(plan,machine) {
   return plan;
 }
 
-export function validatePlanWalls(plan) {
-  const {skills}=plan;
-  const vase=skills['vase-wall'],lip=skills['thick-lip'];
-  requireThat(['continuous','segmented'].includes(vase.pathMode),'Path mode must be continuous or segmented.');
-  validateVasePattern(vase.pattern,vase.pathMode);
-  requireThat(vase.pattern!==null||vase.pathMode==='continuous','Segmented mode requires a sleeve pattern; ordinary vase walls are continuous.');
-  requireThat(['spiral','level'].includes(vase.endTransition),'Vase ending transition must be spiral or level.');
-  // Zero keeps the exact per-section wall; a positive tolerance lets standard
-  // mesh walls follow a fitted sleeve within that sampled deviation.
-  number(vase.sleeveToleranceMm,0,0.5,'Vase sleeve tolerance');
-  if(vase.meshSleeve!==null){
-    const fit=vase.meshSleeve;
-    requireThat(fit&&typeof fit==='object'&&!Array.isArray(fit)&&[
-      'circumferentialControls,contactSide,detailToleranceMm,fidelity,heightControls',
-      'circumferentialControls,contactSide,detailToleranceMm,fidelity,heightControls,offsetTightness'
-    ].includes(Object.keys(fit).sort().join()),
-      'Mesh sleeve settings require fidelity, contactSide, circumferentialControls, heightControls and detailToleranceMm, with optional offsetTightness.');
-    number(fit.fidelity,0,1,'Mesh sleeve fidelity');
-    if(Object.hasOwn(fit,'offsetTightness'))number(fit.offsetTightness,0,1,'Mesh sleeve offset tightness');
-    requireThat(['inside','outside'].includes(fit.contactSide),'Mesh sleeve contactSide must be inside or outside.');
-    requireThat(Number.isInteger(fit.circumferentialControls)&&fit.circumferentialControls>=8&&fit.circumferentialControls<=48,'Mesh sleeve circumferentialControls must be an integer from 8 to 48.');
-    requireThat(Number.isInteger(fit.heightControls)&&fit.heightControls>=4&&fit.heightControls<=32,'Mesh sleeve heightControls must be an integer from 4 to 32.');
-    number(fit.detailToleranceMm,.005,.5,'Mesh sleeve detail tolerance');
-  }
-  requireThat(typeof vase.enabled==='boolean'&&(vase.part===null||typeof vase.part==='string'),'Invalid vase-wall selection.');
-  requireThat(Number.isFinite(vase.zStartMm)&&vase.zStartMm>=0,'Vase start height must be at or above the component base.');
-  requireThat(vase.zEndMm===null||(Number.isFinite(vase.zEndMm)&&vase.zEndMm>vase.zStartMm),'Vase end height must be null or greater than its start.');
-  number(vase.sampleStepMm,0.1,5,'Vase sampling step');number(vase.toleranceMm,0.002,0.05,'Vase chord tolerance');
-  number(vase.boundaryToleranceMm,0.002,0.05,'Vase boundary tolerance');
-  number(vase.minFeatureMm,0.05,5,'Vase minimum section feature');
-  requireThat(typeof lip.enabled==='boolean'&&(lip.part===null||typeof lip.part==='string'),'Invalid thick-lip selection.');
-  requireThat(Array.isArray(lip.steps)&&lip.steps.length>=1&&lip.steps.length<=50&&lip.steps.every(n=>Number.isInteger(n)&&n>=1),'Lip steps must be 1–50 layer entries, each a whole number of perimeters from 1 up.');
-  number(lip.minFeatureMm,0.05,5,'Lip minimum section feature');
-  return plan;
-}
-
 export function validatePlanSelections(plan,machine) {
   const {geometry,placement,skills}=plan;
-  const regional=plan.composition.regions.length>0;
-  const skin=skills['draped-skin'],vase=skills['vase-wall'],lip=skills['thick-lip'];
   const sliced=plan.slices.assignments.length>0;
   // A slice part is a geometry selection: a component or a prepared material
   // part; two cut parts never share material.
   const selections=geometrySelections(geometry);
   validateSlices(plan.slices,{parts:[...selections.keys()].filter(key=>key!==null),lineWidthMm:plan.process.lineWidthMm,firstLayerMm:plan.process.firstLayerMm});
+  for(const assignment of plan.slices.assignments){
+    const selected=assignmentPlan(plan,machine,assignment);
+    validatePlanProcess(selected,machine);validateSetup(selected,machine);
+  }
+  validateModulations(plan.modulations,{assignmentIds:plan.slices.assignments.map(a=>a.id)});
   const cut=[...new Set(plan.slices.assignments.filter(a=>!a.construction&&a.preset!=='support').flatMap(a=>a.part!==null?[a.part]:geometry.shape==='assembly'?geometry.parts.map(p=>p.id):[null]))];
   for(const [i,a] of cut.entries())for(const b of cut.slice(i+1))requireThat(!selectionsOverlap(selections.get(a),selections.get(b)),
     `Slice assignments cut overlapping parts ${a??'the whole print'} and ${b??'the whole print'}; give that material to one of them.`);
-  requireThat(skin.part===null||typeof skin.part==='string','Invalid draped surface component.');
   if(geometry.shape==='assembly') {
     requireThat(Array.isArray(geometry.parts)&&geometry.parts.length>=2&&geometry.parts.length<=20,'An assembly needs 2–20 components.');
     const ids=new Set();
@@ -279,96 +218,39 @@ export function validatePlanSelections(plan,machine) {
       ids.add(part.id);
       requireThat(part.geometry?.shape!=='assembly','Nested assemblies are not supported.');
       number(part.xMm,-200,200,'Component X');number(part.yMm,-200,200,'Component Y');number(part.zMm,0,200,'Component Z');
-      const assigned=[...plan.composition.regions.filter(r=>r.part===part.id).map(r=>r.filament),...plan.slices.assignments.filter(a=>a.part===part.id).map(a=>a.filament??undefined)].find(f=>f!==undefined);
+      const assigned=plan.slices.assignments.filter(a=>a.part===part.id).map(a=>a.filament??undefined).find(f=>f!==undefined);
       const child=structuredClone(assigned!==undefined?filamentPlan(plan,machine,assigned):plan);child.geometry=part.geometry;
       child.placement={xMm:placement.xMm+part.xMm,yMm:placement.yMm+part.yMm};
-      child.skills['draped-skin'].part=null;
       child.slices={...child.slices,assignments:child.slices.assignments.filter(a=>a.part===null||a.part===part.id).map(a=>({...a,part:null}))};
-      child.skills['vase-wall'].part=null;
-      child.skills['thick-lip'].part=null;
-      child.skills['pipe-cladding'].enabled=false;child.skills['pipe-cladding'].part=null;
-      child.skills['wave-overhangs'].enabled=false;
       child.skills['plastic-weld'].enabled=false;
-      child.composition.regions=[];
+      child.modulations=defaultModulations();
       // A component checked on its own is sliced whole by one default owner.
-      if(regional||!child.slices.assignments.length){for(const settings of Object.values(child.skills))settings.enabled=false;child.slices=defaultSlices();}
+      if(!child.slices.assignments.length){for(const settings of Object.values(child.skills))settings.enabled=false;child.slices=defaultSlices();}
       validatePlan(child,machine);
     }
-    requireThat(skin.part===null||ids.has(skin.part),'Unknown selected component.');
-    requireThat(regional||!skin.enabled||skin.part!==null,'An assembly must select the component whose roof is draped.');
-    requireThat((vase.part===null||ids.has(vase.part))&&(regional||!vase.enabled||vase.part!==null),'An assembly must select a known vase-wall component.');
-    requireThat(lip.part===null||ids.has(lip.part),'Unknown thick-lip component.');
-  } else requireThat(skin.part===null&&vase.part===null&&lip.part===null,'Component selection requires assembly geometry.');
-  requireThat(typeof skin.enabled === 'boolean', 'Each skill needs an enabled flag.');
-  requireThat(regional||sliced || skin.enabled || vase.enabled || lip.enabled || skills['wave-overhangs'].enabled, 'Add a slice assignment or select a pattern skill.');
+  }
+  requireThat(sliced, 'Add a slice assignment.');
+  for(const assignment of plan.slices.assignments.filter(a=>['skin','fronts','sleeve'].includes(a.construction))){
+    requireMachine(machine,['xyz-extrusion','nonplanar'],assignment.construction);
+    if(['skin','sleeve'].includes(assignment.construction)&&geometry.shape==='assembly')requireThat(assignment.part!==null,'An assembly skin or sleeve must select a component.');
+  }
+  for(const assignment of plan.slices.assignments.filter(a=>a.construction==='rim')){
+    requireMachine(machine,['xyz-extrusion','planar'],'rim');
+    if(geometry.shape==='assembly')requireThat(assignment.part!==null,'An assembly rim must select a component.');
+  }
+  for(const assignment of plan.slices.assignments.filter(a=>a.construction==='cladding')){
+    requireMachine(machine,['xyz-extrusion','tool-orientation','coordinated-rotary'],'cladding');
+    if(geometry.shape==='assembly')requireThat(assignment.part!==null,'Assembly cladding must select a component.');
+  }
   if(sliced)requireMachine(machine,['xyz-extrusion'],'slice');
   if(plan.slices.assignments.some(a=>!a.construction))requireMachine(machine,['planar'],'slice');
-  if(!regional&&vase.enabled)requireMachine(machine,['xyz-extrusion','nonplanar'],'vase-wall');
-  if(!regional&&lip.enabled)requireMachine(machine,['xyz-extrusion','planar'],'thick-lip');
-  if(!regional&&skin.enabled)requireMachine(machine,['xyz-extrusion','nonplanar'],'draped-skin');
-  return plan;
-}
-
-export function validatePlanDeposition(plan) {
-  const {skills}=plan;
-  const skin=skills['draped-skin'];
-  requireThat(Number.isInteger(skin.layers), 'draped skin layers must be an integer.');
-  requireThat(skin.layers >= 1, 'draped skin layers must be one or more.');
-  number(skin.normalMm, 0.05, 0.5, 'skin normal thickness');
-  number(skin.strokeAngleDeg, -180, 180, 'skin stroke angle');
-  number(skin.sampleStepMm, 0.1, 5, 'skin sample step');
-  number(skin.surveyStepMm, 0.1, 5, 'survey step');
-  requireThat(skin.maxAngleDegOverride === null || (Number.isFinite(skin.maxAngleDegOverride)
-    && skin.maxAngleDegOverride > 0 && skin.maxAngleDegOverride < 90),
-  'Experimental non-planar override must be null or an angle between 0 and 90 degrees.');
-
   return plan;
 }
 
 export function validatePlanPlacement(plan,machine) {
-  const {placement,skills}=plan;
-  const regional=plan.composition.regions.length>0;
-  const skin=skills['draped-skin'];
+  const {placement}=plan;
   requireThat(machine.schema === 'saam-machine/1' && machine.outputs.some(option => option.id === plan.output), 'Unsupported machine or output.');
-  if (!regional&&skin.enabled) requireThat(Number.isFinite(machine.nonplanar?.maxAngleDeg), 'The machine file must declare nonplanar.maxAngleDeg.');
   requireThat(Number.isFinite(placement.xMm)&&Number.isFinite(placement.yMm),'Placement must be finite.');
-  return plan;
-}
-
-export function validatePlanRegions(plan,machine) {
-  const {geometry,placement,process,skills}=plan;
-  const regionIds=new Set(),selections=geometrySelections(geometry);
-  for(const region of plan.composition.regions) {
-    // Optional process overrides layer/bead settings; filament selects a Bambu material/nozzle.
-    requireThat(region&&Object.keys(region).filter(key=>!['process','filament'].includes(key)).sort().join()==='id,lowerSurfaceFrom,part,skills,zEndMm,zStartMm','Invalid region assignment fields.');
-    requireThat(typeof region.id==='string'&&/^[a-z][a-z0-9-]*$/.test(region.id)&&!regionIds.has(region.id),'Invalid or duplicate region ID.');regionIds.add(region.id);
-    const part=selections.get(region.part);
-    requireThat(part,'Region must select its geometry component or a prepared text material partition (base, text/feature-id). Rebuild older lettering with the text skill to expose its partitions.');
-    // Region heights are bounded by the geometry and the machine, not by a
-    // chosen ceiling.
-    requireThat(Number.isFinite(region.zStartMm)&&region.zStartMm>=0,'Region start must be a height at or above the bed.');
-    requireThat(region.zEndMm===null||(Number.isFinite(region.zEndMm)&&region.zEndMm>region.zStartMm),'Region end must exceed its start or be null.');
-    requireThat(region.lowerSurfaceFrom===null||typeof region.lowerSurfaceFrom==='string','Invalid region lower-surface reference.');
-    requireThat(region.skills&&typeof region.skills==='object'&&!Array.isArray(region.skills)&&Object.keys(region.skills).length>0,'A region needs selected skills.');
-    const child=structuredClone(region.filament===undefined?plan:filamentPlan(plan,machine,region.filament));child.composition.regions=[];child.slices={...child.slices,assignments:[]};
-    if(part){child.geometry=part.geometry;child.placement={xMm:placement.xMm+part.xMm,yMm:placement.yMm+part.yMm};}
-    for(const [name,settings] of Object.entries(child.skills)){settings.enabled=Object.hasOwn(region.skills,name);if('part' in settings)settings.part=null;if('parts' in settings)settings.parts=[];}
-    if(Object.hasOwn(region,'process')){
-      requireThat(region.process&&typeof region.process==='object'&&!Array.isArray(region.process)&&Object.keys(region.process).length>0,'Region process overrides must be a non-empty object; omit process to use the plan process.');
-      const regionalProcessKeys=new Set(['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','firstLayerSpeedMmS']);
-      requireThat(Object.keys(region.process).every(key=>regionalProcessKeys.has(key)),'Unknown or region-owned process override.');
-      Object.assign(child.process,region.process);
-    }
-    for(const [name,overrides] of Object.entries(region.skills)) {
-      requireThat(!['supports','pipe-cladding','wave-overhangs','plastic-weld'].includes(name),'Assign supports, exterior cladding, wave slices, plastic welds through their global skill settings, outside part material regions.');
-      const settings=child.skills[name];
-      requireThat(settings&&overrides&&typeof overrides==='object'&&!Array.isArray(overrides),'Unknown region skill or invalid overrides.');
-      requireThat(Object.keys(overrides).every(key=>Object.hasOwn(settings,key)&&!['enabled','part','parts','zStartMm','zEndMm'].includes(key)),'Unknown or region-owned skill override.');
-      Object.assign(settings,overrides);
-    }
-    validatePlan(child,machine);
-  }
-  for(const region of plan.composition.regions)requireThat(region.lowerSurfaceFrom===null||(region.lowerSurfaceFrom!==region.id&&regionIds.has(region.lowerSurfaceFrom)),'Unknown or self-referenced region lower surface.');
   return plan;
 }
 

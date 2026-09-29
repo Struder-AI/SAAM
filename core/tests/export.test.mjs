@@ -9,7 +9,7 @@ import {splineBox} from './fixtures/spline-shapes.mjs';
 
 const machine=JSON.parse(readFileSync('machines/ultimaker-s5.json','utf8'));
 const plan=defaults();
-plan.geometry=splineBox({runMm:10,widthMm:10,heightMm:2});plan.skills['draped-skin'].enabled=false;plan.process.minimumLayerSeconds=0;
+plan.geometry=splineBox({runMm:10,widthMm:10,heightMm:2});plan.process.minimumLayerSeconds=0;
 const path=generatePath(plan,machine,await rhino());
 const emit=(m=machine,p=path)=>exportGriffin(p,plan,m,{generatorVersion:VERSION,buildDate:BUILD_DATE});
 

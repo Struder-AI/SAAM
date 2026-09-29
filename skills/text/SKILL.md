@@ -101,7 +101,7 @@ lettering or a positive `outlineOffsetMm` (6 mm Abel needs about 0.15 mm with a
 
 ## Material selections and toolpath skills
 
-Each edit exposes its material through `composition.regions[].part`:
+Each edit exposes its material through `plan.slices.assignments[].part`:
 
 | Selection | Material |
 |---|---|
@@ -110,35 +110,27 @@ Each edit exposes its material through `composition.regions[].part`:
 | `text/label` | Material added by raised feature `label`, excluding earlier material and later cuts. |
 | `nameplate/base`, `nameplate/text/label` | The same within assembly component `nameplate`. |
 
-Recessed features are cutters, not regions; empty selections are omitted. Earlier
-raised features own overlaps, so selecting all partitions deposits the solid
-once. Selecting a whole solid and its partitions together needs an explicit
-lower-surface relationship. Changing only region assignments keeps the geometry.
+Recessed features are cutters; empty selections are omitted. Earlier raised
+features own overlaps, so disjoint partitions deposit the solid once. Changing
+assignments keeps the geometry; avoid overlapping whole-solid/partition claims.
 
-On a regional plan, assign each new raised feature deliberately; removing a
-feature needs its assignments updated. Supply request-level `regions` (the
-complete `composition.regions`) with `feature` or `remove` to save both at once.
-Selections expose material, not pattern compatibility: supports, cladding, wave
-slices and plastic welds keep their global settings, and continuous vase walls
-can fail at glyph contour transitions.
+Assign each raised feature deliberately. To remove/change a feature and its
+selectors atomically, supply request-level `assignments` (the complete common
+`plan.slices.assignments`) with `feature` or `remove`. Selections expose material,
+not pattern compatibility; a sleeve can fail at glyph contour transitions.
 
-<!-- requires: nonplanar -->
 ## Curved lettering above a draped roof
 
-The lettering shape and its layers are separate choices: assign `draped-skin` to
-the lettering for curved layers (slices still emit horizontal ones). Apply
-raised text to the original roof with `reference: {"kind":"top"}`, then give the
-slice assignments `part: 'base'`, the draped finish to a region selecting `base`, and only
-`draped-skin` to a region selecting `text/label` with `lowerSurfaceFrom` naming
-the roof region. For 0.8 mm lettering, four 0.2 mm skins form the relief.
+Apply raised text to the original roof with `reference:{"kind":"top"}`.
+Ordinary assignments own `part:'base'`; add a `construction:'skin'` assignment
+for its finish, then another selecting `part:'text/label'` with `supportFrom`
+naming that finished roof assignment. Four 0.2 mm courses fill 0.8 mm lettering.
 
-All roof operations precede the lettering, and later skins follow the letter tops
-with the selected normal spacing; the first gap is approximate. Check every
-letter's counters and thin strokes with a survey step smaller than them.
-Disconnected letter tops are separate islands with travel between them, and their
-steep sides can appear in the excluded-surface survey. Missing support and a
-skin stack extending into the roof are rejected. This composition has software
-coverage, not physical or nozzle-clearance validation.
+The lettering consumes finalized roof deposition. Missing support rejects;
+sparse gaps are not filled by a surrogate surface. Inspect counters and thin
+strokes with a survey step smaller than them; disconnected tops need travel,
+and steep sides may be excluded. Software checks do not establish physical
+printing or nozzle clearance.
 
 ## Circular lettering
 

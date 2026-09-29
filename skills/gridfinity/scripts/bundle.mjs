@@ -10,7 +10,7 @@ export async function createGridfinityBundle(directory,parameters,options={}){
   const plan=await proposedPlan(options.machineId,options);
   plan.geometry=geometry;
   plan.placement={xMm:20,yMm:20};
-  plan.skills['draped-skin'].enabled=false;
+
   await initBundle(directory,plan,options);
   return loadBundle(directory,{program:false});
 }

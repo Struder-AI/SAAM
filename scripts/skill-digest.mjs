@@ -1,7 +1,7 @@
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SKILL_IDS, skillMetadata } from '../skills/catalog.mjs';
+import { SKILL_IDS, TECHNIQUE_IDS, skillMetadata } from '../skills/catalog.mjs';
 import { gatedIndex, indexLine } from '../core/agent/layers.mjs';
 import { MACHINE_IDS, loadMachine } from '../core/machine/profile.mjs';
 
@@ -19,9 +19,10 @@ export async function updatedSkillIndex(repoRoot) {
       available.push(entry.name);
     } catch (error) { if (error.code !== 'ENOENT') throw error; }
   }
-  const missing = SKILL_IDS.filter(id => !available.includes(id));
-  const unlisted = available.filter(id => !SKILL_IDS.includes(id));
-  if (missing.length || unlisted.length || new Set(SKILL_IDS).size !== SKILL_IDS.length) {
+  const manualIds=[...SKILL_IDS,...TECHNIQUE_IDS];
+  const missing = manualIds.filter(id => !available.includes(id));
+  const unlisted = available.filter(id => !manualIds.includes(id));
+  if (missing.length || unlisted.length || new Set(manualIds).size !== manualIds.length) {
     throw new Error(`Skill catalog differs from manuals (missing: ${missing.join(', ') || 'none'}; unlisted: ${unlisted.join(', ') || 'none'}). Update skills/catalog.mjs alongside the manuals.`);
   }
   const skills = await Promise.all(SKILL_IDS.map(async id => {

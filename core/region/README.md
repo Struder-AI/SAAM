@@ -133,7 +133,7 @@ in the inputs. This is a precision-grid contract, not exact arithmetic or a
 guarantee about unsampled spline/mesh detail.
 
 Existing imports through [boolean.mjs](./boolean.mjs) alias this tool:
-slices, draped reservations and regional composition, including
+slices, skin reservations and common construction assignments, including
 vase/cap transitions. Planar offsets and experimental surface-offset swept-band
 cleanup use this same kernel. Mesh/spline sectioning and sampled level sets
 retain their separate geometry-construction roles.
@@ -167,95 +167,62 @@ recipe form: its section query combines every operand's section at the layer.
 Assemblies select separate components for fill instances and a roof for
 draping; an assembly is not a boolean union.
 
-## Material regions and shared interfaces
+## Material ownership and surface contact
 
-### Temporary process cavities
+`plan.slices.assignments` owns deposition selection. Ordinary assignments combine
+surface references, a stack and material restrictions; construction assignments
+select skin, fronts, sleeves, rims or authored curves. See the
+[slice manual](../../skills/slice/SKILL.md) for records and limits. Assembly
+components remain separate selections; they are not implicitly unioned.
+Prepared text exposes `base` and `text/<feature-id>` selections, prefixed by the
+component ID in an assembly. [Geometry selections](../geom/selections.mjs)
+resolves these with their component placement without changing saved geometry.
 
-A process reservation (a plastic-weld shaft) supplies a `footprint` and
-`regionAt(z)`; generation passes it to the slices, which subtract it from the
-part's material through the reservation clipper, and its `solidRegionAt(z)`
-keeps the envelope around it solid. Reservations are rebuilt from the locked
-recipe, not persisted.
+Each assignment may supply `process:null` or overrides for `firstLayerMm`,
+`layerMm`, `lineWidthMm`, `planarSpeedMmS` and `firstLayerSpeedMmS`.
+[assignmentPlan](../print/assignment-process.mjs) resolves the selected filament
+before these overrides. An ordinary assignment's explicit stack controls its
+slicing pitch; process values control deposition defaults.
 
-A `completion: {z, region, operationId}` declares the material surface supplied
-when the process finishes. Regional surface publication includes completed
-material and passes the operation dependency to consumers. An unfinished cavity
-crossing a `lowerSurfaceFrom` boundary still exposes its deeper floor; use
-contiguous flat bands for such a crossing, or complete the cavity at the consumed
-interface. Publication describes planned material, not measured cavity filling.
-[Plastic weld](../../skills/plastic-weld/SKILL.md) implements this contract.
+[reservation.mjs](./reservation.mjs) removes skin roof reserves and temporary
+process cavities from owned material. A plastic-weld reservation supplies a
+footprint, `regionAt(z)` and a solid envelope `solidRegionAt(z)`. Height-field
+slices evaluate reservations in world space before returning chart regions.
+Reservations are rebuilt from the recipe; they do not claim deposited coverage.
+[Plastic weld](../../skills/plastic-weld/SKILL.md) owns cavity completion and
+operation dependencies.
 
-`composition.regions` assigns skills to regions of native geometry. An empty
-array retains the original whole-component recipe. Each assignment carries
-`id`, `part` (null for a whole single component), `zStartMm`, nullable `zEndMm`,
-`skills` and nullable `lowerSurfaceFrom`. Heights are relative
-to the component's minimum Z. The skill map selects the skills and holds partial
-setting overrides; it resolves against the other settings locked in that plan.
-It supersedes global enabled flags. Regions own selection and height bounds;
-overrides cannot independently change those fields.
+Skin survey, curve mapping and local gaps are shared stages in
+[roof-region.mjs](./roof-region.mjs), [layer-strokes.mjs](./layer-strokes.mjs)
+and [surface-curves.mjs](./surface-curves.mjs). Seeded fronts use
+[seeded-fronts.mjs](./seeded-fronts.mjs) before the same mapping/deposition stages.
+Mapping preserves surface normals and checks physical sample spacing and chord
+error. Fixed-axis production checks both surface and mapped-path inclination.
 
-An assignment may also carry an optional, non-empty `process` record overriding
-`firstLayerMm`, `layerMm`, `lineWidthMm`, `planarSpeedMmS` or
-`firstLayerSpeedMmS` for that region only; omit it to use the plan process.
-A region with process overrides owns its own layer grid from its start height:
-its span must hold its first layer plus a whole number of local layer pitches,
-instead of aligning with the component's global grid. Its planar layers take
-their global indices from the union of regional layer heights, so fill angles
-and preview layers stay ordered across differently pitched regions.
+A skin's optional `supportFrom` names a common assignment, including an ordinary
+owner whose output spans several surface families. Generation gathers that
+source's results on its selected part and waits for their final operations.
+The first course measures its local gap to finalized deposited beads. Required
+contacts without coverage, nonpositive gaps, absent sources and dependency
+cycles reject. A thin curved component or raised-text selection can consume a
+preceding skin; later courses follow its own top geometry and normal depth.
+Without an explicit source, unchanged ordinary support retains the declared
+layer-lattice approximation in [support-surface.mjs](./support-surface.mjs).
+Changed support always uses final bead coverage; the lattice approximation does
+not turn a void into deposited material.
 
-Prepared text exposes `base` and `text/<feature-id>` material selections; in an
-assembly prefix these with `<component-id>/`. Whole-component selectors retain
-their existing meaning. [Geometry selections](../geom/selections.mjs) resolves
-each selection with its component placement. Height bounds are relative to the
-selected material's minimum Z. Disjoint partitions may share height ranges;
-whole/partition or repeated-partition overlap needs the same explicit consumed
-lower-surface relationship as overlapping whole-component assignments. Selection
-is a process choice and does not change saved geometry. The
-[text manual](../../skills/text/SKILL.md#material-selections-and-toolpath-skills)
-owns creation and editing of these prepared partitions.
+[Finalization](../print/finalize.mjs) applies modulation before dependent
+construction and republishes boundaries from final strokes.
+[deposited-curves.mjs](../path/deposited-curves.mjs) supplies bead membership and
+contact height from positive-volume segments, their widths and local normals.
+Sparse rims, open strands and holes remain sparse; a native shell or nominal
+reserve cannot substitute for deposited coverage. This is a planned bead model,
+not measured material or a physical support guarantee. Raised sleeves and rims
+currently reject modulated foundations whose contact reconstruction is unsupported.
 
-`core/print/regions.mjs` resolves those assignments for vase-wall, thick-lip and
-draped-skin; flat layers are slice assignments, which yield a region's band.
-Assignments retain their component layer grid and dependencies. Conflicting
-ownership, unassigned height boundaries, unknown references and cycles are rejected.
-Bridging over hollow or sparse material is a process choice assessed in the
-recipe and Studio, without a permission flag or automated span-support gate.
-The retired `supportPolicy` field is rejected as an unknown region field.
-Where a drape crosses a void, its initial volume uses the
-assigned supporting components' layer grid, as in whole-component composition;
-this is a bead-volume approximation, not a claim of deposited material in the void.
-
-`lowerSurfaceFrom` consumes a preceding region's published material top (flat
-layers above a nonflat surface wait for height-field slices). The producer supplies a footprint, surface query,
-sampled field and operation dependencies. The selected consumer geometry supplies
-the other boundaries. A referenced surface must cover the requested region;
-unknown areas are rejected instead of silently omitted. Published sparse or rim
-support is distinguished from area support. Native components can describe the
-intermediate roof and enclosing upper volume of the same manufactured part.
-
-A draped-only consumer can occupy a thin curved component above that surface,
-including a raised-text material selection. Its local first-bead gap replaces the planar
-consumer's global start-height requirement; valleys outside its footprint do not
-constrain its minimum Z. The nominal skin reserve is not a deposited boundary:
-support slightly above it produces a thinner first bead. Each sampled stroke
-must have a finite supporting height and a positive gap to its first skin.
-The normal skin spacing and the top geometry still determine the remaining
-layers. Missing support and deposition into already finished material fail.
-
-`core/region/reservation.mjs` clips only material inside a roof's actual footprint,
-preserving other components. It also clips sections above consumed surfaces and
-subdivides horizontal strokes to integrate their locally changing initial bead
-gap. Sampling is bounded by the spatial step and the observed interpolation
-error, not by a segment count; a stroke whose gap still misses its tolerance at a
-coincident-point width sits on a step in the published surface and is reported as
-such. Sampling is not a proof about arbitrary features between samples. The process
-still approximates bead shape and overlap. Surface boundaries must be representable
-as supported single-valued height fields; arbitrary undercuts and swept-head
-clearance are outside this contract.
-
-The synthetic [regional stack fixture](../tests/fixtures/regional-stack.mjs)
-exercises slab owners, vase wall, cap, sparse/solid body and a wavy draped roof
-through the shared pipeline. Regional settings, surface
-references and runtime helpers participate in the existing approval hashes;
-they introduce no new approval or artifact format. Studio shows effective regional
-settings and surface references. Tests and fixture calibration never authorize hardware.
+Topology and contact are sampled; features between samples can be missed.
+Single-valued height fields exclude arbitrary undercuts, and no swept-head
+clearance model is implied. The synthetic
+[stack fixture](../tests/fixtures/regional-stack.mjs) combines slab owners,
+a sleeve, cap, body and wavy skin through this pipeline. Fixture execution and
+machine-path checks do not authorize hardware.

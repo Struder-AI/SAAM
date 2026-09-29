@@ -13,24 +13,21 @@ experimental process: spacing, speed, cooling, anchorage and thermal warping
 need judgment and physical trials. A generated toolpath is software evidence.
 
 Use the ordinary [print tools](../../core/print/USAGE.md) and
-[maker workflow](../../MAKERS.md). Enable `skills.wave-overhangs`, assign `slices`,
-then use the same plan review, generation, Studio playback and delivery.
-CLI and MCP adjustment accept these settings; the catalog exposes this manual.
+[maker workflow](../../MAKERS.md). Add `construction: 'fronts'` assignments to
+`plan.slices.assignments`, then review and generate normally. `frontAssignment`
+in [shared constructions](../../core/print/surface-constructions.mjs) supplies defaults.
 There is no Grasshopper dependency or additional approval stage.
 
 ## Assign the slice and its seed
 
-Each slice has `id`, `reason`, `surface`, `domainUv`, `seedUv`, `afterParts`
-and `beforeParts`. IDs are unique lowercase names. Describe why the seed is
+Each assignment has `id`, `reason`, `surface`, `domainUv`, `seedUv`, `afterParts`,
+`beforeParts`, `after`, `filament`, `process` and the process fields below. IDs are unique lowercase names. Describe why the seed is
 supported and which material this slice owns in `reason`.
 
-- `surface`: either `{part: null, patch: "top"}` selecting a native spline patch
-  (use the component name in an assembly), or an independent reference with
-  `degreeU`, `degreeV`, rectangular `controlPoints`, and optional full
-  `knotsU`/`knotsV`. XYZ or XYZW control points are accepted; weights are positive.
-  Degrees are 1–5, below the number of controls. Default knots are clamped uniform.
-  Independent reference XY coordinates are relative to print placement, Z is
-  above the bed. Native patches retain their component placement.
+- `surface`: `{kind:'patch',part:null,patch:'top'}` selects a native patch;
+  use the component name in an assembly. `{kind:'spline',patch,offsetMm:0}`
+  supplies the common named spline control-net record. Placement applies to
+  authored XYZ coordinates; the native selection retains component placement.
 - `domainUv`: closed material loops in that chart: CCW outer loops, CW holes.
   This is the allowed **centerline** region, including its seed. Account for
   half the physical bead width when choosing a part's exterior boundary.
@@ -57,12 +54,11 @@ travels. Holes can split and merge the propagated fronts; continuous deposition
 through those branches is **not yet implemented**. The reference slicer's branch
 restarts have not been authorized as an exception to this continuity requirement.
 
-Assign wave material outside other skills' deposition, using component or
-regional height selection for the other skills. Wave slices are global explicit
-surface assignments, not entries in `composition.regions`. The tool does not
-automatically remove intersecting infill, generate arbitrary curved slice stacks,
-or publish a material-top query for `lowerSurfaceFrom`. Dependencies alone are
-not a proof of geometric contact or compatible material ownership.
+Assign front material outside other deposition using explicit volumes or
+components. Dependencies do not prove contact or resolve overlapping ownership.
+Front assignments do not automatically subtract intersecting ordinary infill.
+They use shared seeded surface propagation, curve mapping/connection and bead
+calculation; finalized strokes remain available to downstream constructions.
 
 ## Process settings
 
@@ -88,9 +84,8 @@ Shared temperatures, retraction, layer cooling, travel and flow settings still
 apply. The skill uses the machine's declared nonplanar capability and slope limit;
 it emits XYZ paths with the machine's existing nozzle-orientation convention.
 It does not solve surface-following robot orientation.
-Studio uses its curved-surface line display: exported moves do not retain the
-across-path normal required for a volumetric bead frame. This also avoids
-turning rounded extrusion quanta on very short moves into spurious wide ribbons.
+Mapped normals and bead metadata stay with construction strokes; they do not
+change the machine tool pose. Exported move display follows its existing contract.
 
 ## Scope and recovery
 

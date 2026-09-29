@@ -2,23 +2,16 @@ import {planarWallTolerance} from '../core/machine/rules.mjs';
 import {filamentPlan,assignedFilaments} from '../core/machine/filaments.mjs';
 // Human-readable review of the same locked recipe used by every adapter.
 const supportSkills=['supports'];
-const globalSkills=[...supportSkills,'pipe-cladding','wave-overhangs'];
-export const skillName=name=>({'line-network':'Line network','pipe-cladding':'Surface cladding','vase-wall':'Vase wall','draped-skin':'Draped skin',supports:'Tree supports'}[name]??name);
+export const skillName=name=>({'pipe-cladding':'Surface cladding','vase-wall':'Vase wall',supports:'Tree supports'}[name]??name);
+export const hasConstruction=(plan,kind)=>(plan.slices?.assignments??[]).some(a=>a.construction===kind);
 export const pathModeName=settings=>settings?.pathMode==='segmented'?'Segmented paths':settings?.pattern?'Continuous sleeve pattern':'Vase wall';
-export const hasSkill=(plan,name)=>globalSkills.includes(name)?Boolean(plan.skills?.[name]?.enabled):plan.composition?.regions?.length
-  ?plan.composition.regions.some(region=>Object.hasOwn(region.skills,name))
-  :Boolean(plan.skills?.[name]?.enabled);
+export const hasSkill=(plan,name)=>Boolean(plan.skills?.[name]?.enabled);
 const value=v=>v===null||v===undefined?'Not set':Array.isArray(v)?v.join(', '):String(v);
 export const claddingPatternName=settings=>settings.pattern==='crossed-helices'?'crossed helices':'axial / circumferential';
-export function claddingSubstrateName(plan){
-  const clad=plan.skills['pipe-cladding'];
-  const regions=plan.composition?.regions??[],part=clad.part;
-  const sliced=(plan.slices?.assignments??[]).some(a=>a.preset!=='support'&&(a.part===null||a.part===part))?['Slices']:[];
-  const names=regions.length?regions.filter(r=>r.part===part).flatMap(r=>Object.keys(r.skills)):
-    ['vase-wall','draped-skin'].filter(name=>{
-      const s=plan.skills[name];return s.enabled&&(plan.geometry.shape!=='assembly'||s.part===part);
-    });
-  return [...new Set([...sliced,...names.map(skillName)])].join(' + ')+' · finished surface';
+export function claddingSubstrateName(plan,clad=plan.slices.assignments.find(a=>a.construction==='cladding')){
+  if(clad.source!==null)return clad.source+' · deposited surface';
+  const sources=(plan.slices?.assignments??[]).filter(a=>a.id!==clad.id&&a.preset!=='support'&&a.part===clad.part);
+  return sources.length?sources.map(a=>a.id).join(' + ')+' · deposited surface':'No deposited source';
 }
 const fields={
   lineSpacingMm:['Wave spacing along surface',' mm'],beadHeightMm:['Bead height',' mm'],speedMmS:['Deposition speed',' mm/s'],
@@ -34,26 +27,11 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
   if(name==='vase-wall'&&settings.pathMode==='segmented')prefix=prefix.replace(skillName(name),'Segmented paths');
   const rows=[];
   for(const [key,v] of Object.entries(settings)){
-    if(['enabled','part','parts'].includes(key))continue;
-    if(name==='line-network'&&key==='layers'){
-      rows.push([prefix+' · Courses',String(v)]);continue;
-    }
-    if(name==='line-network'&&key==='networks'){
-      rows.push([prefix+' · Independent faces',String(v.length)],
-        [prefix+' · Centerline strokes',String(v.reduce((sum,network)=>sum+network.strokes.length,0))]);continue;
-    }
-    if(name==='wave-overhangs'&&key==='slices'){
-      for(const s of v)rows.push([s.id+' · Wave slice',s.reason],
-        [s.id+' · Surface',s.surface.patch?`${s.surface.part??'Part'} / ${s.surface.patch}`:`Spline degrees ${s.surface.degreeU}/${s.surface.degreeV}; ${s.surface.controlPoints.length} × ${s.surface.controlPoints[0].length} controls`],
-        [s.id+' · Seed / region',`${s.seedUv.length} supported seed loop(s); ${s.domainUv.length} region loop(s)`],
-        [s.id+' · Print after',s.afterParts.map(p=>p??'Part').join(', ')||'Previously present support'],
-        [s.id+' · Print before',s.beforeParts.map(p=>p??'Part').join(', ')||'No assigned successor']);
-      continue;
-    }
+    if(['enabled','part','parts','construction','id','filament','process','after'].includes(key))continue;
     if(name==='vase-wall'&&key==='meshSleeve'){
       if(v)rows.push([prefix+' · Mesh reference','Smooth fitted spline sleeve'],
         [prefix+' · Mesh fidelity',Math.round(v.fidelity*10000)/100+'% · continuous unilateral contact'],
-        [prefix+' · Offset tightness',Math.round((v.offsetTightness??0)*10000)/100+'% · loose to exact normal distance'],
+        [prefix+' · Contour offset','Native spline contours, resolved at crossings'],
         [prefix+' · Contact side',v.contactSide==='inside'?'Keep pattern inside mesh envelope':'Keep pattern outside mesh envelope'],
         [prefix+' · Spline fit',v.circumferentialControls+' circumferential × '+v.heightControls+' height controls'],
         [prefix+' · Mesh detail tolerance',v.detailToleranceMm+' mm']);
@@ -130,28 +108,77 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
 const volumeName=v=>v.kind==='slab'?(v.toMm===null?v.fromMm+' mm to top':v.fromMm+'–'+v.toMm+' mm'):v.kind==='geometry'?'assigned volume'
   :v.kind==='outline'?'first-layer outline':'footprint to '+v.contactZMm+' mm';
 export function sliceSummary(a){
+  if(a.construction==='rim')return a.steps.join(', ')+' rings per course · source '+a.source;
+  if(a.construction==='cladding')return a.shells+' surface courses · '+claddingPatternName(a);
+  if(a.construction==='sleeve')return pathModeName(a)+' · '+a.zStartMm+'–'+(a.zEndMm??'geometry top')+' mm';
+  if(a.construction==='skin')return a.layers+' roof courses · '+a.normalMm+' mm normal gap';
+  if(a.construction==='fronts')return 'Seeded surface fronts · '+a.lineSpacingMm+' mm spacing';
+  if(a.construction==='curves')return a.curves.length+' centerline(s) · '+(a.repeat?.count??1)+' course(s)';
+  if(a.construction==='bridges')return a.bridges.length+' bridge(s)';
   if(a.preset==='brim')return a.loops+(a.loops===1?' loop':' loops')+' around the first-layer outline';
   const fill=a.fillDensity>=1?'solid':a.fillDensity===0?'no fill':Math.round(a.fillDensity*100)+'% '+a.fillPattern+' fill';
   const solid=a.fillDensity<1&&(a.solidBottom||a.solidTop)?[a.preset==='support'?a.solidTop+' interface layers':a.solidBottom+' bottom / '+a.solidTop+' top solid layers']:[];
   return [a.loops+(a.loops===1?' loop':' loops'),fill,...solid].join(' · ');
 }
 export function sliceRows(plan){
-  return (plan.slices?.assignments??[]).flatMap(a=>[
+  return (plan.slices?.assignments??[]).flatMap(a=>[...(a.construction?(['skin','fronts'].includes(a.construction)?surfaceAssignmentRows(a):curveAssignmentRows(a)):[
     [a.id,(a.preset==='support'?'Support':(a.part??'Part'))+' · '+(a.within.length?a.within.map(volumeName).join(' within '):'the rest of the part')+' · '+sliceSummary(a)],
     [a.id+' · Fill directions',a.fillAnglesDeg.join(', ')+'°'+(a.rotateFill&&a.fillAnglesDeg.length>1?', alternating by layer':'')],
     ...(a.stack?[[a.id+' · Layers',a.stack.firstLayerMm+' mm first, then '+a.stack.layerMm+' mm']]:[]),
-    ...(a.filament!==null?[[a.id+' · Filament',String(a.filament+1)]]:[]),
+    [a.id+' · Reference',sliceReferenceName(a.surface)],
     ...(a.spacingFactor!==1?[[a.id+' · Line spacing',a.spacingFactor+'× nominal spacing; bead width unchanged']]:[])
+  ]),
+    ...(a.filament!==null?[[a.id+' · Filament',String(a.filament+1)]]:[]),
+    ...Object.entries(a.process??{}).map(([key,v])=>[a.id+' · '+({firstLayerMm:'First layer',layerMm:'Layer pitch',lineWidthMm:'Bead width',planarSpeedMmS:'Deposition speed',firstLayerSpeedMmS:'First-layer speed'}[key]),v+(key.endsWith('MmS')?' mm/s':' mm')])
   ]);
 }
-export function regionRows(plan){
-  return (plan.composition?.regions??[]).flatMap(region=>[
-    [region.id,(region.part??'Part')+' · '+(region.zEndMm===null?region.zStartMm+' mm to geometry top':region.zStartMm+'–'+region.zEndMm+' mm')+' · '+Object.keys(region.skills).map(name=>name==='vase-wall'?pathModeName({...plan.skills[name],...region.skills[name]}):skillName(name)).join(' + ')],
-    ...(region.lowerSurfaceFrom?[[region.id+' · Bottom','Follows the finished surface of '+region.lowerSurfaceFrom]]:[])
-  ]);
+function sliceReferenceName(surface){
+  if(surface.kind==='horizontal')return 'Horizontal plane';
+  if(surface.kind==='plane')return 'Plane at '+surface.origin.join(', ')+' mm · normal '+surface.normal.join(', ');
+  return (surface.kind==='roof'?'Part roof':'Spline surface')+' · vertical offset '+surface.offsetMm+' mm';
+}
+function curveAssignmentRows(a){
+  const rows=[[a.id,sliceSummary(a)],[a.id+' · Print after',a.after.join(', ')||'Shared dependency order']];
+  if(a.construction==='sleeve')return [...rows,[a.id+' · Part',a.part??'Part'],...skillSettingsRows('vase-wall',a,a.id)];
+  if(a.construction==='rim')return [...rows,[a.id+' · Part',a.part??'Part'],[a.id+' · Minimum feature',a.minFeatureMm+' mm']];
+  if(a.construction==='cladding')return [...rows,[a.id+' · Part',a.part??'Part'],[a.id+' · Source',a.source??'Finalized producers of the selected part'],
+    [a.id+' · Thickness / tilt',a.normalMm+' mm per course · '+a.tiltDeg+'°'],[a.id+' · Line spacing',a.spacingFactor+'× nominal'],
+    [a.id+' · Offset tightness',a.offsetTightness+' · 0 loose / 1 normal distance']];
+  if(a.construction==='curves'){
+    if(a.repeat)rows.push([a.id+' · Course translation',a.repeat.translation.join(', ')+' mm']);
+    for(const [i,c] of a.curves.entries()){
+      const label=a.id+' · Curve '+(i+1);
+      rows.push([label,(c.closed?'Closed':'Open')+' · '+c.points.length+' points · '+(c.role??'trace')]);
+      if(c.courses)rows.push([label+' courses',c.courses.map(n=>n+1).join(', ')]);
+      for(const [key,title,unit] of [['beadWidthMm','Bead width',' mm'],['heightMm','Bead height',' mm'],['speedMmS','Speed',' mm/s'],['flowMultiplier','Flow multiplier','×']])
+        if(c[key]!==undefined)rows.push([label+' · '+title,c[key]+unit]);
+    }
+  }else{
+    rows.push([a.id+' · Maximum vertical excursion',a.maxExcursionMm+' mm']);
+    for(const b of a.bridges){
+      const label=a.id+' · '+b.id;
+      rows.push([label,b.mode+' · '+b.rails[0].length+' spans'],[label+' · Support',b.supportBridge??'Finalized model deposition'],
+        [label+' · Span',b.speedMmS+' mm/s · '+b.flowMultiplier+'× flow'],
+        [label+' · Attachment',b.attachmentSpeedMmS+' mm/s · '+b.overlapMm+' mm overlap · '+b.pressMm+' mm press'],
+        [label+' · Approach',b.leadInMm+' mm lead · '+b.jogMm+' mm jog']);
+      if(b.endAttachment){const e=b.endAttachment;rows.push([label+' · End attachment',e.speedMmS+' mm/s · '+e.flowMultiplier+'× flow · '+e.overlapMm+' mm overlap · '+e.pressMm+' mm press · '+e.jogMm+' mm jog']);}
+    }
+  }
+  return rows;
+}
+function surfaceAssignmentRows(a){
+  const rows=[[a.id,sliceSummary(a)],[a.id+' · Print after',a.after.join(', ')||'Shared dependency order']];
+  if(a.construction==='skin')rows.push([a.id+' · Roof',a.part??'Part'],[a.id+' · Support',a.supportFrom??'Part body'],[a.id+' · Stroke direction',a.strokeAngleDeg+'°'],
+    [a.id+' · Spacing',a.spacingFactor+'× nominal'],[a.id+' · Angle limit',a.maxAngleDegOverride===null?'Machine profile':a.maxAngleDegOverride+'° experimental override']);
+  else rows.push([a.id+' · Surface',a.surface.kind==='patch'?(a.surface.part??'Part')+' / '+a.surface.patch:'Authored spline reference'],
+    [a.id+' · Seed',a.seedUv.length+' supported loop(s) · '+a.reason],
+    [a.id+' · Process',a.beadHeightMm+' mm bead height · '+a.speedMmS+' mm/s · '+a.fanPercent+'% fan'],
+    [a.id+' · Supporting parts',a.afterParts.map(p=>p??'Part').join(', ')||'Externally supported seed'],
+    [a.id+' · Before parts',a.beforeParts.map(p=>p??'Part').join(', ')||'No assigned successor']);
+  return rows;
 }
 export function recipeRows(plan,machine){
-  const composition=plan.composition,regions=composition?.regions??[],rows=[];
+  const composition=plan.composition,rows=[];
   if(plan.setup.bambu){
     rows.push(['Bambu startup',plan.setup.bambu.fast_start?'Fast — reuse calibration; skip optional scans and vibration tests':'Full — calibration follows startup controls / printer choices']);
     const used=[...new Set([plan.setup.bambu.filament,...assignedFilaments(plan)].filter(i=>i!==undefined))];
@@ -163,22 +190,17 @@ export function recipeRows(plan,machine){
       rows.push([`Filament ${id+1}`,`${machine.tools.find(t=>t.index===s.tool).label} · ${s.nozzleMm} mm nozzle · ${s.material} ${entry?.colour??s.filamentColor??''} · ${s.nozzleC}°C · ${source}`],
         [`Filament ${id+1} · Process`,`${p.lineWidthMm} mm bead · ${p.layerMm} mm layers · ${p.maxFlowMm3S} mm³/s maximum flow`]);
     }
-    for(const region of regions)rows.push([region.id+' · Filament',String((region.filament??plan.setup.bambu.filament)+1)]);
   }
   rows.push(['Machine · Planar wall tolerance',planarWallTolerance(machine)+' mm'],...sliceRows(plan));
+  for(const m of plan.modulations?.modifiers??[])rows.push([m.id+' · Modulation',m.channel+' · '+m.field.kind+' field · amplitude '+m.amplitude+(m.channel==='displacement'?' mm':'')],
+    [m.id+' · Applies to',(m.assignments?.join(', ')??'All assignments')+' · '+(m.roles?.join(', ')??'All stroke roles')],
+    ...(m.channel==='displacement'?[[m.id+' · Direction',m.direction==='lateral'?'Across the source path':m.direction.join(', ')+' in world coordinates']]:[]));
   if(composition){
     rows.push(['Layer batching',composition.batchLayers+' layer(s) per component'],
       ['Requested operation order',composition.order.length?composition.order.join(' → '):'Shared dependency order'],
       ['Additional dependencies',composition.dependencies.length?composition.dependencies.map(e=>e.before+' → '+e.after).join('; '):'None']);
   }
-  if(regions.length){
-    for(const name of globalSkills)if(plan.skills?.[name]?.enabled)rows.push(...skillSettingsRows(name,plan.skills[name]));
-    if(hasSkill(plan,'pipe-cladding'))rows.push(['Cladding component',plan.skills['pipe-cladding'].part??'Part']);
-    rows.push(...regionRows(plan));
-    for(const region of regions)for(const [name,overrides] of Object.entries(region.skills))rows.push(
-      ...skillSettingsRows(name,{...plan.skills[name],...overrides},region.id+' · '+skillName(name))
-        .filter(([label])=>!label.endsWith('above component base')));
-  }else if(plan.skills){
+  if(plan.skills){
     for(const [name,settings] of Object.entries(plan.skills))if(settings.enabled){
       rows.push([(name==='vase-wall'?pathModeName(settings):skillName(name))+' · Component',supportSkills.includes(name)?'Explicitly assigned supports':settings.parts?.join(', ')||settings.part||'All selected geometry']);
       rows.push(...skillSettingsRows(name,settings));

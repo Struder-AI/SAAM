@@ -12,7 +12,7 @@ const [directory,...flags]=process.argv.slice(2);
 if(!directory||flags.some(f=>f!=='--sparse'))throw new Error('Use example.mjs <new-print-directory> [--sparse].');
 const plan=await proposedPlan('ultimaker-s5');
 plan.geometry=splineBox({runMm:24,widthMm:16,heightMm:9});
-plan.skills['draped-skin'].enabled=false;
+
 // Solid by default; --sparse keeps the default slice (two loops, 20% fill).
 if(!flags.includes('--sparse'))plan.slices.assignments[0].fillDensity=1;
 plan.skills['plastic-weld'].enabled=true;

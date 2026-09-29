@@ -10,6 +10,7 @@ import {createBlobFieldBundle,updateBlobFieldBundle} from './blob-field.mjs';
 import {intersectRequest,combineGeometry} from './geometry-tools.mjs';
 import {starterGeometry} from '../../examples/prints/starter-geometry.mjs';
 import {defaults} from './plan.mjs';
+import {skinAssignment} from './surface-constructions.mjs';
 import {printHint} from '../agent/layers.mjs';
 const readJson=async file=>JSON.parse(await readFile(file,'utf8'));
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].replace(/\\/g, '/')}`).href) {
@@ -72,7 +73,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(JSON.stringify(await checkPathBundle(bundleDirectory()),null,2));
     } else if (command === 'demo') {
       const directory = bundleDirectory();
-      try { await access(resolve(directory, 'plan.json')); } catch { const plan=defaults();plan.geometry=starterGeometry();plan.skills['draped-skin'].enabled=true;await initBundle(directory,plan); }
+      try { await access(resolve(directory, 'plan.json')); } catch { const plan=defaults();plan.geometry=starterGeometry();plan.slices.assignments.push(skinAssignment({id:'skin'}));await initBundle(directory,plan); }
       const checks = await generateBundle(directory, { development: true });
       console.log(`Development generation only; no human approvals created.`);
       console.log(`  ${checks.moves} moves, about ${checks.estimatedMinutes} minutes`);

@@ -294,11 +294,11 @@ seam (the search runs on three copies). `foldCuts(moved, source, closed)`
 returns the cut intervals for other callers. Crossings between distant parts stay.
 Reversals are found from 32 samples per knot span.
 
-`prepareSleeveRibbon` in `sleeve-frame.mjs` is the surface ribbon of a sleeve
-(periodic U, a V chart linear in actual Z): `at(phase, zMm, depth)` and
-`exactAt` answer at the authored Z. Vase mapping adds the signed nominal
-half-bead offset to tile depth, evaluates the ribbon, then applies unilateral
-mesh contact.
+`prepareSleeveContours` in `sleeve-frame.mjs` offsets horizontal native NURBS
+isocurves of periodic patches whose V chart reproduces actual Z. Crossings
+resolve before chord-controlled sampling and perimeter correspondence.
+`at(phase,zMm,depth)` follows one retained closed contour; split/collapse rejects.
+Vase mapping adds nominal half-bead depth, then applies unilateral mesh contact.
 
 ### Geometry contract
 

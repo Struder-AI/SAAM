@@ -42,7 +42,7 @@ test('H2D maps logical material zero to either physical nozzle and round trips a
     assert.equal(entries.get(GCODE+'.md5').toString(),createHash('md5').update(code).digest('hex'));
     const moves=path.actions.filter(a=>a.kind==='move');assert.equal(program.moves.length,moves.length);
     moves.forEach((m,i)=>{m.to.forEach((v,k)=>assert.ok(Math.abs(v-program.moves[i].to[k])<6e-6));assert.ok(Math.abs(m.volumeMm3-program.moves[i].volumeMm3)<1e-4);});
-    assert.ok(program.moves.some(m=>m.phase==='draped-skin'));
+    assert.ok(program.moves.some(m=>m.phase==='skin'));
     assert.equal(program.envelope.simulation,'not simulated');
     assert.ok(program.envelope.endClearanceZ>=path.summary.boundsMm.max[2]+10);
     assert.ok(program.moves.every(m=>/^G[01] /.test(code.split('\n')[m.line-1])),'line numbers refer to actual packaged code');

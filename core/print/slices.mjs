@@ -4,6 +4,11 @@
 // its own family. Internal owner boundaries have walls; solid masks follow part
 // material rather than ownership seams.
 import { curveAssignment, validateCurveAssignment } from './curves.mjs';
+import {skinAssignment,frontAssignment,validateSurfaceConstruction} from './surface-constructions.mjs';
+import {sleeveAssignment,rimAssignment,validateSleeveAssignment,validateRimAssignment} from './sleeve-constructions.mjs';
+import {claddingAssignment,validateCladdingAssignment} from './cladding-constructions.mjs';
+import {assignmentPlan,validateAssignmentProcess} from './assignment-process.mjs';
+import {depositedBeadSegments,depositedBeadsContain} from '../path/deposited-curves.mjs';
 import { heightSlice, heightSliceNormal, heightReferencePatch, heightReferenceBounds } from '../geom/height-slice.mjs';
 import { validateSplineSolid } from '../geom/spline-solid.mjs';
 import { geometrySelections } from '../geom/selections.mjs';
@@ -21,7 +26,6 @@ import { lineSpacing } from '../path/spacing.mjs';
 import { planarPolicy, surfacePolicy } from '../path/builder.mjs';
 import { publishFinishedBoundary } from '../path/finished-surface.mjs';
 import { planarWallTolerance } from '../machine/rules.mjs';
-import { filamentPlan } from '../machine/filaments.mjs';
 
 export const SLICE_VERSION = 1;
 // The normal case: two loops, 20% fill, three solid layers top and bottom.
@@ -38,13 +42,18 @@ export const SLICE_PRESETS = Object.freeze({
 });
 export const SUPPORT_INTERFACE_DENSITY = 0.8;
 export const SUPPORT_GAPS = Object.freeze({ topGapMm: 0.2, xyGapMm: 0.3 });
-const FIELDS = ['id', 'part', 'preset', 'filament', ...Object.keys(SLICE_DEFAULTS), 'within', 'surface', 'stack'];
+const FIELDS = ['id', 'part', 'preset', 'filament', 'process', ...Object.keys(SLICE_DEFAULTS), 'within', 'surface', 'stack'];
 
 // A complete assignment from a preset and overrides.
 export function sliceAssignment({ id, part = null, preset = null, ...overrides }) {
+  if(overrides.construction==='skin')return skinAssignment({id,part,...overrides});
+  if(overrides.construction==='fronts')return frontAssignment({id,...overrides});
+  if(overrides.construction==='sleeve')return sleeveAssignment({id,part,...overrides});
+  if(overrides.construction==='rim')return rimAssignment({id,part,...overrides});
+  if(overrides.construction==='cladding')return claddingAssignment({id,part,...overrides});
   if(overrides.construction)return curveAssignment({id,...overrides});
   requireThat(preset === null || Object.hasOwn(SLICE_PRESETS, preset), `Unknown slice preset ${preset}; presets are ${Object.keys(SLICE_PRESETS).join(', ')}.`);
-  return structuredClone({ id, part, preset, filament: null, ...SLICE_DEFAULTS, within: [], surface: { kind: 'horizontal' }, stack: null,
+  return structuredClone({ id, part, preset, filament: null, process:null, ...SLICE_DEFAULTS, within: [], surface: { kind: 'horizontal' }, stack: null,
     ...(preset ? SLICE_PRESETS[preset] : {}), ...overrides });
 }
 export const defaultSlices = () => ({ version: SLICE_VERSION, assignments: [sliceAssignment({ id: 'body' })] });
@@ -58,6 +67,11 @@ export function validateSlices(slices, { parts, lineWidthMm, firstLayerMm }) {
   requireThat(Array.isArray(slices.assignments) && slices.assignments.length <= 80, 'Slice assignments are a list of at most 80.');
   const ids = new Set();
   for (const a of slices.assignments) {
+    validateAssignmentProcess(a?.process);
+    if(a.construction==='sleeve'){validateSleeveAssignment(a,{parts});requireThat(!ids.has(a.id),'Duplicate slice assignment id.');ids.add(a.id);continue;}
+    if(a.construction==='rim'){validateRimAssignment(a,{parts});requireThat(!ids.has(a.id),'Duplicate slice assignment id.');ids.add(a.id);continue;}
+    if(a.construction==='cladding'){validateCladdingAssignment(a,{parts});requireThat(!ids.has(a.id),'Duplicate slice assignment id.');ids.add(a.id);continue;}
+    if(['skin','fronts'].includes(a.construction)){validateSurfaceConstruction(a,{parts,lineWidthMm});requireThat(!ids.has(a.id),'Duplicate slice assignment id.');ids.add(a.id);continue;}
     if(a.construction){validateCurveAssignment(a);requireThat(!ids.has(a.id),'Duplicate slice assignment id.');ids.add(a.id);continue;}
     const unexpected = Object.keys(a ?? {}).filter(k => !FIELDS.includes(k)), missing = FIELDS.filter(k => !Object.hasOwn(a ?? {}, k));
     requireThat(!unexpected.length && !missing.length, `Slice assignment ${a?.id ?? ''} has ${[unexpected.length ? 'unexpected ' + unexpected.join(', ') : '', missing.length ? 'missing ' + missing.join(', ') : ''].filter(Boolean).join('; ')}.`);
@@ -383,32 +397,6 @@ function sliceTravelPolicy(slice, region, worldRegion, maxZ, process) {
   return surfacePolicy(worldRegion, { ...options, surfaceZ, maxZ });
 }
 
-// The nominal material actually emitted by this producer. Each segment owns
-// its bead footprint and its computed vertical extent below the reference;
-// neither sparse rows nor assignment seams imply a filled supporting shell.
-// This is a rectangular-bead model, not a physical bead reconstruction.
-function depositedSliceContains(operations,widthMm) {
-  const segments=[];
-  for(const op of operations)for(const stroke of op.strokes) {
-    const points=stroke.closed?[...stroke.points,stroke.points[0]]:stroke.points;
-    for(let i=1;i<points.length;i++) {
-      const a=points[i-1],b=points[i],length=Math.hypot(...b.map((v,k)=>v-a[k]));
-      const width=stroke.segmentMetadata?.[i-1]?.beadWidthMm??stroke.beadWidthMm??widthMm;
-      const volume=stroke.volumesMm3?.[i-1]??length*(stroke.beadAreaMm2??0);
-      if(length<1e-9||volume<=0)continue;
-      const cosine=op.slice.kind==='height-field'?Math.min(heightSliceNormal(op.slice,a)[2],heightSliceNormal(op.slice,b)[2]):op.slice.normal[2];
-      segments.push({a,b,radius:width/2,verticalMm:volume/(length*width*cosine)});
-    }
-  }
-  return ({point:p})=>segments.some(({a,b,radius,verticalMm})=>{
-    const dx=b[0]-a[0],dy=b[1]-a[1],squared=dx*dx+dy*dy;
-    if(squared<1e-16)return false;
-    const t=Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/squared));
-    const z=a[2]+t*(b[2]-a[2]);
-    return Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy)<=radius+.02&&p[2]<=z+.02&&p[2]>=z-verticalMm-.02;
-  });
-}
-
 // One owner's operations from its owned layers. spec: {id, settings, layers,
 // material?: Map(index -> sliced material) for solid masks (the layers' own
 // regions when absent), solidRegions?: Map(index -> loops) always filled
@@ -469,7 +457,8 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
   }
   if (support) return { id, operations, report };
   const coverage = settings.fillDensity >= 1 && pitch <= width + 1e-8 ? 'nominal' : 'sparse';
-  return publishFinishedBoundary({ id, operations, report }, { shell, startMm, endMm, coverage,contains:depositedSliceContains(operations,width) });
+  const segments=depositedBeadSegments(operations,{widthMm:width});
+  return publishFinishedBoundary({ id, operations, report }, { shell, startMm, endMm, coverage,contains:({point})=>depositedBeadsContain(segments,point) });
 }
 
 // Every slice assignment of a plan: owners, owned layers, results. Support
@@ -481,7 +470,7 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
 export function sliceResults({ plan, machine, shells, volumes, bands, reserves, envelopes = [], onProgress }) {
   const assignments = plan.slices.assignments.filter(a=>!a.construction);
   if (!assignments.length) return { results: [], supports: [], summary: null };
-  const processes = assignments.map(a => a.filament === null ? plan.process : filamentPlan(plan, machine, a.filament).process);
+  const processes = assignments.map(a => assignmentPlan(plan,machine,a).process);
   const owners = sliceOwners(assignments, { shells, processes, volumes, placement: plan.placement, selections: geometrySelections(plan.geometry) });
   const owned = ownedLayers(owners, { shells, bands, reserves, onProgress });
   const results = [], supports = [];

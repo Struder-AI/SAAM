@@ -1,5 +1,6 @@
 import {pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
+import {frontAssignment} from '../../../core/print/surface-constructions.mjs';
 import {defaults} from '../../../core/print/plan.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
 import {referencePatch} from '../../../core/geom/reference-surface.mjs';
@@ -37,11 +38,8 @@ export function canopyExamplePlan(machine=loadMachine(),progress=()=>{}){
   // can leave microscopic internal loops; those do not define this outline.
   domainUv=[domainUv.reduce((a,b)=>Math.abs(regionArea([a]))>Math.abs(regionArea([b]))?a:b)];
   plan.geometry=splineBox({runMm:boxWidth,widthMm:boxWidth,heightMm:10});
-  plan.skills['draped-skin'].enabled=false;
-  plan.skills['wave-overhangs']={...plan.skills['wave-overhangs'],enabled:true,
-    lineSpacingMm:.3,propagationStepMm:.3,
-    slices:[{id:'four-sided-canopy',reason:'The central 24 × 24 mm spline plateau follows the box top perimeter centerline at Z=10, accounting for half a bead at each box edge. Grow a rounded, wavy canopy about 33 mm beyond every side in one continuous slice.',
-      surface,domainUv,seedUv,afterParts:[null],beforeParts:[]}]};
+  plan.slices.assignments.push(frontAssignment({id:'four-sided-canopy',lineSpacingMm:.3,propagationStepMm:.3,reason:'The central 24 × 24 mm spline plateau follows the box top perimeter centerline at Z=10, accounting for half a bead at each box edge. Grow a rounded, wavy canopy about 33 mm beyond every side in one continuous slice.',
+      surface:{kind:'spline',offsetMm:0,patch:{name:'canopy',...surface}},domainUv,seedUv,afterParts:[null],beforeParts:[]}));
   return plan;
 }
 

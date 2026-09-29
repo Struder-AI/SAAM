@@ -2,7 +2,7 @@ import {readFile,writeFile,mkdir,stat} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
-import {PIPE_CLADDING_DEFAULTS} from '../../skills/pipe-cladding/scripts/clad.mjs';
+import {CLADDING_DEFAULTS} from '../../core/print/cladding-constructions.mjs';
 import {pipeCladdingResult} from './pipe.mjs';
 import {validatePose} from '../../core/path/pose.mjs';
 
@@ -16,7 +16,7 @@ const near=(a,b)=>Math.abs(a-b)<1e-8;
 export function claddingSector(plan,{frontDeg=-90,sectorDeg=72}={}){
   if(plan.geometry?.shape!=='pipe'||!plan.skills?.['pipe-cladding']?.enabled)throw Error('Requires the saved circular-pipe cladding recipe');
   if(!Number.isFinite(frontDeg)||!Number.isFinite(sectorDeg)||sectorDeg<=0||sectorDeg>360)throw Error('Dry-run sector must be in (0,360] degrees');
-  const settings={...PIPE_CLADDING_DEFAULTS,...plan.skills['pipe-cladding']};
+  const settings={enabled:false,part:null,...CLADDING_DEFAULTS,...plan.skills['pipe-cladding']};
   if(settings.pattern!=='axial-hoop'||settings.surface||settings.part!==null)throw Error('Only circular axial/hoop cladding is supported');
   for(const v of [plan.geometry.heightMm,plan.geometry.outerRadiusMm,plan.geometry.innerRadiusMm,settings.normalMm,settings.sampleStepMm,settings.toleranceMm,plan.process.lineWidthMm])if(!Number.isFinite(v)||v<=0)throw Error('Invalid pipe dimensions or spacing');
   if(!Number.isInteger(settings.shells)||settings.shells<1||settings.tiltDeg<=0||settings.tiltDeg>=90)throw Error('Invalid shell count or nozzle tilt');

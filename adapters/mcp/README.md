@@ -63,7 +63,7 @@ saved IDs; there is no single global plan that overwrites another job.
 | `get_tour` | Read tour progress and the next maker-agent chat instruction. Optional `after` cursor and `waitMs` wait for a change for up to 25 seconds. |
 | `set_tour_start_at` | Set explicit `{startAt:{layer:12}}` for the playback lesson; choose a layer with sparse infill. |
 | `change_machine` | Change printer with current `expectedRevision`, using remembered/default setup and shared compatibility checks. Final review is invalidated. |
-| `adjust_recipe`, `slice` | Patch the recipe or add/edit/remove one common slice assignment with current `expectedRevision`; both validate the saved recipe and invalidate affected review. |
+| `adjust_recipe`, `slice`, `modulate` | Patch the recipe or add/edit/remove a common assignment or field modifier with current `expectedRevision`; each validates the saved recipe and invalidates affected review. |
 | `blob_field` | Create or rebuild a [blob field](../../GEOMETRY.md#blob-field) part from its points. |
 | `combine_geometry`, `intersect_geometry` | Combine a print or part with another solid as a [boolean](../../GEOMETRY.md#booleans); section it or find its top at given points ([checking](../../GEOMETRY.md#checking-geometry)). `intersect_geometry` also takes a geometry without a print. |
 | `gridfinity` | gridfinity |
@@ -109,15 +109,10 @@ for tests or a headless client. Studio servers are owned by the MCP process,
 use free loopback ports, and close 30 minutes after the last viewer tab
 disconnects (with a grace period for refresh), or when the owning stdio client
 disconnects. There is no deadline to open the first viewer.
-Repeated review requests use the print's preferred still-open server within this
-adapter; a print not yet shown rebinds the sole live server, so switching prints
-keeps one Studio and tab. With several live servers an explicit instance ID
-selects the one to rebind, and an unshown print otherwise opens another. After it
-closes, review starts a fresh instance from the saved bundle. Closing a
-viewer leaves the MCP connection and its other viewers running. Separate adapter
-processes never adopt each other's Studio sessions. One adapter may own several
-Studio instances, and the same print bundle may be opened by separately owned
-instances. MCP transport closure marks
+Review requests follow the reuse/selection rules in the tool table. Closing a
+viewer leaves the adapter and its other viewers running. Separate adapter
+processes never adopt each other's Studio instances; independently owned
+instances may show the same bundle. MCP transport closure marks
 that connection's unfinished owned requests failed and pushes a connection-close
 event to its Studio viewers before shutdown. Requests created by its Studio
 servers, or claimed with begin_studio_work, share that ownership. Other agents'
@@ -145,27 +140,17 @@ import reads only the chosen source; it writes the new bundle inside the configu
 Prints root. A bundle that fails current-version validation is recreated from its
 skills; nothing migrates it, silently or explicitly.
 
-Thingi10K tools additionally read a pinned public mirror over HTTPS and cache its
-metadata/downloads under the configured Prints root's `.thingi10k/` folder. They
-accept model identifiers, not arbitrary download URLs. A Thingiverse link is
-looked up in that index; it is not scraped or downloaded directly. The
-[skill manual](../../skills/thingi10k/SKILL.md) owns limits, absent-model fallback,
-per-download chat notices and attribution. This works for an MCP-only client
-when the SAAM host can reach Hugging Face and its CDN.
+Thingi10K accepts model IDs or indexed Thingiverse links, never arbitrary download
+URLs. Its pinned HTTPS mirror/cache and network requirements are described in the
+[skill manual](../../skills/thingi10k/SKILL.md), which also owns limits, absent-model
+fallback, per-download chat notices and attribution.
 
-Use `create_bundle` / `adjust_recipe`, the shared approvals and `generate_toolpath`;
-`check_bundle` verifies the persisted print and `deliver_toolpath` delivers its
-checked export. Legacy `compile_plan`, `validate_plan` and `post_process`
-are unsupported.
-The fixed catalog also includes `denso-vs068a4-rc8a` and
-[pipe-cladding](../../skills/pipe-cladding/SKILL.md). This experimental rotary
-demo uses the same tools and Studio. Actual installation setup is unresolved;
-synthetic development calibration is not a hardware configuration.
-
-The known-manual list supplies operation guidance; legacy `list_operations`
-is unsupported. `get_approval_status` requires a persisted print ID. `request_review` also
-accepts the tour-only `startAt` parameter. Revision-only approvals and a global live-session plan
-are unsupported.
+The experimental [pipe-cladding](../../skills/pipe-cladding/SKILL.md) demo and
+`denso-vs068a4-rc8a` use the same tools. Installation setup remains unresolved;
+synthetic calibration is not hardware configuration. Legacy `compile_plan`,
+`validate_plan`, `post_process` and `list_operations` are unsupported, as are
+revision-only approvals and a global live-session plan. `get_approval_status`
+requires a saved bundle; `request_review.startAt` is tour-only.
 
 SDK subprocess integration coverage is available below. Select checks under
 [Avoid check spirals](../../BUILDERS.md#avoid-check-spirals); these commands add no

@@ -9,7 +9,7 @@ is relative to `Prints/` (`Prints/my-part` is `"my-part"`).
 | Create from a recipe; import an STL | `get_recipe_defaults`, `create_bundle`; `import_stl_bundle`, `set_stl_units` |
 | Geometry tools ([GEOMETRY](../../GEOMETRY.md)) | `blob_field`, `combine_geometry`, `intersect_geometry` |
 | Show in Studio; read state | `request_review`; `list_bundles`, `get_bundle`, `check_bundle` |
-| Adjust recipe/assignments; change printer | `adjust_recipe`, `slice`; `change_machine` |
+| Adjust recipe/assignments; change printer | `adjust_recipe`, `slice`, `modulate`; `change_machine` |
 | Generate for review; deliver the confirmed export | `generate_toolpath`; `deliver_toolpath` |
 | Path feasibility, when needed; save setup as the machine's default | `check_path`; `remember_setup` |
 
@@ -18,7 +18,7 @@ Creating or importing makes geometry only; generation is a separate step.
 ## Recipes
 
 `get_recipe_defaults` returns process/setup defaults and one common [slice](../../skills/slice/SKILL.md)
-assignment, with no geometry and draped-skin disabled. Add authored/imported
+assignment, with no geometry or automatic skin. Add authored/imported
 `geometry` to this `plan` before `create_bundle`; choose placement for its bounds.
 
 `slice` adds/edits/removes one assignment; `adjust_recipe` patches the recipe. Objects merge, arrays replace,
@@ -40,10 +40,10 @@ the reported failure.
 
 ### Line spacing
 
-`{"skills":{"pipe-cladding":{"spacingFactor":3}}}` spaces lines three times wider
-for an open pattern without widening the bead (default `1`). It applies to
-slice assignments (their own `spacingFactor`), draped-skin and pipe-cladding, including
-regional overrides where supported, but not to single-wall vase spirals.
+A `slice` edit with `assignment:{spacingFactor:3}` triples spacing without
+widening the bead (default 1). Loop/fill, skin and cladding constructions support
+it; per-assignment `process.lineWidthMm` controls bead width separately.
+Single-wall sleeve spirals use their course pitch instead.
 
 ## Check, generate and deliver
 

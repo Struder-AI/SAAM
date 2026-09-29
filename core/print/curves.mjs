@@ -4,17 +4,18 @@ import {depositCurves} from '../path/deposition.mjs';
 import {depositedCurveSegments,curveSupportsPoint} from '../path/deposited-curves.mjs';
 import {planarPolicy} from '../path/builder.mjs';
 import {requireMachine,toolBounds} from '../machine/profile.mjs';
-import {filamentPlan} from '../machine/filaments.mjs';
+import {assignmentPlan} from './assignment-process.mjs';
+import {finalizeDepositionResult} from './finalize.mjs';
 
 // Authored deposition joins the ordinary assignment list without inventing an
 // enclosing solid. A repeat is its own XYZ grid; it need not share other grids.
 export function curveAssignment({id,construction='curves',...options}) {
-  return structuredClone({id,construction,filament:null,after:[],
+  return structuredClone({id,construction,filament:null,process:null,after:[],
     ...(construction==='curves'?{curves:[],repeat:null}:{bridges:[],maxExcursionMm:10}),...options});
 }
 
 export function validateCurveAssignment(a) {
-  const expected=a.construction==='curves'?'after,construction,curves,filament,id,repeat':'after,bridges,construction,filament,id,maxExcursionMm';
+  const expected=a.construction==='curves'?'after,construction,curves,filament,id,process,repeat':'after,bridges,construction,filament,id,maxExcursionMm,process';
   requireThat(['curves','bridges'].includes(a.construction)&&Object.keys(a).sort().join()===expected,`Invalid ${a.construction} assignment fields.`);
   requireThat(typeof a.id==='string'&&/^[a-z][a-z0-9-]*$/.test(a.id),'Invalid curve assignment id.');
   requireThat(a.filament===null||Number.isInteger(a.filament)&&a.filament>=0,'Curve filament must be null or a filament index.');
@@ -72,16 +73,16 @@ export function curveAssignmentResults({plan,machine,modelResults,bounds=null}) 
     validateCurveAssignment(assignment);
     const nonplanar=assignment.curves.some(curve=>curve.points.some(p=>Math.abs(p[2]-curve.points[0][2])>1e-9));
     requireMachine(machine,['xyz-extrusion',nonplanar?'nonplanar':'planar'],'authored curves');
-    const selected=assignment.filament===null?plan:filamentPlan(plan,machine,assignment.filament);
+    const selected=assignmentPlan(plan,machine,assignment);
     const selectedBounds=bounds===null?null:toolBounds(machine,selected.setup.tool);
-    results.push(authoredCurveResult(assignment,{plan,process:selected.process,bounds:selectedBounds}));
+    results.push(finalizeDepositionResult(authoredCurveResult(assignment,{plan,process:selected.process,bounds:selectedBounds}),plan,machine));
   }
   for(const assignment of assignments.filter(a=>a.construction==='bridges')){
     validateCurveAssignment(assignment);
     requireMachine(machine,['xyz-extrusion','nonplanar'],'bridge construction');
-    const selected=assignment.filament===null?plan:filamentPlan(plan,machine,assignment.filament);
+    const selected=assignmentPlan(plan,machine,assignment);
     const selectedBounds=bounds===null?null:toolBounds(machine,selected.setup.tool);
-    results.push(bridgeAssignmentResult(assignment,{plan,process:selected.process,modelResults:[...modelResults,...results],bounds:selectedBounds}));
+    results.push(bridgeAssignmentResult(assignment,{plan,machine,process:selected.process,modelResults:[...modelResults,...results],bounds:selectedBounds}));
   }
   return results;
 }
@@ -113,11 +114,11 @@ export function validateBridgeConstruction(settings){
 
 // Gap edges and process controls are the recipe. Support walls are supplied by
 // other producers; this skill never slices geometry or emits support loops.
-export function bridgeAssignmentResult(assignment,{plan,process=plan.process,modelResults,bounds=null}){
+export function bridgeAssignmentResult(assignment,{plan,machine,process=plan.process,modelResults,bounds=null}){
   const settings=assignment,width=process.lineWidthMm,height=process.layerMm;
   validateBridgeConstruction(settings);
   const supportSegments=depositedCurveSegments(modelResults.flatMap(result=>result.operations),{widthMm:width});
-  const operations=[],reports=[];
+  const operations=[],reports=[],modulations=[];
   let after=[...modelResults.flatMap(r=>r.operations.map(op=>op.id)),...assignment.after];
   for(const [index,b] of settings.bridges.entries()){
     const end=b.endAttachment??{overlapMm:b.overlapMm,pressMm:b.pressMm,jogMm:0,speedMmS:b.attachmentSpeedMmS,flowMultiplier:1};
@@ -141,10 +142,16 @@ export function bridgeAssignmentResult(assignment,{plan,process=plan.process,mod
     const id=assignment.id+':'+b.id;
     operations.push({id,layerId:id,layer:Math.round(high/height),rank:index,phase:'bridging',order:'given',continuous:true,
       after,strokes,...(assignment.filament===null?{}:{filament:assignment.filament}),travelPolicy:{maxCombMm:0,canTravelDirect:()=>false,clearanceFor:()=>high+process.liftMm}});
+    const finalized=finalizeDepositionResult({id:assignment.id,operations:[operations.at(-1)],report:{}},plan,machine);
+    operations[operations.length-1]=finalized.operations[0];
+    if(finalized.report.modulation)modulations.push(finalized.report.modulation);
     after=[id];
     supportSegments.push(...depositedCurveSegments([operations.at(-1)],{widthMm:width,source:b.id,excludedRoles:['bridge-press']}));
     reports.push({id:b.id,mode:b.mode,spans:rails[0].length,minZMm:low,maxZMm:high,excursionMm:high-low});
   }
-  return {id:assignment.id,operations,report:{bridges:reports,physicalValidation:'not performed'}};
+  return {id:assignment.id,operations,report:{bridges:reports,physicalValidation:'not performed',...(modulations.length?{modulation:{
+    changed:true,maxExcursionMm:Math.max(...modulations.map(m=>m.maxExcursionMm)),
+    changedOperations:modulations.flatMap(m=>m.changedOperations),modifiers:[...new Set(modulations.flatMap(m=>m.modifiers))]
+  }}:{})}};
 }
 

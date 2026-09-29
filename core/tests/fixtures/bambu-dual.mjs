@@ -13,7 +13,7 @@ export function mixedNozzleFixture(){
   ]});
   plan.geometry={shape:'assembly',parts:['left-part','right-part'].map((id,i)=>({id,xMm:i*20,yMm:0,zMm:0,geometry:splineBox({runMm:8,widthMm:8,heightMm:1.2})}))};
   plan.placement={xMm:120,yMm:110};plan.process.minimumLayerSeconds=0;
-  plan.skills['draped-skin'].enabled=false;
+
   plan.slices.assignments=['left-part','right-part'].map((part,filament)=>sliceAssignment({id:part,part,filament,fillDensity:1}));
   return {plan,machine};
 }

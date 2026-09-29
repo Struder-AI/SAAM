@@ -12,25 +12,17 @@ person asks: `read_skill ID#heading`, otherwise `read_guidance`.
 
 | Skill | Use |
 |---|---|
-| [slice](slice/SKILL.md) | Flat layers of loops and fill for a whole part or assigned volumes of it, from solid to hollow, with brim and support presets. Meshes and supported splines. |
-| [line-network](line-network/SKILL.md) | Experimental. Sparse planar frames and trusses from explicit centerline polylines, with per-layer reinforcement strokes; fills no enclosed area. |
-| [bridging](bridging/SKILL.md) | Straight XYZ spans between two supporting rims, with separately controlled attachment motions. Makes no walls; compose with a wall producer. |
+| [slice](slice/SKILL.md) | General deposition from owned surface slices and authored curves: loops, fill, brim, skin, fronts, sleeves, rims, networks and bridges, with shared process and modulation. |
 | [plastic-weld](plastic-weld/SKILL.md) | Experimental. Rivets of molten plastic injected into blind shafts across layers, placed individually or staggered through a solid body. |
 | [supports](supports/SKILL.md) | Tree branches at placed contacts; placement trades support against surface contact and removal access. Area supports under a footprint are slices with the support preset. |
-| [draped-skin](draped-skin/SKILL.md) | Top-skin strokes that follow a sloping or curved roof instead of flat-layer steps, within the machine's nonplanar angle limit; steep areas are reported. |
-| [wave-overhangs](wave-overhangs/SKILL.md) | Experimental. Continuous wave passes grown from assigned supported seeds on curved or flat spline slices. |
-| [vase-wall](vase-wall/SKILL.md) | A hollow vase or tube as one continuous rising spiral wall, with an optional solid base. |
-| [advanced-vase-wall](advanced-vase-wall/SKILL.md) | Vase walls patterned with repeated tiles or authored paths on a sleeve, with optional smooth mesh fitting. |
-| [thick-lip](thick-lip/SKILL.md) | A vase wall's top edge thickened into a rigid, optionally rolled rim. |
-| [pipe-cladding](pipe-cladding/SKILL.md) | Experimental. Lengthwise, helical or crossed-helix cladding around a spline or mesh sleeve, or a finished vase wall. Development only; needs a configured DENSO RC8A robot with external rotary. |
 
 ## Geometry skills
 
 | Skill | Use |
 |---|---|
-| [thingi10k](thingi10k/SKILL.md) | Find meshes by keyword or Thingiverse link and download STLs from the Thingi10K mirror. Always link the file's license. |
-| [mesh-tools](mesh-tools/SKILL.md) | Diagnose failed mesh imports, clean duplicate or collapsed facets, repair self-intersections and fill explicitly bounded holes. |
 | [text](text/SKILL.md) | Raised or recessed lettering on a part, or standalone text, from an outline font; flat, along a spline, or bent onto a surface. |
+| [mesh-tools](mesh-tools/SKILL.md) | Diagnose failed mesh imports, clean duplicate or collapsed facets, repair self-intersections and fill explicitly bounded holes. |
+| [thingi10k](thingi10k/SKILL.md) | Find meshes by keyword or Thingiverse link and download STLs from the Thingi10K mirror. Always link the file's license. |
 | [gridfinity](gridfinity/SKILL.md) | gridfinity |
 
 ## Hybrid skills
@@ -42,7 +34,6 @@ person asks: `read_skill ID#heading`, otherwise `read_guidance`.
 ## Advanced sections
 
 - Surface regions: nonplanar machines; GEOMETRY.md#surface-regions
-- Curved lettering above a draped roof: nonplanar machines; text#curved-lettering-above-a-draped-roof
 - Cladding a vase body: coordinated-rotary machines; gridfinity#cladding-a-vase-body
 
 <!-- END GENERATED SKILL DIGEST -->

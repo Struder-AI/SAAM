@@ -15,7 +15,7 @@ import { clipOpenPaths, difference, intersect, union } from './intersection.mjs'
 import { fillPatternStrokes } from './fill-patterns.mjs';
 import { lineSpacing } from '../path/spacing.mjs';
 import { cleanPlanarLoop } from '../geom/polyline.mjs';
-import { slicePoint } from '../geom/slice.mjs';
+import { slicePoint, sliceNormal } from '../geom/slice.mjs';
 import { requireThat, TOLERANCE } from '../geom/tolerance.mjs';
 
 // Loops on boundaries between owners: the one place this choice is made (the
@@ -79,9 +79,14 @@ export function layerStrokes(region, { widthMm, loops, fillDensity, fillPattern,
   const infill = fillPatternStrokes(sparseRegion, { pattern: fillPattern, widthMm, density: fillDensity, angleDeg: patternAngleDeg,
     zMm: phaseMm, sampleStepMm, spacingFactor })
     .map(stroke => ({ ...stroke, role: 'infill', points: stroke.closed ? [...stroke.points, stroke.points[0]] : stroke.points }));
-  const fill = (solidRegion.length ? scanlineFill(solidRegion, pitch / solidDensity, fillAngleDeg) : [])
-    .map((row, position) => ({ role: 'fill', closed: false, points: position % 2 ? [row.to, row.from] : [row.from, row.to], scanlineCell: row.cellId }));
+  const fill = directedFillStrokes(solidRegion,{spacingMm:pitch/solidDensity,angleDeg:fillAngleDeg});
   return { walls, infill, fill, interior, sparseRegion, solidRegion };
+}
+
+export function directedFillStrokes(region,{spacingMm,angleDeg,reverseRows=false,role='fill'}) {
+  const rows=region.length?scanlineFill(region,spacingMm,angleDeg):[];
+  const sequence=reverseRows?rows.toReversed():rows;
+  return sequence.map((row,position)=>({role,closed:false,points:position%2?[row.to,row.from]:[row.from,row.to],scanlineCell:row.cellId}));
 }
 
 const pathLength = points => points.reduce((sum, p, i) => i ? sum + Math.hypot(p[0] - points[i - 1][0], p[1] - points[i - 1][1]) : 0, 0);
@@ -124,21 +129,35 @@ export const fillMaterial = (region, widthMm) => region.length ? offsetRegion(re
 
 // Coordinate mapping is independent of bead/process calculation. The plane
 // chart is isometric; mapped XYZ curve lengths keep physical millimetres.
-export function mapSliceStrokes(strokes, slice) {
-  if(slice.kind!=='plane')return strokes.map(stroke=>{
-    const source=stroke.closed?[...stroke.points,stroke.points[0]]:stroke.points,points=[slicePoint(slice,source[0])];
-    const step=slice.sampleStepMm??.2;
-    const split=(a,b,pa,pb)=>{
-      const probes=[.25,.5,.75].map(t=>{const chart=a.map((v,k)=>v+t*(b[k]-v));return {chart,point:slicePoint(slice,chart),t};});
-      const error=Math.max(...probes.map(({point,t})=>Math.hypot(...point.map((v,k)=>v-pa[k]-t*(pb[k]-pa[k])))));
-      const span=Math.hypot(...a.map((v,k)=>v-b[k]));
-      if(span>step||error>TOLERANCE.chord){
-        requireThat(span>2*TOLERANCE.point,'Curved slice mapping cannot converge across a discontinuity.');
-        split(a,probes[1].chart,pa,probes[1].point);split(probes[1].chart,b,probes[1].point,pb);
-      }else points.push(pb);
-    };
-    for(let i=1;i<source.length;i++)split(source[i-1],source[i],points.at(-1),slicePoint(slice,source[i]));
-    return {...stroke,closed:false,points};
-  });
-  return strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => slicePoint(slice, point)) }));
+export function mapSliceStrokes(strokes, slice, options={}) {
+  if(slice.kind==='plane'&&!options.frames)return strokes.map(stroke=>({...stroke,points:stroke.points.map(point=>slicePoint(slice,point))}));
+  return strokes.map(stroke=>mapSliceStroke(stroke,slice,options));
+}
+
+// UV and XY charts have different metrics. Step/chord tolerances are always
+// physical XYZ millimetres; quarter probes catch curvature hidden at midpoint.
+// Optional geometric frames are data, not a request to rotate a fixed-axis tool.
+export function mapSliceStroke(stroke,slice,{sampleStepMm=slice.sampleStepMm??.2,toleranceMm=TOLERANCE.chord,frames=false}={}) {
+  requireThat(sampleStepMm>0&&Number.isFinite(sampleStepMm)&&toleranceMm>0&&Number.isFinite(toleranceMm),'Slice mapping needs positive physical tolerances.');
+  const chartPoint=point=>slice.kind==='patch'?point.map((x,k)=>{
+    const [lo,hi]=[slice.patch.domainU,slice.patch.domainV][k];
+    requireThat(x>=lo-1e-9&&x<=hi+1e-9,'Slice mapping leaves its spline chart.');
+    return Math.max(lo,Math.min(hi,x));
+  }):point;
+  const source=(stroke.closed?[...stroke.points,stroke.points[0]]:stroke.points).map(chartPoint);
+  const points=[slicePoint(slice,source[0])],chartPoints=[source[0]],counts={evaluations:1};
+  const split=(a,b,pa,pb)=>{
+    const probes=[.25,.5,.75].map(t=>{const chart=a.map((v,k)=>v+t*(b[k]-v));return {chart,point:slicePoint(slice,chart),t};});
+    counts.evaluations+=3;
+    const error=Math.max(...probes.map(({point,t})=>Math.hypot(...point.map((v,k)=>v-pa[k]-t*(pb[k]-pa[k])))));
+    const polyline=[pa,...probes.map(probe=>probe.point),pb];
+    const span=polyline.slice(1).reduce((sum,p,i)=>sum+Math.hypot(...p.map((v,k)=>v-polyline[i][k])),0);
+    if(span>sampleStepMm||error>toleranceMm){
+      const middle=probes[1];
+      requireThat(middle.chart.some((v,k)=>v!==a[k])&&middle.chart.some((v,k)=>v!==b[k]),'Curved slice mapping cannot converge at parameter precision; inspect a discontinuity.');
+      split(a,middle.chart,pa,middle.point);split(middle.chart,b,middle.point,pb);
+    }else {points.push(pb);chartPoints.push(b);}
+  };
+  for(let i=1;i<source.length;i++) {counts.evaluations++;split(source[i-1],source[i],points.at(-1),slicePoint(slice,source[i]));}
+  return {...stroke,closed:false,points,...(frames?{chartPoints,normals:chartPoints.map(point=>sliceNormal(slice,point)),mappingReport:{evaluations:counts.evaluations+chartPoints.length,points:points.length}}:{})};
 }

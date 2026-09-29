@@ -1,12 +1,12 @@
 // Author one cell in a regular reference strip, then feed the existing sleeve mapper.
-import {requireThat} from '../../../core/geom/tolerance.mjs';
+import {requireThat} from '../geom/tolerance.mjs';
 
 export const isTiledPattern=pattern=>Boolean(pattern&&Object.hasOwn(pattern,'tile'));
 const at=(value,i)=>Array.isArray(value)?value[i]:value;
 
-// Input validity belongs to validateVasePattern. This expansion retains one
+// Input validity belongs to validateSleevePattern. This expansion retains one
 // stroke per course, including its cooling and layer identity, before mapping.
-export function tileVasePattern(pattern){
+export function tileSleevePattern(pattern){
   const {tile,cellsPerTurn,courseRiseMm,repeats,tiltDeg}=pattern;
   const count=cellsPerTurn*(tile.points.length-1)+1;
   requireThat(Number.isSafeInteger(count),`Vase pattern course of ${cellsPerTurn} cells exceeds the safe integer point range; no partial course generated.`);

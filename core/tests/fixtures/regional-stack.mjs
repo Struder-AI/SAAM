@@ -5,6 +5,8 @@
 // for height-field slices.)
 import {defaults} from '../../print/plan.mjs';
 import {sliceAssignment} from '../../print/slices.mjs';
+import {sleeveAssignment} from '../../print/sleeve-constructions.mjs';
+import {skinAssignment} from '../../print/surface-constructions.mjs';
 import {syntheticDobotSetup} from './dobot.mjs';
 import {splineBox,splineBlock} from './spline-shapes.mjs';
 
@@ -31,17 +33,14 @@ export function regionalStackPlan(machine,backend='mesh') {
   plan.geometry={shape:'assembly',parts:[{id:'roof',xMm:0,yMm:0,zMm:0,geometry:roof},
     {id:'upper',xMm:10,yMm:0,zMm:0,geometry:splineBox({runMm:8,widthMm:8,heightMm:4})}]};
   plan.process.minimumLayerSeconds=0;
-  const region=(id,part,zStartMm,zEndMm,skills,lowerSurfaceFrom=null)=>({id,part,zStartMm,zEndMm,skills,lowerSurfaceFrom});
   const slab=(fromMm,toMm)=>[{kind:'slab',fromMm,toMm}];
   plan.slices.assignments=[
     sliceAssignment({id:'base',part:'roof',fillDensity:1,within:slab(0,0.4)}),
     sliceAssignment({id:'cap',part:'roof',fillDensity:1,within:slab(1.2,1.6)}),
     sliceAssignment({id:'roof-body',part:'roof',solidTop:1,solidBottom:1}),
-    sliceAssignment({id:'upper',part:'upper',fillDensity:1})
-  ];
-  plan.composition.regions=[
-    region('wall','roof',0.4,1.2,{'vase-wall':{endTransition:'level'}}),
-    region('roof-finish','roof',1.6,null,{'draped-skin':{layers:2,normalMm:0.2,surveyStepMm:0.2,sampleStepMm:0.2}})
+    sliceAssignment({id:'upper',part:'upper',fillDensity:1}),
+    sleeveAssignment({id:'wall',part:'roof',zStartMm:.4,zEndMm:1.2,endTransition:'level'}),
+    skinAssignment({id:'roof-finish',part:'roof',layers:2,normalMm:.2,surveyStepMm:.2,sampleStepMm:.2})
   ];
   return plan;
 }

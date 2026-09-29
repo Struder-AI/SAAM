@@ -11,10 +11,11 @@ import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { defaults, hash } from '../print/plan.mjs';
+import {skinAssignment} from '../print/surface-constructions.mjs';
 import { createGeometry, verifyGeometry } from '../print/geometry.mjs';
 import {
   initBundle, loadBundle, generateBundle, updatePlan, adjustBundle, approve, deliver,
-  rememberSetup, bundleFingerprint, changeMachine
+  rememberSetup, bundleFingerprint, changeMachine, proposedPlan
 } from '../print/bundle.mjs';
 import { createStudio } from '../../studio/server.mjs';
 import { approvedReview, machineChangedReview } from '../print/workflow.mjs';
@@ -26,6 +27,7 @@ const clone = value => structuredClone(value);
 // Small enough to slice quickly, still a spline top surface with a real skin.
 function smallPlan() {
   const plan = defaults();
+  plan.slices.assignments.push(skinAssignment({id:'skin'}));
   plan.geometry = splineBlock({runMm:16,widthMm:12,heightsMm:[[3, 3, 3, 3], [3, 4, 4, 3], [3, 4, 4, 3], [3, 3, 3, 3]]});
   plan.process = { ...plan.process, minimumLayerSeconds: 0 };
   return plan;
@@ -87,7 +89,7 @@ test('a shell print stores native geometry that reopens as the same closed shell
   assert.equal(state.kind, 'shell');
   assert.equal(state.geometry.schema, 'saam-shell-geometry/1');
   assert.deepEqual(state.geometry.features.map(feature => feature.id), ['top', 'bottom', 'front', 'right', 'back', 'left']);
-  assert.deepEqual(state.skills, ['slice', 'draped-skin']);
+  assert.deepEqual(state.skills, ['slice']);
 
   // Reopening the stored file must rebuild the same closed shell.
   const bytes = await readFile(resolve(dir,state.geometryArtifact.file));
@@ -244,7 +246,7 @@ test('geometry and settings edits invalidate the approvals they affect', async t
   assert.notEqual(fingerprint, await bundleFingerprint(dir));
 
   await assert.rejects(updatePlan(dir, state.plan, stale), /stale/);
-  await assert.rejects(adjustBundle(dir, { skills: { 'draped-skin': { layer: 3 } } }), /Unknown setting/);
+  await assert.rejects(adjustBundle(dir, { slices: { assignments: [{...state.plan.slices.assignments[0],layer:3}] } }), /unexpected layer/);
   // The selected tool's declared layer range owns this rejection, not a fixed cap.
   await assert.rejects(adjustBundle(dir, { process: { layerMm: 0.9 } }), /Layer height outside profile limits/);
   await adjustBundle(dir,{process:{primeLine:{startMm:[5,5],endMm:[20,5],zMm:.2,widthMm:.4,heightMm:.2,speedMmS:10}}});
@@ -274,7 +276,8 @@ test('remembered S5 setup carries into the next shell print without a firmware v
   assert.equal(saved.setup.startupVerified, false);
 
   const next = resolve(dir, 'next-print');
-  await initBundle(next, undefined, { setupFile });
+  const nextPlan=await proposedPlan('ultimaker-s5',{setupFile});nextPlan.geometry=smallPlan().geometry;
+  await initBundle(next, nextPlan, { setupFile });
   const state = await loadBundle(next, { program: false });
   assert.equal(state.plan.setup.nozzleC, 205);
   assert.equal(state.plan.setup.firmwareVersion, '');
@@ -284,12 +287,12 @@ test('remembered S5 setup carries into the next shell print without a firmware v
 
 test('selecting one skill still produces one program from one plan', async t => {
   const plan = smallPlan();
-  plan.skills['draped-skin'].enabled = false;
+  plan.slices.assignments=plan.slices.assignments.filter(a=>a.construction!=='skin');
   const dir = await fixture(t, plan);
   await generateBundle(dir, { development: true });
   const state = await loadBundle(dir);
   assert.deepEqual(state.skills, ['slice']);
-  assert.ok(!state.program.moves.some(move => move.phase === 'draped-skin'), 'no skin is printed when it is not selected');
+  assert.ok(!state.program.moves.some(move => move.phase === 'skin'), 'no skin is printed when it is not selected');
   assert.equal(state.pathSummary.nonplanarLimit, undefined);
 });
 

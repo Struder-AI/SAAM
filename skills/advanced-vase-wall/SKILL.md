@@ -7,8 +7,8 @@ description: Vase walls patterned with repeated tiles or authored paths on a sle
 
 Use for tiled or authored patterns and fitted mesh sleeves. For a conventional
 continuous spiral, choose [standard vase mode](../vase-wall/SKILL.md).
-The two manuals share the existing `skills.vase-wall` recipe and slicer;
-`advanced-vase-wall` is a discovery/manual ID, not a separate recipe key.
+Both techniques use a `construction: "sleeve"` assignment in `plan.slices`;
+`advanced-vase-wall` is a discovery/manual ID.
 
 Use for an open single-wall vessel or tube. The selected solid or closed sleeve
 is a reference envelope; vase-wall deposits the wall and leaves the interior and
@@ -28,7 +28,7 @@ and `tiltDeg` belong to the tile, `cellsPerTurn` and `courseRiseMm` to the patte
 ## Workflow
 
 Use the [shared print tools](../../core/print/USAGE.md) for import, recipe changes, generation, Studio review
-and delivery. Enable `skills.vase-wall`; keep a slice assignment for a base.
+and delivery. Add a sleeve assignment; keep an ordinary assignment for a base.
 For a base, set a positive `zStartMm` aligned to the process layer grid. Set
 `zEndMm` explicitly when the upper geometry is unsuitable; generation never
 shortens a requested wall.
@@ -52,7 +52,6 @@ Example `mesh-vase-options.json` for a dense, wide-loop fit:
   "meshSleeve": {
     "fidelity": 0.5,
     "detailToleranceMm": 0.2,
-    "offsetTightness": 0,
     "contactSide": "inside",
     "circumferentialControls": 12,
     "heightControls": 6
@@ -69,12 +68,12 @@ The preparation command detects one dominant outer sleeve, chooses an explicit
 usable height interval, preserves the source mesh, and writes a normal recipe
 revision. `--expected-revision REV` protects a caller's revision. Preparation
 does not generate a program or grant approval. Existing tile/repeat choices are
-retained unless explicitly replaced; conflicting producers and regional plans
+retained unless explicitly replaced; conflicting assignments
 must be changed through the ordinary recipe tools.
 
-Use `composition.regions` for a same-part stack: vase-wall on the wall's band
-(slices own the base and cap below and above it), and later skills to their own material
-regions. The [shared lifecycle](../../core/print/README.md) carries geometry, operation dependencies, machine
+Use sleeve `zStartMm`/`zEndMm` for a same-part stack: the wall's band
+(ordinary slices own the base and cap), with other assignments for later work.
+The [shared lifecycle](../../core/print/README.md) carries geometry, operation dependencies, machine
 checks, Studio review and the exact delivered machine bytes.
 
 ## Input geometry: normally a solid
@@ -108,14 +107,11 @@ fidelity are separate. The default fit is 12 by 6 independent controls (72;
 90 stored with periodic seam duplicates); supported ranges are 8–48 circumferential and
 4–32 height controls.
 
-`meshSleeve.offsetTightness` is independent of mesh fidelity. It defaults to `0` for a
-fitted sleeve. At zero, the sleeve's loose horizontal ribbon preserves the
-fitted NURBS control count, degrees, knots and weights, and is exact at its
-Greville points. At one, queries use the exact offset along the unit horizontal
-normal. Intermediate values blend the two positions at query time; they do not
-refit or add control points. Nothing limits depth: where the bead offset passes
-a curvature radius the ribbon folds. The [shared offset contract](../../core/geom/README.md#loose-and-tight-spline-offsets)
-defines the ribbon. This is separate from source-mesh contact.
+Fitted sleeves use native horizontal NURBS section offsets with resolved
+crossings. Perimeter correspondence follows the retained contour; a split or
+collapsed offset rejects. These are loose offsets with controlled sampling,
+separate from source-mesh contact. The former `meshSleeve.offsetTightness`
+interpolation is removed because it could restore unresolved crossings.
 
 ## Sleeve patterns
 
@@ -143,7 +139,7 @@ boundaries. It adds no guide wall, connector, ring, hidden travel or automatic
 support solver. Segmented mode is the explicit alternative when travel across
 gaps is intended.
 
-For a reusable loop, `skills/vase-wall/scripts/tile.mjs` provides
+For a reusable loop, `core/path/sleeve-tile.mjs` provides
 `loopTile({widthCells, depthMm, samples, beadHeightMm, exterior})`; place that
 tile in a pattern with `cellsPerTurn`, `courseRiseMm`, `repeats` and `tiltDeg`.
 The mesh preparation helper accepts the same loop through its `--options` JSON,

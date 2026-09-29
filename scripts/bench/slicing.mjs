@@ -7,7 +7,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import { createHash } from 'node:crypto';
 import rhino3dm from 'rhino3dm';
-import { fixtures, fixtureShell, disposeShell, meshAtTolerance, binarySTL, rhino6Bytes } from './fixtures.mjs';
+import { fixtures, fixtureGeometry, fixtureShell, disposeShell, meshAtTolerance, binarySTL, rhino6Bytes } from './fixtures.mjs';
 import { makeMesh, parseSTL } from '../../core/geom/mesh.mjs';
 import { topAt } from '../../core/geom/query.mjs';
 import { section, horizontalSlice, sliceFamily } from '../../core/geom/slice.mjs';
@@ -16,10 +16,10 @@ import { translateShell } from '../../core/print/generate.mjs';
 import { defaults, VERSION, BUILD_DATE } from '../../core/print/plan.mjs';
 import { loadMachine, startupPosition, toolBounds, checkMachinePath } from '../../core/machine/profile.mjs';
 import { sliceResults } from '../../core/print/slices.mjs';
-import { surveySurface, drapedSkinResult } from '../../skills/draped-skin/scripts/drape.mjs';
+import { skinAssignment, surveySkinAssignment, skinResult } from '../../core/print/surface-constructions.mjs';
 import {createPlanningState,planContext,planFan,planRetraction,planMove,planningPath} from '../../core/path/planning.mjs';
 import { planComposition } from '../../core/path/compose.mjs';
-import { planarSupportTopAt } from '../../core/print/regions.mjs';
+import { planarSupportTopAt } from '../../core/region/support-surface.mjs';
 import { exportProgram, interpretProgram } from '../../core/export/registry.mjs';
 
 const args = process.argv.slice(2), arg = (name, fallback) => args.includes(name) ? args[args.indexOf(name) + 1] : fallback;
@@ -53,18 +53,20 @@ function compose(shell, plan, results) {
   const result=planningPath(cooled.state,[started.actions,composed.actions,retracted.actions,parked.actions,cooled.actions],{benchmark:true,composition:composed.summary});
   checkMachinePath(result,plan,machine);return result;
 }
-function skillTrial(shell, mode) {
+function skillTrial(shell, mode, geometry) {
   const plan = defaults(machine); plan.process.minimumLayerSeconds = 0;
-  plan.skills['draped-skin'].enabled = mode === 'draped';
+  plan.geometry=geometry;
+  const assignment=skinAssignment({id:'draped-skin'});
+  if(mode==='draped')plan.slices.assignments.push(assignment);
   // full and draped: a solid body; planar: the default slice (loops, sparse fill, solid top and bottom).
   if (mode !== 'planar') plan.slices.assignments[0].fillDensity = 1;
   let survey = null, results;
   const time = {};
   const t = performance.now();
-  if (mode === 'draped') { const m = measure(() => surveySurface(shell, plan.skills['draped-skin'], machine.nonplanar.maxAngleDeg)); survey = m.value; time.surveyMs = m.ms; }
+  if (mode === 'draped') { const m = measure(() => surveySkinAssignment({assignment,shell,machine})); survey = m.value; time.surveyMs = m.ms; }
   const p = measure(() => sliceResults({ plan, machine, shells: [[null, shell, true]], volumes: new Map(), bands: [], reserves: survey ? [survey] : [] }).results);
   results = p.value; time.bodyMs = p.ms;
-  if (mode === 'draped') { const m = measure(() => drapedSkinResult({ shell, plan, machine, survey,
+  if (mode === 'draped') { const m = measure(() => skinResult({ assignment,shell,process:plan.process,machine,survey,
     supportTopAt: planarSupportTopAt([{ shell }], plan.process, { allowBridge: true }),
     after: results.flatMap(r => r.operations.map(o => o.id)) })); results.push(m.value); time.skinMs = m.ms; }
   const c = measure(() => compose(shell, plan, results)); time.composeAndCheckMs = c.ms; time.sliceMs = performance.now() - t;
@@ -101,8 +103,9 @@ async function worker() {
   for (const mode of config.modes) {
     process.stderr.write(`${config.name} ${config.backend} ${mode}\n`);
     const attemptStarted = performance.now();
-    try { const first = skillTrial(placed, mode), samples = [];
-      for (let i = 0; i < trials; i++) samples.push(skillTrial(placed, mode));
+    try { const geometry=config.backend==='spline'?fixtureGeometry(config.name):{shape:'mesh',vertices:config.mesh.vertices,triangles:config.mesh.triangles};
+      const first = skillTrial(placed, mode, geometry), samples = [];
+      for (let i = 0; i < trials; i++) samples.push(skillTrial(placed, mode, geometry));
       if (samples.some(s => s.pathHash !== first.pathHash || s.exportHash !== first.exportHash)) throw new Error('Nondeterministic path/export');
       result.phases[mode] = Object.fromEntries(Object.keys(first.time).map(k => [k, { firstMs: first.time[k], ...stats(samples.map(s => s.time[k])) }]));
       result[mode] = { ...samples.at(-1), time: undefined };

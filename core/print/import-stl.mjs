@@ -40,7 +40,6 @@ export async function importSTLBundle(directory, sourceBytes, { units='auto', ma
   // the minimum XY at the origin, so the footprint size is the vertex span.
   const footprint=[0,1].map(k=>{let mn=Infinity,mx=-Infinity;for(const p of plan.geometry.vertices){mn=Math.min(mn,p[k]);mx=Math.max(mx,p[k]);}return mx-mn;});
   plan.placement = centeredPlacement(machine, plan.setup.tool, { runMm: footprint[0], widthMm: footprint[1] }) ?? { xMm: bounds.min[0] + 5, yMm: bounds.min[1] + 5 };
-  plan.skills['draped-skin'].enabled = false;
   return initBundle(directory, plan, { machineId: machine.id, setupFile, ...(file?{sourcePath:resolve(sourceBytes)}:{sourceBytes}) });
 }
 

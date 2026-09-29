@@ -40,7 +40,7 @@ test('Dobot executes actual archived Lua, preserves three skill paths and report
   expected.forEach((m,i)=>{m.to.forEach((v,k)=>assert.ok(Math.abs(v-program.moves[i].to[k])<6e-6));assert.equal(m.volumeMm3,program.moves[i].volumeMm3);});
   assert.ok(program.moves.some(m=>/^body:\d+:fill$/.test(m.operation)),'solid top and bottom layers');
   assert.ok(program.moves.some(m=>/^body:\d+:infill$/.test(m.operation)),'sparse infill');
-  assert.ok(program.moves.some(m=>m.phase==='draped-skin'));
+  assert.ok(program.moves.some(m=>m.phase==='skin'));
   assert.notDeepEqual(program.moves[0].to,program.moves[0].controllerTo,'display is inverse-calibrated to geometry');
   assert.equal(program.summary.filamentMm,null);assert.equal(program.summary.materialModel,'relay-estimate');
   assert.ok(program.summary.estimatedRelayVolumeMm3>0);assert.notEqual(program.volumeMm3,program.summary.estimatedRelayVolumeMm3);

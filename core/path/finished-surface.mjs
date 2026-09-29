@@ -5,6 +5,7 @@ import {topAt} from '../geom/query.mjs';
 import {section,prepareSection,horizontalSlice} from '../geom/slice.mjs';
 import {pointSegmentDistance,loopArea} from '../region/region2d.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
+import {depositedBeadSegments,depositedBeadsContain} from './deposited-curves.mjs';
 
 export function publishFinishedBoundary(result,{shell,startMm=shell.bounds.min[2],endMm=shell.bounds.max[2],boundary='shell',coverage='nominal',toleranceMm=.02,maxSlopeDeg=90,contains=null}){
   const sourceOperationIds=result.operations.filter(op=>op.strokes.length).map(op=>op.id);
@@ -25,6 +26,8 @@ export function publishFinishedBoundary(result,{shell,startMm=shell.bounds.min[2
 }
 
 export function consumeFinishedSurface({shell,selection,results}){
+  requireThat(!results.some(result=>result.modulationPendingPublication),
+    'A deposited boundary changed; finalize its bead coverage before constructing a dependent surface.');
   const sources=results.flatMap(result=>result.finishedSurfaces??[]).filter(source=>source.shell===shell);
   requireThat(sources.length,'Selected cladding surface has no finished material producer. Select a printed component or publish its finished boundary.');
   const chart=surfaceRegion(shell,selection),sourceOperationIds=[...new Set(sources.flatMap(source=>source.sourceOperationIds))];
@@ -35,4 +38,18 @@ export function consumeFinishedSurface({shell,selection,results}){
     return e;
   };
   return {...chart,at,sourceOperationIds,coverage:[...new Set(sources.map(source=>source.coverage))]};
+}
+
+// Retain the selected reference chart, but re-evaluate membership against final
+// deposited beads. An offset chart outside these beads is rejected by the
+// consumer; displacement does not pretend to rebuild an analytic CAD surface.
+export function republishDepositedBoundary(result,{widthMm}={}){
+  const segments=depositedBeadSegments(result.operations,{widthMm});
+  const sourceOperationIds=[...new Set(segments.map(segment=>segment.operationId))];
+  const startMm=segments.reduce((z,s)=>Math.min(z,s.a[2]-s.verticalMm,s.b[2]-s.verticalMm),Infinity);
+  const endMm=segments.reduce((z,s)=>Math.max(z,s.a[2],s.b[2]),-Infinity);
+  return {...result,modulationPendingPublication:false,finishedSurfaces:(result.finishedSurfaces??[]).map(surface=>({
+    ...surface,startMm,endMm,sourceOperationIds,coverage:'sparse',
+    contains:e=>depositedBeadsContain(segments,e.point)
+  }))};
 }

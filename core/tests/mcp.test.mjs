@@ -13,6 +13,7 @@ import { boxMesh } from './fixtures/mesh.mjs';
 import {createTour} from '../../studio/tour.mjs';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
+import {sleeveAssignment} from '../print/sleeve-constructions.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 async function clientFor(t, printsRoot) {
@@ -44,7 +45,6 @@ async function smallPlan(call, machineId = 'ultimaker-s5') {
   const { plan } = await call('get_recipe_defaults', { kind: 'shell', machineId });
   plan.process.minimumLayerSeconds = 0;
   plan.geometry = splineBox({runMm:12,widthMm:10,heightMm:1});
-  plan.skills['draped-skin'].enabled = false;
   return plan;
 }
 
@@ -146,7 +146,7 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   assert.ok(!names.some(name => /^(approve|post_process|compile_plan)$/.test(name)));
   assert.ok((await call('list_skills')).some(skill => skill.id === 'slice'));
   assert.ok((await call('list_skills')).some(skill => skill.id === 'supports'));
-  assert.ok((await call('list_skills')).some(skill => skill.id === 'pipe-cladding'));
+  assert.equal((await call('read_skill',{skillId:'pipe-cladding'})).skillId,'pipe-cladding');
   assert.ok((await call('list_skills')).some(skill => skill.id === 'mesh-tools' && skill.kind === 'geometry'));
   assert.ok((await call('list_skills')).some(skill => skill.id === 'text' && skill.kind === 'geometry'));
   assert.equal((await call('read_skill', {skillId:'supports'})).skillId,'supports');
@@ -389,21 +389,20 @@ test('MCP reopens shared nested names and rejects ancestor junctions and invalid
   await assert.rejects(access(resolve(outside, 'Escape')), { code: 'ENOENT' });
 });
 
-test('MCP preserves the shared regional recipe and configurable composition without a narrower transport schema', async t => {
-  const { call, printsRoot } = await fixture(t), bundleId = 'Regional Plan';
+test('MCP preserves the common sleeve recipe and configurable composition without a narrower transport schema', async t => {
+  const { call, printsRoot } = await fixture(t), bundleId = 'Sleeve Plan';
   const plan = await smallPlan(call);
-  plan.composition.regions = [{ id: 'wall', part: null, zStartMm: 0.6, zEndMm: null,
-    skills: { 'vase-wall': { endTransition: 'level' } }, lowerSurfaceFrom: null }];
+  plan.slices.assignments.push(sleeveAssignment({id:'wall',zStartMm:0.6,endTransition:'level'}));
   const created = await call('create_bundle', { bundleId, kind: 'shell', machineId: 'ultimaker-s5', plan });
-  assert.deepEqual(created.skills, ['slice', 'vase-wall']);
+  assert.deepEqual(created.skills, ['slice']);
   const checked = await call('check_path', { bundleId });
   assert.ok(checked.composition.operationOrder.length > 0);
   const changed = await call('adjust_recipe', { bundleId, expectedRevision: created.revision,
     patch: { composition: { batchLayers: 2, order: [checked.composition.operationOrder[0]], dependencies: [] } } });
   const reopened = await call('get_bundle', { bundleId, includeGeometry: true });
-  assert.deepEqual(reopened.plan.composition.regions, plan.composition.regions);
+  assert.deepEqual(reopened.plan.slices.assignments, plan.slices.assignments);
   assert.equal(reopened.plan.composition.batchLayers, 2);
-  assert.deepEqual(reopened.skills, ['slice', 'vase-wall']);
+  assert.deepEqual(reopened.skills, ['slice']);
   assert.notEqual(changed.revision, created.revision);
   await assert.rejects(access(resolve(printsRoot, bundleId, 'path.saampath')), { code: 'ENOENT' });
 });

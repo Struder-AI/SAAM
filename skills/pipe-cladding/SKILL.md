@@ -15,10 +15,10 @@ axis coaxial with the rotary remains provisional. No physical print is validated
 
 Cladding coats the finished outer boundary of a printed substrate, selected as a
 [sleeve](#select-the-sleeve). Author the substrate like any other part: a spline
-or mesh tube printed by slices, vase-wall or draped-skin, in
-whole components or `composition.regions`. Keep cladding in the global skill
-settings and set `part` when selecting an assembly component. Cladding waits for
-that component's surface producers, then builds outward.
+or mesh tube printed by common slice, sleeve or skin assignments. Add a
+`construction:'cladding'` record to `plan.slices.assignments`; set `part` for an
+assembly component. `source:null` consumes its finalized producers, or an assignment
+ID selects one producer. Cladding waits for those operations, then builds outward.
 
 The first shell runs up and down the sleeve, continuing deposition across the
 short index between neighboring tracks at each end. The next is a circumferential
@@ -29,9 +29,10 @@ off. Wider [line spacing](../../core/print/USAGE.md#line-spacing) opens the
 crossed pattern without increasing bead width. Each shell depends on the complete
 preceding shell; the existing operation composer owns dependencies, joins and order.
 
-| Setting under `skills.pipe-cladding` | Default | Meaning |
+| Cladding assignment field | Default | Meaning |
 |---|---|---|
-| `enabled` | `false` | Select cladding. |
+| `id`, `construction` | required, `cladding` | Unique assignment ID and construction. |
+| `source`, `filament`, `process`, `after` | `null`, `null`, `null`, `[]` | Producer selection, material, process overrides and operation prerequisites. |
 | `part` | `null` | Component whose finished surface is coated; required in an assembly. |
 | `pattern` | `axial-hoop` | Alternating axial/helix shells, or `crossed-helices`. |
 | `shells` | `4` | Positive integer; follows the selected pattern outward. |
@@ -39,7 +40,7 @@ preceding shell; the existing operation composer owns dependencies, joins and or
 | `tiltDeg` | `45` | Tool tilt from the downward surface tangent toward the surface, between 0 and 90. |
 | `sampleStepMm` | `1` | Maximum sample spacing along courses. |
 | `toleranceMm` | `0.01` | Chord tolerance. |
-| `surface` | `null` | The sleeve; required when enabled. |
+| `surface` | `null` | Required periodic surface chart. |
 | `offsetTightness` | `1` | For spline sleeves, blend a fixed-size loose NURBS offset field (`0`) toward the exact unit-normal offset (`1`). Mesh strips keep exact normal interpolation. |
 
 Shared line width sets track spacing and helix pitch; `skinSpeedMmS` controls
@@ -67,14 +68,15 @@ A spline tube is four patches that share one periodic cubic U basis (exterior,
 bore, and two annular ends ruled between them); [GEOMETRY.md](../../GEOMETRY.md#spline-surfaces)
 describes periodic sleeves and the tube.
 
-For a hollow vase substrate, enable vase-wall and keep a slice assignment only for a
+For a hollow substrate, add a sleeve assignment and keep an ordinary slice for a
 solid base, and select the same geometry's side as the sleeve. A level vase
 ending supplies the complete side height; a spiral ending publishes only the side
 below its lowest unfinished rim. The [finished-surface interface](../../core/path/README.md#finished-surfaces)
 binds chart geometry, material extent, coverage and source operation IDs.
 Unprinted components and selections outside a published extent are rejected.
-Sparse coverage stays identified as sparse; contact or bridging still requires
-process judgment. Authored free-form paths do not publish a filled surface.
+Membership is checked against finalized deposited beads, including modulation;
+a nominal chart displaced outside that coverage is rejected. Pose-bearing
+cladding modulation is unsupported. Authored free-form paths do not publish a filled surface.
 
 ### Coverage and pose
 
@@ -112,7 +114,7 @@ and execution remain unverified.
 ## Machine setup and source output
 
 Read the [RC8A output contract](../../core/export/denso.md#denso-rc8a-output-contract).
-The profile is unconfigured by default. Record the actual tool/work frames,
+Record the actual tool/work frames,
 arm group and figure, rotary interface/axis/sign/zero, bed center, frame offset/yaw,
 initial position/orientation, relay IO and measured relay rate in `setup.denso`.
 `configurationSource` and `mounting` describe the basis for those values.
@@ -134,7 +136,6 @@ source to the appropriate WINCAPS III project and compile/transfer using its
 installed controller configuration. SAAM has not verified that vendor import or
 compilation. It interprets its emitted literal `Move L, @0 T(...) EX(...), Time=...`
 subset and relay `Set/Reset IO` commands; it is not a general PacScript interpreter.
-The same exact archived source drives Studio and delivery.
 
 RC8A handles inverse kinematics for Cartesian poses. SAAM defers reach, singularity,
 joint and motion-limit checks as requested, alongside collision avoidance.
@@ -165,10 +166,9 @@ controls around a 16 mm bore, 32 mm tall, printed solid with three loops
 and six shells; its pseudo-random phases are fixed. Both use invented installation
 values labeled in the plan and never remembered, create no approvals and execute
 no hardware. For another provisional RC8A part, call `developmentPipePlan()` from
-[demo.mjs](scripts/demo.mjs), replace its geometry and skills, then
+[demo.mjs](scripts/demo.mjs), replace its geometry and assignments, then
 `initBundle(directory, plan, {machineId:'denso-vs068a4-rc8a'})` and generate in
-development mode. Disable pipe-cladding when selecting only ordinary
-fixed-orientation skills.
+development mode. Remove the cladding assignment for ordinary fixed-orientation work.
 
 Studio defaults to **Follow build plate**, retaining stationary part coordinates;
 clear it to inspect bed and material rotation in the room frame. **Machine view**

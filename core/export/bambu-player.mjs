@@ -25,6 +25,11 @@ export function interpretBody(body,plan,machine,options={}){
 
 export function interpretMultiBody(body,plan,machine,{moves=[]}={}){
   const initial=plan.setup.bambu.filament,debt={},sequence=[initial],usedTools=new Map([[plan.setup.tool,initial]]),usage=new Map(),events=[];
+  const candidates=plan.slices.assignments.flatMap(assignment=>{
+    const owners=assignment.construction?[assignment.id]:assignment.part!==null?[assignment.part+':'+assignment.id]
+      :plan.geometry.shape==='assembly'?plan.geometry.parts.map(part=>part.id+':'+assignment.id):[assignment.id];
+    return owners.map(owner=>({owner,assignment}));
+  }).sort((a,b)=>b.owner.length-a.owner.length);
   let filament=initial,position=[...machine.tools[plan.setup.tool].startupXY,machine.startup.zAfterStartupMm],fan=0,time=0,volume=0,extrusions=0,count=0,cursor=0,lineOffset=0,maxDepositedZ=0;
   while(cursor<body.length){
     const marker=body.indexOf(CHANGE_BEGIN,cursor),end=marker<0?body.length:marker,chunk=body.slice(cursor,end);
@@ -32,9 +37,9 @@ export function interpretMultiBody(body,plan,machine,{moves=[]}={}){
     requireThat(chunk.startsWith(prelude(selected)),'Bambu segment is missing explicit modal/temperature state.');
     let length=0;
     const sink={get length(){return length;},push(move){
-      const region=selected.composition.regions.find(r=>move.operation?.startsWith(r.id+':'));
+      const assignment=candidates.find(item=>move.operation?.startsWith(item.owner+':'))?.assignment;
       const tagged={...move,line:move.line+lineOffset,startSeconds:move.startSeconds+time,tool:selected.setup.tool,filament,
-        nozzleMm:selected.setup.nozzleMm,lineWidthMm:region?.process?.lineWidthMm??selected.process.lineWidthMm,filamentColor:selected.setup.filamentColor};
+        nozzleMm:selected.setup.nozzleMm,lineWidthMm:assignment?.process?.lineWidthMm??selected.process.lineWidthMm,filamentColor:selected.setup.filamentColor};
       moves.push(tagged);length++;
       if(move.extruding)maxDepositedZ=Math.max(maxDepositedZ,...[move.from[2],move.to[2]]);
     }};

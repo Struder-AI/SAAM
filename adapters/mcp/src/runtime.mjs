@@ -21,13 +21,14 @@ import {createGridfinityBundle,updateGridfinityBundle} from '../../../skills/gri
 import {createBlobFieldBundle,updateBlobFieldBundle} from '../../../core/print/blob-field.mjs';
 import { applyText } from '../../../core/print/text.mjs';
 import {applySlice} from '../../../core/print/slice-edit.mjs';
+import {applyModulation} from '../../../core/print/modulation.mjs';
 import { applyHeatSet } from '../../../core/print/heat-set.mjs';
 import {intersectRequest,combineGeometry} from '../../../core/print/geometry-tools.mjs';
 import {loadLocalExtension} from '../../../core/local-extension.mjs';
 import {lifecycleReview} from '../../../core/print/review-state.mjs';
 import { readGuidance, readManual } from './manuals.mjs';
 import { onboardingSources, printHint } from '../../../core/agent/layers.mjs';
-import { SKILL_IDS, skillMetadata } from '../../../skills/catalog.mjs';
+import { SKILL_IDS, TECHNIQUE_IDS, skillMetadata } from '../../../skills/catalog.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const installedExtension=await loadLocalExtension(root);
@@ -253,12 +254,12 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       defaultSetup: m.defaultSetup };
   }));
   tool('list_skills', 'List the known local toolpath, geometry and hybrid skill manuals. This fixed list does not establish recipe compatibility; geometry skills are not deposition operations, and hybrid skills change geometry and deposit their own toolpath. Select the manual relevant to the requested task.', {}, skills);
-  tool('read_skill', 'Read a skill manual by ID, or one section as ID#heading whatever its gate. Sections gated to command access or to machine capabilities are listed in omitted; machineId opens the ones that printer meets. Links are repository paths for read_guidance.',
+  tool('read_skill', 'Read a skill or construction technique manual by ID, or one section as ID#heading whatever its gate. Sections gated to command access or to machine capabilities are listed in omitted; machineId opens the ones that printer meets. Links are repository paths for read_guidance.',
     { skillId: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}(#[^\s#]{1,200})?$/), machineId: machineIdSchema }, async ({ skillId: name, machineId }) => {
     const [skillId, anchor] = name.split('#');
-    if (!SKILL_IDS.includes(skillId)) {
+    if (!SKILL_IDS.includes(skillId)&&!TECHNIQUE_IDS.includes(skillId)) {
       const local=await localExtension.readSkill?.(skillId);if(local)return local;
-      throw new Error('Unknown skill ID. Use list_skills.');
+      throw new Error('Unknown skill or technique ID. Use list_skills and its manual links.');
     }
     const { text: manual, ...reference } = await readManual(root, `skills/${skillId}/SKILL.md${anchor ? '#' + anchor : ''}`, { client: 'web', machineId });
     return { skillId, manual, ...reference };
@@ -355,7 +356,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       if(state.kind!=='shell')throw new Error('Select a shared shell/mesh print.');
       return summary(bundleId,await updateGridfinityBundle(dir,parameters,{expectedRevision,part}));
     },false);
-  tool('apply_text', 'Add, edit or remove raised/recessed text using a local font and a part or independent spline reference. Read the text skill for request fields. Rebuilds actual geometry and invalidates approvals; use request_review afterward.',
+  tool('apply_text', 'Add, edit or remove raised/recessed text using a local font and a part or independent spline reference. Read text for request fields; assignments can replace the common plan.slices list atomically with geometry. Rebuilds actual geometry and invalidates approvals; use request_review afterward.',
     {bundleId:bundleIdSchema,expectedRevision:z.string().min(1),request:objectSchema},async({bundleId,expectedRevision,request},session)=>{
       noApprovalFields(request);
       if(session?.remote&&request.feature?.fontPath!==undefined)await requireSystemFont(String(request.feature.fontPath));
@@ -381,10 +382,17 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       return summary(bundleId,await combineGeometry(dir,request,{expectedRevision}));
     },false);
   tool('slice', 'Add, edit or remove one general deposition assignment in plan.slices. Uses the same recipe validation as adjust_recipe; add fills shared defaults, edit merges objects and replaces arrays. Order controls ownership: before names an existing assignment or null appends. Returns saved settings and deferred generation checks, not feasibility claims. Read slice for surface/stack/curve fields.',
-    {bundleId:bundleIdSchema,expectedRevision:z.string().min(1),action:z.enum(['add','edit','remove']),id:z.string().regex(/^[a-z][a-z0-9-]*$/),assignment:objectSchema.describe('Add overrides or edit patch. Volume: part, preset, filament, loops, fillDensity, fillPattern, fillAnglesDeg, rotateFill, solidTop, solidBottom, fillOverlap, spacingFactor, sampleStepMm, within, surface, stack. Authored curves/bridges use construction and the common records in read_skill slice.').optional(),before:z.string().nullable().describe('Existing assignment id to insert before; null appends; omitted retains edit position or appends an add.').optional()},
+    {bundleId:bundleIdSchema,expectedRevision:z.string().min(1),action:z.enum(['add','edit','remove']),id:z.string().regex(/^[a-z][a-z0-9-]*$/),assignment:objectSchema.describe('Add overrides or edit patch. Volume: part, preset, filament, process, loops, fillDensity, fillPattern, fillAnglesDeg, rotateFill, solidTop, solidBottom, fillOverlap, spacingFactor, sampleStepMm, within, surface, stack. Common construction records include skin, fronts, sleeve, rim, cladding, curves and bridges; read slice and its technique manuals.').optional(),before:z.string().nullable().describe('Existing assignment id to insert before; null appends; omitted retains edit position or appends an add.').optional()},
     async({bundleId,expectedRevision,...request})=>{
       noApprovalFields(request.assignment);
       const {dir}=await locate(bundleId),result=await applySlice(dir,request,{expectedRevision});
+      return {...summary(bundleId,result.state),edit:result.edit};
+    },false);
+  tool('modulate', 'Add, edit or remove a world-space field modifier in plan.modulations. Applied to selected assignment/role deposition before final support publication; changes invalidate dependent output and confirmation. Read slice#modulation for field records, channel units and unsupported cases.',
+    {bundleId:bundleIdSchema,expectedRevision:z.string().min(1),action:z.enum(['add','edit','remove']),id:z.string().regex(/^[a-z][a-z0-9-]*$/),modifier:objectSchema.describe('Add requires channel displacement|flow|width, amplitude and field; displacement also needs direction XYZ or lateral. Optional assignments/roles (null means all), sampleStepMm (0.2), tolerance (0.01). Edit patches a saved modifier; remove omits it.').optional()},
+    async({bundleId,expectedRevision,...request})=>{
+      noApprovalFields(request.modifier);
+      const {dir}=await locate(bundleId),result=await applyModulation(dir,request,{expectedRevision});
       return {...summary(bundleId,result.state),edit:result.edit};
     },false);
   tool('adjust_recipe', 'Apply a validated chat recipe patch at expectedRevision. Geometry or process edits invalidate the final settings/toolpath confirmation. Read fresh state if stale.',

@@ -47,13 +47,13 @@ and one continuous stroke per accepted spline slice. A slice is the cooling unit
 there is no interleaving, retraction or travel between its fronts. Whole-component
 seed and successor dependencies bind through the same composer, with slices in
 array order. The producer rejects geometry requiring disconnected passes.
-Material ownership is explicit; it does not publish `lowerSurfaceFrom` coverage.
+Material ownership is explicit; fronts do not publish a finished surface chart.
 
 `core/path/compose.mjs` is skill-independent. It topologically orders operations,
 rejects duplicate IDs, missing dependencies and cycles, and uses stable result
 order to break ties. Plan `composition` contains `batchLayers` (1–20), `order`
 (an optional ordered subsequence of operation IDs), and `dependencies` (additional
-`{before, after}` edges), plus optional material `regions` described below. Ready
+`{before, after}` edges). Material claims live in common slice assignments. Ready
 operations are grouped by maximum actual deposition Z to keep skill heights
 similar. Batch size 1 alternates compatible results at each height; size 2 gives
 AA–BB for two results with matching layers. Rank breaks ties within a result's
@@ -92,7 +92,7 @@ No lookahead, travel-time scoring or heat balancing is included; see
 An assembly's `geometry.parts` holds named components with `geometry` and
 `xMm/yMm/zMm` translations; native geometry preserves each component's representation.
 A slice assignment's `part` selects its component (`null` means all), producing
-one owner per component. `skills.draped-skin.part` selects
+one owner per component. A `construction: 'skin'` assignment's `part` selects
 the roof component for an assembly. Assemblies accept supported spline builders
 and validated meshes; they are not automatic boolean solids. Assign regions
 and geometry deliberately; component selection is part of the reviewed recipe.

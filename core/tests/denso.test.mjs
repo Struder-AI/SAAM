@@ -16,7 +16,8 @@ import {exportProgram,interpretProgram,exportAndInterpretProgram} from '../expor
 import {interpretDensoFiles} from '../export/denso-player.mjs';
 import {unpackZip} from '../export/zip.mjs';
 import {bedPoint,uprightPose} from '../path/pose.mjs';
-import {surfaceCladdingResult} from '../../skills/pipe-cladding/scripts/surface-clad.mjs';
+import {claddingResult} from '../print/cladding-constructions.mjs';
+import {surfaceRegion} from '../geom/surface-region.mjs';
 import {buildShell} from '../print/generate.mjs';
 import {splineTube} from './fixtures/spline-shapes.mjs';
 import {scheduleOperations} from '../path/compose.mjs';
@@ -25,7 +26,7 @@ import {decodeSource,fetchSources} from '../../studio/source-player.mjs';
 import {createStudio} from '../../studio/server.mjs';
 import {regionalStackPlan} from './fixtures/regional-stack.mjs';
 const machine=loadMachine('denso-vs068a4-rc8a'),near=(a,b,t=1e-6)=>assert.ok(Math.abs(a-b)<t,`${a} != ${b}`);
-const small=()=>{const p=developmentPipePlan();p.geometry=splineTube({columns:24,heightMm:1.2,boreRadiusMm:8,radiusAt:()=>10.4});p.skills['pipe-cladding'].shells=2;return p;};
+const small=()=>{const p=developmentPipePlan();p.geometry=splineTube({columns:24,heightMm:1.2,boreRadiusMm:8,radiusAt:()=>10.4});p.slices.assignments.find(a=>a.construction==='cladding').shells=2;return p;};
 const sources=bytes=>Object.fromEntries([...unpackZip(bytes)].filter(([name])=>name.endsWith('.pcs')).map(([name,b])=>[name,b.toString()]));
 
 test('DENSO setup is unresolved by default; tube geometry uses the shared native spline lifecycle',async()=>{
@@ -34,13 +35,15 @@ test('DENSO setup is unresolved by default; tube geometry uses the shared native
   const plan=small();validatePlan(plan,machine);
   const native=await createGeometry(plan.geometry);await verifyGeometry(native.bytes,native.descriptor);
   assert.equal(native.descriptor.nativeFile,undefined);
-  const s5=loadMachine(),old=defaults(s5);old.geometry=plan.geometry;old.placement={xMm:100,yMm:100};old.skills['draped-skin'].enabled=false;
+  const s5=loadMachine(),old=defaults(s5);old.geometry=plan.geometry;old.placement={xMm:100,yMm:100};
   const path=generatePath(old,s5,await rhino());assert.ok(interpretProgram(exportProgram(path,old,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),old,s5).moves.some(m=>m.extruding));
-  old.skills['pipe-cladding'].enabled=true;assert.throws(()=>validatePlan(old,s5),/orientation/);
+  old.slices.assignments.push(structuredClone(plan.slices.assignments.find(a=>a.construction==='cladding')));assert.throws(()=>validatePlan(old,s5),/orientation/);
 });
 
 test('same-height cylindrical shells retain explicit prerequisites in the existing scheduler',async()=>{
-  const plan=small(),result=surfaceCladdingResult({plan,shell:buildShell(await rhino(),plan.geometry),after:['body']}),first=result.operations[0];
+  const plan=small(),assignment=plan.slices.assignments.find(a=>a.construction==='cladding'),shell=buildShell(await rhino(),plan.geometry);
+  const finishedSurface={...surfaceRegion(shell,assignment.surface),sourceOperationIds:['body'],coverage:['nominal']};
+  const result=claddingResult({assignment,shell,process:plan.process,motion:plan.setup.denso,finishedSurface}),first=result.operations[0];
   const body={...first,id:'body',layerId:'body',after:[],rank:999};
   assert.deepEqual(scheduleOperations([{operations:[...result.operations,body]}]).map(o=>o.id),['body','pipe-cladding:0','pipe-cladding:1']);
   assert.throws(()=>scheduleOperations([result]),/Unknown/);
@@ -52,7 +55,7 @@ test('existing mesh/spline regional skills use RC8A at fixed orientation',async(
   for(const backend of ['mesh','spline']) {
     const plan=regionalStackPlan(machine,backend);plan.setup=small().setup;
     const path=generatePath(plan,machine,await rhino()),program=interpretProgram(exportProgram(path,plan,machine),plan,machine);
-    for(const phase of ['planar','vase-wall','draped-skin'])assert.ok(program.moves.some(m=>m.extruding&&m.phase===phase),phase);
+    for(const phase of ['planar','vase-wall','skin'])assert.ok(program.moves.some(m=>m.extruding&&m.phase===phase),phase);
     assert.ok(program.moves.every(m=>m.rotaryToDeg===0&&m.toolAxisTo[2]===-1));
     near(program.volumeMm3,path.actions.reduce((sum,a)=>sum+(a.volumeMm3??0),0));
   }
@@ -97,7 +100,7 @@ test('tube export retains the substrate and tilted axial/hoop shells outside it'
   assert.ok(clad.every(m=>Math.hypot(...m.to.slice(0,2))>outside-1e-6));
   for(const m of clad){near(Math.acos(-m.toolAxisTo[2])*180/Math.PI,45,.001);assert.ok(m.to[2]>=-1e-8&&m.to[2]<=1.2+1e-8);}
   // The retired maxPoints budget is an unknown field.
-  const stale=structuredClone(plan);stale.skills['pipe-cladding'].maxPoints=100;assert.throws(()=>validatePlan(stale,machine),/Unexpected or missing fields/);
+  const stale=structuredClone(plan);stale.slices.assignments.find(a=>a.construction==='cladding').maxPoints=100;assert.throws(()=>validatePlan(stale,machine),/Invalid cladding assignment fields/);
 });
 
 test('RC8A uses the public bundle, exact browser source and cold reopen without reslicing',async t=>{

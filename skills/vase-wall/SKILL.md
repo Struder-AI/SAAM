@@ -11,26 +11,23 @@ recipe leaves the interior hollow. No pattern or `meshSleeve` preparation is nee
 For repeated loops, authored patterns or adjustable mesh conformance, choose
 [advanced vase mode](../advanced-vase-wall/SKILL.md).
 
-Both manuals use the existing `skills.vase-wall` recipe and slicer. Their separate
-skill-digest entries guide selection; they do not introduce another recipe key.
+Both techniques use `construction: "sleeve"` in `plan.slices.assignments`.
 
 ## Workflow
 
 Use the [shared print tools](../../core/print/USAGE.md) to create/import a print,
-adjust its recipe, generate and review it in Studio. Enable `skills.vase-wall`,
-set `pattern: null`, `pathMode: "continuous"` and `meshSleeve: null`.
+adjust its recipe, generate and review it in Studio. Add a sleeve assignment with
+`pattern: null`, `pathMode: "continuous"` and `meshSleeve: null`.
 When converting an advanced recipe, reset all three explicitly.
 Disable other wall/interior producers on the same material region.
 
 For a solid base, keep a [slice](../slice/SKILL.md) assignment (`fillDensity: 1`)
 and set a positive `zStartMm` on the process layer grid; the wall claims the part
 above it. Without a base, remove the slice assignments and use `zStartMm: 0`.
-Disable unwanted default skills, including draped-skin, through ordinary recipe
-adjustment. A closed top is not part of standard vase mode.
+Remove unwanted overlapping assignments. A closed top is not part of this mode.
 
-For a same-part stack, assign vase-wall to the wall's band in
-`composition.regions`; slice assignments own the base below it. An optional [thick lip](../thick-lip/SKILL.md)
-can follow a level-ended wall through that regional workflow.
+Sleeve `zStartMm`/`zEndMm` select its band; ordinary assignments own material
+outside it. A [rim assignment](../thick-lip/SKILL.md) can follow a level ending.
 
 ## Input geometry: normally a solid
 
@@ -42,16 +39,16 @@ faces and open uncapped meshes are unsupported.
 
 Standard mode follows changing-height geometry sections. On a mesh it fits one
 periodic NURBS **sleeve** (a surface periodic around the part and open along its
-height, the side of a tube; never itself deposited) to the wall interval and follows its loose horizontal ribbon (the sleeve moved inward by half a bead, Z kept), which
-avoids rebuilding a section, offset and contour at every rising sample and is
-dramatically faster on curved walls. `sleeveToleranceMm` (default 0.08 mm) is the
+height, the side of a tube; never itself deposited). Native horizontal NURBS
+sections are offset inward by half a bead and crossings resolved before contour
+correspondence and spiral mapping. `sleeveToleranceMm` (default 0.08 mm) is the
 target deviation from the true section: the fit scales its resolution toward it
 and reports the residual achieved. A wall thinner than the bead, or a section
 that is not a single sleeve, returns to the exact per-section wall. Set
 `sleeveToleranceMm: 0` to force the exact wall — for example when a corner or
 feature must be held to `boundaryToleranceMm` rather than the sleeve tolerance.
-Spline geometry always uses the exact section path. Choose `zEndMm` explicitly if
-the upper geometry is unsuitable; generation never silently shortens the wall.
+Fitted offsets are loose, with controlled sampling; source-mesh sections use
+polygon offsets. Choose `zEndMm` if the upper geometry is unsuitable.
 
 ## Settings
 

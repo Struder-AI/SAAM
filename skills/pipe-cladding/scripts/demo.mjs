@@ -1,4 +1,5 @@
 // Explicit development setup; never remembered as an installation calibration.
+import {claddingAssignment} from '../../../core/print/cladding-constructions.mjs';
 import {defaults} from '../../../core/print/plan.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
 import {clampedKnots} from '../../../core/geom/spline-solid.mjs';
@@ -34,8 +35,8 @@ export const tubeSurface=columns=>({kind:'spline',patch:'outer',periodicU:true,n
 export function developmentPipePlan(machine=loadMachine('denso-vs068a4-rc8a')){
   const plan=defaults(machine),columns=24;
   plan.geometry=splineTube({columns,heightMm:12,boreRadiusMm:8,radiusAt:()=>10.4});
-  plan.placement={xMm:0,yMm:0};plan.skills['draped-skin'].enabled=false;
-  Object.assign(plan.skills['pipe-cladding'],{enabled:true,surface:tubeSurface(columns)});
+  plan.placement={xMm:0,yMm:0};
+  plan.slices.assignments.push(claddingAssignment({id:'pipe-cladding',surface:tubeSurface(columns)}));
   plan.setup.nozzleC=210;plan.process.skinSpeedMmS=8;
   Object.assign(plan.setup.denso,{configurationSource:'SYNTHETIC DEVELOPMENT FIXTURE. Not calibration of the user installation.',toolFrame:1,workFrame:1,armGroup:1,figure:1,
     extrusionOutput:64,extrusionRateMm3S:0.64,rotaryInterface:'rc8a-relative-ex'});

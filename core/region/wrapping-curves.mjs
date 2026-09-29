@@ -1,15 +1,13 @@
-// Surface coverage producer. Geometry and normal offsets live in shared core;
-// this skill only chooses courses, local cell widths, poses and dependencies.
-import {CONNECT_MOVE_MM} from '../../../core/path/planning.mjs';
-import {surfaceRegion} from '../../../core/geom/surface-region.mjs';
-import {prepareSurfaceOffset} from '../../../core/geom/surface-offset.mjs';
-import {sampleSurfaceCurve} from '../../../core/region/normal-surface.mjs';
-import {requireThat,distance,normalize,cross,scale,add,dot,findRoot,subtract} from '../../../core/geom/tolerance.mjs';
-import {lineSpacing,spacingFactor} from '../../../core/path/spacing.mjs';
-import {claddingCourse} from './course.mjs';
+// Boundary chart -> courses, local cell widths and declared robot/rotary poses.
+// Deposition and operation dependencies are constructed by the caller.
+import {prepareSurfaceOffset} from '../geom/surface-offset.mjs';
+import {sampleSurfaceCurve} from '../region/normal-surface.mjs';
+import {requireThat,distance,normalize,cross,scale,add,dot,findRoot,subtract} from '../geom/tolerance.mjs';
+import {lineSpacing,spacingFactor} from '../path/spacing.mjs';
+import {claddingCourse} from '../path/surface-courses.mjs';
 
-export function surfaceCladdingResult({shell,plan,after=[],id='pipe-cladding',finishedSurface=null}){
-  const s=plan.skills['pipe-cladding'],p=plan.process,chart=finishedSurface??surfaceRegion(shell,s.surface),w=p.lineWidthMm;
+export function constructCladdingCourses({shell,settings,process,motion,chart}){
+  const s=settings,p=process,w=p.lineWidthMm;
   // Mesh strips retain their interpolated normal metric. The optional loose
   // surface offset is only meaningful for an explicit native spline chart;
   // offsetTightness blends its point toward the exact unit-normal offset.
@@ -25,17 +23,17 @@ export function surfaceCladdingResult({shell,plan,after=[],id='pipe-cladding',fi
   const offsetChart=(depth)=>offsetField?{...chart,at:(u,v)=>({...chart.at(u,v),point:offsetPoint(u,v,depth)})}:chart;
   const trackPitch=lineSpacing(w,s),factor=spacingFactor(s);
   requireThat(chart.periodicU,'This wrapping producer needs a periodic U region; open-patch raster cladding is not yet implemented.');
-  const center=plan.setup.denso.rotaryCenterMm;
+  const center=motion.rotaryCenterMm;
   // Chord tolerance and step target decide how many samples every curve needs;
   // survey and course counts follow the measured surface, not a fixed budget.
   const options={toleranceMm:s.toleranceMm,maxStepMm:s.sampleStepMm};
-  let points=0,angle=0,previous=[...new Set([...after,...(chart.sourceOperationIds??[])])],helixStartU=0;const operations=[];
+  let points=0,angle=0,helixStartU=0;const courses=[];
   const report={backend:chart.backend,shells:s.shells,points:0,partialAxialPasses:0,fullAxialPasses:0,axialPasses:0,
     offsetTightness:offsetField?s.offsetTightness:1,
     minBeadWidthMm:Infinity,maxBeadWidthMm:0,interface:'outward normal offsets from selected substrate surface',
     coverage:'Arc-length cells in each U sector; partial axial courses start/end where a cell appears/disappears. Sampled coverage, not a global geodesic guarantee.',
     physicalValidation:'not performed'};
-  const newStroke=role=>({role,closed:false,points:[],poses:[],volumesMm3:[],speedMmS:p.skinSpeedMmS});
+  const newStroke=role=>({role,closed:false,points:[],poses:[],widthsMm:[],heightMm:s.normalMm,segmentMetadata:[],speedMmS:p.skinSpeedMmS});
   const pose=e=>{
     const radius=Math.hypot(e.point[0]-center[0],e.point[1]-center[1]);requireThat(radius>1e-6,'Cladding crosses the rotary axis.');
     const raw=-Math.atan2(e.point[1]-center[1],e.point[0]-center[0])*180/Math.PI;
@@ -47,12 +45,12 @@ export function surfaceCladdingResult({shell,plan,after=[],id='pipe-cladding',fi
     for(let i=0;i<samples.length;i++){
       points++;
       const e=samples[i];stroke.points.push(e.point);stroke.poses.push(pose(e));
-      if(i){const a=samples[i-1],length=distance(a.point,e.point),width=(widths[i-1]+widths[i])/2;
+      if(i){const a=samples[i-1],width=(widths[i-1]+widths[i])/2;
         // Cell width is along U for axial courses, V for hoops. Project it
         // perpendicular to the actual stroke to account for skewed charts.
         const across=normalize(stroke.role==='axial'?e.du:e.dv),tangent=normalize(subtract(e.point,a.point));
         const effective=width*Math.hypot(...cross(across,tangent));
-        stroke.volumesMm3.push(length*effective*s.normalMm);
+        stroke.widthsMm.push(effective);stroke.segmentMetadata.push({beadNormal:[...e.normal]});
         report.minBeadWidthMm=Math.min(report.minBeadWidthMm,effective);report.maxBeadWidthMm=Math.max(report.maxBeadWidthMm,effective);
       }
     }
@@ -135,16 +133,9 @@ export function surfaceCladdingResult({shell,plan,after=[],id='pipe-cladding',fi
       emit(stroke,samples,widths);strokes.push(stroke);
       if(s.pattern==='crossed-helices')helixStartU=uvAt(totalTurns)[0];
     }
-    const operationId=id+':'+layer,maxZ=strokes.reduce((best,stroke)=>stroke.points.reduce((m,p)=>Math.max(m,p[2]),best),shell.bounds.max[2]);
-    operations.push({id:operationId,layerId:operationId,phase,layer,rank:layer,after:previous,
-      strokes,order:'given',continuous:true,connectNearby:axial,regionId:operationId,
-      // Neighboring axial passes, full or partial, end nearby on the same offset
-      // surface; deposition continues across that index instead of a retreat
-      // and approach.
-      travelPolicy:{maxCombMm:0,clearanceFor:()=>maxZ+p.liftMm,poseJoinMm:axial?CONNECT_MOVE_MM:0}});
-    previous=[operationId];
+    const maxZ=strokes.reduce((best,stroke)=>stroke.points.reduce((m,p)=>Math.max(m,p[2]),best),shell.bounds.max[2]);
+    courses.push({layer,phase,curves:strokes,axial,maxZ});
   }
   report.points=points;report.meridianSurveyMm=meridianMax;report.axialSurveyRows=nv+1;
-  if(finishedSurface)report.substrate={sourceOperationIds:finishedSurface.sourceOperationIds,coverage:finishedSurface.coverage,part:s.part};
-  return {id,operations,report};
+  return {courses,report};
 }

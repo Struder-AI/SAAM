@@ -47,7 +47,7 @@ test('mesh sections tolerate floating-point boundary roundoff symmetrically with
 test('a floating final layer is deposited identically by mesh and spline slices',async()=>{
   const machine=loadMachine(),native=await rhino(),lastLayers=[];
   for(const geometry of [boxMesh(8,8,6),splineBox({runMm:8,widthMm:8,heightMm:6})]){
-    const plan=defaults(machine);plan.geometry=geometry;plan.skills['draped-skin'].enabled=false;plan.process.minimumLayerSeconds=0;
+    const plan=defaults(machine);plan.geometry=geometry;plan.process.minimumLayerSeconds=0;
     const path=generatePath(plan,machine,native),deposition=path.actions.filter(a=>a.kind==='move'&&a.volumeMm3>0);
     lastLayers.push(Math.max(...deposition.map(a=>a.to[2])));
     assert.equal(path.summary.slices.layers,30);assert.equal(path.summary.slices.instances[0].skippedLayers,0);

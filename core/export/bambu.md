@@ -157,7 +157,7 @@ For example, `[{"id":"GFA00","colour":"#00AE42","tool":1},
 entries on different nozzles across every generated mapping. An omitted `tool`
 uses `setup.tool` for compatibility with existing single-tool jobs. The selected
 entry must agree with `setup.tool`; contradictory declarations are rejected.
-Assign `composition.regions[].filament` to use a logical filament for that
+Assign `slices.assignments[].filament` to use a logical filament for that
 region. An omitted assignment uses `bambu.filament`, which is the startup
 selection. H2D can use both nozzles with different installed diameters in one
 program. X1 supports regional PLA changes through its single 0.4 mm nozzle and

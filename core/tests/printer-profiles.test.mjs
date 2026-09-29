@@ -5,27 +5,31 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {MACHINE_IDS,loadMachine,checkMachinePath} from '../machine/profile.mjs';
 import {defaults,validatePlan} from '../print/plan.mjs';
+import {splineBox} from './fixtures/spline-shapes.mjs';
+import {skinAssignment} from '../print/surface-constructions.mjs';
 import {outputAdapter} from '../export/registry.mjs';
 import {initBundle,loadBundle,adjustBundle,generateBundle,proposedPlan} from '../print/bundle.mjs';
 
 const ids=['bambu-x1-carbon','ultimaker-2-extended','ultimaker-3'];
+const authoredPlan=machine=>({...defaults(machine),geometry:splineBox({runMm:12,widthMm:10,heightMm:1})});
 
 test('new printer profiles provide valid planar defaults and distinguish hardware/output contracts',()=>{
   for(const id of ids){
     assert.ok(MACHINE_IDS.includes(id));
-    const machine=loadMachine(id),plan=defaults(machine);
+    const machine=loadMachine(id),plan=authoredPlan(machine);
+    if(id==='bambu-x1-carbon')plan.slices.assignments.push(skinAssignment({id:'skin'}));
     validatePlan(plan,machine);
     assert.equal(plan.setup.material,'PLA');
     if(id==='bambu-x1-carbon'){
       assert.ok(outputAdapter(plan,machine).exportAndInterpret,'X1 Carbon uses the shared Bambu adapter');
       assert.equal(machine.nonplanar.maxAngleDeg,10,'X1 Carbon declares the experimental 10 degree nonplanar limit');
       assert.equal(machine.nonplanar.experimental,true);
-      assert.equal(plan.skills['draped-skin'].enabled,true);
+      assert.ok(plan.slices.assignments.some(a=>a.construction==='skin'));
       continue;
     }
-    assert.equal(plan.skills['draped-skin'].enabled,false);
+    assert.ok(!plan.slices.assignments.some(a=>a.construction==='skin'));
     assert.throws(()=>outputAdapter(plan,machine),/export is not implemented/);
-    const nonplanar=structuredClone(plan);nonplanar.skills['draped-skin'].enabled=true;
+    const nonplanar=structuredClone(plan);nonplanar.slices.assignments.push(skinAssignment({id:'skin'}));
     assert.throws(()=>validatePlan(nonplanar,machine),/nonplanar/);
   }
   const x1=loadMachine(ids[0]),um2=loadMachine(ids[1]),um3=loadMachine(ids[2]);
@@ -34,8 +38,8 @@ test('new printer profiles provide valid planar defaults and distinguish hardwar
   assert.equal(um2.outputs[0].flavor,'UltiGCode');assert.equal(um2.outputs[0].extrusionUnits,'mm3');
   assert.equal(um3.bounds.max[2],200);assert.equal(um3.tools.length,2);
   assert.equal(um3.outputs[0].flavor,'Griffin');assert.equal(um3.filamentDiameterMm,2.85);
-  const wrong=defaults(um2);wrong.setup.tool=1;assert.throws(()=>validatePlan(wrong,um2),/Selected tool/);
-  const right=defaults(um3);right.setup.tool=1;validatePlan(right,um3);
+  const wrong=authoredPlan(um2);wrong.setup.tool=1;assert.throws(()=>validatePlan(wrong,um2),/Selected tool/);
+  const right=authoredPlan(um3);right.setup.tool=1;validatePlan(right,um3);
   right.setup.core='BB 0.4';assert.throws(()=>validatePlan(right,um3),/Nozzle\/core/);
 });
 
@@ -44,12 +48,12 @@ test('material changes use their own process limits instead of locking the X1 to
   for(const [material,nozzleC,bedC,maxFlowMm3S] of [
     ['PETG',250,70,4],['ABS',250,95,4],['ASA',260,95,4],['PC',280,100,4],['TPU',230,40,2]
   ]){
-    const plan=defaults(machine);Object.assign(plan.setup,{material,nozzleC,bedC});plan.process.maxFlowMm3S=maxFlowMm3S;
+    const plan=authoredPlan(machine);Object.assign(plan.setup,{material,nozzleC,bedC});plan.process.maxFlowMm3S=maxFlowMm3S;
     validatePlan(plan,machine);
     plan.setup.nozzleC=215;assert.throws(()=>validatePlan(plan,machine),/Material nozzle temperature/);
   }
   for(const id of ids.slice(1)){
-    const machine=loadMachine(id),plan=defaults(machine);Object.assign(plan.setup,{material:'ABS',nozzleC:250,bedC:90});
+    const machine=loadMachine(id),plan=authoredPlan(machine);Object.assign(plan.setup,{material:'ABS',nozzleC:250,bedC:90});
     validatePlan(plan,machine);
   }
 });
@@ -60,7 +64,7 @@ test('selected-tool bounds exclude cutter and glass clip regions',()=>{
     ['ultimaker-2-extended',[100,100,20],[5,2,20]],
     ['ultimaker-3',[100,100,20],[220,20,20]]
   ]){
-    const machine=loadMachine(id),plan=defaults(machine);
+    const machine=loadMachine(id),plan=authoredPlan(machine);
     checkMachinePath({initialPosition:inside,actions:[]},plan,machine);
     assert.throws(()=>checkMachinePath({initialPosition:outside,actions:[]},plan,machine),/tool bounds/);
     assert.throws(()=>checkMachinePath({initialPosition:inside,actions:[{kind:'move',to:outside,speedMmS:10,volumeMm3:0}]},plan,machine),/tool bounds/);
@@ -72,7 +76,8 @@ test('profiles without an exporter persist through shared setup review and refus
   t.after(()=>rm(root,{recursive:true,force:true}));
   for(const id of ids.slice(1)){
     const directory=join(root,id),setupFile=join(root,id+'-setup.json');
-    await initBundle(directory,undefined,{machineId:id,setupFile});
+    const plan=await proposedPlan(id,{setupFile});plan.geometry=splineBox({runMm:12,widthMm:10,heightMm:1});
+    await initBundle(directory,plan,{machineId:id,setupFile});
     let state=await loadBundle(directory,{program:false});
     assert.equal(state.machine.id,id);assert.equal(state.toolpathApproved,false);
     await adjustBundle(directory,{setup:{material:'ABS',nozzleC:250,bedC:95}},{expectedRevision:state.revision,setupFile});

@@ -1,125 +1,70 @@
 ---
 name: draped-skin
-description: Top-skin strokes that follow a sloping or curved roof instead of flat-layer steps, within the machine's nonplanar angle limit; steep areas are reported.
+description: Roof-following courses authored as common skin assignments; steep regions and local bead gaps are reported.
 ---
 
 # Draped skin
 
-Use for top layers that follow a surface rather than stepping across it in flat
-layers. For maker work, read [MAKERS.md](../../MAKERS.md). For development, start
-with the [builder orientation](../../BUILDERS.md) and follow its task-specific
-references. Use the [shared tools](../../core/print/USAGE.md).
+This is a construction of the [general slice/deposition skill](../slice/SKILL.md).
+Add a `construction: 'skin'` record to `plan.slices.assignments`; there is no
+separate enabled skill record. Use the [shared tools](../../core/print/USAGE.md)
+and normal geometry/toolpath review.
 
-The skill queries surface height and normals through the shared geometry
-interface. Supported inputs are the existing untrimmed spline shapes, validated
-triangle meshes including STL, and a selected roof component in an assembly.
-It does not require a mesh conversion for spline inputs. Mesh normals remain
-faceted, with the steeper normal chosen at a shared crease; they are not smoothed.
+Native spline and mesh roof queries retain their geometry. In an assembly,
+select a component with `part`; `null` selects a single solid. The reference is
+the highest exposed surface at XY, not an underside or a wrapped sleeve.
+Mesh normals remain faceted. A discontinuous, absent or excessive-slope mapped
+reference rejects rather than silently flattening the path.
 
-## Behavior and limits
+## Assignment
 
-Survey the roof, exclude area steeper than the selected limit, reserve thickness
-under skinnable surface, and generate surface-following strokes. The reserve is
-subtracted from the slices, which put solid top layers under it. All supporting body operations must
-finish before the skins; skins remain ordered. Surface height means the highest
-exposed surface at XY, not the underside of an overhang or a general wrapped skin.
-Closed footprint/reservation booleans use the
-[shared Clipper2 region tool](../../core/region/README.md#shared-planar-intersections);
-surface sampling and level-set extraction retain their existing limits.
+`skinAssignment({id, ...settings})` in
+[shared constructions](../../core/print/surface-constructions.mjs) supplies defaults.
 
-S5 declares a 15° software limit; H2D uses an **experimental 15° limit**.
-Neither is a manufacturer-certified clearance rating. The
-machine must declare XYZ extrusion, non-planar capability and an angle limit.
-Steep percentage and the effective limit are reported by the survey/generator.
-A sampled stroke crossing a height discontinuity, missing roof or excessive
-angle is rejected; choose a continuous roof or refine the survey.
-
-For an assembly, set `part` to the roof component's ID; the template's `null`
-selection is only for a single part, and the skin stack must fit the selected roof.
-
-`drapedSkinResult({shell, plan, machine, survey, id, after})` returns operations
-for the shared composer. Pass all skill results to `planComposition(state, results)`
-together, so whole-plan travel accounts for every component and operation.
-
-Shared `composition.regions` assigns skins to the actual roof of a selected
-component alongside or after its body regions. Its emitted stack must fit the
-assigned bounds; a region is not permission to replace that roof with a clipped
-flat plane. Same-region sparse walls and solid masks reserve the roof's actual
-thickness. Spatial reservation affects only its footprint, including supporting
-components under a spanning roof, and preserves unrelated taller components.
-
-First-skin volumes use the emitted supporting layer heights, with each
-component's translated layer grid. Across voids, the assigned components' layer
-grid supplies the approximate initial gap; bridging is a recipe judgment for
-the maker and agent, with no bridge permission flag. After deposition the skinned
-footprint publishes its native material top as a shared surface interface;
-another non-planar region may consume it through `lowerSurfaceFrom`; flat layers
-above it wait for height-field slices. A consumer must have complete footprint
-coverage; excluded steep or absent roof areas are not invented as support. See
-the [synthetic stack example](../../core/tests/fixtures/regional-stack.mjs).
-Bead coverage and bridging remain numerical approximations without physical
-validation; the fixture's robot setup is explicitly synthetic.
-
-A region containing only draped-skin can also consume `lowerSurfaceFrom`, such
-as a curved lettering material selection on a finished draped roof. Its skins still follow
-the selected component's top; the lower surface supplies the first bead's actual
-support height and operation dependencies. The consumer's bounding-box minimum
-need not reach valleys elsewhere on the producer. Unlike planar fill, it does
-not start on a global horizontal layer grid. A support above the nominal reserve
-can yield a thinner first bead, but support at or above the first deposited skin
-is rejected. Missing support at a stroke is also rejected. See the
-[text composition](../text/SKILL.md#curved-lettering-above-a-draped-roof) for the
-recipe and reproducible example.
-
-## Settings
-
-| Setting | Default | Meaning |
+| Field | Default | Meaning |
 |---|---|---|
-| `enabled` | `true` | Select the skin. |
-| `part` | `null` | Roof component for an assembly; otherwise the part roof. |
-| `layers` | `2` | Number of skins. Any whole count from one up is accepted; more than about eight is rarely useful. |
-| `normalMm` | `0.2` | Skin thickness measured along the surface normal. |
-| `strokeAngleDeg` | `0` | Bed-plane stroke direction. |
-| `sampleStepMm` | `0.5` | Stroke sampling step. |
-| `surveyStepMm` | `0.5` | Surface survey step. |
-| `maxAngleDegOverride` | `null` | Explicit per-print experimental override; leaves the profile unchanged. |
+| `part` | `null` | Selected roof component, required for assemblies. |
+| `filament`, `process` | `null` | Shared material selection and local process overrides. |
+| `after` | `[]` | Additional operation prerequisites. |
+| `supportFrom` | `null` | Explicit finalized producer assignment for first contact. |
+| `layers` | `2` | Positive whole number of roof courses. |
+| `normalMm` | `0.2` | Normal-projected depth parameter; not an exact offset stack. |
+| `spacingFactor` | `1` | XY row pitch as a multiple of bead width. |
+| `strokeAngleDeg` | `0` | Row direction in the XY chart. |
+| `sampleStepMm` | `0.5` | Maximum physical mapping step; chord error also refines. |
+| `surveyStepMm` | `0.5` | Roof/reservation topology sampling step. |
+| `maxAngleDegOverride` | `null` | Explicit experimental override of the declared limit. |
 
-## Travel
+Survey first, reserve the printable roof courses, then construct the supporting
+body. Excluded steep regions retain ordinary body material. Reservations affect
+only their actual footprint. The body finishes before its skin, and courses stay
+ordered. Each course maps shared directed fill strokes onto its height reference;
+shared deposition computes volume from local gaps and actual mapped normals.
+Translating/projecting a roof does not establish constant normal thickness.
 
-Within each skin layer, complete uninterrupted scanline groups in closest-entry
-order from the nozzle, choosing either endpoint of either end row. Row order and
-stroke direction can reverse independently; reversing strokes also reverses
-their segment volumes and metadata. Skin-layer dependencies
-remain ordered; heat balancing and lookahead are deferred.
+With `supportFrom`, the first gap and prerequisites come from that producer's
+final positive-volume beads. Missing support or support at/above the new stroke
+rejects. Modulated support also uses actual finalized coverage. Unmodulated body
+courses retain the declared layer-lattice approximation across sparse voids;
+bridging remains a recipe judgment, without a separate permission flag.
+Modulation runs before final bead coverage is published to later consumers.
 
-A row starting within 2 mm of the preceding row's end continues as a short
-printed connector when the chord passes the skin's surface and footprint checks,
-so each scanline group prints as one zigzag. Other verified short direct moves
-may stay down on the current skin. Lifted travel and
-cooling clear the **highest material deposited so far** across all skills plus
-the locked `liftMm` (default 1 mm; zero allowed). Shared comb routing uses the
-allowed footprint, including holes, and samples each skin's local height for
-detours within `maxCombMm`. The local surface query controls straight-chord
-clearance; completed operations constrain every direct or routed segment.
-Follow the [shared travel contract](../../core/path/README.md#whole-plan-travel-requirement).
+## Travel and limits
 
-## Validation status
+Nearest-entry scanline groups retain their segment volumes and normals when
+reversed. Shared surface travel checks the footprint and local height. Short
+turnarounds allow up to one-quarter course thickness of sag, capped at 0.05 mm;
+lifted travel clears all previously deposited material. See
+[shared travel](../../core/path/README.md#whole-plan-travel-requirement).
 
-Software tests exercise mesh and spline inputs against both S5 and H2D profiles.
-S5 supports checked Griffin export, Studio's final toolpath/settings confirmation and exact-byte
-delivery. H2D uses the same workflow with experimental sliced-3MF output and
-strict interpretation of the print body. Its firmware service routines are not
-simulated; read the [machine contract](../../core/export/bambu.md#h2d-output-contract).
+The configured machine's fixed-axis slope limit applies; reference normals do
+not command nozzle rotation. An explicit override remains experimental.
+Sampling can miss between-grid features, and projected XY spacing is not a
+geodesic metric. Pressure, adhesion, full head collisions and physical bead shape
+are not modeled. The user reported physical draped-skin prints on 2026-09-24;
+head clearance and finish were not measured. New software checks are not new
+physical validation.
 
-The user reports draped skin demonstrated in physical prints (2026-09-24); head
-clearance and surface finish have not been measured.
-Beads, skin offsets and first-skin bridging are approximate. Curvature convergence,
-automatic supports, pressure/adhesion and second-nozzle collision are not modeled.
-A direct turnaround permits up to a quarter-skin thickness of surface sag (capped
-at 0.05 mm). Sampling can miss features between samples; refine deliberately.
-
-## Shared example
-
-The [surface-drape workspace](../../examples/prints/surface-drape/README.md) packages a
-reproducible recipe using this skill. Its guide describes dimensions, setup and
-current limits; generated workspaces begin without manufacturing approvals.
+The [surface-drape example](../../examples/prints/surface-drape/README.md) and
+[common stack fixture](../../core/tests/fixtures/regional-stack.mjs) illustrate
+construction. New examples remain unapproved until the normal review workflow.

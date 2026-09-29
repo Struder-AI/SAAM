@@ -1,5 +1,37 @@
 # Development log
 
+## 2026-09-29 — Common deposition and finalized support integration
+
+- Replaced the skin, wave, sleeve, rim and cladding producers with common
+  assignments and shared region/curve/deposition operations. Removed the old
+  regional format; per-assignment process overrides follow filament selection.
+  Native sleeve contours now resolve offsets before correspondence; the former
+  mesh-sleeve ribbon tightness option is removed. Cladding normal offsets remain.
+- Added periodic/ramp/noise/blob modulation before downstream consumers. Final
+  bead coverage preserves holes; changed paths receive conservative travel.
+  Bridges consume finalized anchors and earlier bridge spans. Width-only changes
+  preserve valid unchanged attachment presses. Unsupported posed modulation,
+  bridge displacement and modulated sleeve/rim contact reject explicitly.
+- Studio reads common assignments and modulation, including cladding material
+  frames. Discovery lists eight conceptual skills; technique manuals remain
+  readable through the general slice skill. Updated demos, public help and
+  existing fixtures; historical DENSO utilities retain their saved recipe input.
+- Direct evidence: skin/wave baseline parity (curved skin volume differs by
+  0.000229% from local-normal integration); sleeve/rim/pattern parity and bounds;
+  exact spline/mesh cladding geometry, poses and volume. Synthetic RC8A export
+  and interpretation: 6,640 moves, 203.597 mm3, substrate prerequisites retained.
+  Shifted bridge anchors reject old rails; corrected rails and widened prior
+  bridge support pass production checks. Fuzzy wall, wavy fill and top texture
+  generate; common skin and process-override API/bulk parity pass after schema
+  consolidation. Studio renders all 2,709 cladding beads and current bundle
+  settings without missing values. Evidence is saved under `.local/0.2.0`.
+- Eighteen revised manuals/plan files total 4,068 -> 3,949 lines. Full workflow
+  regression and physical qualification remain; no new tests, whole suites,
+  dependencies, solver, publication or hardware execution. This is a local
+  implementation checkpoint, not a 0.2.0 release declaration.
+- Development-map regeneration is running separately; its output has not yet
+  been inspected at this checkpoint. The existing solver tree is retained.
+
 ## 2026-09-29 — Unfinished 0.2.0 recovery checkpoint
 
 - Checkpointed all current shared work after the desktop restart. Includes the

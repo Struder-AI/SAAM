@@ -8,7 +8,7 @@ import {circlePoints} from '../../core/geom/cylinder.mjs';
 import {createSectionQuery} from '../../core/geom/query.mjs';
 import {intersect} from '../../core/region/intersection.mjs';
 import {lineSpacing,spacingFactor} from '../../core/path/spacing.mjs';
-import {claddingCourse} from '../../skills/pipe-cladding/scripts/course.mjs';
+import {claddingCourse} from '../../core/path/surface-courses.mjs';
 
 export function pipeMesh({innerRadiusMm,outerRadiusMm,heightMm,toleranceMm}){
   requireThat(innerRadiusMm>0&&outerRadiusMm>innerRadiusMm&&heightMm>0,'Pipe needs positive height and ordered radii.');

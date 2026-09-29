@@ -1,13 +1,13 @@
 // Patterns use sleeve coordinates, never independent world XYZ.
-import {distance,requireThat} from '../../../core/geom/tolerance.mjs';
-import {depositionStroke,maximumPathAngle,trimVanishingEnd} from '../../../core/path/deposition.mjs';
-import {isTiledPattern,tileVasePattern} from './tile.mjs';
-import {patternCourses} from './boundary-courses.mjs';
+import {distance,requireThat} from '../geom/tolerance.mjs';
+import {depositCurves,maximumPathAngle,trimVanishingEnd} from './deposition.mjs';
+import {isTiledPattern,tileSleevePattern} from './sleeve-tile.mjs';
+import {patternCourses} from './sleeve-boundary-courses.mjs';
 const sameSurfacePoint=(a,b)=>Math.abs((a[0]-b[0])-Math.round(a[0]-b[0]))<=1e-10&&Math.abs(a[1]-b[1])<=1e-9;
 const offsetAt=(path,i)=>Array.isArray(path.offsetMm)?path.offsetMm.at(i):(path.offsetMm??0);
 const joined=(a,b)=>sameSurfacePoint(a.points.at(-1),b.points[0])&&Math.abs(offsetAt(a,-1)-offsetAt(b,0))<=1e-9;
 
-export function validateVasePattern(pattern,mode='continuous') {
+export function validateSleevePattern(pattern,mode='continuous') {
   if(pattern===null)return;
   const tiled=isTiledPattern(pattern);
   requireThat(pattern&&Object.keys(pattern).sort().join()===(tiled?'cellsPerTurn,courseRiseMm,repeats,tile,tiltDeg':'advance,paths,repeats'),'Vase pattern needs paths, advance and repeats, or one tile with cellsPerTurn, courseRiseMm, repeats and tiltDeg.');
@@ -48,8 +48,8 @@ export function validateVasePattern(pattern,mode='continuous') {
   }
 }
 
-export function mappedPatternResult({settings,process,machine,id,after,base,start,end,firstHeight,referenceLengthMm,mappedPoint,mappingErrorMm=0,sectionReport,onProgress}) {
-  const tiled=isTiledPattern(settings.pattern),pattern=tiled?tileVasePattern(settings.pattern):settings.pattern;
+export function mappedSleevePatternResult({settings,process,machine,id,after,base,start,end,firstHeight,referenceLengthMm,mappedPoint,mappingErrorMm=0,sectionReport,onProgress}) {
+  const tiled=isTiledPattern(settings.pattern),pattern=tiled?tileSleevePattern(settings.pattern):settings.pattern;
   const continuous=settings.pathMode==='continuous',role=continuous?'vase-wall':'segmented-path';
   // Every course is authored and finite, and each mapped interval subdivides
   // until its tolerance is met or its midpoint stops being distinct from its
@@ -91,7 +91,7 @@ export function mappedPatternResult({settings,process,machine,id,after,base,star
     for(const p of points){minZ=Math.min(minZ,p[2]);maxZ=Math.max(maxZ,p[2]);}
     const length=points.slice(1).reduce((sum,p,i)=>sum+distance(points[i],p),0);
     const speed=Math.min(process.planarSpeedMmS,process.firstLayerSpeedMmS,process.minimumLayerSeconds>0?length/process.minimumLayerSeconds:Infinity);
-    paths.push(depositionStroke({points,heightsMm:segmentHeights,widthMm:process.lineWidthMm,speedMmS:speed,role,segmentMetadata:segmentHeights.map(()=>({layer}))}));
+    paths.push(...depositCurves([{closed:false,points,heightsMm:segmentHeights,speedMmS:speed,role,segmentMetadata:segmentHeights.map(()=>({layer}))}],{widthMm:process.lineWidthMm}));
   };
   const total=pattern.repeats+(level?2:0);let completed=0;
   onProgress?.({stage:'Mapping vase pattern courses',completed:0,total});

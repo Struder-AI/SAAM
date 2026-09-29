@@ -13,13 +13,11 @@ export const LIMITATIONS = [
 ];
 
 const limitationsFor = (plan, machine) => {
-  const regions=plan.composition?.regions??[];
-  const skins=regions.length?regions.filter(r=>Object.hasOwn(r.skills,'draped-skin')).map(r=>({...plan.skills['draped-skin'],...r.skills['draped-skin']}))
-    :plan.skills['draped-skin'].enabled?[plan.skills['draped-skin']]:[];
+  const assignments=plan.slices?.assignments??[],skins=assignments.filter(a=>a.construction==='skin');
   const limits=[...LIMITATIONS,...(machine.limitations??[])];
   for(const override of new Set(skins.map(s=>s.maxAngleDegOverride).filter(v=>v!==null)))limits.push(
     `EXPERIMENTAL: this print overrides the machine profile’s declared ${machine.nonplanar.maxAngleDeg}° non-planar limit with ${override}°. Physical clearance and deposition behavior are unvalidated.`);
-  if(plan.skills['wave-overhangs']?.enabled)limits.push('Experimental surface wave overhangs: seeds and material ownership are explicitly assigned. Surface propagation, lateral bead attachment, cooling and warping have not been physically validated. Small numerical residuals are retained in the wave report.');
+  if(assignments.some(a=>a.construction==='fronts'))limits.push('Experimental surface wave overhangs: seeds and material ownership are explicitly assigned. Surface propagation, lateral bead attachment, cooling and warping have not been physically validated. Small numerical residuals are retained in the wave report.');
   return limits;
 };
 

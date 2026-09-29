@@ -7,17 +7,21 @@ import {distance,requireThat} from '../geom/tolerance.mjs';
 // contain one height per segment, including the implicit closing segment.
 export function depositCurves(curves,{widthMm,heightMm,speedMmS,flowMultiplier=1}) {
   return curves.map(curve=>{
-    const {heightMm:localHeight,heightsMm,flowMultiplier:localFlow,...stroke}=curve;
+    const {heightMm:localHeight,heightsMm,widthsMm,flowMultiplier:localFlow,...stroke}=curve;
     const width=curve.beadWidthMm??widthMm,height=localHeight??heightMm,flow=localFlow??flowMultiplier;
     const speed=curve.speedMmS??speedMmS;
     requireThat(Number.isFinite(width)&&width>0&&Number.isFinite(flow)&&flow>0&&Number.isFinite(speed)&&speed>0,
       'Curve deposition needs positive bead width, flow and speed.');
     requireThat(curve.points.length>=2&&curve.points.every(p=>p.length===3&&p.every(Number.isFinite)),
       'Curve deposition needs at least two finite XYZ points.');
-    if(heightsMm){
+    if(heightsMm||widthsMm){
       const points=curve.closed?[...curve.points,curve.points[0]]:curve.points;
-      const deposited=depositionStroke({points,heightsMm,widthMm:width*flow,speedMmS:speed,role:curve.role,segmentMetadata:curve.segmentMetadata});
+      if(widthsMm)requireThat(widthsMm.length===points.length-1&&widthsMm.every(w=>Number.isFinite(w)&&w>=0),'Curve deposition needs one finite nonnegative width per segment.');
+      const segmentMetadata=widthsMm?widthsMm.map((beadWidthMm,i)=>({...curve.segmentMetadata?.[i],beadWidthMm})):curve.segmentMetadata;
+      const deposited=depositionStroke({points,heightsMm:heightsMm??points.slice(1).map(()=>height),widthMm:width*flow,
+        widthsMm:widthsMm?.map(w=>w*flow),speedMmS:speed,role:curve.role,segmentMetadata});
       return {...stroke,points:deposited.points,closed:false,beadWidthMm:width,speedMmS:speed,volumesMm3:deposited.volumesMm3,
+        ...(segmentMetadata?{segmentMetadata}:{}),
         ...(curve.closed&&curve.poses?{poses:[...curve.poses,curve.poses[0]]}:{})};
     }
     requireThat(Number.isFinite(height)&&height>0,'Curve deposition needs a positive normal bead height.');
@@ -25,12 +29,15 @@ export function depositCurves(curves,{widthMm,heightMm,speedMmS,flowMultiplier=1
   });
 }
 
-export function depositionStroke({points,heightsMm,widthMm,speedMmS,role,segmentMetadata}) {
+export function depositionStroke({points,heightsMm,widthMm,widthsMm,speedMmS,role,segmentMetadata}) {
   requireThat(points.length>=2&&heightsMm.length===points.length-1,'Deposition needs one bead height per segment.');
+  requireThat(widthsMm===undefined||widthsMm.length===points.length-1,'Deposition needs one bead width per segment.');
   const volumesMm3=points.slice(1).map((p,i)=>{
     const height=heightsMm[i];
     requireThat(Number.isFinite(height)&&height>=0,'Deposition bead height must be finite and nonnegative.');
-    return distance(points[i],p)*widthMm*height;
+    const width=widthsMm?.[i]??widthMm;
+    requireThat(Number.isFinite(width)&&width>=0,'Deposition bead width must be finite and nonnegative.');
+    return distance(points[i],p)*width*height;
   });
   return {role,closed:false,points,volumesMm3,speedMmS,...(segmentMetadata?{segmentMetadata}:{})};
 }

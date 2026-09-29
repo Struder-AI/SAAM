@@ -1,17 +1,16 @@
 ---
 name: slice
-description: Plane layers of loops and fill for a whole part or assigned volumes of it, from solid to hollow, with brim and support presets. Meshes and supported splines.
+description: General deposition from owned surface slices and authored curves: loops, fill, brim, skin, fronts, sleeves, rims, networks and bridges, with shared process and modulation.
 ---
 
 # Slice
 
-General slice deposition: every recipe has one list of slice assignments,
-`plan.slices`, and each assignment cuts an owned volume of a part into plane
-layers of loops and fill. The default recipe holds one assignment, `body`, that
-owns the whole part with the normal settings: two loops, 20% fill and three
-solid layers at the top and bottom. For maker work, read [MAKERS.md](../../MAKERS.md);
-edit assignments with the [shared print tools](../../core/print/USAGE.md)
-(`adjust_recipe` replaces the `slices` assignment list).
+One general deposition skill uses `plan.slices` for owned surface slices and
+authored curve constructions. Ordinary `body` defaults to two loops, 20% fill
+and three top/bottom solid layers; geometry is authored separately. Construction
+records share process settings, dependencies and finalization. For maker work,
+read [MAKERS.md](../../MAKERS.md); `slice` and bulk `adjust_recipe` edit the same
+assignments through the [shared tools](../../core/print/USAGE.md).
 
 The user reports physical fill-pattern checks (2026-09-24). Tilted ownership,
 presets and alternation have software evidence only.
@@ -26,6 +25,7 @@ presets and alternation have software evidence only.
 | `part` | `null` | A component or prepared material part (`base`, `text/label`, `cup/base`); `null` is every component. |
 | `preset` | `null` | `brim` or `support`, below. |
 | `filament` | `null` | A Bambu logical filament; the owner then uses that filament's layer heights and bead width. |
+| `process` | `null` | Every construction accepts overrides for `firstLayerMm`, `layerMm`, `lineWidthMm`, `planarSpeedMmS`, `firstLayerSpeedMmS`, applied after filament defaults; `stack` still chooses explicit geometric pitch. |
 | `loops` | `2` | Loops inward from the part's boundary on every layer. |
 | `fillDensity` | `0.2` | `1` is solid, `0` a shell of loops; otherwise 0.01–1, row spacing = bead width / density. |
 | `fillPattern` | `rectilinear` | Sparse pattern, below. Solid rows are always straight. |
@@ -103,18 +103,19 @@ compensate for crossings or boundaries. Gyroid samples
 anchored to the world grid (placement shifts its phase); its density is
 approximate ([measurement](../../DEVLOG.md#2026-09-10--gyroid-contour-construction-measurement)).
 
-## With other skills
+## Construction guides and other skills
 
-- [vase-wall](../vase-wall/SKILL.md) and [thick-lip](../thick-lip/SKILL.md)
-  claim their band of the part; slices own what is below and above it. A raised
-  vase wall needs a slice owner of its part for its base.
-- [draped-skin](../draped-skin/SKILL.md) reserves its thickness under the roof;
-  slices stop below it, with solid top layers under the skin.
+- Construction guides: [centerlines](../line-network/SKILL.md),
+  [bridges](../bridging/SKILL.md), [skin](../draped-skin/SKILL.md),
+  [fronts](../wave-overhangs/SKILL.md), [sleeves](../vase-wall/SKILL.md),
+  [tiles](../advanced-vase-wall/SKILL.md), [rims](../thick-lip/SKILL.md) and
+  [cladding](../pipe-cladding/SKILL.md). These apply the same core operations.
+- Sleeves reserve their part band; raised walls need a printed base. Skin
+  reserves thickness below its roof. Explicit sources carry support dependencies.
 - [plastic-weld](../plastic-weld/SKILL.md) rivets reserve their shafts and keep
   the envelope around them solid.
-- Layers are ordered by height across owners and parts; assemblies can batch
-  layers (`composition.batchLayers`). A region consuming another's published
-  lower surface (`lowerSurfaceFrom`) retains its regional producer contract.
+- Ownership determines compatible slicing before sequence; assemblies can batch
+  compatible slices (`composition.batchLayers`). Consumers use finalized sources.
 
 ## Limits
 
@@ -130,6 +131,21 @@ features thinner than a bead can vanish. Mesh normals are faceted; spline
 sections may miss features below about 0.4 mm. The first solid layer over sparse
 fill is an unoptimised bridge. Offsets are Clipper2 polygon offsets. Travel,
 combing and lifts follow [shared travel](../../core/path/README.md#whole-plan-travel-requirement).
+
+## Modulation
+
+`modulate` adds/edits/removes `plan.modulations.modifiers` (version 1); bulk `adjust_recipe` uses the same records. Each modifier has `id, assignments, roles, channel, amplitude, field, sampleStepMm, tolerance`; displacement also needs `direction` (XYZ or `lateral`, the source curve's XY right normal). Target lists are assignment IDs/role names; `null` means all. Tool adds default both lists to null, sampleStepMm to 0.2 and tolerance to 0.01. Fields use world XYZ after placement:
+
+| Field | Record beside `kind` |
+|---|---|
+| `periodic` | `axis, periodMm, phaseRad`; sine in [-1,1]. |
+| `ramp` | `axis, fromMm, toMm`; clamped [0,1]. |
+| `noise` | `cellMm, seed`; deterministic smooth lattice values in [-1,1]. |
+| `blob` | `field`: existing blob source (schema, threshold, points); native scalar strengths. |
+
+`displacement` adds amplitude × field millimetres along the normalized direction; `flow` and `width` multiply by 1 + amplitude × field, which must remain positive. Multiple modifiers compose in list order, sampling the original source positions. Role examples: `perimeter`, `perimeter-inner`, `infill`. Noise/lateral makes fuzzy walls, periodic transverse displacement waves fill, and vertical displacement textures tops. Process sampling tolerance is dimensionless; geometric tolerance is mm. Feature spacing and adaptive chord refinement bound sampling; source segment metadata and volume density survive subdivision.
+
+Modifiers finalize before deposited support and dependent paths are constructed. Width updates nominal bead width; flow changes volume. Changed strokes need regenerated travel/coverage and machine checks, invalidating prior confirmation. Zero/no matching modulation preserves exact source output. This first engine rejects posed or stationary strokes, mixed per-segment roles and reversing lateral corners. It does not reconstruct a CAD surface or grant physical print approval.
 
 <!-- layer: script -->
 ## Script interfaces

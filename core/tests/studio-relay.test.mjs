@@ -100,7 +100,7 @@ test('the runtime opens a print-free launch Studio with the relay panel, and req
   assert.equal(listed.instanceId,launched.studioInstanceId);assert.equal(listed.directory,null);
   await assert.rejects(invoke('begin_studio_work',{instruction:'Which print?'}),/Specify bundleId/);
   const {plan}=await invoke('get_recipe_defaults',{kind:'shell',machineId:'ultimaker-s5'});
-  plan.process.minimumLayerSeconds=0;plan.geometry=splineBox({runMm:12,widthMm:10,heightMm:1});plan.skills['draped-skin'].enabled=false;
+  plan.process.minimumLayerSeconds=0;plan.geometry=splineBox({runMm:12,widthMm:10,heightMm:1});
   await invoke('create_bundle',{bundleId:'part',kind:'shell',machineId:'ultimaker-s5',plan});
   const review=await invoke('request_review',{bundleId:'part'});
   assert.equal(review.studioInstanceId,launched.studioInstanceId,'the sole launch instance shows the chat\'s print');

@@ -1,7 +1,7 @@
 // The one authored input to the generated map: which top-level roots are mapped, and which are
 // scanned only so the calls they make into the mapped roots are seen. Nothing else about the map
 // is chosen here; leaves, links and every box come from the code.
-import {SKILL_IDS} from '../../skills/catalog.mjs';
+import {SKILL_IDS,TECHNIQUE_IDS} from '../../skills/catalog.mjs';
 export const mappedRoots=['core','studio'];
 export const outsideRoots=['skills','adapters','scripts'];
 // Scanned, but not mapped: code inside a mapped root that the map does not cover, each area an
@@ -29,7 +29,7 @@ export const outsideRootOf=path=>unmappedArea(path)?.port??path.split('/')[0];
 // and the exporters. Everything else scanned — skill tests, demo and example scripts, benchmarks,
 // audits — stays scanned and counted at the root, and is named on a declaration page only as a
 // count. This is the only place that decision is made.
-const skillScript=new RegExp(`^skills/(${SKILL_IDS.join('|')})/scripts/[^/]+\\.mjs$`);
+const skillScript=new RegExp(`^skills/(${[...SKILL_IDS,...TECHNIQUE_IDS].join('|')})/scripts/[^/]+\\.mjs$`);
 const toolingScript=/^(?:adapters\/mcp\/src|core\/agent)\/[^/]+\.mjs$/;
 export const activeCallers=file=>
   file==='scripts/agent-toolkit.mjs'||toolingScript.test(file)||unmappedArea(file)?.port==='exporters'

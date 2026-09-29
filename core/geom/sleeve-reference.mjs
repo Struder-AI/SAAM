@@ -1,13 +1,13 @@
 // Mesh estimation and unilateral contact feed the same vase path producer.
-import {fitMeshSleeve} from '../../../core/geom/mesh-sleeve.mjs';
-import {prepareSleeveRibbon} from '../../../core/geom/sleeve-frame.mjs';
-import {prepareRadialSleeveContact} from '../../../core/geom/prepared-radial-contact.mjs';
-import {createMeshDistanceQuery} from '../../../core/geom/mesh-distance.mjs';
-import {requireThat} from '../../../core/geom/tolerance.mjs';
-import {loopArea} from '../../../core/region/region2d.mjs';
-import {union} from '../../../core/region/intersection.mjs';
+import {fitMeshSleeve} from './mesh-sleeve.mjs';
+import {prepareSleeveContours} from './sleeve-frame.mjs';
+import {prepareRadialSleeveContact} from './prepared-radial-contact.mjs';
+import {createMeshDistanceQuery} from './mesh-distance.mjs';
+import {requireThat} from './tolerance.mjs';
+import {loopArea} from '../region/region2d.mjs';
+import {union} from '../region/intersection.mjs';
 
-export const MESH_SLEEVE_SETTINGS={fidelity:1,offsetTightness:0,contactSide:'inside',circumferentialControls:12,heightControls:6,detailToleranceMm:.05};
+export const MESH_SLEEVE_SETTINGS={fidelity:1,contactSide:'inside',circumferentialControls:12,heightControls:6,detailToleranceMm:.05};
 
 // Growing periodic control resolution for the automatic standard-mode fit. Each
 // step costs one separable least-squares solve; the first meeting the requested
@@ -24,7 +24,7 @@ const STANDARD_SLEEVE_CONTROLS=[[16,8],[16,16],[24,24],[32,32],[40,48],[48,64]];
 // collapsed, branching or multi-bore section). A localized near-crease that the
 // smooth sleeve cannot fully resolve stays on the fast path rather than failing
 // generation, since the exact path is not guaranteed to complete either.
-export function createStandardVaseSleeve({shell,settings,start,end,width,onProgress}){
+export function createAutomaticSleeveReference({shell,settings,start,end,width,onProgress}){
   const tolerance=settings.sleeveToleranceMm;
   if(!(tolerance>0)||shell.kind!=='triangle-mesh')return null;
   onProgress?.({stage:'Fitting vase sleeve reference',completed:0,total:1});
@@ -48,7 +48,7 @@ export function createStandardVaseSleeve({shell,settings,start,end,width,onProgr
   // poor fit — a shape the smooth sleeve misrepresents everywhere — returns to
   // the exact per-section wall, which preserves it.
   if(achievedMm>tolerance&&fit.report.rmsFitResidualMm>tolerance)return null;
-  const frame=prepareSleeveRibbon({patch:fit.patch,rangeMm:fit.rangeMm});
+  const frame=prepareSleeveContours({patch:fit.patch,rangeMm:fit.rangeMm,toleranceMm:Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/8,stepMm:settings.minFeatureMm});
   // The standard wall deposits just inside the outer boundary, matching the
   // exact path's inward centerline offset of one bead half width.
   const beadOffset=-width/2;
@@ -56,23 +56,28 @@ export function createStandardVaseSleeve({shell,settings,start,end,width,onProgr
   // still cross itself where the wall is thinner than the bead. Sample the
   // offset loop across the interval; a collapsed or self-intersecting offset
   // returns to the exact path, which reports the specific too-thin rejection.
-  const segments=fit.report.sectionSegments,checks=Math.max(2*fit.report.heightControls,48);
+  const checks=Math.max(2*fit.report.heightControls,48);
   for(let h=0;h<=checks;h++){
     const z=start+(end-start)*Math.min(1,h/checks);
-    const loop=Array.from({length:segments},(_,i)=>{const p=frame.at(i/segments,z,beadOffset);return [p[0],p[1]];});
+    let contour;
+    try{contour=frame.curveAt(z,beadOffset);}catch(error){
+      if(error.message.startsWith('Sleeve contour offset split, opened or collapsed'))return null;
+      throw error;
+    }
+    const loop=contour.breakpoints().slice(0,-1).map(p=>p.p);
     const area=loopArea(loop),normalized=union([loop],[],{precisionMm:1e-7});
     if(!(area>1e-9&&normalized.length===1&&loopArea(normalized[0])>0&&Math.abs(loopArea(normalized[0])-area)<Math.max(1e-5,area*1e-8)))return null;
   }
   onProgress?.({stage:'Fitting vase sleeve reference',completed:1,total:1});
-  return {sectionAt:fit.sectionAt,mappingErrorMm:0,referenceLengthMm:fit.sectionAt(start).curve.length,
+  return {sectionAt:fit.sectionAt,mappingErrorMm:Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/8,referenceLengthMm:fit.sectionAt(start).curve.length,
     pointAt:(u,z,offset=0)=>frame.at(u,z,offset+beadOffset),
     map:point=>point,
-    report:()=>({sleeve:{mode:'loose-ribbon',fidelity:0,contactSide:'inside',sleeveToleranceMm:tolerance,
+    report:()=>({sleeve:{mode:'native-contour',fidelity:0,contactSide:'inside',sleeveToleranceMm:tolerance,
       achievedResidualMm:achievedMm,meetsTolerance:achievedMm<=tolerance,...fit.report,...frame.report(),
-      scope:'Standard vase wall follows a periodic NURBS sleeve fitted to the mesh, ribboned inward by the bead half width (a loose horizontal surface ribbon). achievedResidualMm bounds deviation at the fit sample heights only; it is not a global surface-error certificate. Set sleeveToleranceMm to 0 for the exact per-section wall.'}})};
+      scope:'Periodic fitted-sleeve horizontal NURBS sections are offset inward and crossings resolved before contour correspondence. Offsets are loose, with chord-controlled contour sampling; fit residuals are sampled, not a global surface-error certificate. Set sleeveToleranceMm to 0 for source-mesh polygon sections.'}})};
 }
 
-export function createVaseMeshReference({shell,settings,start,end,width,onProgress}){
+export function createFittedSleeveReference({shell,settings,start,end,width,onProgress}){
   const config=settings.meshSleeve;
   if(!config)return null;
   requireThat(shell.kind==='triangle-mesh','Fitted mesh sleeve settings require a mesh component; use the native reference directly for spline geometry.');
@@ -82,7 +87,7 @@ export function createVaseMeshReference({shell,settings,start,end,width,onProgre
     circumferentialSamples:Math.max(96,config.circumferentialControls*3),heightSamples:Math.max(25,config.heightControls*2),toleranceMm:tolerance/8
   });
   onProgress?.({stage:'Fitting mesh sleeve',completed:1,total:1});
-  const frame=prepareSleeveRibbon({patch:fit.patch,rangeMm:fit.rangeMm});
+  const frame=prepareSleeveContours({patch:fit.patch,rangeMm:fit.rangeMm,toleranceMm:tolerance/8,stepMm:settings.minFeatureMm});
   const beadOffset=(config.contactSide==='inside'?-1:1)*width/2;
   const sourceCurves=new Map();
   const curveAt=z=>{
@@ -99,7 +104,7 @@ export function createVaseMeshReference({shell,settings,start,end,width,onProgre
   // Source-detail error is separate from the final path chord tolerance. The
   // radial field is continuous across prepared height intervals; its sampled
   // interpolation target does not certify global mesh or toolpath error.
-  const mappingErrorMm=0;
+  const mappingErrorMm=tolerance/8;
   // Uniform samples of the periodic fitted spline define a smooth centerline,
   // independent of changing polygon vertices or the fine contact boundary.
   const anchorAt=z=>{
@@ -110,17 +115,10 @@ export function createVaseMeshReference({shell,settings,start,end,width,onProgre
   const contact=config.fidelity>0?prepareRadialSleeveContact({side:config.contactSide,anchorAt,curveAt,
     startMm:start,endMm:end,stepMm:settings.minFeatureMm,toleranceMm:config.detailToleranceMm,distanceToSourceWithin:createMeshDistanceQuery(shell),onProgress}):null;
   return {sectionAt:fit.sectionAt,mappingErrorMm,referenceLengthMm:fit.sectionAt(start).curve.length,
-    // offsetTightness blends the loose ribbon point toward the exact one (the
-    // source point moved the depth along its unit horizontal normal).
-    pointAt:(u,z,offset=0)=>{
-      const tightness=config.offsetTightness??0,loose=frame.at(u,z,offset+beadOffset);
-      if(tightness===0)return loose;
-      const exact=frame.exactAt(u,z,offset+beadOffset);
-      return loose.map((p,k)=>p+tightness*(exact[k]-p));
-    },
+    pointAt:(u,z,offset=0)=>frame.at(u,z,offset+beadOffset),
     map:point=>contact?contact.at(point,config.fidelity):point,
     report:()=>({meshSleeve:{...config,...fit.report,...frame.report(),... (contact?contact.report():{}),contactPreparation:contact?contact.report():null,
-      referenceChart:'Periodic U fitted to normalized source-section arc length; the same U is retained at every pattern depth. Z remains the authored height.',
+      referenceChart:'Perimeter phase on resolved native offset contours, with the source U seam projected onto each contour. Z remains the authored height.',
       contactMetric:'horizontal radial clamp from fitted centerline; only forbidden-side points move',
       contactTarget:'path-centerline',
       beadEnvelopeScope:'The contact limit constrains path centers. The deposited bead can extend beyond that limit by its half width.',

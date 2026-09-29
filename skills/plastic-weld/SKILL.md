@@ -33,11 +33,10 @@ Supported combinations:
 
 - Native closed mesh and supported spline components, including translated
   assembly parts, imported STL, text and Gridfinity bodies.
-- Slice assignments of any fill density. Global weld sites can cross owner and
-  region boundaries when the required solid host is continuous.
-  Regional surface consumers can use the completed mouth after injection.
-  For an unfinished cavity crossing a boundary, use ordinary contiguous flat
-  bands; `lowerSurfaceFrom` still sees that cavity's deeper floor.
+- Slice assignments of any fill density. Global weld sites can cross owner
+  boundaries when the required solid host is continuous. Higher operations wait
+  for injection; surface contact requires finalized deposited coverage and must
+  not treat a reserved or unfinished cavity as filled material.
 - Draped roofs, vase walls, thick lips, waves and supports can coexist elsewhere
   in the plan. The cavity itself must lie in solid planar material. Continuous or
   curved deposition crossing a cavity is rejected, rather than split silently.

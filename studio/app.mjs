@@ -1,7 +1,7 @@
 import {createTourUI,needsTourToolpath} from './tour-ui.mjs';
 import { advancePlayback, exportMovie } from './playback.mjs';
 import { createLayerFade, layerEndSeconds, stepLayerIndex, TOOLPATH_COLORS } from './toolpath-view.mjs';
-import {hasSkill,sliceSummary,regionRows,recipeRows,robotRows,materialGrams,claddingPatternName,claddingSubstrateName,nextExportName} from './settings.mjs';
+import {hasConstruction,sliceSummary,recipeRows,robotRows,materialGrams,claddingPatternName,claddingSubstrateName,nextExportName} from './settings.mjs';
 import {sourceSession,machineCameras} from './studio/machine-session.mjs';
 import {machineFitBounds,boundsCorners,machinePalette} from './machine-view.mjs';
 import {point,invert} from '../core/machine/rigid.mjs';
@@ -157,14 +157,12 @@ const materialSetup=state=>state.plan.setup.dobot||state.plan.setup.denso
   ? ['Extrusion','External relay control · '+state.plan.setup.material]
   : ['Material',state.plan.setup.material+' · '+state.plan.setup.nozzleC+'°C'+(state.plan.setup.filamentColor?' · '+state.plan.setup.filamentColor:'')+(state.plan.setup.ams?' · intended AMS '+state.plan.setup.ams.unit+' slot '+state.plan.setup.ams.slot:'')];
 const vaseSettings=state=>{
-  if(state.plan.composition?.regions?.length)return [];
-  const vase=state.plan.skills?.['vase-wall'];
-  return vase?.enabled?[
+  return (state.plan.slices?.assignments??[]).filter(a=>a.construction==='sleeve').flatMap(vase=>[
     [vase.pathMode==='segmented'?'Segmented paths':'Vase wall',vase.pattern?(vase.pathMode==='segmented'?'Repeated sleeve pattern with travel between gaps':'Continuous pattern wrapped around the sleeve'):'One continuous spiral; '+(vase.endTransition==='level'?'level rim':'spiral rim')],
     ['Path component',vase.part??'Part'],
     ['Path height range',vase.zStartMm+'–'+(vase.zEndMm??'geometry top')+' mm above component base'],
     ['Path sampling',vase.sampleStepMm+' mm maximum step'+(vase.pattern?'':' · '+vase.toleranceMm+' mm tolerance')]
-  ]:[];
+  ]);
 };
 function machineSettings(state,rows){
   const d=state.plan.setup.dobot??state.plan.setup.denso;
@@ -204,12 +202,12 @@ function painted(){
 // below are shared. A print names its kind in its own state.
 const views={
   shell:{
-    eyebrow:'DEVELOPMENT PREVIEW',skinPhase:'draped-skin',skinLabel:'Draped skin',exportName:'part.gcode',
+    eyebrow:'DEVELOPMENT PREVIEW',skinPhase:'skin',skinLabel:'Surface paths',exportName:'part.gcode',
     // Faces are named by the shape that built them, so the label is the name.
     names:{},
     facts(state,tab) {
-      const {geometry:g,setup:s,process:p}=state.plan,skin=state.plan.skills['draped-skin'],network=state.plan.skills['line-network'];
-      const slices=state.plan.slices?.assignments??[],body=slices.find(a=>a.preset===null&&!a.within.length);
+      const {geometry:g,setup:s,process:p}=state.plan;
+      const slices=state.plan.slices?.assignments??[],owners=slices.filter(a=>!a.construction),body=owners.find(a=>a.preset===null&&!a.within.length);
       const shape={'blob-field':'Blob field',assembly:'Assembly',spline:'Spline surfaces',mesh:'Mesh'}[g.shape]??g.shape;
       if(tab==='geometry') {
         const bounds=state.geometry.boundsMm;
@@ -223,36 +221,31 @@ const views={
         if(g.shape==='assembly')for(const part of g.parts){rows.push([part.id,part.geometry.shape+' at '+[part.xMm,part.yMm,part.zMm].join(', ')+' mm']);textRows(part.geometry,part.id+' · ');blobFieldRows(part.geometry,part.id+' · ');}
         return rows;
       }
-      if(tab==='plan'&&state.plan.composition?.regions?.length)return [materialSetup(state),
-        ['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],...regionRows(state.plan)];
-      if(tab==='plan'&&hasSkill(state.plan,'pipe-cladding')){
-        const clad=state.plan.skills['pipe-cladding'];
+      if(tab==='plan'&&hasConstruction(state.plan,'cladding')){
+        const clad=state.plan.slices.assignments.find(a=>a.construction==='cladding');
         return [materialSetup(state),['Substrate',claddingSubstrateName(state.plan)],
           ['Exterior',clad.shells+' shells · '+claddingPatternName(clad)],['Normal thickness per shell',clad.normalMm+' mm'],
           ['Nozzle tilt',clad.tiltDeg+'° from the downward surface tangent toward the surface'],
           ...(clad.pattern==='crossed-helices'?[['Helices','Opposite winding on successive shells; each rises from bottom to top']]:[['Axial passes','Local surface spacing with partial passes']]),['Between passes','Extrusion off'],...robotRows(state.plan,state.machine)];
       }
       if(tab==='plan')return [materialSetup(state),['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],
-        ['Body',network?.enabled?network.networks.length+' independent line networks · '+network.layers+' courses':body?sliceSummary(body):slices.length?'Assigned volumes only':'Not printed'],...vaseSettings(state),
-        ...(slices.length>(body?1:0)?[['Other slice owners',slices.filter(a=>a!==body).map(a=>a.id).join(', ')]]:[]),
-        ...(skin.enabled?[['Draped skin',skin.layers+' × '+skin.normalMm+' mm along the surface'],['Roof component',skin.part??'Part roof']]:[]),
-        ...(hasSkill(state.plan,'wave-overhangs')?[['Wave overhangs',state.plan.skills['wave-overhangs'].slices.length+' spline slices · '+state.plan.skills['wave-overhangs'].lineSpacingMm+' mm surface spacing']]:[]),
-        ...(state.plan.geometry.shape==='assembly'?[['Fill sequencing',(state.plan.composition?.batchLayers??1)+' layer(s) per component'],['Sliced components',slices.some(a=>a.part===null)?'All':[...new Set(slices.map(a=>a.part))].join(', ')||'None']]:[])];
+        ['Body',body?sliceSummary(body):owners.length?'Assigned volumes only':'Not printed'],...vaseSettings(state),
+        ...(slices.length>(body?1:0)?[['Other deposition assignments',slices.filter(a=>a!==body).map(a=>a.id+' · '+sliceSummary(a)).join('; ')]]:[]),
+        ...(state.plan.geometry.shape==='assembly'?[['Fill sequencing',(state.plan.composition?.batchLayers??1)+' layer(s) per component'],['Sliced components',owners.some(a=>a.part===null)?'All':[...new Set(owners.map(a=>a.part))].join(', ')||'None']]:[])];
       if(!state.program)return [];
       const limit=state.pathSummary?.nonplanarLimit;
       const pathCount=state.pathSummary?.vaseWall?.paths;
       const waveLayers=state.pathSummary?.waveOverhangs?.length??0;
-      const rows=[state.pathSummary?.lineNetwork?['Network courses',state.pathSummary.lineNetwork.layers+' × '+state.pathSummary.lineNetwork.networks+' faces']:pathCount&&!state.pathSummary?.slices&&!state.pathSummary?.drapedSkin?['Deposition paths',String(pathCount)]:['Layers',(state.pathSummary?.slices?.layers??0)+' flat + '+(state.pathSummary?.drapedSkin?.skinLayers??0)+' draped'+(waveLayers?' + '+waveLayers+' wave slice(s)':'')],
+      const rows=[pathCount&&!state.pathSummary?.slices&&!state.pathSummary?.drapedSkin?['Deposition paths',String(pathCount)]:['Slices',(state.pathSummary?.slices?.layers??0)+' body + '+(state.pathSummary?.drapedSkin?.skinLayers??0)+' skin'+(waveLayers?' + '+waveLayers+' wave':'')],
         [state.program.envelope?'Printing motion':'Estimated motion',Math.round(duration()/60)+' min'],materialFact(state.program)];
+      for(const c of state.pathSummary?.curves??[])rows.push([c.id,c.construction==='curves'?c.strokes+' strokes · '+c.courses+' courses':c.bridges.length+' bridges']);
       if(state.program.summary?.materialModel==='relay-estimate')rows.push(['Material intent',round2(materialGrams(state.program.volumeMm3))+' g; not metered']);
-      if(hasSkill(state.plan,'vase-wall')){
-        const regions=state.plan.composition?.regions??[];
-        const selections=regions.length?regions.filter(r=>r.skills['vase-wall']).map(r=>({...state.plan.skills['vase-wall'],...r.skills['vase-wall']})):[state.plan.skills['vase-wall']];
+      if(hasConstruction(state.plan,'sleeve')){
+        const selections=state.plan.slices.assignments.filter(a=>a.construction==='sleeve');
         rows.push(['Wall paths',selections.some(s=>s.pathMode==='segmented')?'Includes segmented paths with travel':selections.some(s=>s.pattern)?'Continuous pattern wrapped around the sleeve':'Continuous spiral within its assigned region']);
       }
-      if(hasSkill(state.plan,'pipe-cladding'))rows.push(['Exterior shells',state.plan.skills['pipe-cladding'].shells+' · '+claddingPatternName(state.plan.skills['pipe-cladding'])],['Motion model','Nominal Cartesian + rotary; robot feasibility deferred']);
-      if(state.pathSummary?.pipeCladding?.partialAxialPasses!==undefined&&state.plan.skills['pipe-cladding'].pattern!=='crossed-helices')rows.push(['Partial vertical passes',String(state.pathSummary.pipeCladding.partialAxialPasses)],['Full vertical passes',String(state.pathSummary.pipeCladding.fullAxialPasses)]);
-      if(state.plan.composition?.regions?.length)rows.push(...regionRows(state.plan));
+      for(const clad of state.plan.slices.assignments.filter(a=>a.construction==='cladding'))rows.push([clad.id+' · Exterior courses',clad.shells+' · '+claddingPatternName(clad)],['Motion model','Nominal Cartesian + rotary; robot feasibility deferred']);
+      if(state.pathSummary?.pipeCladding?.partialAxialPasses!==undefined)rows.push(['Partial vertical passes',String(state.pathSummary.pipeCladding.partialAxialPasses)],['Full vertical passes',String(state.pathSummary.pipeCladding.fullAxialPasses)]);
       if(state.pathSummary?.waveOverhangs)for(const w of state.pathSummary.waveOverhangs)rows.push(['Wave slice · '+w.slice,w.waves+' fronts · '+(w.continuity?.passes??'unverified')+' continuous pass(es) · '+w.residualsUv.length+' residual region(s) within sampling tolerance']);
       if(limit) {
         rows.push(['Surface not skinned',limit.excludedAreaPercent+'% steeper than '+limit.effectiveMaxAngleDeg+'°']);
@@ -261,9 +254,9 @@ const views={
       return rows;
     },
     settings(state) {
-      const {setup:s,process:p}=state.plan,skin=state.plan.skills['draped-skin'];
+      const {setup:s,process:p}=state.plan;
       const contract=state.machine.outputs.find(o=>o.id===state.plan.output)?.constraints;
-      const declaredLimit=state.machine.nonplanar?.maxAngleDeg,effectiveLimit=skin.maxAngleDegOverride??declaredLimit;
+      const declaredLimit=state.machine.nonplanar?.maxAngleDeg;
       return [['Bed temperature',s.bedC+'°C'],['Build volume temperature',s.buildVolumeC===0?'Heating off':s.buildVolumeC+'°C'],
         ...(contract?.bedType?[['Build surface',contract.bedType==='textured_plate'?'Textured PEI':contract.bedType],['Startup purge',contract.startupPurgeC+'°C · up to '+contract.startupPurgeFlowMm3S+' mm³/s']]:[]),
         ['First layer',p.firstLayerMm+' mm'],['Line width',p.lineWidthMm+' mm'],
@@ -287,10 +280,10 @@ function partBounds() {
   const shown=tab==='toolpath'?(presentedState()??state):state;
   const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
   for(const point of shown.geometry.vertices)for(let i=0;i<3;i++){min[i]=Math.min(min[i],point[i]);max[i]=Math.max(max[i],point[i]);}
-  if(tab==='toolpath'&&shown.program&&hasSkill(shown.plan,'wave-overhangs')){
+  if(tab==='toolpath'&&shown.program&&hasConstruction(shown.plan,'fronts')){
     if(waveBoundsMoves!==shown.program.moves){
       waveBoundsMoves=shown.program.moves;waveDisplayBounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
-      for(const move of waveBoundsMoves)if(move.extruding&&move.phase==='wave-overhangs')for(const p of [move.from,move.to])for(let i=0;i<3;i++){
+      for(const move of waveBoundsMoves)if(move.extruding&&move.phase==='fronts')for(const p of [move.from,move.to])for(let i=0;i<3;i++){
         const v=p[i]-(i===0?shown.plan.placement.xMm:i===1?shown.plan.placement.yMm:0);
         waveDisplayBounds.min[i]=Math.min(waveDisplayBounds.min[i],v);waveDisplayBounds.max[i]=Math.max(waveDisplayBounds.max[i],v);
       }
@@ -471,10 +464,10 @@ function render() {
   const exportNameInput=$('#export-name');
   if(document.activeElement!==exportNameInput)exportNameInput.value=exportNameState.value;
   $('#settings-detail').replaceChildren(table(presentation.settings));
-  $('#planar-label').textContent=hasSkill(state.plan,'line-network')?'Line networks':hasSkill(state.plan,'pipe-cladding')?'Body':'Flat layers';
+  $('#planar-label').textContent=hasConstruction(state.plan,'cladding')?'Body':'Deposition';
   $('.dot.planar').style.background=TOOLPATH_COLORS.skyBlue;
   const pathView=viewer.sceneState().pathView;
-  const samples=$('#axial-colors');samples.replaceChildren();samples.hidden=!hasSkill(state.plan,'pipe-cladding')||!pathView;
+  const samples=$('#axial-colors');samples.replaceChildren();samples.hidden=!hasConstruction(state.plan,'cladding')||!pathView;
   const sampledPhases=new Set();
   if(!samples.hidden)for(const [index,group] of pathView.groups.entries()){
     const move=pathView.moves[group.first];
@@ -494,7 +487,7 @@ function render() {
     };
     samples.append(button);
   }
-  $('#skin-label').textContent=hasSkill(state.plan,'pipe-cladding')?(state.plan.skills['pipe-cladding'].pattern==='crossed-helices'?'Crossed helices':'Circumferential'):hasSkill(state.plan,'wave-overhangs')?'Wave fronts':hasSkill(state.plan,'vase-wall')?'Skin / paths':view().skinLabel;
+  $('#skin-label').textContent=hasConstruction(state.plan,'cladding')?'Surface cladding':hasConstruction(state.plan,'fronts')?'Wave fronts':view().skinLabel;
   const reviewed=$('#reviewed-download'),controls=studioControls(state,{tab,busy,generating,pending:generationPending(),staleProgram:Boolean(activePresentation?.retained&&activePresentation.program),
     tourActive:Boolean(tourUI?.active()),exported:exportedThisSession.has(exportKey()),currentExportKey:exportKey(),inspection:state.inspection,
     machineView:cameras.mode==='machine',reviewedExportKey:reviewed?.dataset.exportKey});

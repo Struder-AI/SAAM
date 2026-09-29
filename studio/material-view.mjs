@@ -16,7 +16,9 @@ function beadFrame(move,plan,geometry,clad){
     // Recover the commanded surface frame from interpreted tool orientation.
     // The cladding producer tilts toward -V and sets tool Y to V cross normal.
     if(!move.toolAxisTo||!move.toolUpTo)return null;
-    const height=plan.skills['pipe-cladding'].normalMm,tilt=plan.skills['pipe-cladding'].tiltDeg*Math.PI/180;
+    const settings=plan.slices.assignments.find(a=>a.construction==='cladding'&&move.operation?.startsWith(a.id+':'));
+    if(!settings)return null;
+    const height=settings.normalMm,tilt=settings.tiltDeg*Math.PI/180;
     const frame=(axis,up)=>normalize(add(scale(axis,-Math.sin(tilt)),scale(cross(up,axis),-Math.cos(tilt))));
     const a=frame(move.toolAxisFrom,move.toolUpFrom),b=frame(move.toolAxisTo,move.toolUpTo);
     const distanceAlong=point=>length(subtract(point,move.from))/Math.max(1e-12,length(subtract(move.to,move.from)));
@@ -29,7 +31,10 @@ function beadFrame(move,plan,geometry,clad){
   }
   // Source records do not yet retain these skills' local surface normals.
   // Keep an explicitly labelled line fallback rather than inventing a frame.
-  if(['draped-skin','wave-overhangs'].includes(move.phase))return null;
+  if(['skin','fronts','draped-skin','wave-overhangs'].includes(move.phase))return null;
+  const assignment=plan.slices.assignments.find(a=>!a.construction&&move.operation?.startsWith((a.part===null?'':a.part+':')+a.id+':'));
+  if(assignment?.surface.kind==='plane')return {normal:()=>normalize(assignment.surface.normal),height:p.layerMm,centered:false};
+  if(assignment&&assignment.surface.kind!=='horizontal')return null;
   const layerNormal=()=>[0,0,1];
   return {normal:layerNormal,height:move.layer===0?p.firstLayerMm:p.layerMm,centered:false};
 }

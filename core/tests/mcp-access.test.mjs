@@ -91,7 +91,6 @@ test('the public CLI checks ungenerated geometry and rejects stale chat revision
   t.after(() => rm(dir, { recursive: true, force: true }));
   const plan = shellDefaults();
   plan.geometry = splineBox({runMm:12,widthMm:10,heightMm:1});
-  plan.skills['draped-skin'].enabled = false;
   plan.process.minimumLayerSeconds = 0;
   await initBundle(dir, plan);
   const script = resolve(root, 'core/print/cli.mjs');

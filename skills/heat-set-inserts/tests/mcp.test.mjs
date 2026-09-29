@@ -35,7 +35,7 @@ test('MCP discovers heat-set profiles and applies revision-checked insert edits'
 
     const {plan}=await call('get_plan_template',{kind:'shell',machineId:'ultimaker-s5'});
     const base=splineBox({runMm:30,widthMm:26,heightMm:10});
-    plan.geometry=base;plan.skills['draped-skin'].enabled=false;
+    plan.geometry=base;
     const printId='insert-sample';
     let state=await call('create_print',{printId,kind:'shell',machineId:'ultimaker-s5',plan});
     const firstRevision=state.revision;
