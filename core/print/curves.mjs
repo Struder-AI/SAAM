@@ -4,7 +4,10 @@ import {authoredNurbs,validateCurveProfiles,validateLineTextSource,constructAuth
 import {beadWidthRule} from '../path/parallel-curves.mjs';
 import {depositCurves} from '../path/deposition.mjs';
 import {depositedCurveSegments,curveSupportsPoint} from '../path/deposited-curves.mjs';
-import {planarPolicy} from '../path/builder.mjs';
+import {depositCurveCourses} from '../path/curve-courses.mjs';
+import {prepareContourSleeve} from '../geom/contour-sleeve.mjs';
+import {mappedSleevePatternCurves} from '../path/sleeve-pattern.mjs';
+import {contactCurveGaps} from '../path/contact-curves.mjs';
 import {requireMachine,toolBounds} from '../machine/profile.mjs';
 import {assignmentPlan} from './assignment-process.mjs';
 import {finalizeDepositionResult} from './finalize.mjs';
@@ -59,8 +62,7 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,bounds
   const family=assignment.repeat?.family?references[`slice:${assignment.repeat.family}`]:null;
   requireThat(!assignment.repeat?.family||family?.layers?.length,'Curve repeat needs an available named slice family.');
   const indices=family?(assignment.repeat.indices??family.layers.map(l=>l.index)):null;
-  const operations=[],count=indices?.length??assignment.repeat?.count??1,translation=assignment.repeat?.translation??[0,0,0];
-  let lengthMm=0,strokeCount=0;
+  const courses=[],count=indices?.length??assignment.repeat?.count??1,translation=assignment.repeat?.translation??[0,0,0];
   for(let course=0;course<count;course++){
     const index=indices?.[course]??course;
     const active=assignment.curves.filter(curve=>!curve.courses||curve.courses.includes(index));
@@ -73,25 +75,43 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,bounds
       });
     }
 
-    const strokes=depositCurves(curves,{widthMm:process.lineWidthMm,heightMm,speedMmS});
-    for(const stroke of strokes){
-      const width=Math.max(stroke.beadWidthMm??process.lineWidthMm,...(stroke.segmentMetadata??[]).map(m=>m.beadWidthMm??0));
-      if(bounds)requireThat(stroke.points.every(p=>p.every((v,i)=>v>=(i===2?bounds.min[i]:bounds.min[i]+width/2)-1e-8&&v<=(i===2?bounds.max[i]:bounds.max[i]-width/2)+1e-8)),
-        `Curve assignment ${assignment.id} exceeds selected tool bounds on course ${course}.`);
-      lengthMm+=curveLength(stroke.points);strokeCount++;
-    }
-    const all=strokes.flatMap(stroke=>stroke.points),low=Math.min(...all.map(p=>p[2])),high=Math.max(...all.map(p=>p[2]));
-    const width=Math.max(...strokes.map(stroke=>stroke.beadWidthMm??process.lineWidthMm));
-    const min=[Math.min(...all.map(p=>p[0]))-width/2,Math.min(...all.map(p=>p[1]))-width/2];
-    const max=[Math.max(...all.map(p=>p[0]))+width/2,Math.max(...all.map(p=>p[1]))+width/2];
-    const region=[[[min[0],min[1]],[max[0],min[1]],[max[0],max[1]],[min[0],max[1]]]],planar=high-low<1e-9;
-    const travelPolicy=planar?planarPolicy(region,{layerZ:high,liftMm:process.liftMm,maxCombMm:0,lineWidthMm:width})
-      :{maxCombMm:0,canTravelDirect:()=>false,clearanceFor:()=>high+process.liftMm};
-    operations.push({id:`${assignment.id}:${course}`,layerId:planar?`planar:${high}`:`${assignment.id}:${course}`,phase:planar?'planar':'curves',layer:course,layerIndex:course,layerCount:count,rank:course,
-      after:[...assignment.after],order:'given',regionId:assignment.id,region,strokes,travelPolicy,clearanceZ:high+process.liftMm,
-      ...(assignment.filament===null?{}:{filament:assignment.filament})});
+    courses.push({key:course,curves,heightMm,speedMmS,layer:course,layerIndex:course,layerCount:count,rank:course,
+      regionId:assignment.id,travel:{kind:'auto'}});
   }
-  return {id:assignment.id,operations,report:{construction:'curves',courses:count,strokes:strokeCount,lengthMm}};
+  return traceResult(assignment,{courses,process,bounds,sequential:false,report:{construction:'curves',courses:count}});
+}
+
+// Authored and skill-mapped centerlines share bead calculation, joining,
+// travel packaging, bounds and aggregate measures. Extensions supply geometry
+// and course data; they do not assemble a separate deposition result.
+function traceResult(assignment,{courses,process,bounds=null,sequential=true,report={}}){
+  const operations=depositCurveCourses({id:assignment.id,courses,process,after:assignment.after,filament:assignment.filament,sequential});
+  let lengthMm=0,strokeCount=0,volumeMm3=0;
+  for(const operation of operations)for(const stroke of operation.strokes){
+    const width=Math.max(stroke.beadWidthMm??process.lineWidthMm,...(stroke.segmentMetadata??[]).map(m=>m.beadWidthMm??0));
+    if(bounds)requireThat(stroke.points.every(p=>p.every((v,i)=>v>=(i===2?bounds.min[i]:bounds.min[i]+width/2)-1e-8&&v<=(i===2?bounds.max[i]:bounds.max[i]-width/2)+1e-8)),
+      `Curve assignment ${assignment.id} exceeds selected tool bounds on course ${operation.layer}.`);
+    const length=curveLength(stroke.points);lengthMm+=length;strokeCount++;
+    const closing=stroke.closed?distance(stroke.points.at(-1),stroke.points[0]):0;
+    volumeMm3+=stroke.volumesMm3?stroke.volumesMm3.reduce((sum,v)=>sum+v,0):(length+closing)*stroke.beadAreaMm2;
+  }
+  return {id:assignment.id,operations,report:{...report,depositionFamily:'trace',strokes:strokeCount,lengthMm,volumeMm3}};
+}
+
+// Sleeve tiling is a Trace geometry extension. Its authored cells and reference
+// morphing determine centerlines; shared Trace owns all deposition assembly.
+export function sleeveTraceResult({shell,assignment,process,machine,after=assignment.after,zStartMm=null,zEndMm=null,foundationSegments=[],maxBeadHeightMm=Infinity,substrateAdaptation=false,onProgress}){
+  requireThat(assignment.pattern!==null,'Sleeve Trace requires an authored repeated pattern.');
+  const reference=prepareContourSleeve({shell,assignment,process,machine,zStartMm,zEndMm,onProgress});
+  const {base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm}=reference;
+  const mapped=mappedSleevePatternCurves({settings:assignment,process,base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm,onProgress});
+  const courses=mapped.courses.map(({layerIdSuffix,...course})=>({...course,layerId:assignment.id+layerIdSuffix,
+    ...(substrateAdaptation&&foundationSegments.length?{curves:contactCurveGaps(course.curves,{segments:foundationSegments,maxHeightMm:maxBeadHeightMm})}:{})}));
+  const family={...reference.family(),name:`${assignment.id} sleeve`};
+  const result=traceResult({...assignment,after},{courses,process,report:{...mapped.report,...reference.report(),construction:'sleeve',part:assignment.part}});
+  const level=mapped.levelBoundary,strokes=result.operations.flatMap(o=>o.strokes);
+  return {...result,family,
+    ...(level?{levelBoundary:{zMm:level.zMm,widthMm:level.widthMm,strokes:strokes.slice(-level.tailCount)}}:{})};
 }
 
 // Construct one graph-selected trace from finalized predecessors. Bridges finalize
@@ -205,7 +225,7 @@ export function bridgeAssignmentResult(assignment,{plan,machine,process=plan.pro
     supportSegments.push(...depositedCurveSegments([operations.at(-1)],{widthMm:width,source:b.id,excludedRoles:['bridge-press']}));
     reports.push({id:b.id,mode:b.mode,spans:rails[0].length,minZMm:low,maxZMm:high,excursionMm:high-low});
   }
-  return {id:assignment.id,operations,report:{bridges:reports,physicalValidation:'not performed',...(modulations.length?{modulation:{
+  return {id:assignment.id,operations,report:{depositionFamily:'trace',bridges:reports,physicalValidation:'not performed',...(modulations.length?{modulation:{
     changed:true,maxExcursionMm:Math.max(...modulations.map(m=>m.maxExcursionMm)),
     changedOperations:modulations.flatMap(m=>m.changedOperations),modifiers:[...new Set(modulations.flatMap(m=>m.modifiers))]
   }}:{})}};

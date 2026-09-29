@@ -6,7 +6,6 @@ description: Deposit along curves, authored directly or supplied by skills: XYZ,
 # Trace
 
 Trace deposits along spatial curves, authored directly or supplied by skills.
-Use it for networks, line lettering, surface paths and reinforcement.
 [Slice](../slice/SKILL.md) covers 3D regions; [text](../text/SKILL.md) makes solid lettering.
 
 Use the existing `slice` editing tool, or the same bulk recipe edit, to add a
@@ -33,5 +32,6 @@ named slice family. Surface references and family repetition use finalized
 source data; dependencies must exist. Optional [modulation](../slice/SKILL.md#modulation)
 primarily adds visual/surface effects; the profiles above directly express process variation.
 
-[Line networks](../line-network/SKILL.md) and [bridging](../bridging/SKILL.md) describe
-their constructions; generation alone establishes no physical adhesion or strength.
+[Networks](../line-network/SKILL.md), [bridging](../bridging/SKILL.md) and
+[sleeve tiles](../advanced-vase-wall/SKILL.md) supply Trace curves; generation
+establishes no physical adhesion or strength.

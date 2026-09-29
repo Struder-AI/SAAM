@@ -44,15 +44,25 @@ export function depositionStroke({points,heightsMm,widthMm,widthsMm,speedMmS,rol
   return {role,closed:false,points,volumesMm3,speedMmS,...(segmentMetadata?{segmentMetadata}:{})};
 }
 
+// Select inclusive vertex indices from an explicit open path, retaining complete
+// edges and every aligned vertex/segment channel.
+// Used for terminal material publication and for removing an unwritable tail.
+export function strokeRange(stroke,from=0,to=stroke.points.length-1){
+  requireThat(!stroke.closed,'Materialize a closed stroke before selecting an edge range.');
+  requireThat(Number.isInteger(from)&&Number.isInteger(to)&&from>=0&&to>from&&to<stroke.points.length,'A stroke range needs existing complete edges.');
+  const result={...stroke,points:stroke.points.slice(from,to+1)};
+  for(const key of ['poses','normals','frameSamples','curveParameters','chartPoints'])if(stroke[key])result[key]=stroke[key].slice(from,to+1);
+  for(const key of ['volumesMm3','segmentMetadata','heightsMm','widthsMm','flowMultipliers'])if(stroke[key])result[key]=stroke[key].slice(from,to);
+  return result;
+}
+
 // A bead that tapers to nothing ends where its remaining material is no longer
 // writable: a machine program can only express those last moves as travel.
 // Return shortened arrays while preserving the producer's stroke.
 export function trimVanishingEnd(stroke,minimumMm3=1e-3) {
   let tail=0,keep=stroke.volumesMm3.length;
   while(keep>1&&tail+stroke.volumesMm3[keep-1]<minimumMm3)tail+=stroke.volumesMm3[--keep];
-  return {...stroke,points:stroke.points.slice(0,keep+1),volumesMm3:stroke.volumesMm3.slice(0,keep),
-    ...Object.fromEntries(['poses','normals','frameSamples','curveParameters'].filter(key=>stroke[key]).map(key=>[key,stroke[key].slice(0,keep+1)])),
-    ...(stroke.segmentMetadata?{segmentMetadata:stroke.segmentMetadata.slice(0,keep)}:{})};
+  return strokeRange(stroke,0,keep);
 }
 
 export function maximumPathAngle(points) {

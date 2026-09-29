@@ -8,6 +8,7 @@ import {planToolpath} from '../path/toolpath.mjs';
 import {filamentSelection,assignedFilaments} from '../machine/filaments.mjs';
 import {planarPolicy} from '../path/builder.mjs';
 import {assignmentPlan} from './assignment-process.mjs';
+import {assignmentFamily} from './slice-settings.mjs';
 import {surveySkinAssignment} from './surface-constructions.mjs';
 import { validatePlan, VERSION } from './plan.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
@@ -160,8 +161,8 @@ export function generateModelResults(plan,machine,rhino,{placed,componentShells,
     requireThat(shell,'Cladding needs a selected component or the single solid.');
     return {assignment,shell,process:assignmentPlan(plan,machine,assignment).process};
   });
-  const constructions=[...sleeves,...injections,...remaining].map(context=>({...context,maxBeadHeightMm:machine.tools.find(tool=>tool.index===assignmentPlan(plan,machine,context.assignment).setup.tool)?.layerHeightMm?.[1]??Infinity}));
-  const sliced=finalizedSliceResults({plan,machine,shells,volumes:sliceVolumes(plan,rhino),bands,reserves:welds,envelopes:welds,surfaceAssignments:skins,referenceAssignments,terminalAssignments:rims,constructions,onProgress});
+  const constructions=[...sleeves.filter(context=>assignmentFamily(context.assignment)==='trace'),...injections,...remaining].map(context=>({...context,maxBeadHeightMm:machine.tools.find(tool=>tool.index===assignmentPlan(plan,machine,context.assignment).setup.tool)?.layerHeightMm?.[1]??Infinity}));
+  const sliced=finalizedSliceResults({plan,machine,shells,volumes:sliceVolumes(plan,rhino),bands,reserves:welds,envelopes:welds,surfaceAssignments:skins,referenceAssignments,terminalAssignments:rims,boundaryAssignments:sleeves.filter(context=>assignmentFamily(context.assignment)==='slice'),constructions,onProgress});
   results.push(...sliced.results);
   if(sliced.summary)summary.slices=sliced.summary;
   for(const [kind,key] of [['sleeve','vaseWall'],['rim','thickLip'],['skin','drapedSkin']]){
@@ -257,10 +258,17 @@ export function summarizeGeneratedPath(placed,survey,modelSummary) {
   return summary;
 }
 
+export const GENERATION_CONTRACT='saam-deposition/2';
 export function depositionInspection(results){
   const operations={},slices={};
   for(const result of results){
-    const family=result.familyId??result.report?.owner??result.id;
+    const family=result.familyId??result.report?.owner??result.id,kind=result.report?.depositionFamily??null;
+    if(!kind)continue;
+    const familyLayers=result.family?.layers??[],referenceKeys=[];
+    const traceLayers=kind==='trace'?[...new Set(result.operations.flatMap(operation=>{
+      const layers=operation.strokes.flatMap(stroke=>stroke.segmentMetadata?.map(segment=>segment.layer).filter(Number.isInteger)??[]);
+      return layers.length?layers:[operation.layer];
+    }))]:[];
     for(const layer of result.family?.layers??[]){
       const key=`${result.id}:${layer.index}`;
       if(layer.slice&&layer.region?.length){
@@ -273,15 +281,23 @@ export function depositionInspection(results){
         const curves=layer.curves.map(curve=>sampleAuthoredCurve(curve,{toleranceMm:.05,sampleStepMm:2}).points);
         slices[key]={family,index:layer.index,loops:curves,grid:[]};
       }
+      if(slices[key])referenceKeys.push(key);
     }
     for(const operation of result.operations){
-      const index=operation.layerIndex??operation.layer,key=`${result.id}:${operation.layer??index}`;
+      const index=operation.layerIndex??operation.layer;
+      const sourceLayers=new Set([operation.layer,...operation.strokes.flatMap(stroke=>stroke.segmentMetadata?.map(segment=>segment.layer).filter(Number.isInteger)??[])]);
+      const layers=Object.fromEntries([...sourceLayers].map(layer=>{
+        const key=`${result.id}:${layer}`,ordinal=familyLayers.findIndex(reference=>reference.index===layer);
+        const traceIndex=traceLayers.indexOf(layer);
+        return [layer,{index:kind==='slice'&&ordinal>=0?ordinal:kind==='trace'&&operation.layerIndex===undefined?Math.max(0,traceIndex):index,
+          references:kind==='trace'?referenceKeys:slices[key]?[key]:[]}];
+      }));
       const changed=result.report?.modulation?.changedOperations?.includes(operation.id);
-      operations[operation.id]={family,index,roles:[...new Set(operation.strokes.map(stroke=>stroke.role))],
-        modifiers:changed?(result.report.modulation.operationModifiers?.[operation.id]??result.report.modulation.modifiers):[],slice:slices[key]?key:null};
+      operations[operation.id]={family,kind,layers,referenceName:result.family?.name??family,roles:[...new Set(operation.strokes.map(stroke=>stroke.role))],
+        modifiers:changed?(result.report.modulation.operationModifiers?.[operation.id]??result.report.modulation.modifiers):[]};
     }
   }
-  return {operations,slices};
+  return {schema:GENERATION_CONTRACT,operations,slices};
 }
 
 export function generatePath(plan, machine, rhino, {onProgress,modulations,modulationPreparation=[]} = {}) {

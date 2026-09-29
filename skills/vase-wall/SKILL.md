@@ -11,9 +11,8 @@ recipe leaves the interior hollow. No pattern or `meshSleeve` preparation is nee
 For repeated loops, authored patterns or adjustable mesh conformance, choose
 [advanced vase mode](../advanced-vase-wall/SKILL.md).
 
-Target architecture classifies the vase wall as Slice over a 3D region; this
-manual documents the current sleeve record while shared-family migration remains
-open.
+Normal sleeve assignments use the shared Slice family, spiral joining and bead
+construction. Advanced tiled patterns use Trace on the same sleeve reference.
 
 ## Workflow
 

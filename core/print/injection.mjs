@@ -30,6 +30,6 @@ export function injectionResult(assignment,{plan,machine}){
       after:[...assignment.dependencies.after,...(index?[`${assignment.id}:${index-1}`]:[])],
       ...(assignment.filament===null?{}:{filament:assignment.filament}),plan:selected,machine,nozzleC:assignment.nozzleC});
   });
-  return {id:assignment.id,operations,report:{owner:assignment.id,construction:'inject',points:operations.length,
+  return {id:assignment.id,operations,report:{owner:assignment.id,depositionFamily:'inject',construction:'inject',points:operations.length,
     authoredVolumeMm3:assignment.points.reduce((sum,p)=>sum+p.volumeMm3,0),materialCoverage:'unspecified-point-volume'}};
 }

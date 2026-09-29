@@ -1,14 +1,10 @@
-import {contactCurveGaps} from '../path/contact-curves.mjs';
-import {constructContourSleeve} from '../geom/contour-sleeve.mjs';
-// Section-derived spirals and sleeve-relative patterns share stroke semantics.
+// Sleeve assignment records and terminal-boundary geometry; Slice/Trace own deposition.
 import {cleanPlanarLoop} from '../geom/polyline.mjs';
-import {loopArea,dedupe,pointSegmentDistance,pointInRegion} from '../region/region2d.mjs';
+import {loopArea} from '../region/region2d.mjs';
 import {offsetRegion} from '../region/offset.mjs';
 import {requireThat,distance} from '../geom/tolerance.mjs';
-import {depositCurveCourses} from '../path/curve-courses.mjs';
 import {validateSleevePattern} from '../path/sleeve-pattern.mjs';
 import {section as geometrySection,horizontalSlice} from '../geom/slice.mjs';
-import {depositedBeadSegments} from '../path/deposited-curves.mjs';
 
 export const SLEEVE_DEFAULTS={zStartMm:0,zEndMm:null,endTransition:'level',pattern:null,pathMode:'continuous',meshSleeve:null,sampleStepMm:1,toleranceMm:0.02,boundaryToleranceMm:0.02,minFeatureMm:0.4,sleeveToleranceMm:0.08};
 export const sleeveAssignment=({id,...options})=>structuredClone({id,construction:'sleeve',part:null,filament:null,process:null,after:[],...SLEEVE_DEFAULTS,...options});
@@ -49,32 +45,6 @@ export function validateSleeveAssignment(a,{parts}={}){
 // Ten-nanometer integer grid: independent of contour/chord and boundary
 // tolerances; shared Clipper2 offsets use this same grid by default.
 const OFFSET_PRECISION_MM=0.00001;
-const cross=(a,b)=>a[0]*b[1]-a[1]*b[0];
-const sub=(a,b)=>[a[0]-b[0],a[1]-b[1]];
-
-// Shared with skills/thick-lip: a rim finish freezes the same outer section
-// vase-wall itself would have printed at the boundary Z, so it reuses this
-// exact convexity/dedupe check rather than re-deriving it.
-export function convexLoop(loops) {
-  requireThat(loops.length===1&&loopArea(loops[0])>0,'Vase wall requires one outer section loop without holes or multiple islands.');
-  const loop=dedupe(loops[0]);
-  requireThat(loop.length>=3,'Vase wall section collapsed.');
-  for(let i=0;i<loop.length;i++) {
-    const a=sub(loop[(i+1)%loop.length],loop[i]),b=sub(loop[(i+2)%loop.length],loop[(i+1)%loop.length]);
-    requireThat(cross(a,b)>=-1e-7*Math.hypot(...a)*Math.hypot(...b),'Vase wall currently requires convex sections; concave sections are unsupported.');
-  }
-  return loop;
-}
-export function sleeveResult({shell,assignment,process,machine,id=assignment.id,after=assignment.after,zStartMm=null,zEndMm=null,foundationSegments=[],maxBeadHeightMm=Infinity,substrateAdaptation=false,onProgress}) {
-  const constructed=constructContourSleeve({shell,assignment,process,machine,zStartMm,zEndMm,onProgress});
-  const courses=constructed.courses.map(({layerIdSuffix,...course})=>({...course,layerId:id+layerIdSuffix,...(substrateAdaptation&&foundationSegments.length?{curves:contactCurveGaps(course.curves,{segments:foundationSegments,maxHeightMm:maxBeadHeightMm})}:{})}));
-  const operations=depositCurveCourses({id,courses,process,after,filament:assignment.filament}),strokes=operations.flatMap(o=>o.strokes);
-  const level=constructed.levelBoundary;
-  const levelStrokes=level?.tailCount?strokes.slice(-level.tailCount):level?[{...strokes[0],points:strokes[0].points.slice(level.startIndex),volumesMm3:strokes[0].volumesMm3.slice(level.startIndex),segmentMetadata:strokes[0].segmentMetadata.slice(level.startIndex)}]:null;
-  return {id,operations,family:constructed.family,...(level?{levelBoundary:{zMm:level.zMm,widthMm:level.widthMm,strokes:levelStrokes}}:{}),report:{...constructed.report,construction:'sleeve',part:assignment.part,volumeMm3:strokes.reduce((sum,s)=>sum+s.volumesMm3.reduce((a,b)=>a+b,0),0)}};
-}
-
-
 export function terminalBoundaryReference({shell,assignment,sourceAssignment,sourceResult,substrateAdaptation=false}) {
   requireThat(sourceAssignment?.id===assignment.source&&sourceAssignment.part===assignment.part,'A rim must name a source assignment on the same part.');
   requireThat(sourceResult?.levelBoundary,'A rim needs an explicit terminal boundary from its source.');

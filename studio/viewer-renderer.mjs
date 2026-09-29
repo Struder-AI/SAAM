@@ -6,7 +6,7 @@ import {buildMaterialScene,createMaterialRenderer} from './material-view.mjs';
 import {drawMachineCanvas} from './machine-view.mjs';
 import {point} from '../core/machine/rigid.mjs';
 import {createViewPerformance,createMotionQuality} from './view-performance.mjs';
-import {injectionPoints} from './settings.mjs';
+import {injectionPoints,depositionUnit} from './settings.mjs';
 
 const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 
@@ -104,16 +104,17 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
       const detail=!solid||showTravel||materialScene.unsupported.length?toolpathFrame(pathView,count,showTravel):{segments:[]};
       annotations.detailText=solid?(materialScene.unsupported.length?'Line view for '+materialScene.unsupported.join(', ')+': surface frames unavailable.':''):materialError||(detail.overview?'Layer overview · detail follows playback. Export keeps every point.':detail.reduced?'Curves simplified for display (0.02 mm). Export keeps every point.':'');
       const {displayed,current,currentLayer}=toolpathPresentation(moves,at,detail),fade=fadeState.frame(currentLayer,frameNow,remainingLayerMs(pathView,at.active,position,playbackSpeed)),styles=new Map();
-      const inspection=shown.pathSummary?.inspection,info=inspection?.operations?.[currentLayer?.operation];
-      if(info){
-        const kind=shown.plan.slices.assignments.find(a=>a.id===info.family)?.construction;
-        annotations.layerText=`${info.family} · ${kind==='inject'?'injection point':kind==='curves'?'trace course':kind==='bridges'?'bridge course':'slice'} ${info.index+1} · step ${layerIndexAt(pathView,position)+1}/${pathView.groups.length}`;
-        annotations.detailText=[annotations.detailText,`Roles: ${info.roles.join(', ')}`,...(info.modifiers.length?[`Modulation: ${info.modifiers.join(', ')}`]:[])].filter(Boolean).join(' · ');
+      const inspection=shown.pathSummary?.inspection,info=inspection?.operations?.[currentLayer?.operation],reference=info?.layers?.[currentLayer?.layer];
+      if(info&&reference){
+        annotations.layerText=`${info.family} · ${depositionUnit(info.kind)} ${reference.index+1} · step ${layerIndexAt(pathView,position)+1}/${pathView.groups.length}`;
+        annotations.detailText=[annotations.detailText,`Roles: ${info.roles.join(', ')}`,...(info.modifiers.length?[`Modulation: ${info.modifiers.join(', ')}`]:[]),
+          ...(info.kind==='trace'&&reference.references.length?[`Reference: ${info.referenceName}`]:[])].filter(Boolean).join(' · ');
       }
       if(solid)try{const start=now();materialStats=materialRenderer.draw(materialScene,{at,current:currentLayer,fade,project:materialProject,width,height,ratio,skinPhase,previousLayerOpacity:settings.previousLayerOpacity,machine,machineMode:cameraMode,machinePalette:machineColors,quality});ctx.drawImage(materialRenderer.canvas,0,0,width,height);materialMs=now()-start;}catch(error){materialError=error.message;materialRenderer.dispose();materialRenderer=null;materialScene=null;if(!updateUI)throw error;annotations.redraw=true;}
-      if(settings.showSlice&&info?.slice){
-        const reference=inspection.slices[info.slice];ctx.save();ctx.globalAlpha=.8;ctx.setLineDash([5,3]);
-        for(const curve of [...(reference?.loops??[]),...(reference?.grid??[])])for(let i=1;i<curve.length;i++)segment(project(local(curve[i-1])),project(local(curve[i])),'#486e68',1.3);
+      if(settings.showSlice&&reference?.references.length){
+        ctx.save();ctx.globalAlpha=.8;ctx.setLineDash([5,3]);
+        for(const key of reference.references){const surface=inspection.slices[key];
+          for(const curve of [...(surface?.loops??[]),...(surface?.grid??[])])for(let i=1;i<curve.length;i++)segment(project(local(curve[i-1])),project(local(curve[i])),'#486e68',1.3);}
         ctx.restore();
       }
       for(const active of [false,true])for(const edge of displayed){if(solid&&edge.move.extruding&&materialScene?.supported[edge.first])continue;const key=layerKey(edge.move),styleKey=key+':'+!!edge.move.extruding+':'+!!edge.move.modulated+':'+(edge.move.filament??'')+':'+(edge.move.lineWidthMm??'');let style=styles.get(styleKey);if(!style){style=toolpathStyle(edge.move,currentLayer,skinPhase,fade.weights.get(key)??0,strokeScale);styles.set(styleKey,style);}if(style.active!==active)continue;ctx.globalAlpha=style.opacity;segment(project(local(edge.from)),project(local(edge.to)),style.color,style.width);}

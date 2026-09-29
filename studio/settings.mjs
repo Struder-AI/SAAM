@@ -136,16 +136,14 @@ export function sliceRows(plan){
 export function injectionPoints(plan){
   return (plan.slices?.assignments??[]).filter(a=>a.construction==='inject').flatMap(a=>a.points.map((p,index)=>({...p,id:`${a.id}:${index}`})));
 }
-export function depositionFamilyRows(plan,inspection){
+export const depositionUnit=kind=>({slice:'slice',trace:'trace course',inject:'injection point'}[kind]??'deposition course');
+export function depositionFamilyRows(inspection){
   const families=new Map();
   for(const operation of Object.values(inspection?.operations??{})){
-    if(!families.has(operation.family))families.set(operation.family,new Set());
-    families.get(operation.family).add(operation.index);
+    if(!families.has(operation.family))families.set(operation.family,{kind:operation.kind,indices:new Set()});
+    for(const layer of Object.values(operation.layers))families.get(operation.family).indices.add(layer.index);
   }
-  return [...families].map(([id,indices])=>{
-    const kind=plan.slices.assignments.find(a=>a.id===id)?.construction;
-    return [id+' · Family',indices.size+' '+(kind==='inject'?'injection point(s)':kind==='curves'?'trace course(s)':kind==='bridges'?'bridge course(s)':'slice(s)')];
-  });
+  return [...families].map(([id,{kind,indices}])=>[id+' · Family',indices.size+' '+depositionUnit(kind)+'(s)']);
 }
 function injectionRows(a){
   return [[a.id,sliceSummary(a)],[a.id+' · Print after',a.dependencies.after.join(', ')||'Shared dependency order'],[a.id+' · Temperature',a.nozzleC===null?'Selected material setup':a.nozzleC+'°C, then restore setup'],

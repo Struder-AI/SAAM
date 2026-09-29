@@ -12,6 +12,7 @@ import {consumeCheckedProgram,createPendingCheckedProgramStore} from './program-
 import {replaceFile} from '../file-write.mjs';
 import {resolveInitialPlan,resolveMachinePlan,resolvePlanPatch} from './resolve-plan.mjs';
 import {migrateRecipeFields} from './recipe-migration.mjs';
+import {assignmentFamily} from './slice-settings.mjs';
 
 export const root=resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const setupFor=machine=>resolve(root,`.local/machine-setups/${machine.id}.json`);
@@ -318,7 +319,7 @@ async function validateBundleInput(input,previousCache) {
         cache.validatedPlanText=JSON.stringify(plan);
       }
       requireThat(canonical(plan.geometry)===canonical(geometry?.descriptor.parameters),'Plan and geometry disagree. Rebuild the print geometry.');
-      identity={key:identityKey,geometryHash,generationHash:hash({plan,machine,geometryHash})};
+      identity={key:identityKey,geometryHash,generationHash:hash({plan,machine,geometryHash,...(adapter.generationContract?{generationContract:adapter.generationContract}:{})})};
       cache.identity=identity;
     }
     return {dir,plan,machine,geometry:geometry?.descriptor??null,geometryArtifact:geometry,review,identity,cache};
@@ -332,7 +333,7 @@ async function describeBundle({dir,plan,machine,geometry,geometryArtifact,review
     kind, dir, plan, machine, geometry, review, geometryHash, generationHash, programChecked:Boolean(program&&review.generation),
     exportName: exportName(plan,machine), limitations: limitationsFor(plan, machine),
     outputAvailability:machine.outputs.find(o=>o.id===plan.output)?.implemented===false?`Machine-file export for ${machine.name} is not available yet; geometry and settings can be reviewed.`:null,
-    skills: [...new Set((plan.slices?.assignments??[]).map(a=>a.construction==='inject'?'inject':['curves','bridges'].includes(a.construction)?'trace':'slice')),
+    skills: [...new Set((plan.slices?.assignments??[]).map(assignmentFamily)),
       ...Object.entries(plan.skills??{}).filter(([,settings])=>settings.enabled).map(([name])=>name)]
   };
   if(machine.id==='denso-vs068a4-rc8a'){

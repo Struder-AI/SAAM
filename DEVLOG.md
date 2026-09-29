@@ -1,5 +1,28 @@
 # Development log
 
+## 2026-09-29 — Shared vase construction and continuous inspection (0.2.0 unfinished)
+
+- Normal vase prepares continuous Slice contours and shares joining/deposition with
+  sampled Slice families. Advanced vase keeps its sleeve/tile mapping and now shares
+  Trace course deposition. Removed separate producers; entry points remain available.
+- Ten normal/ordinary cases preserve geometry, material, process, frames and dependencies,
+  including cooling and the full fitted rocket. Authored planar/spatial Trace and five
+  advanced-tile variants retain baseline output; raised level tiles and reversed
+  dependencies pass. Lead reran authored assembly and raised level OFF/ON export checks.
+- Inspection follows semantic Slice references, Trace courses and distinct Inject sites.
+  A generation contract invalidates old programs/approvals through existing lifecycle;
+  reads preserve recipe/review bytes. Lead reran mixed generation/export/reopen/review.
+  Latest browser acceptance remains pending; earlier curved/effect/points browser checks stand.
+- Plan status now distinguishes implemented capabilities from remaining support/rivet,
+  ownership, travel and contact work. Advanced level rim ON and exact zero-tolerance
+  rocket failures remain unresolved; fitted rocket success does not resolve exact mode.
+- Timing versus ea8e13a: small medians 1.299 -> 1.276 s; fresh large 205.109 -> 222.461 s.
+  Large repeated samples drifted sharply; realistic-case speed remains unresolved.
+- Evidence: `.local/0.2.0/takeover-{A,B,C}.md`, `vase-comparison.json`, and the separately
+  scoped `takeover-B-performance.md`. No new tests or whole suites, maps, push or hardware.
+  Five current manuals total 842 -> 838 lines; plan remains 206. This is a local milestone,
+  not completed integration or release acceptance.
+
 ## 2026-09-29 — Periodic contact and curved workflow repairs (0.2.0 unfinished)
 
 - Periodic contact charts now probe across their seam when calculating derivatives;

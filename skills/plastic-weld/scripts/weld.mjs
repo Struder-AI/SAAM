@@ -127,9 +127,9 @@ export function plasticWeldResult({plan,machine,sites,modelResults}){
     const layerZ=shell.bounds.min[2]+plan.process.firstLayerMm+layer*plan.process.layerMm;
     operations.push(pointInjectionOperation({point:[x,y,top-s.seatDepthMm],volumeMm3,
       flowMm3S:s.flowMm3S,holdSeconds:s.holdSeconds,approachMm:s.seatDepthMm},
-      {id,phase:'plastic-weld',layer,layerId:'planar:'+layerZ,rank:top,after,plan,machine,nozzleC:s.nozzleC,role:'plastic-rivet'}));
+      {id,phase:'plastic-weld',layer,layerIndex:operations.length,layerCount:sites.length,layerId:'planar:'+layerZ,rank:top,after,plan,machine,nozzleC:s.nozzleC,role:'plastic-rivet'}));
     reports.push({id:site.id,part:site.part,positionMm:[x,y,top-s.seatDepthMm],openingMm:top,bottomMm:bottom,cavityVolumeMm3,volumeMm3,
       nozzleC:s.nozzleC??plan.setup.nozzleC,flowMm3S:s.flowMm3S});
   }
-  return {result:{id:'plastic-weld',operations,report:{sites:reports,physicalValidation:'not performed'}},dependencyChanges};
+  return {result:{id:'plastic-weld',operations,report:{depositionFamily:'inject',sites:reports,physicalValidation:'not performed'}},dependencyChanges};
 }

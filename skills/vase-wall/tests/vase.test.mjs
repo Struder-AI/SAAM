@@ -8,7 +8,8 @@ import {sectionGeometry} from '../../../core/geom/query.mjs';
 import {pointSegmentDistance,loopArea,dedupe} from '../../../core/region/region2d.mjs';
 import {boxMesh} from '../../../core/tests/fixtures/mesh.mjs';
 import {offsetRegion} from '../../../core/region/offset.mjs';
-import {sleeveResult,sleeveAssignment} from '../../../core/print/sleeve-constructions.mjs';
+import {sleeveAssignment} from '../../../core/print/sleeve-constructions.mjs';
+import {prepareSliceContexts,sliceContextResult} from '../../../core/print/slices.mjs';
 
 function vasePlan(machine=loadMachine(),geometry=boxMesh(8,6,1)) {
   const plan=defaults(machine);plan.geometry=geometry;
@@ -69,7 +70,7 @@ test('expanding polygonal cup keeps continuous phase when the first seam enters 
   plan.slices.assignments[0].endTransition='level';
   for(const [x,y] of [[0,0],[165,120]]){
     const shell=translateShell(buildShell(r,geometry),x,y);
-    const result=sleeveResult({shell,assignment:plan.slices.assignments[0],process:plan.process,machine,zStartMm:1.2,zEndMm:4});
+    const result=sliceContextResult(prepareSliceContexts({plan,machine,shells:[],boundaryAssignments:[{shell,assignment:{...plan.slices.assignments[0],zStartMm:1.2,zEndMm:4},process:plan.process}]}).contexts[0]);
     const points=result.operations[0].strokes[0].points;
     assert.equal(result.report.levelRimMm,4);
     assert.equal(points.at(-1)[2],4);
@@ -144,7 +145,7 @@ test('a wall takes the points its geometry requires, and a retired point budget 
   const machine=loadMachine(),r=await rhino();
   // Well past the former 100000-point default on the exact per-section path.
   const tall=vasePlan(machine,boxMesh(8,6,90));tall.slices.assignments[0].sampleStepMm=0.1;
-  const result=sleeveResult({shell:translateShell(buildShell(r,tall.geometry),tall.placement.xMm,tall.placement.yMm),assignment:tall.slices.assignments[0],process:tall.process,machine});
+  const result=sliceContextResult(prepareSliceContexts({plan:tall,machine,shells:[],boundaryAssignments:[{shell:translateShell(buildShell(r,tall.geometry),tall.placement.xMm,tall.placement.yMm),assignment:tall.slices.assignments[0],process:tall.process}]}).contexts[0]);
   assert.ok(result.report.points>100000,`expected more than 100000 wall points, got ${result.report.points}`);
   assert.equal(result.operations[0].strokes[0].points.length,result.report.points);
   assert.equal('maxPoints' in result.report,false);

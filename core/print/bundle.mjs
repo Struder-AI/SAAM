@@ -2,7 +2,7 @@
 import { createBundleWorkflow } from './workflow.mjs';
 import { defaults,validatePlan,geometryTemplate,VERSION,BUILD_DATE } from './plan.mjs';
 import { createGeometry,verifyGeometry,rhino } from './geometry.mjs';
-import { generatePath,buildShell,translateShell } from './generate.mjs';
+import { generatePath,buildShell,translateShell,GENERATION_CONTRACT } from './generate.mjs';
 import {modulationGeometrySources,prepareModulationFields} from './modulation-fields.mjs';
 import {booleanShell} from '../geom/boolean-solid.mjs';
 
@@ -34,7 +34,7 @@ export async function generatePreparedPath(plan,machine,options){
 
 export const {root, EXPORT_NAME, atomicManifest, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, bundleFingerprint, bundleFingerprints, rememberSetup, migrateBundle, prepareGeneration, commitGeneration, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, changeMachine}=createBundleWorkflow({
   kind:'shell',defaults,validatePlan,geometryTemplate,createGeometry,verifyGeometry,
-  generatePath:generatePreparedPath,
+  generatePath:generatePreparedPath,generationContract:GENERATION_CONTRACT,
   version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode',machineFile:'machines/ultimaker-s5.json',
   limitations:limitationsFor
 });

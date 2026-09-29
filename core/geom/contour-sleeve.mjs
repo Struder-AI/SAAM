@@ -1,18 +1,15 @@
-// Geometry/reference -> mapped curve courses; no volume or operation assembly.
+// Evaluated contour families: section offsets, seam correspondence and reference mapping.
+// This geometry boundary returns no deposition curves, process courses or operations.
 import {createSectionQuery} from './query.mjs';
 import {cleanPlanarLoop} from './polyline.mjs';
 import {loopArea,dedupe,pointSegmentDistance,pointInRegion} from '../region/region2d.mjs';
 import {offsetRegion} from '../region/offset.mjs';
-import {requireThat,distance} from './tolerance.mjs';
+import {requireThat} from './tolerance.mjs';
 import {contourPath} from './contour-path.mjs';
-import {maximumPathAngle} from '../path/deposition.mjs';
-import {sampleCurveIntervals} from '../path/curve-sampling.mjs';
-import {spiralProfile,spiralHeight,spiralBeadCurve} from '../path/curve-construction.mjs';
-import {mappedSleevePatternCurves} from '../path/sleeve-pattern.mjs';
 import {prepareContourFamily} from './prepared-contours.mjs';
 import {createFittedSleeveReference,createAutomaticSleeveReference} from './sleeve-reference.mjs';
 const OFFSET_PRECISION_MM=.00001;
-// These courses advance through horizontal cutting slices. Their chart is
+// The family uses horizontal cutting slices. Their chart is
 // world XY even when a fitted sleeve supplies the section boundary.
 const sliceFrame=p=>({point:[p[0],p[1],0],u:[1,0,0],v:[0,1,0],normal:[0,0,1]});
 function patternContour(outer,toleranceMm){
@@ -37,7 +34,7 @@ function outerLoop(loops) {
   return loop;
 }
 
-export function constructContourSleeve({shell,assignment,process,machine,zStartMm=null,zEndMm=null,onProgress}) {
+export function prepareContourSleeve({shell,assignment,process,machine,zStartMm=null,zEndMm=null,onProgress}) {
   const settings=assignment;
   const width=process.lineWidthMm,pitch=process.layerMm,base=zStartMm??(shell.bounds.min[2]+settings.zStartMm);
   const firstHeight=Math.abs(base-shell.bounds.min[2])<1e-9?process.firstLayerMm:pitch;
@@ -105,10 +102,6 @@ export function constructContourSleeve({shell,assignment,process,machine,zStartM
     const value={outer,loop,curve,holes};lastContours=cut.loops;lastValue=value;return cacheSection(key,value);
   }
   if(!reference)section(start);
-  // t=0..1 is a flat foundation ring; subsequent turns rise by exactly pitch.
-  const profile=spiralProfile({startMm:start,endMm:end,pitchMm:pitch,firstHeightMm:firstHeight,levelEnd:settings.endTransition==='level'});
-  const spiralTurns=profile.risingTurns,turns=profile.turns;
-  const zAt=t=>spiralHeight(profile,t);
   const offsetCurves=new WeakMap();
   function mappedPoint(u,z,offsetMm=0) {
     const frame=section(z),{curve,outer,holes}=frame,xy=curve.at(u);
@@ -140,40 +133,26 @@ export function constructContourSleeve({shell,assignment,process,machine,zStartM
     });
     return {direction:[0,0,1],pitchMm:pitch,firstLayerMm:firstHeight,layers};
   };
-  if(settings.pattern!==null){
-    if(reference){const result=mappedSleevePatternCurves({settings,process,base,start,end,firstHeight,referenceLengthMm:reference.referenceLengthMm,mapping:{reference},mappingErrorMm:reference.mappingErrorMm,onProgress});return {...result,family:boundaryFamily(),report:{...result.report,sectionQueries:0,nudgedSections:0,...reference.report()}};}
-    const validatedFrames=new WeakSet();
-    const curveAt=(z,offset)=>{
-      const frame=section(z);
-      if(!validatedFrames.has(frame)){
-        for(const u of frame.curve.knots())mappedPoint(u,z,0);
-        validatedFrames.add(frame);
-      }
-      if(offset===0)return frame.curve;
-      mappedPoint(0,z,offset);
-      return offsetCurves.get(frame).get(offset);
-    };
-    const mappingErrorMm=Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/8;
-    const prepared=prepareContourFamily({curveAt,startMm:start,endMm:end,stepMm:settings.minFeatureMm,toleranceMm:mappingErrorMm});
-    const result=mappedSleevePatternCurves({settings,process,base,start,end,firstHeight,referenceLengthMm:section(start).curve.length,mapping:{contours:prepared},mappingErrorMm,onProgress});
-    return {...result,family:boundaryFamily(),report:{...result.report,sectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,...prepared.report()}};
-  }
-  const point=t=>reference?reference.map(reference.pointAt(t,zAt(t),0)):mappedPoint(t,zAt(t));
-  const cuts=[0];
-  // At most 1/16 turn per initial interval avoids aliasing an entire revolution.
-  for(let t=0;t<turns-1e-10;) {
-    const next=Math.min(turns,t<spiralTurns-1e-10?spiralTurns:Infinity,(Math.floor(t*16+1e-8)+1)/16);
-    cuts.push(next);t=next;
-  }
-  const samples=sampleCurveIntervals({at:t=>({point:point(t),chart:[t,zAt(t)]}),cuts,stepMm:settings.sampleStepMm,toleranceMm:settings.toleranceMm/2,chartSteps:[1/16,settings.minFeatureMm/2]});
-  const points=samples.map(s=>s.point),times=samples.map(s=>s.t);
-  const maximumAngleDeg=maximumPathAngle(points);
-  const curve={...spiralBeadCurve({profile,points,turns:times,role:'vase-wall',speedMmS:Math.min(process.planarSpeedMmS,process.firstLayerSpeedMmS),
-    minimumTurnSeconds:process.minimumLayerSeconds}),frameSamples:points.map(sliceFrame)};
-  const speed=curve.speedMmS;
-  return {family:boundaryFamily(),courses:[{key:'wall',layerIdSuffix:':continuous',phase:'vase-wall',layer:0,rank:start,curves:[curve],join:{mode:'ordered'},fanPercent:process.fanPercent,trimEnd:settings.endTransition==='level',travel:{kind:'clearance',clearanceZ:end+process.liftMm}}],
-    levelBoundary:settings.endTransition==='level'?{zMm:end,widthMm:width,startIndex:times.findIndex(t=>t>=spiralTurns-1e-9)}:null,
-    report:{startMm:start,endMm:end,baseTopMm:base,turns,spiralTurns,endTransition:settings.endTransition,levelRimMm:settings.endTransition==='level'?end:null,points:points.length,sectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,
-      speedMmS:speed,maximumAngleDeg,...reference?.report(),
-      scope:'One outer section with arc-length correspondence from a fixed projected seam; concavity is supported while the inset remains one loop. Sampled topology and boundary checks; no physical validation.'}};
+  const mappingErrorMm=reference?.mappingErrorMm??Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/8;
+  const validatedFrames=new WeakSet();
+  const curveAt=(z,offset)=>{
+    const frame=section(z);
+    if(!validatedFrames.has(frame)){
+      for(const u of frame.curve.knots())mappedPoint(u,z,0);
+      validatedFrames.add(frame);
+    }
+    if(offset===0)return frame.curve;
+    mappedPoint(0,z,offset);return offsetCurves.get(frame).get(offset);
+  };
+  const contours=!reference&&settings.pattern!==null?prepareContourFamily({curveAt,startMm:start,endMm:end,stepMm:settings.minFeatureMm,toleranceMm:mappingErrorMm}):null;
+  const mapping=reference?{reference}:contours?{contours}:null;
+  // Exact section evaluation remains available between the displayed family
+  // layers; interpolation must not flatten native/curved wall geometry.
+  const boundary={at(u,z){
+    const point=reference?reference.map(reference.pointAt(u,z,0)):mappedPoint(u,z);
+    return {point,normal:[0,0,1],frame:sliceFrame(point)};
+  }};
+  return {base,start,end,firstHeight,referenceLengthMm:reference?.referenceLengthMm??section(start).curve.length,mapping,mappingErrorMm,
+    family(){return {...boundaryFamily(),boundary,coordinate:{startMm:start,endMm:end,pitchMm:pitch},chartStepMm:settings.minFeatureMm/2};},
+    report(){return {sectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,...reference?.report(),...contours?.report()};}};
 }

@@ -39,12 +39,11 @@ unknown; the projection never infers approval from the saved manifest alone.
 Transient calculation, cancellation, request and presentation state remains with
 Studio and does not affect persisted validity.
 
-`generationHash` identifies the combined plan, machine and geometry inputs; it
-is not a plan-only hash. State, checks, review records and worker/cache contracts
-use this name. Legacy `planHash` and `previousPlanHash` fields in saved reviews
-and checks are normalized on read without rewriting the files. Conflicting old
-and new identities are rejected. Matching approved exports remain approved;
-an open view with an old revision token must refresh before changing the print.
+`generationHash` identifies plan, machine, geometry and the adapter's generation
+contract. A changed deposition/inspection contract makes saved programs and their
+approvals stale: regenerate and review again. Reading never rewrites the recipe.
+Legacy `planHash`/`previousPlanHash` fields normalize in memory; conflicting
+identities reject. An open view with an old revision token must refresh before edits.
 
 The [text preparation entry](./text.mjs) compiles editable font/surface features
 into the same native mesh geometry used by Studio and slicing, then calls

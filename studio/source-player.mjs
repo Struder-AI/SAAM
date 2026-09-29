@@ -10,8 +10,8 @@ import {moveStore} from './move-store.mjs';
 export function decodeSource(sources,plan,machine,{compact=true,inspection=null}={}) {
   const store=compact?moveStore():[],moves=new Proxy(store,{get(target,key){
     if(key!=='push')return Reflect.get(target,key);
-    return row=>{const info=inspection?.operations?.[row.operation];return target.push({...row,
-      sliceFamily:info?.family??null,sliceIndex:info?.index??null,modulated:!!info?.modifiers?.length});};
+    return row=>{const info=inspection?.operations?.[row.operation],layer=info?.layers?.[row.layer];return target.push({...row,
+      sliceFamily:info?.family??null,sliceIndex:layer?.index??null,modulated:!!info?.modifiers?.length});};
   }});
   const options={moves};
   let program;
