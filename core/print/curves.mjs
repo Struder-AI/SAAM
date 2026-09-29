@@ -94,29 +94,51 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,bounds
   return {id:assignment.id,operations,report:{construction:'curves',courses:count,strokes:strokeCount,lengthMm}};
 }
 
-// Model deposition is finalized before this boundary. Authored centerlines
-// join it first; bridges then consume those actual strands and prior bridges.
-export function curveAssignmentResults({plan,machine,modelResults,bounds=null,references={}}) {
-  const assignments=plan.slices.assignments.filter(a=>['curves','bridges'].includes(a.construction)),results=[];
-  for(const assignment of assignments.filter(a=>a.construction==='curves')){
-    validateCurveAssignment(assignment);
-    const nonplanar=assignment.curves.some(curve=>curve.uv||curve.nurbs||curve.points?.some(p=>Math.abs(p[2]-curve.points[0][2])>1e-9));
-    if(assignment.curves.some(c=>c.vary?.toolAxis||c.vary?.toolUp))requireMachine(machine,['tool-orientation'],'authored tool axis');
-    if(assignment.curves.some(c=>c.vary?.rotaryDeg))requireMachine(machine,['coordinated-rotary'],'authored rotary angle');
-    requireMachine(machine,['xyz-extrusion',nonplanar?'nonplanar':'planar'],'authored curves');
-    const selected=assignmentPlan(plan,machine,assignment);
-    const selectedBounds=bounds===null?null:toolBounds(machine,selected.setup.tool);
-    results.push(finalizeDepositionResult(authoredCurveResult(assignment,{plan,process:selected.process,bounds:selectedBounds,references}),plan,machine));
-  }
-  for(const assignment of assignments.filter(a=>a.construction==='bridges')){
-    validateCurveAssignment(assignment);
+// Construct one graph-selected trace from finalized predecessors. Bridges finalize
+// their internal sequence before subsequent attachment checks.
+export function curveAssignmentResult(assignment,{plan,machine,modelResults,bounds=null,references={}}) {
+  validateCurveAssignment(assignment);
+  const selected=assignmentPlan(plan,machine,assignment);
+  const selectedBounds=bounds===null?null:toolBounds(machine,selected.setup.tool);
+  if(assignment.construction==='bridges'){
     requireMachine(machine,['xyz-extrusion','nonplanar'],'bridge construction');
-    const selected=assignmentPlan(plan,machine,assignment);
-    const selectedBounds=bounds===null?null:toolBounds(machine,selected.setup.tool);
-    results.push(bridgeAssignmentResult(assignment,{plan,machine,process:selected.process,modelResults:[...modelResults,...results],bounds:selectedBounds}));
+    return bridgeAssignmentResult(assignment,{plan,machine,process:selected.process,modelResults,bounds:selectedBounds});
   }
-  return results;
+  const nonplanar=assignment.curves.some(curve=>curve.uv||curve.nurbs||curve.points?.some(p=>Math.abs(p[2]-curve.points[0][2])>1e-9));
+  if(assignment.curves.some(c=>c.vary?.toolAxis||c.vary?.toolUp))requireMachine(machine,['tool-orientation'],'authored tool axis');
+  if(assignment.curves.some(c=>c.vary?.rotaryDeg))requireMachine(machine,['coordinated-rotary'],'authored rotary angle');
+  requireMachine(machine,['xyz-extrusion',nonplanar?'nonplanar':'planar'],'authored curves');
+  return authoredCurveResult(assignment,{plan,process:selected.process,bounds:selectedBounds,references});
 }
+
+// References carry evaluated data in placed world coordinates. A shared-owner
+// result keeps its own family identity instead of replacing the owner's base.
+export function depositionReferences(shells,results){
+  const references={};
+  for(const [part,shell] of shells)for(const patch of shell.patches??[])references[`patch:${part??''}:${patch.name}`]={patch};
+  const families=new Map();
+  for(const result of results){
+    const family=result.family??(result.familyLayers?{layers:result.familyLayers}:null);
+    if(!family?.layers?.length)continue;
+    const owner=result.report?.owner??result.id;
+    const existing=references[`slice:${result.id}`];
+    const combined=existing?{...family,layers:[...existing.layers,...family.layers]}:family;
+    references[`slice:${result.id}`]=combined;
+    references[`sleeve:${result.id}`]=combined;
+    if(!result.familyId||result.familyId===owner){
+      const key=`slice:${owner}`;
+      (families.get(key)??families.set(key,new Map()).get(key)).set(result.id,combined);
+    }
+  }
+  for(const [key,byResult] of families){
+    const found=[...byResult.values()];
+    const sleeveKey=key.replace(/^slice:/,'sleeve:');
+    if(found.length===1){references[key]=found[0];references[sleeveKey]=found[0];}
+    else {delete references[key];delete references[sleeveKey];}
+  }
+  return references;
+}
+
 const fields='attachmentSpeedMmS,flowMultiplier,id,jogMm,leadInMm,mode,overlapMm,pressMm,rails,speedMmS';
 const point=p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite);
 
@@ -155,7 +177,10 @@ export function bridgeAssignmentResult(assignment,{plan,machine,process=plan.pro
     const end=b.endAttachment??{overlapMm:b.overlapMm,pressMm:b.pressMm,jogMm:0,speedMmS:b.attachmentSpeedMmS,flowMultiplier:1};
     const rails=b.rails.map(r=>r.map(([x,y,z])=>[x+plan.placement.xMm,y+plan.placement.yMm,z]));
     const {curves}=attachmentCurves({...b,rails});
-    const strokes=depositCurves(curves,{widthMm:width,heightMm:height,speedMmS:b.attachmentSpeedMmS});
+    // Construction declares the geometric excursion; the process supplies the
+    // attachment layer it must remain inside. The machine validates both.
+    const strokes=depositCurves(curves.map(curve=>curve.depositionAction?{...curve,
+      depositionAction:{...curve.depositionAction,layerHeightMm:height}}:curve),{widthMm:width,heightMm:height,speedMmS:b.attachmentSpeedMmS});
     const all=strokes.flatMap(s=>s.points),low=Math.min(...all.map(p=>p[2])),high=Math.max(...all.map(p=>p[2]));
     requireThat(high-low<=settings.maxExcursionMm+1e-8,`Bridge ${b.id} exceeds its total Z excursion limit.`);
     requireThat(Math.max(b.pressMm,end.pressMm)<height,`Bridge ${b.id} press must remain within the attachment layer.`);

@@ -23,9 +23,13 @@ export function parallelBeadGroup(curves,rule){
   requireThat(curves.every(c=>!c.vary&&!c.poses),'Parallel construction must precede variable process and pose mapping.');
   const points=curves.flatMap(c=>c.points),origin=[...points[0]],end=points.find(p=>distance(p,origin)>1e-9),x=normalize(end.map((v,i)=>v-origin[i]));
   let normal=null;for(const p of points){const n=cross(x,p.map((v,i)=>v-origin[i]));if(Math.hypot(...n)>1e-9){normal=normalize(n);break;}}
-  if(!normal){const seed=Math.abs(x[2])<.9?[0,0,1]:[0,1,0];normal=normalize(cross(x,cross(seed,x)));}
+  if(!normal){
+    const seed=rule.initialNormal??(Math.abs(x[2])<.9?[0,0,1]:[0,1,0]),projected=cross(x,cross(seed,x));
+    requireThat(Math.hypot(...projected)>1e-12,'Width initialNormal must not be parallel to the source tangent.');
+    normal=normalize(projected);
+  }
   if(points.some(p=>Math.abs(dot(p.map((v,i)=>v-origin[i]),normal))>1e-6)){requireThat(curves.length===1,'Spatial parallel construction takes one centerline at a time.');return transportedBeadBand(curve,construction,rule);}
-  if(points.every(p=>Math.abs(p[2]-origin[2])<1e-9)){origin[0]=0;origin[1]=0;x.splice(0,3,1,0,0);normal=[0,0,1];}
+  if(!rule.initialNormal&&points.every(p=>Math.abs(p[2]-origin[2])<1e-9)){origin[0]=0;origin[1]=0;x.splice(0,3,1,0,0);normal=[0,0,1];}
   const y=cross(normal,x),local=curves.map(c=>c.points.map(p=>{const v=p.map((n,i)=>n-origin[i]);requireThat(Math.abs(dot(v,normal))<=1e-6,'Curved parallel strokes need physical surface offsets.');return {X:Math.round(dot(v,x)*1000),Y:Math.round(dot(v,y)*1000)};}));
   const source=local.map((pts,i)=>curves[i].closed?[...pts,pts[0]]:pts),output=[];
   for(let k=0;k<Math.ceil(construction.parallelCount/2);k++){

@@ -7,7 +7,7 @@ import {filamentPlan} from '../machine/filaments.mjs';
 import {toolBounds} from '../machine/profile.mjs';
 import {requireThat,distance} from '../geom/tolerance.mjs';
 import {validatePose} from '../path/pose.mjs';
-import {prepareDepositionMotion} from '../machine/deposition-motion.mjs';
+import {prepareDepositionMotion,prepareReferenceMotion} from '../machine/deposition-motion.mjs';
 import {resolveDepositionConnections} from '../path/deposition-connections.mjs';
 
 function finalizedOperation(operation,plan,machine,result){
@@ -63,6 +63,7 @@ export function finalizeDepositionResult(result,plan,machine){
   // must exist before modulation and before any supporting-surface publication.
   const excludedOperationIds=plan.modulations?.modifiers.length?result.operations.filter(op=>op.strokes.some(stroke=>
     matchingModulations(result,stroke.role,plan.modulations,op).some(m=>['displacement','width','flow'].includes(m.channel)))).map(op=>op.id):[];
+  if(result.operations.some(operation=>operation.strokes.some(stroke=>stroke.motionIntent)))result=prepareReferenceMotion(result,machine);
   result=resolveDepositionConnections(result,{excludedOperationIds});
   result=prepareDepositionMotion(result,machine);
   if(result.report?.depositionConnections?.count)result=republishDepositedBoundary(result,{widthMm:plan.process.lineWidthMm});

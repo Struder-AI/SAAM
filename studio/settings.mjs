@@ -136,8 +136,19 @@ export function sliceRows(plan){
 export function injectionPoints(plan){
   return (plan.slices?.assignments??[]).filter(a=>a.construction==='inject').flatMap(a=>a.points.map((p,index)=>({...p,id:`${a.id}:${index}`})));
 }
+export function depositionFamilyRows(plan,inspection){
+  const families=new Map();
+  for(const operation of Object.values(inspection?.operations??{})){
+    if(!families.has(operation.family))families.set(operation.family,new Set());
+    families.get(operation.family).add(operation.index);
+  }
+  return [...families].map(([id,indices])=>{
+    const kind=plan.slices.assignments.find(a=>a.id===id)?.construction;
+    return [id+' · Family',indices.size+' '+(kind==='inject'?'injection point(s)':kind==='curves'?'trace course(s)':kind==='bridges'?'bridge course(s)':'slice(s)')];
+  });
+}
 function injectionRows(a){
-  return [[a.id,sliceSummary(a)],[a.id+' · Temperature',a.nozzleC===null?'Selected material setup':a.nozzleC+'°C, then restore setup'],
+  return [[a.id,sliceSummary(a)],[a.id+' · Print after',a.dependencies.after.join(', ')||'Shared dependency order'],[a.id+' · Temperature',a.nozzleC===null?'Selected material setup':a.nozzleC+'°C, then restore setup'],
     ...a.points.flatMap((p,index)=>[[a.id+' · Point '+(index+1),p.point.join(', ')+' mm before XY placement'],
       [a.id+' · Injection '+(index+1),p.volumeMm3+' mm³ at '+p.flowMm3S+' mm³/s · '+p.holdSeconds+' s hold · '+p.approachMm+' mm vertical approach']])];
 }

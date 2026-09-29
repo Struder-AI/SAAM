@@ -132,6 +132,17 @@ export const fillMaterial = (region, widthMm) => region.length ? offsetRegion(re
 // Coordinate mapping is independent of bead/process calculation. The plane
 // chart is isometric; mapped XYZ curve lengths keep physical millimetres.
 export function mapSliceStrokes(strokes, slice, options={}) {
+  if(strokes.some(stroke=>stroke.surfaceSamples))return strokes.map(stroke=>{
+    requireThat(stroke.surfaceSamples?.length>1,'An evaluated field stroke needs at least two samples.');
+    const {surfaceSamples:samples,cellWidthsMm,widthAxis,...curve}=stroke;
+    const widthsMm=samples.slice(1).map((e,i)=>{
+      const tangent=normalize(e.point.map((v,k)=>v-samples[i].point[k])),across=normalize(e[widthAxis]);
+      return (cellWidthsMm[i]+cellWidthsMm[i+1])/2*Math.hypot(...cross(across,tangent));
+    });
+    return {...curve,points:samples.map(e=>e.point),chartPoints:samples.map(e=>[e.u,e.v]),
+      normals:samples.map(e=>e.normal),referenceAlong:samples.map(e=>e.dv),widthsMm,
+      segmentMetadata:samples.slice(1).map(e=>({surfaceNormal:[...e.normal]}))};
+  });
   if(slice.kind==='plane')return strokes.map(stroke=>({...stroke,points:stroke.points.map(point=>slicePoint(slice,point)),...(options.frames?{chartPoints:stroke.points,normals:stroke.points.map(()=>[...slice.normal]),frameSamples:stroke.points.map(point=>sliceFrame(slice,point))}:{})}));
   return strokes.map(stroke=>mapSliceStroke(stroke,slice,options));
 }

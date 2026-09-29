@@ -11,7 +11,9 @@ recipe leaves the interior hollow. No pattern or `meshSleeve` preparation is nee
 For repeated loops, authored patterns or adjustable mesh conformance, choose
 [advanced vase mode](../advanced-vase-wall/SKILL.md).
 
-Both techniques use `construction: "sleeve"` in `plan.slices.assignments`.
+Target architecture classifies the vase wall as Slice over a 3D region; this
+manual documents the current sleeve record while shared-family migration remains
+open.
 
 ## Workflow
 

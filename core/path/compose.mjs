@@ -148,7 +148,8 @@ export function prepareOperationDependencies(operations,byId,{order=[],dependenc
     prerequisites.get(edge.after).add(edge.before);
   }
   for (const [id, after] of prerequisites) for (const predecessor of after)
-    requireThat(byId.has(predecessor) && id !== predecessor, 'Unknown or self-dependent operation: ' + id);
+    requireThat(byId.has(predecessor) && id !== predecessor, id===predecessor
+      ?`Operation ${id} cannot depend on itself.`:`Operation ${id} depends on unknown operation ${predecessor}; use an exact operation ID.`);
   requireThat(new Set(order).size === order.length && order.every(id => byId.has(id)), 'Duplicate or unknown operation in composition order.');
   // Explicit order is an additional precedence constraint, never permission to
   // bypass geometry/support dependencies. Omitted operations remain schedulable.

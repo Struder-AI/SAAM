@@ -9,6 +9,8 @@ Use `construction: "bridges"` in `plan.slices.assignments`, with `id`,
 `filament: null`, `after: []`, `maxExcursionMm` and `bridges`. Bridge entries
 follow finalized model and authored-curve deposition in listed order. A later
 entry can use earlier nominal strands as support; no filled surface is inferred.
+Target architecture treats bridge spans and anchor curves as Trace input; this
+manual documents the current bridge assignment.
 
 For one or two walls around a solid guide, use a slice assignment with `loops: 1`
 or `2`, `fillDensity: 0`, `solidTop: 0`, `solidBottom: 0`, and disable

@@ -10,7 +10,7 @@ not an account of the current adapter's capabilities.
 
 ## Local MCP access
 
-The adapter uses fixed known profiles and skills under [D-022](../../DECISIONS.md#d-022--defer-automatic-capability-discovery). It delegates manufacturing state to the shared print lifecycle.
+Fixed profiles/skills follow [D-022](../../DECISIONS.md#d-022--defer-automatic-capability-discovery); manufacturing state belongs to the shared lifecycle.
 [The local runtime](src/runtime.mjs) owns every operation, its strict schema,
 the print-work queue and the Studio/request state. It outlives its sessions: one
 is active at a time, an ended session fails its unfinished requests and rejects
@@ -24,9 +24,9 @@ assembles them by [context layer](../../core/agent/README.md#context-layers) wit
 repository-path links, confined to the public documentation trees without
 private locations or filesystem links. A heading fragment selects one section.
 The fixed skill catalog distinguishes toolpath, geometry and hybrid skills;
-making a manual readable does not register a new plan operation or MCP tool.
-Its IDs and frontmatter reader come from the shared [skill catalog](../../skills/catalog.mjs),
-which also supplies the generated maker digest.
+Readable manuals do not register operations. The [catalog](../../skills/catalog.mjs)
+owns IDs/frontmatter and the maker digest. Tool schemas use named local JSON Schema
+definitions through the installed SDK/Zod serializer; all tools remain discoverable.
 Reading one shared manual checks that catalog directly and reads only the selected
 manual. Unknown shared IDs may resolve through the configured local extension.
 `list_bundles` returns discovery metadata with `programChecked: false`; it does not

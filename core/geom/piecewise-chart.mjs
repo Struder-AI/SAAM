@@ -1,4 +1,5 @@
 import {distance,dot,cross,normalize,requireThat} from './tolerance.mjs';
+import {tessellateShell} from './tessellate.mjs';
 
 const sub=(a,b)=>a.map((x,k)=>x-b[k]);
 const add=(a,b,s=1)=>a.map((x,k)=>x+s*b[k]);
@@ -39,8 +40,7 @@ export function piecewiseChart(surface,{toleranceMm=.01,normalMm=0}={}){
         }
     }
   }else{
-    const slice=surface.slice,mesh=slice.reference.geometry;
-    requireThat(mesh.kind==='triangle-mesh','Piecewise bands on a native-shell roof are unfinished: use the native patch or spline height-field reference; tessellated-shell bands have unresolved facet-assembly artifacts.');
+    const slice=surface.slice,mesh=tessellateShell(slice.reference.geometry,{toleranceMm});
     triangles.push(...roofChartTriangles(mesh,slice));
   }
   requireThat(triangles.length,'Piecewise chart has no nondegenerate surface facets.');
@@ -73,9 +73,10 @@ function roofChartTriangles(mesh,slice){
     for(const [otherIndex,other] of facets.entries()){
       if(otherIndex===index||[0,1].some(k=>other.max[k]<=facet.min[k]||other.min[k]>=facet.max[k]))continue;
       const differences=facet.polygon.map(p=>other.height(p)-facet.height(p));
-      if(Math.max(...differences)<-1e-9||differences.every(d=>Math.abs(d)<1e-9))continue;
+      const coplanar=differences.every(d=>Math.abs(d)<1e-9);
+      if(Math.max(...differences)<-1e-9||coplanar&&otherIndex>index)continue;
       const fields=other.polygon.map((a,i)=>{const edge=sub(other.polygon[(i+1)%3],a);return p=>cross2(edge,sub(p,a));});
-      fields.push(p=>other.height(p)-facet.height(p)+(otherIndex<index?1e-12:-1e-12));
+      if(!coplanar)fields.push(p=>other.height(p)-facet.height(p)+(otherIndex<index?1e-12:-1e-12));
       const retained=[];
       for(const piece of pieces){let remainder=piece;for(const field of fields){if(remainder.length<3)break;const {inside,outside}=split(remainder,field);if(outside.length>=3)retained.push(outside);remainder=inside;}}
       pieces=retained;if(!pieces.length)break;
@@ -109,7 +110,8 @@ function chartFromTriangles(triangles,periodic){
   const edges=new Map();
   const key=uv=>uv.map((v,k)=>Math.round((periodic&&k===0?v-Math.floor(v):v)*1e10)).join(',');
   for(const [index,face] of faces.entries())for(let edge=0;edge<3;edge++){
-    const a=face.vertices[edge].uv,b=face.vertices[(edge+1)%3].uv,k=[key(a),key(b)].sort().join('|');
+    const vertexKey=v=>`${key(v.uv)}:${v.point.map(x=>Math.round(x*1e10)).join(',')}`;
+    const a=face.vertices[edge],b=face.vertices[(edge+1)%3],k=[vertexKey(a),vertexKey(b)].sort().join('|');
     if(edges.has(k)){const previous=edges.get(k);face.neighbors[edge]=previous;faces[previous.face].neighbors[previous.edge]={face:index,edge};}
     else edges.set(k,{face:index,edge});
   }
@@ -122,11 +124,11 @@ function chartFromTriangles(triangles,periodic){
 function roundedChart(base,{normalMm,toleranceMm}){
   const vertices=new Map(),groups=[],radius=Math.abs(normalMm);
   const canonical=uv=>[base.periodic?uv[0]-Math.floor(uv[0]):uv[0],uv[1]];
-  const vertexKey=uv=>canonical(uv).map(v=>Math.round(v*1e10)).join(',');
+  const vertexKey=vertex=>[...canonical(vertex.uv),...vertex.point].map(v=>Math.round(v*1e10)).join(',');
   const faceGroups=base.faces.map(face=>{
     const center=face.vertices.reduce((s,v)=>add(s,v.uv,1/3),[0,0]);
     return face.vertices.map(vertex=>{
-      const key=vertexKey(vertex.uv);if(!vertices.has(key))vertices.set(key,{uv:canonical(vertex.uv),point:vertex.point,groups:[]});
+      const key=vertexKey(vertex);if(!vertices.has(key))vertices.set(key,{uv:canonical(vertex.uv),point:vertex.point,groups:[]});
       const shared=vertices.get(key);let group=shared.groups.find(g=>distance(g.normal,face.normal)<1e-9);
       if(!group){group={vertex:shared,normal:face.normal,directions:[]};shared.groups.push(group);groups.push(group);}
       group.directions.push(sub(center,vertex.uv));return group;
@@ -184,7 +186,14 @@ function candidates(chart,uv){
     const inside=face.vertices.every(({uv:a},i)=>cross2(sub(face.vertices[(i+1)%3].uv,a),sub(p,a))>=-1e-10);
     if(inside)found.push({face,index,p,shift});
   }}
-  requireThat(found.length,`Piecewise chart has no surface at (${uv.join(', ')}).`);return found;
+  requireThat(found.length,`Piecewise chart has no surface at (${uv.join(', ')}).`);
+  // At a roof's discontinuous occlusion boundary, its upper face owns the
+  // exact boundary. A directional hint may still select the lower approach.
+  if(!chart.periodic){
+    const height=({face,p})=>{const a=face.vertices[0];return a.point[2]+face.du[2]*(p[0]-a.uv[0])+face.dv[2]*(p[1]-a.uv[1]);};
+    found.sort((a,b)=>height(b)-height(a));
+  }
+  return found;
 }
 
 export function piecewiseChartFrame(chart,uv,hint=null){

@@ -1,18 +1,17 @@
 ---
 name: trace
-description: Deposit authored curves, NURBS, surface UV paths and line text, with varying bead dimensions, process and tool pose; no filled solid is inferred.
+description: Deposit along curves, authored directly or supplied by skills: XYZ, NURBS, surface UV paths and line text, with varying bead, process and tool pose.
 ---
 
 # Trace
 
-Trace follows authored centerlines. Use it for sparse networks, line lettering,
-surface paths and explicit reinforcement. [Slice](../slice/SKILL.md) derives loops
-and fill from owned material; [text](../text/SKILL.md) makes solid lettering.
+Trace deposits along spatial curves, authored directly or supplied by skills.
+Use it for networks, line lettering, surface paths and reinforcement.
+[Slice](../slice/SKILL.md) covers 3D regions; [text](../text/SKILL.md) makes solid lettering.
 
 Use the existing `slice` editing tool, or the same bulk recipe edit, to add a
-`construction: "curves"` record in `plan.slices.assignments`. The skill distinction
-does not create another controller or tool. Supply `id`, `curves`, and common
-`filament`, `process`, `after` settings as needed.
+`construction: "curves"` record in `plan.slices.assignments`; no separate controller.
+Supply `id`, `curves`, and common `filament`, `process`, `after` settings as needed.
 
 Each curve has `closed` and exactly one source: XYZ `points`; `nurbs` with degree,
 knots, controlPoints and optional weights; `uv` with a named slice/sleeve/patch
@@ -26,8 +25,8 @@ a compatible machine. `widthRule` fits one or parallel real paths to widthMm
 within beadRangeMm, with optional spacingFactor and initialNormal for spatial
 frames. Sleeve/mesh-roof creases use physical facet transitions; nonzero normal
 offsets join faces with tolerance-controlled round strips while retaining base UV
-and source parameter. Native-shell roof bands remain unfinished (facet artifacts);
-use a native patch or spline height-field reference. General offset folds are unresolved.
+and source parameter. Native-shell roofs use tolerance-controlled tessellation;
+disconnected roof heights remain separate. General offset folds are unresolved.
 
 `repeat` translates a curve set by count/translation or selects indices from a
 named slice family. Surface references and family repetition use finalized

@@ -28,12 +28,14 @@ when the person asks to fetch one or gives a Thingiverse link.
 
 ## Toolpaths
 
-[Slices](skills/slice/SKILL.md) match conventional slicers; draped skins, vase
-walls, bridges and the other skills are SAAM's own, and a part may be a good
-opportunity to show them. Reason from the actual geometry about support, bridges,
-transitions and print order, and explain choices that affect the result; software
-checks alone do not establish printability. Each machine's setup and limits are
-in its [contract](core/export/README.md#machine-interoperability-design).
+Choose among three construction families: [Slice](skills/slice/SKILL.md) deposits
+over 3D regions, [Trace](skills/trace/SKILL.md) follows curves, and
+[Inject](skills/inject/SKILL.md) deposits at points. Techniques such as skins,
+vase walls, bridges and rivets use or combine these families; their manuals explain
+current options and limits. Reason from actual geometry about support, transitions
+and print order. Software checks alone do not establish printability. Each
+machine's setup and limits are in its
+[contract](core/export/README.md#machine-interoperability-design).
 
 ## Maker interaction flow
 

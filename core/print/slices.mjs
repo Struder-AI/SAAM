@@ -30,6 +30,9 @@ import { regionArea } from '../region/region2d.mjs';
 import { difference, intersect, union } from '../region/boolean.mjs';
 import { clipReservedRegion, clipReservedSlice } from '../region/reservation.mjs';
 import { depositCurves } from '../path/deposition.mjs';
+import {depositCurveCourses} from '../path/curve-courses.mjs';
+import {surfaceCellField} from '../region/wrapping-curves.mjs';
+import {CONNECT_MOVE_MM} from '../path/planning.mjs';
 import { lineSpacing } from '../path/spacing.mjs';
 import { planarPolicy, surfacePolicy } from '../path/builder.mjs';
 import { publishFinishedBoundary } from '../path/finished-surface.mjs';
@@ -419,6 +422,22 @@ function sliceTravelPolicy(slice, region, worldRegion, maxZ, process) {
 // solid, filament}; context: {process, machine, shell, startMm, endMm, report}.
 // A support preset's operations are sacrificial: support roles, the supports
 // phase and no finished boundary.
+// One evaluated region-course boundary for cut regions and reference families.
+// Geometry strokes retain their chart/metric; gap adaptation precedes the same
+// joining and bead construction for every Slice producer.
+export function evaluateRegionCourse({id,course,process,filament=null,contact=null,baseZMm=null,sampleStepMm=.2}){
+  const {reference,strokes,...construction}=course;
+  let curves=mapSliceStrokes(strokes,reference,{frames:true,sampleStepMm}),measured=null;
+  if(contact){
+    curves=curves.map(curve=>!curve.closed?curve:{...curve,closed:false,
+      ...Object.fromEntries(['points','chartPoints','normals','frameSamples'].map(key=>[key,[...curve[key],curve[key][0]]]))});
+    measured=materialContact(curves,contact);
+    curves=surfaceGapCurves(curves,{slice:reference,direction:measured.direction,distancesMm:measured.distancesMm,allowZero:true}).curves;
+  }else if(baseZMm!==null)curves=planeContactGaps(curves,{slice:reference,heightMm:course.heightMm},baseZMm);
+  const [operation]=depositCurveCourses({id,courses:[{...construction,curves,after:[...(construction.after??[]),...(measured?.after??[])]}],process,filament,sequential:false});
+  return {operation,contactReport:measured?.report};
+}
+
 export function sliceResult({ id, settings, layers, material = null, solidRegions = new Map(), filament = null,totalLayerCount=layers.length,contactSegments=[],otherFamilyContactSegments=[],seedSegments=[],contactFragments=[],predecessorReference=null,predecessorRegions=new Map(),substrateAdaptation=false,requiredContact=false }, { process, machine, shell, startMm, endMm,maxBeadHeightMm=Infinity,report: extra = {} }) {
   const width = process.lineWidthMm, pitch = lineSpacing(width, settings), wallToleranceMm = planarWallTolerance(machine);
   const support = settings.preset === 'support', solidDensity = support ? SUPPORT_INTERFACE_DENSITY : 1;
@@ -460,20 +479,19 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
       const opId = `${id}:${index}:${group}`;
       let covered;
       const framed=slice.kind==='patch'||slice.kind==='height-field'||predecessorReference!==null||contactFragments.length>0||contactSegments.length>0||otherFamilyContactSegments.length>0;
-      let mapped = mapSliceStrokes(found, slice,{frames:true,sampleStepMm:settings.sampleStepMm});
-      if(framed)mapped=mapped.map(curve=>!curve.closed?curve:{...curve,closed:false,points:[...curve.points,curve.points[0]],chartPoints:[...curve.chartPoints,curve.chartPoints[0]],normals:[...curve.normals,curve.normals[0]],frameSamples:[...curve.frameSamples,curve.frameSamples[0]]});
-      let contactAfter=[];
-      if(framed){
-        const contact=materialContact(mapped,{id,layer,bounds:shell.bounds,support:{previousRegion:predecessorRegions.get(index)??[],previousSegments:contactSegments,surroundingSegments:otherFamilyContactSegments},contactFragments,predecessorReference,maxNormalGapMm:maxBeadHeightMm,substrateAdaptation,required:requiredContact});
-        contactAfter=contact.after;
-        report.substrateContactQueries=(report.substrateContactQueries??0)+contact.report.queries;
-        report.uncoveredContactSamples=(report.uncoveredContactSamples??0)+contact.report.uncoveredSamples;
-        if(contact.report.samples){report.contactSamples=(report.contactSamples??0)+contact.report.samples;report.minContactGapMm=Math.min(report.minContactGapMm??Infinity,contact.report.minGapMm);report.maxContactGapMm=Math.max(report.maxContactGapMm??0,contact.report.maxGapMm);}
-        mapped=surfaceGapCurves(mapped,{slice,direction:contact.direction,distancesMm:contact.distancesMm,allowZero:true}).curves;
+      const evaluated=evaluateRegionCourse({id,course:{key:`${index}:${group}`,reference:slice,strokes:found,heightMm:layer.heightMm,speedMmS},
+        process,filament,sampleStepMm:settings.sampleStepMm,baseZMm:framed?null:shell.bounds.min[2],contact:framed?
+          {id,layer,bounds:shell.bounds,support:{previousRegion:predecessorRegions.get(index)??[],previousSegments:contactSegments,surroundingSegments:otherFamilyContactSegments},
+            contactFragments,predecessorReference,maxNormalGapMm:maxBeadHeightMm,substrateAdaptation,required:requiredContact}:null});
+      const deposited=evaluated.operation,lifted=deposited.strokes;
+      const contactAfter=deposited.after;
+      const measured=evaluated.contactReport;
+      if(measured){
+        report.substrateContactQueries=(report.substrateContactQueries??0)+measured.queries;
+        report.uncoveredContactSamples=(report.uncoveredContactSamples??0)+measured.uncoveredSamples;
+        if(measured.samples){report.contactSamples=(report.contactSamples??0)+measured.samples;report.minContactGapMm=Math.min(report.minContactGapMm??Infinity,measured.minGapMm);report.maxContactGapMm=Math.max(report.maxContactGapMm??0,measured.maxGapMm);}
       }
-      const curves = framed?mapped:planeContactGaps(mapped, layer, shell.bounds.min[2]);
-      const lifted = depositCurves(curves, { widthMm: width, heightMm: layer.heightMm, speedMmS });
-      operations.push({ id: opId, layerId: horizontal(slice) ? 'planar:' + z : 'slice:' + sliceKey(slice), phase: support ? 'supports' : 'planar', layer: index, rank: sliceRank(slice, shell.bounds), after: [...new Set([...previous,...current,...contactAfter])],
+      operations.push({ ...deposited,id: opId, layerId: horizontal(slice) ? 'planar:' + z : 'slice:' + sliceKey(slice), phase: support ? 'supports' : 'planar', layer: index, rank: sliceRank(slice, shell.bounds), after: [...new Set([...previous,...current,...contactAfter])],
         strokes: roles ? lifted.map(stroke => ({ ...stroke, role: roles[stroke.role] })) : lifted, connectNearby: !framed,layerIndex:ordinal,layerCount:totalLayerCount,stackDirection:layer.direction??slice.normal??[0,0,1],
         // Loops a boundary between owners cuts open are laid in the order found.
         order: group === 'walls' ? (lifted.every(s => s.closed && !s.volumesMm3) ? 'nearest' : 'given') : lifted.every(s => s.scanlineCell !== undefined) ? 'nearest-cells' : 'given', region: worldRegion, slice, ownershipIndex: index,
@@ -509,10 +527,11 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
 // -> {results, supports, summary: {layers, instances}}
 // envelopes: [{part, solidRegionAt(z)}] regions a process (a plastic-weld
 // rivet) needs solid in the slices of its part.
-export function prepareSliceContexts({ plan, machine, shells, volumes, bands, reserves, envelopes = [],surfaceAssignments=[], onProgress }) {
+export function prepareSliceContexts({ plan, machine, shells, volumes, bands, reserves, envelopes = [],surfaceAssignments=[],referenceAssignments=[], onProgress }) {
   const lowered=new Map(surfaceAssignments.map(input=>[input.assignment.id,{assignment:lowerSkinAssignment(input),contact:{source:input.assignment.supportFrom},survey:input.survey}]));
   const assignments = plan.slices.assignments.flatMap(a=>!a.construction?[a]:lowered.has(a.id)?[lowered.get(a.id).assignment]:[]);
-  if (!assignments.length) return {contexts:[]};
+
+  if(!assignments.length&&!referenceAssignments.length)return {contexts:[]};
   const processes = assignments.map(a => assignmentPlan(plan,machine,a).process);
   const owners = sliceOwners(assignments, { shells, processes, volumes, placement: plan.placement, selections: geometrySelections(plan.geometry) });
   const owned = ownedLayers(owners, { shells, bands, reserves, onProgress });
@@ -533,10 +552,41 @@ export function prepareSliceContexts({ plan, machine, shells, volumes, bands, re
     contexts.push({contact:lowered.has(assignment.id)?{...lowered.get(assignment.id).contact,predecessorReference:translateSlice(layers[0].slice,layers[0].direction.map(v=>-v*layers[0].translationMm))}:null,spec:{id:resultId,settings:assignment,layers,material,solidRegions,filament:assignment.filament,totalLayerCount:layers.length,predecessorRegions:new Map(layers.map(layer=>[layer.index,layers.find(previous=>previous.index===layer.index-1)?.region??[]]))},context:{process,machine,shell:owner.publicationShell??owner.shell,startMm:owner.startMm,endMm:owner.endMm,maxBeadHeightMm,report},family,owner,familyId,
       layerOrder:layers.map(layer=>({index:layer.index,rank:sliceRank(layer.slice,owner.shell.bounds)}))});
   }
+  for(const {assignment,shell,process} of referenceAssignments){
+    const id=assignment.id;
+    contexts.push({spec:{id,settings:assignment,layers:[],filament:assignment.filament},
+      reference:{selection:assignment.surface,source:assignment.source},
+      regionField:{kind:'periodic-cells',settings:assignment},
+      context:{shell,process,machine,report:{owner:id,part:assignment.part,construction:'cladding'}},
+      owner:{id,assignment,part:assignment.part},familyId:id,
+      family:{constructTogether:true,region:{kind:'normal-band',selection:assignment.surface,fromMm:0,toMm:assignment.shells*assignment.normalMm},layers:[]},
+      layerOrder:[{index:null,rank:shell.bounds.max[2]}]});
+  }
   return {contexts};
 }
 
-export function sliceContextResult(record,{layerIndex=null,contactSegments=[],otherFamilyContactSegments=[],seedSegments=[],contactFragments=[],predecessorReference=null,substrateAdaptation=false,requiredContact=false}={}){
+export function sliceContextResult(record,{layerIndex=null,contactSegments=[],otherFamilyContactSegments=[],seedSegments=[],contactFragments=[],predecessorReference=null,substrateAdaptation=false,requiredContact=false,reference=null,motion=null}={}){
+  if(record.regionField){
+    requireThat(record.regionField.kind==='periodic-cells','Unknown Slice region stroke field.');
+    requireThat(reference?.sourceOperationIds?.length,'A reference family needs finalized source operation prerequisites.');
+    requireThat(motion?.rotaryCenterMm,'The periodic field requires declared coordinated rotary motion settings.');
+    const {shell,process}=record.context,settings=record.regionField.settings;
+    const field=surfaceCellField({shell,settings,process,chart:reference});
+    let after=[...reference.sourceOperationIds];
+    const operations=field.courses.map(course=>{
+      const evaluated=evaluateRegionCourse({id:record.spec.id,process,filament:record.spec.filament,
+        course:{key:course.layer,layer:course.layer,phase:course.phase,reference:course.reference,
+          strokes:course.strokes.map(stroke=>({...stroke,motionIntent:{kind:'rotary-surface',centerMm:motion.rotaryCenterMm,tiltDeg:settings.tiltDeg}})),
+          join:{mode:'ordered'},connectNearby:course.axial,regionId:record.spec.id+':'+course.layer,after,
+          travel:{kind:'clearance',clearanceZ:course.maxZ+process.liftMm,poseJoinMm:course.axial?CONNECT_MOVE_MM:0}}});
+      after=[evaluated.operation.id];return evaluated.operation;
+    });
+    const widths=operations.reduce((range,operation)=>operation.strokes.reduce((range,stroke)=>(stroke.segmentMetadata??[]).reduce((range,metadata)=>
+      Number.isFinite(metadata.beadWidthMm)?[Math.min(range[0],metadata.beadWidthMm),Math.max(range[1],metadata.beadWidthMm)]:range,range),range),[Infinity,0]);
+    return {id:record.spec.id,operations,family:{...record.family,layers:field.courses.map(course=>({index:course.layer,region:course.region,reference:course.reference}))},familyId:record.familyId,
+      report:{...field.report,minBeadWidthMm:widths[0],maxBeadWidthMm:widths[1],...record.context.report,
+        substrate:{sourceOperationIds:reference.sourceOperationIds,coverage:reference.coverage,part:record.owner.part}}};
+  }
   const layers=layerIndex===null?record.spec.layers:record.spec.layers.filter(layer=>layer.index===layerIndex);
   requireThat(layers.length,'Slice construction context has no requested layer.');
   requireThat(layerIndex===null||!record.spec.settings.join,'A joined family must be constructed as one context.');

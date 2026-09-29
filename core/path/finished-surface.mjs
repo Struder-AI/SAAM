@@ -50,6 +50,7 @@ export function consumeFinishedSurface({shell,selection,results,substrateAdaptat
 // Preserve chart identity and publish final beads. Consumers reconstruct contact
 // on those beads; a displaced substrate is not mistaken for absent material.
 export function republishDepositedBoundary(result,{widthMm}={}){
+  if(!result.finishedSurfaces?.length)return {...result,modulationPendingPublication:false};
   const segments=depositedBeadSegments(result.operations,{widthMm});
   const sourceOperationIds=[...new Set(segments.map(segment=>segment.operationId))];
   const bounds=depositedBeadBounds(segments),startMm=bounds.min[2],endMm=bounds.max[2];

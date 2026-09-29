@@ -1,5 +1,23 @@
 # Development log
 
+## 2026-09-29 — Three construction families and resumed 0.2.0 milestones
+
+- Owner resumed the build and settled Inject at points, Trace along authored or
+  generated curves, and Slice over 3D regions using slices/families. Updated current
+  guidance/manuals; upper entry points balance reading cost against successful choice.
+- Cladding now lowers to shared Slice region-course mapping/contact/join/deposition;
+  removed its producer and scheduler kind. Trace reverse dependencies use finalized
+  beads. Validated bridge press actions retain normal, process and machine checks.
+- Fixed false roof/sleeve band holes through shared boundary polygons, square-corner
+  frame transport, Trace profile-knot/channel preservation, and mixed-family UI labels.
+- Lead directly reran substrate/reverse/bridge, dense/native-roof, Trace profile/export,
+  cladding parity, edit diagnostics and SDK checks. Cladding OFF hashes match; worker ON
+  hashes and export interpretation match. SDK context is 79,118 B with all 38 tools;
+  the 15 KB soft target remains unmet. Evidence is under `.local/0.2.0` progress files.
+- No suites/new tests, hardware, push or release. Existing DENSO fixture was migrated.
+  Remaining: vase/lip/tile consolidation, broader ownership/workflows, small-radius ON
+  sampling failure, historical comparisons, controlled timings and final map rebuild.
+
 ## 2026-09-29 — Requested milestone stop (0.2.0 remains unfinished)
 
 - Owner requested three workers stop after their current milestone, followed by

@@ -4,7 +4,9 @@ import {prepareSliceContexts,sliceContextResult,ownershipDependencies} from './s
 import {finalizeDepositionResult} from './finalize.mjs';
 import {sleeveResult,rimResult} from './sleeve-constructions.mjs';
 import {injectionResult} from './injection.mjs';
-import {publishFinishedBoundary} from '../path/finished-surface.mjs';
+import {curveAssignmentResult,depositionReferences} from './curves.mjs';
+import {assignmentPlan} from './assignment-process.mjs';
+import {publishFinishedBoundary,consumeFinishedSurface,republishDepositedBoundary} from '../path/finished-surface.mjs';
 import {depositedBeadSegments} from '../path/deposited-curves.mjs';
 import {translateSlice} from '../geom/slice.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
@@ -33,15 +35,16 @@ function combineCourses(record,courses){
 // Expand construction and recipe constraints once to exact work-node keys.
 export function prepareDepositionWork(contexts,constructions=[]){
   const nodes=contexts.flatMap(record=>{
-    const units=record.spec.settings.join?[{index:null,rank:record.layerOrder[0]?.rank??0}]:record.layerOrder;
+    const units=record.spec.settings.join||record.family.constructTogether?[{index:null,rank:record.layerOrder[0]?.rank??0}]:record.layerOrder;
     return units.map((unit,i)=>({key:`slice:${record.spec.id}:${unit.index}`,kind:'slice',sourceId:record.owner.assignment.id,part:record.owner.part,
       nominalRank:unit.rank,index:unit.index,record,first:i===0,requires:i?[`slice:${record.spec.id}:${units[i-1].index}`]:[]}));
   }).concat(constructions.map(context=>({key:`${context.assignment.construction}:${context.assignment.id}`,kind:context.assignment.construction,
-    sourceId:context.assignment.id,part:context.assignment.part,nominalRank:context.endMm??context.shell?.bounds.max[2]??0,context,requires:[]})));
-  const operationBelongs=(node,id)=>node.kind==='slice'?id.startsWith(`${node.record.spec.id}:${node.index===null?'spiral':node.index+':'}`):id.startsWith(node.sourceId+':');
-  return nodes.map(node=>{
+    sourceId:context.assignment.id,part:context.assignment.part??null,nominalRank:context.endMm??context.shell?.bounds.max[2]??0,context,requires:[]})));
+  const operationBelongs=(node,id)=>node.kind==='slice'?id.startsWith(`${node.record.spec.id}:${node.index===null?(node.record.regionField?'':'spiral'):node.index+':'}`):id.startsWith(node.sourceId+':');
+  const declared=nodes.map(node=>{
     const assignment=node.kind==='slice'?node.record.spec.settings:node.context.assignment;
-    const after=assignment.dependencies?.after??assignment.after??[],needs=new Set(node.requires);
+    const after=assignment.dependencies?.after??assignment.after??[],needs=new Set(node.requires),defaults=new Set();
+    const references=node.kind==='curves'?[assignment.repeat?.family,...assignment.curves.map(curve=>curve.uv?.reference).filter(reference=>reference&&reference.kind!=='patch').map(reference=>reference.assignment)].filter(Boolean):[];
     for(const other of nodes){
       if(other===node)continue;
       const offers=other.kind==='slice'?other.record.spec.settings:other.context.assignment;
@@ -49,14 +52,20 @@ export function prepareDepositionWork(contexts,constructions=[]){
       if(after.some(id=>operationBelongs(other,id)))needs.add(other.key);
       if(node.kind==='slice'&&node.first&&node.record.contact){
         const source=node.record.contact.source;
-        if(source!==null?other.sourceId===source&&other.part===node.part&&other.nominalRank<=node.nominalRank+1e-8:
+        if(source!==null?other.sourceId===source&&other.part===node.part&&(other.kind!=='slice'||other.record.reference||other.nominalRank<=node.nominalRank+1e-8):
           other.part===node.part&&other.sourceId!==node.sourceId&&!(other.kind==='slice'&&other.record.contact)&&other.nominalRank<=node.nominalRank+1e-8)needs.add(other.key);
       }
+      if(references.includes(other.sourceId)||references.includes(other.record?.spec.id))needs.add(other.key);
+      if(node.kind==='slice'&&node.record.reference&&other.part===node.part){
+        if(node.record.reference.source!==null&&other.sourceId===node.record.reference.source)needs.add(other.key);
+        if(node.record.reference.source===null&&(['sleeve','rim'].includes(other.kind)||other.kind==='slice'&&!other.record.reference))defaults.add(other.key);
+      }
+      if(node.kind==='bridges'&&(other.kind!=='bridges'||nodes.indexOf(other)<nodes.indexOf(node)))defaults.add(other.key);
       if(node.kind==='rim'&&other.sourceId===assignment.source&&other.part===node.part)needs.add(other.key);
       if(node.kind==='sleeve'&&other.part===node.part){
-        if(other.kind==='slice'&&other.nominalRank<=node.context.startMm+1e-8||other.kind==='sleeve'&&other.context.endMm<=node.context.startMm+1e-8)needs.add(other.key);
+        if(other.kind==='slice'&&!other.record.reference&&other.nominalRank<=node.context.startMm+1e-8||other.kind==='sleeve'&&other.context.endMm<=node.context.startMm+1e-8)needs.add(other.key);
       }
-      if(node.kind==='slice'&&other.kind==='sleeve'&&other.part===node.part&&node.nominalRank>other.context.endMm+1e-8){
+      if(node.kind==='slice'&&!node.record.reference&&other.kind==='sleeve'&&other.part===node.part&&node.nominalRank>other.context.endMm+1e-8){
         requireThat(other.context.assignment.endTransition==='level','Slices above a sleeve need its ending transition to be level.');needs.add(other.key);
       }
     }
@@ -67,8 +76,15 @@ export function prepareDepositionWork(contexts,constructions=[]){
         .sort((a,b)=>a.nominalRank-b.nominalRank||nodes.indexOf(a)-nodes.indexOf(b));
       const previous=group[group.indexOf(node)-1];if(previous)needs.add(previous.key);
     }
-    return {...node,requires:[...needs]};
+    return {...node,requires:[...needs],defaults:[...defaults]};
   });
+  // Unnamed substrate/bridge inputs use available producers, excluding explicit
+  // downstream consumers. Explicit recipe edges always retain their meaning.
+  const dependsOn=(key,target,seen=new Set())=>{
+    if(key===target)return true;if(seen.has(key))return false;seen.add(key);
+    return declared.find(node=>node.key===key).requires.some(prior=>dependsOn(prior,target,seen));
+  };
+  return declared.map(({defaults,...node})=>({...node,requires:[...new Set([...node.requires,...defaults.filter(key=>!dependsOn(key,node.key))])]}));
 }
 
 export function readyDepositionWork(nodes,completed){
@@ -76,13 +92,18 @@ export function readyDepositionWork(nodes,completed){
     .sort((a,b)=>a.nominalRank-b.nominalRank||nodes.indexOf(a)-nodes.indexOf(b))[0]??null;
 }
 
-export function executeDepositionWork(node,completed,{plan,machine,onProgress}){
+export function executeDepositionWork(node,completed,{plan,machine,onProgress,shells=[]}){
   const substrateAdaptation=plan.experimental.substrateAdaptation;
   const predecessors=[...completed.values()],samePart=predecessors.filter(item=>item.node.part===node.part);
   const prerequisiteIds=key=>{const prior=completed.get(key);return prior.result.operations.length?prior.result.operations.map(op=>op.id):prior.node.requires.flatMap(prerequisiteIds);};
   const after=[...new Set(node.requires.flatMap(prerequisiteIds))];
   let result;
-  if(node.kind==='slice'){
+  if(node.kind==='slice'&&node.record.reference){
+    const record=node.record,sources=samePart.filter(item=>record.reference.source===null||item.node.sourceId===record.reference.source).map(item=>item.result);
+    requireThat(sources.length,`Reference family ${node.sourceId}: source names an absent producer or a different part.`);
+    const reference=consumeFinishedSurface({shell:record.context.shell,selection:record.reference.selection,results:sources,substrateAdaptation});
+    result=sliceContextResult(record,{reference,motion:assignmentPlan(plan,machine,record.spec.settings).setup.denso});
+  }else if(node.kind==='slice'){
     const record=node.record,layer=record.spec.layers.find(layer=>layer.index===node.index)??record.spec.layers[0];
     const own=samePart.filter(item=>item.node.kind==='slice'&&item.node.record.familyId===record.familyId&&item.node.index===node.index-1);
     const contacts=substrateAdaptation?own.filter(item=>item.result.report.modulation?.materialChanged).flatMap(item=>depositedBeadSegments(item.result.operations,{widthMm:item.node.record.context.process.lineWidthMm})):[];
@@ -113,12 +134,18 @@ export function executeDepositionWork(node,completed,{plan,machine,onProgress}){
     const context=node.context,sourceResult=predecessors.find(item=>item.node.sourceId===context.assignment.source&&item.node.part===node.part)?.result;
     const sourceAssignment=plan.slices.assignments.find(a=>a.id===context.assignment.source);
     result=rimResult({...context,machine,sourceResult,sourceAssignment,substrateAdaptation});
+  }else if(['curves','bridges'].includes(node.kind)){
+    const results=predecessors.map(item=>item.result);
+    result=curveAssignmentResult(node.context.assignment,{plan,machine,modelResults:results,
+      bounds:machine.motionChecks==='deferred'?null:machine.bounds,references:depositionReferences(shells,results)});
   }else if(node.kind==='inject')result=injectionResult(node.context.assignment,{plan,machine});
   else throw new Error(`Unsupported deposition construction ${node.kind}.`);
   const assignment=node.kind==='slice'?node.record.spec.settings:node.context.assignment;
-  const selected={...result,report:{...result.report,owner:node.sourceId,part:node.part},operations:result.operations.map(op=>({...op,part:node.part,
+  const selected={...result,report:{...result.report,construction:result.report.construction??(node.kind==='slice'?undefined:node.kind),owner:node.sourceId,part:node.part},operations:result.operations.map(op=>({...op,part:node.part,
     after:[...new Set([...(op.after??[]),...after,...(assignment.dependencies?.after??assignment.after??[])])],...(assignment.filament===null?{}:{filament:assignment.filament})}))};
-  return finalizeDepositionResult(selected,plan,machine);
+  const finalized=node.kind==='bridges'?selected:finalizeDepositionResult(selected,plan,machine);
+  const publication=node.kind==='slice'&&node.record.reference?node.record.context:node.kind==='curves'?node.context:null;
+  return publication?.shell?republishDepositedBoundary(publishFinishedBoundary(finalized,{shell:publication.shell}),{widthMm:publication.process.lineWidthMm}):finalized;
 }
 
 export function finalizedSliceResults(args){

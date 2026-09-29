@@ -6,7 +6,9 @@ description: Experimental. Sparse planar frames and trusses from explicit center
 # Line network
 
 Use a `construction: "curves"` assignment in `plan.slices.assignments` for sparse
-frames, trusses and line text. Each supplied centerline receives one bead.
+frames, trusses and line text. Each supplied centerline receives one bead. This
+record is Trace input in the target architecture; this manual describes the
+current assignment schema.
 
 Each assignment has `id`, `construction`, `filament: null`, `after: []`,
 `repeat: null` and `curves`. Each curve has `closed` and finite XYZ `points`;

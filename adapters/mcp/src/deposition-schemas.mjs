@@ -1,11 +1,11 @@
-// Discoverable patch schemas. The shared recipe validators own exact complete
-// records; optional properties here permit the same partial edits as bulk patches.
+// Discoverable patch schemas. Named records let the existing SDK emit local
+// references instead of repeated shapes; recipe validators still own completeness.
 import {z} from 'zod';
 import {FILL_PATTERNS} from '../../../core/region/fill-patterns.mjs';
 import {CLADDING_PATTERNS} from '../../../core/path/surface-courses.mjs';
-const number=z.number().finite(),positive=number.positive(),names=z.array(z.string()),xyz=z.tuple([number,number,number]),uv=z.tuple([number,number]);
-const weighted=z.union([xyz,z.tuple([number,number,number,positive])]);
-export const patchSchema=z.object({name:z.string(),degreeU:z.number().int().min(1).max(5),degreeV:z.number().int().min(1).max(5),controlPoints:z.array(z.array(weighted)),knotsU:z.array(number).nullable().optional(),knotsV:z.array(number).nullable().optional()}).describe('Named NURBS patch; control-net rows along U, points along V; optional full knot vectors.');
+const number=z.number().finite(),positive=number.positive(),names=z.array(z.string()),xyz=z.tuple([number,number,number]).meta({id:'saam.xyz'}),uv=z.tuple([number,number]).meta({id:'saam.uv'});
+const weighted=z.union([xyz,z.tuple([number,number,number,positive])]).meta({id:'saam.weightedPoint'});
+export const patchSchema=z.object({name:z.string(),degreeU:z.number().int().min(1).max(5),degreeV:z.number().int().min(1).max(5),controlPoints:z.array(z.array(weighted)),knotsU:z.array(number).nullable().optional(),knotsV:z.array(number).nullable().optional()}).describe('Named NURBS patch; control-net rows along U, points along V; optional full knot vectors.').meta({id:'saam.patch'});
 export const geometrySchema=z.lazy(()=>z.object({shape:z.enum(['spline','mesh','blob-field','boolean','assembly','text','heat-set','gridfinity']),patches:z.array(patchSchema).optional(),vertices:z.array(xyz).optional(),triangles:z.array(z.tuple([z.number().int(),z.number().int(),z.number().int()])).optional(),source:z.unknown().optional(),operation:z.enum(['union','difference','intersection']).optional(),operands:z.array(geometrySchema).optional(),parts:z.array(z.object({id:z.string(),geometry:geometrySchema,xMm:number,yMm:number,zMm:number})).optional()}).passthrough()).describe('Same authored geometry record as recipe geometry; derived mesh forms retain their feature/provenance fields.');
 const blob=z.object({schema:z.literal('saam-blob-field/1'),points:z.array(z.object({positionMm:xyz,reachMm:positive,strength:number})),threshold:positive});
 export const fieldSchema=z.lazy(()=>z.object({
@@ -24,8 +24,8 @@ const modulationRecordSchema=z.object({id:z.string().optional(),assignments:name
 }).strict();
 export const surfaceSchema=z.object({kind:z.enum(['horizontal','plane','roof','spline','patch','mesh-strip']).optional(),origin:xyz.optional(),normal:xyz.optional(),xAxis:xyz.optional(),offsetMm:number.optional(),patch:z.union([patchSchema,z.string()]).optional(),part:z.string().nullable().optional(),periodicU:z.boolean().optional(),normalSide:z.union([z.literal(1),z.literal(-1)]).optional(),uvBounds:z.tuple([uv,uv]).optional(),rows:z.array(z.array(z.number().int())).optional()}).strict();
 const process=z.object({...Object.fromEntries(['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','firstLayerSpeedMmS'].map(k=>[k,positive.optional()])),fanPercent:number.min(0).max(100).optional()}).strict();
-const nurbs=z.object({degree:z.number().int().positive(),knots:z.array(number),controlPoints:z.array(z.union([uv,xyz])),weights:z.array(positive).optional()});
-const profile=z.array(z.tuple([number,z.union([number,xyz])]));
+const nurbs=z.object({degree:z.number().int().positive(),knots:z.array(number),controlPoints:z.array(z.union([uv,xyz])),weights:z.array(positive).optional()}).meta({id:'saam.nurbs'});
+const profile=z.array(z.tuple([number,z.union([number,xyz])])).meta({id:'saam.profile'});
 const reference=z.object({kind:z.enum(['patch','slice','sleeve']),part:z.string().nullable().optional(),name:z.string().optional(),assignment:z.string().optional(),index:z.number().int().optional()}).strict();
 const curve=z.object({points:z.array(xyz).optional(),nurbs:nurbs.optional(),uv:z.object({reference,points:z.array(uv).optional(),nurbs:nurbs.optional(),normalMm:number.optional()}).optional(),text:z.object({fontId:z.string(),text:z.string(),heightMm:positive,beadRangeMm:z.tuple([positive,positive]),origin:xyz,weight:z.enum(['light','regular','bold']).optional(),stemRatio:positive.optional(),letterSpacingMm:number.optional(),align:z.enum(['left','center','right']).optional(),chain:z.boolean().optional(),spacingFactor:positive.optional(),onInfeasible:z.enum(['reduce','error']).optional()}).optional(),closed:z.boolean(),role:z.string().optional(),beadWidthMm:positive.optional(),heightMm:positive.optional(),speedMmS:positive.optional(),flowMultiplier:positive.optional(),courses:z.array(z.number().int()).optional(),
   vary:z.object(Object.fromEntries(['beadWidthMm','heightMm','flowMultiplier','speedMmS','toolAxis','toolUp','rotaryDeg'].map(k=>[k,profile.optional()]))).optional(),widthRule:z.object({widthMm:positive,beadRangeMm:z.tuple([positive,positive]),spacingFactor:positive.optional(),initialNormal:xyz.optional()}).optional(),sampleStepMm:positive.optional(),toleranceMm:positive.optional()});
@@ -60,8 +60,12 @@ function objectPatch(schema,cache=new Map(),patch=true){
   else if(schema instanceof z.ZodNullable)result=objectPatch(schema.unwrap(),cache,patch).nullable();
   else if(schema instanceof z.ZodUnion)result=z.union(schema.options.map(option=>objectPatch(option,cache,patch)));
   if(schema.description)result=result.describe(schema.description);
+  if(result!==schema&&schema.meta()?.id)result=result.meta({id:schema.meta().id+(patch?'Patch':'Record')});
   if(!cache.has(schema))cache.set(schema,new Map());cache.get(schema).set(patch,result);return result;
 }
-export const slicePatchSchema=objectPatch(sliceRecordSchema);
-export const modulationPatchSchema=objectPatch(modulationRecordSchema);
+// One transformation shares record identities across both editors, preserving
+// distinct complete-array records and recursively optional object patches.
+const editSchemas=objectPatch(z.object({slice:sliceRecordSchema,modulation:modulationRecordSchema}));
+export const slicePatchSchema=editSchemas.shape.slice.unwrap();
+export const modulationPatchSchema=editSchemas.shape.modulation.unwrap();
 export const draftFamilySchema=slicePatchSchema.pick({id:true,part:true,preset:true,process:true,within:true,surface:true,stack:true,sampleStepMm:true});

@@ -8,7 +8,7 @@ import {beadWidthRule,parallelBeadCurves} from './parallel-curves.mjs';
 import {strokeSurfaceRegion} from '../region/surface-offset.mjs';
 import {loadFont,fontEntry} from '../text/catalog.mjs';
 import {lineText} from '../text/compile.mjs';
-import {validatePose,unit,dot} from './pose.mjs';
+import {validatePose,unit,dot,interpolateDirections} from './pose.mjs';
 import {piecewiseChart,piecewiseChartFrame,mapPiecewiseChartPath,splitPiecewiseChartPath} from '../geom/piecewise-chart.mjs';
 
 const vec=(p,n)=>Array.isArray(p)&&p.length===n&&p.every(Number.isFinite);
@@ -47,6 +47,7 @@ export function referenceCurvePoint(entry,p,normalMm=0){
   if(entry.slice){const point=slicePoint(entry.slice,p),normal=sliceNormal(entry.slice,p);return {point:point.map((v,i)=>v+normalMm*normal[i]),normal};}
   if(entry.patch){const e=evaluate(entry.patch,p[0],p[1]);return {...e,point:e.point.map((v,i)=>v+normalMm*e.normal[i])};}
   requireThat(entry.layers?.length>=2,'A sleeve reference needs at least two boundary layers.');
+  requireThat(p[1]>=-1e-9&&p[1]<=entry.layers.length-1+1e-9,'Sleeve curve lies outside the along-coordinate domain.');
   const v=Math.max(0,Math.min(entry.layers.length-1,p[1])),a=Math.min(entry.layers.length-2,Math.floor(v)),f=v-a;
   const ring=(layer,u)=>{const loop=layer.curves[0].points;requireThat(layer.curves.length===1&&layer.curves[0].closed,'Sleeve layers require one closed boundary loop.');const pts=[...loop,loop[0]],lengths=[0];for(let i=1;i<pts.length;i++)lengths.push(lengths.at(-1)+distance(pts[i-1],pts[i]));const d=((u%1)+1)%1*lengths.at(-1);let i=1;while(i<lengths.length-1&&lengths[i]<d)i++;const t=(d-lengths[i-1])/(lengths[i]-lengths[i-1]);return pts[i-1].map((x,k)=>x+(pts[i][k]-x)*t);};
   const lo=ring(entry.layers[a],p[0]),hi=ring(entry.layers[a+1],p[0]),along=ring(entry.layers[a],p[0]+1e-5),normal=normalize(cross(along.map((v,i)=>v-lo[i]),hi.map((v,i)=>v-lo[i])));
@@ -79,17 +80,42 @@ export function sampleAuthoredCurve(curve,{references={},course=0,offset=[0,0,0]
   return applyCurveProfiles(result,curve);
 }
 
-export function applyCurveProfiles(source,curve){
-  const result={...source};
-  const samples=result.points.map((point,i)=>({point,t:result.curveParameters[i],normal:result.frameSamples?.[i]?.normal}));
+export function applyCurveProfiles(input,curve){
   const vary=curve.vary;
+  if(!vary)return {...input};
+  const closing=input.closed&&distance(input.points[0],input.points.at(-1))>1e-12;
+  const source=input.closed?{...input,closed:false,...(closing?{
+    ...Object.fromEntries(['points','poses','normals','chartPoints','frameSamples'].filter(key=>input[key]).map(key=>[key,[...input[key],input[key][0]]])),
+    curveParameters:[...input.curveParameters,1]}:{})}:input;
+  // Parallel construction changes the source parameter spacing and can reverse
+  // it. Split at every crossed profile knot before assigning segment values;
+  // geometry-only subdivision must not erase a process change.
+  const knots=[...new Set(Object.values(vary).flatMap(values=>values.map(([t])=>t)))];
+  const positions=[{segment:0,fraction:0}];
+  for(let i=1;i<source.points.length;i++){
+    const a=source.curveParameters[i-1],b=source.curveParameters[i];
+    const cuts=knots.filter(t=>t>Math.min(a,b)&&t<Math.max(a,b)).map(t=>(t-a)/(b-a)).sort((a,b)=>a-b);
+    positions.push(...cuts.map(fraction=>({segment:i-1,fraction})),{segment:i-1,fraction:1});
+  }
+  const mix=(a,b,t)=>a.map((x,k)=>x+t*(b[k]-x));
+  const result={...source,points:positions.map(({segment:i,fraction:t})=>mix(source.points[i],source.points[i+1],t)),
+    curveParameters:positions.map(({segment:i,fraction:t})=>source.curveParameters[i]+t*(source.curveParameters[i+1]-source.curveParameters[i]))};
+  for(const key of ['widthsMm','heightsMm','flowMultipliers','segmentMetadata'])if(source[key])result[key]=positions.slice(1).map(({segment})=>source[key][segment]);
+  for(const key of ['normals','chartPoints'])if(source[key])result[key]=positions.map(({segment:i,fraction:t})=>{
+    const value=mix(source[key][i],source[key][i+1],t);return key==='normals'?unit(value):value;
+  });
+  if(source.poses)result.poses=positions.map(({segment:i,fraction:t})=>({...interpolateDirections(source.poses[i],source.poses[i+1],t),rotaryDeg:source.poses[i].rotaryDeg+t*(source.poses[i+1].rotaryDeg-source.poses[i].rotaryDeg)}));
+  if(source.frameSamples)result.frameSamples=positions.map(({segment:i,fraction:t})=>{
+    const a=source.frameSamples[i],b=source.frameSamples[i+1],normal=unit(mix(a.normal,b.normal,t)),v=unit(cross(normal,unit(mix(a.u,b.u,t))));
+    return {point:mix(a.point,b.point,t),u:unit(cross(v,normal)),v,normal};
+  });
+  const samples=result.points.map((point,i)=>({point,t:result.curveParameters[i],normal:result.frameSamples?.[i]?.normal}));
   if(vary){
-    result.widthsMm=samples.slice(1).map((s,i)=>curveProfile(vary.beadWidthMm,(s.t+samples[i].t)/2,curve.beadWidthMm));
-    if(!vary.beadWidthMm)delete result.widthsMm;
-    result.heightsMm=vary.heightMm?samples.slice(1).map((s,i)=>curveProfile(vary.heightMm,(s.t+samples[i].t)/2)):undefined;
-    result.flowMultipliers=vary.flowMultiplier?samples.slice(1).map((s,i)=>curveProfile(vary.flowMultiplier,(s.t+samples[i].t)/2)):undefined;
-    result.segmentMetadata=samples.slice(1).map((s,i)=>({...source.segmentMetadata?.[i],...samples[i].normal?{surfaceNormal:samples[i].normal}:{},...vary.speedMmS?{speedMmS:curveProfile(vary.speedMmS,(s.t+samples[i].t)/2)}:{}}));
-    if(vary.toolAxis||vary.toolUp||vary.rotaryDeg)result.poses=samples.map(s=>{const toolAxis=unit(curveProfile(vary.toolAxis,s.t,[0,0,-1])),up=curveProfile(vary.toolUp,s.t,[0,1,0]),projection=dot(up,toolAxis);return validatePose({toolAxis,toolUp:unit(up.map((v,i)=>v-projection*toolAxis[i])),rotaryDeg:curveProfile(vary.rotaryDeg,s.t,0)});});
+    if(vary.beadWidthMm)result.widthsMm=samples.slice(1).map((s,i)=>curveProfile(vary.beadWidthMm,(s.t+samples[i].t)/2));
+    if(vary.heightMm)result.heightsMm=samples.slice(1).map((s,i)=>curveProfile(vary.heightMm,(s.t+samples[i].t)/2));
+    if(vary.flowMultiplier)result.flowMultipliers=samples.slice(1).map((s,i)=>curveProfile(vary.flowMultiplier,(s.t+samples[i].t)/2));
+    result.segmentMetadata=samples.slice(1).map((s,i)=>({...result.segmentMetadata?.[i],...samples[i].normal?{surfaceNormal:samples[i].normal}:{},...vary.speedMmS?{speedMmS:curveProfile(vary.speedMmS,(s.t+samples[i].t)/2)}:{}}));
+    if(vary.toolAxis||vary.toolUp||vary.rotaryDeg)result.poses=samples.map((s,i)=>{const prior=result.poses?.[i],frame=result.frameSamples?.[i],toolAxis=unit(curveProfile(vary.toolAxis,s.t,prior?.toolAxis??frame?.normal.map(v=>-v)??[0,0,-1])),up=curveProfile(vary.toolUp,s.t,prior?.toolUp??frame?.v??[0,1,0]),projection=dot(up,toolAxis);return validatePose({toolAxis,toolUp:unit(up.map((v,i)=>v-projection*toolAxis[i])),rotaryDeg:curveProfile(vary.rotaryDeg,s.t,prior?.rotaryDeg??0)});});
   }
   return result;
 }

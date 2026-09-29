@@ -1,7 +1,7 @@
 import {createTourUI,needsTourToolpath} from './tour-ui.mjs';
 import { advancePlayback, exportMovie } from './playback.mjs';
 import { createLayerFade, layerEndSeconds, stepLayerIndex, TOOLPATH_COLORS } from './toolpath-view.mjs';
-import {hasConstruction,sliceSummary,recipeRows,robotRows,materialGrams,claddingPatternName,claddingSubstrateName,nextExportName,injectionPoints} from './settings.mjs';
+import {hasConstruction,sliceSummary,recipeRows,robotRows,materialGrams,claddingPatternName,claddingSubstrateName,nextExportName,injectionPoints,depositionFamilyRows} from './settings.mjs';
 import {sourceSession,machineCameras} from './studio/machine-session.mjs';
 import {machineFitBounds,boundsCorners,machinePalette} from './machine-view.mjs';
 import {point,invert} from '../core/machine/rigid.mjs';
@@ -235,9 +235,7 @@ const views={
         ...(state.plan.geometry?.shape==='assembly'?[['Fill sequencing',(state.plan.composition?.batchLayers??1)+' layer(s) per component'],['Sliced components',owners.some(a=>a.part===null)?'All':[...new Set(owners.map(a=>a.part))].join(', ')||'None']]:[])];
       if(!state.program)return [];
       const limit=state.pathSummary?.nonplanarLimit;
-      const pathCount=state.pathSummary?.vaseWall?.paths;
-      const waveLayers=state.pathSummary?.waveOverhangs?.length??0;
-      const rows=[!state.geometry?['Injection points',String(injectionPoints(state.plan).length)]:pathCount&&!state.pathSummary?.slices&&!state.pathSummary?.drapedSkin?['Deposition paths',String(pathCount)]:['Slices',(state.pathSummary?.slices?.layers??0)+' body + '+(state.pathSummary?.drapedSkin?.skinLayers??0)+' skin'+(waveLayers?' + '+waveLayers+' wave':'')],
+      const rows=[...depositionFamilyRows(state.plan,state.pathSummary?.inspection),
         [state.program.envelope?'Printing motion':'Estimated motion',Math.round(duration()/60)+' min'],materialFact(state.program)];
       for(const c of state.pathSummary?.curves??[])rows.push([c.id,c.construction==='curves'?c.strokes+' strokes · '+c.courses+' courses':c.bridges.length+' bridges']);
       if(state.program.summary?.materialModel==='relay-estimate')rows.push(['Material intent',round2(materialGrams(state.program.volumeMm3))+' g; not metered']);

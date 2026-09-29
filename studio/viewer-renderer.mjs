@@ -107,7 +107,7 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
       const inspection=shown.pathSummary?.inspection,info=inspection?.operations?.[currentLayer?.operation];
       if(info){
         const kind=shown.plan.slices.assignments.find(a=>a.id===info.family)?.construction;
-        annotations.layerText=`${info.family} · ${kind==='inject'?'point':'slice'} ${info.index+1} · step ${layerIndexAt(pathView,position)+1}/${pathView.groups.length}`;
+        annotations.layerText=`${info.family} · ${kind==='inject'?'injection point':kind==='curves'?'trace course':kind==='bridges'?'bridge course':'slice'} ${info.index+1} · step ${layerIndexAt(pathView,position)+1}/${pathView.groups.length}`;
         annotations.detailText=[annotations.detailText,`Roles: ${info.roles.join(', ')}`,...(info.modifiers.length?[`Modulation: ${info.modifiers.join(', ')}`]:[])].filter(Boolean).join(' · ');
       }
       if(solid)try{const start=now();materialStats=materialRenderer.draw(materialScene,{at,current:currentLayer,fade,project:materialProject,width,height,ratio,skinPhase,previousLayerOpacity:settings.previousLayerOpacity,machine,machineMode:cameraMode,machinePalette:machineColors,quality});ctx.drawImage(materialRenderer.canvas,0,0,width,height);materialMs=now()-start;}catch(error){materialError=error.message;materialRenderer.dispose();materialRenderer=null;materialScene=null;if(!updateUI)throw error;annotations.redraw=true;}

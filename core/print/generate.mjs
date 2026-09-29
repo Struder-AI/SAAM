@@ -10,15 +10,11 @@ import {planarPolicy} from '../path/builder.mjs';
 import {assignmentPlan} from './assignment-process.mjs';
 import {surveySkinAssignment} from './surface-constructions.mjs';
 import { validatePlan, VERSION } from './plan.mjs';
-import {curveAssignmentResults} from './curves.mjs';
-import {finalizeDepositionResult} from './finalize.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 import {makeMesh,translateMesh} from '../geom/mesh.mjs';
 import {toolBounds,startupPosition,startupRetracted} from '../machine/profile.mjs';
 import {finalizedSliceResults} from './slice-deposition.mjs';
 import {supportResults,supportDependencies} from '../../skills/supports/scripts/supports.mjs';
-import {claddingResult} from './cladding-constructions.mjs';
-import {consumeFinishedSurface} from '../path/finished-surface.mjs';
 import {preparePlasticWeld,plasticWeldResult} from '../../skills/plastic-weld/scripts/weld.mjs';
 import {validateHeatSetAssignments} from '../../skills/heat-set-inserts/scripts/feature.mjs';
 import {geometrySelections} from '../geom/selections.mjs';
@@ -157,14 +153,25 @@ export function generateModelResults(plan,machine,rhino,{placed,componentShells,
     return {assignment,shell,process:assignmentPlan(plan,machine,assignment).process};
   });
   const injections=plan.slices.assignments.filter(a=>a.construction==='inject').map(assignment=>({assignment,process:assignmentPlan(plan,machine,assignment).process}));
-  const constructions=[...sleeves,...rims,...injections].map(context=>({...context,maxBeadHeightMm:machine.tools.find(tool=>tool.index===assignmentPlan(plan,machine,context.assignment).setup.tool)?.layerHeightMm?.[1]??Infinity}));
-  const sliced=finalizedSliceResults({plan,machine,shells,volumes:sliceVolumes(plan,rhino),bands,reserves:welds,envelopes:welds,surfaceAssignments:skins,constructions,onProgress});
+  const remaining=plan.slices.assignments.filter(a=>['curves','bridges'].includes(a.construction)).map(assignment=>({assignment,
+    shell:shells.find(([part])=>part===(assignment.part??null))?.[1],process:assignmentPlan(plan,machine,assignment).process}));
+  const referenceAssignments=plan.slices.assignments.filter(a=>a.construction==='cladding').map(assignment=>{
+    const shell=shells.find(([part])=>part===assignment.part)?.[1];
+    requireThat(shell,'Cladding needs a selected component or the single solid.');
+    return {assignment,shell,process:assignmentPlan(plan,machine,assignment).process};
+  });
+  const constructions=[...sleeves,...rims,...injections,...remaining].map(context=>({...context,maxBeadHeightMm:machine.tools.find(tool=>tool.index===assignmentPlan(plan,machine,context.assignment).setup.tool)?.layerHeightMm?.[1]??Infinity}));
+  const sliced=finalizedSliceResults({plan,machine,shells,volumes:sliceVolumes(plan,rhino),bands,reserves:welds,envelopes:welds,surfaceAssignments:skins,referenceAssignments,constructions,onProgress});
   results.push(...sliced.results);
   if(sliced.summary)summary.slices=sliced.summary;
   for(const [kind,key] of [['sleeve','vaseWall'],['rim','thickLip'],['skin','drapedSkin']]){
     const instances=results.filter(result=>result.report.construction===kind).map(result=>({id:result.id,...result.report}));
     if(instances.length)summary[key]={...instances[0],instances};
   }
+  const cladding=results.filter(result=>result.report.construction==='cladding');
+  if(cladding.length)summary.pipeCladding={...cladding.at(-1).report,instances:cladding.map(result=>({id:result.id,...result.report}))};
+  const curves=results.filter(result=>['curves','bridges'].includes(result.report.construction));
+  if(curves.length)summary.curves=curves.map(result=>({id:result.id,...result.report}));
   const survey=skins[0]?.survey??null;
   if(skins.length)summary.nonplanarLimit={machineMaxAngleDeg:skins[0].survey.declaredLimitDeg,effectiveMaxAngleDeg:Math.max(...skins.map(s=>s.survey.limitDeg)),experimentalOverride:skins.some(s=>s.survey.experimentalOverride),surfaceMaxSlopeDeg:Math.max(...skins.map(s=>s.survey.maxSlopeDeg)),excludedAreaPercent:Math.max(...skins.map(s=>s.survey.steepFraction))*100};
   return {results,summary,survey,shells,slicedSupports:sliced.supports};
@@ -172,24 +179,9 @@ export function generateModelResults(plan,machine,rhino,{placed,componentShells,
 
 export function addComplementaryResults(plan,machine,{placed,componentShells,weldSites,bounds},batch) {
   const results=[...batch.results],summary={...batch.summary};
-  for(const assignment of plan.slices.assignments.filter(a=>a.construction==='cladding')){
-    const shell=batch.shells.find(([part])=>part===assignment.part)?.[1];
-    requireThat(shell,'Cladding needs a selected component or the single solid.');
-    const sources=assignment.source===null?results:results.filter(r=>(r.report?.owner??r.id)===assignment.source&&r.report?.part===assignment.part);
-    requireThat(sources.length,`Cladding ${assignment.id}: source names an absent producer or a different part.`);
-    const finishedSurface=consumeFinishedSurface({shell,selection:assignment.surface,results:sources,substrateAdaptation:plan.experimental.substrateAdaptation});
-    const selected=assignmentPlan(plan,machine,assignment);
-    const result=claddingResult({shell,assignment,process:selected.process,motion:selected.setup.denso,finishedSurface});
-    const finalized=finalizeDepositionResult(result,plan,machine);
-    results.push(finalized);summary.pipeCladding={...finalized.report,instances:[...(summary.pipeCladding?.instances??[]),{id:assignment.id,...finalized.report}]};
-  }
-  const references=depositionReferences(batch.shells,results);
-  const curves=curveAssignmentResults({plan,machine,modelResults:results,references,bounds:machine.motionChecks==='deferred'?null:bounds});
-  const constructedResults=[...results,...curves];
-  if(curves.length)summary.curves=curves.map(result=>({id:result.id,...result.report}));
   // Support-preset slices and tree supports print before what they hold up.
   const supports=[...(batch.slicedSupports??[]),...supportResults({plan,machine,shells:componentShells?[...componentShells.values()]:placed?[placed]:[]})];
-  const supportedResults=[...supports,...applyResultDependencies(constructedResults,supportDependencies(supports,constructedResults))];
+  const supportedResults=[...supports,...applyResultDependencies(results,supportDependencies(supports,results))];
   if(supports.length)summary.supports=supports.map(r=>({id:r.id,...r.report}));
   const welds=plasticWeldResult({plan,machine,sites:weldSites,modelResults:supportedResults});
   const weldedResults=applyResultDependencies(supportedResults,welds.dependencyChanges);
@@ -212,31 +204,6 @@ export function applyDeclaredDependencies(plan,results){
     for(const other of before)for(const op of other.operations)changes.push({operationId:op.id,after:result.operations.map(op=>op.id),mode:'union'});
   }
   return applyResultDependencies(results,changes);
-}
-
-// References carry evaluated data in placed world coordinates. A shared-owner
-// result keeps its own family identity instead of replacing the owner's base.
-export function depositionReferences(shells,results){
-  const references={};
-  for(const [part,shell] of shells)for(const patch of shell.patches??[])references[`patch:${part??''}:${patch.name}`]={patch};
-  const families=new Map();
-  for(const result of results){
-    const family=result.family??(result.familyLayers?{layers:result.familyLayers}:null);
-    if(!family?.layers?.length)continue;
-    const owner=result.report?.owner??result.id;
-    references[`slice:${result.id}`]=family;
-    references[`sleeve:${result.id}`]=family;
-    if(!result.familyId||result.familyId===owner){
-      const key=`slice:${owner}`;
-      (families.get(key)??families.set(key,[]).get(key)).push(family);
-    }
-  }
-  for(const [key,found] of families){
-    const sleeveKey=key.replace(/^slice:/,'sleeve:');
-    if(found.length===1){references[key]=found[0];references[sleeveKey]=found[0];}
-    else {delete references[key];delete references[sleeveKey];}
-  }
-  return references;
 }
 
 // Dependency changes address operation IDs, which are unique within a composed

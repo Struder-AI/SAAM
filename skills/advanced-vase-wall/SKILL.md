@@ -7,7 +7,8 @@ description: Vase walls patterned with repeated tiles or authored paths on a sle
 
 Use for tiled or authored patterns and fitted mesh sleeves. For a conventional
 continuous spiral, choose [standard vase mode](../vase-wall/SKILL.md).
-Both techniques use a `construction: "sleeve"` assignment in `plan.slices`;
+Both techniques currently use a sleeve assignment. The target architecture lowers
+the vessel wall to Slice and tile/authored paths to Trace curves.
 `advanced-vase-wall` is a discovery/manual ID.
 
 Use for an open single-wall vessel or tube. The selected solid or closed sleeve

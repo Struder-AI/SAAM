@@ -1,5 +1,5 @@
-// Boundary chart -> courses, local cell widths and declared robot/rotary poses.
-// Deposition and operation dependencies are constructed by the caller.
+// Physical cell fields on a periodic reference family. Samples carry the
+// evaluated geometry/metric; mapping, deposition and machine motion are downstream.
 import {prepareSurfaceOffset} from '../geom/surface-offset.mjs';
 import {evaluate} from '../geom/nurbs.mjs';
 import {sampleSurfaceCurve} from '../region/normal-surface.mjs';
@@ -7,7 +7,7 @@ import {requireThat,distance,normalize,cross,scale,add,dot,findRoot,subtract} fr
 import {lineSpacing,spacingFactor} from '../path/spacing.mjs';
 import {claddingCourse} from '../path/surface-courses.mjs';
 
-export function constructCladdingCourses({shell,settings,process,motion,chart}){
+export function surfaceCellField({shell,settings,process,chart}){
   const s=settings,p=process,w=p.lineWidthMm;
   // Mesh strips retain their interpolated normal metric. The optional loose
   // surface offset is only meaningful for an explicit native spline chart;
@@ -34,37 +34,19 @@ export function constructCladdingCourses({shell,settings,process,motion,chart}){
   }}:chart;
   const trackPitch=lineSpacing(w,s),factor=spacingFactor(s);
   requireThat(chart.periodicU,'This wrapping producer needs a periodic U region; open-patch raster cladding is not yet implemented.');
-  const center=motion.rotaryCenterMm;
   // Chord tolerance and step target decide how many samples every curve needs;
   // survey and course counts follow the measured surface, not a fixed budget.
   const options={toleranceMm:s.toleranceMm,maxStepMm:s.sampleStepMm};
-  let points=0,angle=0,helixStartU=0;const courses=[];
+  let points=0,helixStartU=0;const courses=[];
   const report={backend:chart.backend,shells:s.shells,points:0,partialAxialPasses:0,fullAxialPasses:0,axialPasses:0,
     offsetTightness:offsetField?s.offsetTightness:1,
     minBeadWidthMm:Infinity,maxBeadWidthMm:0,interface:'outward normal offsets from selected substrate surface',
     coverage:'Arc-length cells in each U sector; partial axial courses start/end where a cell appears/disappears. Sampled coverage, not a global geodesic guarantee.',
     physicalValidation:'not performed'};
-  const newStroke=role=>({role,closed:false,points:[],poses:[],widthsMm:[],heightMm:s.normalMm,segmentMetadata:[],speedMmS:p.skinSpeedMmS});
-  const pose=e=>{
-    const radius=Math.hypot(e.point[0]-center[0],e.point[1]-center[1]);requireThat(radius>1e-6,'Cladding crosses the rotary axis.');
-    const raw=-Math.atan2(e.point[1]-center[1],e.point[0]-center[0])*180/Math.PI;
-    angle=raw+360*Math.round((angle-raw)/360);
-    const n=e.normal,v=normalize(subtract(e.dv,scale(n,dot(e.dv,n)))),up=normalize(cross(v,n)),t=s.tiltDeg*Math.PI/180;
-    return {rotaryDeg:angle,toolAxis:add(scale(n,-Math.sin(t)),scale(v,-Math.cos(t))),toolUp:up};
-  };
+  const newStroke=role=>({role,closed:false,surfaceSamples:[],cellWidthsMm:[],heightMm:s.normalMm,speedMmS:p.skinSpeedMmS});
   const emit=(stroke,samples,widths)=>{
-    for(let i=0;i<samples.length;i++){
-      points++;
-      const e=samples[i];stroke.points.push(e.point);stroke.poses.push(pose(e));
-      if(i){const a=samples[i-1],width=(widths[i-1]+widths[i])/2;
-        // Cell width is along U for axial courses, V for hoops. Project it
-        // perpendicular to the actual stroke to account for skewed charts.
-        const across=normalize(stroke.role==='axial'?e.du:e.dv),tangent=normalize(subtract(e.point,a.point));
-        const effective=width*Math.hypot(...cross(across,tangent));
-        stroke.widthsMm.push(effective);stroke.segmentMetadata.push({surfaceNormal:[...e.normal]});
-        report.minBeadWidthMm=Math.min(report.minBeadWidthMm,effective);report.maxBeadWidthMm=Math.max(report.maxBeadWidthMm,effective);
-      }
-    }
+    points+=samples.length;stroke.surfaceSamples.push(...samples);stroke.cellWidthsMm.push(...widths);
+    stroke.widthAxis=stroke.role==='axial'?'du':'dv';
   };
   // Sampled longest meridian controls V survey resolution and hoop pitch.
   let meridianMax=0;
@@ -144,8 +126,8 @@ export function constructCladdingCourses({shell,settings,process,motion,chart}){
       emit(stroke,samples,widths);strokes.push(stroke);
       if(s.pattern==='crossed-helices')helixStartU=uvAt(totalTurns)[0];
     }
-    const maxZ=strokes.reduce((best,stroke)=>stroke.points.reduce((m,p)=>Math.max(m,p[2]),best),shell.bounds.max[2]);
-    courses.push({layer,phase,curves:strokes,axial,maxZ});
+    const maxZ=strokes.reduce((best,stroke)=>stroke.surfaceSamples.reduce((m,e)=>Math.max(m,e.point[2]),best),shell.bounds.max[2]);
+    courses.push({layer,phase,strokes,region:[[[0,v0],[1,v0],[1,v1],[0,v1]]],reference:offsetChart(offset),axial,maxZ});
   }
   report.points=points;report.meridianSurveyMm=meridianMax;report.axialSurveyRows=nv+1;
   return {courses,report};

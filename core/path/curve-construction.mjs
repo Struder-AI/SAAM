@@ -68,12 +68,12 @@ export function attachmentCurves({rails,mode,overlapMm,attachmentSpeedMmS,pressM
   speedMmS,flowMultiplier,endAttachment,maxSegmentMm}) {
   const end=endAttachment??{overlapMm,pressMm,jogMm:0,speedMmS:attachmentSpeedMmS,flowMultiplier:1};
   const anchors=railAnchors(rails,[overlapMm,mode==='one-way'?end.overlapMm:overlapMm]),curves=[];
-  function add(role,points,speed=attachmentSpeedMmS,flow=1,segmentMetadata=null) {
+  function add(role,points,speed=attachmentSpeedMmS,flow=1,segmentMetadata=null,depositionAction=null) {
     if(points.every(p=>distance(p,points[0])<1e-9))return;
-    curves.push({role,closed:false,points,speedMmS:speed,flowMultiplier:flow,...(segmentMetadata?{segmentMetadata}:{})});
+    curves.push({role,closed:false,points,speedMmS:speed,flowMultiplier:flow,...(segmentMetadata?{segmentMetadata}:{}),...(depositionAction?{depositionAction}:{})});
   }
   function press(a,depth=pressMm,speed=attachmentSpeedMmS,flow=1) {
-    if(depth)add('bridge-press',[a,[a[0],a[1],a[2]-depth],a],speed,flow);
+    if(depth)add('bridge-press',[a,[a[0],a[1],a[2]-depth],a],speed,flow,null,{kind:'press',depthMm:depth});
   }
   for(let i=0;i<rails[0].length;i++){
     const side=mode==='alternating'?i%2:0,a=anchors[side][i],z=anchors[1-side][i];

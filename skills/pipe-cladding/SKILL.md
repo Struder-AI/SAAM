@@ -11,6 +11,9 @@ This is a bounded development implementation for the DENSO VS-068A4 with RC8A an
 an external rotary. RC8A is user-confirmed; ceiling mounting with the robot base
 axis coaxial with the rotary remains provisional. No physical print is validated.
 
+Cladding uses the shared Slice construction on a sleeve reference. This manual
+describes the current public recipe and machine-specific limits.
+
 ## Geometry and process
 
 Cladding coats the finished outer boundary of a printed substrate, selected as a

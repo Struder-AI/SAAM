@@ -96,9 +96,13 @@ export function sweepSurfaceOffset(patch,prepared){
   };
   const frameAtState=uv=>at(constraint===null?uv:uv.map((x,k)=>Math.max([patch.domainU,patch.domainV][k][0],Math.min([patch.domainU,patch.domainV][k][1],x))));
   const radius=Math.abs(deltaMm), bands=[];
-  const triangle=(a,b,c)=>{
-    const signed=(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
-    if(signed!==0)bands.push(signed>0?[a,b,c]:[a,c,b]);
+  // A sweep cell is bounded by its original rays. Resampling or triangulating
+  // it adds internal edges whose quantized intersections can enclose false
+  // holes. Give the region kernel the actual boundary, shared with its neighbours.
+  const connectRays=(one,two)=>{
+    const boundary=[...one,...two.slice().reverse()];
+    const area=boundary.reduce((sum,p,i)=>{const q=boundary[(i+1)%boundary.length];return sum+p[0]*q[1]-q[0]*p[1];},0);
+    if(area!==0)bands.push(area>0?boundary:boundary.reverse());
   };
   const rhs=state=>{
     const frame=frameAtState(state.slice(0,2)), [p,q]=state.slice(2);
@@ -174,17 +178,6 @@ export function sweepSurfaceOffset(patch,prepared){
       const value={uv,point:frame.point,offset:shoot(uv,normal,hint)};
       samples.set(t,value);return value;
     };
-    const connect=(l,r,side)=>{
-      // Both rays can use different integration steps; interpolate their UV
-      // polylines by normalized sample index to form a swept strip. Endpoints
-      // carry the true integrated distance regardless of this interior mesh.
-      const one=l[side],two=r[side],n=Math.max(one.length,two.length)-1;
-      const lerpRay=(ray,t)=>{if(ray.length===1)return ray[0];const x=t*(ray.length-1),i=Math.min(Math.floor(x),ray.length-2);return plus(ray[i],plus(ray[i+1],ray[i],-1),x-i);};
-      for(let i=0;i<n;i++) {
-        const p=lerpRay(one,i/n),q=lerpRay(two,i/n),s=lerpRay(one,(i+1)/n),t=lerpRay(two,(i+1)/n);
-        triangle(p,q,t);triangle(p,t,s);
-      }
-    };
     const subdivide=(lo,hi)=>{
       const l=sample(lo),r=sample(hi),mid=(lo+hi)/2,m=sample(mid);
       let error=distance(m.point,midpoint(l.point,r.point));
@@ -195,7 +188,7 @@ export function sweepSurfaceOffset(patch,prepared){
       if((error>toleranceMm/4||distance(l.point,r.point)>maxStepMm)&&!((constraint!==null||prepared.atlas)&&distance(l.point,r.point)<=toleranceMm*1e-3)) {
         requireThat(mid>lo&&mid<hi,'Surface offset subdivision cannot resolve the requested tolerance: the strip parameter is one representable step wide.');
         subdivisions++;subdivide(lo,mid);subdivide(mid,hi);
-      }else {connect(l,r,'offset');}
+      }else {connectRays(l.offset,r.offset);}
     };
     subdivide(0,1);
   };
@@ -212,6 +205,7 @@ export function sweepSurfaceOffset(patch,prepared){
     const end=cross(after,frame.normal).map(v=>v*Math.sign(deltaMm));
     const sweep=full?2*Math.PI:Math.atan2(dot(end,y),dot(end,x)),rays=new Map();
     const ray=angle=>{
+      if(full&&angle===sweep)angle=0;
       if(!rays.has(angle))rays.set(angle,shoot(uv,x.map((v,k)=>v*Math.cos(angle)+y[k]*Math.sin(angle))));
       return rays.get(angle);
     };
@@ -221,10 +215,7 @@ export function sweepSurfaceOffset(patch,prepared){
         requireThat((a+b)/2!==a&&(a+b)/2!==b,'Surface offset disk cannot resolve the requested tolerance: the sector is one representable step of angle.');
         subdivisions++;sector(a,(a+b)/2);sector((a+b)/2,b);
       }else {
-        // Radial fan strips retain the geodesic sweep if its UV rays bend.
-        const l=ray(a),r=ray(b),n=Math.max(l.length,r.length)-1;
-        const interp=(s,t)=>{if(s.length===1)return s[0];const v=t*(s.length-1),i=Math.min(Math.floor(v),s.length-2);return plus(s[i],plus(s[i+1],s[i],-1),v-i);};
-        for(let i=0;i<n;i++){const p0=interp(l,i/n),q0=interp(r,i/n),p1=interp(l,(i+1)/n),q1=interp(r,(i+1)/n);triangle(p0,q0,q1);triangle(p0,q1,p1);}
+        connectRays(ray(a),ray(b));
       }
     };
     const count=Math.max(1,Math.ceil(Math.abs(sweep)/(Math.PI/4)));
@@ -288,7 +279,7 @@ export function finishSurfaceOffset(patch,prepared,swept){
   return {loopsUv:result,loops,report:{status:'experimental',method:'geodesic-bands-clipper2',normalMm:settings.normalMm??0,metric:prepared.atlas?.method??(patch.kind==='slice-chart'?'adaptive-numerical-slice-chart':settings.normalMm?'analytic-rational-normal-offset':'native-patch'),
     toleranceMm,precisionUv,evaluations:prepared.work.evaluations+swept.work.evaluations+samples.size,
     integrationSteps:swept.work.integrationSteps,subdivisions:swept.work.subdivisions,
-    inverseMappings:0,bandTriangles:bands.length,boundaryStops:swept.work.boundaryStops,simplificationUv}};
+    inverseMappings:0,bandPolygons:bands.length,boundaryStops:swept.work.boundaryStops,simplificationUv}};
 }
 
 // A phase owns only new samples. Earlier completed phase maps are read-only;

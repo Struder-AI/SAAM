@@ -1,17 +1,16 @@
 ---
 name: slice
-description: Derive loops, fill, brim, skin, fronts, sleeves, rims and cladding from owned surface slices, with shared process and modulation.
+description: Construct deposition over 3D regions using slices and slice families: loops, fill, brim, skin, fronts, sleeves, rims and cladding.
 ---
 
 # Slice
 
-Slice derives deposition from owned surface slices. [Trace](../trace/SKILL.md)
-authors curves and [inject](../inject/SKILL.md) meters stationary extrusion;
-they share lower-level records and processing. Ordinary `body` defaults to two loops, 20% fill
-and three top/bottom solid layers; geometry is authored separately. Construction
-records share process settings, dependencies and finalization. For maker work,
-read [MAKERS.md](../../MAKERS.md); `slice` and bulk `adjust_recipe` edit the same
-assignments through the [shared tools](../../core/print/USAGE.md).
+Slice constructs deposition over 3D regions using slices and slice families.
+[Trace](../trace/SKILL.md) deposits along curves; [inject](../inject/SKILL.md) at points.
+Inputs can be authored directly or supplied by skills. Ordinary `body` defaults
+to two loops, 20% fill and three top/bottom solid layers. All constructions share
+process settings, dependencies and finalization. Read [MAKERS.md](../../MAKERS.md).
+`slice` and bulk `adjust_recipe` edit the same [assignments](../../core/print/USAGE.md).
 
 User-reported fill-pattern prints (2026-09-24) do not validate the new ownership pipeline.
 Experimental `plan.experimental.substrateAdaptation` defaults false: ON measures

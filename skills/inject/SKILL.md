@@ -1,15 +1,14 @@
 ---
 name: inject
-description: Meter stationary material at authored points, with explicit volume, flow, vertical approach and hold, through the shared recipe or slice editor.
+description: Deposit at points, authored directly or supplied by skills, with explicit volume, flow, vertical approach and hold.
 ---
 
 # Inject
 
-Inject deposits at a point; [trace](../trace/SKILL.md) deposits along a curve.
+Inject deposits at points, authored directly or supplied by skills; [trace](../trace/SKILL.md) follows curves.
 Points-only bundles omit `geometry`. Use `slice` or `adjust_recipe` for `plan.slices`
 assignment: `{id:"spot",construction:"inject",points:[{point:[5,5,2],volumeMm3:1,flowMm3S:.5,approachMm:1,holdSeconds:2}]}`.
-The editor fills `filament:null`, `process:null`, `nozzleC:null`, empty
-`dependencies:{afterParts:[],beforeParts:[],after:[]}` and `description:""`.
+Defaults: `filament:null`, `process:null`, `nozzleC:null`, `dependencies:{afterParts:[],beforeParts:[],after:[]}`, `description:""`.
 XYZ follows authored traces: add recipe XY placement; no component transform.
 Each point executes in list order: descend without deposition from `approachMm`
 above it, extrude for volume/flow seconds, then hold. Dependencies name part

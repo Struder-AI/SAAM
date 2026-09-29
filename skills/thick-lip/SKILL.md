@@ -9,6 +9,9 @@ Thicken the terminal boundary of an existing [sleeve](../vase-wall/SKILL.md).
 The source must be on the same part and have `endTransition: "level"`.
 A raw rising spiral does not supply the required closed terminal boundary.
 
+Target architecture classifies the lip as Slice over a 3D region; this manual
+documents the current rim record pending shared-family migration.
+
 ## Use
 
 Add a rim record to `plan.slices.assignments`:

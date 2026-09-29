@@ -16,7 +16,7 @@ import {exportProgram,interpretProgram,exportAndInterpretProgram} from '../expor
 import {interpretDensoFiles} from '../export/denso-player.mjs';
 import {unpackZip} from '../export/zip.mjs';
 import {bedPoint,uprightPose} from '../path/pose.mjs';
-import {claddingResult} from '../print/cladding-constructions.mjs';
+import {prepareSliceContexts,sliceContextResult} from '../print/slices.mjs';
 import {surfaceRegion} from '../geom/surface-region.mjs';
 import {buildShell} from '../print/generate.mjs';
 import {splineTube} from './fixtures/spline-shapes.mjs';
@@ -43,7 +43,9 @@ test('DENSO setup is unresolved by default; tube geometry uses the shared native
 test('same-height cylindrical shells retain explicit prerequisites in the existing scheduler',async()=>{
   const plan=small(),assignment=plan.slices.assignments.find(a=>a.construction==='cladding'),shell=buildShell(await rhino(),plan.geometry);
   const finishedSurface={...surfaceRegion(shell,assignment.surface),sourceOperationIds:['body'],coverage:['nominal']};
-  const result=claddingResult({assignment,shell,process:plan.process,motion:plan.setup.denso,finishedSurface}),first=result.operations[0];
+  const {contexts}=prepareSliceContexts({plan,machine,shells:[[null,shell,true]],volumes:new Map(),bands:[],reserves:[],
+    referenceAssignments:[{assignment,shell,process:plan.process}]});
+  const result=sliceContextResult(contexts.find(record=>record.spec.id===assignment.id),{reference:finishedSurface,motion:plan.setup.denso}),first=result.operations[0];
   const body={...first,id:'body',layerId:'body',after:[],rank:999};
   assert.deepEqual(scheduleOperations([{operations:[...result.operations,body]}]).map(o=>o.id),['body','pipe-cladding:0','pipe-cladding:1']);
   assert.throws(()=>scheduleOperations([result]),/Unknown/);
