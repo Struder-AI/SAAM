@@ -12,8 +12,9 @@ person asks: `read_skill ID#heading`, otherwise `read_guidance`.
 
 | Skill | Use |
 |---|---|
-| [slice](slice/SKILL.md) | General deposition from owned surface slices and authored curves: loops, fill, brim, skin, fronts, sleeves, rims, networks and bridges, with shared process and modulation. |
-| [plastic-weld](plastic-weld/SKILL.md) | Experimental. Rivets of molten plastic injected into blind shafts across layers, placed individually or staggered through a solid body. |
+| [slice](slice/SKILL.md) | Derive loops, fill, brim, skin, fronts, sleeves, rims and cladding from owned surface slices, with shared process and modulation. |
+| [trace](trace/SKILL.md) | Deposit authored curves, NURBS, surface UV paths and line text, with varying bead dimensions, process and tool pose; no filled solid is inferred. |
+| [inject](inject/SKILL.md) | Meter stationary extrusion by volume and flow, with optional hold; currently authored through the plastic-weld cavity recipe rather than a generic injection tool. |
 | [supports](supports/SKILL.md) | Tree branches at placed contacts; placement trades support against surface contact and removal access. Area supports under a footprint are slices with the support preset. |
 
 ## Geometry skills
@@ -29,6 +30,7 @@ person asks: `read_skill ID#heading`, otherwise `read_guidance`.
 
 | Skill | Use |
 |---|---|
+| [plastic-weld](plastic-weld/SKILL.md) | Experimental. Rivets of molten plastic injected into blind shafts across layers, placed individually or staggered through a solid body. |
 | [heat-set-inserts](heat-set-inserts/SKILL.md) | Bores for SPIROL Series 19/29 heat-set inserts, metric and imperial, with local wall loops and fins; insertion faces must be flat and face up. |
 
 ## Advanced sections

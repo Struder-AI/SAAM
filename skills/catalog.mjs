@@ -1,7 +1,8 @@
 // Explicit discovery catalog, shared by MCP and the generated maker digest.
-// Construction techniques are manuals of the general slice skill.
+// Surface construction techniques share slice; authored curves and stationary
+// extrusion remain distinct discoverable skills with shared core records.
 export const SKILL_IDS = Object.freeze([
-  'slice', 'plastic-weld', 'heat-set-inserts', 'text', 'mesh-tools', 'thingi10k', 'gridfinity', 'supports'
+  'slice', 'trace', 'inject', 'plastic-weld', 'heat-set-inserts', 'text', 'mesh-tools', 'thingi10k', 'gridfinity', 'supports'
 ]);
 export const TECHNIQUE_IDS = Object.freeze(['line-network','bridging','draped-skin','wave-overhangs','vase-wall','advanced-vase-wall','thick-lip','pipe-cladding']);
 // Skills whose settings carry spacingFactor (core/path/spacing.mjs); slice

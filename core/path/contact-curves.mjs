@@ -7,10 +7,34 @@ import {beadContactAlong,depositedBeadBounds} from './deposited-curves.mjs';
 export function depositedContact(segments,{toleranceMm=0}={}){
   requireThat(segments.length>0,'Deposited contact needs actual material.');
   const bounds=depositedBeadBounds(segments);
+  // Dependency-local bounding hierarchy indexes the existing fragments; it is
+  // not a reconstructed surface and carries no new material representation.
+  const entries=segments.map((segment,index)=>({segment,index,bounds:depositedBeadBounds([segment])}));
+  const build=items=>{
+    const box=items.reduce((b,e)=>({min:b.min.map((v,k)=>Math.min(v,e.bounds.min[k])),max:b.max.map((v,k)=>Math.max(v,e.bounds.max[k]))}),{min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]});
+    if(items.length<=8)return {bounds:box,items};
+    const axis=[0,1,2].sort((a,b)=>(box.max[b]-box.min[b])-(box.max[a]-box.min[a]))[0];
+    const ordered=[...items].sort((a,b)=>(a.bounds.min[axis]+a.bounds.max[axis])-(b.bounds.min[axis]+b.bounds.max[axis])),mid=Math.floor(items.length/2);
+    return {bounds:box,left:build(ordered.slice(0,mid)),right:build(ordered.slice(mid))};
+  };
+  const tree=build(entries);
+  const intersects=(box,point,normal)=>{
+    let low=0,high=Infinity;
+    for(let k=0;k<3;k++){
+      const epsilon=64*Number.EPSILON*Math.max(1,Math.abs(point[k]),Math.abs(box.min[k]),Math.abs(box.max[k]))+toleranceMm;
+      if(Math.abs(normal[k])<1e-14){if(point[k]<box.min[k]-epsilon||point[k]>box.max[k]+epsilon)return false;continue;}
+      const a=(point[k]-box.max[k]-epsilon)/normal[k],b=(point[k]-box.min[k]+epsilon)/normal[k];
+      low=Math.max(low,Math.min(a,b));high=Math.min(high,Math.max(a,b));if(high<low)return false;
+    }
+    return true;
+  };
   return {bounds,at(point,direction){
     const normal=normalize(direction),ceiling=normal.reduce((sum,n,i)=>sum+n*(n>=0?bounds.max[i]:bounds.min[i]),0)+toleranceMm;
     const start=point.map((p,i)=>p+normal[i]*(ceiling-dot(point,normal)));
-    return beadContactAlong(segments,start,normal,{toleranceMm});
+    const candidates=[],pending=[tree];
+    while(pending.length){const node=pending.pop();if(!intersects(node.bounds,start,normal))continue;if(node.items)candidates.push(...node.items);else pending.push(node.left,node.right);}
+    const hit=beadContactAlong(candidates.map(e=>e.segment),start,normal,{toleranceMm});
+    return hit?{...hit,segmentIndex:candidates[hit.segmentIndex].index}:null;
   }};
 }
 
@@ -19,13 +43,15 @@ export function depositedContact(segments,{toleranceMm=0}={}){
 // tolerance. Missing material is a real hole, never bridged by interpolation.
 export function depositedContactChart(chart,segments,{toleranceMm=.01}={}){
   requireThat(toleranceMm>0,'Contact chart needs positive tolerance.');
-  const contact=depositedContact(segments);
+  const contact=depositedContact(segments),positions=new Map(),frames=new Map();
   const position=(u,v)=>{
+    const key=`${u},${v}`;if(positions.has(key))return positions.get(key);
     const reference=chart.at(u,v),hit=contact.at(reference.point,reference.normal);
-    requireThat(hit,`Deposited substrate has no contact at chart (${u}, ${v}).`);
-    return {...reference,...hit,normal:reference.normal,contactNormal:hit.normal};
+    requireThat(hit,`Deposited substrate has no contact at chart (${u}, ${v}), reference ${reference.point.join(', ')} within deposited bounds ${JSON.stringify(contact.bounds)}.`);
+    const sample={...reference,...hit,normal:reference.normal,contactNormal:hit.normal};positions.set(key,sample);return sample;
   };
   const at=(u,v)=>{
+    const key=`${u},${v}`;if(frames.has(key))return frames.get(key);
     const center=position(u,v);
     const derivative=axis=>{
       const coordinate=axis===0?u:v,nominal=axis===0?center.du:center.dv;
@@ -47,9 +73,52 @@ export function depositedContactChart(chart,segments,{toleranceMm=.01}={}){
     const du=derivative(0),dv=derivative(1),oriented=cross(du,dv);
     requireThat(Math.hypot(...oriented)>1e-12,'Deposited contact chart is locally singular.');
     const normal=normalize(oriented),side=dot(normal,center.normal)<0?-1:1;
-    return {...center,du,dv,normal:normal.map(n=>n*side)};
+    const frame={...center,du,dv,normal:normal.map(n=>n*side)};frames.set(key,frame);return frame;
   };
   return {...chart,at,contactGeometry:'final-deposited-beads',contactMetric:'adaptive-finite-difference',toleranceMm};
+}
+
+// Keep authored positions; only marked contact segments acquire their actual
+// normal gap. Contact-field integration refines independently of the geometry
+// chord, preserving authored positions and every existing per-segment channel.
+export function contactCurveGaps(curves,{segments,maxHeightMm=Infinity,direction=[0,0,1],toleranceMm=.001}){
+  requireThat(toleranceMm>0&&Number.isFinite(toleranceMm),'Foundation contact needs a positive physical tolerance.');
+  const contact=depositedContact(segments);
+  const stepMm=Math.min(...segments.map(s=>s.radius));
+  return curves.map(curve=>{
+    const heightsMm=curve.heightsMm?[...curve.heightsMm]:curve.points.slice(1).map(()=>curve.heightMm);
+    const segmentMetadata=curve.points.slice(1).map((b,i)=>{
+      const metadata=curve.segmentMetadata?.[i]??{};
+      if(metadata.contactRole!=='foundation')return {...metadata};
+      const a=curve.points[i],normal=normalize(metadata.surfaceNormal??direction);
+      const samples=new Map();
+      const gap=t=>{
+        if(samples.has(t))return samples.get(t);
+        const p=a.map((v,k)=>v+(b[k]-v)*t),hit=contact.at(p,normal);
+        requireThat(hit,'Authored foundation curve has no final deposited support.');
+        const h=dot(p.map((v,k)=>v-hit.point[k]),normal);
+        requireThat(h>0&&h<=maxHeightMm+1e-8,`Foundation normal gap ${h} mm is outside (0, ${maxHeightMm}] mm; revise the authored course or supporting deposition.`);
+        samples.set(t,h);return h;
+      };
+      const length=distance(a,b),pending=[[0,1,gap(0),gap(.5),gap(1)]],integrals=[];
+      while(pending.length){
+        const [lo,hi,left,middle,right]=pending.pop(),mid=(lo+hi)/2;
+        const q1=gap((lo+mid)/2),q3=gap((mid+hi)/2);
+        const coarse=(left+4*middle+right)/6,fine=(left+4*q1+2*middle+4*q3+right)/12;
+        // An integral alone can conceal equal positive/negative errors. Also
+        // resolve the field's departure from its linear interpolant.
+        const fieldError=Math.max(Math.abs(q1-(3*left+right)/4),Math.abs(middle-(left+right)/2),Math.abs(q3-(left+3*right)/4));
+        if(length*(hi-lo)<=toleranceMm||length*(hi-lo)<=stepMm&&Math.abs(fine-coarse)<=toleranceMm/16&&fieldError<=toleranceMm){
+          integrals.push((hi-lo)*fine);continue;
+        }
+        requireThat(mid>lo&&mid<hi,'Foundation contact integration cannot progress at requested tolerance.');
+        pending.push([mid,hi,middle,q3,right],[lo,mid,left,q1,middle]);
+      }
+      heightsMm[i]=integrals.reduce((sum,h)=>sum+h,0);
+      return {...metadata,surfaceNormal:normal,beadHeightMm:heightsMm[i]};
+    });
+    return {...curve,heightsMm,segmentMetadata};
+  });
 }
 
 // Curves on an existing deposition: retain lateral coordinates, find the final

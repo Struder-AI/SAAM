@@ -1,5 +1,22 @@
 # Development log
 
+## 2026-09-29 — Resumed 0.2.0 integration checkpoint (unfinished)
+
+- Restored explicit depositing connectors before machine adaptation, modulation
+  and material publication. Composition no longer creates unreported deposition.
+  Material-changing modifiers suppress joins whose original region is no longer
+  valid; speed-only effects retain joins. Producer-local seam anchoring and no
+  cross-operation joins intentionally change earlier travel behavior.
+- Lead reviewed the implementation and reran the saved connector execution:
+  one 0.04 mm3 connector appears in published support and exactly three deposited
+  moves total 0.20 mm3. Worker production/API checks passed; historical seam/travel
+  comparison remains open. Evidence: `.local/0.2.0/c4-finalize-evidence.json`.
+- Owner resumed all existing work with three Astra workers and added standalone
+  point injection through shared recipe/edit records. Slice/contact scheduling,
+  curve metrics, API reconciliation and Studio remain unfinished. This checkpoint
+  preserves the shared intermediate tree; it does not verify every saved change.
+  No new tests, whole suites, map regeneration, push, release or hardware run.
+
 ## 2026-09-29 — General geometry, modulation and contact checkpoint (unfinished)
 
 - Added native curved families, authored NURBS/UV curves and profiles, text and

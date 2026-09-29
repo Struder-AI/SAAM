@@ -2,7 +2,7 @@
 // planning state through scheduled operations and returns action chunks.
 import { requireThat, distance } from '../geom/tolerance.mjs';
 import { orderStrokes, orderScanlineCells } from './builder.mjs';
-import {ActionAccumulator,planningResult,planContext,planFan,planNozzle,planPark,planConnection,planTravel,planMove,
+import {ActionAccumulator,planningResult,planContext,planFan,planNozzle,planPark,planTravel,planMove,
   planExtrusion,planDwell,planLayerCooling,planSelection} from './planning.mjs';
 
 // Schedule once, then advance explicit motion state through operations. Layer and
@@ -76,14 +76,9 @@ function segmentExtras(stroke,op,index) {
 export function planStrokeApproach(state,stroke,op,policy) {
   requireThat(stroke.points.length>=(stroke.stationaryExtrusion?1:2),'An operation stroke needs at least two points or an explicit stationary extrusion.');
   requireThat(!stroke.poses||stroke.poses.length===stroke.points.length,'Stroke pose/point count differs.');
-  const connection=op.connectNearby&&!stroke.stationaryExtrusion
-    ?planConnection(state,stroke.points[0],policy,stroke.segmentMetadata?.[0]?.speedMmS??stroke.speedMmS,
-      stroke.volumesMm3?stroke.volumesMm3[0]/distance(stroke.points[0],stroke.points[1]):stroke.beadAreaMm2,
-      segmentExtras(stroke,op,0),stroke.poses?.[0])
-    :planningResult(state,undefined,{connected:false});
-  if(connection.connected)return connection;
-  const travel=planTravel(connection.state,stroke.points[0],policy,stroke.poses?.[0]);
-  return planningResult(travel.state,{chunks:[connection.actions,travel.actions]},
+  // Depositing connections are explicit finalized strokes, never late material.
+  const travel=planTravel(state,stroke.points[0],policy,stroke.poses?.[0]);
+  return planningResult(travel.state,travel.actions,
     {connected:false,travelKind:travel.travelKind});
 }
 

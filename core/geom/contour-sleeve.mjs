@@ -6,6 +6,7 @@ import {offsetRegion} from '../region/offset.mjs';
 import {requireThat,distance} from './tolerance.mjs';
 import {contourPath} from './contour-path.mjs';
 import {maximumPathAngle} from '../path/deposition.mjs';
+import {sampleCurveIntervals} from '../path/curve-sampling.mjs';
 import {spiralProfile,spiralHeight,spiralBeadCurve} from '../path/curve-construction.mjs';
 import {mappedSleevePatternCurves} from '../path/sleeve-pattern.mjs';
 import {prepareContourFamily} from './prepared-contours.mjs';
@@ -155,22 +156,15 @@ export function constructContourSleeve({shell,assignment,process,machine,zStartM
     return {...result,family:boundaryFamily(),report:{...result.report,sectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,...prepared.report()}};
   }
   const point=t=>reference?reference.map(reference.pointAt(t,zAt(t),0)):mappedPoint(t,zAt(t));
-  const points=[point(0)],times=[0];
-  function append(a,b,pa,pb) {
-    const mid=(a+b)/2,pm=point(mid),linear=pa.map((v,i)=>(v+pb[i])/2);
-    if(distance(pa,pb)>settings.sampleStepMm||distance(pm,linear)>settings.toleranceMm/2||pb[2]-pa[2]>settings.minFeatureMm/2) {
-      requireThat(mid>a&&mid<b,'Vase contour cannot meet the locked chord tolerance: the subdivided turn midpoint is no longer distinct from its ends.');
-      append(a,mid,pa,pm);append(mid,b,pm,pb);return;
-    }
-    points.push(pb);times.push(b);
-  }
+  const cuts=[0];
   // At most 1/16 turn per initial interval avoids aliasing an entire revolution.
   for(let t=0;t<turns-1e-10;) {
     const next=Math.min(turns,t<spiralTurns-1e-10?spiralTurns:Infinity,(Math.floor(t*16+1e-8)+1)/16);
-    append(t,next,points.at(-1),point(next));t=next;
+    cuts.push(next);t=next;
   }
+  const samples=sampleCurveIntervals({at:t=>({point:point(t),chart:[t,zAt(t)]}),cuts,stepMm:settings.sampleStepMm,toleranceMm:settings.toleranceMm/2,chartSteps:[1/16,settings.minFeatureMm/2]});
+  const points=samples.map(s=>s.point),times=samples.map(s=>s.t);
   const maximumAngleDeg=maximumPathAngle(points);
-  requireThat(Number.isFinite(machine?.nonplanar?.maxAngleDeg)&&maximumAngleDeg<=machine.nonplanar.maxAngleDeg+1e-8,'Vase wall rise exceeds the machine declared non-planar angle limit.');
   const curve=spiralBeadCurve({profile,points,turns:times,role:'vase-wall',speedMmS:Math.min(process.planarSpeedMmS,process.firstLayerSpeedMmS),
     minimumTurnSeconds:process.minimumLayerSeconds});
   const speed=curve.speedMmS;

@@ -23,4 +23,4 @@ layers and [0.2.0 plan](plans/0.2.0.md) distinguishes intended and implemented s
 | Tile | One continuous curve drawn in one cell of a sleeve's unwrapped strip, repeated to make a pattern. |
 | Course | One full circuit of tiles around a sleeve. |
 | Pattern | An arrangement of deposition strokes, such as an infill pattern or repeated sleeve tiles. |
-| Modulation | A field changing selected stroke positions or process channels before final deposited-boundary publication. |
+| Modulation | An optional effect on an otherwise valid toolpath, primarily for visual appearance and surface texture, with other useful applications left open. Required construction and process compensation work independently of modulation. |

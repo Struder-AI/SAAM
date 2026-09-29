@@ -10,6 +10,7 @@
 // runtime validation pass. See BUILDERS.md for limits and reference status.
 import { requireThat, dot, cross, normalize } from '../geom/tolerance.mjs';
 import { surfaceDerivatives } from '../geom/surface-derivatives.mjs';
+import { evaluatedSurfaceDerivatives } from '../geom/evaluated-surface.mjs';
 import { clipperContext, clipPaths, simplifyPaths } from './clipper.mjs';
 import {intersect,difference,clipOpenPaths} from './intersection.mjs';
 import {pointSegmentDistance} from './region2d.mjs';
@@ -39,9 +40,10 @@ export function prepareSurfaceOffset(patch, loopsUv, deltaMm, {
   requireThat(Number.isFinite(deltaMm), 'Surface offset distance must be finite.');
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0&&Number.isFinite(maxStepMm)&&maxStepMm>0,
     'Surface offset toleranceMm and maxStepMm must be positive and finite.');
-  requireThat(patch?.cp && patch.domainU && patch.domainV, 'Surface offset requires a native NURBS patch.');
+  requireThat((patch?.cp||patch?.kind==='slice-chart') && patch.domainU && patch.domainV, 'Surface offset requires a native patch or evaluated slice chart.');
   // Geodesic ODE needs a continuous second derivative through internal knots.
-  for(const [knots,order,domain] of [[patch.knotsU,patch.orderU,patch.domainU],[patch.knotsV,patch.orderV,patch.domainV]]) {
+  const native=patch.cp?patch:patch.slice?.reference?.patch;
+  for(const [knots,order,domain] of native?[[native.knotsU,native.orderU,native.domainU],[native.knotsV,native.orderV,native.domainV]]:[]) {
     const counts=new Map(); for(const t of knots)if(t>domain[0]&&t<domain[1])counts.set(t,(counts.get(t)??0)+1);
     requireThat([...counts.values()].every(n=>order-1-n>=2),'Surface offset currently requires C2 continuity across internal knots.');
   }
@@ -269,7 +271,7 @@ export function finishSurfaceOffset(patch,prepared,swept){
     }
   }
   const loops=result.map(loop=>loop.map(uv=>[...at(uv).point]));
-  return {loopsUv:result,loops,report:{status:'experimental',method:'geodesic-bands-clipper2',normalMm:settings.normalMm??0,metric:settings.normalMm?'analytic-rational-normal-offset':'native-patch',
+  return {loopsUv:result,loops,report:{status:'experimental',method:'geodesic-bands-clipper2',normalMm:settings.normalMm??0,metric:patch.kind==='slice-chart'?'adaptive-numerical-slice-chart':settings.normalMm?'analytic-rational-normal-offset':'native-patch',
     toleranceMm,precisionUv,evaluations:prepared.work.evaluations+swept.work.evaluations+samples.size,
     integrationSteps:swept.work.integrationSteps,subdivisions:swept.work.subdivisions,
     inverseMappings:0,bandTriangles:bands.length,boundaryStops:swept.work.boundaryStops,simplificationUv}};
@@ -277,7 +279,7 @@ export function finishSurfaceOffset(patch,prepared,swept){
 
 // A phase owns only new samples. Earlier completed phase maps are read-only;
 // their records are reused without copying the accumulated cache per ray.
-function createSurfaceSampler(patch,{constrained,precisionUv,normalMm=0},priorSamples=[]){
+function createSurfaceSampler(patch,{constrained,precisionUv,normalMm=0,toleranceMm=.01},priorSamples=[]){
   const samples=new Map();
   const at=uv=>{
     if(constrained)uv=uv.map((x,k)=>{
@@ -287,7 +289,7 @@ function createSurfaceSampler(patch,{constrained,precisionUv,normalMm=0},priorSa
     const key=uv.join(',');
     if(samples.has(key))return samples.get(key);
     for(const prior of priorSamples)if(prior.has(key))return prior.get(key);
-    const result=surfaceDerivatives(patch,...uv,{normalMm});
+    const result=patch.cp?surfaceDerivatives(patch,...uv,{normalMm}):evaluatedSurfaceDerivatives(patch,...uv,{normalMm,toleranceMm});
     samples.set(key,result);return result;
   };
   return {at,samples};

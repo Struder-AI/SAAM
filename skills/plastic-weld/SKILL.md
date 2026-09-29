@@ -1,6 +1,8 @@
 ---
 name: plastic-weld
 description: Experimental. Rivets of molten plastic injected into blind shafts across layers, placed individually or staggered through a solid body.
+metadata:
+  saam-kind: hybrid
 ---
 
 # Plastic weld / injected rivets

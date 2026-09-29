@@ -1,7 +1,9 @@
 import {requireThat,distance,normalize,cross} from '../geom/tolerance.mjs';
 import {evaluateCurve,evaluate} from '../geom/nurbs.mjs';
 import {slicePoint,sliceNormal} from '../geom/slice.mjs';
+import {heightReferenceBounds} from '../geom/height-slice.mjs';
 import {transportCurveFrames} from './curve-frame.mjs';
+import {sampleCurveIntervals} from './curve-sampling.mjs';
 import {beadWidthRule,parallelBeadCurves} from './parallel-curves.mjs';
 import {strokeSurfaceRegion} from '../region/surface-offset.mjs';
 import {loadFont,fontEntry} from '../text/catalog.mjs';
@@ -61,14 +63,8 @@ export function sampleAuthoredCurve(curve,{references={},course=0,offset=[0,0,0]
   const local=t=>{if(native)return evaluateCurve(native,native.domain[0]+t*(native.domain[1]-native.domain[0])).point.slice(0,dimension);let i=1,d=t*lengths.at(-1);while(i<lengths.length-1&&lengths[i]<d)i++;const f=(d-lengths[i-1])/(lengths[i]-lengths[i-1]);return source[i-1].map((v,k)=>v+(source[i][k]-v)*f);};
   const at=t=>{const chart=local(t),e=entry?referenceCurvePoint(entry,chart,input.normalMm??0):{point:chart};return {t,chart,...e,point:e.point.map((v,i)=>v+offset[i])};};
   const breaks=[0,1,...(native?[...native.knots].filter(k=>k>native.domain[0]&&k<native.domain[1]).map(k=>(k-native.domain[0])/(native.domain[1]-native.domain[0])):lengths.map(l=>l/lengths.at(-1))),...Object.values(curve.vary??{}).flatMap(v=>v.map(p=>p[0]))];
-  const cuts=[...new Set(breaks)].sort((a,b)=>a-b),samples=[at(0)],step=curve.sampleStepMm??sampleStepMm,tolerance=curve.toleranceMm??toleranceMm;
-  for(let i=1;i<cuts.length;i++){
-    const stack=[[at(cuts[i-1]),at(cuts[i])]];
-    while(stack.length){const [a,b]=stack.pop(),ts=[.25,.5,.75],probes=ts.map(t=>at(a.t+(b.t-a.t)*t)),error=Math.max(...probes.map((p,j)=>distance(p.point,a.point.map((v,k)=>v+(b.point[k]-v)*ts[j]))));
-      if((!curve.uv||curve.uv.reference.kind!=='sleeve'||Math.abs(b.chart[0]-a.chart[0])<=.125&&Math.abs(b.chart[1]-a.chart[1])<=.25)&&distance(a.point,b.point)<=step&&error<=tolerance){samples.push(b);continue;}
-      const m=probes[1];requireThat(m.t>a.t&&m.t<b.t,'Curve refinement cannot progress at requested tolerance.');stack.push([m,b],[a,m]);
-    }
-  }
+  const samples=sampleCurveIntervals({at,cuts:breaks,stepMm:curve.sampleStepMm??sampleStepMm,toleranceMm:curve.toleranceMm??toleranceMm,
+    chartSteps:curve.uv?.reference.kind==='sleeve'?[.125,.25]:[]});
   const {nurbs,uv,vary,courses,widthRule,toleranceMm:tol,sampleStepMm:maxStep,...properties}=curve;
   const result={...properties,role:curve.role??'curve',closed:false,points:samples.map(s=>s.point),curveParameters:samples.map(s=>s.t)};
   if(samples[0].normal){result.frameSamples=samples.map(s=>{
@@ -91,7 +87,7 @@ export function applyCurveProfiles(source,curve){
     if(!vary.beadWidthMm)delete result.widthsMm;
     result.heightsMm=vary.heightMm?samples.slice(1).map((s,i)=>curveProfile(vary.heightMm,(s.t+samples[i].t)/2)):undefined;
     result.flowMultipliers=vary.flowMultiplier?samples.slice(1).map((s,i)=>curveProfile(vary.flowMultiplier,(s.t+samples[i].t)/2)):undefined;
-    result.segmentMetadata=samples.slice(1).map((s,i)=>({...samples[i].normal?{surfaceNormal:samples[i].normal}:{},...vary.speedMmS?{speedMmS:curveProfile(vary.speedMmS,(s.t+samples[i].t)/2)}:{}}));
+    result.segmentMetadata=samples.slice(1).map((s,i)=>({...source.segmentMetadata?.[i],...samples[i].normal?{surfaceNormal:samples[i].normal}:{},...vary.speedMmS?{speedMmS:curveProfile(vary.speedMmS,(s.t+samples[i].t)/2)}:{}}));
     if(vary.toolAxis||vary.toolUp||vary.rotaryDeg)result.poses=samples.map(s=>{const toolAxis=unit(curveProfile(vary.toolAxis,s.t,[0,0,-1])),up=curveProfile(vary.toolUp,s.t,[0,1,0]),projection=dot(up,toolAxis);return validatePose({toolAxis,toolUp:unit(up.map((v,i)=>v-projection*toolAxis[i])),rotaryDeg:curveProfile(vary.rotaryDeg,s.t,0)});});
   }
   return result;
@@ -127,14 +123,24 @@ export function constructAuthoredCurves(curve,options={}){
   if(construction.parallelCount===1)return [applyCurveProfiles({...source,beadWidthMm:construction.beadWidthMm},curve)];
   let paths=[];
   if(curve.uv){
-    const entry=referenceEntry(curve.uv.reference,options.references,options.course??0),patch=entry.patch??entry.slice?.patch;
-    requireThat(patch,'Parallel surface curves require a native patch chart.');
+    const entry=referenceEntry(curve.uv.reference,options.references,options.course??0);
+    const heightBounds=entry.slice?.kind==='height-field'?heightReferenceBounds(entry.slice.reference):null;
+    const patch=entry.patch??entry.slice?.patch??(heightBounds?{kind:'slice-chart',slice:entry.slice,domainU:[heightBounds.min[0],heightBounds.max[0]],domainV:[heightBounds.min[1],heightBounds.max[1]]}:null);
+    if(entry.slice?.kind==='plane'){
+      const plane=entry.slice;
+      paths=parallelBeadCurves({...source,curveParameters:undefined},curve.widthRule).map(c=>{
+        const mapped=sampleAuthoredCurve({...plain,uv:undefined,points:c.points,closed:c.closed},{...options,offset:[0,0,0]});
+        return {...mapped,frameSamples:mapped.points.map(p=>{const d=p.map((x,k)=>x-plane.origin[k]-(options.offset?.[k]??0));return {point:[dot(d,plane.xAxis),dot(d,plane.yAxis),curve.uv.normalMm??0],u:plane.xAxis,v:plane.yAxis,normal:plane.normal};})};
+      });
+    }else{
+    requireThat(patch,'Parallel surface curves require a native patch, plane or height-field chart.');
     const chartPoints=source.frameSamples.map(f=>f.point.slice(0,2));
     for(let k=0;k<Math.ceil(construction.parallelCount/2);k++){
       const radius=(construction.parallelCount-1)*construction.pitchMm/2-k*construction.pitchMm;
       if(radius<=1e-9){paths.push(source);continue;}
       const region=strokeSurfaceRegion(patch,[{closed:false,points:chartPoints}],radius,{toleranceMm:curve.toleranceMm??.02,maxStepMm:curve.sampleStepMm??1,normalMm:curve.uv.normalMm??0});
       paths.push(...region.loopsUv.map(points=>sampleAuthoredCurve({...plain,closed:true,uv:{...curve.uv,nurbs:undefined,points}},options)));
+    }
     }
   }else paths=parallelBeadCurves({...source,curveParameters:undefined},curve.widthRule).map(c=>sampleAuthoredCurve({...plain,nurbs:undefined,points:c.points,closed:c.closed,beadWidthMm:construction.beadWidthMm,frameReport:c.frameReport},{...options,offset:[0,0,0]}));
   const parameterAt=point=>{

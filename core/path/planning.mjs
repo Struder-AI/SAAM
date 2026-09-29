@@ -235,18 +235,12 @@ export function planPoseTravel(state,target,policy,targetPose) {
   return planningResult(recovered.state,{chunks:[retracted.actions,retreated.actions,oriented.actions,positioned.actions,approached.actions,recovered.actions]},{travelKind:'hopped'});
 }
 
-export function planConnection(state,target,policy,speed,volumePerMm,extra,targetPose) {
-  const last=state.lastNonFan,gap=distance(state.position,target);
-  if(state.retracted||last?.kind!=='move'||!(last.volumeMm3>0)||!(volumePerMm>0)||gap<=1e-9||gap>CONNECT_MOVE_MM)return planningResult(state,undefined,{connected:false});
-  if(state.pose&&(targetPose||!samePose(state.pose,uprightPose()))){
-    if(!(policy.poseJoinMm>0)||last.operation!==state.operationId||gap>policy.poseJoinMm)return planningResult(state,undefined,{connected:false});
-    const moved=planMove({...state,stats:{...state.stats,connected:state.stats.connected+1}},target,speed,gap*volumePerMm,{...extra,connector:true,pose:validatePose(targetPose??uprightPose())});
-    return {...moved,connected:true};
-  }
+export function canDepositConnection(from,target,policy,fromPose=null,targetPose=null) {
+  const gap=distance(from,target);
+  if(gap<=1e-9||gap>CONNECT_MOVE_MM)return false;
+  if(fromPose&&(targetPose||!samePose(fromPose,uprightPose())))return policy.poseJoinMm>0&&gap<=policy.poseJoinMm;
   const clearance=policy.connectClearanceMm??policy.combClearanceMm;
-  if(!canPlanComb(state,target,{...policy,combClearanceMm:clearance,directClearanceMm:policy.directClearanceMm??clearance},CONNECT_MOVE_MM))return planningResult(state,undefined,{connected:false});
-  const moved=planMove({...state,stats:{...state.stats,connected:state.stats.connected+1}},target,speed,gap*volumePerMm,{...extra,connector:true});
-  return {...moved,connected:true};
+  return canPlanComb({position:from},target,{...policy,combClearanceMm:clearance,directClearanceMm:policy.directClearanceMm??clearance},CONNECT_MOVE_MM);
 }
 
 // Flatten once at delivery. A replacement

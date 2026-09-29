@@ -3,6 +3,7 @@ import {distance,requireThat} from '../geom/tolerance.mjs';
 import {maximumPathAngle} from './deposition.mjs';
 import {isTiledPattern,tileSleevePattern} from './sleeve-tile.mjs';
 import {patternCourses} from './sleeve-boundary-courses.mjs';
+import {sampleCurveIntervals} from './curve-sampling.mjs';
 const sameSurfacePoint=(a,b)=>Math.abs((a[0]-b[0])-Math.round(a[0]-b[0]))<=1e-10&&Math.abs(a[1]-b[1])<=1e-9;
 const offsetAt=(path,i)=>Array.isArray(path.offsetMm)?path.offsetMm.at(i):(path.offsetMm??0);
 const joined=(a,b)=>sameSurfacePoint(a.points.at(-1),b.points[0])&&Math.abs(offsetAt(a,-1)-offsetAt(b,0))<=1e-9;
@@ -55,7 +56,7 @@ export function mappedSleevePatternCurves({settings,process,base,start,end,first
   // until its tolerance is met or its midpoint stops being distinct from its
   // ends, so the pattern takes the points its tolerances need.
   const level=settings.endTransition==='level',paths=[];let count=0,maximumAngleDeg=0,minZ=Infinity,maxZ=-Infinity,maximumBeadHeightMm=0;
-  const emitPath=(vertices,heights,layer)=>{
+  const emitPath=(vertices,heights,layer,foundation)=>{
     const at=(a,b,t)=>{
       const u=a[0]+(b[0]-a[0])*t,z=start+a[1]+(b[1]-a[1])*t;
       requireThat(z>=start-1e-9&&z<=end+1e-9,'Mapped pattern exceeds its selected sleeve height interval; adjust repeats, advance or tile heights.');
@@ -64,27 +65,19 @@ export function mappedSleevePatternCurves({settings,process,base,start,end,first
     };
     const points=[at(vertices[0],vertices[0],0)],segmentHeights=[];
     count++;
-    const append=(a,b,ha,hb,pa,pb)=>{
-      const mid=a.map((v,k)=>(v+b[k])/2),pm=at(mid,mid,0);
-      const error=Math.max(...[.25,.5,.75].map(t=>distance(t===.5?pm:at(a,b,t),pa.map((v,k)=>v+(pb[k]-v)*t))));
-      if(distance(pa,pb)>settings.sampleStepMm||error>settings.toleranceMm/2-2*mappingErrorMm||Math.abs(a[1]-b[1])>settings.minFeatureMm/2) {
-        requireThat(mid.some((v,k)=>v!==a[k])&&mid.some((v,k)=>v!==b[k]),`Sleeve mapping cannot meet the requested contour tolerance near pattern coordinates ${a.join(', ')} to ${b.join(', ')}: the subdivided midpoint is no longer distinct from its ends.`);
-        append(a,mid,ha,(ha+hb)/2,pa,pm);append(mid,b,(ha+hb)/2,hb,pm,pb);return;
-      }
-      count++;points.push(pb);
-      // Only the authored pattern deposits; the guide supplies no material.
-      const h=(ha+hb)/2;
-      requireThat(level?h>=0:h>0,'Pattern segments must deposit material.');
-      maximumBeadHeightMm=Math.max(maximumBeadHeightMm,h);
-      segmentHeights.push(h);
-    };
     for(let i=1;i<vertices.length;i++) {
       const a=vertices[i-1],b=vertices[i],ha=heights[i-1],hb=heights[i];
       // Bound angular progress before adaptive mapping; full turns must not alias.
       const pieces=Math.max(1,Math.ceil(Math.abs(b[0]-a[0])*16));
-      for(let j=0;j<pieces;j++){
-        const t0=j/pieces,t1=(j+1)/pieces,p=a.map((v,k)=>v+(b[k]-v)*t0),q=a.map((v,k)=>v+(b[k]-v)*t1);
-        append(p,q,ha+(hb-ha)*t0,ha+(hb-ha)*t1,points.at(-1),at(q,q,0));
+      const samples=sampleCurveIntervals({at:t=>({point:at(a,b,t),chart:a.map((v,k)=>v+(b[k]-v)*t)}),
+        cuts:Array.from({length:pieces+1},(_,j)=>j/pieces),stepMm:settings.sampleStepMm,toleranceMm:settings.toleranceMm/2-2*mappingErrorMm,
+        chartSteps:[1/16,settings.minFeatureMm/2]});
+      for(let j=1;j<samples.length;j++){
+        count++;points.push(samples[j].point);
+        // Only the authored pattern deposits; the guide supplies no material.
+        const h=ha+(hb-ha)*(samples[j-1].t+samples[j].t)/2;
+        requireThat(level?h>=0:h>0,'Pattern segments must deposit material.');
+        maximumBeadHeightMm=Math.max(maximumBeadHeightMm,h);segmentHeights.push(h);
       }
     }
     if(continuous&&paths.length)requireThat(distance(paths.at(-1).points.at(-1),points[0])<=1e-9,'Mapped vase endpoints do not meet; use segmented mode for travel.');
@@ -92,12 +85,12 @@ export function mappedSleevePatternCurves({settings,process,base,start,end,first
     for(const p of points){minZ=Math.min(minZ,p[2]);maxZ=Math.max(maxZ,p[2]);}
     const length=points.slice(1).reduce((sum,p,i)=>sum+distance(points[i],p),0);
     const speed=Math.min(process.planarSpeedMmS,process.firstLayerSpeedMmS,process.minimumLayerSeconds>0?length/process.minimumLayerSeconds:Infinity);
-    paths.push({closed:false,points,heightsMm:segmentHeights,speedMmS:speed,role,segmentMetadata:segmentHeights.map((_,i)=>({layer,...(level&&Math.abs(points[i][2]-end)<1e-8&&Math.abs(points[i+1][2]-end)<1e-8?{boundaryRole:'rim'}:{})}))});
+    paths.push({closed:false,points,heightsMm:segmentHeights,speedMmS:speed,role,segmentMetadata:segmentHeights.map((_,i)=>({layer,...(foundation?{contactRole:'foundation'}:{}),...(level&&Math.abs(points[i][2]-end)<1e-8&&Math.abs(points[i+1][2]-end)<1e-8?{boundaryRole:'rim'}:{})}))});
   };
   const total=pattern.repeats+(level?2:0);let completed=0;
   onProgress?.({stage:'Mapping vase pattern courses',completed:0,total});
   for(const course of patternCourses(pattern,{level,spanMm:end-start,firstHeightMm:firstHeight,referenceLengthMm})){
-    for(const {vertices,heights} of course.paths)emitPath(vertices,heights,course.repeat+(level?2:1));
+    for(const {vertices,heights} of course.paths)emitPath(vertices,heights,course.repeat+(level?2:1),course.repeat===(level?-1:0));
     onProgress?.({stage:'Mapping vase pattern courses',completed:++completed,total});
   }
   return {courses:[{key:'wall',layerIdSuffix:':pattern',phase:continuous?'vase-wall':'segmented-paths',layer:0,rank:minZ,curves:paths,join:{mode:continuous?'continuous':'separate'},fanPercent:process.fanPercent,trimEnd:level,travel:{kind:'clearance',clearanceZ:maxZ+process.liftMm,constant:true}}],

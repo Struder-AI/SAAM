@@ -6,6 +6,7 @@ import {section,prepareSection,horizontalSlice} from '../geom/slice.mjs';
 import {pointSegmentDistance,loopArea} from '../region/region2d.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
 import {depositedBeadSegments,depositedBeadsContain,depositedBeadBounds} from './deposited-curves.mjs';
+import {depositedContactChart} from './contact-curves.mjs';
 
 export function publishFinishedBoundary(result,{shell,startMm=shell.bounds.min[2],endMm=shell.bounds.max[2],boundary='shell',coverage='nominal',toleranceMm=.02,maxSlopeDeg=90,contains=null}){
   const sourceOperationIds=result.operations.filter(op=>op.strokes.length).map(op=>op.id);
@@ -31,6 +32,11 @@ export function consumeFinishedSurface({shell,selection,results}){
   const sources=results.flatMap(result=>result.finishedSurfaces??[]).filter(source=>source.shell===shell);
   requireThat(sources.length,'Selected cladding surface has no finished material producer. Select a printed component or publish its finished boundary.');
   const chart=surfaceRegion(shell,selection),sourceOperationIds=[...new Set(sources.flatMap(source=>source.sourceOperationIds))];
+  if(sources.some(source=>source.depositedSegments)){
+    const selected=new Set(sourceOperationIds);
+    const segments=depositedBeadSegments(results.flatMap(result=>result.operations.filter(op=>selected.has(op.id))));
+    return {...depositedContactChart(chart,segments),sourceOperationIds,coverage:['final-deposited-beads']};
+  }
   const at=(u,v)=>{
     const e=chart.at(u,v),z=e.point[2];
     requireThat(sources.some(source=>z>=source.startMm-1e-7&&z<=source.endMm+1e-7&&source.contains(e)),
@@ -40,15 +46,14 @@ export function consumeFinishedSurface({shell,selection,results}){
   return {...chart,at,sourceOperationIds,coverage:[...new Set(sources.map(source=>source.coverage))]};
 }
 
-// Retain the selected reference chart, but re-evaluate membership against final
-// deposited beads. An offset chart outside these beads is rejected by the
-// consumer; displacement does not pretend to rebuild an analytic CAD surface.
+// Preserve chart identity and publish final beads. Consumers reconstruct contact
+// on those beads; a displaced substrate is not mistaken for absent material.
 export function republishDepositedBoundary(result,{widthMm}={}){
   const segments=depositedBeadSegments(result.operations,{widthMm});
   const sourceOperationIds=[...new Set(segments.map(segment=>segment.operationId))];
   const bounds=depositedBeadBounds(segments),startMm=bounds.min[2],endMm=bounds.max[2];
   return {...result,modulationPendingPublication:false,finishedSurfaces:(result.finishedSurfaces??[]).map(surface=>({
-    ...surface,startMm,endMm,sourceOperationIds,coverage:'sparse',
+    ...surface,startMm,endMm,sourceOperationIds,coverage:'sparse',depositedSegments:segments,
     contains:e=>depositedBeadsContain(segments,e.point)
   }))};
 }

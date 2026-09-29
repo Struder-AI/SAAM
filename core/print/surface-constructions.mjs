@@ -1,19 +1,15 @@
 // Common surface-course and seeded-front assignments. The stages return data:
 // reserve/survey -> chart curves -> mapping -> local gaps -> deposition.
 // Callers finalize/modulate strokes before publishing any supporting boundary.
-import {heightSlice,heightSlicePoint,heightReferencePatch,heightReferenceMetric,referenceHeight} from '../geom/height-slice.mjs';
-import {patchSlice} from '../geom/slice.mjs';
-import {validateSplineSolid} from '../geom/spline-solid.mjs';
+import {heightSlice,heightSlicePoint,heightReferenceMetric,referenceHeight} from '../geom/height-slice.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
 import {surveyRoofRegion} from '../region/roof-region.mjs';
 import {offsetRegion} from '../region/offset.mjs';
 import {directedFillStrokes,mapSliceStrokes} from '../region/layer-strokes.mjs';
 import {surfaceGapCurves} from '../region/surface-curves.mjs';
-import {seededSurfaceFronts,connectSurfacePasses} from '../region/seeded-fronts.mjs';
-import {depositCurves,maximumPathAngle} from '../path/deposition.mjs';
+import {depositCurves} from '../path/deposition.mjs';
 import {surfacePolicy} from '../path/builder.mjs';
 import {lineSpacing} from '../path/spacing.mjs';
-import {assignmentPlan} from './assignment-process.mjs';
 import {ordinarySliceAssignment} from './slice-settings.mjs';
 
 export const SKIN_DEFAULTS=Object.freeze({spacingFactor:1,layers:2,pitchMm:.2,strokeAngleDeg:0,sampleStepMm:.5,surveyStepMm:.5,maxAngleDegOverride:null});
@@ -34,7 +30,8 @@ export function frontAssignment({id,...options}) {
 
 export function validateSurfaceConstruction(a,{parts,lineWidthMm}) {
   requireThat(a.construction!=='skin'||!Object.hasOwn(a,'normalMm'),'Skin normalMm is obsolete; run explicit bundle migrate to rename it to target mean-normal pitchMm and invalidate generation.');
-  const expected=a.construction==='skin'?Object.keys(skinAssignment({id:a.id})):Object.keys(frontAssignment({id:a.id}));
+  requireThat(a.construction!=='fronts','Front construction records are obsolete; run explicit bundle migrate to expand the ordinary slice family preset.');
+  const expected=Object.keys(skinAssignment({id:a.id}));
   requireThat(['skin','fronts'].includes(a.construction)&&Object.keys(a).sort().join()===expected.sort().join(),'Invalid surface construction assignment fields.');
   requireThat(typeof a.id==='string'&&/^[a-z][a-z0-9-]*$/.test(a.id),'Invalid surface assignment id.');
   requireThat(a.filament===null||Number.isInteger(a.filament)&&a.filament>=0,'Surface filament must be null or a filament index.');
@@ -49,15 +46,6 @@ export function validateSurfaceConstruction(a,{parts,lineWidthMm}) {
     requireThat(a.maxAngleDegOverride===null||Number.isFinite(a.maxAngleDegOverride)&&a.maxAngleDegOverride>0&&a.maxAngleDegOverride<90,'Skin angle override must be null or between 0 and 90 degrees.');
     lineSpacing(lineWidthMm,a);return;
   }
-  requireThat(Number.isFinite(a.fanPercent)&&a.fanPercent>=0&&a.fanPercent<=100,'Front fanPercent must be 0–100.');
-  requireThat(typeof a.reason==='string'&&a.reason.trim().length>0,'Describe the front seed support and material assignment.');
-  for(const key of ['afterParts','beforeParts'])requireThat(Array.isArray(a[key])&&a[key].every(part=>parts?.length?parts.includes(part):part===null),'Front part dependencies must name existing components, or null for a single solid.');
-  for(const key of ['domainUv','seedUv'])requireThat(Array.isArray(a[key])&&a[key].length>0&&a[key].every(loop=>Array.isArray(loop)&&loop.length>=3&&loop.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite))),`Front ${key} needs closed UV loops.`);
-  if(a.surface?.kind==='patch')requireThat(Object.keys(a.surface).sort().join()==='kind,part,patch'&&typeof a.surface.patch==='string'&&(parts?.length?parts.includes(a.surface.part):a.surface.part===null),'Native front reference needs an existing part and named patch.');
-  else {
-    requireThat(a.surface?.kind==='spline'&&Object.keys(a.surface).sort().join()==='kind,offsetMm,patch'&&Number.isFinite(a.surface.offsetMm),'Front reference needs an authored spline or a selected native patch.');
-    validateSplineSolid({shape:'spline',patches:[a.surface.patch]});
-  }
 }
 
 export function surveySkinAssignment({assignment,shell,machine}) {
@@ -66,6 +54,17 @@ export function surveySkinAssignment({assignment,shell,machine}) {
   const survey=surveyRoofRegion(shell,{...assignment,translationStepMm},limit);
   requireThat(Number.isFinite(survey.maxMm),'The roof survey found no surface to skin.');
   return {...survey,translationStepMm,meanProjection:metric.meanProjection,minProjectedGapMm:translationStepMm*metric.minProjection,maxProjectedGapMm:translationStepMm*metric.maxProjection,targetGapMm:assignment.pitchMm,declaredLimitDeg,experimentalOverride:Boolean(machine.nonplanar?.experimental)||(assignment.maxAngleDegOverride!==null&&assignment.maxAngleDegOverride!==declaredLimitDeg)};
+}
+
+// Presets stop at ordinary family data; ownership and deposition stay shared.
+export function lowerSkinAssignment({assignment,survey,process}) {
+  return ordinarySliceAssignment({id:assignment.id,part:assignment.part,filament:assignment.filament,
+    process:{...assignment.process,planarSpeedMmS:process.skinSpeedMmS,firstLayerSpeedMmS:process.skinSpeedMmS},
+    loops:0,fillDensity:1,solidTop:0,solidBottom:0,spacingFactor:assignment.spacingFactor,
+    sampleStepMm:assignment.sampleStepMm,fillAnglesDeg:[assignment.strokeAngleDeg],rotateFill:false,
+    surface:{kind:'roof',offsetMm:0},stack:{firstLayerMm:assignment.pitchMm,layerMm:assignment.pitchMm},
+    within:[{kind:'surface-domain',loopsUv:survey.skinRegion,fromLayer:-assignment.layers,toLayer:0}],
+    dependencies:{afterParts:[],beforeParts:[],after:assignment.after},description:'Roof courses with a target mean normal gap.'});
 }
 
 // A horizontal body's last available grid plane below a reserved reference.
@@ -111,48 +110,3 @@ export function skinResult({assignment,shell,process,machine,survey,after=[],sup
     boundaryRequest:{shell,startMm:shell.bounds.min[2],endMm:shell.bounds.max[2],boundary:'top',maxSlopeDeg:survey.limitDeg}};
 }
 
-export function frontReference(assignment,{placement,placed,componentShells}) {
-  if(assignment.surface.kind==='patch') {
-    const shell=componentShells?componentShells.get(assignment.surface.part):placed;
-    const patch=shell?.patches?.find(p=>p.name===assignment.surface.patch);
-    requireThat(patch,'A native front needs an existing spline patch; a mesh needs an independent authored reference.');
-    return patch;
-  }
-  return heightReferencePatch(assignment.surface.patch,[placement.xMm,placement.yMm,assignment.surface.offsetMm]);
-}
-
-export function frontResult({assignment,patch,process,machine,after=[]}) {
-  const generated=seededSurfaceFronts(patch,assignment.domainUv,assignment.seedUv,assignment);
-  const connected=connectSurfacePasses(patch,generated.waves,assignment.domainUv,assignment,process.lineWidthMm);
-  requireThat(connected.passes.length===1,`Front ${assignment.id} needs ${connected.passes.length} separate passes; a continuous assignment cannot contain branch restarts. Revise domain or seed.`);
-  const pass=connected.passes[0];
-  const maxSlopeDeg=pass.normals.reduce((highest,normal)=>Math.max(highest,Math.acos(Math.min(1,Math.abs(normal[2])))*180/Math.PI),maximumPathAngle(pass.points));
-  const maxZ=pass.points.reduce((z,p)=>Math.max(z,p[2]),-Infinity);
-  const normals=pass.normals.map(normal=>normal[2]<0?normal.map(v=>-v):normal);
-  const frames=pass.frameSamples.map((frame,i)=>({...frame,normal:normals[i],v:frame.normal[2]<0?frame.v.map(v=>-v):frame.v}));
-  const curves=[{role:'wave-front',closed:false,points:pass.points,normals,chartPoints:pass.chartPoints,frameSamples:frames,
-    segmentMetadata:pass.points.slice(1).map((_,i)=>({beadHeightMm:assignment.beadHeightMm,surfaceNormal:normals[i]}))}];
-  const strokes=depositCurves(curves,{widthMm:process.lineWidthMm,heightMm:assignment.beadHeightMm,speedMmS:assignment.speedMmS});
-  const operations=[{id:`${assignment.id}:0`,layerId:assignment.id,rank:maxZ,layer:0,layerIndex:0,layerCount:1,stackDirection:[0,0,1],phase:'fronts',slice:patchSlice(patch),after:[...new Set([...assignment.after,...after])],strokes,order:'given',fanPercent:assignment.fanPercent,
-    travelPolicy:{maxCombMm:0,canTravelDirect:()=>false,clearanceFor:()=>maxZ,constantClearanceZ:maxZ},...(assignment.filament===null?{}:{filament:assignment.filament})}];
-  return {id:assignment.id,operations,family:{base:patchSlice(patch),direction:[0,0,1],pitchMm:assignment.beadHeightMm,firstLayerMm:assignment.beadHeightMm,layers:[{index:0,slice:patchSlice(patch),region:assignment.domainUv,curves}]},report:{construction:'fronts',reason:assignment.reason,...generated.report,maxSlopeDeg,
-    evaluations:generated.report.evaluations+connected.report.evaluations,points:generated.report.points+connected.report.points,continuity:connected.report}};
-}
-
-export function frontResults({assignments,plan,machine,placed,componentShells,modelResults}) {
-  const modelOps=modelResults.flatMap(r=>r.operations),results=[],dependencyChanges=[];
-  const belongs=(op,part)=>part===null||op.id.startsWith(part+':')||op.part===part;
-  for(const assignment of assignments) {
-    const patch=frontReference(assignment,{placement:plan.placement,placed,componentShells});
-    const process=assignmentPlan(plan,machine,assignment).process;
-    for(const part of assignment.afterParts)requireThat(modelOps.some(op=>belongs(op,part)),'Front seed dependency has no deposited operations: '+part);
-    const after=[...results.flatMap(r=>r.operations.map(op=>op.id)),...modelOps.filter(op=>assignment.afterParts.some(part=>belongs(op,part))).map(op=>op.id)];
-    const result=frontResult({assignment,patch,process,machine,after});results.push(result);
-    for(const part of assignment.beforeParts) {
-      const successors=modelOps.filter(op=>belongs(op,part));
-      requireThat(successors.length,'Front successor has no deposited operations: '+part);
-      for(const op of successors)dependencyChanges.push({operationId:op.id,after:result.operations.map(op=>op.id),mode:'append'});
-    }
-  }
-  return {results,dependencyChanges};
-}

@@ -63,12 +63,16 @@ export async function contextBudget(root, { machineIds = MACHINE_IDS } = {}) {
   const { instructions, createLocalRuntime } = await import('../../adapters/mcp/src/runtime.mjs');
   const { mkdtemp, rm } = await import('node:fs/promises'), { tmpdir } = await import('node:os');
   const printsRoot = await mkdtemp(resolve(tmpdir(), 'saam-context-budget-'));
-  let tools = 0,toolSchemas=0;const operations={};
+  let tools = 0,toolSchemas=0;const operations={},toolDefinitions=[];
   try {
     const runtime = createLocalRuntime({ printsRoot, autoOpen: false });
     for (const operation of runtime.beginSession({remote:true}).operations){
-      const description=size(operation.description),schema=size(JSON.stringify(z.toJSONSchema(operation.schema,{unrepresentable:'any'})));
-      operations[operation.name]={description,schema,total:description+schema};tools+=description;toolSchemas+=schema;
+      const inputSchema=z.toJSONSchema(operation.schema,{unrepresentable:'any'});
+      const definition={name:operation.name,description:operation.description,inputSchema,
+        annotations:{readOnlyHint:operation.readOnly,destructiveHint:false,openWorldHint:operation.openWorld}};
+      const description=size(operation.description),schema=size(JSON.stringify(inputSchema));
+      operations[operation.name]={description,schema,total:size(JSON.stringify(definition))};
+      toolDefinitions.push(definition);tools+=description;toolSchemas+=schema;
     }
     await runtime.close();
   } finally { await rm(printsRoot, { recursive: true, force: true }); }
@@ -95,10 +99,14 @@ export async function contextBudget(root, { machineIds = MACHINE_IDS } = {}) {
     }
     skills[id] = row;
   }
+  const serializedToolsBytes=size(JSON.stringify({tools:toolDefinitions}));
+  const firstUseBytes=web.onboardingJson+size(instructions)+serializedToolsBytes;
   return {
     unit: 'bytes of assembled UTF-8 text; onboardingJson is the serialized onboarding sources',
     clients: { web: { ...web, indexPlusOperate: index + operate, mcpInstructions: size(instructions), toolDescriptions: tools,toolSchemas,
-      firstUseBytes:web.onboardingJson+size(instructions)+tools+toolSchemas,sliceAndModulateBytes:operations.slice.total+operations.modulate.total,
+      serializedToolsBytes,firstUseBytes,firstSliceUseBytes:firstUseBytes+skills.slice.operate,
+      measurement:'Baseline serialized tool definitions, instructions and onboarding; excludes connection-specific guidance and optional UI metadata.',
+      sliceAndModulateBytes:operations.slice.total+operations.modulate.total,
       target:{bytes:15000,mode:'soft; no capability omission'},operations },
       script: { ...scriptClient, indexPlusOperatePlusScript: index + operate + script } },
     advancedByMachine: advanced, manualsOnDemand: skills,

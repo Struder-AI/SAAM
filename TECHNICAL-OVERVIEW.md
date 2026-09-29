@@ -70,7 +70,7 @@ These are operations; complete generation orchestrates them.
 | c16 | Connect/order strokes | Ordinary joining, front connection, spirals between slices, tile repetition and attachment motions with explicit continuity rules. |
 | c17 | Map strokes to surfaces | Evaluate chart/sleeve coordinates in XYZ. Curved mapping is not merely a rigid coordinate transformation. |
 | c18 | Calculate deposition | Determine bead dimensions, volume and speed from local gaps and process rules, including free spans. Geometry supplies local surface frames; downstream machine adaptation chooses fixed or surface-following nozzle orientation and preserves authored tilt. |
-| c19 | Modulate deposition | Apply periodic, ramp, noise or geometry-driven fields by role/channel before final coverage publication and downstream dependency construction. Position/orientation square waves have intrinsic smooth transitions; scalar channels may step. |
+| c19 | Modulate deposition | Apply optional effects to an otherwise valid toolpath, primarily for appearance and surface texture: fuzzy walls, waves, bumps or bead variation. Other useful applications remain possible; required construction and compensation work independently. Finalize affected deposition before dependent contact queries. |
 | c20 | Deposit at a point | Meter volume at a location, with approach and hold; the rivet skill supplies the enclosing process construction. |
 | c21 | Publish deposited boundaries | Describe finalized strokes' nominal occupied/supporting material, preserving sparse holes and openwork. Never publish an unmodulated or filled surrogate. |
 | c22 | Compose operations | Order deposition and travel into SAAMpath, obeying ownership/support constraints while managing shared machine state. |
@@ -90,7 +90,7 @@ techniques need not each have a separate producer or recipe format.
 
 | ID | Skill | Purpose |
 |---|---|---|
-| s1 | General slice/deposition | Construct deposition from owned slices and authored curves. Ordinary fill, brim, skin, wave, vase, lip, cladding, bridges and networks use this common core; advanced patterns use its curve repetition/mapping. Trace is an operation, not a competing skill architecture. |
+| s1 | Slice | Construct deposition from owned regions on slice surfaces. Compatible techniques share family, ownership, fill and joining operations; differences become settings rather than separate controllers. |
 | s2 | Plastic rivets (hybrid) | Reserve shafts/basins and enclosing material, construct the enclosure and inject. Temporary voids need not exist in the finished CAD model. |
 | s3 | Heat-set inserts (hybrid) | Construct the selected bore and reinforcement assignments. Manual-listed size/profile choices replace a separate catalog tool. |
 | s4 | Outline text (geometry) | Raised, recessed or standalone solid lettering, optionally mapped onto a surface. Single-line lettering supplies centerlines to s1. |
@@ -98,8 +98,10 @@ techniques need not each have a separate producer or recipe format.
 | s6 | Thingi10K (acquisition) | Find/import meshes with source and license attribution. |
 | s7 | gridfinity | gridfinity |
 | s8 | Supports | Sacrificial deposition under selected geometry. Some forms may use internal volumes; support does not require an authored solid. Preserve working behavior; redesign follows 0.2.1. |
+| s9 | Trace | Deposit along authored or constructed XYZ/surface curves, including text, networks, bridges and sleeve patterns. Share mapping, bead calculation and modulation with slice; retain a distinct skill contract. |
+| s10 | Inject | Meter material at a point with approach and hold. A distinct skill using shared deposition machinery; rivets add the hybrid cavity/enclosure construction. |
 
-The general skill needs actual shared capabilities: seeded fronts, spiral joining,
+Slice and trace need actual shared capabilities: seeded fronts, spiral joining,
 periodic mapping, anchor process roles and explicit centerlines are 0.2.0 work.
 Do not merely dispatch to old producers under a new name. Tool conveniences write
 common records; do not invent a solid to recover an already authored curve.
@@ -121,8 +123,8 @@ Schemas describe routine fields; manuals describe judgment and limitations.
 | t8 | `list_bundles` | Discover saved bundles. |
 | t9 | `get_bundle` | Read recipe/status, optionally full geometry. |
 | t10 | `adjust_recipe` | Validated edits including bulk assignments and rivets. |
-| t11 | `slice` | Add/edit/remove a general deposition assignment and report consequences; a skill-editing entry, not the definition of the geometric verb. |
-| t12 | `modulate` | Add/edit/remove modifiers before boundary-dependent construction. |
+| t11 | `slice` | Add/edit/remove shared deposition assignment records and report consequences. Trace remains a distinct skill even where this existing edit entry accepts its records. |
+| t12 | `modulate` | Add/edit/remove optional effects, primarily visual and surface effects, before dependent construction. |
 | t13 | `blob_field` | Author/rebuild a field and extracted mesh. |
 | t14 | `combine_geometry` | Edit compound/boolean construction with explicit semantics. |
 | t15 | `intersect_geometry` | Inspect sections, crossings and draft cutting surfaces. |

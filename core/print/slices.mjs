@@ -4,7 +4,7 @@
 // its own family. Internal owner boundaries have walls; solid masks follow part
 // material rather than ownership seams.
 import { curveAssignment, validateCurveAssignment } from './curves.mjs';
-import {skinAssignment,frontAssignment,validateSurfaceConstruction} from './surface-constructions.mjs';
+import {skinAssignment,frontAssignment,lowerSkinAssignment,validateSurfaceConstruction} from './surface-constructions.mjs';
 import {sleeveAssignment,rimAssignment,validateSleeveAssignment,validateRimAssignment} from './sleeve-constructions.mjs';
 import {claddingAssignment,validateCladdingAssignment} from './cladding-constructions.mjs';
 import {assignmentPlan,validateAssignmentProcess} from './assignment-process.mjs';
@@ -22,7 +22,7 @@ import {chartPrism} from '../geom/chart-prism.mjs';
 import {SLICE_DEFAULTS,SLICE_PRESETS,ordinarySliceAssignment} from './slice-settings.mjs';
 export {SLICE_DEFAULTS,SLICE_PRESETS} from './slice-settings.mjs';
 import { solidMasks, volumeSection } from '../region/layer-region.mjs';
-import { layerStrokes, mapSliceStrokes, loopMaterial, fillMaterial } from '../region/layer-strokes.mjs';
+import { layerStrokes, mapSliceStrokes, sliceFrame, loopMaterial, fillMaterial } from '../region/layer-strokes.mjs';
 import { FILL_PATTERNS } from '../region/fill-patterns.mjs';
 import { offsetRegion } from '../region/offset.mjs';
 import { regionArea } from '../region/region2d.mjs';
@@ -104,7 +104,7 @@ export function validateSlices(slices, { parts, lineWidthMm, firstLayerMm }) {
       requireThat(v?.kind === 'slab' && keys === 'fromMm,kind,toMm' && between(v.fromMm, 0, 10000) && (v.toMm === null || between(v.toMm, v.fromMm + 1e-6, 10000))
         || v?.kind === 'geometry' && keys === 'geometry,kind' && v.geometry && typeof v.geometry === 'object'
         || v?.kind === 'outline' && keys === 'kind'
-        || v?.kind==='surface-domain'&&keys==='fromLayer,kind,loopsUv,toLayer'&&loopsList(v.loopsUv)&&Number.isInteger(v.fromLayer)&&Number.isInteger(v.toLayer)&&v.fromLayer<v.toLayer&&['spline','patch'].includes(a.surface.kind)
+        || v?.kind==='surface-domain'&&keys==='fromLayer,kind,loopsUv,toLayer'&&loopsList(v.loopsUv)&&Number.isInteger(v.fromLayer)&&Number.isInteger(v.toLayer)&&v.fromLayer<v.toLayer&&['spline','patch','roof'].includes(a.surface.kind)
         || v?.kind === 'support' && keys === 'contactZMm,footprint,kind,topGapMm,xyGapMm' && loopsList(v.footprint) && between(v.topGapMm, 0, 10) && between(v.xyGapMm, 0, 10)
           && between(v.contactZMm, firstLayerMm + v.topGapMm, 1000),
       `Slice ${a.id} volumes are { kind: 'slab', fromMm, toMm } above the part bottom, { kind: 'geometry', geometry }, { kind: 'outline' } or { kind: 'support', footprint, contactZMm, topGapMm, xyGapMm } (contact above a first layer and the top gap).`);
@@ -180,14 +180,15 @@ export function sliceOwners(assignments, { shells, processes, volumes = new Map(
       const domain=assignment.within.find(v=>v.kind==='surface-domain');
       if(domain){
         const selectedPlacement=assignment.part===null?null:selections.get(assignment.part),shift=[placement.xMm+(selectedPlacement?.xMm??0),placement.yMm+(selectedPlacement?.yMm??0),selectedPlacement?.zMm??0];
-        const patch=assignment.surface.kind==='patch'?shell.patches?.find(p=>p.name===assignment.surface.patch):heightReferencePatch(assignment.surface.patch,shift);
-        requireThat(patch,`Slice ${assignment.id} names an absent native patch.`);
-        let base=patchSlice(patch),direction=stack.direction??patchMeanNormal(patch).normal;
+        const roof=assignment.surface.kind==='roof';
+        const patch=roof?null:assignment.surface.kind==='patch'?shell.patches?.find(p=>p.name===assignment.surface.patch):heightReferencePatch(assignment.surface.patch,shift);
+        requireThat(roof||patch,`Slice ${assignment.id} names an absent native patch.`);
+        let base=roof?heightSlice({kind:'roof',geometry:shell},{sampleStepMm:assignment.sampleStepMm}):patchSlice(patch),direction=stack.direction??(roof?[0,0,1]:patchMeanNormal(patch).normal);
         base=translateSlice(base,normalize(direction).map(v=>v*assignment.surface.offsetMm));
         const fitted=sliceFamily({base,direction,pitchMm:stack.layerMm,firstLayerMm:stack.firstLayerMm},shell.bounds);
         const prism=chartPrism(base,{loopsUv:domain.loopsUv,direction,fromMm:domain.fromLayer*fitted.translationStepMm,toMm:domain.toLayer*fitted.translationStepMm});
         const family=sliceFamily({base,direction,pitchMm:stack.layerMm,firstLayerMm:stack.firstLayerMm},prism.bounds),id=part===null?assignment.id:`${part}:${assignment.id}`;
-        owners.push({id,sectionKey:id,kind:'part',assignment,part,shell:prism,within:[{kind:'geometry',geometry:prism}],family,widthMm,startMm:prism.bounds.min[2],endMm:prism.bounds.max[2]});
+        owners.push({id,sectionKey:id,kind:'part',assignment,part,shell:prism,publicationShell:shell,within:[{kind:'geometry',geometry:prism}],family,widthMm,startMm:prism.bounds.min[2],endMm:prism.bounds.max[2]});
         continue;
       }
       const bottom = shell.bounds.min[2], top = shell.bounds.max[2];
@@ -211,7 +212,6 @@ export function sliceOwners(assignments, { shells, processes, volumes = new Map(
       const family = sliceFamily({ base, direction, pitchMm: stack.layerMm, firstLayerMm: stack.firstLayerMm },
         { min: [shell.bounds.min[0], shell.bounds.min[1], assignment.surface.kind === 'horizontal' ? base.origin[2] : bottom], max: [shell.bounds.max[0], shell.bounds.max[1], outline ? endMm : top] });
       const owner = { id: part !== null ? `${part}:${assignment.id}` : assignment.id, kind: outline ? 'outline' : 'part', assignment, part, shell, within, family, widthMm, startMm, endMm };
-      if(reference)requireThat(heightReferenceBounds(reference).max[2]+base.offsetMm<=volumeBox(owner).min[2]+1e-8,`Slice ${assignment.id}: height reference base starts above owned bounds; lower offsetMm to avoid omitted material.`);
       owners.push(owner);
     }
   }
@@ -386,7 +386,8 @@ function planeContactGaps(curves, { slice, heightMm }, bottom) {
       cuts.push(b);
       for (const point of cuts) { heightsMm.push((gap(points.at(-1)) + gap(point)) / 2); points.push(point); }
     }
-    return { ...curve, closed: false, points, heightsMm };
+    const chartPoints=points.map(point=>[slice.xAxis,slice.yAxis].map(axis=>axis.reduce((sum,v,k)=>sum+v*(point[k]-slice.origin[k]),0)));
+    return { ...curve, closed: false, points, heightsMm,chartPoints,normals:points.map(()=>slice.normal),frameSamples:chartPoints.map(point=>sliceFrame(slice,point)) };
   });
 }
 
@@ -415,7 +416,7 @@ function sliceTravelPolicy(slice, region, worldRegion, maxZ, process) {
 // solid, filament}; context: {process, machine, shell, startMm, endMm, report}.
 // A support preset's operations are sacrificial: support roles, the supports
 // phase and no finished boundary.
-export function sliceResult({ id, settings, layers, material = null, solidRegions = new Map(), filament = null,totalLayerCount=layers.length,contactSegments=[],otherFamilyContactSegments=[],predecessorRegions=new Map(),requiredContact=false }, { process, machine, shell, startMm, endMm,maxBeadHeightMm=Infinity,report: extra = {} }) {
+export function sliceResult({ id, settings, layers, material = null, solidRegions = new Map(), filament = null,totalLayerCount=layers.length,contactSegments=[],otherFamilyContactSegments=[],seedSegments=[],contactFragments=[],predecessorReference=null,predecessorRegions=new Map(),requiredContact=false }, { process, machine, shell, startMm, endMm,maxBeadHeightMm=Infinity,report: extra = {} }) {
   const width = process.lineWidthMm, pitch = lineSpacing(width, settings), wallToleranceMm = planarWallTolerance(machine);
   const support = settings.preset === 'support', solidDensity = support ? SUPPORT_INTERFACE_DENSITY : 1;
   const masked = settings.fillDensity < 1 && (settings.solidTop > 0 || settings.solidBottom > 0 || solidRegions.size > 0);
@@ -431,7 +432,7 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
     const own = layer.material ?? region, outward = layer.outward ?? false;
     const solid = masked ? union(solidMasks(maskLayers, index, { bottomLayers: settings.solidBottom, topLayers: settings.solidTop }).solid,
       intersect(region, union(solidRegions.get(index) ?? [], []))) : null;
-    const strokeSettings={ ...settings, widthMm: width, fillAngleDeg: angleAt(index), solidDensity,direction:layer.direction,layer,supportSegments:[...contactSegments,...otherFamilyContactSegments],
+    const strokeSettings={ ...settings, widthMm: width, fillAngleDeg: angleAt(index), solidDensity,direction:layer.direction,layer,supportSegments:seedSegments,
       patternAngleDeg: settings.fillPattern === 'rectilinear' ? angleAt(index) : angles[0], phaseMm: z, wallToleranceMm, solid,
       material: own, share, outward };
     const strokes = slice.kind==='patch'?patchLayerStrokes(slice,region,strokeSettings):layerStrokes(region,strokeSettings);
@@ -455,12 +456,12 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
       const spacing = group === 'infill' ? pitch / settings.fillDensity : pitch / solidDensity;
       const opId = `${id}:${index}:${group}`;
       let covered;
-      const framed=slice.kind==='patch'||contactSegments.length>0||otherFamilyContactSegments.length>0||requiredContact;
+      const framed=slice.kind==='patch'||slice.kind==='height-field'||predecessorReference!==null||contactFragments.length>0||contactSegments.length>0||otherFamilyContactSegments.length>0||requiredContact;
       let mapped = mapSliceStrokes(found, slice,{frames:true,sampleStepMm:settings.sampleStepMm});
       if(framed)mapped=mapped.map(curve=>!curve.closed?curve:{...curve,closed:false,points:[...curve.points,curve.points[0]],chartPoints:[...curve.chartPoints,curve.chartPoints[0]],normals:[...curve.normals,curve.normals[0]],frameSamples:[...curve.frameSamples,curve.frameSamples[0]]});
       let contactAfter=[];
       if(framed){
-        const contact=materialContact(mapped,{layer,bounds:shell.bounds,support:{previousRegion:predecessorRegions.get(index)??[],previousSegments:contactSegments,surroundingSegments:otherFamilyContactSegments},maxNormalGapMm:maxBeadHeightMm,required:requiredContact});
+        const contact=materialContact(mapped,{layer,bounds:shell.bounds,support:{previousRegion:predecessorRegions.get(index)??[],previousSegments:contactSegments,surroundingSegments:otherFamilyContactSegments},contactFragments,predecessorReference,maxNormalGapMm:maxBeadHeightMm,required:requiredContact});
         contactAfter=contact.after;
         if(contact.report.samples){report.contactSamples=(report.contactSamples??0)+contact.report.samples;report.minContactGapMm=Math.min(report.minContactGapMm??Infinity,contact.report.minGapMm);report.maxContactGapMm=Math.max(report.maxContactGapMm??0,contact.report.maxGapMm);}
         mapped=surfaceGapCurves(mapped,{slice,direction:contact.direction,distancesMm:contact.distancesMm,allowZero:true}).curves;
@@ -503,8 +504,9 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
 // -> {results, supports, summary: {layers, instances}}
 // envelopes: [{part, solidRegionAt(z)}] regions a process (a plastic-weld
 // rivet) needs solid in the slices of its part.
-export function prepareSliceContexts({ plan, machine, shells, volumes, bands, reserves, envelopes = [], onProgress }) {
-  const assignments = plan.slices.assignments.filter(a=>!a.construction);
+export function prepareSliceContexts({ plan, machine, shells, volumes, bands, reserves, envelopes = [],surfaceAssignments=[], onProgress }) {
+  const lowered=new Map(surfaceAssignments.map(input=>[input.assignment.id,{assignment:lowerSkinAssignment(input),contact:{source:input.assignment.supportFrom,required:input.assignment.supportFrom!==null},survey:input.survey}]));
+  const assignments = plan.slices.assignments.flatMap(a=>!a.construction?[a]:lowered.has(a.id)?[lowered.get(a.id).assignment]:[]);
   if (!assignments.length) return {contexts:[]};
   const processes = assignments.map(a => assignmentPlan(plan,machine,a).process);
   const owners = sliceOwners(assignments, { shells, processes, volumes, placement: plan.placement, selections: geometrySelections(plan.geometry) });
@@ -517,22 +519,24 @@ export function prepareSliceContexts({ plan, machine, shells, volumes, bands, re
     const solidRegions = new Map(held.length ? layers.map(l => [l.index, held.flatMap(e => horizontal(l.slice)?e.solidRegionAt(l.slice.origin[2]):
       difference(l.region,clipReservedSlice(l.region,l.slice,{footprint:[[owner.shell.bounds.min.slice(0,2),[owner.shell.bounds.max[0],owner.shell.bounds.min[1]],owner.shell.bounds.max.slice(0,2),[owner.shell.bounds.min[0],owner.shell.bounds.max[1]]]],regionAt:e.solidRegionAt},{sampleStepMm:assignment.sampleStepMm})))]) : []);
     const report = { owner: assignment.id, part: owner.kind === 'support' ? null : owner.part, leader, layerMm: family.pitchMm,
-      ...(family.base.kind==='height-field'?{stackMetric:'vertical',beadHeightMetric:'local-normal-projection',chartMetric:'world-xy',topologySampleStepMm:family.base.sampleStepMm}:{}),
+      ...(lowered.has(assignment.id)?{construction:'skin',excludedFraction:lowered.get(assignment.id).survey.steepFraction,maxSlopeDeg:lowered.get(assignment.id).survey.maxSlopeDeg,limitDeg:lowered.get(assignment.id).survey.limitDeg}:{}),
+      targetGapMm:family.pitchMm,translationStepMm:family.translationStepMm,firstTranslationMm:family.firstTranslationMm,meanProjectedGapMm:family.pitchMm,minProjectedGapMm:family.minProjectedGapMm,maxProjectedGapMm:family.maxProjectedGapMm,stackMetric:'area-mean-normal-projection',
+      ...(family.base.kind==='height-field'?{beadHeightMetric:'local-normal-projection',chartMetric:'world-xy',topologySampleStepMm:family.base.sampleStepMm}:{}),
       ...(owner.kind === 'support' ? { contactZMm: owner.contactZMm, actualTopGapMm: owner.contactZMm - Math.max(...layers.filter(l => l.region.length).map(l => l.slice.origin[2])) } : {}) };
     const resultId = familyId === owner.id ? owner.id : `${owner.id}:shared:${familyId}`;
     const selectedTool=machine.tools.find(tool=>tool.index===plan.setup.tool),maxBeadHeightMm=selectedTool?.layerHeightMm?.[1]??Infinity;
-    contexts.push({spec:{id:resultId,settings:assignment,layers,material,solidRegions,filament:assignment.filament,totalLayerCount:layers.length,predecessorRegions:new Map(layers.map(layer=>[layer.index,layers.find(previous=>previous.index===layer.index-1)?.region??[]]))},context:{process,machine,shell:owner.shell,startMm:owner.startMm,endMm:owner.endMm,maxBeadHeightMm,report},family,owner,familyId,
+    contexts.push({contact:lowered.has(assignment.id)?{...lowered.get(assignment.id).contact,predecessorReference:translateSlice(layers[0].slice,layers[0].direction.map(v=>-v*layers[0].translationMm))}:null,spec:{id:resultId,settings:assignment,layers,material,solidRegions,filament:assignment.filament,totalLayerCount:layers.length,predecessorRegions:new Map(layers.map(layer=>[layer.index,layers.find(previous=>previous.index===layer.index-1)?.region??[]]))},context:{process,machine,shell:owner.publicationShell??owner.shell,startMm:owner.startMm,endMm:owner.endMm,maxBeadHeightMm,report},family,owner,familyId,
       layerOrder:layers.map(layer=>({index:layer.index,rank:sliceRank(layer.slice,owner.shell.bounds)}))});
   }
   return {contexts};
 }
 
-export function sliceContextResult(record,{layerIndex=null,contactSegments=[],otherFamilyContactSegments=[],requiredContact=false}={}){
+export function sliceContextResult(record,{layerIndex=null,contactSegments=[],otherFamilyContactSegments=[],seedSegments=[],contactFragments=[],predecessorReference=null,requiredContact=false}={}){
   const layers=layerIndex===null?record.spec.layers:record.spec.layers.filter(layer=>layer.index===layerIndex);
   requireThat(layers.length,'Slice construction context has no requested layer.');
   requireThat(layerIndex===null||!record.spec.settings.join,'A joined family must be constructed as one context.');
   const context=layerIndex===null?record.context:{...record.context,report:{...record.context.report,layerStartOrdinal:record.spec.layers.findIndex(layer=>layer.index===layerIndex)}};
-  const result=sliceResult({...record.spec,layers,contactSegments,otherFamilyContactSegments,requiredContact},context);
+  const result=sliceResult({...record.spec,layers,contactSegments,otherFamilyContactSegments,seedSegments,contactFragments,predecessorReference,requiredContact},context);
   return {...result,family:{...record.family,layers:result.familyLayers},ownershipGroup:record.owner.ownershipGroup,familyId:record.familyId};
 }
 

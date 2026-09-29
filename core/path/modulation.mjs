@@ -231,20 +231,26 @@ export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}
 }
 
 export function finalizeModulatedResult(result,record) {
-  const changedOperations=[],used=new Set();let maxExcursionMm=0;
+  const changedOperations=[],materialChangedOperations=[],operationModifiers={},used=new Set();let maxExcursionMm=0;
   const operations=result.operations.map(operation=>{
-    let changed=false;
+    let changed=false,materialChanged=false;const applied=new Set();
     const strokes=operation.strokes.map(stroke=>{
       const modifiers=matchingModulations(result,stroke.role,record,operation);
       requireThat(!modifiers.length||!stroke.segmentMetadata?.some(m=>m?.role!==undefined&&m.role!==stroke.role),'Modulation of a stroke with mixed segment roles requires separate role strokes.');
       const answer=modulateStroke(stroke,modifiers,operation);
-      if(answer.changed){changed=true;for(const m of modifiers)used.add(m.id);}
+      if(answer.changed){changed=true;for(const m of modifiers.filter(m=>m.amplitude!==0)){
+        used.add(m.id);applied.add(m.id);
+        if(['displacement','width','flow'].includes(m.channel))materialChanged=true;
+      }}
       maxExcursionMm=Math.max(maxExcursionMm,answer.maxExcursionMm);return answer.stroke;
     });
     if(!changed)return operation;
     changedOperations.push(operation.id);
-    return {...operation,strokes,order:operation.order==='nearest'?'given':operation.order,modulationPendingPublication:true};
+    operationModifiers[operation.id]=[...applied];
+    if(materialChanged)materialChangedOperations.push(operation.id);
+    return {...operation,strokes,order:operation.order==='nearest'?'given':operation.order,modulationPendingPublication:materialChanged};
   });
-  const changed=changedOperations.length>0,report={changed,maxExcursionMm,changedOperations,modifiers:[...used]};
-  return {result:changed?{...result,operations,modulationPendingPublication:true}:result,report,invalidatedPublications:changed};
+  const changed=changedOperations.length>0,materialChanged=materialChangedOperations.length>0;
+  const report={changed,materialChanged,maxExcursionMm,changedOperations,materialChangedOperations,operationModifiers,modifiers:[...used]};
+  return {result:changed?{...result,operations,modulationPendingPublication:materialChanged}:result,report,invalidatedPublications:materialChanged};
 }

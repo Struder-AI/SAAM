@@ -1,4 +1,4 @@
-import {contactCurveCourses} from '../path/contact-curves.mjs';
+import {contactCurveCourses,contactCurveGaps} from '../path/contact-curves.mjs';
 import {constructContourSleeve} from '../geom/contour-sleeve.mjs';
 // Section-derived spirals and sleeve-relative patterns share stroke semantics.
 import {cleanPlanarLoop} from '../geom/polyline.mjs';
@@ -65,9 +65,9 @@ export function convexLoop(loops) {
   }
   return loop;
 }
-export function sleeveResult({shell,assignment,process,machine,id=assignment.id,after=assignment.after,zStartMm=null,zEndMm=null,onProgress}) {
+export function sleeveResult({shell,assignment,process,machine,id=assignment.id,after=assignment.after,zStartMm=null,zEndMm=null,foundationSegments=[],maxBeadHeightMm=Infinity,onProgress}) {
   const constructed=constructContourSleeve({shell,assignment,process,machine,zStartMm,zEndMm,onProgress});
-  const courses=constructed.courses.map(({layerIdSuffix,...course})=>({...course,layerId:id+layerIdSuffix}));
+  const courses=constructed.courses.map(({layerIdSuffix,...course})=>({...course,layerId:id+layerIdSuffix,...(foundationSegments.length?{curves:contactCurveGaps(course.curves,{segments:foundationSegments,maxHeightMm:maxBeadHeightMm})}:{})}));
   const operations=depositCurveCourses({id,courses,process,after,filament:assignment.filament}),strokes=operations.flatMap(o=>o.strokes);
   const level=constructed.levelBoundary;
   const levelStrokes=level?.tailCount?strokes.slice(-level.tailCount):level?[{...strokes[0],points:strokes[0].points.slice(level.startIndex),volumesMm3:strokes[0].volumesMm3.slice(level.startIndex),segmentMetadata:strokes[0].segmentMetadata.slice(level.startIndex)}]:null;

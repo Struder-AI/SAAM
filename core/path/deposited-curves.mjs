@@ -109,7 +109,8 @@ function beadCoordinates(segment,point){
 }
 
 function slabInterval(position,velocity,low,high){
-  if(Math.abs(velocity)<1e-14)return position>=low&&position<=high?[-Infinity,Infinity]:null;
+  const rounding=16*Number.EPSILON*Math.max(1,Math.abs(position),Math.abs(low),Math.abs(high));
+  if(Math.abs(velocity)<1e-14)return position>=low-rounding&&position<=high+rounding?[-Infinity,Infinity]:null;
   const a=(low-position)/velocity,b=(high-position)/velocity;
   return [Math.min(a,b),Math.max(a,b)];
 }

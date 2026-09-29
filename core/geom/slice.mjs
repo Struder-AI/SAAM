@@ -24,11 +24,37 @@ import { sectionShell } from './shell.mjs';
 import { meshSectionIndex, sectionMeshIndex } from './mesh.mjs';
 import { surfaceRegion } from './slice-region.mjs';
 import { evaluate } from './nurbs.mjs';
+import {projectToPatch} from './field.mjs';
 import { regionArea } from '../region/region2d.mjs';
 import { union, intersect, difference } from '../region/intersection.mjs';
 import { requireThat, add, scale, dot, cross, normalize } from './tolerance.mjs';
 
 const vector = v => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite);
+
+export function prepareSliceRay(slice,direction){
+  const d=normalize(direction);
+  if(slice.kind!=='patch')return {slice,direction:d};
+  const seed=Math.abs(d[0])<.9?[1,0,0]:[0,1,0],x=normalize(seed.map((v,k)=>v-dot(seed,d)*d[k])),axes=[x,cross(d,x),d],cp=Float64Array.from(slice.patch.cp);
+  for(let i=0;i<cp.length;i+=4){const point=[0,1,2].map(k=>cp[i+k]/cp[i+3]);for(let k=0;k<3;k++)cp[i+k]=dot(point,axes[k])*cp[i+3];}
+  return {slice,direction:d,axes,patch:{...slice.patch,cp}};
+}
+
+// Signed distance from point backwards along direction, with native chart data.
+export function sliceRayIntersections(prepared,point){
+  const {slice,direction:d}=prepared;
+  if(slice.kind==='patch'){
+    const p=prepared.axes.map(axis=>dot(axis,point));
+    return projectToPatch(prepared.patch,p[0],p[1]).map(hit=>({distanceMm:p[2]-hit.point[2],chartPoint:[hit.u,hit.v]}));
+  }
+  if(slice.kind==='height-field'){
+    requireThat(Math.hypot(d[0],d[1])<1e-8,'A height-field nominal-course query requires its vertical stack direction.');
+    const chartPoint=point.slice(0,2),surface=heightSlicePoint(slice,chartPoint);
+    return [{distanceMm:(point[2]-surface[2])/d[2],chartPoint}];
+  }
+  const denominator=dot(slice.normal,d);if(Math.abs(denominator)<1e-9)return [];
+  const distanceMm=dot(slice.normal,point.map((v,k)=>v-slice.origin[k]))/denominator,p=point.map((v,k)=>v-distanceMm*d[k]-slice.origin[k]);
+  return [{distanceMm,chartPoint:[dot(p,slice.xAxis),dot(p,slice.yAxis)]}];
+}
 
 export const horizontalSlice = z => {
   requireThat(Number.isFinite(z), 'A horizontal slice needs a finite height.');
@@ -118,6 +144,10 @@ export function section(geometry, slice, options = {}) {
 
 function sectionLoops(geometry, slice, options) {
   if(geometry.kind==='chart-prism'){
+    if(slice.kind==='height-field'&&slice.reference===geometry.reference.reference){
+      const offset=slice.offsetMm-geometry.reference.offsetMm;
+      return {loops:offset>geometry.fromMm+1e-8&&offset<=geometry.toMm+1e-8?geometry.loopsUv:[],nudgedByMm:0};
+    }
     if(slice.kind==='patch'&&slice.referencePatch===geometry.reference.referencePatch){
       const delta=(slice.translation??[0,0,0]).map((v,k)=>v-(geometry.reference.translation?.[k]??0)),offset=dot(delta,geometry.direction);
       if(Math.hypot(...delta.map((v,k)=>v-offset*geometry.direction[k]))<1e-8)return {loops:offset>geometry.fromMm+1e-8&&offset<=geometry.toMm+1e-8?geometry.loopsUv:[],nudgedByMm:0};
@@ -189,7 +219,7 @@ export function sliceBoundaryEdges(slice,loops) {
 
 // Integrate the oriented area vector, not unweighted vertex normals. The UV
 // grid is bounded by a physical pitch derived from the patch control net.
-export function patchMeanNormal(patch,region=null,{sampleStepMm=.5}={}) {
+export function patchMeanNormal(patch,region=null,{sampleStepMm=.5,direction=null}={}) {
   const [u0,u1]=patch.domainU,[v0,v1]=patch.domainV;
   const extents=[0,1].map(axis=>{
     let max=0;
@@ -200,18 +230,19 @@ export function patchMeanNormal(patch,region=null,{sampleStepMm=.5}={}) {
     }
     return max*(axis===0?patch.nu-1:patch.nv-1);
   });
-  const counts=extents.map(length=>Math.max(2,Math.ceil(length/sampleStepMm))),sum=[0,0,0];let areaMm2=0;
+  const counts=extents.map(length=>Math.max(2,Math.ceil(length/sampleStepMm))),sum=[0,0,0];let areaMm2=0,minProjection=Infinity,maxProjection=-Infinity;
   for(let i=0;i<counts[0];i++)for(let j=0;j<counts[1];j++){
     const uv=[u0+(i+.5)*(u1-u0)/counts[0],v0+(j+.5)*(v1-v0)/counts[1]];
     const hu=(u1-u0)/counts[0]/2,hv=(v1-v0)/counts[1]/2;
     const weight=region?regionArea(intersect(region,[[[uv[0]-hu,uv[1]-hv],[uv[0]+hu,uv[1]-hv],[uv[0]+hu,uv[1]+hv],[uv[0]-hu,uv[1]+hv]]])):4*hu*hv;
     if(!weight)continue;
     const e=evaluate(patch,...uv),area=cross(e.du,e.dv);
+    if(direction){const projection=dot(normalize(area),direction);minProjection=Math.min(minProjection,projection);maxProjection=Math.max(maxProjection,projection);}
     for(let k=0;k<3;k++)sum[k]+=area[k]*weight;
     areaMm2+=Math.hypot(...area)*weight;
   }
-  requireThat(areaMm2>0&&Math.hypot(...sum)>areaMm2*1e-9,'The in-part patch has no unambiguous mean stacking normal; specify stack.direction.');
-  return {normal:normalize(sum),meanNormal:sum.map(v=>v/areaMm2),areaMm2,sampleStepMm};
+  requireThat(areaMm2>0&&Math.hypot(...sum)>areaMm2*1e-9,'The reference patch has no unambiguous mean stacking normal; specify stack.direction.');
+  return {normal:normalize(sum),meanNormal:sum.map(v=>v/areaMm2),areaMm2,sampleStepMm,...(direction?{minProjection,maxProjection}:{})};
 }
 
 // A stack of one base slice: layer k is the base translated along the unit
@@ -234,17 +265,19 @@ export function sliceFamily({ base, direction = null, normalRegion = null, pitch
     requireThat(!direction||direction[0]===0&&direction[1]===0&&direction[2]>0,'Height-reference families translate along positive Z.');
     requireThat(!base.normalDepthMm,'Translated height families do not imply normal-offset stacks.');
     const referenceBounds=heightReferenceBounds(base.reference),metric=heightReferenceMetric(base.reference,{sampleStepMm:base.sampleStepMm}),translationStepMm=pitchMm/metric.meanProjection,firstTranslationMm=firstLayerMm/metric.meanProjection,layers=[];
-    for(let index=0;;index++) {
-      const offsetMm=firstTranslationMm+index*translationStepMm;
+    const firstIndex=Math.min(0,Math.floor((bounds.min[2]-referenceBounds.max[2]-base.offsetMm-firstTranslationMm)/translationStepMm+1e-9)+1);
+    for(let referenceIndex=firstIndex;;referenceIndex++) {
+      const index=referenceIndex-firstIndex,offsetMm=firstTranslationMm+referenceIndex*translationStepMm;
       if(referenceBounds.min[2]+base.offsetMm+offsetMm>bounds.max[2]+1e-9)break;
       if(referenceBounds.max[2]+base.offsetMm+offsetMm<=bounds.min[2]+1e-9)continue;
-      const translationMm=index?translationStepMm:firstTranslationMm;
-      layers.push({index,offsetMm,targetGapMm:index?pitchMm:firstLayerMm,translationMm,heightMm:translationMm,direction:[0,0,1],thicknessMetric:'normal-projection',slice:translateSlice(base,[0,0,offsetMm])});
+      const translationMm=referenceIndex===0?firstTranslationMm:translationStepMm;
+      layers.push({index,referenceIndex,offsetMm,targetGapMm:referenceIndex===0?firstLayerMm:pitchMm,translationMm,heightMm:translationMm,direction:[0,0,1],thicknessMetric:'normal-projection',slice:translateSlice(base,[0,0,offsetMm])});
     }
-    return {base,direction:[0,0,1],pitchMm,firstLayerMm,translationStepMm,firstTranslationMm,meanProjection:metric.meanProjection,gapMetric:'area-mean-normal-projection',layers};
+    return {base,direction:[0,0,1],pitchMm,firstLayerMm,translationStepMm,firstTranslationMm,meanProjection:metric.meanProjection,minProjectedGapMm:translationStepMm*metric.minProjection,maxProjectedGapMm:translationStepMm*metric.maxProjection,gapMetric:'area-mean-normal-projection',layers};
   }
   const metric=base.kind==='patch'?patchMeanNormal(base.patch):null;
   const d = normalize(direction ?? (metric?metric.normal:base.normal));
+  const range=metric?patchMeanNormal(base.patch,null,{direction:d}):null;
   const advance = base.kind === 'plane' ? dot(d, base.normal) : 1;
   requireThat(advance > 1e-9, 'The stacking direction must advance the plane along its normal.');
   const meanProjection=metric?dot(metric.meanNormal,d):advance;
@@ -269,7 +302,7 @@ export function sliceFamily({ base, direction = null, normalRegion = null, pitch
     const index=referenceIndex-firstIndex,stepMm=referenceIndex===0?firstTranslationMm:translationStepMm;
     layers.push({ index, referenceIndex, offsetMm:t, targetGapMm:referenceIndex===0?firstLayerMm:pitchMm,translationMm:stepMm,heightMm: stepMm * advance, direction:d, slice });
   }
-  return { base, direction: d, pitchMm, firstLayerMm,translationStepMm,firstTranslationMm,gapMetric:'area-mean-normal-projection',meanProjection,layers };
+  return { base, direction: d, pitchMm, firstLayerMm,translationStepMm,firstTranslationMm,minProjectedGapMm:translationStepMm*(range?.minProjection??advance),maxProjectedGapMm:translationStepMm*(range?.maxProjection??advance),gapMetric:'area-mean-normal-projection',meanProjection,layers };
 }
 
 // Range of a patch along a unit direction, from its control hull.

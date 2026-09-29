@@ -1,6 +1,7 @@
 // Boundary chart -> courses, local cell widths and declared robot/rotary poses.
 // Deposition and operation dependencies are constructed by the caller.
 import {prepareSurfaceOffset} from '../geom/surface-offset.mjs';
+import {evaluate} from '../geom/nurbs.mjs';
 import {sampleSurfaceCurve} from '../region/normal-surface.mjs';
 import {requireThat,distance,normalize,cross,scale,add,dot,findRoot,subtract} from '../geom/tolerance.mjs';
 import {lineSpacing,spacingFactor} from '../path/spacing.mjs';
@@ -20,7 +21,17 @@ export function constructCladdingCourses({shell,settings,process,motion,chart}){
     const exact=offsetField.exactAt(U,V,d);
     return loose.map((x,k)=>x+s.offsetTightness*(exact[k]-x));
   };
-  const offsetChart=(depth)=>offsetField?{...chart,at:(u,v)=>({...chart.at(u,v),point:offsetPoint(u,v,depth)})}:chart;
+  const offsetChart=(depth)=>offsetField?{...chart,at:(u,v)=>{
+    const actual=chart.at(u,v),offset=offsetPoint(u,v,depth);
+    if(chart.contactGeometry!=='final-deposited-beads')return {...actual,point:offset};
+    // Preserve the declared fitted-vs-exact offset displacement, but anchor it
+    // on the actual substrate and orient its normal component to that surface.
+    const original=evaluate(patch,s.surface.uvBounds[0][0]+u*(s.surface.uvBounds[0][1]-s.surface.uvBounds[0][0]),s.surface.uvBounds[1][0]+v*(s.surface.uvBounds[1][1]-s.surface.uvBounds[1][0]));
+    const displacement=subtract(offset,original.point),oldNormal=scale(original.normal,s.surface.normalSide),oldU=normalize(original.du),oldV=cross(oldNormal,oldU);
+    const newU=normalize(subtract(actual.du,scale(actual.normal,dot(actual.du,actual.normal)))),newV=cross(actual.normal,newU);
+    const transported=add(add(scale(newU,dot(displacement,oldU)),scale(newV,dot(displacement,oldV))),scale(actual.normal,dot(displacement,oldNormal)));
+    return {...actual,point:add(actual.point,transported)};
+  }}:chart;
   const trackPitch=lineSpacing(w,s),factor=spacingFactor(s);
   requireThat(chart.periodicU,'This wrapping producer needs a periodic U region; open-patch raster cladding is not yet implemented.');
   const center=motion.rotaryCenterMm;

@@ -1,12 +1,13 @@
 ---
 name: slice
-description: General deposition from owned surface slices and authored curves: loops, fill, brim, skin, fronts, sleeves, rims, networks and bridges, with shared process and modulation.
+description: Derive loops, fill, brim, skin, fronts, sleeves, rims and cladding from owned surface slices, with shared process and modulation.
 ---
 
 # Slice
 
-One general deposition skill uses `plan.slices` for owned surface slices and
-authored curve constructions. Ordinary `body` defaults to two loops, 20% fill
+Slice derives deposition from owned surface slices. [Trace](../trace/SKILL.md)
+authors curves and [inject](../inject/SKILL.md) meters stationary extrusion;
+they share lower-level records and processing. Ordinary `body` defaults to two loops, 20% fill
 and three top/bottom solid layers; geometry is authored separately. Construction
 records share process settings, dependencies and finalization. For maker work,
 read [MAKERS.md](../../MAKERS.md); `slice` and bulk `adjust_recipe` edit the same
@@ -25,7 +26,7 @@ presets and alternation have software evidence only.
 | `part` | `null` | A component or prepared material part (`base`, `text/label`, `cup/base`); `null` is every component. |
 | `preset` | `null` | `brim` or `support`, below. |
 | `filament` | `null` | A Bambu logical filament; the owner then uses that filament's layer heights and bead width. |
-| `process` | `null` | Every construction accepts overrides for `firstLayerMm`, `layerMm`, `lineWidthMm`, `planarSpeedMmS`, `firstLayerSpeedMmS`, applied after filament defaults; `stack` still chooses explicit geometric pitch. |
+| `process` | `null` | Every construction accepts overrides for `firstLayerMm`, `layerMm`, `lineWidthMm`, `planarSpeedMmS`, `firstLayerSpeedMmS`, `fanPercent`, applied after filament defaults; `stack` still chooses explicit geometric pitch. |
 | `loops` | `2` | Loops inward from the part's boundary on every layer. |
 | `fillDensity` | `0.2` | `1` is solid, `0` a shell of loops; otherwise 0.01–1, row spacing = bead width / density. |
 | `fillPattern` | `rectilinear` | Sparse pattern, below. Solid rows are always straight. |
@@ -134,24 +135,13 @@ combing and lifts follow [shared travel](../../core/path/README.md#whole-plan-tr
 
 ## Modulation
 
-`modulate` and bulk `adjust_recipe` write `plan.modulations` version1. Add needs `id,channel,amplitude,field`; displacement/tilt also need `direction` (vector in selected frame, `lateral` right normal, or `stack` along stacking direction). Defaults: `assignments:null,roles:null,frame:"world",layers:null,topN:null,phasePerLayerRad:0,sampleStepMm:0.2,tolerance:0.01`. Null targets mean all; roles include `perimeter,perimeter-inner,infill`. `layers:{from,to}` uses inclusive zero-based producer-family indices; `topN` selects its last N layers. Phase adds index × phasePerLayerRad to periodic fields.
+Optional effects on an otherwise valid toolpath, primarily visual and surface effects: fuzzy walls, wavy relief and localized bumps. Other useful applications remain open. Fields can shape, place or fade effects. Required gap compensation, contact adaptation, nozzle orientation and brick layering belong to construction or process logic independently. See the [scope decision](../../plans/0.2.0.md#settled-intent).
 
-Frames: world XYZ after placement; slice native chart coordinates with unit tangent basis; curve arc-length mm, normalized authored parameter and normal coordinate. Spline UV is **not millimetres**, despite historical `periodMm` names. Directions use the frame basis; `lateral` follows the source curve, except parallel fill uses its common directed-line basis to keep alternate rows in phase. `stack` differs from a curved slice's local normal.
+`modulate` and bulk `adjust_recipe` write `plan.modulations` version1. Add needs `id,channel,amplitude,field`; displacement also needs `direction`. Assignment, role, layer-range and `topN` selectors locate effects. Periodic waves, smooth seeded noise, bumps, ramps and geometry masks can shape them. Tool schemas give exact fields.
+World, slice and curve frames locate patterns; native spline UV is not millimetres. Physical displacement transitions are intrinsically smooth; flow/width multiply by a strictly positive factor. Applicable machine and crossing checks still apply. Valid input edits report immediate diagnostics.
 
-| Field kind | Required data and meaning |
-|---|---|
-| `periodic` | `axis,periodMm,phaseRad`; optional waveform `sine` (default), `triangle`, `square`. |
-| `noise` / `bumps` | Noise: `cellMm,seed`, deterministic smooth [-1,1]. Bumps: XYZ `periodMm,originMm`, `radiusMm`, summed blob lattice. |
-| `ramp` / `blob` | Ramp: `axis,fromMm,toMm`, clamped [0,1]. Blob: `field` with source schema/threshold/points. |
-| `solid-distance` | `geometry,toleranceMm,signed`; world-space authored solid, explicitly tessellated at tolerance; signed distance negative inside. |
-| `transfer` | `source,input:[low,high],output:[a,b]`; clamps outside increasing input range. |
-| `add` / `multiply` | Nonempty `sources` of any fields above, including nested compositions. |
+Finalize affected deposition before dependent contact queries, preserving sparse holes and bead dimensions. No replacement distorted CAD surface is required. The paused implementation still exposes broader speed/tilt/injection modifiers; the plan records their pending reconciliation, not a release requirement.
 
-Square phase0 rises through zero. Optional `transitionFraction` is each transition's width as a fraction of the full cycle: default0.05 for displacement/tilt with an intrinsic rounded C1 transition; these require a positive value. Flow/width/speed default0 and split exactly at step boundaries; positive values round them too. Firmware may change the commanded shape/timing; no acceleration model or physical approval is implied.
-
-Displacement adds amplitude × field mm; tilt rotates tool axis/up by that many degrees and requires tool-orientation. Flow/width/speed multiply by 1 + amplitude × field (strictly positive). Fields sample original source coordinates; modifiers compose in order. Sampling follows feature spacing and chord/process tolerance (mm for displacement, unit-vector error for orientation, dimensionless for factors); volume density, metadata and source frames survive subdivision. Lateral fill must be provably in-phase or its summed maximum excursion below half line spacing. Width, slope, bounds, flow and orientation remain machine-checked.
-
-Modifiers finalize before coverage and dependent construction. Edits immediately dry-run deposition: `diagnostics.status:blocked` names a production blocker while retaining a structurally valid intermediate recipe; checked diagnostics do not create an export or confirmation. Changed strokes regenerate travel/support and invalidate confirmation; zero/no matching modulation preserves exact source output. Stationary extrusion supports world-flow scaling of volume and rate together (duration unchanged); moving-path channels, mixed-role strokes and degenerate reversing frames reject explicitly. No CAD-surface reconstruction or swept-head collision proof is claimed.
 <!-- layer: script -->
 ## Script interfaces
 

@@ -8,6 +8,7 @@ import {toolBounds} from '../machine/profile.mjs';
 import {requireThat,distance} from '../geom/tolerance.mjs';
 import {validatePose} from '../path/pose.mjs';
 import {prepareDepositionMotion} from '../machine/deposition-motion.mjs';
+import {resolveDepositionConnections} from '../path/deposition-connections.mjs';
 
 function finalizedOperation(operation,plan,machine,result){
   const selected=operation.filament===undefined?plan:filamentPlan(plan,machine,operation.filament);
@@ -55,7 +56,15 @@ function finalizedOperation(operation,plan,machine,result){
 }
 
 export function finalizeDepositionResult(result,plan,machine){
+  result={...result,operations:result.operations.map(op=>({...op,nominalRank:op.nominalRank??op.rank}))};
+  // A nominal region cannot prove a join safe after its bead geometry changes.
+  // Freeze every operation's order here; all deposited material, including joins,
+  // must exist before modulation and before any supporting-surface publication.
+  const excludedOperationIds=plan.modulations?.modifiers.length?result.operations.filter(op=>op.strokes.some(stroke=>
+    matchingModulations(result,stroke.role,plan.modulations,op).some(m=>['displacement','width','flow'].includes(m.channel)))).map(op=>op.id):[];
+  result=resolveDepositionConnections(result,{excludedOperationIds});
   result=prepareDepositionMotion(result,machine);
+  if(result.report.depositionConnections.count)result=republishDepositedBoundary(result,{widthMm:plan.process.lineWidthMm});
   if(!plan.modulations?.modifiers.length||!result.operations.some(op=>op.strokes.some(stroke=>matchingModulations(result,stroke.role,plan.modulations,op).length)))return result;
   requireThat(!result.operations.some(op=>op.phase==='bridging'&&op.strokes.some(stroke=>matchingModulations(result,stroke.role,plan.modulations,op).some(m=>m.channel==='displacement'))),
     'Bridge attachment displacement is not supported; modulate supporting assignments before constructing the bridge.');
@@ -67,7 +76,8 @@ export function finalizeDepositionResult(result,plan,machine){
   if(!answer.report.changed)return result;
   const changed=new Set(answer.report.changedOperations);
   const operations=answer.result.operations.map(op=>changed.has(op.id)?finalizedOperation(op,plan,machine,result):op);
-  const finalized=republishDepositedBoundary({...answer.result,operations},{widthMm:plan.process.lineWidthMm});
+  const candidate={...answer.result,operations};
+  const finalized=answer.report.materialChanged?republishDepositedBoundary(candidate,{widthMm:plan.process.lineWidthMm}):candidate;
   return {...finalized,report:{...result.report,modulation:answer.report}};
 }
 

@@ -12,11 +12,11 @@ import {planToolpath} from '../path/toolpath.mjs';
 import {filamentSelection,assignedFilaments} from '../machine/filaments.mjs';
 import {planarPolicy} from '../path/builder.mjs';
 import {assignmentPlan} from './assignment-process.mjs';
-import {surveySkinAssignment,skinResult,frontResults} from './surface-constructions.mjs';
+import {surveySkinAssignment,skinResult} from './surface-constructions.mjs';
 import {depositedBeadSegments,depositedTopAt} from '../path/deposited-curves.mjs';
 import { validatePlan, VERSION } from './plan.mjs';
 import {curveAssignmentResults} from './curves.mjs';
-import {finalizeDepositionResult,finalizeDepositionResults} from './finalize.mjs';
+import {finalizeDepositionResult} from './finalize.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 import {makeMesh,translateMesh} from '../geom/mesh.mjs';
 import {toolBounds,startupPosition,startupRetracted} from '../machine/profile.mjs';
@@ -164,7 +164,7 @@ export function generateModelResults(plan,machine,rhino,{placed,componentShells,
   for(const context of sleeves) {
     const {assignment,shell,startMm,endMm}=context;
     const samePart=finalizedSlices.filter(r=>r.report.part===assignment.part).flatMap(r=>r.operations);
-    const below=samePart.filter(op=>op.rank<=startMm+1e-8).map(op=>op.id);
+    const below=samePart.filter(op=>(op.nominalRank??op.rank)<=startMm+1e-8).map(op=>op.id);
     if(assignment.zStartMm>1e-8&&below.length){
       const grid=(assignment.zStartMm-context.process.firstLayerMm)/context.process.layerMm;
       requireThat(Math.abs(grid-Math.round(grid))<1e-8,'A raised sleeve must start on its resolved process layer grid.');
@@ -172,10 +172,12 @@ export function generateModelResults(plan,machine,rhino,{placed,componentShells,
     const previousSleeves=sleeves.filter(other=>other!==context&&other.assignment.part===assignment.part&&other.endMm<=startMm+1e-8);
     requireThat(!previousSleeves.some(other=>!sleeveResults.has(other.assignment.id)),'Stacked sleeve assignments must be defined bottom to top.');
     requireThat(assignment.zStartMm===0||below.length||previousSleeves.length,'A raised sleeve needs supporting deposition below its start.');
-    const changedFoundation=finalizedSlices.some(r=>r.report.part===assignment.part&&r.report.modulation?.changed&&r.operations.some(op=>below.includes(op.id)))||previousSleeves.some(other=>sleeveResults.get(other.assignment.id).report.modulation?.changed);
-    requireThat(assignment.zStartMm===0||!changedFoundation,`Sleeve ${assignment.id}: contact with a modulated foundation is unsupported; use an unmodulated supporting assignment.`);
+    const foundations=[...finalizedSlices.filter(r=>r.report.part===assignment.part),...previousSleeves.map(other=>sleeveResults.get(other.assignment.id))];
+    const changedFoundation=foundations.some(r=>r.report.modulation?.materialChanged??r.report.modulation?.changed);
+    const foundationSegments=assignment.zStartMm>0&&changedFoundation?depositedBeadSegments(foundations.flatMap(r=>r.operations.filter(op=>(op.nominalRank??op.rank)<=startMm+1e-8)),{widthMm:context.process.lineWidthMm}):[];
     const after=[...new Set([...assignment.after,...below,...previousSleeves.flatMap(other=>sleeveResults.get(other.assignment.id).operations.map(op=>op.id))])];
-    const result=sleeveResult({...context,machine,after,onProgress});
+    const resolved=assignmentPlan(plan,machine,assignment),maxBeadHeightMm=machine.tools.find(tool=>tool.index===resolved.setup.tool)?.layerHeightMm?.[1]??Infinity;
+    const result=sleeveResult({...context,machine,after,onProgress,foundationSegments,maxBeadHeightMm});
     const published=assignment.pattern===null&&!assignment.meshSleeve?publishFinishedBoundary(result,{shell,boundary:'side',startMm:result.report.baseTopMm,
       endMm:result.report.endMm-(assignment.endTransition==='level'?0:context.process.layerMm),toleranceMm:assignment.boundaryToleranceMm}):result;
     const selected={...published,report:{...published.report,part:assignment.part,construction:'sleeve'},operations:published.operations.map(op=>({...op,part:assignment.part,...(assignment.filament===null?{}:{filament:assignment.filament})}))};
@@ -237,12 +239,9 @@ export function addComplementaryResults(plan,machine,{placed,componentShells,wel
     const finalized=finalizeDepositionResult(result,plan,machine);
     results.push(finalized);summary.pipeCladding={...finalized.report,instances:[...(summary.pipeCladding?.instances??[]),{id:assignment.id,...finalized.report}]};
   }
-  const waves=frontResults({assignments:plan.slices.assignments.filter(a=>a.construction==='fronts'),plan,machine,placed,componentShells,modelResults:results});
-  const wavedResults=[...applyResultDependencies(results,waves.dependencyChanges),...finalizeDepositionResults(waves.results,plan,machine)];
-  if(waves.results.length)summary.waveOverhangs=waves.results.map(r=>r.report);
-  const references=depositionReferences(batch.shells,wavedResults);
-  const curves=curveAssignmentResults({plan,machine,modelResults:wavedResults,references,bounds:machine.motionChecks==='deferred'?null:bounds});
-  const constructedResults=[...wavedResults,...curves];
+  const references=depositionReferences(batch.shells,results);
+  const curves=curveAssignmentResults({plan,machine,modelResults:results,references,bounds:machine.motionChecks==='deferred'?null:bounds});
+  const constructedResults=[...results,...curves];
   if(curves.length)summary.curves=curves.map(result=>({id:result.id,...result.report}));
   // Support-preset slices and tree supports print before what they hold up.
   const supports=[...(batch.slicedSupports??[]),...supportResults({plan,machine,shells:componentShells?[...componentShells.values()]:[placed]})];
@@ -251,7 +250,24 @@ export function addComplementaryResults(plan,machine,{placed,componentShells,wel
   const welds=plasticWeldResult({plan,sites:weldSites,modelResults:supportedResults});
   const weldedResults=applyResultDependencies(supportedResults,welds.dependencyChanges);
   if(welds.result)summary.plasticWeld=welds.result.report;
-  return {...batch,results:welds.result?[...weldedResults,welds.result]:weldedResults,summary};
+  const completed=welds.result?[...weldedResults,welds.result]:weldedResults;
+  return {...batch,results:applyDeclaredDependencies(plan,completed),summary};
+}
+
+// The recipe's dependency declarations apply to every construction, including
+// ordinary slice families produced before their later-stage dependents.
+export function applyDeclaredDependencies(plan,results){
+  const changes=[];
+  for(const result of results){
+    const assignment=plan.slices.assignments.find(a=>a.id===(result.report?.owner??result.id));
+    const dependencies=assignment?.dependencies;if(!dependencies)continue;
+    const prior=results.filter(other=>other!==result&&dependencies.afterParts.includes(other.report?.part));
+    const after=[...dependencies.after,...prior.flatMap(other=>other.operations.map(op=>op.id))];
+    for(const op of result.operations)if(after.length)changes.push({operationId:op.id,after,mode:'union'});
+    const before=results.filter(other=>other!==result&&dependencies.beforeParts.includes(other.report?.part));
+    for(const other of before)for(const op of other.operations)changes.push({operationId:op.id,after:result.operations.map(op=>op.id),mode:'union'});
+  }
+  return applyResultDependencies(results,changes);
 }
 
 // References carry evaluated data in placed world coordinates. A shared-owner
@@ -348,7 +364,7 @@ export function depositionInspection(results){
       const index=operation.layerIndex??operation.layer,key=`${result.id}:${index}`;
       const changed=result.report?.modulation?.changedOperations?.includes(operation.id);
       operations[operation.id]={family,index,roles:[...new Set(operation.strokes.map(stroke=>stroke.role))],
-        modifiers:changed?result.report.modulation.modifiers:[],slice:slices[key]?key:null};
+        modifiers:changed?(result.report.modulation.operationModifiers?.[operation.id]??result.report.modulation.modifiers):[],slice:slices[key]?key:null};
     }
   }
   return {operations,slices};
