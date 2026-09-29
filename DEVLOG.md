@@ -1,5 +1,41 @@
 # Development log
 
+## 2026-09-29 — Unfinished 0.2.0 recovery checkpoint
+
+- Checkpointed all current shared work after the desktop restart. Includes the
+  overview/plan, tilted and translated roof/spline slicing, ownership-derived
+  dependencies, common curve/bridge deposition, bundle API names and slice edits.
+  This records an unfinished implementation, not release readiness.
+- Reviewed saved direct-execution evidence: tilted export and overlap checks;
+  curved/roof and sparse-coverage results; network/bridge baseline parity;
+  remote slice edit/bulk parity; production bridge generation (102 moves,
+  19.968 mm3, exporter/interpreter checks pass). Whitespace check passed.
+  No whole suites, new tests, physical runs, publication or map solver.
+- Remaining: stale Studio network controls, skin/wave and sleeve/spiral/lip/
+  cladding consolidation, modulation and final coverage integration, manuals
+  and map regeneration. Existing fixture migrations have not been suite-tested.
+- Existing interface manuals total 1,258 -> 1,252 lines; slice 146 -> 143,
+  network 24 -> 21, bridge 79 -> 76. New overview/plan counts are recorded below.
+
+## 2026-09-29 — Technical overview and revised 0.2.0 implementation scope
+
+- Added [TECHNICAL-OVERVIEW.md](TECHNICAL-OVERVIEW.md) (156 lines) and the
+  [repository plan](plans/0.2.0.md) (170), replacing the owner's external 484-line
+  scratch specification as current intent. Glossary 21 -> 26 lines; README gains
+  the two entry links. Preserved the pre-existing D-041 amendment and recorded
+  D-042; BR-059 no longer commissions ribbon work or claims trimmed solids ready.
+- Ownership resolution now explicitly dictates compatible slices and sequence;
+  internal ownership walls are intentional. The general deposition skill must
+  cover the named techniques, with shared operations and common recipe records.
+  Defaults must not author a shape. Full trimmed solids move to 0.2.1; general
+  sleeves and support redesign remain deferred.
+- Dispatched three owner-authorized Astra workers for A1 slicing/ownership,
+  B1 common curve deposition and C1 authoring APIs. These are active milestones,
+  not completed release claims. The lead retains scope and integration review.
+- Verification: read source/contracts and checked conceptual scope against the
+  supplied draft and later user rulings. No software tests for these prose edits;
+  implementation evidence will be recorded as workers complete reviewed milestones.
+
 ## 2026-09-28 — Slice skill (0.2.0 phase 2, step 2): shared sections, part-based solids, support preset
 
 - Loops on boundaries between owners are one switch,

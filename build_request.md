@@ -36,7 +36,7 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 
 ## Outstanding work
 
-### BR-059 — One offset with collision resolution, ribbons and trimmed surfaces
+### BR-059 — Collision-resolving offsets and deferred trimmed solids
 
 - Status: in progress
 - Contributor: `remettub`, inferred from the checkout's contributor branch and account; attribution unconfirmed.
@@ -44,8 +44,9 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 - Session: Claude Code desktop, 2026-09-28; exact chat title and ID unavailable.
 - Source: current conversation, 2026-09-28.
 - Context: [curve-offset.mjs](core/geom/curve-offset.mjs) offset curves loosely without resolving collisions; `prepareSurfaceOffsets` bundled a horizontal ribbon and a normal offset and limited folds instead of trimming them.
-- Remaining: (3) Trimmed-surface records: a sleeve ribbon's folds are trimmed; folds on other patches and surface offsets are rejected where they occur (provisional ruling, pending the owner), and self-intersections between distant parts are not resolved. (5) Vase-wall on the ribboned sleeve; where the wall splits, the spiral's behaviour awaits the user's answer on the "pinch" version. (6) Migrate `offsetRegion` and `offsetSurfaceRegion` consumers, including corner treatment. (7) Trimmed faces in printable shells. Curve ribbons (4), periodic-patch curve offsets (1) and the surface ribbon and surface offset (2) are done.
-- Completion: Every offset in core resolves collisions; no fold limiter remains; vase-wall and pipe cladding run on the new operations.
+- Revised scope (owner, 2026-09-29): the [0.2.0 plan](plans/0.2.0.md) owns active offset/consumer migration; ribbons are removed under the D-041 amendment, and sleeves derive from offset slice outlines. Full joined trimmed-face solids are deferred to 0.2.1; experimental trimmed records do not establish ecosystem support.
+- Remaining: complete the plan's collision-resolving offset consumers and explicit supported sleeve subset; later implement trimmed-face solids across closure, queries, display and deposition consumers.
+- Completion: shared offsets/consumers satisfy their stated contracts; the separately deferred trimmed-solid scope is implemented and exercised before being advertised.
 
 ### BR-058 — Implement the Cloudflare relay alpha milestone
 

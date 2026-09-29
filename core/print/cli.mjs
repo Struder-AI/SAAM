@@ -8,6 +8,8 @@ import {applyText} from './text.mjs';
 import {applyHeatSet} from './heat-set.mjs';
 import {createBlobFieldBundle,updateBlobFieldBundle} from './blob-field.mjs';
 import {intersectRequest,combineGeometry} from './geometry-tools.mjs';
+import {starterGeometry} from '../../examples/prints/starter-geometry.mjs';
+import {defaults} from './plan.mjs';
 import {printHint} from '../agent/layers.mjs';
 const readJson=async file=>JSON.parse(await readFile(file,'utf8'));
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].replace(/\\/g, '/')}`).href) {
@@ -17,7 +19,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
   const [command, target, argument,extra,last] = args;
   const bundleDirectory = () => resolve(target ?? 'Prints/shell-part');
   const report = state => JSON.stringify({
-    print: state.dir, skills: state.skills, revision: state.revision, geometryHash:state.geometryHash,
+    bundle: state.dir, skills: state.skills, revision: state.revision, geometryHash:state.geometryHash,
     toolpathApproved: state.toolpathApproved,
     program: state.program?.summary ?? null, programError: state.programError ?? null,
     outputAvailability: state.outputAvailability ?? null, machineConfiguration: state.machineConfiguration ?? null,
@@ -30,7 +32,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       const plan = argument&&argument!=='--machine' ? await readJson(resolve(argument)) : undefined;
       const machineId=argument==='--machine'?extra:extra==='--machine'?last:extra;
       const directory = await initBundle(bundleDirectory(), plan,{machineId});
-      console.log(`Print created at ${directory}`);
+      console.log(`Bundle created at ${directory}`);
       console.log(`Open it for review with: npm run studio -- ${directory}`);
       console.log('Nothing is approved yet; review the geometry and generate freely, then confirm the exact settings/toolpath together in Studio before export.');
       const hint=await printHint(root,await loadBundle(directory,{program:false}),null);if(hint)console.log(hint);
@@ -70,7 +72,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(JSON.stringify(await checkPathBundle(bundleDirectory()),null,2));
     } else if (command === 'demo') {
       const directory = bundleDirectory();
-      try { await access(resolve(directory, 'plan.json')); } catch { await initBundle(directory); }
+      try { await access(resolve(directory, 'plan.json')); } catch { const plan=defaults();plan.geometry=starterGeometry();plan.skills['draped-skin'].enabled=true;await initBundle(directory,plan); }
       const checks = await generateBundle(directory, { development: true });
       console.log(`Development generation only; no human approvals created.`);
       console.log(`  ${checks.moves} moves, about ${checks.estimatedMinutes} minutes`);
@@ -110,7 +112,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.error('       cli.mjs import-stl <print-directory> <source.stl> [auto|mm|inch] [machine-id]');
       console.error('       cli.mjs repair-stl <new-repair-directory> <source.stl> <mm|inch> [options.json]');
       console.error('       cli.mjs check-path <print-directory> (software compatibility only)');
-      console.error('       cli.mjs init <print-directory> [plan.json] [--machine <machine-id>]');
+      console.error('       cli.mjs init <bundle-directory> <plan.json> [--machine <machine-id>]');
       process.exitCode = 1;
     }
   };

@@ -2,8 +2,41 @@
 // sampled reserve is defined only over its actual footprint; extrapolated field
 // samples must never truncate another component or material outside that roof.
 import {difference,intersect,levelSetCoverage,levelSetRegion} from './boolean.mjs';
-import {regionArea} from './region2d.mjs';
+import {regionArea,pointInRegion,pointSegmentDistance} from './region2d.mjs';
 import {requireThat,TOLERANCE} from '../geom/tolerance.mjs';
+import {slicePoint} from '../geom/slice.mjs';
+import {sampledChartRegion} from '../geom/height-slice.mjs';
+
+// Sample a reservation in the cutting surface's chart. Pointwise world-space
+// membership prevents comparing unrelated UV/XY regions. Field interpolation
+// retains the roof survey's explicitly sampled numerical contract.
+export function clipReservedSlice(region,slice,reserve,{sampleStepMm=.2}={}) {
+  if(!reserve||!region.length)return region;
+  const footprint=reservationFootprint(reserve);
+  const blocked=sampledChartRegion(bounds(region),sampleStepMm,chart=>{
+    if(!insideOrBoundary(chart,region))return false;
+    const point=slicePoint(slice,chart);
+    if(!insideOrBoundary(point,footprint))return false;
+    if(reserve.regionAt)return insideOrBoundary(point,reserve.regionAt(point[2]));
+    return point[2]>reservationFieldHeight(reserve.field,point);
+  });
+  return difference(region,blocked);
+}
+
+function insideOrBoundary(point,region) {
+  return pointInRegion(point,region)||region.some(loop=>loop.some((a,i)=>pointSegmentDistance(point,a,loop[(i+1)%loop.length])<=TOLERANCE.point));
+}
+
+function reservationFieldHeight({xs,ys,values},[x,y]) {
+  const interval=(axis,value)=>{
+    requireThat(value>=axis[0]-TOLERANCE.point&&value<=axis.at(-1)+TOLERANCE.point,'Reservation footprint extends beyond its sampled field.');
+    let low=0,high=axis.length-1;
+    while(high-low>1){const mid=Math.floor((low+high)/2);if(axis[mid]<=value)low=mid;else high=mid;}
+    return [low,Math.max(0,Math.min(1,(value-axis[low])/(axis[low+1]-axis[low])))];
+  };
+  const [i,u]=interval(xs,x),[j,v]=interval(ys,y);
+  return (1-u)*((1-v)*values[i][j]+v*values[i][j+1])+u*((1-v)*values[i+1][j]+v*values[i+1][j+1]);
+}
 
 export function reservationFootprint(reserve){
   const footprint=reserve?.footprint??reserve?.skinRegion;

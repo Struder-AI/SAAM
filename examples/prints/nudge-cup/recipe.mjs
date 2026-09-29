@@ -13,7 +13,7 @@ for(let i=0;i<N;i++){const j=(i+1)%N;foot.triangles.push([outer+i,inner+i,inner+
 const plan=defaults(loadMachine('ultimaker-s5'));
 plan.geometry={shape:'assembly',parts:[{id:'cup',xMm:0,yMm:0,zMm:0,geometry:cup.geometry()},{id:'foot',xMm:0,yMm:0,zMm:17.8,geometry:foot.geometry()}]};
 plan.placement={xMm:165,yMm:120};
-Object.assign(plan.skills['draped-skin'],{layers:3,normalMm:.2,sampleStepMm:.25,surveyStepMm:.25});
+Object.assign(plan.skills['draped-skin'],{enabled:true,layers:3,normalMm:.2,sampleStepMm:.25,surveyStepMm:.25});
 const region=(id,part,zStartMm,zEndMm,skills)=>({id,part,zStartMm,zEndMm,skills,lowerSurfaceFrom:null});
 // The lip is a three-loop shell below the vase wall; the foot is solid under its draped skin.
 plan.slices.assignments=[sliceAssignment({id:'open-lip',part:'cup',loops:3,fillDensity:0,solidTop:0,solidBottom:0,within:[{kind:'slab',fromMm:0,toMm:1.2}]}),

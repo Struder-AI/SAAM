@@ -1,0 +1,156 @@
+# SAAM technical overview
+
+Target architecture, revised with the owner on 2026-09-29. This is intent, not a
+claim that every item works today. The [0.2.0 plan](plans/0.2.0.md) owns scope and
+completion; component/skill manuals describe implemented behavior.
+
+SAAM is an authoring platform operated through conversation. An agent authors
+geometry and a recipe; skills use shared core operations to construct deposition;
+composition produces one SAAMpath; an exporter produces a checked machine program.
+Studio presents the result. The person confirms current settings and the exact
+toolpath together, and delivery preserves those program bytes.
+
+The conceptual layers are geometry, core capabilities, skills and agent tools.
+Tools span all layers, rather than providing one wrapper per skill or function.
+
+## Geometry
+
+Representation, construction history and use are separate. A surface does not
+become a new geometry type because it is used as a cutting/reference surface.
+
+| ID | Geometry | Spatial meaning |
+|---|---|---|
+| g1 | Spline curve | A NURBS curve defined by controls, degree, knots and weights, open or closed, in space or on a surface. Polylines are the piecewise-linear counterpart. |
+| g2 | Spline surface | A NURBS surface controlled in two directions. Faces, revolutions, lofts and roofs are authored geometry, not templates. Planes can use this representation with a computational fast path. |
+| g3 | Mesh surface | Connected triangles. It can be open; a closed, consistently oriented valid mesh bounds a solid. STL supplies triangles, not semantic CAD faces. |
+| g4 | Solid | Enclosed material represented by a closed spline shell or triangle mesh. Full joined trimmed-face and mixed-face boundary solids are outside 0.2.0. |
+| g5 | Compound geometry | Named, placed component solids with an optional boolean combining operation. Assembly retains separate components; union/difference/intersection combine material. Assembly has children but no boolean operation, not no operands. Overlapping assembly components do not silently become a union. Current boolean expressions preserve operands rather than constructing a stitched mixed boundary. |
+| g6 | Blob field | Freely positioned points contribute smooth scalar influence; negative points subtract it. A threshold selects an isosurface extracted as a mesh. The field remains separately editable and evaluable, including for modulation. |
+| g7 | Surface region | A bounded portion of a surface, with possible holes and disconnected islands. Its chart and boundaries locate it; it is neither a solid nor a new underlying surface type. |
+| g8 | Sleeve | A surface closed in one direction and open in the other, or a mesh of equivalent tube-side topology. Opposite chart edges meet at a seam; smooth periodicity is stronger than positional closure. It need not be vertical, straight, circular or made of horizontal rings. |
+
+0.2.0 needs periodic patches, structured periodic mesh strips and valid contour-
+derived sleeves for vase, patterns and cladding. Arbitrary bent mesh recognition
+and parameterization are deferred. Restricted algorithms name their restrictions;
+they must not redefine sleeve to mean height-monotone geometry.
+
+To **slice** is to intersect a cutting surface with geometry for a toolpath
+reference. A **slice** retains that intersection and its supporting surface; for
+a solid it contains a surface region. A **slice surface** is the geometry used
+for the cut; a **slice family** is a related sequence. A layer is deposited
+construction, not a synonym for any reference surface or the entire generation job.
+Height-field roof queries can supply references without silently fitting splines.
+
+Designed material, temporary process geometry and deposited material differ:
+a rivet cavity is temporary, support can be authored directly as toolpath, and
+sparse fill does not deposit its entire assigned volume. Ownership is a spatial
+assignment of responsibility, not another geometry type.
+
+## Core capabilities
+
+These are operations; complete generation orchestrates them.
+
+| ID | Capability | What it does |
+|---|---|---|
+| c1 | Evaluate geometry | Points, tangents, normals, inside/outside and top crossings, with explicit numerical contracts. |
+| c2 | Extract a mesh | Mesh a field's threshold surface or tessellate spline geometry when a mesh consumer requires it. Preserve the source and approximation meaning. |
+| c3 | Slice geometry | Intersect geometry with a cutting surface and return its surface region/reference. Native spline and mesh backends may differ. |
+| c4 | Construct slice families | Place cutting surfaces by direction and spacing, checking full crossing and local thickness. Translating a curved surface does not imply constant normal thickness. |
+| c5 | Resolve material ownership | Resolve claims/reservations/overlaps first, select a principal, establish compatible spacing and allocate alternating deposition. These decisions constrain scheduling. Internal assignment boundaries intentionally receive walls. |
+| c6 | Evaluate owned slice regions | Evaluate spatial ownership on each cutting surface, lazily if useful. Neighboring slices identify solid top/bottom material; ownership seams do not create artificial solid tops. |
+| c7 | Boolean surface regions | Union, intersect or subtract areas on a common surface/chart. Polygon and NURBS boundaries require explicit representation support; unrelated UV charts cannot be compared directly. |
+| c8 | Clip paths | Keep portions of curves inside an allowed surface region, preserving open ends, holes and seams. |
+| c9 | Combine solids | Evaluate component union, difference or intersection. Combining native sections and constructing a mesh boolean are different routes; neither establishes mixed trimmed-face boundary support. |
+| c10 | Offset curves/regions | Move boundaries within a reference surface and resolve crossings into kept pieces. State the distance metric and loose/exact meaning. Mesh-section polygons use polygon offsets; spline-section curves retain native form where supported. |
+| c11 | Offset surfaces | Displace a surface along normals, distinct from moving a curve within it. General fold-resolved offset solids and constant-thickness offset stacks are deferred. |
+| c12 | Intersect, trim, join boundaries | Find crossings, retain selected pieces and connect compatible ends. Independent operations used by offsets, not proof of full trimmed-solid support. |
+| c13 | Parameterize sleeves | Establish seam and around/along coordinates for supported sleeves; topology is distinct from a particular algorithm's Z restrictions. |
+| c14 | Construct/fit sleeves | Build from compatible contours or fit a smooth reference to a mesh. Fitting is optional; contour splitting needs an explicit branch policy. |
+| c15 | Construct strokes | Loops, directed fill, patterns, seeded fronts and supplied centerlines in an allowed region/reference. Density, angle and width are data. |
+| c16 | Connect/order strokes | Ordinary joining, front connection, spirals between slices, tile repetition and attachment motions with explicit continuity rules. |
+| c17 | Map strokes to surfaces | Evaluate chart/sleeve coordinates in XYZ. Curved mapping is not merely a rigid coordinate transformation. |
+| c18 | Calculate deposition/orientation | Determine bead dimensions, volume, speed and tool axis from local gaps and process rules, including free spans. |
+| c19 | Modulate deposition | Apply periodic, ramp, noise or geometry-driven fields by role/channel before final coverage publication and downstream dependency construction. |
+| c20 | Deposit at a point | Meter volume at a location, with approach and hold; the rivet skill supplies the enclosing process construction. |
+| c21 | Publish deposited boundaries | Describe finalized strokes' nominal occupied/supporting material, preserving sparse holes and openwork. Never publish an unmodulated or filled surrogate. |
+| c22 | Compose operations | Order deposition and travel into SAAMpath, obeying ownership/support constraints while managing shared machine state. |
+| c23 | Export/check | Translate SAAMpath, interpret/check the machine program and preserve its identity through review and delivery. |
+| c24 | Prepare geometry | Import/validate/repair supported meshes, extract font outlines and construct feature geometry using shared operations. |
+
+Current region booleans use polygon boundaries through Clipper2. Materialized
+solid booleans use Manifold after any required tessellation; lazy solid expressions
+instead combine native operand sections. General NURBS-region booleans are not
+established by curve-offset code retaining NURBS pieces. Native sectioning remains
+numerical/tolerance-bound. Offsetting, trimming, fitting and mapping are separate.
+
+## Skills and technique entry points
+
+A skill supplies a meaningful construction from core capabilities. Familiar
+techniques need not each have a separate producer or recipe format.
+
+| ID | Skill | Purpose |
+|---|---|---|
+| s1 | General slice/deposition | Construct deposition from owned slices and authored curves. Ordinary fill, brim, skin, wave, vase, lip, cladding, bridges and networks use this common core; advanced patterns use its curve repetition/mapping. Trace is an operation, not a competing skill architecture. |
+| s2 | Plastic rivets (hybrid) | Reserve shafts/basins and enclosing material, construct the enclosure and inject. Temporary voids need not exist in the finished CAD model. |
+| s3 | Heat-set inserts (hybrid) | Construct the selected bore and reinforcement assignments. Manual-listed size/profile choices replace a separate catalog tool. |
+| s4 | Outline text (geometry) | Raised, recessed or standalone solid lettering, optionally mapped onto a surface. Single-line lettering supplies centerlines to s1. |
+| s5 | Mesh tools (geometry) | Diagnose/repair supported defects, retaining source and reporting geometric change. |
+| s6 | Thingi10K (acquisition) | Find/import meshes with source and license attribution. |
+| s7 | gridfinity | gridfinity |
+| s8 | Supports | Sacrificial deposition under selected geometry. Some forms may use internal volumes; support does not require an authored solid. Preserve working behavior; redesign follows 0.2.1. |
+
+The general skill needs actual shared capabilities: seeded fronts, spiral joining,
+periodic mapping, anchor process roles and explicit centerlines are 0.2.0 work.
+Do not merely dispatch to old producers under a new name. Tool conveniences write
+common records; do not invent a solid to recover an already authored curve.
+
+## Web-agent tools
+
+Target names; the plan owns migration and installed manuals own current names.
+Schemas describe routine fields; manuals describe judgment and limitations.
+
+| ID | Tool | Purpose |
+|---|---|---|
+| t1 | `maker_onboarding` | Load workflow and capability index once. |
+| t2 | `list_machines` | Discover machine profiles/capabilities. |
+| t3 | `list_skills` | Discover manuals and gated capabilities. |
+| t4 | `read_skill` | Read a manual/section. |
+| t5 | `read_guidance` | Read published geometry, machine or workflow guidance. |
+| t6 | `get_recipe_defaults` | Process/setup defaults without starter geometry. |
+| t7 | `create_bundle` | Save a bundle with authored/imported geometry. |
+| t8 | `list_bundles` | Discover saved bundles. |
+| t9 | `get_bundle` | Read recipe/status, optionally full geometry. |
+| t10 | `adjust_recipe` | Validated edits including bulk assignments and rivets. |
+| t11 | `slice` | Add/edit/remove a general deposition assignment and report consequences; a skill-editing entry, not the definition of the geometric verb. |
+| t12 | `modulate` | Add/edit/remove modifiers before boundary-dependent construction. |
+| t13 | `blob_field` | Author/rebuild a field and extracted mesh. |
+| t14 | `combine_geometry` | Edit compound/boolean construction with explicit semantics. |
+| t15 | `intersect_geometry` | Inspect sections, crossings and draft cutting surfaces. |
+| t16 | `set_stl_units` | Correct imported mesh units. |
+| t17 | `search_thingi10k` | Search mirrored models with attribution. |
+| t18 | `import_thingi10k_bundle` | Import a selected mirrored model into a bundle. |
+| t19 | `gridfinity` | gridfinity |
+| t20 | `apply_text` | Edit outline-font geometry. |
+| t21 | `apply_heat_set` | Apply a manual-listed size/profile and reinforcement. |
+| t22 | `change_machine` | Change machine and check compatibility. |
+| t23 | `remember_setup` | Save setup defaults for later bundles. |
+| t24 | `check_bundle` | Validate geometry, recipe and any stored program. |
+| t25 | `check_path` | Feasibility through the shared generator without saved production output. |
+| t26 | `generate_toolpath` | Generate/check the composed path and machine program. |
+| t27 | `request_review` | Show geometry or generated output in Studio. |
+| t28 | `get_approval_status` | Read exact settings/toolpath confirmation. |
+| t29 | `deliver_toolpath` | Deliver confirmed machine-specific program/package bytes. |
+| t30 | `begin_studio_work` | Claim edit/guidance scope. |
+| t31 | `respond_to_studio_request` | Publish result/progress/wait/completion/failure. |
+| t32 | `wait_for_studio_request` | Listen during an active agent session. |
+| t33 | `get_studio_requests` | Read pending work and outcomes. |
+| t34 | `get_studio_events` | Read actions and generation progress. |
+| t35 | `get_studio_sessions` | List owned Studio instances. |
+| t36 | `close_studio_session` | Close an owned instance. |
+| t37 | `get_tour` | Read tour progress/guidance. |
+| t38 | `set_tour_start_at` | Select the relevant playback start. |
+
+Web users select local files in Studio. No tool grants final confirmation,
+arbitrary filesystem/command access or hardware execution. There is no mandatory
+trace, inject or heat-set catalog tool. Specialized conveniences may be added for
+concrete authoring needs; examples remain explicit, never default geometry.

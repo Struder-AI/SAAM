@@ -1,6 +1,6 @@
 // Strokes of one slice layer. layerStrokes fills an owned layer region with
-// loops and fill in the slice's chart; liftStrokes places them on the slice
-// with their bead section. Both are plain functions of their inputs: the slice
+// loops and fill in the slice's chart; mapSliceStrokes maps coordinates to XYZ.
+// Deposition dimensions belong to core/path/deposition.mjs. Both are plain functions of their inputs: the slice
 // skill (core/print/slices.mjs) chooses the region, the solid mask and the
 // angles for each layer.
 //
@@ -122,9 +122,23 @@ function loopBand(material, { widthMm, loops, spacingFactor }) {
 // takes part in booleans, so it is built to the chord tolerance.
 export const fillMaterial = (region, widthMm) => region.length ? offsetRegion(region, widthMm / 2, { arcToleranceMm: TOLERANCE.chord }) : [];
 
-// Chart strokes placed on a layer's slice: XYZ points, speed and bead section
-// (width × layer height). Closed strokes keep their implicit closing segment.
-export function liftStrokes(strokes, { slice, heightMm }, { widthMm, speedMmS }) {
-  return strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => slicePoint(slice, point)), speedMmS,
-    beadAreaMm2: (stroke.beadWidthMm ?? widthMm) * heightMm }));
+// Coordinate mapping is independent of bead/process calculation. The plane
+// chart is isometric; mapped XYZ curve lengths keep physical millimetres.
+export function mapSliceStrokes(strokes, slice) {
+  if(slice.kind!=='plane')return strokes.map(stroke=>{
+    const source=stroke.closed?[...stroke.points,stroke.points[0]]:stroke.points,points=[slicePoint(slice,source[0])];
+    const step=slice.sampleStepMm??.2;
+    const split=(a,b,pa,pb)=>{
+      const probes=[.25,.5,.75].map(t=>{const chart=a.map((v,k)=>v+t*(b[k]-v));return {chart,point:slicePoint(slice,chart),t};});
+      const error=Math.max(...probes.map(({point,t})=>Math.hypot(...point.map((v,k)=>v-pa[k]-t*(pb[k]-pa[k])))));
+      const span=Math.hypot(...a.map((v,k)=>v-b[k]));
+      if(span>step||error>TOLERANCE.chord){
+        requireThat(span>2*TOLERANCE.point,'Curved slice mapping cannot converge across a discontinuity.');
+        split(a,probes[1].chart,pa,probes[1].point);split(probes[1].chart,b,probes[1].point,pb);
+      }else points.push(pb);
+    };
+    for(let i=1;i<source.length;i++)split(source[i-1],source[i],points.at(-1),slicePoint(slice,source[i]));
+    return {...stroke,closed:false,points};
+  });
+  return strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => slicePoint(slice, point)) }));
 }

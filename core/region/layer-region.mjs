@@ -9,7 +9,8 @@
 //  {kind: 'layer-regions', regions: [{index, loops}]}  given per layer in
 //                                   the family's charts: derived volumes
 //                                   computed from neighbouring layers.
-import { section } from '../geom/slice.mjs';
+import { section, slicePoint } from '../geom/slice.mjs';
+import { sampledChartRegion, referenceHeight } from '../geom/height-slice.mjs';
 import { union, intersect, difference } from './intersection.mjs';
 import { requireThat, dot } from '../geom/tolerance.mjs';
 
@@ -27,6 +28,10 @@ export function volumeSection(volume, layer, extent) {
 // wholly in the band or wholly out of it, half open as layer heights are.
 function slabSection({ fromMm, toMm, axis = [0, 0, 1] }, slice, extent) {
   requireThat(Number.isFinite(fromMm) && Number.isFinite(toMm) && toMm > fromMm, 'A slab volume needs fromMm below toMm.');
+  if(slice.kind==='height-field')return sampledChartRegion(extent,slice.sampleStepMm,point=>{
+    if(!referenceHeight(slice.reference,...point))return false;
+    const h=dot(axis,slicePoint(slice,point));return h>fromMm+1e-9&&h<=toMm+1e-9;
+  });
   requireThat(slice.kind === 'plane', 'A slab volume on a spline-patch slice is not supported yet; give the owner a geometry volume.');
   const h0 = dot(axis, slice.origin), ha = dot(axis, slice.xAxis), hb = dot(axis, slice.yAxis);
   if (Math.hypot(ha, hb) <= 1e-12) return h0 > fromMm + 1e-9 && h0 <= toMm + 1e-9 ? null : [];

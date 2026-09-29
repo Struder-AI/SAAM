@@ -11,13 +11,14 @@
 //  patch  {patch}: a NURBS patch; the chart is its (u,v), the curve offset's
 //         surface mode. Its region is where it lies inside the solid
 //         (surface-surface intersection, slice-region.mjs).
-// A height field (a part's top over the XY chart, for draped skins on meshes
-// and booleans) is the planned third kind; section does not cut it yet.
+//  height-field {reference, offsetMm, normalDepthMm}: native roof/spline
+//         evaluation in world XY; sampled topology with refined boundaries.
 //
 // A family stacks one base slice: layer k is the base translated along a
 // direction, so every layer keeps the same chart and a chart point names the
 // same column of material in every layer. Neighbouring layers therefore
 // compare by 2D booleans alone.
+import { heightSlicePoint, heightSliceNormal, sectionHeightSlice, heightReferenceBounds } from './height-slice.mjs';
 import { sectionShell } from './shell.mjs';
 import { meshSectionIndex, sectionMeshIndex } from './mesh.mjs';
 import { surfaceRegion } from './slice-region.mjs';
@@ -52,6 +53,10 @@ export function patchSlice(patch) {
 export function translateSlice(slice, v) {
   requireThat(vector(v), 'A slice translation is a 3D vector.');
   if (slice.kind === 'plane') return { ...slice, origin: add(slice.origin, v) };
+  if (slice.kind === 'height-field') {
+    requireThat(v[0] === 0 && v[1] === 0, 'Height-reference families currently translate along Z only.');
+    return { ...slice, offsetMm: slice.offsetMm + v[2] };
+  }
   requireThat(slice.kind === 'patch', `Unsupported slice kind ${slice.kind}.`);
   const cp = Float64Array.from(slice.patch.cp);
   for (let i = 0; i < cp.length; i += 4) for (let k = 0; k < 3; k++) cp[i + k] += v[k] * cp[i + 3];
@@ -59,12 +64,14 @@ export function translateSlice(slice, v) {
 }
 
 export function slicePoint(slice, [a, b]) {
+  if (slice.kind === 'height-field') return heightSlicePoint(slice, [a, b]);
   if (slice.kind === 'plane') return add(slice.origin, add(scale(slice.xAxis, a), scale(slice.yAxis, b)));
   requireThat(slice.kind === 'patch', `Unsupported slice kind ${slice.kind}.`);
   return evaluate(slice.patch, a, b, false).point;
 }
 
 export function sliceNormal(slice, [a, b]) {
+  if (slice.kind === 'height-field') return heightSliceNormal(slice, [a, b]);
   if (slice.kind === 'plane') return [...slice.normal];
   requireThat(slice.kind === 'patch', `Unsupported slice kind ${slice.kind}.`);
   const { normal } = evaluate(slice.patch, a, b);
@@ -99,6 +106,7 @@ export function section(geometry, slice, options = {}) {
 function sectionLoops(geometry, slice, options) {
   if (geometry.kind === 'boolean') return combine(geometry.operation, geometry.operands.map(o => sectionLoops(o, slice, options)));
   if (geometry.kind === 'assembly') return combine('union', geometry.components.map(c => sectionLoops(c, slice, options)));
+  if (slice.kind === 'height-field') return sectionHeightSlice(geometry, slice, options);
   if (slice.kind === 'patch') {
     const solid = geometry.kind === 'prepared-mesh' ? geometry.mesh : geometry;
     return { loops: surfaceRegion(slice.patch, solid, options), nudgedByMm: 0 };
@@ -156,10 +164,22 @@ export function touchesSliceEdge(slice, loops) {
 // {base, direction?, pitchMm, firstLayerMm}, {min, max} ->
 // {base, direction, pitchMm, firstLayerMm, layers: [{index, offsetMm, heightMm, slice}]}
 export function sliceFamily({ base, direction = null, pitchMm, firstLayerMm }, bounds) {
-  requireThat(['plane', 'patch'].includes(base?.kind), 'A slice family needs a plane or patch base slice.');
+  requireThat(['plane', 'patch', 'height-field'].includes(base?.kind), 'A slice family needs a plane, patch or height reference.');
   requireThat(Number.isFinite(pitchMm) && pitchMm > 0 && Number.isFinite(firstLayerMm) && firstLayerMm > 0,
     'A slice family needs a positive pitch and first-layer height; it would never advance.');
   requireThat(vector(bounds?.min) && vector(bounds?.max), 'A slice family needs the owned volume bounds.');
+  if(base.kind==='height-field') {
+    requireThat(!direction||direction[0]===0&&direction[1]===0&&direction[2]>0,'Height-reference families translate along positive Z.');
+    requireThat(!base.normalDepthMm,'Translated height families do not imply normal-offset stacks.');
+    const referenceBounds=heightReferenceBounds(base.reference),layers=[];
+    for(let index=0;;index++) {
+      const offsetMm=firstLayerMm+index*pitchMm;
+      if(referenceBounds.min[2]+base.offsetMm+offsetMm>bounds.max[2]+1e-9)break;
+      if(referenceBounds.max[2]+base.offsetMm+offsetMm<=bounds.min[2]+1e-9)continue;
+      layers.push({index,offsetMm,heightMm:index?pitchMm:firstLayerMm,thicknessMetric:'vertical',slice:translateSlice(base,[0,0,offsetMm])});
+    }
+    return {base,direction:[0,0,1],pitchMm,firstLayerMm,layers};
+  }
   requireThat(base.kind === 'plane' || direction, 'A patch slice family needs a stacking direction.');
   const d = normalize(direction ?? base.normal);
   const advance = base.kind === 'plane' ? dot(d, base.normal) : 1;

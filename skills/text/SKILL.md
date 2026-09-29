@@ -15,7 +15,7 @@ the resulting solid in Studio as usual.
 ## Tools and edits
 
 Start from an existing shell or mesh print, including an imported STL. MCP
-`apply_text` takes `printId`, current `expectedRevision` and `request`. For an
+`apply_text` takes `bundleId`, current `expectedRevision` and `request`. For an
 assembly, select one component with a request-level `"part": "id"` beside
 `feature`, `remove` or `standalone`; a single-part print omits it, and an unknown
 id is rejected. Coordinates and references stay in that component's millimetres.
@@ -46,7 +46,7 @@ A request for a 3 mm high part with a horizontal top:
 Reusing an id edits that feature, keeping omitted settings and its saved font:
 `{"feature":{"id":"label","text":"NEW","mode":"recessed"}}`. `{"remove":"label"}`
 removes it. Every edit rebuilds from the retained original part, and removing all
-features restores it. Edit lettering only through this tool; `adjust_print` on
+features restores it. Edit lettering only through this tool; `adjust_recipe` on
 its baked recipe is rejected.
 
 `standalone: true` replaces the selected target with standalone text; the

@@ -18,19 +18,19 @@ The `gridfinity` tool creates an unapproved print:
 
 ```json
 {
-  "printId": "organizers/small-bin", "action": "create", "machineId": "ultimaker-s5",
+  "bundleId": "organizers/small-bin", "action": "create", "machineId": "ultimaker-s5",
   "parameters": {"kind": "bin", "xUnits": 2, "yUnits": 1, "heightUnits": 3, "compartmentsX": 2}
 }
 ```
 
-To edit, call it with `action: "update"`, `printId`, `expectedRevision` and a
+To edit, call it with `action: "update"`, `bundleId`, `expectedRevision` and a
 partial `parameters` object; omitted parameters stay as saved. Omit `machineId`
 on updates, and supply `part` with the component id for an assembly. Updates
 change existing gridfinity geometry only: create another print to change between
 bin, blank and baseplate. Wrong fields, incompatible settings, stale revisions,
 mesh failures and machine-bound violations are rejected before saving, and
 `create` never overwrites a print. Dimension edits invalidate geometry and
-settings/toolpath confirmations; `adjust_print` on the baked mesh or parameters
+settings/toolpath confirmations; `adjust_recipe` on the baked mesh or parameters
 is rejected unless it supplies a complete newly compiled record.
 
 ## Parameters

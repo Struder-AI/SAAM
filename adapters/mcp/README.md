@@ -33,7 +33,7 @@ npm's script banner on the protocol stream. SDK and schema packages are pinned
 in the root lockfile.
 
 `SAAM_PRINTS_ROOT` defaults to the repository's ignored `Prints/` directory.
-Every call selects a persistent `printId` relative to that root. Up to three
+Every call selects a persistent `bundleId` relative to that root. Up to three
 folder levels match Studio's library, including existing names such as
 `Customer A/Job 2/Part`. Use forward slashes; absolute paths, traversal, hidden
 folders, Windows reserved names, trailing dots/spaces and invalid path characters
@@ -49,12 +49,12 @@ saved IDs; there is no single global plan that overwrites another job.
 | `maker_onboarding` | Listed first. The maker's starting context for a client without command access, as a web client of the [context layers](../../core/agent/README.md#context-layers): MAKERS, the digest (the index) and shared print tools, with a `machineId`'s advanced sections, plus how a relayed session reaches the computer. A relayed session also offers the [SAAM panel](RELAY-PLAN.md#saam-panel) with its result. Until a relayed session calls it (or reads `makers`), every result carries a second text item asking it to. |
 | `list_machines`, `list_skills`, `read_skill` | Read this checkout's known profiles and manuals. Each skill entry is a toolpath, geometry (such as mesh tools) or hybrid skill. `read_skill` takes `ID` or `ID#heading` and an optional `machineId`. These small fixed lists are not an automatic discovery or installation system. |
 | `read_guidance` | Read a published Markdown path, optionally ending in `#heading`, or a short ID: `makers`, `geometry`, `development`, `glossary`, `mcp`, `print-tools`, with an optional `machineId`. |
-| `get_plan_template` | Read a complete proposed shell recipe, reusing remembered setup. |
-| `create_print` | Initialize a new unapproved bundle, optionally from a complete recipe. |
-| `import_stl_print` | Read an absolute local `.stl` source path with optional `auto` (default), `mm` or `inch` units; preserve its bytes/hash and use the shared CLI importer and remembered setup. Sources are limited to 64 MiB. |
+| `get_recipe_defaults` | Read geometry-free process/setup defaults, reusing remembered setup. |
+| `create_bundle` | Initialize an unapproved bundle from a complete recipe with authored/imported geometry. |
+| `import_stl_bundle` | Read an absolute local `.stl` source path with optional `auto` (default), `mm` or `inch` units; preserve its bytes/hash and use the shared CLI importer and remembered setup. Sources are limited to 64 MiB. |
 | `search_thingi10k` | Search descriptive keywords, a numeric file ID or a Thingiverse thing URL in the mirror. Returns per-file source/license links and pagination. Read the [Thingi10K manual](../../skills/thingi10k/SKILL.md). |
-| `import_thingi10k_print` | Download `fileId` on the SAAM host into a new `printId`, with `machineId` and optional `units`. Return attribution and the mandatory chat license notice, including when strict import fails. Review successful imports with `request_review`. |
-| `list_prints`, `get_print` | `list_prints` discovers names and machines with `programChecked:false`; it does not validate exports. `get_print` reads checked status/recipe, omitting geometry and marking `planComplete:false` unless `includeGeometry:true` is supplied. Neither returns motion arrays. |
+| `import_thingi10k_bundle` | Download `fileId` on the SAAM host into a new `bundleId`, with `machineId` and optional `units`. Return attribution and the mandatory chat license notice, including when strict import fails. Review successful imports with `request_review`. |
+| `list_bundles`, `get_bundle` | `list_bundles` discovers names and machines with `programChecked:false`; it does not validate exports. `get_bundle` reads checked status/recipe, omitting geometry and marking `planComplete:false` unless `includeGeometry:true` is supplied. Neither returns motion arrays. |
 | `begin_studio_work`, `respond_to_studio_request` | Start work with kind `edit` or `guidance`, supplying `studioInstanceId` when several Studios are open. After saving an edit, bind its result using status `working` and `resultStage` (`geometry`/`toolpath`); use `waiting` when paused for input. Complete after guidance or the displayed result. Overlapping work stays independent. |
 | `set_stl_units` | Correct a plain imported mesh to `mm` or `inch` with current `expectedRevision`; retains mesh edits/source bytes and invalidates final review. |
 | `wait_for_studio_request`, `get_studio_requests` | Receive live Studio requests with bounded event waits, or inspect durable recovery/history state. Optional `studioInstanceId` scopes a wait; `claim:true` marks returned requests working in the same call. The wait also ends on a delivered Studio event and returns the drained `events`. Runs outside the print-work queue. This does not wake an ended or disconnected chat. |
@@ -63,25 +63,24 @@ saved IDs; there is no single global plan that overwrites another job.
 | `get_tour` | Read tour progress and the next maker-agent chat instruction. Optional `after` cursor and `waitMs` wait for a change for up to 25 seconds. |
 | `set_tour_start_at` | Set explicit `{startAt:{layer:12}}` for the playback lesson; choose a layer with sparse infill. |
 | `change_machine` | Change printer with current `expectedRevision`, using remembered/default setup and shared compatibility checks. Final review is invalidated. |
-| `adjust_print` | Apply a recipe patch with the latest `expectedRevision` from state. |
+| `adjust_recipe`, `slice` | Patch the recipe or add/edit/remove one common slice assignment with current `expectedRevision`; both validate the saved recipe and invalidate affected review. |
 | `blob_field` | Create or rebuild a [blob field](../../GEOMETRY.md#blob-field) part from its points. |
 | `combine_geometry`, `intersect_geometry` | Combine a print or part with another solid as a [boolean](../../GEOMETRY.md#booleans); section it or find its top at given points ([checking](../../GEOMETRY.md#checking-geometry)). `intersect_geometry` also takes a geometry without a print. |
 | `gridfinity` | gridfinity |
 | `apply_text` | Add, edit or remove text geometry using the [text skill](../../skills/text/SKILL.md), a local font and current `expectedRevision`. Reuses the shared preparation and review lifecycle. |
-| `heat_set_catalog` | Read packaged heat-set insert IDs and dimensions before choosing a profile. |
 | `apply_heat_set` | Add, edit or remove insert holes with six loops and connecting fins using the [heat-set insert skill](../../skills/heat-set-inserts/SKILL.md) and current `expectedRevision`. Reuses the shared preparation and review lifecycle. |
-| `check_print` | Revalidate native geometry, plan and any stored export; no generation. |
+| `check_bundle` | Revalidate native geometry, plan and any stored export; no generation. |
 | `check_path` | Check path feasibility through the shared generator without approvals or persisted artifacts; production export/review are still required. |
 | `remember_setup` | Save this print's setup as editable defaults for the next print, shared with the CLI. |
 | `request_review` | Start/reuse an exclusively owned Studio for this print and return its instance ID and loopback URL. Reuse is the default: the instance already showing the print, else the sole live instance, is rebound in the same browser tab. Supply `studioInstanceId` to choose among several owned instances, or `newInstance:true` to open another only when the person asks or for a compelling reason stated to them. |
 | `get_approval_status` | Read the hash-bound final settings/toolpath confirmation from disk as `toolpathApproved`, the only approval state print summaries report. |
-| `generate_print` | Generate and check the machine export from current geometry and complete settings, including during a tour; no development-mode bypass. |
-| `deliver_print` | Copy the exact current approved export into the print's delivery directory. |
+| `generate_toolpath` | Generate and check the machine export from current geometry and complete settings, including during a tour; no development-mode bypass. |
+| `deliver_toolpath` | Copy the exact current approved export into the print's delivery directory. |
 
 The [shared print-tool manual](../../core/print/USAGE.md) owns importing,
 recipe adjustments, setup reuse, reopening and delivery; skill manuals own their
 settings and limits. Mesh repair runs through the local CLI; this adapter has no
-repair tool. `create_print` and `change_machine` results carry `gatedGuidance`
+repair tool. `create_bundle` and `change_machine` results carry `gatedGuidance`
 when the printer opens advanced sections.
 
 Manual responses carry their repository-relative `path`, the gated sections
@@ -154,8 +153,8 @@ looked up in that index; it is not scraped or downloaded directly. The
 per-download chat notices and attribution. This works for an MCP-only client
 when the SAAM host can reach Hugging Face and its CDN.
 
-Use `create_print` / `adjust_print`, the shared approvals and `generate_print`;
-`check_print` verifies the persisted print and `deliver_print` delivers its
+Use `create_bundle` / `adjust_recipe`, the shared approvals and `generate_toolpath`;
+`check_bundle` verifies the persisted print and `deliver_toolpath` delivers its
 checked export. Legacy `compile_plan`, `validate_plan` and `post_process`
 are unsupported.
 The fixed catalog also includes `denso-vs068a4-rc8a` and

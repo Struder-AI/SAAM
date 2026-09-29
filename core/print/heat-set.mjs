@@ -25,6 +25,7 @@ export async function applyHeatSet(directory,request,{expectedRevision}={}){
     const previous=index>=0?features[index]:features.at(-1);
     const reusable=previous?Object.fromEntries(Object.entries(previous).filter(([k])=>!['id','positionMm'].includes(k))):{};
     const next={...reusable,...(index>=0?features[index]:{}),...feature};
+    requireThat(next.insertId,'Choose an exact insertId from the heat-set manual size/profile table.');
     if(index>=0)features[index]=next;else features.push(next);
   }
   const r=await rhino(),buildGeometry=g=>buildShell(r,g);

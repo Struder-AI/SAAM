@@ -145,9 +145,8 @@ node studio/server.mjs --toolkit create-preview Prints/part --recipe recipe.json
 node studio/server.mjs --toolkit start-tour --start-at-layer 12 --no-open
 ```
 
-`create-preview` takes `--recipe FILE` or `--stl FILE` (a shell print; `--units
-auto|mm|inch`, default size-based inference); with neither, the proposed recipe and
-remembered or default setup apply. Existing print directories are never overwritten.
+`create-preview` requires `--recipe FILE` with authored geometry or `--stl FILE`
+(`--units auto|mm|inch`, default size-based inference). Existing bundles are never overwritten.
 
 `--library DIRECTORY` selects the tour/request library (default this checkout's
 `Prints`, which must hold new previews and work requests); a custom library has

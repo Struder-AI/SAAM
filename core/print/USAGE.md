@@ -1,28 +1,27 @@
-# Shared print tools
+# Shared bundle tools
 
 The tools every skill shares. Skill manuals own their settings;
-[machine contracts](../export/README.md) own printer setup and limits. A `printId`
+[machine contracts](../export/README.md) own printer setup and limits. A `bundleId`
 is relative to `Prints/` (`Prints/my-part` is `"my-part"`).
 
 | Operation | Tool |
 |---|---|
-| Create from a recipe; import an STL | `get_plan_template`, `create_print`; `import_stl_print`, `set_stl_units` |
+| Create from a recipe; import an STL | `get_recipe_defaults`, `create_bundle`; `import_stl_bundle`, `set_stl_units` |
 | Geometry tools ([GEOMETRY](../../GEOMETRY.md)) | `blob_field`, `combine_geometry`, `intersect_geometry` |
-| Show in Studio; read state | `request_review`; `list_prints`, `get_print`, `check_print` |
-| Adjust the recipe; change printer | `adjust_print`; `change_machine` |
-| Generate for review; deliver the confirmed export | `generate_print`; `deliver_print` |
+| Show in Studio; read state | `request_review`; `list_bundles`, `get_bundle`, `check_bundle` |
+| Adjust recipe/assignments; change printer | `adjust_recipe`, `slice`; `change_machine` |
+| Generate for review; deliver the confirmed export | `generate_toolpath`; `deliver_toolpath` |
 | Path feasibility, when needed; save setup as the machine's default | `check_path`; `remember_setup` |
 
 Creating or importing makes geometry only; generation is a separate step.
 
 ## Recipes
 
-`get_plan_template` returns the complete proposed recipe with remembered machine
-setup, to evaluate against the request. It holds one default [slice](../../skills/slice/SKILL.md)
-assignment **and enables draped-skin**; disable what the part doesn't need (STL imports and gridfinity start with
-draped-skin off).
+`get_recipe_defaults` returns process/setup defaults and one common [slice](../../skills/slice/SKILL.md)
+assignment, with no geometry and draped-skin disabled. Add authored/imported
+`geometry` to this `plan` before `create_bundle`; choose placement for its bounds.
 
-A patch uses the recipe's field names: nested objects merge, arrays replace,
+`slice` adds/edits/removes one assignment; `adjust_recipe` patches the recipe. Objects merge, arrays replace,
 unknown fields are rejected; leave out the `bundle` envelope. After a
 stale-revision error, reload state and reassess. Reads omit geometry unless asked
 (`includeGeometry: true`). Any geometry, process or setup change invalidates the
@@ -62,7 +61,7 @@ lessons Studio generates, so don't start another. A check reports
 
 ## Remember machine setup
 
-`remember_setup`, and any setup change through `adjust_print`, saves this print's
+`remember_setup`, and any setup change through `adjust_recipe`, saves this print's
 setup as the default for new prints on that machine; existing prints don't
 change. Only setup is remembered. Bambu output needs its [maker setup](../export/bambu.md#maker-setup)
 first; each [machine contract](../export/README.md) owns its own setup questions.
@@ -74,7 +73,7 @@ Run from the repository root with a directory under `Prints/`; quote paths with
 spaces. Each command is the tool of the same name through `node core/print/cli.mjs`:
 
 ```sh
-init Prints/my-part [plan.json] --machine ultimaker-s5   # without a plan: the proposed recipe
+init Prints/my-part plan.json --machine ultimaker-s5   # authored geometry required
 import-stl Prints/my-part source.stl auto ultimaker-s5
 blob-field-create Prints/my-part request.json ultimaker-s5   # blob-field-update … --revision REV
 combine|intersect|adjust Prints/my-part request.json --revision REV   # intersect takes no revision
@@ -86,4 +85,4 @@ check|check-path|generate|deliver|remember-setup Prints/my-part
 `node studio/server.mjs --toolkit open-print Prints/my-part` shows a print, and
 `create-preview Prints/my-part --recipe plan.json` (or `--stl source.stl`) creates
 one and opens Studio on it ([agent toolkit](../agent/README.md)). In a script,
-`await proposedPlan(machineId)` from [bundle.mjs](bundle.mjs) returns the template.
+`await proposedPlan(machineId)` from [bundle.mjs](bundle.mjs) returns geometry-free recipe defaults.

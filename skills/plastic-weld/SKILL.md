@@ -125,8 +125,8 @@ At most 256 sites are accepted. Check that the chosen grid fits the body.
 
 ## Generate, review and adjust
 
-Use the normal recipe template, `create_print`/CLI `init`, and
-`adjust_print`/CLI `adjust`; no separate weld command or artifact format exists.
+Use the normal recipe template, `create_bundle`/CLI `init`, and
+`adjust_recipe`/CLI `adjust`; no separate weld command or artifact format exists.
 Disable draped-skin in a plain coupon recipe. For a reproducible unapproved trial:
 
 ```sh

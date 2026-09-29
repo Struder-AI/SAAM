@@ -212,6 +212,7 @@ async function preparePrint({command, target, libraryRoot, recipe, stl, machine,
 function validatePreview({command, target, recipe, stl, kind, units}) {
   if (kind !== 'shell') throw Error('Only shell/mesh prints are supported.');
   if (recipe && stl) throw Error('Choose either --recipe or --stl.');
+  if (command === 'create-preview' && !recipe && !stl) throw Error('Creation requires --recipe with authored geometry or --stl.');
   if (!['auto', 'mm', 'inch'].includes(units)) throw Error('Units must be auto, mm or inch.');
   if (command !== 'start-tour' && !target) throw Error('Supply a print directory.');
 }

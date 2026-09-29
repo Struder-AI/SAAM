@@ -11,8 +11,6 @@ import { DRAPED_SKIN_DEFAULTS } from '../../skills/draped-skin/scripts/drape.mjs
 import { requireThat } from '../geom/tolerance.mjs';
 import {loadMachine,validateSetup,toolBounds,requireMachine,centeredPlacement} from '../machine/profile.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
-import {LINE_NETWORK_DEFAULTS} from '../../skills/line-network/scripts/network.mjs';
-import {BRIDGING_DEFAULTS,validateBridging} from '../../skills/bridging/scripts/bridge.mjs';
 import {VASE_WALL_DEFAULTS} from '../../skills/vase-wall/scripts/vase.mjs';
 import {THICK_LIP_DEFAULTS} from '../../skills/thick-lip/scripts/lip.mjs';
 import {validateVasePattern} from '../../skills/vase-wall/scripts/paths.mjs';
@@ -51,8 +49,7 @@ export function defaults(machine=loadMachine()) {
   const plan = {
     schema: 'saam-shell-plan/1',
     generatorVersion: VERSION,
-    geometry: starterGeometry(),
-    placement: centeredPlacement(machine, machine.defaultSetup.tool, { runMm: 40, widthMm: 30 }) ?? { xMm: 140, yMm: 100 },
+    placement: centeredPlacement(machine, machine.defaultSetup.tool, { runMm: 0, widthMm: 0 }) ?? { xMm: 140, yMm: 100 },
     setup: structuredClone(machine.defaultSetup),
     process: {
       firstLayerMm: 0.2, layerMm: 0.2, lineWidthMm: 0.4,
@@ -69,11 +66,9 @@ export function defaults(machine=loadMachine()) {
       'wave-overhangs':structuredClone(WAVE_DEFAULTS),
       'pipe-cladding':structuredClone(PIPE_CLADDING_DEFAULTS),
       supports: structuredClone(SUPPORT_DEFAULTS),
-      'line-network': structuredClone(LINE_NETWORK_DEFAULTS),
-      bridging: structuredClone(BRIDGING_DEFAULTS),
       'vase-wall': {enabled:false,part:null,...VASE_WALL_DEFAULTS},
       'thick-lip': {enabled:false,part:null,...THICK_LIP_DEFAULTS},
-      'draped-skin': { enabled: machine.capabilities.includes('nonplanar'), part: null, ...DRAPED_SKIN_DEFAULTS }
+      'draped-skin': { enabled: false, part: null, ...DRAPED_SKIN_DEFAULTS }
     },
     slices: defaultSlices(),
     composition: { order: [], dependencies: [], batchLayers: 1, regions: [] },
@@ -82,23 +77,6 @@ export function defaults(machine=loadMachine()) {
   Object.assign(plan.process,machine.defaultProcess??{});
   plan.output=machine.outputs[0].id;
   return plan;
-}
-
-// The starter recipe: a 40 × 30 mm block whose cubic top is a gentle dome, its
-// slope inside the S5's non-planar limit. The walls are ruled down from the
-// top's boundary rows, sharing their control points, as GEOMETRY.md describes.
-function starterGeometry() {
-  const x = [0, 20/3, 20, 100/3, 40], y = [0, 5, 15, 25, 30];
-  const top = [[6, 6, 6, 6, 6], [6, 6.6, 6.8485, 6.6, 6], [6, 6.8485, 7.2, 6.8485, 6], [6, 6.6, 6.8485, 6.6, 6], [6, 6, 6, 6, 6]];
-  const wall = points => ({ degreeU: 3, degreeV: 1, controlPoints: points.map(([px, py, h]) => [[px, py, 0], [px, py, h]]) });
-  return { shape: 'spline', patches: [
-    { name: 'top', degreeU: 3, degreeV: 3, controlPoints: x.map((px, i) => y.map((py, j) => [px, py, top[i][j]])) },
-    { name: 'bottom', degreeU: 1, degreeV: 1, controlPoints: [[[0, 0, 0], [0, 30, 0]], [[40, 0, 0], [40, 30, 0]]] },
-    { name: 'front', ...wall(x.map((px, i) => [px, 0, top[i][0]])) },
-    { name: 'right', ...wall(y.map((py, j) => [40, py, top[4][j]])) },
-    { name: 'back', ...wall(x.map((px, i) => [px, 30, top[i][4]])) },
-    { name: 'left', ...wall(y.map((py, j) => [0, py, top[0][j]])) }
-  ] };
 }
 
 // Each shape carries its own parameters, so the strict field check is made
@@ -281,32 +259,17 @@ export function validatePlanWalls(plan) {
 }
 
 export function validatePlanSelections(plan,machine) {
-  validateBridging(plan.skills.bridging);
-  if(plan.skills.bridging.enabled)requireMachine(machine,['xyz-extrusion','nonplanar'],'bridging');
   const {geometry,placement,skills}=plan;
   const regional=plan.composition.regions.length>0;
-  const skin=skills['draped-skin'],network=skills['line-network'],vase=skills['vase-wall'],lip=skills['thick-lip'];
+  const skin=skills['draped-skin'],vase=skills['vase-wall'],lip=skills['thick-lip'];
   const sliced=plan.slices.assignments.length>0;
   // A slice part is a geometry selection: a component or a prepared material
   // part; two cut parts never share material.
   const selections=geometrySelections(geometry);
   validateSlices(plan.slices,{parts:[...selections.keys()].filter(key=>key!==null),lineWidthMm:plan.process.lineWidthMm,firstLayerMm:plan.process.firstLayerMm});
-  const cut=[...new Set(plan.slices.assignments.filter(a=>a.preset!=='support').flatMap(a=>a.part!==null?[a.part]:geometry.shape==='assembly'?geometry.parts.map(p=>p.id):[null]))];
+  const cut=[...new Set(plan.slices.assignments.filter(a=>!a.construction&&a.preset!=='support').flatMap(a=>a.part!==null?[a.part]:geometry.shape==='assembly'?geometry.parts.map(p=>p.id):[null]))];
   for(const [i,a] of cut.entries())for(const b of cut.slice(i+1))requireThat(!selectionsOverlap(selections.get(a),selections.get(b)),
     `Slice assignments cut overlapping parts ${a??'the whole print'} and ${b??'the whole print'}; give that material to one of them.`);
-  // Course, group, stroke and point counts follow the authored frame; only the
-  // shape of each entry is checked.
-  requireThat(typeof network.enabled==='boolean'&&Number.isInteger(network.layers)&&network.layers>=1&&Array.isArray(network.networks),'Invalid line-network settings.');
-  const networkIds=new Set();
-  for(const item of network.networks){
-    requireThat(item&&Object.keys(item).sort().join()==='id,strokes'&&/^[a-z][a-z0-9-]*$/.test(item.id)&&!networkIds.has(item.id)&&Array.isArray(item.strokes)&&item.strokes.length>0,'Invalid line network.');networkIds.add(item.id);
-    for(const stroke of item.strokes){
-      const keys=Object.keys(stroke).sort().join();
-      requireThat(stroke&&(keys==='closed,points'||keys==='closed,layers,points')&&typeof stroke.closed==='boolean'&&Array.isArray(stroke.points)&&stroke.points.length>=(stroke.closed?3:2)&&stroke.points.every(point=>Array.isArray(point)&&point.length===2&&point.every(Number.isFinite)),'Invalid line-network stroke.');
-      requireThat(stroke.layers===undefined||Array.isArray(stroke.layers)&&stroke.layers.length>0&&new Set(stroke.layers).size===stroke.layers.length&&stroke.layers.every(layer=>Number.isInteger(layer)&&layer>=0&&layer<network.layers),'Invalid line-network stroke layers.');
-    }
-  }
-  requireThat(!network.enabled||(!regional&&!sliced&&!skin.enabled&&!vase.enabled&&!lip.enabled),'line-network is a standalone planar path; remove slice assignments and disable skin, vase and regional patterns.');
   requireThat(skin.part===null||typeof skin.part==='string','Invalid draped surface component.');
   if(geometry.shape==='assembly') {
     requireThat(Array.isArray(geometry.parts)&&geometry.parts.length>=2&&geometry.parts.length<=20,'An assembly needs 2–20 components.');
@@ -337,11 +300,11 @@ export function validatePlanSelections(plan,machine) {
     requireThat(lip.part===null||ids.has(lip.part),'Unknown thick-lip component.');
   } else requireThat(skin.part===null&&vase.part===null&&lip.part===null,'Component selection requires assembly geometry.');
   requireThat(typeof skin.enabled === 'boolean', 'Each skill needs an enabled flag.');
-  requireThat(regional||sliced || skin.enabled || vase.enabled || lip.enabled || network.enabled || skills['wave-overhangs'].enabled, 'Add a slice assignment or select a pattern skill.');
-  if(sliced)requireMachine(machine,['xyz-extrusion','planar'],'slice');
+  requireThat(regional||sliced || skin.enabled || vase.enabled || lip.enabled || skills['wave-overhangs'].enabled, 'Add a slice assignment or select a pattern skill.');
+  if(sliced)requireMachine(machine,['xyz-extrusion'],'slice');
+  if(plan.slices.assignments.some(a=>!a.construction))requireMachine(machine,['planar'],'slice');
   if(!regional&&vase.enabled)requireMachine(machine,['xyz-extrusion','nonplanar'],'vase-wall');
   if(!regional&&lip.enabled)requireMachine(machine,['xyz-extrusion','planar'],'thick-lip');
-  if(network.enabled)requireMachine(machine,['xyz-extrusion','planar'],'line-network');
   if(!regional&&skin.enabled)requireMachine(machine,['xyz-extrusion','nonplanar'],'draped-skin');
   return plan;
 }
@@ -397,7 +360,7 @@ export function validatePlanRegions(plan,machine) {
       Object.assign(child.process,region.process);
     }
     for(const [name,overrides] of Object.entries(region.skills)) {
-      requireThat(!['supports','pipe-cladding','wave-overhangs','plastic-weld','bridging'].includes(name),'Assign supports, exterior cladding, wave slices, plastic welds and bridging through their global skill settings, outside part material regions.');
+      requireThat(!['supports','pipe-cladding','wave-overhangs','plastic-weld'].includes(name),'Assign supports, exterior cladding, wave slices, plastic welds through their global skill settings, outside part material regions.');
       const settings=child.skills[name];
       requireThat(settings&&overrides&&typeof overrides==='object'&&!Array.isArray(overrides),'Unknown region skill or invalid overrides.');
       requireThat(Object.keys(overrides).every(key=>Object.hasOwn(settings,key)&&!['enabled','part','parts','zStartMm','zEndMm'].includes(key)),'Unknown or region-owned skill override.');

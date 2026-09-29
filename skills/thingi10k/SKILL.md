@@ -35,7 +35,7 @@ to Hugging Face and its CDN; no account is needed.
 
 ## Download, tell the person and review
 
-Call `import_thingi10k_print` with a new `printId`, the `fileId`, `machineId` and
+Call `import_thingi10k_bundle` with a new `bundleId`, the `fileId`, `machineId` and
 optional `units` (`auto`). The SAAM computer downloads it.
 
 **For every downloaded mesh, briefly say where it came from unless the request

@@ -1,6 +1,30 @@
 // Deposition geometry contains no travel. The composer connects these strokes.
 import {distance,requireThat} from '../geom/tolerance.mjs';
 
+// Curves enter in world coordinates. Mapping and ordering belong to earlier
+// stages; bead calculation preserves roles, closure, orientation and metadata.
+// A constant normal gap keeps the uniform-area representation. Variable gaps
+// contain one height per segment, including the implicit closing segment.
+export function depositCurves(curves,{widthMm,heightMm,speedMmS,flowMultiplier=1}) {
+  return curves.map(curve=>{
+    const {heightMm:localHeight,heightsMm,flowMultiplier:localFlow,...stroke}=curve;
+    const width=curve.beadWidthMm??widthMm,height=localHeight??heightMm,flow=localFlow??flowMultiplier;
+    const speed=curve.speedMmS??speedMmS;
+    requireThat(Number.isFinite(width)&&width>0&&Number.isFinite(flow)&&flow>0&&Number.isFinite(speed)&&speed>0,
+      'Curve deposition needs positive bead width, flow and speed.');
+    requireThat(curve.points.length>=2&&curve.points.every(p=>p.length===3&&p.every(Number.isFinite)),
+      'Curve deposition needs at least two finite XYZ points.');
+    if(heightsMm){
+      const points=curve.closed?[...curve.points,curve.points[0]]:curve.points;
+      const deposited=depositionStroke({points,heightsMm,widthMm:width*flow,speedMmS:speed,role:curve.role,segmentMetadata:curve.segmentMetadata});
+      return {...stroke,points:deposited.points,closed:false,beadWidthMm:width,speedMmS:speed,volumesMm3:deposited.volumesMm3,
+        ...(curve.closed&&curve.poses?{poses:[...curve.poses,curve.poses[0]]}:{})};
+    }
+    requireThat(Number.isFinite(height)&&height>0,'Curve deposition needs a positive normal bead height.');
+    return {...stroke,beadWidthMm:width,speedMmS:speed,beadAreaMm2:width*height*flow};
+  });
+}
+
 export function depositionStroke({points,heightsMm,widthMm,speedMmS,role,segmentMetadata}) {
   requireThat(points.length>=2&&heightsMm.length===points.length-1,'Deposition needs one bead height per segment.');
   const volumesMm3=points.slice(1).map((p,i)=>{

@@ -1,27 +1,24 @@
 ---
 name: slice
-description: Flat layers of loops and fill for a whole part or assigned volumes of it, from solid to hollow, with brim and support presets. Meshes and supported splines.
+description: Plane layers of loops and fill for a whole part or assigned volumes of it, from solid to hollow, with brim and support presets. Meshes and supported splines.
 ---
 
 # Slice
 
-The ordinary flat-layer print: every recipe has one list of slice assignments,
-`plan.slices`, and each assignment cuts an owned volume of a part into horizontal
+General slice deposition: every recipe has one list of slice assignments,
+`plan.slices`, and each assignment cuts an owned volume of a part into plane
 layers of loops and fill. The default recipe holds one assignment, `body`, that
 owns the whole part with the normal settings: two loops, 20% fill and three
 solid layers at the top and bottom. For maker work, read [MAKERS.md](../../MAKERS.md);
 edit assignments with the [shared print tools](../../core/print/USAGE.md)
-(`adjust_print` with a `slices` patch; the assignment list is replaced as a whole).
+(`adjust_recipe` replaces the `slices` assignment list).
 
-Software checks cover the S5, H2D, X1 Carbon and configured Dobot/DENSO profiles,
-meshes, restricted splines and assemblies. The user reports every fill pattern
-validated in physical prints (2026-09-24); owners, presets and alternation are
-software-checked only.
+The user reports physical fill-pattern checks (2026-09-24). Tilted ownership,
+presets and alternation have software evidence only.
 
 ## Assignments
 
-`plan.slices` is `{ version: 1, assignments: [...] }`. Each assignment carries
-every field; the defaults are the normal case.
+`plan.slices` is `{ version: 1, assignments: [...] }`; each assignment carries every field.
 
 | Field | Default | Meaning |
 |---|---|---|
@@ -39,11 +36,8 @@ every field; the defaults are the normal case.
 | `spacingFactor` | `1` | Loop and row spacing multiplier; bead width is unchanged. |
 | `sampleStepMm` | `0.2` | Gyroid sampling step. |
 | `within` | `[]` | The owned volume, below; empty owns the rest of the part. |
-| `surface` | `{ kind: 'horizontal' }` | Only horizontal slices exist in this version. |
+| `surface` | `{ kind: 'horizontal' }` | Horizontal; `{kind:'plane',origin,normal,xAxis?}`; `{kind:'roof',offsetMm}`; or `{kind:'spline',patch,offsetMm}` using a named spline control net. Coordinates precede selected geometry placement. |
 | `stack` | `null` | `{ firstLayerMm, layerMm }` for the owner's own layer grid; `null` uses the process. |
-
-`sliceAssignment({ id, ... })` in [slices.mjs](../../core/print/slices.mjs)
-builds one from defaults, a preset and overrides.
 
 ## Owners and volumes
 
@@ -56,9 +50,10 @@ A `within` list intersects its volumes:
 
 Assignments are owners in definition order. An owner without `within` takes
 whatever no other owner of its part claims; a part has at most one. Where two
-owners with `within` overlap, the one defined first leads: the later one adopts
-its layer grid and the two alternate layer by layer in the overlap, the leader's
-layer first. The report names each owner's `leader` and `layerMm`.
+owners with `within` overlap, the first claimant supplies shared slice references;
+claimants alternate there in definition order. Connected owners use compatible
+principal pitch while retaining their authored families outside overlap. These
+ownership decisions constrain scheduling. Reports identify shared `leader` and pitch.
 
 **Each owner lays its loops along every boundary of its region**, those it shares
 with another owner included (an owner with `loops: 0` lays none), so a boundary
@@ -67,11 +62,9 @@ part's material**, not an owner's share: an owner's layer is solid
 where the part (less material another skill deposits) ends within `solidTop` or
 `solidBottom` layers, so an owner boundary or alternation never makes solid.
 
-Examples: a solid base under a sparse body is a slab owner with `fillDensity: 1`
-defined before the default owner; a hollow vessel in flat layers is
-`fillDensity: 0, solidTop: 0`; a local reinforcement is a geometry owner with
-more loops or `fillDensity: 1`. [Heat-set inserts](../heat-set-inserts/SKILL.md)
-write their annulus and fin owners this way.
+A solid base uses a slab owner with `fillDensity: 1`; a hollow vessel uses
+`fillDensity: 0, solidTop: 0`. Local reinforcements and [heat-set inserts](../heat-set-inserts/SKILL.md)
+use geometry owners with more loops or solid fill.
 
 ## Presets
 
@@ -121,13 +114,17 @@ approximate ([measurement](../../DEVLOG.md#2026-09-10--gyroid-contour-constructi
   the envelope around them solid.
 - Layers are ordered by height across owners and parts; assemblies can batch
   layers (`composition.batchLayers`). A region consuming another's published
-  lower surface (`lowerSurfaceFrom`) works for non-planar regions only: flat
-  layers above a curved surface wait for height-field slices.
+  lower surface (`lowerSurfaceFrom`) retains its regional producer contract.
 
 ## Limits
 
-Walls close separately on each layer, so seams and layer steps remain. Opposing
-fronts of a thin closed wall share their last loop (a 2 mm ring at 0.4 mm with
+Tilted planes stack along their upward normal; `layerMm` is normal spacing.
+The base precedes material; fixed-axis deposition obeys the machine angle limit.
+Roof/spline stacks translate in Z; pitch is vertical and bead gaps project onto
+the local normal. XY offsets/spacing are projected, not geodesic. Sampled cuts,
+slabs and reservations can miss between-grid features. Curves refine to chord
+tolerance; folds/discontinuities reject. First contact tapers to the horizontal
+part base. Walls close per layer. Opposing fronts of a thin wall share their last loop (a 2 mm ring at 0.4 mm with
 three loops prints five loops and no fill); there is no general gap fill, and
 features thinner than a bead can vanish. Mesh normals are faceted; spline
 sections may miss features below about 0.4 mm. The first solid layer over sparse
@@ -138,9 +135,9 @@ combing and lifts follow [shared travel](../../core/path/README.md#whole-plan-tr
 ## Script interfaces
 
 `sliceResults({ plan, machine, shells, volumes, bands, reserves, envelopes })`
-returns `{ results, supports, summary }`: one result per owner with operations
+returns `{ results, supports, summary }`: results per owner/family with operations
 `<owner>:<layer>:walls|infill|fill`, support results apart. `ownedLayers`
-exposes each owner's layer regions and shares; `layerStrokes(region, settings)`
-in [layer-strokes.mjs](../../core/region/layer-strokes.mjs) fills one layer. The
+exposes each owner's regions and shares; shared IDs include `:shared:<principal>`; `layerStrokes(region, settings)`
+fills a chart region; `mapSliceStrokes` maps XYZ before shared `depositCurves`. The
 [nudge-cup](../../examples/prints/nudge-cup/README.md) recipe combines a slab
 owner, a vase wall and a solid foot under a draped skin.

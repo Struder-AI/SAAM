@@ -13,7 +13,7 @@ import {filamentSelection,assignedFilaments} from '../machine/filaments.mjs';
 import {planarPolicy} from '../path/builder.mjs';
 import { drapedSkinResult, surveySurface, machineMaxAngle, DRAPED_SKIN_DEFAULTS } from '../../skills/draped-skin/scripts/drape.mjs';
 import { validatePlan, VERSION } from './plan.mjs';
-import {bridgingResult} from '../../skills/bridging/scripts/bridge.mjs';
+import {curveAssignmentResults} from './curves.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 import {makeMesh,translateMesh} from '../geom/mesh.mjs';
 import {toolBounds,startupPosition,startupRetracted} from '../machine/profile.mjs';
@@ -28,7 +28,6 @@ import {preparePlasticWeld,plasticWeldResult} from '../../skills/plastic-weld/sc
 import {validateHeatSetAssignments} from '../../skills/heat-set-inserts/scripts/feature.mjs';
 import {geometrySelections} from '../geom/selections.mjs';
 import {booleanShell} from '../geom/boolean-solid.mjs';
-import {lineNetworkResult} from '../../skills/line-network/scripts/network.mjs';
 
 // Booleans are stored as their recipe in the native JSON file, like meshes.
 export const hasMesh=geometry=>['mesh','blob-field','text','gridfinity','heat-set','boolean'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
@@ -119,7 +118,7 @@ export function preparePathGeometry(plan,machine,rhino) {
 // Geometry volumes named by slice assignments, placed like their part.
 export function sliceVolumes(plan,rhino) {
   const selections=geometrySelections(plan.geometry);
-  return new Map(plan.slices.assignments.map(assignment=>{
+  return new Map(plan.slices.assignments.filter(assignment=>!['curves','bridges'].includes(assignment.construction)).map(assignment=>{
     const part=assignment.part!==null?selections.get(assignment.part):{xMm:0,yMm:0,zMm:0};
     return [assignment.id,assignment.within.map(volume=>volume.kind==='geometry'
       ?translateShell(buildShell(rhino,volume.geometry),plan.placement.xMm+part.xMm,plan.placement.yMm+part.yMm,part.zMm):null)];
@@ -131,7 +130,7 @@ export function sliceVolumes(plan,rhino) {
 // geometry selection an assignment names, placed like the print.
 export function sliceShells(plan,rhino,{placed,componentShells}) {
   const selections=geometrySelections(plan.geometry);
-  const named=[...new Set(plan.slices.assignments.filter(a=>a.preset!=='support').map(a=>a.part).filter(p=>p!==null&&!componentShells?.has(p)))];
+  const named=[...new Set(plan.slices.assignments.filter(a=>!['curves','bridges'].includes(a.construction)&&a.preset!=='support').map(a=>a.part).filter(p=>p!==null&&!componentShells?.has(p)))];
   return [...(componentShells?[...componentShells]:[[null,placed]]).map(([part,shell])=>[part,shell,true]),
     ...named.map(part=>{const s=selections.get(part);return [part,translateShell(buildShell(rhino,s.geometry),plan.placement.xMm+s.xMm,plan.placement.yMm+s.yMm,s.zMm),false];})];
 }
@@ -148,13 +147,12 @@ export function surveyDrapedSkin(plan,machine,shell) {
 
 export function generateModelResults(plan,machine,rhino,{placed,componentShells,bounds,weldSites=[]},onProgress) {
   const welds=weldSites.map(site=>site.reservation);
-  const process=plan.process,skin=plan.skills['draped-skin'],vase=plan.skills['vase-wall'],network=plan.skills['line-network'];
+  const process=plan.process,skin=plan.skills['draped-skin'],vase=plan.skills['vase-wall'];
   const summary = { generatorVersion: VERSION, shape: plan.geometry.shape };
   const results=[];
   let survey=null,regionShells=null,slicedSupports=[];
   const shells=sliceShells(plan,rhino,{placed,componentShells});
-  if(network.enabled){const result=lineNetworkResult({plan,bounds:machine.motionChecks==='deferred'?null:bounds});results.push(result);summary.lineNetwork=result.report;}
-  else if(plan.composition.regions.length) {
+  if(plan.composition.regions.length) {
     const selections=geometrySelections(plan.geometry);regionShells=new Map();
     for(const assignment of plan.composition.regions){
       if(regionShells.has(assignment.part))continue;
@@ -196,14 +194,10 @@ export function generateModelResults(plan,machine,rhino,{placed,componentShells,
     results.push(published);summary.drapedSkin=published.report;
   }
   }
-  if(plan.skills.bridging.enabled){
-    const bridge=bridgingResult({plan,modelResults:results,bounds:machine.motionChecks==='deferred'?null:bounds});
-    results.push(bridge);summary.bridging=bridge.report;
-  }
   return {results,summary,survey,slicedSupports,...(regionShells?{regionShells}:{})};
 }
 
-export function addComplementaryResults(plan,machine,{placed,componentShells,weldSites},batch) {
+export function addComplementaryResults(plan,machine,{placed,componentShells,weldSites,bounds},batch) {
   const results=[...batch.results],summary={...batch.summary};
   if(plan.skills['pipe-cladding'].enabled){
     const settings=plan.skills['pipe-cladding'],shell=batch.regionShells?.get(settings.part)??(componentShells?componentShells.get(settings.part):placed);
@@ -214,9 +208,12 @@ export function addComplementaryResults(plan,machine,{placed,componentShells,wel
   const waves=waveResults({plan,machine,placed,componentShells,modelResults:results});
   const wavedResults=[...applyResultDependencies(results,waves.dependencyChanges),...waves.results];
   if(waves.results.length)summary.waveOverhangs=waves.results.map(r=>r.report);
+  const curves=curveAssignmentResults({plan,machine,modelResults:wavedResults,bounds:machine.motionChecks==='deferred'?null:bounds});
+  const constructedResults=[...wavedResults,...curves];
+  if(curves.length)summary.curves=curves.map(result=>({id:result.id,...result.report}));
   // Support-preset slices and tree supports print before what they hold up.
   const supports=[...(batch.slicedSupports??[]),...supportResults({plan,machine,shells:componentShells?[...componentShells.values()]:[placed]})];
-  const supportedResults=[...supports,...applyResultDependencies(wavedResults,supportDependencies(supports,wavedResults))];
+  const supportedResults=[...supports,...applyResultDependencies(constructedResults,supportDependencies(supports,constructedResults))];
   if(supports.length)summary.supports=supports.map(r=>({id:r.id,...r.report}));
   const welds=plasticWeldResult({plan,sites:weldSites,modelResults:supportedResults});
   const weldedResults=applyResultDependencies(supportedResults,welds.dependencyChanges);

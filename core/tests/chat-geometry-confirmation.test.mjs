@@ -36,7 +36,7 @@ test('MCP omits geometry confirmation and generates review output directly',asyn
   await adapter.server.connect(serverTransport);await client.connect(clientTransport);
   try{
     const names=(await client.listTools()).tools.map(tool=>tool.name);assert.ok(!names.includes('confirm_geometry'));
-    const response=await client.callTool({name:'generate_print',arguments:{printId:'part'}});
+    const response=await client.callTool({name:'generate_toolpath',arguments:{bundleId:'part'}});
     assert.equal(response.isError,undefined,response.content.map(item=>item.text).join('\n'));
     const state=await loadBundle(directory);assert.ok(state.program);assert.equal(state.toolpathApproved,false);
   }finally{await client.close();await adapter.close();}

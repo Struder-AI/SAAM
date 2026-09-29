@@ -19,8 +19,8 @@ stated example default, never an invented remembered position.
 
 ## Tools
 
-Start with an existing print. `heat_set_catalog` lists the catalog;
-`apply_heat_set` takes `printId`, the current `expectedRevision` and `request`:
+Choose the exact size and profile from [the manual table](CATALOG.md#size-and-profile-choices),
+then use an existing bundle. `apply_heat_set` takes `bundleId`, the current `expectedRevision` and `request`:
 
 ```json
 {
@@ -40,7 +40,7 @@ confirmation workflow.
 | Field | Default and meaning |
 |---|---|
 | `id` | `insert`; unique within its feature group |
-| `insertId` | `spirol-29-m3-long`; catalog selection |
+| `insertId` | Required for the first feature; exact manual-listed size/profile |
 | `positionMm` | `[15,15,12]`; propose a suitable position for the actual part |
 | `depthMm` | `null`: insert length plus two thread pitches; an explicit depth must fit the insert |
 | `diameterAdjustmentMm` | `0`; signed printer/material hole calibration, ±1 mm |

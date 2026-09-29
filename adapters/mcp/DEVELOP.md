@@ -29,8 +29,8 @@ Its IDs and frontmatter reader come from the shared [skill catalog](../../skills
 which also supplies the generated maker digest.
 Reading one shared manual checks that catalog directly and reads only the selected
 manual. Unknown shared IDs may resolve through the configured local extension.
-`list_prints` returns discovery metadata with `programChecked: false`; it does not
-read native geometry or exports. `get_print`, `check_print` and approval status
+`list_bundles` returns discovery metadata with `programChecked: false`; it does not
+read native geometry or exports. `get_bundle`, `check_bundle` and approval status
 read checked program metadata without copying motion arrays. Edit dispatch reads
 geometry/settings without checking the export it is about to invalidate.
 Unchecked generated-program currency is `null`; an unchecked existing toolpath
@@ -56,9 +56,8 @@ including local font reading, stale-revision checks and geometry updates. The
 adapter does not own a separate text schema, boolean pipeline or approval route.
 
 `apply_heat_set` delegates to [shared insert preparation](../../core/print/heat-set.mjs)
-with the same revision and geometry lifecycle. `heat_set_catalog` exposes the
-skill's packaged insert profiles; geometry and feature validation stay at the
-shared preparation and skill owners.
+with the same revision and geometry lifecycle. The skill manual lists exact
+insert profiles; geometry and dimension validation stay at the shared owners.
 
 `core/tests/mcp.test.mjs` uses actual SDK clients and child processes, temporary
 bundles and synthetic approval fixtures outside the adapter protocol.

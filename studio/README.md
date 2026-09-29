@@ -579,7 +579,7 @@ prints reuses the instance and its browser tab.
 **Import STL** opens the native file picker directly and accepts a local ASCII
 or binary STL up to 64 MiB. That upload bound is an input-safety limit on the HTTP
 boundary, not a geometry budget; it is about 1,342,000 triangles of binary STL and
-is the only size limit Studio import applies. MCP `import_stl_print` applies the
+is the only size limit Studio import applies. MCP `import_stl_bundle` applies the
 same 64 MiB bound to the local file it is given; the CLI and the agent toolkit
 apply none and are bounded only by the memory the machine actually has.
 It assumes units from the loaded size without a popup,

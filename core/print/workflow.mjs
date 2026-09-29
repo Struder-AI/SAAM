@@ -137,7 +137,7 @@ async function initBundle(directory, plan, { setupFile, machineId, sourceBytes,s
   }
   const machine = machineId?loadMachine(machineId):await json(machineFile);
   setupFile??=setupFor(machine);
-  if (!plan) plan = await proposedPlan(machine.id, { setupFile });
+  requireThat(plan?.geometry, 'Creating a bundle requires authored or imported geometry; add geometry to the proposed recipe first.');
   validatePlan(plan, machine);
   const geometry = await createGeometry(plan.geometry);
   if(originalSource(plan.geometry)){

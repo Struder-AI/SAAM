@@ -67,11 +67,12 @@ test('Studio reopens saved exports without creating or rewriting approvals',asyn
   await shell.initBundle(geometry,boxPlan());
   let state=await shell.loadBundle(geometry);
   // Producers connect their own nearby strokes; an authored 1 mm gap between
-  // two line-network centerlines remains a short same-layer travel to report.
+  // two authored centerlines remains a short same-layer travel to report.
   const gapped=boxPlan(loadMachine('bambu-h2d'));
   for(const settings of Object.values(gapped.skills))settings.enabled=false;
-  Object.assign(gapped.skills['line-network'],{enabled:true,layers:1,networks:[{id:'dashes',strokes:[
-    {closed:false,points:[[0,0],[10,0]]},{closed:false,points:[[11,0],[20,0]]}]}]});
+  gapped.slices.assignments=[{id:'dashes',construction:'curves',filament:null,after:[],repeat:null,curves:[
+    {closed:false,points:[[0,0,gapped.process.firstLayerMm],[10,0,gapped.process.firstLayerMm]]},
+    {closed:false,points:[[11,0,gapped.process.firstLayerMm],[20,0,gapped.process.firstLayerMm]]}]}];
   await shell.initBundle(ready,gapped,{machineId:'bambu-h2d'});
   await shell.generateBundle(ready);
   const original=await readFile(join(ready,'plan.json'));

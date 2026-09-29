@@ -2,7 +2,7 @@ import {requireThat} from '../geom/tolerance.mjs';
 
 const record=value=>value&&typeof value==='object'&&!Array.isArray(value);
 
-function mergeRecord(previous,changes,{geometryTemplate,key}={}){
+export function mergeRecord(previous,changes,{geometryTemplate,key}={}){
   requireThat(record(changes),'Adjustment must be an object.');
   const target={...previous};
   for(const [field,value] of Object.entries(changes)){
@@ -13,7 +13,7 @@ function mergeRecord(previous,changes,{geometryTemplate,key}={}){
       const shared=Object.fromEntries(Object.entries(previous).filter(([name])=>name!=='shape'&&Object.hasOwn(template,name)));
       return mergeRecord({...template,...shared},changes,{geometryTemplate,key:'geometry'});
     }
-    const variant=field==='surface'&&record(value)&&Object.hasOwn(value,'kind')
+    const variant=(field==='surface'||field==='stack')&&record(value)&&Object.hasOwn(value,'kind')
       ||field==='primeLine'&&record(value)
       ||field==='pattern'&&record(value)&&record(current)
         &&(Object.hasOwn(value,'tile')!==Object.hasOwn(current,'tile'));
