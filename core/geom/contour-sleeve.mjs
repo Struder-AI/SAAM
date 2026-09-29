@@ -12,6 +12,9 @@ import {mappedSleevePatternCurves} from '../path/sleeve-pattern.mjs';
 import {prepareContourFamily} from './prepared-contours.mjs';
 import {createFittedSleeveReference,createAutomaticSleeveReference} from './sleeve-reference.mjs';
 const OFFSET_PRECISION_MM=.00001;
+// These courses advance through horizontal cutting slices. Their chart is
+// world XY even when a fitted sleeve supplies the section boundary.
+const sliceFrame=p=>({point:[p[0],p[1],0],u:[1,0,0],v:[0,1,0],normal:[0,0,1]});
 function patternContour(outer,toleranceMm){
   // Start simplification at a geometric extreme, not an arbitrary triangle
   // seam that can slide along an edge as Z changes.
@@ -132,7 +135,7 @@ export function constructContourSleeve({shell,assignment,process,machine,zStartM
       let points;
       if(reference){const count=Math.max(16,Math.ceil(reference.referenceLengthMm/settings.sampleStepMm));points=Array.from({length:count},(_,i)=>reference.map(reference.pointAt(i/count,z,0)));}
       else {const curve=section(z).curve;points=curve.breakpoints().slice(0,-1).map(n=>[...n.p,z]);}
-      const normal=[0,0,1],frameSamples=points.map(p=>({point:[p[0],p[1],0],u:[1,0,0],v:[0,1,0],normal}));
+      const normal=[0,0,1],frameSamples=points.map(sliceFrame);
       return {index,heightMm:index?z-levels[index-1]:firstHeight,offsetMm:z-start,slice:{kind:'plane',origin:[0,0,z],normal,xAxis:[1,0,0],yAxis:[0,1,0]},curves:[{closed:true,points,frameSamples}]};
     });
     return {direction:[0,0,1],pitchMm:pitch,firstLayerMm:firstHeight,layers};
@@ -165,8 +168,8 @@ export function constructContourSleeve({shell,assignment,process,machine,zStartM
   const samples=sampleCurveIntervals({at:t=>({point:point(t),chart:[t,zAt(t)]}),cuts,stepMm:settings.sampleStepMm,toleranceMm:settings.toleranceMm/2,chartSteps:[1/16,settings.minFeatureMm/2]});
   const points=samples.map(s=>s.point),times=samples.map(s=>s.t);
   const maximumAngleDeg=maximumPathAngle(points);
-  const curve=spiralBeadCurve({profile,points,turns:times,role:'vase-wall',speedMmS:Math.min(process.planarSpeedMmS,process.firstLayerSpeedMmS),
-    minimumTurnSeconds:process.minimumLayerSeconds});
+  const curve={...spiralBeadCurve({profile,points,turns:times,role:'vase-wall',speedMmS:Math.min(process.planarSpeedMmS,process.firstLayerSpeedMmS),
+    minimumTurnSeconds:process.minimumLayerSeconds}),frameSamples:points.map(sliceFrame)};
   const speed=curve.speedMmS;
   return {family:boundaryFamily(),courses:[{key:'wall',layerIdSuffix:':continuous',phase:'vase-wall',layer:0,rank:start,curves:[curve],join:{mode:'ordered'},fanPercent:process.fanPercent,trimEnd:settings.endTransition==='level',travel:{kind:'clearance',clearanceZ:end+process.liftMm}}],
     levelBoundary:settings.endTransition==='level'?{zMm:end,widthMm:width,startIndex:times.findIndex(t=>t>=spiralTurns-1e-9)}:null,

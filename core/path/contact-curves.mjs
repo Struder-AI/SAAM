@@ -57,9 +57,14 @@ export function depositedContactChart(chart,segments,{toleranceMm=.01}={}){
       const coordinate=axis===0?u:v,nominal=axis===0?center.du:center.dv;
       let h=Math.min(.01,Math.sqrt(toleranceMm/Math.max(1,Math.hypot(...nominal))));
       const estimate=step=>{
-        const a=Math.max(0,coordinate-step),b=Math.min(1,coordinate+step);
+        // A periodic seam is interior to the surface. Keep the differentiation
+        // interval unwrapped and wrap only its probes, so both seam sides use
+        // the same centered frame instead of disagreeing one-sided normals.
+        const periodic=axis===0&&chart.periodicU;
+        const a=periodic?coordinate-step:Math.max(0,coordinate-step),b=periodic?coordinate+step:Math.min(1,coordinate+step);
         requireThat(b>a,'Contact chart derivative cannot progress.');
-        const pa=position(axis===0?a:u,axis===1?a:v).point,pb=position(axis===0?b:u,axis===1?b:v).point;
+        const probeA=periodic?a-Math.floor(a):a,probeB=periodic?b-Math.floor(b):b;
+        const pa=position(axis===0?probeA:u,axis===1?probeA:v).point,pb=position(axis===0?probeB:u,axis===1?probeB:v).point;
         return pb.map((p,i)=>(p-pa[i])/(b-a));
       };
       let previous=estimate(h);

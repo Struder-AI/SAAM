@@ -1,5 +1,21 @@
 # Development log
 
+## 2026-09-29 — Periodic contact and curved workflow repairs (0.2.0 unfinished)
+
+- Periodic contact charts now probe across their seam when calculating derivatives;
+  two small-radius cladding patterns generate/export/interpret in both adaptation
+  modes. Lead reran seam, nonperiodic parity and missing-contact/gap rejection checks.
+- Continuous sleeves carry slice frames for modulation; missing frames reject before
+  sampling. Inspection uses geometric layer identity and shows explicit family curves.
+  Lead reran curved and sleeve mixed API workflows: checked output, reopen, bulk parity
+  and review state pass. Worker browser evidence shows overlays and no console errors.
+- Owner clarified normal vase belongs to Slice, advanced vase is a Trace extension
+  with sleeve-mapped repeated tiles, and design refactoring is explicit R13 acceptance.
+- No scheduler changes: preserve default Z ordering, no carriage collision model.
+  Automatic S5 priming predates this work; owner delegates its design judgment.
+  Evidence: `.local/0.2.0/takeover-{B,C}.md`; no new tests, suites, maps, push or hardware.
+  Continuous-turn inspection, construction consolidation and wider acceptance remain.
+
 ## 2026-09-29 — Requested stop after travel investigation (0.2.0 unfinished)
 
 - Lip now constructs one common Slice course per step and finalizes it before the

@@ -269,10 +269,13 @@ export function depositionInspection(results){
           {references:{[`slice:${key}`]:{layers:[layer]}},toleranceMm:.05,sampleStepMm:2}).points;
         const grid=[0,90].flatMap((angle,i)=>extent[1-i]>1e-9?scanlineFill(layer.region,extent[1-i]/6,angle).map(row=>map([row.from,row.to])):[]);
         slices[key]={family,index:layer.index,loops:layer.region.map(loop=>map(loop,true)),grid};
+      }else if(layer.slice&&layer.curves?.length){
+        const curves=layer.curves.map(curve=>sampleAuthoredCurve(curve,{toleranceMm:.05,sampleStepMm:2}).points);
+        slices[key]={family,index:layer.index,loops:curves,grid:[]};
       }
     }
     for(const operation of result.operations){
-      const index=operation.layerIndex??operation.layer,key=`${result.id}:${index}`;
+      const index=operation.layerIndex??operation.layer,key=`${result.id}:${operation.layer??index}`;
       const changed=result.report?.modulation?.changedOperations?.includes(operation.id);
       operations[operation.id]={family,index,roles:[...new Set(operation.strokes.map(stroke=>stroke.role))],
         modifiers:changed?(result.report.modulation.operationModifiers?.[operation.id]??result.report.modulation.modifiers):[],slice:slices[key]?key:null};

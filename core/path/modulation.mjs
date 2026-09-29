@@ -88,7 +88,6 @@ function evaluateModulatedPoint(a,b,t,modifiers,directions,context={}) {
   let pose=context.poses?{...interpolateDirections(context.poses[0],context.poses[1],t),rotaryDeg:context.poses[0].rotaryDeg+t*(context.poses[1].rotaryDeg-context.poses[0].rotaryDeg)}:null;
   for(const m of modifiers){
     const kind=m.frame??'world';
-    requireThat(kind!=='slice'||context.frames,'Slice-frame modulation needs producer frameSamples aligned with stroke points.');
     const frame=kind==='slice'?sampledFrame(context.frames,t):kind==='curve'?sampledFrame(context.curveFrames,t):null;
     const coordinateEnds=kind==='slice'?context.frames?.map(f=>f.point):kind==='curve'?context.curveFrames?.map(f=>f.point):[a,b];
     const sideDirection=context.side&&coordinateEnds?coordinateEnds[0].map((v,i)=>(coordinateEnds[1][i]-v)*context.side):null;
@@ -193,6 +192,7 @@ export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}
   requireThat(!stroke.segmentMetadata||stroke.segmentMetadata.length===points.length-1,'Modulation needs one source metadata record per segment.');
   requireThat(!stroke.poses||stroke.poses.length===stroke.points.length,'Modulation source poses must align with vertices.');
   requireThat(!stroke.frameSamples||stroke.frameSamples.length===stroke.points.length,'Modulation source frameSamples must align with vertices.');
+  requireThat(stroke.frameSamples||!modifiers.some(m=>m.frame==='slice'),'Slice-frame modulation needs producer frameSamples aligned with stroke points.');
   const directions=modifiers.some(m=>m.direction==='lateral'&&(m.frame??'world')==='world')?lateralDirections(points,stroke.closed):null;
   const frames=stroke.frameSamples&&(stroke.closed?[...stroke.frameSamples,stroke.frameSamples[0]]:stroke.frameSamples);
   const sourcePoses=stroke.poses&&(stroke.closed?[...stroke.poses,stroke.poses[0]]:stroke.poses);
