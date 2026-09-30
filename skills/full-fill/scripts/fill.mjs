@@ -52,7 +52,7 @@ export function layerHeights(process, fromMm, toMm) {
   return heights;
 }
 
-export function fullFillResult({ shell, plan, machine, reserve = null, id = 'full-fill', settings: overrides={}, spacingMm=null, interiorRegion=null, interiorStrokes=null, sectionAt=null, regionAt=null, fillRegionAt=null, zStartMm=null, zEndMm=null, layerOriginMm=null, layerIndexOffset=0, lowerSurface=null, detailsMode='deposit', onProgress }) {
+export function fullFillResult({ shell, plan, machine, reserve = null, id = 'full-fill', settings: overrides={}, spacingMm=null, interiorRegion=null, interiorStrokes=null, sectionAt=null, regionAt=null, fillRegionAt=null, zStartMm=null, zEndMm=null, layerOriginMm=null, layerIndexOffset=0, lowerSurface=null, detailsMode='deposit', detailStars=false, detailSolidRegionAt=null, onProgress }) {
   const operations=[];
   let previous=[];
   const process = plan.process, settings = { ...FULL_FILL_DEFAULTS, ...plan.skills['full-fill'],...overrides };
@@ -92,7 +92,7 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
     if (!region.length || regionArea(region) < width * width) { report.skippedLayers++; continue; }
 
 
-    const detail=shell.planarDetails?.at(region,z,{widthMm:width,perimeters:settings.perimeters,pitchMm:pitch});
+    const detail=shell.planarDetails?.at(region,z,{widthMm:width,perimeters:settings.perimeters,pitchMm:pitch,stars:detailStars,solidRegion:detailSolidRegionAt?.(localIndex,z)??[]});
     const key=JSON.stringify([region,detail?.reservation]);
     let prepared=contours.get(key);
     if(!prepared){
@@ -157,7 +157,7 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
       let materialRegion;
       operations.push({id:operationId,layerId:'planar:'+z,phase:'planar',layer:index,rank:z,
         after:[...previous,...current],strokes:selected,connectNearby:true,
-        order:closed&&!lowerSurface?'nearest':!closed&&selected.every(s=>s.scanlineCell!==undefined)?'nearest-cells':'given',region,
+        order:closed&&detail?.walls.length?'given':closed&&!lowerSurface?'nearest':!closed&&selected.every(s=>s.scanlineCell!==undefined)?'nearest-cells':'given',region,
         get materialRegion(){const boundary=detail?.interiorBoundary??region;return materialRegion??=role==='fins'?detail.finRegion:closed?union(detail?.wallRegion??[],pitch===width?difference(boundary,offsetRegion(boundary,-width*settings.perimeters)):
           union(Array.from({length:settings.perimeters},(_,ring)=>difference(ring?offsetRegion(boundary,-ring*pitch):boundary,offsetRegion(boundary,-ring*pitch-width))).flat(),[])):
           // Coverage participates in booleans: a coarse round-join chord can

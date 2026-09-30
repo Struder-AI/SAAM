@@ -3,25 +3,27 @@ import {requireThat} from '../../../core/geom/tolerance.mjs';
 import {INSERT_CATALOG} from './catalog.mjs';
 import {geometrySelections} from '../../../core/geom/selections.mjs';
 
-export const HEAT_SET_DEFAULTS={id:'insert',insertId:'spirol-29-m3-long',positionMm:[15,15,12],depthMm:null,diameterAdjustmentMm:0,finCount:6,finLengthMm:4,finWidthMm:0.8,finAngleDeg:0};
+export const HEAT_SET_DEFAULTS={id:'insert',insertId:'spirol-29-m3-long',positionMm:[15,15,12],entry:'top',depthMm:null,diameterAdjustmentMm:0,finCount:12,finLengthMm:null,finLengthFactor:2,finWidthMm:0.8,finAngleDeg:0};
 export function heatSetFeature(input){
   requireThat(input&&Object.keys(input).every(k=>Object.hasOwn(HEAT_SET_DEFAULTS,k)),'Unknown heat-set feature setting.');
   const f={...structuredClone(HEAT_SET_DEFAULTS),...structuredClone(input)};
   requireThat(typeof f.id==='string'&&/^[\w-]{1,64}$/.test(f.id),'Invalid heat-set feature id.');
+  requireThat(['top','bottom'].includes(f.entry),'entry must be top or bottom.');
   const insert=INSERT_CATALOG.find(i=>i.id===f.insertId);
   requireThat(insert,'Unknown heat-set insertId; choose an entry from the catalog.');
-  requireThat(Array.isArray(f.positionMm)&&f.positionMm.length===3&&f.positionMm.every(Number.isFinite),'positionMm must be [x,y,z] at the insertion face; the bore points down Z.');
+  requireThat(Array.isArray(f.positionMm)&&f.positionMm.length===3&&f.positionMm.every(Number.isFinite),'positionMm must be [x,y,z] at the insertion face; entry selects the inward Z direction.');
   requireThat(Number.isFinite(f.diameterAdjustmentMm)&&Math.abs(f.diameterAdjustmentMm)<=1,'diameterAdjustmentMm must be between -1 and 1.');
   requireThat(f.depthMm===null||Number.isFinite(f.depthMm)&&f.depthMm>=insert.lengthMm,'depthMm must accommodate the selected insert length, or be null for the catalog recommendation.');
   requireThat(Number.isInteger(f.finCount)&&f.finCount>=2&&f.finCount<=24,'finCount must be 2–24.');
-  for(const k of ['finLengthMm','finWidthMm'])requireThat(Number.isFinite(f[k])&&f[k]>0&&f[k]<=50,k+' must be positive and at most 50 mm.');
+  requireThat(f.finLengthMm===null||Number.isFinite(f.finLengthMm)&&f.finLengthMm>0,'finLengthMm must be null or positive.');
+  for(const k of ['finLengthFactor','finWidthMm'])requireThat(Number.isFinite(f[k])&&f[k]>0&&f[k]<=50,k+' must be positive and at most 50 mm.');
   requireThat(Number.isFinite(f.finAngleDeg),'finAngleDeg must be finite.');
   return f;
 }
 export function dimensions(f){
   const insert=INSERT_CATALOG.find(i=>i.id===f.insertId);
   requireThat(insert,'Unknown heat-set catalog entry.');
-  return {diameterMm:insert.holeDiameterMm+f.diameterAdjustmentMm,depthMm:f.depthMm??insert.lengthMm+insert.bottomClearanceMm};
+  return {insertLengthMm:insert.lengthMm,diameterMm:insert.holeDiameterMm+f.diameterAdjustmentMm,depthMm:f.depthMm??insert.lengthMm+insert.bottomClearanceMm};
 }
 export const heatSetTemplate=()=>({shape:'heat-set',base:null,features:[],toleranceMm:0.01,vertices:[],triangles:[],compiledHash:''});
 export function heatSetDigest(record){
@@ -44,7 +46,8 @@ export function heatSetFeatures(geometry){
 export function validateHeatSetAssignments(plan){
   const parts=plan.geometry.shape==='assembly'?plan.geometry.parts:[{id:null,geometry:plan.geometry,zMm:0}];
   for(const part of parts)for(const f of heatSetFeatures(part.geometry)){
-    const end=f.positionMm[2],start=end-dimensions(f).depthMm;
+    const mouth=f.positionMm[2],depth=dimensions(f).depthMm;
+    const start=f.entry==='bottom'?mouth:mouth-depth,end=f.entry==='bottom'?mouth+depth:mouth;
     if(!plan.composition.regions.length){
       const selected=name=>{const s=plan.skills[name];return s.enabled&&(part.id===null||!s.parts.length||s.parts.includes(part.id));};
       requireThat(selected('full-fill')||selected('planar-infill'),`Heat-set ${f.id} needs a planar fill/infill owner for its bore layers.`);

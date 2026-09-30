@@ -1,69 +1,77 @@
 import {offsetRegion} from '../../../core/region/offset.mjs';
-import {difference,union,intersect} from '../../../core/region/boolean.mjs';
-import {loopArea,pointInRegion,regionArea,scanlineFill} from '../../../core/region/region2d.mjs';
-import {requireThat} from '../../../core/geom/tolerance.mjs';
+import {difference,union} from '../../../core/region/boolean.mjs';
+import {loopArea,pointInRegion} from '../../../core/region/region2d.mjs';
 import {dimensions} from './feature.mjs';
 
-// Optional local deposition details consumed by the shared planar producer.
-// The core owns layers, volumes, travel, dependencies and material publication.
+// Insert each radial excursion into the actual fourth offset contour. Returning
+// to its departure point keeps the entire star one continuous closed stroke.
+function rayLength(root,direction,length,material){
+  if(!pointInRegion(root,material))return 0;
+  let reach=length;
+  for(const boundary of material)for(let i=0;i<boundary.length;i++){
+    const a=boundary[i],b=boundary[(i+1)%boundary.length];
+    const v=[b[0]-a[0],b[1]-a[1]],w=[a[0]-root[0],a[1]-root[1]];
+    const cross=direction[0]*v[1]-direction[1]*v[0];
+    if(Math.abs(cross)<1e-12)continue;
+    const distance=(w[0]*v[1]-w[1]*v[0])/cross;
+    const t=(w[0]*direction[1]-w[1]*direction[0])/cross;
+    if(distance>=-1e-9&&t>=-1e-9&&t<=1+1e-9)reach=Math.min(reach,Math.max(0,distance));
+  }
+  return reach;
+}
+
+export function starPerimeter(loop,center,{count,length,angleDeg,material}){
+  const hits=[];
+  for(let ray=0;ray<count;ray++){
+    const angle=(angleDeg+ray*360/count)*Math.PI/180,u=[Math.cos(angle),Math.sin(angle)];
+    for(let edge=0;edge<loop.length;edge++){
+      const a=loop[edge],b=loop[(edge+1)%loop.length],v=[b[0]-a[0],b[1]-a[1]],w=[a[0]-center[0],a[1]-center[1]];
+      const cross=u[0]*v[1]-u[1]*v[0];
+      if(Math.abs(cross)<1e-12)continue;
+      const radius=(w[0]*v[1]-w[1]*v[0])/cross,t=(w[0]*u[1]-w[1]*u[0])/cross;
+      if(radius>0&&t>=-1e-9&&t<1-1e-9){
+        const root=[center[0]+radius*u[0],center[1]+radius*u[1]];
+        const reach=rayLength(root,u,length,material);
+        if(reach>1e-7)hits.push({edge,t,root,tip:[root[0]+reach*u[0],root[1]+reach*u[1]]});break;
+      }
+    }
+  }
+  const points=[];
+  for(let edge=0;edge<loop.length;edge++){
+    points.push(loop[edge]);
+    for(const hit of hits.filter(h=>h.edge===edge).sort((a,b)=>a.t-b.t))points.push(hit.root,hit.tip,hit.root);
+  }
+  return points;
+}
+
 export function heatSetDetails(features){
   return {
     translated:(dx,dy,dz)=>heatSetDetails(features.map(f=>({...f,positionMm:f.positionMm.map((v,i)=>v+[dx,dy,dz][i])}))),
-    at(region,z,{widthMm,perimeters,pitchMm}){
-      let reservation=[],fillExclusion=[],wallRegion=[],allFinRegion=[];const walls=[],fins=[],holes=[];
+    at(region,z,{widthMm,stars=false,solidRegion=[]}){
+      const walls=[],holes=[],material=offsetRegion(difference(region,solidRegion),-widthMm/2);let wallRegion=[],fillExclusion=[];
       for(const f of features){
-        const {depthMm}=dimensions(f),[x,y,mouth]=f.positionMm;
-        if(z<=mouth-depthMm+1e-7||z>mouth+1e-7)continue;
+        const {diameterMm,depthMm,insertLengthMm}=dimensions(f),[x,y,mouth]=f.positionMm;
+        const distance=f.entry==='bottom'?z-mouth:mouth-z;
+        if(distance< -1e-7||distance>=Math.min(depthMm,insertLengthMm)-1e-7)continue;
         const hole=region.find(loop=>loopArea(loop)<0&&pointInRegion([x,y],[loop]));
-        requireThat(hole,`Heat-set ${f.id}: the layer no longer contains its complete bore; revise overlapping geometry or material reservations.`);
-        holes.push(hole);
-        const inner=[[...hole].reverse()],outer=offsetRegion(inner,6*widthMm),boreWall=difference(outer,inner);
-        requireThat(regionArea(difference(boreWall,region))<0.001,`Heat-set ${f.id}: insufficient material for six complete loops.`);
-        requireThat(regionArea(intersect(boreWall,reservation))<0.001,'Heat-set bore walls overlap; separate the holes.');
-        for(let ring=0;ring<6;ring++){
+        if(!hole)continue;
+        const inner=[[...hole].reverse()];
+        for(let ring=0;ring<4;ring++){
           const loops=offsetRegion(inner,(ring+0.5)*widthMm);
-          requireThat(loops.length===1,'Heat-set bore must have one complete loop.');
-          walls.push({role:'heat-set-loop',closed:true,points:loops[0]});
-        }
-        // A gusset joins the full bore-wall depth to the insertion face. Its
-        // radial reach grows linearly from zero at the floor to full length
-        // at the face: a right triangle in the radial/Z plane. Width tapers
-        // from twice the nominal fin width at the bore wall to nominal at the tip.
-        const finWidth=Math.max(widthMm,Math.round(f.finWidthMm/widthMm)*widthMm);
-        const progress=(z-(mouth-depthMm))/depthMm,length=f.finLengthMm*Math.min(1,progress);
-        const rootWidth=2*finWidth,tipWidth=finWidth*(2-length/f.finLengthMm);
-        const radial=Math.max(...hole.map(p=>Math.hypot(p[0]-x,p[1]-y)))+6*widthMm;
-        let finRegion=[];
-        // Features below one bead of radial reach cannot form a separate fin.
-        // The six bore-wall loops still support the first printable gusset layer.
-        for(let n=0;length>=widthMm&&n<f.finCount;n++){
-          const angle=(f.finAngleDeg+n*360/f.finCount)*Math.PI/180,u=[Math.cos(angle),Math.sin(angle)],v=[-u[1],u[0]];
-          const at=(r,t)=>[x+r*u[0]+t*v[0],y+r*u[1]+t*v[1]];
-          const start=Math.sqrt(Math.max(0,radial*radial-(rootWidth/2)**2))-widthMm*0.1,end=radial+length;
-          const strip=[at(start,-rootWidth/2),at(end,-tipWidth/2),at(end,tipWidth/2),at(start,rootWidth/2)];
-          // Cross-fin rows follow the taper continuously in width instead of
-          // quantizing a 2x root into a few longitudinal tracks.
-          const rows=scanlineFill(offsetRegion([strip],-widthMm/2),widthMm,angle*180/Math.PI+90,{originMm:at(start+widthMm/2+0.001,0)});
-          if(!rows.length)continue;
-          requireThat(regionArea(intersect(finRegion,[strip]))<0.001,'Heat-set fins overlap; reduce fin count or width.');
-          finRegion=union(finRegion,[strip]);
-          for(const row of rows){
-            fins.push({role:'heat-set-fin',localDetail:'fin',closed:false,points:[row.from,row.to]});
+          for(const loop of loops){
+            const points=ring===3&&stars?starPerimeter(loop,[x,y],{count:f.finCount,length:f.finLengthMm??diameterMm*(f.finLengthFactor??2),angleDeg:f.finAngleDeg,material}):loop;
+            walls.push({role:points.length>loop.length?'heat-set-star':'heat-set-loop',closed:true,points});
           }
         }
-        requireThat(regionArea(difference(finRegion,region))<0.001,`Heat-set ${f.id}: fins extend outside host material; shorten or reposition them.`);
-        requireThat(regionArea(intersect(finRegion,reservation))<0.001,'Heat-set reinforcement regions overlap; separate the holes or shorten fins.');
-        // Ordinary outer walls retain their settings; ensure local details fit
-        // inside them so additional global perimeters cannot double-deposit.
-        const otherBoundaries=region.filter(loop=>loop!==hole);
-        const exteriorInterior=offsetRegion(otherBoundaries,-Math.max(0,widthMm+(perimeters-1)*pitchMm));
-        const owned=union(boreWall,finRegion);
-        requireThat(perimeters===0||regionArea(difference(owned,exteriorInterior))<0.001,`Heat-set ${f.id}: reinforcement meets ordinary walls; shorten fins, move the hole, or reduce exterior loops.`);
-        reservation=union(reservation,owned);
-        fillExclusion=union(fillExclusion,union(outer,finRegion));
-        wallRegion=union(wallRegion,boreWall);allFinRegion=union(allFinRegion,finRegion);
+        holes.push(hole);
+        const outer=offsetRegion(inner,4*widthMm);
+        wallRegion=union(wallRegion,difference(outer,inner));fillExclusion=union(fillExclusion,outer);
       }
-      return {walls,fins,reservation,fillExclusion,wallRegion,finRegion:allFinRegion,interiorBoundary:region.filter(loop=>!holes.includes(loop)),ownsWall:loop=>loopArea(loop)<0&&holes.some(h=>pointInRegion(h[0],[loop]))};
+      // Rays deliberately cross infill and other rays. They create no fill
+      // reservation: reserving them would cut away the intended interlocking.
+      return {walls,fins:[],reservation:wallRegion,fillExclusion,wallRegion,finRegion:[],
+        interiorBoundary:region.filter(loop=>!holes.includes(loop)),
+        ownsWall:loop=>loopArea(loop)<0&&holes.some(h=>pointInRegion(h[0],[loop]))};
     }
   };
 }

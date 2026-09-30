@@ -43,7 +43,8 @@ export function planarInfillResults({shell,plan,machine,reserve=null,id='planar-
   });
   const interiors=[];
   const prepared=solid?{regionAt:(_z,i)=>regions[i-layerOffset]}:{};
-  const sparse=fullFillResult({shell,plan,machine,reserve,id,onProgress,settings:{...settings,spacingFactor:settings.spacingFactor??1},spacingMm:settings.density===0?null:lineSpacing(width,settings)/settings.density,zStartMm,zEndMm,layerOriginMm,layerIndexOffset,lowerSurface,sectionAt,...prepared,
+  const detailSettings={detailStars:settings.density>0&&settings.density<1,detailSolidRegionAt:solid?(i)=>solids[i-layerOffset]:null};
+  const sparse=fullFillResult({...detailSettings,shell,plan,machine,reserve,id,onProgress,settings:{...settings,spacingFactor:settings.spacingFactor??1},spacingMm:settings.density===0?null:lineSpacing(width,settings)/settings.density,zStartMm,zEndMm,layerOriginMm,layerIndexOffset,lowerSurface,sectionAt,...prepared,
     interiorStrokes:(region,i,z)=>infillStrokes(region,{...settings,widthMm:width,angleDeg:settings.fillAnglesDeg[(settings.pattern==='rectilinear'?i:0)%settings.fillAnglesDeg.length],zMm:z}),
     interiorRegion:solid?(region,i)=>{
       interiors[i-layerOffset]=region;
@@ -53,7 +54,7 @@ export function planarInfillResults({shell,plan,machine,reserve=null,id='planar-
   sparse.report.density=settings.density;
   sparse.report.pattern=settings.pattern??'rectilinear';
   if(!solid)return [sparse];
-  const solidResult=fullFillResult({shell,plan,machine,reserve,id:id+':solid',onProgress,detailsMode:'reserve',settings:{...settings,spacingFactor:fill.spacingFactor??1,perimeters:0},zStartMm,zEndMm,layerOriginMm,layerIndexOffset,lowerSurface,sectionAt,
+  const solidResult=fullFillResult({...detailSettings,shell,plan,machine,reserve,id:id+':solid',onProgress,detailsMode:'reserve',settings:{...settings,spacingFactor:fill.spacingFactor??1,perimeters:0},zStartMm,zEndMm,layerOriginMm,layerIndexOffset,lowerSurface,sectionAt,
     regionAt:prepared.regionAt,fillRegionAt:(_whole,i)=>{
       // Match the sparse interior's centerline domain, including wall overlap.
       return solids[i-layerOffset].length?intersect(interiors[i-layerOffset],solids[i-layerOffset]):[];

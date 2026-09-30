@@ -36,3 +36,9 @@ preserving its distance tolerance, tie order and closed-loop output. The
 [gyroid measurement](../../DEVLOG.md#2026-09-10--gyroid-contour-construction-measurement)
 records the bounded construction cost and density calibration. The manual owns
 pattern limits; benchmark current inputs for current timing claims.
+
+Heat-set star eligibility uses these same sparse/solid masks. The wall-owning
+sparse producer passes solid regions to the local-detail provider; stars are
+restricted to non-solid material and disabled at zero/100% density. The solid
+partner reserves the same wall bands without depositing duplicate details.
+Local hole perimeter sequences retain their supplied inner-to-outer order.

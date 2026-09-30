@@ -1,13 +1,13 @@
 ---
 name: heat-set-inserts
-description: Bores for SPIROL Series 19/29 heat-set inserts, metric and imperial, with local wall loops and fins; insertion faces must be flat and face up.
+description: Bores for SPIROL Series 19/29 heat-set inserts, metric and imperial, with three hole perimeters and a continuous fourth star perimeter on flat top or bottom insertion faces.
 metadata:
   saam-kind: geometry
 ---
 
 # Heat-set inserts
 
-Prepare blind holes for heat/ultrasonic inserts in a closed part. The initial
+Prepare heat/ultrasonic insert seats in a closed part, including seats connected to existing through-holes. The initial
 [catalog](CATALOG.md) covers 60 unheaded SPIROL Series 19/29 short/long selections,
 M2–M8 and 2-56–5/16-18 where offered. These are receiving-hole dimensions, not
 thread diameters or negative copies of the metal knurl. Additional families can
@@ -35,15 +35,14 @@ node core/print/cli.mjs heat-set Prints/my-part insert-request.json
     "id": "mount",
     "insertId": "spirol-29-m3-long",
     "positionMm": [15, 15, 12],
-    "finCount": 6,
-    "finLengthMm": 4,
-    "finWidthMm": 0.8
+    "finCount": 12,
+    "finLengthFactor": 2
   }
 }
 ```
 
-`positionMm` is the mouth center in component coordinates; the bore points down
-Z from its flat insertion face. For an assembly, add `part` with the component
+`positionMm` is the mouth center in component coordinates; `entry: "top"` (default) points the bore down
+Z and `entry: "bottom"` points it up Z from the flat insertion face. For an assembly, add `part` with the component
 ID. Edit with the same feature ID and only changed fields. Remove with
 `{"remove":"mount"}` (plus `part` for an assembly). Geometry changes use the
 normal revision and approval invalidation workflow. Show the updated geometry,
@@ -54,11 +53,13 @@ settings, and exact toolpath in Studio through the shared tools.
 | `id` | `insert`; unique within its feature group |
 | `insertId` | `spirol-29-m3-long`; catalog selection |
 | `positionMm` | `[15,15,12]`; propose a suitable position for the actual part |
+| `entry` | `"top"`; use `"bottom"` for installation from the underside |
 | `depthMm` | `null`: insert length plus two thread pitches; explicit depth must fit the insert |
 | `diameterAdjustmentMm` | `0`; signed printer/material hole calibration, ±1 mm |
-| `finCount` | `6`; 2–24 radial ribs |
-| `finLengthMm` | `4`; maximum extension beyond the bore wall, at the insertion face |
-| `finWidthMm` | `0.8` at the outer tip, twice that at the bore-wall joint; nominal width rounded to at least one whole bead |
+| `finCount` | `12`; 2–24 out-and-back radial excursions in the fourth perimeter |
+| `finLengthMm` | `null`; optional explicit ray length measured outward from the fourth perimeter |
+| `finLengthFactor` | `2`; ray length as a multiple of receiving-hole diameter when `finLengthMm` is null |
+| `finWidthMm` | Retained for saved recipes; the star uses the normal process line width, not a filled rib width |
 | `finAngleDeg` | `0`; rotates the fin pattern around the bore |
 
 The request can also set `toleranceMm` (default 0.01, maximum 0.1) for compiled
@@ -67,18 +68,32 @@ make a physical fit claim.
 
 ## Deposition and composition
 
-Each bore layer has **six contiguous loops**, independent of global perimeter
-count and spacing factor. Actual section offsets follow the compiled hole.
-The radial fins are triangular gussets in vertical section: zero radial reach
-at the bore floor, growing linearly to `finLengthMm` at the front insertion face.
-Their thickness tapers from twice `finWidthMm` at the bore-wall joint to
-`finWidthMm` at the outer tip. Layers with less than one bead of radial reach
-retain the bore wall alone. Normal solid top layers supply the front face.
-Shared scanline fill follows each tapered layer footprint. Fins overlap the bore wall to
-weld to it. Shared fill reserves their material, preventing a second interior
-deposition pass through the bore wall or fins. Ordinary exterior walls retain their
-own settings. Select full-fill or planar-infill with solid surface layers for
-the insertion zone.
+Each non-solid infill layer within the insert length has **three normal hole perimeters**, then **one
+continuous fourth perimeter with 12 out-and-back radial excursions**. The path
+follows the fourth offset contour, travels outward along each ray and back to
+its departure point, then continues around the hole. This is one closed extrusion
+stroke, not separate ribs, scanline-filled gussets, or a fourth print layer.
+
+Solid bottom/top regions, standalone full-fill and 100% infill receive circular
+perimeters without rays. The normal solid-surface masks determine where a star
+can run; rays never enter a solid-filled region. Reinforcement ends at the
+catalog insert length from its insertion face, even when the receiving hole
+extends deeper for clearance. Within each hole, the perimeter closest to the
+bore prints first, followed by successive outward loops and the fourth star.
+The producer preserves this order rather than nearest-path reordering.
+
+Ray length defaults to twice the receiving-hole diameter, measured from the
+fourth perimeter. It is constant through the insert length; there is no triangular
+height taper. `finLengthMm` overrides the diameter multiplier when supplied.
+Ray count and rotation remain editable. The outward and return legs retrace the
+same centerline, depositing on both passes as requested.
+
+Rays cross ordinary infill and other stars without clipping or reserving away
+the crossing infill. Only the four circular wall bands exclude ordinary fill.
+Each ray turns back at the first solid boundary (the exterior or another hole),
+with half a bead of clearance for its centerline. Infill and other stars do not
+shorten it. The part is not automatically
+widened or its holes moved to accommodate the star.
 
 This is a local detail in the shared planar producer, with shared layer heights,
 bead volumes, material ownership, travel, composition, machine output, and Studio.
@@ -88,13 +103,12 @@ Lettering applied over the result preserves the hole details. Other skills can
 occupy other compatible regions/components; inserting a hole does not make a
 vase or nonplanar-only region acquire six planar loops automatically.
 
-The current bore axis is Z and the insertion face is flat. Reorient side-entry
-parts before preparing them. Blind floors require remaining host material. Six
-complete loops and the fins need enough room inside the ordinary exterior walls;
-the tool reports insufficient room or conflicting reservations so placement,
-fin length, host size, or process choices can be revised. Intersecting reinforced
-holes and fins are not merged automatically. Manufacturer dimensions are a
-starting point; printed fit and installed strength require physical evidence.
+The bore axis is Z with explicit top or bottom entry. Both insertion faces must
+be flat; side-entry and inclined axes are not yet implemented. The seat must end
+inside the host's height bounds; an existing smaller through-bore may continue
+beyond it. For seats spanning touching assembly components, use one joined host
+so one feature owns the full seat and its reinforcement. The pattern makes no installed-strength guarantee. Manufacturer dimensions are a starting point; printed fit and
+installed strength require physical evidence.
 
 ## Reproducible Studio example
 
@@ -106,5 +120,5 @@ node studio/server.mjs Prints/development/heat-set-example
 The command refuses an existing bundle. It creates a 54 × 32 × 12 mm block with
 an M3 Series 29 long hole and a 4-40 Series 19 short hole, two ordinary perimeter
 loops, 15% infill and solid top/bottom surfaces. It generates a development
-toolpath without approvals. Review a middle bore layer to see the six loops and
-fins before the solid top covers them.
+toolpath without approvals. Review a middle bore layer to see the three loops and
+continuous star perimeter before the solid top covers them.

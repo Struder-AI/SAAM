@@ -36,6 +36,6 @@ still unknown. A description that is only a keyword marks a
 | [mesh-tools](mesh-tools/SKILL.md) | Diagnose failed mesh imports, clean duplicate or collapsed facets, repair self-intersections and fill explicitly bounded holes. |
 | [text](text/SKILL.md) | Raised or recessed lettering on a part, or standalone text, from an outline font; flat, along a spline, or bent onto a surface. |
 | [gridfinity](gridfinity/SKILL.md) | gridfinity |
-| [heat-set-inserts](heat-set-inserts/SKILL.md) | Bores for SPIROL Series 19/29 heat-set inserts, metric and imperial, with local wall loops and fins; insertion faces must be flat and face up. |
+| [heat-set-inserts](heat-set-inserts/SKILL.md) | Bores for SPIROL Series 19/29 heat-set inserts, metric and imperial, with three hole perimeters and a continuous fourth star perimeter on flat top or bottom insertion faces. |
 
 <!-- END GENERATED SKILL DIGEST -->

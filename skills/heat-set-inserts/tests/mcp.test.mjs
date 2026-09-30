@@ -57,6 +57,10 @@ test('MCP discovers heat-set profiles and applies revision-checked insert edits'
     assert.deepEqual(saved.plan.geometry.features[0].positionMm,[15,13,10]);
     await call('apply_heat_set',{printId,expectedRevision:state.revision,request:{remove:'mount'}});
     assert.deepEqual((await call('get_print',{printId,includeGeometry:true})).plan.geometry,base);
+    const fresh=await call('get_print',{printId});
+    await call('apply_heat_set',{printId,expectedRevision:fresh.revision,request:{feature:{id:'bottom',entry:'bottom',positionMm:[15,13,0]}}});
+    const bottom=await call('get_print',{printId,includeGeometry:true});
+    assert.equal(bottom.plan.geometry.features[0].entry,'bottom');
   }finally{
     await client.close();
     await rm(printsRoot,{recursive:true,force:true});
