@@ -26,7 +26,7 @@ Map ownership and the value required of comments/docstrings are defined by the
 implementation account into a second skill narrative. Reuse skill context already
 read; the existing `read-guidance PATH#HEADING` command supports section reads.
 
-Geometry and hybrid skill manuals declare `metadata.saam-kind: geometry` or `hybrid` in frontmatter. The explicit
+Geometry, hybrid and guidance manuals declare `metadata.saam-kind: geometry`, `hybrid` or `guidance`. Guidance teaches how to compose existing operations; it adds no tool or deposition family. The explicit
 [catalog](catalog.mjs) controls discovery and ordering; each manual owns its
 description and classification. The description is one line that helps an agent
 choose: one or two sentences on what the skill does, when to choose it and any

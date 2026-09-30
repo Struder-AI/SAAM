@@ -157,14 +157,9 @@ For example, `[{"id":"GFA00","colour":"#00AE42","tool":1},
 entries on different nozzles across every generated mapping. An omitted `tool`
 uses `setup.tool` for compatibility with existing single-tool jobs. The selected
 entry must agree with `setup.tool`; contradictory declarations are rejected.
-Assign `slices.assignments[].filament` to use a logical filament for that
-region. An omitted assignment uses `bambu.filament`, which is the startup
-selection. H2D can use both nozzles with different installed diameters in one
-program. X1 supports regional PLA changes through its single 0.4 mm nozzle and
-AMS, with a bounded rear-chute flush. H2D also implements same-nozzle PLA changes
-through AMS. AMS-09 physically verified those same-nozzle commands with the
-reference project entry. The reusable v12 project writer failed AMS-11 (all
-orange); v13 subsequently passed fresh generated AMS-19 without that substitution.
+Print setup applies to every producer; [print/part/assignment routing](../print/USAGE.md#nozzle-selection)
+selects exceptions. H2D supports different nozzle diameters and same-nozzle AMS
+PLA changes. X1 implements single-nozzle AMS changes, still physically unresolved.
 
 The normal source is `{ "type": "auto" }`: supply material preset ID and colour
 and let the printer propose a physical feed match. Do not ask for a slot just
@@ -202,9 +197,9 @@ match that initial filament. Merge this logical list into `setup.bambu`:
 ```
 
 These colours, temperatures and process values are examples to review, not
-observed spool inventory or material recommendations. Assign the left part's
-region `filament: 0`, the right part's `filament: 1`. The ordinary assembly and
-region fields remain required. A filament's optional process overrides are
+observed spool inventory or material recommendations. Set `composition.filaments`
+to `[{"part":"left-part","filament":0},{"part":"right-part","filament":1}]`.
+A filament's optional process overrides are
 `firstLayerMm`, `layerMm`, `lineWidthMm`, `planarSpeedMmS`, `skinSpeedMmS`,
 `firstLayerSpeedMmS`, `maxFlowMm3S`, `retractMm`, and `retractSpeedMmS`.
 The startup entry's explicit overrides must equal the base setup/process;
@@ -698,12 +693,9 @@ saved project preferences (left/automatic) differ from the resolved slice
 (right/manual); those are legitimate stages, not settings to copy over our job.
 Its 30 mm³/s service recipe also differs from SAAM's pinned 25 mm³/s recipe.
 
-Using both different-diameter nozzles within one job is implemented through
-regional filament/process selection, bounded changeover/retraction/temperature
-state and clearance, per-tool extrusion interpretation, and layer/filament usage
-generated from actual actions. DUAL-12 physically verified its left/right/left
-commands and 0.4/0.8 setup with the successful reference project. Acceptance of
-fresh generated project metadata and other installations remains outstanding.
+Dual-nozzle actions retain per-tool process/retraction/temperature state and
+usage. Fresh generated DUAL-20 acceptance is recorded at the top of this manual;
+DUAL-12 was an earlier control using foreign project metadata.
 The supplied `twistedbox.2color.gcode.3mf` (SHA-256
 `ddbea3c405b12328990c1aa6f45c106b8e6899a5807d7cc7947c23caa2835a63`)
 contains 124 observed nozzle changes, 126 material-load blocks (including the two

@@ -1,9 +1,11 @@
 ---
 name: pipe-cladding
-description: Experimental. Lengthwise, helical or crossed-helix cladding around a spline or mesh sleeve, or a finished vase wall. Development only; needs a configured DENSO RC8A robot with external rotary.
+description: Guidance for experimental axial or helical Slice coatings; the current preset requires a configured DENSO robot and rotary.
+metadata:
+  saam-kind: guidance
 ---
 
-# Pipe cladding
+# Surface cladding with Slice
 
 For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
 [builder orientation](../../BUILDERS.md) and follow its task-specific references.
@@ -11,8 +13,10 @@ This is a bounded development implementation for the DENSO VS-068A4 with RC8A an
 an external rotary. RC8A is user-confirmed; ceiling mounting with the robot base
 axis coaxial with the rotary remains provisional. No physical print is validated.
 
-Cladding uses the shared Slice construction on a sleeve reference. This manual
-describes the current public recipe and machine-specific limits.
+Cladding is a use of Slice on a sleeve reference, not a separate toolpath skill.
+This guide describes the existing specialized `cladding` preset. Its rotary and
+periodic-chart restrictions remain implementation gaps, not universal limits on
+coating a surface with Slice or Trace.
 
 ## Geometry and process
 
@@ -154,36 +158,10 @@ Dobot. Fixed relay flow does not automatically follow tapered intent or speed
 changes. No heating, homing or initial positioning is inserted. Temperature
 control is external; retraction and fan control are unavailable.
 
-## Development demos
+## Development references
 
-Create isolated synthetic development bundles from the repository root:
-
-```sh
-node skills/pipe-cladding/scripts/demo.mjs Prints/development/denso-rc8a-pipe
-node skills/pipe-cladding/scripts/bumpy-demo.mjs Prints/development/denso-bumpy-spline
-node studio/server.mjs Prints/development/denso-rc8a-pipe
-```
-
-The first is a 16 mm bore, 20.8 mm outside, 12 mm tall spline tube clad with four
-0.2 mm shells. The second is a 16-column bumpy exterior with eight vertical
-controls around a 16 mm bore, 32 mm tall, printed solid with three loops
-and six shells; its pseudo-random phases are fixed. Both use invented installation
-values labeled in the plan and never remembered, create no approvals and execute
-no hardware. For another provisional RC8A part, call `developmentPipePlan()` from
-[demo.mjs](scripts/demo.mjs), replace its geometry and assignments, then
-`initBundle(directory, plan, {machineId:'denso-vs068a4-rc8a'})` and generate in
-development mode. Remove the cladding assignment for ordinary fixed-orientation work.
-
-Studio defaults to **Follow build plate**, retaining stationary part coordinates;
-clear it to inspect bed and material rotation in the room frame. **Machine view**
-independently switches from faint context to assembly framing. Both modes use
-one source interpreter and timeline. The nominal arm is shown only when its
-installation/model inputs are supplied; otherwise bed and tool remain visible
-with an explanation in **Machine model**. Do not reuse synthetic fixture
-calibration for an actual installation.
-
-Software coverage is in [denso.test.mjs](../../core/tests/denso.test.mjs): tube
-geometry, shell order, unwrapped turns, tilted poses, source edits, relay
-behavior, both preview frames, mesh/spline predecessor skills, cold reopen and
-exact-byte delivery. The [wavy-denso workspace](../../examples/prints/wavy-denso/README.md)
-packages the bumpy recipe.
+The [tube demo](scripts/demo.mjs), [bumpy demo](scripts/bumpy-demo.mjs) and
+[wavy-denso workspace](../../examples/prints/wavy-denso/README.md) create
+unapproved examples with invented installation values. Never use those as
+machine calibration. [DENSO software checks](../../core/tests/denso.test.mjs)
+cover emitted sources and reopening, not physical controller qualification.

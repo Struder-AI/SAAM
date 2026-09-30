@@ -14,6 +14,7 @@ import {recipeRows} from '../../studio/settings.mjs';
 import {beadSection} from '../../studio/material-view.mjs';
 
 import {mixedNozzleFixture} from './fixtures/bambu-dual.mjs';
+import {splineBox} from './fixtures/spline-shapes.mjs';
 const release={generatorVersion:'test',buildDate:'2026-09-21'};
 test('mixed 0.4/0.8 H2D regions emit tower-free changes, distinct process grids and independently decoded tool state',async()=>{
   const {plan,machine}=mixedNozzleFixture(),path=generatePath(plan,machine,await rhino());
@@ -122,7 +123,7 @@ test('every supported H2D diameter pair keeps each change descriptor on its own 
     Object.assign(plan.setup,{nozzleMm:left,core:`Hardened steel ${left}`});
     plan.setup.bambu.otherNozzleMm=right;plan.process.lineWidthMm=left;
     plan.setup.bambu.filaments[1].process.lineWidthMm=right;
-    for(const part of plan.geometry.parts)part.geometry.heightMm=0.6;
+    for(const part of plan.geometry.parts)part.geometry=splineBox({runMm:8,widthMm:8,heightMm:0.6});
     const path=generatePath(plan,machine,r),bytes=exportProgram(path,plan,machine,release);
     const report=auditBambu(bytes);assert.deepEqual(report.plates[0].changes.issues,[]);
     const program=interpretProgram(bytes,plan,machine);

@@ -20,7 +20,7 @@ quality or strength. No physical result has been validated.
 ## Material and interoperability
 
 A solid slice is the natural host. The shaft and basin are reserved from the
-part's sliced material before loops and fill are generated. The bottom basin
+part's sliced material before loops and fill are generated. Rivets inherit [print/part nozzle selection](../../core/print/USAGE.md#nozzle-selection). The bottom basin
 narrows upward as a stepped cone; the shaft continues to the injection height.
 The exterior CAD model remains the intended finished part. These temporary
 process cavities are visible in the generated toolpath, not as permanent CAD holes.

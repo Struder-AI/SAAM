@@ -20,7 +20,7 @@ import {geometrySelections,selectionsOverlap} from '../geom/selections.mjs';
 import {defaultSlices,validateSlices} from './slices.mjs';
 import {defaultModulations,validateModulations} from '../path/modulation.mjs';
 import {modulationGeometrySources} from '../path/modulation-field.mjs';
-import {assignmentPlan} from './assignment-process.mjs';
+import {assignmentPlan,depositionAssignments} from './assignment-process.mjs';
 import {PLASTIC_WELD_DEFAULTS,validatePlasticWeld} from '../../skills/plastic-weld/scripts/weld.mjs';
 import {heatSetTemplate,validateHeatSetRecord} from '../../skills/heat-set-inserts/scripts/feature.mjs';
 import {filamentPlan} from '../machine/filaments.mjs';
@@ -64,7 +64,7 @@ export function defaults(machine=loadMachine()) {
     },
     slices: defaultSlices(),
     modulations: defaultModulations(),
-    composition: { order: [], dependencies: [] },
+    composition: { order: [], dependencies: [], filaments: [] },
     output: 'griffin-gcode'
   };
   Object.assign(plan.process,machine.defaultProcess??{});
@@ -98,12 +98,12 @@ export function validatePlan(plan,machine) {
 // compiled records of geometry skills.
 export const GEOMETRY_SHAPES=['spline','blob-field','mesh','boolean','assembly','text','gridfinity','heat-set'];
 
-export function pointOnlyPlan(plan){
-  return plan?.geometry===undefined&&plan.slices?.assignments?.length>0&&plan.slices.assignments.every(a=>a.construction==='inject');
+export function depositionOnlyPlan(plan){
+  return plan?.geometry===undefined&&plan.slices?.assignments?.length>0&&plan.slices.assignments.every(a=>['curves','bridges','inject'].includes(a.construction));
 }
 
 export function validatePlanFields(plan,machine) {
-  requireThat(plan && typeof plan === 'object' && (pointOnlyPlan(plan)||GEOMETRY_SHAPES.includes(plan.geometry?.shape)), `Author geometry (${GEOMETRY_SHAPES.join(', ')}) or a points-only inject recipe.`);
+  requireThat(plan && typeof plan === 'object' && (depositionOnlyPlan(plan)||GEOMETRY_SHAPES.includes(plan.geometry?.shape)), `Author geometry (${GEOMETRY_SHAPES.join(', ')}) or a Trace/Inject recipe.`);
   // Validation is check-only: a plan carries every current field or it is
   // rejected. Supported older fields require explicit recipe migration and regeneration.
   const expected = { ...defaults(machine), ...(plan.geometry?{geometry:geometryTemplate(plan.geometry.shape,plan.geometry)}:{}) };
@@ -112,13 +112,22 @@ export function validatePlanFields(plan,machine) {
   requireThat(typeof plan.experimental.substrateAdaptation==='boolean','experimental.substrateAdaptation must be true or false.');
   requireThat(plan.schema === expected.schema && plan.generatorVersion === VERSION, 'Unsupported plan or generator version.');
   requireThat(Array.isArray(plan.composition.order) && plan.composition.order.every(id=>typeof id==='string') && Array.isArray(plan.composition.dependencies) && plan.composition.dependencies.every(e=>e && typeof e.before==='string' && typeof e.after==='string' && Object.keys(e).sort().join()==='after,before'), 'Invalid composition rules.');
+  requireThat(Array.isArray(plan.composition.filaments),'composition.filaments must be a list of part or assignment selections.');
+  const routes=new Set();
+  for(const route of plan.composition.filaments){
+    requireThat(route&&['filament,part','assignment,filament'].includes(Object.keys(route).sort().join())&&Number.isInteger(route.filament)&&route.filament>=0,'Filament routing needs {part,filament} or {assignment,filament}.');
+    const key=Object.hasOwn(route,'part')?'part':'assignment',target=route[key];
+    requireThat(typeof target==='string'&&target.length>0||key==='part'&&target===null,'Invalid filament routing target.');
+    const identity=key+':'+target;requireThat(!routes.has(identity),'Duplicate filament routing target.');routes.add(identity);
+    validateSetup(filamentPlan(plan,machine,route.filament),machine);
+  }
 
   return plan;
 }
 
 export function validatePlanGeometry(plan,machine) {
   const {geometry,placement,setup}=plan;
-  if(!geometry)requireThat(Object.values(plan.skills).every(settings=>!settings.enabled),'Points-only injection cannot enable geometry-dependent skills.');
+  if(!geometry)requireThat(Object.values(plan.skills).every(settings=>!settings.enabled),'Geometry-free deposition cannot enable geometry-dependent skills.');
   validatePlasticWeld(plan,machine);
   if(!geometry)return plan;
   if(geometry.shape==='spline'){
@@ -210,7 +219,7 @@ export function validatePlanProcess(plan,machine) {
 export function validatePlanAuxiliary(plan,machine) {
   const {geometry,process,setup,skills}=plan;
   validateSetup(plan,machine);
-  validateSupports(skills.supports,process);
+  validateSupports(skills.supports,assignmentPlan(plan,machine,{id:'supports'}).process);
   if(skills.supports.enabled)requireMachine(machine,['xyz-extrusion','planar'],'supports');
   requireThat(typeof setup.startupVerified === 'boolean' && typeof setup.firmwareVersion === 'string' && /^[\w .+-]{0,80}$/.test(setup.firmwareVersion), 'Invalid firmware setup.');
 
@@ -224,7 +233,11 @@ export function validatePlanSelections(plan,machine) {
   // part; two cut parts never share material.
   const selections=geometry?geometrySelections(geometry):new Map();
   validateSlices(plan.slices,{parts:[...selections.keys()].filter(key=>key!==null),lineWidthMm:plan.process.lineWidthMm,firstLayerMm:plan.process.firstLayerMm});
-  for(const assignment of plan.slices.assignments){
+  const producerIds=new Set(plan.slices.assignments.map(a=>a.id));
+  if(skills.supports.enabled)producerIds.add('supports');
+  if(skills['plastic-weld'].enabled)for(const site of skills['plastic-weld'].sites)producerIds.add('plastic-weld:'+site.id);
+  for(const route of plan.composition.filaments)requireThat(Object.hasOwn(route,'part')?selections.has(route.part):producerIds.has(route.assignment),'Filament routing names an absent part or deposition assignment.');
+  for(const assignment of depositionAssignments(plan)){
     const selected=assignmentPlan(plan,machine,assignment);
     validatePlanProcess(selected,machine);validateSetup(selected,machine);
     if(assignment.construction==='inject'){
@@ -249,8 +262,8 @@ export function validatePlanSelections(plan,machine) {
       ids.add(part.id);
       requireThat(part.geometry?.shape!=='assembly','Nested assemblies are not supported.');
       number(part.xMm,-200,200,'Component X');number(part.yMm,-200,200,'Component Y');number(part.zMm,0,200,'Component Z');
-      const assigned=plan.slices.assignments.filter(a=>a.part===part.id).map(a=>a.filament??undefined).find(f=>f!==undefined);
-      const child=structuredClone(assigned!==undefined?filamentPlan(plan,machine,assigned):plan);child.geometry=part.geometry;
+      const assigned=depositionAssignments(plan).find(a=>a.part===part.id);
+      const child=structuredClone(assignmentPlan(plan,machine,assigned??{part:part.id}));child.geometry=part.geometry;
       child.placement={xMm:placement.xMm+part.xMm,yMm:placement.yMm+part.yMm};
       child.skills['plastic-weld'].enabled=false;
       // Global assignment/process/dependency validation has already run. Only

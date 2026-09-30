@@ -1,7 +1,7 @@
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SKILL_IDS, TECHNIQUE_IDS, skillMetadata } from '../skills/catalog.mjs';
+import { SKILL_IDS, GUIDANCE_IDS, skillMetadata } from '../skills/catalog.mjs';
 import { gatedIndex, indexLine } from '../core/agent/layers.mjs';
 import { MACHINE_IDS, loadMachine } from '../core/machine/profile.mjs';
 
@@ -19,13 +19,13 @@ export async function updatedSkillIndex(repoRoot) {
       available.push(entry.name);
     } catch (error) { if (error.code !== 'ENOENT') throw error; }
   }
-  const manualIds=[...SKILL_IDS,...TECHNIQUE_IDS];
+  const manualIds=[...SKILL_IDS,...GUIDANCE_IDS];
   const missing = manualIds.filter(id => !available.includes(id));
   const unlisted = available.filter(id => !manualIds.includes(id));
   if (missing.length || unlisted.length || new Set(manualIds).size !== manualIds.length) {
     throw new Error(`Skill catalog differs from manuals (missing: ${missing.join(', ') || 'none'}; unlisted: ${unlisted.join(', ') || 'none'}). Update skills/catalog.mjs alongside the manuals.`);
   }
-  const skills = await Promise.all(SKILL_IDS.map(async id => {
+  const skills = await Promise.all(manualIds.map(async id => {
     const skill = skillMetadata(id, await readFile(resolve(skillsRoot, id, 'SKILL.md'), 'utf8'));
     if (!skill.description || /^[>|]/.test(skill.description)) {
       throw new Error(`${id}: the shared catalog reader needs a single-line frontmatter description.`);
@@ -46,7 +46,7 @@ export async function updatedSkillIndex(repoRoot) {
     if (!known.has(token.split('>=')[0])) throw new Error(`${section.guidanceId}: no machine declares the capability ${token}.`);
   const advanced = gated.filter(section => section.layer === 'advanced');
   const index = advanced.length ? `\n\n## Advanced sections\n\n${advanced.map(indexLine).join('\n')}` : '';
-  const block = `${start}\n\n## Toolpath skills\n\n${table('toolpath')}\n\n## Geometry skills\n\n${table('geometry')}\n\n## Hybrid skills\n\n${table('hybrid')}${index}\n\n${end}`;
+  const block = `${start}\n\n## Toolpath skills\n\n${table('toolpath')}\n\n## Geometry skills\n\n${table('geometry')}\n\n## Hybrid skills\n\n${table('hybrid')}\n\n## Guidance manuals\n\nRecipes and techniques using Slice, Trace and Inject; no additional deposition families.\n\n${table('guidance')}${index}\n\n${end}`;
   const current = await readFile(resolve(skillsRoot, 'DIGEST.md'), 'utf8');
   if (current.split(start).length !== 2 || current.split(end).length !== 2 || current.indexOf(end) < current.indexOf(start)) {
     throw new Error('skills/DIGEST.md needs exactly one ordered pair of generated skill digest markers.');

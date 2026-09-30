@@ -1,59 +1,49 @@
 ---
 name: thick-lip
-description: A vase wall's top edge thickened into a rigid, optionally rolled rim.
+description: Guidance for making a thickened or rolled edge with Slice or Trace.
+metadata:
+  saam-kind: guidance
 ---
 
-# Thick lip
+# Making a thick lip
 
-Thicken the terminal boundary of an existing [sleeve](../vase-wall/SKILL.md).
-The source must be on the same part and have `endTransition: "level"`.
-A raw rising spiral does not supply the required closed terminal boundary.
+A lip is a shape and deposition choice, not a separate skill. Use
+[Slice](../slice/SKILL.md) for a modeled thick edge or
+[Trace](../trace/SKILL.md) for explicit rim curves. Both use the print's common
+material, process, dependencies and review.
 
-Target architecture classifies the lip as Slice over a 3D region; this manual
-documents the current rim record pending shared-family migration.
+## Choose a construction
 
-## Use
+- **Slice:** model the added material and assign its band or volume more loops
+  or solid fill. The geometry defines the outer extent. Keep ownership distinct
+  from the wall below so the same material is not deposited twice.
+- **Trace:** author closed curves around the edge, with bead width/height and
+  course heights. Trace's `widthRule` can fit parallel paths to a requested width;
+  explicit curves allow a different width on each course. Name the supporting
+  operations as prerequisites and inspect every curve's contact.
 
-Add a rim record to `plan.slices.assignments`:
+For a vase ending, first supply a closed, level boundary. A raw rising spiral
+does not supply one. A schedule such as two, three, then two neighboring paths
+can make a rolled profile; paths may extend beyond the modeled wall. Width
+changes must remain supported by preceding material.
+
+## Existing Slice preset
+
+The recipe still accepts `construction:'rim'`, a specialized Slice preset
+consuming a same-part sleeve with `endTransition:'level'`:
 
 ```json
-{"id": "lip", "construction": "rim", "part": null, "filament": null,
- "process": null, "after": [], "source": "wall", "steps": [2, 3, 2], "minFeatureMm": 0.4}
+{"id":"lip","construction":"rim","part":null,"filament":null,
+ "process":null,"after":[],"source":"wall","steps":[2,3,2],"minFeatureMm":0.4}
 ```
 
-The source provides its boundary, bead width and operation prerequisites. The
-rim process provides added-loop spacing and layer height. With experimental
-[substrate adaptation](../../GLOSSARY.md) off (default), the nominal terminal
-section and declared layer gap determine the courses. When
-`experimental.substrateAdaptation: true`, finalized source beads reconstruct a
-modified terminal boundary and each course follows actual local contact,
-including preceding rim courses. Missing contact or a disconnected terminal
-boundary rejects that experimental construction; this does not create Supports.
+Each positive `steps` entry is a perimeter count for one layer. Curves are
+centered around the source boundary; process settings set spacing and height.
+With substrate adaptation off, the reference is nominal. When enabled,
+finalized source beads and prior rim courses supply contact; missing contact
+rejects. This preset is not another deposition family, and is not yet a fully
+general boundary-reference authoring interface.
 
-## Settings
-
-| Setting | Default | Meaning |
-|---|---|---|
-| `source` | Required | Source sleeve assignment ID. |
-| `part` | `null` | Component ID in an assembly; null for a single part. |
-| `steps` | `[2]` | Perimeter counts per layer, 1–50 layers; each count is positive. |
-| `minFeatureMm` | `0.4` | Section feature scale, 0.05–5 mm. |
-
-For `n` perimeters, offsets span `-(n-1)/2` through `+(n-1)/2` bead-width
-spacings around the source centerline. One perimeter follows that centerline;
-two straddle it. Larger counts can extend outside the modeled wall. Schedules
-may rise, fall or repeat; `[2,3,2]` doubles, triples, then doubles the ring.
-There is no automatic width-to-schedule calculation.
-
-Nominal rings use ordinary planar operations and shared travel/connector
-planning. Experimental adapted courses may become nonplanar and require a
-compatible machine. All source operations precede the rim.
-
-## Physical limits
-
-The user reports the underlying rim technique demonstrated in prints
-(2026-09-24); the experimental adaptation is not physically qualified. Shared
-connectors are checked against the current ring band, not a structural model
-of the hollow interior. Wide perimeter-count jumps and adhesion outside the
-preceding wall remain unproven. Prefer small schedule changes and review the
-actual path in Studio. [MAKERS](../../MAKERS.md) owns confirmation and delivery.
+The underlying technique has user-reported physical prints; experimental contact
+adaptation and large width jumps remain unqualified. Follow the shared review
+workflow; no strength or full-head clearance model is implied.

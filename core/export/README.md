@@ -86,14 +86,11 @@ owns the startup duplication inventory, actual installed-nozzle declarations and
 the distinction between logical filament IDs and physical AMS tray intent.
 
 Unavailable outputs are rejected. SAAMpath is an interoperability
-boundary, not an automatic translator to every machine language. Current actions
-are XYZ moves with deposition volume, retraction/recovery, fan and dwell for one
-selected tool, plus optional part-frame tool orientation and an unwrapped rotary
-angle. Existing XYZ-only adapters reject pose-bearing paths rather than discard
-their orientation. New dialects need adapters; in-program tool changes and other
-unsupported semantics need explicit representation extensions.
-Preserve units, transforms, feature identity and material ownership across every
-boundary. A common extension or file suffix alone does not establish compatibility.
+boundary, not an automatic translator to every machine language. Actions include
+XYZ deposition, retraction/recovery, fan, dwell and logical filament changes;
+H2D implements nozzle changes, S5 does not. Optional orientation/rotary actions
+require an adapter that supports them. Preserve units, transforms, feature and
+material identity across each boundary; new dialects need explicit adapters.
 
 ### Stationary extrusion and nozzle control
 

@@ -1,6 +1,8 @@
 ---
 name: vase-wall
-description: A hollow vase or tube as one continuous rising spiral wall, with an optional solid base.
+description: Guidance for a continuous Slice spiral wall and optional solid base.
+metadata:
+  saam-kind: guidance
 ---
 
 # Standard vase mode

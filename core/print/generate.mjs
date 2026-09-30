@@ -10,7 +10,7 @@ import {planOperation,validateOperationBatch,prepareOperationDependencies} from 
 import {planPriming,validatePrimingClearance} from '../path/prime.mjs';
 import {filamentSelection,assignedFilaments} from '../machine/filaments.mjs';
 import {planarPolicy} from '../path/builder.mjs';
-import {assignmentPlan} from './assignment-process.mjs';
+import {assignmentPlan,depositionAssignments} from './assignment-process.mjs';
 import {assignmentFamily} from './slice-settings.mjs';
 import {surveySkinAssignment} from './surface-constructions.mjs';
 import { validatePlan, VERSION } from './plan.mjs';
@@ -100,7 +100,7 @@ export function preparePathGeometry(plan,machine,rhino) {
   const placed = translateShell(buildShell(rhino, plan.geometry), plan.placement.xMm, plan.placement.yMm);
   const componentShells=plan.geometry.shape==='assembly' ? new Map(plan.geometry.parts.map(part=>[part.id,
     translateShell(buildShell(rhino,part.geometry),plan.placement.xMm+part.xMm,plan.placement.yMm+part.yMm,part.zMm)])) : null;
-  const weldSites=preparePlasticWeld({plan,placed,componentShells});
+  const weldSites=preparePlasticWeld({plan,machine,placed,componentShells});
   const bounds=toolBounds(machine,plan.setup.tool);
   const geometryBounds=assignedFilaments(plan).length?machine.bounds:bounds;
   requireThat(machine.motionChecks==='deferred'||placed.bounds.min.every((v,i)=>v>=geometryBounds.min[i]-1e-8)&&placed.bounds.max.every((v,i)=>v<=geometryBounds.max[i]+1e-8),'Placed geometry exceeds selected tool bounds.');
@@ -135,7 +135,7 @@ export function generateModelResults(plan,machine,rhino,{placed,componentShells,
   const welds=weldSites.map(site=>site.reservation);
   const summary={generatorVersion:VERSION,shape:plan.geometry?.shape??null},results=[];
   const shells=sliceShells(plan,rhino,{placed,componentShells});
-  const contexts=plan.slices.assignments.filter(assignment=>assignment.construction).map(assignment=>{
+  const contexts=depositionAssignments(plan).filter(assignment=>assignment.construction).map(assignment=>{
     const shell=shells.find(([part])=>part===(assignment.part??null))?.[1],selected=assignmentPlan(plan,machine,assignment);
     if(['skin','sleeve','rim','cladding'].includes(assignment.construction))requireThat(shell,
       `${assignment.construction[0].toUpperCase()+assignment.construction.slice(1)} needs a selected component or the single solid.`);
@@ -243,7 +243,7 @@ export function summarizeGeneratedPath(placed,survey,modelSummary) {
   return summary;
 }
 
-export const GENERATION_CONTRACT='saam-deposition/5';
+export const GENERATION_CONTRACT='saam-deposition/6';
 export function depositionInspection(results){
   const operations={};
   for(const result of results){

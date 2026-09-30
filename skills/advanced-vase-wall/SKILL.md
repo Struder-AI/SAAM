@@ -1,6 +1,8 @@
 ---
 name: advanced-vase-wall
-description: Vase walls patterned with repeated tiles or authored paths on a sleeve, with optional smooth mesh fitting.
+description: Guidance for repeated Trace tiles and authored paths mapped onto a fitted sleeve.
+metadata:
+  saam-kind: guidance
 ---
 
 # Advanced vase mode
@@ -8,7 +10,7 @@ description: Vase walls patterned with repeated tiles or authored paths on a sle
 Use for tiled or authored patterns and fitted mesh sleeves. For a conventional
 continuous spiral, choose [standard vase mode](../vase-wall/SKILL.md).
 Sleeve assignments lower plain spirals to Slice and patterns to Trace with a
-sleeve fitting/morphing extension. `advanced-vase-wall` is a discovery/manual ID.
+sleeve fitting/morphing extension. This is guidance, not another deposition skill.
 
 Use for an open single-wall vessel or tube. The selected solid or closed sleeve
 is a reference envelope; vase-wall deposits the wall and leaves the interior and

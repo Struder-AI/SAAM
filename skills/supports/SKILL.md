@@ -57,6 +57,6 @@ Branches are sliced with the support preset (one loop, 15% rows, two interface
 layers at 0.8 density); the last layer is rounded down on the grid and the
 summary reports each actual gap. Supports print before every part operation
 reaching above them, including nonplanar ones, even with layer batching. They use
-the part's material and tool. A branch meeting the part clearance is reported,
+the print's material/tool unless [routed elsewhere](../../core/print/USAGE.md#nozzle-selection). A branch meeting the part clearance is reported,
 not trimmed or rerouted; supports on the model, curved contacts and automatic
 routing are not implemented. No physical validation is claimed.

@@ -3,13 +3,14 @@ import {validateInjectionPoint,pointInjectionOperation} from '../path/injection.
 import {assignmentPlan,validateAssignmentProcess} from './assignment-process.mjs';
 
 export function injectionAssignment({id,...options}){
-  return structuredClone({id,construction:'inject',filament:null,process:null,nozzleC:null,points:[],
+  return structuredClone({id,construction:'inject',part:null,filament:null,process:null,nozzleC:null,points:[],
     dependencies:{afterParts:[],beforeParts:[],after:[]},description:'',...options});
 }
 
 export function validateInjectionAssignment(assignment,{parts=[]}={}){
   requireThat(assignment&&Object.keys(assignment).sort().join()===Object.keys(injectionAssignment({})).sort().join()&&assignment.construction==='inject','Invalid inject assignment fields.');
   requireThat(typeof assignment.id==='string'&&/^[a-z][a-z0-9-]*$/.test(assignment.id),'Invalid inject assignment id.');
+  requireThat(assignment.part===null||parts.includes(assignment.part),'Inject assignment names an unknown part.');
   requireThat(assignment.filament===null||Number.isInteger(assignment.filament)&&assignment.filament>=0,'Inject filament must be null or a filament index.');
   validateAssignmentProcess(assignment.process);
   requireThat(assignment.nozzleC===null||Number.isFinite(assignment.nozzleC),'Inject nozzleC must be null or finite.');

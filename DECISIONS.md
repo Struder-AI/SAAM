@@ -453,7 +453,7 @@ Historical approved wording; current persistence direction is [D-027](#d-027--ex
 
 ## D-042 — 0.2.0 authoring and shared deposition intent
 
-- Decision: The [technical overview](TECHNICAL-OVERVIEW.md) and [repository plan](plans/0.2.0.md) own organization. Lower-ranking regions adapt layer heights to principal courses; interlock cadence may adapt at high angles. Report incompatible overlap patterns, then use the principal pattern while retaining owner material/process (owner, 2026-09-29). Internal boundaries get walls. Compatible techniques merge into Slice; Trace/Inject share core operations. Defaults supply no geometry; public names use bundle/recipe; inserts are selected from the manual.
+- Decision: The [overview](TECHNICAL-OVERVIEW.md) and [plan](plans/0.2.0.md) own organization. Lower-ranking regions adapt layer geometry/alignment and high-angle interlock cadence, retaining infill, walls and material/process. Owner clarification (2026-09-29, “Finish shared ownership integration”): truly incompatible overlap goes solely to the principal as a reported failsafe. Internal boundaries get walls. Compatible techniques merge into Slice; Trace/Inject share core operations. Defaults supply no geometry; public names use bundle/recipe; inserts are selected from the manual.
 - Status: proposed
 - Recorded: 2026-09-29
 - Approvals: Current user explicitly authorized developer implementation with up to three Astra workers; contributor consensus not inferred.

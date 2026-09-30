@@ -1,6 +1,8 @@
 ---
 name: bridging
-description: Straight XYZ spans between two supporting rims, with separately controlled attachment motions. Makes no walls; compose with a wall producer.
+description: Guidance for Trace spans between supporting rims, including attachment motions.
+metadata:
+  saam-kind: guidance
 ---
 
 # Bridging
@@ -9,8 +11,9 @@ Use `construction: "bridges"` in `plan.slices.assignments`, with `id`,
 `filament: null`, `after: []`, `maxExcursionMm` and `bridges`. Bridge entries
 follow finalized model and authored-curve deposition in listed order. A later
 entry can use earlier nominal strands as support; no filled surface is inferred.
-Target architecture treats bridge spans and anchor curves as Trace input; this
-manual documents the current bridge assignment.
+Bridge spans and anchor curves are Trace input. This guide uses the existing
+`bridges` authoring preset for anchor checks and attachment geometry, not a
+separate deposition skill.
 
 For one or two walls around a solid guide, use a slice assignment with `loops: 1`
 or `2`, `fillDensity: 0`, `solidTop: 0`, `solidBottom: 0`, and disable

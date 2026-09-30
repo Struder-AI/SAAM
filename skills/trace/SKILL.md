@@ -5,12 +5,12 @@ description: Deposit along curves, authored directly or supplied by skills: XYZ,
 
 # Trace
 
-Trace deposits along spatial curves, authored directly or supplied by skills.
+Trace deposits along spatial curves, authored directly or supplied by skills; self-contained Trace/Inject recipes omit `geometry`.
 [Slice](../slice/SKILL.md) covers 3D regions; [text](../text/SKILL.md) makes solid lettering.
 
 Use the existing `slice` editing tool, or the same bulk recipe edit, to add a
 `construction: "curves"` record in `plan.slices.assignments`; no separate controller.
-Supply `id`, `curves`, and common `filament`, `process`, `after` settings as needed.
+Supply `id`, `curves`, and common `part`, `filament`, `process`, `after` settings as needed; [print nozzle rules](../../core/print/USAGE.md#nozzle-selection) apply.
 
 Each curve has `closed` and exactly one source: XYZ `points`; `nurbs` with degree,
 knots, controlPoints and optional weights; `uv` with a named slice/sleeve/patch

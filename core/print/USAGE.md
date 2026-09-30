@@ -13,13 +13,11 @@ is relative to `Prints/` (`Prints/my-part` is `"my-part"`).
 | Generate for review; deliver the confirmed export | `generate_toolpath`; `deliver_toolpath` |
 | Path feasibility, when needed; save setup as the machine's default | `check_path`; `remember_setup` |
 
-Creating saves authored inputs; generation is a separate step.
-
 ## Recipes
 
 `get_recipe_defaults` returns process/setup defaults and one common [slice](../../skills/slice/SKILL.md)
 assignment, with no geometry or automatic skin. Before `create_bundle`, author
-`geometry` or replace assignments with [points-only inject](../../skills/inject/SKILL.md).
+`geometry` or standalone [Trace](../../skills/trace/SKILL.md)/[Inject](../../skills/inject/SKILL.md) assignments.
 
 `slice` adds/edits/removes one assignment; `adjust_recipe` patches the recipe.
 Objects merge, arrays replace, unknown fields reject; omit `bundle`.
@@ -33,6 +31,19 @@ After a stale revision, reload and reassess. Reads omit geometry unless asked
 (`includeGeometry: true`). Any geometry, process or setup change invalidates the
 final confirmation. Changing printer applies its process defaults and keeps other
 choices, rejects an incompatible recipe, and names any gated guidance it opens.
+
+### Nozzle selection
+
+Print setup selects the default nozzle/material for every producer. For Bambu,
+`composition.filaments: [{part:"body",filament:1}]` overrides a component, including
+its Slice, Trace, Inject and rivet work. `{assignment:"supports",filament:1}` routes
+tree supports; any authored assignment ID or `plastic-weld:SITE_ID` can be targeted.
+Priority: print assignment route, assignment's explicit filament, exact part route,
+parent component route, print setup. `part:null` names the single geometry part.
+Trace/Inject `part` associates material ownership; XYZ still uses print placement.
+Filament entries own nozzle/process mapping ([Bambu](../export/bambu.md)); every
+route uses the same generation/export/review. Existing recipes need explicit
+migration for `composition.filaments` and Trace/Inject `part`, then regeneration.
 
 ### Import an STL
 
@@ -79,7 +90,7 @@ Run from the repository root with a directory under `Prints/`; quote paths with
 spaces. Each command is the tool of the same name through `node core/print/cli.mjs`:
 
 ```sh
-init Prints/my-part plan.json --machine ultimaker-s5   # authored geometry or injection points
+init Prints/my-part plan.json --machine ultimaker-s5   # geometry or standalone Trace/Inject
 import-stl Prints/my-part source.stl auto ultimaker-s5
 blob-field-create Prints/my-part request.json ultimaker-s5   # blob-field-update … --revision REV
 combine|intersect|adjust Prints/my-part request.json --revision REV   # intersect takes no revision

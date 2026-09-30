@@ -15,14 +15,15 @@ import {finalizeDepositionResult} from './finalize.mjs';
 // Authored deposition joins the ordinary assignment list without inventing an
 // enclosing solid. A repeat is its own XYZ grid; it need not share other grids.
 export function curveAssignment({id,construction='curves',...options}) {
-  return structuredClone({id,construction,filament:null,process:null,after:[],
+  return structuredClone({id,construction,part:null,filament:null,process:null,after:[],
     ...(construction==='curves'?{curves:[],repeat:null}:{bridges:[],maxExcursionMm:10}),...options});
 }
 
-export function validateCurveAssignment(a) {
+export function validateCurveAssignment(a,{parts=null}={}) {
   const expected=Object.keys(curveAssignment({construction:a.construction})).sort().join();
   requireThat(['curves','bridges'].includes(a.construction)&&Object.keys(a).sort().join()===expected,`Invalid ${a.construction} assignment fields.`);
   requireThat(typeof a.id==='string'&&/^[a-z][a-z0-9-]*$/.test(a.id),'Invalid curve assignment id.');
+  requireThat(a.part===null||typeof a.part==='string'&&(parts===null||parts.includes(a.part)),'Curve assignment names an unknown part.');
   requireThat(a.filament===null||Number.isInteger(a.filament)&&a.filament>=0,'Curve filament must be null or a filament index.');
   requireThat(Array.isArray(a.after)&&a.after.every(id=>typeof id==='string'&&id.length),'Curve after must list operation ids.');
   if(a.construction==='bridges'){validateBridgeConstruction(a);return;}

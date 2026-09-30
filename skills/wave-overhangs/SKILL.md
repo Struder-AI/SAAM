@@ -1,11 +1,13 @@
 ---
 name: wave-overhangs
-description: Experimental seeded fronts on ordinary owned spline slice families.
+description: Guidance for experimental seeded-front fill on ordinary Slice families.
+metadata:
+  saam-kind: guidance
 ---
 
-# Wave overhangs
+# Seeded-front Slice guidance
 
-Use the [slice skill](../slice/SKILL.md) when a region can grow laterally from
+This is a guide to the [slice skill](../slice/SKILL.md) when a region can grow laterally from
 an authored seed. Fronts attach to preceding fronts; backing beneath every
 point is not required. This is an experimental process: lateral attachment,
 cooling and thermal warping need judgment and physical trials.

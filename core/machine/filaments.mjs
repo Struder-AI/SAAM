@@ -17,7 +17,7 @@ export function validateBambuConnections(connections,machine){
 
 // Filaments a recipe assigns to deposition assignments, in recipe
 // order; the setup's own filament is not included.
-export const assignedFilaments=plan=>(plan.slices?.assignments??[]).map(a=>a.filament).filter(v=>v!==null&&v!==undefined);
+export const assignedFilaments=plan=>[...(plan.slices?.assignments??[]),...(plan.composition?.filaments??[])].map(a=>a.filament).filter(v=>v!==null&&v!==undefined);
 
 // A logical material selection, separate from installed nozzle and feed route.
 // No device/tray number is ever substituted for the logical filament index.

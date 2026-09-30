@@ -283,7 +283,7 @@ function applyGcodeCommand(previousState,record,context,source) {
         requireThat(feed<=machine.maxFeedMmS.e,'Stationary extrusion speed exceeds limit.');
         let startupRecovery=false;
         if(de<0)debt-=de;
-        else if(debt>0){requireThat(de<=debt+1e-4,'Unexpected stationary extrusion.');debt=Math.max(0,debt-de);}
+        else if(debt>0){requireThat(de<=debt+1e-4,'Unexpected stationary extrusion.');debt=Math.max(0,debt-de);if(debt<1e-4)debt=0;}
         else if(startupRecoveryPending){requireThat(de<=plan.process.retractMm+1e-4,'Unexpected stationary extrusion.');startupRecovery=true;startupRecoveryPending=false;}
         else {
           requireThat(hot&&bedReady&&temperatures.has(nozzle)&&bed===s.bedC,'Stationary extrusion without planned temperature waits.');

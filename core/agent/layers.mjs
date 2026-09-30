@@ -4,7 +4,7 @@
 import { readFile, access } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { gatedSections, readManual, machineOpens } from './manuals.mjs';
-import { SKILL_IDS, TECHNIQUE_IDS } from '../../skills/catalog.mjs';
+import { SKILL_IDS, GUIDANCE_IDS } from '../../skills/catalog.mjs';
 import { MACHINE_IDS } from '../machine/profile.mjs';
 import {z} from 'zod';
 
@@ -27,7 +27,7 @@ export async function onboardingSources(root, context) {
 export const sectionName = guidanceId => guidanceId.replace(/^skills\/([^/]+)\/SKILL\.md#/, '$1#');
 
 // Every gated section of the maker manuals and skill manuals, in catalog order.
-export async function gatedIndex(root, ids = [...MAKER_MANUALS, ...[...SKILL_IDS,...TECHNIQUE_IDS].map(skillManual)]) {
+export async function gatedIndex(root, ids = [...MAKER_MANUALS, ...[...SKILL_IDS,...GUIDANCE_IDS].map(skillManual)]) {
   const lists = await Promise.all(ids.map(async path => gatedSections(await readFile(resolve(root, path), 'utf8'), path)));
   return lists.flat();
 }
@@ -37,7 +37,7 @@ export const indexLine = section => `- ${section.title}: ${section.gate}; ${sect
 // not, among the maker manuals and the print's skills; null when there are none.
 export async function machineHint(root, { from, to, skills = [] }) {
   const opensNow = machineOpens(to), opensBefore = machineOpens(from);
-  const manuals=[...new Set([...skills.filter(id=>SKILL_IDS.includes(id)||TECHNIQUE_IDS.includes(id)),...(skills.includes('slice')?TECHNIQUE_IDS:[])])];
+  const manuals=[...new Set([...skills.filter(id=>SKILL_IDS.includes(id)||GUIDANCE_IDS.includes(id)),...(skills.includes('slice')?GUIDANCE_IDS:[])])];
   const sections = (await gatedIndex(root, [...MAKER_MANUALS, ...manuals.map(skillManual)]))
     .filter(section => section.requires.some(opensNow) && !section.requires.some(opensBefore));
   return sections.length ? `This printer opens ${sections.map(section => `"${section.title}" (${sectionName(section.guidanceId)})`)
@@ -87,7 +87,7 @@ export async function contextBudget(root, { machineIds = MACHINE_IDS } = {}) {
     if (extra) advanced[machineId] = extra;
   }
   const skills = {};
-  for (const [id, path] of [['GEOMETRY.md', 'GEOMETRY.md'], ...[...SKILL_IDS,...TECHNIQUE_IDS].map(id => [id, skillManual(id)])]) {
+  for (const [id, path] of [['GEOMETRY.md', 'GEOMETRY.md'], ...[...SKILL_IDS,...GUIDANCE_IDS].map(id => [id, skillManual(id)])]) {
     const operateSkill = await read(path, { client: 'web' });
     const row = { operate: operateSkill, script: await read(path, { client: 'script' }) - operateSkill,
       all: await read(path, { all: true, client: 'script' }) };

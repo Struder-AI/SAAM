@@ -18,7 +18,7 @@ export function validateRimAssignment(a,{parts}={}){
   requireThat(a.filament===null||Number.isInteger(a.filament)&&a.filament>=0,'Rim filament must be null or a filament index.');
   requireThat(Array.isArray(a.after)&&a.after.every(id=>typeof id==='string'&&id.length),'Rim after lists operation ids.');
   requireThat(typeof a.source==='string'&&/^[a-z][a-z0-9-]*$/.test(a.source)&&a.source!==a.id,'Rim source names a separate sleeve assignment.');
-  requireThat(Array.isArray(a.steps)&&a.steps.length>=1&&a.steps.length<=50&&a.steps.every(n=>Number.isInteger(n)&&n>=1),'Rim steps need 1–50 entries, each a positive whole number of loops.');
+  requireThat(Array.isArray(a.steps)&&a.steps.length>=1&&a.steps.every(n=>Number.isSafeInteger(n)&&n>=1),'Rim steps need a nonempty list of positive whole numbers of loops.');
   requireThat(Number.isFinite(a.minFeatureMm)&&a.minFeatureMm>=.05&&a.minFeatureMm<=5,'Rim minimum section feature must be .05–5 mm.');
 }
 

@@ -1,5 +1,23 @@
 # Development log
 
+## 2026-09-30 — Print material routing, standalone Trace and guidance manuals
+
+- Common print/part/assignment filament resolution now reaches Slice, Trace, Inject,
+  tree supports and rivets, retaining per-tool process settings. Contract /6 invalidates old output.
+  Griffin retraction recovery clears numerical residue before stationary extrusion.
+- Geometry-free Trace/Inject generates and reopens; Studio launch tolerates absent geometry.
+  Removed the 80-assignment and 50-rim-course caps. No support redesign.
+- Eight technique manuals are explicit guidance in discovery and both readers; lip/roof
+  guidance teaches Slice/Trace. Specialized rim, skin, bridge and cladding records remain.
+- Detached-worktree verification: dual-nozzle file 6/6; four routed H2D examples exported
+  and strictly decoded; support/geometry-free network demos generated and reopened.
+  81 Trace assignments, 51 rim entries and remote guidance reads exercised directly.
+  Gap-volume check: halving projected normal gap halves volume without experimental mode.
+- Both demos opened and inspected in Studio; no approvals, new tests, full suite or hardware run.
+  Map regeneration was interrupted after prolonged scanning without output; maps remain stale.
+  Ownership is in the user's separate task; general gap fill, machine-independent generation,
+  relay repair, remaining authored caps and cladding portability are not completed by this checkpoint.
+
 ## 2026-09-29 — Targeted design refactor (0.2.0 unfinished)
 
 - Three workers in a detached worktree removed the stroke-order repair layer,

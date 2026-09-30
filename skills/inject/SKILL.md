@@ -8,13 +8,13 @@ description: Deposit at points, authored directly or supplied by skills, with ex
 Inject deposits at points, authored directly or supplied by skills; [trace](../trace/SKILL.md) follows curves.
 Points-only bundles omit `geometry`. Use `slice` or `adjust_recipe` for `plan.slices`
 assignment: `{id:"spot",construction:"inject",points:[{point:[5,5,2],volumeMm3:1,flowMm3S:.5,approachMm:1,holdSeconds:2}]}`.
-Defaults: `filament:null`, `process:null`, `nozzleC:null`, `dependencies:{afterParts:[],beforeParts:[],after:[]}`, `description:""`.
+Defaults: `part:null`, `filament:null`, `process:null`, `nozzleC:null`, `dependencies:{afterParts:[],beforeParts:[],after:[]}`, `description:""`.
 XYZ follows authored traces: add recipe XY placement; no component transform.
 Each point executes in list order: descend without deposition from `approachMm`
 above it, extrude for volume/flow seconds, then hold. Dependencies name part
 prerequisites or exact operation IDs; injection IDs are `assignmentId:index`.
 
-Select a filament/material, override common process values (including fan), or
+Inherit [print/part nozzle selection](../../core/print/USAGE.md#nozzle-selection), override common process values (including fan), or
 set an operation `nozzleC` restored afterward. Bounds, temperature and material
 flow limits apply. Stationary injection requires a supported filament-axis
 G-code output; robot outputs reject it. World-frame flow modulation scales volume

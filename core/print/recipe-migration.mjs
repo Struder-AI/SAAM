@@ -5,7 +5,9 @@ import {requireThat} from '../geom/tolerance.mjs';
 export function migrateRecipeFields(plan){
   const changes=[];
   const retiredBatch=plan.composition&&Object.hasOwn(plan.composition,'batchLayers');
-  const composition=retiredBatch?Object.fromEntries(Object.entries(plan.composition).filter(([key])=>key!=='batchLayers')):plan.composition;
+  const retainedComposition=retiredBatch?Object.fromEntries(Object.entries(plan.composition).filter(([key])=>key!=='batchLayers')):plan.composition;
+  const composition={...retainedComposition,filaments:retainedComposition.filaments??[]};
+  if(!Object.hasOwn(retainedComposition,'filaments'))changes.push({path:'composition.filaments',before:null,after:[],meaning:'Preserve print-wide nozzle selection and existing assignment overrides; no part routes added.'});
   if(retiredBatch){
     const {batchLayers}=plan.composition;
     changes.push({path:'composition.batchLayers',before:batchLayers,after:null,meaning:batchLayers===1?'Remove retired default batching field; ascending actual-height scheduling is unchanged. Regenerate before review.':'Remove retired batching choice; ready operations now use ascending actual height instead of grouped height bands. Regenerate before review.'});

@@ -1,14 +1,15 @@
 ---
 name: line-network
-description: Experimental. Sparse planar frames and trusses from explicit centerline polylines, with per-layer reinforcement strokes; fills no enclosed area.
+description: Guidance for sparse frames and trusses made from Trace centerlines.
+metadata:
+  saam-kind: guidance
 ---
 
 # Line network
 
 Use a `construction: "curves"` assignment in `plan.slices.assignments` for sparse
 frames, trusses and line text. Each supplied centerline receives one bead. This
-record is Trace input in the target architecture; this manual describes the
-current assignment schema.
+record is ordinary Trace input, not a separate skill. Geometry is optional.
 
 Each assignment has `id`, `construction`, `filament: null`, `after: []`,
 `repeat: null` and `curves`. Each curve has `closed` and finite XYZ `points`;

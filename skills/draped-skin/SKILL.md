@@ -1,55 +1,40 @@
 ---
 name: draped-skin
-description: Roof-following courses through common slice families, ownership and deposition.
+description: Guidance for roof-following Slice courses and their contact with prior material.
+metadata:
+  saam-kind: guidance
 ---
 
-# Draped skin
+# Roof-following Slice courses
 
-Use the [slice skill](../slice/SKILL.md) and normal geometry/toolpath review.
-`skinAssignment({id,...settings})` in
-[shared constructions](../../core/print/surface-constructions.mjs) writes a
-`construction:'skin'` preset; generation lowers it to an ordinary roof family
-and a finite chart-region volume. There is no separate skin producer.
+Use [Slice](../slice/SKILL.md), with a roof reference, a translated stack and
+an owned surface-domain volume. Choose loops, fill angle and density normally;
+there is no separate skin producer. The roof query selects the highest exposed
+surface at each XY position, not arbitrary overhanging or disconnected surfaces.
 
-Native spline/mesh queries retain the highest exposed surface at XY and faceted
-mesh normals. Select an assembly component with `part`; `null` selects a single
-solid. Discontinuities and absent reference domains are not flattened.
+For a thin finish, use zero loops and solid rows. Assign the body below that
+volume separately. `surface:{kind:'roof',offsetMm:0}` follows the selected part;
+`stack:{firstLayerMm:0.2,layerMm:0.2}` requests mean normal gaps. A
+`within` surface-domain volume selects the footprint and course interval.
+Use ordinary part/material selection and operation dependencies.
 
-| Field | Default | Meaning |
-|---|---|---|
-| `part` | `null` | Selected roof component. |
-| `filament`, `process` | `null` | Material selection and local process overrides. |
-| `after` | `[]` | Operation prerequisites. |
-| `supportFrom` | `null` | Finalized source for first-course substrate adaptation and prerequisites. |
-| `layers` | `2` | Number of translated roof courses before ownership allocation. |
-| `pitchMm` | `0.2` | Target area-weighted mean normal gap over the entire reference. |
-| `spacingFactor` | `1` | XY row pitch divided by bead width. |
-| `strokeAngleDeg` | `0` | Row direction in the XY chart. |
-| `sampleStepMm` | `0.5` | Physical mapping step, with chord-error refinement. |
-| `surveyStepMm` | `0.5` | Roof-domain sampling step. |
-| `maxAngleDegOverride` | `null` | Explicit experimental survey angle override. |
+The existing `construction:'skin'` authoring preset surveys a roof footprint
+and lowers to those ordinary Slice fields. Its controls are `layers` (2),
+`pitchMm` (0.2), `spacingFactor` (1), `strokeAngleDeg` (0), `sampleStepMm` (0.5),
+`surveyStepMm` (0.5), and optional `supportFrom`. Common `part`, `filament`,
+`process` and `after` settings apply. This convenience record still exists;
+it is not another toolpath skill. Legacy `normalMm` needs explicit migration.
 
-Whole-reference normals calibrate the vertical translation; local normal gaps
-vary. Constant-normal offset stacks are not implied. The surveyed skin volume
-participates in ordinary ownership; unclaimed steep regions retain body
-material. Multiple overlapping claims use shared precedence and alternation.
-Dependencies schedule body, sleeve, rim and skin courses through one graph.
+Whole-reference normals calibrate translation to the target mean normal gap.
+Local gaps vary and directly set volume: segment length × width × normal gap.
+This compensation does not depend on modulation or experimental deposition.
+XY spacing is projected; these are not constant-normal offset surfaces.
 
-Substrate adaptation is experimental and defaults OFF:
-`plan.experimental.substrateAdaptation`. OFF uses nominal reference-derived
-normal gaps without final-material queries. ON measures finalized source beads
-at interfaces; an explicit `supportFrom` requires contact and missing substrate
-rejects. Measured gaps change bead volume while preserving authored skin XYZ.
-This is distinct from independently assigned 3D-printing supports; no overhang
-percentage, automatic support, adhesion or sag model is applied.
+`experimental.substrateAdaptation` defaults off. When enabled, finalized source
+beads supply measured contact; explicit `supportFrom` requires contact. Gaps
+change volume while preserving authored XYZ. Excessive gaps or missing required
+contact reject; no transition courses or sacrificial supports are inserted.
 
-Local volume is segment length × width × projected normal gap. Machine angle,
-bead-height, flow and bounds limits apply in both modes. With adaptation ON,
-a .2 mm skin over a .2 mm horizontal lattice can measure nearly .4 mm locally,
-exceeding a tool limited to .3 mm. No transition courses are inserted.
-Finalization preserves selected geometry identity and sparse bead coverage.
-
-Sampling can miss small features; XY spacing is projected. See [shared travel](../../core/path/README.md#whole-plan-travel-requirement).
-Pressure, full-head clearance and physical bead shape are not modeled. Earlier
-user-reported prints do not validate this revised pipeline physically.
-Legacy `normalMm` requires explicit migration to target-gap `pitchMm`.
+Sampling can miss small features. Machine angle, bead-height, flow and bounds
+limits apply. Pressure, adhesion, full-head clearance and physical bead shape
+are not modeled; earlier prints do not qualify the revised pipeline.

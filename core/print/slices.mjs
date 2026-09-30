@@ -8,7 +8,7 @@ import {injectionAssignment,validateInjectionAssignment} from './injection.mjs';
 import {skinAssignment,frontAssignment,lowerSkinAssignment,validateSurfaceConstruction} from './surface-constructions.mjs';
 import {sleeveAssignment,rimAssignment,validateSleeveAssignment,validateRimAssignment,terminalBoundaryReference,boundaryOffsetField} from './sleeve-constructions.mjs';
 import {claddingAssignment,validateCladdingAssignment} from './cladding-constructions.mjs';
-import {assignmentPlan,validateAssignmentProcess} from './assignment-process.mjs';
+import {assignmentPlan,assignmentFilament,validateAssignmentProcess,depositionAssignments} from './assignment-process.mjs';
 import {depositedBeadSegments,depositedBeadsContain,depositedBeadBounds} from '../path/deposited-curves.mjs';
 import {materialContact} from '../region/material-contact.mjs';
 import { heightSlice, heightSliceNormal, heightReferencePatch, heightReferenceBounds } from '../geom/height-slice.mjs';
@@ -56,13 +56,13 @@ const FIELDS = ['id', 'part', 'preset', 'filament', 'process', ...Object.keys(SL
 
 // A complete assignment from a preset and overrides.
 export function sliceAssignment({ id, part = null, preset = null, ...overrides }) {
-  if(overrides.construction==='inject')return injectionAssignment({id,...overrides});
+  if(overrides.construction==='inject')return injectionAssignment({id,part,...overrides});
   if(overrides.construction==='skin')return skinAssignment({id,part,...overrides});
   if(overrides.construction==='fronts')return frontAssignment({id,...overrides});
   if(overrides.construction==='sleeve')return sleeveAssignment({id,part,...overrides});
   if(overrides.construction==='rim')return rimAssignment({id,part,...overrides});
   if(overrides.construction==='cladding')return claddingAssignment({id,part,...overrides});
-  if(overrides.construction)return curveAssignment({id,...overrides});
+  if(overrides.construction)return curveAssignment({id,part,...overrides});
   return ordinarySliceAssignment({id,part,preset,...overrides});
 }
 export const defaultSlices = () => ({ version: SLICE_VERSION, assignments: [sliceAssignment({ id: 'body' })] });
@@ -73,7 +73,7 @@ const loopsList = loops => Array.isArray(loops) && loops.length > 0 && loops.eve
 export function validateSlices(slices, { parts, lineWidthMm, firstLayerMm }) {
   requireThat(slices && typeof slices === 'object' && Object.keys(slices).sort().join() === 'assignments,version', 'plan.slices needs version and assignments.');
   requireThat(slices.version === SLICE_VERSION, `Unsupported slice version ${slices.version}; this generator reads version ${SLICE_VERSION}.`);
-  requireThat(Array.isArray(slices.assignments) && slices.assignments.length <= 80, 'Slice assignments are a list of at most 80.');
+  requireThat(Array.isArray(slices.assignments), 'Slice assignments must be a list.');
   const ids = new Set();
   for (const a of slices.assignments) {
     validateAssignmentProcess(a?.process);
@@ -84,7 +84,7 @@ export function validateSlices(slices, { parts, lineWidthMm, firstLayerMm }) {
     if(a.construction==='rim'){validateRimAssignment(a,{parts});continue;}
     if(a.construction==='cladding'){validateCladdingAssignment(a,{parts});continue;}
     if(['skin','fronts'].includes(a.construction)){validateSurfaceConstruction(a,{parts,lineWidthMm});continue;}
-    if(a.construction){validateCurveAssignment(a);continue;}
+    if(a.construction){validateCurveAssignment(a,{parts});continue;}
     const unexpected = Object.keys(a ?? {}).filter(k => !FIELDS.includes(k)), missing = FIELDS.filter(k => !Object.hasOwn(a ?? {}, k));
     requireThat(!unexpected.length && !missing.length, `Slice assignment ${a?.id ?? ''} has ${[unexpected.length ? 'unexpected ' + unexpected.join(', ') : '', missing.length ? 'missing ' + missing.join(', ') : ''].filter(Boolean).join('; ')}.`);
     requireThat(typeof a.id === 'string' && /^[a-z][a-z0-9-]*$/.test(a.id), 'Invalid slice assignment id.');
@@ -175,7 +175,7 @@ const regionBox = loops => {
 // {id, kind (part, outline or support), assignment, part, shell, within,
 // family, widthMm, startMm, endMm}; a part owner's family spans its whole
 // part, so solid masks see where the part ends.
-export function sliceOwners(assignments, { shells, processes, volumes = new Map(), placement = { xMm: 0, yMm: 0 }, selections = new Map() }) {
+export function sliceOwners(assignments, { shells, processes, materials=[], volumes = new Map(), placement = { xMm: 0, yMm: 0 }, selections = new Map() }) {
   const owners = [];
   for (const [n, assignment] of assignments.entries()) {
     if(assignment.construction)continue;
@@ -190,6 +190,9 @@ export function sliceOwners(assignments, { shells, processes, volumes = new Map(
     }
     const selected = shells.filter(([part, , whole]) => assignment.part === null ? whole : part === assignment.part);
     for (const [part, shell] of selected) {
+      const material=materials.find(item=>item.id===assignment.id&&item.part===part);
+      const process=material?.process??processes[n],stack=assignment.stack??process,widthMm=process.lineWidthMm;
+      const settings=material?{...assignment,filament:material.filament}:assignment;
       const domain=assignment.within.find(v=>v.kind==='surface-domain');
       if(domain){
         const selectedPlacement=assignment.part===null?null:selections.get(assignment.part),shift=[placement.xMm+(selectedPlacement?.xMm??0),placement.yMm+(selectedPlacement?.yMm??0),selectedPlacement?.zMm??0];
@@ -201,7 +204,7 @@ export function sliceOwners(assignments, { shells, processes, volumes = new Map(
         const fitted=sliceFamily({base,direction,pitchMm:stack.layerMm,firstLayerMm:stack.firstLayerMm},shell.bounds);
         const prism=chartPrism(base,{loopsUv:domain.loopsUv,direction,fromMm:domain.fromLayer*fitted.translationStepMm,toMm:domain.toLayer*fitted.translationStepMm});
         const family=sliceFamily({base,direction,pitchMm:stack.layerMm,firstLayerMm:stack.firstLayerMm},prism.bounds),id=part===null?assignment.id:`${part}:${assignment.id}`;
-        owners.push({id,sectionKey:id,kind:'part',assignment,part,shell:prism,publicationShell:shell,within:[{kind:'geometry',geometry:prism}],family,widthMm,startMm:prism.bounds.min[2],endMm:prism.bounds.max[2]});
+        owners.push({id,sectionKey:id,kind:'part',assignment:settings,process,part,shell:prism,publicationShell:shell,within:[{kind:'geometry',geometry:prism}],family,widthMm,startMm:prism.bounds.min[2],endMm:prism.bounds.max[2]});
         continue;
       }
       const bottom = shell.bounds.min[2], top = shell.bounds.max[2];
@@ -224,7 +227,7 @@ export function sliceOwners(assignments, { shells, processes, volumes = new Map(
       const [startMm, endMm] = outline ? [bottom, bottom + stack.firstLayerMm] : [from, to];
       const family = sliceFamily({ base, direction, pitchMm: stack.layerMm, firstLayerMm: stack.firstLayerMm },
         { min: [shell.bounds.min[0], shell.bounds.min[1], assignment.surface.kind === 'horizontal' ? base.origin[2] : bottom], max: [shell.bounds.max[0], shell.bounds.max[1], outline ? endMm : top] });
-      const owner = { id: part !== null ? `${part}:${assignment.id}` : assignment.id, kind: outline ? 'outline' : 'part', assignment, part, shell, within, family, widthMm, startMm, endMm };
+      const owner = { id: part !== null ? `${part}:${assignment.id}` : assignment.id, kind: outline ? 'outline' : 'part', assignment:settings, process, part, shell, within, family, widthMm, startMm, endMm };
       owners.push(owner);
     }
   }
@@ -546,16 +549,20 @@ export function normalBandCourses(assignments){
 
 export function prepareSliceContexts({ plan, machine, shells, volumes, bands, reserves, envelopes = [],surfaceAssignments=[],referenceAssignments=[],terminalAssignments=[],boundaryAssignments=[], onProgress }) {
   const lowered=new Map(surfaceAssignments.map(input=>[input.assignment.id,{assignment:lowerSkinAssignment(input),contact:{source:input.assignment.supportFrom},survey:input.survey}]));
-  const assignments = plan.slices.assignments.flatMap(a=>!a.construction?[a]:lowered.has(a.id)?[lowered.get(a.id).assignment]:[]);
+  const assignments = depositionAssignments(plan,{expandParts:false}).flatMap(a=>!a.construction?[a]:lowered.has(a.id)?[{...lowered.get(a.id).assignment,filament:a.filament}]:[]);
 
   if(!assignments.length&&!referenceAssignments.length&&!terminalAssignments.length&&!boundaryAssignments.length)return {contexts:[]};
   const processes = assignments.map(a => assignmentPlan(plan,machine,a).process);
-  const owners = sliceOwners(assignments, { shells, processes, volumes, placement: plan.placement, selections: geometrySelections(plan.geometry) });
+  const materials=assignments.flatMap(a=>shells.filter(([part,,whole])=>a.part===null?whole:part===a.part).map(([part])=>{
+    const selected={...a,part,filament:assignmentFilament(plan,{...a,part})};
+    return {id:a.id,part,filament:selected.filament,process:assignmentPlan(plan,machine,selected).process};
+  }));
+  const owners = sliceOwners(assignments, { shells, processes, materials, volumes, placement: plan.placement, selections: geometrySelections(plan.geometry) });
   const owned = ownedLayers(owners, { shells, bands, reserves, onProgress });
   const contexts=[];
   for (const { owner, leader, family, familyId, layers, material } of owned) {
     const { assignment } = owner;
-    const process = processes[assignments.indexOf(assignment)];
+    const process = owner.process??processes[assignments.indexOf(assignment)];
     const held = envelopes.filter(e => e.part === owner.part);
     const solidRegions = new Map(held.length ? layers.map(l => [l.index, held.flatMap(e => horizontal(l.slice)?e.solidRegionAt(l.slice.origin[2]):
       difference(l.region,clipReservedSlice(l.region,l.slice,{footprint:[[owner.shell.bounds.min.slice(0,2),[owner.shell.bounds.max[0],owner.shell.bounds.min[1]],owner.shell.bounds.max.slice(0,2),[owner.shell.bounds.min[0],owner.shell.bounds.max[1]]]],regionAt:e.solidRegionAt},{sampleStepMm:assignment.sampleStepMm})))]) : []);
@@ -565,7 +572,7 @@ export function prepareSliceContexts({ plan, machine, shells, volumes, bands, re
       ...(family.base.kind==='height-field'?{beadHeightMetric:'local-normal-projection',chartMetric:'world-xy',topologySampleStepMm:family.base.sampleStepMm}:{}),
       ...(owner.kind === 'support' ? { contactZMm: owner.contactZMm, actualTopGapMm: owner.contactZMm - Math.max(...layers.filter(l => l.region.length).map(l => l.slice.origin[2])) } : {}) };
     const resultId = familyId === owner.id ? owner.id : `${owner.id}:shared:${familyId}`;
-    const selectedTool=machine.tools.find(tool=>tool.index===plan.setup.tool),maxBeadHeightMm=selectedTool?.layerHeightMm?.[1]??Infinity;
+    const selectedTool=machine.tools.find(tool=>tool.index===assignmentPlan(plan,machine,assignment).setup.tool),maxBeadHeightMm=selectedTool?.layerHeightMm?.[1]??Infinity;
     contexts.push({contact:lowered.has(assignment.id)?{...lowered.get(assignment.id).contact,predecessorReference:translateSlice(layers[0].slice,layers[0].direction.map(v=>-v*layers[0].translationMm))}:null,spec:{id:resultId,settings:assignment,layers,material,solidRegions,filament:assignment.filament,totalLayerCount:layers.length,predecessorRegions:new Map(layers.map(layer=>[layer.index,layers.find(previous=>previous.index===layer.index-1)?.region??[]]))},context:{process,machine,shell:owner.publicationShell??owner.shell,startMm:owner.startMm,endMm:owner.endMm,maxBeadHeightMm,report},family,owner,familyId,
       layerOrder:layers.map(layer=>({index:layer.index,rank:sliceRank(layer.slice,owner.shell.bounds)}))});
   }

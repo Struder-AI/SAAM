@@ -28,7 +28,7 @@ import {loadLocalExtension} from '../../../core/local-extension.mjs';
 import {lifecycleReview} from '../../../core/print/review-state.mjs';
 import { readGuidance, readManual } from './manuals.mjs';
 import { onboardingSources, printHint } from '../../../core/agent/layers.mjs';
-import { SKILL_IDS, TECHNIQUE_IDS, skillMetadata } from '../../../skills/catalog.mjs';
+import { SKILL_IDS, GUIDANCE_IDS, skillMetadata } from '../../../skills/catalog.mjs';
 import {slicePatchSchema,modulationPatchSchema,geometrySchema,patchSchema,draftFamilySchema} from './deposition-schemas.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -195,7 +195,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   }
   async function skills() {
     const found = [];
-    for (const id of SKILL_IDS) {
+    for (const id of [...SKILL_IDS,...GUIDANCE_IDS]) {
       try {
         const { text: manual } = await readGuidance(root, `skills/${id}/SKILL.md`);
         found.push({ ...skillMetadata(id, manual), manualTool: 'read_skill' });
@@ -254,20 +254,20 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       outputs: m.outputs.map(({ id, extension, flavor, implemented, experimental, constraints, reason }) => ({ id, extension, flavor, implemented: implemented !== false, experimental, constraints, reason })),
       defaultSetup: m.defaultSetup };
   }));
-  tool('list_skills', 'List the known local toolpath, geometry and hybrid skill manuals. This fixed list does not establish recipe compatibility; geometry skills are not deposition operations, and hybrid skills change geometry and deposit their own toolpath. Select the manual relevant to the requested task.', {}, skills);
-  tool('read_skill', 'Read a skill or construction technique manual by ID, or one section as ID#heading whatever its gate. Sections gated to command access or to machine capabilities are listed in omitted; machineId opens the ones that printer meets. Links are repository paths for read_guidance.',
+  tool('list_skills', 'List toolpath, geometry, hybrid and guidance manuals. Guidance teaches compositions of existing skills, not additional deposition operations. Catalog membership does not establish recipe compatibility.', {}, skills);
+  tool('read_skill', 'Read a skill or guidance manual by ID, or one section as ID#heading whatever its gate. Sections gated to command access or to machine capabilities are listed in omitted; machineId opens the ones that printer meets. Links are repository paths for read_guidance.',
     { skillId: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}(#[^\s#]{1,200})?$/), machineId: machineIdSchema }, async ({ skillId: name, machineId }) => {
     const [skillId, anchor] = name.split('#');
-    if (!SKILL_IDS.includes(skillId)&&!TECHNIQUE_IDS.includes(skillId)) {
+    if (!SKILL_IDS.includes(skillId)&&!GUIDANCE_IDS.includes(skillId)) {
       const local=await localExtension.readSkill?.(skillId);if(local)return local;
-      throw new Error('Unknown skill or technique ID. Use list_skills and its manual links.');
+      throw new Error('Unknown skill or guidance manual ID. Use list_skills and its manual links.');
     }
     const { text: manual, ...reference } = await readManual(root, `skills/${skillId}/SKILL.md${anchor ? '#' + anchor : ''}`, { client: 'web', machineId });
     return { skillId, manual, ...reference };
   });
   tool('read_guidance', 'Read published repository Markdown by relative path, optionally with #heading for one section whatever its gate. Results list the headings with their gates and the gated sections omitted; machineId opens the ones that printer meets. Short IDs: makers, geometry, development, glossary, mcp, print-tools. This reader does not expose private files, source code or register capabilities.',
     { guidanceId: z.string().min(1).max(1024), machineId: machineIdSchema }, async ({ guidanceId, machineId }) => readManual(root, guidanceId, { client: 'web', machineId, headings: true }));
-  tool('get_recipe_defaults', 'Get process, setup and common assignment defaults, including remembered setup. Contains no geometry; author/import geometry before create_bundle. Defaults and remembered setup never confer job approval.',
+  tool('get_recipe_defaults', 'Get process, setup and common assignment defaults, including remembered setup. Supply geometry or standalone Trace/Inject assignments before create_bundle. Defaults never confer job approval.',
     { kind: kindSchema, machineId: z.string() }, async ({ kind, machineId }) => ({ kind, machineId,
       plan: await (await bundles[kind]()).proposedPlan(machineId, { setupFile: await setupFile(machineId) }) }));
   tool('list_bundles', 'Discover saved print names, machines and modification times. Export and approval status are unchecked; use get_bundle or check_bundle for validated status.', {}, async () => {
@@ -291,7 +291,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       ...(!includeGeometry&&state.geometry ? { geometry: { omitted: true, shape: state.plan.geometry?.shape ?? 'unknown',
         nativeFile: state.geometry.nativeFile, boundsMm: state.geometry.boundsMm } } : {}) };
   });
-  tool('create_bundle', 'Create an unapproved bundle with authored/imported geometry or points-only inject assignments. Defaults alone are incomplete. Then request_review.',
+  tool('create_bundle', 'Create an unapproved bundle with authored/imported geometry or standalone Trace/Inject assignments. Defaults alone are incomplete. Then request_review.',
     { bundleId: bundleIdSchema, kind: kindSchema, machineId: z.string(), plan: objectSchema }, async ({ bundleId, kind, machineId, plan }) => {
       noApprovalFields(plan);
       const machine = loadMachine(machineId), recipe = await recipes[kind]();

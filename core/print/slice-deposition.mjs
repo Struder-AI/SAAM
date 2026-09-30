@@ -44,7 +44,7 @@ export function prepareDepositionWork(contexts,constructions=[],weldSites=[]){
   }).concat(constructions.map(context=>({key:`${context.assignment.construction}:${context.assignment.id}`,kind:assignmentFamily(context.assignment),construction:context.assignment.construction,
     sourceId:context.assignment.id,part:context.assignment.part??null,nominalRank:context.endMm??context.shell?.bounds.max[2]??0,context,requires:[]}))).concat(weldSites.map((site,index)=>({
       key:`rivet:${site.id}`,kind:'inject',construction:'rivet',sourceId:'plastic-weld',part:site.part,nominalRank:site.top,index,
-      context:{site,siteCount:weldSites.length,assignment:{id:'plastic-weld',construction:'inject',filament:null}},requires:[]})));
+      context:{site,siteCount:weldSites.length,assignment:site.assignment},requires:[]})));
   const declared=nodes.map(node=>{
     const assignment=node.kind==='slice'?node.record.spec.settings:node.context.assignment;
     const needs=new Set(node.requires),defaults=new Set();
@@ -56,7 +56,7 @@ export function prepareDepositionWork(contexts,constructions=[],weldSites=[]){
       // against finalized heights, rather than trusting this construction rank.
       if(node.construction==='rivet'&&other.kind==='slice'&&!other.record.reference){
         const layers=other.record.spec.layers.filter(layer=>other.index===null||layer.index===other.index);
-        const enclosure=rivetEnclosureLayers(node.context.site,other.record.context.process);
+        const enclosure=rivetEnclosureLayers(node.context.site,node.context.site.process);
         if(layers.some(layer=>{
           const points=layer.region.map(loop=>loop.map(uv=>slicePoint(layer.slice,uv))),flat=points.flat();
           return flat.length&&enclosure.some(({z,required})=>z>=Math.min(...flat.map(p=>p[2]))-1e-8&&z<=Math.max(...flat.map(p=>p[2]))+1e-8&&Math.abs(regionArea(intersect(points.map(loop=>loop.map(p=>p.slice(0,2))),required)))>1e-8);
@@ -156,7 +156,7 @@ export function constructDepositionWork(node,completed,{plan,machine,onProgress,
     const results=predecessors.map(item=>item.result);
     result=curveAssignmentResult(node.context.assignment,{plan,machine,modelResults:results,
       bounds:machine.motionChecks==='deferred'?null:machine.bounds,references:depositionReferences(shells,results)});
-  }else if(node.construction==='rivet')result=rivetInjectionResult({plan,machine,site:node.context.site,siteIndex:node.index,siteCount:node.context.siteCount,modelResults:predecessors.filter(item=>item.node.construction!=='rivet').map(item=>item.result)});
+  }else if(node.construction==='rivet')result=rivetInjectionResult({plan:assignmentPlan(plan,machine,node.context.assignment),machine,site:node.context.site,siteIndex:node.index,siteCount:node.context.siteCount,modelResults:predecessors.filter(item=>item.node.construction!=='rivet').map(item=>item.result)});
   else if(node.kind==='inject')result=injectionResult(node.context.assignment,{plan,machine});
   else throw new Error(`Unsupported deposition construction ${node.kind}.`);
   const assignment=node.kind==='slice'?node.record.spec.settings:node.context.assignment;
