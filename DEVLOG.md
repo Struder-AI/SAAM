@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-09-30 — Double-click Mac installation
+
+- Mac ZIPs now offer `Install SAAM.command`, which runs the existing installer and keeps errors visible. ZIP metadata preserves executable permissions even from Windows builds; `.command` stays LF. `fflate` is an explicit build dependency, removed from installed packages.
+- Installation docs replace Terminal typing with double-click steps and the unsigned-download security prompt; Mac README 69 → 61 lines, packaging README 77 → 76.
+- Detached-worktree builds with official Node v24.19.0: local 0.2.1 candidates in `dist/mac-installer-check`, not published. ARM64: 50010203 bytes, SHA-256 `c7b4ca4b650e6ece02e2252febed56671c6cc65b723ed3365b07e8a088d4bf65`; Intel: 51363793 bytes, SHA-256 `509fd00d03146a5336377fb62c1f50bcec90cb2837ea62c788c79bd1d09b2bd8`.
+- Checked both ZIPs' CRCs, Unix 0755 launcher, LF contents, updater script, runtime architecture/license and omitted build dependency. Bash syntax and scratch launcher success/failure/missing-package runs (including spaces in paths) pass; Git Bash needed its utilities on PATH. No new tests or full suite. Finder/Gatekeeper and actual installation still need a Mac; packaging is outside dev-map scope.
+
 ## 2026-09-30 — 0.2.0 live-relay release
 
 - Owner explicitly requested commit, push, publication and live relay update; acceptance testing follows on the actual relay, with fixes in 0.2.1 if needed.

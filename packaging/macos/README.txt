@@ -5,28 +5,20 @@ SAAM makes 3D-printed parts through conversation with your web chat
 (Claude or ChatGPT). This release installs for your macOS user only and
 needs no administrator password.
 
-This alpha build is not signed or notarized by SAAM. It is installed from
-Terminal with a script, which macOS runs without a Gatekeeper prompt. The
-bundled Node.js runtime is the official build from nodejs.org, which is
-notarized by the Node.js project. Your Mac's security settings are not
-changed.
-
-
 Install
 -------
-1. Double-click the download to extract it (Finder puts the folder next to
-   the download).
-2. Open Terminal (Applications > Utilities > Terminal).
-3. Type  bash  followed by a space, drag install.sh from the extracted
-   folder into the Terminal window, and press Return. The line looks like:
-     bash "/Users/you/Downloads/SAAM-0.1.0-darwin-arm64/install.sh"
-4. The installer unpacks SAAM into ~/Applications/SAAM, writes
-   ~/Applications/SAAM.app, and starts SAAM.
+1. Double-click the downloaded ZIP, then open the extracted folder.
+2. Double-click "Install SAAM.command". Installation runs automatically
+   in a Terminal window and opens SAAM in your browser.
+3. Press Return to finish, then close the installer window.
 
-Quit SAAM before installing a new version: the installer refuses while
-SAAM is running. Installing replaces the installed version. To go back to
-an older version, install its download the same way; your prints are not
-affected.
+If macOS blocks the installer, open System Settings > Privacy & Security,
+click Open Anyway for Install SAAM.command, and confirm Open. This alpha
+is unsigned; approve it only if you downloaded it from Struder-AI/SAAM.
+The installer does not change your Mac's security settings.
+
+Quit SAAM before installing a new version. Installing replaces the old
+version and keeps your prints; older downloads install the same way.
 
 
 Start and stop

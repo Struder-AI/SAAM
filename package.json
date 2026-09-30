@@ -27,6 +27,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "acorn": "8.15.0"
+    "acorn": "8.15.0",
+    "fflate": "0.8.3"
   }
 }

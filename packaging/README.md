@@ -39,11 +39,10 @@ or [macos/](macos/) unpacks straight into the installation, and `app/` with only
 - A computer whose SAAM speaks another device-relay protocol than the relay is
   refused with an update message shown in Studio.
 
-Alpha builds are unsigned and need no Apple Developer account. On macOS the
-installer is `install.sh`, run from Terminal with `bash`, which Gatekeeper does
-not block; it writes `SAAM.app` on the computer, so it carries no download
-quarantine, and the bundled Node is the official notarized build.
-Windows may warn about an unsigned download; the README says to run it anyway.
+Alpha builds are unsigned. Double-click `Install SAAM.command` on macOS or
+`Install SAAM.cmd` on Windows; the platform README covers security prompts.
+Mac ZIPs set Unix executable permissions even when built on Windows (`fflate`,
+build-only). The launcher runs the same `install.sh` used by automatic updates.
 
 ## Releasing an update
 

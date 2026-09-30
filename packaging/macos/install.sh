@@ -1,13 +1,8 @@
 #!/bin/bash
 # Installs SAAM for this macOS user into ~/Applications/SAAM, replacing an
-# earlier installation, writes ~/Applications/SAAM.app and starts SAAM. Run it
-# from Terminal:
-#
-#   bash "<drag install.sh from the extracted release folder here>"
-#
-# The release folder holds install.sh, the application as app.tar and an app
-# folder with only release.json and this script. A running SAAM updating itself
-# runs that copy inside the new package instead:
+# earlier installation, writes ~/Applications/SAAM.app and starts SAAM.
+# Install SAAM.command runs this script inside the release's app folder;
+# app.tar sits next to app/. A running SAAM updating itself uses the same path:
 #   bash <package>/app/packaging/macos/install.sh --wait-pid <pid>
 # It waits for that SAAM to exit, installs without prompts, logs to
 # ~/Library/Application Support/SAAM/logs/update.log and starts the new SAAM.

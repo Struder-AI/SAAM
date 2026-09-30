@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Builds an installable SAAM ZIP for one platform: the tracked application
 // files, production dependencies, a pinned Node runtime, release.json and the
-// platform installer. Alpha builds are unsigned: the macOS installer runs from
+// platform installer. Alpha builds are unsigned: the macOS launcher opens
 // Terminal and the bundled Node is the official notarized build.
 //
 //   node packaging/build.mjs --platform win-x64 --version 0.1.0 --relay-url https://relay.example.com
@@ -20,16 +20,17 @@ import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {cp,mkdir,rm,writeFile,readFile,copyFile,mkdtemp,readdir,stat} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {resolve,dirname,join} from 'node:path';
+import {resolve,dirname,join,relative} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';
+import {zipSync} from 'fflate';
 import {packageNativeRepair} from './native-repair.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const PLATFORMS={
   'win-x64':{os:'windows',archive:'zip',binary:'node.exe',installer:'Install SAAM.cmd',scripts:['install.ps1','common.ps1']},
-  'darwin-arm64':{os:'macos',archive:'tar.gz',binary:'bin/node',installer:'install.sh',scripts:['install.sh']},
-  'darwin-x64':{os:'macos',archive:'tar.gz',binary:'bin/node',installer:'install.sh',scripts:['install.sh']}
+  'darwin-arm64':{os:'macos',archive:'tar.gz',binary:'bin/node',installer:'Install SAAM.command',scripts:['install.sh']},
+  'darwin-x64':{os:'macos',archive:'tar.gz',binary:'bin/node',installer:'Install SAAM.command',scripts:['install.sh']}
 };
 // Tracked files a maker's installation does not need: development maps and
 // tooling, tests, the relay service and this packager.
@@ -68,6 +69,18 @@ async function measure(folder){
   return {files,bytes};
 }
 const describe=({files,bytes})=>`${files} files, ${(bytes/1e6).toFixed(1)} MB`;
+
+// Windows cannot set Unix executable bits on disk. Write them into the Mac ZIP
+// itself so Finder can launch Install SAAM.command immediately after extraction.
+async function writeMacZip(folder,zip){
+  const entries={};
+  for(const entry of await readdir(folder,{recursive:true,withFileTypes:true})){
+    const path=join(entry.parentPath,entry.name),name=relative(dirname(folder),path).replaceAll('\\','/');
+    const directory=entry.isDirectory(),mode=directory?0o40755:entry.name.endsWith('.command')?0o100755:0o100644;
+    entries[name+(directory?'/':'')]=[directory?new Uint8Array():await readFile(path),{os:3,attrs:(mode<<16)>>>0}];
+  }
+  await writeFile(zip,zipSync(entries));
+}
 
 // The installed package paths (package-lock keys) that MANIFOLD_EXTRAS names,
 // after checking that nothing outside the list needs them.
@@ -171,7 +184,8 @@ async function main(){
   await writeFile(resolve(folder,'app','release.json'),releaseJson);
 
   const zip=resolve(out,`${top}.zip`);await rm(zip,{force:true});
-  run(TAR,['-a','-cf',zip,'-C',resolve(out,'stage'),top],{env:TAR_ENV});
+  if(target.os==='macos')await writeMacZip(folder,zip);
+  else run(TAR,['-a','-cf',zip,'-C',resolve(out,'stage'),top],{env:TAR_ENV});
   console.log(`Built ${zip}: ${((await stat(zip)).size/1e6).toFixed(1)} MB (${JSON.stringify(release)}).`);
   // To offer this build as an update, host the ZIP under the update host and add
   // this entry to the relay's LATEST_RELEASE assets (see relay/wrangler.jsonc).
