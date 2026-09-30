@@ -29,6 +29,7 @@ STYLE["assertion-code"] = dict(fill="#fff7ed", stroke="#c2410c", sw=1.8, rx=15, 
 STYLE["caller"] = dict(fill="#fff1f2", stroke="#dc2626", sw=1.4, rx=13, tc="#991b1b")
 STYLE["invocation"] = dict(fill="#eef2ff", stroke="#4f46e5", sw=1.8, rx=7, tc="#312e81")
 STYLE["outside"] = dict(fill="#ecfdf5", stroke="#059669", sw=1.8, rx=7, tc="#065f46")
+STYLE["emphasis"] = dict(fill="#e0f2fe", stroke="#0284c7", sw=2.5, rx=9, tc="#0c4a6e")
 EDGE["caller"] = dict(stroke="#dc2626", sw=1.5, head="l-co", dash="2 3")
 EDGE["capture"] = dict(stroke="#0369a1", sw=1.5, head="l-data", dash="3 3")
 ROW = 14.0
@@ -66,6 +67,8 @@ class MapPage(Page):
 
     def layout(self):
         super().layout()
+        if getattr(self, "authored", None):
+            self.position_authored()
         # The expanded owner is the page frame. Its references leave that boundary;
         # diagnostic lists stay outside it rather than masquerading as function contents.
         self.frame_w = max(self.W, 2 * MARGIN_L + max(tw(self.title, 21), tw(self.subtitle, 12),
@@ -113,6 +116,39 @@ class MapPage(Page):
                                                 tw(self.key_line, 10)))
         return self
 
+    def position_authored(self):
+        positions = self.authored["positions"]
+        for nid, point in positions.items():
+            node = self.index[nid]
+            node.x, node.y = point["x"], point["y"]
+            if point.get("emphasis"):
+                node.kind = "emphasis"
+        # Unpositioned dependencies stay on this same page, below the authored area.
+        main = [self.index[nid] for nid in positions]
+        right = max(n.x + n.w for n in main) + 50
+        bottom = max(n.y + n.h for n in main) + 70
+        self.focus = self.authored.get("viewport", [0, 0, right, bottom])
+        outside = [n for n in self.nodes if n.id not in positions]
+        cell = max([n.w for n in outside] + [210]) + 70
+        y = bottom + 170
+        for i in range(0, len(outside), 5):
+            row = outside[i:i + 5]
+            for j, node in enumerate(row):
+                node.x, node.y = MARGIN_L + j * cell, y
+            y += max(n.h for n in row) + 85
+        for node in self.nodes:
+            node.column = 0
+        self.row_of, self.slot, self.gutter_lane, self.wrapped = {0: 0}, {}, {}, set()
+        self.right_edge = max(n.x + n.w for n in self.nodes) + 24
+        self.long = {i for i, e in enumerate(self.edges) if e["src"] not in positions or e["dst"] not in positions or self._far(e)}
+        self.fan = {}
+        for i in self.long:
+            for end in (self.edges[i]["src"], self.edges[i]["dst"]):
+                self.fan[end] = self.fan.get(end, 0) + 1
+        self.routes = [self._route(e, set()) for e in self.edges]
+        self.W, self.H = self.right_edge + 30, max(n.y + n.h for n in self.nodes) + 100
+        self.zone_rects = []
+
     def _list_columns(self, want):
         """The ledger split into columns of about `want` rows, cut only between sections — a
         heading and the rows it names stay together, because a row's section is what says
@@ -154,6 +190,8 @@ class MapPage(Page):
 
     def _extras(self):
         o, top = [], self.list_y + 22
+        for caption in getattr(self, "authored", {}).get("captions", []):
+            o.append(f'<text x="{caption["x"]}" y="{caption["y"]}" font-size="16" font-weight="700" fill="#64748b">{escape(caption["text"])}</text>')
         if self.list_cols:
             o.append(f'<path d="M{MARGIN_L},{top - 15:.1f} L{self.W - MARGIN_L:.1f},{top - 15:.1f}" '
                      f'stroke="#cbd5e1" stroke-width="1"/>')
@@ -317,6 +355,7 @@ def build_page(packet, ctx):
     meta = pages[packet["index"]]
     page = MapPage(stale, key=packet["index"], title=meta["t"], subtitle=meta["s"])
     page.context_pages = pages
+    page.authored = packet.get("layout", {})
     page.key_line = meta["k"] + ("  ·  " + meta["d"] if meta["d"] else "")
     if packet.get("stateful"):
         page.key_line += " · stateful boundary"
@@ -401,12 +440,17 @@ def build_page(packet, ctx):
             # A box whose code is in no single source file (a cluster, or externals from several
             # files) draws no line naming where it is: the list would outgrow the box.
             if c.get("kind") == "group":
-                unit(c["index"], c["label"], f'{c["count"]} leaves', "", "stage", path=c["path"]).show_foot = False
+                note = c.get("description", "")
+                note = (textwrap.fill(note, 29) + "\n" if note else "") + f'{c["count"]} leaves'
+                unit(c["index"], c["label"], note, "", "stage", path=c["path"]).show_foot = False
                 continue
             if c.get("kind") == "external":
-                node = port(c["index"], c["label"], "recv")
+                label = (c["label"] if c["count"] == 1 else f'{c["count"]} externals') if page.authored else c["label"]
+                node = port(c["index"], textwrap.fill(label, 28) if page.authored else label, "recv")
                 files = {e.split("::")[0] for e in c["externals"]}
-                if c["count"] > 1 and len(files) == 1 and next(iter(files)).endswith((".mjs", ".js")):
+                if page.authored:
+                    node.note = "Click to inspect dependencies"
+                elif c["count"] > 1 and len(files) == 1 and next(iter(files)).endswith((".mjs", ".js")):
                     node.note = " · ".join(c["externals"][:6]) + (f' · +{c["count"] - 6}' if c["count"] > 6 else "")
                 continue
             unit(c["index"], c["label"], "",
@@ -451,7 +495,10 @@ def build_page(packet, ctx):
                 node.note = (node.note + "\n" if node.note else "") + f'{counts[cls]} {name}'
                 node.note_fills = {**getattr(node, "note_fills", {}), row: fill}
     lists(packet, page, pages)
-    return page.layout()
+    page.layout()
+    if getattr(page, "focus", None):
+        meta["focus"] = page.focus
+    return page
 
 
 STUB_LINE = 46      # characters; a long value takes a line rather than widening the box
@@ -1069,9 +1116,11 @@ body.noside #side{display:none}
 #canvas .fm-node.at>rect:first-of-type{stroke:#c026d3;stroke-width:4.2}
 #canvas .fm-endtag{cursor:pointer}
 #canvas .fm-endtag.hot text{font-weight:700}
+#canvas.authored .fm-elab:not(.hot),#canvas.authored .fm-endtag:not(.hot){opacity:0}
+#canvas.authored .fm-edge.long:not(.hot){opacity:.18}
 
 /* -- where am I: the whole page, and the rectangle this screen is looking at --------- */
-#minimap{position:absolute;right:16px;top:14px;background:rgba(255,255,255,.93);
+#minimap{position:absolute;right:16px;bottom:42px;background:rgba(255,255,255,.93);
          border:1px solid #cbd5e1;border-radius:7px;padding:4px;display:none;cursor:crosshair;
          box-shadow:0 3px 14px rgba(15,23,42,.14)}
 #minimap svg{display:block}
@@ -1173,6 +1222,10 @@ function fit(){const s=canvas.firstElementChild;if(!s)return;
   view.x=(r.width-w*view.k)/2;view.y=Math.max(18,(r.height-h*view.k)/2);apply();}
 function actual(){const s=canvas.firstElementChild;if(!s)return;const r=stage.getBoundingClientRect();
   view.k=1;view.x=(r.width-s.width.baseVal.value)/2;view.y=18;apply();}
+function overview(){const bounds=PAGES[cur]?.focus;if(!bounds)return fit();
+  const [x,y,w,h]=bounds,r=stage.getBoundingClientRect();
+  view.k=Math.max(.02,Math.min((r.width-48)/w,(r.height-48)/h,1));
+  view.x=(r.width-w*view.k)/2-x*view.k;view.y=18-y*view.k;apply();}
 
 /* One page's drawing at a time, fetched as a script so the viewer opens from file:// with no
    server. The whole map inlined is an order of magnitude more bytes on every open. */
@@ -1204,6 +1257,8 @@ function show(key,push,restore){const p=PAGES[key];if(!p)return false;
   while(PAGES[drawing]&&PAGES[drawing].destination==='code')drawing=PAGES[drawing].p;
   load(drawing,()=>{if(version!==showVersion)return;
     canvas.innerHTML=SVG[drawing]||'';cur=drawing;graphCur=drawing;pinId=null;jumped=[];hot(null);
+    canvas.classList.toggle('authored',!!PAGES[drawing].focus);
+    document.getElementById('fit-all').hidden=!PAGES[drawing].focus;
     crumb.innerHTML=trail(drawing);showScore(PAGES[drawing].sc);
     const mapped=PAGES[drawing];
     updateFreshness();
@@ -1211,7 +1266,7 @@ function show(key,push,restore){const p=PAGES[key];if(!p)return false;
     document.querySelectorAll('#tree a.on').forEach(a=>a.classList.remove('on'));
     const row=document.querySelector(`#tree a[data-key="${CSS.escape(drawing)}"]`);
     if(row){row.classList.add('on');row.scrollIntoView({block:'nearest'});}
-    fit();requestAnimationFrame(fit);minimap();
+    overview();requestAnimationFrame(overview);minimap();
     const entry=restore||{key:drawing,graph:drawing};
     if(!restore)remember(entry,push);
     backButton.disabled=visitAt<=0;
@@ -1286,6 +1341,9 @@ stage.addEventListener('click',e=>{if(e.target.closest('#codepane,#legendpane')|
   if(go&&go.dataset.go&&PAGES[go.dataset.go]){show(go.dataset.go);return;}
   const sourceNode=el.closest('.fm-node[data-ref]');
   if(sourceNode){openCode(sourceNode.dataset.ref);return;}
+  const external=el.closest('.fm-node[data-id]');
+  const details=external&&PAGES[cur]?.externals?.[external.dataset.id];
+  if(details){openExternal(details);return;}
   dismissCode();});
 document.addEventListener('click',e=>{
   const evidence=e.target.closest('#codepane [data-go]');
@@ -1328,6 +1386,11 @@ function need(then){if(SRC)return then();
   s.onload=()=>then();s.onerror=()=>{SRC={};then();};document.head.appendChild(s);}
 function closeCode(){sourceVersion++;codePane.classList.remove('on');codePane.innerHTML='';}
 function dismissCode(){closeCode();}
+function openExternal(details){closeCode();legendPane.classList.remove('on');
+  codePane.innerHTML=`<div class="ch"><span class="x" onclick="dismissCode()">&times;</span>`+
+    `<h3>${details.length} external dependencies</h3><p>Scanned declarations outside this set. Hover their box to inspect calculated connections.</p></div>`+
+    `<div class="cb">${details.map(path=>`<p>${esc(path)}</p>`).join('')}</div>`;
+  codePane.classList.add('on');}
 function openCode(ref,key){const cut=ref.lastIndexOf(':'),file=ref.slice(0,cut),
         span=ref.slice(cut+1).split('-'),a=+span[0],b=+span[1];
   const version=++sourceVersion;
@@ -1338,6 +1401,14 @@ function openCode(ref,key){const cut=ref.lastIndexOf(':'),file=ref.slice(0,cut),
       for(let i=0;i<lines.length;i++)rows+=`<span class="ln">${a+i}</span>${esc(lines[i])}\\n`;
       body=`<pre>${rows}</pre>`;}
     const page=key&&PAGES[key];
+    for(const helper of page?.foldedCode??[]){
+      const source=SRC[helper.file];
+      body+=`<h3>Folded helper · ${esc(helper.path)}</h3>`;
+      if(source===undefined)body+=`<p>Matching source unavailable</p>`;
+      else {const lines=source.split('\\n').slice(helper.line-1,helper.endLine);let rows='';
+        for(let i=0;i<lines.length;i++)rows+=`<span class="ln">${helper.line+i}</span>${esc(lines[i])}\\n`;
+        body+=`<pre>${rows}</pre>`;}
+    }
     const paint=()=>{if(version!==sourceVersion)return;
       codePane.innerHTML=`<div class="ch"><span class="x" onclick="dismissCode()">&times;</span>`+
         `<div class="num">${page?esc(page.t)+' · ':''}${esc(file)}</div><h3>lines ${a}–${b}</h3>`+
@@ -1384,7 +1455,7 @@ addEventListener('popstate',e=>{
   if(e.state&&e.state.mapSession===visitSession&&visits[e.state.mapVisit]){
     visitAt=e.state.mapVisit;const entry=visits[visitAt];show(entry.key,false,entry);
   }else show(navigationKey(e.state,location.hash.slice(1)),false);});
-addEventListener('load',fit);addEventListener('resize',fit);
+addEventListener('load',overview);addEventListener('resize',overview);
 show(navigationKey(history.state,location.hash.slice(1)),false);
 """
 
@@ -1476,13 +1547,13 @@ def emit(out, model, pages, svgs):
 <div id="main">
   <div id="bar">
     <button id="back" onclick="goBack()" disabled title="return to the previous map">&#8592; Back</button>
-    <button onclick="document.body.classList.toggle('noside');fit()" title="show or hide the index">&#9776;</button>
+    <button onclick="document.body.classList.toggle('noside');overview()" title="show or hide the index">&#9776;</button>
     <div id="crumb"></div>
     <span id="stale"></span>
     <span id="score" title="Map score: 0 is ideal, each part is a penalty from 0 to -1. See scores.html for every map."></span>
     <button onclick="toggleLegend()">Legend</button>
     <button onclick="pageCode()">Source</button>
-    <button onclick="fit()">Fit</button>
+    <button onclick="overview()">Fit</button><button id="fit-all" onclick="fit()" hidden>Fit all dependencies</button>
     <button onclick="actual()">100%</button>
     <button onclick="toggleMinimap()" title="show or hide the minimap">Minimap</button>
     <span id="zoom"></span>
@@ -1511,12 +1582,14 @@ const SNAPSHOT_ID={json.dumps(model.get("snapshotId"))};
 
 
 def build(model, out):
+    global REGENERATE
+    REGENERATE = model.get("regenerate", REGENERATE)
     packets = {p["index"]: p for p in model["pages"]}
     pages = {}
     for index, p in packets.items():
         kind = p["kind"]
         if kind == "root":
-            title, detail, ref = "0", "", None
+            title, detail, ref = "0" + (" · " + p["label"] if p.get("label") else ""), "", None
             sub = f'top map · {len(p["components"])} boxes · {p["leaves"]} leaves'
         elif kind == "group":
             title = f'{index} {p["label"]}'
@@ -1546,6 +1619,9 @@ def build(model, out):
         pages[index] = dict(t=title, s=sub, find=f'{index} {detail}'.strip(), d=detail, r=ref, k=kind, p=parent,
                             destination=destination,
                             x=(stale["regenerate"] if stale else ""))
+        if p.get("foldedCode"):
+            pages[index]["foldedCode"] = p["foldedCode"]
+        pages[index]["externals"] = {c["index"]: c["externals"] for c in p.get("components", []) if c.get("kind") == "external"}
         score = model.get("scores", {}).get(index)
         if score:
             pages[index]["sc"] = score

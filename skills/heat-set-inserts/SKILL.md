@@ -43,13 +43,13 @@ confirmation workflow.
 | `insertId` | Required for the first feature; exact manual-listed size/profile |
 | `positionMm` | `[15,15,12]`; propose a suitable position for the actual part |
 | `depthMm` | `null`: insert length plus two thread pitches; an explicit depth must fit the insert |
-| `diameterAdjustmentMm` | `0`; signed printer/material hole calibration, ±1 mm |
-| `finCount` | `6`; 2–24 radial ribs |
+| `diameterAdjustmentMm` | `0`; signed printer/material hole calibration; resulting bore diameter must stay positive |
+| `finCount` | `6`; nonnegative count of radial ribs |
 | `finLengthMm` | `4`; maximum extension beyond the bore wall, at the insertion face |
 | `finWidthMm` | `0.8` at the outer tip, twice that at the bore wall; at least one bead |
 | `finAngleDeg` | `0`; rotates the fin pattern around the bore |
 
-The request can also set `toleranceMm` (default 0.01, maximum 0.1) for the hole
+The request can also set `toleranceMm` (default 0.01, positive) for the hole
 geometry. Regeneration makes no physical fit claim.
 
 ## Deposition and composition

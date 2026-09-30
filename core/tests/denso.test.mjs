@@ -26,7 +26,7 @@ import {decodeSource,fetchSources} from '../../studio/source-player.mjs';
 import {createStudio} from '../../studio/server.mjs';
 import {regionalStackPlan} from './fixtures/regional-stack.mjs';
 const machine=loadMachine('denso-vs068a4-rc8a'),near=(a,b,t=1e-6)=>assert.ok(Math.abs(a-b)<t,`${a} != ${b}`);
-const small=()=>{const p=developmentPipePlan();p.geometry=splineTube({columns:24,heightMm:1.2,boreRadiusMm:8,radiusAt:()=>10.4});p.slices.assignments.find(a=>a.construction==='cladding').shells=2;return p;};
+const small=()=>{const p=developmentPipePlan();p.geometry=splineTube({columns:24,heightMm:1.2,boreRadiusMm:8,radiusAt:()=>10.4});p.slices.assignments.find(a=>a.stack?.direction==='normal').within[0].toMm=.4;return p;};
 const sources=bytes=>Object.fromEntries([...unpackZip(bytes)].filter(([name])=>name.endsWith('.pcs')).map(([name,b])=>[name,b.toString()]));
 
 test('DENSO setup is unresolved by default; tube geometry uses the shared native spline lifecycle',async()=>{
@@ -37,18 +37,20 @@ test('DENSO setup is unresolved by default; tube geometry uses the shared native
   assert.equal(native.descriptor.nativeFile,undefined);
   const s5=loadMachine(),old=defaults(s5);old.geometry=plan.geometry;old.placement={xMm:100,yMm:100};
   const path=generatePath(old,s5,await rhino());assert.ok(interpretProgram(exportProgram(path,old,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),old,s5).moves.some(m=>m.extruding));
-  old.slices.assignments.push(structuredClone(plan.slices.assignments.find(a=>a.construction==='cladding')));assert.throws(()=>validatePlan(old,s5),/orientation/);
+  old.slices.assignments.push(structuredClone(plan.slices.assignments.find(a=>a.stack?.direction==='normal')));validatePlan(old,s5);
+  const oriented=generatePath(old,s5,await rhino());assert.ok(oriented.actions.some(action=>action.pose),'derived poses survive machine-independent generation');
+  assert.throws(()=>exportProgram(oriented,old,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),/cannot represent non-upright orientation or rotary motion/);
 });
 
 test('same-height cylindrical shells retain explicit prerequisites in the existing scheduler',async()=>{
-  const plan=small(),assignment=plan.slices.assignments.find(a=>a.construction==='cladding'),shell=buildShell(await rhino(),plan.geometry);
+  const plan=small(),assignment=plan.slices.assignments.find(a=>a.stack?.direction==='normal'),shell=buildShell(await rhino(),plan.geometry);
   const finishedSurface={...surfaceRegion(shell,assignment.surface),sourceOperationIds:['body'],coverage:['nominal']};
   const {contexts}=prepareSliceContexts({plan,machine,shells:[[null,shell,true]],volumes:new Map(),bands:[],reserves:[],
     referenceAssignments:[{assignment,shell,process:plan.process}]});
-  const result=sliceContextResult(contexts.find(record=>record.spec.id===assignment.id),{reference:finishedSurface,motion:plan.setup.denso}),first=result.operations[0];
+  const result=sliceContextResult(contexts.find(record=>record.spec.id===assignment.id),{reference:finishedSurface}),first=result.operations[0];
   const body={...first,id:'body',layerId:'body',after:[],rank:999};
   assert.deepEqual(scheduleOperations([{operations:[...result.operations,body]}]).map(o=>o.id),['body','pipe-cladding:0','pipe-cladding:1']);
-  assert.throws(()=>scheduleOperations([result]),/Unknown/);
+  assert.throws(()=>scheduleOperations([result]),/unknown operation body/);
   assert.throws(()=>scheduleOperations([{operations:[body,...result.operations]}],{order:['pipe-cladding:1','body']}),/cycle/);
   assert.ok(result.operations[0].strokes.every(s=>s.points[0][2]!==s.points.at(-1)[2]));
 });
@@ -57,7 +59,8 @@ test('existing mesh/spline regional skills use RC8A at fixed orientation',async(
   for(const backend of ['mesh','spline']) {
     const plan=regionalStackPlan(machine,backend);plan.setup=small().setup;
     const path=generatePath(plan,machine,await rhino()),program=interpretProgram(exportProgram(path,plan,machine),plan,machine);
-    for(const phase of ['planar','vase-wall','skin'])assert.ok(program.moves.some(m=>m.extruding&&m.phase===phase),phase);
+    for(const phase of ['planar','vase-wall'])assert.ok(program.moves.some(m=>m.extruding&&m.phase===phase),phase);
+    assert.ok(program.moves.some(m=>m.extruding&&m.operation?.startsWith('roof:roof-finish:')),'roof Slice deposition survives export');
     assert.ok(program.moves.every(m=>m.rotaryToDeg===0&&m.toolAxisTo[2]===-1));
     near(program.volumeMm3,path.actions.reduce((sum,a)=>sum+(a.volumeMm3??0),0));
   }
@@ -70,8 +73,8 @@ test('oriented motion preserves pose-only actions and unsupported outputs reject
   const path=planningPath(raised.state,[rotated.actions,raised.actions]);
   assert.equal(path.actions.length,2);assert.equal(path.actions[0].pose.rotaryDeg,720);
   const s5=loadMachine(),unsupported=defaults(s5);
-  assert.throws(()=>exportProgram(path,unsupported,s5),/cannot represent/);
-  assert.throws(()=>exportAndInterpretProgram(path,unsupported,s5),/cannot represent/);
+  assert.throws(()=>exportProgram(path,unsupported,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),/cannot represent non-upright orientation or rotary motion/);
+  assert.throws(()=>exportAndInterpretProgram(path,unsupported,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),/cannot represent non-upright orientation or rotary motion/);
 });
 
 test('actual T/EX commands reconstruct fixed-room rotary deposition across multiple turns',()=>{
@@ -92,17 +95,17 @@ test('actual T/EX commands reconstruct fixed-room rotary deposition across multi
   const missing={...files};delete missing[key];assert.throws(()=>interpretDensoFiles(missing,plan,machine),/Missing/);
 });
 
-test('tube export retains the substrate and tilted axial/hoop shells outside it',async()=>{
+test('tube export retains the substrate and normal-aligned axial/hoop shells outside it',async()=>{
   const plan=small(),path=generatePath(plan,machine,await rhino()),program=interpretProgram(exportProgram(path,plan,machine),plan,machine);
   const order=path.summary.composition.operationOrder;assert.deepEqual(order.slice(-2),['pipe-cladding:0','pipe-cladding:1']);
-  const body=program.moves.filter(m=>m.extruding&&m.phase==='planar'),clad=program.moves.filter(m=>m.extruding&&m.phase.startsWith('cladding'));
+  const body=program.moves.filter(m=>m.extruding&&m.phase==='planar'),clad=program.moves.filter(m=>m.extruding&&m.operation?.startsWith('pipe-cladding:'));
   assert.ok(body.length&&clad.length);
   // The substrate stays inside the tube's exterior; cladding builds outward.
   const outside=Math.max(...body.map(m=>Math.hypot(...m.to.slice(0,2))));
   assert.ok(clad.every(m=>Math.hypot(...m.to.slice(0,2))>outside-1e-6));
-  for(const m of clad){near(Math.acos(-m.toolAxisTo[2])*180/Math.PI,45,.001);assert.ok(m.to[2]>=-1e-8&&m.to[2]<=1.2+1e-8);}
+  for(const m of clad){near(Math.acos(-m.toolAxisTo[2])*180/Math.PI,90,.001);assert.ok(m.to[2]>=-1e-8&&m.to[2]<=1.2+1e-8);}
   // The retired maxPoints budget is an unknown field.
-  const stale=structuredClone(plan);stale.slices.assignments.find(a=>a.construction==='cladding').maxPoints=100;assert.throws(()=>validatePlan(stale,machine),/Invalid cladding assignment fields/);
+  const stale=structuredClone(plan);stale.slices.assignments.find(a=>a.stack?.direction==='normal').maxPoints=100;assert.throws(()=>validatePlan(stale,machine),/unexpected maxPoints/);
 });
 
 test('RC8A uses the public bundle, exact browser source and cold reopen without reslicing',async t=>{
@@ -113,7 +116,7 @@ test('RC8A uses the public bundle, exact browser source and cold reopen without 
   const origin=`http://127.0.0.1:${server.address().port}`,fetcher=(url,...args)=>fetch(origin+url,...args),remote=await(await fetcher('/api/state')).json();
   assert.equal(remote.program.moves,undefined);
   const files=await fetchSources(remote,fetcher),decoded=decodeSource(files,remote.plan,remote.machine);
-  assert.deepEqual([...decoded.moves],state.program.moves);
+  assert.deepEqual([...decoded.moves],state.program.moves.map(move=>({...move,sliceFamily:null,sliceIndex:null,modulated:false})));
   for(const name of ['/core/export/denso-player.mjs','/core/path/pose.mjs','/core/machine/denso.mjs'])assert.equal((await fetcher(name)).status,200);
   const bytes=await readFile(join(dir,state.review.generation.file));
   for(const [name,source] of Object.entries(files))assert.equal(source,unpackZip(bytes).get(name).toString());

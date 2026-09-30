@@ -548,7 +548,7 @@ without `materialParts` is rejected, not read as a whole solid.
 consumers, prefixing their names with the assembly component id where present.
 The final merged mesh remains the default whole-solid selection and review model.
 Changing the selected material or toolpath skill leaves the geometry record
-unchanged. The [region contract](../region/README.md#material-regions-and-shared-interfaces)
+unchanged. The [region contract](../region/README.md#material-ownership-and-surface-contact)
 owns assignment and overlap rules.
 
 Upstream contracts: [Fontkit](https://github.com/foliojs/fontkit),
@@ -573,13 +573,12 @@ complete Rhino computation engine.
 
 ## Explicit mesh repair
 
-The [mesh-tools manual](../../skills/mesh-tools/SKILL.md) owns command use and
+The [mesh-tools manual](../../skills/mesh-tools/BUILDER.md) owns command use and
 review of changes. [The repair entry](../print/repair-stl.mjs) preserves the
 source, runs exact cleanup, and uses the [native CGAL adapter](./mesh-native.mjs)
-when cleanup alone does not yield a valid mesh. Import validates supplied geometry;
-repair is a separate preparation operation. Studio's file-picker importer invokes
-it automatically for recognized mesh defects, then requires review and confirmation
-of the repaired geometry; shared CLI/MCP import keeps strict validation.
+when cleanup alone does not yield a valid mesh. Studio, CLI and agent imports
+attempt it for recognized defects, then present geometry for review. Invalid
+formats retain their diagnostics; repair never fills holes without explicit bounds.
 
 [Cleanup](./mesh-repair.mjs) merges identical coordinates and removes duplicate,
 degenerate and unused elements. Collapsed faces can leave a long boundary edge
@@ -646,8 +645,7 @@ anything larger is rejected as output that did not come from this helper.
 After final validation, `onGeometry` receives at most 4,096 full-quality triangles
 per chunk, with local vertices/indices, first-triangle offset and completion
 percentage. Each callback is awaited, allowing the consumer to release a chunk
-before requesting more. There is no lower-quality display proxy. Studio's consumer
-is owned separately and has not been changed by this mesh task.
+before requesting more. There is no lower-quality display proxy. Studio import uses the shared progress and cancellation lifecycle.
 
 The [repair job](../print/mesh-repair-job.mjs) supervises the
 [worker](../print/mesh-repair-worker.mjs). Geometry messages carry IDs;

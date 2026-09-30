@@ -101,7 +101,7 @@ The bumpy development tube is a periodic 16-by-8 spline exterior in native 3DM;
 slices consume its real sections with three loops. Arc-length cells
 create partial axial passes as local area varies. Scope, mesh normal
 interpolation, sampled coverage, unsupported topology and normal-field limits are
-owned by the [cladding manual](../../skills/pipe-cladding/SKILL.md#coverage-and-pose).
+owned by the [cladding manual](../../skills/pipe-cladding/SKILL.md#contact-and-pose).
 The producer uses the same composer, oriented travel, RC8A export and approval
 workflow. General inward reservations, arbitrary chart unwrapping and multi-patch
 cladding remain unimplemented.

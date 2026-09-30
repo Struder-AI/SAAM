@@ -51,9 +51,9 @@ saved IDs; there is no single global plan that overwrites another job.
 | `read_guidance` | Read a published Markdown path, optionally ending in `#heading`, or a short ID: `makers`, `geometry`, `development`, `glossary`, `mcp`, `print-tools`, with an optional `machineId`. |
 | `get_recipe_defaults` | Read geometry-free process/setup defaults, reusing remembered setup. |
 | `create_bundle` | Initialize an unapproved bundle from a complete recipe with authored/imported geometry. |
-| `import_stl_bundle` | Read an absolute local `.stl` source path with optional `auto` (default), `mm` or `inch` units; preserve its bytes/hash and use the shared CLI importer and remembered setup. Sources are limited to 64 MiB. |
+| `import_stl_bundle` | Read an absolute local `.stl` source path with optional `auto` (default), `mm` or `inch` units; preserve its bytes/hash and use the shared CLI importer and remembered setup. Recognized mesh defects receive automatic repair; local files stream without an upload cap. |
 | `search_thingi10k` | Search descriptive keywords, a numeric file ID or a Thingiverse thing URL in the mirror. Returns per-file source/license links and pagination. Read the [Thingi10K manual](../../skills/thingi10k/SKILL.md). |
-| `import_thingi10k_bundle` | Download `fileId` on the SAAM host into a new `bundleId`, with `machineId` and optional `units`. Return attribution and the mandatory chat license notice, including when strict import fails. Review successful imports with `request_review`. |
+| `import_thingi10k_bundle` | Download `fileId` on the SAAM host into a new `bundleId`, with `machineId` and optional `units`. Return attribution and the mandatory chat license notice, including when automatic import/repair fails. Review successful imports with `request_review`. |
 | `list_bundles`, `get_bundle` | `list_bundles` discovers names and machines with `programChecked:false`; it does not validate exports. `get_bundle` reads checked status/recipe, omitting geometry and marking `planComplete:false` unless `includeGeometry:true` is supplied. Neither returns motion arrays. |
 | `begin_studio_work`, `respond_to_studio_request` | Start work with kind `edit` or `guidance`, supplying `studioInstanceId` when several Studios are open. After saving an edit, bind its result using status `working` and `resultStage` (`geometry`/`toolpath`); use `waiting` when paused for input. Complete after guidance or the displayed result. Overlapping work stays independent. |
 | `set_stl_units` | Correct a plain imported mesh to `mm` or `inch` with current `expectedRevision`; retains mesh edits/source bytes and invalidates final review. |
@@ -79,8 +79,11 @@ saved IDs; there is no single global plan that overwrites another job.
 
 The [shared print-tool manual](../../core/print/USAGE.md) owns importing,
 recipe adjustments, setup reuse, reopening and delivery; skill manuals own their
-settings and limits. Mesh repair runs through the local CLI; this adapter has no
-repair tool. `create_bundle` and `change_machine` results carry `gatedGuidance`
+settings and limits. Imports automatically repair recognized defects through the shared lifecycle;
+`cancel_studio_calculation` takes the observed identity from `get_studio_events`.
+Direct generation uses the same worker/job as Studio, with progress and cancellation;
+pass its `jobId` and `generationHash`, without a Studio instance.
+Direct repair commands are builder diagnostics. `create_bundle` and `change_machine` results carry `gatedGuidance`
 when the printer opens advanced sections.
 
 Manual responses carry their repository-relative `path`, the gated sections

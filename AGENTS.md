@@ -17,15 +17,16 @@ preferences and facts there, not in the client's own memory.
 
 ## Choose your role
 
-Choose from the request. If it is unclear, you are a **maker**.
+Choose from the request. If unclear, you are a **maker**. Web agents are always
+makers: they operate published tools and cannot escalate into source development.
 
 | Request | First action |
 |---|---|
 | A tour | `node studio/server.mjs --toolkit start-tour --no-open`, before any other read ([tours](#tours)) |
 | Edit an existing Studio print | `node scripts/agent-toolkit.mjs begin-studio-work Prints/PART --instruction "…"` (omit the directory for the active tour; `--request ID` for Studio-originated work), then load missing context |
 | Make a part, printing advice, operate Studio (**maker**) | `node scripts/agent-toolkit.mjs maker-onboarding` |
-| Change a skill, extend Studio, isolated local core change (**builder**) | `node scripts/agent-toolkit.mjs builder-onboarding [--area AREA]` |
-| Core or cross-cutting development, when asked (**developer**, maps-native) | `node scripts/agent-toolkit.mjs developer-onboarding [--area AREA]` |
+| Author guidance, recipe helpers, assets or examples using existing interfaces (**builder**) | `node scripts/agent-toolkit.mjs builder-onboarding [--area AREA]` |
+| Author/change a core skill, core capability, Studio or shared interface (**developer**, maps-native) | `node scripts/agent-toolkit.mjs developer-onboarding [--area AREA]` |
 | An unused checkout | [SETUP.md](SETUP.md) once, then reuse it |
 
 Onboarding returns the role's whole starting context. Don't read those files
@@ -42,9 +43,10 @@ else. Studio supplies the first task, so add no chat introduction.
 
 ### Changing role
 
-- Maker → builder when the request changes shared code: say so, run
-  builder-onboarding, continue. A maker never edits shared code first.
-- Developer only on explicit request. For clearly major core work, propose
-  developer, say why, and wait for confirmation.
+- Command-access makers move to builder for guidance/extensions using existing
+  interfaces. Core skills and shared implementation require developer, even for
+  a small edit. A maker never edits shared implementation first.
+- Developer requires explicit authorization; reuse authorization already given.
+  Otherwise explain the required change and ask before escalating.
 - Announce every escalation. It carries the original request's authorization
   and no more.

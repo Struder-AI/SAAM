@@ -1,49 +1,32 @@
 # Building on SAAM
 
-This is builder context: the orientation for changing a skill, adding functionality
-to Studio, or making an isolated, local change to core, and for making parts to
-test that work in development. For core or cross-cutting work, see the
-[developer role](AGENTS.md#choose-your-role) instead.
+Builders author guidance and reusable compositions of published capabilities:
+recipe helpers, geometry/assets, examples, demos and diagnostic workflows.
+Core skills expose core capabilities; authoring or changing them, core, Studio
+or shared interfaces requires the [developer role](AGENTS.md#choose-your-role).
+The boundary is the responsibility changed, not the size or location of an edit.
 
-For builder work with missing context, run
-`node scripts/agent-toolkit.mjs builder-onboarding` directly; use `--area AREA`
-when the affected component is already known. The command returns this manual,
-maker context, skill authoring and the complete skill digest, plus the selected
-area's component manual and, for a node index or declaration path, that map. Use that returned text without
-reading the same sources before or after the command. If builder context is
-already loaded, continue from it and read only missing task-specific references.
-Individual skill manuals remain separate choices. A client without command access
-reads the same sources directly once.
+Run `node scripts/agent-toolkit.mjs builder-onboarding [--area AREA]` once when
+builder context is missing. It returns this manual, maker context, skill authoring
+and the digest, plus the named area's contract or map. Reuse returned context;
+read individual manuals only as needed. Web agents remain makers.
 
 **Builders inherit maker responsibilities.** Builder onboarding includes
 [MAKERS.md](MAKERS.md) for the person-facing workflow being extended and exercised.
 Developers orient by the map and DEVELOPER-CONTEXT.md, and load this file, maker
 workflow or skill authoring when their task needs it. Reuse prior reads.
-**Read the component manual for what you are changing before changing core or
-Studio, or investigating their internals**, and walk the dev map
-when you need to see everything that calls it. The manuals are listed under
-[implementation reference](#implementation-reference); they own behaviour,
-contracts and limits, and the map owns structure. Changes
-confined to skill scripts need skill guidance and consumed API contracts; they
-do not automatically require the map, which covers core and Studio. Follow the
-[map contract](#maps-and-local-documentation); reading implementation context
-does not require a role change. Read a page with
-`node scripts/agent-toolkit.mjs read-map INDEX|DECLARATION`. When a maker or builder session
-grows past roughly 250k tokens and the next request is unrelated or a substantial
-pivot, suggest a fresh chat.
-
-SAAM is a composable slicing system operated through an AI agent. The product
-goal is to make advanced printing workflows accessible through conversation,
-while retaining explicit control over geometry, process choices and machine
-output. [MAKERS](MAKERS.md) defines the user workflow; this document establishes
-the engineering direction and routes build work to its owning context.
+Read consumed [component contracts](#implementation-reference); use the
+[map](#maps-and-local-documentation) when investigating structure. Reading an
+implementation does not authorize changing it or require a role change.
+Guidance helpers need their consumed contracts, not an automatic map read.
+When a session grows past roughly 250k tokens and the request substantially
+changes, suggest a fresh chat.
 
 ## Design direction
 
-Skills implement deposition strategies over shared geometry and motion
-interfaces. The intended scope spans planar, inclined and curved deposition,
-mesh and spline geometry, conventional printers and multi-axis machines.
-Current support is defined by each component's contracts and limits.
+Core skills expose shared geometry and deposition capabilities. Guidance teaches
+their composition, adding no deposition family or parallel recipe representation.
+Builders may package existing operations; a missing capability goes to developers.
 
 Composition is the central architectural requirement. Combining a wall, infill
 and roof requires material ownership, operation dependencies, compatible geometry
@@ -119,7 +102,7 @@ The dev map is the generated account of core and Studio structure. Its intent,
 scope and reading rules are owned by [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md);
 the commands, page fields and authoring mechanics by the
 [map guide](dev-map/README.md). Developers orient by walking it from `0`;
-builders may walk the code they are changing alongside its prose manual;
+builders may inspect the code behind consumed interfaces alongside its manual;
 makers need no maps. Read a page with
 `node scripts/agent-toolkit.mjs read-map INDEX|DECLARATION` and its source with
 `--code`. **Text search for orientation is discouraged**: it finds names, while
@@ -331,7 +314,7 @@ without human approvals; an existing recipe can be initialized first. Developmen
 output cannot authorize delivery, and MCP does not expose this mode. It still
 needs explicit robot command settings; for a new provisional part use the
 reusable setup instructions for
-[DENSO](skills/pipe-cladding/SKILL.md#development-demos) or
+[DENSO](skills/pipe-cladding/SKILL.md#contact-and-pose) or
 [Dobot](core/export/dobot.md#dobot-output-contract), independently of its shape.
 
 A demo's setup, assets and recipe assumptions must be reachable from its skill

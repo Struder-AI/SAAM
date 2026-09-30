@@ -2,7 +2,7 @@
 import {readFile,access} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {root,initBundle,loadBundle,generateBundle,adjustBundle,rememberSetup,deliver,checkPathBundle,changeMachine,migrateBundle} from './bundle.mjs';
-import {importSTLBundle,setSTLUnits} from './import-stl.mjs';
+import {createSTLBundle,setSTLUnits} from './import-stl.mjs';
 import {repairSTLFiles} from './repair-stl.mjs';
 import {applyText} from './text.mjs';
 import {applyHeatSet} from './heat-set.mjs';
@@ -24,7 +24,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
     toolpathApproved: state.toolpathApproved,
     program: state.program?.summary ?? null, programError: state.programError ?? null,
     outputAvailability: state.outputAvailability ?? null, machineConfiguration: state.machineConfiguration ?? null,
-    nonplanarLimit: state.pathSummary?.nonplanarLimit ?? null, limitations: state.limitations
+    surfaceDomain: state.pathSummary?.surfaceDomain ?? null, limitations: state.limitations
   }, null, 2);
 
   const run = async () => {
@@ -64,7 +64,10 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(JSON.stringify(await repairSTLFiles(bundleDirectory(),resolve(argument),{...options,units:extra,progress:event=>console.error(JSON.stringify(event))}),null,2));
     } else if(command==='import-stl') {
       if(!argument||extra!==undefined&&!['auto','mm','inch'].includes(extra))throw new Error('Use import-stl <print-directory> <source.stl> [auto|mm|inch] [machine-id].');
-      await importSTLBundle(bundleDirectory(),resolve(argument),{units:extra,machineId:last});
+      const controller=new AbortController(),cancel=()=>controller.abort(new DOMException('Import cancelled.','AbortError'));
+      process.once('SIGINT',cancel);process.once('SIGTERM',cancel);
+      try{await createSTLBundle(bundleDirectory(),resolve(argument),{units:extra,machineId:last,signal:controller.signal,progress:event=>console.error(JSON.stringify(event))});}
+      finally{process.removeListener('SIGINT',cancel);process.removeListener('SIGTERM',cancel);}
       const imported=await loadBundle(bundleDirectory(),{program:false});
       console.log('STL imported in '+imported.plan.geometry.source.units+(imported.plan.geometry.source.unitsInferred?' (assumed from size)':'')+'; open Studio for geometry review. Nothing is approved.');
     } else if(command==='stl-units') {

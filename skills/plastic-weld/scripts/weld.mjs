@@ -2,7 +2,6 @@ import {requireThat} from '../../../core/geom/tolerance.mjs';
 import {difference,union} from '../../../core/region/boolean.mjs';
 import {regionArea,pointSegmentDistance} from '../../../core/region/region2d.mjs';
 import {horizontalSlice,sliceFamily} from '../../../core/geom/slice.mjs';
-import {requireProcessControl,validateNozzleC} from '../../../core/path/process-controls.mjs';
 import {pointInjectionOperation} from '../../../core/path/injection.mjs';
 import {assignmentPlan,assignmentFilament} from '../../../core/print/assignment-process.mjs';
 
@@ -15,13 +14,13 @@ const height=op=>op.strokes.reduce((h,s)=>s.points.reduce((z,p)=>Math.max(z,p[2]
 
 export function validatePlasticWeld(plan,machine){
   const s=plan.skills['plastic-weld'];
-  requireThat(typeof s.enabled==='boolean'&&Array.isArray(s.sites)&&s.sites.length<=256,'plastic-weld needs an enabled flag and at most 256 sites.');
+  requireThat(typeof s.enabled==='boolean'&&Array.isArray(s.sites),'plastic-weld needs an enabled flag and sites array.');
   for(const k of ['shaftDiameterMm','basinDiameterMm','basinHeightMm','wallMm','floorMm','volumeFactor','flowMm3S'])positive(s[k],k);
   requireThat(s.basinDiameterMm>s.shaftDiameterMm,'The rivet basin must be wider than its shaft.');
-  requireThat(Number.isFinite(s.holdSeconds)&&s.holdSeconds>=0&&s.holdSeconds<=60,'Rivet hold must be 0–60 seconds.');
-  requireThat(Number.isFinite(s.seatDepthMm)&&s.seatDepthMm>=0&&s.seatDepthMm<=0.5,'Rivet seat depth must be 0–0.5 mm.');
-  if(s.nozzleC!==null)validateNozzleC(s.nozzleC,plan,machine);
-  if(s.enabled){requireProcessControl(machine);requireThat(s.sites.length>0,'Assign at least one plastic-weld site.');}
+  requireThat(Number.isFinite(s.holdSeconds)&&s.holdSeconds>=0,'Rivet hold must be nonnegative.');
+  requireThat(Number.isFinite(s.seatDepthMm)&&s.seatDepthMm>=0,'Rivet seat depth must be nonnegative and remain within the shaft.');
+  if(s.nozzleC!==null)requireThat(Number.isFinite(s.nozzleC)&&s.nozzleC>=0,'Authored nozzle temperature must be finite and nonnegative.');
+  if(s.enabled){requireThat(s.sites.length>0,'Assign at least one plastic-weld site.');}
   const ids=new Set();
   for(const site of s.sites){
     requireThat(site&&Object.keys(site).sort().join()==='id,part,xMm,yMm,zBottomMm,zTopMm','Rivet sites need exactly id, part, xMm, yMm, zBottomMm and zTopMm.');
@@ -31,7 +30,7 @@ export function validatePlasticWeld(plan,machine){
       const selected=assignmentPlan(plan,machine,{id:'plastic-weld:'+site.id,part:site.part});
       const host=assignmentPlan(plan,machine,{part:site.part});
       requireThat(s.wallMm>=host.process.lineWidthMm&&s.floorMm>=host.process.layerMm,'Rivet walls and floor must contain at least one host bead/layer.');
-      if(s.nozzleC!==null)validateNozzleC(s.nozzleC,selected,machine);
+
     }
     if(s.enabled)requireThat(plan.geometry.shape==='assembly'?plan.geometry.parts.some(p=>p.id===site.part):site.part===null,'Rivet site must select its native component.');
     requireThat(site.zBottomMm>=s.floorMm&&site.zTopMm-site.zBottomMm>s.basinHeightMm,'Rivet needs a solid floor and a shaft above its basin.');
@@ -43,7 +42,7 @@ export function validatePlasticWeld(plan,machine){
 // This authoring helper returns ordinary locked sites, not a second recipe.
 export function staggeredWeldSites({columns,rows,levels,pitchMm=12,heightStepMm=3,depthMm=4,
   xMm=4,yMm=4,zBottomMm=0.8,part=null}){
-  requireThat([columns,rows,levels].every(n=>Number.isInteger(n)&&n>0)&&columns*rows*levels<=256,'Invalid rivet grid size.');
+  requireThat([columns,rows,levels].every(n=>Number.isSafeInteger(n)&&n>0)&&Number.isSafeInteger(columns*rows*levels),'Invalid rivet grid size.');
   [pitchMm,heightStepMm,depthMm].forEach(v=>positive(v,'grid spacing/depth'));
   return Array.from({length:levels},(_,k)=>Array.from({length:rows},(_,j)=>Array.from({length:columns},(_,i)=>({
     id:`rivet-${k}-${j}-${i}`,part,xMm:xMm+(i+(k%2)/2)*pitchMm,yMm:yMm+j*pitchMm,

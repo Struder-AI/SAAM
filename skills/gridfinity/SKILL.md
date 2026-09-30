@@ -28,7 +28,7 @@ partial `parameters` object; omitted parameters stay as saved. Omit `machineId`
 on updates, and supply `part` with the component id for an assembly. Updates
 change existing gridfinity geometry only: create another print to change between
 bin, blank and baseplate. Wrong fields, incompatible settings, stale revisions,
-mesh failures and machine-bound violations are rejected before saving, and
+mesh failures are rejected before saving; export checks machine bounds, and
 `create` never overwrites a print. Dimension edits invalidate geometry and
 settings/toolpath confirmations; `adjust_recipe` on the baked mesh or parameters
 is rejected unless it supplies a complete newly compiled record.
@@ -41,21 +41,21 @@ rejected.
 | Common setting | Default | Meaning / supported range |
 |---|---|---|
 | `kind` | `bin` | `bin`, `blank`, `baseplate`. |
-| `xUnits`, `yUnits` | 1, 1 | 1–8 cells per direction on 42 mm centres; the machine must fit the placed result. |
-| `toleranceMm` | 0.03 | 0.005–0.1 mm chord deviation of the circular arcs; not a mating clearance. |
+| `xUnits`, `yUnits` | 1, 1 | Positive whole cell counts on 42 mm centres; export checks machine fit. |
+| `toleranceMm` | 0.03 | Positive chord deviation of the circular arcs; not a mating clearance. |
 
 | Bin setting | Default | Meaning / supported range |
 |---|---|---|
-| `heightUnits` | 3 | 2–20; nominal shoulder height is `7 * heightUnits` above the foot bottom. |
-| `wallMm` | 1.2 | 0.8–2.5 mm side and divider thickness. |
-| `floorMm` | 2.25 | 1–5 mm above the 4.75 mm foot (default cavity floor at Z = 7 mm); at least 3.8 mm must remain below the shoulder. |
-| `compartmentsX`, `compartmentsY` | 1, 1 | 1–16 equal compartments per direction, each at least 4 mm clear. |
+| `heightUnits` | 3 | positive whole count; nominal shoulder height is `7 * heightUnits` above the foot bottom. |
+| `wallMm` | 1.2 | Positive side/divider thickness below the 3.75 mm inner corner radius. |
+| `floorMm` | 2.25 | Positive height above the 4.75 mm foot; leave space below the shoulder and any stacking lip. |
+| `compartmentsX`, `compartmentsY` | 1, 1 | Positive whole compartment counts, each retaining positive clear width. |
 | `stackingLip` | `true` | Supported rim and mating recess, adding 3.8 mm to nominal height; `false` gives a plain rim. |
 | `magnetHoles` | `false` | Four downward 6.5 × 2.4 mm pockets per cell on 26 mm centres for 6 × 2 mm magnets; retention is not guaranteed. |
 
-Blanks take `heightUnits` (default 1, range 1–20) and `magnetHoles`: feet and a
+Blanks take `heightUnits` (default 1, positive whole count) and `magnetHoles`: feet and a
 solid body up to nominal height, without cavities or rim. Baseplates take
-`floorMm` (default 1.2, range 0–5), the backing under the sockets; zero is an
+`floorMm` (default 1.2, nonnegative), the backing under the sockets; zero is an
 open frame, and plate height is `floorMm + 4.75`. Baseplates have no magnet pockets.
 
 ## Dimensions and fit
@@ -64,7 +64,7 @@ Bin and blank footprints are `42 * units - 0.5`, with local minimum X/Y 0.25 and
 cell centres at `(21 + 42*i, 21 + 42*j)`; plates occupy the full `42 * units` from
 zero. Geometry begins at Z = 0 and new prints propose placement X/Y = 20 mm;
 large grids can exceed a machine's bed. The dimensions target conventional
-gridfinity mating geometry ([construction](BUILDER.md#dimensions)), but physical
+gridfinity mating geometry ([construction](DEVELOPER.md#dimensions)), but physical
 fit, magnet retention and stacking are untested and variants exist: print a small
 fit sample before a large organizer. No shrink compensation is applied.
 
@@ -97,7 +97,7 @@ between feet, and assign supports explicitly when appropriate.
 ### Cladding a vase body
 
 A vase body can publish its exterior to
-[finished-surface cladding](../pipe-cladding/SKILL.md#select-the-sleeve): select
+[finished-surface cladding](../pipe-cladding/SKILL.md#select-a-surface): select
 the body for both vase-wall and cladding, slice the blank solid, and
 keep the cladding away from the mating foot. The body still needs supported
 sections and a valid cladding chart, and cladding needs the configured DENSO

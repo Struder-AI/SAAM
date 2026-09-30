@@ -23,7 +23,7 @@ export function depositedCurveSegments(operations,{widthMm,source=null,horizonta
 }
 
 export function curveSupportsPoint(segments,p,z,{source=null,toleranceMm=.015}={}) {
-  return segments.some(s=>s.source===source&&
+  return segments.some(s=>(source===null||s.source===source||s.operationId===source)&&
     p[0]>=Math.min(s.a[0],s.b[0])-s.radius-toleranceMm&&p[0]<=Math.max(s.a[0],s.b[0])+s.radius+toleranceMm&&
     p[1]>=Math.min(s.a[1],s.b[1])-s.radius-toleranceMm&&p[1]<=Math.max(s.a[1],s.b[1])+s.radius+toleranceMm&&
     pointSegmentDistance(p,s.a,s.b)<=s.radius+toleranceMm&&atSupportHeight(p,z,s.a,s.b));

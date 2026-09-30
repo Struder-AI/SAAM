@@ -49,7 +49,7 @@ export async function applyText(directory,request,{expectedRevision}={}){
     // Updates merge feature settings; replace the complete reference/baseline.
     if(feature.fontPath){
       requireThat(isAbsolute(feature.fontPath),'Choose an absolute fontPath.');
-      const info=await stat(feature.fontPath);requireThat(info.isFile()&&info.size<=32*1024*1024,'Font must be a regular file no larger than 32 MiB.');
+      const info=await stat(feature.fontPath);requireThat(info.isFile(),'Font must be a regular file.');
       const bytes=await readFile(feature.fontPath);
       feature.font={data:bytes.toString('base64'),sha256:createHash('sha256').update(bytes).digest('hex'),postscriptName:feature.postscriptName??null};
       delete feature.fontPath;delete feature.postscriptName;

@@ -7,26 +7,29 @@ metadata:
 
 # Bridging
 
-Use `construction: "bridges"` in `plan.slices.assignments`, with `id`,
-`filament: null`, `after: []`, `maxExcursionMm` and `bridges`. Bridge entries
-follow finalized model and authored-curve deposition in listed order. A later
-entry can use earlier nominal strands as support; no filled surface is inferred.
-Bridge spans and anchor curves are Trace input. This guide uses the existing
-`bridges` authoring preset for anchor checks and attachment geometry, not a
-separate deposition skill.
+Author the span and attachment centerlines as ordinary [Trace](../trace/SKILL.md)
+curves. Set `sequence:true` for ordered courses, use `courses:[index]` to choose
+curves per repeat, and optionally name each course in `courseIds`. A curve's
+`contact:{source:null,gapMm:null,sampleStepMm:0.1,referenceZMm:null}` requires
+support one resolved bead height below; a source assignment or operation ID
+selects particular prior material. A press is an explicit down-and-up curve
+with `depositionAction:{kind:'press',depthMm}`.
+
+The [authoring helper](scripts/prepare.mjs) converts the rail controls below into
+that explicit Trace data. It is guidance tooling; no bridge record reaches the
+generator. Legacy bridge records require explicit migration.
 
 For one or two walls around a solid guide, use a slice assignment with `loops: 1`
 or `2`, `fillDensity: 0`, `solidTop: 0`, `solidBottom: 0`, and disable
 draped-skin and vase-wall. Geometry guides and printed material differ;
 review actual toolpaths, including complete wall circuits.
 
-## Recipe
+## Authoring helper
 
-`maxExcursionMm` bounds each whole bridge including endpoint presses (default
-10 mm). It is a user-selected geometric constraint, not a head collision model.
-No 15-degree slope limit is applied. Machine capability and XYZ limits still apply.
+`maxExcursionMm` bounds each whole bridge including endpoint presses (when explicitly supplied). It is a user-selected geometric constraint, not a head collision model.
+No 15-degree slope limit is applied. The exporter handles machine compatibility.
 
-Each entry in `bridges` has these required fields:
+Each helper entry in `bridges` has these required fields:
 
 | Field | Meaning |
 |---|---|
@@ -69,7 +72,7 @@ sample curved rails finely and keep these motions within supporting material.
 The first rail is the one-way start rail and first alternating start rail.
 
 Shared attachment curves retain process roles; `depositCurves` calculates beads.
-Generation checks excursion, bounds, continuity and attachment coverage against
+The helper checks authored excursion; shared Trace checks attachment coverage against
 finalized positive-volume strands one vertical layer below, including sloped
 model paths or a named earlier bridge. Sparse gaps remain absent; the 0.015 mm coverage
 tolerance is numerical, not adhesion evidence.

@@ -1,6 +1,6 @@
 import {requireThat} from '../geom/tolerance.mjs';
 import {toolBounds,validateSetup,sameNozzleMaterialChanges} from '../machine/rules.mjs';
-import {filamentPlan} from '../machine/filaments.mjs';
+import {checkedFilamentPlan as filamentPlan} from '../machine/filaments.mjs';
 
 const n=value=>Number(value.toFixed(5));
 

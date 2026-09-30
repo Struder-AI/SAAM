@@ -14,7 +14,7 @@ const state=await applyText(directory,{feature:{id:'label',text,
   sizeMm:20,align:'center',positionMm:[50,23],outlineOffsetMm:0.15,depthMm:0.8,reference:{kind:'top'}}});
 // The base is sliced under its draped roof; the letters are skin only.
 await adjustBundle(directory,{slices:{...state.plan.slices,assignments:[
-  ...state.plan.slices.assignments.map(a=>({...a,part:'base',...(a.construction==='skin'?{id:'finished-roof'}:{})})),
-  skinAssignment({id:'raised-lettering',part:'text/label',supportFrom:'finished-roof',layers:4,normalMm:0.2,sampleStepMm:0.2,surveyStepMm:0.1})
+  ...state.plan.slices.assignments.map(a=>({...a,part:'base',...(a.surface?.kind==='roof'?{id:'finished-roof'}:{})})),
+  skinAssignment({id:'raised-lettering',part:'text/label',supportFrom:'finished-roof',layers:4,pitchMm:0.2,sampleStepMm:0.2,surveyStepMm:0.1})
 ]}},{expectedRevision:state.revision});
 console.log(JSON.stringify({directory,text,roofLayers:3,letterLayers:4,letterReliefMm:0.8,approvals:'none'}));

@@ -8,7 +8,7 @@ metadata:
 # Plastic weld / injected rivets
 
 For maker work read [MAKERS](../../MAKERS.md); for development start at
-[BUILDERS.md](../../BUILDERS.md). Use the [shared print tools](../../core/print/USAGE.md)
+[developer orientation](../../DEVELOPER-CONTEXT.md). Use the [shared print tools](../../core/print/USAGE.md)
 and [standard parameter policy](../../MAKERS.md#standard-parameter-policy).
 
 This skill prints a blind cavity, then injects molten plastic through its small
@@ -46,7 +46,7 @@ Supported combinations:
   Studio review and exact-byte delivery. Higher operations wait for injection.
 - S5 Griffin and experimental H2D output. The robot relay exporters cannot yet
   represent metered stationary extrusion or nozzle-temperature changes; they
-  reject this skill.
+  reject those unrepresentable actions at export.
 
 The skill does not insert arbitrary holes into a one-bead vase wall, infer
 pressure-tightness from spaced fill, or turn supports into permanent rivets.
@@ -72,7 +72,7 @@ values and adjust after a small coupon trial:
 | `basinHeightMm` | 1.2 | Upward taper from basin to shaft |
 | `wallMm` | 1.2 | Required solid material outside the cavity; infill gets a full cylindrical envelope |
 | `floorMm` | 0.8 | Solid floor below the blind cavity |
-| `seatDepthMm` | 0 | Nozzle tip at the opening plane; adjustable 0–0.5 mm insertion |
+| `seatDepthMm` | 0 | Nozzle tip at the opening plane; nonnegative insertion remaining within the shaft |
 | `volumeFactor` | 1 | Multiplier on the reserved, stepped cavity volume |
 | `flowMm3S` | 0.5 | Injection flow, capped by the normal process flow limit |
 | `holdSeconds` | 1 | Stationary hold after injecting, before withdrawal |
@@ -122,7 +122,7 @@ distributes reinforcement through the part; it does not claim intersecting rivet
 columns or measured whole-part strength. Keep overlapping-height envelope centers
 at least `basinDiameterMm + 2*wallMm` apart. The helper defaults to 12 mm pitch;
 overlapping staggered levels need at least 10.8 mm pitch with these diameters.
-At most 256 sites are accepted. Check that the chosen grid fits the body.
+Site counts have no fixed cap. Check that the chosen grid fits the body.
 
 ## Generate, review and adjust
 

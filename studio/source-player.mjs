@@ -1,5 +1,5 @@
 import {interpretMachineStudy} from '../core/export/machine-study.mjs';
-import {interpretGriffin} from '../core/export/griffin.mjs';
+import {interpretGriffin} from '../core/export/griffin-player.mjs';
 import {interpretBambuSource} from '../core/export/bambu-player.mjs';
 import {interpretDobotFiles} from '../core/export/dobot-player.mjs';
 import {interpretDensoFiles} from '../core/export/denso-player.mjs';

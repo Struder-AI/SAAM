@@ -40,7 +40,7 @@ export function regionalStackPlan(machine,backend='mesh') {
     sliceAssignment({id:'roof-body',part:'roof',solidTop:1,solidBottom:1}),
     sliceAssignment({id:'upper',part:'upper',fillDensity:1}),
     sleeveAssignment({id:'wall',part:'roof',zStartMm:.4,zEndMm:1.2,endTransition:'level'}),
-    skinAssignment({id:'roof-finish',part:'roof',layers:2,normalMm:.2,surveyStepMm:.2,sampleStepMm:.2})
+    skinAssignment({id:'roof-finish',part:'roof',layers:2,pitchMm:.2,surveyStepMm:.2,sampleStepMm:.2})
   ];
   return plan;
 }

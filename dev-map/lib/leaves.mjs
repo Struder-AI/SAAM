@@ -2,6 +2,8 @@
 // directory or file is a place, a box or a boundary. A declaration's durable name still says
 // which file holds it, and scope (scope.mjs) says which code is mapped at all.
 import {isMapped,outsideRootOf,activeCallers} from './scope.mjs';
+import {foldOwnedHelpers} from './helpers.mjs';
+import {mapSet} from './map-set.mjs';
 const order=(a,b)=>a<b?-1:a>b?1:0;
 const COUPLINGS=new Set(['file','http-route','worker-message','registry-entry','event-listener']);
 // A declaration written as `x.onthing = function` is reached by the host that fires it. At module
@@ -12,12 +14,12 @@ const domHandler=d=>d.kind==='handler'&&/(?:^|\.)on[a-z]/.test(d.name);
 const callback=c=>!!c.relation?.viaParameter;
 
 // Every call, coupling and handoff reduced to node endpoints, with the mechanism that carries it.
-export function model(graph,projection) {
-  const files=graph.files.map(f=>f.file).filter(isMapped).sort(order),mapped=new Set(files);
+export function model(graph,projection,asts=new Map(),selectedLeafOf=null) {
+  const files=selectedLeafOf?[...new Set([...projection.nodes.values()].map(n=>n.file))].sort(order):graph.files.map(f=>f.file).filter(isMapped).sort(order),mapped=new Set(files);
   const byId=new Map(graph.declarations.map(d=>[d.id,d]));
   const moduleFile=id=>id.endsWith(':<module>')?id.slice(0,id.length-':<module>'.length):null;
   const owner=id=>projection.owner.get(id)??null;
-  const node=id=>{const n=owner(id);return n&&n.kind!=='module'?n:null;};
+  const node=id=>{const n=owner(id);return n&&n.kind!=='module'&&!n.external?n:null;};
   // Module top level, and code enclosed in a declaration that is no node of its own, are both
   // reached when the module is evaluated; neither is a caller inside the map.
   const atModule=id=>!!moduleFile(id)||owner(id)?.kind==='module';
@@ -33,7 +35,7 @@ export function model(graph,projection) {
         // A call that leaves the mapped roots for scanned source. It has no map address, but the
         // declaration it reaches is named, so every level can draw where its code goes outside.
         const target=byId.get(r.to),fromFile=fileOf(r.from);
-        if(target&&target.anchor&&!isMapped(target.file)&&fromFile&&isMapped(fromFile))
+        if(target&&target.anchor&&(node(r.from)||!selectedLeafOf&&fromFile&&isMapped(fromFile)))
           outsideCalls.push({from:node(r.from),fromFile,atModule:atModule(r.from),root:outsideRootOf(target.file),
             to:{path:target.anchor,file:target.file,label:target.name},start:at?.start??0,line:at?.line??null});
         continue;
@@ -41,10 +43,10 @@ export function model(graph,projection) {
       calls.push({from:node(r.from),fromFile:fileOf(r.from),fromPath:byId.get(r.from)?.anchor??null,
         atModule:atModule(r.from),to,start:at?.start??0,
         line:at?.line??null,label:names(r,byId).join(', '),relation:r});
-    } else if(COUPLINGS.has(r.kind)||r.kind==='worker-handoff') {
-      const kind=r.kind==='worker-handoff'?'worker-message':r.kind;
+    } else if(COUPLINGS.has(r.kind)||['worker-handoff','value-flow','state-read','state-write'].includes(r.kind)) {
+      const kind=r.kind==='worker-handoff'?'worker-message':r.kind==='value-flow'?'data':r.kind.startsWith('state-')?'state':r.kind;
       couplings.push({kind,label:r.label??null,...(r.table?{table:true}:{}),from:node(r.from),to:node(r.to),
-        fromFile:fileOf(r.from),toFile:fileOf(r.to),line:at?.line??null});
+        fromFile:fileOf(r.from),toFile:fileOf(r.to),fromPath:byId.get(r.from)?.anchor,toPath:byId.get(r.to)?.anchor,line:at?.line??null});
     }
   }
   // How a node is reached from outside the map, by mechanism.
@@ -72,14 +74,18 @@ export function model(graph,projection) {
   // that belong to no node.
   const moduleCode=new Map();
   for(const {callables,runs,...row} of graph.moduleCode??[]) {
+    if(mapSet||!mapped.has(row.file))continue;
     const unheld=callables.filter(id=>owner(id)?.kind==='module');
     if(!runs&&!unheld.length)continue;
     const rows=moduleCode.get(row.file)??moduleCode.set(row.file,[]).get(row.file);
     rows.push({kind:'module-code',line:row.line,column:row.column,expression:row.expression,
       ...(runs?{}:{reason:'callable-without-leaf'})});
   }
-  const leafOf=leaves(nodes,calls,couplings,mapped);
+  const leafOf=selectedLeafOf??leaves(nodes,calls,couplings,mapped);
+  const beforeFolding=new Set(leafOf.values()).size;
+  if(!selectedLeafOf)foldOwnedHelpers({graph,projection,asts,leafOf});
   return {files,mapped,nodes,calls,outsideCalls,couplings,reached,moduleCallSites,moduleCode,leafOf,
+    foldedHelpers:beforeFolding-new Set(leafOf.values()).size,
     ...externals({calls,outsideCalls,couplings,reached,leafOf}),
     fileLines:new Map(graph.files.map(f=>[f.file,f.lines]))};
 }
@@ -91,24 +97,24 @@ export function model(graph,projection) {
 // {external, leaf, out}, `out` when the leaf reaches the external.
 function externals({calls,outsideCalls,couplings,reached,leafOf}) {
   const known=new Map(),seen=new Set(),externalLinks=[];
-  const add=(external,label,root,path,out)=>{
+  const add=(external,label,root,path,out,kind='call')=>{
     const leaf=leafOf.get(path);if(!leaf)return;
     if(!known.has(external))known.set(external,{id:external,label,root});
-    const key=`${external}\n${leaf}\n${out}`;
-    if(!seen.has(key)){seen.add(key);externalLinks.push({external,leaf,out});}
+    const key=`${external}\n${leaf}\n${out}\n${kind}`;
+    if(!seen.has(key)){seen.add(key);externalLinks.push({external,leaf,out,kind});}
   };
   const declaration=(path,file)=>[path,path.includes('::')?path.slice(path.indexOf('::')+2):path.slice(path.lastIndexOf('/')+1),outsideRootOf(file)];
   for(const c of calls) {
     if(c.from&&isMapped(c.from.file))continue;
-    if(c.fromFile&&isMapped(c.fromFile)){if(c.atModule)add('module load','module load','module load',c.to.path,false);continue;}
+    if(c.atModule&&c.fromFile&&isMapped(c.fromFile)){add('module load','module load','module load',c.to.path,false);continue;}
     if(!c.fromFile||!activeCallers(c.fromFile))continue;
     const [id,label,root]=declaration(c.fromPath??c.fromFile,c.fromFile);
     add(id,label,root,c.to.path,false);
   }
   for(const c of outsideCalls)if(c.from){const [id,label,root]=declaration(c.to.path,c.to.file);add(id,label,root,c.from.path,true);}
   for(const c of couplings) {
-    if(c.to&&!c.from&&c.fromFile&&!isMapped(c.fromFile)){const [id,label,root]=declaration(c.fromFile,c.fromFile);add(id,label,root,c.to.path,false);}
-    if(c.from&&!c.to&&c.toFile&&!isMapped(c.toFile)){const [id,label,root]=declaration(c.toFile,c.toFile);add(id,label,root,c.from.path,true);}
+    if(c.to&&!c.from&&c.fromFile&&(mapSet||!isMapped(c.fromFile))){const [id,label,root]=declaration(c.fromPath??c.fromFile,c.fromFile);add(id,label,root,c.to.path,false,c.kind);}
+    if(c.from&&!c.to&&c.toFile){const [id,label,root]=declaration(c.toPath??c.toFile,c.toFile);add(id,label,root,c.from.path,true,c.kind);}
   }
   for(const [path,list] of reached)if(list.some(r=>r.mechanism==='dom-event'))add('browser','browser','browser',path,false);
   const order=(a,b)=>a<b?-1:a>b?1:0;
@@ -129,7 +135,7 @@ function leaves(nodes,calls,couplings,mapped) {
     if(!c.to.parent||c.atModule||callback(c))continue;
     if(!c.from||!mapped.has(c.from.file)||!within(c.from,c.to.parent))own.add(c.to.path);
   }
-  for(const c of couplings)if(c.to?.parent&&c.from&&!within(c.from,c.to.parent))own.add(c.to.path);
+  for(const c of couplings)if(COUPLINGS.has(c.kind)&&c.to?.parent&&c.from&&!within(c.from,c.to.parent))own.add(c.to.path);
   const leafOf=new Map(),find=n=>own.has(n.path)?n.path:leafOf.get(n.parent.path)??find(n.parent);
   for(const n of nodes)leafOf.set(n.path,find(n));
   return leafOf;

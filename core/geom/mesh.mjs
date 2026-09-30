@@ -23,7 +23,7 @@ const validatedMeshes=new Map();
 function requireMeshInput(condition,message) {
   if(!condition)throw meshInputError(message);
 }
-export function meshInputError(message){return new Error(`${message} Read skills/mesh-tools/SKILL.md (MCP: read_skill with skillId "mesh-tools") for diagnosis and recovery.`);}
+export function meshInputError(message){return new Error(`${message} Import through Studio or the normal import tool to attempt repair; malformed input needs a corrected source.`);}
 
 function meshResult(vertices,triangles,name,derived){
   const mesh={kind:'triangle-mesh',name,vertices,triangles,

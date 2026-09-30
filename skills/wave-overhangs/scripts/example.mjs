@@ -29,5 +29,5 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).hr
   await initBundle(dir,waveExamplePlan());
   const result=await generateBundle(dir,{development:true});
   const state=await loadBundle(dir);
-  console.log(JSON.stringify({directory:dir,mode:result.mode,waveOverhangs:state.pathSummary.waveOverhangs},null,2));
+  console.log(JSON.stringify({directory:dir,mode:result.mode,fronts:state.pathSummary.slices.instances.filter(r=>r.fillOrder).map(r=>({id:r.id,...r.fillOrder}))},null,2));
 }

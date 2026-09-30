@@ -13,26 +13,27 @@
 // id the solver gave it.
 import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
+import {setFile,mapSet} from './map-set.mjs';
 
 export const TOP='0';
-export const treeFile='dev-map/tree.json';
+export const treeFile=setFile('tree.json');
 const order=(a,b)=>a<b?-1:a>b?1:0;
 
 export async function readTreeFile(repo) {
   const text=await readFile(resolve(repo,treeFile),'utf8').catch(error=>{if(error.code==='ENOENT')return null;throw error;});
   const file=text===null?{}:JSON.parse(text);
-  return {schema:1,clusters:file.clusters??[],leaves:file.leaves??{},repeats:file.repeats??{}};
+  return {schema:1,clusters:file.clusters??[],leaves:file.leaves??{},repeats:file.repeats??{},order:file.order??{},layout:file.layout??{}};
 }
 
 // The file a tree is written back as: clusters in index order when an index is given, leaves by
 // path, and each map's repeats.
 export function treeFileOf(tree,index=new Map()) {
   const at=id=>index.get(id)??id,byAt=(a,b)=>/^[\d.]+$/.test(at(a))&&/^[\d.]+$/.test(at(b))?byIndex(at(a),at(b)):order(at(a),at(b));
-  const clusters=[...tree.clusters.keys()].sort(byAt).map(id=>({id,label:tree.clusters.get(id).label??null,parent:tree.parent.get(id)}));
+  const clusters=[...tree.clusters.keys()].sort(byAt).map(id=>({id,...tree.clusters.get(id),parent:tree.parent.get(id)}));
   const leaves=Object.fromEntries([...tree.parent].filter(([id])=>!tree.clusters.has(id)).sort(([a],[b])=>order(a,b)));
   const repeats=Object.fromEntries([...tree.repeats].filter(([,set])=>set.size).sort(([a],[b])=>byAt(a,b))
     .map(([map,set])=>[map,[...set].sort(order)]));
-  return {schema:1,clusters,leaves,repeats};
+  return {schema:1,clusters,leaves,repeats,...(Object.keys(tree.order??{}).length?{order:tree.order}:{}),...(Object.keys(tree.layout??{}).length?{layout:tree.layout}:{})};
 }
 
 // The navigation a map needs from a tree, as accessors, so a solver's live state and a settled
@@ -54,7 +55,7 @@ export function treeAccess(tree) {
 // {from, to} between leaf paths.
 export function placeTree(file,leaves,links) {
   const clusters=new Map(),parent=new Map(),repeats=new Map();
-  for(const c of file.clusters)if(c?.id&&!clusters.has(c.id)&&c.id!==TOP&&!leaves.has(c.id))clusters.set(c.id,{label:c.label??null});
+  for(const c of file.clusters)if(c?.id&&!clusters.has(c.id)&&c.id!==TOP&&!leaves.has(c.id))clusters.set(c.id,{label:c.label??null,...(c.description?{description:c.description}:{})});
   const isMap=id=>id===TOP||clusters.has(id);
   for(const c of file.clusters)if(clusters.has(c.id)&&!parent.has(c.id))parent.set(c.id,isMap(c.parent)&&c.parent!==c.id?c.parent:TOP);
   // A parent chain that comes back to itself is broken at the first cluster met twice.
@@ -80,7 +81,7 @@ export function placeTree(file,leaves,links) {
   for(const leaf of unplaced)parent.set(leaf,TOP);
   for(const [map,ids] of Object.entries(file.repeats))if(isMap(map))
     repeats.set(map,new Set(ids.filter(id=>leaves.has(id)||clusters.has(id))));
-  return settle({parent,clusters,repeats});
+  return settle({parent,clusters,repeats,order:file.order??{},layout:file.layout??{}});
 }
 
 // The two rules, applied until the tree holds them. Local mutation of the tree being built.
@@ -143,17 +144,22 @@ export function drawMap(map,{childrenOf,repeatsOn,isCluster,leavesOf,parentOf},{
       crossing.push({link,inside:a?x:y,outside,out:a,boundary:boundaryOf(outside)});}
   }
   const reach=new Map();
-  for(const leaf of nested)for(const {external,out} of externalsOf(leaf)) {
-    (reach.get(external)??reach.set(external,new Set()).get(external)).add(`${out?'>':'<'}${holder.get(leaf)}`);
+  for(const leaf of nested)for(const {external,out,kind='call'} of externalsOf(leaf)) {
+    const ends=reach.get(external)??reach.set(external,new Map()).get(external),key=JSON.stringify([out,holder.get(leaf),kind]);
+    ends.set(key,(ends.get(key)??0)+1);
     if(map!==TOP)(out?exits:entries).add(leaf);
   }
   const alike=new Map();
   for(const [external,ends] of reach) {
-    const key=[...ends].sort().join('\n');
-    (alike.get(key)??alike.set(key,{externals:[],ends:[...ends].sort()}).get(key)).externals.push(external);
+    const key=(mapSet?.externalLabels?.[external]?external+'\n':'')+[...ends.keys()].sort().join('\n');
+    const group=alike.get(key)??alike.set(key,{externals:[],ends:new Map()}).get(key);
+    group.externals.push(external);
+    for(const [end,count] of ends)group.ends.set(end,(group.ends.get(end)??0)+count);
   }
-  const outside=[...alike.values()].map(({externals,ends})=>({externals:externals.sort(),
-    into:ends.filter(e=>e[0]==='<').map(e=>e.slice(1)),from:ends.filter(e=>e[0]==='>').map(e=>e.slice(1))}))
+  const outside=[...alike.values()].map(({externals,ends})=>{
+    const connections=[...ends].map(([key,count])=>{const [out,box,kind]=JSON.parse(key);return {out,box,kind,count};});
+    return {externals:externals.sort(),connections,
+      into:[...new Set(connections.filter(e=>!e.out).map(e=>e.box))],from:[...new Set(connections.filter(e=>e.out).map(e=>e.box))]};})
     .sort((a,b)=>a.externals[0]<b.externals[0]?-1:1);
   const largest=Math.max(0,...held.filter(h=>h.rank===0).map(h=>h.leaves.length));
   return {homes,repeated,members,holder,nested,lifted,crossing,touching,entries,exits,largest,outside};
@@ -202,7 +208,8 @@ export function numberTree(tree,linkSet) {
     const map=stack.pop(),drawn=drawMap(map,access,linkSet);
     const edges=[...new Set(drawn.lifted.map(l=>`${l.from}\n${l.to}`))].map(key=>key.split('\n'));
     const flow=flowOrder(drawn.members,edges);
-    const homes=drawn.homes.sort((a,b)=>flow.get(a)-flow.get(b));
+    const authored=tree.order?.[map];
+    const homes=drawn.homes.sort((a,b)=>authored?(authored.indexOf(a)<0?Infinity:authored.indexOf(a))-(authored.indexOf(b)<0?Infinity:authored.indexOf(b))||flow.get(a)-flow.get(b):flow.get(a)-flow.get(b));
     homes.forEach((id,i)=>index.set(id,map===TOP?String(i+1):`${index.get(map)}.${i+1}`));
     for(const id of homes)if(tree.clusters.has(id))stack.push(id);
   }

@@ -39,11 +39,11 @@ function mixColor(from,to,t){
 export function toolpathStyle(move,current,skinPhase='draped-skin',emphasis,{lineWidthMm=0.4,pixelsPerMm=1,previousLayerOpacity=0.5}={}) {
   lineWidthMm=move.lineWidthMm??lineWidthMm;
   const active=!!current&&layerKey(move)===layerKey(current);
-  const skin=move.phase===skinPhase||move.phase==='skin'||move.phase==='fronts'||move.phase==='vase-wall'||move.phase==='segmented-paths'||move.phase==='cladding-hoop'||move.phase==='cladding-helix-reverse';
+  const skin=move.phase===skinPhase||move.phase==='skin'||move.phase==='fronts'||move.phase==='vase-wall'||move.phase==='segmented-paths'||move.phase==='surface-circumferential'||move.phase==='surface-reverse'||move.phase==='cladding-hoop'||move.phase==='cladding-helix-reverse';
   const baseline=Math.max(0.5,Math.min(1,previousLayerOpacity));
   const opacity=active?1:baseline+(1-baseline)*(emphasis??0);
   const strength=(opacity-0.5)*2;
-  const axial=move.phase==='cladding-axial'||move.phase==='cladding-helix-forward';
+  const axial=move.phase==='surface-axial'||move.phase==='cladding-axial'||move.phase==='cladding-helix-forward';
   const foreground=move.extruding?(move.filamentColor??(move.modulated?TOOLPATH_COLORS.lavender:axial?TOOLPATH_COLORS.teal:skin?TOOLPATH_COLORS.orange:move.phase==='prime'?'#5b92a3':TOOLPATH_COLORS.skyBlue)):'#657fa3';
   const pale=move.extruding?(axial?mixColor(foreground,'#f3f1eb',.55):skin?'#d6a17c':move.phase==='prime'?'#5b92a3':'#b9d6ed'):'#aeb8c5';
   // Inset only the current layer's display strokes to reveal adjacent tracks.

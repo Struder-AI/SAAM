@@ -18,10 +18,10 @@ test('the complete regional stack uses native geometry, final confirmation, shar
   assert.doesNotMatch(state.limitations.join('\n'),/cap.*unsupported spans/,'no retired bridge-policy warning in the shared review workflow');
   await generateBundle(directory);state=await loadBundle(directory);
   assert.equal(state.programError,undefined);
-  assert.equal(state.pathSummary.vaseWall.instances.length+state.pathSummary.drapedSkin.instances.length,2);
-  assert.deepEqual(state.pathSummary.slices.instances.filter(i=>i.layers).map(i=>i.owner),['base','cap','roof-body','upper']);
+  assert.equal(state.pathSummary.vaseWall.instances.length+state.pathSummary.referenceFamilies.roof.length,2);
+  assert.deepEqual(state.pathSummary.slices.instances.filter(i=>i.layers&&!i.referenceFamily&&!i.construction).map(i=>i.owner),['base','cap','roof-body','upper']);
   assert.ok(state.program.moves.some(move=>move.phase==='vase-wall'&&move.extruding));
-  assert.ok(state.program.moves.some(move=>move.phase==='skin'&&move.extruding));
+  assert.ok(state.program.moves.some(move=>move.operation?.startsWith('roof:roof-finish:')&&move.extruding));
   state=await loadBundle(directory);const bytes=await readFile(join(directory,state.review.generation.file));
   await assert.rejects(()=>deliver(directory),/approval/);
   state=await approve(directory,{actor:'SYNTHETIC REGIONAL SOFTWARE TEST ONLY',revision:state.revision});

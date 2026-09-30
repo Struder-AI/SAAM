@@ -1,5 +1,5 @@
 import {exportMotion,validatePath} from './griffin.mjs';
-import {filamentPlan} from '../machine/filaments.mjs';
+import {checkedFilamentPlan as filamentPlan} from '../machine/filaments.mjs';
 import {prelude} from './bambu-player.mjs';
 import {renderBambuChange} from './bambu-change.mjs';
 import {requireThat} from '../geom/tolerance.mjs';

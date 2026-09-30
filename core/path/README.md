@@ -1,7 +1,7 @@
 # Skill composition and travel
 
 Operation contracts, scheduling, shared motion state and travel over deposited
-material. [Material regions](../region/README.md#material-regions-and-shared-interfaces)
+material. [Material regions](../region/README.md#material-ownership-and-surface-contact)
 define ownership and interfaces; [print lifecycle](../print/README.md) owns plan
 locking, generation and review.
 
@@ -10,8 +10,8 @@ an unimplemented design for evaluation.
 
 ## Skill-result composition
 
-Generation owns one execution state from startup through finalized deposition
-and finishing. The ready-work graph caches geometry after its material sources
+Generation owns one machine-independent execution state through finalized
+deposition and finishing. Exporters add machine startup and service motions. The ready-work graph caches geometry after its material sources
 are finalized; exact operation dependencies remain separate from geometry edges.
 Eligible unmodified Slice strokes use their actual scheduled entry for ordering
 and connectors before publication. Trace, Inject and modified paths stay constrained.
@@ -22,8 +22,14 @@ No later composer changes published material or independently reschedules it.
 Planning stages return new state and action deltas; `planningPath` assembles them.
 A merged move replaces the preceding action rather than mutating it. Local loops
 own mutable work collections; state does not copy accumulated action history.
-Machine priming uses a fixed tool-bound lane. Complete final geometry and deposition
-bounds must clear it; otherwise move/resize the part or author an explicit prime.
+Export preparation adds any profile-owned priming lane and checks its clearance
+against final deposition. Explicit recipe prime lines remain authored SAAMpath.
+
+Slice can emit derived poses: `toolPose:{}` stays upright along print Z;
+`{alignToSliceNormal:true}` follows its normal. The `tilt` field channel modulates
+either baseline. Omitted pose output keeps ordinary three-axis motion. Pose
+samples, tool axes and rotary angles are internal results, not recipe inputs;
+exporters represent these results using their machine's kinematics.
 
 
 Skills return an in-memory result `{id, operations, report}`. An operation has
@@ -89,22 +95,18 @@ No lookahead, travel-time scoring or heat balancing is included; see
 An assembly's `geometry.parts` holds named components with `geometry` and
 `xMm/yMm/zMm` translations; native geometry preserves each component's representation.
 A slice assignment's `part` selects its component (`null` means all), producing
-one owner per component. A `construction: 'skin'` assignment's `part` selects
-the roof component for an assembly. Assemblies accept supported spline builders
+one owner per component. A roof surface-domain assignment selects its assembly component through the same part field. Assemblies accept supported spline builders
 and validated meshes; they are not automatic boolean solids. Assign regions
 and geometry deliberately; component selection is part of the reviewed recipe.
 
-Slices and draped-skin do **not** weave through each other. All supporting slice
-operations precede the first skin, and skin layers remain ordered. Two supporting
-columns may alternate or batch before a spanning roof. The current skin bead
-model is approximate and does not prove that an unsupported span will print.
-Future skills use the same operation/dependency boundary; do not add a new
-composer for each skill pair.
+Dependent surface courses wait for their declared finalized material sources.
+All skills use the same operation/dependency boundary; no skill pair has a
+separate composer. A nominal bead model does not prove physical support.
 
 [Standard vase](../../skills/vase-wall/SKILL.md) lowers to a continuous Slice
 spiral; [advanced vase](../../skills/advanced-vase-wall/SKILL.md) supplies sleeve-
 mapped Trace courses. Both use shared bead construction and composition. Their
-manuals own fitting, sampling, tile and placement controls. A continuous operation
+manuals own fitting, sampling, explicit path and placement controls. A continuous operation
 cannot interleave with infill in the same height band; a planar successor needs
 a level terminal boundary. The sleeve is reference geometry, never an implicit
 wall, foundation or filled support sheet. Dependent contact uses finalized beads
@@ -122,8 +124,8 @@ as a tiny XYZ move or as retraction recovery.
 
 Optional `nozzleC` and required paired `restoreNozzleC` scope a nozzle temperature
 to an operation. The composer parks before changing temperature and before
-restoring it. [Process controls](./process-controls.mjs) own recipe temperature
-discovery and validation; machine adapters own command semantics. Current
+restoring it. [Process controls](./process-controls.mjs) own export temperature
+validation; machine adapters own command semantics. Current
 filament-axis G-code outputs support these actions; relay outputs reject them.
 [Plastic weld](../../skills/plastic-weld/SKILL.md) is their first producer.
 
@@ -151,7 +153,7 @@ classification and does not become a verified continuous support surface.
 `consumeFinishedSurface` binds a selected native spline or mesh chart to the
 matching component's published boundaries. Chart samples must lie within a
 published extent and boundary, and the consumer inherits source operation
-dependencies. Current cladding needs a rectangular periodic chart and adds
+dependencies. Normal-band Slice cell fill needs a rectangular periodic chart and adds
 outward normal shells; it accepts a finished boundary regardless of which
 producer supplies it. This interface does not add chart unwrapping, arbitrary
 multi-patch routing, physical contact verification or a second scheduler.
@@ -159,14 +161,14 @@ multi-patch routing, physical contact verification or a second scheduler.
 ## Line spacing
 
 [spacing.mjs](./spacing.mjs) derives nominal centerline pitch from bead width and
-one optional per-skill `spacingFactor`: a finite number at least `0.5`, defaulting
+one optional per-skill `spacingFactor`: a finite positive number, defaulting
 to `1`. Values below 1 intentionally overlap adjacent beads; values above 1
 leave space between them. Producers use that pitch for course placement and the actual bead width
 for cross section and segment volume. Agents never need to match independent
 pitch and extrusion settings. Plan validation checks regional overrides through
 the same contract.
 
-Slice assignments, draped-skin and pipe-cladding implement it. Fill density divides the
+Ordinary and surface-family Slice assignments implement it. Fill density divides the
 derived pitch. Slice loops retain the exterior contacting bead
 and space successive loops inward. Cladding uses its own factor for axial cells and helix pitch,
 while its substrate retains the settings of its producing patterns. Normal shell/layer separation is
@@ -175,7 +177,7 @@ unchanged. Vase-wall's vertical spiral progression is outside this interface.
 Circular track counts and native surface metrics still fit local bead widths;
 course-cell width is divided by the factor before computing extrusion. Edge
 tapers use bead width, not widened pitch. Surface spacing remains sampled, with
-the cladding producer's existing metric and fixed-relay flow limitations.
+the periodic-cell field's sampled metric. Exporters own fixed-relay flow representation.
 The setting does not add a material profile or establish physical printability.
 
 Planar interiors with factors above 1 publish sparse coverage; spaced walls
@@ -217,8 +219,8 @@ Lifted traverses use `max(depositedMaxZ + process.liftMm, fromZ, toZ)`.
 Future strokes and unselected geometry do not raise current travel. The endpoint
 floor avoids descending before traversing from a higher startup/park position or
 toward a higher destination. Cooling and final SAAMpath parking use the same
-height calculation. Required clearance above the selected tool's Z bounds is
-rejected. Existing recipes retain their explicit locked clearance value.
+height calculation. Exporters check selected tool bounds. Existing recipes
+retain their explicit locked clearance value.
 Compose all results together so planning state carries chronology across skills.
 Machine firmware service routines (including H2D shutdown) retain their separate
 export contracts; they are not ordinary SAAMpath travel.
@@ -242,10 +244,9 @@ operations, not retracted and directly after deposition. Planar regions check it
 with `connectClearanceMm`, the half-line-width standoff less 0.05 mm, because
 wall centerlines lie on that standoff less the offset kernel's arc chords.
 Oriented strokes have no footprint query; they connect only across the
-producer's declared `poseJoinMm` index within one operation. Slices (supports
-included), draped-skin, thick-lip and
-axial pipe/surface cladding opt in. Line networks, mapped vase patterns, rims,
-waves and welds do not: their gaps are authored. A short distance never permits
+producer's declared `poseJoinMm` index within one operation. General Slice
+fields opt in only where they can prove deposited connectivity. Explicit Trace
+gaps remain authored, and stationary Inject has no stroke connectors. A short distance never permits
 crossing an opening or bypassing an earlier operation's clearance restriction.
 
 Where no connector applies, stroke starts within 1 mm use direct non-extruding
@@ -259,15 +260,15 @@ holds less than 0.001 mm3, which a machine program could only write as travel.
 `trimVanishingEnd` returns the shortened stroke with aligned point, volume and
 segment-metadata arrays; callers use it for both deposition and rim reporting.
 
-`planMove` merges consecutive forward collinear moves with the same
-speed, volume per length and semantic metadata. A fixed line anchors each run
-within the numerical plane tolerance (0.0000001 mm), so successive small turns
-cannot accumulate into curve flattening. It sums deposited volume and retains
-the endpoint. Corners, reversals, process/flow changes, operation/layer/role
-boundaries and intervening retraction/fan/dwell actions remain explicit. All
-skills use this writer; variable-gap/surface samples remain separate when their
-flow or metadata changes. This compacts SAAMpath before any machine export,
-not just the displayed path.
+`planMove` coalesces forward moves with equal speed, flow density, pose and
+semantic metadata. A fixed original axis prevents accumulated curve flattening:
+ordinary collinear runs use 0.0000001 mm tolerance; merging a movement below
+0.0001 mm bounds original-point deviation from the final chord by 0.0001 mm.
+Volume, elapsed time and final endpoints survive. Reversals, changed poses,
+process/flow and operation/layer/role boundaries, and intervening controls stay
+explicit. All producers use this shared SAAMpath writer after field evaluation
+and before export; tiny meaningful movements are retained when merging would
+lose those semantics.
 
 Mesh sections remove numerical triangle seams with `cleanPlanarLoop` before
 offsetting. The distance bound is the existing 0.0000001 mm plane tolerance,

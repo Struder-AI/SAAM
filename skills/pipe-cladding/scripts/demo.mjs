@@ -36,7 +36,7 @@ export function developmentPipePlan(machine=loadMachine('denso-vs068a4-rc8a')){
   const plan=defaults(machine),columns=24;
   plan.geometry=splineTube({columns,heightMm:12,boreRadiusMm:8,radiusAt:()=>10.4});
   plan.placement={xMm:0,yMm:0};
-  plan.slices.assignments.push(claddingAssignment({id:'pipe-cladding',surface:tubeSurface(columns)}));
+  plan.slices.assignments.push(claddingAssignment({id:'pipe-cladding',surface:tubeSurface(columns),process:{planarSpeedMmS:8,firstLayerSpeedMmS:8},toolPose:{alignToSliceNormal:true}}));
   plan.setup.nozzleC=210;plan.process.skinSpeedMmS=8;
   Object.assign(plan.setup.denso,{configurationSource:'SYNTHETIC DEVELOPMENT FIXTURE. Not calibration of the user installation.',toolFrame:1,workFrame:1,armGroup:1,figure:1,
     extrusionOutput:64,extrusionRateMm3S:0.64,rotaryInterface:'rc8a-relative-ex'});

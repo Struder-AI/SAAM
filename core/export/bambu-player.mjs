@@ -1,8 +1,8 @@
-import {interpretMotion,interpretMotionChunk} from './griffin.mjs';
+import {interpretMotion,interpretMotionChunk} from './griffin-player.mjs';
 import {gcodeLines} from './gcode-lines.mjs';
 import {toolBounds} from '../machine/rules.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
-import {filamentPlan} from '../machine/filaments.mjs';
+import {checkedFilamentPlan as filamentPlan} from '../machine/filaments.mjs';
 import {startupRetracted,sameNozzleMaterialChanges} from '../machine/rules.mjs';
 import {CHANGE_BEGIN,renderBambuChange} from './bambu-change.mjs';
 export const prelude=plan=>`G90\nG21\nM83\nG92 E0\nM190 S${plan.setup.bedC}\nM109 S${plan.setup.nozzleC}\n`;

@@ -1,3 +1,4 @@
+import {prepareMachinePath} from './prepare-path.mjs';
 // Bounded Bambu output (H2D, X1 Carbon), not an interpreter for arbitrary
 // Bambu Studio jobs. Firmware service commands are matched to the pinned
 // envelope in the machine file, which also owns every model-specific fact.
@@ -122,6 +123,7 @@ export function exportBambu(path,plan,machine,release){
 // same million-command body again immediately after packaging. Imported bytes
 // still enter through interpretBambu and its archive integrity checks.
 export function exportAndInterpretBambu(path,plan,machine,release){
+  path=prepareMachinePath(path,plan,machine);
   const output=configuration(plan,machine);
   const filamentSequence=[plan.setup.bambu?.filament,...path.actions.filter(a=>a.kind==='toolChange').map(a=>a.filament)];
   const job=resolveBambuJob(plan,machine,output,{filamentSequence});

@@ -8,25 +8,24 @@ person asks: `read_skill ID#heading`, otherwise `read_guidance`.
 
 <!-- BEGIN GENERATED SKILL DIGEST -->
 
-## Toolpath skills
+## Core toolpath skills
 
 | Skill | Use |
 |---|---|
-| [slice](slice/SKILL.md) | Construct deposition over 3D regions using slices and slice families: loops, fill, brim, skin, fronts, sleeves, rims and cladding. |
-| [trace](trace/SKILL.md) | Deposit along curves, authored directly or supplied by skills: XYZ, NURBS, surface UV paths and line text, with varying bead, process and tool pose. |
+| [slice](slice/SKILL.md) | Construct deposition over 3D regions using slices and slice families: loops, fill, translated or normal stacks, boundary references and joined courses. |
+| [trace](trace/SKILL.md) | Deposit along curves, authored directly or supplied by skills: XYZ, NURBS, surface UV paths and line text, with varying bead and process. |
 | [inject](inject/SKILL.md) | Deposit at points, authored directly or supplied by skills, with explicit volume, flow, vertical approach and hold. |
 | [supports](supports/SKILL.md) | Tree branches at placed contacts; placement trades support against surface contact and removal access. Area supports under a footprint are slices with the support preset. |
 
-## Geometry skills
+## Core geometry skills
 
 | Skill | Use |
 |---|---|
 | [text](text/SKILL.md) | Raised or recessed lettering on a part, or standalone text, from an outline font; flat, along a spline, or bent onto a surface. |
-| [mesh-tools](mesh-tools/SKILL.md) | Diagnose failed mesh imports, clean duplicate or collapsed facets, repair self-intersections and fill explicitly bounded holes. |
 | [thingi10k](thingi10k/SKILL.md) | Find meshes by keyword or Thingiverse link and download STLs from the Thingi10K mirror. Always link the file's license. |
 | [gridfinity](gridfinity/SKILL.md) | gridfinity |
 
-## Hybrid skills
+## Core hybrid skills
 
 | Skill | Use |
 |---|---|
@@ -44,9 +43,9 @@ Recipes and techniques using Slice, Trace and Inject; no additional deposition f
 | [draped-skin](draped-skin/SKILL.md) | Guidance for roof-following Slice courses and their contact with prior material. |
 | [wave-overhangs](wave-overhangs/SKILL.md) | Guidance for experimental seeded-front fill on ordinary Slice families. |
 | [vase-wall](vase-wall/SKILL.md) | Guidance for a continuous Slice spiral wall and optional solid base. |
-| [advanced-vase-wall](advanced-vase-wall/SKILL.md) | Guidance for repeated Trace tiles and authored paths mapped onto a fitted sleeve. |
+| [advanced-vase-wall](advanced-vase-wall/SKILL.md) | Guidance for explicit repeated Trace paths mapped onto a fitted sleeve. |
 | [thick-lip](thick-lip/SKILL.md) | Guidance for making a thickened or rolled edge with Slice or Trace. |
-| [pipe-cladding](pipe-cladding/SKILL.md) | Guidance for experimental axial or helical Slice coatings; the current preset requires a configured DENSO robot and rotary. |
+| [pipe-cladding](pipe-cladding/SKILL.md) | Guidance for experimental axial or helical Slice coatings on periodic surface references. |
 
 ## Advanced sections
 

@@ -1,3 +1,5 @@
+import {TOLERANCE} from '../geom/tolerance.mjs';
+import {requireExclusiveClaims} from '../region/ownership.mjs';
 // Generation: authored geometry and recipe into finalized deposition and SAAMpath.
 // Ownership precedes construction; one dependency graph schedules shared courses
 // and their finalized-material consumers.
@@ -5,9 +7,8 @@
 import { makeShell, assertClosed } from '../geom/shell.mjs';
 import {shellFromSurfaces,splineSolidShell} from '../geom/spline-solid.mjs';
 import {planFinishing} from '../path/toolpath.mjs';
-import {createPlanningState,planFan,planningPath} from '../path/planning.mjs';
+import {createPlanningState,planFan,planningPath,planningResult} from '../path/planning.mjs';
 import {planOperation,validateOperationBatch,prepareOperationDependencies} from '../path/compose.mjs';
-import {planPriming,validatePrimingClearance} from '../path/prime.mjs';
 import {filamentSelection,assignedFilaments} from '../machine/filaments.mjs';
 import {planarPolicy} from '../path/builder.mjs';
 import {assignmentPlan,depositionAssignments} from './assignment-process.mjs';
@@ -16,7 +17,6 @@ import {surveySkinAssignment} from './surface-constructions.mjs';
 import { validatePlan, VERSION } from './plan.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 import {makeMesh,translateMesh} from '../geom/mesh.mjs';
-import {toolBounds,startupPosition,startupRetracted} from '../machine/profile.mjs';
 import {finalizedSliceResults} from './slice-deposition.mjs';
 import {prepareSupportContexts,supportDependencies} from '../../skills/supports/scripts/supports.mjs';
 import {preparePlasticWeld} from '../../skills/plastic-weld/scripts/weld.mjs';
@@ -30,12 +30,9 @@ export const hasMesh=geometry=>!!geometry&&(['mesh','blob-field','text','gridfin
 function primeLineResult(plan,machine){
   const p=plan.process.primeLine;if(p===null)return null;
   const passes=p.passes??[p],region=[],strokes=[];
-  const bounds=toolBounds(machine,plan.setup.tool);
   let lengthMm=0,volumeMm3=0,maxZ=0,maxWidth=0;
   for(const pass of passes){
     const [a,b]=[pass.startMm,pass.endMm],dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy),nx=-dy/length*pass.widthMm/2,ny=dx/length*pass.widthMm/2;
-    requireThat([a,b].every(point=>point.every((v,i)=>v>=bounds.min[i]+pass.widthMm/2&&v<=bounds.max[i]-pass.widthMm/2))&&pass.zMm<=bounds.max[2],
-      'Prime line exceeds selected tool bounds.');
     region.push([[a[0]+nx,a[1]+ny],[b[0]+nx,b[1]+ny],[b[0]-nx,b[1]-ny],[a[0]-nx,a[1]-ny]]);
     strokes.push({role:'prime-line',closed:false,points:[[...a,pass.zMm],[...b,pass.zMm]],speedMmS:pass.speedMmS,beadAreaMm2:pass.widthMm*pass.heightMm});
     lengthMm+=length;volumeMm3+=length*pass.widthMm*pass.heightMm;maxZ=Math.max(maxZ,pass.zMm);maxWidth=Math.max(maxWidth,pass.widthMm);
@@ -95,16 +92,13 @@ export function translateShell(shell, dx, dy, dz = 0) {
 
 export function preparePathGeometry(plan,machine,rhino) {
   validatePlan(plan, machine);
-  if(!plan.geometry)return {placed:null,componentShells:null,weldSites:[],bounds:toolBounds(machine,plan.setup.tool)};
+  if(!plan.geometry)return {placed:null,componentShells:null,weldSites:[],bounds:null};
   validateHeatSetAssignments(plan);
   const placed = translateShell(buildShell(rhino, plan.geometry), plan.placement.xMm, plan.placement.yMm);
   const componentShells=plan.geometry.shape==='assembly' ? new Map(plan.geometry.parts.map(part=>[part.id,
     translateShell(buildShell(rhino,part.geometry),plan.placement.xMm+part.xMm,plan.placement.yMm+part.yMm,part.zMm)])) : null;
   const weldSites=preparePlasticWeld({plan,machine,placed,componentShells});
-  const bounds=toolBounds(machine,plan.setup.tool);
-  const geometryBounds=assignedFilaments(plan).length?machine.bounds:bounds;
-  requireThat(machine.motionChecks==='deferred'||placed.bounds.min.every((v,i)=>v>=geometryBounds.min[i]-1e-8)&&placed.bounds.max.every((v,i)=>v<=geometryBounds.max[i]+1e-8),'Placed geometry exceeds selected tool bounds.');
-  return {placed,componentShells,weldSites,bounds};
+  return {placed,componentShells,weldSites,bounds:null};
 }
 
 // Geometry volumes named by slice assignments, placed like their part.
@@ -135,37 +129,36 @@ export function generateModelResults(plan,machine,rhino,{placed,componentShells,
   const welds=weldSites.map(site=>site.reservation);
   const summary={generatorVersion:VERSION,shape:plan.geometry?.shape??null},results=[];
   const shells=sliceShells(plan,rhino,{placed,componentShells});
-  const contexts=depositionAssignments(plan).filter(assignment=>assignment.construction).map(assignment=>{
+  const contexts=depositionAssignments(plan).filter(assignment=>assignment.construction||assignment.surface?.kind==='terminal'||assignment.stack?.direction==='normal'||assignment.within?.some(v=>v.kind==='surface-domain'&&v.loopsUv===null)).map(assignment=>{
     const shell=shells.find(([part])=>part===(assignment.part??null))?.[1],selected=assignmentPlan(plan,machine,assignment);
-    if(['skin','sleeve','rim','cladding'].includes(assignment.construction))requireThat(shell,
-      `${assignment.construction[0].toUpperCase()+assignment.construction.slice(1)} needs a selected component or the single solid.`);
-    return {assignment,shell,process:selected.process,maxBeadHeightMm:machine.tools.find(tool=>tool.index===selected.setup.tool)?.layerHeightMm?.[1]??Infinity};
+    if(assignment.construction==='sleeve'||!assignment.construction&&assignment.surface?.kind!=='terminal')requireThat(shell,'A surface family needs a selected component or the single solid.');
+    return {assignment,shell,process:selected.process,maxBeadHeightMm:Infinity};
   });
-  const skins=contexts.filter(({assignment})=>assignment.construction==='skin').map(context=>({...context,survey:surveySkinAssignment({...context,machine})}));
+  const skins=contexts.filter(({assignment})=>assignment.within?.some(v=>v.kind==='surface-domain'&&v.loopsUv===null)).map(context=>({...context,survey:surveySkinAssignment({...context,machine})}));
   const sleeves=contexts.filter(({assignment})=>assignment.construction==='sleeve').map(context=>{
     const {assignment,shell}=context;
     const startMm=shell.bounds.min[2]+assignment.zStartMm,endMm=assignment.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+assignment.zEndMm;
     return {...context,startMm,endMm};
   });
-  for(let i=0;i<sleeves.length;i++)for(let j=i+1;j<sleeves.length;j++)requireThat(sleeves[i].assignment.part!==sleeves[j].assignment.part||Math.min(sleeves[i].endMm,sleeves[j].endMm)<=Math.max(sleeves[i].startMm,sleeves[j].startMm)+1e-8,'Sleeve assignments cannot claim overlapping material bands.');
+  for(let i=0;i<sleeves.length;i++)for(let j=i+1;j<sleeves.length;j++)if(sleeves[i].assignment.part===sleeves[j].assignment.part&&Math.min(sleeves[i].endMm,sleeves[j].endMm)-Math.max(sleeves[i].startMm,sleeves[j].startMm)>TOLERANCE.point)requireExclusiveClaims(sleeves[i].assignment,sleeves[j].assignment);
   const bands=sleeves.map(s=>({part:s.assignment.part,startMm:s.startMm,endMm:s.endMm}));
-  const rims=contexts.filter(({assignment})=>assignment.construction==='rim'),referenceAssignments=contexts.filter(({assignment})=>assignment.construction==='cladding');
+  const rims=contexts.filter(({assignment})=>assignment.surface?.kind==='terminal'),referenceAssignments=contexts.filter(({assignment})=>assignment.stack?.direction==='normal');
   const constructions=[...sleeves.filter(context=>assignmentFamily(context.assignment)==='trace'),
-    ...contexts.filter(({assignment})=>assignment.construction==='inject'),...contexts.filter(({assignment})=>['curves','bridges'].includes(assignment.construction))];
+    ...contexts.filter(({assignment})=>assignment.construction==='inject'),...contexts.filter(({assignment})=>assignment.construction==='curves')];
   const supportContexts=prepareSupportContexts({plan,machine,shells:componentShells?[...componentShells.values()]:placed?[placed]:[]});
   const sliced=finalizedSliceResults({plan,machine,shells,volumes:sliceVolumes(plan,rhino),bands,reserves:welds,envelopes:welds,surfaceAssignments:skins,referenceAssignments,terminalAssignments:rims,boundaryAssignments:sleeves.filter(context=>assignmentFamily(context.assignment)==='slice'),constructions,supportContexts,weldSites,onProgress,planningState,emittedIds});
   results.push(...sliced.results);
   if(sliced.summary)summary.slices=sliced.summary;
-  for(const [kind,key] of [['sleeve','vaseWall'],['rim','thickLip'],['skin','drapedSkin']]){
+  for(const [kind,key] of [['sleeve','vaseWall']]){
     const instances=results.filter(result=>result.report.construction===kind).map(result=>({id:result.id,...result.report}));
     if(instances.length)summary[key]={...instances[0],instances};
   }
-  const cladding=results.filter(result=>result.report.construction==='cladding');
-  if(cladding.length)summary.pipeCladding={...cladding.at(-1).report,instances:cladding.map(result=>({id:result.id,...result.report}))};
-  const curves=results.filter(result=>['curves','bridges'].includes(result.report.construction));
+  const families=Object.fromEntries(['roof','terminal','normal'].map(kind=>[kind,results.filter(r=>r.report.referenceFamily===kind).map(r=>({id:r.id,...r.report}))]).filter(([,items])=>items.length));
+  if(Object.keys(families).length)summary.referenceFamilies=families;
+  const curves=results.filter(result=>result.report.construction==='curves');
   if(curves.length)summary.curves=curves.map(result=>({id:result.id,...result.report}));
   const survey=skins[0]?.survey??null;
-  if(skins.length)summary.nonplanarLimit={machineMaxAngleDeg:skins[0].survey.declaredLimitDeg,effectiveMaxAngleDeg:Math.max(...skins.map(s=>s.survey.limitDeg)),experimentalOverride:skins.some(s=>s.survey.experimentalOverride),surfaceMaxSlopeDeg:Math.max(...skins.map(s=>s.survey.maxSlopeDeg)),excludedAreaPercent:Math.max(...skins.map(s=>s.survey.steepFraction))*100};
+  if(skins.length)summary.surfaceDomain={maxSlopeDeg:Math.max(...skins.map(s=>s.survey.limitDeg)),surfaceMaxSlopeDeg:Math.max(...skins.map(s=>s.survey.maxSlopeDeg)),excludedAreaPercent:Math.max(...skins.map(s=>s.survey.steepFraction))*100};
   return {results,summary,survey,shells,slicedSupports:sliced.supports,execution:sliced.execution};
 }
 
@@ -233,17 +226,13 @@ export function summarizeGeneratedPath(placed,survey,modelSummary) {
   summary.boundsMm = placed?.bounds??null;
   summary.clearance = 'operator responsibility; no collision model implemented';
   summary.physicalValidation = 'not performed';
-  if (survey&&!summary.nonplanarLimit) summary.nonplanarLimit = {
-    machineMaxAngleDeg: survey.declaredLimitDeg,
-    effectiveMaxAngleDeg: survey.limitDeg,
-    experimentalOverride: survey.experimentalOverride,
-    surfaceMaxSlopeDeg: Number(survey.maxSlopeDeg.toFixed(3)),
-    excludedAreaPercent: Number((survey.steepFraction * 100).toFixed(2))
+  if (survey&&!summary.surfaceDomain) summary.surfaceDomain = {
+    maxSlopeDeg:survey.limitDeg, surfaceMaxSlopeDeg:survey.maxSlopeDeg,excludedAreaPercent:survey.steepFraction*100
   };
   return summary;
 }
 
-export const GENERATION_CONTRACT='saam-deposition/6';
+export const GENERATION_CONTRACT='saam-deposition/8';
 export function depositionInspection(results){
   const operations={};
   for(const result of results){
@@ -275,9 +264,10 @@ export function generatePath(plan, machine, rhino, {onProgress,modulations,modul
   const evaluated=modulations?{...plan,modulations}:plan;
   const assigned=[...new Set([plan.setup.bambu?.filament,...assignedFilaments(plan)].filter(v=>v!==undefined))];
   const selections=assignedFilaments(plan).length?Object.fromEntries(assigned.map(i=>[i,filamentSelection(plan,machine,i)])):null;
-  const started=planFan(createPlanningState({start:startupPosition(machine,plan),process:plan.process,machine,generatorVersion:VERSION,
-    selection:selections?.[plan.setup.bambu.filament]??null,selections,motion:plan.setup.denso??null,motionBounds:prepared.bounds,retracted:startupRetracted(machine,plan)}),0);
-  const prime=primeLineResult(plan,machine),startup=prime?planOperation(started.state,prime.operations[0]):planPriming(started.state);
+  const start=[plan.placement.xMm,plan.placement.yMm,(prepared.placed?.bounds.max[2]??0)+plan.process.liftMm];
+  const started=planFan(createPlanningState({start,process:plan.process,generatorVersion:VERSION,
+    selection:selections?.[plan.setup.bambu.filament]??null,selections}),0);
+  const prime=primeLineResult(plan),startup=prime?planOperation(started.state,prime.operations[0]):planningResult(started.state);
   const model=generateModelResults(evaluated,machine,rhino,{...prepared,planningState:startup.state,emittedIds:prime?prime.operations.map(op=>op.id):[]},onProgress);
   const complemented=addComplementaryResults(evaluated,machine,prepared,model);
   const primed=prime?{...complemented,results:[prime,...complemented.results],summary:{...complemented.summary,primeLine:prime.report}}:complemented;
@@ -293,7 +283,6 @@ export function generatePath(plan, machine, rhino, {onProgress,modulations,modul
   const order=[...(prime?prime.operations.map(op=>op.id):[]),...execution.summary.operationOrder],position=new Map(order.map((id,i)=>[id,i]));
   const inventory=validateOperationBatch(results),prerequisites=prepareOperationDependencies(inventory.operations,inventory.byId,plan.composition);
   for(const [id,after] of prerequisites)for(const predecessor of after)requireThat(position.has(predecessor)&&position.get(predecessor)<position.get(id),'Final dependency was not scheduled before '+id+': '+predecessor);
-  if(!prime)validatePrimingClearance(startup.points,placed?.bounds??null,results,process.lineWidthMm,machine.startup?.primingStrokes?.clearanceMm??0);
   const finished=planFinishing(execution.state);
   return planningPath(finished.state,[started.actions,startup.actions,execution.actions,finished.actions],{...summary,composition:{...execution.summary,operationOrder:order}});
 }

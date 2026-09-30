@@ -1,14 +1,14 @@
 # Surface wave construction and provenance
 
-The producer in [wave.mjs](scripts/wave.mjs) uses the shared
+The Slice fill field in [seeded-fronts.mjs](../../core/region/seeded-fronts.mjs) uses the shared
 [intrinsic surface offset](../../core/region/surface-offset.mjs), not constant
 UV offsets or a flattened mesh. It clips the already reached region to the
 assigned domain after each physical advance. It walks the resulting boundaries
 in cyclic order and excludes stationary domain/seed edges, rather than clipping
 an outline against a coincident area boundary (which discarded front segments).
 Growing fronts split and rejoin through Clipper topology. Short alternating
-connections produce one continuous pass where possible; generation rejects a
-slice requiring multiple passes. Hole-branch continuity remains incomplete.
+connections produce continuous passes where possible. Split branches retain
+separate passes with shared travel between them.
 
 Constrained rays stop at their first region-boundary crossing, including holes;
 they do not restart at a later re-entry. Boundary-tangent rays retain their
@@ -36,19 +36,16 @@ scaled by sampled native derivative magnitudes. It does not
 replace geodesic propagation, change reached material, or emit extra rim paths.
 The residual geometry, band and actual sampled diameter remain explicit.
 
-The skill returns one standard atomic operation/stroke per accepted slice.
-There is no inter-front travel or cooling pause; the slice is the cooling unit.
+The field returns curves for an ordinary Slice operation. Shared travel connects
+separate passes; the slice is the cooling unit.
 Named predecessor/successor components bind existing operations. It does not
 infer material support or replace other skills' regions. Shared functional planning stages own travel, cooling and flow limits; exporters
 own machine output. Exact runtime
 identity includes the producer, shared numerical functions and dependencies.
 
-`waveResults` returns `{results, dependencyChanges}`. It reads `modelResults`
-without modifying their operations. Successor prerequisites are explicit
-`{operationId, after, mode: 'append'}` records; generation applies them in order
-with `applyResultDependencies` from `core/print/generate.mjs` before combining
-the updated model results with the new wave results. An unsuccessful generation
-does not leave partial prerequisite edits on its inputs.
+`frontLayerStrokes` returns curves, seed and diagnostics to shared Slice
+construction. Family dependencies are ordinary recipe data; no wave-specific
+composer or mutation of previous operations is involved.
 
 ## Research and license findings
 

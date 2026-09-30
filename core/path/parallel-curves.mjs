@@ -28,7 +28,7 @@ export function parallelBeadGroup(curves,rule){
     requireThat(Math.hypot(...projected)>1e-12,'Width initialNormal must not be parallel to the source tangent.');
     normal=normalize(projected);
   }
-  if(points.some(p=>Math.abs(dot(p.map((v,i)=>v-origin[i]),normal))>1e-6)){requireThat(curves.length===1,'Spatial parallel construction takes one centerline at a time.');return transportedBeadBand(curve,construction,rule);}
+  if(points.some(p=>Math.abs(dot(p.map((v,i)=>v-origin[i]),normal))>1e-6))return curves.flatMap(source=>transportedBeadBand(source,construction,rule));
   if(!rule.initialNormal&&points.every(p=>Math.abs(p[2]-origin[2])<1e-9)){origin[0]=0;origin[1]=0;x.splice(0,3,1,0,0);normal=[0,0,1];}
   const y=cross(normal,x),local=curves.map(c=>c.points.map(p=>{const v=p.map((n,i)=>n-origin[i]);requireThat(Math.abs(dot(v,normal))<=1e-6,'Curved parallel strokes need physical surface offsets.');return {X:Math.round(dot(v,x)*1000),Y:Math.round(dot(v,y)*1000)};}));
   const source=local.map((pts,i)=>curves[i].closed?[...pts,pts[0]]:pts),output=[];

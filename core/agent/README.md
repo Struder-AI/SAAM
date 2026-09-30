@@ -19,7 +19,7 @@ Run from the checkout root:
 ```sh
 node scripts/agent-toolkit.mjs --help
 node scripts/agent-toolkit.mjs maker-onboarding
-node scripts/agent-toolkit.mjs builder-onboarding --area studio
+node scripts/agent-toolkit.mjs builder-onboarding --area skills
 node scripts/agent-toolkit.mjs developer-onboarding --area core/geom
 node scripts/agent-toolkit.mjs read-skill text --maker --builder --machine ultimaker-s5
 node scripts/agent-toolkit.mjs read-map 0
@@ -49,7 +49,7 @@ the OS browser when a client opens the returned URL itself or a test is headless
 |---|---|---|
 | `maker-onboarding [--machine ID]` | Read MAKERS, the skill digest (the index) and print tools as a [script client](#context-layers), with the machine's advanced sections; inspect Node and dependency entry-point availability; fetch `main` for `environment.sync`, the checkout's one-line sync report. | Assembled text and paths, environment observations, and an instruction to choose further reads. |
 | `builder-onboarding [--area AREA]` | Read BUILDERS, the maker manuals whole, skill authoring and the digest; add the named area's component manual, or, for a node index or declaration path, that map; inspect entry-point availability and sync. | The same context format, with builder sources and an instruction to read the component manual for what is changed and walk the map for its structure. |
-| `developer-onboarding [--area AREA]` | Read the developer orientation and map page `0`; add the named node’s map, or an outside area’s own references; inspect entry-point availability and sync. Component manuals are not bundled; a developer opens one when the work calls for it. | The same context format, with the orientation, the map pages and an instruction to walk the map. |
+| `developer-onboarding [--area AREA]` | Read the glossary, developer orientation and map `0`; add a named node’s map or outside area’s references; inspect entry-point availability and sync. Open component manuals as needed. | Shared terminology, orientation, maps and navigation instructions. |
 | `read-skill ID[#HEADING] [--maker] [--builder] [--developer] [--machine ID] [--all]` | Read the selected role manuals for one cataloged skill; default to maker, assembled as a script client. | Text, paths, `omitted` gated sections, selected `roles`, and `unavailableRoles` for absent optional manuals. |
 | `context-budget [--machine ID]` | Assemble every layer for both clients and each machine. | Bytes per layer and client, and per on-demand manual. |
 | `read-map INDEX|DECLARATION [--code] [--details]` | Read one compact stored page: `0` for the top map, `N.…` or a declaration path for a cluster's map or a leaf's code block. | `maps`: that graph or terminal source. `range` is `[first,last]` inclusive; nested locations inherit `file`; empty arrays are omitted. `--code` returns source and edit-safety metadata; only `0` is refused. `--details` returns the full stored packet and scanner evidence. Reads never scan. |
@@ -61,6 +61,7 @@ the OS browser when a client opens the returned URL itself or a test is headless
 | `begin-studio-work [DIRECTORY]` | Resolve only target identity; start or claim the request so Studio marks work pending; read current recipe/revision, geometry state and matching tour instruction without checking the old export. | The exact request ID and edit context, with `programChecked: false`. A context-read failure marks that request failed and reports it. |
 | `wait-for-studio-request` | Event-wait for up to 25 seconds for queued requests or a delivered Studio event; optionally restrict to a Studio instance and claim returned requests in that call. With `--studio URL --agent-owner ID` from `studio-ready`, read the live Studio's owner-scoped queue across processes; without them, wait on the recovery journal alone. | Requests, their status, the drained Studio `events`, calculation `generation` progress when read live, and an updated `after` list. The original preview session is the primary live path. |
 | `read-studio-events --studio URL --agent-owner ID` | Read and clear the owning agent's Studio event queue from a live Studio; optional bounded `--wait-ms` and `--history`. | `events`, `generation` progress for owned instances still calculating, and `recent` when history is requested. |
+| `cancel-studio-calculation --studio URL --agent-owner ID --job-id ID` (or `--generation-hash HASH`) | Cancel the observed import or toolpath calculation, outside the work queue. | Cancellation acceptance; follow events through cleanup to completion. |
 | `respond-to-studio-request ID` | Record a prepared geometry/toolpath target, or update the matching request's response/status through the shared request API. | Updated request. Other outstanding work remains independent. |
 | `inspect-generation-failure DIRECTORY` | Read requests for that print; read current validated recipe/export status, retaining validation errors when loading fails; return generation guidance and links to the recipe's skill manuals. | Diagnostic evidence, settings, machine-configuration gaps, and skill references for individual follow-up reads. No correction, retry or request claim. |
 
@@ -73,8 +74,8 @@ the OS browser when a client opens the returned URL itself or a test is headless
 | Tour | Run the Studio `--toolkit start-tour --no-open` command immediately in a set-up checkout. | Open `studio.url` from `studio-ready`, then use the returned participation context and listener. |
 | New custom part | Run `maker-onboarding` only if maker context is missing. | Choose individual skill reads from the supplied digest, load missing task-specific references, then prepare and open the first reasonable geometry. |
 | Existing Studio print | Run `begin-studio-work` early to claim the request, with the target or existing request ID; you can acknowledge the person first. | Use the returned recipe/revision; load only missing maker/skill context, edit, bind the result, present it and resolve the request. |
-| Build (skill, Studio, isolated core) | Run `builder-onboarding` only if builder context is missing; include a known `--area` when useful. | Choose missing skill guidance and API contracts; read the component manual for the core/Studio code being changed and walk the map when you need to see what calls it. Load contribution guidance when checkpointing/publishing. |
-| Core or cross-cutting development | Run `developer-onboarding` only if developer context is missing; include a known `--area` when useful. | Work map-first: walk from `0` with `read-map INDEX|DECLARATION`, read the source with `--code`, and `regenerate [INDEX]` after an edit. |
+| Guidance, recipe helpers, assets, examples or diagnostics using published interfaces | Run `builder-onboarding` once when context is missing; add a known `--area`. | Read consumed contracts and missing guidance. Inspect maps when useful; reading implementation does not authorize changing it. |
+| Core skills, core, Studio or shared interfaces | With developer authorization, run `developer-onboarding` once when context is missing. | Walk from `0` with `read-map INDEX|DECLARATION`, read source with `--code`, and regenerate after edits. |
 
 Developers are maps-native and open prose manuals when the work calls for it; a
 builder gets a map only for a named node (`--area skills` loads none), and makers
@@ -92,10 +93,10 @@ or GEOMETRY.md. The agent judges which manuals and sections fit the task and rea
 them with `read-skill ID` and `read-guidance PATH#HEADING`. Tour participation
 guidance stays bundled with tour startup.
 
-Skill flags are additive and independent: `--maker` selects `SKILL.md` (the
-default), `--builder` optional `BUILDER.md` and `--developer` optional
-`DEVELOPER.md`; neither implies another. An absent optional manual is named in
-`unavailableRoles`; unknown skills and unreadable manuals fail. `--area` repeats
+Skill flags are additive: `--maker` selects `SKILL.md` (default for maker skills),
+`--builder` selects `BUILDER.md`, and `--developer` selects `DEVELOPER.md`.
+Builder-only diagnostics default to their builder manual and reject maker reads.
+Absent optional manuals appear in `unavailableRoles`. `--area` repeats
 and takes an area from `--help` or a map node; the toolkit does not guess areas
 from prose. Identical guidance IDs are read once per packet, and there is no
 separately maintained summary or persistent context cache.
@@ -157,13 +158,15 @@ Studio commands stay alive in their managed command session. They emit a
 `studio-ready` JSON line immediately after listening, then a `result` line with
 the remaining state/context. Subsequent `studio-request` events identify the
 owning Studio instance, and `studio-events` lines push delivered Studio events
-with their held remainder; newline-delimited begin/respond/activity,
-`read-studio-events` and `wait-for-studio-request` controls sent to stdin receive
+with their held remainder; newline-delimited begin/respond/activity, event reads,
+waits and `cancel-studio-calculation` controls sent to stdin receive
 correlated `agent-response` events on stdout. The returned `listener` names the
 stream events and the cross-process fallback (`wait-for-studio-request --studio
 URL --agent-owner ID`) for clients that cannot write to stdin. Use an early yield
 where the client supports it, open the URL, retain the process/session handle,
-and leave review visible.
+and leave review visible. Cancellation bypasses queued waits. Import progress
+includes stage and elapsed time; an unknown remaining time is not an ETA. Continue
+listening or cancel the observed job and explain the decision to the person.
 Reuse is the default. A launch returns `reuse` with the exact follow-up command:
 a later `open-print` or `create-preview` given `--studio URL --agent-owner ID`
 prepares the print, shows it in that live Studio through the owner-authenticated

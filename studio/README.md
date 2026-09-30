@@ -543,7 +543,7 @@ persisted; sequence numbers identify repeats.
 | `request-queued`: Studio asked for agent work (Ask agent, tour guidance, generation failure, advisory) | `view-presented`: a geometry or toolpath view was displayed, with revision and export hash |
 | `request-presented`: the agent's bound result is now displayed | `generation-started`, `generation-finished`: toolpath calculation start and finish, with trigger and duration |
 | `generation-failed`, `generation-cancelled`: the calculation failed (with its recovery request) or was cancelled by the person or by changed inputs | `approved`: the final settings/toolpath confirmation |
-| `import-completed`, `import-failed`: an STL import by the person | `import-started` |
+| `import-completed`, `import-failed`, `import-repair-started`, `import-cancelled`: imports | `import-started` |
 | `print-opened`: the person opened another saved print | `tour-playback`: play or pause in the playback lesson |
 | `export-delivered`: the person exported the reviewed file, in the tour or ordinary review | `example-adopted`, `plan-updated` |
 
@@ -576,34 +576,26 @@ prints reuses the instance and its browser tab.
 
 ## Importing an STL in Studio
 
-**Import STL** opens the native file picker directly and accepts a local ASCII
-or binary STL up to 64 MiB. That upload bound is an input-safety limit on the HTTP
-boundary, not a geometry budget; it is about 1,342,000 triangles of binary STL and
-is the only size limit Studio import applies. MCP `import_stl_bundle` applies the
-same 64 MiB bound to the local file it is given; the CLI and the agent toolkit
-apply none and are bounded only by the memory the machine actually has.
-It assumes units from the loaded size without a popup,
-shows that assumption beside geometry dimensions, and allows correction in chat.
-The provisional policy is [D-030](../DECISIONS.md#d-030--provisional-stl-units-assumption).
-Studio preserves source bytes and uses the
-[shared importer](../core/print/USAGE.md#import-an-stl), current printer and
-remembered setup. Ordinary imports open a new unapproved geometry for review.
-During an active tour, the browser disables **Import STL** and the server rejects
-direct import requests; the tour's STL introduction continues with the already
-selected example. Importing becomes available after tour completion or exit.
-Failed mesh validation retains its diagnostic and does not replace the selected
-print. Importing alone never approves settings or the toolpath.
-Parsing, mesh validation and bundle creation run in a worker so request listeners
-remain responsive. For recognized mesh defects, Studio automatically runs the
-existing [mesh-tools repair](../skills/mesh-tools/SKILL.md), using exact cleanup
-and native patch repair when needed, without filling holes. Malformed files,
-resource limits and unrelated errors retain their own diagnostics. Failed imports
-remove only their newly reserved destination; existing prints are preserved.
-Repair requires the optional native backend when exact cleanup is insufficient.
-The original STL, repaired STL and complete change report remain in the print's
-`repair/` folder. Studio shows the repair summary and repaired geometry for review;
-the toolpath can then be generated directly. Import progress
-distinguishes checking, repairing and opening the model.
+**Import STL** uses the [shared import lifecycle](../core/print/USAGE.md#import-an-stl)
+with the current printer and remembered setup. Its browser upload accepts ASCII
+or binary STL up to 64 MiB as an HTTP input-safety boundary. Local path imports
+stream without that upload cap. During an active tour, finish or exit before
+importing another part. Import never approves settings or output.
+
+Checking, repair and bundle creation run in a worker. Progress includes the real
+stage, available stage counts and elapsed time; remaining time is unknown. Cancel
+interrupts synchronous mesh work or stops the native repair child, then removes
+only the new incomplete print. Existing prints are preserved. The parent supervisor owns native scratch and the child process, stopping and
+cleaning both even if the mesh worker crashes.
+Shutdown cancels import before awaiting the mutation queue.
+
+Both the browser and owning agent can cancel outside that queue. Agents read
+`get_studio_events` and pass the observed import `jobId` (or toolpath
+`generationHash`) to `cancel_studio_calculation`; local clients use the toolkit's
+`cancel-studio-calculation`. No identifier means no cancellation. Repair-start and
+cancellation events wake the listener; ordinary waits return current elapsed
+progress. Let work continue or cancel and explain the decision, without inventing
+an ETA or automatically refusing a mesh for taking too long.
 
 ## Studio state and worker protocols
 

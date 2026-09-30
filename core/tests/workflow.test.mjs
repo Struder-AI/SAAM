@@ -115,8 +115,8 @@ test('development generation of a shell print creates no approvals and cannot de
   const checks = await generateBundle(dir, { development: true });
   assert.equal(checks.mode, 'development');
   assert.equal(checks.physicalValidation, 'not performed');
-  assert.ok(checks.nonplanarLimit.machineMaxAngleDeg === 15, 'the declared machine limit is reported with the checks');
-  assert.equal(checks.nonplanarLimit.effectiveMaxAngleDeg, 15, 'the default effective limit is the declared profile limit');
+  assert.equal(checks.surfaceDomain.maxSlopeDeg,90,'the default roof domain includes every upward-facing slope independently of machine');
+  assert.ok(Number.isFinite(checks.surfaceDomain.surfaceMaxSlopeDeg)&&checks.surfaceDomain.surfaceMaxSlopeDeg>0,'the authored roof slope is reported');
   const state = await loadBundle(dir);
   assert.deepEqual(state.review.approvals, {});
   assert.ok(state.program);
@@ -287,13 +287,13 @@ test('remembered S5 setup carries into the next shell print without a firmware v
 
 test('selecting one skill still produces one program from one plan', async t => {
   const plan = smallPlan();
-  plan.slices.assignments=plan.slices.assignments.filter(a=>a.construction!=='skin');
+  plan.slices.assignments=plan.slices.assignments.filter(a=>a.surface?.kind!=='roof');
   const dir = await fixture(t, plan);
   await generateBundle(dir, { development: true });
   const state = await loadBundle(dir);
   assert.deepEqual(state.skills, ['slice']);
-  assert.ok(!state.program.moves.some(move => move.phase === 'skin'), 'no skin is printed when it is not selected');
-  assert.equal(state.pathSummary.nonplanarLimit, undefined);
+  assert.ok(!state.program.moves.some(move => move.operation?.startsWith('skin:')), 'no skin is printed when it is not selected');
+  assert.equal(state.pathSummary.surfaceDomain, undefined);
 });
 
 test('Studio reviews a shell print and delivers it under its own export name', async t => {

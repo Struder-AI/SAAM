@@ -1,4 +1,5 @@
 // Sleeve assignment records and terminal-boundary geometry; Slice/Trace own deposition.
+import {ordinarySliceAssignment} from './slice-settings.mjs';
 import {cleanPlanarLoop} from '../geom/polyline.mjs';
 import {loopArea} from '../region/region2d.mjs';
 import {offsetRegion} from '../region/offset.mjs';
@@ -9,17 +10,9 @@ import {section as geometrySection,horizontalSlice} from '../geom/slice.mjs';
 export const SLEEVE_DEFAULTS={zStartMm:0,zEndMm:null,endTransition:'level',pattern:null,pathMode:'continuous',meshSleeve:null,sampleStepMm:1,toleranceMm:0.02,boundaryToleranceMm:0.02,minFeatureMm:0.4,sleeveToleranceMm:0.08};
 export const sleeveAssignment=({id,...options})=>structuredClone({id,construction:'sleeve',part:null,filament:null,process:null,after:[],...SLEEVE_DEFAULTS,...options});
 export const RIM_DEFAULTS={steps:[2],minFeatureMm:.4};
-export const rimAssignment=({id,...options})=>structuredClone({id,construction:'rim',part:null,filament:null,process:null,after:[],source:null,...RIM_DEFAULTS,...options});
-
-export function validateRimAssignment(a,{parts}={}){
-  requireThat(a&&a.construction==='rim'&&Object.keys(a).sort().join()===Object.keys(rimAssignment({id:a.id})).sort().join(),'Invalid rim assignment fields.');
-  requireThat(typeof a.id==='string'&&/^[a-z][a-z0-9-]*$/.test(a.id),'Invalid rim assignment id.');
-  requireThat(a.part===null||parts?.includes(a.part),'Rim names an unknown part.');
-  requireThat(a.filament===null||Number.isInteger(a.filament)&&a.filament>=0,'Rim filament must be null or a filament index.');
-  requireThat(Array.isArray(a.after)&&a.after.every(id=>typeof id==='string'&&id.length),'Rim after lists operation ids.');
-  requireThat(typeof a.source==='string'&&/^[a-z][a-z0-9-]*$/.test(a.source)&&a.source!==a.id,'Rim source names a separate sleeve assignment.');
-  requireThat(Array.isArray(a.steps)&&a.steps.length>=1&&a.steps.every(n=>Number.isSafeInteger(n)&&n>=1),'Rim steps need a nonempty list of positive whole numbers of loops.');
-  requireThat(Number.isFinite(a.minFeatureMm)&&a.minFeatureMm>=.05&&a.minFeatureMm<=5,'Rim minimum section feature must be .05–5 mm.');
+export function rimAssignment({id,part=null,filament=null,process=null,after=[],source=null,steps=[2],minFeatureMm=.4}){
+  return ordinarySliceAssignment({id,part,filament,process,loops:steps,fillDensity:0,solidTop:0,solidBottom:0,
+    surface:{kind:'terminal',assignment:source,minFeatureMm},contact:{source},dependencies:{afterParts:[],beforeParts:[],after}});
 }
 
 export function validateSleeveAssignment(a,{parts}={}){
@@ -33,27 +26,36 @@ export function validateSleeveAssignment(a,{parts}={}){
   requireThat(a.pattern!==null||a.pathMode==='continuous','Segmented mode requires a sleeve pattern.');
   requireThat(['spiral','level'].includes(a.endTransition),'Sleeve ending transition must be spiral or level.');
   requireThat(Number.isFinite(a.zStartMm)&&a.zStartMm>=0&&(a.zEndMm===null||Number.isFinite(a.zEndMm)&&a.zEndMm>a.zStartMm),'Sleeve needs nonnegative start and null or greater end height.');
-  const bounds={sampleStepMm:[.1,5],toleranceMm:[.002,.05],boundaryToleranceMm:[.002,.05],minFeatureMm:[.05,5],sleeveToleranceMm:[0,.5]};
-  for(const [key,[low,high]] of Object.entries(bounds))requireThat(Number.isFinite(a[key])&&a[key]>=low&&a[key]<=high,`Sleeve ${key} must be ${low}–${high}.`);
+  for(const key of ['sampleStepMm','toleranceMm','boundaryToleranceMm','minFeatureMm'])requireThat(Number.isFinite(a[key])&&a[key]>0,`Sleeve ${key} must be positive.`);
+  requireThat(Number.isFinite(a.sleeveToleranceMm)&&a.sleeveToleranceMm>=0,'Sleeve fit tolerance must be nonnegative.');
   if(a.meshSleeve===null)return;
   const fit=a.meshSleeve;
   requireThat(fit&&Object.keys(fit).sort().join()==='circumferentialControls,contactSide,detailToleranceMm,fidelity,heightControls','Invalid mesh sleeve settings.');
   requireThat(Number.isFinite(fit.fidelity)&&fit.fidelity>=0&&fit.fidelity<=1&&['inside','outside'].includes(fit.contactSide),'Mesh sleeve needs fidelity 0–1 and inside/outside contact.');
-  requireThat(Number.isInteger(fit.circumferentialControls)&&fit.circumferentialControls>=8&&fit.circumferentialControls<=48&&Number.isInteger(fit.heightControls)&&fit.heightControls>=4&&fit.heightControls<=32,'Mesh sleeve controls must be 8–48 circumferential and 4–32 along height.');
-  requireThat(Number.isFinite(fit.detailToleranceMm)&&fit.detailToleranceMm>=.005&&fit.detailToleranceMm<=.5,'Mesh sleeve detail tolerance must be .005–.5 mm.');
+  requireThat(Number.isSafeInteger(fit.circumferentialControls)&&fit.circumferentialControls>=8&&Number.isSafeInteger(fit.heightControls)&&fit.heightControls>=4,'Mesh sleeve needs at least 8 circumferential and 4 height controls.');
+  requireThat(Number.isFinite(fit.detailToleranceMm)&&fit.detailToleranceMm>0,'Mesh sleeve detail tolerance must be positive.');
 }
 // Ten-nanometer integer grid: independent of contour/chord and boundary
 // tolerances; shared Clipper2 offsets use this same grid by default.
 const OFFSET_PRECISION_MM=0.00001;
 export function terminalBoundaryReference({shell,assignment,sourceAssignment,sourceResult,substrateAdaptation=false}) {
-  requireThat(sourceAssignment?.id===assignment.source&&sourceAssignment.part===assignment.part,'A rim must name a source assignment on the same part.');
-  requireThat(sourceResult?.levelBoundary,'A rim needs an explicit terminal boundary from its source.');
+  requireThat(sourceAssignment?.id===assignment.surface.assignment&&sourceAssignment.part===assignment.part,'A rim must name a source assignment on the same part.');
+  requireThat(sourceResult?.operations?.length,'A terminal boundary needs completed source deposition.');
+  if(!sourceResult.levelBoundary){
+    const all=sourceResult.operations.flatMap(op=>op.strokes),zStartMm=Math.max(...all.flatMap(stroke=>stroke.points.map(p=>p[2])));
+    const closed=all.filter(stroke=>stroke.points.length>=4&&stroke.points.every(p=>Math.abs(p[2]-zStartMm)<1e-8)&&(stroke.closed||distance(stroke.points[0],stroke.points.at(-1))<1e-8));
+    requireThat(closed.length,'The source has no closed, level terminal curve; author one explicitly before offset boundary courses.');
+    const boundary=closed.map(stroke=>cleanPlanarLoop(stroke.points.map(p=>p.slice(0,2)),.001)).map(loop=>loopArea(loop)>0?loop:loop.toReversed());
+    const sourceWidth=Math.max(...closed.map(stroke=>stroke.beadWidthMm??stroke.segmentMetadata?.[0]?.beadWidthMm??0));
+    requireThat(sourceWidth>0,'A terminal curve needs a deposited width.');
+    return {boundary,baselineInsetMm:0,zStartMm,sourceWidth,modified:Boolean(sourceResult.report?.modulation?.changed)};
+  }
   const sourceWidth=sourceResult.levelBoundary.widthMm;
   requireThat(sourceWidth>0,'A rim source needs a deposited width.');
   const modified=substrateAdaptation&&!!sourceResult.report?.modulation?.changed;
   let boundary,baselineInsetMm,zStartMm=sourceResult.levelBoundary.zMm;
   if(!modified){
-    const cut=geometrySection(shell,horizontalSlice(zStartMm),{minFeatureMm:assignment.minFeatureMm});
+    const cut=geometrySection(shell,horizontalSlice(zStartMm),{minFeatureMm:assignment.surface.minFeatureMm});
     boundary=cut.loops.filter(loop=>loopArea(loop)>0);baselineInsetMm=sourceWidth/2;
     requireThat(boundary.length,'Rim reference has no outer contour.');
   }else{

@@ -1,7 +1,6 @@
 // Patterns use sleeve coordinates, never independent world XYZ.
 import {distance,requireThat} from '../geom/tolerance.mjs';
 import {maximumPathAngle} from './deposition.mjs';
-import {isTiledPattern,tileSleevePattern} from './sleeve-tile.mjs';
 import {patternCourses} from './sleeve-boundary-courses.mjs';
 import {sampleCurveIntervals} from './curve-sampling.mjs';
 const sameSurfacePoint=(a,b)=>Math.abs((a[0]-b[0])-Math.round(a[0]-b[0]))<=1e-10&&Math.abs(a[1]-b[1])<=1e-9;
@@ -10,16 +9,10 @@ const joined=(a,b)=>sameSurfacePoint(a.points.at(-1),b.points[0])&&Math.abs(offs
 
 export function validateSleevePattern(pattern,mode='continuous') {
   if(pattern===null)return;
-  const tiled=isTiledPattern(pattern);
-  requireThat(pattern&&Object.keys(pattern).sort().join()===(tiled?'cellsPerTurn,courseRiseMm,repeats,tile,tiltDeg':'advance,paths,repeats'),'Vase pattern needs paths, advance and repeats, or one tile with cellsPerTurn, courseRiseMm, repeats and tiltDeg.');
-  if(tiled){
-    requireThat(mode==='continuous','Tiling always connects cells; use continuous mode.');
-    requireThat(Number.isSafeInteger(pattern.cellsPerTurn)&&pattern.cellsPerTurn>0,'Pattern cellsPerTurn must be a positive safe integer.');
-    requireThat(Number.isFinite(pattern.courseRiseMm)&&pattern.courseRiseMm>0,'Pattern courseRiseMm must be positive.');
-    requireThat(Number.isFinite(pattern.tiltDeg),'Pattern tiltDeg must be finite.');
-  }else requireThat(Array.isArray(pattern.advance)&&pattern.advance.length===2&&pattern.advance.every(Number.isFinite)&&pattern.advance[1]>0,'Pattern advance is [perimeter turns, rise in mm], with positive rise.');
+  requireThat(pattern&&Object.keys(pattern).sort().join()==='advance,paths,repeats','Vase pattern needs explicit paths, advance and repeats. Legacy tile records require explicit bundle migration.');
+  requireThat(Array.isArray(pattern.advance)&&pattern.advance.length===2&&pattern.advance.every(Number.isFinite)&&pattern.advance[1]>0,'Pattern advance is [perimeter turns, rise in mm], with positive rise.');
   requireThat(Number.isSafeInteger(pattern.repeats)&&pattern.repeats>=1,'Pattern repeats must be a positive safe integer.');
-  const paths=tiled?[pattern.tile]:pattern.paths;
+  const paths=pattern.paths;
   requireThat(Array.isArray(paths)&&paths.length>0,'A sleeve pattern needs ordered deposition paths.');
   for(const path of paths) {
     requireThat(path&&['beadHeightMm,points','beadHeightMm,offsetMm,points'].includes(Object.keys(path).sort().join()),'Each pattern path needs points and beadHeightMm, with optional offsetMm.');
@@ -34,14 +27,6 @@ export function validateSleevePattern(pattern,mode='continuous') {
     }
   }
   requireThat(paths[0].points[0][1]>=0,'The first pattern point cannot start below the selected print height.');
-  if(tiled){
-    const path=pattern.tile,first=path.points[0],last=path.points.at(-1);
-    const bead=path.beadHeightMm;
-    requireThat(first[0]===0&&last[0]===1&&first[1]===last[1]&&offsetAt(path,0)===offsetAt(path,-1)
-      &&(!Array.isArray(bead)||bead[0]===bead.at(-1)),
-      'A tile must run from cell u=0 to u=1 with identical endpoint height, offset and bead height; revise the tile, not a connector or travel gap.');
-    return;
-  }
   if(mode==='continuous') {
     for(let i=1;i<pattern.paths.length;i++)requireThat(joined(pattern.paths[i-1],pattern.paths[i]),'Continuous pattern paths must meet on the sleeve, including offset; select segmented mode for gaps.');
     if(pattern.repeats>1)requireThat(joined(pattern.paths.at(-1),{...pattern.paths[0],points:[pattern.paths[0].points[0].map((v,k)=>v+pattern.advance[k])]}),
@@ -50,7 +35,7 @@ export function validateSleevePattern(pattern,mode='continuous') {
 }
 
 export function mappedSleevePatternCurves({settings,process,base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm=0,onProgress}) {
-  const tiled=isTiledPattern(settings.pattern),pattern=tiled?tileSleevePattern(settings.pattern):settings.pattern;
+  const pattern=settings.pattern;
   const continuous=settings.pathMode==='continuous',role=continuous?'vase-wall':'segmented-path';
   // Every course is authored and finite, and each mapped interval subdivides
   // until its tolerance is met or its midpoint stops being distinct from its
@@ -96,7 +81,6 @@ export function mappedSleevePatternCurves({settings,process,base,start,end,first
   return {courses:[{key:'wall',layerIdSuffix:':pattern',phase:continuous?'vase-wall':'segmented-paths',layer:0,rank:minZ,curves:paths,join:{mode:continuous?'continuous':'separate'},fanPercent:process.fanPercent,trimEnd:level,travel:{kind:'clearance',clearanceZ:maxZ+process.liftMm,constant:true}}],
     levelBoundary:level?{zMm:end,widthMm:process.lineWidthMm,tailCount:pattern.paths.length}:null,
     report:{mode:continuous?'continuous-sleeve-pattern':'segmented-sleeve-pattern',startMm:minZ,endMm:maxZ,baseTopMm:base,paths:paths.length,repeats:pattern.repeats,
-      ...(tiled?{tileCellsPerTurn:settings.pattern.cellsPerTurn,tilePoints:settings.pattern.tile.points.length,tiltDeg:settings.pattern.tiltDeg}:{}),
       points:count,endTransition:settings.endTransition,levelRimMm:level?end:null,...(level?{flatStartMm:start,boundaryCourses:2}:{}),maximumAngleDeg,maximumBeadHeightMm,
       scope:'Repeated tiles mapped to actual inset sleeve sections. Only supplied pattern strokes deposit, with nominal bead heights; arbitrary crossing contact and strength are not inferred.'}};
 }

@@ -4,8 +4,9 @@
 // a row names an existing declaration or it is reported as an orphan, never dropped.
 import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
+import {setFile} from './map-set.mjs';
 
-export const factsPath='dev-map/facts.tsv';
+export const factsPath=setFile('facts.tsv');
 export const COLUMNS=['declaration','kind','fact','source','date'];
 export const KINDS=['measurement','vendor','decision'];
 const HEADER=COLUMNS.join('\t');

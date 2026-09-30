@@ -1,7 +1,7 @@
 import {requireThat,distance} from '../geom/tolerance.mjs';
 import {validateDensoConfiguration} from './denso.mjs';
 import {requireProcessControl,validateNozzleC,plannedNozzleTemperatures} from '../path/process-controls.mjs';
-import {filamentPlan} from './filaments.mjs';
+import {checkedFilamentPlan as filamentPlan} from './filaments.mjs';
 
 export const toolFor=(machine,index)=>{
   const tool=machine.tools.find(t=>t.index===index);

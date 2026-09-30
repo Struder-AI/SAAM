@@ -31,13 +31,24 @@ async function readOff(path,{signal,progress}){
 // Elapsed time never refuses a repair: the child runs until it finishes, fails
 // or is cancelled through signal. The pinned helper reports only at stage
 // boundaries, so silence is not evidence of a stalled child; see native-repair.md.
-export async function repairMeshNative(mesh,{maxHoleEdges=0,maxHoleDiameterMm=0,signal,progress=()=>{}}={}){
-  if(!Number.isSafeInteger(maxHoleEdges)||maxHoleEdges<0||maxHoleEdges>100000||!Number.isFinite(maxHoleDiameterMm)||maxHoleDiameterMm<0||((maxHoleEdges===0)!==(maxHoleDiameterMm===0)))throw Error('Hole filling requires both positive maxHoleEdges and maxHoleDiameterMm, or both zero.');
+export async function repairMeshNative(mesh,{maxHoleEdges=0,maxHoleDiameterMm=0,signal,progress=()=>{},nativeDirectory,nativeRun}={}){
+  if(!Number.isSafeInteger(maxHoleEdges)||maxHoleEdges<0||!Number.isFinite(maxHoleDiameterMm)||maxHoleDiameterMm<0||((maxHoleEdges===0)!==(maxHoleDiameterMm===0)))throw Error('Hole filling requires both positive maxHoleEdges and maxHoleDiameterMm, or both zero.');
   signal?.throwIfAborted();await checkInstallation();
-  const temporary=await mkdtemp(join(tmpdir(),'saam-mesh-repair-')),input=join(temporary,'input.off'),output=join(temporary,'output.off');
+  const temporary=nativeDirectory??await mkdtemp(join(tmpdir(),'saam-mesh-repair-')),input=join(temporary,'input.off'),output=join(temporary,'output.off');
   try{
     await pipeline(offChunks(mesh),createWriteStream(input),{signal});
-    const report=await new Promise((yes,no)=>{
+    const report=await (nativeRun??runNativeMeshRepair)(input,output,{maxHoleEdges,maxHoleDiameterMm,signal,progress});
+    const result=await readOff(output,{signal,progress});return {...result,report};
+  }finally{
+    // Only this call's freshly created directory under the OS temp root is removed.
+    if(dirname(resolve(temporary))!==resolve(tmpdir())||!temporary.startsWith(join(tmpdir(),'saam-mesh-repair-')))throw Error('Unexpected native repair scratch path');
+    if(!nativeDirectory)await rm(temporary,{recursive:true,force:true,maxRetries:4,retryDelay:100});
+  }
+}
+
+// The parent worker supervisor owns this child, including abnormal worker exit.
+export async function runNativeMeshRepair(input,output,{maxHoleEdges=0,maxHoleDiameterMm=0,signal,progress=()=>{}}={}){
+  return new Promise((yes,no)=>{
       const child=spawn(nativeMeshExecutable,[input,output,String(maxHoleEdges),String(maxHoleDiameterMm)],{windowsHide:true,stdio:['ignore','pipe','pipe'],signal});
       let stdout='',stderr='',lines='',failed;
       child.stdout.on('data',data=>{stdout+=data;if(stdout.length>65536){failed=Error('Native repair report is not this helper\'s single line of counts; no result accepted');child.kill();}});
@@ -45,10 +56,4 @@ export async function repairMeshNative(mesh,{maxHoleEdges=0,maxHoleDiameterMm=0,
       child.on('error',error=>{failed=error;});
       child.on('close',code=>{if(failed)return no(failed);if(code!==0)return no(Object.assign(Error(stderr.split('\n').filter(s=>s&&!s.startsWith('{')).join('\n')||`Native mesh repair failed (${code})`),{code:'MESH_REPAIR_FAILED'}));try{yes(JSON.parse(stdout));}catch{no(Error('Invalid native repair report'));}});
     });
-    const result=await readOff(output,{signal,progress});return {...result,report};
-  }finally{
-    // Only this call's freshly created directory under the OS temp root is removed.
-    if(dirname(resolve(temporary))!==resolve(tmpdir())||!temporary.startsWith(join(tmpdir(),'saam-mesh-repair-')))throw Error('Unexpected native repair scratch path');
-    await rm(temporary,{recursive:true,force:true,maxRetries:4,retryDelay:100});
-  }
 }

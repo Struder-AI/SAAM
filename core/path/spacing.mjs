@@ -5,7 +5,7 @@ import {requireThat} from '../geom/tolerance.mjs';
 // Vase turns are vertical layer pitch.
 export function spacingFactor(settings={}) {
   const factor=settings.spacingFactor===undefined?1:settings.spacingFactor;
-  requireThat(Number.isFinite(factor)&&factor>=0.5,'spacingFactor must be a finite number at least 0.5.');
+  requireThat(Number.isFinite(factor)&&factor>0,'spacingFactor must be positive and finite.');
   return factor;
 }
 export function lineSpacing(widthMm,settings={}) {

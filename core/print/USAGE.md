@@ -51,9 +51,15 @@ Units default to `auto`: SAAM assumes mm unless the raw size only fits the
 printer in inches ([D-030](../../DECISIONS.md#d-030--provisional-stl-units-assumption)),
 and Studio shows the assumption. `set_stl_units` rescales a plain imported mesh,
 keeping edits and settings; text-wrapped or composed geometry needs its own edit.
-The source must be a local `.stl` on the SAAM computer, at most 64 MiB. If the
-mesh fails validation, read [mesh-tools](../../skills/mesh-tools/SKILL.md) with
-the reported failure.
+Studio, CLI and agent imports first validate the source, then attempt repair only
+for recognized geometric defects, without hole filling. A repair retains both
+STLs and its change report in `repair/`; review changed geometry. Malformed input
+and failed repair keep their diagnostic. Failed or cancelled imports remove only
+the new print. Local paths stream; only browser uploads have the 64 MiB bound.
+Progress and elapsed time are visible to makers; there is no reliable repair ETA.
+Use Studio Cancel or `cancel_studio_calculation` with the observed job identity,
+then explain the decision. Direct repair commands belong to
+[builder diagnosis](../../skills/mesh-tools/BUILDER.md).
 
 ### Line spacing
 

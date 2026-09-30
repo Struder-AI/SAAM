@@ -1,7 +1,8 @@
 // The one authored input to the generated map: which top-level roots are mapped, and which are
 // scanned only so the calls they make into the mapped roots are seen. Nothing else about the map
 // is chosen here; leaves, links and every box come from the code.
-import {SKILL_IDS,TECHNIQUE_IDS} from '../../skills/catalog.mjs';
+import {SKILL_IDS,GUIDANCE_IDS} from '../../skills/catalog.mjs';
+import {mapSet} from './map-set.mjs';
 export const mappedRoots=['core','studio'];
 export const outsideRoots=['skills','adapters','scripts'];
 // Scanned, but not mapped: code inside a mapped root that the map does not cover, each area an
@@ -19,7 +20,8 @@ export const unmappedAreas=[
 export const scanRoots=[...mappedRoots,...outsideRoots];
 const mappedPrefix=new RegExp(`^(${mappedRoots.join('|')})/`);
 const unmappedArea=path=>{const file=path.split('::')[0];return unmappedAreas.find(area=>area.contains(file));};
-export const isMapped=file=>mappedPrefix.test(file)&&!unmappedArea(file);
+const selectedFiles=new Set(mapSet?.scope.map(path=>path.split('::')[0])??[]);
+export const isMapped=file=>selectedFiles.has(file)||mappedPrefix.test(file)&&!unmappedArea(file);
 // The outside root a scanned but unmapped path belongs to, as a port names it: the unmapped area
 // when the path is inside one, otherwise its top-level root.
 export const outsideRootOf=path=>unmappedArea(path)?.port??path.split('/')[0];
@@ -29,10 +31,10 @@ export const outsideRootOf=path=>unmappedArea(path)?.port??path.split('/')[0];
 // and the exporters. Everything else scanned — skill tests, demo and example scripts, benchmarks,
 // audits — stays scanned and counted at the root, and is named on a declaration page only as a
 // count. This is the only place that decision is made.
-const skillScript=new RegExp(`^skills/(${[...SKILL_IDS,...TECHNIQUE_IDS].join('|')})/scripts/[^/]+\\.mjs$`);
+const skillScript=new RegExp(`^skills/(${[...SKILL_IDS,...GUIDANCE_IDS].join('|')})/scripts/[^/]+\\.mjs$`);
 const toolingScript=/^(?:adapters\/mcp\/src|core\/agent)\/[^/]+\.mjs$/;
 export const activeCallers=file=>
-  file==='scripts/agent-toolkit.mjs'||toolingScript.test(file)||unmappedArea(file)?.port==='exporters'
+  !!mapSet||file==='scripts/agent-toolkit.mjs'||toolingScript.test(file)||unmappedArea(file)?.port==='exporters'
   ||skillScript.test(file)&&!/demo|example/.test(file.slice(file.lastIndexOf('/')+1));
 // A served path that is not the module path on disk: the import specifier cannot be resolved by
 // the file system alone, so the serving alias is stated here rather than guessed.

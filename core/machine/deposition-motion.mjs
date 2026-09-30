@@ -1,19 +1,7 @@
-// Geometry supplies a bead frame. Machine adaptation chooses nozzle pose and
-// checks fixed-axis compatibility here, independently of the slice technique.
-import {dot,cross,normalize,subtract,scale,distance,requireThat} from '../geom/tolerance.mjs';
-import {maximumPathAngle,strokeRange} from '../path/deposition.mjs';
-import {validatePose} from '../path/pose.mjs';
-
-function surfacePose(normal,preferredUp){
-  const axis=scale(normalize(normal),-1);
-  const seed=preferredUp??[0,1,0];
-  let up=subtract(seed,scale(axis,dot(seed,axis)));
-  if(Math.hypot(...up)<1e-8){
-    const basis=[[1,0,0],[0,1,0],[0,0,1]].sort((a,b)=>Math.abs(dot(a,axis))-Math.abs(dot(b,axis)))[0];
-    up=cross(axis,basis);
-  }
-  return {rotaryDeg:0,toolAxis:axis,toolUp:normalize(up)};
-}
+// Derive optional Slice orientation output. Machine compatibility belongs to export.
+import {dot,normalize,subtract,scale,distance,requireThat} from '../geom/tolerance.mjs';
+import {strokeRange} from '../path/deposition.mjs';
+import {validatePose,uprightPose} from '../path/pose.mjs';
 
 // A press is a metered, stationary-XY down-and-return action inside an
 // attachment layer. It is not a steep surface-following deposition curve.
@@ -34,53 +22,40 @@ export function validateDepositionAction(stroke){
   return true;
 }
 
-// Resolve authored surface/rotary intent before pose-sensitive joins. This
-// adaptation consumes geometry frames; region stroke fields never emit poses.
-export function prepareReferenceMotion(result,machine){
-  let angle=0;
+// Slice opts into orientation output before pose-sensitive joins. Its baseline
+// is standard print-Z alignment unless following the slice normal is requested.
+export function prepareReferenceMotion(result){
   return {...result,operations:result.operations.map(operation=>({...operation,strokes:operation.strokes.map(stroke=>{
     if(!stroke.motionIntent)return stroke;
-    const {motionIntent,referenceAlong,...curve}=stroke;
-    requireThat(motionIntent.kind==='rotary-surface'&&machine.capabilities.includes('tool-orientation')&&machine.capabilities.includes('coordinated-rotary'),
-      'Surface rotary motion needs coordinated rotation and tool orientation.');
-    const center=motionIntent.centerMm,t=motionIntent.tiltDeg*Math.PI/180;
-    requireThat(Array.isArray(center)&&center.length===3&&center.every(Number.isFinite)&&Number.isFinite(t), 'Surface rotary motion needs a finite center and tilt.');
+    const {motionIntent,...curve}=stroke;
+    requireThat(motionIntent.kind==='derived-pose'&&typeof motionIntent.alignToSliceNormal==='boolean',
+      'Slice pose output needs a derived alignment choice.');
     const poses=curve.points.map((point,i)=>{
-      requireThat(Math.hypot(point[0]-center[0],point[1]-center[1])>1e-6,'Surface rotary motion crosses the rotary axis.');
-      const raw=-Math.atan2(point[1]-center[1],point[0]-center[0])*180/Math.PI;
-      angle=raw+360*Math.round((angle-raw)/360);
-      const n=curve.normals[i],along=referenceAlong[i],v=normalize(subtract(along,scale(n,dot(along,n)))),up=normalize(cross(v,n));
-      return {rotaryDeg:angle,toolAxis:n.map((x,k)=>-Math.sin(t)*x-Math.cos(t)*v[k]),toolUp:up};
+      if(!motionIntent.alignToSliceNormal)return uprightPose();
+      const sourceNormal=curve.normals?.[i]??curve.frameSamples?.[i]?.normal;
+      requireThat(sourceNormal,'Slice-normal pose output needs a produced normal at every point.');
+      const n=normalize(sourceNormal),axis=n.map(v=>-v);
+      const along=curve.referenceAlong?.[i]??curve.frameSamples?.[i]?.v??(Math.abs(n[1])<.9?[0,1,0]:[1,0,0]);
+      const up=normalize(subtract(along,scale(axis,dot(along,axis))));
+      return validatePose({rotaryDeg:0,toolAxis:axis,toolUp:up});
     });
     return {...curve,poses};
   })}))};
 }
 
-export function prepareDepositionMotion(result,machine){
-  const oriented=machine.capabilities.includes('tool-orientation');
+// Geometry validation does not choose poses from the selected machine. A pose
+// exists only when a producer derives it for an enabled output mode.
+export function prepareDepositionMotion(result){
   return {...result,operations:result.operations.map(operation=>{
     const strokes=operation.strokes.map(original=>{
-    let stroke=original;
-    const pressing=validateDepositionAction(stroke);
-    if(stroke.stationaryExtrusion)return stroke;
-    if(oriented&&stroke.closed)stroke=strokeRange(stroke);
-    if(stroke.poses){
-      requireThat(oriented,`Operation ${operation.id} requires authored tool orientation unavailable on ${machine.id}.`);
-      stroke.poses.forEach(validatePose);
+      validateDepositionAction(original);
+      const stroke=original.poses&&original.closed?strokeRange(original):original;
+      if(stroke.poses){
+        requireThat(stroke.poses.length===stroke.points.length,'Stroke pose/point count differs.');
+        stroke.poses.forEach(validatePose);
+      }
       return stroke;
-    }
-    if(stroke.volumesMm3?.length&&stroke.volumesMm3.every(volume=>volume===0))return stroke;
-    const normals=stroke.points.map((_,i)=>stroke.frameSamples?.[i]?.normal??stroke.normals?.[i]??
-      stroke.segmentMetadata?.[Math.min(i,stroke.segmentMetadata.length-1)]?.surfaceNormal??[0,0,1]);
-    if(oriented){
-      const poses=normals.map((normal,i)=>surfacePose(normal,stroke.frameSamples?.[i]?.v));
-      return {...stroke,poses};
-    }
-    const inclination=Math.max(pressing?0:maximumPathAngle(stroke.points),...normals.map(normal=>Math.acos(Math.max(-1,Math.min(1,normalize(normal)[2])))*180/Math.PI));
-    requireThat(inclination<=1e-7||machine.capabilities.includes('nonplanar')&&inclination<=(machine.nonplanar?.maxAngleDeg??0)+1e-7,
-      `Operation ${operation.id} needs ${inclination.toFixed(3)}° fixed-axis deposition; ${machine.id} permits ${machine.nonplanar?.maxAngleDeg??0}°. A surface-following nozzle requires tool-orientation support.`);
-    return stroke;
-  });
-  return {...operation,strokes,order:strokes.some(stroke=>stroke.poses)?'given':operation.order};
+    });
+    return {...operation,strokes,order:strokes.some(stroke=>stroke.poses)?'given':operation.order};
   })};
 }

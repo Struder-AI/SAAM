@@ -97,27 +97,26 @@ from outside. A prism is its outline at two heights, a fan on each cap and two
 triangles per side; a chamfer or bevel is another ring of vertices. Normals are
 faceted, so surface-following skills follow the facets. Existing meshes come
 from [STL import](core/print/USAGE.md#import-an-stl) or
-[thingi10k](skills/thingi10k/SKILL.md); [mesh-tools](skills/mesh-tools/SKILL.md)
-repairs a rejected one.
+[thingi10k](skills/thingi10k/SKILL.md). Import automatically attempts repair for
+recognized defects and reports cancellable progress.
 
 ## Booleans
 
 `geometry: {shape: "boolean", operation, operands: [...]}` combines two or more
-spline, mesh, blob-field or boolean operands in the same coordinates. `union`
+spline, mesh, blob-field, gridfinity or boolean operands in the same coordinates. `union`
 joins them, `intersection` keeps what they share, and `difference` subtracts
 every later operand from the first: a drilled plate is a box minus a cylinder.
-Spline operands keep exact sections, and tops work on every boolean, so draped
-skins, roof text and heat-set inserts do too. Skills that name a patch (wave
-overhangs, cladding, text on a named patch) need a plain spline part.
+Spline sections remain exact; all booleans provide tops for roof-following work.
+Named-patch operations need a plain spline part.
 
-`combine_geometry` adds an operand to the current geometry, or to one assembly
-part, without resending it: `{operation, operand, part?}`. Repeating the same
-operation appends to the boolean.
+`combine_geometry`: `{operation, operand, part?}` adds to the print or one component;
+repeating the operation appends. Text and heat-set operands cannot preserve their
+material/reinforcement metadata: apply those features to the completed boolean.
 
 ## Assembly
 
 `geometry: {shape: "assembly", parts: [{id, xMm, yMm, zMm, geometry}, ...]}` places
-2–20 components of any form. Parts are translated, not rotated. Each is sliced on
+one or more non-assembly components. Parts are translated, not rotated. Each is sliced on
 its own, so an overlap prints twice; join overlapping bodies with a union instead.
 Skills select components by `id`.
 

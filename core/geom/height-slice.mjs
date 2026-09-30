@@ -46,7 +46,22 @@ export function heightSlice(reference,{offsetMm=0,normalDepthMm=0,sampleStepMm=.
   return {kind:'height-field',reference,offsetMm,normalDepthMm,sampleStepMm};
 }
 
+// Exact XY queries recur across translated courses. Identity belongs to the
+// immutable source geometry/patch, so offsets never require another projection.
+// Eviction only changes recomputation cost, never accepted geometry.
+const referenceSamples=new WeakMap();
 export function referenceHeight(reference,x,y) {
+  const source=reference.kind==='roof'?reference.geometry:reference.patch;
+  let samples=referenceSamples.get(source);
+  if(!samples){samples=new Map();referenceSamples.set(source,samples);}
+  const key=`${x},${y}`;
+  if(samples.has(key))return samples.get(key);
+  const value=evaluateReferenceHeight(reference,x,y);
+  if(samples.size>=100000)samples.delete(samples.keys().next().value);
+  samples.set(key,value);return value;
+}
+
+function evaluateReferenceHeight(reference,x,y) {
   if(reference.kind==='roof')return topAt(reference.geometry,x,y);
   const hits=projectToPatch(reference.patch,x,y);
   if(!hits.length)return null;

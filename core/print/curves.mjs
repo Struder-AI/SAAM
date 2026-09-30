@@ -1,40 +1,39 @@
 import {requireThat,distance} from '../geom/tolerance.mjs';
-import {attachmentCurves,curveLength} from '../path/curve-construction.mjs';
+import {curveLength} from '../path/curve-construction.mjs';
 import {authoredNurbs,validateCurveProfiles,validateLineTextSource,constructAuthoredCurves} from '../path/authored-curves.mjs';
 import {beadWidthRule} from '../path/parallel-curves.mjs';
-import {depositCurves} from '../path/deposition.mjs';
 import {depositedCurveSegments,curveSupportsPoint} from '../path/deposited-curves.mjs';
 import {depositCurveCourses} from '../path/curve-courses.mjs';
 import {prepareContourSleeve} from '../geom/contour-sleeve.mjs';
 import {mappedSleevePatternCurves} from '../path/sleeve-pattern.mjs';
 import {contactCurveGaps} from '../path/contact-curves.mjs';
-import {requireMachine,toolBounds} from '../machine/profile.mjs';
 import {assignmentPlan} from './assignment-process.mjs';
-import {finalizeDepositionResult} from './finalize.mjs';
+import {finalizeDepositionResult,combineFinalizedResults} from './finalize.mjs';
 
 // Authored deposition joins the ordinary assignment list without inventing an
 // enclosing solid. A repeat is its own XYZ grid; it need not share other grids.
 export function curveAssignment({id,construction='curves',...options}) {
-  return structuredClone({id,construction,part:null,filament:null,process:null,after:[],
-    ...(construction==='curves'?{curves:[],repeat:null}:{bridges:[],maxExcursionMm:10}),...options});
+  requireThat(construction==='curves','Trace uses explicit curves; retired technique records require migration.');
+  return structuredClone({id,construction,part:null,filament:null,process:null,after:[],curves:[],repeat:null,sequence:false,courseIds:null,maxExcursionMm:null,...options});
 }
 
 export function validateCurveAssignment(a,{parts=null}={}) {
   const expected=Object.keys(curveAssignment({construction:a.construction})).sort().join();
-  requireThat(['curves','bridges'].includes(a.construction)&&Object.keys(a).sort().join()===expected,`Invalid ${a.construction} assignment fields.`);
+  requireThat(a.construction==='curves'&&Object.keys(a).sort().join()===expected,`Invalid ${a.construction} assignment fields.`);
   requireThat(typeof a.id==='string'&&/^[a-z][a-z0-9-]*$/.test(a.id),'Invalid curve assignment id.');
   requireThat(a.part===null||typeof a.part==='string'&&(parts===null||parts.includes(a.part)),'Curve assignment names an unknown part.');
   requireThat(a.filament===null||Number.isInteger(a.filament)&&a.filament>=0,'Curve filament must be null or a filament index.');
   requireThat(Array.isArray(a.after)&&a.after.every(id=>typeof id==='string'&&id.length),'Curve after must list operation ids.');
-  if(a.construction==='bridges'){validateBridgeConstruction(a);return;}
   const translationRepeat=a.repeat&&Object.keys(a.repeat).sort().join()==='count,translation'&&Number.isInteger(a.repeat.count)&&a.repeat.count>0&&point(a.repeat.translation);
   const familyRepeat=a.repeat&&Object.keys(a.repeat).sort().join()==='family,indices'&&typeof a.repeat.family==='string'&&a.repeat.family.length&&(a.repeat.indices===null||Array.isArray(a.repeat.indices)&&a.repeat.indices.length&&new Set(a.repeat.indices).size===a.repeat.indices.length&&a.repeat.indices.every(n=>Number.isInteger(n)&&n>=0));
   requireThat(a.repeat===null||translationRepeat||familyRepeat,'Curve repeat needs {count,translation:XYZ} or {family,indices:null|layer indices}.');
+  requireThat(a.maxExcursionMm===null||Number.isFinite(a.maxExcursionMm)&&a.maxExcursionMm>0,'Trace excursion limit must be null or a positive authored bound.');
   const count=a.repeat?.count??1;
+  requireThat(typeof a.sequence==='boolean'&&(a.courseIds===null||Array.isArray(a.courseIds)&&a.courseIds.length===count&&new Set(a.courseIds).size===count&&a.courseIds.every(id=>typeof id==='string'&&id.length)),'Trace sequence is boolean; courseIds are null or unique names for each repeated course.');
   requireThat(Array.isArray(a.curves)&&a.curves.length>0,'Curve assignment needs explicit centerlines.');
   for(const curve of a.curves){
     if(familyRepeat)requireThat(curve.uv?.reference?.kind==='slice'&&curve.uv.reference.assignment===a.repeat.family&&curve.uv.reference.index===undefined,'Family repeats need UV curves on that slice family without a fixed layer index.');
-    requireThat(curve&&Object.keys(curve).every(k=>['points','nurbs','uv','text','closed','role','beadWidthMm','heightMm','speedMmS','flowMultiplier','courses','vary','widthRule','sampleStepMm','toleranceMm'].includes(k))&&typeof curve.closed==='boolean','Invalid authored curve.');
+    requireThat(curve&&Object.keys(curve).every(k=>['points','nurbs','uv','text','closed','role','beadWidthMm','heightMm','speedMmS','flowMultiplier','courses','vary','widthRule','sampleStepMm','toleranceMm','contact','depositionAction','segmentMetadata'].includes(k))&&typeof curve.closed==='boolean','Invalid authored curve.');
     requireThat(['points','nurbs','uv','text'].filter(k=>curve[k]!==undefined).length===1,'Curve needs exactly one of points, nurbs, uv or text.');
     const input=curve.uv??curve,dimensions=curve.uv?2:3;
     if(curve.text){requireThat(curve.closed===false,'Text source closure is determined by its glyph strokes.');validateLineTextSource(curve.text);}
@@ -49,6 +48,9 @@ export function validateCurveAssignment(a,{parts=null}={}) {
       requireThat(r.index===undefined||Number.isInteger(r.index)&&r.index>=0,'Slice reference index must be nonnegative.');
       requireThat(curve.uv.normalMm===undefined||Number.isFinite(curve.uv.normalMm),'UV normal distance must be finite.');
     }
+    if(curve.segmentMetadata)requireThat(input.points&&Array.isArray(curve.segmentMetadata)&&curve.segmentMetadata.length===input.points.length-(curve.closed?0:1)&&curve.segmentMetadata.every(m=>m&&typeof m==='object'&&!Array.isArray(m)),'Segment metadata needs one object per polyline segment.');
+    if(curve.contact){const c=curve.contact;requireThat(Object.keys(c).sort().join()==='gapMm,referenceZMm,sampleStepMm,source'&&(c.source===null||typeof c.source==='string')&&(c.gapMm===null||Number.isFinite(c.gapMm)&&c.gapMm>=0)&&(c.referenceZMm===null||Number.isFinite(c.referenceZMm))&&Number.isFinite(c.sampleStepMm)&&c.sampleStepMm>0,'Curve contact needs source, gapMm, referenceZMm and positive sampleStepMm.');}
+    if(curve.depositionAction)requireThat(curve.depositionAction.kind==='press'&&Object.keys(curve.depositionAction).sort().join()==='depthMm,kind'&&Number.isFinite(curve.depositionAction.depthMm)&&curve.depositionAction.depthMm>0,'Curve press action needs positive depthMm.');
     validateCurveProfiles(curve.vary);
     if(curve.widthRule)beadWidthRule(curve.widthRule);
     for(const key of ['sampleStepMm','toleranceMm'])requireThat(curve[key]===undefined||Number.isFinite(curve[key])&&curve[key]>0,`Curve ${key} must be positive.`);
@@ -59,11 +61,25 @@ export function validateCurveAssignment(a,{parts=null}={}) {
   }
 }
 
-export function authoredCurveResult(assignment,{plan,process=plan.process,bounds=null,references={}}) {
+function requireCurveContact(curve,segments,heightMm,id){
+  if(!curve.contact)return;
+  const c=curve.contact;
+  heightMm=curve.heightMm??heightMm;
+  for(let i=1;i<curve.points.length;i++){
+    const a=curve.points[i-1],b=curve.points[i],n=Math.max(1,Math.ceil(distance(a,b)/c.sampleStepMm));
+    for(let j=0;j<=n;j++){
+      const p=a.map((v,k)=>v+(b[k]-v)*j/n);
+      requireThat(curveSupportsPoint(segments,p,(c.referenceZMm??p[2])-(c.gapMm??heightMm),{source:c.source}),`Trace ${id} leaves its declared supporting material.`);
+    }
+  }
+}
+
+export function authoredCurveResult(assignment,{plan,process=plan.process,bounds=null,references={},modelResults=[],machine=null}) {
   const family=assignment.repeat?.family?references[`slice:${assignment.repeat.family}`]:null;
   requireThat(!assignment.repeat?.family||family?.layers?.length,'Curve repeat needs an available named slice family.');
   const indices=family?(assignment.repeat.indices??family.layers.map(l=>l.index)):null;
-  const courses=[],count=indices?.length??assignment.repeat?.count??1,translation=assignment.repeat?.translation??[0,0,0];
+  const finalizeInside=assignment.sequence||assignment.curves.some(c=>c.contact);
+  const courses=[],parts=[],supportSegments=modelResults.flatMap(r=>depositedCurveSegments(r.operations,{widthMm:process.lineWidthMm,source:r.id})),count=indices?.length??assignment.repeat?.count??1,translation=assignment.repeat?.translation??[0,0,0];
   for(let course=0;course<count;course++){
     const index=indices?.[course]??course;
     const active=assignment.curves.filter(curve=>!curve.courses||curve.courses.includes(index));
@@ -76,9 +92,24 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,bounds
       });
     }
 
-    courses.push({key:course,curves,heightMm,speedMmS,layer:course,layerIndex:course,layerCount:count,rank:course,
-      regionId:assignment.id,travel:{kind:'auto'}});
+    const ready=curves.map(curve=>{
+      const actualHeightMm=curve.heightMm??heightMm;
+      if(curve.depositionAction)requireThat(curve.depositionAction.depthMm<actualHeightMm,'Press depth must remain within its deposition layer.');
+      requireCurveContact(curve,supportSegments,heightMm,assignment.id);
+      return {...curve,...(curve.depositionAction?{depositionAction:{...curve.depositionAction,layerHeightMm:actualHeightMm}}:{})};
+    });
+    if(assignment.maxExcursionMm!==null){const heights=ready.flatMap(c=>c.points.map(p=>p[2]));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+1e-8,'Trace course exceeds its authored Z excursion limit.');}
+    const spec={key:assignment.courseIds?.[course]??course,curves:ready,heightMm,speedMmS,layer:course,layerIndex:course,layerCount:count,rank:course,
+      regionId:assignment.id,travel:{kind:'auto'},...(assignment.sequence?{join:{mode:'ordered'}}:{})};
+    courses.push(spec);
+    if(finalizeInside){const previous=(assignment.sequence?parts.at(-1)?.operations.map(o=>o.id):null)??assignment.after;
+      const raw=traceResult({...assignment,after:previous},{courses:[spec],process,bounds,report:{construction:'curves'}}),result=finalizeDepositionResult(raw,plan,machine);
+      for(const op of result.operations)for(const stroke of op.strokes)requireCurveContact(stroke,supportSegments,heightMm,assignment.id);
+      if(assignment.maxExcursionMm!==null){const heights=result.operations.flatMap(o=>o.strokes.flatMap(c=>c.points.map(p=>p[2])));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+1e-8,'Final Trace course exceeds its authored Z excursion limit.');}
+      parts.push(result);for(const op of result.operations)supportSegments.push(...depositedCurveSegments([{...op,strokes:op.strokes.filter(s=>!s.depositionAction)}],{widthMm:process.lineWidthMm,source:op.id}));
+    }
   }
+  if(finalizeInside)return combineFinalizedResults({id:assignment.id,report:{construction:'curves',depositionFamily:'trace',courses:count}},parts);
   return traceResult(assignment,{courses,process,bounds,sequential:false,report:{construction:'curves',courses:count}});
 }
 
@@ -120,16 +151,7 @@ export function sleeveTraceResult({shell,assignment,process,machine,after=assign
 export function curveAssignmentResult(assignment,{plan,machine,modelResults,bounds=null,references={}}) {
   validateCurveAssignment(assignment);
   const selected=assignmentPlan(plan,machine,assignment);
-  const selectedBounds=bounds===null?null:toolBounds(machine,selected.setup.tool);
-  if(assignment.construction==='bridges'){
-    requireMachine(machine,['xyz-extrusion','nonplanar'],'bridge construction');
-    return bridgeAssignmentResult(assignment,{plan,machine,process:selected.process,modelResults,bounds:selectedBounds});
-  }
-  const nonplanar=assignment.curves.some(curve=>curve.uv||curve.nurbs||curve.points?.some(p=>Math.abs(p[2]-curve.points[0][2])>1e-9));
-  if(assignment.curves.some(c=>c.vary?.toolAxis||c.vary?.toolUp))requireMachine(machine,['tool-orientation'],'authored tool axis');
-  if(assignment.curves.some(c=>c.vary?.rotaryDeg))requireMachine(machine,['coordinated-rotary'],'authored rotary angle');
-  requireMachine(machine,['xyz-extrusion',nonplanar?'nonplanar':'planar'],'authored curves');
-  return authoredCurveResult(assignment,{plan,process:selected.process,bounds:selectedBounds,references});
+  return authoredCurveResult(assignment,{plan,process:selected.process,references,modelResults,machine});
 }
 
 // References carry evaluated data in placed world coordinates. A shared-owner
@@ -160,75 +182,4 @@ export function depositionReferences(shells,results){
   return references;
 }
 
-const fields='attachmentSpeedMmS,flowMultiplier,id,jogMm,leadInMm,mode,overlapMm,pressMm,rails,speedMmS';
 const point=p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite);
-
-export function validateBridgeConstruction(settings){
-  requireThat(Number.isFinite(settings.maxExcursionMm)&&settings.maxExcursionMm>0&&Array.isArray(settings.bridges),'Invalid bridging settings.');
-  const ids=new Set();
-  for(const b of settings.bridges){
-    requireThat(b&&Object.keys(b).filter(k=>!['endAttachment','supportBridge','maxSegmentMm'].includes(k)).sort().join()===fields&&/^[a-z][a-z0-9-]*$/.test(b.id)&&!ids.has(b.id),'Invalid or duplicate bridge record.');
-    if(b.maxSegmentMm!==undefined)requireThat(Number.isFinite(b.maxSegmentMm)&&b.maxSegmentMm>0,'Bridge maxSegmentMm must be positive.');
-    if(b.supportBridge!==undefined)requireThat(typeof b.supportBridge==='string'&&ids.has(b.supportBridge),'Bridge support must name an earlier bridge in the recipe.');
-    ids.add(b.id);
-    if(b.endAttachment!==undefined){
-      const end=b.endAttachment;
-      requireThat(end&&Object.keys(end).sort().join()==='flowMultiplier,jogMm,overlapMm,pressMm,speedMmS','Invalid end attachment settings.');
-      for(const k of ['flowMultiplier','overlapMm','speedMmS'])requireThat(Number.isFinite(end[k])&&end[k]>0,`End ${k} must be positive.`);
-      for(const k of ['jogMm','pressMm'])requireThat(Number.isFinite(end[k])&&end[k]>=0,`End ${k} must be nonnegative.`);
-      requireThat(b.mode==='one-way','Independent end controls require one-way mode.');
-    }
-    requireThat(['alternating','one-way'].includes(b.mode),'Bridge mode must be alternating or one-way.');
-    requireThat(Array.isArray(b.rails)&&b.rails.length===2&&b.rails.every(r=>Array.isArray(r)&&r.length>=2&&r.every(point))&&b.rails[0].length===b.rails[1].length,'Bridge rails need matching arrays of at least two XYZ gap-edge points.');
-    for(const key of ['speedMmS','attachmentSpeedMmS','flowMultiplier','overlapMm'])requireThat(Number.isFinite(b[key])&&b[key]>0,`Bridge ${key} must be positive.`);
-    for(const key of ['pressMm','jogMm','leadInMm'])requireThat(Number.isFinite(b[key])&&b[key]>=0,`Bridge ${key} must be nonnegative.`);
-    b.rails[0].forEach((p,i)=>requireThat(Math.hypot(p[0]-b.rails[1][i][0],p[1]-b.rails[1][i][1])>0,'Bridge span needs nonzero XY length.'));
-  }
-}
-
-// Gap edges and process controls are the recipe. Support walls are supplied by
-// other producers; this skill never slices geometry or emits support loops.
-export function bridgeAssignmentResult(assignment,{plan,machine,process=plan.process,modelResults,bounds=null}){
-  const settings=assignment,width=process.lineWidthMm,height=process.layerMm;
-  validateBridgeConstruction(settings);
-  const supportSegments=depositedCurveSegments(modelResults.flatMap(result=>result.operations),{widthMm:width});
-  const operations=[],reports=[],modulations=[];
-  let after=[...modelResults.flatMap(r=>r.operations.map(op=>op.id)),...assignment.after];
-  for(const [index,b] of settings.bridges.entries()){
-    const end=b.endAttachment??{overlapMm:b.overlapMm,pressMm:b.pressMm,jogMm:0,speedMmS:b.attachmentSpeedMmS,flowMultiplier:1};
-    const rails=b.rails.map(r=>r.map(([x,y,z])=>[x+plan.placement.xMm,y+plan.placement.yMm,z]));
-    const {curves}=attachmentCurves({...b,rails});
-    // Construction declares the geometric excursion; the process supplies the
-    // attachment layer it must remain inside. The machine validates both.
-    const strokes=depositCurves(curves.map(curve=>curve.depositionAction?{...curve,
-      depositionAction:{...curve.depositionAction,layerHeightMm:height}}:curve),{widthMm:width,heightMm:height,speedMmS:b.attachmentSpeedMmS});
-    const all=strokes.flatMap(s=>s.points),low=Math.min(...all.map(p=>p[2])),high=Math.max(...all.map(p=>p[2]));
-    requireThat(high-low<=settings.maxExcursionMm+1e-8,`Bridge ${b.id} exceeds its total Z excursion limit.`);
-    requireThat(Math.max(b.pressMm,end.pressMm)<height,`Bridge ${b.id} press must remain within the attachment layer.`);
-    if(bounds)requireThat(all.every(p=>p.every((v,i)=>v>=(i===2?bounds.min[i]:bounds.min[i]+width/2)-1e-8&&v<=(i===2?bounds.max[i]:bounds.max[i]-width/2)+1e-8)),`Bridge ${b.id} exceeds selected tool bounds.`);
-    for(const s of strokes)if(s.role!=='bridge-span'){
-      for(let i=1;i<s.points.length;i++){
-        const a=s.points[i-1],z=s.points[i],n=Math.max(1,Math.ceil(distance(a,z)/.1));
-        for(let j=0;j<=n;j++){
-          const p=a.map((v,k)=>v+(z[k]-v)*j/n),nominalZ=s.role==='bridge-press'?Math.max(...s.points.map(p=>p[2])):p[2];
-          requireThat(curveSupportsPoint(supportSegments,p,nominalZ-height,{source:b.supportBridge??null}),`Bridge ${b.id} ${s.role} leaves the emitted supporting wall or named bridge.`);
-        }
-      }
-    }
-    if(b.mode==='alternating')for(let i=1;i<strokes.length;i++)requireThat(distance(strokes[i-1].points.at(-1),strokes[i].points[0])<1e-9,`Bridge ${b.id} contains a disconnected continuous path.`);
-    const id=assignment.id+':'+b.id;
-    operations.push({id,layerId:id,layer:Math.round(high/height),rank:index,phase:'bridging',order:'given',continuous:true,
-      after,strokes,...(assignment.filament===null?{}:{filament:assignment.filament}),travelPolicy:{maxCombMm:0,canTravelDirect:()=>false,clearanceFor:()=>high+process.liftMm}});
-    const finalized=finalizeDepositionResult({id:assignment.id,operations:[operations.at(-1)],report:{}},plan,machine);
-    operations[operations.length-1]=finalized.operations[0];
-    if(finalized.report.modulation)modulations.push(finalized.report.modulation);
-    after=[id];
-    supportSegments.push(...depositedCurveSegments([operations.at(-1)],{widthMm:width,source:b.id,excludedRoles:['bridge-press']}));
-    reports.push({id:b.id,mode:b.mode,spans:rails[0].length,minZMm:low,maxZMm:high,excursionMm:high-low});
-  }
-  return {id:assignment.id,operations,report:{depositionFamily:'trace',bridges:reports,physicalValidation:'not performed',...(modulations.length?{modulation:{
-    changed:true,maxExcursionMm:Math.max(...modulations.map(m=>m.maxExcursionMm)),
-    changedOperations:modulations.flatMap(m=>m.changedOperations),modifiers:[...new Set(modulations.flatMap(m=>m.modifiers))]
-  }}:{})}};
-}
-

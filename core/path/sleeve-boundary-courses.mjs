@@ -23,7 +23,7 @@ export function* patternCourses(pattern,{level=false,spanMm,firstHeightMm,refere
       length+=Math.hypot((b[0]-a[0])*referenceLengthMm,b[1]-a[1],b[2]-a[2]);path.progress.push(length);
     }
     for(const [,z] of path.vertices)requireThat(z>=-1e-9&&z+(count-1)*rise<=spanMm+1e-9,
-      'Level pattern courses exceed the selected sleeve height interval; adjust course count, rise or tile tilt. No course was trimmed.');
+      'Level pattern courses exceed the selected sleeve height interval; adjust explicit path coordinates, advance or repetition count. No course was trimmed.');
   }
   const height=(repeat,z,t)=>{
     if(repeat<0)return 0;

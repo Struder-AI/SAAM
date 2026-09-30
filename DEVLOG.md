@@ -1,5 +1,45 @@
 # Development log
 
+## 2026-09-30 — Consolidated deposition, roles and cancellable import
+
+- Core skills and shared implementation are developer-owned; builders compose guidance,
+  web agents remain makers. Guidance authors ordinary Slice/Trace/Inject records;
+  advanced vase has only explicit paths. General gap filling is rejected.
+- Generation is machine-independent; exporters own installation/service motion and
+  representability. Slice optionally derives upright (default) or normal-aligned poses,
+  with FIELD tilt; raw recipe pose samples are removed. Contract /8 invalidates older output.
+- Removed authored size/count ceilings across geometry and deposition while retaining
+  actual representation/process constraints and network boundaries. Exact reference caches
+  and bead-query filtering improve drape/contact without truncation or fixed job budgets.
+- Shared motion writing coalesces tiny forward segments within 0.0001 mm, preserving
+  volume, time, endpoints and meaningful pose/process/operation/control boundaries.
+- Strict STL import attempts eligible repair through one cancellable lifecycle. Studio,
+  MCP, CLI and toolkit reuse expose real progress/elapsed and identity-based cancellation;
+  child processes, scratch work and incomplete bundles clean up on cancellation/crash.
+- Caller audit fixed preview-import bypass, benchmark FIELD preparation, current Studio
+  pose/material consumers, decoder-only browser dependencies and native-helper packaging.
+  Heat-set geometry works on mesh/spline/Boolean hosts and assembly components; scoped
+  reinforcement IDs no longer collide. Arbitrary insertion axes remain unsupported.
+- Detached-worktree evidence: DENSO existing file 7/7, Bambu dual file 6/6; four exporter
+  roundtrips; shared geometry/deposition/field examples; native repair 13/13; cancellation,
+  owner authentication, stdin responsiveness and requester-disconnect cleanup. Lead reran
+  current derived-pose/tiny-move and Studio reuse lifecycle diagnostics independently.
+- Corrected cladding demo rendered in Studio; 15 short travels (12 lifts) remain reported.
+  Tilted/upright nonplanar material rendering falls back to lines when independent surface
+  normals are unavailable. Twisted-roof precision/runtime findings remain unresolved.
+- No new tests, full suite, release, push or hardware run. Three other mechanically updated
+  existing test files were not run. Repository check retains ten pre-existing request/decision
+  metadata failures; import/syntax audit and changed-file whitespace checks pass.
+- Material-overlap/shared-ownership integration is deferred to 0.3.0 by the owner.
+  Competing declared region claims now reject with assignment/component names, including
+  thin between-layer overlap; ordinary remainders and heat-set partitions remain supported.
+  Contact uses 1e-6 mm polygon coincidence and 1e-3 mm spline chord uncertainty. Uncertifiable
+  curved/rotated/concave pairs report inability to establish exclusivity. Direct overlap,
+  touching/noise, normal-band, assembly and four-host heat-set diagnostics pass independently.
+  This is region validation, not arbitrary Trace/FIELD path-collision detection.
+  Concurrent dev-map/onboarding changes are retained; this checkpoint does not certify them.
+- Tracked Markdown totals: 21,361 before, 21,302 after (including this record).
+
 ## 2026-09-30 — Print material routing, standalone Trace and guidance manuals
 
 - Common print/part/assignment filament resolution now reaches Slice, Trace, Inject,

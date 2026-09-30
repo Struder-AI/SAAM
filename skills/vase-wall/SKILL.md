@@ -72,8 +72,8 @@ scales with emitted points and the Node heap; extreme programs may need
 
 The process layer height controls rise per turn; line width controls the nominal
 wall bead. Cooling can slow the continuous stroke rather than parking between
-turns. The machine must support XYZ extrusion and the required nonplanar motion;
-the spiral's slope is checked against its declared angle limit.
+turns. SAAMpath retains the spatial spiral; the selected exporter checks its
+representation and declared machine envelope.
 
 Review geometry, process settings and the actual toolpath in Studio before
 delivery. Software generation does not establish physical clearance, support,

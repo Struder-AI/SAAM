@@ -3,7 +3,7 @@ import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {defaults} from '../../../core/print/plan.mjs';
 import {initBundle,generateBundle} from '../../../core/print/bundle.mjs';
-import {loopTile} from '../../../core/path/sleeve-tile.mjs';
+import {loopPath} from './loop-path.mjs';
 import {sleeveAssignment} from '../../../core/print/sleeve-constructions.mjs';
 
 export function irregularLoopHost(){
@@ -35,8 +35,7 @@ export function irregularLoopDemoPlan(){
   // A solid base below the vase wall.
   plan.slices.assignments[0].fillDensity=1;
   plan.slices.assignments.push(sleeveAssignment({id:'wall',endTransition:'spiral',zStartMm:.6,
-    pattern:{tile:loopTile({widthCells:2.8,depthMm:4.8,samples:64,beadHeightMm:.2,exterior:'smooth'}),
-      cellsPerTurn:20,courseRiseMm:.2,repeats:145,tiltDeg:0}}));
+    pattern:{paths:[loopPath({loops:20,widthCells:2.8,depthMm:4.8,samples:64,beadHeightMm:.2,exterior:'smooth'})],advance:[1,.2],repeats:145}}));
   return plan;
 }
 

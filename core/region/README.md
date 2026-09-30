@@ -169,11 +169,18 @@ draping; an assembly is not a boolean union.
 
 ## Material ownership and surface contact
 
-`plan.slices.assignments` owns surface/stack/material selection; skin/front presets
-lower to these records. [allocateChartClaims](ownership.mjs) partitions actual
-chart intersections and alternates owners. Coupled layer spacing, pattern inheritance
-and connected mixed-family output remain unfinished under [R04](../../plans/0.2.0.md#milestones-and-work-ownership).
-See the [slice manual](../../skills/slice/SKILL.md); assembly selections are not implicitly unioned.
+`plan.slices.assignments` owns surface, stack and material selection.
+[allocateChartClaims](ownership.mjs) rejects competing positive material claims;
+a default owner retains the remainder after explicit regions and reservations.
+Shared ownership and connected mixed-family overlap are deferred to [0.3.0](../../plans/0.3.0.md).
+Diagnostics identify assignments/components. Planar polygon contact uses the
+shared `TOLERANCE.point` (`1e-6` mm), not bead dimensions; spline section evidence
+also accounts for `TOLERANCE.chord` (`1e-3` mm). Bounds and control-hull separating
+directions can prove disjointness, never overlap. Boundary-interval probes catch
+thin claims between print layers. Uncertifiable curved, rotated or concave pairs
+report that exclusivity cannot be established; touching is not universally certified.
+Matching reference charts compare regions/depth directly. See the
+[slice manual](../../skills/slice/SKILL.md); assembly components are not implicitly unioned.
 Prepared text exposes `base` and `text/<feature-id>` selections, prefixed by the
 component ID in an assembly. [Geometry selections](../geom/selections.mjs)
 resolves these with their component placement without changing saved geometry.
@@ -195,13 +202,13 @@ Skin survey, curve mapping and local gaps are shared stages in
 and [surface-curves.mjs](./surface-curves.mjs). Seeded fronts use
 [seeded-fronts.mjs](./seeded-fronts.mjs) before the same mapping/deposition stages.
 Mapping preserves surface normals and checks physical sample spacing and chord
-error. Fixed-axis production checks both surface and mapped-path inclination.
+error. Only actual exporters enforce machine orientation compatibility.
 
 A skin's `supportFrom` selects a finalized source and prerequisites.
 Experimental `plan.experimental.substrateAdaptation` defaults OFF: use nominal
 reference gaps without final-bead queries. ON selects nominal predecessor courses
 per chart column and measures actual bead gaps; missing required substrate and
-machine-limit violations reject. This changes volume, not authored slice XYZ.
+invalid contact rejects; exporters enforce machine limits. This changes volume, not authored slice XYZ.
 3D-printing support assignment is a separate judgment. Absent named sources and
 dependency cycles remain invalid in either mode.
 

@@ -14,7 +14,7 @@ export const TEXT_DEFAULTS={id:'text',text:'',mode:'raised',sizeMm:6,lineHeightM
 export function textFeature(spec){
   requireThat(spec&&Object.keys(spec).every(k=>Object.hasOwn(TEXT_DEFAULTS,k)),'Unknown text feature setting.');
   const f={...structuredClone(TEXT_DEFAULTS),...structuredClone(spec)};
-  requireThat(typeof f.id==='string'&&/^[\w-]{1,64}$/.test(f.id)&&typeof f.text==='string'&&f.text.length>0&&f.text.length<=2000,'Text needs a feature id and 1–2000 characters.');
+  requireThat(typeof f.id==='string'&&/^[\w-]+$/.test(f.id)&&typeof f.text==='string'&&f.text.length>0,'Text needs a feature id and nonempty text.');
   requireThat(['raised','recessed'].includes(f.mode)&&['left','center','right'].includes(f.align),'Invalid text mode or alignment.');
   for(const k of ['sizeMm','lineHeightMm','depthMm'])requireThat(Number.isFinite(f[k])&&f[k]>0,'Text '+k+' must be positive.');
   for(const k of ['letterSpacingMm','outlineOffsetMm','offsetMm','rotationDeg'])requireThat(Number.isFinite(f[k]),'Text '+k+' must be finite.');
@@ -111,7 +111,7 @@ function mappedSolid(kernel,loops,map,lower,upper,{maxEdgeMm,toleranceMm,normalS
 }
 
 export async function compileText(base,features,{buildGeometry,toleranceMm=0.02,maxEdgeMm=1,standalone=false}={}){
-  requireThat(typeof buildGeometry==='function'&&Array.isArray(features)&&features.length>0&&features.length<=40,'Text needs a geometry builder and 1–40 features.');
+  requireThat(typeof buildGeometry==='function'&&Array.isArray(features)&&features.length>0,'Text needs a geometry builder and at least one feature.');
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0&&Number.isFinite(maxEdgeMm)&&maxEdgeMm>0,'Text toleranceMm and maxEdgeMm must be positive.');
   const normalized=features.map(textFeature);
   requireThat(new Set(normalized.map(f=>f.id)).size===normalized.length,'Text feature ids must be unique.');

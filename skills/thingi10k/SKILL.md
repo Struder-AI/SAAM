@@ -17,7 +17,7 @@ link is a reason to search directly.
 Call `search_thingi10k` with `query: "bunny"` or a Thingiverse URL such as
 `https://www.thingiverse.com/thing:151081`. A numeric query selects a **file ID**,
 not a thing ID; one thing can hold many files, so choose the needed part by
-filename. `limit` defaults to 10 (maximum 50); pass `nextOffset` as `offset` for
+filename. `limit` defaults to 10; pass `nextOffset` as `offset` for
 more.
 
 Search matches names, tags and filenames, not shapes: use concise descriptive
@@ -60,10 +60,11 @@ assumptions, choose toolpath skills and review in Studio. Import creates no
 approvals and never silently repairs, simplifies or rescales the model.
 
 On `imported: false`, the result has the error, the retained `sourcePath`,
-attribution and chat notice. For a geometry defect read
-[mesh-tools](../mesh-tools/SKILL.md); repair needs command access, so otherwise
-choose another mesh. A replacement keeps the original's attribution and notes
-its changes rather than claiming to be the original file.
+attribution and chat notice. Open the retained STL through Studio import: it checks
+the mesh and attempts recognized repairs automatically, preserving the source and
+reporting changes. Follow live import progress; cancel through the ordinary Studio
+calculation controls when the person or task calls for it. Makers need no direct
+mesh-repair tools. A replacement retains attribution and records its changes.
 
 <!-- layer: script -->
 ## Command line and cache

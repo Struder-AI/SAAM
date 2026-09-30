@@ -13,6 +13,11 @@ node packaging/build.mjs --platform darwin-arm64 --version 0.1.0 --relay-url htt
 the official Node release (`--node-version`, default the building Node) and
 checks it against the release's SHASUMS256; `--node PATH` bundles a given binary
 instead. Output is `dist/SAAM-<version>-<platform>.zip`.
+A current `build/mesh-repair` helper is included only when its executable matches
+the target. `--mesh-repair DIRECTORY` supplies another target's helper and build
+manifest; wrong architecture, changed hashes or stale wrapper sources reject it.
+`release.json.nativeRepair` records availability. Without that optional backend,
+imports still validate and perform exact cleanup, but cannot repair intersections.
 
 The application is the tracked files except development maps, tooling, tests
 and the relay service; production dependencies (`npm ci --omit=dev

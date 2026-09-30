@@ -53,8 +53,9 @@ can split propagation, so a valid mask does not guarantee one continuous pass.
 
 Whole-reference area-weighted normals determine default translation direction;
 the mean projected gap calibrates its magnitude. Actual local gaps set bead
-volume. Geometry supplies frames; downstream machine adaptation chooses fixed
-or surface-following nozzle orientation. Flow, feed and slope limits apply.
+volume. Geometry supplies frames; Slice `toolPose:{alignToSliceNormal:true}` derives
+normal alignment, while `{}` derives upright poses. Field tilt varies either.
+Exporters check representation, flow, feed and slope.
 Spacing and bead width remain separate process choices; no adhesion percentage
 is enforced. Defaults are development values, not calibrated machine settings.
 
@@ -74,6 +75,5 @@ high-curvature geometry and inspect starts/stops in Studio.
 
 [example.mjs](scripts/example.mjs) authors a small saddle beyond a box;
 [canopy-example.mjs](scripts/canopy-example.mjs) authors a larger surrounding
-canopy. Both create unapproved bundles through normal review. Their earlier
-hole case demonstrates the continuity rejection, not a supported recipe.
-[Implementation and provenance](BUILDER.md) records method and attribution.
+canopy. Both create unapproved bundles through normal review. Split fronts may require multiple passes; inspect the resulting shared travel.
+[Implementation and provenance](DEVELOPER.md) records method and attribution.

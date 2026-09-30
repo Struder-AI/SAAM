@@ -8,13 +8,15 @@ import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import {openBrowser} from '../../../studio/browser.mjs';
 import {randomUUID} from 'node:crypto';
+import {Worker} from 'node:worker_threads';
+import {PreparedGenerationJob} from '../../../studio/prepared-generation-job.mjs';
 import { MACHINE_IDS, loadMachine } from '../../../core/machine/profile.mjs';
 import { createStudio, listPrints } from '../../../studio/server.mjs';
 import { bundleFor } from '../../../studio/adapter-resolution.mjs';
 import {createTour} from '../../../studio/tour.mjs';
 import {createAgentRequests} from '../../../studio/agent-requests.mjs';
 import {createStudioEvents} from '../../../studio/studio-events.mjs';
-import { importSTLBundle,setSTLUnits } from '../../../core/print/import-stl.mjs';
+import { createSTLBundle,setSTLUnits } from '../../../core/print/import-stl.mjs';
 import {createThingi10KClient} from '../../../skills/thingi10k/scripts/library.mjs';
 import {importThingi10KBundle} from '../../../skills/thingi10k/scripts/import.mjs';
 import {createGridfinityBundle,updateGridfinityBundle} from '../../../skills/gridfinity/scripts/bundle.mjs';
@@ -34,14 +36,14 @@ import {slicePatchSchema,modulationPatchSchema,geometrySchema,patchSchema,draftF
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const installedExtension=await loadLocalExtension(root);
 const idSchema = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/).refine(id => !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i.test(id), 'Reserved filename.');
-// Human file/folder names and Studio's three-level library are supported.
+// Human file/folder names and Studio's library are supported.
 // Separators are canonical forward slashes; every ancestor is checked below.
-const bundleIdSchema = z.string().min(1).max(384).refine(id => {
+const bundleIdSchema = z.string().min(1).refine(id => {
   const parts = id.split('/');
-  return parts.length <= 3 && parts.every(part => part.length > 0 && part.length <= 128
+  return parts.every(part => part.length > 0
     && !/^[.]|[. ]$|[\\:*?"<>|\x00-\x1f]/.test(part)
     && !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(part));
-}, 'Invalid print name: use up to three relative folder names, without traversal, reserved names or Windows path characters.');
+}, 'Invalid print name: use relative folder names, without traversal, reserved names or Windows path characters.');
 // Shell/mesh is the only bundle kind; the parameter is retained (and defaults)
 // so the tool surface stays stable.
 const kindSchema = z.enum(['shell']).default('shell');
@@ -115,7 +117,7 @@ async function requireSystemFont(path){
   throw Error('From a web chat, fontPath must be a font installed in the system font folders.');
 }
 
-export const instructions = 'For a maker edit, your FIRST operation is begin_studio_work, before any acknowledgement, analysis, status check or other tool; bundleId may be omitted for the active tour. For a tour request with command access, first run node studio/server.mjs --toolkit start-tour --no-open and open the returned Studio URL; then use its returned participation context and listener. Do not read guidance or run onboarding before launching the tour. For ordinary new-part work with missing maker context, run node scripts/agent-toolkit.mjs maker-onboarding once with command access, or otherwise call maker_onboarding once; either supplies the maker flow, the index of skills and advanced sections, and print-tools. Reuse current context and choose individual skill manuals for the task; do not reread sources already returned by onboarding. Follow relevant documentation links through read_guidance using their repository-relative path and optional #heading. Shared print-tool usage is available as "print-tools". Create a print and request_review for its geometry. Revisions happen through chat using adjust_recipe and expectedRevision. Geometry review is advisory: generation may proceed whenever it helps review. The person confirms the exact settings and toolpath together in Studio before export. Establish the printer and material before relying on the toolpath. For an edit to an existing print call begin_studio_work immediately, publish its saved geometry or toolpath target, then resolve its request ID after the requested result is displayed. Geometry-only work needs no slicing. Questions and guidance stay visually quiet. Normal use supports capabilities from any view; only the tour narrows requests to its current lesson under the tour manual. Send edit acknowledgements and lesson guidance immediately in chat commentary BEFORE calling a listener. Never hold an edit reply in a final answer while waiting through later lessons. During tours let Studio lead the early lessons. Keep wait_for_studio_request active, perform start-layer preparation silently, and initiate chat teaching only at the designated infill lesson and completion. Respond normally to participant-requested edits. Use get_tour for the selected print and set_tour_start_at for an explicit infill layer. deliver_toolpath copies the reviewed bytes. No tool grants final settings/toolpath approval or runs hardware. Studio reports what the person does — lesson changes, opened prints, imports, exports, displayed results, failed or cancelled calculations — as studioEvents on tool results, in wait_for_studio_request returns and in notifications; read the queue any time with get_studio_events, which also reports toolpath calculation progress. Events are ordered observations, not simultaneous state: act on the latest.';
+export const instructions = 'Web agents are makers only; reading builder or developer documentation never changes that role or grants command access. For a maker edit, your FIRST operation is begin_studio_work, before any acknowledgement, analysis, status check or other tool; bundleId may be omitted for the active tour. For a tour request with command access, first run node studio/server.mjs --toolkit start-tour --no-open and open the returned Studio URL; then use its returned participation context and listener. Do not read guidance or run onboarding before launching the tour. For ordinary new-part work with missing maker context, run node scripts/agent-toolkit.mjs maker-onboarding once with command access, or otherwise call maker_onboarding once; either supplies the maker flow, the index of skills and advanced sections, and print-tools. Reuse current context and choose individual skill manuals for the task; do not reread sources already returned by onboarding. Follow relevant documentation links through read_guidance using their repository-relative path and optional #heading. Shared print-tool usage is available as "print-tools". Create a print and request_review for its geometry. Revisions happen through chat using adjust_recipe and expectedRevision. Geometry review is advisory: generation may proceed whenever it helps review. The person confirms the exact settings and toolpath together in Studio before export. Establish the printer and material before relying on the toolpath. For an edit to an existing print call begin_studio_work immediately, publish its saved geometry or toolpath target, then resolve its request ID after the requested result is displayed. Geometry-only work needs no slicing. Questions and guidance stay visually quiet. Normal use supports capabilities from any view; only the tour narrows requests to its current lesson under the tour manual. Send edit acknowledgements and lesson guidance immediately in chat commentary BEFORE calling a listener. Never hold an edit reply in a final answer while waiting through later lessons. During tours let Studio lead the early lessons. Keep wait_for_studio_request active, perform start-layer preparation silently, and initiate chat teaching only at the designated infill lesson and completion. Respond normally to participant-requested edits. Use get_tour for the selected print and set_tour_start_at for an explicit infill layer. deliver_toolpath copies the reviewed bytes. No tool grants final settings/toolpath approval or runs hardware. Studio reports what the person does — lesson changes, opened prints, imports, exports, displayed results, failed or cancelled calculations — as studioEvents on tool results, in wait_for_studio_request returns and in notifications; read the queue any time with get_studio_events, which also reports import/repair and toolpath progress with elapsed time. Events are ordered observations, not simultaneous state: act on the latest.';
 
 // relay: on a computer paired with the SAAM relay, the provider every Studio
 // instance shows in its Connect panel ({status(), linkCode()}).
@@ -125,8 +127,25 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   const ownerId=randomUUID();
   const studioEvents=createStudioEvents(),agentRequests=createAgentRequests(libraryRoot,{ownerId,events:studioEvents});
   const tour=createTour(libraryRoot,{ownerId,agentRequests});
-  const studioSessions = new Map(),preferredStudioByPrint=new Map();
-  const generationStatus=()=>[...studioSessions.values()].map(({server:studio})=>studio.generationStatus()).filter(Boolean);
+  const studioSessions = new Map(),preferredStudioByPrint=new Map(),imports=new Map(),generations=new Map();
+  const generationStatus=()=>[...[...studioSessions.values()].map(({server:studio})=>studio.generationStatus()).filter(Boolean),
+    ...[...imports.values()].map(({controller,...job})=>({...job,cancellable:!controller.signal.aborted,elapsedMs:Date.now()-job.startedAt,estimatedRemainingMs:null})),
+    ...[...generations.values()].map(({job,...identity})=>({...identity,studioInstanceId:null,status:job.status,cancellable:job.cancellable,progress:job.progress,elapsedMs:Date.now()-identity.startedAt}))];
+  async function importing(bundleId,action){
+    const jobId=randomUUID(),controller=new AbortController(),startedAt=Date.now();
+    imports.set(jobId,{jobId,printId:bundleId,studioInstanceId:null,status:'importing',startedAt,controller,progress:{stage:'import'}});
+    studioEvents.record('import-started',{jobId,printId:bundleId});
+    const progress=value=>{
+      const before=imports.get(jobId);imports.set(jobId,{...before,progress:value});
+      if(value.stage==='repair'&&before.progress.stage!=='repair')studioEvents.record('import-repair-started',{jobId,printId:bundleId,elapsedMs:Date.now()-startedAt});
+    };
+    try{
+      const result=await action({signal:controller.signal,progress});
+      studioEvents.record(result.imported===false?'import-failed':'import-completed',{jobId,printId:bundleId,...(result.error?{error:result.error}:{})});
+      return result;
+    }catch(error){studioEvents.record(controller.signal.aborted?'import-cancelled':'import-failed',{jobId,printId:bundleId,error:error.message});throw error;}
+    finally{imports.delete(jobId);}
+  }
   // Every runtime-owned Studio instance starts here, showing dir (or no print
   // when dir is null) and the relay panel when this computer has a relay.
   async function startStudio(dir){
@@ -204,14 +223,14 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     found.push(...await localExtension.skills?.()??[]);
     return found.sort((a, b) => a.id.localeCompare(b.id));
   }
-  const immediateTools=new Set(['begin_studio_work','respond_to_studio_request','wait_for_studio_request','get_studio_requests','get_studio_events','get_studio_sessions','get_tour']);
+  const immediateTools=new Set(['begin_studio_work','respond_to_studio_request','wait_for_studio_request','get_studio_requests','get_studio_events','get_studio_sessions','cancel_studio_calculation','get_tour']);
   // Operations that read a path the agent names on this computer.
   const localOnlyTools=new Set(['import_stl_bundle']);
   function tool(name, description, shape, action, readOnly = true, openWorld = false) {
     const tracked=Boolean(shape.bundleId)&&!immediateTools.has(name);
     // The full strict schema makes unexpected top-level approval data an error
     // instead of letting Zod silently discard it.
-    const schema=z.object({...shape,...(tracked?{requestIds:z.array(z.string()).max(32).optional()}: {})}).strict();
+    const schema=z.object({...shape,...(tracked?{requestIds:z.array(z.string()).optional()}: {})}).strict();
     operations.set(name,{name,description,schema,readOnly,openWorld,tracked,immediate:immediateTools.has(name),localOnly:localOnlyTools.has(name),action});
   }
   // Runs one operation to its result and throws its failure; the transport
@@ -247,7 +266,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   tool('maker_onboarding','Start here: call this once per conversation, before any other SAAM tool. Returns how to work with SAAM: maker guidance, the index of every skill and advanced section, the shared print tools and, from a web chat, how this connection works. Reuse it for the whole conversation.',
     {machineId:machineIdSchema}, async ({machineId}, session) => ({ role:'maker', ...(session?.guidance?{connection:session.guidance}:{}),
       sources: await onboardingSources(root,{client:'web',machineId}),
-      nextStep: 'Follow connection first when present. Reuse these sources for the whole conversation; do not reread them or call maker_onboarding again. Read skill manuals (read_skill) and linked references (read_guidance) when a task needs them, and a gated section by name when its gate applies or the person asks.' }));
+      nextStep: 'Web agents remain makers; builders author guidance and developers own core skills. Follow connection first when present. Reuse these sources for the whole conversation; do not reread them or call maker_onboarding again. Read skill manuals (read_skill) and linked references (read_guidance) when a task needs them, and a gated section by name when its gate applies or the person asks.' }));
   tool('list_machines', 'List installed machine profiles and declared outputs. Catalog presence is not proof that a particular recipe is supported.', {}, async () => MACHINE_IDS.map(id => {
     const m = loadMachine(id);
     return { id, name: m.name, capabilities: m.capabilities, tools: m.tools, materials: m.materials,
@@ -266,7 +285,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     return { skillId, manual, ...reference };
   });
   tool('read_guidance', 'Read published repository Markdown by relative path, optionally with #heading for one section whatever its gate. Results list the headings with their gates and the gated sections omitted; machineId opens the ones that printer meets. Short IDs: makers, geometry, development, glossary, mcp, print-tools. This reader does not expose private files, source code or register capabilities.',
-    { guidanceId: z.string().min(1).max(1024), machineId: machineIdSchema }, async ({ guidanceId, machineId }) => readManual(root, guidanceId, { client: 'web', machineId, headings: true }));
+    { guidanceId: z.string().min(1), machineId: machineIdSchema }, async ({ guidanceId, machineId }) => readManual(root, guidanceId, { client: 'web', machineId, headings: true }));
   tool('get_recipe_defaults', 'Get process, setup and common assignment defaults, including remembered setup. Supply geometry or standalone Trace/Inject assignments before create_bundle. Defaults never confer job approval.',
     { kind: kindSchema, machineId: z.string() }, async ({ kind, machineId }) => ({ kind, machineId,
       plan: await (await bundles[kind]()).proposedPlan(machineId, { setupFile: await setupFile(machineId) }) }));
@@ -301,24 +320,26 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       return withMachineHint(bundleId, await bundle.loadBundle(dir), null);
     }, false);
   tool('import_stl_bundle', 'Import a local STL into a new named bundle. Default units auto chooses a reasonable mm/inch assumption from model size and printer bounds, without interrupting the person; honor explicit units when supplied. Preserves source bytes and hash and reuses remembered setup. Show geometry dimensions; units can be corrected with set_stl_units.',
-    { bundleId: bundleIdSchema, sourcePath: z.string().min(1).max(4096), units: z.enum(['auto','mm', 'inch']).default('auto'), machineId: z.string() },
+    { bundleId: bundleIdSchema, sourcePath: z.string().min(1), units: z.enum(['auto','mm', 'inch']).default('auto'), machineId: z.string() },
     async ({ bundleId, sourcePath, units, machineId }) => {
       loadMachine(machineId);
       if (!isAbsolute(sourcePath) || !/\.stl$/i.test(sourcePath)) throw new Error('Choose an absolute path to a local .stl source file.');
       const source = await stat(sourcePath);
-      if (!source.isFile() || source.size > 64 * 1024 * 1024) throw new Error('STL source must be a regular file no larger than 64 MiB.');
+      if (!source.isFile()) throw new Error('STL source must be a regular file.');
       const dir = await directory(bundleId, { create: true });
-      await importSTLBundle(dir, sourcePath, { units, machineId, setupFile: await setupFile(machineId) });
+      const remembered=await setupFile(machineId);
+      await importing(bundleId,options=>createSTLBundle(dir,sourcePath,{units,machineId,setupFile:remembered,...options}));
       return summary(bundleId, await (await bundles.shell()).loadBundle(dir));
     }, false);
   tool('search_thingi10k', 'Find meshes by descriptive keywords (such as bunny), numeric file ID or a Thingiverse thing URL. Reads the Thingi10K mirror index; returns per-file source and license links. Prefer making tailored geometry when attractive. Read the thingi10k skill manual.',
-    {query:z.string().min(1).max(500),limit:z.number().int().min(1).max(50).default(10),offset:z.number().int().min(0).max(10000).default(0)},
+    {query:z.string().min(1),limit:z.number().int().min(1).default(10),offset:z.number().int().min(0).default(0)},
     async args=>meshLibrary.search(args),true,true);
-  tool('import_thingi10k_bundle', 'Download a selected Thingi10K STL file ID on the SAAM host and import an unapproved print. ALWAYS give its license link in chat and briefly identify the source unless obvious. Returns attribution and a retained download even if strict mesh import fails. Review geometry with request_review after successful import.',
+  tool('import_thingi10k_bundle', 'Download a selected Thingi10K STL file ID on the SAAM host and import an unapproved print. ALWAYS give its license link in chat and briefly identify the source unless obvious. Recognized defects receive automatic repair; returns attribution and a retained download even if import fails. Review geometry with request_review after successful import.',
     {bundleId:bundleIdSchema,fileId:z.string().regex(/^[1-9][0-9]{0,11}$/),machineId:z.string(),units:z.enum(['auto','mm','inch']).default('auto')},
     async({bundleId,fileId,machineId,units})=>{
       const dir=await directory(bundleId,{create:true});
-      const result=await importThingi10KBundle(meshLibrary,dir,fileId,{machineId,units,setupFile:await setupFile(machineId)});
+      const remembered=await setupFile(machineId);
+      const result=await importing(bundleId,options=>importThingi10KBundle(meshLibrary,dir,fileId,{machineId,units,setupFile:remembered,...options}));
       return {...result,...(result.imported?summary(bundleId,await (await bundles.shell()).loadBundle(dir)):{bundleId})};
     },false,true);
   localExtension.registerMcp?.({tool,z,bundleIdSchema,objectSchema,idSchema,read,noApprovalFields});
@@ -418,7 +439,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   }, false);
   tool('get_approval_status', 'Read the fresh hash-bound final settings/toolpath approval from the saved bundle. Caller-provided approvals are never accepted.', { bundleId: bundleIdSchema }, async ({ bundleId }) => summary(bundleId, (await read(bundleId)).state));
   tool('begin_studio_work','Start Studio work as early as practical for an edit to an existing print — you may acknowledge the person first; the claim it records is what later mutations and result reports check, so make it before either. Identify the Studio instance when more than one is open. Edits start Updating preview; guidance stays visually quiet. For a Studio-originated request, pass its requestId to claim that request. Resolve every started request with respond_to_studio_request.',
-    {bundleId:bundleIdSchema.optional(),studioInstanceId:z.string().optional(),instruction:z.string().min(1).max(8000),requestId:z.string().optional(),kind:z.enum(['edit','guidance']).default('edit')},async({bundleId,studioInstanceId,instruction,requestId,kind})=>{
+    {bundleId:bundleIdSchema.optional(),studioInstanceId:z.string().optional(),instruction:z.string().min(1),requestId:z.string().optional(),kind:z.enum(['edit','guidance']).default('edit')},async({bundleId,studioInstanceId,instruction,requestId,kind})=>{
       const record=requestId?await agentRequests.get(requestId):null;
       if(!studioInstanceId&&record?.studioInstanceId)studioInstanceId=record.studioInstanceId;
       const session=studioInstanceId?studioSessions.get(studioInstanceId):null;
@@ -436,7 +457,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       return agentRequests.begin({directory:dir,instruction,kind,studioInstanceId});
     },false);
   tool('respond_to_studio_request','After saving the intended inputs, publish status working with resultStage geometry or toolpath for every edit. Intermediate saves cannot finish a request; automatic tour generation waits for this target. Bind every included request when combining edits. Use waiting when paused for a choice or confirmation; resume the same requestId without losing its target. Complete after sending guidance or presenting the requested result; geometry-only work needs no generation. Mark failures explicitly. Studio clears Updating preview when the bound result is displayed, independently of this acknowledgement.',
-    {requestId:z.string(),status:z.enum(['working','waiting','completed','failed','cancelled']).default('completed'),resultStage:z.enum(['geometry','toolpath']).optional(),message:z.string().max(8000).default('')},async({requestId,...response})=>agentRequests.update(requestId,response),false);
+    {requestId:z.string(),status:z.enum(['working','waiting','completed','failed','cancelled']).default('completed'),resultStage:z.enum(['geometry','toolpath']).optional(),message:z.string().default('')},async({requestId,...response})=>agentRequests.update(requestId,response),false);
   tool('wait_for_studio_request','Wait for Studio to request maker-agent input. Send any completed edit acknowledgement in chat commentary BEFORE this call. Do not defer it to the final response. While guiding a tour, call this between lessons instead of ending the turn and requiring the participant to ask for guidance. Claim a returned request and resolve it after doing its work. Prepare imported-model start layers silently; Studio leads the early lessons. Give proactive chat guidance only at the designated infill lesson and completion. Repeat after a timeout while the participant is navigating, without waiting for a chat message. Omit waitMs: the session uses the longest wait its client allows.',
     {after:z.array(z.string()).optional(),waitMs:z.number().int().min(0).max(LISTEN_LIMIT_MS).optional(),claim:z.boolean().optional(),studioInstanceId:z.string().optional()},async(args,session)=>{
       if(args.studioInstanceId&&!studioSessions.has(args.studioInstanceId))throw Error('That Studio instance is not owned by this agent.');
@@ -444,10 +465,26 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       const result=await agentRequests.wait({...args,waitMs}),generation=generationStatus();
       return generation.length?{...result,generation}:result;
     });
-  tool('get_studio_events','Read and clear the Studio event queue: what the person did in your owned Studio instances since your last read (lesson changes, opened prints, imports, exports, approvals, displayed results, calculation start/finish/failure/cancellation, viewer connections) plus live toolpath calculation progress. Delivered events also arrive on tool results and listener waits; sequence numbers identify repeats. Set history to include recently read events.',
+  tool('get_studio_events','Read and clear the Studio event queue: what the person did in your owned Studio instances since your last read (lesson changes, opened prints, imports, exports, approvals, displayed results, calculation start/finish/failure/cancellation, viewer connections) plus live import/repair and toolpath progress with elapsed time. Delivered events also arrive on tool results and listener waits; sequence numbers identify repeats. Set history to include recently read events.',
     {history:z.boolean().default(false)},async({history})=>({events:studioEvents.drain(),generation:generationStatus(),...(history?{recent:studioEvents.history()}:{})}));
   tool('get_studio_requests','Read outstanding work and the latest edit outcome per print. Set history for all resolved records; optionally restrict to one print.',{bundleId:bundleIdSchema.optional(),history:z.boolean().default(false)},async({bundleId,...options})=>({requests:await agentRequests.query({...options,printId:bundleId})}));
   tool('get_studio_sessions','List live Studio instances owned exclusively by this agent. One agent may own several instances; print bundles remain shareable across agents.',{},async()=>({sessions:[...studioSessions.values()].map(({server:studio,url})=>({...studio.agentSession(),url}))}));
+  tool('cancel_studio_calculation','Cancel a live import/automatic repair or toolpath calculation. Supply studioInstanceId for Studio work; omit it for a tool import or generation. First read get_studio_events for its identity, elapsedMs and actual progress; pass the import jobId or Studio toolpath generationHash; direct tool generation requires both jobId and generationHash. Repairs have no reliable remaining-time estimate and continue unless cancelled. Explain your decision to the person. Cancellation interrupts work and cleans incomplete imports; it does not change the previously open print.',
+    {studioInstanceId:z.string().optional(),jobId:z.string().optional(),generationHash:z.string().optional()},async({studioInstanceId,...identity})=>{
+      if(!studioInstanceId){
+        const imported=imports.get(identity.jobId);
+        if(imported){
+          imported.controller.abort(Object.assign(Error('Import cancelled.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));
+          return {cancelled:true,kind:'import',jobId:identity.jobId};
+        }
+        const generation=generations.get(identity.jobId);
+        if(!generation||identity.generationHash!==generation.generationHash)throw Error('Read the active jobId and generationHash before cancelling.');
+        const result=generation.job.cancel();await result.done;
+        return {cancelled:result.cancelled,committing:result.committing,kind:'generation',jobId:identity.jobId};
+      }
+      const session=studioSessions.get(studioInstanceId);if(!session)throw Error('Choose a live Studio instance owned by this agent.');
+      return session.server.cancelCalculation({...identity,reason:'agent'});
+    },false);
   tool('get_tour','Read the active tour print, lesson gates and maker-agent instruction. After reaching the chat lesson, offer infill options in chat. After completion, immediately congratulate the participant, offer help with any difficulties printing the downloaded file, and ask what she wants to make next. Optional bounded wait follows user progress.',
     {after:z.string().optional(),waitMs:z.number().int().min(0).max(25000).optional()},async({after,waitMs=0})=>{
       const deadline=Date.now()+waitMs;
@@ -487,8 +524,19 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   },false);
   tool('generate_toolpath', 'Generate and check the declared export from the current geometry and complete settings, including during the tour. This is reviewable output, not approval.', { bundleId: bundleIdSchema }, async ({ bundleId }) => {
     const { dir, bundle } = await locate(bundleId);
-    const checks = await bundle.generateBundle(dir,{development:false});
-    return { ...summary(bundleId, await bundle.loadBundle(dir)), checks };
+    const state=await bundle.loadBundle(dir,{program:false}),jobId=randomUUID(),startedAt=Date.now();
+    const job=new PreparedGenerationJob({key:dir+':'+state.generationHash,directory:dir,generationHash:state.generationHash,
+      createWorker:cancellation=>new Worker(new URL('../../../studio/generation-worker.mjs',import.meta.url),{workerData:{directory:dir,generationHash:state.generationHash,progress:true,cancellation}})});
+    job.worker?.ref();
+    generations.set(jobId,{jobId,printId:bundleId,generationHash:state.generationHash,startedAt,job});
+    studioEvents.record('generation-started',{jobId,printId:bundleId,generationHash:state.generationHash,trigger:'agent'});
+    try{
+      const {checks}=await job.generate(false);
+      studioEvents.record('generation-finished',{jobId,printId:bundleId,generationHash:state.generationHash,durationMs:Date.now()-startedAt});
+      return { ...summary(bundleId, await bundle.loadBundle(dir)), checks };
+    }catch(error){
+      studioEvents.record(error.code==='GENERATION_CANCELLED'?'generation-cancelled':'generation-failed',{jobId,printId:bundleId,generationHash:state.generationHash,error:error.message,stage:error.stage??'generation'});throw error;
+    }finally{generations.delete(jobId);await job.dispose();}
   }, false);
   tool('deliver_toolpath', 'Copy the exact current human-reviewed export bytes into the bundle delivery folder. Fails without current toolpath approval. Does not run hardware.', { bundleId: bundleIdSchema }, async ({ bundleId }) => {
     const { dir, bundle } = await locate(bundleId);
@@ -527,7 +575,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   async function chatStatus(){
     const requests=await agentRequests.query(),clip=text=>String(text??'').replace(/\s+/g,' ').trim().slice(0,120);
     const queued=requests.filter(r=>r.status==='queued'),working=requests.find(r=>r.status==='working');
-    const calculating=generationStatus().some(g=>['preparing','generating'].includes(g.status));
+    const calculating=generationStatus().find(g=>['preparing','generating','importing'].includes(g.status));
     // Only this session's failures: an earlier chat's are not this one's error.
     const since=runtime.session?.started??Infinity;
     const latest=requests.filter(r=>!r.connectionClosed&&r.updatedAt>=since).reduce((a,b)=>!a||b.updatedAt>a.updatedAt?b:a,null);
@@ -536,7 +584,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     const light=(state,text)=>({state,text,...shown});
     if(working)return light('working','Working on: '+clip(working.instruction));
     if(queued.length)return light('working',queued.length>1?`${queued.length} Studio requests waiting for the chat`:'Studio request waiting for the chat');
-    if(calculating)return light('working','Calculating the toolpath');
+    if(calculating)return light('working',calculating.status==='importing'?'Importing geometry':'Calculating the toolpath');
     if(chat.working)return light('working','Working');
     if(latest?.status==='failed')return light('error','Failed: '+clip(latest.message||latest.instruction));
     if(requests.some(r=>r.status==='waiting'))return light('done','Waiting for you in Studio');
@@ -577,6 +625,8 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       end:()=>endSession(session)};
   }
   function endSession(session){return session.ending??=Promise.resolve().then(async()=>{
+    for(const job of imports.values())job.controller.abort(Object.assign(Error('Import cancelled because the agent session closed.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));
+    await Promise.all([...generations.values()].map(({job})=>job.cancel().done));
     await work.tail;
     await agentRequests.endSession();
     for(const {server:studio} of studioSessions.values())await studio.agentDisconnected(ownerId);

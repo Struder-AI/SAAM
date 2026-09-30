@@ -17,20 +17,20 @@ const finite=(v,min,max)=>Number.isFinite(v)&&v>=min&&v<=max;
 export function validateSupports(settings,process) {
   requireThat(exact(settings,Object.keys(SUPPORT_DEFAULTS).join()),`Support settings are ${Object.keys(SUPPORT_DEFAULTS).join(', ')}; a standard support is a slice assignment with the support preset.`);
   requireThat(typeof settings.enabled==='boolean'&&Array.isArray(settings.assignments),'Invalid support selection.');
-  requireThat(finite(settings.topGapMm,0,10)&&finite(settings.xyGapMm,0,10),'Support gaps must be 0–10 mm.');
-  requireThat(finite(settings.treeChordMm,0.001,0.2),'Support treeChordMm must be 0.001–0.2 mm.');
+  requireThat(finite(settings.topGapMm,0,Infinity)&&finite(settings.xyGapMm,0,Infinity),'Support gaps must be nonnegative.');
+  requireThat(finite(settings.treeChordMm,Number.MIN_VALUE,Infinity),'Support treeChordMm must be positive.');
   const ids=new Set();
   for(const a of settings.assignments){
     requireThat(exact(a,'id,reason,contactZMm,treeNodes'),'Tree support assignments need id, reason, contactZMm and treeNodes.');
     requireThat(typeof a.id==='string'&&/^[a-z][a-z0-9-]*$/.test(a.id)&&!ids.has(a.id),'Invalid or duplicate support assignment ID.');ids.add(a.id);
     requireThat(typeof a.reason==='string'&&a.reason.trim().length>0,'Describe why this support area was assigned.');
-    requireThat(finite(a.contactZMm,process.firstLayerMm+settings.topGapMm,1000),'Support contact height must leave room for a first layer and top gap.');
+    requireThat(finite(a.contactZMm,process.firstLayerMm+settings.topGapMm,Infinity),'Support contact height must leave room for a first layer and top gap.');
     requireThat(Array.isArray(a.treeNodes)&&a.treeNodes.length>=2,'Tree supports need nodes.');
     const nodes=new Map();
     for(const n of a.treeNodes){
       requireThat(exact(n,'id,parent,point,radiusMm')&&typeof n.id==='string'&&n.id.length>0&&!nodes.has(n.id),'Invalid or duplicate tree node.');
       requireThat(Array.isArray(n.point)&&n.point.length===3&&n.point.every(Number.isFinite)&&n.point[2]>=0&&n.point[2]<=a.contactZMm-settings.topGapMm+1e-8,'Tree node lies outside the support height interval.');
-      requireThat(finite(n.radiusMm,process.lineWidthMm,100),'Tree radius must be at least one line width and at most 100 mm.');
+      requireThat(finite(n.radiusMm,Number.MIN_VALUE,Infinity),'Tree radius must be positive.');
       nodes.set(n.id,n);
     }
     for(const n of nodes.values()){

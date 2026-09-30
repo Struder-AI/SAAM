@@ -3,8 +3,8 @@ import {rhino} from './geometry.mjs';
 import {buildShell} from './generate.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
 import {compileHeatSet} from '../../skills/heat-set-inserts/scripts/geometry.mjs';
-import {heatSetFeature} from '../../skills/heat-set-inserts/scripts/feature.mjs';
-import {heatSetSlices,HEAT_SET_SLICE_PREFIX} from '../../skills/heat-set-inserts/scripts/slices.mjs';
+import {heatSetFeature,heatSetAssignmentId,legacyHeatSetAssignmentId} from '../../skills/heat-set-inserts/scripts/feature.mjs';
+import {heatSetSlices} from '../../skills/heat-set-inserts/scripts/slices.mjs';
 import {unwrapTextGeometry,rebuildTextGeometry} from './text.mjs';
 
 export async function applyHeatSet(directory,request,{expectedRevision}={}){
@@ -34,7 +34,18 @@ export async function applyHeatSet(directory,request,{expectedRevision}={}){
   // Reinforcement is slice data: this part's heat-set owners are rewritten
   // ahead of every other slice assignment, so they claim their volumes first.
   const part=request.part??null;
-  const kept=plan.slices.assignments.filter(a=>!(a.part===part&&a.id.startsWith(HEAT_SET_SLICE_PREFIX)));
-  plan.slices={...plan.slices,assignments:[...features.flatMap(f=>heatSetSlices(heatSetFeature(f),part,plan.process)),...kept]};
+  const existingByFeature=new Map(),kept=[];
+  for(const assignment of plan.slices.assignments){
+    const owners=assignment.part===part?(old?.features??[]).filter(f=>{
+      const current=heatSetAssignmentId(f,part),legacy=legacyHeatSetAssignmentId(f);
+      return [current,legacy].includes(assignment.id)||[[current,'--fin-'],[legacy,'-fin-']].some(([name,separator])=>
+        assignment.id.startsWith(name+separator)&&/^\d+$/.test(assignment.id.slice(name.length+separator.length)));
+    }):[];
+    requireThat(owners.length<=1,'Existing heat-set assignment identity is ambiguous; rename its feature/assignment explicitly before editing.');
+    if(!owners.length){kept.push(assignment);continue;}
+    const id=owners[0].id,ids=existingByFeature.get(id)??new Set();ids.add(assignment.id);existingByFeature.set(id,ids);
+  }
+  plan.slices={...plan.slices,assignments:[...features.flatMap(f=>heatSetSlices(heatSetFeature(f),part,plan.process,
+    {existingIds:existingByFeature.get(f.id)??new Set()})),...kept]};
   return updatePlan(directory,plan,state.revision);
 }

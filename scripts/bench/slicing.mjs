@@ -12,14 +12,10 @@ import { makeMesh, parseSTL } from '../../core/geom/mesh.mjs';
 import { topAt } from '../../core/geom/query.mjs';
 import { section, horizontalSlice, sliceFamily } from '../../core/geom/slice.mjs';
 import { signedArea } from '../../core/geom/shell.mjs';
-import { translateShell } from '../../core/print/generate.mjs';
+import { generatePath } from '../../core/print/generate.mjs';
 import { defaults, VERSION, BUILD_DATE } from '../../core/print/plan.mjs';
-import { loadMachine, startupPosition, toolBounds, checkMachinePath } from '../../core/machine/profile.mjs';
-import { sliceResults } from '../../core/print/slices.mjs';
-import { skinAssignment, surveySkinAssignment, skinResult } from '../../core/print/surface-constructions.mjs';
-import {createPlanningState,planContext,planFan,planRetraction,planMove,planningPath} from '../../core/path/planning.mjs';
-import { planComposition } from '../../core/path/compose.mjs';
-import { planarSupportTopAt } from '../../core/region/support-surface.mjs';
+import { loadMachine } from '../../core/machine/profile.mjs';
+import { skinAssignment } from '../../core/print/surface-constructions.mjs';
 import { exportProgram, interpretProgram } from '../../core/export/registry.mjs';
 
 const args = process.argv.slice(2), arg = (name, fallback) => args.includes(name) ? args[args.indexOf(name) + 1] : fallback;
@@ -29,7 +25,7 @@ const save = (p, data) => fs.writeFileSync(p, JSON.stringify(data, null, 2) + '\
 const root = path.resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const out = path.resolve(arg('--out', '.local/slicing-bench'));
 const trials = Number(arg('--trials', '3'));
-if (!Number.isInteger(trials) || trials < 1 || trials > 20) throw new Error('--trials must be 1–20');
+if (!Number.isSafeInteger(trials) || trials < 1) throw new Error('--trials must be a positive safe integer');
 const machine = loadMachine('ultimaker-s5');
 const measure = fn => { const t = performance.now(), value = fn(); return { ms: performance.now() - t, value }; };
 const stats = values => { const a = [...values].sort((x, y) => x - y); return { medianMs: a[Math.floor(a.length / 2)], minMs: a[0], maxMs: a.at(-1), samplesMs: values }; };
@@ -44,38 +40,17 @@ function roofPoints(name) {
   for (let i = 0; i < 16; i++) for (let j = 0; j < 16; j++) points.push([f.width * (0.2 + 0.6 * (i + 0.37) / 16), f.depth * (0.2 + 0.6 * (j + 0.61) / 16)]);
   return points;
 }
-function compose(shell, plan, results) {
-  const initial=createPlanningState({start:startupPosition(machine,plan),process:plan.process,machine,generatorVersion:VERSION,motionBounds:toolBounds(machine,plan.setup.tool)});
-  const started=planFan(initial,0),composed=planComposition(started.state,results,plan.composition);
-  const finishing=planContext(composed.state,'finish',0),retracted=planRetraction(finishing.state);
-  const parked=planMove(retracted.state,[retracted.state.position[0],retracted.state.position[1],shell.bounds.max[2]+plan.process.liftMm],plan.process.zSpeedMmS);
-  const cooled=planFan(parked.state,0);
-  const result=planningPath(cooled.state,[started.actions,composed.actions,retracted.actions,parked.actions,cooled.actions],{benchmark:true,composition:composed.summary});
-  checkMachinePath(result,plan,machine);return result;
-}
-function skillTrial(shell, mode, geometry) {
-  const plan = defaults(machine); plan.process.minimumLayerSeconds = 0;
-  plan.geometry=geometry;
-  const assignment=skinAssignment({id:'draped-skin'});
-  if(mode==='draped')plan.slices.assignments.push(assignment);
-  // full and draped: a solid body; planar: the default slice (loops, sparse fill, solid top and bottom).
-  if (mode !== 'planar') plan.slices.assignments[0].fillDensity = 1;
-  let survey = null, results;
-  const time = {};
-  const t = performance.now();
-  if (mode === 'draped') { const m = measure(() => surveySkinAssignment({assignment,shell,machine})); survey = m.value; time.surveyMs = m.ms; }
-  const p = measure(() => sliceResults({ plan, machine, shells: [[null, shell, true]], volumes: new Map(), bands: [], reserves: survey ? [survey] : [] }).results);
-  results = p.value; time.bodyMs = p.ms;
-  if (mode === 'draped') { const m = measure(() => skinResult({ assignment,shell,process:plan.process,machine,survey,
-    supportTopAt: planarSupportTopAt([{ shell }], plan.process, { allowBridge: true }),
-    after: results.flatMap(r => r.operations.map(o => o.id)) })); results.push(m.value); time.skinMs = m.ms; }
-  const c = measure(() => compose(shell, plan, results)); time.composeAndCheckMs = c.ms; time.sliceMs = performance.now() - t;
-  const e = measure(() => exportProgram(c.value, plan, machine, { generatorVersion: VERSION, buildDate: BUILD_DATE })); time.exportMs = e.ms;
-  const k = measure(() => interpretProgram(e.value, plan, machine)); time.interpretMs = k.ms;
-  const actions = c.value.actions;
-  return { time, actions: actions.length, depositedMm3: actions.reduce((v, a) => v + (a.volumeMm3 ?? 0), 0),
-    operations: results.reduce((n, r) => n + r.operations.length, 0), exportBytes: Buffer.byteLength(e.value),
-    pathHash: sha(c.value), exportHash: sha(e.value), reports: results.map(r => ({ id: r.id, report: r.report })) };
+function skillTrial(mode, geometry, rhino) {
+  const base=defaults(machine),plan={...base,geometry,placement:{xMm:100,yMm:100},
+    process:{...base.process,minimumLayerSeconds:0},slices:{...base.slices,assignments:base.slices.assignments.map(a=>
+      mode==='planar'?a:{...a,fillDensity:1})}};
+  if(mode==='draped')plan.slices.assignments.push(skinAssignment({id:'draped-skin'}));
+  const c=measure(()=>generatePath(plan,machine,rhino)),time={sliceMs:c.ms};
+  const e=measure(()=>exportProgram(c.value,plan,machine,{generatorVersion:VERSION,buildDate:BUILD_DATE}));time.exportMs=e.ms;
+  const k=measure(()=>interpretProgram(e.value,plan,machine));time.interpretMs=k.ms;
+  return {time,actions:c.value.actions.length,depositedMm3:c.value.actions.reduce((v,a)=>v+(a.volumeMm3??0),0),
+    operations:c.value.summary.composition.operationOrder.length,exportBytes:Buffer.byteLength(e.value),
+    pathHash:sha(c.value),exportHash:sha(e.value),summary:c.value.summary};
 }
 
 async function worker() {
@@ -99,13 +74,12 @@ async function worker() {
       else if (value.some(v => !v)) throw new Error('Missing roof query');
     } catch (error) { result.errors.push({ phase: name, message: error.message, stack: error.stack }); }
   }
-  const placed = translateShell(shell, 100, 100);
   for (const mode of config.modes) {
     process.stderr.write(`${config.name} ${config.backend} ${mode}\n`);
     const attemptStarted = performance.now();
     try { const geometry=config.backend==='spline'?fixtureGeometry(config.name):{shape:'mesh',vertices:config.mesh.vertices,triangles:config.mesh.triangles};
-      const first = skillTrial(placed, mode, geometry), samples = [];
-      for (let i = 0; i < trials; i++) samples.push(skillTrial(placed, mode, geometry));
+      const first = skillTrial(mode, geometry, r), samples = [];
+      for (let i = 0; i < trials; i++) samples.push(skillTrial(mode, geometry, r));
       if (samples.some(s => s.pathHash !== first.pathHash || s.exportHash !== first.exportHash)) throw new Error('Nondeterministic path/export');
       result.phases[mode] = Object.fromEntries(Object.keys(first.time).map(k => [k, { firstMs: first.time[k], ...stats(samples.map(s => s.time[k])) }]));
       result[mode] = { ...samples.at(-1), time: undefined };
@@ -174,14 +148,14 @@ async function main() {
   const modes = arg('--modes', 'full,planar,draped').split(',');
   if (modes.some(m => !['full', 'planar', 'draped'].includes(m))) throw new Error('Invalid skill mode');
   const git = (...a) => execFileSync('git', a, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  const runtimeFiles = [...git('ls-files', 'core', 'skills', 'machines', 'package-lock.json').split('\n').filter(p => /\.(mjs|json)$/.test(p)),
+  const runtimeFiles = [...new Set(git('ls-files','--cached','--others','--exclude-standard','core','skills','machines','package-lock.json').split('\n').filter(p => /\.(mjs|json)$/.test(p)&&fs.existsSync(path.join(root,p)))),
     'scripts/bench/slicing.mjs', 'scripts/bench/fixtures.mjs'];
   const sourceHashes = Object.fromEntries(runtimeFiles.map(p => [p, sha(fs.readFileSync(path.join(root, p)))]));
   const report = { date: new Date().toISOString(), node: process.version, platform: process.platform, cpu: os.cpus()[0].model,
     logicalCpus: os.cpus().length, totalMemoryGiB: os.totalmem() / 2 ** 30, commit: git('rev-parse', 'HEAD'), dirty: git('status', '--short'),
     sourceHashes, runtimeHash: sha(sourceHashes), trials, modes, targets, results: [], fixtures: [], errors: [],
     process: { ...defaults(machine).process, minimumLayerSeconds: 0 }, skillSettings: defaults(machine).skills, slices: defaults(machine).slices,
-    timingBoundary: 'Prepared-geometry skills, shared composition + machine checks. Excludes production plan validation, bundle I/O, runtime hashing, native reopening, Studio, delivery and OS process launch. Export/interpretation reported separately. All workers serial; one first run plus warm repeats. No forced GC.' };
+    timingBoundary: 'Shared generatePath including recipe validation and geometry preparation. Excludes bundle I/O, runtime hashing, native reopening, Studio, delivery and OS process launch. Export/interpretation reported separately. All workers serial; one first run plus warm repeats. No forced GC.' };
   const r = await rhino3dm();
   for (const name of names) {
     process.stderr.write(`Preparing ${name}\n`);

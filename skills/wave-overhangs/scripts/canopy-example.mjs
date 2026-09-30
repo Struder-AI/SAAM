@@ -49,5 +49,5 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).hr
   const dir=resolve(process.argv[2]),plan=canopyExamplePlan(loadMachine(),p=>console.log(JSON.stringify(p)));
   await initBundle(dir,plan);
   const result=await generateBundle(dir,{development:true}),state=await loadBundle(dir);
-  console.log(JSON.stringify({directory:dir,mode:result.mode,waves:state.pathSummary.waveOverhangs.map(r=>({waves:r.waves,passes:r.continuity.passes,evaluations:r.evaluations,points:r.points}))},null,2));
+  console.log(JSON.stringify({directory:dir,mode:result.mode,waves:state.pathSummary.slices.instances.filter(r=>r.fillOrder).map(r=>({id:r.id,...r.fillOrder}))},null,2));
 }

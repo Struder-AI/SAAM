@@ -14,7 +14,8 @@ export function bumpyPlan(){
     return 13.40+2.34*Math.sin(2*angle+phase[0]+2.8*t)+1.00*Math.cos(3*angle+phase[1]-4*t)+.445*Math.sin(angle+phase[2]+6*t);};
   plan.geometry=splineTube({columns,rows:8,heightMm:32,boreRadiusMm:8,radiusAt});
   Object.assign(plan.slices.assignments[0],{loops:3,fillDensity:1});
-  Object.assign(plan.slices.assignments.find(a=>a.construction==='cladding'),{shells:6,sampleStepMm:.65,toleranceMm:.01,surface:tubeSurface(columns)});
+  const coating=plan.slices.assignments.find(a=>a.stack?.direction==='normal');
+  Object.assign(coating,{within:[{kind:'normal-band',fromMm:0,toMm:1.2}],sampleStepMm:.65,fillOrder:{...coating.fillOrder,toleranceMm:.01},surface:tubeSurface(columns)});
   return plan;
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){

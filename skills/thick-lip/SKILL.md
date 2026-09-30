@@ -27,22 +27,22 @@ does not supply one. A schedule such as two, three, then two neighboring paths
 can make a rolled profile; paths may extend beyond the modeled wall. Width
 changes must remain supported by preceding material.
 
-## Existing Slice preset
+## Follow a finished boundary
 
-The recipe still accepts `construction:'rim'`, a specialized Slice preset
-consuming a same-part sleeve with `endTransition:'level'`:
+Ordinary Slice can follow a source's closed, level terminal curve:
 
 ```json
-{"id":"lip","construction":"rim","part":null,"filament":null,
- "process":null,"after":[],"source":"wall","steps":[2,3,2],"minFeatureMm":0.4}
+{"id":"lip","loops":[2,3,2],"fillDensity":0,"solidTop":0,"solidBottom":0,
+ "surface":{"kind":"terminal","assignment":"wall","minFeatureMm":0.4},
+ "contact":{"source":"wall"}}
 ```
 
-Each positive `steps` entry is a perimeter count for one layer. Curves are
-centered around the source boundary; process settings set spacing and height.
-With substrate adaptation off, the reference is nominal. When enabled,
-finalized source beads and prior rim courses supply contact; missing contact
-rejects. This preset is not another deposition family, and is not yet a fully
-general boundary-reference authoring interface.
+Use the normal assignment tool to fill remaining defaults. Each loop count
+selects one course. Spacing and height use the assignment's process settings.
+The source can be Slice or a closed Trace, including a level-ended vase.
+With substrate adaptation enabled, finalized source beads and preceding courses
+supply contact; missing contact rejects. The old `construction:'rim'` record
+requires explicit migration to these fields.
 
 The underlying technique has user-reported physical prints; experimental contact
 adaptation and large width jumps remain unqualified. Follow the shared review

@@ -3,7 +3,7 @@
 import {projectToPatch} from './field.mjs';
 import {pointInRegion,pointSegmentDistance} from '../region/region2d.mjs';
 import {normalize,cross,dot,requireThat} from './tolerance.mjs';
-import {heightSlicePoint,heightReferenceBounds} from './height-slice.mjs';
+import {heightSlicePoint,heightReferenceBounds,referenceHeight} from './height-slice.mjs';
 
 export function chartPrism(reference,{loopsUv,direction,fromMm,toMm}){
   requireThat(['patch','height-field'].includes(reference.kind)&&fromMm<toMm&&loopsUv.length,'A chart prism needs a surface region and increasing translation bounds.');
@@ -25,6 +25,10 @@ export function chartPrismContains(prism,point){
   if(prism.reference.kind==='height-field'){
     const uv=point.slice(0,2);
     if(!pointInRegion(uv,prism.loopsUv))return false;
+    // Sampled chart outlines can include a point just outside the source graph.
+    // Such a membership query is empty; mapping a requested path there still
+    // fails in heightSlicePoint. Invalid/folded references retain their errors.
+    if(!referenceHeight(prism.reference.reference,...uv))return false;
     const surface=heightSlicePoint(prism.reference,uv),distance=point[2]-surface[2];
     return distance>prism.fromMm+1e-8&&distance<=prism.toMm+1e-8;
   }

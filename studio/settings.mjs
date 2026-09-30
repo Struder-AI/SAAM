@@ -7,12 +7,6 @@ export const hasConstruction=(plan,kind)=>(plan.slices?.assignments??[]).some(a=
 export const pathModeName=settings=>settings?.pathMode==='segmented'?'Segmented paths':settings?.pattern?'Continuous sleeve pattern':'Vase wall';
 export const hasSkill=(plan,name)=>Boolean(plan.skills?.[name]?.enabled);
 const value=v=>v===null||v===undefined?'Not set':Array.isArray(v)?v.join(', '):String(v);
-export const claddingPatternName=settings=>settings.pattern==='crossed-helices'?'crossed helices':'axial / circumferential';
-export function claddingSubstrateName(plan,clad=plan.slices.assignments.find(a=>a.construction==='cladding')){
-  if(clad.source!==null)return clad.source+' · deposited surface';
-  const sources=(plan.slices?.assignments??[]).filter(a=>a.id!==clad.id&&a.preset!=='support'&&a.part===clad.part);
-  return sources.length?sources.map(a=>a.id).join(' + ')+' · deposited surface':'No deposited source';
-}
 const fields={
   lineSpacingMm:['Wave spacing along surface',' mm'],beadHeightMm:['Bead height',' mm'],speedMmS:['Deposition speed',' mm/s'],
   fanPercent:['Part cooling','%'],propagationStepMm:['Surface propagation step',' mm'],
@@ -48,17 +42,15 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
     if(key==='spacingFactor'&&v===1)continue;
     if(key==='pattern'&&name==='vase-wall'){
       if(v){
-        const tiled=Boolean(v.tile),paths=tiled?[v.tile]:v.paths;
+        const paths=v.paths;
         rows.push([prefix+' · Pattern','Repeated tile on the selected solid or sleeve'],
           [prefix+' · Deposition','Pattern strokes only; the sleeve is not printed'],
           [prefix+' · Repetitions',String(v.repeats)],
-          [prefix+' · Advance',tiled?'1 perimeter turn / '+v.courseRiseMm+' mm rise':v.advance[0]+' perimeter turns / '+v.advance[1]+' mm rise'],
+          [prefix+' · Advance',v.advance[0]+' perimeter turns / '+v.advance[1]+' mm rise'],
           [prefix+' · Mapping',settings.meshSleeve?'Smooth fitted sleeve, followed by one-sided mesh contact':'Actual inset contour at each height; fraction of perimeter length']);
-        if(tiled)rows.push([prefix+' · Tiling',v.cellsPerTurn+' cells per course × '+v.repeats+' courses'],
-          [prefix+' · Tile tilt',v.tiltDeg+'° about the cell advance direction']);
         for(const [i,path] of paths.entries())rows.push(
           [prefix+' · Pattern path '+(i+1),path.points.length+' points'],
-          [prefix+' · Start / end '+(i+1),path.points[0].join(', ')+' → '+path.points.at(-1).join(', ')+(tiled?' (cell fraction, mm)':' (turns, mm)')],
+          [prefix+' · Start / end '+(i+1),path.points[0].join(', ')+' → '+path.points.at(-1).join(', ')+' (turns, mm)'],
           [prefix+' · Bead height '+(i+1),Array.isArray(path.beadHeightMm)?path.beadHeightMm.join(', ')+' mm':path.beadHeightMm+' mm']);
         for(const [i,path] of paths.entries())if(path.offsetMm!==undefined){
           const values=Array.isArray(path.offsetMm)?path.offsetMm:[path.offsetMm];
@@ -95,9 +87,7 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
       continue;
     }
     const [label,unit]=fields[key]??[key,''];
-    const rendered=key==='pattern'&&name==='pipe-cladding'?claddingPatternName(settings)
-      :key==='maxAngleDegOverride'&&v===null?'Machine profile limit'
-      :key==='zEndMm'&&v===null?'Geometry top'
+    const rendered=key==='zEndMm'&&v===null?'Geometry top'
       :key==='endTransition'?(settings.pattern?({'level':'Flat pattern courses at both ends','spiral':'Authored pattern ending'}[v]??value(v)):({'level':'Level rim','spiral':'Spiral rim'}[v]??value(v)))
       :value(v)+unit;
     rows.push([prefix+' · '+label,rendered]);
@@ -106,27 +96,29 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
 }
 // Slice assignments in definition order: where each owner slices and how.
 const volumeName=v=>v.kind==='slab'?(v.toMm===null?v.fromMm+' mm to top':v.fromMm+'–'+v.toMm+' mm'):v.kind==='geometry'?'assigned volume'
-  :v.kind==='outline'?'first-layer outline':'footprint to '+v.contactZMm+' mm';
+  :v.kind==='outline'?'first-layer outline':v.kind==='normal-band'?v.fromMm+'–'+v.toMm+' mm normal depth':v.kind==='surface-domain'?'surface courses '+v.fromLayer+' to '+v.toLayer:'footprint to '+v.contactZMm+' mm';
 export function sliceSummary(a){
   if(a.construction==='inject')return a.points.length+' injection point(s) · '+a.points.reduce((sum,p)=>sum+p.volumeMm3,0)+' mm³ authored volume';
-  if(a.construction==='rim')return a.steps.join(', ')+' rings per course · source '+a.source;
-  if(a.construction==='cladding')return a.shells+' surface courses · '+claddingPatternName(a);
   if(a.construction==='sleeve')return pathModeName(a)+' · '+a.zStartMm+'–'+(a.zEndMm??'geometry top')+' mm';
-  if(a.construction==='skin')return a.layers+' roof courses · '+a.pitchMm+' mm mean normal gap';
-  if(a.construction==='fronts')return 'Seeded surface fronts · '+a.lineSpacingMm+' mm spacing';
   if(a.construction==='curves')return a.curves.length+' centerline(s) · '+(a.repeat?.count??1)+' course(s)';
-  if(a.construction==='bridges')return a.bridges.length+' bridge(s)';
+  if(a.surface?.kind==='terminal')return a.loops.join(', ')+' rings per course · source '+a.surface.assignment;
+  if(a.stack?.direction==='normal')return a.stack.layerMm+' mm normal pitch · '+a.fillOrder.directions.join(' / ');
+  if(a.surface?.kind==='roof')return 'Roof courses · '+a.stack.layerMm+' mm mean normal gap';
+  if(a.fillOrder?.kind==='fronts')return 'Seeded surface fronts · '+a.fillOrder.lineSpacingMm+' mm spacing';
   if(a.preset==='brim')return a.loops+(a.loops===1?' loop':' loops')+' around the first-layer outline';
   const fill=a.fillDensity>=1?'solid':a.fillDensity===0?'no fill':Math.round(a.fillDensity*100)+'% '+a.fillPattern+' fill';
   const solid=a.fillDensity<1&&(a.solidBottom||a.solidTop)?[a.preset==='support'?a.solidTop+' interface layers':a.solidBottom+' bottom / '+a.solidTop+' top solid layers']:[];
   return [a.loops+(a.loops===1?' loop':' loops'),fill,...solid].join(' · ');
 }
 export function sliceRows(plan){
-  return (plan.slices?.assignments??[]).flatMap(a=>[...(a.construction?(a.construction==='inject'?injectionRows(a):['skin','fronts'].includes(a.construction)?surfaceAssignmentRows(a):curveAssignmentRows(a)):[
+  return (plan.slices?.assignments??[]).flatMap(a=>[...(a.construction?(a.construction==='inject'?injectionRows(a):curveAssignmentRows(a)):[
     [a.id,(a.preset==='support'?'Support':(a.part??'Part'))+' · '+(a.within.length?a.within.map(volumeName).join(' within '):'the rest of the part')+' · '+sliceSummary(a)],
     [a.id+' · Fill directions',a.fillAnglesDeg.join(', ')+'°'+(a.rotateFill&&a.fillAnglesDeg.length>1?', alternating by layer':'')],
     ...(a.stack?[[a.id+' · Layers',a.stack.firstLayerMm+' mm first, then '+a.stack.layerMm+' mm']]:[]),
     [a.id+' · Reference',sliceReferenceName(a.surface)],
+    ...(a.contact?[[a.id+' · Contact source',a.contact.source??'Available finalized deposition']]:[]),
+    ...(a.toolPose?[[a.id+' · Derived pose',a.toolPose.alignToSliceNormal?'Follow slice normal':'Upright along print Z']]:[]),
+    ...(a.fillOrder?.kind==='fronts'?[[a.id+' · Surface propagation',a.fillOrder.lineSpacingMm+' mm spacing · '+a.fillOrder.propagationStepMm+' mm step']]:[]),
     ...(a.spacingFactor!==1?[[a.id+' · Line spacing',a.spacingFactor+'× nominal spacing; bead width unchanged']]:[])
   ]),
     ...(a.filament!==null?[[a.id+' · Filament',String(a.filament+1)]]:[]),
@@ -153,15 +145,13 @@ function injectionRows(a){
 function sliceReferenceName(surface){
   if(!surface||surface.kind==='horizontal')return 'Horizontal plane';
   if(surface.kind==='plane')return 'Plane at '+surface.origin.join(', ')+' mm · normal '+surface.normal.join(', ');
-  return (surface.kind==='roof'?'Part roof':'Spline surface')+' · vertical offset '+surface.offsetMm+' mm';
+  if(surface.kind==='terminal')return 'Terminal closed boundary of '+surface.assignment;
+  if(surface.kind==='roof')return 'Part roof · vertical offset '+surface.offsetMm+' mm';
+  return surface.kind==='mesh-strip'?'Explicit mesh strip':surface.kind+' surface · '+(typeof surface.patch==='string'?surface.patch:surface.patch?.name??'authored patch');
 }
 function curveAssignmentRows(a){
   const rows=[[a.id,sliceSummary(a)],[a.id+' · Print after',(a.after??a.dependencies?.after??[]).join(', ')||'Shared dependency order']];
   if(a.construction==='sleeve')return [...rows,[a.id+' · Part',a.part??'Part'],...skillSettingsRows('vase-wall',a,a.id)];
-  if(a.construction==='rim')return [...rows,[a.id+' · Part',a.part??'Part'],[a.id+' · Minimum feature',a.minFeatureMm+' mm']];
-  if(a.construction==='cladding')return [...rows,[a.id+' · Part',a.part??'Part'],[a.id+' · Source',a.source??'Finalized producers of the selected part'],
-    [a.id+' · Thickness / tilt',a.normalMm+' mm per course · '+a.tiltDeg+'°'],[a.id+' · Line spacing',a.spacingFactor+'× nominal'],
-    [a.id+' · Offset tightness',a.offsetTightness+' · 0 loose / 1 normal distance']];
   if(a.construction==='curves'){
     if(a.repeat)rows.push([a.id+' · Repetition',a.repeat.family?'Family '+a.repeat.family+' · '+(a.repeat.indices?.join(', ')??'all layers'):a.repeat.translation.join(', ')+' mm × '+a.repeat.count]);
     for(const [i,c] of a.curves.entries()){
@@ -172,28 +162,8 @@ function curveAssignmentRows(a){
       for(const [key,title,unit] of [['beadWidthMm','Bead width',' mm'],['heightMm','Bead height',' mm'],['speedMmS','Speed',' mm/s'],['flowMultiplier','Flow multiplier','×']])
         if(c[key]!==undefined)rows.push([label+' · '+title,c[key]+unit]);
     }
-  }else{
-    rows.push([a.id+' · Maximum vertical excursion',a.maxExcursionMm+' mm']);
-    for(const b of a.bridges){
-      const label=a.id+' · '+b.id;
-      rows.push([label,b.mode+' · '+b.rails[0].length+' spans'],[label+' · Support',b.supportBridge??'Finalized model deposition'],
-        [label+' · Span',b.speedMmS+' mm/s · '+b.flowMultiplier+'× flow'],
-        [label+' · Attachment',b.attachmentSpeedMmS+' mm/s · '+b.overlapMm+' mm overlap · '+b.pressMm+' mm press'],
-        [label+' · Approach',b.leadInMm+' mm lead · '+b.jogMm+' mm jog']);
-      if(b.endAttachment){const e=b.endAttachment;rows.push([label+' · End attachment',e.speedMmS+' mm/s · '+e.flowMultiplier+'× flow · '+e.overlapMm+' mm overlap · '+e.pressMm+' mm press · '+e.jogMm+' mm jog']);}
-    }
   }
-  return rows;
-}
-function surfaceAssignmentRows(a){
-  const rows=[[a.id,sliceSummary(a)],[a.id+' · Print after',(a.after??a.dependencies?.after??[]).join(', ')||'Shared dependency order']];
-  if(a.construction==='skin')rows.push([a.id+' · Roof',a.part??'Part'],[a.id+' · Substrate source',a.supportFrom??'Part body'],[a.id+' · Stroke direction',a.strokeAngleDeg+'°'],
-    [a.id+' · Spacing',a.spacingFactor+'× nominal'],[a.id+' · Angle limit',a.maxAngleDegOverride===null?'Machine profile':a.maxAngleDegOverride+'° experimental override']);
-  else rows.push([a.id+' · Surface',a.surface.kind==='patch'?(a.surface.part??'Part')+' / '+a.surface.patch:'Authored spline reference'],
-    [a.id+' · Seed',a.seedUv.length+' supported loop(s) · '+a.reason],
-    [a.id+' · Process',a.beadHeightMm+' mm bead height · '+a.speedMmS+' mm/s · '+a.fanPercent+'% fan'],
-    [a.id+' · Supporting parts',a.afterParts.map(p=>p??'Part').join(', ')||'Externally supported seed'],
-    [a.id+' · Before parts',a.beforeParts.map(p=>p??'Part').join(', ')||'No assigned successor']);
+  if(a.maxExcursionMm!==null)rows.push([a.id+' · Maximum vertical excursion',a.maxExcursionMm+' mm']);
   return rows;
 }
 export function recipeRows(plan,machine){
@@ -212,7 +182,7 @@ export function recipeRows(plan,machine){
     }
   }
   rows.push(['Machine · Planar wall tolerance',planarWallTolerance(machine)+' mm'],...sliceRows(plan));
-  for(const m of plan.modulations?.modifiers??[])rows.push([m.id+' · Modulation',m.channel+' · '+m.field.kind+' field · amplitude '+m.amplitude+(m.channel==='displacement'?' mm':'')],
+  for(const m of plan.modulations?.modifiers??[])rows.push([m.id+' · Modulation',m.channel+' · '+m.field.kind+' field · amplitude '+m.amplitude+(m.channel==='displacement'?' mm':m.channel==='tilt'?'°':'')],
     [m.id+' · Applies to',(m.assignments?.join(', ')??'All assignments')+' · '+(m.roles?.join(', ')??'All stroke roles')],
     ...(m.direction?[[m.id+' · Direction',typeof m.direction==='string'?m.direction:m.direction.join(', ')+' in '+(m.frame??'world')+' coordinates']]:[]),
     [m.id+' · Placement',(m.frame??'world')+' frame'+(m.layers?' · layers '+m.layers.from+'–'+m.layers.to:'')+(m.topN?' · top '+m.topN+' layers':'')+(m.phasePerLayerRad?' · '+m.phasePerLayerRad+' rad phase per layer':'')]);

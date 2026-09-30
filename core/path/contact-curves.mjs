@@ -32,7 +32,7 @@ export function depositedContact(segments,{toleranceMm=0}={}){
     const normal=normalize(direction),ceiling=normal.reduce((sum,n,i)=>sum+n*(n>=0?bounds.max[i]:bounds.min[i]),0)+toleranceMm;
     const start=point.map((p,i)=>p+normal[i]*(ceiling-dot(point,normal)));
     const candidates=[],pending=[tree];
-    while(pending.length){const node=pending.pop();if(!intersects(node.bounds,start,normal))continue;if(node.items)candidates.push(...node.items);else pending.push(node.left,node.right);}
+    while(pending.length){const node=pending.pop();if(!intersects(node.bounds,start,normal))continue;if(node.items)candidates.push(...node.items.filter(entry=>intersects(entry.bounds,start,normal)));else pending.push(node.left,node.right);}
     const hit=beadContactAlong(candidates.map(e=>e.segment),start,normal,{toleranceMm});
     return hit?{...hit,segmentIndex:candidates[hit.segmentIndex].index}:null;
   }};

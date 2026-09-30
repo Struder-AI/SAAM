@@ -18,12 +18,12 @@ volume separately. `surface:{kind:'roof',offsetMm:0}` follows the selected part;
 `within` surface-domain volume selects the footprint and course interval.
 Use ordinary part/material selection and operation dependencies.
 
-The existing `construction:'skin'` authoring preset surveys a roof footprint
-and lowers to those ordinary Slice fields. Its controls are `layers` (2),
-`pitchMm` (0.2), `spacingFactor` (1), `strokeAngleDeg` (0), `sampleStepMm` (0.5),
-`surveyStepMm` (0.5), and optional `supportFrom`. Common `part`, `filament`,
-`process` and `after` settings apply. This convenience record still exists;
-it is not another toolpath skill. Legacy `normalMm` needs explicit migration.
+To survey the selected roof automatically, use
+`within:[{kind:'surface-domain',loopsUv:null,fromLayer:-2,toLayer:0,maxSlopeDeg:90,sampleStepMm:0.5}]`.
+The footprint follows geometry edits. An explicit `loopsUv` instead selects a
+known chart domain. Use `contact:{source:null}` for available supporting material
+or name a required producer. There is no serialized skin record; explicit
+migration converts old skin settings to these ordinary Slice fields.
 
 Whole-reference normals calibrate translation to the target mean normal gap.
 Local gaps vary and directly set volume: segment length × width × normal gap.
@@ -31,10 +31,9 @@ This compensation does not depend on modulation or experimental deposition.
 XY spacing is projected; these are not constant-normal offset surfaces.
 
 `experimental.substrateAdaptation` defaults off. When enabled, finalized source
-beads supply measured contact; explicit `supportFrom` requires contact. Gaps
+beads supply measured contact; an explicit contact source requires contact. Gaps
 change volume while preserving authored XYZ. Excessive gaps or missing required
 contact reject; no transition courses or sacrificial supports are inserted.
 
-Sampling can miss small features. Machine angle, bead-height, flow and bounds
-limits apply. Pressure, adhesion, full-head clearance and physical bead shape
+Sampling can miss small features. Machine compatibility is checked by the exporter. Pressure, adhesion, full-head clearance and physical bead shape
 are not modeled; earlier prints do not qualify the revised pipeline.

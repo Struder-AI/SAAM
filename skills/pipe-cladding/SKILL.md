@@ -1,167 +1,82 @@
 ---
 name: pipe-cladding
-description: Guidance for experimental axial or helical Slice coatings; the current preset requires a configured DENSO robot and rotary.
+description: Guidance for experimental axial or helical Slice coatings on periodic surface references.
 metadata:
   saam-kind: guidance
 ---
 
 # Surface cladding with Slice
 
-For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
-[builder orientation](../../BUILDERS.md) and follow its task-specific references.
-This is a bounded development implementation for the DENSO VS-068A4 with RC8A and
-an external rotary. RC8A is user-confirmed; ceiling mounting with the robot base
-axis coaxial with the rotary remains provisional. No physical print is validated.
+Cladding is ordinary Slice over a selected surface and a normal-depth band.
+Author its substrate with any geometry/deposition combination that supplies the
+selected finished boundary. No machine is required to construct the SAAMpath.
 
-Cladding is a use of Slice on a sleeve reference, not a separate toolpath skill.
-This guide describes the existing specialized `cladding` preset. Its rotary and
-periodic-chart restrictions remain implementation gaps, not universal limits on
-coating a surface with Slice or Trace.
+## Recipe
 
-## Geometry and process
+Use the normal assignment editor; it supplies the remaining Slice defaults:
 
-Cladding coats the finished outer boundary of a printed substrate, selected as a
-[sleeve](#select-the-sleeve). Author the substrate like any other part: a spline
-or mesh tube printed by common slice, sleeve or skin assignments. Add a
-`construction:'cladding'` record to `plan.slices.assignments`; set `part` for an
-assembly component. `source:null` consumes its finalized producers, or an assignment
-ID selects one producer. Cladding waits for those operations, then builds outward.
+```json
+{
+  "id":"coating", "loops":0, "fillDensity":1, "solidTop":0, "solidBottom":0,
+  "surface":{"kind":"spline","patch":"outer","periodicU":true,
+             "normalSide":1,"uvBounds":[[0,24],[0,1]]},
+  "stack":{"firstLayerMm":0.2,"layerMm":0.2,"direction":"normal"},
+  "within":[{"kind":"normal-band","fromMm":0,"toMm":0.8}],
+  "fillOrder":{"kind":"surface-cells","directions":["axial","circumferential"],
+               "toleranceMm":0.01,"offsetTightness":1},
+  "contact":{"source":null}
+}
+```
 
-The first shell runs up and down the sleeve, continuing deposition across the
-short index between neighboring tracks at each end. The next is a circumferential
-helix. Further shells alternate. Set `pattern: "crossed-helices"` for a helix on
-every shell with opposite winding on successive shells; each runs bottom to top,
-and the shared transition returns to the next shell's lower end with extrusion
-off. Wider [line spacing](../../core/print/USAGE.md#line-spacing) opens the
-crossed pattern without increasing bead width. Each shell depends on the complete
-preceding shell; the existing operation composer owns dependencies, joins and order.
+The four 0.2 mm courses alternate axial tracks and circumferential helices.
+`directions:["forward","reverse"]` alternates helical winding. A longer list
+repeats in order. `spacingFactor` changes track pitch without changing bead
+width. `fromMm` and `toMm` select the owned normal-depth interval; overlapping
+owners use the common ownership allocator rather than depositing twice.
 
-| Cladding assignment field | Default | Meaning |
-|---|---|---|
-| `id`, `construction` | required, `cladding` | Unique assignment ID and construction. |
-| `source`, `filament`, `process`, `after` | `null`, `null`, `null`, `[]` | Producer selection, material, process overrides and operation prerequisites. |
-| `part` | `null` | Component whose finished surface is coated; required in an assembly. |
-| `pattern` | `axial-hoop` | Alternating axial/helix shells, or `crossed-helices`. |
-| `shells` | `4` | Positive integer; follows the selected pattern outward. |
-| `normalMm` | `0.2` | Shell thickness along the surface normal. |
-| `tiltDeg` | `45` | Tool tilt from the downward surface tangent toward the surface, between 0 and 90. |
-| `sampleStepMm` | `1` | Maximum sample spacing along courses. |
-| `toleranceMm` | `0.01` | Chord tolerance. |
-| `surface` | `null` | Required periodic surface chart. |
-| `offsetTightness` | `1` | For spline sleeves, blend a fixed-size loose NURBS offset field (`0`) toward the exact unit-normal offset (`1`). Mesh strips keep exact normal interpolation. |
+`part` selects an assembly component. A null contact source consumes its
+available finalized producers; an assignment ID selects one. Source operation
+prerequisites are retained. Geometry edits update the reference; the recipe does
+not freeze a mesh or baked machine path. Legacy `construction:'cladding'` records
+require explicit migration to these ordinary Slice fields.
 
-Shared line width sets track spacing and helix pitch; `skinSpeedMmS` controls
-cladding speed. Intent volume uses rectangular bead area. These are deposition
-approximations, not a measured bead model or proof of level, filled end surfaces.
+## Select a surface
 
-### Select the sleeve
+- Native spline: the selected named patch and increasing `uvBounds` use its own
+  parameters. `normalSide` is 1 or -1. The U seam must agree in position/normal.
+- Mesh strip: `{kind:'mesh-strip',rows:[[...],...],periodicU:true,normalSide:1}`.
+  Rows contain native vertex indices along V; successive rows progress in U,
+  with a duplicate final seam row. Every cell matches two native triangles.
+  Reordering or replacing mesh vertices requires revising this explicit chart.
 
-A **sleeve** is a surface periodic in one direction, closing on a seam, and open
-in the other (the side of a tube). Cladding is laid out on it; the sleeve itself
-is not deposited.
+The current cell field needs a rectangular chart periodic in U. It does not
+unwrap arbitrary meshes or cover open patches. Those are geometric algorithm
+boundaries, not skill or machine eligibility. Use explicit Trace curves for
+other authored coverage.
 
-- Spline: `{kind:'spline', patch:'outer', periodicU:true, normalSide:1,
-  uvBounds:[[u0,u1],[v0,v1]]}`. Bounds are the patch's own parameters, normally
-  its whole domain; positive normal points out of the substrate.
-- Mesh: `{kind:'mesh-strip', rows:[[...],...], periodicU:true, normalSide:1}`.
-  Each row lists native vertex indices along V; consecutive rows progress in U,
-  and the last U row repeats the first for a periodic seam. Every cell must match
-  two existing native mesh triangles. Point evaluation stays on those triangles;
-  area-weighted selected-face vertex normals are interpolated for an explicitly
-  smooth offset/pose field. This does not reconstruct a CAD surface. Rebuilding
-  or reordering the mesh requires rebuilding the rows.
+The source must actually deposit the selected boundary. A vase's unfinished
+spiral only supplies its completed side height; patterns publish their real
+strokes, never an implicit filled guide wall. Sparse gaps remain gaps.
 
-A spline tube is four patches that share one periodic cubic U basis (exterior,
-bore, and two annular ends ruled between them); [GEOMETRY.md](../../GEOMETRY.md#spline-surfaces)
-describes periodic sleeves and the tube.
+## Contact and pose
 
-For a hollow substrate, add a sleeve assignment and keep an ordinary slice for a
-solid base, and select the same geometry's side as the sleeve. A level vase
-ending supplies the complete side height; a spiral ending publishes only the side
-below its lowest unfinished rim. The [finished-surface interface](../../core/path/README.md#finished-surfaces)
-binds chart geometry, material extent, coverage and source operation IDs.
-Unprinted components are rejected. Experimental [substrate adaptation](../../GLOSSARY.md)
-defaults off: cladding uses the nominal selected chart and source prerequisites.
-When `experimental.substrateAdaptation: true`, the chart follows finalized beads,
-including modulation; missing contact rejects. It creates no Supports. Pose-bearing
-cladding modulation remains unsupported; free-form paths imply no filled surface.
+`experimental.substrateAdaptation` defaults off: the nominal chart and source
+prerequisites determine the family. When enabled, the chart follows finalized
+beads, including modulation, and missing required contact rejects. It adds no
+support or gap-fill material.
 
-### Coverage and pose
+Normals and metric come from the selected chart. Offsets are ambient normal
+placements, not geodesic offsets. Cell widths account for local surface metric;
+partial axial cells begin/end where coverage appears. `sampleStepMm` and
+`toleranceMm` control sampling; this is no global surface-error guarantee.
+For native spline references, `offsetTightness` interpolates loose to exact
+normal offsets (0–1); mesh strips use their interpolated normal field.
 
-The shared [surface-region query](../../core/geom/surface-region.mjs) retains
-native parameters; the [normal-surface operations](../../core/region/normal-surface.mjs)
-evaluate ambient normal offsets and refine curve samples to millimetre chord and
-step targets. These are ambient offsets, not geodesic boundary offsets.
+Pose output is optional. `toolPose:{}` derives upright poses; use
+`toolPose:{alignToSliceNormal:true}` to follow the surface normal. Field `tilt`
+modulation can vary either mode. SAAMpath keeps these derived poses independent of
+the machine; its exporter handles their representation. The [DENSO demo](scripts/demo.mjs)
+uses normal alignment and synthetic setup, not installation calibration or approval.
 
-Axial coverage partitions the periodic U domain into local sectors, measures
-their offset-surface arc length at sampled V rows, and allocates bead-width cells
-within each sector. A cell's course starts or ends when local width crosses its
-threshold; the last cell tapers its intended width. Alternating direction avoids
-flipping the nozzle frame. Neighboring courses ending within 2 mm continue
-deposition across that index; other repositioning turns extrusion off and uses
-the shared oriented retreat/approach policy. Hoop layers use a continuous
-periodic helix with pitch from a sampled longest meridian and locally scaled bead
-width.
-
-Nozzle direction blends inward surface normal and negative V tangent using
-`tiltDeg`; 45 degrees bisects them. Tool Y is V cross normal. Unwrapped rotary
-angles bring each contact azimuth to the working side, including many
-revolutions without a modulo reset. The same interpreted tool frame drives
-Studio's bead orientation.
-
-Current limits: one selected component and one rectangular sleeve chart; no
-arbitrary face-region unwrapping, chart holes, multi-patch seam routing,
-open-patch cladding or inward material reservation. Folded offset surfaces,
-offset self-intersections and mesh normal-field singularities are not resolved.
-Coverage is sampled, not a certified geodesic spacing or bead-volume proof. The
-sample count follows from `sampleStepMm`, `toleranceMm` and the surface, with no
-fixed budget. Fixed relay flow cannot meter narrow terminal cells; software
-intent and relay estimates remain separate. Physical clearance, robot feasibility
-and execution remain unverified.
-
-## Machine setup and source output
-
-Read the [RC8A output contract](../../core/export/denso.md#denso-rc8a-output-contract).
-Record the actual tool/work frames,
-arm group and figure, rotary interface/axis/sign/zero, bed center, frame offset/yaw,
-initial position/orientation, relay IO and measured relay rate in `setup.denso`.
-`configurationSource` and `mounting` describe the basis for those values.
-Work coordinates must be defined with Z parallel to the bed axis; the calibrated
-RC8A Work definition accounts for the ceiling installation. The SAAM transform
-currently supports translation and yaw between that frame and the displayed room.
-The optional [nominal presentation model](../../core/machine/README.md) requires
-separate explicit base/tool alignment and model seed; it does not establish
-controller joint or FIG parity.
-
-The implemented rotary interface is `rc8a-relative-ex`: a configured RC8A extended
-joint commanded through `EX`. An independently controlled rotary needs another
-machine adapter and synchronized execution; it must not be silently treated as
-this interface. Continuous multi-turn capacity and cable routing are unresolved
-installation properties.
-
-The ZIP contains `main.pcs`, included helper `.pcs` files and a manifest. Add the
-source to the appropriate WINCAPS III project and compile/transfer using its
-installed controller configuration. SAAM has not verified that vendor import or
-compilation. It interprets its emitted literal `Move L, @0 T(...) EX(...), Time=...`
-subset and relay `Set/Reset IO` commands; it is not a general PacScript interpreter.
-
-RC8A handles inverse kinematics for Cartesian poses. SAAM defers reach, singularity,
-joint and motion-limit checks as requested, alongside collision avoidance.
-Travel uses prescribed retreat/reorient/approach moves; it does not solve a clear
-route. Pose changes do not silently flatten to XYZ or disappear during compaction.
-
-Playback assumes synchronized linear command progress at external speed 100%.
-`Time` is requested milliseconds; `@0` endpoints, acceleration, rotary interpolation,
-IO latency and actual speeds are not physically verified. Relay intent volume
-and duration-times-rate material estimates are displayed separately, as with
-Dobot. Fixed relay flow does not automatically follow tapered intent or speed
-changes. No heating, homing or initial positioning is inserted. Temperature
-control is external; retraction and fan control are unavailable.
-
-## Development references
-
-The [tube demo](scripts/demo.mjs), [bumpy demo](scripts/bumpy-demo.mjs) and
-[wavy-denso workspace](../../examples/prints/wavy-denso/README.md) create
-unapproved examples with invented installation values. Never use those as
-machine calibration. [DENSO software checks](../../core/tests/denso.test.mjs)
-cover emitted sources and reopening, not physical controller qualification.
+No physical cladding print is qualified. Inspect adhesion, transitions,
+clearance and motion with the person through the ordinary Studio review.

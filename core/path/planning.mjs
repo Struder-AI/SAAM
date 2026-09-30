@@ -4,15 +4,13 @@
 import {requireThat,distance,TOLERANCE} from '../geom/tolerance.mjs';
 import {combRoute,combSegment} from './comb.mjs';
 import {uprightPose,validatePose,samePose,bedPoint} from './pose.mjs';
-import {requireProcessControl} from './process-controls.mjs';
-import {sameNozzleMaterialChanges} from '../machine/rules.mjs';
 
 export const MINIMUM_MOVE_MM=1e-4,NEARBY_MOVE_MM=1,CONNECT_MOVE_MM=2;
 
 export function createPlanningState({start,process,machine,generatorVersion,motion=null,motionBounds,retracted=false,selection=null,selections=null}) {
   requireThat(Array.isArray(start)&&start.length===3&&start.every(Number.isFinite),'Path planning needs a 3D start position.');
-  return {start:[...start],position:[...start],process,machine,generatorVersion,motion,selection,selections,defaultFilament:selection?.filament,toolRetractions:{},
-    pose:motion?structuredClone(motion.initialPose):null,retracted,phase:'start',layer:0,layerSeconds:0,depositedMaxZ:0,
+  return {start:[...start],position:[...start],process,machine,generatorVersion,motion:motion??{retreatMm:process.liftMm,transitionSeconds:1,rotaryCenterMm:[0,0,0]},initialPose:motion?.initialPose??null,selection,selections,defaultFilament:selection?.filament,toolRetractions:{},
+    pose:motion?.initialPose?structuredClone(motion.initialPose):null,retracted,phase:'start',layer:0,layerSeconds:0,depositedMaxZ:0,
     ...(motionBounds?{motionBounds}:{}),stats:{joined:0,connected:0,combed:0,hopped:0,travelMm:0,retractions:0,printMm:0}};
 }
 
@@ -25,22 +23,10 @@ export function planSelection(state,filament){
   const incoming=state.selections[filament??state.selection.filament];
   requireThat(incoming,'Operation selects an undeclared filament.');
   if(incoming.filament===state.selection.filament)return planningResult(state);
-  const sameNozzle=sameNozzleMaterialChanges(state.machine)&&incoming.tool===state.selection.tool;
-  requireThat(sameNozzle||state.machine.id==='bambu-h2d'&&incoming.tool!==state.selection.tool,'This machine does not implement this material change.');
-  const lift=state.machine.outputs.find(o=>o.id==='bambu-gcode').constraints.toolChangeLiftMm;
-  requireThat(Number.isFinite(lift)&&lift>0,'Machine has no tool-change clearance contract.');
-  const retracted=planRetraction(state),z=Math.max(state.position[2],state.depositedMaxZ+lift);
-  const lo=state.motionBounds.min.map((v,i)=>Math.max(v,incoming.bounds.min[i]));
-  const hi=state.motionBounds.max.map((v,i)=>Math.min(v,incoming.bounds.max[i]));
-  requireThat(lo.every((v,i)=>v<=hi[i])&&z<=hi[2],'Tool change exceeds common nozzle clearance bounds.');
-  const lifted=planMove(retracted.state,[state.position[0],state.position[1],z],state.process.zSpeedMmS);
-  const point=[Math.max(lo[0],Math.min(hi[0],state.position[0])),Math.max(lo[1],Math.min(hi[1],state.position[1])),z];
-  const approached=planMove(lifted.state,point,state.process.travelSpeedMmS);
-  const toolRetractions={...state.toolRetractions,[state.selection.tool]:retracted.state.retracted};
-  const changed=appendAction({...approached.state,selection:incoming,process:incoming.process,motionBounds:incoming.bounds,
-    toolRetractions,retracted:sameNozzle?incoming.process.retractMm>0:toolRetractions[incoming.tool]??false,moveRun:null},
+  // The action names material intent. Installed nozzle changes, clearance and
+  // retraction debt are resolved by the selected output adapter.
+  return appendAction({...state,selection:incoming,process:incoming.process,retracted:false,moveRun:null},
     {kind:'toolChange',filament:incoming.filament,tool:incoming.tool,phase:state.phase,layer:state.layer,operation:state.operationId});
-  return planningResult(changed.state,{chunks:[retracted.actions,lifted.actions,approached.actions,changed.actions]});
 }
 
 // Local emission storage for ONE planning stage, never shared planning state.
@@ -79,45 +65,37 @@ export function planContext(state,phase,layer,operationId=state.operationId) {
 export function planMove(input,to,speed,volumeMm3=0,extra={}) {
   requireThat(Array.isArray(to)&&to.length===3&&to.every(Number.isFinite)&&Number.isFinite(speed)&&speed>0&&Number.isFinite(volumeMm3)&&volumeMm3>=0,'Invalid path move.');
   const state={...input,stats:{...input.stats}},length=distance(state.position,to);
-  if(state.pose){
-    const pose=validatePose(extra.pose??state.pose);
-    if(length<MINIMUM_MOVE_MM&&samePose(state.pose,pose))return planningResult(input);
-    const limited=volumeMm3>0?Math.min(speed,state.process.maxFlowMm3S*length/volumeMm3):speed;
-    const seconds=extra.durationSeconds??(length>=MINIMUM_MOVE_MM?length/limited:state.motion.transitionSeconds);
-    requireThat(Number.isFinite(seconds)&&seconds>0,'Pose motion needs positive duration.');
-    const action={kind:'move',to:[...to],speedMmS:speed,volumeMm3,phase:state.phase,layer:state.layer,
-      ...(state.operationId?{operation:state.operationId}:{}),...extra,pose:structuredClone(pose),durationSeconds:seconds};
-    state.layerSeconds+=seconds;
-    if(volumeMm3>0){state.stats.printMm+=length;state.depositedMaxZ=Math.max(state.depositedMaxZ,state.position[2],to[2]);}
-    else state.stats.travelMm+=length;
-    state.position=[...to];state.pose=structuredClone(pose);
-    return appendAction(state,action);
+  const pose=extra.pose?validatePose(extra.pose):null;
+  if(length===0){
+    requireThat(volumeMm3===0,'Stationary deposition needs an explicit extrusion action.');
+    if(!pose||state.pose&&samePose(state.pose,pose))return planningResult(input);
   }
-  requireThat(!extra.pose,'Machine cannot represent oriented/rotary motion.');
-  const coordinateDecimals=state.machine.id==='dobot-mg400'?10:5;
-  if(length<MINIMUM_MOVE_MM&&state.position.every((v,i)=>Number(v.toFixed(coordinateDecimals))===Number(to[i].toFixed(coordinateDecimals))))return planningResult(input);
   let limited=speed;
   if(volumeMm3>0)limited=Math.min(limited,state.process.maxFlowMm3S*length/volumeMm3);
   const dz=Math.abs(to[2]-state.position[2]);
-  if(dz>0)limited=Math.min(limited,state.process.zSpeedMmS*length/dz);
-  for(let i=0;i<3;i++)if(Math.abs(to[i]-state.position[i])>0)
-    limited=Math.min(limited,state.machine.maxFeedMmS['xyz'[i]]*length/Math.abs(to[i]-state.position[i]));
+  if(!pose&&dz>0)limited=Math.min(limited,state.process.zSpeedMmS*length/dz);
+  const seconds=pose?(extra.durationSeconds??(length>0?length/limited:state.motion.transitionSeconds)):length/limited;
+  requireThat(Number.isFinite(seconds)&&seconds>0,'Motion needs positive duration.');
   const action={kind:'move',to:[...to],speedMmS:limited,volumeMm3,phase:state.phase,layer:state.layer,
-    ...(state.operationId?{operation:state.operationId}:{}),...extra};
+    ...(state.operationId?{operation:state.operationId}:{}),...extra,...(pose?{pose:structuredClone(pose),durationSeconds:seconds}:{})};
   const run=state.moveRun;
-  let emitted;
+  let emitted,shortenedMm=0;
   if(run&&state.lastAction===run.action&&mergeableMove(run,action)){
-    const replacement={...run.action,to:action.to,volumeMm3:run.action.volumeMm3+volumeMm3,speedMmS:Math.min(run.action.speedMmS,limited)};
+    const previousLength=distance(run.from,run.action.to),combinedLength=distance(run.from,to);
+    const duration=(run.action.durationSeconds??previousLength/run.action.speedMmS)+seconds;
+    const replacement={...run.action,to:action.to,volumeMm3:run.action.volumeMm3+volumeMm3,speedMmS:combinedLength/duration,
+      ...(pose?{durationSeconds:duration}:{})};
+    shortenedMm=previousLength+length-combinedLength;
     state.moveRun={...run,action:replacement};state.lastAction=replacement;state.lastNonFan=replacement;
     emitted={replaceLast:replacement,append:[]};
   } else {
-    state.moveRun={action,from:[...state.position],direction:to.map((v,i)=>(v-state.position[i])/length),density:volumeMm3/length};
+    state.moveRun=length>0?{action,from:[...state.position],direction:to.map((v,i)=>(v-state.position[i])/length),density:volumeMm3/length}:null;
     state.lastAction=action;state.lastNonFan=action;emitted={append:[action]};
   }
-  state.layerSeconds+=length/limited;
-  if(volumeMm3>0){state.stats.printMm+=length;state.depositedMaxZ=Math.max(state.depositedMaxZ,state.position[2],to[2]);}
-  else state.stats.travelMm+=length;
-  state.position=[...to];
+  state.layerSeconds+=seconds;
+  if(volumeMm3>0){state.stats.printMm+=length-shortenedMm;state.depositedMaxZ=Math.max(state.depositedMaxZ,state.position[2],to[2]);}
+  else state.stats.travelMm+=length-shortenedMm;
+  state.position=[...to];state.pose=pose?structuredClone(pose):null;
   return planningResult(state,emitted);
 }
 
@@ -135,12 +113,10 @@ export function planRecovery(state) {
 
 export function planFan(state,percent) {return appendAction(state,{kind:'fan',percent,phase:state.phase,layer:state.layer});}
 export function planNozzle(state,targetC) {
-  requireProcessControl(state.machine);
   requireThat(Number.isFinite(targetC)&&targetC>0,'Invalid operation temperature.');
   return appendAction(state,{kind:'temperature',targetC,phase:state.phase,layer:state.layer,operation:state.operationId});
 }
 export function planExtrusion(state,volumeMm3,flowMm3S) {
-  requireProcessControl(state.machine);
   requireThat(!state.retracted&&Number.isFinite(volumeMm3)&&volumeMm3>0&&Number.isFinite(flowMm3S)&&flowMm3S>0,'Invalid stationary extrusion.');
   const flow=Math.min(flowMm3S,state.process.maxFlowMm3S);
   return appendAction({...state,layerSeconds:state.layerSeconds+volumeMm3/flow,
@@ -153,7 +129,7 @@ export function planDwell(state,seconds) {
 
 export function travelClearance(state,target=state.position) {
   const clearance=Math.max(state.depositedMaxZ+state.process.liftMm,state.position[2],target[2]);
-  requireThat(Number.isFinite(clearance)&&(state.machine.motionChecks==='deferred'||clearance<=(state.motionBounds??state.machine.bounds).max[2]),'Travel clearance exceeds machine/tool Z bounds.');
+  requireThat(Number.isFinite(clearance),'Travel clearance must be finite.');
   return clearance;
 }
 
@@ -185,7 +161,7 @@ export function canPlanComb(state,target,policy,distanceLimit,from=state.positio
 }
 
 export function planTravel(state,target,policy,targetPose) {
-  if(state.pose&&(targetPose||!samePose(state.pose,uprightPose())))return planPoseTravel(state,target,policy,targetPose);
+  if(targetPose)return planPoseTravel(state,target,policy,targetPose);
   const gap=distance(state.position,target);
   if(gap<=1e-9){
     const recovered=planRecovery({...state,stats:{...state.stats,joined:state.stats.joined+1}});
@@ -215,7 +191,12 @@ export function planTravel(state,target,policy,targetPose) {
 }
 
 export function planPoseTravel(state,target,policy,targetPose) {
-  const pose=validatePose(targetPose??uprightPose());
+  const pose=validatePose(targetPose);
+  if(!state.pose){
+    const travelled=planTravel(state,target,policy);
+    const oriented=planMove(travelled.state,target,state.process.travelSpeedMmS,0,{pose,durationSeconds:state.motion.transitionSeconds,travel:'reorient'});
+    return planningResult(oriented.state,{chunks:[travelled.actions,oriented.actions]},{travelKind:travelled.travelKind});
+  }
   if(distance(state.position,target)<1e-9&&samePose(state.pose,pose)){
     const recovered=planRecovery({...state,stats:{...state.stats,joined:state.stats.joined+1}});
     return {...recovered,travelKind:'joined'};
@@ -255,20 +236,27 @@ export function materializeActions(actionChunks) {
 
 export function planningPath(state,actionChunks,summary={}) {
   return {schema:'saampath/1',generatorVersion:state.generatorVersion,units:'mm',materialUnits:'mm3',initialPosition:state.start,
-    ...(state.motion?{initialPose:structuredClone(state.motion.initialPose),motionFrame:'part',rotaryCenterMm:state.motion.rotaryCenterMm}:{}),
+    ...(state.initialPose?{initialPose:structuredClone(state.initialPose),motionFrame:'part',rotaryCenterMm:state.motion.rotaryCenterMm}:{}),
     actions:materializeActions(actionChunks),summary:{...summary,travel:{...state.stats}}};
 }
 
 function mergeableMove(run,next) {
-  const previous=run.action,keys=Object.keys(previous).filter(k=>!['to','volumeMm3','speedMmS'].includes(k));
+  const previous=run.action,omitted=['to','volumeMm3','speedMmS','durationSeconds'],keys=Object.keys(previous).filter(k=>!omitted.includes(k));
   const close=(a,b)=>Math.abs(a-b)<=1e-10*Math.max(1,Math.abs(a),Math.abs(b));
   const physical=['gapMm','normalHeightMm','slopeDeg','lowerSurfaceGapStartMm','lowerSurfaceGapEndMm','sampledGapErrorMm'];
-  if(keys.length!==Object.keys(next).length-3||keys.some(k=>previous[k]!==next[k]&&
+  if(keys.length!==Object.keys(next).filter(k=>!omitted.includes(k)).length||keys.some(k=>previous[k]!==next[k]&&
+    !(k==='pose'&&previous.pose&&next.pose&&samePose(previous.pose,next.pose))&&
     !(physical.includes(k)&&Number.isFinite(previous[k])&&Number.isFinite(next[k])&&close(previous[k],next[k]))))return false;
   if(!close(previous.speedMmS,next.speedMmS)||(previous.volumeMm3>0)!==(next.volumeMm3>0))return false;
   const segmentLength=distance(previous.to,next.to);
+  if(segmentLength===0)return false;
   if(!close(run.density,next.volumeMm3/segmentLength))return false;
   const vector=next.to.map((v,i)=>v-run.from[i]),along=vector.reduce((s,v,i)=>s+v*run.direction[i],0);
   const before=previous.to.reduce((s,v,i)=>s+(v-run.from[i])*run.direction[i],0);
-  return along>before&&Math.hypot(...vector.map((v,i)=>v-along*run.direction[i]))<=TOLERANCE.plane;
+  // Every accepted endpoint stays in a tube around the original run axis.
+  // Half the tiny-move tolerance bounds deviation from the eventual chord too;
+  // successive local merges cannot accumulate unbounded curve flattening.
+  const tiny=Math.min(segmentLength,distance(run.from,previous.to))<MINIMUM_MOVE_MM;
+  const tolerance=tiny?MINIMUM_MOVE_MM/2:TOLERANCE.plane;
+  return along>before&&Math.hypot(...vector.map((v,i)=>v-along*run.direction[i]))<=tolerance;
 }

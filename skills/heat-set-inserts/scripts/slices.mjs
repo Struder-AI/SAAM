@@ -5,7 +5,7 @@
 // with a geometry volume in the part's own frame; the core slices them like
 // any other owner, and the part's default owner takes the rest.
 import {sliceAssignment} from '../../../core/print/slices.mjs';
-import {dimensions} from './feature.mjs';
+import {dimensions,heatSetAssignmentId,legacyHeatSetAssignmentId} from './feature.mjs';
 
 export const HEAT_SET_SLICE_PREFIX='heat-set-';
 const SIDES=96,LIFT=1e-3;
@@ -19,12 +19,14 @@ function prism(bottom,top){
 }
 
 // feature, part id (null for a single part), process -> slice assignments.
-export function heatSetSlices(feature,part,{lineWidthMm}){
+export function heatSetSlices(feature,part,{lineWidthMm},{existingIds=new Set()}={}){
   const {diameterMm,depthMm}=dimensions(feature),[x,y,mouth]=feature.positionMm,w=lineWidthMm;
   const floor=mouth-depthMm+LIFT,top=mouth+LIFT,radial=diameterMm/2+6*w;
   const ring=z=>Array.from({length:SIDES},(_,i)=>[x+radial*Math.cos(2*Math.PI*i/SIDES),y+radial*Math.sin(2*Math.PI*i/SIDES),z]);
   const flat={fillDensity:0,solidTop:0,solidBottom:0};
-  const name=HEAT_SET_SLICE_PREFIX+feature.id.toLowerCase().replace(/[^a-z0-9-]/g,'-');
+  const canonical=heatSetAssignmentId(feature,part),legacy=legacyHeatSetAssignmentId(feature);
+  const retain=(current,prior)=>existingIds.has(current)?current:existingIds.has(prior)?prior:current;
+  const name=retain(canonical,legacy);
   const annulus=sliceAssignment({id:name,part,loops:6,...flat,within:[{kind:'geometry',geometry:prism(ring(floor),ring(top))}]});
   // A gusset's radial reach grows linearly from the floor to finLengthMm at
   // the face, its width tapering from twice the fin width at the annulus to
@@ -38,7 +40,7 @@ export function heatSetSlices(feature,part,{lineWidthMm}){
     const at=(r,t,z)=>[x+r*u[0]+t*v[0],y+r*u[1]+t*v[1],z];
     const face=(length,z)=>[at(radial,-root/2,z),at(radial+length,-tip(length)/2,z),at(radial+length,tip(length)/2,z),at(radial,root/2,z)];
     const across=((degrees+90)%360+540)%360-180;
-    return sliceAssignment({id:`${name}-fin-${n}`,part,loops:0,fillDensity:1,solidTop:0,solidBottom:0,fillOverlap:0,
+    return sliceAssignment({id:retain(`${canonical}--fin-${n}`,`${legacy}-fin-${n}`),part,loops:0,fillDensity:1,solidTop:0,solidBottom:0,fillOverlap:0,
       rotateFill:false,fillAnglesDeg:[across],within:[{kind:'geometry',geometry:prism(face(w,start),face(feature.finLengthMm,top))}]});
   });
   return [annulus,...fins];

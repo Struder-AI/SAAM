@@ -107,7 +107,7 @@ function indexFrom(context, tags, files) {
 
 function normalize(text) { return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim(); }
 function parseQuery(query) {
-  if (typeof query !== 'string' || !query.trim() || query.length > 500) throw Error('Supply a model name, file ID or Thingiverse thing link (up to 500 characters).');
+  if (typeof query !== 'string' || !query.trim()) throw Error('Supply a model name, file ID or Thingiverse thing link.');
   query = query.trim();
   if (/^(?:https?:\/\/|www\.)/i.test(query)) {
     const url = new URL(query.startsWith('www.') ? `https://${query}` : query);
@@ -144,8 +144,8 @@ export function createThingi10KClient({cacheDirectory = defaultCache, fetchImpl 
   }
   async function search({query, limit = 10, offset = 0} = {}) {
     const parsed = parseQuery(query);
-    if (!Number.isInteger(limit) || limit < 1 || limit > 50 || !Number.isInteger(offset) || offset < 0 || offset > 10000)
-      throw Error('Use limit 1–50 and offset 0–10000.');
+    if (!Number.isSafeInteger(limit) || limit < 1 || !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(offset + limit))
+      throw Error('Use a positive safe-integer limit and nonnegative safe-integer offset within representable pagination.');
     const matches = (await index()).map(model => {
       if (parsed.fileId) return {model, score: model.fileId === parsed.fileId ? 1 : 0};
       if (parsed.thingId) return {model, score: model.thingId === parsed.thingId ? 1 : 0};

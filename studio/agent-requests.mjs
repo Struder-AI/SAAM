@@ -103,7 +103,7 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events}={}
     },
     async begin({directory,instruction,source='agent',key,kind='edit',evidence,scope,studioInstanceId}){
       if(lifetime.disconnected)throw Error('Agent connection closed.');
-      if(typeof instruction!=='string'||!instruction.trim()||instruction.length>8000)throw Error('Describe the requested agent work.');
+      if(typeof instruction!=='string'||!instruction.trim())throw Error('Describe the requested agent work.');
       const id=key?createHash('sha256').update(key).digest('hex'):randomUUID();
       if(key)try{return await get(id);}catch(e){if(e.code!=='ENOENT')throw e;}
       if(!['edit','guidance','advisory'].includes(kind))throw Error('Unknown Studio work kind.');
@@ -124,7 +124,7 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events}={}
       if(resultStage&&!['geometry','toolpath'].includes(resultStage))throw Error('Unknown result stage.');
       const target=resultStage?{...await snapshot(resolve(root,record.printId)),stage:resultStage}:record.target
         ??(status==='completed'&&result?{...result,stage:result.geometryKey!==baseline?.geometryKey&&result.generationKey===baseline?.generationKey?'geometry':'toolpath'}:undefined);
-      return save({...record,baseline,result,target,presented:resultStage?false:record.presented,ownerId:ownerId??record.ownerId,status,connectionClosed:false,timedOut:false,message:String(message).slice(0,8000),updatedAt:Math.max(now(),record.updatedAt+1),expiresAt:now()+600000});
+      return save({...record,baseline,result,target,presented:resultStage?false:record.presented,ownerId:ownerId??record.ownerId,status,connectionClosed:false,timedOut:false,message:String(message),updatedAt:Math.max(now(),record.updatedAt+1),expiresAt:now()+600000});
     },
     async presented(directory,shown){
       const id=printId(directory,{optional:true}),updated=[];if(!id)return updated;

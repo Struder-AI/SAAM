@@ -61,13 +61,13 @@ export class PreparedGenerationJob {
     if(this.status==='disposed')return;
     if(message.type==='progress'){this.progress=message.progress;this.onUpdate();return;}
     if(message.type==='prepared'){
-      if(message.error)this.#fail(new Error(message.error));
+      if(message.error)this.#fail(Object.assign(new Error(message.error),{stage:message.stage}));
       else if(this.status==='preparing'){this.status='ready';this.onUpdate();}
       return;
     }
     if(message.type!=='generated'||this.status!=='generating')return;
     if(message.error){
-      const error=Object.assign(new Error(message.error),{code:message.code});
+      const error=Object.assign(new Error(message.error),{code:message.code,stage:message.stage});
       this.#fail(error);return;
     }
     if(!checkedProgram){this.#fail(new Error('The generation worker returned unchecked machine source.'));return;}

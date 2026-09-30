@@ -12,8 +12,8 @@ export async function diagnoseDepositionPlan(plan,machine){
     return {status:'checked',scope:'deposition generation; no export, review or physical approval',
       sampledMoves:path.actions.filter(action=>action.kind==='move').length,
       slices:summary.slices??null,ownership:summary.slices?.ownership??null,
-      constructions:Object.fromEntries(['drapedSkin','waveOverhangs','vaseWall','thickLip','pipeCladding','curves','bridging'].filter(key=>summary[key]).map(key=>[key,summary[key]])),
-      modulationGeometry:summary.modulationGeometry??[],nonplanar:summary.nonplanarLimit??null};
+      constructions:Object.fromEntries(['vaseWall','curves'].filter(key=>summary[key]).map(key=>[key,summary[key]])),
+      modulationGeometry:summary.modulationGeometry??[],referenceFamilies:summary.referenceFamilies??{},surfaceDomain:summary.surfaceDomain??null};
   }catch(error){
     return {status:'blocked',scope:'deposition generation',message:error.message,
       implication:'Recipe is structurally valid and saved for further authoring; this finding must be resolved before generation can succeed.'};

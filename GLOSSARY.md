@@ -10,6 +10,8 @@ Terminology: [architecture](TECHNICAL-OVERVIEW.md), [release scope](plans/0.2.0.
 | SAAMpath | SAAM's one machine-independent toolpath: moves with deposition volume, speed and context, plus process actions. The composer builds it from skill results; each machine's exporter translates it into that machine's program. It is not saved in the print bundle. |
 | Machine program | Machine-specific commands/package exported from SAAMpath, checked and delivered unchanged after confirmation. |
 | Toolpath skill | Constructs deposition/process operations through shared core capabilities; named techniques may be configurations of the same skill. |
+| Core skill | A developer-owned agent interface to core capabilities; geometry, toolpath and hybrid describe its function. |
+| Guidance skill | Instructions and examples composing existing capabilities; builders author it without adding a deposition family or alternate recipe format. |
 | Geometry skill | A skill that makes, fetches or changes the part's geometry before any toolpath exists. Each change is a new geometry revision. |
 | Hybrid skill | Constructs part or temporary process geometry together with deposition, such as insert reinforcement or plastic rivets. |
 | Keyword skill | A skill whose digest description is only its keyword, such as `gridfinity`. The agent uses it only when the person names that keyword, and reads its manual only then. |
@@ -23,7 +25,7 @@ Terminology: [architecture](TECHNICAL-OVERVIEW.md), [release scope](plans/0.2.0.
 | Substrate adaptation | Experimental adjustment of local bead gaps/volume, or explicitly surface-following paths, using finalized deposited material. Controlled by `experimental.substrateAdaptation`, default off. It neither creates Supports nor calculates an overhang percentage. |
 | Compound geometry | Component solids with an optional boolean operation. Assembly preserves components; boolean modes combine their material. |
 | Sleeve | A surface closed around one direction and open along the other, or a mesh with equivalent tube-side topology. Smooth periodicity is stronger than coincident seam edges. |
-| Tile | One continuous curve drawn in one cell of a sleeve's unwrapped strip, repeated to make a pattern. |
-| Course | One full circuit of tiles around a sleeve. |
+| Tile | An authored explicit path or set of paths used as a repeating unit; no separate tile representation. |
+| Course | A circuit around a sleeve, optionally constructed by repeating explicit paths. |
 | Pattern | An arrangement of deposition strokes, such as an infill pattern or repeated sleeve tiles. |
 | Modulation | An optional effect on an otherwise valid toolpath, primarily for visual appearance and surface texture, with other useful applications left open. Required construction and process compensation work independently of modulation. |

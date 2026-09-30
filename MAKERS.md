@@ -68,12 +68,12 @@ reused values. Installation calibration uses values supplied for that installati
 
 ## Working boundaries
 
-A maker task authorizes work on the person's print, including opening and closing
-your own Studio instances; changes to SAAM's source, skill policy or publication
-need their own authorization. Job approvals and machine execution belong to the
-person, and a development preview never authorizes a real job. A software preview
-establishes no physical result. Personal prints stay in ignored `Prints/`; sharing
-one needs the person's explicit selection.
+A maker operates published capabilities on the person's print and owns its Studio
+instances. Web agents remain makers; source or skill changes go to a local builder
+or developer under [role boundaries](AGENTS.md#choose-your-role). Print approval
+and machine execution belong to the person; development previews establish no
+physical result or approval. Personal prints stay in ignored `Prints/`; sharing
+requires the person's explicit selection.
 
 <!-- layer: script -->
 ## With command access

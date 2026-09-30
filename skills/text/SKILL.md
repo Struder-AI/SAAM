@@ -122,7 +122,7 @@ not pattern compatibility; a sleeve can fail at glyph contour transitions.
 ## Curved lettering above a draped roof
 
 Apply raised text to the original roof with `reference:{"kind":"top"}`.
-Ordinary assignments own `part:'base'`; add a `construction:'skin'` assignment
+Ordinary assignments own `part:'base'`; add a roof surface-domain Slice assignment
 for its finish, then another selecting `part:'text/label'` with `supportFrom`
 naming that finished roof assignment. Four 0.2 mm courses fill 0.8 mm lettering.
 

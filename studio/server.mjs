@@ -70,13 +70,13 @@ const playerModules=new Set(['studio/source-player.mjs','studio/source-worker.mj
   'core/machine/dobot-kinematics.mjs','core/machine/denso-kinematics.mjs',
   'core/print/review-state.mjs',
   'core/export/denso-player.mjs','core/machine/denso.mjs','core/path/pose.mjs',
-  'core/export/griffin.mjs','core/export/gcode-lines.mjs','core/export/bambu-player.mjs','core/export/bambu-change.mjs','core/export/bambu-x1-change.mjs','core/machine/filaments.mjs',
+  'core/export/griffin-player.mjs','core/export/gcode-lines.mjs','core/export/bambu-player.mjs','core/export/bambu-change.mjs','core/export/bambu-x1-change.mjs','core/machine/filaments.mjs',
   'core/export/dobot-player.mjs','core/export/dobot-lua-subset.mjs','core/machine/rules.mjs','core/geom/tolerance.mjs','core/path/process-controls.mjs']);
 
 // A selected plan, export or delivery file reopens its owning print bundle.
 // Standalone foreign programs need an interpreter contract before review.
 export async function printDirectory(input,resolveBundle=bundleFor) {
-  if(typeof input!=='string'||!input.trim()||input.length>4096)throw new Error('Choose a saved print folder or a file inside it.');
+  if(typeof input!=='string'||!input.trim())throw new Error('Choose a saved print folder or a file inside it.');
   let dir=await realpath(isAbsolute(input)?input:resolve(root,input));
   if(!(await stat(dir)).isDirectory())dir=dirname(dir);
   for(let depth=0;depth<4;depth++){
@@ -95,14 +95,14 @@ export async function listPrints(libraryRoot,resolveBundle=bundleFor) {
       }catch{/* One damaged bundle must not hide the other prints. */}
       return;
     }
-    if(depth<3)for(const entry of entries)if(entry.isDirectory()&&!entry.name.startsWith('.'))await walk(resolve(dir,entry.name),depth+1);
+    for(const entry of entries)if(entry.isDirectory()&&!entry.name.startsWith('.'))await walk(resolve(dir,entry.name),depth+1);
   }
   await walk(resolve(libraryRoot),0);return prints.sort((a,b)=>b.modified.localeCompare(a.modified));
 }
 // Studio opened without a print (a relay computer's launch instance) serves the
 // page, the library and the tour; everything that reads a print answers this.
 const noPrint=()=>Object.assign(Error('No print is open. Open a saved print, import an STL, start the tour, or ask your chat to make a part.'),{code:'NO_PRINT'});
-const printFreeRoutes=new Set(['/api/open','/api/tour','/api/view-performance','/api/import-stl']);
+const printFreeRoutes=new Set(['/api/open','/api/tour','/api/view-performance','/api/import-stl','/api/cancel-calculation']);
 // Printers an STL imported with no print open can use: installed profiles, the
 // most recently modified print's printer first, else the first profile.
 export function importMachines(prints){
@@ -151,7 +151,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   let queue=Promise.resolve();
   // Speculation never enters the HTTP mutation queue or the browser's busy
   // state. Keep one worker/candidate, replacing it when the reviewed plan changes.
-  let preparation,generationFailure,generationCancelled,importProgress,generationRun=null,closed=false;
+  let preparation,generationFailure,generationCancelled,importProgress,importController,generationRun=null,closed=false;
   const stateTag=(fingerprint,guide,failure=generationFailure,cancelled=generationCancelled,records=[],importRepair=null)=>
     'W/"'+createHash('sha256').update(JSON.stringify([instanceId,fingerprint,guide,failure,cancelled,records,importRepair])).digest('base64url')+'"';
   const matchesStateTag=(header,tag)=>typeof header==='string'&&header.split(',').some(value=>{
@@ -168,6 +168,15 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     note('generation-cancelled',{generationHash:job.generationHash,reason});
     if(preparation===job)preparation=null;
     await result.done;return {cancelled:true,committing:false};
+  };
+  const cancelCalculation=async({jobId,generationHash,reason='person'}={})=>{
+    if(importProgress){
+      if(jobId!==importProgress.jobId)throw Error('The import changed. Read its current jobId before cancelling.');
+      importController.abort(Object.assign(new Error('Import cancelled.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));
+      publishProgress();return {cancelled:true,kind:'import',jobId};
+    }
+    if(jobId||!generationHash||generationHash!==preparation?.generationHash)throw Error('The calculation changed. Read its current identity before cancelling.');
+    return {...await cancelGeneration(reason),kind:'generation'};
   };
   const planPreparation=(state,readDir,session)=>{
     if(session.closed||!session.workerEnabled)return {action:'skip'};
@@ -194,7 +203,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   // Only a real calculation is an event; a mode transition of a valid saved
   // program starts nothing the person or agent would wait on.
   const preparationStatus=()=>{
-    if(importProgress)return {...importProgress,cancellable:false};
+    if(importProgress)return {...importProgress,cancellable:!importController.signal.aborted,elapsedMs:Date.now()-importProgress.startedAt,estimatedRemainingMs:null};
     const job=preparation,run=generationRun;
     const progress=job?.progress??null,percent=progress?.total>0?Math.floor(100*progress.completed/progress.total):null;
     const directory=run?.directory??job?.directory??dir;
@@ -203,9 +212,32 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       requested:Boolean(run),trigger:run?.trigger??null,startedAt:run?.startedAt??null,
       elapsedMs:run?Date.now()-run.startedAt:null,progress:progress?{...progress,percent}:null};
   };
-  const activePreparationStatus=()=>{const status=preparationStatus();return status.requested||['preparing','generating'].includes(status.status)?status:null;};
-  const generationStatus=()=>{const status=activePreparationStatus();return status?{...status,printId:requests.printId(status.directory,{optional:true})}:null;};
+  const activePreparationStatus=()=>{const status=preparationStatus();return status.requested||['preparing','generating','importing'].includes(status.status)?status:null;};
+  const generationStatus=()=>{const status=activePreparationStatus();return status?{...status,printId:status.directory?requests.printId(status.directory,{optional:true}):null}:null;};
   const publishProgress=(status=activePreparationStatus())=>lifetime.notify('studio-update',{kind:'progress',status});
+  const runImport=async(source,{name,units,machineId,directory,signal}={})=>{
+    signal?.throwIfAborted();
+    if(closed)throw Error('Studio is closing. Reopen it before importing.');
+    if((await tour.info()).active)throw Error('Import STL is available after you finish or exit the tour.');
+    await discardPreparation();
+    signal?.throwIfAborted();
+    importController=new AbortController();
+    const controller=importController,abort=()=>controller.abort(signal.reason);
+    signal?.addEventListener('abort',abort,{once:true});
+    importProgress={studioInstanceId:instanceId,printId:dir?printId():null,directory:dir??null,jobId:randomBytes(16).toString('hex'),name:name??null,generationHash:null,status:'importing',startedAt:Date.now(),progress:{stage:'Checking your STL',phase:'import'}};publishProgress();
+    note('import-started',{jobId:importProgress.jobId,name:name??null,units:units??null});
+    let imported;
+    try{imported=await importStudioSTL(libraryRoot,source,{name,units,machineId,directory,signal:importController.signal,
+      onProgress:value=>{
+        if(value.phase==='repair'&&importProgress.progress.phase!=='repair')note('import-repair-started',{jobId:importProgress.jobId,name:name??null,elapsedMs:Date.now()-importProgress.startedAt});
+        importProgress={...importProgress,progress:value};publishProgress();
+      }});}
+    catch(error){note(importController.signal.aborted?'import-cancelled':'import-failed',{jobId:importProgress.jobId,name:name??null,error:error.message,elapsedMs:Date.now()-importProgress.startedAt});throw error;}
+    finally{signal?.removeEventListener('abort',abort);const finished=importProgress;importProgress=null;importController=null;publishProgress({...finished,status:'idle',progress:null,cancellable:false});}
+    await openPrint(imported.directory);
+    note('import-completed',{name:await printName(dir),units:units??null,machineId});
+    return imported;
+  };
   const readGeneration=async current=>{
     generationCancelled=null;
     const directory=dir,state=await current.loadBundle(directory,{program:false});
@@ -252,12 +284,12 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       // request, say whether this process is behind the files the worker read.
       await noteSourceSkew(error);
       const reported=reportedMessage(error);
-      generationFailure={directory:generationDir,generationHash:state.generationHash,message:reported};
+      generationFailure={directory:generationDir,generationHash:state.generationHash,message:reported,stage:error.stage??'generation'};
       try{const record=await requests.begin({directory:generationDir,source:'studio',studioInstanceId:instanceId,
         key:'generation-failure:'+generationDir+':'+state.generationHash+':'+reported,
-        instruction:'Toolpath generation failed for this print. Error: '+reported+
-          '\nInspect the current recipe and relevant skill limits, diagnose the cause and apply appropriate fixes before regenerating. Do not blindly retry unchanged inputs or relax quality limits to hide the failure. Explain material process changes to the maker, then regenerate and verify the current toolpath is displayed in Studio. Resolve this request after recovery, or report the concrete blocker.'});
-        note('generation-failed',{generationHash:state.generationHash,trigger,error:reported,requestId:record.id});}
+        instruction:(error.stage==='export'?'SAAMpath construction succeeded; machine export failed. Inspect the selected exporter and its representation requirements. Error: ':'Toolpath generation failed for this print. Inspect the current recipe and deposition inputs. Error: ')+reported+
+          '\nDiagnose the cause before regenerating. Do not blindly retry unchanged inputs or relax quality limits to hide the failure. Explain material process changes to the maker, then verify the current result is displayed in Studio. Resolve this request after recovery, or report the concrete blocker.'});
+        note('generation-failed',{generationHash:state.generationHash,trigger,error:reported,stage:error.stage??'generation',requestId:record.id});}
       finally{throw error;} // A notification failure must not hide the generation error.
   };
   const generate=async(current,development,trigger='generate')=>{
@@ -432,13 +464,19 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         res.end();return;
       }
       if(req.method!=='POST'||!url.pathname.startsWith('/api/')){send({error:'Not found'},404);return;}
-      if(url.pathname==='/api/agent-open'){
+      if(url.pathname==='/api/agent-open'||url.pathname==='/api/agent-cancel-calculation'||url.pathname==='/api/agent-import-stl'){
         // The owning agent shows another print in this instance from any process,
         // so switching prints needs no second Studio.
         const chunks=[];let size=0;
         for await(const chunk of req){size+=chunk.length;if(size>64_000)throw Error('Request too large.');chunks.push(chunk);}
         const data=JSON.parse(Buffer.concat(chunks).toString()||'{}');
         if(data.owner!==sessionOwnerId||(req.headers.origin&&req.headers.origin!==origin)){send({error:'Invalid agent owner'},403);return;}
+        if(url.pathname==='/api/agent-cancel-calculation'){send(await cancelCalculation({...data,reason:'agent'}));return;}
+        if(url.pathname==='/api/agent-import-stl'){
+          const controller=new AbortController(),disconnect=()=>{if(!res.writableEnded)controller.abort(Object.assign(Error('Import cancelled because its requesting agent disconnected.'),{name:'AbortError'}));};
+          res.once('close',disconnect);
+          try{send(await server.importSTL(data,{signal:controller.signal}));}finally{res.off('close',disconnect);}return;
+        }
         await server.openPrint(data.path);send(server.agentSession());return;
       }
       if(req.headers.origin!==origin||req.headers['x-saam-token']!==token){send({error:'Invalid local session'},403);return;}
@@ -450,28 +488,21 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       // Browser-measured view bursts, kept in memory for an agent to read.
       if(url.pathname==='/api/view-performance'){viewPerformance.push({receivedAt:new Date().toISOString(),...data});viewPerformance.splice(0,viewPerformance.length-20);send({ok:true});return;}
       if(url.pathname==='/api/cancel-generation'){
-        if(data.printId!==printId()||data.generationHash&&data.generationHash!==preparation?.generationHash)throw Error('The calculation changed. Refresh before cancelling.');
+        if(data.printId!==printId()||!data.generationHash||data.generationHash!==preparation?.generationHash)throw Error('The calculation changed. Refresh before cancelling.');
         send(await cancelGeneration());return;
+      }
+      if(url.pathname==='/api/cancel-calculation'){
+        send(await cancelCalculation(data));return;
       }
       const run=queue.then(async()=>{
         if(data.printId&&data.printId!==printId())throw new Error('The open print changed. Reload before continuing.');
         const current=await opened;
         const progress=await tour.info();
         if(importing){
-          if(progress.active)throw Error('Import STL is available after you finish or exit the tour.');
-          await discardPreparation();
           // With a print open the import uses its printer; with none, the person's choice.
           if(!current&&!MACHINE_IDS.includes(data.machineId))throw Error('Choose a printer for the imported STL.');
           const machineId=current?(await current.loadBundle(dir,{program:false})).machine.id:data.machineId;
-          importProgress={studioInstanceId:instanceId,printId:dir&&printId(),generationHash:null,status:'importing',progress:{stage:'Checking your STL'}};publishProgress(importProgress);
-          note('import-started',{name:data.name??null,units:data.units??null});
-          let imported;
-          try{imported=await importStudioSTL(libraryRoot,body,{name:data.name,units:data.units,machineId,
-            onProgress:value=>{importProgress.progress=value;publishProgress(importProgress);}});}
-          catch(error){note('import-failed',{name:data.name??null,error:error.message});throw error;}
-          finally{const finished=importProgress;importProgress=null;publishProgress({...finished,status:'idle',progress:null,cancellable:false});}
-          await openPrint(imported.directory);
-          note('import-completed',{name:await printName(dir),units:data.units??null,machineId});
+          await runImport(body,{name:data.name,units:data.units,machineId});
           send({ok:true});return;
         }
         if(url.pathname==='/api/view-ready'){
@@ -581,10 +612,19 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     const run=queue.then(async()=>{const before=dir;await openPrint(input);if(dir!==before)lifetime.notify('studio-update',{kind:'state',kinds:['print']});});
     queue=run.catch(()=>{});return run;
   };
+  server.importSTL=({directory,source,units,machineId},{signal}={})=>{
+    const run=queue.then(()=>{
+      if(typeof directory!=='string'||typeof source!=='string')throw Error('Import needs a destination and local STL path.');
+      return runImport(resolve(source),{name:basename(source),directory,units,machineId,signal});
+    });
+    queue=run.catch(()=>{});return run;
+  };
   server.setStartAt=startAt=>tour.setStartAt(startAt);
   server.currentPrint=()=>dir;
-  const lifetime=viewerLifetime(server,{disconnectMs,onViewers:count=>note(count?'viewer-opened':'viewer-closed',{viewers:count}),onClosing:()=>closingPolls.abort(),
-    onShutdown:async()=>{try{await attached;await queue;await tour.closeStudio();}finally{tour.close();if(ownsRequests||closeAgentRequests)requests.close();if(ownsEvents)events.close();}}});
+  const lifetime=viewerLifetime(server,{disconnectMs,onViewers:count=>note(count?'viewer-opened':'viewer-closed',{viewers:count}),onClosing:()=>{
+    closed=true;closingPolls.abort();importController?.abort(Object.assign(Error('Import cancelled because Studio closed.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));
+  },
+    onShutdown:async()=>{try{importController?.abort(Object.assign(Error('Import cancelled because Studio closed.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));await attached;await queue;await tour.closeStudio();}finally{tour.close();if(ownsRequests||closeAgentRequests)requests.close();if(ownsEvents)events.close();}}});
   const stopRequestFeed=requests.subscribe(record=>{
     if(record.source==='studio'&&record.status==='queued'&&record.studioInstanceId===instanceId&&!queuedNoted.has(record.id)){
       queuedNoted.add(record.id);note('request-queued',{requestId:record.id,requestKind:record.kind,instruction:record.instruction,scope:record.scope??null,printId:record.printId});
@@ -607,6 +647,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   server.shutdown=lifetime.shutdown;server.viewerCount=lifetime.viewers;
   server.agentWorking=working=>{agentActivity.working=Boolean(working);lifetime.notify('agent-activity',agentActivity);};
   server.studioEvents=events;server.generationStatus=generationStatus;
+  server.cancelCalculation=cancelCalculation;
   server.agentSession=()=>({instanceId,ownerId:sessionOwnerId,printId:workIdFor(dir),directory:dir,connected:!closed});
   server.agentDisconnected=async ownerId=>lifetime.notify('agent-connection-closed',{ownerId,closedAt:Date.now(),requests:await requests.query()});
   return server;

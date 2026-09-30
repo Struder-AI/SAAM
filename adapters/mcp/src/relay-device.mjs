@@ -21,7 +21,7 @@ export function listenFor(clientName=''){
 }
 // A web chat has no command access on this computer and must keep listening
 // for Studio itself; the general instructions follow this.
-export const RELAY_GUIDANCE='This SAAM session reaches the person’s own computer through the SAAM relay. You cannot run commands or read files there: skip every step that needs command access. Call maker_onboarding first, once per conversation, and read further context with read_skill and read_guidance. SAAM Studio is open on that computer; the person imports files and confirms output there. Keep listening: after each reply, call wait_for_studio_request again without waiting for a chat message, and omit waitMs. A wait that returns no requests is normal; call it again.';
+export const RELAY_GUIDANCE='Web agents are makers only. Core skills belong to developers; builders author guidance using existing capabilities. Reading their documentation does not grant either role or command access. This SAAM session reaches the person’s own computer through the SAAM relay. You cannot run commands or read files there: skip every step that needs command access. Call maker_onboarding first, once per conversation, and read further context with read_skill and read_guidance. SAAM Studio is open on that computer; the person imports files and confirms output there. Keep listening: after each reply, call wait_for_studio_request again without waiting for a chat message, and omit waitMs. A wait that returns no requests is normal; call it again.';
 const sha256=text=>createHash('sha256').update(text).digest('hex');
 // Status changes arrive in bursts (a calculation's progress); the panel hears
 // at most one per PANEL_STATUS_MS.

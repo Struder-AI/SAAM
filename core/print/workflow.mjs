@@ -4,7 +4,7 @@ import {hashFile} from '../geom/stl-file.mjs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { exportAndInterpretProgram, interpretProgram, outputAdapter } from '../export/registry.mjs';
+import { exportAndInterpretProgram, interpretProgram } from '../export/registry.mjs';
 import { loadMachine, validateDobotConfiguration, lineWidthLimits } from '../machine/profile.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 import {validateDensoConfiguration} from '../machine/denso.mjs';
@@ -448,19 +448,15 @@ async function checkPathBundle(directory, {onProgress} = {}) {
     ...structuredClone(candidate.summary),exportSummary:structuredClone(candidate.program.summary)};
 }
 
-function requireOutput(state){
-  // Profiles can support geometry/setup review before an output contract exists.
-  // Report that contract's reason before constructing geometry or motion.
-  outputAdapter(state.plan,state.machine);
-}
-
 async function prepareGeneration(directory,{onProgress}={}){
   const state=await loadBundle(directory,{program:false});
-  requireOutput(state);
   onProgress?.({stage:'Preparing geometry'});
   const path=await generatePath(state.plan,state.machine,{onProgress});
   onProgress?.({stage:'Writing and checking machine commands'});
-  const {bytes,program}=exportAndInterpretProgram(path,state.plan,state.machine,{generatorVersion:VERSION,buildDate:BUILD_DATE});
+  let exported;
+  try{exported=exportAndInterpretProgram(path,state.plan,state.machine,{generatorVersion:VERSION,buildDate:BUILD_DATE});}
+  catch(error){error.stage='export';throw error;}
+  const {bytes,program}=exported;
   return {directory:state.dir,revision:state.revision,generationHash:state.generationHash,
     summary:path.summary,bytes,program};
 }
@@ -577,7 +573,7 @@ function generationChecks(state,prepared,development){
     estimatedMinutes: Number((program.seconds / 60).toFixed(1)),
     travel: summary.travel,
     shortTravel: program.summary.shortTravel,
-    nonplanarLimit: summary.nonplanarLimit ?? null,
+    surfaceDomain: summary.surfaceDomain ?? null,
     checks: ['plan-inputs', ...(state.geometry?['closed-geometry','native-geometry-round-trip']:[]), 'declared-output', ...(program.checks??(program.envelope?['fixed-firmware-envelope','archive-integrity','strict-print-body-interpretation']:['strict-gcode-interpretation'])),
       ...(state.machine.motionChecks==='deferred'?[]:['xyz-bounds','axis-feed']), ...(program.summary.materialModel==='relay-estimate'?['commanded-flow-intent']:['extrusion-flow','temperature-state'])],
     clearance: 'operator responsibility; no collision model implemented',

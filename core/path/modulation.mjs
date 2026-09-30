@@ -192,6 +192,7 @@ export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}
   requireThat(!stroke.volumesMm3||stroke.volumesMm3.length===points.length-1,'Modulation needs one source volume per segment.');
   requireThat(!stroke.segmentMetadata||stroke.segmentMetadata.length===points.length-1,'Modulation needs one source metadata record per segment.');
   requireThat(!stroke.poses||stroke.poses.length===stroke.points.length,'Modulation source poses must align with vertices.');
+  requireThat(sourcePoses||!modifiers.some(m=>m.channel==='tilt'),'FIELD tilt needs enabled derived Slice pose output.');
   requireThat(!stroke.frameSamples||stroke.frameSamples.length===stroke.points.length,'Modulation source frameSamples must align with vertices.');
   requireThat(stroke.frameSamples||!modifiers.some(m=>m.frame==='slice'),'Slice-frame modulation needs producer frameSamples aligned with stroke points.');
   const directions=modifiers.some(m=>m.direction==='lateral'&&(m.frame??'world')==='world')?lateralDirections(points,stroke.closed):null;

@@ -25,8 +25,8 @@ int main(int argc,char** argv){
   if(argc==2&&std::string(argv[1])=="--version"){std::cout<<"saam-cgal-mesh-repair/1 CGAL "<<CGAL_VERSION_STR<<"\n";return 0;}
   if(argc!=5)throw std::runtime_error("Expected input.off output.off maxHoleEdges maxHoleDiameterMm");
   const auto started=std::chrono::steady_clock::now();
-  const auto max_edges=std::stoul(argv[3]);const double max_diameter=std::stod(argv[4]);
-  if(!std::isfinite(max_diameter)||max_diameter<0||max_edges>100000)throw std::runtime_error("Invalid hole limits");
+  const auto max_edges=std::stoull(argv[3]);const double max_diameter=std::stod(argv[4]);
+  if(!std::isfinite(max_diameter)||max_diameter<0)throw std::runtime_error("Invalid hole limits");
   stage("orient");
   std::vector<K::Point_3> points;std::vector<std::vector<std::size_t>> faces;
   if(!CGAL::IO::read_polygon_soup(argv[1],points,faces))throw std::runtime_error("Cannot read repair input");

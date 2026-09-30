@@ -5,9 +5,9 @@ import {evaluate} from '../geom/nurbs.mjs';
 import {sampleSurfaceCurve} from '../region/normal-surface.mjs';
 import {requireThat,distance,normalize,cross,scale,add,dot,findRoot,subtract} from '../geom/tolerance.mjs';
 import {lineSpacing,spacingFactor} from '../path/spacing.mjs';
-import {claddingCourse} from '../path/surface-courses.mjs';
 
-export function surfaceCellField({shell,settings,process,chart,courses=null,startU=0,axialStart=0,surveyOffsetMm=settings.shells*settings.normalMm,layoutChart=chart}){
+
+export function surfaceCellField({shell,settings,process,chart,courses=null,startU=0,axialStart=0,surveyOffsetMm=settings.toMm??settings.shells*settings.normalMm,layoutChart=chart}){
   const s=settings,p=process,w=p.lineWidthMm;
   // Mesh strips retain their interpolated normal metric. The optional loose
   // surface offset is only meaningful for an explicit native spline chart;
@@ -38,14 +38,18 @@ export function surfaceCellField({shell,settings,process,chart,courses=null,star
   // survey and course counts follow the measured surface, not a fixed budget.
   const options={toleranceMm:s.toleranceMm,maxStepMm:s.sampleStepMm};
   let points=0,helixStartU=startU;const emitted=[];
-  const selected=(courses??Array.from({length:s.shells},(_,index)=>({index,fieldIndex:index,offsetMm:(index+.5)*s.normalMm,heightMm:s.normalMm})))
-    .map(course=>({...course,offsetMm:course.toMm??course.offsetMm,heightMm:course.toMm===undefined?course.heightMm:course.toMm-course.fromMm}));
+  const authored=[];
+  if(!courses){let from=s.fromMm??0,index=0;const end=s.toMm??s.shells*s.normalMm;
+    while(from<end-1e-9){const gap=Math.min(index===0?s.firstLayerMm??s.normalMm:s.normalMm,end-from);requireThat(from+gap>from,'Normal stack pitch is below coordinate precision.');
+      authored.push({index,fieldIndex:index,offsetMm:from+gap/2,heightMm:gap});from+=gap;index++;}
+  }
+  const selected=(courses??authored).map(course=>({...course,offsetMm:course.toMm??course.offsetMm,heightMm:course.toMm===undefined?course.heightMm:course.toMm-course.fromMm}));
   const report={backend:chart.backend,shells:selected.length,points:0,partialAxialPasses:0,fullAxialPasses:0,axialPasses:0,
     offsetTightness:offsetField?s.offsetTightness:1,
     minBeadWidthMm:Infinity,maxBeadWidthMm:0,interface:'outward normal offsets from selected substrate surface',
     coverage:'Arc-length cells in each U sector; partial axial courses start/end where a cell appears/disappears. Sampled coverage, not a global geodesic guarantee.',
     physicalValidation:'not performed'};
-  const newStroke=role=>({role,closed:false,surfaceSamples:[],cellWidthsMm:[],heightMm:s.normalMm,speedMmS:p.skinSpeedMmS});
+  const newStroke=role=>({role,closed:false,surfaceSamples:[],cellWidthsMm:[],heightMm:s.normalMm,speedMmS:p.planarSpeedMmS});
   const emit=(stroke,samples,widths)=>{
     points+=samples.length;stroke.surfaceSamples.push(...samples);stroke.cellWidthsMm.push(...widths);
     stroke.widthAxis=stroke.role==='axial'?'du':'dv';
@@ -56,13 +60,13 @@ export function surfaceCellField({shell,settings,process,chart,courses=null,star
     const samples=sampleSurfaceCurve(offsetChart(surveyOffsetMm,layoutChart),t=>[i/32,t],offsetField?0:surveyOffsetMm,options);
     meridianMax=Math.max(meridianMax,samples.slice(1).reduce((n,e,j)=>n+distance(samples[j].point,e.point),0));
   }
-  requireThat(meridianMax>2*w,'Surface region is too short for cladding.');
+  requireThat(meridianMax>w,'Surface region must exceed one bead width to leave a positive centerline span.');
   const margin=w/(2*meridianMax),v0=margin,v1=1-margin;
   const nv=Math.max(32,Math.ceil(meridianMax/s.sampleStepMm));
   const vs=Array.from({length:nv+1},(_,i)=>v0+(v1-v0)*i/nv);
   const cuts=[...new Set([...chart.breaksU,...Array.from({length:17},(_,i)=>i/16)])].sort((a,b)=>a-b);
   for(const course of selected){
-    const layer=course.index,offset=course.offsetMm,strokes=[],{axial,direction,phase}=claddingCourse(s,course.fieldIndex);
+    const layer=course.index,offset=course.offsetMm,strokes=[],mode=s.directions[course.fieldIndex%s.directions.length],axial=mode==='axial',direction=mode==='reverse'?-1:1,phase=axial?'surface-axial':direction<0?'surface-reverse':'surface-circumferential';
     if(axial){
       for(let sector=0;sector<cuts.length-1;sector++){
         const ua=cuts[sector],ub=cuts[sector+1],cache=new Map();
@@ -126,7 +130,7 @@ export function surfaceCellField({shell,settings,process,chart,courses=null,star
         }
       }
       emit(stroke,samples,widths);strokes.push(stroke);
-      if(s.pattern==='crossed-helices')helixStartU=uvAt(totalTurns)[0];
+      if(s.directions.some(d=>d==='forward'||d==='reverse'))helixStartU=uvAt(totalTurns)[0];
     }
     const maxZ=strokes.reduce((best,stroke)=>stroke.surfaceSamples.reduce((m,e)=>Math.max(m,e.point[2]),best),shell.bounds.max[2]);
     for(const stroke of strokes)stroke.heightMm=course.heightMm;

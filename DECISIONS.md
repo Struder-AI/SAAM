@@ -17,8 +17,8 @@ onward record explicit user direction without attributed contributor identity; `
 scope for implementation. Earlier attributed approvals remain historical
 records and are not extended to later wording. In particular, [D-027](#d-027--export-only-print-persistence)
 owns current print persistence; D-015 and D-019 preserve the earlier wording.
-[D-033](#d-033--three-agent-roles) owns the current agent roles and
-entry-point routing; D-002 and D-013 preserve the earlier two-context wording.
+[D-043](#d-043--complete-consolidation-and-role-boundaries) refines the roles
+introduced by D-033; earlier entries preserve their original approval wording.
 Work history belongs in [DEVLOG.md](DEVLOG.md). Decision quotations, approval
 events and approved wording retain their historical tense and dates under the
 [provenance exception](BUILDERS.md#documentation-maintenance).
@@ -459,3 +459,13 @@ Historical approved wording; current persistence direction is [D-027](#d-027--ex
 - Approvals: Current user explicitly authorized developer implementation with up to three Astra workers; contributor consensus not inferred.
 - Source: This task's terminology/intent discussion, ending with "write up a new version ... Then revise the 0.2.0 plan ... Then send out up to 3 astra subagents, to build" and "You are developer".
 - Scope, amended by owner 2026-09-29: 0.2.0 is the first alpha; later 0.2.x releases are patches/bug fixes. [0.3.0 intents](plans/0.3.0.md) now collect trimmed-face solids (formerly 0.2.1), general sleeves, support redesign and layer batching. 0.2.0 keeps dependency-aware ascending Z only. Modulation focuses on visual/surface effects while other applications remain open; required construction/compensation stays independent. Finalize material before dependent queries; graded density was not requested and brick layering belongs to Slice. Implementation resumed; push, release and hardware remain outside current authority.
+
+## D-043 — Complete consolidation and role boundaries
+
+- Decision: Core skills expose core capabilities and are developer-owned. Web agents are makers only. Builders author guidance and compositions using published interfaces; core/shared implementation changes require developer. SAAMpath construction is machine-independent; only exporters decide machine compatibility. Slice optionally derives pose: upright by default, explicitly normal-aligned if requested, optionally FIELD-modulated; no manually authored pose samples. Advanced vase has one explicit-path representation: those paths are the tile. Techniques use general operations rather than parallel recipe forms. Studio owns automatic import repair with observable, cancellable work; makers need no direct repair tool. Audit the complete capability/interface surface for arbitrary restrictions and incompatibilities. **General gap filling is rejected**, not deferred; local gap-volume compensation and substrate adaptation remain distinct existing behavior.
+- Status: proposed
+- Recorded: 2026-09-30T06:14:14Z
+- Approvals: Current user explicitly authorized developer work and a three-subagent team; contributor consensus is not inferred.
+- Source: This Codex conversation: "Only actual export modules are allowed to block something on machine compatibility"; "Explicit paths IS the tile"; "core skills are authored or worked on by developer role agents"; "web agents are only allowed to be makers"; "builders are generally working in the guidance skill layer". Follow-up: "work until nothing is outstanding on 2, 4, 8, 9, 11, 14"; on general gap filling, "We NEVER want this"; on remaining restrictions, "we do need that exhaustive audit".
+- Scope: Active implementation direction revising D-033/D-042; no claim of completed work, hardware qualification, push or release. Existing font requirements, direct-repair relay absence and technique limitations are acceptable as stated; audit their contracts without inventing general support.
+- Amended 2026-09-30 (user): material-overlap/shared-ownership integration moves to 0.3.0. Recipes with competing overlapping material regions must return unsupported; touching boundaries remain allowed within reasonable geometry tolerance. This supersedes D-042's 0.2.0 overlap acceptance. Source: "material overlap is too difficult for today, we need to defer it to 0.3.0"; "Should return as unsupported"; "make sure the tolerances for 'touching' are reasonable".

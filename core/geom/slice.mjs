@@ -267,6 +267,7 @@ export function sliceFamily({ base, direction = null, normalRegion = null, pitch
     requireThat(!base.normalDepthMm,'Translated height families do not imply normal-offset stacks.');
     const referenceBounds=heightReferenceBounds(base.reference),metric=heightReferenceMetric(base.reference,{sampleStepMm:base.sampleStepMm}),translationStepMm=pitchMm/metric.meanProjection,firstTranslationMm=firstLayerMm/metric.meanProjection,layers=[];
     const firstIndex=Math.min(0,Math.floor((bounds.min[2]-referenceBounds.max[2]-base.offsetMm-firstTranslationMm)/translationStepMm+1e-9)+1);
+    requireThat(Number.isSafeInteger(firstIndex)&&Number.isSafeInteger(Math.ceil((bounds.max[2]-referenceBounds.min[2]-base.offsetMm-firstTranslationMm)/translationStepMm)),'Height-family indices exceed exact integer representation.');
     for(let referenceIndex=firstIndex;;referenceIndex++) {
       const index=referenceIndex-firstIndex,offsetMm=firstTranslationMm+referenceIndex*translationStepMm;
       if(referenceBounds.min[2]+base.offsetMm+offsetMm>bounds.max[2]+1e-9)break;
@@ -294,6 +295,7 @@ export function sliceFamily({ base, direction = null, normalRegion = null, pitch
   const start = translateSlice(base, scale(d, firstTranslationMm)), layers = [];
   const baseHigh=base.kind==='plane'?dot(base.normal,base.origin):high;
   const firstIndex=Math.min(0,Math.floor(((lo-baseHigh)/advance-firstTranslationMm)/translationStepMm+1e-9)+1);
+  requireThat(Number.isSafeInteger(firstIndex)&&Number.isSafeInteger(Math.ceil(((hi-baseHigh)/advance-firstTranslationMm)/translationStepMm)),'Slice-family indices exceed exact integer representation.');
   for (let referenceIndex = firstIndex; ; referenceIndex++) {
     const slice = referenceIndex ? translateSlice(start, scale(d, referenceIndex * translationStepMm)) : start;
     const t = firstTranslationMm + referenceIndex * translationStepMm;

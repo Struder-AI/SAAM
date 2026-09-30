@@ -5,6 +5,7 @@ import {resolve} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {readIndex,repoRoot,storeDir,storedFreshness} from './store.mjs';
 import {replaceFile} from '../../core/file-write.mjs';
+import {setFile} from './map-set.mjs';
 
 export const snapshotIdentity=held=>createHash('sha256').update(JSON.stringify(held)).digest('hex');
 export const freshnessLifetimeMs=10_000;
@@ -28,7 +29,7 @@ export async function readFreshness({repo=repoRoot,readSource,files,
   }
 }
 
-export async function writeFreshness({repo=repoRoot,out=resolve(repo,'dev-map/view/freshness.js'),...options}={}) {
+export async function writeFreshness({repo=repoRoot,out=resolve(repo,setFile('view/freshness.js')),...options}={}) {
   const status=await readFreshness({repo,...options});
   // Atomic replacement retains either a complete old heartbeat or a complete new
   // one. If writing fails, clients expire the previous heartbeat rather than

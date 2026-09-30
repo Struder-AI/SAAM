@@ -1,6 +1,6 @@
 import {requireThat} from '../geom/tolerance.mjs';
 import {toolBounds,validateSetup,sameNozzleMaterialChanges} from '../machine/rules.mjs';
-import {filamentPlan} from '../machine/filaments.mjs';
+import {checkedFilamentPlan as filamentPlan} from '../machine/filaments.mjs';
 import {renderX1MaterialChange} from './bambu-x1-change.mjs';
 
 export const CHANGE_BEGIN=';SAAM_TOOL_CHANGE ',CHANGE_END=';SAAM_TOOL_CHANGE_END\n';
