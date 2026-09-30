@@ -7,6 +7,11 @@ are makers only. A core change requires the developer role, regardless of which
 directory contains it. Geometry skills change geometry, toolpath skills deposit,
 and hybrid skills do both. Guidance teaches compositions of those operations.
 
+Specialized task applications are [workspaces](../workspaces/README.md), filed
+separately under `workspaces/` and listed in its index. Keep reusable geometry and
+toolpath capabilities here; using skills does not make the surrounding application
+a skill. The workspace policy owns attribution, support and shared-core reuse.
+
 Skill use and skill implementation are different reads. `SKILL.md` holds
 operations, settings, limits and recovery for makers. Guidance authoring and
 helper examples go in `BUILDER.md`; core implementation belongs in `DEVELOPER.md`.

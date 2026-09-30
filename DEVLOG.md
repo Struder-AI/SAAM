@@ -1,5 +1,30 @@
 # Development log
 
+## 2026-09-30 — Workspace definitions, repository boundaries and policy review
+
+- Source: current user requested workspace policy after a conversation with Evan,
+  defining specialized applications, print-aware workflows, three integration
+  styles, reuse of maintained SAAM functionality, separate filing and index,
+  visible contributor attribution, community support and freedom of interface.
+- Added the owning policy at `workspaces/README.md`, a separate workspace index,
+  a transitional wing-design record and concrete review points for Evan.
+  Linked the policy into agent entry guidance, maker/builder orientation, skill
+  authoring, the glossary and project README.
+  Renamed the builder manual's example “workspaces” to demo print bundles to
+  distinguish saved parts from specialized applications.
+- D-044 records the user's direction without claiming Evan's agreement or
+  inventing contributor credit. Wing application code remains in its existing
+  location; this pass establishes policy and filing conventions, not migration
+  or runtime implementation. No message to Evan, publication or manufacturing
+  approval is implied.
+- Publication direction: the user requested pushing the policy for normal PR
+  review and will personally ask Evan to review/modify it and discuss it directly.
+- Publication: policy-only branch based on current main, excluding TK-DEV's
+  unrelated implementation changes. `git diff --check` passes; documentation
+  checks report only existing BR-055 and decision timestamp/status errors.
+  D-044 avoids main's existing D-039. Wing
+  design is listed as a TK-DEV prototype, absent from main; no code is migrated.
+
 ## 2026-09-30 — 0.2.0 live-relay release
 
 - Owner explicitly requested commit, push, publication and live relay update; acceptance testing follows on the actual relay, with fixes in 0.2.1 if needed.
