@@ -84,7 +84,7 @@ function supportSectionQuery(a,settings,placement) {
 
 export function supportResults({plan,machine,shells,modelResults}) {
   const settings=plan.skills.supports,process=plan.process;
-  if(!settings?.enabled)return [];
+  if(!settings?.enabled)return {results:[],dependencyChanges:[]};
   // The shared plan boundary already ran validateSupports. This producer owns
   // checks on newly derived support/part sections, not another settings pass.
   const top=Math.max(...settings.assignments.map(a=>a.contactZMm-settings.topGapMm));
@@ -134,16 +134,16 @@ export function supportResults({plan,machine,shells,modelResults}) {
   // Preserve support-before-part even when the locked composer batches layers.
   // For continuous/nonplanar operations use their highest deposition point,
   // rather than treating scheduling rank as physical height.
-  const ranks=[...byRank.keys()].sort((a,b)=>a-b);
+  const ranks=[...byRank.keys()].sort((a,b)=>a-b),dependencyChanges=[];
   for(const result of modelResults)for(const op of result.operations){
     const high=op.strokes.reduce((z,s)=>s.points.reduce((v,p)=>Math.max(v,p[2]),z),-Infinity);
     let low=0,end=ranks.length;
     while(low<end){const mid=(low+end)>>>1;if(ranks[mid]<=high+1e-8)low=mid+1;else end=mid;}
-    if(low)op.after.push(...byRank.get(ranks[low-1]));
+    if(low)dependencyChanges.push({operationId:op.id,after:[...byRank.get(ranks[low-1])],mode:'append'});
   }
   body.report.assignments=settings.assignments.map(a=>({id:a.id,style:a.style,reason:a.reason,
     contactZMm:a.contactZMm,actualTopGapMm:a.contactZMm-(process.firstLayerMm+lastLayer(a)*process.layerMm)}));
   body.report.limitations='Bed-rooted supports, explicit branch skeletons, planar contact heights; slice-plane clearance checks only. No automatic support selection or branch routing; physical performance unvalidated.';
   requireThat(all.length>0,'Assigned support produced no strokes; enlarge its footprint or branches.');
-  return [body,surface];
+  return {results:[body,surface],dependencyChanges};
 }

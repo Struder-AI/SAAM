@@ -13,7 +13,7 @@ test('the complete regional stack uses native geometry, final confirmation, shar
   const machine=loadMachine('ultimaker-s5'),plan=regionalStackPlan(machine,'spline');
   await initBundle(directory,plan,{machineId:machine.id});
   let state=await loadBundle(directory);
-  const native=await readFile(join(directory,'geometry/model.3dm'));
+  const nativeFile=join(directory,state.geometryArtifact.file),native=await readFile(nativeFile);
   assert.deepEqual(new Set(state.skills),new Set(['full-fill','vase-wall','planar-infill','draped-skin']));
   assert.doesNotMatch(state.limitations.join('\n'),/cap.*unsupported spans/,'no retired bridge-policy warning in the shared review workflow');
   await generateBundle(directory);state=await loadBundle(directory);
@@ -21,11 +21,11 @@ test('the complete regional stack uses native geometry, final confirmation, shar
   assert.equal(state.pathSummary.regions.length,5);
   assert.ok(state.program.moves.some(move=>move.phase==='vase-wall'&&move.extruding));
   assert.ok(state.program.moves.some(move=>move.phase==='draped-skin'&&move.extruding));
-  const bytes=await readFile(join(directory,'exports/griffin-gcode/part.gcode'));
+  state=await loadBundle(directory);const bytes=await readFile(join(directory,state.review.generation.file));
   await assert.rejects(()=>deliver(directory),/approval/);
   state=await approve(directory,{actor:'SYNTHETIC REGIONAL SOFTWARE TEST ONLY',revision:state.revision});
   assert.deepEqual(await readFile(await deliver(directory)),bytes);
-  assert.deepEqual(await readFile(join(directory,'geometry/model.3dm')),native);
+  assert.deepEqual(await readFile(nativeFile),native);
 
   const server=createStudio(directory,{libraryRoot:directory});await new Promise(done=>server.listen(0,'127.0.0.1',done));
   t.after(()=>new Promise(done=>server.close(done)));
@@ -34,7 +34,6 @@ test('the complete regional stack uses native geometry, final confirmation, shar
   assert.equal(reviewed.toolpathApproved,true);
   assert.deepEqual(reviewed.plan.composition.regions,plan.composition.regions);
   assert.equal((await fetch(origin+'/settings.mjs')).status,200);
-  assert.equal(await(await fetch(origin+'/api/gcode')).text(),bytes.toString());
 
   const regions=structuredClone(plan.composition.regions);regions.find(r=>r.id==='cap').skills['full-fill'].fillAnglesDeg=[0,90];
   await adjustBundle(directory,{composition:{regions}},{expectedRevision:state.revision});

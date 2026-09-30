@@ -2,7 +2,7 @@
 name: gridfinity
 description: gridfinity
 metadata:
-  saam-kind: task
+  saam-kind: geometry
 ---
 
 # Gridfinity
@@ -149,7 +149,7 @@ for a ring. The actual deformed glyph outlines, including stroke expansion,
 determine clearance; the baseline radius alone does not.
 
 For a custom upper body, put a Gridfinity blank and the authored body into a
-shared assembly, then select printing skills by component. A one-unit-high blank
+shared assembly, then select toolpath skills by component. A one-unit-high blank
 ends at Z = 7 mm; place a supported body on that foundation and align the
 deposition interface with the layer grid. The assembly does not automatically
 union intersecting components or remove duplicate deposition, so assign distinct
@@ -188,8 +188,7 @@ identity so changed construction code invalidates old generation identity.
 No additional numerical library, imported CAD application or external generator
 is required; the pinned `manifold-3d` dependency is already present.
 
-The [skill tests](tests/gridfinity.test.mjs) and
-[access tests](tests/access.test.mjs) are available with:
+The [access tests](tests/access.test.mjs) are available with:
 
 ```sh
 node --test skills/gridfinity/tests/*.test.mjs

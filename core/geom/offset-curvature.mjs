@@ -2,9 +2,7 @@
 // The result remains one patch. This is local regularity, not Boolean trimming
 // or a global self-intersection certificate.
 import {basisDerivatives,findSpan,evaluate} from './nurbs.mjs';
-import {requireThat} from './tolerance.mjs';
-const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
-const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+import {requireThat,cross,dot} from './tolerance.mjs';
 const MARGIN=.05;
 function firstRoot(b,c){
   requireThat(Number.isFinite(b)&&Number.isFinite(c),'Loose offset curvature coefficients must be finite.');

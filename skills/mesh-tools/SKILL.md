@@ -1,8 +1,8 @@
 ---
 name: mesh-tools
-description: Diagnose mesh import failures, clean duplicate or collapsed facets, and repair self-intersections with CGAL local patches. Supports explicitly bounded hole filling, preserves source files and reports shape changes for geometry review.
+description: Diagnose failed mesh imports, clean duplicate or collapsed facets, repair self-intersections and fill explicitly bounded holes.
 metadata:
-  saam-kind: task
+  saam-kind: geometry
 ---
 
 # Mesh tools
@@ -95,7 +95,7 @@ face centroids in both directions, including discarded source surfaces. A clean
 intersection check alone does not establish acceptable shape preservation.
 
 Import `repaired.stl` with units **mm**, then review its geometry. Repair/import
-create no approvals. Each printing pattern's shape restrictions still apply.
+create no approvals. Each toolpath skill's shape restrictions still apply.
 With MCP-only access, `read_skill` retrieves this manual and `import_stl_print`
 imports an available result; the connector currently has no repair tool.
 

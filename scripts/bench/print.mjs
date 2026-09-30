@@ -21,7 +21,7 @@ let generationStart=0,lastProgress=0;
 function onProgress(progress){
   const elapsedMs=performance.now()-generationStart;
   report.progress={...progress,elapsedMs};
-  if(progress.stage==='Mapping vase motif courses')report.courseProgress={...report.progress};
+  if(progress.stage==='Mapping vase pattern courses')report.courseProgress={...report.progress};
   if(elapsedMs-lastProgress>=5000){report.progressSamples.push(report.progress);console.log(JSON.stringify({event:'progress',...report.progress}));lastProgress=elapsedMs;}
   if(elapsedMs>=maxSeconds*1000)throw new Error(`Benchmark generation time budget reached (${maxSeconds} seconds); no complete output.`);
 }
@@ -42,9 +42,10 @@ try{
   const [generation,planning,exports,geometry]=await stage('runtime',()=>Promise.all([
     import('../../core/print/generate.mjs'),import('../../core/print/plan.mjs'),
     import('../../core/export/registry.mjs'),import('../../core/print/geometry.mjs')]));
-  const [plan,machine]=await stage('read-and-parse',async()=>Promise.all(['plan.json','machine.json'].map(async name=>{
-    const bytes=await readFile(path.join(input,name));report.input[name]={bytes:bytes.length,sha256:digest(bytes)};return JSON.parse(bytes);
-  })));
+  const {plan,machine}=await stage('read-and-parse',async()=>{
+    const bytes=await readFile(path.join(input,'plan.json'));report.input['plan.json']={bytes:bytes.length,sha256:digest(bytes)};
+    const {bundle,...plan}=JSON.parse(bytes);return {plan,machine:bundle.machine};
+  });
   // A fresh benchmark process has no earlier geometry-ingestion result. Keep
   // this cold cost separate from generation after geometry is already loaded.
   await stage('geometry-and-plan',()=>planning.validatePlan(plan,machine));

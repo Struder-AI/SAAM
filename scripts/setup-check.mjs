@@ -24,9 +24,9 @@ export async function checkSetup({log=console.log}={}) {
     const r=await (await import('rhino3dm')).default();
     const line=new r.LineCurve([0,0,0],[1,0,0]);
     try{assert.deepEqual(line.pointAt(0.5),[0.5,0,0]);}finally{line.delete();}
-    const {booleanPaths}=await import('../core/region/clipper2.mjs');
+    const {clipPaths}=await import('../core/region/clipper.mjs');
     const square=[{X:0,Y:0},{X:10,Y:0},{X:10,Y:10},{X:0,Y:10}];
-    assert.equal(booleanPaths([square],[],'Union').length,1);
+    assert.equal(clipPaths([square],[],'union').length,1);
     if(manifest.dependencies['manifold-3d']){
       const {solidKernel}=await import('../core/geom/solid.mjs');
       const kernel=await solidKernel(),cube=kernel.Manifold.cube([1,1,1]);

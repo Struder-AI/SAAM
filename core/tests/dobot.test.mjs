@@ -123,7 +123,7 @@ test('Dobot shared lifecycle binds exact ZIP to synthetic approvals, detects hel
     assert.equal(checks.materialModel,'relay-estimate');
     state=await loadBundle(dir);assert.equal(state.programError,undefined);
     state=await approve(dir,{actor,revision:state.revision});
-    const output=join(dir,'exports/dobot-lua/part.zip'),original=await readFile(output);
+    const output=join(dir,state.review.generation.file),original=await readFile(output);
     const delivery=await deliver(dir);assert.deepEqual(await readFile(delivery),original);
     const entries=unpackZip(original);entries.set('global.lua',Buffer.from(entries.get('global.lua').toString().replace('tool=1','tool=3')));await writeFile(output,packZip(entries));
     state=await loadBundle(dir);assert.equal(state.toolpathApproved,false);assert.match(state.programError,/Generated files changed/);

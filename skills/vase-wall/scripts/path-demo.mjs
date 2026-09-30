@@ -1,4 +1,4 @@
-// A motif repeats around a real closed sleeve through the common lifecycle.
+// A tile repeats around a real closed sleeve through the common lifecycle.
 import {resolve} from 'node:path';
 import {defaults} from '../../../core/print/plan.mjs';
 import {initBundle,generateBundle} from '../../../core/print/bundle.mjs';

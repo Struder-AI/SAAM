@@ -24,7 +24,7 @@ export function bumpyPlan(){
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){
   const directory=resolve(process.argv[2]??'Prints/development/denso-bumpy-spline');
-  await initBundle(directory,bumpyPlan(),{machineId:'denso-vp6242-rc8'});
+  await initBundle(directory,bumpyPlan(),{machineId:'denso-vs068a4-rc8a'});
   console.log('Created bumpy spline geometry: '+directory);
   const checks=await generateBundle(directory,{development:true});console.log(JSON.stringify(checks,null,2));
 }

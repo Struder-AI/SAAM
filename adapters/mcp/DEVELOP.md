@@ -4,6 +4,10 @@ Adapter boundaries and integration tests. [The adapter manual](README.md)
 owns client configuration and tool usage; [the print lifecycle](../../core/print/README.md)
 owns manufacturing state.
 
+The [Cloudflare relay milestone plan](RELAY-PLAN.md) specifies future packaged
+deployment and active Studio-driven web-chat sessions. It is planning context,
+not an account of the current adapter's capabilities.
+
 ## Local MCP access
 
 The adapter uses fixed known profiles and skills under [D-022](../../DECISIONS.md#d-022--defer-automatic-capability-discovery). It delegates manufacturing state to the shared print lifecycle.
@@ -14,7 +18,7 @@ and returns the document's own links as resolved IDs. New references therefore
 use ordinary links without a parallel per-document registry. It confines reads
 to the public documentation trees and rejects private locations and filesystem
 links. Optional heading fragments select one section, including its subsections.
-The fixed skill catalog distinguishes task manuals from printing patterns;
+The fixed skill catalog distinguishes geometry skills from toolpath skills;
 making a manual readable does not register a new plan operation or MCP tool.
 Its IDs and frontmatter reader come from the shared [skill catalog](../../skills/catalog.mjs),
 which also supplies the generated maker digest.
@@ -39,8 +43,8 @@ sole live instance, so switching prints opens no second Studio;
 an instance never crosses adapter ownership, while print bundles remain shared.
 Tour start-layer writes require the run and lesson identities they were prepared
 for. See [coordination and its concurrency limits](../../studio/README.md#agent-request-coordination).
-Task manuals identify themselves with `metadata.saam-kind: task` in their
-frontmatter; existing printing manuals retain the default `printing` kind.
+Geometry skill manuals identify themselves with `metadata.saam-kind: geometry` in their
+frontmatter; toolpath skill manuals keep the default `toolpath` kind.
 
 `apply_text` delegates to [shared text preparation](../../core/print/text.mjs),
 including local font reading, stale-revision checks and geometry updates. The

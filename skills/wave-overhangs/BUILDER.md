@@ -39,9 +39,16 @@ The residual geometry, band and actual sampled diameter remain explicit.
 The skill returns one standard atomic operation/stroke per accepted slice.
 There is no inter-front travel or cooling pause; the slice is the cooling unit.
 Named predecessor/successor components bind existing operations. It does not
-infer material support or replace other skills' regions. Common PathBuilder
-travel, cooling, flow limits and exporters own machine output. Exact runtime
+infer material support or replace other skills' regions. Shared functional planning stages own travel, cooling and flow limits; exporters
+own machine output. Exact runtime
 identity includes the producer, shared numerical functions and dependencies.
+
+`waveResults` returns `{results, dependencyChanges}`. It reads `modelResults`
+without modifying their operations. Successor prerequisites are explicit
+`{operationId, after, mode: 'append'}` records; generation applies them in order
+with `applyResultDependencies` from `core/print/generate.mjs` before combining
+the updated model results with the new wave results. An unsuccessful generation
+does not leave partial prerequisite edits on its inputs.
 
 ## Research and license findings
 
@@ -101,11 +108,12 @@ The original `canopy-rim.json` fixture starts near the large example's rim and
 checks that long rounding strips remain diagnostic geometry, without producing
 additional perimeter passes or exhausting growth.
 The example provides a reproducible public development workflow.
-Existing surface-offset tests retain unconstrained behavior. Shared boolean
-tests cover the unchanged default origin and topology path.
+Surface-offset and boolean behavior follows from the contracts above; write
+those checks on demand. The stored canopy-rim regression and the upstream
+boolean references run with:
 
 ```sh
-node --test skills/wave-overhangs/tests/*.test.mjs core/tests/surface-offset.test.mjs core/tests/intersection.test.mjs core/tests/offset.test.mjs
+node --test skills/wave-overhangs/tests/wave.test.mjs core/tests/intersection.test.mjs
 ```
 
 Software fixtures and synthetic approvals establish no physical result. The

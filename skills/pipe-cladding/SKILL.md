@@ -1,14 +1,14 @@
 ---
 name: pipe-cladding
-description: Wrap a substrate with alternating lengthwise and helical cladding, or opposite-handed helices for a crossed exterior pattern. Supports circular pipes and explicitly mapped periodic spline or mesh surfaces; this development capability requires a configured DENSO RC8 robot and external rotary.
+description: Experimental. Lengthwise, helical or crossed-helix cladding around a pipe, a spline or mesh sleeve, or a finished vase wall. Development only; needs a configured DENSO RC8A robot with external rotary.
 ---
 
 # Pipe cladding
 
 For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
 [builder orientation](../../BUILDERS.md) and follow its task-specific references.
-This is a bounded development implementation for the DENSO VP-6242 with RC8 and
-an external rotary. RC8 is user-confirmed; ceiling mounting with the robot base
+This is a bounded development implementation for the DENSO VS-068A4 with RC8A and
+an external rotary. RC8A is user-confirmed; ceiling mounting with the robot base
 axis coaxial with the rotary remains provisional. No physical print is validated.
 
 ## Geometry and process
@@ -38,7 +38,8 @@ concentric substrate pattern. This stays within full-fill's existing composition
 travel and export lifecycle; it is not a general annular medial-axis fill.
 
 Cladding owns the remaining radial band. The first shell runs up and down along
-the cylinder, with extrusion off while the bed indexes between tracks. Track
+the cylinder, continuing deposition across the short index between neighboring
+tracks at each end. Track
 count is even and bead width adjusts slightly downward to divide the circumference.
 The next shell is a circumferential helix, rising one line width per turn. Further
 shells alternate these patterns. Each entire shell depends on its predecessor;
@@ -50,7 +51,7 @@ on successive shells. Each runs bottom to top; the shared transition retreats
 and returns to the next shell's lower end with extrusion off. Wider
 [line spacing](../../core/print/USAGE.md#line-spacing) opens the crossed pattern
 without increasing bead width. This works on circular pipes and the selected
-periodic surfaces below. It remains substrate cladding, not a free-standing
+sleeves below. It remains substrate cladding, not a free-standing
 mesh generator or a physically validated TPU process.
 
 The nozzle points inward and downward, at `tiltDeg` from downward vertical.
@@ -86,24 +87,24 @@ cylinder from arbitrary STL/CAD or accept `composition.regions` Z assignments.
 The explicit surface mode below adds outward cladding to an assigned substrate.
 General support/rim contact
 with the radial band is not established. Those are explicit remaining geometry
-and composition boundaries; ordinary skills still share the RC8 output in their
+and composition boundaries; ordinary skills still share the RC8A output in their
 existing fixed-orientation scope.
 
 ## Machine setup and source output
 
-Read the [RC8 output contract](../../core/export/denso.md#denso-rc8-output-contract).
+Read the [RC8A output contract](../../core/export/denso.md#denso-rc8a-output-contract).
 The profile is unconfigured by default. Record the actual tool/work frames,
 arm group and figure, rotary interface/axis/sign/zero, bed center, frame offset/yaw,
 initial position/orientation, relay IO and measured relay rate in `setup.denso`.
 `configurationSource` and `mounting` describe the basis for those values.
 Work coordinates must be defined with Z parallel to the bed axis; the calibrated
-RC8 Work definition accounts for the ceiling installation. The SAAM transform
+RC8A Work definition accounts for the ceiling installation. The SAAM transform
 currently supports translation and yaw between that frame and the displayed room.
 The optional [nominal presentation model](../../core/machine/README.md) requires
 separate explicit base/tool alignment and model seed; it does not establish
 controller joint or FIG parity.
 
-The implemented rotary interface is `rc8-relative-ex`: a configured RC8 extended
+The implemented rotary interface is `rc8a-relative-ex`: a configured RC8A extended
 joint commanded through `EX`. An independently controlled rotary needs another
 machine adapter and synchronized execution; it must not be silently treated as
 this interface. Continuous multi-turn capacity and cable routing are unresolved
@@ -116,7 +117,7 @@ compilation. It interprets its emitted literal `Move L, @0 T(...) EX(...), Time=
 subset and relay `Set/Reset IO` commands; it is not a general PacScript interpreter.
 The same exact archived source drives Studio and delivery.
 
-RC8 handles inverse kinematics for Cartesian poses. SAAM defers reach, singularity,
+RC8A handles inverse kinematics for Cartesian poses. SAAM defers reach, singularity,
 joint and motion-limit checks as requested, alongside collision avoidance.
 Travel uses prescribed retreat/reorient/approach moves; it does not solve a clear
 route. Pose changes do not silently flatten to XYZ or disappear during compaction.
@@ -134,17 +135,17 @@ control is external; retraction and fan control are unavailable.
 Create an isolated synthetic development bundle from the repository root:
 
 ```sh
-node skills/pipe-cladding/scripts/demo.mjs Prints/development/denso-rc8-pipe
-node studio/server.mjs Prints/development/denso-rc8-pipe
+node skills/pipe-cladding/scripts/demo.mjs Prints/development/denso-rc8a-pipe
+node studio/server.mjs Prints/development/denso-rc8a-pipe
 ```
 
 The fixture is a 16 mm bore, 20.8 mm outside diameter, 12 mm tall pipe with
 2.4 mm walls: 1.6 mm substrate plus four 0.2 mm radial shells. Its invented
 installation values are labeled in the plan and never remembered by this script.
 It creates no human manufacturing approvals and executes no hardware.
-For any new provisional RC8 part, call `developmentPipePlan()` from
+For any new provisional RC8A part, call `developmentPipePlan()` from
 [demo.mjs](scripts/demo.mjs), replace its geometry and selected skills, then
-`initBundle(directory, plan, {machineId:'denso-vp6242-rc8'})` and generate in
+`initBundle(directory, plan, {machineId:'denso-vs068a4-rc8a'})` and generate in
 development mode; the labeled setup is reusable across shapes and is not remembered.
 Disable pipe-cladding when selecting only ordinary fixed-orientation skills.
 For an existing development bundle, use `node core/print/cli.mjs demo <directory>`;
@@ -220,7 +221,9 @@ This is deliberately different from the legacy pipe recipe, where the pipe's
 outer radius includes the cladding and its band is reserved inward. Nothing in
 this example implements arbitrary inward surface-volume reservations.
 
-Set `skills.pipe-cladding.surface` to an explicit selection:
+Set `skills.pipe-cladding.surface` to an explicit **sleeve**: a surface periodic in
+one direction, closing on a seam, and open in the other (the side of a tube).
+Cladding is laid out on it; the sleeve itself is not deposited. Select one:
 
 - Native spline: `{kind:'spline', patch:'outer', periodicU:true, normalSide:1,
   uvBounds:[[0,16],[0,1]]}`. Bounds are native patch parameters. Positive V runs
@@ -258,8 +261,9 @@ their offset-surface arc length at sampled V rows, and allocates bead-width cell
 within each sector. A cell's course starts or ends when local width crosses its
 threshold. The root is refined in V, and the last cell tapers its intended bead
 width; no full-height course is forced through a disappearing cell. Alternating
-direction avoids flipping the nozzle frame. Repositioning between separate
-courses turns extrusion off and uses the shared oriented retreat/approach policy.
+direction avoids flipping the nozzle frame. Neighboring courses ending within 2 mm
+continue deposition across that index; other repositioning turns
+extrusion off and uses the shared oriented retreat/approach policy.
 Hoop layers use a continuous periodic helix with pitch based on a sampled longest
 meridian and locally scaled bead width. All substrate operations precede the
 first shell; every later shell depends on the complete preceding shell.
@@ -271,7 +275,7 @@ bring each contact azimuth to the working side. The same interpreted tool frame
 drives Studio's bead orientation; neither playback nor material display guesses
 a cylindrical normal for the new mode.
 
-Current limits: one selected component and one rectangular periodic surface chart;
+Current limits: one selected component and one rectangular sleeve chart;
 no arbitrary face-region unwrapping, holes in the chart, multi-patch seam routing,
 open-patch cladding or general inward material reservation. The substrate's
 Z-regions can compose through their published boundaries.
@@ -287,10 +291,11 @@ cells have small intended bead widths. Fixed relay flow cannot meter those width
 software intent and relay estimates remain separate. Physical clearance, robot
 feasibility and execution remain unverified.
 
-[Surface-cladding tests](../../core/tests/surface-cladding.test.mjs) cover native
-round trips, bore and wall dimensions, normal offsets/refinement, mesh-strip
-mapping, perimeter-front interaction, partial courses, rotary continuity, bead
-frames, packaging beyond 64 helper files and the shared export/review lifecycle.
+Native round trips, bore and wall dimensions, normal offsets/refinement,
+mesh-strip mapping, perimeter-front interaction, partial courses, rotary
+continuity and bead frames have no stored tests; their expected values follow
+from the contracts above. The machine bytes they produce stay covered by
+[denso.test.mjs](../../core/tests/denso.test.mjs).
 
 ## Shared example
 

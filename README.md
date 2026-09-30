@@ -32,7 +32,7 @@ This is the product direction; the references below describe implemented scope.
 Contributor approval status is recorded in [DECISIONS.md](DECISIONS.md).
 
 Skills should work across geometry types and machines through shared interfaces,
-with explicit, narrow exceptions. Prints keep geometry, the process plan,
+with explicit, narrow exceptions. Print bundles keep geometry, the recipe,
 the checked export, and review records together locally. The
 [developer principles](core/README.md#interoperability-and-one-workflow) explain
 how changes extend this shared system.
@@ -40,7 +40,7 @@ how changes extend this shared system.
 ## What works today
 
 This is a development checkout. Choose a pattern through the [skill
-index](skills/README.md); each manual owns its current shapes, settings and limits.
+index](skills/DIGEST.md); each manual owns its current shapes, settings and limits.
 [Machine support and output contracts](core/export/README.md#machine-interoperability-design)
 describe what each machine's export and playback cover, including the scope of
 reported physical observations. Software checks do not establish physical print
@@ -75,9 +75,9 @@ own print or explore freely. Exploring a demo grants no printing approvals.
 
 Start with [role selection](AGENTS.md#choose-your-role) for code or documentation
 work; [builder orientation](BUILDERS.md) supplies the shared engineering baseline.
-The [developer maps](maps/README.md) describe core and Studio. Build their viewer
-with `node scripts/dev-map.mjs build`; agents use `read-map PAGE` through the
-agent toolkit for current source references and calculated shared uses.
+The [dev map](dev-map/README.md) is generated from the source and describes core
+and Studio. Draw it with `node dev-map/cli.mjs build`; agents walk it from
+page `0` with `read-map INDEX|DECLARATION` through the agent toolkit.
 Use [GLOSSARY.md](GLOSSARY.md) for terms, [DECISIONS.md](DECISIONS.md) for
 contributor choices, the [build requests](build_request.md#outstanding-work)
 for outstanding or incomplete work, and [DEVLOG.md](DEVLOG.md) for dated work

@@ -1,14 +1,11 @@
 // Studio's primitive vocabulary. Model equations and joint policy stay with providers.
+import {dot,cross,point,invert} from '../core/machine/rigid.mjs';
+
 const roles=new Set(['structure','rail','link','carriage','joint','bed','tool']);
 const vector=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite);
-const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
-const sub=(a,b)=>a.map((v,i)=>v-b[i]);
-const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
-export const transform=(t,p)=>t.rotation.map((r,i)=>dot(r,p)+t.translationMm[i]);
-export const untransform=(t,p)=>[0,1,2].map(i=>dot(t.rotation.map(r=>r[i]),sub(p,t.translationMm)));
 export const bindingKey=b=>JSON.stringify([b?.printId,b?.revision,b?.exportHash,b?.modelKey]);
 function require(value,message){if(!value)throw Error('Machine presentation: '+message);}
-function rigid(t){
+function validatePresentationRigid(t){
   require(t&&vector(t.translationMm)&&Array.isArray(t.rotation)&&t.rotation.length===3&&t.rotation.every(vector),'invalid rigid frame');
   const r=t.rotation;
   require(r.every((row,i)=>r.every((other,j)=>Math.abs(dot(row,other)-(i===j?1:0))<=1e-6))&&Math.abs(dot(r[0],cross(r[1],r[2]))-1)<=1e-6,'frame must be a right-handed rotation');
@@ -21,7 +18,7 @@ export function validateDescriptor(d){
   require(Array.isArray(d.components),'missing components');const ids=new Set();
   if(d.controls!==undefined)require(Array.isArray(d.controls)&&d.controls.every(c=>typeof c.label==='string'&&typeof c.unit==='string'&&[c.min,c.max,c.step].every(Number.isFinite)&&c.min<c.max&&c.step>0),'invalid manual controls');
   for(const c of d.components){
-    require(typeof c.id==='string'&&!ids.has(c.id)&&typeof c.label==='string'&&roles.has(c.role)&&d.frameIds.includes(c.frameId),'invalid component');ids.add(c.id);rigid(c.local);
+    require(typeof c.id==='string'&&!ids.has(c.id)&&typeof c.label==='string'&&roles.has(c.role)&&d.frameIds.includes(c.frameId),'invalid component');ids.add(c.id);validatePresentationRigid(c.local);
     const s=c.shape,positive=v=>Number.isFinite(v)&&v>0,nonnegative=v=>Number.isFinite(v)&&v>=0;
     require(s&&({line:()=>vector(s.fromMm)&&vector(s.toMm),polyline:()=>Array.isArray(s.pointsMm)&&s.pointsMm.length>=2&&s.pointsMm.every(vector)&&typeof s.closed==='boolean',sphere:()=>positive(s.radiusMm),box:()=>vector(s.sizeMm)&&s.sizeMm.every(positive),cone:()=>positive(s.lengthMm)&&nonnegative(s.radiusStartMm)&&nonnegative(s.radiusEndMm)&&s.radiusStartMm+s.radiusEndMm>0}[s.kind]?.()),'unsupported or invalid primitive');
   }
@@ -35,7 +32,7 @@ export function validateSnapshot(s,d,request){
   require(JSON.stringify(s.jog??null)===JSON.stringify(request.jog??null),'pose does not match jog request');
   if(s.controlValues!==undefined)require(Array.isArray(s.controlValues)&&s.controlValues.every(Number.isFinite)&&(s.controlValues.length===0||s.controlValues.length===d.controls?.length),'invalid manual coordinates');
   require(['ready','partial','unavailable'].includes(s.status)&&s.worldFromFrame&&Array.isArray(s.diagnostics),'invalid pose status');
-  for(const [id,t] of Object.entries(s.worldFromFrame)){require(d.frameIds.includes(id),'unknown frame');rigid(t);}
+  for(const [id,t] of Object.entries(s.worldFromFrame)){require(d.frameIds.includes(id),'unknown frame');validatePresentationRigid(t);}
   require(s.diagnostics.every(x=>typeof x.code==='string'&&typeof x.message==='string'&&['info','warning','error'].includes(x.severity)&&(!x.componentIds||x.componentIds.every(id=>d.components.some(c=>c.id===id)))),'invalid diagnostics');
   if(s.status!=='unavailable'){
     require(s.worldFromFrame.part&&s.worldFromFrame.world,'missing source alignment');
@@ -74,7 +71,7 @@ export function poseMachine(scene,snapshot){
   if(!scene||!snapshot||snapshot.status==='unavailable')return null;
   const part=snapshot.worldFromFrame.part;
   const components=scene.components.filter(c=>snapshot.worldFromFrame[c.frameId]).map(c=>({...c,
-    vertices:c.vertices.map(p=>untransform(part,transform(snapshot.worldFromFrame[c.frameId],transform(c.local,p))))}));
+    vertices:c.vertices.map(p=>point(invert(part),point(snapshot.worldFromFrame[c.frameId],point(c.local,p))))}));
   if(!components.length)return null;
   const bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   for(const c of components)for(const p of c.vertices)p.forEach((v,i)=>{bounds.min[i]=Math.min(bounds.min[i],v);bounds.max[i]=Math.max(bounds.max[i],v);});
@@ -83,7 +80,7 @@ export function poseMachine(scene,snapshot){
 export const boundsCorners=b=>Array.from({length:8},(_,i)=>[0,1,2].map(k=>(i>>k)&1?b.max[k]:b.min[k]));
 export function machineFitBounds(scene,pose,worldToDisplay){
   const b=scene.descriptor.machineBoundsWorldMm;
-  const points=b?boundsCorners(b).map(worldToDisplay):pose?.components.flatMap(c=>c.vertices.map(p=>worldToDisplay(transform(pose.part,p))));
+  const points=b?boundsCorners(b).map(worldToDisplay):pose?.components.flatMap(c=>c.vertices.map(p=>worldToDisplay(point(pose.part,p))));
   if(!points?.length)return null;
   return {min:[0,1,2].map(i=>Math.min(...points.map(p=>p[i]))),max:[0,1,2].map(i=>Math.max(...points.map(p=>p[i])))};
 }

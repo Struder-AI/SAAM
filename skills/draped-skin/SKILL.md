@@ -1,6 +1,6 @@
 ---
 name: draped-skin
-description: Follow a sloping or curved roof with top-skin strokes instead of approximating it with flat-layer steps. Works on continuous accessible mesh or supported spline roofs within the machine's nonplanar angle limit; excluded steep areas are reported.
+description: Top-skin strokes that follow a sloping or curved roof instead of flat-layer steps, within the machine's nonplanar angle limit; steep areas are reported.
 ---
 
 # Draped skin
@@ -38,9 +38,8 @@ For an assembly, set `part` to the roof component's ID; the template's `null`
 selection is only for a single part, and the skin stack must fit the selected roof.
 
 `drapedSkinResult({shell, plan, machine, survey, id, after})` returns operations
-for the shared composer. `generateDrapedSkin(builder, options)` uses the same
-implementation for a single instance. Use all results together when composing a
-plan, so whole-plan travel accounts for every component and operation.
+for the shared composer. Pass all skill results to `planComposition(state, results)`
+together, so whole-plan travel accounts for every component and operation.
 
 Shared `composition.regions` assigns skins to the actual roof of a selected
 component alongside or after its body regions. Its emitted stack must fit the
@@ -95,7 +94,10 @@ stroke direction can reverse independently; reversing strokes also reverses
 their segment volumes and metadata. Skin-layer dependencies
 remain ordered; heat balancing and lookahead are deferred.
 
-Verified short direct moves may stay down on the current skin. Lifted travel and
+A row starting within 2 mm of the preceding row's end continues as a short
+printed connector when the chord passes the skin's surface and footprint checks,
+so each scanline group prints as one zigzag. Other verified short direct moves
+may stay down on the current skin. Lifted travel and
 cooling clear the **highest material deposited so far** across all skills plus
 the locked `liftMm` (default 1 mm; zero allowed). Shared comb routing uses the
 allowed footprint, including holes, and samples each skin's local height for
@@ -111,7 +113,8 @@ delivery. H2D uses the same workflow with experimental sliced-3MF output and
 strict interpretation of the print body. Its firmware service routines are not
 simulated; read the [machine contract](../../core/export/bambu.md#h2d-output-contract).
 
-No physical print, head-clearance or surface-finish validation has been performed.
+The user reports draped skin demonstrated in physical prints (2026-09-24); head
+clearance and surface finish have not been measured.
 Beads, skin offsets and first-skin bridging are approximate. Curvature convergence,
 automatic supports, pressure/adhesion and second-nozzle collision are not modeled.
 A direct turnaround permits up to a quarter-skin thickness of surface sag (capped

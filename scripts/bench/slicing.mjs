@@ -17,8 +17,8 @@ import { loadMachine, startupPosition, toolBounds, checkMachinePath } from '../.
 import { fullFillResult, layerHeights } from '../../skills/full-fill/scripts/fill.mjs';
 import { planarInfillResults } from '../../skills/planar-infill/scripts/infill.mjs';
 import { surveySurface, drapedSkinResult } from '../../skills/draped-skin/scripts/drape.mjs';
-import { PathBuilder } from '../../core/path/builder.mjs';
-import { composeResults } from '../../core/path/compose.mjs';
+import {createPlanningState,planContext,planFan,planRetraction,planMove,planningPath} from '../../core/path/planning.mjs';
+import { planComposition } from '../../core/path/compose.mjs';
 import { planarSupportTopAt } from '../../core/print/regions.mjs';
 import { exportProgram, interpretProgram } from '../../core/export/registry.mjs';
 
@@ -45,11 +45,13 @@ function roofPoints(name) {
   return points;
 }
 function compose(shell, plan, results) {
-  const b = new PathBuilder({ start: startupPosition(machine, plan), process: plan.process, machine, generatorVersion: VERSION });
-  b.motionBounds = toolBounds(machine, plan.setup.tool); b.planMaxZ = shell.bounds.max[2]; b.setContext('start', 0); b.fan(0);
-  const summary = composeResults(b, results, plan.composition);
-  b.setContext('finish', 0); b.retract(); b.move([b.position[0], b.position[1], shell.bounds.max[2] + plan.process.liftMm], plan.process.zSpeedMmS); b.fan(0);
-  const result = b.toPath({ benchmark: true, composition: summary }); checkMachinePath(result, plan, machine); return result;
+  const initial=createPlanningState({start:startupPosition(machine,plan),process:plan.process,machine,generatorVersion:VERSION,motionBounds:toolBounds(machine,plan.setup.tool)});
+  const started=planFan(initial,0),composed=planComposition(started.state,results,plan.composition);
+  const finishing=planContext(composed.state,'finish',0),retracted=planRetraction(finishing.state);
+  const parked=planMove(retracted.state,[retracted.state.position[0],retracted.state.position[1],shell.bounds.max[2]+plan.process.liftMm],plan.process.zSpeedMmS);
+  const cooled=planFan(parked.state,0);
+  const result=planningPath(cooled.state,[started.actions,composed.actions,retracted.actions,parked.actions,cooled.actions],{benchmark:true,composition:composed.summary});
+  checkMachinePath(result,plan,machine);return result;
 }
 function skillTrial(shell, mode) {
   const plan = defaults(machine); plan.process.minimumLayerSeconds = 0;

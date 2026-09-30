@@ -20,16 +20,46 @@ export async function tourExample(directory){const marker=await optional(resolve
 export function referenceAdapter(live){
   const bundleFingerprints=async(directory,options)=>{
     const [{source,presentation},example]=await Promise.all([live.bundleFingerprints(directory,options),tourExample(directory)]);
-    return {source:source+Boolean(example),presentation};
+    return {source:example?`${source}:tour:${example.id}`:source,presentation};
   };
-  return {...live,bundleFingerprints,async loadBundle(directory,options={}){
-    const example=await tourExample(directory),state=await live.loadBundle(directory,options);
-    return example?{...state,tourExample:example,localPrintDirectory:directory}:state;
-  },async bundleFingerprint(directory,options){return (await bundleFingerprints(directory,options)).source;},
-  ...Object.fromEntries(['approve','generateBundle','deliver'].map(method=>[method,async(directory,...args)=>{
-    if(await tourExample(directory)&&method!=='generateBundle')throw Error('Exit the tour before confirming a real print.');
-    return live[method](directory,...args);
-  }]))};
+  return {
+    EXPORT_NAME:live.EXPORT_NAME,
+    atomicManifest:live.atomicManifest,
+    LIMITATIONS:live.LIMITATIONS,
+    adjustBundle:live.adjustBundle,
+    async approve(directory,...args){
+      if(await tourExample(directory))throw Error('Exit the tour before confirming a real print.');
+      return live.approve(directory,...args);
+    },
+    async bundleFingerprint(directory,options){return (await bundleFingerprints(directory,options)).source;},
+    bundleFingerprints,
+    changeMachine:live.changeMachine,
+    checkPathBundle:live.checkPathBundle,
+    prepareGeneration:live.prepareGeneration,
+    commitGeneration:live.commitGeneration,
+    async deliver(directory,...args){
+      if(await tourExample(directory))throw Error('Exit the tour before confirming a real print.');
+      return live.deliver(directory,...args);
+    },
+    async generateBundle(directory,...args){
+      await tourExample(directory);
+      return live.generateBundle(directory,...args);
+    },
+    initBundle:live.initBundle,
+    async loadBundle(directory,options={}){
+      const example=await tourExample(directory),state=await live.loadBundle(directory,options);
+      return example?{...state,tourExample:example,localPrintDirectory:directory}:state;
+    },
+    async loadBundleSnapshot(directory,options={}){
+      const result=await live.loadBundleSnapshot(directory,options),example=await tourExample(directory);
+      return example?{...result,state:{...result.state,tourExample:example,localPrintDirectory:directory},
+        fingerprint:`${result.fingerprint}:tour:${example.id}`}:result;
+    },
+    proposedPlan:live.proposedPlan,
+    rememberSetup:live.rememberSetup,
+    root:live.root,
+    updatePlan:live.updatePlan
+  };
 }
 export async function useExample(directory){try{await unlink(resolve(directory,'.tour-reference.json'));}catch(e){if(e.code!=='ENOENT')throw e;}}
 export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentRequests}={}){
@@ -60,8 +90,8 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
   }
   async function signature(data){
     if(!data.selected)return null;
-    const dir=await confined(data.selected),plan=await json(resolve(dir,'plan.json'));
-    return hash(canonical([L.geometry,L.roof].includes(data.step)?plan.geometry:{plan,machine:await json(resolve(dir,'machine.json'))}));
+    const dir=await confined(data.selected),document=await json(resolve(dir,'plan.json')),{bundle,...plan}=document;
+    return hash(canonical([L.geometry,L.roof].includes(data.step)?plan.geometry:{plan,machine:bundle.machine}));
   }
   async function editLessonBaseline(data){
     const printId=requests.printId(await confined(data.selected));

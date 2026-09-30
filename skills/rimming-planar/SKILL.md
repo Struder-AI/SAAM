@@ -1,6 +1,6 @@
 ---
 name: rimming-planar
-description: Experiment with thin walls that support selected edges so a planned bridge can span the area between them. A maker-assigned spline surface connects the bed or another edge to the supported edge; paired beads use horizontal offsets.
+description: Experimental. Thin walls that hold up selected edges so a planned bridge can span between them; paired beads offset horizontally from a maker-assigned spline surface.
 ---
 
 # Rimming with horizontal offsets
@@ -116,6 +116,13 @@ The shared plan boundary validates assigned settings once. The internal
 `rimmingResults` producer consumes that validated plan; standalone developer
 callers first use `validatePlan` or `validateRimming`. Generation checks newly
 constructed sections and operation dependencies at their point of use.
+
+The producer returns `{results, dependencyChanges}` and does not modify
+`modelResults`. Each change is `{operationId, after, mode: 'append'}`. Callers
+apply these ordered prerequisites with `applyResultDependencies` from
+`core/print/generate.mjs`, then combine the returned rim results with the updated
+model results before scheduling. Existing prerequisites and append order remain
+intact; the producer does not edit an earlier stage's operations.
 
 Both rimming skills obey the same ordering rules:
 

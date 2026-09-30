@@ -1,6 +1,6 @@
 // Shared coordinate conversion and Clipper2 operations for planar offsets,
 // booleans and surface-offset swept-region cleanup.
-import {booleanPaths,inflatePaths,normalizeAndInflatePaths} from './clipper2.mjs';
+import {nativeBooleanPaths,inflatePaths,nativeSimplifyPaths,normalizeAndInflatePaths} from './clipper2.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 
 export const CLIPPER_PRECISION = 1e-9;
@@ -35,11 +35,10 @@ export function canonicalLoops(loops) {
   }).sort((a, b) => compare(a[0], b[0]) || a.length - b.length);
 }
 
-export function clipPaths(subject, clip = [], operation = 'union', fill = 'pftNonZero') {
-  const kind = { union: 'Union', difference: 'Difference', intersection: 'Intersection' }[operation];
-  requireThat(kind, 'Unsupported offset cleanup operation.');
-  requireThat(fill==='pftNonZero','Unsupported offset fill rule.');
-  return booleanPaths(subject,clip,kind);
+export function clipPaths(subject, clip = [], operation = 'union', {open=false} = {}) {
+  requireThat(['union','difference','intersection'].includes(operation), 'Unsupported offset cleanup operation.');
+  requireThat(typeof open==='boolean','Clipper open option must be boolean.');
+  return nativeBooleanPaths(subject,clip,operation,{open});
 }
 
 export function offsetPaths(paths, delta, { join, miterLimit, arcTolerance, end='Polygon' }) {
@@ -48,4 +47,8 @@ export function offsetPaths(paths, delta, { join, miterLimit, arcTolerance, end=
 
 export function normalizedOffsetPaths(paths,delta,{join,miterLimit,arcTolerance}){
   return normalizeAndInflatePaths(paths,delta,{join,miterLimit,arcTolerance});
+}
+
+export function simplifyPaths(paths,epsilon,closed=true){
+  return nativeSimplifyPaths(paths,epsilon,closed);
 }

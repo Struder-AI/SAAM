@@ -28,8 +28,6 @@ export function normalize(a) {
   requireThat(l > 1e-15, 'Cannot normalize a zero-length vector.');
   return [a[0] / l, a[1] / l, a[2] / l];
 }
-export const lerp = (a, b, t) => a + (b - a) * t;
-
 // Bisection with a secant step. Used for 1D root finds along patch boundaries
 // and along rays; f must bracket a sign change on [a, b].
 export function findRoot(f, a, b, fa = f(a), fb = f(b), tolerance = TOLERANCE.parameter) {

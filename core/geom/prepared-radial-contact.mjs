@@ -112,7 +112,7 @@ export function prepareRadialSleeveContact({curveAt,anchorAt,startMm,endMm,stepM
     }
     return {node,t:(z-node.a)/(node.b-node.a)};
   }
-  return {report,at(point,fidelity=1){
+  return {report:()=>({...report}),at(point,fidelity=1){
     requireThat(point.length===3&&point.every(Number.isFinite)&&Number.isFinite(fidelity)&&fidelity>=0&&fidelity<=1,'Contact requires finite XYZ and fidelity from0 to1.');
     if(fidelity===0)return [...point];
     const c=anchorAt(point[2]),dx=point[0]-c[0],dy=point[1]-c[1],r=Math.hypot(dx,dy);

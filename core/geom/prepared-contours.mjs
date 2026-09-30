@@ -1,4 +1,4 @@
-// Build reusable contour correspondence before tracing the repeated motif.
+// Build reusable contour correspondence before tracing the repeated pattern.
 // Z and offset are interpolated together. Unresolved cells use exact queries;
 // neither the source contours nor the requested toolpath tolerance is changed.
 import {requireThat} from './tolerance.mjs';
@@ -81,7 +81,7 @@ export function prepareContourFamily({curveAt,startMm,endMm,stepMm,toleranceMm,o
       const corners=slab.cells.get(key);
       // Failed parent cells are visited by every descendant lookup. Keep
       // those cheap routing decisions resident instead of rebuilding them
-      // whenever a long motif traverses many successful child cells.
+      // whenever a long pattern traverses many successful child cells.
       slab.cells.delete(key);slab.cells.set(key,corners);
       if(corners){
         return {corners,weights:weights((z-a)/(b-a),(offset-c)/(d-c))};
@@ -102,5 +102,5 @@ export function prepareContourFamily({curveAt,startMm,endMm,stepMm,toleranceMm,o
     const at=u=>point(selected,u),breakpoints=()=>nodes??=[...new Set(selected.corners.flatMap(c=>c.breakpoints().map(n=>n.u)))].sort((a,b)=>a-b).map(u=>({u,p:at(u)}));
     return {at,breakpoints,knots:()=>breakpoints().slice(0,-1).map(n=>n.u)};
   }
-  return {at:(u,z,offset=0)=>point(select(z,offset),u),curveAt:preparedCurveAt,report};
+  return {at:(u,z,offset=0)=>point(select(z,offset),u),curveAt:preparedCurveAt,report:()=>({...report})};
 }

@@ -2,7 +2,7 @@
 name: wing-design
 description: Explore wing design in a local prototype with source-backed airfoils and an orbitable assembly. Generate a developmental Clark Y continuous-vase sample; full aircraft design, validated full-span toolpaths and aerodynamic/structural analysis remain unsupported.
 metadata:
-  saam-kind: task
+  saam-kind: geometry
 ---
 
 # Wing design

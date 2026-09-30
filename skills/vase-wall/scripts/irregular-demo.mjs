@@ -3,7 +3,7 @@ import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {defaults} from '../../../core/print/plan.mjs';
 import {initBundle,generateBundle} from '../../../core/print/bundle.mjs';
-import {loopMotif} from './motif.mjs';
+import {loopTile} from './tile.mjs';
 
 export function irregularLoopHost(){
   const rows=9,columns=48,height=30,vertices=[],triangles=[];
@@ -33,7 +33,7 @@ export function irregularLoopDemoPlan(){
   for(const settings of Object.values(plan.skills))settings.enabled=false;
   plan.skills['full-fill'].enabled=true;
   Object.assign(plan.skills['vase-wall'],{enabled:true,endTransition:'spiral',zStartMm:.6,
-    pattern:{motif:loopMotif({widthCells:2.8,depthMm:4.8,samples:64,beadHeightMm:.2,exterior:'smooth'}),
+    pattern:{tile:loopTile({widthCells:2.8,depthMm:4.8,samples:64,beadHeightMm:.2,exterior:'smooth'}),
       cellsPerTurn:20,courseRiseMm:.2,repeats:145,tiltDeg:0}});
   return plan;
 }

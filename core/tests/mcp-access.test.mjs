@@ -19,7 +19,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..'), run = pr
 test('the public CLI exposes unresolved robot setup before first generation', async t => {
   const scratch = await mkdtemp(resolve(tmpdir(), 'saam-synthetic-setup-status-'));
   t.after(() => rm(scratch, { recursive: true, force: true }));
-  for (const machineId of ['denso-vp6242-rc8', 'dobot-mg400']) {
+  for (const machineId of ['denso-vs068a4-rc8a', 'dobot-mg400']) {
     const machine = loadMachine(machineId), dir = resolve(scratch, machineId);
     await initBundle(dir, shellDefaults(machine), { machineId });
     const script = resolve(root, 'core/print/cli.mjs');

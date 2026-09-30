@@ -27,10 +27,10 @@ const extent=op=>op.strokes.reduce((b,s)=>{for(const p of s.points){b.min=Math.m
 // Both public skills use this producer and the same source surface/width.
 // Differences are confined to the offset vector and resulting motion geometry.
 export function rimmingResults({plan,modelResults,mode='horizontal',skillId='rimming-planar'}){
-  const settings=plan.skills[skillId];if(!settings?.enabled)return [];
+  const settings=plan.skills[skillId];if(!settings?.enabled)return {results:[],dependencyChanges:[]};
   // Shared validatePlan owns the settings contract. Check derived sections and
   // dependencies here only after they have actually been constructed.
-  const results=[],process=plan.process,width=process.lineWidthMm;
+  const results=[],dependencyChanges=[],process=plan.process,width=process.lineWidthMm;
   const modelOps=modelResults.flatMap(r=>r.operations);
   const extents=new Map(),extentOf=op=>{
     if(!extents.has(op))extents.set(op,extent(op));
@@ -90,11 +90,11 @@ export function rimmingResults({plan,modelResults,mode='horizontal',skillId='rim
     for(const op of modelOps){
       if(!belongs(op,spec.supportedPart))continue;
       if(spec.supportedPart===null&&extentOf(op).max<topMin-1e-7)continue;
-      (op.after??=[]).push(operations.at(-1).id);
+      dependencyChanges.push({operationId:op.id,after:[operations.at(-1).id],mode:'append'});
     }
     report.points=pointCount;results.push({id:skillId+':'+spec.id,operations,report});
   }
-  return results;
+  return {results,dependencyChanges};
 }
 
 export const rimmingPlanarResults=options=>rimmingResults({...options,mode:'horizontal',skillId:'rimming-planar'});

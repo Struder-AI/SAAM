@@ -1,0 +1,168 @@
+{
+  "evidence": "User-reported physical results; hashes identify the delivered archives, not a general firmware guarantee.",
+  "date": "2026-09-21",
+  "installation": {
+    "machine": "bambu-h2d",
+    "leftNozzleMm": 0.4,
+    "rightNozzleMm": 0.8,
+    "leftFeed": "external PLA",
+    "rightFeed": "four-slot AMS PLA",
+    "plate": "Textured PEI"
+  },
+  "workingProjectEntrySha256": "d42e1b7526f04a79411e81c258b7da8aa6e94fedab8087d6a965fe0012d3dadc",
+  "sameNozzle": {
+    "file": "AMS-10-L04-R08.gcode.3mf",
+    "archiveSha256": "188b78db273366b7d5bf40cc22d91eb7e774cebdd6570a6bb815401661ac956b",
+    "executableSha256": "a76604c8b1b0347532cd7f8b70cc1a0fb117f8acca4545a0c531629f4cab9743",
+    "userReport": "AMS-10 works",
+    "toolSequence": [
+      1,
+      1,
+      1
+    ],
+    "filamentSequence": [
+      0,
+      1,
+      0
+    ]
+  },
+  "dualNozzle": {
+    "file": "DUAL-12-PROJECT-CONTROL.gcode.3mf",
+    "archiveSha256": "bef010be5cd763a86fecfc6432fc8eeef6ca4d1190e7021bdb1d3d8edb13c036",
+    "executableSha256": "51a5c242eebeed25d67a1d9ce48c76dc9c97e8179451b5d3940c68ceaeef4edc",
+    "userReport": "Test 12 is a pass! We have dual-nozzle!",
+    "toolSequence": [
+      0,
+      1,
+      0
+    ],
+    "filamentSequence": [
+      0,
+      1,
+      0
+    ],
+    "depositionStages": [
+      {
+        "tool": 0,
+        "zMm": 0.2,
+        "centreMm": [
+          175,
+          160
+        ]
+      },
+      {
+        "tool": 1,
+        "zMm": 0.3,
+        "centreMm": [
+          235,
+          160
+        ]
+      },
+      {
+        "tool": 0,
+        "zMm": 0.4,
+        "centreMm": [
+          175,
+          160
+        ]
+      }
+    ]
+  },
+  "failedGeneratedProject": {
+    "file": "AMS-11-L04-R08.gcode.3mf",
+    "archiveSha256": "6c159c1ab39d41aa4dced0bc5a5acc987aada98dd46ba7b7a83c1f1c113f9199",
+    "userReport": "AMS-11 is fully orange",
+    "contract": "h2d-saam-startup-v12"
+  },
+  "limitation": "AMS-19 and DUAL-20 physically passed ordinary generated v13 output on the recorded H2D installation. No vendor templates or complete project blob are stored in this fact fixture. X1 and other machines/feed combinations require separate physical evidence.",
+  "routingReduction": {
+    "file": "AMS-14-ROUTING.gcode.3mf",
+    "archiveSha256": "a5858638575905d21b50c2e0880bee5a8ae79a787ffc73a9b6a9244adfb3662f",
+    "userReport": "14 passes - two colors. Run 15?",
+    "changedFields": [
+      "filament_map_mode",
+      "filament_map",
+      "filament_nozzle_map"
+    ],
+    "scope": "Independent reduction of AMS-10; remaining working project fields preserved."
+  },
+  "variantReduction": {
+    "file": "AMS-15-STANDARD-VARIANTS.gcode.3mf",
+    "archiveSha256": "e0879058f837cd649dbf8dd9214bf2eac5ce78c54d160f59a264f40448b3801e",
+    "userReport": "Yes, 15 is pass",
+    "scope": "Independent Standard-only variant-table reduction of AMS-10; remaining working project fields preserved."
+  },
+  "failedTemplateRemoval": {
+    "file": "AMS-13-NO-TEMPLATES.gcode.3mf",
+    "archiveSha256": "306622d136817247635c907fb819ce6cb2a344c46b6d5421859492d6f5114403",
+    "userReport": "AMS-13 is all orange",
+    "changedFields": 9,
+    "changedEntry": "Metadata/project_settings.config",
+    "allOtherEntriesIdenticalTo": "AMS-10-L04-R08.gcode.3mf",
+    "inference": "Emptying the stored template family breaks this otherwise working archive; no individual field or exact required contents identified."
+  },
+  "generatedSameNozzle": {
+    "file": "AMS-19-GENERATED.gcode.3mf",
+    "archiveSha256": "30044f96b878e81bcc26795cef425658da60961c10f76096a0503c45b5d4beae",
+    "executableSha256": "a76604c8b1b0347532cd7f8b70cc1a0fb117f8acca4545a0c531629f4cab9743",
+    "userReport": "ams-19 is pass",
+    "toolSequence": [
+      1,
+      1,
+      1
+    ],
+    "filamentSequence": [
+      0,
+      1,
+      0
+    ],
+    "projectSha256": "c1181788a9dfab5e3934e67e65984e735e1b22cce7b8383d1df416f66491fd03",
+    "contract": "h2d-saam-startup-v13",
+    "referenceProjectSubstitution": false
+  },
+  "generatedDualNozzle": {
+    "file": "DUAL-20-GENERATED.gcode.3mf",
+    "archiveSha256": "2a3007ea7fbc8251d199088ebfca4db630ebfd2133c1d4d675eddcdd04f25744",
+    "executableSha256": "51a5c242eebeed25d67a1d9ce48c76dc9c97e8179451b5d3940c68ceaeef4edc",
+    "userReport": "ams-20 also pass!",
+    "toolSequence": [
+      0,
+      1,
+      0
+    ],
+    "filamentSequence": [
+      0,
+      1,
+      0
+    ],
+    "depositionStages": [
+      {
+        "tool": 0,
+        "zMm": 0.2,
+        "centreMm": [
+          175,
+          160
+        ]
+      },
+      {
+        "tool": 1,
+        "zMm": 0.3,
+        "centreMm": [
+          235,
+          160
+        ]
+      },
+      {
+        "tool": 0,
+        "zMm": 0.4,
+        "centreMm": [
+          175,
+          160
+        ]
+      }
+    ],
+    "projectSha256": "96efadb599441203b9156c450343acb29c8b507d713d63fb38c8825dcaba6af5",
+    "contract": "h2d-saam-startup-v13",
+    "referenceProjectSubstitution": false
+  }
+}

@@ -1,6 +1,6 @@
 ---
 name: plastic-weld
-description: Inject molten plastic into blind shafts with wider bottom basins to form experimental rivets across printed layers. Place individual reinforcement points or stagger them through a solid body. Sparse interiors receive explicit solid envelopes and floors; strength and sealing need physical trials.
+description: Experimental. Rivets of molten plastic injected into blind shafts across layers, placed individually or staggered through a solid body.
 ---
 
 # Plastic weld / injected rivets
@@ -151,3 +151,11 @@ crosses the pocket, move it or change the region assignment. For conflicting
 dependencies, inspect the atomic operation and injection height: a continuous
 path cannot be interrupted mid-operation. Test modest coupons and adjust the
 dimensions, seating, volume, flow and temperature using observed results.
+
+For developer callers, `plasticWeldResult({plan, sites, modelResults})` returns
+`{result, dependencyChanges}`; `result` is null when there are no sites.
+It does not modify the supplied model operations. Cover prerequisites are
+`{operationId, after, mode: 'union'}` records: apply them with
+`applyResultDependencies` from `core/print/generate.mjs` before adding the weld
+result and scheduling. Union preserves first occurrence order while removing
+duplicate prerequisites, including duplicates already present on the operation.

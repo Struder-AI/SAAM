@@ -9,7 +9,7 @@
 // only runs where a solution can exist.
 
 import { evaluate, clamp } from './nurbs.mjs';
-import { TOLERANCE, requireThat } from './tolerance.mjs';
+import { TOLERANCE } from './tolerance.mjs';
 
 const SEEDS = 3;
 const NEWTON_STEPS = 40;
@@ -98,26 +98,4 @@ export function topAt(shell, x, y) {
       };
     }
   return best;
-}
-
-// Sample the top surface on a grid over the shell's footprint. Used to find the
-// skinnable area and to report what the angle limit excludes.
-export function sampleTopSurface(shell, { stepMm = 1, maxSlopeDeg = 90 } = {}) {
-  requireThat(stepMm > 0, 'Sampling step must be positive.');
-  const [minX, minY] = shell.bounds.min, [maxX, maxY] = shell.bounds.max;
-  const columns = Math.max(2, Math.ceil((maxX - minX) / stepMm));
-  const rows = Math.max(2, Math.ceil((maxY - minY) / stepMm));
-  const samples = [];
-  let inside = 0, steep = 0, maxSlope = 0;
-  for (let i = 0; i <= columns; i++)
-    for (let j = 0; j <= rows; j++) {
-      const x = minX + (maxX - minX) * i / columns, y = minY + (maxY - minY) * j / rows;
-      const top = topAt(shell, x, y);
-      if (!top) continue;
-      inside++;
-      maxSlope = Math.max(maxSlope, top.slopeDeg);
-      if (top.slopeDeg > maxSlopeDeg) steep++;
-      samples.push({ x, y, ...top });
-    }
-  return { samples, inside, steep, maxSlopeDeg: maxSlope, stepMm };
 }

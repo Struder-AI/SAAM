@@ -16,9 +16,15 @@ test('new printer profiles provide valid planar defaults and distinguish hardwar
     const machine=loadMachine(id),plan=defaults(machine);
     validatePlan(plan,machine);
     assert.equal(plan.setup.material,'PLA');
+    if(id==='bambu-x1-carbon'){
+      assert.ok(outputAdapter(plan,machine).exportAndInterpret,'X1 Carbon uses the shared Bambu adapter');
+      assert.equal(machine.nonplanar.maxAngleDeg,10,'X1 Carbon declares the experimental 10 degree nonplanar limit');
+      assert.equal(machine.nonplanar.experimental,true);
+      assert.equal(plan.skills['draped-skin'].enabled,true);
+      continue;
+    }
     assert.equal(plan.skills['draped-skin'].enabled,false);
-    if(id==='bambu-x1-carbon')assert.ok(outputAdapter(plan,machine).exportAndInterpret,'X1 Carbon uses the shared Bambu adapter');
-    else assert.throws(()=>outputAdapter(plan,machine),/export is not implemented/);
+    assert.throws(()=>outputAdapter(plan,machine),/export is not implemented/);
     const nonplanar=structuredClone(plan);nonplanar.skills['draped-skin'].enabled=true;
     assert.throws(()=>validatePlan(nonplanar,machine),/nonplanar/);
   }

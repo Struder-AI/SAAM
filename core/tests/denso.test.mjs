@@ -1,3 +1,4 @@
+import {createPlanningState,planningPath,planMove} from '../path/planning.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,readFile} from 'node:fs/promises';
@@ -11,18 +12,17 @@ import {defaults,validatePlan} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {rhino,createGeometry,verifyGeometry} from '../print/geometry.mjs';
 import {initBundle,generateBundle,loadBundle,approve,deliver,adjustBundle} from '../print/bundle.mjs';
-import {exportProgram,interpretProgram} from '../export/registry.mjs';
+import {exportProgram,interpretProgram,exportAndInterpretProgram} from '../export/registry.mjs';
 import {interpretDensoFiles} from '../export/denso-player.mjs';
 import {unpackZip} from '../export/zip.mjs';
 import {bedPoint,uprightPose} from '../path/pose.mjs';
-import {PathBuilder} from '../path/builder.mjs';
 import {pipeCladdingResult} from '../../skills/pipe-cladding/scripts/clad.mjs';
 import {scheduleOperations} from '../path/compose.mjs';
 import {frameAtTime,displayPoint} from '../../studio/playback.mjs';
 import {decodeSource,fetchSources} from '../../studio/source-player.mjs';
 import {createStudio} from '../../studio/server.mjs';
 import {regionalStackPlan} from './fixtures/regional-stack.mjs';
-const machine=loadMachine('denso-vp6242-rc8'),near=(a,b,t=1e-6)=>assert.ok(Math.abs(a-b)<t,`${a} != ${b}`);
+const machine=loadMachine('denso-vs068a4-rc8a'),near=(a,b,t=1e-6)=>assert.ok(Math.abs(a-b)<t,`${a} != ${b}`);
 const small=()=>{const p=developmentPipePlan();p.geometry.heightMm=1.2;p.skills['pipe-cladding'].shells=2;return p;};
 const sources=bytes=>Object.fromEntries([...unpackZip(bytes)].filter(([name])=>name.endsWith('.pcs')).map(([name,b])=>[name,b.toString()]));
 
@@ -46,7 +46,7 @@ test('same-height cylindrical shells retain explicit prerequisites in the existi
   assert.ok(result.operations[0].strokes.every(s=>s.points[0][2]!==s.points.at(-1)[2]));
 });
 
-test('three-loop pipe body survives shared composition and RC8 source interpretation',async()=>{
+test('three-loop pipe body survives shared composition and RC8A source interpretation',async()=>{
   const plan=small();plan.geometry.outerRadiusMm=9.6;
   plan.skills['full-fill'].perimeters=0;plan.skills['full-fill'].fillOverlap=0;
   const path=generatePath(plan,machine,await rhino());
@@ -65,7 +65,7 @@ test('three-loop pipe body survives shared composition and RC8 source interpreta
   for(const rings of radii.values())assert.equal(rings.size,3);
 });
 
-test('existing mesh/spline regional skills use RC8 at fixed orientation',async()=>{
+test('existing mesh/spline regional skills use RC8A at fixed orientation',async()=>{
   for(const backend of ['mesh','spline']) {
     const plan=regionalStackPlan(machine,backend);plan.setup=small().setup;
     const path=generatePath(plan,machine,await rhino()),program=interpretProgram(exportProgram(path,plan,machine),plan,machine);
@@ -76,11 +76,14 @@ test('existing mesh/spline regional skills use RC8 at fixed orientation',async()
 });
 
 test('oriented motion preserves pose-only actions and unsupported outputs reject rather than flatten',()=>{
-  const plan=small(),b=new PathBuilder({start:[10,0,1],machine,process:plan.process,generatorVersion:'test',motion:plan.setup.denso});
-  b.move([10,0,1],10,0,{pose:{...uprightPose(),rotaryDeg:720},durationSeconds:2});
-  b.move([10,0,2],10,.08,{pose:{...uprightPose(),rotaryDeg:720}});
-  assert.equal(b.actions.length,2);assert.equal(b.actions[0].pose.rotaryDeg,720);
-  const s5=loadMachine();assert.throws(()=>exportProgram(b.toPath(),defaults(s5),s5),/cannot represent/);
+  const plan=small(),initial=createPlanningState({start:[10,0,1],machine,process:plan.process,generatorVersion:'test',motion:plan.setup.denso});
+  const rotated=planMove(initial,[10,0,1],10,0,{pose:{...uprightPose(),rotaryDeg:720},durationSeconds:2});
+  const raised=planMove(rotated.state,[10,0,2],10,.08,{pose:{...uprightPose(),rotaryDeg:720}});
+  const path=planningPath(raised.state,[rotated.actions,raised.actions]);
+  assert.equal(path.actions.length,2);assert.equal(path.actions[0].pose.rotaryDeg,720);
+  const s5=loadMachine(),unsupported=defaults(s5);
+  assert.throws(()=>exportProgram(path,unsupported,s5),/cannot represent/);
+  assert.throws(()=>exportAndInterpretProgram(path,unsupported,s5),/cannot represent/);
 });
 
 test('actual T/EX commands reconstruct fixed-room rotary deposition across multiple turns',()=>{
@@ -108,7 +111,9 @@ test('pipe export retains substrate, tilted axial/hoop shells and radial ownersh
   assert.ok(body.length&&clad.length);const boundary=plan.geometry.outerRadiusMm-2*.2;
   assert.ok(body.every(m=>Math.hypot(...m.to.slice(0,2))<=boundary+1e-6));
   for(const m of clad){near(Math.acos(-m.toolAxisTo[2])*180/Math.PI,45,.001);assert.ok(m.to[2]>=0&&m.to[2]<=plan.geometry.heightMm+1e-8);}
-  assert.ok(path.actions.some(a=>a.travel==='surface-index'&&a.volumeMm3===0));
+  // Each end index between neighboring axial tracks continues deposition.
+  assert.ok(!path.actions.some(a=>a.travel==='surface-index'));assert.ok(path.summary.travel.connected>0);
+  assert.equal(program.summary.shortTravel.count,0);
   // The retired maxPoints budget is an unknown field, and a sampling step far
   // finer than that former 500,000-point budget now completes.
   const stale=structuredClone(plan);stale.skills['pipe-cladding'].maxPoints=100;assert.throws(()=>validatePlan(stale,machine),/Unexpected or missing fields/);
@@ -116,7 +121,7 @@ test('pipe export retains substrate, tilted axial/hoop shells and radial ownersh
   assert.ok(pipeCladdingResult({plan:dense,after:['body']}).report.points>500000);
 });
 
-test('RC8 uses the public bundle, exact browser source and cold reopen without reslicing',async t=>{
+test('RC8A uses the public bundle, exact browser source and cold reopen without reslicing',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-denso-'));t.after(()=>rm(dir,{recursive:true,force:true}));const plan=small();
   await initBundle(dir,plan,{machineId:machine.id});const checks=await generateBundle(dir,{development:true});assert.equal(checks.mode,'development');assert.ok(!checks.checks.includes('axis-feed'));
   const state=await loadBundle(dir);assert.equal(state.programError,undefined);assert.deepEqual(state.review.approvals,{});await assert.rejects(()=>deliver(dir),/approv/);
@@ -126,7 +131,7 @@ test('RC8 uses the public bundle, exact browser source and cold reopen without r
   const files=await fetchSources(remote,fetcher),decoded=decodeSource(files,remote.plan,remote.machine);
   assert.deepEqual([...decoded.moves],state.program.moves);
   for(const name of ['/core/export/denso-player.mjs','/core/path/pose.mjs','/core/machine/denso.mjs'])assert.equal((await fetcher(name)).status,200);
-  const bytes=await readFile(join(dir,'exports/denso-pacscript/part.zip'));
+  const bytes=await readFile(join(dir,state.review.generation.file));
   for(const [name,source] of Object.entries(files))assert.equal(source,unpackZip(bytes).get(name).toString());
   const script=`import {loadBundle} from './core/print/bundle.mjs';const s=await loadBundle(process.argv[1]);if(s.programError)throw new Error(s.programError);console.log(s.exportHash);`;
   assert.equal(execFileSync(process.execPath,['--input-type=module','-e',script,dir],{encoding:'utf8'}).trim(),state.exportHash);

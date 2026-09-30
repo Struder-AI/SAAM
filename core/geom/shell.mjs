@@ -53,7 +53,8 @@ export const boundaryCurve = (patch, edge) => {
     : edge === 1 ? [u1, v0 + (v1 - v0) * t]
     : edge === 2 ? [u0 + (u1 - u0) * t, v1]
     : [u0, v0 + (v1 - v0) * t];
-  return t => evaluate(patch, ...at(t), false).point;
+  const pointAt = t => evaluate(patch, ...at(t), false).point;
+  return pointAt;
 };
 
 // Two patches can share an edge with different parameterizations - a ruled

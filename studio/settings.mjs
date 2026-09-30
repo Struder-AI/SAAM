@@ -1,4 +1,5 @@
 import {planarWallTolerance} from '../core/machine/rules.mjs';
+import {filamentPlan} from '../core/machine/filaments.mjs';
 // Human-readable review of the same locked recipe used by every adapter.
 const supportSkills=['supports','rimming-planar','rimming-normal'];
 const globalSkills=[...supportSkills,'pipe-cladding','wave-overhangs'];
@@ -81,16 +82,16 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
     if(key==='spacingFactor'&&v===1)continue;
     if(key==='pattern'&&name==='vase-wall'){
       if(v){
-        const tiled=Boolean(v.motif),paths=tiled?[v.motif]:v.paths;
-        rows.push([prefix+' · Pattern','Repeated motif on the selected solid or sleeve'],
-          [prefix+' · Deposition','Motif strokes only; the guide surface is not printed'],
+        const tiled=Boolean(v.tile),paths=tiled?[v.tile]:v.paths;
+        rows.push([prefix+' · Pattern','Repeated tile on the selected solid or sleeve'],
+          [prefix+' · Deposition','Pattern strokes only; the sleeve is not printed'],
           [prefix+' · Repetitions',String(v.repeats)],
           [prefix+' · Advance',tiled?'1 perimeter turn / '+v.courseRiseMm+' mm rise':v.advance[0]+' perimeter turns / '+v.advance[1]+' mm rise'],
           [prefix+' · Mapping',settings.meshSleeve?'Smooth fitted sleeve, followed by one-sided mesh contact':'Actual inset contour at each height; fraction of perimeter length']);
-        if(tiled)rows.push([prefix+' · Motif tiling',v.cellsPerTurn+' cells per course × '+v.repeats+' courses'],
-          [prefix+' · Motif tilt',v.tiltDeg+'° about the cell advance direction']);
+        if(tiled)rows.push([prefix+' · Tiling',v.cellsPerTurn+' cells per course × '+v.repeats+' courses'],
+          [prefix+' · Tile tilt',v.tiltDeg+'° about the cell advance direction']);
         for(const [i,path] of paths.entries())rows.push(
-          [prefix+' · Motif path '+(i+1),path.points.length+' points'],
+          [prefix+' · Pattern path '+(i+1),path.points.length+' points'],
           [prefix+' · Start / end '+(i+1),path.points[0].join(', ')+' → '+path.points.at(-1).join(', ')+(tiled?' (cell fraction, mm)':' (turns, mm)')],
           [prefix+' · Bead height '+(i+1),Array.isArray(path.beadHeightMm)?path.beadHeightMm.join(', ')+' mm':path.beadHeightMm+' mm']);
         for(const [i,path] of paths.entries())if(path.offsetMm!==undefined){
@@ -132,7 +133,7 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
     const rendered=key==='pattern'&&name==='pipe-cladding'?claddingPatternName(settings)
       :key==='maxAngleDegOverride'&&v===null?'Machine profile limit'
       :key==='zEndMm'&&v===null?'Geometry top'
-      :key==='endTransition'?(settings.pattern?({'level':'Flat motif courses at both ends','spiral':'Authored motif ending'}[v]??value(v)):({'level':'Level rim','spiral':'Spiral rim'}[v]??value(v)))
+      :key==='endTransition'?(settings.pattern?({'level':'Flat pattern courses at both ends','spiral':'Authored pattern ending'}[v]??value(v)):({'level':'Level rim','spiral':'Spiral rim'}[v]??value(v)))
       :value(v)+unit;
     rows.push([prefix+' · '+label,rendered]);
   }
@@ -146,6 +147,19 @@ export function regionRows(plan){
 }
 export function recipeRows(plan,machine){
   const composition=plan.composition,regions=composition?.regions??[],rows=[];
+  if(plan.setup.bambu){
+    rows.push(['Bambu startup',plan.setup.bambu.fast_start?'Fast — reuse calibration; skip optional scans and vibration tests':'Full — calibration follows startup controls / printer choices']);
+    const used=[...new Set([plan.setup.bambu.filament,...regions.map(r=>r.filament)].filter(i=>i!==undefined))];
+    const change=machine.outputs.find(o=>o.id===plan.output)?.constraints;
+    if(used.length>1&&change?.materialChangeMode==='single-nozzle-ams')rows.push(['AMS colour changes',`${change.materialChangeFlushMm3} mm³ purged into the rear chute per change, plus priming. No tower; service time/material are additional to part totals.`]);
+    for(const id of used){
+      const selected=filamentPlan(plan,machine,id),s=selected.setup,p=selected.process,entry=plan.setup.bambu.filaments?.[id];
+      const source=entry?.source?.type==='external'?'External spool':entry?.source?.type==='ams-ht'?`Requested AMS HT ${entry.source.unit}`:s.ams?`Requested AMS ${s.ams.unit}, slot ${s.ams.slot}`:'Automatic material/colour matching';
+      rows.push([`Filament ${id+1}`,`${machine.tools.find(t=>t.index===s.tool).label} · ${s.nozzleMm} mm nozzle · ${s.material} ${entry?.colour??s.filamentColor??''} · ${s.nozzleC}°C · ${source}`],
+        [`Filament ${id+1} · Process`,`${p.lineWidthMm} mm bead · ${p.layerMm} mm layers · ${p.maxFlowMm3S} mm³/s maximum flow`]);
+    }
+    for(const region of regions)rows.push([region.id+' · Filament',String((region.filament??plan.setup.bambu.filament)+1)]);
+  }
   rows.push(['Machine · Planar wall tolerance',planarWallTolerance(machine)+' mm']);
   if(machine?.id==='bambu-h2d'&&plan.setup.startupMode)rows.push(['Machine · Startup',plan.setup.startupMode==='batch'?'Batch · priming and minimum positioning; optional calibration omitted':'Full H2D startup']);
   if(composition){
@@ -168,10 +182,10 @@ export function recipeRows(plan,machine){
   }
   return rows;
 }
-export function robotRows(plan){
+export function robotRows(plan,machine){
   const c=plan.setup.denso;
   if(c)return [
-    ['Robot / controller','DENSO VP-6242 / RC8'],['Installation basis',c.configurationSource??'Not configured'],['Mounting',c.mounting],
+    ['Robot / controller',machine?.name??'DENSO / RC8A'],['Installation basis',c.configurationSource??'Not configured'],['Mounting',c.mounting],
     ['Tool / work frame',value(c.toolFrame)+' / '+value(c.workFrame)],['Arm group / figure',value(c.armGroup)+' / '+value(c.figure)],
     ['Rotary interface',c.rotaryInterface??'Not confirmed'],['External axis',c.rotaryAxis+' · sign '+c.rotarySign+' · zero '+c.rotaryZeroDeg+'°'],
     ['Rotary center',value(c.rotaryCenterMm)+' mm'],['Work offset / yaw',value(c.workOffsetMm)+' mm / '+c.workYawDeg+'°'],

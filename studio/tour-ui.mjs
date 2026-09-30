@@ -1,6 +1,5 @@
 import {TOUR_STEPS,TOUR_LESSONS as L} from './tour-catalog.mjs';
 import {hasUnpreparedEdit} from './work-state.mjs';
-export const needsTourGeometryReview=()=>false;
 export const needsTourToolpath=state=>Boolean(state?.tour?.active&&state.tour.directory===state.localPrintDirectory
   &&state.tour.step>=L.playback&&!state.generationError&&!state.generationCancelled&&!state.outputAvailability
   &&!hasUnpreparedEdit(state.work?.requests?.filter(r=>r.printId===state.work.printId),state.work?.snapshot)&&(!state.program||state.programError));
@@ -64,7 +63,7 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
       const canExport=step.tab==='toolpath'&&Boolean(state.program)&&!state.programError&&state.review?.generation?.mode==='production';
       $('confirm').disabled=isBusy()||!canExport;
       if(canExport)$('confirm').textContent='Confirm settings & export';
-      $('review-note').textContent=canExport?'Confirming approves the displayed settings and toolpath, downloads the file and finishes the tour.':'Ask your agent for changes. Your current print stays selected.';
+      if(!state.inspection)$('review-note').textContent=canExport?'Confirming approves the displayed settings and toolpath, downloads the file and finishes the tour.':'Ask your agent for changes. Your current print stays selected.';
       for(const id of highlights)$(id)?.classList.add('tour-highlight');
       if(progress.step===L.setup)$('more-settings').open=true;
       const desired=step.tab;

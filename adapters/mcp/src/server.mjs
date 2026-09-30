@@ -10,7 +10,8 @@ import {openBrowser} from '../../../studio/browser.mjs';
 export {openBrowser} from '../../../studio/browser.mjs';
 import {randomUUID} from 'node:crypto';
 import { MACHINE_IDS, loadMachine } from '../../../core/machine/profile.mjs';
-import { bundleFor, createStudio, listPrints } from '../../../studio/server.mjs';
+import { createStudio, listPrints } from '../../../studio/server.mjs';
+import { bundleFor } from '../../../studio/adapter-resolution.mjs';
 import {createTour} from '../../../studio/tour.mjs';
 import {createAgentRequests} from '../../../studio/agent-requests.mjs';
 import {createStudioEvents} from '../../../studio/studio-events.mjs';
@@ -22,6 +23,7 @@ import { applyText } from '../../../core/print/text.mjs';
 import { applyHeatSet } from '../../../core/print/heat-set.mjs';
 import { INSERT_CATALOG } from '../../../skills/heat-set-inserts/scripts/catalog.mjs';
 import {loadLocalExtension} from '../../../core/local-extension.mjs';
+import {lifecycleReview} from '../../../core/print/review-state.mjs';
 import { readGuidance } from './manuals.mjs';
 import { SKILL_IDS, skillMetadata } from '../../../skills/catalog.mjs';
 
@@ -65,19 +67,21 @@ async function rejectLinks(path) {
   if (info.isDirectory()) for (const entry of await readdir(path)) await rejectLinks(resolve(path, entry));
 }
 
-function summary(printId, state) {
+export function summary(printId, state) {
   const programChecked=state.programChecked!==false;
+  const lifecycle=lifecycleReview(state,{programChecked});
   return {
     printId, kind: state.kind, revision: state.revision, geometryHash:state.geometryHash,
     machineId: state.machine.id, output: state.plan.output, skills: state.skills,
-    toolpathApproved: programChecked?state.toolpathApproved:state.review.approvals.toolpath?null:false,
+    toolpathApproved: lifecycle.toolpathApproved,
     programChecked,
-    generation: state.review.generation ? { mode: state.review.generation.mode, current: programChecked ? !!state.program && !state.programError : null } : null,
+    generation: state.review.generation ? { mode: state.review.generation.mode, current: lifecycle.current } : null,
     programError: state.programError ?? null, exportHash: state.exportHash ?? null,
     shortTravel: state.program?.summary?.shortTravel ?? null,
     outputAvailability: state.outputAvailability, limitations: state.limitations,
-    nextStep: !programChecked ? 'Open Studio or check_print to check the current export.'
-      : !state.program || state.programError ? 'Generate the toolpath from the complete settings.' : !state.toolpathApproved ? 'Review settings and the exact toolpath together in Studio.' : 'Deliver the reviewed export.'
+    nextStep: lifecycle.action==='check'?'Open Studio or check_print to check the current export.'
+      : lifecycle.action==='generate'?'Generate the toolpath from the complete settings.'
+      : lifecycle.action==='review'?'Review settings and the exact toolpath together in Studio.':'Deliver the reviewed export.'
   };
 }
 
@@ -185,7 +189,7 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
       outputs: m.outputs.map(({ id, extension, flavor, implemented, experimental, constraints, reason }) => ({ id, extension, flavor, implemented: implemented !== false, experimental, constraints, reason })),
       defaultSetup: m.defaultSetup };
   }));
-  tool('list_skills', 'List the known local printing and task skill manuals. This fixed list does not establish recipe compatibility; task skills are not deposition operations. Select the manual relevant to the requested task.', {}, skills);
+  tool('list_skills', 'List the known local toolpath and geometry skill manuals. This fixed list does not establish recipe compatibility; geometry skills are not deposition operations. Select the manual relevant to the requested task.', {}, skills);
   tool('read_skill', 'Read a known skill manual by ID. Follow its relevant documentation links with read_guidance.', { skillId: idSchema }, async ({ skillId }) => {
     if (!SKILL_IDS.includes(skillId)) {
       const local=await localExtension.readSkill?.(skillId);if(local)return local;
@@ -409,10 +413,11 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
   server.server.oninitialized=()=>{void notifyRequests();};
   function close(){return closing??=Promise.resolve().then(async()=>{
     stopRequestWatch();stopEventWatch();
-    for(const {server:studio} of studioSessions.values())await studio.agentDisconnected(ownerId);
     await queue;
+    await agentRequests.disconnect();
+    for(const {server:studio} of studioSessions.values())await studio.agentDisconnected(ownerId);
     await Promise.all([...studioSessions.values()].map(({server:studio})=>studio.shutdown()));
-    await agentRequests.disconnect();studioEvents.close();
+    studioEvents.close();
     studioSessions.clear();preferredStudioByPrint.clear();
     await server.close();
   });}

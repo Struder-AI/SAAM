@@ -46,7 +46,7 @@ saved IDs; there is no single global plan that overwrites another job.
 
 | Tool | Role |
 |---|---|
-| `list_machines`, `list_skills`, `read_skill` | Read this checkout's known profiles and manuals. Skill entries distinguish printing patterns from task skills such as mesh tools. These small fixed lists are not an automatic discovery or installation system. |
+| `list_machines`, `list_skills`, `read_skill` | Read this checkout's known profiles and manuals. Skill entries distinguish toolpath skills from geometry skills such as mesh tools. These small fixed lists are not an automatic discovery or installation system. |
 | `read_guidance` | Read a published Markdown path, optionally ending in `#heading`, or a short ID: `makers`, `development`, `glossary`, `mcp`, `print-tools`. The response resolves documentation links into IDs for further reading. |
 | `get_plan_template` | Read a complete proposed shell recipe, reusing remembered setup. |
 | `create_print` | Initialize a new unapproved bundle, optionally from a complete recipe. |
@@ -148,7 +148,7 @@ Thingi10K tools additionally read a pinned public mirror over HTTPS and cache it
 metadata/downloads under the configured Prints root's `.thingi10k/` folder. They
 accept model identifiers, not arbitrary download URLs. A Thingiverse link is
 looked up in that index; it is not scraped or downloaded directly. The
-[task manual](../../skills/thingi10k/SKILL.md) owns limits, absent-model fallback,
+[skill manual](../../skills/thingi10k/SKILL.md) owns limits, absent-model fallback,
 per-download chat notices and attribution. This works for an MCP-only client
 when the SAAM host can reach Hugging Face and its CDN.
 
@@ -156,7 +156,7 @@ Use `create_print` / `adjust_print`, the shared approvals and `generate_print`;
 `check_print` verifies the persisted print and `deliver_print` delivers its
 checked export. Legacy `compile_plan`, `validate_plan` and `post_process`
 are unsupported.
-The fixed catalog also includes `denso-vp6242-rc8` and
+The fixed catalog also includes `denso-vs068a4-rc8a` and
 [pipe-cladding](../../skills/pipe-cladding/SKILL.md). This experimental rotary
 demo uses the same tools and Studio. Actual installation setup is unresolved;
 synthetic development calibration is not a hardware configuration.

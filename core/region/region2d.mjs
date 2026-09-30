@@ -152,18 +152,19 @@ export function regionComponents(loops) {
   }
   const roots = nodes.filter(node => node.area > 0 && (!node.parent || node.parent.area < 0));
   if (!roots.length) return loops.length ? [loops] : [];
-  const components = roots.map(root => {
+  const componentFromRoot = root => {
     const component = [];
-    const collect = node => {
+    const collectDescendants = node => {
       component.push(node.loop);
       // A positive child of a positive boundary is part of the same material
       // component. A positive child of a hole is a separate island/root.
       for (const child of node.children)
-        if (child.area < 0 || node.area > 0) collect(child);
+        if (child.area < 0 || node.area > 0) collectDescendants(child);
     };
-    collect(root);
+    collectDescendants(root);
     return component;
-  });
+  };
+  const components = roots.map(componentFromRoot);
   return components.sort((a, b) => {
     const [ax, ay] = componentKey(a), [bx, by] = componentKey(b);
     return ax - bx || ay - by;
@@ -192,18 +193,28 @@ export function scanlineFill(loops, spacingMm, angleDeg, options = {}) {
 
 function scanlineFillComponent(loops, spacingMm, angleDeg, { originMm = [0, 0] } = {}) {
   requireThat(spacingMm > 0, 'Fill spacing must be positive.');
+  const frame=prepareScanlineFrame(loops,angleDeg,originMm);
+  const rows=sampleScanlineRows(frame,spacingMm);
+  return connectScanlineCells(rows);
+}
+
+export function prepareScanlineFrame(loops,angleDeg,originMm){
   const angle = angleDeg * Math.PI / 180, cos = Math.cos(angle), sin = Math.sin(angle);
   const toScan = p => {
     const x = p[0] - originMm[0], y = p[1] - originMm[1];
     return [x * cos + y * sin, -x * sin + y * cos];
   };
-  const toWorld = p => [originMm[0] + p[0] * cos - p[1] * sin, originMm[1] + p[0] * sin + p[1] * cos];
   const rotated = loops.map(loop => loop.map(toScan));
   let min = Infinity, max = -Infinity;
   for (const loop of rotated) for (const point of loop) { min = Math.min(min, point[1]); max = Math.max(max, point[1]); }
-  if (!Number.isFinite(min)) return [];
-  const cells = [];
-  let previous = [];
+  return {rotated,min,max,cos,sin,originMm};
+}
+
+// Rows are consumed as they are sampled; retain no complete intermediate sweep.
+export function* sampleScanlineRows(frame,spacingMm){
+  const {rotated,min,max,cos,sin,originMm}=frame;
+  if(!Number.isFinite(min))return;
+  const toWorld = p => [originMm[0] + p[0] * cos - p[1] * sin, originMm[1] + p[0] * sin + p[1] * cos];
   for (let y = Math.ceil(min / spacingMm) * spacingMm; y <= max; y += spacingMm) {
     const crossings = [];
     for (const loop of rotated)
@@ -220,9 +231,20 @@ function scanlineFillComponent(loops, spacingMm, angleDeg, { originMm = [0, 0] }
       if (winding === 0) continue;
       const length = crossings[i + 1].x - crossings[i].x;
       if (length <= TOLERANCE.point) continue;
-      current.push({left:crossings[i].x,right:crossings[i+1].x,parents:[],children:[],
+      current.push({left:crossings[i].x,right:crossings[i+1].x,
         row:{scanY:y,from:toWorld([crossings[i].x,y]),to:toWorld([crossings[i+1].x,y]),lengthMm:length}});
     }
+    yield current;
+  }
+}
+
+export function connectScanlineCells(rows){
+  const cells=[];
+  let previous=[];
+  for(const spans of rows){
+    // Adjacency and cell ownership belong to this collector. Published spans and
+    // row geometry from the sampling stage are never changed.
+    const current=spans.map(span=>({...span,parents:[],children:[]}));
     // Interval adjacency is linear in the number of crossings. End a cell at
     // every split/merge rather than picking one branch and shuttling across
     // the other on each row. Empty rows also end cells. Actual connecting

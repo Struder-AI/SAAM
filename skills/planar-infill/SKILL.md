@@ -1,6 +1,6 @@
 ---
 name: planar-infill
-description: Print conventional flat-layer walls with a patterned interior, varying infill density to control material use or leave a hollow body. Supports closed meshes and supported spline geometry; combine with full-fill for solid tops and bases.
+description: Conventional flat layers, with walls around a patterned sparse interior and density down to a hollow body. Meshes and supported splines; pair with full-fill for solid tops and bases.
 ---
 
 # Planar infill
@@ -9,7 +9,8 @@ Use for conventional flat-layer printing with walls and a sparse interior.
 For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
 [builder orientation](../../BUILDERS.md) and follow its task-specific references.
 Software tests cover the S5 and H2D profiles,
-mesh and restricted spline inputs. No physical print is validated. Both machines
+mesh and restricted spline inputs. The user reports every infill pattern
+validated in physical prints (2026-09-24). Both machines
 use the shared export/review/delivery workflow. H2D output is experimental; read
 its [machine contract](../../core/export/bambu.md#h2d-output-contract) before use.
 
@@ -134,8 +135,11 @@ uninterrupted row groups on each side of holes/concavities before changing sides
 Rectilinear, grid and triangle row groups choose the closest endpoint of either
 end row, with row order and stroke direction chosen independently. Concentric
 and gyroid keep their existing ordering. Heat balancing and lookahead are deferred.
-Shared motion compacts straight runs and directly repositions across permitted
-gaps of at most 1 mm without retraction or lift. Other moves clear
+Shared motion compacts straight runs. Rows, rings, wall loops and fill entries
+starting within 2 mm of the preceding deposition, inside the layer's region,
+continue as short printed connectors rather than travels, so sparse rows join
+along the wall. A nearby start on the next layer is one rising move without
+retraction. Other moves clear
 the highest deposited material plus `liftMm` (default 1 mm; zero allowed). See [travel](../../core/path/README.md#whole-plan-travel-requirement).
 Thin features may collapse under offsets; density is approximate near
 boundaries. No collision or automatic support model is implied by these checks.

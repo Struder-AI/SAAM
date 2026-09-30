@@ -1,0 +1,156 @@
+{
+  "source": {
+    "file": "twistedbox.2color.gcode.3mf",
+    "sha256": "ddbea3c405b12328990c1aa6f45c106b8e6899a5807d7cc7947c23caa2835a63",
+    "studioVersion": "02.08.02.61",
+    "hardwareReportedByUser": {
+      "nozzleDiametersMm": [
+        0.4,
+        0.8
+      ],
+      "feeds": [
+        {
+          "tool": 0,
+          "source": "external"
+        },
+        {
+          "tool": 1,
+          "source": "four-slot AMS"
+        }
+      ]
+    },
+    "towerImplementationAuthorized": false
+  },
+  "sliceConfig": {
+    "filament_map": "2,1",
+    "filament_map_2": "1,0",
+    "filament_nozzle_map": "1,0",
+    "filament_map_mode": "Manual",
+    "nozzle_diameter": "0.4,0.4",
+    "physical_extruder_map": "1,0",
+    "extruder_ams_count": "1#0|4#0;1#0|4#1"
+  },
+  "sequence": {
+    "length": 125,
+    "firstFilaments": [
+      1,
+      2,
+      1,
+      2,
+      1
+    ],
+    "firstNozzles": [
+      1,
+      0,
+      1,
+      0,
+      1
+    ]
+  },
+  "observations": {
+    "nozzleChanges": 124,
+    "materialLoads": 126,
+    "towerFeatureSections": 372,
+    "firstChanges": [
+      {
+        "startLine": 1530,
+        "endLine": 1630,
+        "fromFilament": 0,
+        "toFilament": 1,
+        "toTool": 0,
+        "flush": [
+          {
+            "line": 1543,
+            "role": "outgoing",
+            "filament": 0,
+            "tool": 1,
+            "nozzleMm": 0.4
+          },
+          {
+            "line": 1547,
+            "role": "incoming",
+            "filament": 1,
+            "tool": 0,
+            "nozzleMm": 0.4
+          }
+        ],
+        "cooling": [
+          {
+            "line": 1558,
+            "command": "M620.15 C220"
+          }
+        ]
+      },
+      {
+        "startLine": 2411,
+        "endLine": 2515,
+        "fromFilament": 1,
+        "toFilament": 0,
+        "toTool": 1,
+        "flush": [
+          {
+            "line": 2429,
+            "role": "outgoing",
+            "filament": 1,
+            "tool": 0,
+            "nozzleMm": 0.4
+          },
+          {
+            "line": 2433,
+            "role": "incoming",
+            "filament": 0,
+            "tool": 1,
+            "nozzleMm": 0.4
+          }
+        ],
+        "cooling": [
+          {
+            "line": 2444,
+            "command": "M620.15 C210"
+          }
+        ]
+      }
+    ]
+  },
+  "templateEvidence": {
+    "file": "C:/Program Files/Bambu Studio/resources/profiles/BBL/machine/Bambu Lab H2D 0.4 nozzle template change_filament_gcode.json",
+    "sha256": "09457d486557350c58153d1d135085d6270120e9669bce63792ed145035c2614",
+    "outgoingDiameter": "nozzle_diameter_at_nozzle_id[current_nozzle_id]",
+    "incomingDiameter": "nozzle_diameter_at_nozzle_id[next_nozzle_id]",
+    "coolingTarget": "new_filament_temp - filament_cooling_before_tower[next_filament_id]"
+  },
+  "withoutTower": {
+    "source": {
+      "file": "twistedbox.2color.gcode.3mf (replacement export)",
+      "sha256": "f6bad52dc858c7a06ebdbace77b40706d8ea8d1f9afbfac26dd4e4678d03bf86"
+    },
+    "sliceConfig": {
+      "enable_prime_tower": "0",
+      "filament_map": "2,1",
+      "filament_map_2": "1,0",
+      "filament_nozzle_map": "1,0",
+      "nozzle_diameter": "0.4,0.4"
+    },
+    "observations": {
+      "nozzleChanges": 124,
+      "materialLoads": 126,
+      "towerFeatureSections": 0,
+      "hasTowerObject": false,
+      "coolingCommands": [
+        "M620.15 C220"
+      ],
+      "firstOutgoingHotends": [
+        -1,
+        0,
+        1,
+        0
+      ],
+      "firstSelectionHotends": [
+        -1,
+        -1,
+        -1,
+        -1
+      ]
+    }
+  }
+}

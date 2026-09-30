@@ -18,6 +18,7 @@ export function frameAtTime(moves, seconds) {
     fraction=Math.max(0,Math.min(1,traveled/move.controllerLengthMm));
   }
   const result={completed:before?0:index+(fraction>=1?1:0),active:before?-1:index,fraction,point:move.from.map((v,i)=>v+(move.to[i]-v)*fraction)};
+  if(Number.isInteger(move.tool))Object.assign(result,{tool:move.tool,filament:move.filament,nozzleMm:move.nozzleMm});
   if(Number.isFinite(move.rotaryFromDeg)){
     result.rotaryDeg=move.rotaryFromDeg+(move.rotaryToDeg-move.rotaryFromDeg)*fraction;
     const center=move.rotaryCenterMm,from=bedPoint(move.from,move.rotaryFromDeg,center),to=bedPoint(move.to,move.rotaryToDeg,center);

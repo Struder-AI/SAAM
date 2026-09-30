@@ -23,15 +23,6 @@ function boundsOverlap(left,right){
   return [0,1].every(i=>Math.min(a.max[i],b.max[i])-Math.max(a.min[i],b.min[i])>TOLERANCE.point);
 }
 
-// Intended for support/dependency selection from actual section footprints.
-// XY overlap alone does not establish support: callers still own the relevant
-// height interval and deposited-layer chronology.
-export function intersectsReservation(region,reserve){
-  if(!reserve||!region.length)return false;
-  const footprint=reservationFootprint(reserve);
-  return boundsOverlap(region,footprint)&&Math.abs(regionArea(intersect(region,footprint)))>TOLERANCE.point**2;
-}
-
 export function clipReservedRegion(region,z,reserve){
   requireThat(Number.isFinite(z),'Reservation layer height must be finite.');
   if(!reserve||!region.length)return region;

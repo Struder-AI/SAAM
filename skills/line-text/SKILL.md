@@ -1,8 +1,6 @@
 ---
 name: line-text
 description: Print a word as centerline strokes, one bead per stroke, choosing the construction from the requested size. Small lettering uses one thin bead, larger lettering one wider bead, and the largest uses beads side by side. Picks from bundled single-line and handwriting-script fonts and prints through line-network; not a filled-outline text solid.
-metadata:
-  saam-kind: task
 ---
 
 # Line text

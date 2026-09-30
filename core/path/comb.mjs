@@ -42,36 +42,45 @@ export function combRoute(from,to,policy) {
   // Reject it before evaluating heights at hundreds of unreachable corners.
   if(!combSegment(from,from,policy)||!combSegment(to,to,policy))return null;
   if(policy.canTravelDirect&&(!policy.canTravelDirect(from,from,policy.maxCombMm)||!policy.canTravelDirect(to,to,policy.maxCombMm)))return null;
-  // Build and check the actual emitted XYZ polyline for every visibility edge.
-  // A clear endpoint chord never authorizes an unchecked detour over a deposit.
-  const edge=(a,b)=>{
-    if(!a||!b||!combSegment(a,b,policy))return null;
-    const steps=policy.combSurfaceZ?Math.max(1,Math.ceil(span(a,b)/policy.combStepMm)):1;
-    const points=[];let previous=a,length=0;
-    for(let i=1;i<=steps;i++){
-      const t=i/steps,x=a[0]+(b[0]-a[0])*t,y=a[1]+(b[1]-a[1])*t;
-      const point=i===steps?b:[x,y,policy.combSurfaceZ(x,y)];
-      if(!point.every(Number.isFinite)||(policy.canTravelDirect&&!policy.canTravelDirect(previous,point,policy.maxCombMm))
-        ||(policy.isTravelClear&&!policy.isTravelClear(previous,point)))return null;
-      length+=Math.hypot(...point.map((v,j)=>v-previous[j]));points.push(point);previous=point;
-    }
-    return {points,length};
-  };
-  const direct=edge(from,to);
+  const direct=sampleCombEdge(from,to,policy);
   if(direct&&direct.length<=policy.maxCombMm)return direct.points;
+  const prepared=prepareCombRouteNodes(from,to,policy);
+  return searchCombRoute(prepared,policy);
+}
+
+// Build and check the actual emitted XYZ polyline for every visibility edge.
+// A clear endpoint chord never authorizes an unchecked detour over a deposit.
+export function sampleCombEdge(a,b,policy) {
+  if(!a||!b||!combSegment(a,b,policy))return null;
+  const steps=policy.combSurfaceZ?Math.max(1,Math.ceil(span(a,b)/policy.combStepMm)):1;
+  const points=[];let previous=a,length=0;
+  for(let i=1;i<=steps;i++){
+    const t=i/steps,x=a[0]+(b[0]-a[0])*t,y=a[1]+(b[1]-a[1])*t;
+    const point=i===steps?b:[x,y,policy.combSurfaceZ(x,y)];
+    if(!point.every(Number.isFinite)||(policy.canTravelDirect&&!policy.canTravelDirect(previous,point,policy.maxCombMm))
+      ||(policy.isTravelClear&&!policy.isTravelClear(previous,point)))return null;
+    length+=Math.hypot(...point.map((v,j)=>v-previous[j]));points.push(point);previous=point;
+  }
+  return {points,length};
+}
+
+export function prepareCombRouteNodes(from,to,policy) {
   // Leave margin for the offset routine's 0.02 mm arc chord approximation.
   const corners=policy.combCorners?policy.combCorners(from,to):offsetRegion(policy.combRegion,-((policy.combClearanceMm??0)+0.05)).flat();
-  const distance=(a,b)=>Math.hypot(...a.map((v,i)=>v-b[i]));
   // Triangle inequality excludes corners/edges that cannot reach the target
   // within the route budget, before expensive surface/material queries.
   const nodes=[from,to,...corners.filter(p=>span(from,p)+span(p,to)<=policy.maxCombMm)
     .map(([x,y])=>[x,y,policy.combSurfaceZ?policy.combSurfaceZ(x,y):to[2]])
     .filter(p=>p.every(Number.isFinite)&&distance(from,p)+distance(p,to)<=policy.maxCombMm)];
+  return {nodes,remaining:nodes.map(p=>distance(p,to))};
+}
+
+export function searchCombRoute(prepared,policy) {
   // A* on the remaining straight-line distance. It is never longer than any
   // route from that corner, so the search settles the target after expanding
   // only the corners a route of that length can pass through, rather than every
   // corner inside the budget. The route it returns is the same shortest one.
-  const remaining=nodes.map(p=>distance(p,to));
+  const {nodes,remaining}=prepared;
   const cost=nodes.map(()=>Infinity),previous=nodes.map(()=>-1),edges=[],visited=new Set();cost[0]=0;
   for(let step=0;step<nodes.length;step++){
     let best=-1;
@@ -83,7 +92,7 @@ export function combRoute(from,to,policy) {
     for(let i=0;i<nodes.length;i++)if(!visited.has(i)){
       const lowerBound=cost[best]+distance(nodes[best],nodes[i]);
       if(lowerBound>=cost[i]||lowerBound+remaining[i]>budget)continue;
-      const connection=edge(nodes[best],nodes[i]);
+      const connection=sampleCombEdge(nodes[best],nodes[i],policy);
       if(!connection)continue;
       const candidate=cost[best]+connection.length;
       if(candidate<cost[i]&&candidate<=policy.maxCombMm){cost[i]=candidate;previous[i]=best;edges[i]=connection.points;}
@@ -91,3 +100,5 @@ export function combRoute(from,to,policy) {
   }
   return null;
 }
+
+const distance=(a,b)=>Math.hypot(...a.map((v,i)=>v-b[i]));

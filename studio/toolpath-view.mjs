@@ -37,13 +37,14 @@ function mixColor(from,to,t){
   return '#'+[1,3,5].map(i=>Math.round(parseInt(from.slice(i,i+2),16)*(1-t)+parseInt(to.slice(i,i+2),16)*t).toString(16).padStart(2,'0')).join('');
 }
 export function toolpathStyle(move,current,skinPhase='draped-skin',emphasis,{lineWidthMm=0.4,pixelsPerMm=1,previousLayerOpacity=0.5}={}) {
+  lineWidthMm=move.lineWidthMm??lineWidthMm;
   const active=!!current&&move.layer===current.layer&&move.phase===current.phase;
   const skin=move.phase===skinPhase||move.phase==='wave-overhangs'||move.phase==='vase-wall'||move.phase==='segmented-paths'||move.phase==='cladding-hoop'||move.phase==='cladding-helix-reverse';
   const baseline=Math.max(0.5,Math.min(1,previousLayerOpacity));
   const opacity=active?1:baseline+(1-baseline)*(emphasis??0);
   const strength=(opacity-0.5)*2;
   const axial=move.phase==='cladding-axial'||move.phase==='cladding-helix-forward';
-  const foreground=move.extruding?(axial?TOOLPATH_COLORS.teal:skin?TOOLPATH_COLORS.orange:move.phase==='prime'?'#5b92a3':TOOLPATH_COLORS.skyBlue):'#657fa3';
+  const foreground=move.extruding?(move.filamentColor??(axial?TOOLPATH_COLORS.teal:skin?TOOLPATH_COLORS.orange:move.phase==='prime'?'#5b92a3':TOOLPATH_COLORS.skyBlue)):'#657fa3';
   const pale=move.extruding?(axial?mixColor(foreground,'#f3f1eb',.55):skin?'#d6a17c':move.phase==='prime'?'#5b92a3':'#b9d6ed'):'#aeb8c5';
   // Inset only the current layer's display strokes to reveal adjacent tracks.
   // This is a model-space gap, not a fixed-pixel minimum or a print change.
@@ -79,9 +80,27 @@ export function buildToolpathView(moves) {
   for(let i=0;i<moves.length;){
     const first=i,layer=value(i,'layer'),phase=value(i,'phase');
     while(i+1<moves.length&&value(i+1,'layer')===layer&&value(i+1,'phase')===phase)i++;
-    groups.push({first,last:i,raw:null,reduced:null});i++;
+    groups.push({first,last:i});i++;
   }
-  return {moves,groups};
+  return {moves,groups,memo:createToolpathMemo()};
+}
+// Display memos derived from a view: the per-group segment lists and the last
+// selected frame. They are this module's own cache, held in one boundary the
+// view names, rather than written onto the shared view and group records.
+export function createToolpathMemo(){
+  const perGroup=new Map();
+  let lastFrameKey=null,lastFrame=null;
+  return {
+    group(group){
+      const found=perGroup.get(group);
+      if(found)return found;
+      const made={raw:null,reduced:null};perGroup.set(group,made);return made;
+    },
+    frame(key,select){
+      if(lastFrameKey===key)return lastFrame;
+      const result=select();lastFrameKey=key;lastFrame=result;return result;
+    }
+  };
 }
 export function remainingLayerMs(view,moveIndex,seconds,speed){
   if(!(speed>0))return Infinity;
@@ -115,22 +134,25 @@ export function stepLayerIndex(view,seconds,direction){
   return Math.max(0,Math.min(layerIndexAt(view,seconds)+direction,view.groups.length-1));
 }
 function entries(view,group,reduced) {
-  if(!reduced)return group.raw??=Array.from({length:group.last-group.first+1},(_,j)=>{
+  const memo=view.memo.group(group);
+  if(!reduced)return memo.raw??=Array.from({length:group.last-group.first+1},(_,j)=>{
     const i=group.first+j,m=view.moves[i];return {first:i,last:i,from:m.from,to:m.to,move:m};
   });
-  if(group.reduced)return group.reduced;
+  if(memo.reduced)return memo.reduced;
   const out=[],moves=view.moves.range?view.moves.range(group.first,group.last+1):view.moves;
   for(let first=group.first;first<=group.last;){
     let last=first;
     while(last<group.last&&moves[last+1].extruding===moves[first].extruding&&moves[last+1].operation===moves[first].operation
+      &&moves[last+1].tool===moves[first].tool&&moves[last+1].filament===moves[first].filament
       &&same(moves[last].to,moves[last+1].from))last++;
     for(const edge of simplify(moves,first,last))out.push(edge);first=last+1;
   }
-  return group.reduced=out;
+  return memo.reduced=out;
 }
 function visible(view,group,count,travel,reduced){
   const key=(reduced?'simple':'exact')+(travel?'All':'Extrusion');
-  const segments=group[key]??=entries(view,group,reduced).filter(s=>travel||s.move.extruding);
+  const memo=view.memo.group(group);
+  const segments=memo[key]??=entries(view,group,reduced).filter(s=>travel||s.move.extruding);
   if(count>group.last)return segments;
   let low=0,high=segments.length;
   while(low<high){const mid=(low+high)>>1;if(segments[mid].last<count)low=mid+1;else high=mid;}
@@ -158,9 +180,13 @@ function localDetail(items,n){
 }
 export function toolpathFrame(view,count,travel,{pointCap=VIEWER_POINT_CAP}={}) {
   const key=count+':'+travel+':'+pointCap;
-  if(view.frameKey===key)return view.frame;
-  const result=selectFrame(view,count,travel,pointCap);
-  view.frameKey=key;view.frame=result;return result;
+  return view.memo.frame(key,()=>selectFrame(view,count,travel,pointCap));
+}
+export function toolpathPresentation(moves,at,detail) {
+  const displayed=detail.partial?[...detail.segments,{...detail.partial,to:moves[at.completed].from}]:detail.segments;
+  const current=moves[at.active];
+  const currentLayer=current?.phase==='finish'?moves.findLast(move=>move.extruding):current;
+  return {displayed,current,currentLayer};
 }
 function selectFrame(view,count,travel,pointCap) {
   // Reserve endpoints for the partial simplified edge and exact active move.

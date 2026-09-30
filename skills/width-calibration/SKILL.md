@@ -1,8 +1,6 @@
 ---
 name: width-calibration
 description: Print a small calibration ladder to check whether commanded bead widths come out as expected. A closed low frame ties together upright walls commanded at different widths, each on its own layer height, printed finest first, with 5 mm centerline spacing so calipers can measure each wall. Use before trusting a commanded width in line-network or line-text.
-metadata:
-  saam-kind: task
 ---
 
 # Width calibration

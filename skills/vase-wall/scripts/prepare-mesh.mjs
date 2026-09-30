@@ -10,7 +10,7 @@ import {makeMesh} from '../../../core/geom/mesh.mjs';
 import {detectMeshSleeveInterval} from '../../../core/geom/mesh-sleeve.mjs';
 import {requireThat} from '../../../core/geom/tolerance.mjs';
 import {MESH_SLEEVE_SETTINGS} from './reference.mjs';
-import {isTiledMotif,loopMotif,tileVaseMotif} from './motif.mjs';
+import {isTiledPattern,loopTile,tileVasePattern} from './tile.mjs';
 import {validateVasePattern} from './paths.mjs';
 import {layerHeights} from '../../full-fill/scripts/fill.mjs';
 
@@ -18,7 +18,7 @@ const keys=(value,allowed,label)=>requireThat(value&&typeof value==='object'&&!A
 const same=isDeepStrictEqual;
 
 export async function prepareMeshVase(directory,options={}, {expectedRevision}={}){
-  keys(options,['meshSleeve','pattern','motif','loop','cellsPerTurn','courseRiseMm','tiltDeg','repeats','baseHeightMm','endTransition','detect'],'mesh vase');
+  keys(options,['meshSleeve','pattern','tile','loop','cellsPerTurn','courseRiseMm','tiltDeg','repeats','baseHeightMm','endTransition','detect'],'mesh vase');
   if(Object.hasOwn(options,'detect'))keys(options.detect,['marginMm','toleranceMm','sampleCount','maxSecondaryAreaFraction','zMinMm','zMaxMm'],'sleeve detection');
   // Generation uses the shared fit's 0.1% extraction allowance. Detection may
   // be stricter, but cannot accept a topology the persisted fit would reject.
@@ -26,7 +26,7 @@ export async function prepareMeshVase(directory,options={}, {expectedRevision}={
     &&options.detect.maxSecondaryAreaFraction>=0&&options.detect.maxSecondaryAreaFraction<=.001,
     'Mesh vase detection maxSecondaryAreaFraction must be between 0 and 0.001, matching the fitted sleeve extraction allowance; larger secondary features require another sleeve selection.');
   if(Object.hasOwn(options,'meshSleeve'))keys(options.meshSleeve,Object.keys(MESH_SLEEVE_SETTINGS),'meshSleeve');
-  if(Object.hasOwn(options,'loop'))keys(options.loop,['widthCells','depthMm','samples','beadHeightMm','exterior'],'loop motif');
+  if(Object.hasOwn(options,'loop'))keys(options.loop,['widthCells','depthMm','samples','beadHeightMm','exterior'],'loop tile');
   const state=await loadBundle(directory,{program:false}),plan=state.plan;
   if(expectedRevision!==undefined)requireThat(expectedRevision===state.revision,'This review is stale. Reload before preparing the mesh vase.');
   requireThat(plan.geometry.shape==='mesh','Mesh vase preparation selects one mesh print. For assemblies, configure the selected component with the normal adjustment tools.');
@@ -50,20 +50,20 @@ export async function prepareMeshVase(directory,options={}, {expectedRevision}={
   requireThat(span>0,'The detected sleeve has no room above the selected base and first bead.');
   if(baseHeight===0&&plan.skills['full-fill'].enabled)requireThat(same(plan.skills['full-fill'],initial.skills['full-fill']),
     'Mesh vase preparation cannot discard customized full-fill settings. Disable full-fill explicitly before selecting a wall without a base.');
-  const selectors=['pattern','motif','loop'].filter(k=>Object.hasOwn(options,k));
-  requireThat(selectors.length<=1,'Select one pattern, motif or loop preset.');
+  const selectors=['pattern','tile','loop'].filter(k=>Object.hasOwn(options,k));
+  requireThat(selectors.length<=1,'Select one pattern, tile or loop preset.');
   const meshSleeve={...MESH_SLEEVE_SETTINGS,...wall.meshSleeve,...options.meshSleeve};
   const layoutKeys=['cellsPerTurn','courseRiseMm','tiltDeg','repeats'];
   const preserve=!selectors.length&&wall.enabled;
   requireThat(!(preserve||Object.hasOwn(options,'pattern'))||!layoutKeys.some(k=>Object.hasOwn(options,k)),
-    'Specify layout inside an explicit pattern, or select motif/loop to author a new tiled pattern.');
+    'Specify layout inside an explicit pattern, or select tile/loop to author a new tiled pattern.');
   let pattern,automaticCount=false;
   if(Object.hasOwn(options,'pattern'))pattern=structuredClone(options.pattern);
   else if(preserve)pattern=structuredClone(wall.pattern);
   else{
-    const motif=Object.hasOwn(options,'motif')?options.motif:loopMotif({beadHeightMm:plan.process.layerMm,
+    const tile=Object.hasOwn(options,'tile')?options.tile:loopTile({beadHeightMm:plan.process.layerMm,
       exterior:meshSleeve.contactSide==='outside'?'scalloped':'smooth',...options.loop});
-    pattern={motif:structuredClone(motif),cellsPerTurn:options.cellsPerTurn??20,courseRiseMm:options.courseRiseMm??plan.process.layerMm,
+    pattern={tile:structuredClone(tile),cellsPerTurn:options.cellsPerTurn??20,courseRiseMm:options.courseRiseMm??plan.process.layerMm,
       tiltDeg:options.tiltDeg??0,repeats:options.repeats??1};
     automaticCount=options.repeats===undefined;
   }
@@ -72,18 +72,18 @@ export async function prepareMeshVase(directory,options={}, {expectedRevision}={
   const endTransition=options.endTransition??(wall.enabled?wall.endTransition:'level');
   requireThat(['level','spiral'].includes(endTransition),'endTransition must be level or spiral.');
   if(pattern){
-    const expanded=isTiledMotif(pattern)?tileVaseMotif(pattern):pattern;
+    const expanded=isTiledPattern(pattern)?tileVasePattern(pattern):pattern;
     let minimum=Infinity,maximum=-Infinity;
     for(const path of expanded.paths)for(const p of path.points){minimum=Math.min(minimum,p[1]);maximum=Math.max(maximum,p[1]);}
-    requireThat(minimum>=-1e-9,'The authored motif descends below its first bead; revise motif tilt or height.');
+    requireThat(minimum>=-1e-9,'The authored pattern descends below its first bead; revise tile tilt or height.');
     if(automaticCount){
       pattern.repeats=Math.floor((span-maximum+1e-9)/expanded.advance[1])+1;
-      requireThat(pattern.repeats>=1,'One complete motif course does not fit above the base; reduce its rise/height or choose a taller sleeve.');
+      requireThat(pattern.repeats>=1,'One complete pattern course does not fit above the base; reduce its rise/height or choose a taller sleeve.');
     }
     requireThat(maximum+(pattern.repeats-1)*expanded.advance[1]<=span+1e-9,
-      'The requested complete motif courses exceed the detected sleeve interval. Revise repeats or the selected interval explicitly; no path was trimmed.');
+      'The requested complete pattern courses exceed the detected sleeve interval. Revise repeats or the selected interval explicitly; no path was trimmed.');
     authoredPoints=expanded.paths.reduce((n,p)=>n+p.points.length,0)*(pattern.repeats+(endTransition==='level'?2:0));
-    requireThat(Number.isSafeInteger(authoredPoints),'The authored motif point count exceeds the safe integer range.');
+    requireThat(Number.isSafeInteger(authoredPoints),'The authored pattern point count exceeds the safe integer range.');
   }
   const settings={enabled:true,part:null,zStartMm:baseHeight,zEndMm:end-low,endTransition,pathMode:'continuous',pattern,
     meshSleeve};

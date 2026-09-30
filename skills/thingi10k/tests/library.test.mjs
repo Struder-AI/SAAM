@@ -129,7 +129,7 @@ test('MCP searches, imports and opens an unapproved print; attribution survives 
   };
   const tools=(await client.listTools()).tools;
   assert.equal(tools.find(tool=>tool.name==='import_thingi10k_print').annotations.openWorldHint,true);
-  assert.ok((await call('list_skills',{})).some(skill=>skill.id==='thingi10k'&&skill.kind==='task'));
+  assert.ok((await call('list_skills',{})).some(skill=>skill.id==='thingi10k'&&skill.kind==='geometry'));
   const manual=await call('read_skill',{skillId:'thingi10k'}); assert.ok(manual);
   const results=await call('search_thingi10k',{query:'bunny'});
   const imported=await call('import_thingi10k_print',{printId:'Bunny',fileId:results.results[0].fileId,machineId:'ultimaker-s5'});

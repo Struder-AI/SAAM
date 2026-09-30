@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "flows": [
+    {
+      "path": "core/path",
+      "groups": [
+        {
+          "id": "composition",
+          "label": "composition",
+          "members": ["core/path/compose.mjs"]
+        },
+        {
+          "id": "path-motion",
+          "label": "pathMotion",
+          "members": ["core/path/builder.mjs", "core/path/comb.mjs", "core/path/prime.mjs"]
+        },
+        {
+          "id": "material-surface",
+          "label": "materialSurface",
+          "members": ["core/path/material.mjs", "core/path/finished-surface.mjs"]
+        },
+        {
+          "id": "deposition-controls",
+          "label": "depositionControls",
+          "members": ["core/path/deposition.mjs", "core/path/pose.mjs", "core/path/process-controls.mjs", "core/path/spacing.mjs"]
+        }
+      ]
+    }
+  ]
+}

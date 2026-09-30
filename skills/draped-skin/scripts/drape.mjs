@@ -16,7 +16,6 @@ import { topAt } from '../../../core/geom/query.mjs';
 import { scanlineFill, regionArea, loopArea } from '../../../core/region/region2d.mjs';
 import { offsetRegion } from '../../../core/region/offset.mjs';
 import { levelSetRegion, intersect, SENTINEL } from '../../../core/region/boolean.mjs';
-import { composeResults } from '../../../core/path/compose.mjs';
 import {surfacePolicy} from '../../../core/path/builder.mjs';
 import { requireThat, distance, distance2 } from '../../../core/geom/tolerance.mjs';
 import {lineSpacing} from '../../../core/path/spacing.mjs';
@@ -213,7 +212,7 @@ export function drapedSkinResult({ shell, plan, machine, survey, id = 'draped-sk
     }
     const operationId=id+':'+(skin-1);
     operations.push({id:operationId,layerId:id+':'+(skin-1),phase:'draped-skin',layer:skin-1,
-      rank:shell.bounds.max[2]+skin,after:previous,strokes:deposition,order:'nearest-cells',travelPolicy:policy});
+      rank:shell.bounds.max[2]+skin,after:previous,strokes:deposition,order:'nearest-cells',connectNearby:true,travelPolicy:policy});
     previous=[operationId];
   }
   return {id,operations,report};
@@ -264,7 +263,3 @@ export const skinReport = report => ({
   ...report,
   excludedPercent: Number((report.excludedFraction * 100).toFixed(2))
 });
-
-export function generateDrapedSkin(builder,options){
-  const result=drapedSkinResult(options);composeResults(builder,[result]);return result.report;
-}

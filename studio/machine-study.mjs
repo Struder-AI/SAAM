@@ -27,7 +27,7 @@ export async function loadBundle(dir,{program=true,allSources=false}={}){
   const sources=source===undefined?[]:[{name,sha256:exportHash}];
   const vertices=Array.from({length:8},(_,i)=>[0,1,2].map(j=>bounds[(i>>j)&1?'max':'min'][j]));
   const geometry={geometryVersion:revision,boundsMm:bounds,vertices,faces:[],labels:[],edges:[],roof:null};
-  const state={kind:'wedge',plan,machine,revision,planHash:revision,exportHash,geometry,pathSummary:{planarLayers:0},
+  const state={kind:'wedge',plan,machine,revision,generationHash:revision,exportHash,geometry,pathSummary:{planarLayers:0},
     toolpathApproved:false,outputAvailability:'Simulation only; machine output is unavailable.',
     review:{generation:{mode:'development'},approvals:{}},
     inspection:{title:machine.name,description:'Nominal mechanism study · inspect source motion and machine geometry.',

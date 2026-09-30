@@ -29,13 +29,15 @@ const line = (rhino, a, b) => new rhino.LineCurve(a, b);
 const quad = (rhino, a, b, c, d) => ruled(rhino, line(rhino, a, b), line(rhino, d, c));
 
 export function boxShell(rhino, { xMm = 30, yMm = 20, zMm = 10 } = {}) {
-  return prismShell(rhino, [[0, 0], [xMm, 0], [xMm, yMm], [0, yMm]], () => zMm, 'box');
+  const heightAt = () => zMm;
+  return prismShell(rhino, [[0, 0], [xMm, 0], [xMm, yMm], [0, yMm]], heightAt, 'box');
 }
 
 // A wedge shell: a flat top surface tilted by angleDeg about the Y axis.
 export function wedgeShell(rhino, { runMm = 30, widthMm = 20, baseMm = 2, angleDeg = 15 } = {}) {
   const slope = Math.tan(angleDeg * Math.PI / 180);
-  return prismShell(rhino, [[0, 0], [runMm, 0], [runMm, widthMm], [0, widthMm]], x => baseMm + x * slope, 'wedge');
+  const heightAt = x => baseMm + x * slope;
+  return prismShell(rhino, [[0, 0], [runMm, 0], [runMm, widthMm], [0, widthMm]], heightAt, 'wedge');
 }
 
 // A rectangular prism whose top is a planar or ruled surface given by height(x, y).
