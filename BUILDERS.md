@@ -24,6 +24,13 @@ changes, suggest a fresh chat.
 
 ## Design direction
 
+Specialized applications follow the [workspace policy](workspaces/README.md).
+Keep their task-specific workflows and application code in separate directories
+under `workspaces/`, with an [index entry](workspaces/INDEX.md), visible design
+and supporting-contributor credits, and explicit support ownership. Workspaces
+may choose their own interface and incorporate SAAM, while reusing its maintained
+core functionality. Existing transitional locations are documented in the index.
+
 Core skills expose shared geometry and deposition capabilities. Guidance teaches
 their composition, adding no deposition family or parallel recipe representation.
 Builders may package existing operations; a missing capability goes to developers.
@@ -293,7 +300,7 @@ which owns the rule and the register of limits deliberately retained.
 
 ## Reproducible examples
 
-The [three demo workspaces](examples/prints/README.md) package editable recipes
+The [three demo print bundles](examples/prints/README.md) package editable recipes
 for surface drape, wavy DENSO and Nudge Cup. The creation command refuses existing
 destinations. Use `--generate` for unapproved development toolpaths, then inspect
 geometry and toolpath in Studio.

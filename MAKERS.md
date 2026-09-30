@@ -39,6 +39,13 @@ machine's setup and limits are in its
 
 ## Maker interaction flow
 
+For a specialized task application, consult the [workspace index](workspaces/INDEX.md)
+and its own manual. [Workspace policy](workspaces/README.md) distinguishes these
+applications from reusable skills and SAAM Studio. Explain the workspace's current
+capabilities and support status; community workspaces have no Struder support by
+default. Use shared SAAM printing and confirmation when the workspace hands off
+or incorporates printing.
+
 The person asks for changes in chat; you apply them and Studio updates. They never
 edit JSON. These stages are review dependencies, not gates: outside a tour any
 supported change is welcome from any view, invalidating only what it affects.

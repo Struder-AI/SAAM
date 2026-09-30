@@ -39,6 +39,14 @@ how changes extend this shared system.
 
 ## What works today
 
+[Workspaces](workspaces/README.md) are specialized applications that create
+printable geometry through task-specific workflows. They may export geometry,
+hand it to SAAM with printing context, or incorporate maintained SAAM functionality
+for closer printing control. Their creators choose the experience. See the
+[workspace index](workspaces/INDEX.md) for status, attribution and support;
+community workspaces are not supported by Struder by default. The initial policy
+is prepared for Evan's review; his agreement has not been recorded.
+
 This is a development checkout. Choose a pattern through the [skill
 index](skills/DIGEST.md); each manual owns its current shapes, settings and limits.
 [Machine support and output contracts](core/export/README.md#machine-interoperability-design)

@@ -10,6 +10,12 @@ machine's exporter translates into its program. The person reviews in SAAM
 Studio and gives one **confirmation** of the current settings and exact
 toolpath together before export.
 
+**Workspaces** are specialized applications with task-specific workflows, separate
+from SAAM's general utility and reusable skills. For workspace work, read the
+[workspace policy](workspaces/README.md) and [index](workspaces/INDEX.md). Keep
+each application under `workspaces/`, reuse maintained SAAM functionality, and
+preserve visible contributor attribution and explicit support status.
+
 If `.local/AGENTS.md` exists, read it at session start (for a tour, just after
 launch): it holds this checkout's user
 preferences and notes about their prints and printers. Record lasting
