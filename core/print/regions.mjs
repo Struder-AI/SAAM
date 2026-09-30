@@ -15,6 +15,8 @@ import {spacingFactor} from '../path/spacing.mjs';
 import {publishFinishedBoundary} from '../path/finished-surface.mjs';
 import {selectionsOverlap} from '../geom/selections.mjs';
 import {filamentPlan} from '../machine/filaments.mjs';
+import {toolBounds} from '../machine/profile.mjs';
+import {lineNetworkResult} from '../../skills/line-network/scripts/network.mjs';
 
 const has=(record,name)=>Object.hasOwn(record.assignment.skills,name);
 const planar=record=>has(record,'full-fill')||has(record,'planar-infill');
@@ -235,6 +237,14 @@ export function generateAssignedRegion(prepared,{plan,machine,records,byId,order
   const layerIndexOffset=Math.max(0,planarZ.indexOf(firstZ));
   if(has(record,'planar-infill'))record.results.push(...planarInfillResults({shell,plan:localPlan,machine,reserve,id:prefix+':planar-infill',solid:has(record,'full-fill'),zStartMm:start,zEndMm:end,layerOriginMm,layerIndexOffset,lowerSurface}));
   else if(has(record,'full-fill'))record.results.push(fullFillResult({shell,plan:localPlan,machine,reserve,id:prefix+':full-fill',zStartMm:start,zEndMm:end,layerOriginMm,layerIndexOffset,lowerSurface}));
+  if(has(record,'line-network')) {
+    // A standalone planar path, exactly as it runs outside a region (validatePlanSelections still
+    // refuses it alongside any fill/skin/vase/lip in this same region), just with its own start
+    // height and its course numbers shifted into the job-wide layer index the region system keeps.
+    const bounds=machine.motionChecks==='deferred'?null:toolBounds(machine,localPlan.setup.tool);
+    const result=lineNetworkResult({plan:localPlan,bounds,zStartMm:start,layerIndexOffset});
+    record.results.push(result);
+  }
   if(has(record,'vase-wall')) {
     requireThat(!lowerSurface,'A vase foundation ring requires a flat lower boundary; use a planar transition region above the supplied surface.');
     const result=vaseWallResult({shell,plan:localPlan,machine,id:prefix+':vase-wall',zStartMm:start,zEndMm:end,onProgress});

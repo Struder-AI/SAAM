@@ -1,5 +1,51 @@
 # Development log
 
+## 2026-09-29 — Merge origin/main, adopt remettub's H2D exporter, and give line-network back its per-network process and a way onto two nozzles
+
+- Source: user, TK-DEV checkout: "pull fresh from repo.. I want to get this demo printed in 2-colors, but make sure
+  we have updated everything from SAAM." Then, after the merge exposed a real regression: "how do we get variable
+  line width re-instated?"; and after being told the fix would touch `remettub`'s newly-merged code, "I have no idea
+  what you are talking about. I dont understand the context of anything evan has done so Its impossible for me to
+  know what I can touch andn what I cant" (put the call back on the agent); then "ok, so now how do I print different
+  thickness lines using different colors?"
+- Merged `origin/main` (8f057a90) into TK-DEV. `remettub`'s H2D exporter (`core/export/bambu-body.mjs`,
+  `bambu-change.mjs`, `bambu-job.mjs`, `bambu-x1-change.mjs`, `core/machine/filaments.mjs`) replaces this branch's
+  own (`core/export/bambu-tool-change.mjs`, `core/path/heat.mjs`, both retired, along with their tests); it is
+  physically verified on real hardware for both same-nozzle AMS colour changes (AMS-19) and different-diameter
+  dual-nozzle changes with correct deposition heights (DUAL-20), which this branch's own work never printed. The old
+  authored `maps/*.md` are removed for main's generated `dev-map/`; `skills/README.md` for `skills/DIGEST.md`.
+  heat-set-inserts and vase-wall kept this branch's independently-developed features where main's conflicting edit
+  would have dropped working, already-integrated behaviour. Full conflict accounting is in the merge commit.
+- The merge's own regression, found while answering "can we print this now": main's `line-network` schema had been
+  simplified to `{id, strokes}` only, dropping the `process`/`layers` override this branch's width-calibration ladder
+  and multi-size line-text panel need (each wall/line its own layer height and bead width, in one job). Restored in
+  `core/print/plan.mjs`'s `validatePlanSelections`, in the same shape (and the same five keys) a composition region
+  already overrides its own process with, rather than reviving a separate mechanism; the producer
+  (`skills/line-network/scripts/network.mjs`) was never touched by the merge and needed no change. `tool` (which
+  nozzle) was deliberately left out of this first pass.
+- Multi-nozzle/multi-colour line-network did not exist under the merged architecture at all: `remettub`'s nozzle and
+  filament system (`plan.setup.bambu`, `composition.regions`) only ever reached `full-fill`, `planar-infill`,
+  `vase-wall` and `thick-lip` (confirmed empirically: a two-region line-network plan validated cleanly and then
+  produced "Assigned region produced no material" at generation, since `core/print/regions.mjs`'s producer dispatch
+  never called `lineNetworkResult`). Added `line-network` as a region producer: `lineNetworkResult` takes an optional
+  `zStartMm` (a region's own start height, replacing the retired per-network `baseMm`) and `layerIndexOffset`
+  (folding its own course numbering into the job's shared layer index, the same alignment full-fill and
+  planar-infill already keep, so two regions' layer numbers never collide in exported metadata — the same invariant
+  `remettub`'s own dual-nozzle test already checks). A line-network region still cannot combine with another region
+  skill, matching the standalone rule. Four new tests (`core/tests/line-network-regions.test.mjs`): same-nozzle
+  colour change with no tool change, different-nozzle change with each region's own bead width and layer grid and no
+  layer-number collision, the standalone-skill rule, and the "starts above unassigned material" ordering check.
+- `skills/line-text/scripts/panel.mjs`'s `panelPatch` rebuilt on this: an `assembly` geometry with a placeholder part
+  per region (line-network does not consume its part's actual shape, only its own strokes), a background region and
+  a lettering region, each its own filament/nozzle, the lettering starting where the background ends. Regenerated
+  `Prints/development/two-color-demo` end to end through the ordinary `cli.mjs init/adjust/generate` path: 7,556
+  moves, 3,886 mm³, about 25 minutes, both filaments depositing, no errors. Rendered and visually checked: background
+  crosshatch in one colour, "Individual / Toolpath / Control" in the other, on top, as designed.
+- Retired `core/tests/multi-tool.test.mjs` (six tests for the old per-network `tool` mechanism, permanently replaced
+  by the region mechanism above). Full suite: 277/297 passing; the 14 remaining failures are pre-existing
+  Studio/MCP/WASM flake, unrelated to any of this and unchanged by it.
+- Not done: a supervised physical print (none has been made); Studio does not yet colour by nozzle.
+
 ## 2026-09-24 — Tour manual condensed
 
 - `examples/prints/README.md` went from 12,797 to 8,778 characters. The

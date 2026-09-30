@@ -40,20 +40,26 @@ all course heights in the print, the same for every network. The minimum layer t
 applies to each distinct height, so a print with many close heights waits at each of them
 unless `minimumLayerSeconds` is lowered.
 
-## Networks on their own nozzle, above a base
+## A network does not choose its own nozzle
 
-A network may name its own nozzle with `tool: {index, core, nozzleMm, color}` (`color` is an optional `#RRGGBB` for
-that nozzle's filament in the exported package; on the H2D, index 0 is the left nozzle and 1 the right) and a `baseMm`, the height its first course starts above the bed. The nozzle is checked
-as if the whole print used it, with the network's process, so that nozzle's own bead-width and layer limits
-apply: a 0.35 mm bead is allowed on a 0.4 mm nozzle and refused on a 0.6 mm one. Courses above a base use the
-network's layer height throughout and the planar speed, and lettering can sit on material another nozzle laid
-down. A network's strokes are held to the reach of its own nozzle, not the recipe's placeholder shape.
+A single `line-network` selection always prints on `plan.setup.tool`, whatever process it uses per network
+(see above). There is no per-network `tool` field: an item is `{id, strokes}`, plus the optional `layers` and
+`process` above. That was tried and retired; it does not compose with how the rest of SAAM assigns nozzles
+and filaments (`core/machine/filaments.mjs`, `core/export/bambu.md`).
 
-When any network names a nozzle, every operation names one; the composer keeps one nozzle's work together
-within a height, and the path records a `tool` action (`fromTool`, `toTool`, and the lift and entry position the
-machine's change sequence uses) where the nozzle changes, followed by prime strokes on the machine's purge pad and
-heater actions that bring the next nozzle up to temperature in time. **A job that changes nozzles can be exported only
-when the machine declares a validated nozzle-change sequence and both nozzles have the same diameter.** The H2D
-declares one for 0.4 and 0.6 mm nozzles ([the output contract](../../maps/reference/bambu.md#nozzle-changes-and-mixed-nozzle-diameters));
-mixed diameters are refused at export. Keep the part clear of the purge pad at the back of the bed (a job that comes
-within 3 mm of it is refused). No such print has been made yet; the first must be supervised.
+To print on two nozzles or two colours, use two **composition regions**, each its own `line-network` selection
+(see [the print composition reference](../../core/print/USAGE.md) for the general mechanism). Give the job an
+`assembly` geometry with one placeholder part per region — line-network does not consume its part's actual
+shape, only its own strokes, so a plain flat box big enough to hold them is enough. Each region names its own
+`filament` (into `plan.setup.bambu.filaments`, which is where the nozzle and colour actually come from), a
+`zStartMm`/`zEndMm` span, and `skills: {'line-network': {layers, networks}}`. A region may not combine
+`line-network` with another region skill. A region that starts above its part's own base needs either
+`lowerSurfaceFrom` (an earlier region on a different part, ending exactly where this one starts) or to share
+its part with a region that ends there; each region's own course numbering is folded into the job's shared
+layer index automatically, so heights never collide between regions in the exported metadata.
+
+Nozzle switching and same-nozzle colour changes are otherwise ordinary: the H2D's proven contract
+([`core/export/bambu.md`](../../core/export/bambu.md)) decides what a job may do, same as for any other
+skill placed in regions. See `skills/line-text/scripts/panel.mjs`'s `panelPatch` for a complete worked example
+(a background region and a lettering region, different nozzles, different colours, the lettering starting
+where the background ends), and `core/tests/line-network-regions.test.mjs` for the mechanism's own tests.

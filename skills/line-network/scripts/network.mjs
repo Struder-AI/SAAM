@@ -15,22 +15,25 @@ const height=z=>Math.round(z*1e6)/1e6;
 // height; at one height each course's `rank` is its layer height, so the finer line goes
 // first, and a thick line's single course follows the several fine courses beneath it.
 //
-// A network may also name its own nozzle (`tool`: index, core and nozzle diameter) and a `baseMm`, the
-// height its first course starts above the bed, so lettering can sit on material another nozzle laid
-// down. Courses above a base use the network's layer height throughout and the planar speed. When any
-// network names a nozzle, every operation names one, so the composer can keep each nozzle's work together.
-export function lineNetworkResult({plan,bounds=null,boundsFor=null}){
+// A composition region assigns line-network its own start height (`zStartMm`, from the region
+// assignment, not a per-network field) and its own tool/filament (already resolved into `plan`
+// before this call, the same as any other region producer). Courses above a nonzero start use the
+// network's layer height throughout and the planar speed, so lettering can sit on material another
+// region laid down. `layerIndexOffset` aligns this call's own course numbering into the region
+// system's job-wide layer index, exactly as full-fill and planar-infill already do; it is 0 (a
+// no-op) for the ordinary standalone job, which keeps its existing self-numbered courses.
+export function lineNetworkResult({plan,bounds=null,boundsFor=null,zStartMm=0,layerIndexOffset=0}){
   const settings=plan.skills['line-network'],operations=[];
   const multiTool=settings.networks.some(network=>network.tool);
   let lengthMm=0,strokeCount=0,courseCount=0,maxCourses=0;
   const heights=new Set(),placed=[];
   settings.networks.forEach(network=>{
     const process={...plan.process,...network.process},width=process.lineWidthMm,courses=network.layers??settings.layers;
-    const base=network.baseMm??0,tool=network.tool?.index??plan.setup.tool,limits=boundsFor?boundsFor(tool):bounds;
+    const tool=network.tool?.index??plan.setup.tool,limits=boundsFor?boundsFor(tool):bounds;
     maxCourses=Math.max(maxCourses,courses);
     for(let layer=0;layer<courses;layer++){
-      const onBed=base===0&&layer===0;
-      const z=height(base>0?base+(layer+1)*process.layerMm:process.firstLayerMm+layer*process.layerMm);
+      const onBed=zStartMm===0&&layer===0;
+      const z=height(zStartMm>0?zStartMm+(layer+1)*process.layerMm:process.firstLayerMm+layer*process.layerMm);
       heights.add(z);
       const beadHeight=onBed?process.firstLayerMm:process.layerMm;
       const speed=onBed?process.firstLayerSpeedMmS:process.planarSpeedMmS;
@@ -54,9 +57,10 @@ export function lineNetworkResult({plan,bounds=null,boundsFor=null}){
       operations.push(operation);placed.push([operation,z]);
     }
   });
-  // `layer` is the height's place among every course height in the print, so it means the
-  // same to every network; with one shared grid it is the course number, as before.
+  // `layer` is the height's place among every course height in this call, so it means the same
+  // to every network; with one shared grid it is the course number, as before. layerIndexOffset
+  // then shifts that into the job-wide index a region assignment carries, if any.
   const levels=new Map([...heights].sort((a,b)=>a-b).map((z,i)=>[z,i]));
-  for(const [operation,z] of placed)operation.layer=levels.get(z);
+  for(const [operation,z] of placed)operation.layer=levels.get(z)+layerIndexOffset;
   return {id:'line-network',report:{layers:maxCourses,networks:settings.networks.length,strokes:strokeCount,courses:courseCount,lengthMm},operations};
 }

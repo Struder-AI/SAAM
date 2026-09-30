@@ -1,13 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildPanel, DEMO_LINES, DEMO_TRIM_BOTTOM_MM, PANEL_COLORS, panelNetworks, renderPanel} from '../scripts/panel.mjs';
+import {buildPanel, DEMO_LINES, DEMO_TRIM_BOTTOM_MM, PANEL_COLORS, panelPatch, renderPanel} from '../scripts/panel.mjs';
 import {defaults, validatePlan} from '../../../core/print/plan.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
 import {generatePath} from '../../../core/print/generate.mjs';
 import {rhino} from '../../../core/print/geometry.mjs';
-import {exportMotion} from '../../../core/export/griffin.mjs';
-import {exportProgram} from '../../../core/export/registry.mjs';
-import {boxMesh} from '../../../core/tests/fixtures/mesh.mjs';
+import {exportProgram, interpretProgram} from '../../../core/export/registry.mjs';
 
 const panel = buildPanel({lines: DEMO_LINES, trimBottomMm: DEMO_TRIM_BOTTOM_MM});
 const near = (a, b, tol = 1e-6) => assert.ok(Math.abs(a - b) <= tol, `${a} != ${b}`);
@@ -78,31 +76,43 @@ test('raising Control by 2 mm and trimming the bottom edge with it keeps its mar
   near(panel.heightMm - a.boxMm[3], plain.heightMm - pa.boxMm[3], 1e-9); // the top margin is unchanged
 });
 
+// Applies the patch's top-level fields onto a fresh default plan, the same shallow assignment
+// `core/print/cli.mjs adjust` performs for record fields it recognizes; adequate for a plan this
+// direct, without pulling in the full geometry-template machinery adjust needs for arbitrary edits.
+function applyPatch(machine, patch) {
+  const plan = defaults(machine);
+  for (const [key, value] of Object.entries(patch)) {
+    if (key === 'skills') for (const [name, settings] of Object.entries(value)) Object.assign(plan.skills[name], settings);
+    else if (key === 'setup') { const {bambu, ...rest} = value; Object.assign(plan.setup, rest); if (bambu) plan.setup.bambu = {...plan.setup.bambu, ...bambu}; }
+    else if (key === 'geometry') plan[key] = value; // a full shape object, not a partial patch
+    else if (key === 'composition') plan.composition = {...plan.composition, ...value};
+    else plan[key] = typeof value === 'object' && !Array.isArray(value) ? {...plan[key], ...value} : value;
+  }
+  return plan;
+}
+
 test('the panel is a plan for two 0.4 mm nozzles: background on the left, lettering on the right starting 0.4 mm up', async () => {
-  const machine = loadMachine('bambu-h2d'), plan = defaults(machine);
-  plan.geometry = boxMesh();
-  plan.placement = {xMm: 100, yMm: 100};
-  plan.setup.filamentColor = PANEL_COLORS.background;
-  for (const settings of Object.values(plan.skills)) settings.enabled = false;
-  Object.assign(plan.process, {minimumLayerSeconds: 0});
-  Object.assign(plan.skills['line-network'], panelNetworks(panel));
+  const machine = loadMachine('bambu-h2d');
+  const plan = applyPatch(machine, panelPatch(panel));
   validatePlan(plan, machine);
-  const path = generatePath(plan, machine, await rhino()), changes = path.actions.filter(a => a.kind === 'tool');
-  assert.deepEqual(changes.map(a => [a.fromTool, a.toTool]), [[0, 1]], 'one change, left to right');
-  const deposits = path.actions.filter(a => a.kind === 'move' && a.volumeMm3 > 0), at = path.actions.indexOf(changes[0]);
+  const path = generatePath(plan, machine, await rhino()), changes = path.actions.filter(a => a.kind === 'toolChange');
+  assert.equal(changes.length, 1, 'one change, left to right');
   const part = a => a.kind === 'move' && a.volumeMm3 > 0 && a.role !== 'prime';
+  const deposits = path.actions.filter(part), at = path.actions.findIndex(a => a.kind === 'toolChange');
   const before = path.actions.slice(0, at).filter(part), after = path.actions.slice(at).filter(part);
-  assert.ok(before.every(m => m.region === 'background') && after.every(m => m.region.startsWith('text-')));
+  assert.ok(before.every(m => m.region === 'background') && after.every(m => m.region === 'lettering'));
   assert.deepEqual([...new Set(before.map(m => +m.to[2].toFixed(6)))], [0.2, 0.4]);
   assert.deepEqual([...new Set(after.map(m => +m.to[2].toFixed(6)))], [0.7, 1, 1.3], 'text starts on top of the 0.4 mm background, in 0.3 mm layers');
-  // Each lettering line deposits its bead width x 0.3 mm layer x its stroke length on each of 3 courses.
+  // The lettering region deposits each line's own bead width x 0.3 mm layer x its stroke length,
+  // on each of its 3 courses, summed across all three lines (they share the region's one job).
   const length = s => s.points.slice(1).concat(s.closed ? [s.points[0]] : []).reduce((sum, p, i) => sum + Math.hypot(p[0] - s.points[i][0], p[1] - s.points[i][1]), 0);
-  for (const net of panelNetworks(panel).networks.filter(n => n.id.startsWith('text-'))) {
-    const expected = 3 * 0.3 * net.process.lineWidthMm * net.strokes.reduce((sum, s) => sum + length(s), 0);
-    const got = after.filter(m => m.region === net.id).reduce((sum, m) => sum + m.volumeMm3, 0);
-    assert.ok(got > 0 && Math.abs(got / expected - 1) < 1e-6, `${net.id}: ${got} != ${expected}`);
-  }
-  assert.throws(() => exportMotion(path, plan), /no validated nozzle-change sequence/, 'a writer without a validated change refuses it');
-  const bytes = exportProgram(path, plan, machine, {generatorVersion: 'test', buildDate: '2026-09-20'});
-  assert.ok(bytes.length > 1000, 'and the H2D exports it as one two-colour job');
+  const lettering = plan.composition.regions.find(r => r.id === 'lettering').skills['line-network'];
+  const expected = lettering.networks.reduce((sum, net) => sum + 3 * 0.3 * net.process.lineWidthMm * net.strokes.reduce((s, stroke) => s + length(stroke), 0), 0);
+  const got = after.reduce((sum, m) => sum + m.volumeMm3, 0);
+  assert.ok(got > 0 && Math.abs(got / expected - 1) < 1e-6, `${got} != ${expected}`);
+  const bytes = exportProgram(path, plan, machine, {generatorVersion: 'test', buildDate: '2026-09-29'});
+  assert.ok(bytes.length > 1000, 'the H2D exports it as one two-colour job');
+  const program = interpretProgram(bytes, plan, machine);
+  assert.deepEqual(new Set(program.filamentUsage.map(u => u.filament)), new Set([0, 1]));
+  assert.ok(program.filamentUsage.every(u => u.volumeMm3 > 0), 'both filaments actually deposited');
 });

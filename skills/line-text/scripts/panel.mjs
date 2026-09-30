@@ -97,39 +97,55 @@ export function buildPanel({lines, widthMm, heightMm, trimBottomMm = 0, backgrou
   return {widthMm: w, heightMm: h, background: {options: bg, borders, infill, spacingMm}, text: {options: tx, lines: lettering}, insetRingMm: [ringOuter, ringInner]};
 }
 
-// The panel as `line-network` settings: the background on one nozzle (borders on every course, the two
-// infill angles on alternate courses) and each lettering line on the other, starting where the background
-// ends, each line with its own bead width and the text nozzle's own layer height.
-export function panelNetworks(panel, {backgroundTool = 0, textTool = 1, coreFor = nozzleMm => `Hardened steel ${nozzleMm}`, colors = PANEL_COLORS} = {}) {
+// The panel's two line-network jobs: the background (borders on every course, the two infill angles on
+// alternate courses) and the lettering, starting where the background ends. Each lettering line keeps its
+// own bead width (from its font/size), sharing the text job's one layer height throughout.
+function panelNetworks(panel) {
   const {background: bg, text: tx} = panel, b = bg.options, x = tx.options;
-  const background = {
-    id: 'background', layers: b.layers, tool: {index: backgroundTool, core: coreFor(b.nozzleMm), nozzleMm: b.nozzleMm, color: colors.background},
-    process: {firstLayerMm: b.layerMm, layerMm: b.layerMm, lineWidthMm: b.beadMm},
+  const background = {layers: b.layers, networks: [{
+    id: 'background', process: {firstLayerMm: b.layerMm, layerMm: b.layerMm, lineWidthMm: b.beadMm},
     strokes: [
       ...bg.borders.map(s => ({closed: s.closed, points: s.points})),
       ...bg.infill.flatMap((layer, i) => layer.map(s => ({closed: false, points: s.points, layers: [i]})))
     ]
-  };
-  const lettering = tx.lines.map((line, i) => ({
-    id: `text-${i + 1}`, layers: x.layers, baseMm: b.layers * b.layerMm, tool: {index: textTool, core: coreFor(x.nozzleMm), nozzleMm: x.nozzleMm, color: colors.text},
-    process: {layerMm: x.layerMm, lineWidthMm: +line.plan.beadWidthMm.toFixed(4)},
+  }]};
+  const lettering = {layers: x.layers, networks: tx.lines.map((line, i) => ({
+    id: `text-${i + 1}`, process: {lineWidthMm: +line.plan.beadWidthMm.toFixed(4)},
     strokes: line.strokes.map(s => ({closed: s.closed, points: s.points.map(p => [+p[0].toFixed(4), +p[1].toFixed(4)])}))
-  }));
-  return {enabled: true, layers: Math.max(b.layers, x.layers), networks: [background, ...lettering]};
+  }))};
+  return {background, lettering};
 }
 
-// A plan patch for `core/print/cli.mjs adjust`: this panel as the only skill, its background nozzle's colour as the
-// plan's own, centered on a bed of the given size.
-export function panelPatch(panel, {bedMm = [350, 320], ...options} = {}) {
+// A placeholder box for a region's assembly part: line-network's own strokes are the geometry that
+// matters, so this only needs to cover the panel's footprint for the shared placement/bounds checks.
+const panelPart = (id, panel) => ({id, xMm: 0, yMm: 0, zMm: 0, geometry: {shape: 'box', runMm: panel.widthMm, widthMm: panel.heightMm, heightMm: 4}});
+
+// A plan patch for `core/print/cli.mjs adjust`: the panel as two composition regions on their own
+// nozzles/filaments, background first and lettering starting where it ends, centered on a bed of the
+// given size. `backgroundTool`/`textTool` (default the H2D's left/right) and `colors` pick the nozzles
+// and their filament colours; `nozzleMm`/`core` name the text nozzle's actual installed diameter.
+export function panelPatch(panel, {bedMm = [350, 320], backgroundTool = 0, textTool = 1, colors = PANEL_COLORS, textNozzleMm = null} = {}) {
   const skills = Object.fromEntries(PLAN_SKILLS.map(id => [id, {enabled: false}]));
-  skills['line-network'] = panelNetworks(panel, options);
+  const {background: bg, text: tx} = panel, {background, lettering} = panelNetworks(panel);
+  const startMm = bg.options.layers * bg.options.layerMm;
+  const otherNozzleMm = backgroundTool === textTool ? null : (textNozzleMm ?? tx.options.nozzleMm);
   return {
-    skills, setup: {filamentColor: (options.colors ?? PANEL_COLORS).background},
+    skills,
+    setup: {tool: backgroundTool, filamentColor: colors.background,
+      bambu: {otherNozzleMm, filaments: [
+        {id: 'GFA00', colour: colors.background, tool: backgroundTool, source: {type: 'auto'}},
+        {id: 'GFA00', colour: colors.text, tool: textTool, source: {type: 'auto'}, process: {firstLayerMm: tx.options.layerMm, layerMm: tx.options.layerMm}}
+      ]}},
     process: {minimumLayerSeconds: 0},
-    placement: {xMm: Math.round(bedMm[0] / 2 - panel.widthMm / 2), yMm: Math.round(bedMm[1] / 2 - panel.heightMm / 2)}
+    placement: {xMm: Math.round(bedMm[0] / 2 - panel.widthMm / 2), yMm: Math.round(bedMm[1] / 2 - panel.heightMm / 2)},
+    geometry: {shape: 'assembly', parts: [panelPart('background', panel), panelPart('lettering', panel)]},
+    composition: {regions: [
+      {id: 'background', part: 'background', filament: 0, zStartMm: 0, zEndMm: null, lowerSurfaceFrom: null, skills: {'line-network': background}},
+      {id: 'lettering', part: 'lettering', filament: 1, zStartMm: startMm, zEndMm: null, lowerSurfaceFrom: 'background', skills: {'line-network': lettering}}
+    ]}
   };
 }
-const PLAN_SKILLS = ['plastic-weld', 'wave-overhangs', 'pipe-cladding', 'supports', 'rimming-planar', 'rimming-normal', 'full-fill', 'planar-infill', 'vase-wall', 'thick-lip', 'draped-skin'];
+const PLAN_SKILLS = ['plastic-weld', 'wave-overhangs', 'pipe-cladding', 'supports', 'rimming-planar', 'rimming-normal', 'full-fill', 'planar-infill', 'vase-wall', 'thick-lip', 'draped-skin', 'line-network'];
 
 const COLORS = {bed: [246, 246, 244], infillA: [158, 190, 214], infillB: [110, 152, 190], border: [52, 104, 158], text: [196, 84, 30], label: [80, 80, 80], edge: [190, 190, 186]};
 
