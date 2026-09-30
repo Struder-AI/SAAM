@@ -75,6 +75,20 @@ LAUNCHER
   touch "$bundle"
 }
 
+# A Finder shortcut to the installed app, without controlling Finder or Dock.
+# Existing desktop items belong to the person, including broken links.
+write_desktop_shortcut() {
+  local bundle="$1" shortcut="$2"
+  if [ -L "$shortcut" ] && [ "$(readlink "$shortcut")" = "$bundle" ]; then return; fi
+  if [ -e "$shortcut" ] || [ -L "$shortcut" ]; then
+    say "Kept the existing desktop item at $shortcut. SAAM is in your home Applications folder."
+  elif ln -s "$bundle" "$shortcut"; then
+    say 'Created the SAAM desktop shortcut.'
+  else
+    say 'Could not create the desktop shortcut. Open SAAM from your home Applications folder.'
+  fi
+}
+
 main() {
   local here source archive version target staging launcher wait_pid='' waited
   case "${1:-}" in
@@ -147,14 +161,17 @@ exit "\$status"
 LAUNCHER
   chmod +x "$launcher"
   write_app "$target" "$version"
+  # Updates keep the shortcut if present, without recreating one the person removed.
+  if [ -z "$wait_pid" ]; then write_desktop_shortcut "$target.app" "$HOME/Desktop/SAAM.app"; fi
 
   echo
   say "SAAM ${version} is installed."
-  echo 'Start it any time from SAAM in your Applications folder (~/Applications/SAAM.app),'
+  echo 'Start it from the SAAM desktop shortcut or ~/Applications/SAAM.app,'
   echo 'and stop it by closing the Studio tab or with Quit.'
   echo "Your prints and settings stay in $(data_folder)."
   echo 'Starting SAAM now. Studio opens in your browser; use its Connect panel'
   echo 'to link your chat.'
+  if [ -z "$wait_pid" ]; then open -R "$target.app" || say "SAAM is installed at $target.app."; fi
   open "$HOME/Applications/SAAM.app"
   log 'Started SAAM.'
 }

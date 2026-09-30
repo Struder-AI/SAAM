@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-09-30 — Make the installed Mac app easy to find
+
+- Manual installation adds `~/Desktop/SAAM.app` pointing to the per-user app and reveals that app in Finder. Existing desktop items are preserved; updates do not restore a removed shortcut. Uninstall removes only a symlink to SAAM's installed app. A denied desktop write reports the Applications fallback without failing installation.
+- Mac README 61 → 60 lines. Detached-worktree checks: Bash syntax; scratch shortcut creation/reinstall, owned-link removal, preservation of personal files and unrelated broken links, and unavailable-desktop handling. Windows denied native symlinks, so behavioral checks used Git Bash's link emulation; no macOS/Finder run, full suite, new tests, rebuild or publication.
+- Live relay confirms the Mac tester ran packaged 0.2.0 earlier, but the reported latest attempt showed no installer message or browser. Its exact failure remains unconfirmed; public 0.2.0 still predates the pending double-click fix.
+
 ## 2026-09-30 — Double-click Mac installation
 
 - Mac ZIPs now offer `Install SAAM.command`, which runs the existing installer and keeps errors visible. ZIP metadata preserves executable permissions even from Windows builds; `.command` stays LF. `fflate` is an explicit build dependency, removed from installed packages.

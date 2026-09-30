@@ -8,8 +8,8 @@ needs no administrator password.
 Install
 -------
 1. Double-click the downloaded ZIP, then open the extracted folder.
-2. Double-click "Install SAAM.command". Installation runs automatically
-   in a Terminal window and opens SAAM in your browser.
+2. Double-click "Install SAAM.command". It adds a desktop shortcut, shows
+   the installed app in Finder and opens SAAM in your browser.
 3. Press Return to finish, then close the installer window.
 
 If macOS blocks the installer, open System Settings > Privacy & Security,
@@ -23,12 +23,11 @@ version and keeps your prints; older downloads install the same way.
 
 Start and stop
 --------------
-Open SAAM from your Applications folder (in Finder: Go > Home, then
-Applications > SAAM), Spotlight or the Dock: Studio opens in your browser
-and no window stays open. To stop SAAM, close the Studio tab or click Quit.
-Starting SAAM again while it runs just shows Studio. If SAAM does not
-start, double-click SAAM.command in ~/Applications/SAAM: a Terminal window
-shows its messages.
+Double-click SAAM on the desktop, or in Finder choose Go > Home >
+Applications > SAAM. Studio opens in your browser. To stop it, close the
+Studio tab or click Quit. Updates do not restore deleted shortcuts.
+If SAAM does not start, double-click SAAM.command inside
+~/Applications/SAAM to see its messages in Terminal.
 
 
 Connect your chat (first time)
@@ -56,6 +55,6 @@ Uninstall
 ---------
 In Terminal, run:
   bash ~/Applications/SAAM/packaging/macos/uninstall.sh
-This removes ~/Applications/SAAM and SAAM.app and keeps
+This removes SAAM and its desktop shortcut, keeping your prints in
 ~/Library/Application Support/SAAM.
 Delete that folder yourself if you no longer want your prints.
