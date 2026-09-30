@@ -7,6 +7,11 @@ metadata:
 
 # Wing design
 
+This package currently contains a specialized [wing-design workspace prototype](../../workspaces/wing-design/README.md)
+as well as developmental geometry tooling. [Workspace policy](../../workspaces/README.md)
+requires separating application code from reusable skills; relocation is pending.
+This manual remains the current entry point until that migration.
+
 Use the [design brief](DESIGN-BRIEF.md) for the intended Use / Shape / Construction
 conversation. Record user choices separately from provisional values. Current
 prototype controls and their limitations are in [the prototype manual](prototype/README.md).

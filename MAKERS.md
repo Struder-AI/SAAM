@@ -58,6 +58,13 @@ Don't retry the same inputs; ask when the fix needs the person's choice.
 
 ## Find the instructions for this part
 
+For a specialized task application, consult the [workspace index](workspaces/INDEX.md)
+and its own manual. [Workspace policy](workspaces/README.md) distinguishes these
+applications from reusable skills and SAAM Studio. Explain the workspace's current
+capabilities and support status; community workspaces have no Struder support by
+default. Use shared SAAM printing and confirmation when the workspace hands off
+or incorporates printing.
+
 Choose skills from the [digest](skills/DIGEST.md) and read each chosen manual; the
 manuals own shape support, settings and limits. Treat skills as building blocks
 and consider combinations that serve the part.

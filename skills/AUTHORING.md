@@ -6,6 +6,11 @@ limits and recovery. Extend a related package or create a focused one when an
 operation lacks a suitable manual. Geometry skills cover preparation and recovery;
 toolpath skills cover deposition.
 
+Specialized task applications are [workspaces](../workspaces/README.md), filed
+separately under `workspaces/` and listed in its index. Keep reusable geometry and
+toolpath capabilities here; using skills does not make the surrounding application
+a skill. The workspace policy owns attribution, support and shared-core reuse.
+
 Skill use and skill implementation are different reads. `read-skill ID --maker`
 reads the package's `SKILL.md` (operations, settings, limits and recovery);
 `--builder` reads its optional `BUILDER.md` (skill-authoring details); `--developer`

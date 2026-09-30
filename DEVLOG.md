@@ -1,5 +1,30 @@
 # Development log
 
+## 2026-09-30 — Workspace definitions, repository boundaries and policy review
+
+- Source: current user requested workspace policy after a conversation with Evan,
+  defining specialized applications, print-aware workflows, three integration
+  styles, reuse of maintained SAAM functionality, separate filing and index,
+  visible contributor attribution, community support and freedom of interface.
+- Added the owning policy at `workspaces/README.md`, a separate workspace index,
+  a transitional wing-design record and concrete review points for Evan.
+  Linked the policy into agent entry guidance, maker/builder orientation, skill
+  authoring, the glossary, project README and wing-design's current manual.
+  Renamed the builder manual's example “workspaces” to demo print bundles to
+  distinguish saved parts from specialized applications.
+- D-039 records the user's direction without claiming Evan's agreement or
+  inventing contributor credit. Wing application code remains in its existing
+  location; this pass establishes policy and filing conventions, not migration
+  or runtime implementation. No message to Evan, publication or manufacturing
+  approval is implied.
+- Publication direction: the user requested pushing the policy for normal PR
+  review and will personally ask Evan to review/modify it and discuss it directly.
+- Verification: `git diff --check` passes. The repository documentation checker
+  reports no errors in new workspace documents, their links or D-039; its overall
+  result remains failing on existing BR-055/BR-056 records, two line-text links
+  and D-038 status/timestamp metadata. No software behavior changed, so no runtime
+  tests were added or run.
+
 ## 2026-09-29 — Merge origin/main, adopt remettub's H2D exporter, and give line-network back its per-network process and a way onto two nozzles
 
 - Source: user, TK-DEV checkout: "pull fresh from repo.. I want to get this demo printed in 2-colors, but make sure
