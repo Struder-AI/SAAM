@@ -12,11 +12,12 @@ import {packZip,unpackZip} from '../export/zip.mjs';
 import {LuaRuntime} from '../export/dobot-lua-subset.mjs';
 import {initBundle,generateBundle,loadBundle,approve,deliver,adjustBundle} from '../print/bundle.mjs';
 import {syntheticDobotSetup} from './fixtures/dobot.mjs';
+import {splineBox} from './fixtures/spline-shapes.mjs';
 const release={generatorVersion:'SYNTHETIC TEST',buildDate:'2026-09-09'};
 const actor='SYNTHETIC DOBOT TEST — not a real approval';
 function fixture(){
   const machine=loadMachine('dobot-mg400'),plan=syntheticDobotSetup(defaults(machine));
-  plan.geometry={shape:'box',runMm:8,widthMm:8,heightMm:2};plan.process.minimumLayerSeconds=0;
+  plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:2});plan.process.minimumLayerSeconds=0;
   plan.skills['full-fill'].mode='solid-surfaces';plan.skills['planar-infill'].enabled=true;
   return {machine,plan};
 }

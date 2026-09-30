@@ -175,7 +175,7 @@ fail without changing the print; the text tool does not silently drop operations
 
 Selections expose material, not universal pattern compatibility. Horizontal body
 fill, curved finishing layers, and side-wall relief have different requirements.
-They are selected through regional patterns; supports, rimming, cladding, wave
+They are selected through regional patterns; supports, cladding, wave
 slices and plastic welds retain their existing global settings and interfaces.
 Planar fill can follow side lettering on a whole solid; continuous vase-wall
 generation can fail at glyph contour transitions. Use the selected pattern's

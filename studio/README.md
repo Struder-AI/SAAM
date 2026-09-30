@@ -241,7 +241,7 @@ A path display alone cannot establish arbitrary machine-program behavior.
 
 ## Opening local prints in Studio
 
-**Open print** lists saved bundles below `Prints/` (up to three directory levels).
+**Open** lists saved bundles below `Prints/` (up to three directory levels).
 It also accepts a local bundle folder, `plan.json`, or an export/delivery file
 inside the bundle. It opens the owning bundle through the same adapter and
 integrity checks; standalone machine-program import is not implemented.
@@ -487,6 +487,42 @@ notifications does not guarantee that an ended host turn will wake. For CLI
 previews and tours, the agent keeps reading the original managed session for
 `studio-request` and correlated `agent-response` events. [Maker guidance](../MAKERS.md) specifies acknowledgement-before-wait
 ordering and the active listener loop.
+
+### Carrying a maker request
+
+For an edit to an existing Studio print, begin work (`begin_studio_work`, or
+`begin-studio-work` in the toolkit) before you change geometry or recipe or
+report a result; you can acknowledge the person first. MCP may omit `printId`
+for the active tour or sole open Studio. Add `--include-geometry` when the edit
+needs the complete recipe. Use the returned print ID, recipe and revision rather
+than another read or an earlier chat reference; its `programChecked: false` is
+not a failed check.
+
+Carry one request through its work, result and response:
+
+| Situation | Action |
+|---|---|
+| Inputs still being edited | Keep it working; combine related changes before publishing a result. |
+| Saved inputs ready to show | Bind it (and every request in a combined result) with `status: working` and `resultStage: geometry` or `toolpath`. This signals readiness, not approval. |
+| Only geometry or proposed settings need review | Target geometry; don't slice just to finish. Complete after acknowledging the displayed change. |
+| The result needs a toolpath | Target toolpath and generate once (in a tour toolpath lesson Studio generates). Verify the current result is displayed. |
+| A choice or confirmation is needed first | Say what is ready and what you need, then mark it `waiting`. Resume the same ID later. |
+| A question without an edit | Answer in chat; claim and complete a Studio-issued guidance request. |
+| Work finishes, fails or is superseded | Give the concrete outcome in chat, then resolve the ID as completed, failed or cancelled. Leave nothing working. |
+
+Send an acknowledgement or guidance before any listener wait. Renew a working
+request with `record-request-activity` during long work; waiting for the person
+is `waiting`, not repeated claims.
+
+Studio reports what the person does in your instances through the
+[Studio event queue](#studio-event-queue): on MCP tool results,
+listener waits and notifications, or as `studio-events` lines from a live
+toolkit session. Read it any time with `get_studio_events` or
+`read-studio-events`; during a calculation that also reports progress. Act on
+the latest state, not on each event in turn. A failed generation arrives as a
+request with the exact error: claim it, fix the cause from the recipe and skill
+limits (`inspect-generation-failure`), regenerate and check the visible result.
+Don't retry the same inputs; ask when the fix needs the person's choice.
 
 ## Studio event queue
 

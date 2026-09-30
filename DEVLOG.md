@@ -1,5 +1,600 @@
 # Development log
 
+## 2026-09-28 — 0.1.9: the status-only panel released
+
+- Published `v0.1.9` from `5d57df5` (worktree build, Node v24.19.0):
+  `win-x64` 44.5 MB `8cd8097e…`, `darwin-arm64` 48.8 MB `c70d11c6…`,
+  `darwin-x64` 50.0 MB `82c7f90b…`; the three downloads matched, and the app
+  archive's `panel.html` has no `ui/message` and `runtime.mjs` no
+  `PANEL_LISTENING`. Relay deployed (version `50c473f7`) with
+  `LATEST_RELEASE` 0.1.9; an earlier accidental deploy (`ed36d5fa`) still
+  offered 0.1.8.
+
+## 2026-09-28 — SAAM panel shows status only; the listener is back
+
+- User direction: SAAM must not talk to the chat agent by writing messages into
+  the person's chat box. Keep the panel; the chat keeps listening, and the person
+  interrupts a pending wait with Claude's "send now", as before the panel.
+- [panel.html](adapters/mcp/src/panel.html) no longer sends `ui/message`: it
+  keeps the light, the line and "Open Studio". `chatStatus` drops the
+  `requests` and `events` it carried for posting; a queued request now reads
+  "waiting for the chat".
+- [runtime.mjs](adapters/mcp/src/runtime.mjs): `wait_for_studio_request`
+  always waits (no `PANEL_LISTENING` return), and a panel session counts as
+  working on the usual 5 min rule, not 45 s; `setPanel` is gone.
+  `RELAY_GUIDANCE` loses its end-your-turn sentence. A connected panel still
+  keeps its session past the idle lease.
+- Checks: `core/tests/mcp.test.mjs` (21/21) and `relay/test/relay.test.mjs`
+  pass; the panel script parses. Not run: the whole suite, the `wrangler dev`
+  end-to-end check, Claude web itself (needs a release).
+
+## 2026-09-28 — 0.1.8: the panel fix released
+
+- Published `v0.1.8` from `9e04f0b` (worktree build, Node v24.19.0):
+  `win-x64` 44.5 MB `078e32a7…`, `darwin-arm64` 48.8 MB `b4f16185…`,
+  `darwin-x64` 50.0 MB `7ba137c1…`; the three downloads matched, and the app
+  archive's `panel.html` posts events. Relay deployed (version `b4a910ab`) with
+  `LATEST_RELEASE` 0.1.8.
+- The commit also carries a concurrent session's uncommitted `core/geom`
+  curve-offset and curve-ops work.
+
+## 2026-09-28 — SAAM panel fix: offer it always, listen until it connects
+
+- First Claude web try on 0.1.7 (session `PoiAsQQY…`): no panel, the Tour
+  button went unnoticed, and Studio showed its working dots after the geometry
+  landed. The records show one cause. Claude never listed tools or read
+  `ui://saam/panel` in that session. It reuses a tool list read earlier, the
+  first one by `Anthropic/Toolbox`, which advertised no MCP Apps and so got no
+  panel `_meta`. The capability-based `PANEL_GUIDANCE` still told the model not
+  to listen. With no panel and no listener, `tour-started` (08:52:53) reached
+  nobody, and the chat counted as working for 5 min after `request_review`.
+  Claude also sends `server/discover` (protocol 2026-07-28) before
+  initialize; the relay refuses it, and Claude falls back.
+- Now every relay session offers the panel. One `RELAY_GUIDANCE` keeps the
+  model listening until the listener answers that the panel is connected. The
+  panel also posts unread delivered Studio events (not `request-queued`) as one
+  message; `chatStatus` carries them as `events`.
+- Checks: the scratch end-to-end check under `wrangler dev` passes again, adding
+  a `print-opened` event reaching the panel, a client without MCP Apps still
+  offered the panel in its tool list, and its listener waiting (2 s) with no
+  panel connected. `relay/test/relay.test.mjs` passes. Not checked in a browser:
+  the panel's event post (script parses; same retry path as request posts).
+  Claude must re-read SAAM's tool list before it can show the panel. The
+  checkpoint also carries a concurrent session's uncommitted `core/geom`
+  curve-offset and curve-ops work.
+
+## 2026-09-28 — 0.1.7: the SAAM panel released
+
+- Published `v0.1.7` from `0315fa4` (worktree build, Node v24.19.0):
+  `win-x64` 44.5 MB `750d1cd8…`, `darwin-arm64` 48.8 MB `d0726cf4…`,
+  `darwin-x64` 50.0 MB `c51fe2ea…`; the three downloads matched. The app
+  archive carries `adapters/mcp/src/panel.html`.
+- Relay deployed (version `1ffcb047`) with the `/panel` route and
+  `LATEST_RELEASE` 0.1.7. A live `/panel` hello for an unknown device closed
+  4503 as intended. This computer was offline on 0.1.6 at deploy, so the update
+  offer and the panel in Claude web are not yet seen.
+- The commit also carries a concurrent session's uncommitted D-041 and BR-059
+  entries.
+
+## 2026-09-28 — SAAM panel: Studio requests reach a web chat without a listener
+
+- Why: relay records (session `uj5OgdB6…`) showed a chat message waiting behind
+  a full 225 s `wait_for_studio_request` (07:47:37 → 07:51:22) before the model
+  read it, and every renewal can need a tool approval. Claude web advertises MCP
+  Apps (`io.modelcontextprotocol/ui`) in every initialize.
+- [panel.html](adapters/mcp/src/panel.html): an MCP App shown with
+  `maker_onboarding`'s result ([server.mjs](adapters/mcp/src/server.mjs)
+  registers `ui://saam/panel` and the tool's `_meta.ui.resourceUri` only for such
+  clients). One light (done/working/error), a line, "Open Studio"
+  (`ui/open-link` to the loopback URL). It posts each queued Studio request with
+  `ui/message` and retries a refused post every 10 s while the request stays queued.
+- [relay-device.mjs](adapters/mcp/src/relay-device.mjs) mints a per-session key,
+  reports its hash with the session, sends `panel-status` while the relay says a
+  panel is connected, and keeps that session past the idle lease.
+  `PANEL_GUIDANCE` replaces the keep-listening guidance for those clients.
+  [runtime.mjs](adapters/mcp/src/runtime.mjs): `chatStatus`/`subscribeStatus`;
+  with a panel connected the listener returns at once and the chat counts as
+  working 45 s after its last call (5 min otherwise).
+- [relay-object.mjs](relay/src/relay-object.mjs): `/panel` WebSocket
+  (hibernatable, tag `panel`), hello with the key within 10 s, at most 4 panels
+  per session and 120 opens per address per 10 min; close 4001 when the session
+  ends, 4403 for a bad key, 4503 while offline; an offline device sends its panels
+  an error status. Records redact `saam/panel.key`.
+- Checks: `relay/test/relay.test.mjs` passes, as does `core/tests/mcp.test.mjs`
+  (21/21). A scratch end-to-end check under `wrangler dev`, with a real runtime
+  and an SDK client advertising MCP Apps, covered: panel tool and resource, wrong
+  key refused, status stream, instant listener, request delivery, claim, failed
+  edit shown as error, offline and recovery, a new chat closing the old panel
+  (4001), a client without MCP Apps getting the old guidance and no panel, and no
+  key in the records. `panel.html` framed by a stand-in host in the browser pane
+  showed the three colours, dark theme, "Open Studio" and a refused-then-retried
+  `ui/message`. A `srcdoc` frame with an opaque origin could not open a WebSocket
+  to the loopback relay; with a real origin it could. The public HTTPS relay is not loopback.
+- Not run: the whole suite; Claude web itself (needs a relay deploy and a SAAM
+  release). Unmeasured: whether Claude keeps the panel running out of view, and
+  whether it accepts `ui/message` without a click in the panel. The checkpoint
+  also carries a concurrent session's uncommitted `core/geom/curve-offset.mjs`
+  and `core/geom/README.md` work.
+
+## 2026-09-28 — Curve offsets resolve collisions; curve ribbons (BR-059 phases 1 and 4)
+
+- Before: the loose surface offset (`prepareSurfaceOffsets().offsetPatch`,
+  fixed control count, fold limiter); region offsets `offsetRegion` (Clipper2)
+  and `offsetSurfaceRegion` (geodesic); no spline curve record. `9262208` added
+  a loose curve offset with a fold limiter and no collision resolution; the
+  user then ruled ([D-041](DECISIONS.md#d-041--offsets-resolve-collisions-ribbons-displace-without-a-surface))
+  that every offset resolves collisions like a region offset, that a 3D curve
+  without a surface takes a ribbon, and that no fold limiter remains.
+- [curve-offset.mjs](core/geom/curve-offset.mjs) `prepareCurveOffsets`: curves
+  in one XY plane or in a patch's (u,v), moved loosely (collocated Greville
+  directions, kinks move to where adjoining pieces meet), cut at their
+  crossings and kept by positive winding and direction against the source.
+  Open curves use their two-sided neighbourhood with round caps; pieces past a
+  patch edge are trimmed. [curve-ops.mjs](core/geom/curve-ops.mjs) holds
+  trimming, joining, Bezier root isolation, crossings (monotone Bezier pieces,
+  subdivision, Newton) and winding. [curve-ribbon.mjs](core/geom/curve-ribbon.mjs)
+  `prepareCurveRibbon` cuts plan-view folds at their closing crossing. New
+  `referenceCurve` and `evaluateCurve`.
+- Scratch checks against `offsetRegion` (no committed tests): circle r 10 at
+  −9, +3 and −11 (vanishes), a dumbbell inset past its neck (two loops), two
+  circles merging, a ring whose hole shrinks and one whose hole vanishes, and a
+  polyline square at +1 (miter) and −6 (vanishes) match in loop count and area
+  to 0.001 mm². A 10-control dent grown by 5 has the same corner but 1958
+  against 1983 mm²: the loose offset is 3.78–5.54 mm from the source there. Open
+  curves: nothing kept is closer than the depth to another curve (two crossing
+  lines at 1.000 mm); a 4-control U lands 0.84 mm out at +2. A circle on a
+  40 mm patch offset by 12 gives four pieces cut at the edges on radius 22 to
+  1e-14. A 4000-control loop offsets in 0.7 s after a 0.36 s preparation.
+  Ribbons: a five-turn helix at ±3 has no cuts (10 ms); a dense rounded V at −3
+  is cut at the plan crossing (0, 4.071) with a Z step 0.854→1.146; a hairpin
+  whose inside offsets pass each other keeps both arms.
+- Fixed while checking: Newton at tangent contacts ran toward underflow (58 s
+  for two circles; now 12 ms), a ray through a seam missed crossings, and a
+  polyline sampled at its middle vertex.
+- Not run: any test suite. No consumer uses these yet. Commits `0315fa4` and
+  `99a3c15` (0.1.7) carried this work in progress from a concurrent session;
+  nothing released calls it.
+
+## 2026-09-28 — First update from within Studio; the old tab closes
+
+- 0.1.5 → 0.1.6 through Studio's Update button: download and checksum 2.4 s,
+  installer running at once (`update.log`: waited for SAAM, installed in 4 s,
+  started SAAM), 0.1.6 connected to the relay 11.6 s after the download began.
+- The restarted SAAM listens on a new port and opens a new tab; the old tab
+  stayed on "Restarting SAAM…" with a dead connection. After Update is
+  accepted, `studio/relay-panel.mjs` now replaces Studio with a message and
+  closes the tab where the browser allows, as Quit does. The page doing the
+  update is the old version's, so this first shows when updating from a build
+  that has it (after 0.1.6). Not checked in a browser.
+
+## 2026-09-28 — Closing Studio stops SAAM; 0.1.6
+
+- User ruling: an installed SAAM stops when its last Studio tab closes or
+  navigates away, not only on Quit. `packaging/launch.mjs` watches the Studio
+  `viewer-opened`/`viewer-closed` events and stops 3 s after the count reaches
+  zero (only a reload reconnects in that time); before the first tab there is
+  no deadline. Chats cannot reach the computer while SAAM is stopped. Installer
+  messages, both README.txt files, SAAM.vbs and packaging/README say so.
+- Checked with the real launcher (scratch data folder, unreachable relay) and a
+  script opening Studio's viewer stream: running with no tab after 5 s, running
+  after a disconnect and reconnect 0.8 s apart, stopped 3.0 s after the close.
+  Not checked in a real browser.
+- The earlier 0.1.6 build (from `e24bbc0`) was never published and is
+  replaced; its Windows ZIP had been deleted from `dist/` by something outside
+  that session.
+- Published `v0.1.6` from `ac35d96` (worktree build): `win-x64` `db8c3865…`,
+  `darwin-arm64` `04c52378…`, `darwin-x64` `31f97a54…`; downloads matched.
+  This computer was put on 0.1.5 from its ZIP, then the relay (version
+  `2547cc5d`) began offering 0.1.6 for the first update from within Studio.
+
+## 2026-09-28 — Surface-surface intersection and surface regions
+
+- [surface-intersection.mjs](core/geom/surface-intersection.mjs): NURBS patch ∩
+  patch. Boundary points first (each patch's four edges against the other
+  surface, seeded by rational Bezier subdivision and solved by Newton), then
+  marching along n1 × n2 with chord control that lands exactly on the next known
+  endpoint; closed interior loops are seeded by subdivision; an edge lying in the
+  other surface (a flush face) is reported as a curve. The first version stepped
+  past boundaries and corrected afterwards; the user rejected that, and no step
+  leaves a patch now.
+- [slice-region.mjs](core/geom/slice-region.mjs): the region of a spline surface
+  inside a solid, spline shell or triangle mesh (each triangle as a flat
+  degenerate bilinear patch), as (u,v) loops. `intersect_geometry` takes
+  `surfaces` (a control net and optional `offsetMm`): the basis for the planned
+  curved-slice toolpaths. New `containsPoint` in the shared queries.
+- Verification: surface-intersection 4 (plane ∩ cylinder on the seam, crossed
+  cylinders 39.549 vs 39.552 mm analytic, coincident edge, wavy surface in a
+  spline box equal to the same box as a mesh and to a 200² sample), boolean-solid 5.
+  Timing: 16,666 triangles, one surface, 2.1 s; per-piece spatial culling will
+  be needed for many layers.
+- Next: trimmed spline booleans (user choice: the boolean of spline operands is
+  a trimmed spline solid), built on the surface regions.
+
+## 2026-09-28 — Self-update never started its installer on Windows
+
+- Updating 0.1.3 to 0.1.4 downloaded and unpacked the package, then SAAM quit
+  and nothing followed: no `update.log`, no staging folder, 0.1.3 untouched.
+  `packaging/update.mjs` spawned `powershell.exe` with `detached: true`, which
+  on Windows means no console, and Windows PowerShell 5.1 then exits 0 without
+  running the script (reproduced with a one-line script). Every build so far
+  has this, so 0.1.3 and 0.1.4 cannot update themselves.
+- Fix: `conhost.exe` starts the installer with a hidden console. A scratch run
+  from a parent that exits confirmed the script runs, waits for the parent,
+  writes to the console and survives it, with a path containing spaces.
+- The first 0.1.5 build ran in the shared checkout and picked up another
+  session's uncommitted `core/geom/query.mjs`; it was discarded. Releases are
+  now built in a detached worktree of the pushed commit
+  ([packaging/README.md](packaging/README.md#releasing-an-update)).
+- Published `v0.1.5` from `2e3e9c3` (built in a worktree): `win-x64`
+  `2e410ebf…`, `darwin-arm64` `b1090613…`, `darwin-x64` `0cb9faa1…`; downloads
+  matched. The 0.1.4 notes now say it cannot update itself. The relay
+  (version `a3322f77`) offers no release: any offer only makes a 0.1.3 or
+  0.1.4 computer quit, so the first self-update is the next release, from 0.1.5.
+- Not run: the macOS updater (`bash` detached) on a Mac.
+
+## 2026-09-28 — 0.1.4 built and released
+
+- Built 0.1.4 from `dbdd702` (relay `saam-relay.remettub.workers.dev`, update
+  host github.com, Node v24.19.0): `win-x64` 44.4 MB (sha256 `65020296…47325`),
+  `darwin-arm64` 48.8 MB (`aec7242a…4222b`), `darwin-x64` 50.0 MB
+  (`5d706251…b18ce`). It carries the blob field, boolean tools and hybrid skills.
+- First GitHub release: `v0.1.4` on Struder-AI/SAAM; `LATEST_RELEASE` names all
+  three assets, and the downloaded assets matched the built sha256s. Relay
+  deployed (version `6fac5763`); its source is unchanged since `d7f59a40`, so
+  the deploy only offers the update. The GitHub CLI was installed (winget) for
+  publishing.
+- [packaging/README.md](packaging/README.md#releasing-an-update) now owns the
+  whole release sequence (version choice, three builds, commit and push,
+  release, relay); 59 → 65 lines.
+- Not run: installing a 0.1.4 ZIP or an update from 0.1.3; the macOS builds
+  were not opened on a Mac.
+
+## 2026-09-28 — MCP manual matches the registered tools
+
+- Checked every operation in `adapters/mcp/src/runtime.mjs` against the MCP
+  README table: `blob_field`, `combine_geometry` and `intersect_geometry` were
+  current; `gridfinity` had no row and gained one with its one-word
+  description. The `maker_onboarding` row now names GEOMETRY, and the
+  `list_skills` row and DEVELOP.md name hybrid skills. README 181 → 182 lines,
+  DEVELOP.md unchanged.
+- The installed SAAM app (`AppData/Local/Programs/SAAM`) serves the relay's
+  tools from its packaged build, so a web chat lacks the new geometry tools
+  until a new package is built and installed.
+
+## 2026-09-28 — Blob field, booleans as tools, hybrid skills, spline helpers out of core
+
+- Replaced the tensor-grid spline field with the blob field (D-040 revision):
+  points with `positionMm`, `reachMm` and `strength` whose cubic B-spline
+  falloffs sum; material above `threshold` (default 0.25, where a lone strength-1
+  point is a ball of radius reach/2), cut flat at Z = 0, extracted to a mesh with
+  Manifold as before. `blob_field` MCP tool, `blob-field-create`/`-update` CLI.
+  Removed the field's hierarchy, knot refinement, rational weights, demo and
+  contract, and its fixed `maxEvaluations` budget (core/README kept-limits rule).
+- Booleans: `shape: "boolean"` (union, difference, intersection; spline, mesh,
+  blob-field and nested boolean operands). The shared queries section every
+  operand natively and combine the loops with Clipper2, so spline operands stay
+  exact per layer; tops of any boolean come from the operands' vertical-line
+  crossings (new `crossingsAt` for splines and meshes) by parity. Studio and the
+  text and heat-set modifiers use a Manifold mesh of the combined solid
+  (`boolean-display.mjs`); `combineSolids` gained intersect. Tools:
+  `combine_geometry` / CLI `combine` and `intersect_geometry` / CLI `intersect`
+  (plane sections and vertical-line tops of a print, part or unsaved geometry).
+- The spline-surface boolean the user asked about is the layer construction in
+  core/region/README ("section each solid on its own and combine the layers");
+  no surface-surface intersection engine exists in any branch. It was documented
+  but never exposed as a recipe form or tool until now.
+- Fixes found on the way: spline tessellation matched closed partner edges
+  (revolved rings) in a fixed direction and never converged on a revolved
+  cylinder; spline tops dropped a revolved cap's pole for want of a normal.
+- Skills gained a `hybrid` kind (catalog, digest, AUTHORING, glossary); heat-set
+  inserts is the first.
+- `splineBlock`, `splineBox` and `splineTube` left `spline-solid.mjs`.
+  GEOMETRY.md now teaches the box, shaped-top block, cylinder, tube and the
+  periodic-circle radius correction. The starter recipe and setup check write
+  literal patches; examples and skill demos write their own box or block, and
+  the pipe-cladding demo owns the periodic tube. Tests and benches use
+  `core/tests/fixtures/spline-shapes.mjs` (not shipped).
+- Docs: GEOMETRY.md 118 → 168 lines; all touched manuals together +140 −226
+  (net −86), mostly the removed SPLINE-FIELD.md.
+- Verification (targeted files only): blob-field 7, boolean-solid 5, mcp 21,
+  demos 2, heat-set MCP 1 — all pass; scratch checks for heat-set on a boolean,
+  analytic section areas and generation of a drilled print; skill digest current;
+  dev map regenerated and checked. Not run: the other 17 test files whose
+  imports moved to the fixture, and the full suite.
+
+## 2026-09-28 — Spline field renamed, rimming removed, geometry-first maker guidance
+
+- Renamed the voxel field to the spline field throughout: `shape: "spline-field"`,
+  schemas `saam-spline-field/1` and `/2`, `core/geom/spline-field*.mjs`, the
+  `spline_field` MCP tool and `spline-field-create`/`-update` CLI. Its separate
+  skill entry is gone; [GEOMETRY.md](GEOMETRY.md#spline-field) carries the maker
+  reference, [SPLINE-FIELD.md](core/geom/SPLINE-FIELD.md) the contract, and the
+  demo moved to `scripts/spline-field-demo.mjs`.
+- Removed rimming-planar and rimming-normal with their only core consumers,
+  `support-surface.mjs` and `section-offset.mjs` (D-040). Gridfinity stays.
+- Guidance: new [GEOMETRY.md](GEOMETRY.md) is the authoring reference for the
+  three forms, returned by maker onboarding (CLI and MCP) and readable as
+  `geometry`. MAKERS.md became a capability map (149 → 89 lines); its Studio
+  request procedure moved unchanged to
+  [studio/README.md](studio/README.md#carrying-a-maker-request); USAGE.md drops
+  its authoring section (128 → 101). Onboarding text is 20.3k → 20.8k characters.
+- Verification (targeted files only): spline-field 11, spline-field-refine 1,
+  mcp 20, workflow 12, denso 7 — all pass; starter, tour and DENSO recipes
+  validate and section; maker onboarding returns the four sources; dev map
+  regenerated and checked; `check-repo` passes apart from existing BR-055 and
+  D-038/D-039 findings. Not run: the full suite.
+
+## 2026-09-28 — Authored geometry: general spline solids, spline field restored, templates removed
+
+- Added `shape: "spline"` ([spline-solid.mjs](core/geom/spline-solid.mjs)): named
+  patches with authored control nets (XYZ or XYZW), optional full knot vectors,
+  numerical closure (seams and poles close; one patch may close on itself), 3DM
+  storage and native slicing. The four-patch minimum became one patch. Viewer
+  proxy sampling now follows each patch's knot spans.
+- Removed the seven templated shapes, `core/geom/shapes.mjs`, `spline-tube.mjs`,
+  `pipeMesh` and the circular-pipe cladding branch (D-040). Cladding needs a
+  sleeve. The starter recipe, tour examples, skill demos, bench fixtures, setup
+  check and tests now write spline patches (`splineBlock`, `splineBox`,
+  `splineTube` helpers). DENSO dev tools keep their analytic pipe in
+  `tools/denso/pipe.mjs`.
+- Restored the spline field as it was removed on 2026-09-14 (`voxel` shape,
+  hierarchy/refinement, Manifold level-set extraction, `preciseSolidMesh`,
+  voxel-tools manual, `voxel` MCP tool, `voxel-create`/`voxel-update` CLI,
+  Studio rows), ported to the single final confirmation.
+- Guidance: [author geometry](core/print/USAGE.md#author-geometry) seeds the three
+  forms; the pipe-cladding manual loses its circular-pipe mode.
+- Verification (targeted files only, not the full suite): voxel 11, voxel-refine 1,
+  denso 7, mcp 20, workflow 12, mesh-boundary 3 — all pass. Scratch checks: an
+  exact rational cylinder and one-patch sphere section to circles within 1e-10 mm;
+  an open shell is rejected naming its unmatched edges; starter, tour and DENSO
+  recipes validate and section; an advanced vase with a fitted mesh sleeve
+  generates through recipe adjustment alone (26,346 moves). Dev map regenerated
+  and checked. `check-repo` passes apart from existing BR-055 and D-038/D-039
+  findings. Not run: the full suite, including the studio, tour and relay test
+  files touched by fixture edits.
+
+## 2026-09-25 — Dev maps: state links drawn, holders followed (orange 2041 → 649)
+
+- Owner direction: a finding that knows what to draw is drawn. Owned state is
+  now a map link (`state`): a read links from the owner, a write (including
+  through a member, `report.rows=…`, `this.rows.push(…)`) into it. A capture
+  or write whose binding those links name is no longer missing. All 212
+  cross-leaf captures and ~150 writes were already named by leaf state.
+- `nested-receiver-effect` gets a real ownership (`global` for a name the
+  file never binds, such as `Math`; `local`, `parameter`, `outer`) and
+  `reads` for non-mutating methods; `Object.assign` and kin take their first
+  argument's. 220 false effects gone.
+- New `holders.mjs`: a member call no value names is settled by following
+  every mapped holder of that member (object literal or class instance)
+  forward, flow-insensitively, through bindings, imports, parameters,
+  returns, property keys and collection elements; functions are followed as
+  values to find their callers. A reached receiver draws a possible link
+  (`holder-reach`), an unreached one is the platform's
+  (`no-holder-reaches-receiver`), and an escaped holder leaves the call
+  unresolved. `moveStore`'s Proxy made `map`/`every`/`some` ambiguous
+  everywhere; its real uses (`range`, `value`, `findLast`, `reader`,
+  `snapshot`) now link to it. 874 → 75; the remaining escapes are through a
+  registered subscriber and a parameter callback, both orange kinds of their
+  own. 34 object members proved called from outside became leaves.
+
+## 2026-09-25 — Dev maps: missing findings in two colours; module code reported
+
+- Owner direction: a missing finding is either code outside every leaf (red,
+  `missing: code`) or a relationship between leaves no link draws (orange,
+  `missing: link`); every other kind must earn its place. `findings.mjs` tags
+  each row once; boxes say `N outside every leaf` / `N unlinked` in colour,
+  lists are coloured and headed by class, the legend names both.
+- New `module-code` rows on `0`: top-level code that runs at load (not a
+  declaration or constant data) or holds a callable no leaf draws. It was
+  invisible before: 74 rows (main guards, `app.mjs` wiring, module-level
+  `new Map()` state, computed constants).
+- Baseline to take to zero: 74 red, 2041 orange (874
+  `member-receiver-unresolved`, 220 `nested-receiver-effect` of unknown
+  ownership, 212 `closure-capture`, 199 `member-mutation` on a receiver, …).
+  Viewer coverage has no findings gap.
+
+## 2026-09-25 — Dev maps: second solve, labels follow every stage, title pass
+
+- Solve from the stage-80 tree under the weighted-up minimum (5.911): stopped
+  at stage 90 on the owner's word at 1.061 with 133 clusters, depth median 6
+  max 9, cluster boxes mean 9.6 (2 outside 6–20), cluster edge mean 5.9 max
+  12. `0` homes 5: two clusters of 449 and 489 leaves and three stray leaves
+  that meet the minimum. Splitting a giant raises `0`'s hubs (2.4 → 20–137),
+  because the mean counts its external boxes, mostly 1–2 wires; a mean over
+  the map's own boxes makes the split downhill (5.343 → 5.295). Open for the
+  owner.
+- Owner direction: labels carry every stage. The solver carries labels from
+  the previous stage's labelled tree onto each stage's best, taking up
+  `tree.json` whenever it was changed from outside, so a title authored while
+  a solve runs survives (checked: authored at stage 0, on the same cluster at
+  the stage-10 write). Maps regenerate at every checkpoint (local note).
+- Title pass on the stage-90 tree: all 133 clusters titled from their homes,
+  deepest first; 44 hold unrelated code and are marked `(mixed)`, most of them
+  mixing Studio handlers or shared helpers into geometry or planning.
+- Owner direction: a box whose code is in no single source file draws no
+  location line: clusters lose `@cluster/ID`, and an external box grouping
+  externals from several files loses its list (one external, or several in
+  one file, keeps it). Checked on `1.3`.
+
+## 2026-09-25 — Dev maps: edge and hubs; the size minimum weighted up
+
+- Owner direction: every map's edge counts against it: 0.01 × (boundary boxes +
+  external boxes)², no allowance. `drawMap` names each crossing link's boundary
+  box (the box on the nearest shared map holding its other end); store,
+  scorer and solver share it. Interface is dropped: counted in leaves it grew
+  with cluster size and charged for gathering the leaves an external touches.
+- Owner direction: link balance. Hubs: 0.1 × the square of each drawn box's
+  wires beyond 3 more than the map's mean (0.4 at 5 above, 4.9 at 10).
+- Solver: a move also rescores the maps whose edge it changes (the other
+  end's chain below where the moved node's chains meet, and the maps inside a
+  moved cluster). 1700 random moves matched a full rescore exactly; about 5 ms
+  a move. The best tree is written to `tree.json` every tenth stage.
+- Solve from the 1b532c5 tree (74.54): stage 80 at 1.88, 238 clusters, 83
+  repeats, depth median 7 max 12, cluster edge mean 5.6 max 12 (was 10 and
+  75), `0` 2 homes and 8 external boxes (was 118 and 129). Stopped there: the
+  6-box minimum cost `0` 0.4 and 135 clusters sat below it.
+- Owner direction: the minimum weighs 1 per squared box short of 6 (the
+  maximum stays 0.025 beyond 20). The stage-80 tree scores 5.911 under it,
+  size 4.133 of that. Rescoring a written tree shifts backflow slightly
+  (74.54 → 74.43 at the start), since flow-order ties go by cluster id and
+  labels carried across a write rename clusters.
+- Docs: map guide 211→211, DEVELOPER-CONTEXT 216→216 (edge defined with the
+  boundary box).
+
+## 2026-09-25 — Dev maps: squared parts, summed energy, size on non-externals
+
+- Owner direction: the energy is a sum with a fixed denominator (weighted map
+  scores per leaf), so a new map no longer lowers it by dilution; under the
+  mean, a zero-score five-leaf cluster was worth as much as a box off `0`
+  (0.0006), and 327 maps scored 0 while 230 clusters homed one node. Every
+  part is squared, each weight the old one over the excess where the square
+  equals it: size 0.025 (k 4), interface 0.025 (k 4), islands 0.2 (k 1),
+  backflow 0.05 (k 2), balance 2 (share 0.5).
+- Owner direction: the 6–20 size range applies to homes and repeats; external
+  boxes do not count toward it. Externals are to always count against a map
+  (the edge term, pending the owner's decision with the link-count term).
+- The 1b532c5 tree scores 8.727 under it; `0` scores 730 (size 240, backflow
+  490) and carries 8.44 of it. No solve run. Viewer bar shows external boxes.
+- Docs: map guide 211→211, DEVELOPER-CONTEXT 216→216.
+
+## 2026-09-25 — Dev maps: externals drawn as boxes
+
+- Owner direction: every external is shown from `0`, in place of the way-in
+  ports and outside-call arrows ("hair"). Externals (`leaves.mjs`): each
+  active outside declaration linked to a leaf, the browser (DOM events) and
+  module load; 220, from 642 links. On any map, externals linked to what it
+  nests are drawn, and those it cannot tell apart (same boxes, same
+  directions) share one box, labelled by their outside roots. External boxes
+  count toward size, islands, backflow and interface.
+- Solve from the weighted tree (5.5 min): 0.539 → 0.340, 554 clusters, 1836
+  repeats. `0` homes 118 boxes and draws 129 external boxes (247 in all);
+  leaf depth median 4, max 12. `0` did not shrink: under the log weighting it
+  carries about 0.7% of the energy, so each box there is worth 0.0007 while
+  small near-perfect clusters multiply (359 → 554). Leaf-count weighting is
+  proposed to the owner.
+- The solve reports the tree's shape each stage. A broad `taskkill` of
+  `node.exe` was run while restarting the solver; it appears to have matched
+  nothing, but other node processes may have been stopped at 20:30.
+
+## 2026-09-25 — Dev maps: maps show only missing findings; weighted energy
+
+- Owner review of the third solve: coherent, followable, better than the
+  authored maps; checkpointed on `codex/remettub-dev-branch` (fast-forward
+  from 9d1be57 to 741eb60).
+- Owner direction: a map shows a finding only when it may hide something no
+  leaf or link stands for (code outside every leaf, or a relationship between
+  leaves no link draws); one about a precise aspect of what is drawn stays in
+  the leaf's read. `lib/findings.mjs` decides: every unresolved call,
+  `callable-origin` and its arguments, escapes, writes to objects a leaf does
+  not own, and closure captures shared with another leaf. The scanner now
+  marks `member-mutation` `ownership` (local, parameter, outer, receiver).
+  Maps carry 2040 of 10,808 rows; leaf reads keep all. The map guide's
+  finding classes are re-sorted to match (missing = on maps).
+- Owner direction: less falls to `0`. The energy weights each map by
+  1 + log₂ of its nested leaves (`0` weighs 10.9, a five-leaf cluster 3.3).
+  The third solve's tree scores 0.576 under it. Fourth solve (5 min, from
+  it): 0.576 → 0.350, 359 clusters, 1267 repeats; `0` homes 97 boxes (96
+  clusters, was 194), leaves mostly at depth 3 (137 at 2, 512 at 3, 186 at 4,
+  105 deeper).
+- Checks: regenerate; `read-map` of `0`, a cluster, a leaf, `--code` and
+  `--details`. Docs: DEVELOPER-CONTEXT 218→212, map guide 225→211 over the
+  session.
+
+## 2026-09-25 — Dev maps: the solver authors the whole tree
+
+- Owner direction: the maps are leaves, clusters and `0`. Every scoped
+  declaration is drawn by exactly one leaf, which opens as its code block;
+  call maps and the map-or-code rule are gone. The cluster solver authors
+  every cluster, home and repeat; the goal is the mean map score. Labels are
+  authored only in a label pass and carried across solves by leaf overlap
+  (more than half, Jaccard), else `[needs label]`.
+- Leaves (`lib/leaves.mjs`, was `entries.mjs`; entry points and stranded
+  gone): an inner declaration folds into its outer leaf unless code outside
+  the outer calls or links to it, or outside code calls it. 504 of 660 fold;
+  156 stay leaves (factory methods and returned closures called elsewhere);
+  941 leaves, 3208 links between them.
+- `lib/tree.mjs`: `tree.json` placed in full (an unmentioned leaf goes where
+  most of its links are, else `0`; unknown names dropped), the two rules
+  enforced (a cluster homes a node and draws two boxes; no repeat on its
+  home or inside the cluster it repeats), numbering by each map's flow order,
+  and `drawMap`, shared by generation, scoring and the solver. Composition
+  and `flows/` removed; `tree.json` bootstrapped from the af5cc42 tree (each
+  call map a cluster holding its leaf, authored clusters kept with labels).
+- `score.mjs`: maps are `0` and clusters; crossing counts a link whose other
+  end no box on the map holds, so a repeat keeps a link on the map; energy is
+  the mean. `solve.mjs`: annealing with undo and rescoring of only the maps a
+  move reaches; `node dev-map/cli.mjs solve` writes `tree.json` and
+  regenerates.
+- First solve (17 min): mean 1.037 → 0.177 by dumping leaves into two
+  clusters of 488 and 283 boxes, since size badness was capped at 1. Owner
+  direction: size is 0.1 per box outside 6–16, uncapped. Flow order now uses
+  heaps (7 ms for 900 boxes). Current-state baseline under it: 0.859.
+- Second solve (11 min, from the current-state tree): 0.859 → 0.249, 93
+  clusters (11 kept labels), 186 repeats, every map 6–16 boxes (mean parts:
+  crossing 0.158, backflow 0.077, islands 0.014, size 0). But the tree is a
+  chain 70 deep: each map homes about five leaves and one cluster holding all
+  the rest, and repeats fill it to 16. Nothing in the score resists depth or
+  one box holding nearly everything; open for the owner.
+- Owner direction: a new goal. Crossing is reported, not scored; every part
+  is a count times a weight: size 0.1 per box outside 6–16, interface 0.1 per
+  nested leaf beyond four reached from outside and per one beyond four
+  linking out, 0.2 per extra island, 0.1 per backward pair, and balance (the
+  biggest home box's share beyond an even share). Authored tree 0.833, chain
+  14.84 under it. Third solve (7.5 min, from the authored tree): 0.833 →
+  0.235, 231 clusters, 749 repeats, leaves at depth 2–3 (clusters to depth
+  5), no chain. But `0` homes 194 boxes (136 clusters) and scores 31.2: the
+  mean lets one bad map stand for many good ones. No authored label survived
+  (29 carried were unlabelled).
+- Viewer, on the owner's request: a leaf opens its source alone (the context
+  panel, its sidecars and its `check --viewer` coverage removed); the index
+  lists `0` and clusters only; a Minimap button folds the minimap (kept
+  across reloads); opening a map closes an open leaf's code.
+- Docs: glossary and The tree rewritten (DEVELOPER-CONTEXT 218→213), map guide
+  225→218, toolkit README and onboarding hint. Checks: regenerate, `check`,
+  `read-map` on a cluster and a folded declaration, viewer on `0` and a
+  cluster. `check --viewer` gaps: ports on the largest maps, and the new
+  `leaves`/`cluster` fields.
+
+## 2026-09-24 — Dev maps: no regions; nothing comes from files
+
+- Owner direction: no region maps; nothing in the maps comes from files. The
+  top map `0` draws the entry points of all mapped code (top-level
+  declarations no mapped code calls), ordered by how much each reaches; every
+  mapped call nests, with no directory edge. `lib/regions.mjs` became
+  `lib/entries.mjs`; internal addresses are plain numbers, not
+  region.file.declaration.
+- Scoped regeneration is gone: `regenerate` always does everything (~1 min).
+  Module-level findings sit on `0`; module-only files are no boxes. The two
+  file-level facts now name `filaments.mjs::validateBambuConnections`.
+- Region clusters merged into one flow on `0` (`flows/top.json`, 17 clusters);
+  57 memberships dropped because those declarations now nest under a caller.
+  Empty region flow files removed.
+- Result: 99 entry points (146 region roots before), 1445 declarations, 0
+  stranded, 0 unplaced, 0 orphan facts; 655 maps, energy 868.58 (899.34).
+  The solver model reproduces all 655 map scores. Viewer checked on `0`.
+- Docs: map guide 232→225 lines, DEVELOPER-CONTEXT 220→218 (Region removed from
+  the glossary, entry point and the tree redefined), toolkit README 264→263,
+  BUILDERS 410→410.
+
+## 2026-09-24 — Dev maps: cluster solver (first run)
+
+- `dev-map/lib/solve.mjs`: a model of every site (a region or a node whose view
+  is a map) as units a cluster can take, each carrying the chain its leaf
+  draws. It reproduces every stored map's score exactly (670 of 670 plus the top
+  map). A compiled scorer scores proposals by lookups. `solveTree` anneals the
+  whole tree's energy with one temperature and random moves across all sites,
+  and stops when a stage freezes.
+- `score.mjs`: `scoreMap` scores any drawing (`covers`, `inside`); counting and
+  rating are split (`rateMap`); backflow ties go by index, so list order doesn't
+  change a score (energy 899.23 → 899.34).
+- Owner direction: the score judges cluster quality, so generation no longer
+  refuses a non-convex or one-box cluster (`composition.mjs`, map guide).
+- First solve: 84 s, froze at stage 29, energy 897.8 → 830.9 by dissolving
+  every cluster. Under this energy every cluster is a net cost: flattening the
+  nine clustered sites takes them from 76.2 to 9.3, because size is capped at 1
+  and each cluster map adds its own crossing. The energy needs the owner's
+  decision before any flows are written. Flows unchanged.
+
 ## 2026-09-24 — Tour manual condensed
 
 - `examples/prints/README.md` went from 12,797 to 8,778 characters. The
@@ -8727,3 +9322,316 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   manifest bytes/unrelated files, idempotence and rejection of conflicting output.
   No full-job files were staged on USB. Full path and helper still await controller
   syntax checks and Teach Check; the software model has no controller joint limits.
+
+## 2026-09-25 — Relay stage 1: operations separated from MCP registration
+
+- Started BR-058 on the user's request to begin the relay plan; developer role.
+- Moved every agent operation, its strict schema, the print-work queue and the
+  Studio/request state into [the local runtime](adapters/mcp/src/runtime.mjs)
+  (`createLocalRuntime`: `operations`, `invoke`, request/event subscriptions,
+  `close`). [The MCP server](adapters/mcp/src/server.mjs) now only registers the
+  operations as tools, forwards notifications and serves stdio. Tool names,
+  schemas, annotations, instructions, results and close behavior are unchanged;
+  the local extension's `registerMcp({tool,…})` hook keeps its interface.
+  `summary` is now imported from the runtime; the unused `openBrowser`
+  re-export was dropped.
+- Verification, in the shared checkout (concurrent edits there touch only
+  `dev-map/lib`): the six MCP-related suites passed 32/32 before the change and
+  33/33 after, including a new test that drives the runtime without a transport,
+  matches its operation list to MCP discovery and checks strict-schema rejection.
+- Not yet done: connection-independent runtime lifetime, recorded idempotent
+  operations and generation job receipts (see BR-058).
+
+## 2026-09-25 — Relay stage 1: the runtime outlives its sessions
+
+- User direction: a closed connection is not resumed; the bundle holds the work
+  that matters and a new chat opens it. Recorded under D-037 and in the relay
+  plan's interruption table.
+- `createLocalRuntime().beginSession()` returns `{id, invoke, end}`; one session
+  is active at a time. Ending it drains the print-work queue, fails that owner's
+  unfinished requests with `connectionClosed`, releases pending
+  `wait_for_studio_request` calls without claiming, notifies Studio viewers and
+  discards held events. Studio instances and the runtime stay; late calls from the
+  ended session are rejected. `createMcpAdapter({runtime})` ends only its session;
+  without one (stdio) it owns and closes the runtime as before.
+- The request store's `endSession()` is split from `disconnect()`, which still
+  permanently closes it. Studio's connection-closed notice carries `closedAt`, so
+  a later session of the same owner is no longer shown as "(connection closed)".
+- Verification, shared checkout: 98/98 across the MCP suites and every test
+  touching the request store, Studio lifetime/open/tour/generation and workflows,
+  plus the new sequential-sessions test (Studio reused, pending wait released
+  unclaimed, fenced late call) and a work-state test that fails under the old
+  per-owner Set. The sessions tests exit cleanly without `--test-force-exit`.
+  Dev maps were not regenerated: a concurrent session is editing the generator.
+
+## 2026-09-25 — Relay scope trimmed; stage 1 closed
+
+- User judged the remaining stage 1 design overbuilt. The relay plan drops
+  idempotency keys and outcome records, generation job receipts and the
+  cursor/acknowledgement event protocol: revision checks reject repeated edits,
+  the relay fails an in-flight call on link loss, and generation moves to
+  Studio's worker only if a measured case exceeds a call deadline. Recorded
+  under D-037; BR-058 now holds stages 2–6.
+- RELAY-PLAN: 419 → 393 lines, 4,233 → 3,920 words; three diagram labels
+  updated to match. Documentation only; `check-repo` reports no new errors.
+
+## 2026-09-25 — Relay stage 2: Worker, pairing and device link (local)
+
+- Added [the relay](relay/README.md): a Cloudflare Worker using
+  `@cloudflare/workers-oauth-provider` 1.1.0 (DCR and client metadata documents,
+  PKCE) and one shared SQLite Durable Object holding devices, single-use
+  ten-minute link codes with a per-minute failure limit, and in-flight calls. No
+  print data is stored; session ids carry their device id, so sessions need no
+  storage. `/mcp` forwards one JSON-RPC message per request with JSON responses.
+- No SAAM accounts: the paired computer is the identity. The consent page asks for
+  the code the computer shows; unpairing deletes the device and revokes its grants.
+- [relay-device.mjs](adapters/mcp/src/relay-device.mjs) registers once, keeps its
+  credential in `.local/relay-device.json`, holds one outbound WebSocket (Node's
+  built-in client, 30 s heartbeat answered without waking the object, capped
+  backoff) and serves each chat session through `createMcpAdapter({runtime})`.
+  A new chat replaces the previous session; idle sessions end after ten minutes.
+  Results over 1 MB return an explicit error.
+- Plan change: offline tool discovery dropped; offline calls return a clear error.
+- Verification: `node --test relay/test/relay.test.mjs` passes against
+  `wrangler dev` 4.141.0 (local workerd), a real runtime and the SDK Streamable
+  HTTP client: 401 challenge with resource metadata, wrong then right code,
+  discovery matching the runtime, create/get, a stale repeat rejected, link loss
+  failing a pending wait in under 5 s, reconnection keeping the session, offline
+  error and unpair revoking the token. Exits cleanly with no workerd left.
+  Not deployed; no real chat product has connected.
+
+## 2026-09-25 — Relay limits: two-minute codes, paired-computer cap, 30-minute idle
+
+- User direction (D-037): pairing codes last two minutes; `MAX_PAIRED_DEVICES`
+  caps computers that can pair (2 while testing, 150 for alpha), refusing
+  registration beyond it with a clear message, fail-closed when unset; unpairing
+  frees a slot. The device ends a chat session after 30 minutes idle (a pending
+  call counts as activity). A live-users cap with idle eviction was considered
+  and declined.
+- Verification: the relay end-to-end test now also pairs a second computer,
+  sees a third refused, unpairs the second and pairs the third; it passes against
+  `wrangler dev`. The two-minute expiry and 30-minute lease are constants and
+  are not exercised by the test.
+
+## 2026-09-25 — Relay stage 3: listener length, streamed calls, session routing
+
+- Listener limits are per session: `beginSession({listen})` sets the default and
+  ceiling for `wait_for_studio_request`; stdio keeps 25 s. A relay session takes
+  225 s (under Claude's documented 240 s) or 450 s when `clientInfo.name` looks
+  like ChatGPT; the client names are unverified until real clients connect.
+  The request store no longer caps a wait; each caller bounds its own.
+- `/mcp` moved into the relay object's `fetch` (one metered request per call).
+  The device reports its current session over the socket; any other session is
+  answered 404 before forwarding, so a chat whose session ended can start a new
+  one. Calls with an event-stream Accept stream their result as SSE with a 20 s
+  comment keepalive; initialize stays JSON so its session header is set.
+- Verification: the relay end-to-end test now also streams a 21 s listener
+  (keepalive then result) and replaces the session with a second chat, the old
+  session answered 404; passes against `wrangler dev`. The MCP suites were not
+  rerun yet: a Studio change is in progress in `runtime.mjs`.
+
+## 2026-09-25 — Relay stage 3: Studio at launch and the Connect chat panel
+
+- One Opus subagent, authorized by the user, built the Studio side; the main
+  session reviewed the diff, reran its tests and checked the panel in the
+  browser. `createStudio(null, …)` opens Studio with no print: pages, library,
+  Open print and the tour work, print routes answer `NO_PRINT`.
+  `runtime.openStudio()` starts that instance; `request_review` reuses it.
+- `relayProvider(device)` in relay-device.mjs gives the runtime, and so every
+  Studio it opens, `{status(), linkCode()}` before the connection exists;
+  `attach()` hands it the connection. Studio serves `GET /api/relay` and
+  `POST /api/relay/link-code` behind its session token and origin checks, only
+  when a provider is present, and shows a Connect chat panel: connector URL with
+  copy, a fresh code with a two-minute countdown and a new-code button, relay
+  and chat-session status. The relay device's default command now opens this
+  Studio at launch.
+- `request_review` opens a browser tab only when no viewer is connected to the
+  chosen Studio; a connected tab is rebound in place (not exercised by tests,
+  which run with auto-open off). Import STL with no print open asks for a print
+  first, because an import takes its printer from the open print.
+- Verification: `core/tests/studio-relay.test.mjs` 6/6; the subagent's MCP and
+  Studio suites 56/56; relay end-to-end 1/1. Panel checked in the built-in
+  browser against a fake provider: status, URL, code and countdown render.
+  Studio has no dark mode, so neither does the panel.
+
+## 2026-09-25 — Relay stage 4: remote sessions, Studio import, maker path
+
+- Relay sessions are `remote`: they neither list nor run local-only operations
+  (`import_stl_print`, which reads a path the agent names), and `apply_text`
+  accepts a `fontPath` only inside the system font folders (realpath checked).
+  STLs from a web chat enter through Studio's Import STL.
+- Subagent (built without new tests, per the user): with no print open, Import
+  STL asks for a printer (installed profiles, defaulting to the most recently
+  modified print's printer) and imports into a new print; `import-completed`
+  reaches the chat through the existing event queue. A no-print `/api/state`
+  answers 204, so the page logs no 404s.
+- `runtime.openStudio()` reuses the newest live Studio and opens a tab only
+  when nobody is viewing it. `runPairedSaam()` in relay-device.mjs is the shared
+  entry for the CLI and the installed launcher; the CLI no longer prints a code
+  at startup (Studio issues them).
+- Verification: the relay end-to-end test (added before the user's no-new-tests
+  instruction) covers hidden `import_stl_print`, the font restriction, a Studio
+  request completing the chat's pending listener through the relay, generation,
+  a synthetic confirmation fixture and byte-identical delivery; it passed. The
+  MCP suites passed 40/40 after the remote-session change. Not run: the no-print
+  import, `openStudio` reuse, and a full `npm test` (stopped at the user's
+  request after 174 passing, 0 failing, unfinished).
+
+## 2026-09-25 — Relay stage 5: packages, installers, relay deployment, updates
+
+- Built without new tests, per the user. [packaging/build.mjs](packaging/build.mjs)
+  makes a `win-x64`, `darwin-arm64` or `darwin-x64` ZIP: tracked application
+  files without dev maps, tooling, tests or the relay; production dependencies;
+  the official Node (checksum-verified) or a supplied binary; `release.json`
+  (version, relay, platform, update host); the platform installer.
+- [launch.mjs](packaging/launch.mjs): per-user data folder outside the app,
+  one instance per user (a second launch shows Studio; a stale record is
+  replaced), start failures logged and the log opened.
+- Installers (subagent, syntax-checked only): Windows per-user install with
+  shortcuts to a console launcher; macOS `install.sh` run from Terminal writing a
+  local `SAAM.command`; both unsigned, no rollback machinery (older release =
+  rollback), and an update mode that waits for SAAM to exit. `.gitattributes`
+  pins their line endings.
+- Updates: the relay's `LATEST_RELEASE` is sent to each device on connect; Studio
+  shows a pulsing "Update to x.y.z" button when it is newer than the installed
+  version; [update.mjs](packaging/update.mjs) downloads from the build's
+  `--update-host` only, checks the relay's sha256, unpacks and starts the new
+  installer, and SAAM exits. Refused during a toolpath calculation.
+- Device-relay protocol version 1: a mismatched SAAM is refused with an update
+  message shown in Studio; an unpaired one likewise.
+- Relay deployed to https://saam-relay.remettub.workers.dev (free plan, KV
+  namespace created, pairing cap 2); discovery, the OAuth 401 challenge and both
+  metadata documents answer correctly. No chat product has connected yet.
+- Deferred by the user until after testing: Quit SAAM button and windowless
+  launch. Not run: any installer, package build, update, or whole suite.
+
+## 2026-09-26 — End-to-end check, logging, chat-working indicators, Quit SAAM
+
+- The user installed the Windows package, paired it through Studio, connected
+  Claude through the deployed relay and verified the flow end to end; the tool
+  failures seen first were a guidance problem in the chat. The log showed Claude
+  as `Anthropic/Toolbox` for discovery and `Anthropic/ClaudeAI` for the chat.
+- Logging: every chat call is logged on the computer (method, tool, duration,
+  sizes, failure text; never arguments or results); the relay measures the
+  request body itself, turns a failed send to the device into an explicit error
+  and logs warnings, with Workers Logs enabled (`npx wrangler tail`).
+- Studio shows the header dots and a "Your chat is working…" spinner over the
+  preview while the chat works outside a Studio request, such as creating the
+  first print: from any call but the listener (or a listener that returned
+  work) until it listens again or five minutes pass without a call.
+- Quit SAAM in Studio (relay mode, installed builds) stops SAAM, refused during
+  a toolpath calculation like updates. Checked visually against a scratch
+  Studio; no new tests, per the user.
+
+## 2026-09-26 — Faster install, windowless launch
+
+- Subagent (fresh worker, build only): build.mjs removes the 62 lock packages only
+  manifold-3d's CAD tooling needs (explicit list, checked against the lock so
+  nothing else loses a dependency) and `node_modules/.bin`, and packs the
+  application as one `app.tar` in the ZIP, beside `app/release.json` and the
+  installer path earlier versions' updater runs. Installers unpack it with the
+  system tar into a sibling folder and swap it in.
+- Measured on win-x64 0.1.1: ZIP 61.6 → 44.4 MB; unpacked 5,363 files/173 MB →
+  4,614/131 MB; Explorer extraction plus install copy about 167 s → 3.2–3.7 s.
+- Windowless: Windows shortcuts run `wscript.exe SAAM.vbs` (hidden node), with a
+  "SAAM (with console)" shortcut for troubleshooting; macOS install.sh generates
+  a local `SAAM.app` that starts node in the background. The launcher passes
+  `quit` for Studio's Quit SAAM.
+- Checked: script syntax; the pruned app loads manifold and the adapters; the
+  Windows installer in a sandboxed LOCALAPPDATA (install, reinstall, update mode);
+  install.sh under Git Bash with stubs. Unverified: a real Mac, a real install,
+  Quit end to end, and an update through the relay.
+
+## 2026-09-27 — Alpha relay records (D-039)
+
+- Owner direction: capture what we can from the relay rather than rely on
+  testers sharing transcripts. The relay object records every chat↔computer
+  message (arguments, results, its own timeouts and lost links), link changes,
+  the computer's hello (SAAM version, platform) and its Studio events, kept
+  `RECORD_DAYS` (30) days; long number arrays and encoded files become their
+  length. Token-protected `/records` routes, read with
+  `relay/scripts/records.mjs` (JSONL plus a Markdown timeline in
+  `.local/relay-records/`). The consent page tells testers.
+- The device forwards Studio events through a new non-draining
+  `observeEvents` (local folder path removed), holding them while the link is
+  down, and reports its own message failures as `device-error`.
+- Recipe edits record their changed values: `planChanges` in the bundle's
+  `plan-edited` history and Studio's `plan-updated` event.
+- Not run: tests (per the user), a deployment, a real pull of records.
+
+## 2026-09-27 — Connect panel with two lights; maker_onboarding for web chats
+
+- Owner direction: the link code and connector URL only matter while adding a
+  chat app, so the panel shouldn't push them once one is authorized, and it
+  opens by itself only when action is needed. The relay's new `/device/chats`
+  (device credential) lists the chat apps holding an OAuth grant. The device
+  reads it when its link opens and when a chat starts a session, and passes it
+  in its status. An unreadable list counts as none.
+- Studio: "Connect chat" is now "Connect", with two lights: paired with the
+  relay (red when unreachable or refused) and chat connected. The panel lists
+  the authorized chat apps and hides the URL and code behind "Connect another
+  chat app"; it opens at a print-free launch only when the relay refuses this
+  computer or no chat app is authorized, deciding once the relay has answered.
+  A refused computer shows no setup.
+- Web chats get the list of tools and not the server instructions, which told
+  them to run a CLI command they can't run. New `maker_onboarding` tool, listed
+  first: MAKERS, the skill digest and print tools (about 24 KB), plus the relay
+  guidance for a relayed session. Until a relayed session calls it (or reads
+  `makers`), every result carries a second text item asking it to. The
+  instructions and relay guidance now name it.
+- Checked: `core/tests/mcp.test.mjs`, `core/tests/studio-relay.test.mjs` and
+  `relay/test/relay.test.mjs` pass (the relay run exercised `/device/chats`
+  without error; its content was not asserted). Scratch checks: the reminder on
+  remote results and not on local ones; the panel in six fake relay states in
+  the browser. Not run: a deploy, a real chat client, the whole suite; no new
+  tests, per the user.
+
+## 2026-09-27 — Relay deployed; 0.1.2 built
+
+- Relay deployed (version `e39e140a`) with records (`RECORD_DAYS` 30) and
+  `/device/chats`; with this computer's credential it answered
+  `[{"client":"Claude"}]`. `RECORDS_TOKEN` is not set, so records are kept but
+  the `/records` routes answer 404.
+- Built `dist/SAAM-0.1.2-win-x64.zip` (44.4 MB, update host github.com,
+  sha256 `90479fd1…cbbd7`); it holds `SAAM.vbs`, Quit SAAM, the Connect panel
+  and `maker_onboarding`. Not published as a release; `LATEST_RELEASE` stays
+  empty.
+
+## 2026-09-27 — Relay hardening: invites, sign-in limits, redirect allowlist, pinned updates
+
+- From the relay security report (six findings). Pairing a computer now spends
+  a single-use invite the operator issues (`relay/scripts/operator.mjs`, renamed
+  from `records.mjs`, behind the new `OPERATOR_TOKEN` secret that also guards
+  the records). Studio starts unpaired and takes the invite in the Connect
+  panel; a computer removed by the operator (or never connected within a day)
+  forgets its credential and asks for a new invite. `MAX_PAIRED_DEVICES` is 150
+  as a backstop.
+- Chat sign-in: a code is tried only within a sign-in the consent page started
+  (junk posts get "expired" and count nowhere); five wrong codes end a sign-in,
+  twenty in ten minutes pause an address. The global per-minute counter is gone.
+  Link codes stay 8 characters: the lockout, not the length, was the weakness.
+- Sign-ins go only to `CHAT_REDIRECTS` origins (Claude, ChatGPT), checked at
+  client registration and at the consent page; the retry page keeps the
+  destination warning. Registrations and consent pages are limited per address;
+  a computer has at most 8 calls in flight; request bodies stop being read at
+  their limit.
+- Updates: an installed build accepts only
+  `<update host>/v<x.y.z>/SAAM-<x.y.z>-<platform>.zip` with a plain version, and
+  the update folder must stay inside `updates`. `--update-host` is now the
+  release folder, `https://github.com/Struder-AI/SAAM/releases/download`.
+  Installed 0.1.2 builds keep their old check.
+- Studio: "Open print" is "Open", "Quit SAAM" is "Quit", and Quit closes the tab
+  where the browser allows (Chrome and Edge).
+- Verification: `relay/test/relay.test.mjs` (adapted to invites) and
+  `core/tests/studio-relay.test.mjs` pass. A scratch run against `wrangler dev`
+  passed 25 checks: the update URL and version checks, the operator token, invite
+  refusal and reuse, the foreign-redirect registration refused, pairing from
+  Studio's route, 40 junk posts not blocking a right code, the per-sign-in end,
+  the retry page's warning, removal forgetting the credential and pairing again.
+  The panel's unpaired state was checked in the browser. Not run: the whole
+  suite, a real chat client against the new relay, a real update.
+- Deployed (version `d7f59a40`, `OPERATOR_TOKEN` set) and the one paired
+  computer (0.1.2, with a Claude grant) removed at the user's request; the live
+  relay refuses registration without an invite. Built
+  `dist/SAAM-0.1.3-win-x64.zip` (44.4 MB, sha256 `2b1a900f…7422c`); not
+  published, `LATEST_RELEASE` stays empty.

@@ -12,6 +12,7 @@ import { syntheticDobotSetup } from './fixtures/dobot.mjs';
 import { boxMesh } from './fixtures/mesh.mjs';
 import {createTour} from '../../studio/tour.mjs';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
+import {splineBox} from './fixtures/spline-shapes.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 async function clientFor(t, printsRoot) {
@@ -42,7 +43,7 @@ async function syntheticApproval(dir, stage) {
 async function smallPlan(call, machineId = 'ultimaker-s5') {
   const { plan } = await call('get_plan_template', { kind: 'shell', machineId });
   plan.process.minimumLayerSeconds = 0;
-  plan.geometry = { shape: 'box', runMm: 12, widthMm: 10, heightMm: 1 };
+  plan.geometry = splineBox({runMm:12,widthMm:10,heightMm:1});
   plan.skills['draped-skin'].enabled = false;
   return plan;
 }
@@ -83,7 +84,7 @@ test('MCP follows tour chat gates while production generation remains available 
   assert.equal(before.step,0);assert.equal(before.canNext,false);
   await call('set_tour_start_at',{startAt:{layer:12},runId:before.runId,lessonId:before.lessonId});
   const saved=await call('get_print',{printId:'tour/handle',includeGeometry:true});
-  saved.plan.geometry.parts[1].geometry.heightMm=11;
+  saved.plan.geometry.parts[1].geometry=splineBox({runMm:36,widthMm:8,heightMm:11});
   await call('adjust_print',{printId:'tour/handle',expectedRevision:saved.revision,patch:{geometry:saved.plan.geometry}});
   const after=await call('get_tour',{after:before.cursor,waitMs:50});assert.equal(after.canNext,false,'wait for the browser to render the edit');
   const generated=await call('generate_print',{printId:'tour/handle'});assert.equal(generated.checks.mode,'production');
@@ -96,6 +97,33 @@ test('MCP follows tour chat gates while production generation remains available 
 });
 
 
+
+test('MCP blob field is described in geometry guidance and rebuilds through revision checks',async t=>{
+  const {call}=await fixture(t);
+  assert.match(JSON.stringify(await call('read_guidance',{guidanceId:'geometry'})),/blob_field/);
+  const request={points:[{positionMm:[0,0,1],reachMm:8,strength:1}],edgeMm:0.5};
+  let state=await call('blob_field',{printId:'volume',action:'create',machineId:'ultimaker-s5',request});
+  assert.notEqual(state.toolpathApproved,true);
+  await call('blob_field',{printId:'volume',action:'update',expectedRevision:'stale',request},/stale/);
+  request.points.push({positionMm:[4,0,1],reachMm:6,strength:1});
+  state=await call('blob_field',{printId:'volume',action:'update',expectedRevision:state.revision,request});
+  const saved=await call('get_print',{printId:'volume',includeGeometry:true});
+  assert.equal(saved.plan.geometry.shape,'blob-field');assert.equal(saved.plan.geometry.field.points.length,2);
+  assert.notEqual(state.toolpathApproved,true);
+});
+
+test('MCP intersect and combine drill a print without scripts',async t=>{
+  const {call}=await fixture(t),plan=await smallPlan(call);
+  let state=await call('create_print',{printId:'drilled',kind:'shell',machineId:'ultimaker-s5',plan});
+  const hole={shape:'mesh',source:null,vertices:[[4,3,-1],[6,3,-1],[6,5,-1],[4,5,-1],[4,3,3],[6,3,3],[6,5,3],[4,5,3]],
+    triangles:[[0,2,1],[0,3,2],[4,5,6],[4,6,7],[0,1,5],[0,5,4],[1,2,6],[1,6,5],[2,3,7],[2,7,6],[3,0,4],[3,4,7]]};
+  state=await call('combine_geometry',{printId:'drilled',expectedRevision:state.revision,request:{operation:'difference',operand:hole}});
+  assert.notEqual(state.toolpathApproved,true);
+  await call('combine_geometry',{printId:'drilled',expectedRevision:'stale',request:{operation:'difference',operand:hole}},/stale/);
+  const answer=await call('intersect_geometry',{printId:'drilled',request:{sectionsAtZ:[0.5],topsAtXY:[[5,4],[1,1]]}});
+  assert.equal(answer.sections[0].holes,1);assert.equal(answer.tops[0].zMm,null);assert.equal(answer.tops[1].zMm,1);
+  assert.equal((await call('intersect_geometry',{request:{geometry:hole,sectionsAtZ:[1]}})).sections[0].areaMm2,4);
+});
 
 test('MCP text task edits actual geometry with a local font and stale-revision protection',async t=>{
   const {call}=await fixture(t),plan=await smallPlan(call);
@@ -265,7 +293,7 @@ for (const machineId of ['ultimaker-s5', 'bambu-h2d', 'dobot-mg400']) {
     await call('check_print', { printId }, /changed|stale/);
     await call('deliver_print', { printId }, /approval/);
     const staleProgram = await call('get_approval_status', { printId });
-    const reshaped = await call('adjust_print', { printId, expectedRevision: staleProgram.revision, patch: { geometry: { heightMm: 1.2 } } });
+    const reshaped = await call('adjust_print', { printId, expectedRevision: staleProgram.revision, patch: { geometry: { patches: splineBox({runMm:12,widthMm:10,heightMm:1.2}).patches } } });
     assert.equal(reshaped.toolpathApproved, false);
   });
 }
@@ -382,6 +410,57 @@ test('MCP preserves the shared regional recipe and configurable composition with
   await assert.rejects(access(resolve(printsRoot, printId, 'path.saampath')), { code: 'ENOENT' });
 });
 
+
+test('the local runtime runs operations without an MCP transport, under the same strict schemas',async t=>{
+  const {createLocalRuntime}=await import('../../adapters/mcp/src/runtime.mjs');
+  const {createMcpAdapter}=await import('../../adapters/mcp/src/server.mjs');
+  const printsRoot=await mkdtemp(resolve(tmpdir(),'saam-runtime-'));t.after(()=>rm(printsRoot,{recursive:true,force:true}));
+  const runtime=createLocalRuntime({printsRoot,autoOpen:false});t.after(()=>runtime.close());
+  const session=runtime.beginSession(),invoke=(name,args)=>session.invoke(name,args);
+  const {InMemoryTransport}=await import('@modelcontextprotocol/sdk/inMemory.js');
+  const adapter=createMcpAdapter({printsRoot,autoOpen:false});t.after(()=>adapter.close());
+  const [ct,st]=InMemoryTransport.createLinkedPair(),client=new Client({name:'runtime-parity',version:'1'});
+  await adapter.server.connect(st);await client.connect(ct);t.after(()=>client.close());
+  assert.deepEqual(runtime.operations.map(o=>o.name).sort(),(await client.listTools()).tools.map(o=>o.name).sort());
+  assert.ok((await invoke('list_machines')).some(machine=>machine.id==='ultimaker-s5'));
+  const plan=await smallPlan(invoke);
+  await assert.rejects(invoke('create_print',{printId:'part',kind:'shell',machineId:'ultimaker-s5',plan,approved:true}),/unrecognized/i);
+  const created=await invoke('create_print',{printId:'part',kind:'shell',machineId:'ultimaker-s5',plan});
+  assert.equal(created.toolpathApproved,false);
+  await assert.rejects(invoke('grant_approval',{}),/Unknown SAAM operation/);
+});
+
+test('sessions end without ending the runtime: Studio stays and the next chat starts from the bundle',async t=>{
+  const {createLocalRuntime}=await import('../../adapters/mcp/src/runtime.mjs');
+  const {createMcpAdapter}=await import('../../adapters/mcp/src/server.mjs');
+  const {InMemoryTransport}=await import('@modelcontextprotocol/sdk/inMemory.js');
+  const printsRoot=await mkdtemp(resolve(tmpdir(),'saam-sessions-'));t.after(()=>rm(printsRoot,{recursive:true,force:true}));
+  const runtime=createLocalRuntime({printsRoot,autoOpen:false});t.after(()=>runtime.close());
+  async function chat(name){
+    const adapter=createMcpAdapter({runtime}),[ct,st]=InMemoryTransport.createLinkedPair(),client=new Client({name,version:'1'});
+    await adapter.server.connect(st);await client.connect(ct);
+    const call=async(tool,args={})=>{const result=await client.callTool({name:tool,arguments:args});assert.ok(!result.isError,JSON.stringify(result));return JSON.parse(result.content[0].text);};
+    return {adapter,client,call};
+  }
+  const first=await chat('first');
+  assert.throws(()=>runtime.beginSession(),/already active/);
+  await first.call('create_print',{printId:'part',kind:'shell',machineId:'ultimaker-s5',plan:await smallPlan(first.call)});
+  const pending=await first.call('begin_studio_work',{printId:'part',instruction:'Left unfinished'});
+  const review=await first.call('request_review',{printId:'part'});
+  const waiting=first.call('wait_for_studio_request',{waitMs:20000,claim:true});
+  await new Promise(r=>setTimeout(r,200));
+  const ending=first.adapter.close();
+  assert.deepEqual((await waiting).requests,[],'an ended session wait returns without claiming');
+  await ending;await first.client.close();
+  const left=(await createAgentRequests(printsRoot).list()).find(r=>r.id===pending.id);
+  assert.equal(left.status,'failed');assert.equal(left.connectionClosed,true);
+  assert.ok((await fetch(review.url)).ok,'Studio outlives the ended session');
+  const second=await chat('second');t.after(async()=>{await second.client.close();await second.adapter.close();});
+  const reopened=await second.call('request_review',{printId:'part'});
+  assert.equal(reopened.studioInstanceId,review.studioInstanceId);assert.equal(reopened.revision,review.revision);
+  const work=await second.call('begin_studio_work',{printId:'part',instruction:'New session edit'});
+  assert.equal(work.status,'working');
+});
 
 test('MCP transport close persists scoped failure and pushes it to Studio before shutdown',async t=>{
   const {InMemoryTransport}=await import('@modelcontextprotocol/sdk/inMemory.js');

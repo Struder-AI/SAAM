@@ -1,0 +1,19 @@
+{
+  "name": "saam-relay",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker relaying chat MCP sessions to a paired local SAAM runtime.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "node --test test/*.test.mjs"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@cloudflare/workers-oauth-provider": "1.1.0"
+  },
+  "devDependencies": {
+    "wrangler": "4.141.0"
+  }
+}

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {lifecycleReview} from '../print/review-state.mjs';
 import {studioControls} from '../../studio/studio-controls.mjs';
 import {printSummary} from '../agent/toolkit.mjs';
-import {summary as mcpSummary} from '../../adapters/mcp/src/server.mjs';
+import {summary as mcpSummary} from '../../adapters/mcp/src/runtime.mjs';
 
 const state=(overrides={})=>({
   dir:'Prints/example',kind:'shell',revision:'revision',geometryHash:'geometry',

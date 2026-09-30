@@ -18,7 +18,9 @@ const BOUNDARY_SAMPLES = 16;
 const JOIN_TOLERANCE = 1e-5;
 
 export function makeShell(patches, { name = 'shell' } = {}) {
-  requireThat(patches.length >= 4, `${name} needs at least four patches to close.`);
+  // Closure, not a patch count, decides whether a shell is solid: one
+  // revolved patch closing on its own seam and poles is a whole sphere.
+  requireThat(patches.length >= 1, `${name} needs at least one patch.`);
   const shell = { name, patches, bounds: shellBounds(patches) };
   shell.closure = verifyClosure(patches);
   return shell;

@@ -167,6 +167,24 @@ export function evaluate(patch, u, v, wantDerivatives = true) {
 
 export const clamp = (t, [a, b]) => t < a ? a : t > b ? b : t;
 
+// Point and first derivative of a NURBS curve: { n, order, knots, cp, domain }
+// with homogeneous [xw, yw, zw, w] controls, the patch conventions in one
+// parameter. Planar and (u,v) curves carry z = 0. fromLeft takes the left
+// limit at a knot, where a C0 curve (a polyline) has a second tangent.
+export function evaluateCurve(curve, t, fromLeft = false) {
+  const { n, order, knots, cp } = curve, x = clamp(t, curve.domain);
+  let span = findSpan(knots, n, order, x);
+  if (fromLeft) while (span > order - 1 && knots[span] >= x) span--;
+  const b = basisDerivatives(knots, span, x, order, 1);
+  const s = [0, 0, 0, 0], d = [0, 0, 0, 0];
+  for (let i = 0; i < order; i++) {
+    const base = (span - order + 1 + i) * 4;
+    for (let k = 0; k < 4; k++) { s[k] += b[0][i] * cp[base + k]; d[k] += b[1][i] * cp[base + k]; }
+  }
+  const point = [s[0] / s[3], s[1] / s[3], s[2] / s[3]];
+  return { point, derivative: [0, 1, 2].map(k => (d[k] - point[k] * d[3]) / s[3]) };
+}
+
 // Signed plane distance of the control net, scaled by weight. The rational
 // numerator shares the sign of n.S - d because all weights are positive, so the
 // convex-hull property makes a same-sign net a conservative "no section" test.

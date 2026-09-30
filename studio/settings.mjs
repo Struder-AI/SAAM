@@ -1,9 +1,9 @@
 import {planarWallTolerance} from '../core/machine/rules.mjs';
 import {filamentPlan} from '../core/machine/filaments.mjs';
 // Human-readable review of the same locked recipe used by every adapter.
-const supportSkills=['supports','rimming-planar','rimming-normal'];
+const supportSkills=['supports'];
 const globalSkills=[...supportSkills,'pipe-cladding','wave-overhangs'];
-export const skillName=name=>({'line-network':'Line network','pipe-cladding':'Surface cladding','full-fill':'Full fill','planar-infill':'Planar infill','vase-wall':'Vase wall','draped-skin':'Draped skin',supports:'Supports','rimming-planar':'Rimming · horizontal offsets','rimming-normal':'Rimming · normal offsets (experimental)'}[name]??name);
+export const skillName=name=>({'line-network':'Line network','pipe-cladding':'Surface cladding','full-fill':'Full fill','planar-infill':'Planar infill','vase-wall':'Vase wall','draped-skin':'Draped skin',supports:'Supports'}[name]??name);
 export const pathModeName=settings=>settings?.pathMode==='segmented'?'Segmented paths':settings?.pattern?'Continuous sleeve pattern':'Vase wall';
 export const hasSkill=(plan,name)=>globalSkills.includes(name)?Boolean(plan.skills?.[name]?.enabled):plan.composition?.regions?.length
   ?plan.composition.regions.some(region=>Object.hasOwn(region.skills,name))
@@ -12,7 +12,6 @@ const value=v=>v===null||v===undefined?'Not set':Array.isArray(v)?v.join(', '):S
 export const claddingPatternName=settings=>settings.pattern==='crossed-helices'?'crossed helices':'axial / circumferential';
 export function claddingSubstrateName(plan){
   const clad=plan.skills['pipe-cladding'];
-  if(!clad.surface)return 'Concentric horizontal loops';
   const regions=plan.composition?.regions??[],part=clad.part;
   const names=regions.length?regions.filter(r=>r.part===part).flatMap(r=>Object.keys(r.skills)):
     ['full-fill','planar-infill','vase-wall','draped-skin'].filter(name=>{

@@ -10,8 +10,11 @@ import {planRefreshNavigation} from './refresh-plan.mjs';
 import {prepareStudioState,withoutPreviewMaterial} from './studio-state.mjs';
 import {studioControls} from './studio-controls.mjs';
 import {viewerConnected} from './viewer-session.mjs';
+import {createRelayPanel} from './relay-panel.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const token=$('meta[name="saam-token"]').content;
+const relayPanel=$('meta[name="saam-relay"]').content==='on'?createRelayPanel({token}):null;
+const NO_PRINT='No print is open. Open a saved print, import an STL, start the tour, or ask your chat to make a part.';
 const exportedThisSession=new Set();
 const exportKey=()=>state?.printId+':'+state?.exportHash;
 let tourUI;
@@ -206,32 +209,27 @@ const views={
     names:{},
     facts(state,tab) {
       const {geometry:g,setup:s,process:p}=state.plan,fill=state.plan.skills['full-fill'],skin=state.plan.skills['draped-skin'],normal=state.plan.skills['planar-infill'],network=state.plan.skills['line-network'];
-      const shape={assembly:'Assembly',box:'Box',wedge:'Wedge','spline-tube':'Bumpy spline tube',"spline-top":'Spline top surface',"spline-shell":'Tapered spline shell',"vertical-spline-shell":'Vertical spline shell'}[g.shape]??g.shape;
+      const shape={'blob-field':'Blob field',assembly:'Assembly',spline:'Spline surfaces',mesh:'Mesh'}[g.shape]??g.shape;
       if(tab==='geometry') {
         const bounds=state.geometry.boundsMm;
         const rows=[['Shape',shape],['Footprint',round2(bounds.max[0]-bounds.min[0])+' × '+round2(bounds.max[1]-bounds.min[1])+' mm'],['Height',round2(bounds.max[2]-bounds.min[2])+' mm']];
         if(g.shape==='mesh'&&g.source?.format==='stl')rows.push(['STL units',g.source.units+(g.source.unitsInferred?' · assumed from size':'')+' · change in chat']);
-        if(g.shape==='pipe')rows.push(['Bore / outside diameter',2*g.innerRadiusMm+' / '+2*g.outerRadiusMm+' mm'],['Wall thickness',round2(g.outerRadiusMm-g.innerRadiusMm)+' mm']);
-        if(g.shape==='spline-top'||g.shape==='spline-shell')rows.push(['Surface',g.cpU+' × '+g.cpV+' control points']);
-        if(g.shape==='spline-shell')rows.push(['Side taper','Long sides in '+g.longSideInsetMm+' mm · short sides out '+g.shortSideOutsetMm+' mm']);
-        if(g.shape==='vertical-spline-shell'){
-          rows.push(['Surface',g.cpU+' × '+g.cpV+' control points']);
-          rows.push(['Vertical wall outline','X out '+g.xBulgeMm+' mm · Y in '+g.yInsetMm+' mm']);
-        }
+        if(g.shape==='spline')rows.push(['Patches',g.patches.map(p=>p.name+' '+p.controlPoints.length+' × '+p.controlPoints[0].length).join(' · ')]);
         const textRows=(geometry,prefix='')=>{if(geometry.shape==='text')for(const feature of geometry.features)rows.push([prefix+feature.id,(feature.mode==='raised'?'Raised':'Recessed')+' “'+feature.text+'” · '+feature.depthMm+' mm']);};
+        const blobFieldRows=(geometry,prefix='')=>{if(geometry.shape==='blob-field')rows.push([prefix+'Points',String(geometry.field.points.length)],[prefix+'Surface sampling',geometry.extraction.edgeMm+' mm · finer features may be missed'],[prefix+'Material threshold',String(geometry.field.threshold)]);};
         textRows(g);
-        if(g.shape==='assembly')for(const part of g.parts){rows.push([part.id,part.geometry.shape+' at '+[part.xMm,part.yMm,part.zMm].join(', ')+' mm']);textRows(part.geometry,part.id+' · ');}
-        if(g.shape==='spline-tube')rows.push(['Circular bore',2*g.innerRadiusMm+' mm'],['Substrate height',g.heightMm+' mm'],['Outer spline',g.controlPoints.length+' × '+g.controlPoints[0].length+' control points'],['Surface meaning','Full-fill boundary; cladding builds outward']);
+        blobFieldRows(g);
+        if(g.shape==='assembly')for(const part of g.parts){rows.push([part.id,part.geometry.shape+' at '+[part.xMm,part.yMm,part.zMm].join(', ')+' mm']);textRows(part.geometry,part.id+' · ');blobFieldRows(part.geometry,part.id+' · ');}
         return rows;
       }
       if(tab==='plan'&&state.plan.composition?.regions?.length)return [materialSetup(state),
         ['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],...regionRows(state.plan)];
       if(tab==='plan'&&hasSkill(state.plan,'pipe-cladding')){
-        const clad=state.plan.skills['pipe-cladding'],surface=Boolean(clad.surface);
+        const clad=state.plan.skills['pipe-cladding'];
         return [materialSetup(state),['Substrate',claddingSubstrateName(state.plan)],
-          ['Exterior',clad.shells+' shells · '+claddingPatternName(clad)],[surface?'Normal thickness per shell':'Radial thickness per shell',clad.normalMm+' mm'],
-          ['Nozzle tilt',clad.tiltDeg+(surface?'° from the downward surface tangent toward the surface':'° inward from downward')],
-          ...(clad.pattern==='crossed-helices'?[['Helices','Opposite winding on successive shells; each rises from bottom to top']]:[['Axial passes',surface?'Local surface spacing with partial passes':'Full height']]),['Between passes','Extrusion off'],...robotRows(state.plan,state.machine)];
+          ['Exterior',clad.shells+' shells · '+claddingPatternName(clad)],['Normal thickness per shell',clad.normalMm+' mm'],
+          ['Nozzle tilt',clad.tiltDeg+'° from the downward surface tangent toward the surface'],
+          ...(clad.pattern==='crossed-helices'?[['Helices','Opposite winding on successive shells; each rises from bottom to top']]:[['Axial passes','Local surface spacing with partial passes']]),['Between passes','Extrusion off'],...robotRows(state.plan,state.machine)];
       }
       if(tab==='plan')return [materialSetup(state),['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],
         ['Body',network?.enabled?network.networks.length+' independent line networks · '+network.layers+' courses':normal?.enabled?normal.perimeters+' walls · '+(normal.density===0?'hollow':Math.round(normal.density*100)+'% '+(normal.pattern??'rectilinear')+' infill'):fill.enabled?fill.perimeters+' perimeters + solid fill':'Not printed'],...vaseSettings(state),
@@ -321,7 +319,7 @@ async function pollPreparation(){
   }catch{/* The owning generation call reports failures. */}finally{progressPolling=false;}
 }
 function applyProgress(job,target=generationTarget){
-  if(!target||generationTarget!==target||!job||job.studioInstanceId&&job.studioInstanceId!==state?.instanceId
+  if(!target||generationTarget!==target||!job||job.studioInstanceId&&state&&job.studioInstanceId!==state.instanceId
     ||job.printId!==target.printId||target.generationHash&&job.generationHash!==target.generationHash)return;
   target.generationHash??=job.generationHash;
   $('#cancel-generation').hidden=!job.cancellable;
@@ -339,7 +337,9 @@ $('#cancel-generation').onclick=async()=>{
 async function loadAndAdoptStudioState(follow=false,reopen=false,fetchedState=null,fetchedTag=null) {
   let fetched=fetchedState;
   if(!fetched){
-    const response=await fetch('/api/state');if(!response.ok)throw new Error((await response.json()).error);
+    const response=await fetch('/api/state');
+    if(response.status===204)throw Object.assign(new Error(NO_PRINT),{code:'NO_PRINT'});
+    if(!response.ok)throw new Error((await response.json()).error);
     fetchedTag=response.headers?.get?.('etag')??null;fetched=await response.json();
   }
   const loaded=state?.printId===fetched.printId?state:null,previous=!reopen?loaded:null;
@@ -690,19 +690,34 @@ $('#open-print').onclick=async()=>{
   }catch(error){$('#picker-message').textContent=error.message;}
 };
 $('#close-picker').onclick=()=>$('#print-picker').close();
-$('#import-stl').onclick=()=>{if(busy)return;$('#stl-file').value='';$('#stl-file').click();};
+function chooseSTL(){$('#stl-file').value='';$('#stl-file').click();}
+// With no print open there is no printer to inherit: ask for one first,
+// defaulting to the printer of the most recently changed print.
+async function choosePrinter(){
+  $('#machine-message').textContent='Loading printers…';$('#import-machine').replaceChildren();$('#machine-picker').showModal();
+  try{
+    const response=await fetch('/api/machines');if(!response.ok)throw Error('Could not list printers.');
+    const {machines,defaultId}=await response.json();
+    for(const machine of machines){const option=document.createElement('option');option.value=machine.id;option.textContent=machine.name;option.selected=machine.id===defaultId;$('#import-machine').append(option);}
+    $('#machine-message').textContent='';$('#import-machine').focus();
+  }catch(error){$('#machine-message').textContent=error.message;}
+}
+$('#import-stl').onclick=()=>{if(busy)return;if(state)chooseSTL();else void choosePrinter();};
+$('#machine-form').onsubmit=event=>{event.preventDefault();if(!$('#import-machine').value)return;$('#machine-picker').close();chooseSTL();};
+$('#close-machine-picker').onclick=()=>$('#machine-picker').close();
 $('#stl-file').onchange=async()=>{
   const file=$('#stl-file').files[0];if(!file||busy)return;
   if(file.size>64*1024*1024){message('Choose an STL file up to 64 MiB.',true);return;}
   try{await working('Importing your STL…',async()=>{
-    const query=new URLSearchParams({name:file.name,printId:state.printId});
-    const target={printId:state.printId,generationHash:null};generationTarget=target;
+    const query=new URLSearchParams(state?{name:file.name,printId:state.printId}:{name:file.name,machineId:$('#import-machine').value});
+    const target={printId:state?.printId??null,generationHash:null},firstPrint=!state;generationTarget=target;
     let response;
     try{response=await fetch('/api/import-stl?'+query,{method:'POST',headers:{'X-SAAM-Token':token,'Content-Type':'application/octet-stream'},body:file});}
     finally{if(generationTarget===target)generationTarget=null;}
     if(!response.ok)throw Error((await response.json()).error);
     await tourUI.load();await refresh(false,true);message('');
-  });}catch(error){message(error.message,true);await tourUI.load();await refresh(false,true);}
+    if(firstPrint)relayPanel?.close();
+  });}catch(error){message(error.message,true);await tourUI.load();if(state)await refresh(false,true);}
 };
 $('#open-path').onsubmit=event=>{event.preventDefault();openPrint($('#print-path').value.trim());};
 $('#travel').onchange=requestDraw;
@@ -767,6 +782,7 @@ async function poll(){
     const options=!needsFullState&&stateTag?{headers:{'If-None-Match':stateTag}}:undefined;
     const response=await fetch('/api/state',options);
     if(response.status===304){reconnecting=false;return;}
+    if(response.status===204){reconnecting=false;return;} // Still no print open.
     if(!response.ok)throw new Error('Reconnecting to your print…');
     const nextTag=response.headers?.get?.('etag')??null,next=await response.json();if(movieController||busy)return;
     // Restarted servers have new session credentials. Reload the page and its
@@ -774,9 +790,11 @@ async function poll(){
     if(state?.instanceId&&next.instanceId!==state.instanceId){window.location.reload();return;}
     if(reconnecting)message('');
     const refreshUpdatedPrint=()=>refresh(true,false,next,nextTag);
-    const metadataOnly=Boolean(state&&!needsFullState&&next.presentationFingerprint===state.presentationFingerprint);
+    const metadataOnly=Boolean(state&&!needsFullState&&next.presentationFingerprint===state.presentationFingerprint),firstPrint=!state;
     if(metadataOnly)await refreshUpdatedPrint();
     else await working('Loading and checking the updated print…',refreshUpdatedPrint);
+    // The chat opened the first print into an empty Studio: show it.
+    if(firstPrint)relayPanel?.close();
     reconnecting=false;
   }catch(e){reconnecting=true;agentUI.settled(e);$('#confirm').disabled=true;message('Could not update the print: '+e.message+' Reconnecting…');}
   finally{polling=false;}
@@ -842,9 +860,20 @@ function connectStudioSession(){
   window.addEventListener('pagehide',disposeStudioSession);
   window.addEventListener('pageshow',restoreStudioSession);
 }
+// Studio opened with no print (a relay computer at launch) waits for one: the
+// person opens a print or the tour, or the chat opens one through request_review.
+function showNoPrint(error){
+  $('#kind-label').textContent='SAAM STUDIO';$('#view-title').textContent='No print open';
+  $('#guidance').textContent=error.message;message('');
+  relayPanel?.openIfNeeded();
+}
+function reportOpening(error){
+  if(error.code==='NO_PRINT')showNoPrint(error);
+  else message(error.message,true);
+}
 function initializeStudio(){
   tourUI=createStudioTour();
-  working('Opening Studio…',loadStudio).catch(error=>message(error.message,true));
+  working('Opening Studio…',loadStudio).catch(reportOpening);
   connectStudioUpdates();
   connectStudioSession();
 }

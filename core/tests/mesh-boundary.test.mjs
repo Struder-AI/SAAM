@@ -9,6 +9,7 @@ import {loadMachine} from '../machine/profile.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {rhino} from '../print/geometry.mjs';
 import {buildShell} from '../print/generate.mjs';
+import {splineBox} from './fixtures/spline-shapes.mjs';
 
 test('prepared sections exactly match direct cuts across heights, holes, islands and placement',async()=>{
   const boxes=Array.from({length:12},(_,i)=>boxMesh(8,6,2+i%3,.5));
@@ -20,7 +21,7 @@ test('prepared sections exactly match direct cuts across heights, holes, islands
   }
   const many=makeMesh(vertices,triangles),ring=ringMesh();
   const geometries=[many,translateMesh(many,-100,30,-4),makeMesh(ring.vertices,ring.triangles),
-    buildShell(await rhino(),{shape:'box',runMm:8,widthMm:6,heightMm:2})];
+    buildShell(await rhino(),splineBox({runMm:8,widthMm:6,heightMm:2}))];
   for(const mesh of geometries) {
     const query=createSectionQuery(mesh),[min,max]=[mesh.bounds.min[2],mesh.bounds.max[2]];
     const heights=[min-1e-8,max+1e-8,min-Number.EPSILON,max+Number.EPSILON,
@@ -45,7 +46,7 @@ test('mesh sections tolerate floating-point boundary roundoff symmetrically with
 
 test('a floating final layer is deposited identically by mesh and spline full-fill producers',async()=>{
   const machine=loadMachine(),native=await rhino(),lastLayers=[];
-  for(const geometry of [boxMesh(8,8,6),{shape:'box',runMm:8,widthMm:8,heightMm:6}]){
+  for(const geometry of [boxMesh(8,8,6),splineBox({runMm:8,widthMm:8,heightMm:6})]){
     const plan=defaults(machine);plan.geometry=geometry;plan.skills['draped-skin'].enabled=false;plan.process.minimumLayerSeconds=0;
     const path=generatePath(plan,machine,native),deposition=path.actions.filter(a=>a.kind==='move'&&a.volumeMm3>0);
     lastLayers.push(Math.max(...deposition.map(a=>a.to[2])));

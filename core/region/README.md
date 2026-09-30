@@ -45,7 +45,7 @@ the [Clipper2 tool](#shared-planar-intersections), re-exported from
 `core/region/boolean.mjs`. Both bundle adapters hash the shared kernel and exact
 WASM/JS dependency bytes; the public CLI/MCP and review workflow are unchanged.
 
-Rimming and surface cladding use native 3D differential offsets through the
+Surface cladding uses native 3D differential offsets through the
 shared surface/section functions. Those are distinct from closed planar polygon
 offsetting and remain there. Native mesh/spline sectioning and scanline stroke
 construction likewise keep their appropriate geometry algorithms; universal
@@ -162,9 +162,11 @@ set of the reserve height. The [shared planar intersection tool](#shared-planar-
 owns these combinations. Sectioning and sampled level-set extraction remain separate
 constructions; this is not a general curve/surface intersection engine.
 
-The region layer is implemented and tested. Assemblies select separate
-components for fill instances and a roof for draping. Automatic solid union and
-overlap resolution in a plan remain deferred; an assembly is not a boolean union.
+The region layer is implemented and tested. A `boolean` geometry
+([boolean-solid.mjs](../geom/boolean-solid.mjs)) is this construction as a
+recipe form: its section query combines every operand's section at the layer.
+Assemblies select separate components for fill instances and a roof for
+draping; an assembly is not a boolean union.
 
 ## Material regions and shared interfaces
 

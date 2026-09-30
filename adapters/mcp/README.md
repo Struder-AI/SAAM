@@ -46,8 +46,9 @@ saved IDs; there is no single global plan that overwrites another job.
 
 | Tool | Role |
 |---|---|
-| `list_machines`, `list_skills`, `read_skill` | Read this checkout's known profiles and manuals. Skill entries distinguish toolpath skills from geometry skills such as mesh tools. These small fixed lists are not an automatic discovery or installation system. |
-| `read_guidance` | Read a published Markdown path, optionally ending in `#heading`, or a short ID: `makers`, `development`, `glossary`, `mcp`, `print-tools`. The response resolves documentation links into IDs for further reading. |
+| `maker_onboarding` | Listed first. The maker's starting context for a client without command access: MAKERS, GEOMETRY, the skill digest and shared print tools, plus how a relayed session reaches the computer. A relayed session also offers the [SAAM panel](RELAY-PLAN.md#saam-panel) with its result. Until a relayed session calls it (or reads `makers`), every result carries a second text item asking it to. |
+| `list_machines`, `list_skills`, `read_skill` | Read this checkout's known profiles and manuals. Each skill entry is a toolpath, geometry (such as mesh tools) or hybrid skill. These small fixed lists are not an automatic discovery or installation system. |
+| `read_guidance` | Read a published Markdown path, optionally ending in `#heading`, or a short ID: `makers`, `geometry`, `development`, `glossary`, `mcp`, `print-tools`. The response resolves documentation links into IDs for further reading. |
 | `get_plan_template` | Read a complete proposed shell recipe, reusing remembered setup. |
 | `create_print` | Initialize a new unapproved bundle, optionally from a complete recipe. |
 | `import_stl_print` | Read an absolute local `.stl` source path with optional `auto` (default), `mm` or `inch` units; preserve its bytes/hash and use the shared CLI importer and remembered setup. Sources are limited to 64 MiB. |
@@ -63,6 +64,9 @@ saved IDs; there is no single global plan that overwrites another job.
 | `set_tour_start_at` | Set explicit `{startAt:{layer:12}}` for the playback lesson; choose a layer with sparse infill. |
 | `change_machine` | Change printer with current `expectedRevision`, using remembered/default setup and shared compatibility checks. Final review is invalidated. |
 | `adjust_print` | Apply a recipe patch with the latest `expectedRevision` from state. |
+| `blob_field` | Create or rebuild a [blob field](../../GEOMETRY.md#blob-field) part from its points. |
+| `combine_geometry`, `intersect_geometry` | Combine a print or part with another solid as a [boolean](../../GEOMETRY.md#booleans); section it or find its top at given points ([checking](../../GEOMETRY.md#checking-geometry)). `intersect_geometry` also takes a geometry without a print. |
+| `gridfinity` | gridfinity |
 | `apply_text` | Add, edit or remove text geometry using the [text skill](../../skills/text/SKILL.md), a local font and current `expectedRevision`. Reuses the shared preparation and review lifecycle. |
 | `heat_set_catalog` | Read packaged heat-set insert IDs and dimensions before choosing a profile. |
 | `apply_heat_set` | Add, edit or remove insert holes with six loops and connecting fins using the [heat-set insert skill](../../skills/heat-set-inserts/SKILL.md) and current `expectedRevision`. Reuses the shared preparation and review lifecycle. |
@@ -98,8 +102,8 @@ the MCP adapter does not expose a tour-start tool.
 
 For ordinary new-part work with command access and missing maker context, run
 `node scripts/agent-toolkit.mjs maker-onboarding` once. It supplies MAKERS, the
-complete skill digest and shared print tools. In an MCP-only client, read those
-missing sources through `read_guidance`. Reuse supplied/current context in either
+complete skill digest and shared print tools. In an MCP-only client, call
+`maker_onboarding` once instead. Reuse supplied/current context in either
 case, choose and read the relevant skill manuals individually, create the first
 reasonable geometry, and call
 `request_review`. Studio opens in the default browser where available; the

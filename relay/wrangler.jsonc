@@ -1,0 +1,38 @@
+{
+  // One Worker and one shared Durable Object relay chat MCP sessions to paired
+  // local SAAM runtimes. See README.md and adapters/mcp/RELAY-PLAN.md.
+  "name": "saam-relay",
+  "main": "src/worker.mjs",
+  "compatibility_date": "2026-09-01",
+  // Needed for OAuth Client ID Metadata Document fetches (SSRF protection).
+  "compatibility_flags": ["global_fetch_strictly_public"],
+  // Workers Logs: request outcomes, exceptions and the relay's own warnings,
+  // viewable in the dashboard or live with `npx wrangler tail`.
+  "observability": { "enabled": true },
+  "vars": {
+    // The public origin chat clients reach; the MCP resource is PUBLIC_URL/mcp.
+    // Local development overrides it: wrangler dev --var PUBLIC_URL:http://localhost:8787
+    "PUBLIC_URL": "https://saam-relay.remettub.workers.dev",
+    // Computers that may pair at all: a backstop behind invites (README.md#pairing).
+    "MAX_PAIRED_DEVICES": "150",
+    // Where chat apps may send a sign-in: space-separated origins, plus
+    // "loopback" for an app on the person's own computer. Adding an origin and
+    // redeploying leaves existing connections as they are.
+    "CHAT_REDIRECTS": "https://claude.ai https://claude.com https://chatgpt.com",
+    // The release Studio offers as an update, as JSON:
+    // {"version":"0.1.1","assets":{"win-x64":{"url":"https://…/SAAM-0.1.1-win-x64.zip","sha256":"…"}}}
+    // Empty offers none. packaging/build.mjs prints each asset's entry.
+    "LATEST_RELEASE": "{\"version\":\"0.1.9\",\"assets\":{\"win-x64\":{\"url\":\"https://github.com/Struder-AI/SAAM/releases/download/v0.1.9/SAAM-0.1.9-win-x64.zip\",\"sha256\":\"8cd8097e19591d50b9704fbea409574abd862620f030fe85863f6c9ff1272f71\"},\"darwin-arm64\":{\"url\":\"https://github.com/Struder-AI/SAAM/releases/download/v0.1.9/SAAM-0.1.9-darwin-arm64.zip\",\"sha256\":\"c70d11c6fb00e6506cadafe260ab3d7410bb3d2f2f5157305f35bf7fe18512ad\"},\"darwin-x64\":{\"url\":\"https://github.com/Struder-AI/SAAM/releases/download/v0.1.9/SAAM-0.1.9-darwin-x64.zip\",\"sha256\":\"82c7f90b337f7a8a239ffbe0ca3005efcd2d5d780aa4c4de7914bb9e6fe05268\"}}}",
+    // Days the alpha records (D-039) are kept; "0" records nothing. Reading them,
+    // and issuing invites, needs the OPERATOR_TOKEN secret (README.md#operating).
+    "RECORD_DAYS": "30"
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "RELAY", "class_name": "RelayObject" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RelayObject"] }],
+  "kv_namespaces": [
+    // Created with `wrangler kv namespace create OAUTH_KV`; another account creates its own.
+    { "binding": "OAUTH_KV", "id": "324f3d91a05d4afa9ad4b39da4774920" }
+  ]
+}

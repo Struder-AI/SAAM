@@ -115,10 +115,9 @@ export function compactPage(page, {code = false} = {}) {
   // was cut from on the parent page. The ports themselves are presented, each carrying its
   // `edgeId` and `parentEndpoint`, and this page is the other end, so the list adds nothing.
   delete packet.boundary;
-  // File/root children repeat the component/region inventory. Region children
-  // remain: they are the file route alongside authored conceptual groups.
-  if (page.kind === 'file' || page.kind === 'root') {
-    const inventory = page.kind === 'file' ? 'components' : 'regions';
+  // Top map children repeat the component inventory.
+  if (page.kind === 'root') {
+    const inventory = 'components';
     const children = new Map((page.children ?? []).map(child => [child.index, child]));
     packet[inventory] = (page[inventory] ?? []).map(item => ({...children.get(item.index), ...item}));
     packet.children = (page.children ?? []).filter(child => !packet[inventory].some(item => item.index === child.index));

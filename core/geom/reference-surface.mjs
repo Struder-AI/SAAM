@@ -9,14 +9,27 @@ export function referencePatch(spec){
   const nu=controlPoints.length,nv=controlPoints[0]?.length;
   for(const [d,n] of [[degreeU,nu],[degreeV,nv]])requireThat(Number.isInteger(d)&&d>=1&&d<=5&&n>d,'Reference spline degree must be 1–5 and less than its control count.');
   requireThat(controlPoints.every(row=>Array.isArray(row)&&row.length===nv&&row.every(p=>Array.isArray(p)&&[3,4].includes(p.length)&&p.every(Number.isFinite)&&(p.length===3||p[3]>0))),'Reference points must be XYZ or XYZ plus positive weight.');
-  const knots=(n,d,supplied)=>{
-    const k=supplied??Array.from({length:n+d+1},(_,i)=>i<=d?0:i>=n?1:(i-d)/(n-d));
-    requireThat(Array.isArray(k)&&k.length===n+d+1&&k.every((v,i)=>Number.isFinite(v)&&(i===0||v>=k[i-1]))&&k[d]<k[n],'Invalid full reference knot vector.');
-    return Float64Array.from(k);
-  };
-  const knotsU=knots(nu,degreeU,spec.knotsU),knotsV=knots(nv,degreeV,spec.knotsV);
+  const knotsU=fullKnots(nu,degreeU,spec.knotsU),knotsV=fullKnots(nv,degreeV,spec.knotsV);
   const cp=Float64Array.from(controlPoints.flatMap(row=>row.flatMap(p=>{const w=p[3]??1;return [p[0]*w,p[1]*w,p[2]*w,w];})));
   return {name:'text-reference',nu,nv,orderU:degreeU+1,orderV:degreeV+1,knotsU,knotsV,cp,domainU:[knotsU[degreeU],knotsU[nu]],domainV:[knotsV[degreeV],knotsV[nv]]};
+}
+
+// A full knot vector, clamped uniform when none is supplied.
+function fullKnots(n,d,supplied){
+  const k=supplied??Array.from({length:n+d+1},(_,i)=>i<=d?0:i>=n?1:(i-d)/(n-d));
+  requireThat(Array.isArray(k)&&k.length===n+d+1&&k.every((v,i)=>Number.isFinite(v)&&(i===0||v>=k[i-1]))&&k[d]<k[n],'Invalid full reference knot vector.');
+  return Float64Array.from(k);
+}
+
+// A spline curve spec: points are [x, y] (planar, or (u,v) on a surface),
+// [x, y, z] or [x, y, z, w]. A periodic curve supplies its unclamped knots and
+// repeats its first `degree` controls at the end.
+export function referenceCurve({degree,controlPoints,knots}){
+  requireThat(Array.isArray(controlPoints)&&Number.isInteger(degree)&&degree>=1&&degree<=5&&controlPoints.length>degree,'Curve degree must be 1–5 and less than its control count.');
+  requireThat(controlPoints.every(p=>Array.isArray(p)&&[2,3,4].includes(p.length)&&p.every(Number.isFinite)&&(p.length<4||p[3]>0)),'Curve points must be XY, XYZ or XYZ plus positive weight.');
+  const n=controlPoints.length,k=fullKnots(n,degree,knots);
+  const cp=Float64Array.from(controlPoints.flatMap(p=>{const w=p[3]??1;return [p[0]*w,p[1]*w,(p[2]??0)*w,w];}));
+  return {n,order:degree+1,knots:k,cp,domain:[k[degree],k[n]]};
 }
 
 export function referenceSurface(spec,part){

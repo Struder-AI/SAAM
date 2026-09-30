@@ -1,8 +1,7 @@
 # Assigned-support implementation
 
 Explicit assignments and their integration with the shared layer grid and composer.
-The [manual](SKILL.md) owns use and limits. The distinct
-[rimming design](../rimming-planar/BUILDER.md) owns edge-based support surfaces.
+The [manual](SKILL.md) owns use and limits.
 
 ## Assigned support design
 

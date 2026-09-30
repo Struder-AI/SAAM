@@ -77,25 +77,40 @@ function newton(patch, x, y, u0, v0) {
   return null;
 }
 
+// A pole (a revolved cap's centre) has no normal of its own; a smooth cap's
+// normal there is the limit from inside the patch.
+function limitNormal(patch, u, v) {
+  const inward = (t, [lo, hi]) => t + (t < (lo + hi) / 2 ? 1 : -1) * 1e-6 * (hi - lo);
+  return evaluate(patch, inward(u, patch.domainU), inward(v, patch.domainV)).normal;
+}
+
 // Height of the part's top surface above (x, y), with the surface normal and
 // the local slope from horizontal. Returns null outside the footprint.
 export function topAt(shell, x, y) {
   let best = null;
+  for (const crossing of crossingsAt(shell, x, y))
+    if (!best || crossing.zMm > best.zMm + TOLERANCE.point) best = crossing;
+  return best;
+}
+
+// Every point where the vertical line through (x, y) crosses the shell, in
+// patch order, with its upward normal. A vertical wall touched along the line
+// is not a crossing.
+export function crossingsAt(shell, x, y) {
+  const crossings = [];
   for (const patch of shell.patches)
     for (const hit of projectToPatch(patch, x, y)) {
-      if (best && hit.point[2] <= best.zMm + TOLERANCE.point) continue;
-      // Only an upward-facing surface is a top surface; a vertical wall or a
-      // downward face at the same column is not what the skin follows.
-      if (!hit.normal || Math.abs(hit.normal[2]) < 1e-9) continue;
-      const upward = hit.normal[2] > 0 ? hit.normal : hit.normal.map(component => -component);
-      best = {
+      const normal = hit.normal ?? limitNormal(patch, hit.u, hit.v);
+      if (!normal || Math.abs(normal[2]) < 1e-9) continue;
+      const upward = normal[2] > 0 ? normal : normal.map(component => -component);
+      crossings.push({
         zMm: hit.point[2],
         normal: upward,
         slopeDeg: Math.acos(Math.min(1, Math.abs(upward[2]))) * 180 / Math.PI,
         patch: patch.name,
         u: hit.u,
         v: hit.v
-      };
+      });
     }
-  return best;
+  return crossings;
 }

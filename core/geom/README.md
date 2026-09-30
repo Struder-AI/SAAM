@@ -140,6 +140,10 @@ Mesh conversion is not required before SAAMpath generation.
 | Representation | Role |
 |---|---|
 | Spline shell / triangle mesh | Part geometry behind common queries. |
+| [Blob field](blob-field.mjs) | Points with reach and strength whose cubic B-spline falloffs sum; explicitly extracted to the shared manufacturing mesh backend for slicing and Studio. |
+| [Surface intersection](surface-intersection.mjs) | Curves where two NURBS patches meet, with both patches' parameters: boundary points first (each patch's edges against the other surface), then marching between them; interior loops seeded by Bezier subdivision; edges lying in the other surface are curves themselves. |
+| [Surface region](slice-region.mjs) | The part of a spline surface inside a solid (spline shell or triangle mesh) as loops in the surface's (u,v): intersection curves chained, oriented by the partner's outward normal and closed along the domain boundary. The basis of curved slices and trimmed patches. |
+| [Boolean solid](boolean-solid.mjs) | Operands of any backend behind the common queries: sections combined per layer with Clipper2, tops from operand crossings. [boolean-display.mjs](boolean-display.mjs) meshes it with Manifold for Studio and solid modifiers only. |
 | Closed regions with holes | Planar sections, offsets, solid masks and infill clipping. |
 | Surface height and normal | Accessible roof sampling for drape; faceted normals stay faceted. |
 | Skill operation result | Composable strokes, dependencies, layer references and travel policies. |
@@ -213,13 +217,17 @@ optional approximate contour preparation.
 
 ### Loose and tight spline offsets
 
+A loose offset moves control points only: control count, degrees, knots,
+domains and weights (including periodic duplicates) are kept, and no control is
+added or refitted. Input controls remain unchanged.
+
 `prepareSurfaceOffsets` in `surface-offset.mjs` accepts a NURBS patch,
 `mode: 'normal' | 'horizontal' | 'projected-normal'`, and explicit periodic U/V
 flags. It builds a direction control net from unit reference normals at the
 Greville parameters. Nonperiodic outer Greville values are clamped to the active
 domain. Horizontal mode uses the clockwise XY perpendicular to the U tangent;
 normal mode uses the full surface normal. Projected-normal mode normalizes the
-XY projection of the full normal, retaining planar rimming's direction on
+XY projection of the full normal, a horizontal direction that stays defined on
 charts whose U tangent rises in Z.
 
 `at(u, v, depth, tightness = 0)` evaluates the offset continuum. Zero uses the
@@ -228,11 +236,8 @@ the unit reference normal at the query. Intermediate values blend these position
 Reference parameters are retained across depths without reparameterization.
 This setting is independent of subsequent mesh-contact fidelity.
 
-`offsetPatch(depth)` returns the loose NURBS patch, preserving control counts,
-degrees, knots, domains and weights, including periodic duplicates. Tightness
-above zero uses a functional evaluator; it is not claimed to be an exact
-same-size NURBS offset. No control points are added or refitted. Adaptive path
-samples are separate from the control net. Input controls remain unchanged.
+`offsetPatch(depth)` returns the loose NURBS patch. Tightness above zero is a
+functional evaluator, not a same-size NURBS offset.
 
 [Local curvature limiting](./offset-curvature.mjs) retains one smooth patch rather
 than trimming away loops or splitting its topology. At knot quarter-span samples,
@@ -246,7 +251,7 @@ floor; since each incomplete pass shrinks at least one depth, the only explicit
 failure is a pass that no longer changes any depth at all. Safe offsets retain
 their original control displacements.
 
-Preparation is reused per reference; at most 128 limited depth patches are cached.
+Preparation is reused per reference; at most 128 limited depth results are cached.
 Reports expose sample count, area floor, limited-patch construction count, maximum
 control-depth reduction, unscaled direction lengths and queried tightness. Loose
 depth is approximate, and limiting can reduce it further. This sampled local
@@ -255,7 +260,32 @@ clearance. Exact normal offsets and blends toward them can still fold. The
 depth-independent `frameAt` exposes the original field; consumers requiring the
 limited geometry use `at` or `offsetPatch`.
 
-`prepareLooseSleeveOffsets` in `sleeve-frame.mjs` specializes this API for
+[Curve offsets](./curve-offset.mjs) resolve collisions as a region offset does
+([D-041](../../DECISIONS.md#d-041--offsets-resolve-collisions-ribbons-displace-without-a-surface)).
+`prepareCurveOffsets({curves: [{curve, closed}], patch})` takes curve records
+from `referenceCurve` lying in one XY plane, or in a patch's (u,v) with depth in
+millimetres to first order; `offset(depth)` returns chains of pieces. Each curve
+moves loosely: control directions are collocated at Greville parameters, so
+lines and circular arcs move exactly, and at a kink the vertex moves to where
+the adjoining pieces meet. The moved curves are cut where they cross
+([curve-ops.mjs](./curve-ops.mjs)), and a piece is kept when it runs with its
+source and the winding is at least one on its left and at most zero on its
+right. Closed curves follow the region convention: material left of travel,
+positive depth grows it. An open curve's offset is one-sided and keeps only what
+is at least the depth from every source curve. A patch is treated as
+nonperiodic, and pieces past its edges are trimmed off; control counts change
+only where pieces are cut. Loose accuracy depends on the control net: a turn
+spanning few controls lands short (a 4-control U offset 2 mm outward is 0.84 mm
+from its bottom).
+
+[Ribbons](./curve-ribbon.mjs) displace a 3D curve horizontally with Z kept:
+`prepareCurveRibbon({curve, closed}).ribbon(depth)`. Where the displaced curve
+runs backwards in plan view, the fold is cut at the plan-view crossing that
+closes it within half a turn of the source, leaving a small Z step; when nothing
+closes it, only the backwards part is cut. Crossings between distant parts stay.
+Reversals are found from 32 samples per knot span.
+
+`prepareLooseSleeveOffsets` in `sleeve-frame.mjs` specializes the surface offset for
 periodic U and a V chart linear in actual Z. Its `at(u, zMm, depth, tightness)`
 preserves authored Z. Vase mapping adds the signed nominal half-bead offset
 to tile depth, evaluates the field, then applies unilateral mesh contact.
@@ -525,8 +555,11 @@ or physical printability.
 The spline backend uses Rhino and native 3DM files. Imported meshes use
 [native indexed geometry](#geometry-interoperability-for-skill-authors), with
 the user-confirmed shared interface preserving direct spline slicing.
-General edited-3DM import, spline-surface intersections and full Rhino
-computation remain deferred. rhino3dm is a geometry/file library, not the
+Spline solids intersect planes exactly ([sectioning](#sectioning-untrimmed-spline-shells))
+and vertical lines ([field.mjs](field.mjs)); booleans of them are combined one
+layer at a time ([boolean-solid.mjs](boolean-solid.mjs)). General edited-3DM
+import, surface-surface intersection curves and full Rhino computation remain
+deferred. rhino3dm is a geometry/file library, not the
 complete Rhino computation engine.
 
 ## Explicit mesh repair

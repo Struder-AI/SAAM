@@ -14,6 +14,9 @@ relative to `Prints/` (`Prints/my-part` is `"my-part"`).
 |---|---|---|
 | Create from a recipe | `init Prints/my-part plan.json --machine ultimaker-s5` | `get_plan_template`, `create_print` |
 | Import an STL | `import-stl Prints/my-part source.stl auto ultimaker-s5` | `import_stl_print` |
+| Create or rebuild a blob field | `blob-field-create Prints/my-part request.json ultimaker-s5`, `blob-field-update … --revision REV` | `blob_field` |
+| Combine with another solid ([booleans](../../GEOMETRY.md#booleans)) | `combine Prints/my-part request.json --revision REV` | `combine_geometry` |
+| Section a part or find its top ([checking](../../GEOMETRY.md#checking-geometry)) | `intersect Prints/my-part request.json` | `intersect_geometry` |
 | Open in Studio | `node studio/server.mjs --toolkit open-print Prints/my-part` | `list_prints`, `get_print`, `request_review` |
 | Adjust the recipe | `adjust Prints/my-part patch.json --revision REV` | `adjust_print` |
 | Change printer | `change-machine Prints/my-part MACHINE --revision REV` | `change_machine` |
@@ -39,6 +42,8 @@ or MCP `get_plan_template`. The template enables full-fill **and draped-skin**;
 disable what the part doesn't need. STL imports and Gridfinity start with
 draped-skin off.
 
+The recipe's `geometry` is authored as described in [GEOMETRY.md](../../GEOMETRY.md).
+
 A patch is a JSON object in the recipe's field names: nested objects merge,
 arrays replace, unknown fields are rejected. The editable recipe is the
 top-level of `plan.json`; don't copy its `bundle` envelope into a patch. After
@@ -62,8 +67,8 @@ the reported failure.
 
 For an open pattern, set `skills.<skill>.spacingFactor` (default `1`): `3`
 spaces lines three times wider without widening the bead or its extrusion per
-length. It applies to full-fill, planar-infill, draped-skin, supports, both
-rimming skills and pipe-cladding, including regional overrides where supported,
+length. It applies to full-fill, planar-infill, draped-skin, supports and
+pipe-cladding, including regional overrides where supported,
 but not to single-wall vase spirals. See the
 [spacing contract](../path/README.md#line-spacing).
 

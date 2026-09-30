@@ -23,75 +23,83 @@ rules under [Code shape](#code-shape).
 ### Dev map glossary
 
 These terms are still settling and this list owns them. The map guide, the
-tools and the read fields still use some older names. Regions and entry
-points describe the current generator and are under review.
+tools and the read fields still use some older names. Nothing in the maps
+comes from files or directories.
 
 - **Dev maps**: the whole system: every map, the viewer and the tools that
   read and regenerate them. A **map** is one graph in it.
-- **Node**: anything with an index: a function, method, event handler or
-  class, a cluster, or a region. It has exactly one **parent map**, which
-  numbers it and draws it as a box; it is a **child node** there, and its own
-  map, if it opens as one, is a **child map**. A node's map draws what it
-  calls, in call order, and the data between.
-- **Cluster**: an authored node that groups boxes on a map under a label. Its
-  map draws its members and the links between them.
-- **Region**: one mapped directory, such as `core/geom` or `studio`. Regions
-  are the top map's child nodes, and a region's map draws its entry points.
-- **Top map**: `0`, the root of the nesting and no node's box.
-- **Nesting**: the tree of maps. A node is nested in its parent map: `2.1.3`
-  in `2.1`. Clusters are the authored part of the nesting; everything else is
-  nested by calls, as [the tree](#the-tree) says.
-- **View**: how a node opens: its map, or its **code block**, the source with
-  the same callers, links and findings beside it. A node opens as a map only
-  when that map would draw at least two nodes it calls with a link between
-  them (the **map-or-code rule**). A **leaf** is a node whose view is a code
-  block.
-- **Box**: one drawing of a node on a map. A node can have many boxes, on
-  several maps or on one, since each call site is its own box. A box on any
-  map other than the node's parent map is a **repeat**.
-- **Entry point**: a node that nothing else in its region calls by name. A
-  region's map draws only its entry points, some grouped into clusters; every
-  other node of the region is reached through them and nested deeper.
-- **Inner** and **outer**: a function written inside another's body is inner
-  to that outer one. It is nested in the outer node's map, whatever else calls
-  it.
+- **Node**: anything with an index: a leaf or a cluster. It has exactly one
+  **parent map**, its **home**, which numbers it and draws it as a box; it is
+  a **child node** there.
+- **Leaf**: one scoped declaration (a function, method, event handler or
+  class) with every declaration written inside it that only it reaches, which
+  is **folded** into it. All scoped code is drawn by exactly one leaf. Leaves
+  are generated; a leaf's view is its **code block**, the source with its
+  callers, calls, links and findings beside it.
+- **Inner** and **outer**: a declaration written inside another's body is
+  inner to that outer one. It is folded into the outer's leaf unless code
+  outside the outer calls or links to it directly, or code outside the maps
+  calls it; then it is a leaf of its own.
+- **Cluster**: a node that groups boxes under a label. Its view is its map,
+  which draws its members and the links between them. The cluster solver
+  authors clusters; a label pass authors their labels, and a cluster without
+  one reads `[needs label]`.
+- **Top map**: `0`, the master cluster: the root of the nesting and no node's
+  box.
+- **Nesting**: the tree of maps, `0` and the clusters down to leaves, authored
+  by the solver in `dev-map/tree.json`. Each map numbers the nodes it homes
+  `N.1`, `N.2`, … in its left-to-right order: `2.1.3` is homed in `2.1`.
+- **Box**: one drawing of a node on a map. A box on any map other than the
+  node's home is a **repeat** (a guest there); it keeps the node's index and
+  names its home.
 - **Port**: reserved for the junction where a link meets a box, as in
   Grasshopper: an argument slot a data link enters, or the result it leaves
   from. A **stub** is a port no link reaches, showing its literal value or why
   the value could not be traced.
-- **Boundary box**: a box at a map's edge that stands for something outside
-  that map: a node on another map, outside code, or a way in such as an HTTP
-  route or module load.
-- **Link** (or wire): a **call link** from a node to each box it calls, in
-  call order, under its **gate**, the condition the call stands under; a
-  **data link** carrying a value between ports; a **state link**, state read
-  or written; or an **indirect link**, reached through a medium rather than a
-  call: a file, an HTTP route, a worker message, an event listener, or **keyed
-  dispatch**, a function looked up by key in a named table. On a region or
-  cluster map, one link stands for every call between two boxes, with a count.
-- **Operator**: a step on a map that is not a call: a choice, a loop, an
+- **Boundary box**: a box at a map's **edge** (its boundary and external
+  boxes) that stands for a node on another map that a link crosses to.
+- **External**: what outside the maps links to a leaf: an active outside
+  declaration, the browser (DOM events) or module load. `0` draws every
+  external; a cluster map draws those linked to what it nests. Externals a map
+  cannot tell apart (linked, in the same directions, to exactly the same boxes
+  there) share one box, so a parent map may group externals its child maps
+  draw apart.
+- **Link** (or wire): a relationship between two leaves, generated from the
+  scan: a **call link**; a **data link** carrying a value from one call's
+  result into another call; or an **indirect link**, reached through a medium
+  rather than a call: a file, an HTTP route, a worker message, an event
+  listener, or **keyed dispatch**, a function looked up by key in a named
+  table. A map draws one link between the two boxes holding its ends, with a
+  count. Beside a leaf's code block are its calls in call order, each under
+  its **gate**, the condition the call stands under, and its **state links**,
+  state read or written.
+- **Operator**: a step in a leaf that is not a call: a choice, a loop, an
   update, a collection or a member call. **State**: bindings and fields that
   an outer function or class owns and its inner ones or members read or write.
-  A **carried value** is a variable a loop updates on every pass, drawn on the
-  loop operator: `initial` and `next` in, `current` and `final` out. Operators
-  and state are drawn but are not nodes and have no index.
+  A **carried value** is a variable a loop updates on every pass: `initial`
+  and `next` in, `current` and `final` out. They are read beside a leaf's code
+  block and are not nodes.
 - **Finding**: the scanner's record of something it could not represent in
-  full, in one of two classes. An **uncertain** finding is about something
-  drawn, with the unknown part marked on the drawing. A **missing** finding is
-  something the code does that no map draws; the finding is its only record.
+  full, in one of two classes. An **uncertain** finding is about a precise
+  aspect of a leaf or link that is drawn. A **missing** finding is something
+  the code does that no leaf or link stands for; maps show only these.
 - **Annotation**: a sourced, dated statement about a node that the code cannot
   make: a `measurement`, `vendor` behaviour or a recorded `decision`, kept in
   `dev-map/facts.tsv`.
 - **Outside**: code that is scanned but not mapped ([scope](#scope)). An
   outside caller is **active** when it runs while a person makes a part or
-  operates Studio. A call to outside code is drawn as a headless arrow naming
-  its target; a call to nothing scanned is **platform**.
-- **Stranded**: a node that no entry point of its region reaches. It keeps its
-  box on the region map.
-- **Node path**: the durable name of a node, `file.mjs::name`, as against its
-  index, which changes on regeneration.
-- **Authored inputs**: clusters, annotations and scope. Everything else is
-  generated.
+  operates Studio. Active outside code is drawn as externals; a call to
+  nothing scanned is **platform**.
+- **Node path**: the durable name of a node, as against its index, which
+  changes whenever the tree does: `file.mjs::name` for a leaf (a folded
+  declaration's path reads its leaf), `@cluster/ID` for a cluster.
+- **Score** and **energy**: a map's score is the sum of its penalties for
+  size, edge, hubs (a box with far more wires than the map's mean), islands,
+  backflow and balance (`dev-map/lib/score.mjs`), each squared; the
+  energy, the solver's goal, sums the scores of `0` and every cluster, each
+  weighted by 1 + log₂ of its nested leaves, per leaf.
+- **Authored inputs**: the tree (clusters by the solver, labels by a label
+  pass), annotations and scope. Everything else is generated.
 
 ### Scope
 
@@ -105,45 +113,36 @@ points describe the current generator and are under review.
   scripts, the MCP adapter, the agent toolkit and its CLI entry, and the
   exporters. They are listed on the nodes they call; everything else outside
   (skill tests and demos, benchmarks, audits) is counted, never drawn.
-- The scope edge is drawn both ways: outside callers as boundary boxes and caller rows,
-  and every call that leaves the maps as a headless arrow naming its target,
-  at every level.
+- The scope edge is drawn both ways, as externals: outside code calling in
+  and every call that leaves the maps, at every level.
 
 All of this is authored in one place, `dev-map/lib/scope.mjs`.
 
 ### The tree
 
-- The walk is `0`, a region, maps down to a leaf, then its code block, the
-  edit, `regenerate`, and the read again. Where the code lives does not enter
-  into it below the regions: the nesting is functional, never a file tree.
-- A region map draws its entry points, optionally clustered; a link between
-  them says the code under one reaches the code under the other. Every other
-  node in the region is nested in the first map of that region that reaches
-  it, so a deep call chain is a deep index. An inner function is nested in its
-  outer one's map; a class is its construction and its
-  members.
-- A leaf is drawn as a box on its parent map with its links there, and its
-  **chain**, what it calls while each of those is a leaf in turn, is drawn
-  there too, linked from its box. Nothing is nested in a leaf. No map draws a
-  single box, and no box floats: a call is linked to the function that makes
-  it even when its arguments could not be traced.
-- From every map it is clear which child to open next. A repeat is drawn only
-  where it gives context in that view; nothing is read twice otherwise. There
-  is no cap on map size or depth; a good map decides.
+- The walk is `0`, cluster maps down to a leaf, then its code block, the edit,
+  `regenerate`, and the read again. Where the code lives does not enter into
+  it: the nesting is functional, never a file tree.
+- Leaves and links are generated; the cluster solver arranges the leaves into
+  clusters, repeats included, to lower the energy. Placement is total: every
+  leaf is in the tree whatever `tree.json` says or leaves out, and nothing
+  fails for a leaf that is new or gone.
+- The solver runs only when the owner asks for it. `regenerate` places a new
+  leaf beside its links in the existing tree and never re-solves; an agent
+  that thinks the clustering needs a solve asks the owner, never runs one.
+- No map draws a single box, and a cluster homes at least one node. A repeat
+  is drawn where it keeps a link on the map. There is no cap on map size or
+  depth; the score judges them.
 
 ### Findings
 
-Findings are never hidden. An uncertain finding is marked where it is drawn: a
-stub with its reason, an operator whose test or input is unknown, a result
-no link carries, a callback whose timing is unknown. A missing finding is a call
-with no resolved target, a write to an object, a value chosen between
-branches, an early exit or caught exception, a collection's contents after it
-escapes: the absence of a link is no evidence of absence.
-[The map guide](dev-map/README.md#findings) assigns every kind to its class.
-
-A finding about a node is shown on every map that draws that node, once per
-node however many boxes draw it: the box carries a count and the rows sit in
-the map's finding list, sectioned by node; a cluster box carries one count.
+Findings are never dropped: every one is in its leaf's read. A map shows a
+**missing** finding, something no leaf or link there stands for: code outside
+every leaf, or a relationship between leaves no link draws, such as an
+unresolved call or a write to shared state. The absence of a link is no
+evidence of absence. An **uncertain** finding, about a precise aspect of what
+a map already draws such as a branch or an argument's producer, stays in the
+leaf's read. [The map guide](dev-map/README.md#findings) assigns every kind.
 Most are analysis limits and generator work; a few are the code's shape,
 handled below. Do not turn a finding into an invented link, and do not infer
 that no caller exists from an unscanned or dynamic boundary.
@@ -185,7 +184,7 @@ old one, with no compatibility wrapper or parallel path.
 node scripts/agent-toolkit.mjs read-map 0
 node scripts/agent-toolkit.mjs read-map core/path/compose.mjs::planComposition
 node scripts/agent-toolkit.mjs read-map 6.3.1 --code
-node scripts/agent-toolkit.mjs regenerate 6
+node scripts/agent-toolkit.mjs regenerate
 node dev-map/cli.mjs check
 ```
 
@@ -194,9 +193,8 @@ whose inputs have moved says `stale` and names the index to regenerate. Use the
 index when talking about the current map and the node path
 (`file.mjs::name`) when something must keep pointing at it. **Text search for
 orientation is discouraged**: it finds names; the walk shows who calls and
-consumes what you are about to change. The authored inputs are clusters in
-`dev-map/flows/*.json` (node paths only), annotations in
-`dev-map/facts.tsv`, and the scope. The
+consumes what you are about to change. The authored inputs are the tree in
+`dev-map/tree.json`, annotations in `dev-map/facts.tsv`, and the scope. The
 [map guide](dev-map/README.md) owns the commands, read fields and authoring
 mechanics; [BR-052](build_request.md#br-052--complete-the-dev-map-against-the-2026-09-21-intent)
 holds what remains.

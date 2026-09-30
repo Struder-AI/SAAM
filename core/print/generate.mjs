@@ -7,7 +7,7 @@
 // it. With no skin selected the body simply fills the whole solid.
 
 import { makeShell, assertClosed } from '../geom/shell.mjs';
-import { boxShell, wedgeShell, splineTopShell, splineSideShell, verticalSplineSideShell, shellFromSurfaces } from '../geom/shapes.mjs';
+import {shellFromSurfaces,splineSolidShell} from '../geom/spline-solid.mjs';
 import {planToolpath} from '../path/toolpath.mjs';
 import {filamentSelection} from '../machine/filaments.mjs';
 import {planarPolicy} from '../path/builder.mjs';
@@ -22,21 +22,18 @@ import {planarInfillResults} from '../../skills/planar-infill/scripts/infill.mjs
 import {vaseWallResult} from '../../skills/vase-wall/scripts/vase.mjs';
 import {generateRegionResults,planarSupportTopAt} from './regions.mjs';
 import {supportResults} from '../../skills/supports/scripts/supports.mjs';
-import {rimmingPlanarResults} from '../../skills/rimming-planar/scripts/rimming.mjs';
-import {rimmingNormalResults} from '../../skills/rimming-normal/scripts/rimming.mjs';
-import {pipeMesh} from '../geom/cylinder.mjs';
-import {pipeCladdingResult,substrateSection,substrateLoops} from '../../skills/pipe-cladding/scripts/clad.mjs';
-import {infillStrokes} from '../../skills/planar-infill/scripts/patterns.mjs';
-import {splineTubeShell} from '../geom/spline-tube.mjs';
+import {surfaceCladdingResult} from '../../skills/pipe-cladding/scripts/surface-clad.mjs';
 import {publishFinishedBoundary,consumeFinishedSurface} from '../path/finished-surface.mjs';
 import {waveResults} from '../../skills/wave-overhangs/scripts/wave.mjs';
 import {preparePlasticWeld,plasticWeldResult} from '../../skills/plastic-weld/scripts/weld.mjs';
 import {heatSetFeatures,validateHeatSetAssignments} from '../../skills/heat-set-inserts/scripts/feature.mjs';
 import {heatSetDetails} from '../../skills/heat-set-inserts/scripts/reinforcement.mjs';
 import {geometrySelections} from '../geom/selections.mjs';
+import {booleanShell} from '../geom/boolean-solid.mjs';
 import {lineNetworkResult} from '../../skills/line-network/scripts/network.mjs';
 
-export const hasMesh=geometry=>['mesh','pipe','text','gridfinity','heat-set'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
+// Booleans are stored as their recipe in the native JSON file, like meshes.
+export const hasMesh=geometry=>['mesh','blob-field','text','gridfinity','heat-set','boolean'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
 
 function primeLineResult(plan,machine){
   const p=plan.process.primeLine;if(p===null)return null;
@@ -60,9 +57,9 @@ function primeLineResult(plan,machine){
 }
 
 export function buildShell(rhino, geometry) {
-  if(geometry.shape==='spline-tube')return splineTubeShell(rhino,geometry);
-  if(geometry.shape==='pipe')return pipeMesh(geometry);
-  if(['mesh','text','gridfinity','heat-set'].includes(geometry.shape)){
+  if(geometry.shape==='spline')return splineSolidShell(rhino,geometry);
+  if(geometry.shape==='boolean')return booleanShell(geometry.operation,geometry.operands.map(operand=>buildShell(rhino,operand)));
+  if(['mesh','blob-field','text','gridfinity','heat-set'].includes(geometry.shape)){
     const mesh=makeMesh(geometry.vertices,geometry.triangles),features=heatSetFeatures(geometry);
     if(features.length)mesh.planarDetails=heatSetDetails(features);
     return mesh;
@@ -79,22 +76,7 @@ export function buildShell(rhino, geometry) {
     }));
     return assertClosed(shellFromSurfaces(rhino,entries,'assembly'));
   }
-  if (geometry.shape === 'box') return boxShell(rhino, { xMm: geometry.runMm, yMm: geometry.widthMm, zMm: geometry.heightMm ?? 10 });
-  if (geometry.shape === 'wedge') return wedgeShell(rhino, { runMm: geometry.runMm, widthMm: geometry.widthMm, baseMm: geometry.baseMm ?? 2, angleDeg: geometry.angleDeg ?? 15 });
-  if (geometry.shape === 'spline-shell') return splineSideShell(rhino, {
-    runMm: geometry.runMm, widthMm: geometry.widthMm, cpU: geometry.cpU, cpV: geometry.cpV,
-    longSideInsetMm: geometry.longSideInsetMm, shortSideOutsetMm: geometry.shortSideOutsetMm,
-    heights: (i, j) => geometry.heightsMm[i][j]
-  });
-  if (geometry.shape === 'vertical-spline-shell') return verticalSplineSideShell(rhino, {
-    runMm: geometry.runMm, widthMm: geometry.widthMm, cpU: geometry.cpU, cpV: geometry.cpV,
-    xBulgeMm: geometry.xBulgeMm, yInsetMm: geometry.yInsetMm,
-    heights: (i, j) => geometry.heightsMm[i][j]
-  });
-  return splineTopShell(rhino, {
-    runMm: geometry.runMm, widthMm: geometry.widthMm, cpU: geometry.cpU, cpV: geometry.cpV,
-    heights: (i, j) => geometry.heightsMm[i][j]
-  });
+  throw new Error(`Unsupported geometry shape: ${geometry.shape}.`);
 }
 
 // Placement moves the whole shell onto the bed by shifting control points; the
@@ -106,6 +88,7 @@ export function translateShell(shell, dx, dy, dz = 0) {
     if(shell.planarDetails)moved.planarDetails=shell.planarDetails.translated(dx,dy,dz);
     return moved;
   }
+  if(shell.kind==='boolean')return booleanShell(shell.operation,shell.operands.map(s=>translateShell(s,dx,dy,dz)));
   if(shell.kind==='assembly')return {...shell,components:shell.components.map(s=>translateShell(s,dx,dy,dz)),bounds:{min:shell.bounds.min.map((v,i)=>v+[dx,dy,dz][i]),max:shell.bounds.max.map((v,i)=>v+[dx,dy,dz][i])}};
   const patches = shell.patches.map(patch => {
     const cp = Float64Array.from(patch.cp);
@@ -163,8 +146,7 @@ export function generatePlanarComponent(plan,machine,{id,shell,componentShells},
     const publishedSparse=publishFinishedBoundary(sparse,{shell,coverage:normal.perimeters?'nominal':'sparse'});
     const publishedSolid=solid?publishFinishedBoundary(solid,{shell}):solid;
     return {results:publishedSolid?[publishedSparse,publishedSolid]:[publishedSparse],fill:publishedSolid,normal:publishedSparse,support:{shell},vaseShell};
-  } else if(useFill){const clad=plan.skills['pipe-cladding'].enabled&&!plan.skills['pipe-cladding'].surface;const result=fullFillResult({id,shell,plan,machine,reserve:useVase?null:survey,zEndMm:baseTop,onProgress,
-    ...(clad?{sectionAt:substrateSection(shell,plan),interiorStrokes:fill.perimeters===0?()=>substrateLoops(plan):region=>infillStrokes(region,{pattern:'concentric',widthMm:process.lineWidthMm,density:1,spacingFactor:fill.spacingFactor})}:{})});
+  } else if(useFill){const result=fullFillResult({id,shell,plan,machine,reserve:useVase?null:survey,zEndMm:baseTop,onProgress});
     const published=publishFinishedBoundary(result,{shell,endMm:baseTop??shell.bounds.max[2],coverage:fill.perimeters||fill.spacingFactor<=1?'nominal':'sparse'});
     return {results:[published],fill:published,normal:null,support:{shell},vaseShell};}
   return {results:[],fill:null,normal:null,support:null,vaseShell};
@@ -252,20 +234,14 @@ export function addComplementaryResults(plan,machine,{placed,componentShells,wel
   if(plan.skills['pipe-cladding'].enabled){
     const settings=plan.skills['pipe-cladding'],shell=batch.regionShells?.get(settings.part)??(componentShells?componentShells.get(settings.part):placed);
     const finishedSurface=settings.surface?consumeFinishedSurface({shell,selection:settings.surface,results}):null;
-    const result=pipeCladdingResult({plan,shell,finishedSurface,after:finishedSurface?[]:results.flatMap(r=>r.operations.map(op=>op.id))});
+    const result=surfaceCladdingResult({plan,shell,finishedSurface,after:finishedSurface?[]:results.flatMap(r=>r.operations.map(op=>op.id))});
     results.push(result);summary.pipeCladding=result.report;
   }
   const waves=waveResults({plan,machine,placed,componentShells,modelResults:results});
   const wavedResults=[...applyResultDependencies(results,waves.dependencyChanges),...waves.results];
   if(waves.results.length)summary.waveOverhangs=waves.results.map(r=>r.report);
-  const planarRims=rimmingPlanarResults({plan,modelResults:wavedResults});
-  const planarLinked=applyResultDependencies(wavedResults,planarRims.dependencyChanges);
-  const normalRims=rimmingNormalResults({plan,modelResults:planarLinked});
-  const rims=[...planarRims.results,...normalRims.results];
-  const rimmedResults=[...rims,...applyResultDependencies(planarLinked,normalRims.dependencyChanges)];
-  if(rims.length)summary.rimming=rims.map(r=>r.report);
-  const supports=supportResults({plan,machine,shells:componentShells?[...componentShells.values()]:[placed],modelResults:rimmedResults});
-  const supportedResults=[...supports.results,...applyResultDependencies(rimmedResults,supports.dependencyChanges)];
+  const supports=supportResults({plan,machine,shells:componentShells?[...componentShells.values()]:[placed],modelResults:wavedResults});
+  const supportedResults=[...supports.results,...applyResultDependencies(wavedResults,supports.dependencyChanges)];
   if(supports.results.length)summary.supports=supports.results.map(r=>r.report);
   const welds=plasticWeldResult({plan,sites:weldSites,modelResults:supportedResults});
   const weldedResults=applyResultDependencies(supportedResults,welds.dependencyChanges);

@@ -42,3 +42,6 @@ Thumbs.db
 
 # agent worktrees are separate checkouts, not source
 /.claude/worktrees/
+
+# wrangler dev state
+.wrangler/

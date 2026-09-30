@@ -4,7 +4,8 @@ Follow [builder orientation](../BUILDERS.md) and the owning component contracts
 when implementing a skill. A skill's manual owns its available operations, settings,
 limits and recovery. Extend a related package or create a focused one when an
 operation lacks a suitable manual. Geometry skills cover preparation and recovery;
-toolpath skills cover deposition.
+toolpath skills cover deposition; hybrid skills change the geometry and deposit
+their own toolpath there.
 
 Skill use and skill implementation are different reads. `read-skill ID --maker`
 reads the package's `SKILL.md` (operations, settings, limits and recovery);
@@ -27,7 +28,7 @@ Map ownership and the value required of comments/docstrings are defined by the
 implementation account into a second skill narrative. Reuse skill context already
 read; the existing `read-guidance PATH#HEADING` command supports section reads.
 
-Geometry skill manuals declare `metadata.saam-kind: geometry` in frontmatter. The explicit
+Geometry and hybrid skill manuals declare `metadata.saam-kind: geometry` or `hybrid` in frontmatter. The explicit
 [catalog](catalog.mjs) controls discovery and ordering; each manual owns its
 description and classification. The description is one line that helps an agent
 choose: one or two sentences on what the skill does, when to choose it and any

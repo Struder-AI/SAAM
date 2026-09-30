@@ -10,6 +10,7 @@ function connect(){
   const changed=open=>dispatchEvent(new CustomEvent('saam-viewer-connection',{detail:{open}}));
   viewer.addEventListener('error',()=>{connected=false;changed(false);});
   viewer.addEventListener('open',()=>{connected=true;changed(true);});
+  viewer.addEventListener('agent-activity',event=>dispatchEvent(new CustomEvent('saam-agent-activity',{detail:JSON.parse(event.data)})));
   viewer.addEventListener('agent-connection-closed',event=>dispatchEvent(new CustomEvent('saam-agent-connection-closed',{detail:JSON.parse(event.data)})));
 }
 connect();

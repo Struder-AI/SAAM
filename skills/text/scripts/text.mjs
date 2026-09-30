@@ -3,7 +3,7 @@ import {solidKernel,solidFromMesh,meshFromSolid,combineSolids,discardSolidKernel
 import {textOutlines} from '../../../core/geom/text-outline.mjs';
 import {textLayout} from '../../../core/geom/text-layout.mjs';
 import {referenceSurface} from '../../../core/geom/reference-surface.mjs';
-import {tessellateShell} from '../../../core/geom/tessellate.mjs';
+import {tessellateSolid} from '../../../core/geom/boolean-display.mjs';
 import {textTemplate,textDigest} from '../../../core/geom/text-record.mjs';
 import {union} from '../../../core/region/intersection.mjs';
 
@@ -116,7 +116,7 @@ export async function compileText(base,features,{buildGeometry,toleranceMm=0.02,
   const normalized=features.map(textFeature);
   requireThat(new Set(normalized.map(f=>f.id)).size===normalized.length,'Text feature ids must be unique.');
   const kernel=await solidKernel(),target=base?buildGeometry(base):null;
-  let result=target&&!standalone?solidFromMesh(kernel,tessellateShell(target,{toleranceMm})):null;
+  let result=target&&!standalone?solidFromMesh(kernel,await tessellateSolid(target,{toleranceMm})):null;
   const materials=new Map();let baseUncut=Boolean(result);
   if(result)materials.set('base',result.translate([0,0,0]));
   try{

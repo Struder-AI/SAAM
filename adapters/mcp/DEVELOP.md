@@ -11,6 +11,12 @@ not an account of the current adapter's capabilities.
 ## Local MCP access
 
 The adapter uses fixed known profiles and skills under [D-022](../../DECISIONS.md#d-022--defer-automatic-capability-discovery). It delegates manufacturing state to the shared print lifecycle.
+[The local runtime](src/runtime.mjs) owns every operation, its strict schema,
+the print-work queue and the Studio/request state. It outlives its sessions: one
+is active at a time, an ended session fails its unfinished requests and rejects
+late calls, and Studio stays for the next. [The MCP server](src/server.mjs) is one
+session per connection; stdio owns and closes its runtime. [The relay device](src/relay-device.mjs)
+serves chat sessions from [the relay](../../relay/README.md) the same way.
 
 [The shared manual reader](../../core/agent/manuals.mjs), re-exported by
 [the adapter](src/manuals.mjs), accepts published repository Markdown paths
@@ -18,7 +24,7 @@ and returns the document's own links as resolved IDs. New references therefore
 use ordinary links without a parallel per-document registry. It confines reads
 to the public documentation trees and rejects private locations and filesystem
 links. Optional heading fragments select one section, including its subsections.
-The fixed skill catalog distinguishes geometry skills from toolpath skills;
+The fixed skill catalog distinguishes toolpath, geometry and hybrid skills;
 making a manual readable does not register a new plan operation or MCP tool.
 Its IDs and frontmatter reader come from the shared [skill catalog](../../skills/catalog.mjs),
 which also supplies the generated maker digest.
@@ -43,8 +49,8 @@ sole live instance, so switching prints opens no second Studio;
 an instance never crosses adapter ownership, while print bundles remain shared.
 Tour start-layer writes require the run and lesson identities they were prepared
 for. See [coordination and its concurrency limits](../../studio/README.md#agent-request-coordination).
-Geometry skill manuals identify themselves with `metadata.saam-kind: geometry` in their
-frontmatter; toolpath skill manuals keep the default `toolpath` kind.
+Geometry and hybrid skill manuals identify themselves with `metadata.saam-kind: geometry` or
+`hybrid` in their frontmatter; toolpath skill manuals keep the default `toolpath` kind.
 
 `apply_text` delegates to [shared text preparation](../../core/print/text.mjs),
 including local font reading, stale-revision checks and geometry updates. The

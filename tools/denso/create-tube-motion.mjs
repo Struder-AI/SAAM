@@ -5,9 +5,8 @@ import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {defaults} from '../../core/print/plan.mjs';
 import {loadMachine} from '../../core/machine/profile.mjs';
-import {pipeMesh} from '../../core/geom/cylinder.mjs';
+import {pipeMesh,substrateSection,substrateLoops} from './pipe.mjs';
 import {fullFillResult} from '../../skills/full-fill/scripts/fill.mjs';
-import {substrateSection,substrateLoops} from '../../skills/pipe-cladding/scripts/clad.mjs';
 const number=n=>String(Number(n.toFixed(8)));
 export async function createTubeMotion(sourceFile,directory){
  const dir=resolve(directory);try{await stat(dir);throw Error('Choose a new output directory');}catch(e){if(e.code!=='ENOENT')throw e;}

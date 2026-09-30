@@ -2,6 +2,7 @@
 // instances. Held kinds wait until the agent reads; delivered kinds push at once
 // and carry everything held with them. Reads drain the queue; pushes do not, so
 // a client that never surfaces a push still receives the batch on its next read.
+// Observers see every recorded event, held or delivered, and never drain.
 export const DELIVERED_KINDS=new Set(['tour-started','tour-lesson','tour-exited','tour-finished','request-queued','request-presented',
   'generation-failed','generation-cancelled','import-completed','import-failed','print-opened','export-delivered']);
 export const HELD_KINDS=new Set(['viewer-opened','viewer-closed','view-presented','generation-started','generation-finished','approved',
@@ -10,7 +11,7 @@ export const EVENT_KINDS=[...DELIVERED_KINDS,...HELD_KINDS];
 const clone=({key,...event})=>structuredClone(event);
 
 export function createStudioEvents({now=Date.now,limit=200,historyLimit=100}={}){
-  const queued=[],recent=[],listeners=new Set(),waiters=new Set();let seq=0,closed=false;
+  const queued=[],recent=[],listeners=new Set(),observers=new Set(),waiters=new Set();let seq=0,closed=false;
   // One record per pending wait owns that wait's timer, abort listener and
   // resolver, so waking a waiter is a named step rather than a stored callback.
   const wake=()=>{for(const waiter of [...waiters])settleWaiter(waiter);};
@@ -26,6 +27,7 @@ export function createStudioEvents({now=Date.now,limit=200,historyLimit=100}={})
     queued.push(event);
     if(queued.length>limit)recent.push(...queued.splice(0,queued.length-limit).map(clone));
     if(recent.length>historyLimit)recent.splice(0,recent.length-historyLimit);
+    for(const observer of [...observers])observer(clone(event));
     if(event.delivery==='delivered'){const batch=queued.map(clone);for(const listener of [...listeners])listener(batch);wake();}
     return clone(event);
   }
@@ -36,6 +38,7 @@ export function createStudioEvents({now=Date.now,limit=200,historyLimit=100}={})
     drain(){const batch=queued.splice(0).map(clone);recent.push(...batch);if(recent.length>historyLimit)recent.splice(0,recent.length-historyLimit);return batch;},
     history(){return recent.map(event=>structuredClone(event));},
     subscribe(listener){if(typeof listener!=='function')throw Error('Event listener must be a function.');listeners.add(listener);return()=>{listeners.delete(listener);};},
+    observe(observer){if(typeof observer!=='function')throw Error('Event observer must be a function.');observers.add(observer);return()=>{observers.delete(observer);};},
     // Resolves when a delivered-class event is queued, on timeout, on close or
     // when the signal aborts. The caller drains; held events never wake a wait.
     wait({waitMs=25000,signal}={}){
@@ -46,6 +49,6 @@ export function createStudioEvents({now=Date.now,limit=200,historyLimit=100}={})
         waiters.add(waiter);waiter.timer=setTimeout(waiter.done,remaining);waiter.timer.unref?.();signal?.addEventListener('abort',waiter.done,{once:true});
       });
     },
-    close(){closed=true;listeners.clear();wake();}
+    close(){closed=true;listeners.clear();observers.clear();wake();}
   };
 }

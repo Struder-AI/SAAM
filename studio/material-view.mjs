@@ -13,21 +13,15 @@ const mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
 function beadFrame(move,plan,geometry,clad){
   const p=plan.process;
   if(clad){
-    const center=plan.setup.denso?.rotaryCenterMm??[plan.placement.xMm,plan.placement.yMm,0];
-    const height=plan.skills['pipe-cladding'].normalMm;
-    if(plan.skills['pipe-cladding'].surface){
-      // Recover the commanded surface frame from interpreted tool orientation.
-      // The cladding producer tilts toward -V and sets tool Y to V cross normal.
-      if(!move.toolAxisTo||!move.toolUpTo)return null;
-      const tilt=plan.skills['pipe-cladding'].tiltDeg*Math.PI/180;
-      const frame=(axis,up)=>normalize(add(scale(axis,-Math.sin(tilt)),scale(cross(up,axis),-Math.cos(tilt))));
-      const a=frame(move.toolAxisFrom,move.toolUpFrom),b=frame(move.toolAxisTo,move.toolUpTo);
-      const distanceAlong=point=>length(subtract(point,move.from))/Math.max(1e-12,length(subtract(move.to,move.from)));
-      const surfaceNormal=point=>normalize(mix(a,b,Math.min(1,distanceAlong(point))));
-      return {normal:surfaceNormal,height,centered:true};
-    }
-    const radialNormal=point=>normalize([point[0]-center[0],point[1]-center[1],0]);
-    return {normal:radialNormal,height,centered:true};
+    // Recover the commanded surface frame from interpreted tool orientation.
+    // The cladding producer tilts toward -V and sets tool Y to V cross normal.
+    if(!move.toolAxisTo||!move.toolUpTo)return null;
+    const height=plan.skills['pipe-cladding'].normalMm,tilt=plan.skills['pipe-cladding'].tiltDeg*Math.PI/180;
+    const frame=(axis,up)=>normalize(add(scale(axis,-Math.sin(tilt)),scale(cross(up,axis),-Math.cos(tilt))));
+    const a=frame(move.toolAxisFrom,move.toolUpFrom),b=frame(move.toolAxisTo,move.toolUpTo);
+    const distanceAlong=point=>length(subtract(point,move.from))/Math.max(1e-12,length(subtract(move.to,move.from)));
+    const surfaceNormal=point=>normalize(mix(a,b,Math.min(1,distanceAlong(point))));
+    return {normal:surfaceNormal,height,centered:true};
   }
   if(move.phase==='inclined'&&geometry.roof){
     const roofNormal=()=>normalize([-geometry.roof.a,-geometry.roof.b,1]);
@@ -35,7 +29,7 @@ function beadFrame(move,plan,geometry,clad){
   }
   // Source records do not yet retain these skills' local surface normals.
   // Keep an explicitly labelled line fallback rather than inventing a frame.
-  if(['draped-skin','rimming-normal','wave-overhangs'].includes(move.phase))return null;
+  if(['draped-skin','wave-overhangs'].includes(move.phase))return null;
   const layerNormal=()=>[0,0,1];
   return {normal:layerNormal,height:move.layer===0?p.firstLayerMm:p.layerMm,centered:false};
 }

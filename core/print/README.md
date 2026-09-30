@@ -155,6 +155,12 @@ exist. See the [validation work record](../../DEVLOG.md#br-039--remove-repeated-
 
 ## Print bundle and current formats
 
+[Blob fields](../../GEOMETRY.md#blob-field) use `shape: "blob-field"` records with the points,
+extraction settings and checked manufacturing mesh retained together in the
+native JSON asset. Shared generation sections that mesh; Studio displays it.
+Field edits explicitly rebuild the mesh through the `blob_field` tool
+and invalidate the final confirmation through this same lifecycle.
+
 The shared workflow stores one directory per print:
 
 ```text
@@ -216,12 +222,11 @@ Use `examples/prints/` only for explicitly curated examples.
 `core/print/bundle.mjs` adapts shell plans to the [shared lifecycle](#generation-and-review).
 Skills return operations to the [shared composer](../path/README.md#skill-result-composition).
 Their manuals own supported settings and process limits; software checks do not
-establish successful physical printing. The plan expresses shapes in `core/geom/shapes.mjs`
-(`box`, `wedge`, `spline-top`, `spline-shell`, `vertical-spline-shell`), indexed
-triangle meshes, and an `assembly` of these components. An
-edited or imported 3DM is still not accepted as input. The vertical spline shell
-extrudes its bulged spline footprint vertically below a spline roof; arbitrary
-side editing remains deferred.
+establish successful physical printing. The plan's geometry is authored
+([GEOMETRY.md](../../GEOMETRY.md)): spline patches, indexed triangle meshes,
+blob fields, [booleans](../../GEOMETRY.md#booleans) of these and an `assembly` of any of them. A boolean is stored
+as its recipe in the native JSON asset with a display mesh; generation sections its operands. An edited or imported 3DM
+is still not accepted as input.
 
 ## Print bundle and review
 

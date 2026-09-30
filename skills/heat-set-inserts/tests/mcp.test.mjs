@@ -6,6 +6,7 @@ import {resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
+import {splineBox} from '../../../core/tests/fixtures/spline-shapes.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../../..');
 
@@ -33,7 +34,7 @@ test('MCP discovers heat-set profiles and applies revision-checked insert edits'
     assert.equal(insert.lengthMm,5.74);
 
     const {plan}=await call('get_plan_template',{kind:'shell',machineId:'ultimaker-s5'});
-    const base={shape:'box',runMm:30,widthMm:26,heightMm:10};
+    const base=splineBox({runMm:30,widthMm:26,heightMm:10});
     plan.geometry=base;plan.skills['draped-skin'].enabled=false;
     const printId='insert-sample';
     let state=await call('create_print',{printId,kind:'shell',machineId:'ultimaker-s5',plan});

@@ -34,7 +34,7 @@ export async function updatedSkillIndex(repoRoot) {
     ...skills.filter(skill => skill.kind === kind).map(skill =>
       `| [${skill.id}](${skill.id}/SKILL.md) | ${skill.description.replaceAll('|', '&#124;')} |`)
   ].join('\n');
-  const block = `${start}\n\n## Toolpath skills\n\n${table('toolpath')}\n\n## Geometry skills\n\n${table('geometry')}\n\n${end}`;
+  const block = `${start}\n\n## Toolpath skills\n\n${table('toolpath')}\n\n## Geometry skills\n\n${table('geometry')}\n\n## Hybrid skills\n\n${table('hybrid')}\n\n${end}`;
   const current = await readFile(resolve(skillsRoot, 'DIGEST.md'), 'utf8');
   if (current.split(start).length !== 2 || current.split(end).length !== 2 || current.indexOf(end) < current.indexOf(start)) {
     throw new Error('skills/DIGEST.md needs exactly one ordered pair of generated skill digest markers.');

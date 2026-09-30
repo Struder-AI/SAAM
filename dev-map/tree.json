@@ -1,0 +1,2025 @@
+{
+ "schema": 1,
+ "clusters": [
+  {
+   "id": "c33967",
+   "label": "Toolpath generation and planning",
+   "parent": "0"
+  },
+  {
+   "id": "c33985",
+   "label": "Generation, priming and tour",
+   "parent": "c33967"
+  },
+  {
+   "id": "c33974",
+   "label": "Tour and composition",
+   "parent": "c33985"
+  },
+  {
+   "id": "c34048",
+   "label": "STL repair CLI and shared checks",
+   "parent": "c33974"
+  },
+  {
+   "id": "c34016",
+   "label": "STL repair CLI",
+   "parent": "c34048"
+  },
+  {
+   "id": "c34072",
+   "label": "STL repair job and canvas drawing (mixed)",
+   "parent": "c34016"
+  },
+  {
+   "id": "c34000",
+   "label": "Shared checks and sampling helpers",
+   "parent": "c34048"
+  },
+  {
+   "id": "c34021",
+   "label": "Composition and stroke ordering",
+   "parent": "c33974"
+  },
+  {
+   "id": "c33977",
+   "label": "Priming, heat-set and region generation",
+   "parent": "c33985"
+  },
+  {
+   "id": "c34002",
+   "label": "Planar components, text and mesh repair",
+   "parent": "c33977"
+  },
+  {
+   "id": "c34066",
+   "label": "Geometry requirements (mixed)",
+   "parent": "c34002"
+  },
+  {
+   "id": "c33998",
+   "label": "Bundle initialization and file hashing",
+   "parent": "c34002"
+  },
+  {
+   "id": "c33993",
+   "label": "Mesh repair",
+   "parent": "c34002"
+  },
+  {
+   "id": "c34076",
+   "label": "Dwell, park and clearance planning",
+   "parent": "c33993"
+  },
+  {
+   "id": "c34001",
+   "label": "Request index and text geometry (mixed)",
+   "parent": "c33977"
+  },
+  {
+   "id": "c33982",
+   "label": "Region generation and plan defaults",
+   "parent": "c33977"
+  },
+  {
+   "id": "c34084",
+   "label": "Plan defaults and comb travel (mixed)",
+   "parent": "c33982"
+  },
+  {
+   "id": "c34012",
+   "label": "Region generation and shells",
+   "parent": "c33982"
+  },
+  {
+   "id": "c34053",
+   "label": "Region result generation",
+   "parent": "c34012"
+  },
+  {
+   "id": "c34059",
+   "label": "Studio render selection",
+   "parent": "c34053"
+  },
+  {
+   "id": "c34089",
+   "label": "Shell construction (mixed)",
+   "parent": "c34012"
+  },
+  {
+   "id": "c33988",
+   "label": "Cached program binding (mixed)",
+   "parent": "c34089"
+  },
+  {
+   "id": "c34087",
+   "label": "Generation control and cancellation",
+   "parent": "c33985"
+  },
+  {
+   "id": "c34079",
+   "label": "Agent UI and Studio connection (mixed)",
+   "parent": "c33985"
+  },
+  {
+   "id": "c34005",
+   "label": "Toolpath planning and generation worker",
+   "parent": "c33967"
+  },
+  {
+   "id": "c33971",
+   "label": "Shells, strokes and operation planning",
+   "parent": "c34005"
+  },
+  {
+   "id": "c33991",
+   "label": "Machine presentation and operation planning",
+   "parent": "c33971"
+  },
+  {
+   "id": "c33981",
+   "label": "Planning and bundle workflow (mixed)",
+   "parent": "c33991"
+  },
+  {
+   "id": "c34018",
+   "label": "Operation planning",
+   "parent": "c33981"
+  },
+  {
+   "id": "c34090",
+   "label": "Machine pose rendering and level sets (mixed)",
+   "parent": "c34018"
+  },
+  {
+   "id": "c34025",
+   "label": "Operation batch preparation (mixed)",
+   "parent": "c34018"
+  },
+  {
+   "id": "c34051",
+   "label": "Surface offset sampling (mixed)",
+   "parent": "c33981"
+  },
+  {
+   "id": "c34070",
+   "label": "Material bead rendering",
+   "parent": "c34051"
+  },
+  {
+   "id": "c34043",
+   "label": "Text layout and toolpath frames (mixed)",
+   "parent": "c33981"
+  },
+  {
+   "id": "c34017",
+   "label": "Native mesh repair and sleeve contact",
+   "parent": "c33981"
+  },
+  {
+   "id": "c34062",
+   "label": "Bundle workflow and program interpretation",
+   "parent": "c34017"
+  },
+  {
+   "id": "c34096",
+   "label": "Program export and plan checks",
+   "parent": "c34062"
+  },
+  {
+   "id": "c34037",
+   "label": "Scanline fill",
+   "parent": "c33991"
+  },
+  {
+   "id": "c34015",
+   "label": "Machine cameras and sectioning",
+   "parent": "c33991"
+  },
+  {
+   "id": "c34060",
+   "label": "Camera state",
+   "parent": "c34015"
+  },
+  {
+   "id": "c34036",
+   "label": "Geometry sectioning",
+   "parent": "c34015"
+  },
+  {
+   "id": "c34014",
+   "label": "Agent request queries",
+   "parent": "c34036"
+  },
+  {
+   "id": "c33989",
+   "label": "Planar supports and finished boundaries (mixed)",
+   "parent": "c33991"
+  },
+  {
+   "id": "c34050",
+   "label": "Offset curvature sampling (mixed)",
+   "parent": "c33989"
+  },
+  {
+   "id": "c34040",
+   "label": "Radial sleeve profiles",
+   "parent": "c33971"
+  },
+  {
+   "id": "c33978",
+   "label": "STL decoding and planning",
+   "parent": "c34005"
+  },
+  {
+   "id": "c33969",
+   "label": "Planning results and print CLI",
+   "parent": "c33978"
+  },
+  {
+   "id": "c34024",
+   "label": "Comb route search",
+   "parent": "c33969"
+  },
+  {
+   "id": "c33980",
+   "label": "Print CLI, machine change and machine study",
+   "parent": "c33969"
+  },
+  {
+   "id": "c34035",
+   "label": "Directional contours and reference bundles",
+   "parent": "c33980"
+  },
+  {
+   "id": "c33992",
+   "label": "Tour signatures and change watching",
+   "parent": "c34035"
+  },
+  {
+   "id": "c34092",
+   "label": "Plan validation and review hashes",
+   "parent": "c34035"
+  },
+  {
+   "id": "c33984",
+   "label": "Machine study loading",
+   "parent": "c33980"
+  },
+  {
+   "id": "c34068",
+   "label": "Toolpath view style and persistence",
+   "parent": "c33984"
+  },
+  {
+   "id": "c33990",
+   "label": "Planning actions and source streaming",
+   "parent": "c33978"
+  },
+  {
+   "id": "c33983",
+   "label": "Source streaming and surface offsets (mixed)",
+   "parent": "c33990"
+  },
+  {
+   "id": "c34054",
+   "label": "Surface offset regions",
+   "parent": "c33983"
+  },
+  {
+   "id": "c34031",
+   "label": "Machine setup checks",
+   "parent": "c34054"
+  },
+  {
+   "id": "c34045",
+   "label": "Planning actions and radial contact (mixed)",
+   "parent": "c33990"
+  },
+  {
+   "id": "c33986",
+   "label": "Action accumulation and plan resolution",
+   "parent": "c33990"
+  },
+  {
+   "id": "c34003",
+   "label": "Operation scheduling and surface fields (mixed)",
+   "parent": "c33986"
+  },
+  {
+   "id": "c34081",
+   "label": "Review invalidation and Studio events",
+   "parent": "c34003"
+  },
+  {
+   "id": "c33994",
+   "label": "Plan validation and resolution",
+   "parent": "c33986"
+  },
+  {
+   "id": "c33968",
+   "label": "Studio interface and views",
+   "parent": "0"
+  },
+  {
+   "id": "c33966",
+   "label": "Studio work state and requests",
+   "parent": "c33968"
+  },
+  {
+   "id": "c33973",
+   "label": "Work state, settings and surface offsets",
+   "parent": "c33966"
+  },
+  {
+   "id": "c33976",
+   "label": "Settings, sectioning and kinematics (mixed)",
+   "parent": "c33973"
+  },
+  {
+   "id": "c34038",
+   "label": "Settings, filaments and STL import",
+   "parent": "c33976"
+  },
+  {
+   "id": "c34074",
+   "label": "STL bundle import and plan updates",
+   "parent": "c34038"
+  },
+  {
+   "id": "c34019",
+   "label": "Filaments and settings rows",
+   "parent": "c34038"
+  },
+  {
+   "id": "c34046",
+   "label": "Settings view and contour families (mixed)",
+   "parent": "c34038"
+  },
+  {
+   "id": "c34039",
+   "label": "Draw requests and material facts",
+   "parent": "c34038"
+  },
+  {
+   "id": "c34064",
+   "label": "Download names (mixed)",
+   "parent": "c34039"
+  },
+  {
+   "id": "c34088",
+   "label": "Shell sectioning",
+   "parent": "c33976"
+  },
+  {
+   "id": "c33999",
+   "label": "Denso forward kinematics",
+   "parent": "c33976"
+  },
+  {
+   "id": "c34013",
+   "label": "Surface offset preparation",
+   "parent": "c33973"
+  },
+  {
+   "id": "c34006",
+   "label": "Studio start-up and mesh sleeve fitting (mixed)",
+   "parent": "c34013"
+  },
+  {
+   "id": "c34009",
+   "label": "Facts view and playback",
+   "parent": "c34006"
+  },
+  {
+   "id": "c34077",
+   "label": "Viewer scene state (mixed)",
+   "parent": "c34009"
+  },
+  {
+   "id": "c34080",
+   "label": "Playback and travel routing (mixed)",
+   "parent": "c34009"
+  },
+  {
+   "id": "c34023",
+   "label": "Perimeters and bundle fingerprints (mixed)",
+   "parent": "c34009"
+  },
+  {
+   "id": "c34093",
+   "label": "Stroke deposition and path clipping",
+   "parent": "c34023"
+  },
+  {
+   "id": "c34028",
+   "label": "Section contours and spline surfaces (mixed)",
+   "parent": "c34023"
+  },
+  {
+   "id": "c34008",
+   "label": "STL geometry and agent requests",
+   "parent": "c33966"
+  },
+  {
+   "id": "c34061",
+   "label": "Mesh validation and canvas input (mixed)",
+   "parent": "c34008"
+  },
+  {
+   "id": "c34030",
+   "label": "STL repair and view fitting",
+   "parent": "c34008"
+  },
+  {
+   "id": "c34086",
+   "label": "Translation and tour UI (mixed)",
+   "parent": "c34030"
+  },
+  {
+   "id": "c34063",
+   "label": "Saving and closing (mixed)",
+   "parent": "c34030"
+  },
+  {
+   "id": "c34029",
+   "label": "Projection and visible edges (mixed)",
+   "parent": "c34063"
+  },
+  {
+   "id": "c34056",
+   "label": "Fit and reset view",
+   "parent": "c34030"
+  },
+  {
+   "id": "c33996",
+   "label": "Machine pose presentation",
+   "parent": "c34056"
+  },
+  {
+   "id": "c34083",
+   "label": "Movie cancel (mixed)",
+   "parent": "c33996"
+  },
+  {
+   "id": "c34075",
+   "label": "Rigid frames and vector math",
+   "parent": "c34056"
+  },
+  {
+   "id": "c34007",
+   "label": "Agent requests and events",
+   "parent": "c34008"
+  },
+  {
+   "id": "c34052",
+   "label": "Agent request updates (mixed)",
+   "parent": "c34007"
+  },
+  {
+   "id": "c34058",
+   "label": "Event waiting and movie export (mixed)",
+   "parent": "c34007"
+  },
+  {
+   "id": "c34078",
+   "label": "Checked program handoff",
+   "parent": "c34058"
+  },
+  {
+   "id": "c34034",
+   "label": "Initial plan and region booleans",
+   "parent": "c34007"
+  },
+  {
+   "id": "c34026",
+   "label": "Viewer lifetime and request listing (mixed)",
+   "parent": "c34007"
+  },
+  {
+   "id": "c33995",
+   "label": "Geometry and program views",
+   "parent": "c33968"
+  },
+  {
+   "id": "c33970",
+   "label": "Spline shells and geometry view",
+   "parent": "c33995"
+  },
+  {
+   "id": "c33979",
+   "label": "Geometry view and support surfaces",
+   "parent": "c33970"
+  },
+  {
+   "id": "c34098",
+   "label": "Triangle BVH",
+   "parent": "c33979"
+  },
+  {
+   "id": "c34055",
+   "label": "Arm pose geometry",
+   "parent": "c33979"
+  },
+  {
+   "id": "c34011",
+   "label": "Geometry view rendering",
+   "parent": "c33979"
+  },
+  {
+   "id": "c34033",
+   "label": "Layer stepping and refresh navigation (mixed)",
+   "parent": "c34011"
+  },
+  {
+   "id": "c34065",
+   "label": "Mesh sleeve sections",
+   "parent": "c34033"
+  },
+  {
+   "id": "c34004",
+   "label": "Region reservations and pose travel",
+   "parent": "c34033"
+  },
+  {
+   "id": "c34057",
+   "label": "Generation worker messages (mixed)",
+   "parent": "c34004"
+  },
+  {
+   "id": "c34044",
+   "label": "Pose travel and recovery planning",
+   "parent": "c34004"
+  },
+  {
+   "id": "c34091",
+   "label": "View performance reporting (mixed)",
+   "parent": "c34011"
+  },
+  {
+   "id": "c33997",
+   "label": "Studio loading, projection and tessellation",
+   "parent": "c33970"
+  },
+  {
+   "id": "c34082",
+   "label": "Path generation and request subscriptions (mixed)",
+   "parent": "c33997"
+  },
+  {
+   "id": "c34041",
+   "label": "Surface projection and shell loops",
+   "parent": "c33997"
+  },
+  {
+   "id": "c34085",
+   "label": "Boundary curves (mixed)",
+   "parent": "c33997"
+  },
+  {
+   "id": "c34027",
+   "label": "Studio loading and session (mixed)",
+   "parent": "c33997"
+  },
+  {
+   "id": "c34049",
+   "label": "Contour paths and Denso inverse (mixed)",
+   "parent": "c34027"
+  },
+  {
+   "id": "c34032",
+   "label": "Review migration and layer controls (mixed)",
+   "parent": "c33997"
+  },
+  {
+   "id": "c34020",
+   "label": "Shell tessellation and tour playback (mixed)",
+   "parent": "c33997"
+  },
+  {
+   "id": "c34094",
+   "label": "Machine fit bounds (mixed)",
+   "parent": "c34020"
+  },
+  {
+   "id": "c33987",
+   "label": "Sleeve fitting, plan patches and program view",
+   "parent": "c33995"
+  },
+  {
+   "id": "c33972",
+   "label": "Planar layers and plan patches",
+   "parent": "c33987"
+  },
+  {
+   "id": "c34097",
+   "label": "Bundle loading and machine setup",
+   "parent": "c33972"
+  },
+  {
+   "id": "c33975",
+   "label": "Program view and machine mechanism",
+   "parent": "c33987"
+  },
+  {
+   "id": "c34010",
+   "label": "Mesh geometry creation",
+   "parent": "c33975"
+  },
+  {
+   "id": "c34071",
+   "label": "STL parsing and mesh input",
+   "parent": "c34010"
+  },
+  {
+   "id": "c34067",
+   "label": "Program view building",
+   "parent": "c33975"
+  },
+  {
+   "id": "c34042",
+   "label": "Drawing and manual controls",
+   "parent": "c33975"
+  },
+  {
+   "id": "c34047",
+   "label": "Primitive shells",
+   "parent": "c34042"
+  },
+  {
+   "id": "c34022",
+   "label": "Machine mechanism and Studio server",
+   "parent": "c33975"
+  },
+  {
+   "id": "c34069",
+   "label": "Approval and download",
+   "parent": "c34022"
+  },
+  {
+   "id": "c34073",
+   "label": "Studio state adoption",
+   "parent": "c34069"
+  },
+  {
+   "id": "c34095",
+   "label": "Surface region charts and polling (mixed)",
+   "parent": "c34069"
+  }
+ ],
+ "leaves": {
+  "core/export/machine-study.mjs::interpretMachineStudy": "c33984",
+  "core/export/registry.mjs::adapters::interpret": "c33990",
+  "core/export/registry.mjs::exportAndInterpretProgram": "c34096",
+  "core/export/registry.mjs::exportProgram": "c34096",
+  "core/export/registry.mjs::interpretProgram": "c34062",
+  "core/export/registry.mjs::outputAdapter": "c34096",
+  "core/export/registry.mjs::requireSupportedMotion": "c34042",
+  "core/export/source-time.mjs::frameAtTime": "c33996",
+  "core/export/travel-advisory.mjs::shortTravelAdvisory": "c34071",
+  "core/export/travel-advisory.mjs::withTravelAdvisory": "c34062",
+  "core/file-write.mjs::replaceFile": "c34063",
+  "core/geom/contour-path.mjs::contourPath": "c34049",
+  "core/geom/contour-path.mjs::contourPath::at": "c34049",
+  "core/geom/contour-path.mjs::contourPath::breakpoints": "c34049",
+  "core/geom/contour-path.mjs::contourPath::parameters": "c34049",
+  "core/geom/cylinder.mjs::circlePoints": "c34000",
+  "core/geom/cylinder.mjs::cylindricalPoint": "c34091",
+  "core/geom/cylinder.mjs::cylindricalPose": "c34086",
+  "core/geom/cylinder.mjs::pipeMesh": "c33996",
+  "core/geom/directional-contour.mjs::conditionDirectionalSpacing": "c34035",
+  "core/geom/directional-contour.mjs::fitDirectionalAngles": "c34035",
+  "core/geom/directional-contour.mjs::prepareRegularizedSleeveContact": "c34017",
+  "core/geom/directional-contour.mjs::reconstructDirectionalContour": "c34035",
+  "core/geom/directional-contour.mjs::regularizeDirectionalContour": "c34035",
+  "core/geom/directional-contour.mjs::sampleDirectionalContour": "c34035",
+  "core/geom/directional-contour.mjs::unwrapDirectionalProfile": "c34035",
+  "core/geom/directional-contour.mjs::verifyDirectionalContour": "c34035",
+  "core/geom/field.mjs::candidateSpansAt": "c34041",
+  "core/geom/field.mjs::newton": "c34041",
+  "core/geom/field.mjs::projectToPatch": "c34041",
+  "core/geom/field.mjs::topAt": "c34041",
+  "core/geom/least-squares.mjs::leastSquares": "c33982",
+  "core/geom/least-squares.mjs::leastSquares::<return@27:10>": "c33982",
+  "core/geom/mesh-capacity.mjs::checkMeshCapacity": "c33978",
+  "core/geom/mesh-capacity.mjs::meshAllocation": "c34061",
+  "core/geom/mesh-capacity.mjs::meshAllocationError": "c34061",
+  "core/geom/mesh-distance.mjs::createMeshDistanceQuery": "c34045",
+  "core/geom/mesh-distance.mjs::pointTriangleDistanceSquared": "c34028",
+  "core/geom/mesh-distance.mjs::segmentSquared": "c34028",
+  "core/geom/mesh-native.mjs::checkInstallation": "c34017",
+  "core/geom/mesh-native.mjs::offChunks": "c34017",
+  "core/geom/mesh-native.mjs::readOff": "c34017",
+  "core/geom/mesh-native.mjs::repairMeshNative": "c34017",
+  "core/geom/mesh-repair.mjs::cleanTriangleSoup": "c33993",
+  "core/geom/mesh-repair.mjs::compactMesh": "c33993",
+  "core/geom/mesh-repair.mjs::encodeRepairSTL": "c34071",
+  "core/geom/mesh-repair.mjs::encodeRepairSTLChunks": "c34029",
+  "core/geom/mesh-repair.mjs::stitchCollapsedEdges": "c33993",
+  "core/geom/mesh-repair.mjs::validateRepair": "c33993",
+  "core/geom/mesh-sleeve.mjs::assembleSleevePatch": "c34006",
+  "core/geom/mesh-sleeve.mjs::basisRow": "c34000",
+  "core/geom/mesh-sleeve.mjs::detectMeshSleeveInterval": "c34065",
+  "core/geom/mesh-sleeve.mjs::fitMeshSleeve": "c34006",
+  "core/geom/mesh-sleeve.mjs::fitSleeveControls": "c34063",
+  "core/geom/mesh-sleeve.mjs::measureSleeveFit": "c33987",
+  "core/geom/mesh-sleeve.mjs::prepareFittedSections": "c33987",
+  "core/geom/mesh-sleeve.mjs::prepareFittedSections::<return@209:10>": "c34064",
+  "core/geom/mesh-sleeve.mjs::prepareSleeveBasis": "c34006",
+  "core/geom/mesh-sleeve.mjs::prepareSleeveSource": "c34065",
+  "core/geom/mesh-sleeve.mjs::prepareSleeveSource::sourceSectionAt": "c34065",
+  "core/geom/mesh-sleeve.mjs::sampleSleeveSections": "c34000",
+  "core/geom/mesh-sleeve.mjs::sleeveCut": "c34065",
+  "core/geom/mesh-sleeve.mjs::sleevePointQuery": "c33987",
+  "core/geom/mesh-sleeve.mjs::sleevePointQuery::<return@176:10>": "c34015",
+  "core/geom/mesh-sleeve.mjs::validateSleeveFit": "c34047",
+  "core/geom/mesh-sleeve.mjs::wrap": "c34015",
+  "core/geom/mesh-spatial.mjs::checkAdjacentContacts": "c33993",
+  "core/geom/mesh-spatial.mjs::closestTrianglePoint": "c34095",
+  "core/geom/mesh-spatial.mjs::triangleIndex": "c34041",
+  "core/geom/mesh-spatial.mjs::triangleIndex::nearest": "c34041",
+  "core/geom/mesh-spatial.mjs::trianglesContact": "c34075",
+  "core/geom/mesh-topology.mjs::meshEdgeMap": "c34017",
+  "core/geom/mesh-topology.mjs::meshTopology": "c34061",
+  "core/geom/mesh.mjs::createMeshSectionQuery": "c33972",
+  "core/geom/mesh.mjs::createMeshSectionQuery::sectionAt": "c34065",
+  "core/geom/mesh.mjs::cutMesh": "c34065",
+  "core/geom/mesh.mjs::decodeSTL": "c34054",
+  "core/geom/mesh.mjs::dot": "c34098",
+  "core/geom/mesh.mjs::edgeKey": "c33972",
+  "core/geom/mesh.mjs::makeMesh": "c34071",
+  "core/geom/mesh.mjs::meshContourEdges": "c33972",
+  "core/geom/mesh.mjs::meshFaceGeometry": "c34061",
+  "core/geom/mesh.mjs::meshIdentity": "c34017",
+  "core/geom/mesh.mjs::meshInputError": "c34071",
+  "core/geom/mesh.mjs::meshResult": "c34017",
+  "core/geom/mesh.mjs::meshTopAt": "c34007",
+  "core/geom/mesh.mjs::parseSTL": "c34071",
+  "core/geom/mesh.mjs::rejectIntersections": "c34061",
+  "core/geom/mesh.mjs::requireMeshInput": "c34071",
+  "core/geom/mesh.mjs::retainValidatedMesh": "c34017",
+  "core/geom/mesh.mjs::sectionMesh": "c34036",
+  "core/geom/mesh.mjs::separatedTriangles": "c34098",
+  "core/geom/mesh.mjs::sub": "c34098",
+  "core/geom/mesh.mjs::translateMesh": "c34086",
+  "core/geom/mesh.mjs::validateMeshGeometry": "c34061",
+  "core/geom/mesh.mjs::validateMeshInput": "c34071",
+  "core/geom/nurbs.mjs::basisDerivatives": "c34050",
+  "core/geom/nurbs.mjs::basisFunctions": "c34003",
+  "core/geom/nurbs.mjs::candidateSpans": "c34028",
+  "core/geom/nurbs.mjs::clamp": "c34024",
+  "core/geom/nurbs.mjs::evaluate": "c34057",
+  "core/geom/nurbs.mjs::evaluateScalar": "c34003",
+  "core/geom/nurbs.mjs::findSpan": "c34064",
+  "core/geom/nurbs.mjs::fullKnots": "c34089",
+  "core/geom/nurbs.mjs::gradientBound": "c34028",
+  "core/geom/nurbs.mjs::patchFromSurface": "c34089",
+  "core/geom/nurbs.mjs::planeCoefficients": "c34088",
+  "core/geom/offset-curvature.mjs::firstRoot": "c34050",
+  "core/geom/offset-curvature.mjs::prepareOffsetCurvature": "c34013",
+  "core/geom/offset-curvature.mjs::samples": "c34050",
+  "core/geom/polyline.mjs::cleanPlanarLoop": "c33972",
+  "core/geom/polyline.mjs::norm2": "c33972",
+  "core/geom/prepared-contours.mjs::fits": "c34046",
+  "core/geom/prepared-contours.mjs::prepareContourFamily": "c34046",
+  "core/geom/prepared-contours.mjs::prepareContourFamily::at": "c34046",
+  "core/geom/prepared-radial-contact.mjs::atIndex": "c34040",
+  "core/geom/prepared-radial-contact.mjs::discrepancy": "c34045",
+  "core/geom/prepared-radial-contact.mjs::prepareRadialSleeveContact": "c34045",
+  "core/geom/prepared-radial-contact.mjs::prepareRadialSleeveContact::at": "c34045",
+  "core/geom/prepared-radial-contact.mjs::profile": "c34040",
+  "core/geom/prepared-radial-contact.mjs::radius": "c34040",
+  "core/geom/prepared-radial-contact.mjs::shift": "c34040",
+  "core/geom/prepared-radial-contact.mjs::wrap": "c34040",
+  "core/geom/query.mjs::createSectionQuery": "c34065",
+  "core/geom/query.mjs::createSectionQuery::<return@20:75>": "c34065",
+  "core/geom/query.mjs::requireGeometry": "c34066",
+  "core/geom/query.mjs::sampleTopSurface": "c34052",
+  "core/geom/query.mjs::sectionGeometry": "c34036",
+  "core/geom/query.mjs::topAt": "c34007",
+  "core/geom/reference-surface.mjs::referencePatch": "c34080",
+  "core/geom/reference-surface.mjs::referenceSurface": "c34080",
+  "core/geom/section.mjs::cellCounts": "c34025",
+  "core/geom/section.mjs::cellSegments": "c33994",
+  "core/geom/section.mjs::contourGrid": "c34028",
+  "core/geom/section.mjs::contourPointNear": "c34088",
+  "core/geom/section.mjs::edgesSimple": "c34088",
+  "core/geom/section.mjs::joinSegments": "c34028",
+  "core/geom/section.mjs::positive": "c34088",
+  "core/geom/section.mjs::refine": "c34088",
+  "core/geom/section.mjs::resolved": "c34028",
+  "core/geom/section.mjs::sectionPatch": "c34088",
+  "core/geom/section.mjs::spanIndexOf": "c34025",
+  "core/geom/section.mjs::split": "c34088",
+  "core/geom/section.mjs::withPoint": "c34088",
+  "core/geom/selections.mjs::geometrySelections": "c34043",
+  "core/geom/selections.mjs::selectionsOverlap": "c34053",
+  "core/geom/shapes.mjs::boxShell": "c34047",
+  "core/geom/shapes.mjs::greville": "c34028",
+  "core/geom/shapes.mjs::line": "c33970",
+  "core/geom/shapes.mjs::prismShell": "c34047",
+  "core/geom/shapes.mjs::quad": "c33970",
+  "core/geom/shapes.mjs::ruled": "c33970",
+  "core/geom/shapes.mjs::shellFromSurfaces": "c34047",
+  "core/geom/shapes.mjs::splineShellFromSurfaces": "c33970",
+  "core/geom/shapes.mjs::splineShellFromTop": "c33970",
+  "core/geom/shapes.mjs::splineSideShell": "c34040",
+  "core/geom/shapes.mjs::splineTopShell": "c33970",
+  "core/geom/shapes.mjs::splineTopSurface": "c34028",
+  "core/geom/shapes.mjs::verticalSplineSideShell": "c33970",
+  "core/geom/shapes.mjs::wedgeShell": "c34047",
+  "core/geom/shell.mjs::assertClosed": "c33970",
+  "core/geom/shell.mjs::boundaryCurve": "c34085",
+  "core/geom/shell.mjs::boundaryCurve::pointAt": "c34041",
+  "core/geom/shell.mjs::distanceToCurve": "c34085",
+  "core/geom/shell.mjs::endpointsMatch": "c34085",
+  "core/geom/shell.mjs::joinChains": "c34041",
+  "core/geom/shell.mjs::makeShell": "c34089",
+  "core/geom/shell.mjs::orientLoops": "c34041",
+  "core/geom/shell.mjs::pointInLoop": "c34041",
+  "core/geom/shell.mjs::sameCurve": "c34085",
+  "core/geom/shell.mjs::sectionAt": "c34088",
+  "core/geom/shell.mjs::sectionShell": "c34036",
+  "core/geom/shell.mjs::shellBounds": "c34089",
+  "core/geom/shell.mjs::signedArea": "c34041",
+  "core/geom/shell.mjs::toPlanar": "c34041",
+  "core/geom/shell.mjs::verifyClosure": "c34041",
+  "core/geom/sleeve-contact.mjs::cross": "c34017",
+  "core/geom/sleeve-contact.mjs::prepareSleeveContact": "c34017",
+  "core/geom/sleeve-contact.mjs::prepareSleeveContact::at": "c34017",
+  "core/geom/sleeve-frame.mjs::prepareLooseSleeveOffsets": "c34013",
+  "core/geom/sleeve-frame.mjs::prepareLooseSleeveOffsets::at": "c34013",
+  "core/geom/solid.mjs::combineSolids": "c34003",
+  "core/geom/solid.mjs::discardSolidKernel": "c34046",
+  "core/geom/solid.mjs::meshFromSolid": "c34036",
+  "core/geom/solid.mjs::solidFromMesh": "c34079",
+  "core/geom/solid.mjs::solidKernel": "c34060",
+  "core/geom/spline-tube.mjs::clampedKnots": "c33994",
+  "core/geom/spline-tube.mjs::splineTubeShell": "c34047",
+  "core/geom/spline-tube.mjs::validateSplineTube": "c33994",
+  "core/geom/stl-decoder.mjs::STLDecoder": "c33978",
+  "core/geom/stl-decoder.mjs::STLDecoder::finish": "c33978",
+  "core/geom/stl-decoder.mjs::STLDecoder::write": "c34066",
+  "core/geom/stl-decoder.mjs::decodeSTLBuffer": "c34070",
+  "core/geom/stl-decoder.mjs::invalid": "c34076",
+  "core/geom/stl-file.mjs::decodeFile": "c33978",
+  "core/geom/stl-file.mjs::decodeSTLFile": "c33989",
+  "core/geom/stl-file.mjs::hashFile": "c33998",
+  "core/geom/support-surface.mjs::supportBoundaryAt": "c33983",
+  "core/geom/support-surface.mjs::supportSurface": "c33979",
+  "core/geom/support-surface.mjs::supportSurfaceSection": "c34088",
+  "core/geom/surface-derivatives.mjs::surfaceDerivatives": "c34054",
+  "core/geom/surface-derivatives.mjs::surfaceDerivatives::uvOf": "c34040",
+  "core/geom/surface-offset.mjs::prepareSurfaceOffsets": "c34013",
+  "core/geom/surface-offset.mjs::prepareSurfaceOffsets::at": "c34020",
+  "core/geom/surface-offset.mjs::prepareSurfaceOffsets::frameAt": "c34057",
+  "core/geom/surface-offset.mjs::prepareSurfaceOffsets::offsetPatch": "c34073",
+  "core/geom/surface-offset.mjs::prepareSurfaceOffsets::report": "c34013",
+  "core/geom/surface-region.mjs::meshStripChart": "c34095",
+  "core/geom/surface-region.mjs::meshStripChart::at": "c34048",
+  "core/geom/surface-region.mjs::splinePatchChart": "c34095",
+  "core/geom/surface-region.mjs::splinePatchChart::at": "c34028",
+  "core/geom/surface-region.mjs::surfaceRegion": "c34095",
+  "core/geom/surface-region.mjs::surfaceRegion::sample": "c33976",
+  "core/geom/surface-region.mjs::validateSurfaceSelection": "c34029",
+  "core/geom/tessellate.mjs::closest": "c34020",
+  "core/geom/tessellate.mjs::orientTriangles": "c34028",
+  "core/geom/tessellate.mjs::sampleSharedBoundaries": "c34020",
+  "core/geom/tessellate.mjs::sampleTessellationCandidate": "c34071",
+  "core/geom/tessellate.mjs::tessellateShell": "c34020",
+  "core/geom/text-layout.mjs::baselineMapper": "c34043",
+  "core/geom/text-layout.mjs::baselineMapper::<return@12:12>": "c34043",
+  "core/geom/text-layout.mjs::baselineMapper::<return@25:10>": "c34043",
+  "core/geom/text-layout.mjs::baselineMapper::<return@6:25>": "c34043",
+  "core/geom/text-layout.mjs::textLayout": "c34043",
+  "core/geom/text-outline.mjs::distanceToSegment": "c34043",
+  "core/geom/text-outline.mjs::flattenBezier": "c34043",
+  "core/geom/text-outline.mjs::midpoint": "c34043",
+  "core/geom/text-outline.mjs::textOutlines": "c34043",
+  "core/geom/text-record.mjs::textDigest": "c34003",
+  "core/geom/text-record.mjs::textTemplate": "c34003",
+  "core/geom/text-record.mjs::validateTextRecord": "c34092",
+  "core/geom/tolerance.mjs::add": "c33976",
+  "core/geom/tolerance.mjs::cross": "c34054",
+  "core/geom/tolerance.mjs::distance": "c34044",
+  "core/geom/tolerance.mjs::distance2": "c33972",
+  "core/geom/tolerance.mjs::dot": "c34075",
+  "core/geom/tolerance.mjs::findRoot": "c34088",
+  "core/geom/tolerance.mjs::length": "c33993",
+  "core/geom/tolerance.mjs::normalize": "c34075",
+  "core/geom/tolerance.mjs::requireThat": "c34000",
+  "core/geom/tolerance.mjs::scale": "c34048",
+  "core/geom/tolerance.mjs::subtract": "c33993",
+  "core/geom/triangle-bvh.mjs::triangleBVH": "c34098",
+  "core/geom/triangle-bvh.mjs::triangleBVH::query": "c34098",
+  "core/local-extension.mjs::loadLocalExtension": "c33980",
+  "core/machine/denso-kinematics.mjs::densoForward": "c33999",
+  "core/machine/denso-kinematics.mjs::densoGeometry": "c34055",
+  "core/machine/denso-kinematics.mjs::densoInverse": "c34049",
+  "core/machine/denso-kinematics.mjs::densoWristFromPose": "c33999",
+  "core/machine/denso-kinematics.mjs::linear": "c34083",
+  "core/machine/denso-kinematics.mjs::rotationError": "c34049",
+  "core/machine/denso.mjs::validateDensoConfiguration": "c34064",
+  "core/machine/dobot-kinematics.mjs::dobotForward": "c34051",
+  "core/machine/dobot-kinematics.mjs::dobotGeometry": "c34016",
+  "core/machine/dobot-kinematics.mjs::dobotInverse": "c34052",
+  "core/machine/dobot-kinematics.mjs::ry": "c34051",
+  "core/machine/dobot-kinematics.mjs::rz": "c34079",
+  "core/machine/filaments.mjs::filamentPlan": "c34019",
+  "core/machine/filaments.mjs::filamentSelection": "c34019",
+  "core/machine/filaments.mjs::validateBambuConnections": "c34019",
+  "core/machine/jog.mjs::constrainedJog": "c33996",
+  "core/machine/presentation.mjs::buildMachineDescriptor": "c34022",
+  "core/machine/presentation.mjs::buildMachineMechanism": "c34022",
+  "core/machine/presentation.mjs::buildMachineMechanism::densoReachMargins": "c34022",
+  "core/machine/presentation.mjs::buildMachineMechanism::gantrySourcePose": "c34020",
+  "core/machine/presentation.mjs::buildMachineMechanism::robotSourcePose": "c33996",
+  "core/machine/presentation.mjs::buildMachineMechanism::solveAlignedArmPose": "c34055",
+  "core/machine/presentation.mjs::buildMachineMechanism::solveGantryPose": "c33996",
+  "core/machine/presentation.mjs::buildMachineMechanism::solveUnavailableArmPose": "c34022",
+  "core/machine/presentation.mjs::controlPose": "c34075",
+  "core/machine/presentation.mjs::createMachinePresentation": "c33991",
+  "core/machine/presentation.mjs::durationOf": "c33996",
+  "core/machine/presentation.mjs::isGantry": "c34022",
+  "core/machine/presentation.mjs::machineControlLayout": "c34022",
+  "core/machine/presentation.mjs::sampleMachinePresentation": "c33996",
+  "core/machine/profile.mjs::loadMachine": "c34097",
+  "core/machine/rigid.mjs::add": "c34051",
+  "core/machine/rigid.mjs::axisFrame": "c34075",
+  "core/machine/rigid.mjs::compose": "c33999",
+  "core/machine/rigid.mjs::cross": "c33996",
+  "core/machine/rigid.mjs::dot": "c33999",
+  "core/machine/rigid.mjs::identity": "c34075",
+  "core/machine/rigid.mjs::invert": "c34055",
+  "core/machine/rigid.mjs::mm": "c33999",
+  "core/machine/rigid.mjs::mv": "c33999",
+  "core/machine/rigid.mjs::norm": "c34055",
+  "core/machine/rigid.mjs::point": "c34055",
+  "core/machine/rigid.mjs::rigid": "c34075",
+  "core/machine/rigid.mjs::rodFrame": "c34075",
+  "core/machine/rigid.mjs::rotation": "c34075",
+  "core/machine/rigid.mjs::scale": "c33996",
+  "core/machine/rigid.mjs::sub": "c34075",
+  "core/machine/rigid.mjs::transpose": "c33999",
+  "core/machine/rigid.mjs::unit": "c33996",
+  "core/machine/rigid.mjs::validateRigid": "c33999",
+  "core/machine/rules.mjs::centeredPlacement": "c34084",
+  "core/machine/rules.mjs::checkMachinePath": "c34031",
+  "core/machine/rules.mjs::feederSelector": "c34031",
+  "core/machine/rules.mjs::lineWidthLimits": "c34021",
+  "core/machine/rules.mjs::planarWallTolerance": "c34019",
+  "core/machine/rules.mjs::range": "c34019",
+  "core/machine/rules.mjs::requireMachine": "c34096",
+  "core/machine/rules.mjs::sameNozzleMaterialChanges": "c34018",
+  "core/machine/rules.mjs::startupPosition": "c34026",
+  "core/machine/rules.mjs::startupRetracted": "c34082",
+  "core/machine/rules.mjs::toolBounds": "c34017",
+  "core/machine/rules.mjs::toolFor": "c34019",
+  "core/machine/rules.mjs::validateDobotConfiguration": "c34089",
+  "core/machine/rules.mjs::validateSetup": "c34031",
+  "core/path/builder.mjs::orderScanlineCells": "c34021",
+  "core/path/builder.mjs::orderStrokes": "c34021",
+  "core/path/builder.mjs::planarPolicy": "c33990",
+  "core/path/builder.mjs::surfacePolicy": "c34063",
+  "core/path/comb.mjs::combRoute": "c34080",
+  "core/path/comb.mjs::combSegment": "c34084",
+  "core/path/comb.mjs::distance": "c34024",
+  "core/path/comb.mjs::prepareCombCorners": "c34063",
+  "core/path/comb.mjs::prepareCombCorners::<return@11:10>": "c34063",
+  "core/path/comb.mjs::prepareCombRouteNodes": "c34024",
+  "core/path/comb.mjs::sampleCombEdge": "c34084",
+  "core/path/comb.mjs::searchCombRoute": "c34024",
+  "core/path/comb.mjs::span": "c34024",
+  "core/path/compose.mjs::operationTravelPolicy": "c34018",
+  "core/path/compose.mjs::operationTravelPolicy::isTravelClear": "c34084",
+  "core/path/compose.mjs::orderReadyOperations": "c34094",
+  "core/path/compose.mjs::planComposition": "c34021",
+  "core/path/compose.mjs::planOperation": "c34018",
+  "core/path/compose.mjs::planOperationEnd": "c34021",
+  "core/path/compose.mjs::planOperationStart": "c34021",
+  "core/path/compose.mjs::planStrokeApproach": "c33969",
+  "core/path/compose.mjs::planStrokeDeposition": "c34093",
+  "core/path/compose.mjs::prepareOperationDependencies": "c34025",
+  "core/path/compose.mjs::prepareOperationPriorities": "c34025",
+  "core/path/compose.mjs::scheduleOperations": "c34003",
+  "core/path/compose.mjs::segmentExtras": "c34093",
+  "core/path/compose.mjs::validateOperationBatch": "c34025",
+  "core/path/deposition.mjs::depositionStroke": "c34090",
+  "core/path/deposition.mjs::maximumPathAngle": "c34046",
+  "core/path/deposition.mjs::trimVanishingEnd": "c34052",
+  "core/path/finished-surface.mjs::consumeFinishedSurface": "c34098",
+  "core/path/finished-surface.mjs::consumeFinishedSurface::at": "c34061",
+  "core/path/finished-surface.mjs::publishFinishedBoundary": "c33989",
+  "core/path/material.mjs::materialRegion": "c34066",
+  "core/path/planning.mjs::ActionAccumulator": "c33986",
+  "core/path/planning.mjs::ActionAccumulator::add": "c34021",
+  "core/path/planning.mjs::ActionAccumulator::finish": "c33986",
+  "core/path/planning.mjs::appendAction": "c34045",
+  "core/path/planning.mjs::canPlanComb": "c34084",
+  "core/path/planning.mjs::createPlanningState": "c34045",
+  "core/path/planning.mjs::materializeActions": "c33969",
+  "core/path/planning.mjs::mergeableMove": "c34037",
+  "core/path/planning.mjs::planConnection": "c34044",
+  "core/path/planning.mjs::planContext": "c34018",
+  "core/path/planning.mjs::planDwell": "c34076",
+  "core/path/planning.mjs::planExtrusion": "c34032",
+  "core/path/planning.mjs::planFan": "c34045",
+  "core/path/planning.mjs::planLayerCooling": "c34021",
+  "core/path/planning.mjs::planMove": "c33987",
+  "core/path/planning.mjs::planNozzle": "c34037",
+  "core/path/planning.mjs::planPark": "c34076",
+  "core/path/planning.mjs::planPoseTravel": "c34044",
+  "core/path/planning.mjs::planRecovery": "c34044",
+  "core/path/planning.mjs::planRetraction": "c34045",
+  "core/path/planning.mjs::planSelection": "c34018",
+  "core/path/planning.mjs::planTravel": "c34080",
+  "core/path/planning.mjs::planningPath": "c33969",
+  "core/path/planning.mjs::planningResult": "c33969",
+  "core/path/planning.mjs::travelClearance": "c34076",
+  "core/path/pose.mjs::bedPoint": "c33987",
+  "core/path/pose.mjs::dot": "c34020",
+  "core/path/pose.mjs::interpolateDirections": "c34065",
+  "core/path/pose.mjs::rotateZ": "c34065",
+  "core/path/pose.mjs::samePose": "c34044",
+  "core/path/pose.mjs::unit": "c34065",
+  "core/path/pose.mjs::uprightPose": "c34044",
+  "core/path/pose.mjs::validatePose": "c34020",
+  "core/path/prime.mjs::emitPrimingPath": "c33986",
+  "core/path/prime.mjs::planPriming": "c33977",
+  "core/path/prime.mjs::preparePrimingFootprint": "c33977",
+  "core/path/prime.mjs::selectPrimingPath": "c33977",
+  "core/path/process-controls.mjs::plannedNozzleTemperatures": "c34031",
+  "core/path/process-controls.mjs::requireProcessControl": "c34028",
+  "core/path/process-controls.mjs::validateNozzleC": "c34028",
+  "core/path/spacing.mjs::lineSpacing": "c34000",
+  "core/path/spacing.mjs::spacingFactor": "c34050",
+  "core/path/toolpath.mjs::planFinishing": "c34045",
+  "core/path/toolpath.mjs::planToolpath": "c34041",
+  "core/print/bundle.mjs::generatePath": "c34096",
+  "core/print/bundle.mjs::limitationsFor": "c34041",
+  "core/print/cli.mjs::bundleDirectory": "c34016",
+  "core/print/cli.mjs::readJson": "c34016",
+  "core/print/cli.mjs::report": "c33980",
+  "core/print/cli.mjs::run": "c33980",
+  "core/print/cli.mjs::run::progress": "c34098",
+  "core/print/file-snapshot.mjs::createFileSnapshot": "c34026",
+  "core/print/file-snapshot.mjs::createFileSnapshot::<return@8:10>": "c34023",
+  "core/print/generate.mjs::addComplementaryResults": "c34053",
+  "core/print/generate.mjs::addPrimeResult": "c34082",
+  "core/print/generate.mjs::applyResultDependencies": "c34053",
+  "core/print/generate.mjs::buildShell": "c33971",
+  "core/print/generate.mjs::generateModelResults": "c34053",
+  "core/print/generate.mjs::generatePath": "c34082",
+  "core/print/generate.mjs::generatePlanarComponent": "c34002",
+  "core/print/generate.mjs::generatePlanarResults": "c33972",
+  "core/print/generate.mjs::hasMesh": "c34010",
+  "core/print/generate.mjs::preparePathGeometry": "c34053",
+  "core/print/generate.mjs::primeLineResult": "c34038",
+  "core/print/generate.mjs::summarizeGeneratedPath": "c34082",
+  "core/print/generate.mjs::translateShell": "c34086",
+  "core/print/generation-control.mjs::generationControl": "c34087",
+  "core/print/generation-control.mjs::generationControl::cancel": "c34087",
+  "core/print/generation-control.mjs::generationControl::check": "c34087",
+  "core/print/generation-control.mjs::generationControl::error": "c34087",
+  "core/print/geometry.mjs::createGeometry": "c34031",
+  "core/print/geometry.mjs::createMeshGeometry": "c34010",
+  "core/print/geometry.mjs::netHash": "c34074",
+  "core/print/geometry.mjs::proxyMesh": "c34012",
+  "core/print/geometry.mjs::rhino": "c34010",
+  "core/print/geometry.mjs::round": "c34037",
+  "core/print/geometry.mjs::verifyGeometry": "c34010",
+  "core/print/heat-set.mjs::applyHeatSet": "c33977",
+  "core/print/import-stl.mjs::geometryFromSTL": "c34008",
+  "core/print/import-stl.mjs::importOrRepairSTLBundle": "c34072",
+  "core/print/import-stl.mjs::importOrRepairSTLBundle::progress": "c34072",
+  "core/print/import-stl.mjs::importSTLBundle": "c34074",
+  "core/print/import-stl.mjs::inferSTLUnits": "c34008",
+  "core/print/import-stl.mjs::repairable": "c34072",
+  "core/print/import-stl.mjs::setSTLUnits": "c33980",
+  "core/print/mesh-repair-job.mjs::repairMemoryError": "c34072",
+  "core/print/mesh-repair-job.mjs::runRepairJob": "c34072",
+  "core/print/mesh-repair-worker.mjs::closeRepairWorkerChannel": "c34073",
+  "core/print/mesh-repair-worker.mjs::executeRepairWorkerJob": "c34005",
+  "core/print/mesh-repair-worker.mjs::initializeRepairWorkerChannel": "c34039",
+  "core/print/mesh-repair-worker.mjs::prepareRepairWorkerResponse": "c34005",
+  "core/print/mesh-repair-worker.mjs::publishRepairWorkerFailure": "c34087",
+  "core/print/mesh-repair-worker.mjs::publishRepairWorkerResponse": "c34005",
+  "core/print/mesh-repair-worker.mjs::runMeshRepairWorker": "c34005",
+  "core/print/plan.mjs::canonical": "c33992",
+  "core/print/plan.mjs::defaults": "c34084",
+  "core/print/plan.mjs::domeHeights": "c34084",
+  "core/print/plan.mjs::geometryTemplate": "c34084",
+  "core/print/plan.mjs::hash": "c34010",
+  "core/print/plan.mjs::keys": "c34084",
+  "core/print/plan.mjs::number": "c33994",
+  "core/print/plan.mjs::validatePlan": "c33994",
+  "core/print/plan.mjs::validatePlanAuxiliary": "c34096",
+  "core/print/plan.mjs::validatePlanDeposition": "c34092",
+  "core/print/plan.mjs::validatePlanFields": "c34084",
+  "core/print/plan.mjs::validatePlanGeometry": "c34084",
+  "core/print/plan.mjs::validatePlanPlacement": "c34092",
+  "core/print/plan.mjs::validatePlanProcess": "c34092",
+  "core/print/plan.mjs::validatePlanRegions": "c33981",
+  "core/print/plan.mjs::validatePlanSelections": "c34096",
+  "core/print/plan.mjs::validatePlanWalls": "c34096",
+  "core/print/program-handoff.mjs::consumeCheckedProgram": "c34078",
+  "core/print/program-handoff.mjs::createCheckedProgramHandoff": "c33985",
+  "core/print/program-handoff.mjs::createCheckedProgramHandoff::dispose": "c33985",
+  "core/print/program-handoff.mjs::createPendingCheckedProgramStore": "c34078",
+  "core/print/program-handoff.mjs::createPendingCheckedProgramStore::retain": "c34078",
+  "core/print/program-handoff.mjs::createPendingCheckedProgramStore::take": "c34004",
+  "core/print/regions.mjs::covered": "c33972",
+  "core/print/regions.mjs::generateAssignedRegion": "c34053",
+  "core/print/regions.mjs::generateRegionResults": "c34053",
+  "core/print/regions.mjs::has": "c33989",
+  "core/print/regions.mjs::ids": "c34003",
+  "core/print/regions.mjs::inBounds": "c33989",
+  "core/print/regions.mjs::planar": "c34053",
+  "core/print/regions.mjs::planarLayers": "c33972",
+  "core/print/regions.mjs::planarSupportTopAt": "c33989",
+  "core/print/regions.mjs::prepareRegionDependencies": "c34053",
+  "core/print/regions.mjs::prepareRegionRecords": "c34053",
+  "core/print/regions.mjs::publishSurface": "c34003",
+  "core/print/regions.mjs::summarizeRegionResults": "c34053",
+  "core/print/regions.mjs::surfaceField": "c34003",
+  "core/print/repair-stl.mjs::emitGeometry": "c34016",
+  "core/print/repair-stl.mjs::prepare": "c34031",
+  "core/print/repair-stl.mjs::repairSTL": "c34030",
+  "core/print/repair-stl.mjs::repairSTLFiles": "c34016",
+  "core/print/repair-stl.mjs::shapeChanges": "c34041",
+  "core/print/resolve-plan.mjs::mergeRecord": "c33972",
+  "core/print/resolve-plan.mjs::record": "c33972",
+  "core/print/resolve-plan.mjs::resolveInitialPlan": "c34034",
+  "core/print/resolve-plan.mjs::resolveMachinePlan": "c33994",
+  "core/print/resolve-plan.mjs::resolvePlanPatch": "c33972",
+  "core/print/review-state.mjs::lifecycleReview": "c34025",
+  "core/print/text.mjs::applyText": "c34002",
+  "core/print/text.mjs::rebuildTextGeometry": "c34001",
+  "core/print/text.mjs::unwrapTextGeometry": "c34001",
+  "core/print/workflow.mjs::applyPlanPatch": "c33972",
+  "core/print/workflow.mjs::approvedReview": "c34092",
+  "core/print/workflow.mjs::canonical": "c34092",
+  "core/print/workflow.mjs::createBundleWorkflow": "c34062",
+  "core/print/workflow.mjs::createBundleWorkflow::adjustBundle": "c34097",
+  "core/print/workflow.mjs::createBundleWorkflow::changeMachine": "c33980",
+  "core/print/workflow.mjs::createBundleWorkflow::checkPathBundle": "c34035",
+  "core/print/workflow.mjs::createBundleWorkflow::deliver": "c34035",
+  "core/print/workflow.mjs::createBundleWorkflow::generateBundle": "c34078",
+  "core/print/workflow.mjs::createBundleWorkflow::initBundle": "c33998",
+  "core/print/workflow.mjs::createBundleWorkflow::loadBundle": "c34097",
+  "core/print/workflow.mjs::createBundleWorkflow::migrateBundle": "c34062",
+  "core/print/workflow.mjs::createBundleWorkflow::proposedPlan": "c34034",
+  "core/print/workflow.mjs::createBundleWorkflow::rememberSetup": "c34030",
+  "core/print/workflow.mjs::createBundleWorkflow::updatePlan": "c34074",
+  "core/print/workflow.mjs::editedPlanReview": "c34081",
+  "core/print/workflow.mjs::hash": "c34092",
+  "core/print/workflow.mjs::invalidateReview": "c34081",
+  "core/print/workflow.mjs::json": "c34034",
+  "core/print/workflow.mjs::machineChangedReview": "c33980",
+  "core/print/workflow.mjs::migrateChecks": "c34032",
+  "core/print/workflow.mjs::migrateReview": "c34032",
+  "core/print/workflow.mjs::migratedIdentity": "c34032",
+  "core/print/workflow.mjs::nativeSuffix": "c33998",
+  "core/print/workflow.mjs::originalSource": "c34062",
+  "core/print/workflow.mjs::programCacheEntry": "c34074",
+  "core/print/workflow.mjs::save": "c34063",
+  "core/print/workflow.mjs::setupFor": "c34097",
+  "core/region/boolean.mjs::chain": "c34000",
+  "core/region/boolean.mjs::levelSetBoundarySegments": "c34090",
+  "core/region/boolean.mjs::levelSetCoverage": "c34034",
+  "core/region/boolean.mjs::levelSetInteriorSegments": "c34090",
+  "core/region/boolean.mjs::levelSetRegion": "c34090",
+  "core/region/clipper.mjs::canonicalLoops": "c34027",
+  "core/region/clipper.mjs::clipPaths": "c34093",
+  "core/region/clipper.mjs::clipperContext": "c34027",
+  "core/region/clipper.mjs::clipperContext::decode": "c34027",
+  "core/region/clipper.mjs::clipperContext::decodeOpen": "c34094",
+  "core/region/clipper.mjs::clipperContext::encode": "c33982",
+  "core/region/clipper.mjs::normalizedOffsetPaths": "c34093",
+  "core/region/clipper.mjs::offsetPaths": "c33971",
+  "core/region/clipper.mjs::round": "c33982",
+  "core/region/clipper.mjs::simplifyPaths": "c34012",
+  "core/region/clipper2.mjs::decode": "c34078",
+  "core/region/clipper2.mjs::encode": "c34093",
+  "core/region/clipper2.mjs::inflatePaths": "c34093",
+  "core/region/clipper2.mjs::nativeBooleanPaths": "c34078",
+  "core/region/clipper2.mjs::nativeSimplifyPaths": "c34093",
+  "core/region/clipper2.mjs::normalizeAndInflatePaths": "c34093",
+  "core/region/intersection.mjs::clipOpenPaths": "c34066",
+  "core/region/intersection.mjs::combine": "c34077",
+  "core/region/intersection.mjs::difference": "c34034",
+  "core/region/intersection.mjs::intersect": "c34077",
+  "core/region/intersection.mjs::union": "c34034",
+  "core/region/normal-surface.mjs::normalSurfacePoint": "c34061",
+  "core/region/normal-surface.mjs::sampleSurfaceCurve": "c34003",
+  "core/region/offset.mjs::offsetRegion": "c34024",
+  "core/region/perimeters.mjs::perimeterLoops": "c34023",
+  "core/region/perimeters.mjs::preparePerimeterContours": "c34027",
+  "core/region/perimeters.mjs::recoverCollapsedPerimeters": "c34089",
+  "core/region/region2d.mjs::SegmentIndex": "c34066",
+  "core/region/region2d.mjs::componentKey": "c34037",
+  "core/region/region2d.mjs::connectScanlineCells": "c34037",
+  "core/region/region2d.mjs::dedupe": "c34090",
+  "core/region/region2d.mjs::loopArea": "c34024",
+  "core/region/region2d.mjs::pointInRegion": "c34074",
+  "core/region/region2d.mjs::pointSegmentDistance": "c33972",
+  "core/region/region2d.mjs::prepareScanlineFrame": "c34037",
+  "core/region/region2d.mjs::regionArea": "c34032",
+  "core/region/region2d.mjs::regionComponents": "c34037",
+  "core/region/region2d.mjs::sampleScanlineRows": "c34037",
+  "core/region/region2d.mjs::scanlineFill": "c34037",
+  "core/region/region2d.mjs::scanlineFillComponent": "c34037",
+  "core/region/region2d.mjs::segmentIntersection": "c34084",
+  "core/region/reservation.mjs::bounds": "c34073",
+  "core/region/reservation.mjs::boundsOverlap": "c34004",
+  "core/region/reservation.mjs::clipAboveSurface": "c34032",
+  "core/region/reservation.mjs::clipReservedRegion": "c34004",
+  "core/region/reservation.mjs::reservationFootprint": "c34004",
+  "core/region/reservation.mjs::surfaceHeight": "c34089",
+  "core/region/reservation.mjs::surfaceStroke": "c34089",
+  "core/region/section-offset.mjs::offsetSurfaceSection": "c34013",
+  "core/region/stroke.mjs::strokeRegion": "c33971",
+  "core/region/surface-offset.mjs::createSurfaceSampler": "c34051",
+  "core/region/surface-offset.mjs::createSurfaceSampler::at": "c34051",
+  "core/region/surface-offset.mjs::distance": "c34000",
+  "core/region/surface-offset.mjs::finishSurfaceOffset": "c34051",
+  "core/region/surface-offset.mjs::midpoint": "c34051",
+  "core/region/surface-offset.mjs::offsetSurfaceRegion": "c34054",
+  "core/region/surface-offset.mjs::plus": "c34051",
+  "core/region/surface-offset.mjs::prepareSurfaceOffset": "c34054",
+  "core/region/surface-offset.mjs::simplifySurfaceLoops": "c34051",
+  "core/region/surface-offset.mjs::sweepSurfaceOffset": "c34054",
+  "studio/adapter-resolution.mjs::bundleFor": "c34057",
+  "studio/adapter-resolution.mjs::bundles::saam-machine-study/1": "c34035",
+  "studio/adapter-resolution.mjs::bundles::saam-shell-plan/1": "c34035",
+  "studio/adapter-resolution.mjs::readStableBundle": "c33986",
+  "studio/adapter-resolution.mjs::supportsBundleSchema": "c34048",
+  "studio/agent-requests.mjs::createAgentRequests": "c34065",
+  "studio/agent-requests.mjs::createAgentRequests::activity": "c34014",
+  "studio/agent-requests.mjs::createAgentRequests::begin": "c34066",
+  "studio/agent-requests.mjs::createAgentRequests::cancelFor": "c33992",
+  "studio/agent-requests.mjs::createAgentRequests::cancelScope": "c34052",
+  "studio/agent-requests.mjs::createAgentRequests::close": "c34063",
+  "studio/agent-requests.mjs::createAgentRequests::disconnect": "c34001",
+  "studio/agent-requests.mjs::createAgentRequests::get": "c34014",
+  "studio/agent-requests.mjs::createAgentRequests::list": "c34026",
+  "studio/agent-requests.mjs::createAgentRequests::presented": "c33973",
+  "studio/agent-requests.mjs::createAgentRequests::printId": "c34026",
+  "studio/agent-requests.mjs::createAgentRequests::query": "c34014",
+  "studio/agent-requests.mjs::createAgentRequests::selectQueued": "c34059",
+  "studio/agent-requests.mjs::createAgentRequests::subscribe": "c34082",
+  "studio/agent-requests.mjs::createAgentRequests::subscribe::unsubscribe": "c34082",
+  "studio/agent-requests.mjs::createAgentRequests::update": "c34052",
+  "studio/agent-requests.mjs::createAgentRequests::wait": "c34058",
+  "studio/agent-requests.mjs::snapshot": "c34052",
+  "studio/agent-requests.mjs::workSnapshot": "c33973",
+  "studio/agent-ui.mjs::createAgentUI": "c34079",
+  "studio/agent-ui.mjs::createAgentUI::generating": "c33983",
+  "studio/agent-ui.mjs::createAgentUI::loading": "c34026",
+  "studio/agent-ui.mjs::createAgentUI::presentState": "c34079",
+  "studio/agent-ui.mjs::createAgentUI::received": "c33966",
+  "studio/agent-ui.mjs::createAgentUI::reflectFade": "c33983",
+  "studio/agent-ui.mjs::createAgentUI::settled": "c34095",
+  "studio/agent-ui.mjs::createAgentUI::updated": "c34079",
+  "studio/app.mjs::$": "c34032",
+  "studio/app.mjs::$$": "c34042",
+  "studio/app.mjs::@handler/cancel-generation.onclick": "c33966",
+  "studio/app.mjs::@handler/cancel-movie.onclick": "c34083",
+  "studio/app.mjs::@handler/canvas.onkeydown": "c34061",
+  "studio/app.mjs::@handler/canvas.wheel": "c34061",
+  "studio/app.mjs::@handler/close-picker.onclick": "c34027",
+  "studio/app.mjs::@handler/confirm.onclick": "c34069",
+  "studio/app.mjs::@handler/export-movie.onclick": "c34058",
+  "studio/app.mjs::@handler/export-name.oninput": "c34056",
+  "studio/app.mjs::@handler/fit-program.onclick": "c34056",
+  "studio/app.mjs::@handler/follow-plate.onchange": "c34068",
+  "studio/app.mjs::@handler/import-stl.onclick": "c34027",
+  "studio/app.mjs::@handler/machine-view.onchange": "c34039",
+  "studio/app.mjs::@handler/manual-reset.onclick": "c34039",
+  "studio/app.mjs::@handler/next-layer.onclick": "c34032",
+  "studio/app.mjs::@handler/open-path.onsubmit": "c34032",
+  "studio/app.mjs::@handler/open-print.onclick": "c33966",
+  "studio/app.mjs::@handler/play.onclick": "c34080",
+  "studio/app.mjs::@handler/playback-speed.oninput": "c34027",
+  "studio/app.mjs::@handler/prev-layer.onclick": "c34032",
+  "studio/app.mjs::@handler/previous-layer-opacity.oninput": "c34068",
+  "studio/app.mjs::@handler/reset-view.onclick": "c34056",
+  "studio/app.mjs::@handler/scrub.oninput": "c34058",
+  "studio/app.mjs::@handler/stl-file.onchange": "c34027",
+  "studio/app.mjs::acknowledgeDisplayedView": "c34079",
+  "studio/app.mjs::activity": "c34078",
+  "studio/app.mjs::animate": "c34080",
+  "studio/app.mjs::api": "c34069",
+  "studio/app.mjs::applyCanvasDrag": "c33995",
+  "studio/app.mjs::applyProgramPresentation": "c34067",
+  "studio/app.mjs::applyProgress": "c34043",
+  "studio/app.mjs::applyRefreshNavigation": "c34060",
+  "studio/app.mjs::applyViewerAnnotations": "c34027",
+  "studio/app.mjs::approval": "c34069",
+  "studio/app.mjs::beginCanvasDrag": "c34061",
+  "studio/app.mjs::bindCachedProgram": "c33988",
+  "studio/app.mjs::cameraState": "c34060",
+  "studio/app.mjs::cancelCanvasDrag": "c34061",
+  "studio/app.mjs::clearManual": "c34033",
+  "studio/app.mjs::clearProgramView": "c34094",
+  "studio/app.mjs::clock": "c34058",
+  "studio/app.mjs::connectCanvasPointerEvents": "c34061",
+  "studio/app.mjs::connectStudioSession": "c34027",
+  "studio/app.mjs::connectStudioUpdates": "c34043",
+  "studio/app.mjs::connectViewPersistence": "c34068",
+  "studio/app.mjs::createStudioTour": "c34069",
+  "studio/app.mjs::decodeInWorker": "c34090",
+  "studio/app.mjs::disposeStudioSession": "c34079",
+  "studio/app.mjs::download": "c34069",
+  "studio/app.mjs::draw": "c34042",
+  "studio/app.mjs::duration": "c34009",
+  "studio/app.mjs::endCanvasDrag": "c34091",
+  "studio/app.mjs::ensureTourGeneration": "c34073",
+  "studio/app.mjs::exportKey": "c34025",
+  "studio/app.mjs::fitDisplayedPart": "c34056",
+  "studio/app.mjs::fitMachine": "c34060",
+  "studio/app.mjs::generationPending": "c34025",
+  "studio/app.mjs::initializeAgentInterface": "c34006",
+  "studio/app.mjs::initializeStudio": "c34006",
+  "studio/app.mjs::label": "c34091",
+  "studio/app.mjs::loadAndAdoptStudioState": "c34073",
+  "studio/app.mjs::loadStudio": "c34027",
+  "studio/app.mjs::machineDisplay": "c34047",
+  "studio/app.mjs::machineSample": "c34047",
+  "studio/app.mjs::machineSettings": "c34046",
+  "studio/app.mjs::machineTheme": "c33988",
+  "studio/app.mjs::materialFact": "c34039",
+  "studio/app.mjs::materialSetup": "c34009",
+  "studio/app.mjs::message": "c34027",
+  "studio/app.mjs::moveCanvasDrag": "c33995",
+  "studio/app.mjs::openPrint": "c34022",
+  "studio/app.mjs::painted": "c34051",
+  "studio/app.mjs::partBounds": "c34042",
+  "studio/app.mjs::planCanvasDrag": "c33995",
+  "studio/app.mjs::poll": "c34095",
+  "studio/app.mjs::pollPreparation": "c34091",
+  "studio/app.mjs::presentStudioState": "c34033",
+  "studio/app.mjs::presentedState": "c34056",
+  "studio/app.mjs::readCanvasDrag": "c33995",
+  "studio/app.mjs::readViewerSnapshot": "c34077",
+  "studio/app.mjs::refresh": "c34027",
+  "studio/app.mjs::render": "c34059",
+  "studio/app.mjs::requestDraw": "c34039",
+  "studio/app.mjs::requestMachinePose": "c34027",
+  "studio/app.mjs::restoreStudioSession": "c34027",
+  "studio/app.mjs::restoreView": "c34080",
+  "studio/app.mjs::round2": "c34039",
+  "studio/app.mjs::saveView": "c34068",
+  "studio/app.mjs::scheduleChange": "c34006",
+  "studio/app.mjs::seekTourLayer": "c34033",
+  "studio/app.mjs::selectFeature": "c34091",
+  "studio/app.mjs::selectStudioPresentation": "c34059",
+  "studio/app.mjs::setTab": "c34086",
+  "studio/app.mjs::showingGeometry": "c34042",
+  "studio/app.mjs::startFallbackPolling": "c34079",
+  "studio/app.mjs::stepLayer": "c34033",
+  "studio/app.mjs::stop": "c34080",
+  "studio/app.mjs::stopFallbackPolling": "c34079",
+  "studio/app.mjs::studioConnection": "c34079",
+  "studio/app.mjs::studioUpdate": "c34043",
+  "studio/app.mjs::studioVisible": "c34006",
+  "studio/app.mjs::suppressCanvasContextMenu": "c34061",
+  "studio/app.mjs::table": "c34036",
+  "studio/app.mjs::updateMachineStatus": "c34058",
+  "studio/app.mjs::updateManualControls": "c34042",
+  "studio/app.mjs::useCamera": "c34060",
+  "studio/app.mjs::vaseSettings": "c34060",
+  "studio/app.mjs::view": "c34077",
+  "studio/app.mjs::viewStorageKey": "c34080",
+  "studio/app.mjs::viewer.reportPerformance": "c34091",
+  "studio/app.mjs::views.facts": "c34009",
+  "studio/app.mjs::views.settings": "c34046",
+  "studio/app.mjs::working": "c34032",
+  "studio/app.mjs::worldToDisplay": "c34055",
+  "studio/browser.mjs::openBrowser": "c34067",
+  "studio/camera.mjs::createProjection": "c34029",
+  "studio/camera.mjs::createProjection::project": "c34072",
+  "studio/changes.mjs::watchStudioChanges": "c33992",
+  "studio/changes.mjs::watchStudioChanges::<return@16:10>": "c33992",
+  "studio/generation-worker.mjs::createProgressReporter": "c34087",
+  "studio/generation-worker.mjs::generateMessage": "c34057",
+  "studio/generation-worker.mjs::loadGeneratedResponse": "c34057",
+  "studio/generation-worker.mjs::prepareGeneration": "c34087",
+  "studio/generation-worker.mjs::runPreparedGeneration": "c34057",
+  "studio/generation-worker.mjs::startGenerationWorker": "c34005",
+  "studio/import-stl.mjs::importStudioSTL": "c34084",
+  "studio/import-stl.mjs::importStudioSTL::progress": "c34084",
+  "studio/import-stl.mjs::loadStudioImportRepair": "c34084",
+  "studio/lifetime.mjs::viewerLifetime": "c34026",
+  "studio/lifetime.mjs::viewerLifetime::attach": "c34026",
+  "studio/lifetime.mjs::viewerLifetime::notify": "c34026",
+  "studio/machine-session.mjs::machineCameras": "c34015",
+  "studio/machine-session.mjs::machineCameras::refit": "c34068",
+  "studio/machine-session.mjs::machineCameras::reset": "c34094",
+  "studio/machine-session.mjs::machineCameras::restore": "c34060",
+  "studio/machine-session.mjs::machineCameras::snapshot": "c34015",
+  "studio/machine-session.mjs::machineCameras::switch": "c34060",
+  "studio/machine-session.mjs::sourceSession": "c34090",
+  "studio/machine-session.mjs::sourceSession::onmessage": "c33983",
+  "studio/machine-study.mjs::bundleFingerprint": "c34023",
+  "studio/machine-study.mjs::bundleFingerprints": "c34023",
+  "studio/machine-study.mjs::files": "c33998",
+  "studio/machine-study.mjs::hash": "c33984",
+  "studio/machine-study.mjs::loadBundle": "c33984",
+  "studio/machine-study.mjs::unavailable": "0",
+  "studio/machine-view.mjs::binding": "c34036",
+  "studio/machine-view.mjs::bindingKey": "c34036",
+  "studio/machine-view.mjs::boundsCorners": "c34094",
+  "studio/machine-view.mjs::compileMachine": "c34090",
+  "studio/machine-view.mjs::createMachineLayer": "c34070",
+  "studio/machine-view.mjs::drawMachineCanvas": "c34072",
+  "studio/machine-view.mjs::machineFitBounds": "c34094",
+  "studio/machine-view.mjs::marks": "c34072",
+  "studio/machine-view.mjs::poseMachine": "c34090",
+  "studio/machine-view.mjs::primitive": "c34090",
+  "studio/machine-view.mjs::require": "c34036",
+  "studio/machine-view.mjs::validateDescriptor": "c34045",
+  "studio/machine-view.mjs::validatePresentationRigid": "c34045",
+  "studio/machine-view.mjs::validateSnapshot": "c34036",
+  "studio/machine-view.mjs::vector": "c34045",
+  "studio/material-view.mjs::beadFrame": "c34070",
+  "studio/material-view.mjs::beadFrame::layerNormal": "c34070",
+  "studio/material-view.mjs::beadFrame::radialNormal": "c34070",
+  "studio/material-view.mjs::beadFrame::roofNormal": "c34075",
+  "studio/material-view.mjs::beadFrame::surfaceNormal": "c34075",
+  "studio/material-view.mjs::beadInstance": "c34070",
+  "studio/material-view.mjs::beadSection": "c34070",
+  "studio/material-view.mjs::buildMaterialScene": "c34067",
+  "studio/material-view.mjs::createMaterialRenderer": "c34070",
+  "studio/material-view.mjs::groupBounds": "c34070",
+  "studio/material-view.mjs::materialKey": "c34067",
+  "studio/material-view.mjs::materialProjection": "c34068",
+  "studio/material-view.mjs::materialTemplate": "c34070",
+  "studio/material-view.mjs::mix": "c34075",
+  "studio/mesh-view.mjs::buildGeometryView": "c34011",
+  "studio/mesh-view.mjs::buildMeshView": "c34011",
+  "studio/mesh-view.mjs::createGeometryRenderer": "c34011",
+  "studio/mesh-view.mjs::faceAt": "0",
+  "studio/mesh-view.mjs::pickGeometry": "0",
+  "studio/mesh-view.mjs::visibleGeometryEdgeSegments": "c34029",
+  "studio/move-store.mjs::moveBuffers": "c33983",
+  "studio/move-store.mjs::moveStore": "c34090",
+  "studio/playback.mjs::advancePlayback": "c34080",
+  "studio/playback.mjs::createMovieWebM": "c33967",
+  "studio/playback.mjs::createMovieWebM::add": "c34047",
+  "studio/playback.mjs::createMovieWebM::finish": "c33967",
+  "studio/playback.mjs::displayPoint": "c34064",
+  "studio/playback.mjs::exportMovie": "c33967",
+  "studio/playback.mjs::movieTimeline": "c33967",
+  "studio/playback.mjs::movieTimeline::frame": "c33967",
+  "studio/prepared-generation-job.mjs::PreparedGenerationJob": "c34087",
+  "studio/prepared-generation-job.mjs::asError": "c34087",
+  "studio/print-name.mjs::downloadName": "c34064",
+  "studio/print-name.mjs::printName": "c34024",
+  "studio/print-name.mjs::requestedDownloadName": "c34064",
+  "studio/refresh-plan.mjs::planPresentation": "c34073",
+  "studio/refresh-plan.mjs::planRefreshNavigation": "c34033",
+  "studio/refresh-plan.mjs::presentationIdentity": "c34023",
+  "studio/request-index.mjs::createRequestIndex": "c34001",
+  "studio/request-index.mjs::createRequestIndex::changed": "c34001",
+  "studio/request-index.mjs::createRequestIndex::close": "c34001",
+  "studio/request-index.mjs::createRequestIndex::refresh": "c34082",
+  "studio/request-index.mjs::createRequestIndex::retain": "c34082",
+  "studio/request-index.mjs::createRequestIndex::retain::<return@57:23>": "c34082",
+  "studio/request-index.mjs::createRequestIndex::retain::<return@59:13>": "c34058",
+  "studio/request-index.mjs::valid": "c34001",
+  "studio/server.mjs::changedSince": "c33968",
+  "studio/server.mjs::createStudio": "c34022",
+  "studio/server.mjs::createStudio::prepare::onUpdate": "c34055",
+  "studio/server.mjs::listPrints": "c34050",
+  "studio/server.mjs::listPrints::walk": "c34048",
+  "studio/server.mjs::noteSourceSkew": "c34021",
+  "studio/server.mjs::printDirectory": "c34091",
+  "studio/server.mjs::reportedMessage": "c34066",
+  "studio/server.mjs::sourceSkewNotice": "c34021",
+  "studio/settings.mjs::claddingPatternName": "c34019",
+  "studio/settings.mjs::claddingSubstrateName": "c34019",
+  "studio/settings.mjs::hasSkill": "c34058",
+  "studio/settings.mjs::materialGrams": "c34039",
+  "studio/settings.mjs::nextExportName": "c34069",
+  "studio/settings.mjs::pathModeName": "c34019",
+  "studio/settings.mjs::recipeRows": "c34019",
+  "studio/settings.mjs::regionRows": "c34019",
+  "studio/settings.mjs::robotRows": "c34046",
+  "studio/settings.mjs::skillName": "c34019",
+  "studio/settings.mjs::skillSettingsRows": "c34019",
+  "studio/settings.mjs::value": "c34046",
+  "studio/source-player.mjs::decodeSource": "c34059",
+  "studio/source-player.mjs::fetchSources": "c33983",
+  "studio/source-worker.mjs::@handler/self.onmessage": "c33983",
+  "studio/source-worker.mjs::bind": "c33983",
+  "studio/state-response.mjs::composeStudioState": "c34032",
+  "studio/studio-controls.mjs::studioControls": "c34025",
+  "studio/studio-events.mjs::clone": "c34078",
+  "studio/studio-events.mjs::createStudioEvents": "c34081",
+  "studio/studio-events.mjs::createStudioEvents::close": "c34046",
+  "studio/studio-events.mjs::createStudioEvents::drain": "c34081",
+  "studio/studio-events.mjs::createStudioEvents::history": "c34081",
+  "studio/studio-events.mjs::createStudioEvents::pendingDelivery": "c34058",
+  "studio/studio-events.mjs::createStudioEvents::record": "c34087",
+  "studio/studio-events.mjs::createStudioEvents::subscribe": "c34089",
+  "studio/studio-events.mjs::createStudioEvents::subscribe::<return@38:137>": "c34089",
+  "studio/studio-events.mjs::createStudioEvents::wait": "c34058",
+  "studio/studio-state.mjs::adoptProgramState": "c34073",
+  "studio/studio-state.mjs::prepareStudioState": "c34073",
+  "studio/studio-state.mjs::withoutPreviewMaterial": "c34067",
+  "studio/toolpath-view.mjs::buildToolpathView": "c34067",
+  "studio/toolpath-view.mjs::createLayerFade": "c33975",
+  "studio/toolpath-view.mjs::createLayerFade::frame": "c33975",
+  "studio/toolpath-view.mjs::createLayerFade::reset": "c34033",
+  "studio/toolpath-view.mjs::createToolpathMemo": "c34067",
+  "studio/toolpath-view.mjs::distance2": "c34063",
+  "studio/toolpath-view.mjs::entries": "c34043",
+  "studio/toolpath-view.mjs::layerEndSeconds": "c33984",
+  "studio/toolpath-view.mjs::layerIndexAt": "c33968",
+  "studio/toolpath-view.mjs::layerKey": "c34068",
+  "studio/toolpath-view.mjs::localDetail": "c34069",
+  "studio/toolpath-view.mjs::mixColor": "c34068",
+  "studio/toolpath-view.mjs::remainingLayerMs": "c34072",
+  "studio/toolpath-view.mjs::same": "c34043",
+  "studio/toolpath-view.mjs::selectFrame": "c34043",
+  "studio/toolpath-view.mjs::simplify": "c34043",
+  "studio/toolpath-view.mjs::spread": "c34069",
+  "studio/toolpath-view.mjs::stepLayerIndex": "c33984",
+  "studio/toolpath-view.mjs::toolpathFrame": "c34043",
+  "studio/toolpath-view.mjs::toolpathPresentation": "c34068",
+  "studio/toolpath-view.mjs::toolpathStyle": "c34068",
+  "studio/toolpath-view.mjs::visible": "c34043",
+  "studio/tour-catalog.mjs::tourAgentInstruction": "c34066",
+  "studio/tour-ui.mjs::createTourUI": "c34086",
+  "studio/tour-ui.mjs::needsTourToolpath": "c34079",
+  "studio/tour.mjs::createTour": "c33974",
+  "studio/tour.mjs::createTour::acknowledgeView": "c33992",
+  "studio/tour.mjs::createTour::action": "c34049",
+  "studio/tour.mjs::createTour::attachStudio": "c34020",
+  "studio/tour.mjs::createTour::close": "c34063",
+  "studio/tour.mjs::createTour::closeStudio": "c34020",
+  "studio/tour.mjs::createTour::downloaded": "c33974",
+  "studio/tour.mjs::createTour::ensure": "c34049",
+  "studio/tour.mjs::createTour::info": "c34032",
+  "studio/tour.mjs::createTour::playback": "c34020",
+  "studio/tour.mjs::createTour::requestStartLayer": "c33966",
+  "studio/tour.mjs::createTour::restoreReference": "c34035",
+  "studio/tour.mjs::createTour::select": "c34085",
+  "studio/tour.mjs::createTour::setStartAt": "c34026",
+  "studio/tour.mjs::createTour::signature": "c33992",
+  "studio/tour.mjs::demo": "c34049",
+  "studio/tour.mjs::hash": "c33992",
+  "studio/tour.mjs::json": "c33992",
+  "studio/tour.mjs::optional": "c33992",
+  "studio/tour.mjs::referenceAdapter": "c34035",
+  "studio/tour.mjs::referenceAdapter::bundleFingerprints": "c34035",
+  "studio/tour.mjs::referenceAdapter::deliver": "c33989",
+  "studio/tour.mjs::referenceAdapter::generateBundle": "c33989",
+  "studio/tour.mjs::referenceAdapter::loadBundle": "c33986",
+  "studio/tour.mjs::referenceAdapter::loadBundleSnapshot": "c34035",
+  "studio/tour.mjs::save": "c34020",
+  "studio/tour.mjs::tourExample": "c34035",
+  "studio/tour.mjs::useExample": "c33974",
+  "studio/tour.mjs::validPath": "c33998",
+  "studio/view-performance.mjs::createMotionQuality": "c34090",
+  "studio/view-performance.mjs::createViewPerformance": "c34085",
+  "studio/view-performance.mjs::createViewPerformance::flush": "c34046",
+  "studio/view-performance.mjs::createViewPerformance::frame": "c34085",
+  "studio/view-performance.mjs::summarizeBurst": "c34091",
+  "studio/view-performance.mjs::summary": "c34091",
+  "studio/viewer-renderer.mjs::clock": "c34077",
+  "studio/viewer-renderer.mjs::createViewerRenderer": "c34067",
+  "studio/viewer-renderer.mjs::createViewerRenderer::clearProgram": "c34011",
+  "studio/viewer-renderer.mjs::createViewerRenderer::dispose": "c34068",
+  "studio/viewer-renderer.mjs::createViewerRenderer::draw": "c34072",
+  "studio/viewer-renderer.mjs::createViewerRenderer::flushPerformance": "c34041",
+  "studio/viewer-renderer.mjs::createViewerRenderer::noteMotion": "c34061",
+  "studio/viewer-renderer.mjs::createViewerRenderer::pick": "c34067",
+  "studio/viewer-renderer.mjs::createViewerRenderer::publishGeometry": "c34011",
+  "studio/viewer-renderer.mjs::createViewerRenderer::publishProgram": "c34067",
+  "studio/viewer-renderer.mjs::createViewerRenderer::requestDraw": "c34039",
+  "studio/viewer-renderer.mjs::createViewerRenderer::sceneState": "c34077",
+  "studio/viewer-renderer.mjs::createViewerRenderer::sceneState::edge": "c34077",
+  "studio/viewer-renderer.mjs::createViewerRenderer::sceneState::hasSelectedEdge": "c33988",
+  "studio/viewer-session.mjs::connect": "c34086",
+  "studio/viewer-session.mjs::viewerConnected": "c34043",
+  "studio/work-state.mjs::edits": "c33973",
+  "studio/work-state.mjs::hasUnpreparedEdit": "c33979",
+  "studio/work-state.mjs::matchesReceipt": "c33988",
+  "studio/work-state.mjs::requestReceiptState": "c33973",
+  "studio/work-state.mjs::summarizeWork": "c34063"
+ },
+ "repeats": {
+  "c33974": [
+   "c33971"
+  ],
+  "c34048": [
+   "c33980"
+  ],
+  "c34000": [
+   "c33977"
+  ],
+  "c34021": [
+   "c33981",
+   "core/path/planning.mjs::materializeActions"
+  ],
+  "c34002": [
+   "core/geom/tolerance.mjs::requireThat"
+  ],
+  "c34066": [
+   "c33974"
+  ],
+  "c33998": [
+   "c34062"
+  ],
+  "c33993": [
+   "c33987"
+  ],
+  "c34076": [
+   "c33979",
+   "core/geom/stl-decoder.mjs::STLDecoder::finish"
+  ],
+  "c34001": [
+   "core/print/heat-set.mjs::applyHeatSet"
+  ],
+  "c33982": [
+   "core/geom/tolerance.mjs::requireThat"
+  ],
+  "c34084": [
+   "c34048",
+   "core/path/comb.mjs::combRoute",
+   "core/region/region2d.mjs::pointInRegion"
+  ],
+  "c34012": [
+   "c33974",
+   "core/geom/tolerance.mjs::requireThat",
+   "core/print/generate.mjs::buildShell"
+  ],
+  "c34053": [
+   "c34000",
+   "core/machine/filaments.mjs::filamentPlan"
+  ],
+  "c34059": [
+   "c33968",
+   "core/export/machine-study.mjs::interpretMachineStudy",
+   "studio/move-store.mjs::moveStore"
+  ],
+  "c34089": [
+   "c33966",
+   "core/geom/tolerance.mjs::requireThat"
+  ],
+  "c33988": [
+   "c33970",
+   "studio/app.mjs::presentStudioState",
+   "studio/work-state.mjs::requestReceiptState"
+  ],
+  "c34087": [
+   "studio/server.mjs::createStudio"
+  ],
+  "c34079": [
+   "c33971",
+   "core/machine/rigid.mjs::add"
+  ],
+  "c33971": [
+   "c33978"
+  ],
+  "c33991": [
+   "core/path/planning.mjs::planMove"
+  ],
+  "c33981": [
+   "core/region/intersection.mjs::difference"
+  ],
+  "c34018": [
+   "c33982"
+  ],
+  "c34090": [
+   "c33968"
+  ],
+  "c34025": [
+   "c34006",
+   "core/geom/tolerance.mjs::requireThat",
+   "studio/app.mjs::render"
+  ],
+  "c34051": [
+   "c33966",
+   "core/region/surface-offset.mjs::distance"
+  ],
+  "c34043": [
+   "c33995",
+   "core/geom/tolerance.mjs::requireThat"
+  ],
+  "c34017": [
+   "c33985",
+   "core/geom/mesh.mjs::makeMesh",
+   "core/geom/tolerance.mjs::requireThat"
+  ],
+  "c34096": [
+   "c33974",
+   "core/geom/tolerance.mjs::requireThat",
+   "core/print/workflow.mjs::createBundleWorkflow"
+  ],
+  "c34037": [
+   "c33976",
+   "c34048",
+   "studio/view-performance.mjs::createViewPerformance"
+  ],
+  "c34060": [
+   "c33969",
+   "c34009",
+   "studio/app.mjs::@handler/machine-view.onchange",
+   "studio/app.mjs::presentStudioState",
+   "studio/app.mjs::selectFeature"
+  ],
+  "c34036": [
+   "c33985",
+   "c34045"
+  ],
+  "c34014": [
+   "c33974",
+   "core/geom/tolerance.mjs::scale",
+   "core/region/normal-surface.mjs::sampleSurfaceCurve"
+  ],
+  "c33989": [
+   "core/geom/tolerance.mjs::requireThat",
+   "studio/tour.mjs::tourExample"
+  ],
+  "c34050": [
+   "c33978",
+   "c33995",
+   "core/print/regions.mjs::publishSurface"
+  ],
+  "c34040": [
+   "core/geom/prepared-radial-contact.mjs::discrepancy",
+   "core/geom/tolerance.mjs::normalize",
+   "core/geom/tolerance.mjs::requireThat",
+   "core/print/generate.mjs::buildShell"
+  ],
+  "c33969": [
+   "c33971"
+  ],
+  "c34024": [
+   "c33971"
+  ],
+  "c34035": [
+   "c34020",
+   "core/geom/tolerance.mjs::requireThat",
+   "core/print/cli.mjs::run",
+   "studio/adapter-resolution.mjs::bundleFor"
+  ],
+  "c33992": [
+   "studio/server.mjs::createStudio",
+   "studio/tour.mjs::tourExample"
+  ],
+  "c34092": [
+   "core/geom/tolerance.mjs::requireThat",
+   "core/print/workflow.mjs::createBundleWorkflow::deliver",
+   "core/print/workflow.mjs::createBundleWorkflow::initBundle"
+  ],
+  "c33984": [
+   "c33968"
+  ],
+  "c34068": [
+   "c33987",
+   "core/geom/tolerance.mjs::normalize",
+   "studio/viewer-renderer.mjs::createViewerRenderer"
+  ],
+  "c33990": [
+   "c33985"
+  ],
+  "c33983": [
+   "c33968"
+  ],
+  "c34054": [
+   "core/geom/tolerance.mjs::requireThat"
+  ],
+  "c34031": [
+   "c34048"
+  ],
+  "c34045": [
+   "c33974",
+   "studio/machine-view.mjs::require",
+   "studio/machine-view.mjs::validateSnapshot"
+  ],
+  "c33986": [
+   "c33971"
+  ],
+  "c34003": [
+   "c33985",
+   "core/geom/tolerance.mjs::requireThat"
+  ],
+  "c34081": [
+   "c33971",
+   "c34043",
+   "core/print/workflow.mjs::machineChangedReview",
+   "studio/agent-requests.mjs::createAgentRequests::wait"
+  ],
+  "c33968": [
+   "c33967",
+   "core/geom/mesh-repair.mjs::cleanTriangleSoup"
+  ],
+  "c33976": [
+   "c33987"
+  ],
+  "c34038": [
+   "c34013",
+   "core/geom/tolerance.mjs::requireThat"
+  ],
+  "c34074": [
+   "c34017",
+   "core/geom/tolerance.mjs::requireThat",
+   "core/print/geometry.mjs::round"
+  ],
+  "c34019": [
+   "core/geom/tolerance.mjs::requireThat"
+  ],
+  "c34046": [
+   "c33967",
+   "studio/app.mjs::render"
+  ],
+  "c34039": [
+   "c34008",
+   "c34013",
+   "core/print/mesh-repair-worker.mjs::executeRepairWorkerJob",
+   "studio/app.mjs::views.facts"
+  ],
+  "c34064": [
+   "c33978",
+   "studio/state-response.mjs::composeStudioState"
+  ],
+  "c34006": [
+   "c34008"
+  ],
+  "c34077": [
+   "c33979",
+   "studio/viewer-renderer.mjs::createViewerRenderer::draw"
+  ],
+  "c34080": [
+   "c34039",
+   "core/geom/tolerance.mjs::requireThat",
+   "studio/app.mjs::$",
+   "studio/app.mjs::saveView"
+  ],
+  "c34023": [
+   "c33995",
+   "core/print/workflow.mjs::createBundleWorkflow::migrateBundle"
+  ],
+  "c34093": [
+   "core/geom/tolerance.mjs::requireThat"
+  ],
+  "c34028": [
+   "c33967",
+   "core/geom/tolerance.mjs::requireThat"
+  ],
+  "c34008": [
+   "c33995"
+  ],
+  "c34061": [
+   "c33967",
+   "studio/app.mjs::requestDraw"
+  ],
+  "c34030": [
+   "c33973"
+  ],
+  "c34086": [
+   "c33985"
+  ],
+  "c34063": [
+   "c33985",
+   "studio/mesh-view.mjs::faceAt",
+   "studio/toolpath-view.mjs::simplify",
+   "studio/work-state.mjs::edits"
+  ],
+  "c34029": [
+   "c33967",
+   "core/geom/tolerance.mjs::requireThat"
+  ],
+  "c34083": [
+   "c34005",
+   "core/machine/denso-kinematics.mjs::densoInverse",
+   "core/machine/rigid.mjs::cross",
+   "core/machine/rigid.mjs::scale",
+   "core/path/planning.mjs::planMove"
+  ],
+  "c34052": [
+   "c33967"
+  ],
+  "c34058": [
+   "c33997",
+   "studio/app.mjs::$",
+   "studio/app.mjs::render"
+  ],
+  "c34078": [
+   "c33967"
+  ],
+  "c34026": [
+   "c33970",
+   "core/print/generate.mjs::generatePath"
+  ],
+  "c33970": [
+   "core/print/generate.mjs::buildShell"
+  ],
+  "c33979": [
+   "c33967"
+  ],
+  "c34098": [
+   "c33967",
+   "core/geom/mesh-distance.mjs::createMeshDistanceQuery",
+   "core/geom/tolerance.mjs::requireThat"
+  ],
+  "c34065": [
+   "c33987",
+   "core/geom/tolerance.mjs::requireThat"
+  ],
+  "c34004": [
+   "c33966"
+  ],
+  "c34057": [
+   "c33975",
+   "c33997"
+  ],
+  "c34091": [
+   "c34067",
+   "studio/app.mjs::requestDraw",
+   "studio/server.mjs::createStudio",
+   "studio/viewer-renderer.mjs::createViewerRenderer"
+  ],
+  "c34082": [
+   "c34065",
+   "core/path/toolpath.mjs::planToolpath"
+  ],
+  "c34041": [
+   "c33966",
+   "core/geom/tolerance.mjs::distance"
+  ],
+  "c34085": [
+   "c33987"
+  ],
+  "c34027": [
+   "c34006",
+   "studio/app.mjs::$",
+   "studio/app.mjs::applyRefreshNavigation"
+  ],
+  "c34049": [
+   "c33966",
+   "core/machine/denso-kinematics.mjs::densoForward"
+  ],
+  "c34032": [
+   "c33979",
+   "core/geom/tolerance.mjs::requireThat",
+   "core/print/workflow.mjs::createBundleWorkflow"
+  ],
+  "c34020": [
+   "c34056",
+   "core/geom/tolerance.mjs::requireThat",
+   "studio/server.mjs::createStudio"
+  ],
+  "c34094": [
+   "c33971",
+   "core/path/compose.mjs::scheduleOperations"
+  ],
+  "c33987": [
+   "c34006"
+  ],
+  "c33972": [
+   "core/geom/tolerance.mjs::requireThat"
+  ],
+  "c34097": [
+   "core/print/import-stl.mjs::importSTLBundle",
+   "core/print/workflow.mjs::createBundleWorkflow::proposedPlan"
+  ],
+  "c33975": [
+   "core/print/generate.mjs::buildShell"
+  ],
+  "c34010": [
+   "c33971"
+  ],
+  "c34042": [
+   "c34006",
+   "core/export/registry.mjs::exportAndInterpretProgram",
+   "studio/app.mjs::updateMachineStatus",
+   "studio/settings.mjs::hasSkill"
+  ],
+  "c34047": [
+   "c33971",
+   "core/geom/tolerance.mjs::requireThat"
+  ],
+  "c34069": [
+   "c33970"
+  ],
+  "c34073": [
+   "c33967"
+  ],
+  "c34095": [
+   "c33997",
+   "c34000",
+   "core/geom/tolerance.mjs::subtract"
+  ]
+ },
+ "solved": {
+  "from": "2026-09-25",
+  "seed": 1,
+  "stage": 90,
+  "energy": 1.0606386764872515
+ }
+}

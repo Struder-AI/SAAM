@@ -16,53 +16,36 @@ import {exportProgram,interpretProgram,exportAndInterpretProgram} from '../expor
 import {interpretDensoFiles} from '../export/denso-player.mjs';
 import {unpackZip} from '../export/zip.mjs';
 import {bedPoint,uprightPose} from '../path/pose.mjs';
-import {pipeCladdingResult} from '../../skills/pipe-cladding/scripts/clad.mjs';
+import {surfaceCladdingResult} from '../../skills/pipe-cladding/scripts/surface-clad.mjs';
+import {buildShell} from '../print/generate.mjs';
+import {splineTube} from './fixtures/spline-shapes.mjs';
 import {scheduleOperations} from '../path/compose.mjs';
 import {frameAtTime,displayPoint} from '../../studio/playback.mjs';
 import {decodeSource,fetchSources} from '../../studio/source-player.mjs';
 import {createStudio} from '../../studio/server.mjs';
 import {regionalStackPlan} from './fixtures/regional-stack.mjs';
 const machine=loadMachine('denso-vs068a4-rc8a'),near=(a,b,t=1e-6)=>assert.ok(Math.abs(a-b)<t,`${a} != ${b}`);
-const small=()=>{const p=developmentPipePlan();p.geometry.heightMm=1.2;p.skills['pipe-cladding'].shells=2;return p;};
+const small=()=>{const p=developmentPipePlan();p.geometry=splineTube({columns:24,heightMm:1.2,boreRadiusMm:8,radiusAt:()=>10.4});p.skills['pipe-cladding'].shells=2;return p;};
 const sources=bytes=>Object.fromEntries([...unpackZip(bytes)].filter(([name])=>name.endsWith('.pcs')).map(([name,b])=>[name,b.toString()]));
 
-test('DENSO setup is unresolved by default; pipe geometry uses the shared native mesh lifecycle',async()=>{
+test('DENSO setup is unresolved by default; tube geometry uses the shared native spline lifecycle',async()=>{
   const unconfigured=defaults(machine);assert.equal(validateDensoConfiguration(unconfigured).configured,false);
   assert.throws(()=>validateDensoConfiguration(unconfigured,{required:true}),/unconfigured/);
   const plan=small();validatePlan(plan,machine);
   const native=await createGeometry(plan.geometry);await verifyGeometry(native.bytes,native.descriptor);
-  assert.equal(native.descriptor.nativeFile,'model.mesh.json');
+  assert.equal(native.descriptor.nativeFile,undefined);
   const s5=loadMachine(),old=defaults(s5);old.geometry=plan.geometry;old.placement={xMm:100,yMm:100};old.skills['draped-skin'].enabled=false;
   const path=generatePath(old,s5,await rhino());assert.ok(interpretProgram(exportProgram(path,old,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),old,s5).moves.some(m=>m.extruding));
   old.skills['pipe-cladding'].enabled=true;assert.throws(()=>validatePlan(old,s5),/orientation/);
 });
 
-test('same-height cylindrical shells retain explicit prerequisites in the existing scheduler',()=>{
-  const plan=small(),result=pipeCladdingResult({plan,after:['body']}),first=result.operations[0];
+test('same-height cylindrical shells retain explicit prerequisites in the existing scheduler',async()=>{
+  const plan=small(),result=surfaceCladdingResult({plan,shell:buildShell(await rhino(),plan.geometry),after:['body']}),first=result.operations[0];
   const body={...first,id:'body',layerId:'body',after:[],rank:999};
   assert.deepEqual(scheduleOperations([{operations:[...result.operations,body]}]).map(o=>o.id),['body','pipe-cladding:0','pipe-cladding:1']);
   assert.throws(()=>scheduleOperations([result]),/Unknown/);
   assert.throws(()=>scheduleOperations([{operations:[body,...result.operations]}],{order:['pipe-cladding:1','body']}),/cycle/);
   assert.ok(result.operations[0].strokes.every(s=>s.points[0][2]!==s.points.at(-1)[2]));
-});
-
-test('three-loop pipe body survives shared composition and RC8A source interpretation',async()=>{
-  const plan=small();plan.geometry.outerRadiusMm=9.6;
-  plan.skills['full-fill'].perimeters=0;plan.skills['full-fill'].fillOverlap=0;
-  const path=generatePath(plan,machine,await rhino());
-  assert.equal(path.summary.fullFill.fillRows,path.summary.fullFill.layers*3);
-  assert.equal(path.summary.fullFill.perimeterLoops,0);
-  const program=interpretProgram(exportProgram(path,plan,machine),plan,machine);
-  const radii=new Map();
-  for(const move of program.moves)if(move.extruding&&move.phase==='planar'){
-    const radius=Math.hypot(move.to[0]-plan.placement.xMm,move.to[1]-plan.placement.yMm);
-    const ring=[8.2,8.6,9].findIndex(r=>Math.abs(r-radius)<.015);
-    assert.ok(ring>=0,'body deposition stays on one of three distinct concentric loops');
-    if(!radii.has(move.layer))radii.set(move.layer,new Set());
-    radii.get(move.layer).add(ring);
-  }
-  assert.equal(radii.size,path.summary.fullFill.layers);
-  for(const rings of radii.values())assert.equal(rings.size,3);
 });
 
 test('existing mesh/spline regional skills use RC8A at fixed orientation',async()=>{
@@ -104,21 +87,17 @@ test('actual T/EX commands reconstruct fixed-room rotary deposition across multi
   const missing={...files};delete missing[key];assert.throws(()=>interpretDensoFiles(missing,plan,machine),/Missing/);
 });
 
-test('pipe export retains substrate, tilted axial/hoop shells and radial ownership at any sample count',async()=>{
+test('tube export retains the substrate and tilted axial/hoop shells outside it',async()=>{
   const plan=small(),path=generatePath(plan,machine,await rhino()),program=interpretProgram(exportProgram(path,plan,machine),plan,machine);
   const order=path.summary.composition.operationOrder;assert.deepEqual(order.slice(-2),['pipe-cladding:0','pipe-cladding:1']);
   const body=program.moves.filter(m=>m.extruding&&m.phase==='planar'),clad=program.moves.filter(m=>m.extruding&&m.phase.startsWith('cladding'));
-  assert.ok(body.length&&clad.length);const boundary=plan.geometry.outerRadiusMm-2*.2;
-  assert.ok(body.every(m=>Math.hypot(...m.to.slice(0,2))<=boundary+1e-6));
-  for(const m of clad){near(Math.acos(-m.toolAxisTo[2])*180/Math.PI,45,.001);assert.ok(m.to[2]>=0&&m.to[2]<=plan.geometry.heightMm+1e-8);}
-  // Each end index between neighboring axial tracks continues deposition.
-  assert.ok(!path.actions.some(a=>a.travel==='surface-index'));assert.ok(path.summary.travel.connected>0);
-  assert.equal(program.summary.shortTravel.count,0);
-  // The retired maxPoints budget is an unknown field, and a sampling step far
-  // finer than that former 500,000-point budget now completes.
+  assert.ok(body.length&&clad.length);
+  // The substrate stays inside the tube's exterior; cladding builds outward.
+  const outside=Math.max(...body.map(m=>Math.hypot(...m.to.slice(0,2))));
+  assert.ok(clad.every(m=>Math.hypot(...m.to.slice(0,2))>outside-1e-6));
+  for(const m of clad){near(Math.acos(-m.toolAxisTo[2])*180/Math.PI,45,.001);assert.ok(m.to[2]>=-1e-8&&m.to[2]<=1.2+1e-8);}
+  // The retired maxPoints budget is an unknown field.
   const stale=structuredClone(plan);stale.skills['pipe-cladding'].maxPoints=100;assert.throws(()=>validatePlan(stale,machine),/Unexpected or missing fields/);
-  const dense=structuredClone(plan);dense.skills['pipe-cladding'].sampleStepMm=.0005;
-  assert.ok(pipeCladdingResult({plan:dense,after:['body']}).report.points>500000);
 });
 
 test('RC8A uses the public bundle, exact browser source and cold reopen without reslicing',async t=>{

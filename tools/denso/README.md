@@ -1,8 +1,9 @@
 # Bounded RC8A cladding dry run
 
 This development utility extracts a selected sector of the first axial
-shell from an existing circular-pipe recipe (72 degrees by default; up to 360). It calls the shared pipe-cladding
-producer, keeps its track lattice and alternating direction, recentres the part
+shell from an existing circular-pipe recipe (72 degrees by default; up to 360). SAAM
+recipes no longer carry a `pipe` shape; these tools read saved circular-pipe plans
+through their own analytic pipe and axial-hoop producer in [pipe.mjs](pipe.mjs). It keeps its track lattice and alternating direction, recentres the part
 at Work 2 origin, and collapses only exactly collinear constant-posture vertical
 samples. Front means -Y, cylinder axis +Z, base Z0. It generates no substrate,
 other shells, rotary commands or extrusion IO.

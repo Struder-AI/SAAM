@@ -3,6 +3,7 @@
 // explicitly assigned material boundaries through lowerSurfaceFrom.
 import {defaults} from '../../print/plan.mjs';
 import {syntheticDobotSetup} from './dobot.mjs';
+import {splineBox,splineBlock} from './spline-shapes.mjs';
 
 function wavyMesh() {
   const n=4,vertices=[],triangles=[],index=(x,y,top)=>top*(n+1)*(n+1)+x*(n+1)+y;
@@ -23,10 +24,9 @@ function wavyMesh() {
 
 export function regionalStackPlan(machine,backend='mesh') {
   const plan=defaults(machine);if(machine.id==='dobot-mg400')syntheticDobotSetup(plan);
-  const roof=backend==='mesh'?wavyMesh():{shape:'spline-top',runMm:8,widthMm:8,cpU:4,cpV:4,
-    heightsMm:[[3,3,3,3],[3,3.6,3.6,3],[3,3.6,3.6,3],[3,3,3,3]]};
+  const roof=backend==='mesh'?wavyMesh():splineBlock({runMm:8,widthMm:8,heightsMm:[[3,3,3,3],[3,3.6,3.6,3],[3,3.6,3.6,3],[3,3,3,3]]});
   plan.geometry={shape:'assembly',parts:[{id:'roof',xMm:0,yMm:0,zMm:0,geometry:roof},
-    {id:'upper',xMm:0,yMm:0,zMm:0,geometry:{shape:'box',runMm:8,widthMm:8,heightMm:4}}]};
+    {id:'upper',xMm:0,yMm:0,zMm:0,geometry:splineBox({runMm:8,widthMm:8,heightMm:4})}]};
   plan.process.minimumLayerSeconds=0;
   const region=(id,part,zStartMm,zEndMm,skills,lowerSurfaceFrom=null)=>({id,part,zStartMm,zEndMm,skills,lowerSurfaceFrom});
   plan.composition.regions=[

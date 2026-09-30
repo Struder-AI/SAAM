@@ -13,6 +13,7 @@ import { defaults as shellDefaults } from '../print/plan.mjs';
 import { loadMachine } from '../machine/profile.mjs';
 import { boxMesh } from './fixtures/mesh.mjs';
 import { readGuidance } from '../../adapters/mcp/src/manuals.mjs';
+import {splineBox} from './fixtures/spline-shapes.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..'), run = promisify(execFile);
 
@@ -89,7 +90,7 @@ test('the public CLI checks ungenerated geometry and rejects stale chat revision
   const dir = await mkdtemp(resolve(tmpdir(), 'saam-synthetic-cli-access-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const plan = shellDefaults();
-  plan.geometry = { shape: 'box', runMm: 12, widthMm: 10, heightMm: 1 };
+  plan.geometry = splineBox({runMm:12,widthMm:10,heightMm:1});
   plan.skills['draped-skin'].enabled = false;
   plan.process.minimumLayerSeconds = 0;
   await initBundle(dir, plan);

@@ -2,7 +2,8 @@ import {readFile,writeFile,mkdir,stat} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
-import {PIPE_CLADDING_DEFAULTS,pipeCladdingResult} from '../../skills/pipe-cladding/scripts/clad.mjs';
+import {PIPE_CLADDING_DEFAULTS} from '../../skills/pipe-cladding/scripts/clad.mjs';
+import {pipeCladdingResult} from './pipe.mjs';
 import {validatePose} from '../../core/path/pose.mjs';
 
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');

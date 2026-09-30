@@ -12,7 +12,7 @@ function matchesReceipt(request,snapshot){
     &&(request.baseline.inputKey!==snapshot.inputKey||request.baseline.generationKey!==snapshot.generationKey);
 }
 
-export function requestReceiptState(request,{now=Date.now(),closedOwners=new Set(),view,state,stage,requiresToolpath=false}={}){
+export function requestReceiptState(request,{now=Date.now(),closedOwners=new Map(),view,state,stage,requiresToolpath=false}={}){
   if(state){
     const geometryReady=stage==='geometry'&&Boolean(state.geometry);
     const toolpathReady=stage==='toolpath'&&!requiresToolpath&&!state.generationError&&!state.programError&&Boolean(state.program);
@@ -33,7 +33,7 @@ export function requestReceiptState(request,{now=Date.now(),closedOwners=new Set
     &&matchesReceipt(request,{...request.result,stage:request.target?.stage??'toolpath'});
   let activity;
   if(request.status==='completed'&&!pendingResult)activity='completed';
-  else if(closedOwners.has(request.ownerId))activity='disconnected';
+  else if(request.updatedAt<=(closedOwners.get(request.ownerId)??-Infinity))activity='disconnected';
   else if(request.expiresAt<=now)activity='expired';
   else if(request.status==='queued')activity='queued';
   else if(view?.errorAt&&request.updatedAt<=view.errorAt)activity='failed';
@@ -51,7 +51,7 @@ export function hasUnpreparedEdit(requests=[],snapshot,{now=Date.now()}={}){
 // when every active edit and any load target the toolpath, 'all' when something
 // broader (a geometry edit, a full reload) is in flight, or null when idle. A
 // toolpath-only result lets the geometry pane stay crisp while it computes.
-export function summarizeWork(requests=[],{now=Date.now(),closedOwners=new Set(),view}={}){
+export function summarizeWork(requests=[],{now=Date.now(),closedOwners=new Map(),view}={}){
   const context={now,closedOwners,view};
   let working=false,allToolpath=true,latest=null,latestTime=-Infinity,status;
   for(const request of requests){

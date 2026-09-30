@@ -5,6 +5,13 @@ import {loadMachine} from '../../../core/machine/profile.mjs';
 import {referencePatch} from '../../../core/geom/reference-surface.mjs';
 import {offsetSurfaceRegion} from '../../../core/region/surface-offset.mjs';
 import {regionArea} from '../../../core/region/region2d.mjs';
+// A box is six flat patches, each a 2 × 2 net of shared corners (GEOMETRY.md).
+const splineBox=({runMm:x,widthMm:y,heightMm:z})=>{
+  const face=(name,a,b,c,d)=>({name,degreeU:1,degreeV:1,controlPoints:[[a,b],[c,d]]});
+  return {shape:'spline',patches:[face('top',[0,0,z],[0,y,z],[x,0,z],[x,y,z]),face('bottom',[0,0,0],[0,y,0],[x,0,0],[x,y,0]),
+    face('front',[0,0,0],[0,0,z],[x,0,0],[x,0,z]),face('right',[x,0,0],[x,0,z],[x,y,0],[x,y,z]),
+    face('back',[0,y,0],[0,y,z],[x,y,0],[x,y,z]),face('left',[0,0,0],[0,0,z],[0,y,0],[0,y,z])]};
+};
 
 // A flat central knot span attaches to the entire top of the box. Simple
 // internal knots keep the surrounding tensor-product cubic surface C2.
@@ -29,7 +36,7 @@ export function canopyExamplePlan(machine=loadMachine(),progress=()=>{}){
   // The designed canopy has one exterior and no holes. Offset-union rounding
   // can leave microscopic internal loops; those do not define this outline.
   domainUv=[domainUv.reduce((a,b)=>Math.abs(regionArea([a]))>Math.abs(regionArea([b]))?a:b)];
-  plan.geometry={shape:'box',runMm:boxWidth,widthMm:boxWidth,heightMm:10};
+  plan.geometry=splineBox({runMm:boxWidth,widthMm:boxWidth,heightMm:10});
   plan.skills['draped-skin'].enabled=false;
   plan.skills['wave-overhangs']={...plan.skills['wave-overhangs'],enabled:true,
     lineSpacingMm:.3,propagationStepMm:.3,

@@ -5,6 +5,7 @@ import {parse} from 'acorn';
 import {couplings} from './couplings.mjs';
 import {iterationMethods} from './shapes.mjs';
 import {isMapped} from './scope.mjs';
+import {holderReach} from './holders.mjs';
 
 const functions = new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
 // The child nodes of an AST node. Every walk in this file asks the same node the same question,
@@ -92,9 +93,10 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
     else if(node.type==='ArrayPattern')for(const p of node.elements)pattern(p,s,info,from);
   }
   function location(m,n) {return {file:m.file,start:n.start,end:n.end,line:n.loc.start.line,column:n.loc.start.column+1,endLine:n.loc.end.line,text:m.text.slice(n.start,n.end)};}
+  const declNode=new Map();
   function declaration(m,n,path,kind,owner,anchor=true) {
     const d={id:`${m.file}:${n.start}:${kind}`,anchor:anchor?`${m.file}::${path.join('::')}`:null,name:path.at(-1),kind,parent:owner?.id??null,...location(m,n)};
-    declarations.push(d);declarationPaths.set(d.id,path);nodeDecl.set(n,d);return d;
+    declarations.push(d);declarationPaths.set(d.id,path);nodeDecl.set(n,d);declNode.set(d.id,n);return d;
   }
   const patternNames=n=>n.type==='Identifier'?[n.name]:n.type==='ObjectPattern'?n.properties.flatMap(p=>patternNames(p.value??p.argument))
     :n.type==='ArrayPattern'?n.elements.filter(Boolean).flatMap(patternNames):n.type==='RestElement'?patternNames(n.argument)
@@ -705,7 +707,10 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       return out;
     }
     // Counts are call sites; `links` counts the relations those sites produced.
-    const linked={'ast-call-site':0,'receiver-value':0,'value-follow':0},links={'receiver-value':0,'value-follow':0};
+    const linked={'ast-call-site':0,'receiver-value':0,'value-follow':0,'holder-reach':0},links={'receiver-value':0,'value-follow':0,'holder-reach':0};
+    // Member calls on a receiver no value names, settled after every other call is: by where the
+    // holders carrying that member can be held (holders.mjs).
+    const pending=[],followed=[];
     // Full spans distinguish nested calls that share a starting expression.
     const external={},externalSites=[],unresolved=[],rules={},unlinked={},notes={};
     // Every call span that reached a target, in any scanned root. A later pass reads it to know
@@ -754,14 +759,16 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
         // `resolution`, where it names the caller this link was proved from.
         // A call on a parameter says so: the callable is the caller's, followed here through the
         // argument. The relationship is the same link; where it is drawn is not, so the map
-        // keeps it out of the callee's own boxes and flow (dev-map/lib/flow.mjs, regions.mjs).
+        // keeps it out of the callee's own boxes and flow (dev-map/lib/flow.mjs, leaves.mjs).
         for(const {decl,fn,at} of found.values())
           edge('call',from,decl.id,[site],{resolution:at?.node?[location(at.module,at.node)]:[],resolvedBy:route,...(key?{receiver:key}:{}),possible,
             ...(directParameter?{viaParameter:true}:{}),
             args:c.node.arguments.map(passed),params:(fn??declFn.get(decl.id))?.params.map(passed)??[]});
         continue;
       }
-      if(!inside)continue;
+      // Outside code is not accounted, but a value it is handed still flows: its calls with no
+      // target take part in settling (below) without being reported.
+      if(!inside){if(!externalCall(c.node,c.module,new Set()))followed.push(c.node);continue;}
       // No mapped target. Known callables this code can supply are still listed, so a finding
       // row says what the candidates are rather than only that the site is unresolved.
       const candidates=outside.size?[...outside].sort():null;
@@ -770,12 +777,107 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       const subscribers=key!==null?null:registeredSubscriber(callee,c.scope);
       const reason=key!==null?'member-receiver-unresolved':callee.type==='MemberExpression'?'computed-member'
         :subscribers?'registered-subscriber':unresolvedReason(callee,c.scope);
-      unresolved.push({from,site,name:key,reason,...(subscribers?{registration:subscribers}:{}),...(candidates?{candidates}:{})});
-      count(rules,reason);unlinked[`${site.file}:${site.start}:${site.end}`]=reason;
-      if(subscribers||candidates)notes[`${site.file}:${site.start}:${site.end}`]={...(subscribers?{registration:subscribers}:{}),...(candidates?{candidates}:{})};
+      pending.push({c,from,site,key,reason,subscribers,candidates});
     }
+    settleCalls(pending,followed,{linked,links,external,externalSites,unresolved,rules,unlinked,notes,accounted,count,holderFns,externalCall});
     return {states:{linked:Object.values(linked).reduce((a,b)=>a+b,0),external:Object.values(external).reduce((a,b)=>a+b,0),unresolved:unresolved.length},
       linked,links,external,externalSites,rules,unresolved,unlinked,notes,accounted};
+  }
+  // A call no value names is settled by what can arrive at it (holders.mjs). A member call
+  // reaches mapped code through a holder carrying the member, or a function stored under that
+  // key; any other callee is whatever function value arrives at it. Each call found this way is a
+  // target the next round follows values into, until nothing more arrives. Then a call something
+  // arrives at is a possible call of each; one nothing arrives at is the platform's. While a
+  // holder of the member, or any function value, has escaped what the scan follows, a call it
+  // might reach stays unresolved with the rule that stopped it.
+  function settleCalls(pending,followed,{linked,links,external,externalSites,unresolved,rules,unlinked,notes,accounted,count,holderFns,externalCall}) {
+    if(!pending.length)return;
+    // Holders by member: an object literal or a class, anywhere scanned, whose member of that
+    // name is mapped code. A member only ever assigned (`x.k=fn`) is on no holder this can follow.
+    const holders=new Map(),assigned=new Set();
+    const mappedFns=fns=>fns.filter(fn=>mappedCode(nodeDecl.get(fn)?.file??''));
+    for(const m of modules.values())(function walk(n) {
+      if(n.type==='ObjectExpression')for(const p of n.properties)if(p.type==='Property'&&!p.computed) {
+        const k=String(p.key.name??p.key.value),fns=mappedFns(holderFns({object:n,module:m},k,m));
+        if(fns.length)(holders.get(k)??holders.set(k,[]).get(k)).push({holder:n,fns});
+      }
+      if(n.type==='ClassDeclaration'||n.type==='ClassExpression')for(const p of n.body.body)
+        if(p.type==='MethodDefinition'&&p.kind==='method'&&!p.static&&!p.computed) {
+          const k=String(p.key.name??p.key.value),fns=mappedFns([p.value]);
+          if(fns.length)(holders.get(k)??holders.set(k,[]).get(k)).push({holder:n,fns});
+        }
+      if(n.type==='AssignmentExpression'&&n.left.type==='MemberExpression'&&functions.has(n.right.type)&&mappedCode(m.file))assigned.add(property(n.left));
+      for(const c of children(n))walk(c);
+    })(m.ast);
+    // Proved call targets, by call span: every call and construction edge made so far.
+    const proved=new Map();
+    for(const r of relations)if((r.kind==='call'||r.kind==='construct')&&r.evidence?.[0]) {
+      const e=r.evidence[0],at=`${e.file}:${e.start}:${e.end}`,node=declFn.get(r.to)??declNode.get(r.to);
+      if(node)(proved.get(at)??proved.set(at,[]).get(at)).push(node);
+    }
+    // A member call with no proved target, in any scanned code, may be any holder's member of its
+    // name, as well as the platform's. `found` holds what earlier rounds found arriving.
+    const found=new Map();
+    const unproved=(n,m)=>!proved.has(`${m?.file}:${n.start}:${n.end}`)&&n.callee?.type==='MemberExpression'&&property(n.callee)!==null;
+    const targetsOf=(n,m)=>{
+      const at=`${m?.file}:${n.start}:${n.end}`;
+      if(proved.has(at))return proved.get(at);
+      const arrived=found.get(n)??[];
+      if(unproved(n,m))return [...(holders.get(property(n.callee))??[]).flatMap(h=>h.fns),...arrived];
+      return arrived;
+    };
+    const exportedBindings=new Map();
+    for(const m of modules.values())for(const [name,e] of m.exports)if(e.binding)
+      (exportedBindings.get(e.binding)??exportedBindings.set(e.binding,[]).get(e.binding)).push(name);
+    const importers=new Map();
+    for(const m of modules.values())for(const b of m.scope.bindings.values())if(b.imported&&b.imported!=='*') {
+      const target=exportTarget(modules.get(importPath(m,b.source)),b.imported,new Set());
+      if(target?.binding)(importers.get(target.binding)??importers.set(target.binding,[]).get(target.binding)).push(b);
+    }
+    // A call whose callee is not a plain value (a computed member, an unsupported expression)
+    // keeps its rule: nothing here says what it names.
+    const settles=({key,reason})=>key!==null||['parameter-target','registered-subscriber','unresolved-local-value','mutated-binding','external-or-unbound','unresolved-import'].includes(reason);
+    const settle=[...pending.filter(settles).map(({c})=>c.node),...followed];
+    // Until the rounds end, a settling call nothing has arrived at is taken to be the platform's.
+    // That holds at the end when no value has escaped: every function is then followed to every
+    // call it reaches, so nothing arriving means no mapped function is called there.
+    const settling=new Set(settle);
+    const context={modules,parents,nodeScope,lookup,property,functions,children,targetsOf,
+      platformCall:(n,m)=>unproved(n,m)||!!externalCall(n,m,new Set())||settling.has(n)&&!found.get(n)?.length,
+      exportedBindings,importsOf:b=>importers.get(b)??[]};
+    let reach,arrivals;
+    for(let round=0;;round++) {
+      reach=holderReach(context);arrivals=reach.arriving();
+      let grew=false;
+      for(const node of settle) {
+        const next=[...(arrivals.at.get(node)??[])],held=found.get(node)??[];
+        if(next.some(fn=>!held.includes(fn))){found.set(node,[...new Set([...held,...next])]);grew=true;}
+      }
+      if(!grew)break;
+    }
+    const valuesEscaped=arrivals.escaped.length>0;globalThis.ARR=arrivals;globalThis.REACH=reach;
+    for(const {c,from,site,key,reason,subscribers,candidates} of pending) {
+      const span=`${site.file}:${site.start}:${site.end}`;
+      const keep=()=>{
+        unresolved.push({from,site,name:key,reason,...(subscribers?{registration:subscribers}:{}),...(candidates?{candidates}:{})});
+        count(rules,reason);unlinked[span]=reason;
+        if(subscribers||candidates)notes[span]={...(subscribers?{registration:subscribers}:{}),...(candidates?{candidates}:{})};
+      };
+      if(!settles({key,reason})){keep();continue;}
+      const carriers=key===null?[]:(holders.get(key)??[]).map(h=>({...h,...reach(h.holder)}));
+      if(valuesEscaped||carriers.some(h=>h.escaped)||key!==null&&assigned.has(key)){keep();continue;}
+      const receiver=key===null?null:c.node.callee.object;
+      const fns=[...new Set([...carriers.filter(h=>h.held.has(receiver)).flatMap(h=>h.fns),...found.get(c.node)??[]])];
+      const by=key===null?'callable-arrival':'holder-reach';
+      if(fns.length) {
+        accounted.add(span);linked[by]=(linked[by]??0)+1;links[by]=(links[by]??0)+fns.length;count(rules,by);
+        for(const fn of fns)edge('call',from,nodeDecl.get(fn).id,[site],{resolution:[],resolvedBy:by,...(key!==null?{receiver:key}:{}),possible:true,
+          args:c.node.arguments.map(passed),params:fn.params.map(passed)});
+        continue;
+      }
+      const rule=key===null?'no-function-reaches-callee':'no-holder-reaches-receiver';
+      count(external,rule);count(rules,rule);unlinked[span]=rule;externalSites.push({from,site,rule});
+    }
   }
   // A local collection of callables, filled by a registration function in the same closure and
   // iterated at the call site: the value called is whatever was registered. No static target
@@ -900,7 +1002,31 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
   for(const d of declarations)if(propertyAnchorCounts.get(d.anchor)>1)d.anchor+=`@${d.line}:${d.column}`;
   const anchorCounts=new Map();for(const d of declarations)if(d.anchor)anchorCounts.set(d.anchor,(anchorCounts.get(d.anchor)??0)+1);
   for(const d of declarations)if(anchorCounts.get(d.anchor)>1)d.ambiguousAnchor=true;
-  return {schema:1,importAliases,files:[...modules.values()].map(m=>({file:m.file,sha256:m.hash,lines:m.ast.loc.end.line})),declarations,relations,unresolved,workerLinks,
+  // Module-level code that runs at load: every top-level statement but an import, an export list
+  // and a declaration, and every initializer that does more than state constant data. No
+  // declaration holds it, so no leaf draws it. A callable written inside a top-level statement is
+  // listed too: the model says whether a leaf draws it (leaves.mjs).
+  const inert=new Set(['Literal','TemplateLiteral','TemplateElement','Identifier','ArrayExpression','ObjectExpression',
+    'Property','SpreadElement','UnaryExpression','BinaryExpression','LogicalExpression','MemberExpression',
+    'ConditionalExpression','ChainExpression','MetaProperty','PrivateIdentifier']);
+  const opaque=n=>functions.has(n.type)||n.type==='ClassExpression'||n.type==='ClassDeclaration';
+  const runs=n=>!!n&&!opaque(n)&&(!inert.has(n.type)||children(n).some(runs));
+  const callablesIn=(n,out=[])=>{if(!n)return out;if(opaque(n)){const d=nodeDecl.get(n);if(d)out.push(d.id);return out;}
+    for(const c of children(n))callablesIn(c,out);return out;};
+  const moduleCode=[];
+  for(const m of modules.values())if(mappedCode(m.file))for(const top of m.ast.body) {
+    const s=top.type==='ExportNamedDeclaration'||top.type==='ExportDefaultDeclaration'?top.declaration:top;
+    if(!s||['ImportDeclaration','ExportAllDeclaration','FunctionDeclaration','ClassDeclaration'].includes(s.type))continue;
+    const parts=s.type==='VariableDeclaration'?s.declarations.map(d=>({node:d,value:d.init,runs:runs(d.init)})):[{node:s,value:s,runs:!opaque(s)}];
+    for(const part of parts) {
+      const callables=callablesIn(part.value);
+      if(!part.runs&&!callables.length)continue;
+      const {node}=part;
+      moduleCode.push({file:m.file,line:node.loc.start.line,column:node.loc.start.column+1,start:node.start,end:node.end,
+        expression:m.text.slice(node.start,Math.min(node.end,node.start+80)).replace(/\s+/g,' '),runs:part.runs,callables});
+    }
+  }
+  return {schema:1,importAliases,files:[...modules.values()].map(m=>({file:m.file,sha256:m.hash,lines:m.ast.loc.end.line})),declarations,relations,unresolved,workerLinks,moduleCode,
     ...(coupled?{couplings:{linked:coupled.linked,unlinked:coupled.unlinked}}:{}),...(accounting?{callSites:accounting}:{}),
     limits:['Static possible relationships, not execution traces or proofs of reachability.',
       'Calls resolve lexical bindings, const aliases, imports, named re-exports, literal object members, finite function-return choices, local class methods and the extended class a `super` reference names. A receiver or callable is followed through parameters, destructured bindings and this-fields, then through at most one further static member selection per hop. Computed registry selection gives possible targets, not a selected dialect or proof of branch feasibility. Escaped object mutation, arbitrary callback protocols, inherited members reached other than through `super`, export-star and dynamic imports are not modeled.',

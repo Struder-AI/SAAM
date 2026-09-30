@@ -36,6 +36,28 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 
 ## Outstanding work
 
+### BR-059 — One offset with collision resolution, ribbons and trimmed surfaces
+
+- Status: in progress
+- Contributor: `remettub`, inferred from the checkout's contributor branch and account; attribution unconfirmed.
+- Authorization: human requested — the loose spline, on-surface and surface offsets ("we need them if we don't"), then the rulings in [D-041](DECISIONS.md#d-041--offsets-resolve-collisions-ribbons-displace-without-a-surface) and "Yes migrate vase wall". Scope is core geometry, its consumers and vase-wall.
+- Session: Claude Code desktop, 2026-09-28; exact chat title and ID unavailable.
+- Source: current conversation, 2026-09-28.
+- Context: [curve-offset.mjs](core/geom/curve-offset.mjs) offset curves loosely without resolving collisions; `prepareSurfaceOffsets` bundles a horizontal ribbon and a normal offset and limits folds instead of trimming them.
+- Remaining: (1) curve offsets on periodic patches (phase 1 is otherwise done). (2) Split `prepareSurfaceOffsets` into a surface ribbon and a surface offset with collocated directions and no limiter. (3) Trimmed-surface records produced by resolving their folds and self-intersections. (5) Vase-wall on the ribboned sleeve; where the wall splits, the spiral's behaviour awaits the user's answer on the "pinch" version. (6) Migrate `offsetRegion` and `offsetSurfaceRegion` consumers, including corner treatment. (7) Trimmed faces in printable shells. Curve ribbons (4) are done.
+- Completion: Every offset in core resolves collisions; no fold limiter remains; vase-wall and pipe cladding run on the new operations.
+
+### BR-058 — Implement the Cloudflare relay alpha milestone
+
+- Status: in progress
+- Contributor: `remettub`, inferred from the checkout's contributor branch and account; attribution unconfirmed.
+- Authorization: human requested — "Yup RELAY-PLAN.md is the one. We are going to get started on that now," after the agent noted that stage 1 is core work needing the developer role. Scope is the [relay plan](adapters/mcp/RELAY-PLAN.md) roadmap under [D-037](DECISIONS.md#d-037--cloudflare-relay-and-studio-driven-chat-sessions); production deployment, beta publication and hardware operation are not separately authorized.
+- Session: Claude Code desktop, 2026-09-25; exact chat title and ID unavailable.
+- Source: current conversation, 2026-09-25.
+- Context: The D-024 temporary HTTP bridge was removed in `d686269`; only the stdio adapter remained. Stage 1 separated the operations into [the local runtime](adapters/mcp/src/runtime.mjs) from [MCP registration](adapters/mcp/src/server.mjs), and made the runtime outlive its sessions; per the user, ended sessions are not resumed.
+- Remaining: Stage 2: deployment to the user's Cloudflare account (KV namespace, public origin) and real ChatGPT/Claude connection. Stage 3: confirm with real clients (client names for listener length, re-initialization after a 404, streamed calls through the chat products). Stage 5: a release host so the update path can be exercised (user's choice); first real runs of the windowless launch, Quit SAAM and the macOS installer. Stage 6: load and cost checks and support instructions. Stage 1 is done; the user cut idempotency records, job receipts and the cursor/acknowledgement event protocol as overbuilt (2026-09-25).
+- Completion: Alpha acceptance A1–A5 in the plan.
+
 ### BR-057 — SAAMpath context labels on change, not on every action
 
 - Status: open
@@ -119,7 +141,7 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 - Session: Codex task `01a0a650-b120-7bd3-a9c7-93fbede5003b` (advisory); Claude Code session 2026-09-18 (generator work).
 - Source: 2026-09-15 and 2026-09-18 requests above; [implementation record](DEVLOG.md#2026-09-18--nearby-strokes-connect-by-deposition-the-short-travel-advisory-reports-only-bad-paths).
 - Context: Fill rows, wall loops, rings, skin rows, lip rings and axial cladding tracks now continue as [deposited connectors](core/path/README.md#whole-plan-travel-requirement); the [advisory](core/export/README.md#short-travel-advisory) exempts required transitions and agents report findings.
-- Remaining: From the programs the test suites export (each 1–20 findings; every other program reports none): (1) Neighboring islands or walls closer than 2 mm across open air (raised letters, text, supports, two-component composition, a Bambu fixture) need a lifted travel and are reported with `lifted: true`; decide whether the advisory should exempt lifted travels or a producer should order around them. (2) Planar walls printed after a rim hop on every 0.4–0.6 mm wall step, because rimming publishes no material region and later operations fall back to the conservative `clearanceFor` comparison; give rims a material footprint. (3) Vase walls and mapped motifs whose thickness ramps from or to zero contain segments whose filament amount rounds to nothing mid-stroke and read as direct travels of up to 1 mm; only the level rim's final taper is trimmed. (4) A level vase rim followed by a cap starts the cap 0.2 mm away under the same layer label. (5) Line-network, wave-overhang, plastic-weld and segmented vase motifs keep authored gaps by design.
+- Remaining: From the programs the test suites export (each 1–20 findings; every other program reports none): (1) Neighboring islands or walls closer than 2 mm across open air (raised letters, text, supports, two-component composition, a Bambu fixture) need a lifted travel and are reported with `lifted: true`; decide whether the advisory should exempt lifted travels or a producer should order around them. (2) Vase walls and mapped motifs whose thickness ramps from or to zero contain segments whose filament amount rounds to nothing mid-stroke and read as direct travels of up to 1 mm; only the level rim's final taper is trimmed. (3) A level vase rim followed by a cap starts the cap 0.2 mm away under the same layer label. (4) Line-network, wave-overhang, plastic-weld and segmented vase motifs keep authored gaps by design.
 - Completion: Representative prints for every producing skill report no advisory, or each residual is an agreed exemption.
 
 ### BR-045 — Complete continuous wave-overhang paths around holes

@@ -8,7 +8,7 @@ import * as shell from '../print/bundle.mjs';
 import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 // A small planar box keeps these Studio-lifecycle tests fast and machine-neutral.
-const boxPlan=(machine=loadMachine())=>{const p=defaults(machine);p.geometry={shape:'box',runMm:10,widthMm:10,heightMm:2};p.skills['draped-skin'].enabled=false;p.process.minimumLayerSeconds=0;return p;};
+const boxPlan=(machine=loadMachine())=>{const p=defaults(machine);p.geometry=splineBox({runMm:10,widthMm:10,heightMm:2});p.skills['draped-skin'].enabled=false;p.process.minimumLayerSeconds=0;return p;};
 import {Worker} from 'node:worker_threads';
 import {once} from 'node:events';
 import workerThreads from 'node:worker_threads';
@@ -16,6 +16,7 @@ import {syncBuiltinESMExports} from 'node:module';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
 import {summarizeWork} from '../../studio/work-state.mjs';
 
+import {splineBox} from './fixtures/spline-shapes.mjs';
 test('an explicit scratch resolver follows Studio opening and listing without changing the default registry',async t=>{
   const library=await mkdtemp(join(tmpdir(),'saam-studio-scratch-'));t.after(()=>rm(library,{recursive:true,force:true}));
   const {mkdir}=await import('node:fs/promises');
@@ -213,4 +214,11 @@ test('Studio opening retries a read spanning a multi-file edit but preserves per
   assert.equal((await readStableBundle(adapter,'synthetic',{program:false})).state.revision,'updated');assert.equal(reads,2);
   reads=0;adapter.loadBundle=async()=>{reads++;throw Error('Unconfigured machine');};
   await assert.rejects(readStableBundle(adapter,'synthetic',{}),/Unconfigured machine/);assert.equal(reads,1);
+});
+
+test('a closed agent session marks only the work it left; the same owner\'s later work stays live',()=>{
+  const at=Date.now(),closedOwners=new Map([['owner',at]]);
+  const record=(id,updatedAt)=>({id,printId:'part',ownerId:'owner',kind:'edit',status:'working',createdAt:updatedAt,updatedAt,expiresAt:at+600000});
+  assert.equal(summarizeWork([record('left',at-1)],{now:at,closedOwners}).message,'(connection closed)');
+  assert.equal(summarizeWork([record('next',at+1)],{now:at,closedOwners}).active,true);
 });

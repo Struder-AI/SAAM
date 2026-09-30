@@ -156,7 +156,7 @@ union intersecting components or remove duplicate deposition, so assign distinct
 material extents and check their contact and operation order.
 
 A vase body can publish its exterior to explicit
-[finished-surface cladding](../pipe-cladding/SKILL.md#finished-surface-composition).
+[finished-surface cladding](../pipe-cladding/SKILL.md#select-the-sleeve).
 Select the body for both vase-wall and cladding, print the blank with full-fill,
 and keep the cladding away from the mating foot. Continuous vase extrusion applies
 to the wall operation; the base and cladding transitions retain their own travel.
