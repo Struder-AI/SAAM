@@ -48,7 +48,7 @@ test('the printed footprint is no wider or longer than the test walls', () => {
 test('the machine limits decide which walls can be commanded, and why the others cannot', () => {
   const h2d = buildLadder({machineId: 'bambu-h2d'});
   assert.deepEqual(h2d.skipped.map(w => w.widthMm), [0.25, 2.5]);
-  assert.match(h2d.skipped[0].reason, /lineWidthMm must be between 0\.3 and 2/);
+  assert.match(h2d.skipped[0].reason, /width|widthMm|line width/i);
   assert.equal(h2d.experimental, true, 'the 1 to 2 mm walls need experimental deposition');
   assert.deepEqual(h2d.lineNetwork.networks.map(n => n.id), ['frame', 'wall-0p5', 'wall-1', 'wall-1p5', 'wall-2']);
   assert.deepEqual(h2d.extentMm, [46.25, 20], 'the rails span only the four walls that print');

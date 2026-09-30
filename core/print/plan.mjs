@@ -314,12 +314,26 @@ export function validatePlanSelections(plan,machine) {
   // shape of each entry is checked.
   requireThat(typeof network.enabled==='boolean'&&Number.isInteger(network.layers)&&network.layers>=1&&Array.isArray(network.networks),'Invalid line-network settings.');
   const networkIds=new Set();
+  // A network may override its own course count and a subset of process (layer height, bead width,
+  // speeds), the same fields a composition region may override, so one job can hold fine and thick
+  // lines together: the composer still prints by ascending deposition height.
+  const networkProcessKeys=new Set(['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','firstLayerSpeedMmS']);
   for(const item of network.networks){
-    requireThat(item&&Object.keys(item).sort().join()==='id,strokes'&&/^[a-z][a-z0-9-]*$/.test(item.id)&&!networkIds.has(item.id)&&Array.isArray(item.strokes)&&item.strokes.length>0,'Invalid line network.');networkIds.add(item.id);
+    requireThat(item&&Object.keys(item).filter(key=>!['layers','process'].includes(key)).sort().join()==='id,strokes'&&/^[a-z][a-z0-9-]*$/.test(item.id)&&!networkIds.has(item.id)&&Array.isArray(item.strokes)&&item.strokes.length>0,'Invalid line network.');networkIds.add(item.id);
+    requireThat(item.layers===undefined||(Number.isInteger(item.layers)&&item.layers>=1),'Invalid line network course count.');
+    if(Object.hasOwn(item,'process')){
+      requireThat(item.process&&typeof item.process==='object'&&!Array.isArray(item.process)&&Object.keys(item.process).length>0,'Line network process overrides must be a non-empty object; omit process to use the plan process.');
+      requireThat(Object.keys(item.process).every(key=>networkProcessKeys.has(key)),'Unknown or network-owned process override.');
+      // Checked as if the whole plan ran with this network's process, so the same layer,
+      // width and machine limits apply to it that would apply to any other job.
+      const child=structuredClone(plan);Object.assign(child.process,item.process);
+      child.composition.regions=[];child.skills['line-network'].networks=[{id:item.id,strokes:[{closed:false,points:[[0,0],[1,0]]}]}];
+      validatePlan(child,machine);
+    }
     for(const stroke of item.strokes){
       const keys=Object.keys(stroke).sort().join();
       requireThat(stroke&&(keys==='closed,points'||keys==='closed,layers,points')&&typeof stroke.closed==='boolean'&&Array.isArray(stroke.points)&&stroke.points.length>=(stroke.closed?3:2)&&stroke.points.every(point=>Array.isArray(point)&&point.length===2&&point.every(Number.isFinite)),'Invalid line-network stroke.');
-      requireThat(stroke.layers===undefined||Array.isArray(stroke.layers)&&stroke.layers.length>0&&new Set(stroke.layers).size===stroke.layers.length&&stroke.layers.every(layer=>Number.isInteger(layer)&&layer>=0&&layer<network.layers),'Invalid line-network stroke layers.');
+      requireThat(stroke.layers===undefined||Array.isArray(stroke.layers)&&stroke.layers.length>0&&new Set(stroke.layers).size===stroke.layers.length&&stroke.layers.every(layer=>Number.isInteger(layer)&&layer>=0&&layer<(item.layers??network.layers)),'Invalid line-network stroke layers.');
     }
   }
   requireThat(!network.enabled||(!regional&&!fill.enabled&&!skin.enabled&&!normal.enabled&&!vase.enabled&&!lip.enabled),'line-network is a standalone planar path; disable filled, skin, vase and regional patterns.');
