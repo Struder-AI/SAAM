@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-09-30 — 0.2.0 release preparation
+
+- Owner explicitly requested commit, push, publication and live relay update; acceptance testing follows on the actual relay, with fixes in 0.2.1 if needed.
+- Relay harness checks that relay guidance is present without assuming it is the first sentence; direct assertion against current guidance passes. Earlier setup smoke check passes; repository metadata check retains ten existing errors. No regression suite or hardware run.
+- Checkpoint includes concurrent unfinished dev-map changes without certifying them. Final integration, map/design acceptance and known geometry/runtime findings remain open.
+
 ## 2026-09-30 — Consolidated deposition, roles and cancellable import
 
 - Core skills and shared implementation are developer-owned; builders compose guidance,

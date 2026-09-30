@@ -5,7 +5,7 @@
       "id": "inputs",
       "label": "Inputs",
       "parent": "0",
-      "description": "Authored or skill-produced points, curves, regions and process settings."
+      "description": "Assignment records, validation, selected material / process and placed geometry."
     },
     {
       "id": "heat-set",
@@ -29,13 +29,13 @@
       "id": "slice",
       "label": "Slice",
       "parent": "0",
-      "description": "Regions + ownership → loops and fill strokes."
+      "description": "core/print/slices: contexts, ownership, layer regions and boundary / fill construction."
     },
     {
       "id": "execution",
       "label": "SAAMpath",
       "parent": "0",
-      "description": "Dispatch the three families; finalize dependencies, motion and modulation; compose one path."
+      "description": "Dispatch, dependencies, finalization and machine-independent path composition."
     },
     {
       "id": "checked-source",
@@ -123,6 +123,31 @@
       "id": "studio-render",
       "label": "Publish toolpath views and draw playback",
       "parent": "studio"
+    },
+    {
+      "id": "assignment-validation",
+      "label": "Validate family records and process overrides",
+      "parent": "inputs"
+    },
+    {
+      "id": "assignment-process",
+      "label": "Expand parts and resolve material / process",
+      "parent": "inputs"
+    },
+    {
+      "id": "operation-order",
+      "label": "Order operations and satisfy prerequisites",
+      "parent": "execution"
+    },
+    {
+      "id": "action-stream",
+      "label": "Accumulate actions and materialize SAAMpath",
+      "parent": "execution"
+    },
+    {
+      "id": "studio-playback",
+      "label": "Select layers, time and toolpath appearance",
+      "parent": "studio"
     }
   ],
   "leaves": {
@@ -173,11 +198,11 @@
     "core/path/compose.mjs::planOperationEntry": "motion",
     "core/path/compose.mjs::planPreparedOperation": "motion",
     "core/path/compose.mjs::planStrokeDeposition": "motion",
-    "core/path/compose.mjs::validateOperationBatch": "motion",
-    "core/path/compose.mjs::prepareOperationDependencies": "motion",
-    "core/path/planning.mjs::createPlanningState": "motion",
+    "core/path/compose.mjs::validateOperationBatch": "operation-order",
+    "core/path/compose.mjs::prepareOperationDependencies": "operation-order",
+    "core/path/planning.mjs::createPlanningState": "action-stream",
     "core/path/planning.mjs::planMove": "motion",
-    "core/path/planning.mjs::planningPath": "motion",
+    "core/path/planning.mjs::planningPath": "action-stream",
     "core/path/toolpath.mjs::planFinishing": "motion",
     "core/print/workflow.mjs::createBundleWorkflow::prepareGeneration": "prepare-source",
     "core/export/registry.mjs::exportAndInterpretProgram": "prepare-source",
@@ -209,7 +234,58 @@
     "core/print/heat-set.mjs::applyHeatSet": "heat-set",
     "skills/heat-set-inserts/scripts/geometry.mjs::compileHeatSet": "heat-set",
     "skills/heat-set-inserts/scripts/slices.mjs::heatSetSlices": "heat-set",
-    "core/print/slices.mjs::sliceAssignment": "assignments"
+    "core/print/slices.mjs::sliceAssignment": "assignments",
+    "core/print/slices.mjs::defaultSlices": "assignments",
+    "core/print/slice-settings.mjs::ordinarySliceAssignment": "assignments",
+    "core/print/injection.mjs::injectionAssignment": "assignments",
+    "core/print/curves.mjs::curveAssignment": "assignments",
+    "core/print/sleeve-constructions.mjs::sleeveAssignment": "assignments",
+    "core/print/slices.mjs::validateSlices": "assignment-validation",
+    "core/print/slices.mjs::validateSliceSurface": "assignment-validation",
+    "core/print/injection.mjs::validateInjectionAssignment": "assignment-validation",
+    "core/print/curves.mjs::validateCurveAssignment": "assignment-validation",
+    "core/print/sleeve-constructions.mjs::validateSleeveAssignment": "assignment-validation",
+    "core/print/assignment-process.mjs::validateAssignmentProcess": "assignment-validation",
+    "core/print/assignment-process.mjs::assignmentPlan": "assignment-process",
+    "core/print/assignment-process.mjs::assignmentFilament": "assignment-process",
+    "core/print/assignment-process.mjs::depositionAssignments": "assignment-process",
+    "core/print/generate.mjs::buildShell": "geometry",
+    "core/print/generate.mjs::translateShell": "geometry",
+    "core/print/slices.mjs::normalBandCourses": "ownership",
+    "core/print/slices.mjs::ownershipDependencies": "ownership",
+    "core/print/slices.mjs::chartExtent": "ownership",
+    "core/print/slices.mjs::volumeBox": "ownership",
+    "core/print/slices.mjs::sliceRank": "ownership",
+    "core/print/slices.mjs::sliceResults": "region-strokes",
+    "core/print/slices.mjs::joinSliceFamily": "region-strokes",
+    "core/print/sleeve-constructions.mjs::terminalBoundaryReference": "region-strokes",
+    "core/print/curves.mjs::traceResult": "trace-results",
+    "core/print/generate.mjs::applyResultDependencies": "schedule",
+    "core/print/generate.mjs::summarizeGeneratedPath": "schedule",
+    "core/path/compose.mjs::planComposition": "motion",
+    "core/path/compose.mjs::planOperation": "motion",
+    "core/path/compose.mjs::planOperationStart": "motion",
+    "core/path/compose.mjs::planOperationEnd": "motion",
+    "core/path/compose.mjs::planStrokeApproach": "motion",
+    "core/path/compose.mjs::scheduleOperations": "operation-order",
+    "core/path/compose.mjs::prepareOperationPriorities": "operation-order",
+    "core/path/compose.mjs::orderReadyOperations": "operation-order",
+    "core/path/planning.mjs::ActionAccumulator": "action-stream",
+    "core/path/planning.mjs::ActionAccumulator::add": "action-stream",
+    "core/path/planning.mjs::ActionAccumulator::finish": "action-stream",
+    "core/path/planning.mjs::planningResult": "action-stream",
+    "core/path/planning.mjs::materializeActions": "action-stream",
+    "core/print/program-handoff.mjs::createCheckedProgramHandoff": "studio-generation",
+    "core/print/program-handoff.mjs::consumeCheckedProgram": "studio-generation",
+    "studio/toolpath-view.mjs::toolpathStyle": "studio-playback",
+    "studio/toolpath-view.mjs::createToolpathMemo": "studio-playback",
+    "studio/toolpath-view.mjs::createLayerFade": "studio-playback",
+    "studio/toolpath-view.mjs::remainingLayerMs": "studio-playback",
+    "studio/toolpath-view.mjs::layerIndexAt": "studio-playback",
+    "studio/toolpath-view.mjs::layerEndSeconds": "studio-playback",
+    "studio/toolpath-view.mjs::stepLayerIndex": "studio-playback",
+    "studio/move-store.mjs::moveStore": "studio-decode",
+    "studio/move-store.mjs::moveBuffers": "studio-decode"
   },
   "repeats": {},
   "order": {
@@ -229,80 +305,112 @@
       "positions": {
         "inputs": {
           "x": 40,
-          "y": 180
+          "y": 165
         },
         "heat-set": {
           "x": 40,
-          "y": 410
+          "y": 415
         },
         "inject": {
-          "x": 330,
-          "y": 180,
+          "x": 295,
+          "y": 165,
           "emphasis": true
         },
         "trace": {
-          "x": 330,
+          "x": 295,
           "y": 330,
           "emphasis": true
         },
         "slice": {
-          "x": 330,
-          "y": 480,
+          "x": 295,
+          "y": 495,
           "emphasis": true
         },
         "execution": {
-          "x": 650,
+          "x": 570,
           "y": 330
         },
         "checked-source": {
-          "x": 940,
+          "x": 825,
           "y": 330
         },
         "studio": {
-          "x": 1225,
+          "x": 1080,
           "y": 330
         },
         "core/geom/solid.mjs::solidKernel": {
           "x": 40,
-          "y": 655
+          "y": 660
+        },
+        "geometry-kernels": {
+          "x": 40,
+          "y": 825
+        },
+        "region-kernels": {
+          "x": 365,
+          "y": 825
+        },
+        "path-kernels": {
+          "x": 690,
+          "y": 825
+        },
+        "machine-adapters": {
+          "x": 1015,
+          "y": 825
+        },
+        "recipe-services": {
+          "x": 40,
+          "y": 970
+        },
+        "studio-controls": {
+          "x": 365,
+          "y": 970
+        },
+        "skill-clients": {
+          "x": 690,
+          "y": 970
+        },
+        "host-runtime": {
+          "x": 1015,
+          "y": 970
         }
       },
       "viewport": [
         0,
         0,
-        1500,
-        805
+        1350,
+        1110
       ],
       "captions": [
         {
           "x": 40,
           "y": 120,
-          "text": "INPUTS + HYBRID SKILLS"
+          "text": "ASSIGNMENTS + GEOMETRY"
         },
         {
-          "x": 330,
+          "x": 295,
           "y": 120,
-          "text": "THREE TOOLPATH SKILLS"
+          "text": "THREE TOOLPATH FAMILIES"
         },
         {
-          "x": 650,
+          "x": 570,
           "y": 120,
-          "text": "COMMON FINALIZATION"
+          "text": "FINALIZE + COMPOSE"
         },
         {
-          "x": 940,
+          "x": 825,
           "y": 120,
-          "text": "MACHINE OUTPUT"
+          "text": "CHECKED PROGRAM"
         },
         {
-          "x": 1225,
+          "x": 1080,
           "y": 120,
-          "text": "REVIEW"
+          "text": "STUDIO PLAYBACK"
         },
         {
           "x": 40,
           "y": 790,
-          "text": "Read stages left to right. Arrows are calculated code dependencies; hover to inspect. All other externals continue below."
+          "text": "EXTERNAL SUBSYSTEMS · click for declarations and exact connections; hover for wires"
         }
       ]
     }

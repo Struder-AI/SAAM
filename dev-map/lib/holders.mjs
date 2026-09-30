@@ -239,8 +239,8 @@ export function holderReach(ctx) {
     }
     return {held,escaped,why,calls:[...calls],handed:[...handed]};
   }
-  // Every call of a function. A member of an object or class is called by name, so its calls are
-  // the proved ones and every unproved call of that member name. Any other function is followed
+  // Every call of a function. A member's calls are the proved targets and calls reached through
+  // its receiver in prior settling rounds. Any other function is followed
   // as a value from its declaration's name, or from where it is written, to the calls it arrives
   // at; a recursive request while one is being followed adds nothing.
   const callerCache=new Map();

@@ -140,12 +140,23 @@ class MapPage(Page):
             node.column = 0
         self.row_of, self.slot, self.gutter_lane, self.wrapped = {0: 0}, {}, {}, set()
         self.right_edge = max(n.x + n.w for n in self.nodes) + 24
-        self.long = {i for i, e in enumerate(self.edges) if e["src"] not in positions or e["dst"] not in positions or self._far(e)}
+        # Authored overviews show actual connected boundaries, never detached end stubs.
+        self.long = set()
         self.fan = {}
         for i in self.long:
             for end in (self.edges[i]["src"], self.edges[i]["dst"]):
                 self.fan[end] = self.fan.get(end, 0) + 1
-        self.routes = [self._route(e, set()) for e in self.edges]
+        def route(edge):
+            a, b = self.index[edge["src"]], self.index[edge["dst"]]
+            if (a.id.startswith("external:") or b.id.startswith("external:")) and abs(b.cy - a.cy) > 100:
+                down = b.cy > a.cy
+                sx, sy = a.cx, a.y + a.h if down else a.y
+                dx, dy = b.cx, b.y if down else b.y + b.h
+                bend = (dy - sy) * .45
+                return ([(sx, sy), (sx, sy + bend), (dx, dy - bend), (dx, dy)],
+                        ((sx + dx) / 2, (sy + dy) / 2))
+            return self._route(edge, set())
+        self.routes = [route(e) for e in self.edges]
         self.W, self.H = self.right_edge + 30, max(n.y + n.h for n in self.nodes) + 100
         self.zone_rects = []
 
@@ -445,11 +456,11 @@ def build_page(packet, ctx):
                 unit(c["index"], c["label"], note, "", "stage", path=c["path"]).show_foot = False
                 continue
             if c.get("kind") == "external":
-                label = (c["label"] if c["count"] == 1 else f'{c["count"]} externals') if page.authored else c["label"]
+                label = c["label"]
                 node = port(c["index"], textwrap.fill(label, 28) if page.authored else label, "recv")
                 files = {e.split("::")[0] for e in c["externals"]}
                 if page.authored:
-                    node.note = "Click to inspect dependencies"
+                    node.note = f'{c["count"]} declarations · click to inspect'
                 elif c["count"] > 1 and len(files) == 1 and next(iter(files)).endswith((".mjs", ".js")):
                     node.note = " · ".join(c["externals"][:6]) + (f' · +{c["count"] - 6}' if c["count"] > 6 else "")
                 continue
@@ -1087,6 +1098,7 @@ body.noside #side{display:none}
 #stale:empty{display:none}
 #score{order:9;flex:1 0 100%;font-size:11.5px;color:#334155;background:#f1f5f9;border-radius:5px;padding:2px 8px;font-variant-numeric:tabular-nums}
 #score:empty{display:none}
+#score[hidden]{display:none}
 #score b{color:#0f172a}
 #score .bad{color:#9f1239}
 #codepane .cb{min-width:0;min-height:0;overflow:auto}
@@ -1118,6 +1130,7 @@ body.noside #side{display:none}
 #canvas .fm-endtag.hot text{font-weight:700}
 #canvas.authored .fm-elab:not(.hot),#canvas.authored .fm-endtag:not(.hot){opacity:0}
 #canvas.authored .fm-edge.long:not(.hot){opacity:.18}
+#canvas.authored .fm-edge[data-a^="external:"]:not(.hot),#canvas.authored .fm-edge[data-b^="external:"]:not(.hot){opacity:.35;stroke-width:1.5}
 
 /* -- where am I: the whole page, and the rectangle this screen is looking at --------- */
 #minimap{position:absolute;right:16px;bottom:42px;background:rgba(255,255,255,.93);
@@ -1343,7 +1356,7 @@ stage.addEventListener('click',e=>{if(e.target.closest('#codepane,#legendpane')|
   if(sourceNode){openCode(sourceNode.dataset.ref);return;}
   const external=el.closest('.fm-node[data-id]');
   const details=external&&PAGES[cur]?.externals?.[external.dataset.id];
-  if(details){openExternal(details);return;}
+  if(details){openExternal(details,PAGES[cur]?.externalConnections?.[external.dataset.id]??[]);return;}
   dismissCode();});
 document.addEventListener('click',e=>{
   const evidence=e.target.closest('#codepane [data-go]');
@@ -1386,10 +1399,14 @@ function need(then){if(SRC)return then();
   s.onload=()=>then();s.onerror=()=>{SRC={};then();};document.head.appendChild(s);}
 function closeCode(){sourceVersion++;codePane.classList.remove('on');codePane.innerHTML='';}
 function dismissCode(){closeCode();}
-function openExternal(details){closeCode();legendPane.classList.remove('on');
+function openExternal(details,connections){closeCode();legendPane.classList.remove('on');
+  const describe=path=>connections.filter(c=>c.external===path).map(c=>{
+    const inside=c.from.startsWith('external:')?c.to:c.from, direction=c.from===inside?'uses':'called / reached by';
+    return `${esc(PAGES[inside]?.t??inside)} · ${direction} · ${esc(c.kind)}${c.count>1?' ×'+c.count:''}`;
+  }).join('<br>');
   codePane.innerHTML=`<div class="ch"><span class="x" onclick="dismissCode()">&times;</span>`+
-    `<h3>${details.length} external dependencies</h3><p>Scanned declarations outside this set. Hover their box to inspect calculated connections.</p></div>`+
-    `<div class="cb">${details.map(path=>`<p>${esc(path)}</p>`).join('')}</div>`;
+    `<h3>${details.length} external dependencies</h3><p>Grouped for navigation. Every declaration and its calculated connections are retained below.</p></div>`+
+    `<div class="cb">${details.map(path=>`<p>${esc(path)}<br><small>${describe(path)}</small></p>`).join('')}</div>`;
   codePane.classList.add('on');}
 function openCode(ref,key){const cut=ref.lastIndexOf(':'),file=ref.slice(0,cut),
         span=ref.slice(cut+1).split('-'),a=+span[0],b=+span[1];
@@ -1550,8 +1567,9 @@ def emit(out, model, pages, svgs):
     <button onclick="document.body.classList.toggle('noside');overview()" title="show or hide the index">&#9776;</button>
     <div id="crumb"></div>
     <span id="stale"></span>
-    <span id="score" title="Map score: 0 is ideal, each part is a penalty from 0 to -1. See scores.html for every map."></span>
+    <span id="score" hidden title="Map score: 0 is ideal, each part is a penalty from 0 to -1. See scores.html for every map."></span>
     <button onclick="toggleLegend()">Legend</button>
+    <button onclick="const s=document.getElementById('score');s.hidden=!s.hidden;overview()">Score</button>
     <button onclick="pageCode()">Source</button>
     <button onclick="overview()">Fit</button><button id="fit-all" onclick="fit()" hidden>Fit all dependencies</button>
     <button onclick="actual()">100%</button>
@@ -1622,6 +1640,7 @@ def build(model, out):
         if p.get("foldedCode"):
             pages[index]["foldedCode"] = p["foldedCode"]
         pages[index]["externals"] = {c["index"]: c["externals"] for c in p.get("components", []) if c.get("kind") == "external"}
+        pages[index]["externalConnections"] = {c["index"]: c.get("externalConnections", []) for c in p.get("components", []) if c.get("kind") == "external"}
         score = model.get("scores", {}).get(index)
         if score:
             pages[index]["sc"] = score

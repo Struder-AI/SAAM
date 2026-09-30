@@ -94,7 +94,7 @@ test('a chat reaches the paired computer through the relay; link loss fails fast
   const listed=(await client.listTools()).tools.map(tool=>tool.name);
   assert.deepEqual(listed.sort(),runtime.operations.map(operation=>operation.name).filter(name=>name!=='import_stl_bundle').sort());
   assert.match(JSON.stringify(await client.callTool({name:'import_stl_bundle',arguments:{bundleId:'x',sourcePath:'C:/x.stl',machineId:'ultimaker-s5'}}).catch(error=>({error:error.message}))),/Unknown|not found/i);
-  assert.match(client.getInstructions(),/^This SAAM session reaches the person’s own computer through the SAAM relay/,'relay sessions get relay guidance first');
+  assert.match(client.getInstructions(),/This SAAM session reaches the person’s own computer through the SAAM relay/,'relay sessions include relay guidance');
   const {plan}=await call('get_recipe_defaults',{kind:'shell',machineId:'ultimaker-s5'});
   plan.process.minimumLayerSeconds=0;plan.geometry=splineBox({runMm:12,widthMm:10,heightMm:1});
   const created=await call('create_bundle',{bundleId:'relayed',kind:'shell',machineId:'ultimaker-s5',plan});

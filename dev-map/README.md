@@ -171,9 +171,9 @@ Optional `tree.json.layout[mapId]` supplies `positions` keyed by cluster id,
 leaf path or external declaration path, each `{x,y,emphasis?}`; unpositioned boxes stay
 below. Optional `viewport: [x,y,width,height]` sets initial focus and `captions`
 adds `{x,y,text}` annotations. `build` applies position edits without scanning.
-Omitting layout keeps automatic placement. Fit frames authored positions; Fit all
-includes every dependency. `map.json.externalLabels` keeps named externals
-as distinct boxes; it changes grouping, never calculated links.
+Omitting layout keeps automatic placement. Fit frames the overview; Fit all includes
+every dependency. `map.json.externalLabels` keeps individual externals distinct;
+`externalGroups: [{id,label,prefixes}]` groups boundaries, retaining every member and link.
 
 **Facts**, `facts.tsv`: tab-separated `declaration kind fact source date`, for
 what the code cannot state. `kind` is `measurement`, `vendor` or `decision`
@@ -208,5 +208,4 @@ show scores; `score` prints the worst and best maps.
 
 `view/index.html` draws the stored maps in place, following declarations
 across renumbering; its index lists the top map and clusters.
-A leaf opens its source and folded helpers; an external opens its declarations.
-Hover highlights links and their labels; the minimap navigates the whole page.
+A leaf opens its source and helpers; an external opens members and connections.

@@ -151,14 +151,15 @@ export function drawMap(map,{childrenOf,repeatsOn,isCluster,leavesOf,parentOf},{
   }
   const alike=new Map();
   for(const [external,ends] of reach) {
-    const key=(mapSet?.externalLabels?.[external]?external+'\n':'')+[...ends.keys()].sort().join('\n');
-    const group=alike.get(key)??alike.set(key,{externals:[],ends:new Map()}).get(key);
+    const boundary=!mapSet?.externalLabels?.[external]&&mapSet?.externalGroups?.find(g=>g.prefixes.some(prefix=>external.startsWith(prefix)));
+    const key=boundary?'boundary:'+boundary.id:(mapSet?.externalLabels?.[external]?external+'\n':'')+[...ends.keys()].sort().join('\n');
+    const group=alike.get(key)??alike.set(key,{externals:[],ends:new Map(),details:[],...(boundary?{boundary:boundary.id,label:boundary.label}:{})}).get(key);
     group.externals.push(external);
-    for(const [end,count] of ends)group.ends.set(end,(group.ends.get(end)??0)+count);
+    for(const [end,count] of ends){group.ends.set(end,(group.ends.get(end)??0)+count);const [out,box,kind]=JSON.parse(end);group.details.push({external,out,box,kind,count});}
   }
-  const outside=[...alike.values()].map(({externals,ends})=>{
+  const outside=[...alike.values()].map(({externals,ends,details,...boundary})=>{
     const connections=[...ends].map(([key,count])=>{const [out,box,kind]=JSON.parse(key);return {out,box,kind,count};});
-    return {externals:externals.sort(),connections,
+    return {...boundary,externals:externals.sort(),connections,details,
       into:[...new Set(connections.filter(e=>!e.out).map(e=>e.box))],from:[...new Set(connections.filter(e=>e.out).map(e=>e.box))]};})
     .sort((a,b)=>a.externals[0]<b.externals[0]?-1:1);
   const largest=Math.max(0,...held.filter(h=>h.rank===0).map(h=>h.leaves.length));

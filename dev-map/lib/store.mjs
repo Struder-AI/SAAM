@@ -433,10 +433,12 @@ function containmentPage(map,{m,tree,access,set,at,packets,leafOf,treeIndex}) {
   // Externals: a box for each group of externals this map cannot tell apart (tree.mjs), named for
   // its one external or for the outside roots its externals share.
   const named=new Map(m.externals.map(e=>[e.id,e]));
-  drawn.outside.forEach(({externals,connections},i)=>{
+  drawn.outside.forEach(({externals,connections,details,boundary,label},i)=>{
     const id=`external:e${i+1}`,roots=[...new Set(externals.map(e=>named.get(e).root))].sort();
     components.push({index:id,kind:'external',externals,count:externals.length,
-      label:externals.length===1?(mapSet?.externalLabels?.[externals[0]]??named.get(externals[0]).label):`${roots.join(' + ')} ×${externals.length}`});
+      ...(boundary?{boundary}:{}),
+      externalConnections:details.map(({external,out,box,kind,count})=>({external,from:out?at(box):id,to:out?id:at(box),kind,count})),
+      label:label??(externals.length===1?(mapSet?.externalLabels?.[externals[0]]??named.get(externals[0]).label):`${roots.join(' + ')} ×${externals.length}`)});
     for(const {box,out,kind,count} of connections)for(let n=0;n<count;n++)
       out?add(at(box),id,kind,null):add(id,at(box),kind,null);
   });

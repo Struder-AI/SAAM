@@ -815,15 +815,15 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       const e=r.evidence[0],at=`${e.file}:${e.start}:${e.end}`,node=declFn.get(r.to)??declNode.get(r.to);
       if(node)(proved.get(at)??proved.set(at,[]).get(at)).push(node);
     }
-    // A member call with no proved target, in any scanned code, may be any holder's member of its
-    // name, as well as the platform's. `found` holds what earlier rounds found arriving.
+    // Only targets that reached this receiver may propagate arguments and return values.
+    // A matching member name alone would send every Array.map callback through an unrelated
+    // object's map method and contaminate the entire graph with those callbacks.
     const found=new Map();
     const unproved=(n,m)=>!proved.has(`${m?.file}:${n.start}:${n.end}`)&&n.callee?.type==='MemberExpression'&&property(n.callee)!==null;
     const targetsOf=(n,m)=>{
       const at=`${m?.file}:${n.start}:${n.end}`;
       if(proved.has(at))return proved.get(at);
       const arrived=found.get(n)??[];
-      if(unproved(n,m))return [...(holders.get(property(n.callee))??[]).flatMap(h=>h.fns),...arrived];
       return arrived;
     };
     const exportedBindings=new Map();
@@ -851,7 +851,9 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       reach=holderReach(context);arrivals=reach.arriving();
       let grew=false;
       for(const node of settle) {
-        const next=[...(arrivals.at.get(node)??[])],held=found.get(node)??[];
+        const callee=node.callee,key=callee.type==='MemberExpression'?property(callee):null;
+        const members=key===null?[]:(holders.get(key)??[]).filter(h=>reach(h.holder).held.has(callee.object)).flatMap(h=>h.fns);
+        const next=[...(arrivals.at.get(node)??[]),...members],held=found.get(node)??[];
         if(next.some(fn=>!held.includes(fn))){found.set(node,[...new Set([...held,...next])]);grew=true;}
       }
       onProgress?.({stage:'callable-reach-complete',round,grew,calls:arrivals.at.size,escaped:arrivals.escaped.length});

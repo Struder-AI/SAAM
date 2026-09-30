@@ -19,6 +19,7 @@ export const noStore=dir=>`No stored map at ${dir}. Run: ${regenerate}`;
 export async function viewModel({repo=repoRoot,readSource=file=>readFile(resolve(repo,file),'utf8'),files}={}) {
   const dir=storeDir(repo),held=await readIndex(dir);
   if(!held)throw Error(noStore(dir));
+  const snapshotId=snapshotIdentity(held);
   const freshness=await storedFreshness(held,{repo,readSource,files});
   const sources={},sourceInfo={};
   const pages=[held.root,...Object.values(held.groupPages??{})];
@@ -38,14 +39,14 @@ export async function viewModel({repo=repoRoot,readSource=file=>readFile(resolve
     if(!authored)continue;
     const positions={};
     for(const [identity,position] of Object.entries(authored.positions??{})) {
-      const component=page.components.find(c=>c.cluster===identity||c.path===identity||c.externals?.includes(identity));
+      const component=page.components.find(c=>c.cluster===identity||c.path===identity||c.boundary===identity||c.externals?.includes(identity));
       if(!component)throw Error(`Layout ${page.path}: ${identity} is not a box on this map.`);
       if(![position.x,position.y].every(n=>Number.isFinite(n)&&n>=0))throw Error(`Layout ${identity}: x and y must be nonnegative numbers.`);
       positions[component.index]=position;
     }
     page.layout={...authored,positions};
   }
-  return {generated:held.generated,regenerate,scores,snapshotId:snapshotIdentity(held),pages:pages.map(presentationPage),sources,sourceInfo,stale,changed:freshness?.files??[],changedInputs:freshness?.inputs??[]};
+  return {generated:held.generated,regenerate,scores,snapshotId,pages:pages.map(presentationPage),sources,sourceInfo,stale,changed:freshness?.files??[],changedInputs:freshness?.inputs??[]};
 }
 
 const bytesUnder=async dir=>{
