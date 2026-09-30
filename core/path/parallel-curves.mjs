@@ -1,5 +1,5 @@
 import {transportCurveFrames} from './curve-frame.mjs';
-import {inflatePaths} from '../region/clipper2.mjs';
+import {offsetPaths} from '../region/clipper.mjs';
 import {requireThat,normalize,cross,dot,distance} from '../geom/tolerance.mjs';
 
 // Wanted ink width -> one sized bead or the fewest side-by-side beads.
@@ -35,7 +35,7 @@ export function parallelBeadGroup(curves,rule){
   for(let k=0;k<Math.ceil(construction.parallelCount/2);k++){
     const radius=(construction.parallelCount-1)*construction.pitchMm/2-k*construction.pitchMm;
     if(radius<=1e-9){output.push(...curves.map(c=>({...c,beadWidthMm:construction.beadWidthMm})));continue;}
-    for(const loop of inflatePaths(source,radius*1000,{join:'round',end:'Round',miterLimit:2,arcTolerance:Math.max(5,Math.min(50,construction.beadWidthMm*1000/16))}))if(loop.length>=3)output.push({...curve,closed:true,beadWidthMm:construction.beadWidthMm,points:loop.map(p=>origin.map((v,i)=>v+x[i]*p.X/1000+y[i]*p.Y/1000))});
+    for(const loop of offsetPaths(source,radius*1000,{join:'round',end:'Round',miterLimit:2,arcTolerance:Math.max(5,Math.min(50,construction.beadWidthMm*1000/16))}))if(loop.length>=3)output.push({...curve,closed:true,beadWidthMm:construction.beadWidthMm,points:loop.map(p=>origin.map((v,i)=>v+x[i]*p.X/1000+y[i]*p.Y/1000))});
   }
   return output;
 }

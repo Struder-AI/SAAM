@@ -26,20 +26,18 @@ export function validateSurfaceConstruction(a,{parts,lineWidthMm}) {
   requireThat(a.construction!=='skin'||!Object.hasOwn(a,'normalMm'),'Skin normalMm is obsolete; run explicit bundle migrate to rename it to target mean-normal pitchMm and invalidate generation.');
   requireThat(a.construction!=='fronts','Front construction records are obsolete; run explicit bundle migrate to expand the ordinary slice family preset.');
   const expected=Object.keys(skinAssignment({id:a.id}));
-  requireThat(['skin','fronts'].includes(a.construction)&&Object.keys(a).sort().join()===expected.sort().join(),'Invalid surface construction assignment fields.');
+  requireThat(a.construction==='skin'&&Object.keys(a).sort().join()===expected.sort().join(),'Invalid surface construction assignment fields.');
   requireThat(typeof a.id==='string'&&/^[a-z][a-z0-9-]*$/.test(a.id),'Invalid surface assignment id.');
   requireThat(a.filament===null||Number.isInteger(a.filament)&&a.filament>=0,'Surface filament must be null or a filament index.');
   requireThat(Array.isArray(a.after)&&a.after.every(id=>typeof id==='string'&&id.length),'Surface after lists operation ids.');
-  for(const key of a.construction==='skin'?['pitchMm','sampleStepMm','surveyStepMm']:['lineSpacingMm','beadHeightMm','speedMmS','toleranceMm','sampleStepMm','propagationStepMm'])
+  for(const key of ['pitchMm','sampleStepMm','surveyStepMm'])
     requireThat(Number.isFinite(a[key])&&a[key]>0,`Surface ${key} must be positive and finite.`);
-  if(a.construction==='skin') {
-    requireThat(a.supportFrom===null||typeof a.supportFrom==='string'&&/^[a-z][a-z0-9-]*$/.test(a.supportFrom)&&a.supportFrom!==a.id,'Skin supportFrom must name a different deposited assignment or be null.');
-    requireThat(a.part===null||parts?.includes(a.part),'Skin names an unknown part.');
-    requireThat(Number.isInteger(a.layers)&&a.layers>0,'Skin layers must be a positive whole number.');
-    requireThat(Number.isFinite(a.strokeAngleDeg)&&a.strokeAngleDeg>=-180&&a.strokeAngleDeg<=180,'Skin stroke angle must be -180–180 degrees.');
-    requireThat(a.maxAngleDegOverride===null||Number.isFinite(a.maxAngleDegOverride)&&a.maxAngleDegOverride>0&&a.maxAngleDegOverride<90,'Skin angle override must be null or between 0 and 90 degrees.');
-    lineSpacing(lineWidthMm,a);return;
-  }
+  requireThat(a.supportFrom===null||typeof a.supportFrom==='string'&&/^[a-z][a-z0-9-]*$/.test(a.supportFrom)&&a.supportFrom!==a.id,'Skin supportFrom must name a different deposited assignment or be null.');
+  requireThat(a.part===null||parts?.includes(a.part),'Skin names an unknown part.');
+  requireThat(Number.isInteger(a.layers)&&a.layers>0,'Skin layers must be a positive whole number.');
+  requireThat(Number.isFinite(a.strokeAngleDeg)&&a.strokeAngleDeg>=-180&&a.strokeAngleDeg<=180,'Skin stroke angle must be -180–180 degrees.');
+  requireThat(a.maxAngleDegOverride===null||Number.isFinite(a.maxAngleDegOverride)&&a.maxAngleDegOverride>0&&a.maxAngleDegOverride<90,'Skin angle override must be null or between 0 and 90 degrees.');
+  lineSpacing(lineWidthMm,a);
 }
 
 export function surveySkinAssignment({assignment,shell,machine}) {

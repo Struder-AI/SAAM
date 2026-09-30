@@ -20,7 +20,7 @@ export function curveAssignment({id,construction='curves',...options}) {
 }
 
 export function validateCurveAssignment(a) {
-  const expected=a.construction==='curves'?'after,construction,curves,filament,id,process,repeat':'after,bridges,construction,filament,id,maxExcursionMm,process';
+  const expected=Object.keys(curveAssignment({construction:a.construction})).sort().join();
   requireThat(['curves','bridges'].includes(a.construction)&&Object.keys(a).sort().join()===expected,`Invalid ${a.construction} assignment fields.`);
   requireThat(typeof a.id==='string'&&/^[a-z][a-z0-9-]*$/.test(a.id),'Invalid curve assignment id.');
   requireThat(a.filament===null||Number.isInteger(a.filament)&&a.filament>=0,'Curve filament must be null or a filament index.');

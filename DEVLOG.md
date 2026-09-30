@@ -1,5 +1,26 @@
 # Development log
 
+## 2026-09-29 — Targeted design refactor (0.2.0 unfinished)
+
+- Three workers in a detached worktree removed the stroke-order repair layer,
+  dead owner-wall policy, Clipper forwarding module and duplicate report/validation knowledge.
+  Ownership returns its next state; distinct geometry and assignment contracts remain separate.
+- One stroke-range operation preserves vertex/edge channels through closure, cropping,
+  rotation and reversal. Closed-cell ordering retains its closing material; explicit closed
+  modulation no longer invents an edge. Resampling discards obsolete producer channels.
+- Changed source: 3,246 -> 3,148 lines; AST callables 931 -> 885, named callables 201 -> 191.
+  These are source counts, not map entities. One module removed; no dependencies added.
+- Worktree checks: 846 exact kernel/caller comparisons; 558 stroke/coverage cases,
+  36 ownership allocations and 76 layer records; 214 validation cases and nine constructors.
+  Stroke/closure diagnostics pass; DENSO paths preserve all 4,884/6,685 actions.
+  Lead compared five complete representative paths: exact except the generation contract.
+- Contract /5 invalidates older programs. Lead verified stale rejection, unchanged recipe/review
+  on read, regeneration and checked-program reopening; no confirmation was granted.
+- Single-file prime/DENSO checks retained four baseline failures; the slow DENSO reopen case
+  was interrupted. No new tests, full suite, physical qualification, push or release.
+- Owner deferred scanner work after tracing overreach; scan stopped before solving. Maps and
+  label pass remain deferred. R04 coupled ownership and final release acceptance remain open.
+
 ## 2026-09-29 — Actual-entry planning checkpoint; shared-region intent unfinished
 
 - Owner defines 0.2.0 as first alpha, subsequent 0.2.x as patches/bug fixes, and

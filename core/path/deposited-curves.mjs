@@ -1,5 +1,6 @@
 import {distance,requireThat,subtract,add,scale,dot,cross,normalize} from '../geom/tolerance.mjs';
 import {sliceNormal} from '../geom/slice.mjs';
+import {strokeRange} from './deposition.mjs';
 import {pointSegmentDistance} from '../region/region2d.mjs';
 
 // Publish individual nominal bead strands after all curve/process edits. No
@@ -9,7 +10,7 @@ export function depositedCurveSegments(operations,{widthMm,source=null,horizonta
   const segments=[];
   for(const op of operations)for(const stroke of op.strokes){
     if(excludedRoles.includes(stroke.role)||stroke.points.length<2)continue;
-    const points=stroke.closed?[...stroke.points,stroke.points[0]]:stroke.points;
+    const points=stroke.closed?strokeRange({points:stroke.points,closed:true}).points:stroke.points;
     for(let i=1;i<points.length;i++){
       const a=points[i-1],b=points[i],length=distance(a,b);
       const volume=stroke.volumesMm3?.[i-1]??length*(stroke.beadAreaMm2??0);
@@ -39,7 +40,7 @@ function atSupportHeight(p,z,a,b){
 // from that reference. These are bead-frame data, not tool-orientation commands.
 export function depositedBeadFrames(result){
   return {...result,operations:result.operations.map(op=>({...op,strokes:op.strokes.map(stroke=>{
-    const points=stroke.closed?[...stroke.points,stroke.points[0]]:stroke.points;
+    const points=stroke.closed?strokeRange({points:stroke.points,closed:true}).points:stroke.points;
     const segmentMetadata=points.slice(1).map((b,i)=>{
       const previous=stroke.segmentMetadata?.[i]??{};
       const normal=previous.surfaceNormal??stroke.frameSamples?.[i]?.normal??stroke.normals?.[i]??(op.slice
@@ -58,7 +59,7 @@ export function depositedBeadFrames(result){
 export function depositedBeadSegments(operations,{widthMm,boundaryRole=null}={}){
   const segments=[];
   for(const op of operations)for(const stroke of op.strokes){
-    const points=stroke.closed?[...stroke.points,stroke.points[0]]:stroke.points;
+    const points=stroke.closed?strokeRange({points:stroke.points,closed:true}).points:stroke.points;
     for(let i=1;i<points.length;i++){
       const a=points[i-1],b=points[i],length=distance(a,b);
       const volume=stroke.volumesMm3?.[i-1]??length*(stroke.beadAreaMm2??0);

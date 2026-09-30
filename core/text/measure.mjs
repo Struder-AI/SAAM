@@ -1,4 +1,4 @@
-import {inflatePaths} from '../region/clipper2.mjs';
+import {offsetPaths} from '../region/clipper.mjs';
 import {fontMetrics} from './strokefont.mjs';
 import {layoutText} from './layout.mjs';
 
@@ -15,7 +15,7 @@ const area = loop => loop.reduce((sum, p, i) => sum + (p.X * loop[(i + 1) % loop
 // The drawing's topology once every centerline is widened to `widthUnits`:
 // how many separate blobs and how many enclosed counters.
 export function inkTopology(strokes, widthUnits) {
-  const loops = inflatePaths(encode(strokes), widthUnits / 2 * SCALE, {join: 'round', miterLimit: 2, arcTolerance: 0.3 * SCALE, end: 'Round'});
+  const loops = offsetPaths(encode(strokes), widthUnits / 2 * SCALE, {join: 'round', miterLimit: 2, arcTolerance: 0.3 * SCALE, end: 'Round'});
   const outer = loops.filter(l => area(l) > 0).length;
   return {components: outer, holes: loops.length - outer};
 }

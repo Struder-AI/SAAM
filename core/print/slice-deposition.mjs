@@ -1,7 +1,7 @@
 // Resolve ownership and prerequisites before selecting work. Every construction
 // consumes finalized predecessor beads; authored rank never becomes run order.
 import {prepareSliceContexts,sliceContextResult,ownershipDependencies} from './slices.mjs';
-import {finalizeDepositionResult} from './finalize.mjs';
+import {finalizeDepositionResult,combineFinalizedResults} from './finalize.mjs';
 import {injectionResult} from './injection.mjs';
 import {curveAssignmentResult,depositionReferences,sleeveTraceResult} from './curves.mjs';
 import {assignmentPlan} from './assignment-process.mjs';
@@ -30,18 +30,9 @@ function combineCourses(record,courses){
   }
   const contacts=courses.filter(r=>r.report.contactSamples);
   if(contacts.length){report.contactSamples=contacts.reduce((n,r)=>n+r.report.contactSamples,0);report.minContactGapMm=Math.min(...contacts.map(r=>r.report.minContactGapMm));report.maxContactGapMm=Math.max(...contacts.map(r=>r.report.maxContactGapMm));}
-  const connections=courses.map(result=>result.report.depositionConnections).filter(Boolean);
-  if(connections.length)report.depositionConnections={count:connections.reduce((n,r)=>n+r.count,0),volumeMm3:connections.reduce((n,r)=>n+r.volumeMm3,0),
-    operationIds:connections.flatMap(r=>r.operationIds),excludedOperationIds:connections.flatMap(r=>r.excludedOperationIds??[])};
-  const modulations=courses.map(r=>r.report.modulation).filter(Boolean);
-  if(modulations.length)report.modulation={changed:modulations.some(m=>m.changed),
-    materialChanged:modulations.some(m=>m.materialChanged),materialChangedOperations:modulations.flatMap(m=>m.materialChangedOperations??[]),
-    operationModifiers:Object.assign({},...modulations.map(m=>m.operationModifiers??{})),
-    maxExcursionMm:Math.max(...modulations.map(m=>m.maxExcursionMm)),
-    changedOperations:modulations.flatMap(m=>m.changedOperations),modifiers:[...new Set(modulations.flatMap(m=>m.modifiers))]};
   const layers=courses.flatMap(r=>r.family.layers);
-  return {...courses[0],report,operations:courses.flatMap(r=>r.operations),familyLayers:layers,
-    family:{...record.family,layers},finishedSurfaces:courses.flatMap(r=>r.finishedSurfaces??[])};
+  return combineFinalizedResults({...courses[0],report,familyLayers:layers,
+    family:{...record.family,layers},finishedSurfaces:courses.flatMap(r=>r.finishedSurfaces??[])},courses);
 }
 
 // Expand construction and recipe constraints once to exact work-node keys.
@@ -193,7 +184,7 @@ export function finalizedSliceResults(args){
       const raw=constructDepositionWork(node,completed,args),parts=raw.operations.map(sourceOperation=>{
         const operation=state.selections&&/^planar:[\d.e+-]+$/.test(sourceOperation.layerId)?{...sourceOperation,layerId:'planar:'+Number(Number(sourceOperation.layerId.slice(7)).toFixed(5))}:sourceOperation;
         const eligible=node.kind==='slice'&&['nearest','nearest-cells'].includes(operation.order)&&!operation.strokes.some(stroke=>matchingModulations(raw,stroke.role,args.plan.modulations,operation).length||stroke.motionIntent||stroke.poses);
-        const result=eligible?{...raw,operations:[operation]}:node.construction==='bridges'?{...raw,operations:[operation]}:finalizeDepositionResult({...raw,operations:[operation]},args.plan,args.machine);
+        const result=eligible||node.construction==='bridges'?{...raw,operations:[operation]}:finalizeDepositionResult({...raw,operations:[operation]},args.plan,args.machine);
         return {result,eligible,operation:result.operations[0],done:false};
       });
       prepared.set(node.key,{node,raw,parts});
@@ -222,10 +213,7 @@ export function finalizedSliceResults(args){
     state=planned.state;actions.add(entered.actions);actions.add(planned.actions);elapsed.set(op.layerId,planned.operationSeconds);layerIds.add(op.layerId);last=finished;
     deposited.push(finished.travelPolicy);emitted.add(op.id);operationOrder.push(op.id);chosen.part.done=true;chosen.part.result=finalized;
     if(chosen.parts.every(part=>part.done)){
-      const parts=chosen.parts.map(part=>part.result),connections=parts.map(part=>part.report?.depositionConnections).filter(Boolean),modulations=parts.map(part=>part.report?.modulation).filter(Boolean);
-      const report={...chosen.raw.report,...(connections.length?{depositionConnections:{count:connections.reduce((n,r)=>n+r.count,0),volumeMm3:connections.reduce((n,r)=>n+r.volumeMm3,0),operationIds:connections.flatMap(r=>r.operationIds),excludedOperationIds:connections.flatMap(r=>r.excludedOperationIds??[])}}:{}),
-        ...(modulations.length?{modulation:{...modulations[0],changed:modulations.some(m=>m.changed),materialChanged:modulations.some(m=>m.materialChanged),materialChangedOperations:modulations.flatMap(m=>m.materialChangedOperations??[]),maxExcursionMm:Math.max(...modulations.map(m=>m.maxExcursionMm??0)),changedOperations:modulations.flatMap(m=>m.changedOperations),operationModifiers:Object.assign({},...modulations.map(m=>m.operationModifiers??{})),modifiers:[...new Set(modulations.flatMap(m=>m.modifiers))]}}:{})};
-      const result={...chosen.raw,report,operations:parts.flatMap(part=>part.operations)};
+      const result=combineFinalizedResults(chosen.raw,chosen.parts.map(part=>part.result));
       completed.set(chosen.node.key,{node:chosen.node,result:publishDepositionWork(chosen.node,republishDepositedBoundary(result,{widthMm:args.plan.process.lineWidthMm}))});
     }
   }

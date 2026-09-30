@@ -8,7 +8,7 @@ export function injectionAssignment({id,...options}){
 }
 
 export function validateInjectionAssignment(assignment,{parts=[]}={}){
-  requireThat(assignment&&Object.keys(assignment).sort().join()==='construction,dependencies,description,filament,id,nozzleC,points,process'&&assignment.construction==='inject','Invalid inject assignment fields.');
+  requireThat(assignment&&Object.keys(assignment).sort().join()===Object.keys(injectionAssignment({})).sort().join()&&assignment.construction==='inject','Invalid inject assignment fields.');
   requireThat(typeof assignment.id==='string'&&/^[a-z][a-z0-9-]*$/.test(assignment.id),'Invalid inject assignment id.');
   requireThat(assignment.filament===null||Number.isInteger(assignment.filament)&&assignment.filament>=0,'Inject filament must be null or a filament index.');
   validateAssignmentProcess(assignment.process);

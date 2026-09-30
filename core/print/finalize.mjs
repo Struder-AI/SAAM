@@ -83,6 +83,16 @@ export function finalizeDepositionResult(result,plan,machine,{entryPosition}={})
   return {...finalized,report:{...result.report,modulation:answer.report}};
 }
 
-export function finalizeDepositionResults(results,plan,machine){
-  return results.map(result=>finalizeDepositionResult(result,plan,machine));
+// Finalization may split a construction into operations or courses. Recombining
+// them must retain the evidence for every deposited connection and modifier.
+export function combineFinalizedResults(result,parts){
+  const report={...result.report},connections=parts.map(part=>part.report?.depositionConnections).filter(Boolean),
+    modulations=parts.map(part=>part.report?.modulation).filter(Boolean);
+  if(connections.length)report.depositionConnections={count:connections.reduce((n,r)=>n+r.count,0),volumeMm3:connections.reduce((n,r)=>n+r.volumeMm3,0),
+    operationIds:connections.flatMap(r=>r.operationIds),excludedOperationIds:connections.flatMap(r=>r.excludedOperationIds??[])};
+  if(modulations.length)report.modulation={...modulations[0],changed:modulations.some(m=>m.changed),
+    materialChanged:modulations.some(m=>m.materialChanged),materialChangedOperations:modulations.flatMap(m=>m.materialChangedOperations??[]),
+    operationModifiers:Object.assign({},...modulations.map(m=>m.operationModifiers??{})),maxExcursionMm:Math.max(...modulations.map(m=>m.maxExcursionMm??0)),
+    changedOperations:modulations.flatMap(m=>m.changedOperations),modifiers:[...new Set(modulations.flatMap(m=>m.modifiers))]};
+  return {...result,report,operations:parts.flatMap(part=>part.operations)};
 }

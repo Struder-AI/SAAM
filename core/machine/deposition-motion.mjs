@@ -1,7 +1,7 @@
 // Geometry supplies a bead frame. Machine adaptation chooses nozzle pose and
 // checks fixed-axis compatibility here, independently of the slice technique.
 import {dot,cross,normalize,subtract,scale,distance,requireThat} from '../geom/tolerance.mjs';
-import {maximumPathAngle} from '../path/deposition.mjs';
+import {maximumPathAngle,strokeRange} from '../path/deposition.mjs';
 import {validatePose} from '../path/pose.mjs';
 
 function surfacePose(normal,preferredUp){
@@ -63,10 +63,7 @@ export function prepareDepositionMotion(result,machine){
     let stroke=original;
     const pressing=validateDepositionAction(stroke);
     if(stroke.stationaryExtrusion)return stroke;
-    if(oriented&&stroke.closed){
-      const close=distance(stroke.points[0],stroke.points.at(-1))>1e-9;
-      stroke={...stroke,closed:false,...(close?Object.fromEntries(['points','normals','frameSamples','poses','curveParameters'].filter(key=>stroke[key]).map(key=>[key,[...stroke[key],key==='curveParameters'?1:stroke[key][0]]])):{})};
-    }
+    if(oriented&&stroke.closed)stroke=strokeRange(stroke);
     if(stroke.poses){
       requireThat(oriented,`Operation ${operation.id} requires authored tool orientation unavailable on ${machine.id}.`);
       stroke.poses.forEach(validatePose);

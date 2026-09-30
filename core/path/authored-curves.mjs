@@ -3,6 +3,7 @@ import {evaluateCurve,evaluate} from '../geom/nurbs.mjs';
 import {slicePoint,sliceNormal} from '../geom/slice.mjs';
 import {heightReferenceBounds} from '../geom/height-slice.mjs';
 import {transportCurveFrames} from './curve-frame.mjs';
+import {strokeRange} from './deposition.mjs';
 import {sampleCurveIntervals} from './curve-sampling.mjs';
 import {beadWidthRule,parallelBeadCurves} from './parallel-curves.mjs';
 import {strokeSurfaceRegion} from '../region/surface-offset.mjs';
@@ -83,10 +84,7 @@ export function sampleAuthoredCurve(curve,{references={},course=0,offset=[0,0,0]
 export function applyCurveProfiles(input,curve){
   const vary=curve.vary;
   if(!vary)return {...input};
-  const closing=input.closed&&distance(input.points[0],input.points.at(-1))>1e-12;
-  const source=input.closed?{...input,closed:false,...(closing?{
-    ...Object.fromEntries(['points','poses','normals','chartPoints','frameSamples'].filter(key=>input[key]).map(key=>[key,[...input[key],input[key][0]]])),
-    curveParameters:[...input.curveParameters,1]}:{})}:input;
+  const source=input.closed?strokeRange(input):input;
   // Parallel construction changes the source parameter spacing and can reverse
   // it. Split at every crossed profile knot before assigning segment values;
   // geometry-only subdivision must not erase a process change.
@@ -101,7 +99,7 @@ export function applyCurveProfiles(input,curve){
   const result={...source,points:positions.map(({segment:i,fraction:t})=>mix(source.points[i],source.points[i+1],t)),
     curveParameters:positions.map(({segment:i,fraction:t})=>source.curveParameters[i]+t*(source.curveParameters[i+1]-source.curveParameters[i]))};
   for(const key of ['widthsMm','heightsMm','flowMultipliers','segmentMetadata'])if(source[key])result[key]=positions.slice(1).map(({segment})=>source[key][segment]);
-  for(const key of ['normals','chartPoints'])if(source[key])result[key]=positions.map(({segment:i,fraction:t})=>{
+  for(const key of ['normals','chartPoints','referenceAlong'])if(source[key])result[key]=positions.map(({segment:i,fraction:t})=>{
     const value=mix(source[key][i],source[key][i+1],t);return key==='normals'?unit(value):value;
   });
   if(source.poses)result.poses=positions.map(({segment:i,fraction:t})=>({...interpolateDirections(source.poses[i],source.poses[i+1],t),rotaryDeg:source.poses[i].rotaryDeg+t*(source.poses[i+1].rotaryDeg-source.poses[i].rotaryDeg)}));
