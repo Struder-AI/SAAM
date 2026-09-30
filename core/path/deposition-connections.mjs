@@ -6,12 +6,12 @@ import {canDepositConnection} from './planning.mjs';
 
 const vertexArrays=['poses','frameSamples','curveParameters','normals','chartPoints'];
 const segmentArrays=['volumesMm3','segmentMetadata','heightsMm','widthsMm','flowMultipliers'];
-function orderedStrokes(operation){
+function orderedStrokes(operation,entryPosition){
   if(!operation.strokes.length||!['nearest','nearest-cells'].includes(operation.order))return operation.strokes;
   const sourceIndex=Symbol('source stroke');
   const inputs=operation.strokes.map((stroke,i)=>({...stroke,[sourceIndex]:i,
     points:stroke.closed&&distance(stroke.points[0],stroke.points.at(-1))<1e-12?stroke.points.slice(0,-1):stroke.points}));
-  const from=inputs[0].points[0];
+  const from=entryPosition??inputs[0].points[0];
   const ordered=operation.order==='nearest'?orderStrokes(inputs,from):orderScanlineCells(inputs,from);
   return ordered.map(stroke=>{
     const source=operation.strokes[stroke[sourceIndex]],{[sourceIndex]:ignored,...retained}=stroke;
@@ -47,12 +47,12 @@ function connectionStroke(previous,next,policy){
   return stroke;
 }
 
-export function resolveDepositionConnections(result,{allowConnections=true,excludedOperationIds=[]}={}){
+export function resolveDepositionConnections(result,{allowConnections=true,excludedOperationIds=[],entryPosition}={}){
   const excluded=new Set(excludedOperationIds);
   let count=0,volumeMm3=0;const operationIds=[];
   const operations=result.operations.map(operation=>{
     if(operation.depositionConnectionsResolved)return operation;
-    const ordered=orderedStrokes(operation),strokes=[];let added=0;
+    const ordered=orderedStrokes(operation,entryPosition),strokes=[];let added=0;
     for(const stroke of ordered){
       if(allowConnections&&!excluded.has(operation.id)&&operation.connectNearby&&strokes.length){
         const connector=connectionStroke(strokes.at(-1),stroke,operation.travelPolicy);
@@ -65,5 +65,5 @@ export function resolveDepositionConnections(result,{allowConnections=true,exclu
   });
   if(operations.every((operation,i)=>operation===result.operations[i]))return result;
   return {...result,operations,report:{...result.report,depositionConnections:{count,volumeMm3,operationIds,
-    excludedOperationIds:result.operations.filter(op=>op.connectNearby&&(!allowConnections||excluded.has(op.id))).map(op=>op.id),ordering:'producer-first-stroke'}}};
+    excludedOperationIds:result.operations.filter(op=>op.connectNearby&&(!allowConnections||excluded.has(op.id))).map(op=>op.id),ordering:entryPosition?'scheduled-entry':'producer-first-stroke'}}};
 }

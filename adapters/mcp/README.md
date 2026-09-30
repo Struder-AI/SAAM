@@ -137,8 +137,8 @@ parallel recipe schema. Use `includeGeometry:true` for a complete recipe and
 read the owning manuals before editing it. `check_path` reports operation order
 and feasibility without becoming a separate preview or approval route. STL
 import reads only the chosen source; it writes the new bundle inside the configured
-Prints root. A bundle that fails current-version validation is recreated from its
-skills; nothing migrates it, silently or explicitly.
+Prints root. Reads reject stale recipes without rewriting them. Supported older
+fields use the [explicit CLI migration](../../core/print/README.md#print-bundle-and-current-formats), then regeneration.
 
 Thingi10K accepts model IDs or indexed Thingiverse links, never arbitrary download
 URLs. Its pinned HTTPS mirror/cache and network requirements are described in the

@@ -217,8 +217,7 @@ export function recipeRows(plan,machine){
     ...(m.direction?[[m.id+' · Direction',typeof m.direction==='string'?m.direction:m.direction.join(', ')+' in '+(m.frame??'world')+' coordinates']]:[]),
     [m.id+' · Placement',(m.frame??'world')+' frame'+(m.layers?' · layers '+m.layers.from+'–'+m.layers.to:'')+(m.topN?' · top '+m.topN+' layers':'')+(m.phasePerLayerRad?' · '+m.phasePerLayerRad+' rad phase per layer':'')]);
   if(composition){
-    rows.push(['Layer batching',composition.batchLayers+' layer(s) per component'],
-      ['Requested operation order',composition.order.length?composition.order.join(' → '):'Shared dependency order'],
+    rows.push(['Requested operation order',composition.order.length?composition.order.join(' → '):'Shared dependency order'],
       ['Additional dependencies',composition.dependencies.length?composition.dependencies.map(e=>e.before+' → '+e.after).join('; '):'None']);
   }
   if(plan.skills){

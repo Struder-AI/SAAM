@@ -169,11 +169,11 @@ draping; an assembly is not a boolean union.
 
 ## Material ownership and surface contact
 
-`plan.slices.assignments` owns deposition selection. Ordinary assignments combine
-surface references, a stack and material restrictions; skin/front presets lower
-to these same records. Sleeves, rims and trace curves share core stages. See the
-[slice manual](../../skills/slice/SKILL.md) for records and limits. Assembly
-components remain separate selections; they are not implicitly unioned.
+`plan.slices.assignments` owns surface/stack/material selection; skin/front presets
+lower to these records. [allocateChartClaims](ownership.mjs) partitions actual
+chart intersections and alternates owners. Coupled layer spacing, pattern inheritance
+and connected mixed-family output remain unfinished under [R04](../../plans/0.2.0.md#milestones-and-work-ownership).
+See the [slice manual](../../skills/slice/SKILL.md); assembly selections are not implicitly unioned.
 Prepared text exposes `base` and `text/<feature-id>` selections, prefixed by the
 component ID in an assembly. [Geometry selections](../geom/selections.mjs)
 resolves these with their component placement without changing saved geometry.

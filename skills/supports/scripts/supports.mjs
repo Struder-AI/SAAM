@@ -3,7 +3,7 @@
 // slice assignment with the support preset (core/print/slices.mjs); trees are
 // sliced by the same preset, their branch sections as the layer regions.
 import {horizontalSlice,sliceFamily,prepareSection,section} from '../../../core/geom/slice.mjs';
-import {sliceAssignment,sliceResult,SUPPORT_GAPS} from '../../../core/print/slices.mjs';
+import {sliceAssignment,SUPPORT_GAPS} from '../../../core/print/slices.mjs';
 import {offsetRegion} from '../../../core/region/offset.mjs';
 import {union,intersect} from '../../../core/region/intersection.mjs';
 import {regionArea} from '../../../core/region/region2d.mjs';
@@ -64,7 +64,7 @@ export function treeSection(a,z,settings,placement={xMm:0,yMm:0}) {
 
 // Tree supports as one support-preset slice result: interface layers are the
 // preset's solid top of the merged branch sections.
-export function supportResults({plan,machine,shells}) {
+export function prepareSupportContexts({plan,machine,shells}) {
   const settings=plan.skills.supports,process=plan.process;
   if(!settings?.enabled)return [];
   const top=Math.max(...settings.assignments.map(a=>a.contactZMm-settings.topGapMm));
@@ -83,12 +83,13 @@ export function supportResults({plan,machine,shells}) {
     return {...layer,region};
   });
   const lastLayer=a=>Math.floor((a.contactZMm-settings.topGapMm-process.firstLayerMm+1e-8)/process.layerMm);
-  const result=sliceResult({id:'supports',layers,settings:sliceAssignment({id:'supports',preset:'support'})},
-    {process,machine,shell:{bounds:{min:[0,0,0],max:[0,0,top]}},startMm:0,endMm:top,report:{assignments:settings.assignments.map(a=>({id:a.id,reason:a.reason,
+  const assignment=sliceAssignment({id:'supports',preset:'support'}),shell={bounds:{min:[0,0,0],max:[0,0,top]}};
+  return [{spec:{id:'supports',layers,material:new Map(layers.map(layer=>[layer.index,layer.region])),settings:assignment,totalLayerCount:layers.length},
+    context:{process,machine,shell,startMm:0,endMm:top,report:{assignments:settings.assignments.map(a=>({id:a.id,reason:a.reason,
       contactZMm:a.contactZMm,actualTopGapMm:a.contactZMm-(process.firstLayerMm+lastLayer(a)*process.layerMm)})),
-    limitations:'Bed-rooted branches, explicit skeletons, planar contact heights; slice-plane clearance checks only. No automatic branch routing; physical performance unvalidated.'}});
-  requireThat(result.operations.length>0,'Assigned tree support produced no strokes; enlarge its branches.');
-  return [result];
+    limitations:'Bed-rooted branches, explicit skeletons, planar contact heights; slice-plane clearance checks only. No automatic branch routing; physical performance unvalidated.'}},
+    family:{...family,layers},familyId:'supports',owner:{id:'supports',kind:'support',part:null,assignment},
+    layerOrder:layers.map(layer=>({index:layer.index,rank:layer.slice.origin[2]}))}];
 }
 
 // Support layers print before every part operation reaching above them, even

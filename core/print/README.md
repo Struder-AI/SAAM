@@ -179,7 +179,7 @@ an actionable migration-required error. Run
 `node core/print/cli.mjs migrate Prints/<name>` explicitly to preflight and
 convert one bundle. Migration atomically replaces only `plan.json`, retains the
 legacy sidecars and unknown files, and reports every created, updated, removed
-and retained path. Current-format bundles return a no-op report. Compatibility
+and retained path. Bundles with current layout and recipe fields are no-ops. Compatibility
 remains while supported or distributed print roots contain split-file bundles;
 it can be removed after a bounded inventory reaches zero and the migration
 window is closed in a documented release. The lifecycle and SAAMpath formats

@@ -127,9 +127,11 @@ Studio displays material estimates in grams using a fixed 1.2 g/cm³ density
 for all materials. Robot relay estimates and commanded material intent remain
 separate and labeled; internal volumes and machine flow rates retain their units.
 Inspection reads `report.depositionFamily`; operation plus exported `layer` selects
-the ordinal and references. Continuous Slice follows references without splitting
-deposition. Trace keeps authored courses and may show its named reference sleeve.
-Inject numbers points independently of height. Open references stay unfilled.
+the course ordinal. Continuous Slice keeps its geometric turn identity without
+splitting deposition. Trace keeps authored courses and its reference sleeve name;
+Inject numbers points independently of height. Reference geometry is not drawn.
+Substrate adaptation is agent-controlled through the recipe/API; settings only
+report its current value.
 Outgoing layers fade over two wall-clock seconds, shortened when the next layer
 arrives sooner. A transition completes the previous fade; pausing/changing speed
 never reverses it. Scrubbing, replay and opening a print reset fade history.

@@ -153,8 +153,8 @@ dependencies, inspect the atomic operation and injection height: a continuous
 path cannot be interrupted mid-operation. Test modest coupons and adjust the
 dimensions, seating, volume, flow and temperature using observed results.
 
-Developer callers use `plasticWeldResult({plan,machine,sites,modelResults})`:
-`{result,dependencyChanges}` leaves input operations untouched; no sites gives
-null result. Injection reuses the [shared point operation](../inject/SKILL.md).
-Apply cover `{operationId,after,mode:'union'}` prerequisites with
-`applyResultDependencies` before composition; union preserves first occurrence.
+Developer preparation uses `preparePlasticWeld` for sites and cavity reservations.
+The common dependency graph calls `rivetInjectionResult` for each ready site,
+validating finalized enclosure and using the [shared point operation](../inject/SKILL.md).
+The shared finalizer publishes each result; `validateRivetClearance` audits the
+complete finalized batch. Host and later-cover prerequisites belong to that graph.

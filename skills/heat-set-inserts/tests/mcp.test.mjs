@@ -25,39 +25,37 @@ test('MCP discovers heat-set profiles and applies revision-checked insert edits'
   try{
     await client.connect(transport);
     const tools=(await client.listTools()).tools;
-    assert.equal(tools.find(tool=>tool.name==='heat_set_catalog')?.annotations.readOnlyHint,true);
+    assert.equal(tools.find(tool=>tool.name==='read_guidance')?.annotations.readOnlyHint,true);
     assert.equal(tools.find(tool=>tool.name==='apply_heat_set')?.annotations.readOnlyHint,false);
-    const {inserts}=await call('heat_set_catalog');
-    const insert=inserts.find(entry=>entry.id==='spirol-29-m3-long');
-    assert.ok(insert,'Catalog exposes an exact insert ID usable in requests.');
-    assert.equal(insert.holeDiameterMm,3.99);
-    assert.equal(insert.lengthMm,5.74);
-
-    const {plan}=await call('get_plan_template',{kind:'shell',machineId:'ultimaker-s5'});
+    const catalog=await call('read_guidance',{guidanceId:'skills/heat-set-inserts/CATALOG.md'});
+    const insert={id:'spirol-29-m3-long'};
+    assert.ok(catalog.text.includes(insert.id),'Manual exposes an exact insert ID usable in requests.');
+    assert.match(catalog.text,/\| M2\.5, M3, 4-40 \| 3\.56 \| 5\.74 \| 3\.99 \|/);
+    const {plan}=await call('get_recipe_defaults',{kind:'shell',machineId:'ultimaker-s5'});
     const base=splineBox({runMm:30,widthMm:26,heightMm:10});
     plan.geometry=base;
-    const printId='insert-sample';
-    let state=await call('create_print',{printId,kind:'shell',machineId:'ultimaker-s5',plan});
+    const bundleId='insert-sample';
+    let state=await call('create_bundle',{bundleId,kind:'shell',machineId:'ultimaker-s5',plan});
     const firstRevision=state.revision;
-    state=await call('apply_heat_set',{printId,expectedRevision:state.revision,
+    state=await call('apply_heat_set',{bundleId,expectedRevision:state.revision,
       request:{feature:{id:'mount',insertId:insert.id,positionMm:[15,13,10],finCount:4}}});
     assert.notEqual(state.revision,firstRevision);
-    let saved=await call('get_print',{printId,includeGeometry:true});
+    let saved=await call('get_bundle',{bundleId,includeGeometry:true});
     assert.equal(saved.plan.geometry.shape,'heat-set');
     assert.ok(saved.plan.geometry.triangles.length>12,'The transport persists the compiled hole geometry.');
     assert.equal(saved.plan.geometry.features[0].insertId,insert.id);
 
-    await call('apply_heat_set',{printId,expectedRevision:firstRevision,
+    await call('apply_heat_set',{bundleId,expectedRevision:firstRevision,
       request:{feature:{id:'mount',finCount:8}}},/stale/i);
-    assert.equal((await call('get_print',{printId})).revision,state.revision,'A stale update changes nothing.');
-    state=await call('apply_heat_set',{printId,expectedRevision:state.revision,
+    assert.equal((await call('get_bundle',{bundleId})).revision,state.revision,'A stale update changes nothing.');
+    state=await call('apply_heat_set',{bundleId,expectedRevision:state.revision,
       request:{feature:{id:'mount',finCount:6}}});
-    saved=await call('get_print',{printId,includeGeometry:true});
+    saved=await call('get_bundle',{bundleId,includeGeometry:true});
     assert.equal(saved.plan.geometry.features[0].finCount,6);
     assert.equal(saved.plan.geometry.features[0].insertId,insert.id);
     assert.deepEqual(saved.plan.geometry.features[0].positionMm,[15,13,10]);
-    await call('apply_heat_set',{printId,expectedRevision:state.revision,request:{remove:'mount'}});
-    assert.deepEqual((await call('get_print',{printId,includeGeometry:true})).plan.geometry,base);
+    await call('apply_heat_set',{bundleId,expectedRevision:state.revision,request:{remove:'mount'}});
+    assert.deepEqual((await call('get_bundle',{bundleId,includeGeometry:true})).plan.geometry,base);
   }finally{
     await client.close();
     await rm(printsRoot,{recursive:true,force:true});

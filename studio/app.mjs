@@ -232,7 +232,7 @@ const views={
       if(tab==='plan')return [materialSetup(state),['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],
         ['Body',body?sliceSummary(body):owners.length?'Assigned volumes only':'Not printed'],...vaseSettings(state),
         ...(slices.length>(body?1:0)?[['Other deposition assignments',slices.filter(a=>a!==body).map(a=>a.id+' · '+sliceSummary(a)).join('; ')]]:[]),
-        ...(state.plan.geometry?.shape==='assembly'?[['Fill sequencing',(state.plan.composition?.batchLayers??1)+' layer(s) per component'],['Sliced components',owners.some(a=>a.part===null)?'All':[...new Set(owners.map(a=>a.part))].join(', ')||'None']]:[])];
+        ...(state.plan.geometry?.shape==='assembly'?[['Sliced components',owners.some(a=>a.part===null)?'All':[...new Set(owners.map(a=>a.part))].join(', ')||'None']]:[])];
       if(!state.program)return [];
       const limit=state.pathSummary?.nonplanarLimit;
       const rows=[...depositionFamilyRows(state.pathSummary?.inspection),
@@ -455,8 +455,6 @@ function render() {
   $('#guidance').textContent=presentation.guidance;$('#guidance').hidden=!presentation.guidance;
   $('#facts').replaceChildren(table(presentation.facts));
   $('#more-settings').hidden=tab!=='toolpath';
-  $('#substrate-option').hidden=tab!=='toolpath';$('#substrate-adaptation').checked=state.plan.experimental.substrateAdaptation;
-  $('#substrate-adaptation').disabled=busy||generating;
   $('#print-setup').hidden=tab!=='toolpath';
   $('#print-setup-values').textContent=state.machine.name+' · '+state.plan.setup.material;
   const suggestedName=state.printName??'';
@@ -516,13 +514,6 @@ function render() {
 }
 function selectFeature(id){selected=id;$('#selection').textContent=id?label(id):'Click a surface or edge to see its name';requestDraw();}
 function setTab(next){if(!state)return;clearManual();if(next!=='toolpath'&&cameras.mode==='machine')useCamera(cameras.switch('ghost',cameraState()));tab=next;stop();layerFade.reset();render();}
-$('#substrate-adaptation').onchange=async event=>{
-  const enabled=event.target.checked;
-  try{await working('Updating substrate adaptation…',async()=>{
-    await api('plan',{revision:state.revision,plan:{...state.plan,experimental:{...state.plan.experimental,substrateAdaptation:enabled}}});
-    await refresh();message('Substrate adaptation '+(enabled?'on':'off')+'. Regenerate to review the changed toolpath.');
-  },{preview:false});}catch(error){message(error.message,true);render();}
-};
 
 function readViewerSnapshot(options={}) {
   if(!state)return {state:null,target:options.target??canvas,updateUI:options.updateUI??true};
@@ -532,7 +523,7 @@ function readViewerSnapshot(options={}) {
     playbackSpeed:options.playbackSpeed??(playing?Number($('#playback-speed').value):0),machineState:options.machineState??machineDisplay(position),
     state,shown,tab,selected,selectionLabel:selected?label(selected):'',showGeometry:showingGeometry(),
     camera:{yaw,tilt,zoom,pan:[...pan],fitBounds},bounds:partBounds(),skinPhase:view().skinPhase,cameraMode:cameras.mode,machineColors,
-    settings:{showTravel:$('#travel').checked,showSlice:$('#slice-reference').checked,followPlate:$('#follow-plate').checked,previousLayerOpacity:Number($('#previous-layer-opacity').value)/100},
+    settings:{showTravel:$('#travel').checked,followPlate:$('#follow-plate').checked,previousLayerOpacity:Number($('#previous-layer-opacity').value)/100},
     playing,manualPose:Boolean(manualValues),duration:duration(),interaction:drag?(drag.pan?'pan':'orbit'):null,
     performanceContext:{tab,view:cameras.mode,solid:tab==='toolpath'&&viewer.sceneState().solid,moves:state?.program?.moves.length??0,canvasCss:[canvas.clientWidth,canvas.clientHeight],
       devicePixelRatio:+(devicePixelRatio||1).toFixed(3),userAgent:navigator.userAgent}};
@@ -723,7 +714,6 @@ $('#stl-file').onchange=async()=>{
 };
 $('#open-path').onsubmit=event=>{event.preventDefault();openPrint($('#print-path').value.trim());};
 $('#travel').onchange=requestDraw;
-$('#slice-reference').onchange=requestDraw;
 $('#follow-plate').onchange=()=>{const fit=mode=>mode==='machine'?fitMachine():fitDisplayedPart();cameras.refit(fit);fitBounds=fit(cameras.mode);$('#fit-program').textContent='Fit all moves';saveView();requestDraw();};
 $('#playback-speed').oninput=()=>{$('#speed-label').value=$('#playback-speed').value+'×';};
 $('#previous-layer-opacity').oninput=()=>{$('#previous-layer-opacity-label').value=$('#previous-layer-opacity').value+'%';saveView();requestDraw();};

@@ -140,7 +140,7 @@ Mesh conversion is not required before SAAMpath generation.
 
 | Representation | Role |
 |---|---|
-| Spline shell / triangle mesh | Part geometry behind common queries. |
+| Spline shell / triangle mesh | Part geometry behind common queries. [normalBandVolume](normal-band.mjs) also samples a closed chart-normal band into a validated mesh for claim queries; mixed deposition integration is unfinished. |
 | [Blob field](blob-field.mjs) | Points with reach and strength whose cubic B-spline falloffs sum; explicitly extracted to the shared manufacturing mesh backend for slicing and Studio. |
 | [Surface intersection](surface-intersection.mjs) | Curves where two NURBS patches meet, with both patches' parameters: boundary points first (each patch's edges against the other surface), then marching between them; interior loops seeded by Bezier subdivision; edges lying in the other surface are curves themselves. |
 | [Surface region](slice-region.mjs) | The part of a spline surface inside a solid (spline shell or triangle mesh) as loops in the surface's (u,v): intersection curves chained, oriented by the partner's outward normal and closed along the domain boundary. The basis of curved slices and trimmed patches. |

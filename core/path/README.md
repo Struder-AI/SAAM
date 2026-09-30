@@ -10,22 +10,21 @@ an unimplemented design for evaluation.
 
 ## Skill-result composition
 
-`toolpath.mjs::planToolpath` is the complete planning boundary: prepared skill
-results and locked machine/process settings enter; a SAAMpath leaves. It passes
-explicit planning state through startup, optional priming, operation composition
-and finishing, then assembles the action batches once. `planning.mjs` stages
-return the next state, emitted actions, timing/accounting and relevant decisions;
-they do not mutate their input state. A merged move returns a replacement for
-the preceding action rather than modifying an earlier stage's action object.
-Local loops may use mutable working collections. State carries the recent motion
-context, not a growing copy of the action history.
+Generation owns one execution state from startup through finalized deposition
+and finishing. The ready-work graph caches geometry after its material sources
+are finalized; exact operation dependencies remain separate from geometry edges.
+Eligible unmodified Slice strokes use their actual scheduled entry for ordering
+and connectors before publication. Trace, Inject and modified paths stay constrained.
+No later composer changes published material or independently reschedules it.
 
-All callers use these functional stages. `planComposition(state, results, rules,
-onProgress)` returns state, action deltas and a composition summary;
-`planPriming(state, geometryBounds, results)` returns a priming plan.
-`planningPath(state, actionChunks, summary)` materializes the complete path. The
-generated map of `core/path/toolpath.mjs::planToolpath` is the entry for reviewing
-the planning flow and its stages.
+`planOperationEntry` applies context, selection and startup actions once;
+`planPreparedOperation` emits the finalized strokes and operation ending.
+Planning stages return new state and action deltas; `planningPath` assembles them.
+A merged move replaces the preceding action rather than mutating it. Local loops
+own mutable work collections; state does not copy accumulated action history.
+Machine priming uses a fixed tool-bound lane. Complete final geometry and deposition
+bounds must clear it; otherwise move/resize the part or author an explicit prime.
+
 
 Skills return an in-memory result `{id, operations, report}`. An operation has
 a unique `id`, a `layerId` identifying its deposition layer/surface, a numeric
@@ -51,15 +50,13 @@ Material ownership is explicit; fronts do not publish a finished surface chart.
 
 `core/path/compose.mjs` is skill-independent. It topologically orders operations,
 rejects duplicate IDs, missing dependencies and cycles, and uses stable result
-order to break ties. Plan `composition` contains `batchLayers` (1–20), `order`
+order to break ties. Plan `composition` contains `order`
 (an optional ordered subsequence of operation IDs), and `dependencies` (additional
 `{before, after}` edges). Material claims live in common slice assignments. Ready
-operations are grouped by maximum actual deposition Z to keep skill heights
-similar. Batch size 1 alternates compatible results at each height; size 2 gives
-AA–BB for two results with matching layers. Rank breaks ties within a result's
-height batch. This preference never splits atomic continuous operations. Explicit ordering
+operations use ascending maximum actual deposition Z. Rank breaks ties within a result's
+height group. This preference never splits atomic continuous operations. Explicit ordering
 and dependencies can interleave operations within a layer. They cannot remove a
-skill's prerequisites. The agent proposes these choices before toolpath generation;
+skill's prerequisites. Old batchLayers recipes require explicit migration and regeneration;
 generation executes the locked rules without a new planning or approval stage.
 
 `scheduleOperations` exposes validation, priority preparation, dependency
@@ -68,11 +65,11 @@ carry the operation batch, priority lookup and prerequisite sets. The ordering
 stage builds its own mutable heap and dependency counters; it does not consume
 or change those inputs.
 
-The composer carries travel/retraction state between operations and finishes
-cooling once after all operations assigned to a shared layer. Hops
-clear all material deposited so far, including travel from a taller batched
-column toward a lower one. This is not a full
-collision or swept-head model. Results must describe compatible regions and
+Execution retains travel/retraction state. On leaving a layer it parks and pays
+remaining minimum-layer cooling debt. Consecutive same-layer work accrues together;
+elapsed work and paid debt survive revisits. This intentionally cools
+noncontiguous dependency-driven layers earlier than the former last-occurrence rule.
+Hops clear previously deposited material; this is not a swept-head collision model. Results must describe compatible regions and
 material ownership; the composer does not infer arbitrary geometric overlap, support,
 bridge printability or a safe order from arbitrary strokes alone.
 
@@ -257,8 +254,8 @@ use the same scanline implementation. Ordering changes neither row endpoints
 nor deposition coverage; connections still use the shared travel checks.
 
 A stroke of a `connectNearby` operation that starts within 2 mm of the end of
-the preceding deposition continues as deposition: `planConnection` returns
-one straight connector carrying the next stroke's bead (its uniform area, or its
+the preceding deposition can become an explicit finalized connector carrying
+the next stroke's bead (its uniform area, or its
 first segment's volume per length and metadata). This joins fill rows into a
 zigzag, steps between wall loops and concentric rings, and enters fill from the
 last wall without a travel. The connector must pass the same direct-move checks

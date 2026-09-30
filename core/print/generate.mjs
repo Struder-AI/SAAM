@@ -4,7 +4,10 @@
 
 import { makeShell, assertClosed } from '../geom/shell.mjs';
 import {shellFromSurfaces,splineSolidShell} from '../geom/spline-solid.mjs';
-import {planToolpath} from '../path/toolpath.mjs';
+import {planFinishing} from '../path/toolpath.mjs';
+import {createPlanningState,planFan,planningPath} from '../path/planning.mjs';
+import {planOperation,validateOperationBatch,prepareOperationDependencies} from '../path/compose.mjs';
+import {planPriming,validatePrimingClearance} from '../path/prime.mjs';
 import {filamentSelection,assignedFilaments} from '../machine/filaments.mjs';
 import {planarPolicy} from '../path/builder.mjs';
 import {assignmentPlan} from './assignment-process.mjs';
@@ -15,13 +18,11 @@ import { requireThat } from '../geom/tolerance.mjs';
 import {makeMesh,translateMesh} from '../geom/mesh.mjs';
 import {toolBounds,startupPosition,startupRetracted} from '../machine/profile.mjs';
 import {finalizedSliceResults} from './slice-deposition.mjs';
-import {supportResults,supportDependencies} from '../../skills/supports/scripts/supports.mjs';
-import {preparePlasticWeld,plasticWeldResult} from '../../skills/plastic-weld/scripts/weld.mjs';
+import {prepareSupportContexts,supportDependencies} from '../../skills/supports/scripts/supports.mjs';
+import {preparePlasticWeld} from '../../skills/plastic-weld/scripts/weld.mjs';
 import {validateHeatSetAssignments} from '../../skills/heat-set-inserts/scripts/feature.mjs';
 import {geometrySelections} from '../geom/selections.mjs';
 import {booleanShell} from '../geom/boolean-solid.mjs';
-import {scanlineFill} from '../region/region2d.mjs';
-import {sampleAuthoredCurve} from '../path/authored-curves.mjs';
 
 // Booleans are stored as their recipe in the native JSON file, like meshes.
 export const hasMesh=geometry=>!!geometry&&(['mesh','blob-field','text','gridfinity','heat-set','boolean'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry))));
@@ -130,7 +131,7 @@ export function sliceShells(plan,rhino,{placed,componentShells}) {
 
 // Survey every selected skin before body ownership, then finalize each
 // supporting producer before constructing surface consumers.
-export function generateModelResults(plan,machine,rhino,{placed,componentShells,bounds,weldSites=[]},onProgress) {
+export function generateModelResults(plan,machine,rhino,{placed,componentShells,bounds,weldSites=[],planningState,emittedIds=[]},onProgress) {
   const welds=weldSites.map(site=>site.reservation),process=plan.process;
   const summary={generatorVersion:VERSION,shape:plan.geometry?.shape??null},results=[];
   const shells=sliceShells(plan,rhino,{placed,componentShells});
@@ -162,7 +163,8 @@ export function generateModelResults(plan,machine,rhino,{placed,componentShells,
     return {assignment,shell,process:assignmentPlan(plan,machine,assignment).process};
   });
   const constructions=[...sleeves.filter(context=>assignmentFamily(context.assignment)==='trace'),...injections,...remaining].map(context=>({...context,maxBeadHeightMm:machine.tools.find(tool=>tool.index===assignmentPlan(plan,machine,context.assignment).setup.tool)?.layerHeightMm?.[1]??Infinity}));
-  const sliced=finalizedSliceResults({plan,machine,shells,volumes:sliceVolumes(plan,rhino),bands,reserves:welds,envelopes:welds,surfaceAssignments:skins,referenceAssignments,terminalAssignments:rims,boundaryAssignments:sleeves.filter(context=>assignmentFamily(context.assignment)==='slice'),constructions,onProgress});
+  const supportContexts=prepareSupportContexts({plan,machine,shells:componentShells?[...componentShells.values()]:placed?[placed]:[]});
+  const sliced=finalizedSliceResults({plan,machine,shells,volumes:sliceVolumes(plan,rhino),bands,reserves:welds,envelopes:welds,surfaceAssignments:skins,referenceAssignments,terminalAssignments:rims,boundaryAssignments:sleeves.filter(context=>assignmentFamily(context.assignment)==='slice'),constructions,supportContexts,weldSites,onProgress,planningState,emittedIds});
   results.push(...sliced.results);
   if(sliced.summary)summary.slices=sliced.summary;
   for(const [kind,key] of [['sleeve','vaseWall'],['rim','thickLip'],['skin','drapedSkin']]){
@@ -175,19 +177,20 @@ export function generateModelResults(plan,machine,rhino,{placed,componentShells,
   if(curves.length)summary.curves=curves.map(result=>({id:result.id,...result.report}));
   const survey=skins[0]?.survey??null;
   if(skins.length)summary.nonplanarLimit={machineMaxAngleDeg:skins[0].survey.declaredLimitDeg,effectiveMaxAngleDeg:Math.max(...skins.map(s=>s.survey.limitDeg)),experimentalOverride:skins.some(s=>s.survey.experimentalOverride),surfaceMaxSlopeDeg:Math.max(...skins.map(s=>s.survey.maxSlopeDeg)),excludedAreaPercent:Math.max(...skins.map(s=>s.survey.steepFraction))*100};
-  return {results,summary,survey,shells,slicedSupports:sliced.supports};
+  return {results,summary,survey,shells,slicedSupports:sliced.supports,execution:sliced.execution};
 }
 
 export function addComplementaryResults(plan,machine,{placed,componentShells,weldSites,bounds},batch) {
   const results=[...batch.results],summary={...batch.summary};
   // Support-preset slices and tree supports print before what they hold up.
-  const supports=[...(batch.slicedSupports??[]),...supportResults({plan,machine,shells:componentShells?[...componentShells.values()]:placed?[placed]:[]})];
+  const supports=batch.slicedSupports??[];
   const supportedResults=[...supports,...applyResultDependencies(results,supportDependencies(supports,results))];
   if(supports.length)summary.supports=supports.map(r=>({id:r.id,...r.report}));
-  const welds=plasticWeldResult({plan,machine,sites:weldSites,modelResults:supportedResults});
-  const weldedResults=applyResultDependencies(supportedResults,welds.dependencyChanges);
-  if(welds.result)summary.plasticWeld=welds.result.report;
-  const completed=welds.result?[...weldedResults,welds.result]:weldedResults;
+  const weldResult=results.find(result=>result.id==='plastic-weld'),changes=[];
+  for(const site of weldSites)for(const result of supportedResults)if(result!==weldResult)for(const op of result.operations)
+    if(op.strokes.some(stroke=>stroke.points.some(point=>point[2]>site.top+1e-8)))changes.push({operationId:op.id,after:[site.reservation.completion.operationId],mode:'union'});
+  if(weldResult)summary.plasticWeld=weldResult.report;
+  const completed=applyResultDependencies(supportedResults,changes);
   return {...batch,results:applyDeclaredDependencies(plan,completed),summary};
 }
 
@@ -234,13 +237,6 @@ export function applyResultDependencies(results,dependencyChanges){
   });
 }
 
-export function addPrimeResult(plan,machine,batch) {
-  const prime=primeLineResult(plan,machine);
-  if(!prime)return {...batch,prime};
-  const results=[prime,...batch.results.map(result=>({...result,operations:result.operations.map(op=>({...op,after:[...new Set([...(op.after??[]),'prime-line:0'])]}))}))];
-  return {...batch,results,summary:{...batch.summary,primeLine:prime.report},prime};
-}
-
 export function summarizeGeneratedPath(placed,survey,modelSummary) {
   const summary={...modelSummary};
   summary.composition=null;
@@ -258,55 +254,45 @@ export function summarizeGeneratedPath(placed,survey,modelSummary) {
   return summary;
 }
 
-export const GENERATION_CONTRACT='saam-deposition/2';
+export const GENERATION_CONTRACT='saam-deposition/4';
 export function depositionInspection(results){
-  const operations={},slices={};
+  const operations={};
   for(const result of results){
     const family=result.familyId??result.report?.owner??result.id,kind=result.report?.depositionFamily??null;
     if(!kind)continue;
-    const familyLayers=result.family?.layers??[],referenceKeys=[];
+    const familyLayers=result.family?.layers??[];
     const traceLayers=kind==='trace'?[...new Set(result.operations.flatMap(operation=>{
       const layers=operation.strokes.flatMap(stroke=>stroke.segmentMetadata?.map(segment=>segment.layer).filter(Number.isInteger)??[]);
       return layers.length?layers:[operation.layer];
     }))]:[];
-    for(const layer of result.family?.layers??[]){
-      const key=`${result.id}:${layer.index}`;
-      if(layer.slice&&layer.region?.length){
-        const points=layer.region.flat(),extent=[0,1].map(k=>Math.max(...points.map(p=>p[k]))-Math.min(...points.map(p=>p[k])));
-        const map=(points,closed=false)=>sampleAuthoredCurve({closed,uv:{points,reference:{kind:'slice',assignment:key,index:layer.index}}},
-          {references:{[`slice:${key}`]:{layers:[layer]}},toleranceMm:.05,sampleStepMm:2}).points;
-        const grid=[0,90].flatMap((angle,i)=>extent[1-i]>1e-9?scanlineFill(layer.region,extent[1-i]/6,angle).map(row=>map([row.from,row.to])):[]);
-        slices[key]={family,index:layer.index,loops:layer.region.map(loop=>map(loop,true)),grid};
-      }else if(layer.slice&&layer.curves?.length){
-        const curves=layer.curves.map(curve=>sampleAuthoredCurve(curve,{toleranceMm:.05,sampleStepMm:2}).points);
-        slices[key]={family,index:layer.index,loops:curves,grid:[]};
-      }
-      if(slices[key])referenceKeys.push(key);
-    }
     for(const operation of result.operations){
       const index=operation.layerIndex??operation.layer;
       const sourceLayers=new Set([operation.layer,...operation.strokes.flatMap(stroke=>stroke.segmentMetadata?.map(segment=>segment.layer).filter(Number.isInteger)??[])]);
       const layers=Object.fromEntries([...sourceLayers].map(layer=>{
-        const key=`${result.id}:${layer}`,ordinal=familyLayers.findIndex(reference=>reference.index===layer);
+        const ordinal=familyLayers.findIndex(reference=>reference.index===layer);
         const traceIndex=traceLayers.indexOf(layer);
-        return [layer,{index:kind==='slice'&&ordinal>=0?ordinal:kind==='trace'&&operation.layerIndex===undefined?Math.max(0,traceIndex):index,
-          references:kind==='trace'?referenceKeys:slices[key]?[key]:[]}];
+        return [layer,{index:kind==='slice'&&ordinal>=0?ordinal:kind==='trace'&&operation.layerIndex===undefined?Math.max(0,traceIndex):index}];
       }));
       const changed=result.report?.modulation?.changedOperations?.includes(operation.id);
-      operations[operation.id]={family,kind,layers,referenceName:result.family?.name??family,roles:[...new Set(operation.strokes.map(stroke=>stroke.role))],
+      operations[operation.id]={family,kind,layers,referenceName:result.family?.name??null,roles:[...new Set(operation.strokes.map(stroke=>stroke.role))],
         modifiers:changed?(result.report.modulation.operationModifiers?.[operation.id]??result.report.modulation.modifiers):[]};
     }
   }
-  return {schema:GENERATION_CONTRACT,operations,slices};
+  return {schema:GENERATION_CONTRACT,operations};
 }
 
 export function generatePath(plan, machine, rhino, {onProgress,modulations,modulationPreparation=[]} = {}) {
   const prepared=preparePathGeometry(plan,machine,rhino);
   const evaluated=modulations?{...plan,modulations}:plan;
-  const model=generateModelResults(evaluated,machine,rhino,prepared,onProgress);
+  const assigned=[...new Set([plan.setup.bambu?.filament,...assignedFilaments(plan)].filter(v=>v!==undefined))];
+  const selections=assignedFilaments(plan).length?Object.fromEntries(assigned.map(i=>[i,filamentSelection(plan,machine,i)])):null;
+  const started=planFan(createPlanningState({start:startupPosition(machine,plan),process:plan.process,machine,generatorVersion:VERSION,
+    selection:selections?.[plan.setup.bambu.filament]??null,selections,motion:plan.setup.denso??null,motionBounds:prepared.bounds,retracted:startupRetracted(machine,plan)}),0);
+  const prime=primeLineResult(plan,machine),startup=prime?planOperation(started.state,prime.operations[0]):planPriming(started.state);
+  const model=generateModelResults(evaluated,machine,rhino,{...prepared,planningState:startup.state,emittedIds:prime?prime.operations.map(op=>op.id):[]},onProgress);
   const complemented=addComplementaryResults(evaluated,machine,prepared,model);
-  const primed=addPrimeResult(plan,machine,complemented);
-  const {placed,bounds}=prepared,{results,survey,prime}=primed,process=plan.process;
+  const primed=prime?{...complemented,results:[prime,...complemented.results],summary:{...complemented.summary,primeLine:prime.report}}:complemented;
+  const {placed,bounds}=prepared,{results,survey}=primed,process=plan.process;
   const summary=summarizeGeneratedPath(placed,survey,primed.summary);
   summary.substrateAdaptation={experimental:true,enabled:plan.experimental.substrateAdaptation,
     sliceQueries:results.reduce((sum,result)=>sum+(result.report.substrateContactQueries??0),0),
@@ -314,10 +300,11 @@ export function generatePath(plan, machine, rhino, {onProgress,modulations,modul
     sliceMisses:results.reduce((sum,result)=>sum+(result.report.uncoveredContactSamples??0),0)};
   summary.inspection=depositionInspection(results);
   if(modulationPreparation.length)summary.modulationGeometry=modulationPreparation;
-  const assigned=[...new Set([plan.setup.bambu?.filament,...assignedFilaments(plan)].filter(v=>v!==undefined))];
-  const selections=assignedFilaments(plan).length?Object.fromEntries(assigned.map(i=>[i,filamentSelection(plan,machine,i)])):null;
-  return planToolpath({start:startupPosition(machine,plan),process,machine,generatorVersion:VERSION,
-    selection:selections?.[plan.setup.bambu.filament]??null,selections,
-    motion:plan.setup.denso??null,motionBounds:bounds,retracted:startupRetracted(machine,plan)},results,
-  {geometryBounds:placed?.bounds??null,rules:plan.composition,prime:!prime,summary,onProgress});
+  const execution=model.execution;
+  const order=[...(prime?prime.operations.map(op=>op.id):[]),...execution.summary.operationOrder],position=new Map(order.map((id,i)=>[id,i]));
+  const inventory=validateOperationBatch(results),prerequisites=prepareOperationDependencies(inventory.operations,inventory.byId,plan.composition);
+  for(const [id,after] of prerequisites)for(const predecessor of after)requireThat(position.has(predecessor)&&position.get(predecessor)<position.get(id),'Final dependency was not scheduled before '+id+': '+predecessor);
+  if(!prime)validatePrimingClearance(startup.points,placed?.bounds??null,results,process.lineWidthMm,machine.startup?.primingStrokes?.clearanceMm??0);
+  const finished=planFinishing(execution.state);
+  return planningPath(finished.state,[started.actions,startup.actions,execution.actions,finished.actions],{...summary,composition:{...execution.summary,operationOrder:order}});
 }

@@ -398,10 +398,10 @@ test('MCP preserves the common sleeve recipe and configurable composition withou
   const checked = await call('check_path', { bundleId });
   assert.ok(checked.composition.operationOrder.length > 0);
   const changed = await call('adjust_recipe', { bundleId, expectedRevision: created.revision,
-    patch: { composition: { batchLayers: 2, order: [checked.composition.operationOrder[0]], dependencies: [] } } });
+    patch: { composition: { order: [checked.composition.operationOrder[0]], dependencies: [] } } });
   const reopened = await call('get_bundle', { bundleId, includeGeometry: true });
   assert.deepEqual(reopened.plan.slices.assignments, plan.slices.assignments);
-  assert.equal(reopened.plan.composition.batchLayers, 2);
+  assert.equal(Object.hasOwn(reopened.plan.composition,'batchLayers'), false);
   assert.deepEqual(reopened.skills, ['slice']);
   assert.notEqual(changed.revision, created.revision);
   await assert.rejects(access(resolve(printsRoot, bundleId, 'path.saampath')), { code: 'ENOENT' });

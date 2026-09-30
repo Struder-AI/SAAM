@@ -16,7 +16,7 @@
     <div id="playback" hidden>
       <div class="transport"><button id="play">Play</button><label class="speed-label">Speed<input id="playback-speed" aria-label="Playback speed" type="range" min="1" max="30" step="1" value="10"><output id="speed-label" for="playback-speed">10×</output></label><div class="layer-nav"><button id="prev-layer" aria-label="Previous layer" title="Show the previous layer fully printed">◀ Layer</button><button id="next-layer" aria-label="Next layer" title="Show the next layer fully printed">Layer ▶</button></div><output id="layer-label">Layer 0/0</output></div>
       <div class="timeline"><input id="scrub" aria-label="Playback position" type="range" min="0" max="1" step="0.01" value="1"><output id="time-label">0:00</output></div>
-      <div class="legend"><span class="dot planar"></span><span id="planar-label">Flat layers</span> <span class="dot inclined"></span><span id="skin-label">Sloped layers</span> <span>Lavender: modulated deposition</span><label><input id="slice-reference" type="checkbox"> Reference surface</label><label><input id="travel" type="checkbox"> Show travel</label><button id="fit-program">Fit all moves</button></div>
+      <div class="legend"><span class="dot planar"></span><span id="planar-label">Flat layers</span> <span class="dot inclined"></span><span id="skin-label">Sloped layers</span> <span>Lavender: modulated deposition</span><label><input id="travel" type="checkbox"> Show travel</label><button id="fit-program">Fit all moves</button></div>
       <div class="machine-options"><label id="rotary-view" hidden><input id="follow-plate" type="checkbox" checked> Follow build plate</label><span id="machine-status" role="status"></span></div>
       <div id="axial-colors" aria-label="Inspect material layers" hidden></div>
       <p id="viewer-detail" class="chat-hint" role="status"></p>
@@ -41,7 +41,6 @@
     <section id="repair-review" aria-label="Repaired geometry review" hidden><h2>STL repaired</h2><p id="repair-summary"></p><p>Review the repaired shape before confirming. Your original STL is saved.</p></section>
     <div id="facts"></div><section id="print-setup" hidden aria-label="Printer and material"><h2>Printer &amp; material</h2><p id="print-setup-values"></p><p class="chat-hint">Ask your agent to change the printer, material or printing settings.</p></section>
     <details id="machine-info" hidden><summary>Machine model</summary><p id="machine-basis"></p><ul id="machine-limitations"></ul><p id="machine-diagnostics" hidden></p></details>
-    <label id="substrate-option" hidden><input id="substrate-adaptation" type="checkbox"> Experimental substrate adaptation</label>
     <details id="more-settings" hidden><summary>All print settings</summary><div id="settings-detail"></div></details>
     <div class="next"><label id="export-name-row" class="export-name" hidden><span>Print name</span><input id="export-name" type="text" maxlength="120" autocomplete="off"></label><p id="review-note"></p><div id="message" role="status" aria-live="polite"></div><button id="confirm" class="primary" disabled>Next</button><p class="chat-hint">Request changes in chat.</p></div>
   </aside>

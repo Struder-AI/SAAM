@@ -29,15 +29,26 @@ export function planComposition(initialState,skillResults,rules={},onProgress) {
     {summary:{operationOrder:operations.map(op=>op.id),layers:remaining.size}});
 }
 
-export function planOperation(initialState,op,{deposited=[],layerSeconds=0,finishLayer=false}={}) {
+export function planOperation(initialState,op,options={}) {
+  const entered=planOperationEntry(initialState,op,options.layerSeconds??0);
+  const deposited=planPreparedOperation(entered.state,op,options);
+  return planningResult(deposited.state,{chunks:[entered.actions,deposited.actions]},{operationSeconds:deposited.operationSeconds});
+}
+
+export function planOperationEntry(initialState,op,layerSeconds=0) {
   const contextual=planContext({...initialState,layerSeconds},op.phase,op.layer,op.id);
   const selected=planSelection(contextual.state,op.filament??initialState.defaultFilament);
   const prepared=planOperationStart(selected.state,op);
-  const strokes=op.order==='nearest'?orderStrokes(op.strokes,prepared.state.position)
-    :op.order==='nearest-cells'?orderScanlineCells(op.strokes,prepared.state.position):op.strokes;
-  const actions=new ActionAccumulator();actions.add(selected.actions);actions.add(prepared.actions);
+  return planningResult(prepared.state,{chunks:[selected.actions,prepared.actions]});
+}
+
+// The caller has already applied selection, temperature and parking actions.
+export function planPreparedOperation(initialState,op,{deposited=[],finishLayer=false}={}) {
+  const strokes=op.order==='nearest'?orderStrokes(op.strokes,initialState.position)
+    :op.order==='nearest-cells'?orderScanlineCells(op.strokes,initialState.position):op.strokes;
+  const actions=new ActionAccumulator();
   const policy=operationTravelPolicy(op.travelPolicy,deposited);
-  let state=prepared.state;
+  let state=initialState;
   for(const stroke of strokes){
     const approached=planStrokeApproach(state,stroke,op,policy);
     const depositedStroke=planStrokeDeposition(approached.state,stroke,op);
@@ -102,16 +113,15 @@ export function planStrokeDeposition(initialState,stroke,op) {
   return planningResult(state,actions.finish());
 }
 
-export function scheduleOperations(skillResults, { order = [], dependencies = [], batchLayers = 1 } = {}) {
-  const batch=validateOperationBatch(skillResults,batchLayers);
-  const priorityById=prepareOperationPriorities(batch.operations,batch.resultIndex,batchLayers);
+export function scheduleOperations(skillResults, { order = [], dependencies = [] } = {}) {
+  const batch=validateOperationBatch(skillResults);
+  const priorityById=prepareOperationPriorities(batch.operations,batch.resultIndex);
   const prerequisites=prepareOperationDependencies(batch.operations,batch.byId,{order,dependencies});
   const scheduled=orderReadyOperations(batch.operations,priorityById,prerequisites);
   return scheduled;
 }
 
-export function validateOperationBatch(skillResults,batchLayers) {
-  requireThat(Number.isInteger(batchLayers) && batchLayers >= 1 && batchLayers <= 20, 'Batch size must be 1–20 layers.');
+export function validateOperationBatch(skillResults) {
   const operations = skillResults.flatMap(result => result.operations);
   const resultIndex = new Map(skillResults.flatMap((r,i)=>r.operations.map(op=>[op.id,i])));
   const byId = new Map();
@@ -129,16 +139,14 @@ export function validateOperationBatch(skillResults,batchLayers) {
   return {operations,resultIndex,byId};
 }
 
-export function prepareOperationPriorities(operations,resultIndex,batchLayers) {
+export function prepareOperationPriorities(operations,resultIndex) {
   // Dependencies express what must exist first. Among ready operations, keep
   // skills near the same physical height, even when a skill's rank is merely
   // its construction order (for example draped skin).
   // An atomic continuous operation stays intact; this is a preference, not a
   // height-difference gate or permission to split its deposition.
   const heights=new Map(operations.map(op=>[op.id,op.strokes.reduce((z,s)=>s.points.reduce((h,p)=>Math.max(h,p[2]),z),-Infinity)]));
-  const levels=[...new Set(heights.values())].sort((a,b)=>a-b);
-  const bands=new Map(levels.map((z,i)=>[z,Math.floor(i/batchLayers)]));
-  return new Map(operations.map((op,index)=>[op.id,{band:bands.get(heights.get(op.id)),result:resultIndex.get(op.id),index}]));
+  return new Map(operations.map((op,index)=>[op.id,{height:heights.get(op.id),result:resultIndex.get(op.id),index}]));
 }
 
 export function prepareOperationDependencies(operations,byId,{order=[],dependencies=[]}={}) {
@@ -165,7 +173,7 @@ export function orderReadyOperations(operations,priorityById,prerequisites) {
     remaining:prerequisites.get(op.id).size,following:[]}));
   const nodesById=new Map(nodes.map(node=>[node.op.id,node]));
   for(const node of nodes)for(const id of prerequisites.get(node.op.id))nodesById.get(id).following.push(node);
-  const compare=(a,b)=>a.band-b.band||a.result-b.result||a.op.rank-b.op.rank||a.index-b.index;
+  const compare=(a,b)=>a.height-b.height||a.result-b.result||a.op.rank-b.op.rank||a.index-b.index;
   const ready=[],scheduled=[];
   const push=node=>{
     let i=ready.length;ready.push(node);

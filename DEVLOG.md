@@ -1,5 +1,39 @@
 # Development log
 
+## 2026-09-29 — Actual-entry planning checkpoint; shared-region intent unfinished
+
+- Owner defines 0.2.0 as first alpha, subsequent 0.2.x as patches/bug fixes, and
+  0.3.0 as the next planned upgrade. The new intent document collects deferrals;
+  the two plans total 205 lines versus the former 206-line 0.2.0 plan. Remaining
+  0.2.0 correctness, integration and performance work is not moved out of scope.
+- Shared-region allocation alone does not fulfill R04: lower-ranking layer heights
+  must adapt to principal courses, with angle-dependent interlock cadence and
+  connected transitions. Report incompatible patterns, then inherit the principal
+  pattern in shared material. Keep owner material/process and outside orientation.
+  Normal-band geometry/common-chart allocation has direct evidence; coupled output
+  remains unfinished. No generic grouping rule or transition algorithm is accepted.
+- One scheduler finalizes eligible Slice order/connectors at actual machine entry
+  before publication. Ordinary/tree matched-prime reference material/travel agree;
+  rivets and dependent contact pass. B reviewed/fixed four issues; lead reran the
+  interleaved dependency/cooling diagnostic. Contract /4 mixed/points lifecycle passes.
+  Fixed prime lanes reject occupied footprints; cooling debt is paid on leaving a
+  layer and retained on revisits, intentionally changing old last-occurrence timing.
+- Owner keeps default dependency-aware ascending Z only and defers batching.
+  Studio reference overlays and adaptation selectors are removed; adaptation stays an
+  agent-controlled recipe choice, with no user-selectable Studio control.
+  Owner refreshed Studio and confirmed both controls gone and playback working.
+- Physical qualification is ongoing across releases. SDK audit: 38 valid schemas,
+  79,439 B first-use context, above the 15 KB soft target. Manuals retain capabilities.
+- Terminal rim contact now queries all finalized beads of its named source.
+  A tapered seam's preceding rising bead provided real support excluded by a
+  semantic rim tag. Lead reran flat advanced rim OFF/ON export/interpretation
+  (720/737 moves; equal material within roundoff) and missing/hole/ceiling guards.
+  Worker also verified original looping and morphed cases; no tolerance inflation.
+- The historical exact-rocket failure near Z24.66 was not reproduced in a 201-cut
+  section scan. Full exact-job completion remains unverified; fitted success is
+  separate evidence. Maps remain stale; final design/integration/readback is open.
+  This is an unfinished local checkpoint; no new tests, suites, push or hardware.
+
 ## 2026-09-29 — Shared vase construction and continuous inspection (0.2.0 unfinished)
 
 - Normal vase prepares continuous Slice contours and shares joining/deposition with
@@ -12,7 +46,7 @@
 - Inspection follows semantic Slice references, Trace courses and distinct Inject sites.
   A generation contract invalidates old programs/approvals through existing lifecycle;
   reads preserve recipe/review bytes. Lead reran mixed generation/export/reopen/review.
-  Latest browser acceptance remains pending; earlier curved/effect/points browser checks stand.
+  Owner passed mixed browser checks and observed correct points-only output after refresh.
 - Plan status now distinguishes implemented capabilities from remaining support/rivet,
   ownership, travel and contact work. Advanced level rim ON and exact zero-tolerance
   rocket failures remain unresolved; fitted rocket success does not resolve exact mode.

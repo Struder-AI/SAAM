@@ -4,6 +4,12 @@ import {requireThat} from '../geom/tolerance.mjs';
 // Explicit migration only. Loading never changes a recipe or its meaning.
 export function migrateRecipeFields(plan){
   const changes=[];
+  const retiredBatch=plan.composition&&Object.hasOwn(plan.composition,'batchLayers');
+  const composition=retiredBatch?Object.fromEntries(Object.entries(plan.composition).filter(([key])=>key!=='batchLayers')):plan.composition;
+  if(retiredBatch){
+    const {batchLayers}=plan.composition;
+    changes.push({path:'composition.batchLayers',before:batchLayers,after:null,meaning:batchLayers===1?'Remove retired default batching field; ascending actual-height scheduling is unchanged. Regenerate before review.':'Remove retired batching choice; ready operations now use ascending actual height instead of grouped height bands. Regenerate before review.'});
+  }
   if(!Object.hasOwn(plan,'experimental'))changes.push({path:'experimental',before:null,after:{substrateAdaptation:false},meaning:'Explicitly default experimental substrate adaptation off; regenerate before review.'});
   const assignments=plan.slices.assignments.map((assignment,index)=>{
     let source=assignment;
@@ -17,5 +23,5 @@ export function migrateRecipeFields(plan){
     for(const key of new Set([...Object.keys(source),...Object.keys(canonical)]))if(JSON.stringify(source[key])!==JSON.stringify(canonical[key]))changes.push({path:`slices.assignments.${index}.${key}`,assignment:assignment.id,before:source[key]??null,after:canonical[key]??null,meaning:Object.hasOwn(source,key)?'Explicit shared-construction migration.':'Explicitly added current shared default.'});
     return canonical;
   });
-  return {plan:changes.length?{...plan,experimental:plan.experimental??{substrateAdaptation:false},slices:{...plan.slices,assignments}}:plan,changes};
+  return {plan:changes.length?{...plan,composition,experimental:plan.experimental??{substrateAdaptation:false},slices:{...plan.slices,assignments}}:plan,changes};
 }

@@ -56,7 +56,7 @@ function finalizedOperation(operation,plan,machine,result){
     travelPolicy:{maxCombMm:0,canTravelDirect:()=>false,clearanceFor:()=>clearanceZ}};
 }
 
-export function finalizeDepositionResult(result,plan,machine){
+export function finalizeDepositionResult(result,plan,machine,{entryPosition}={}){
   result={...result,operations:result.operations.map(op=>({...op,nominalRank:op.nominalRank??op.rank}))};
   // A nominal region cannot prove a join safe after its bead geometry changes.
   // Freeze every operation's order here; all deposited material, including joins,
@@ -64,7 +64,7 @@ export function finalizeDepositionResult(result,plan,machine){
   const excludedOperationIds=plan.modulations?.modifiers.length?result.operations.filter(op=>op.strokes.some(stroke=>
     matchingModulations(result,stroke.role,plan.modulations,op).some(m=>['displacement','width','flow'].includes(m.channel)))).map(op=>op.id):[];
   if(result.operations.some(operation=>operation.strokes.some(stroke=>stroke.motionIntent)))result=prepareReferenceMotion(result,machine);
-  result=resolveDepositionConnections(result,{excludedOperationIds});
+  result=resolveDepositionConnections(result,{excludedOperationIds,entryPosition});
   result=prepareDepositionMotion(result,machine);
   if(result.report?.depositionConnections?.count)result=republishDepositedBoundary(result,{widthMm:plan.process.lineWidthMm});
   if(!plan.modulations?.modifiers.length||!result.operations.some(op=>op.strokes.some(stroke=>matchingModulations(result,stroke.role,plan.modulations,op).length)))return result;

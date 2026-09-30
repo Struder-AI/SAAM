@@ -44,7 +44,7 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 - Session: Claude Code desktop, 2026-09-28; exact chat title and ID unavailable.
 - Source: current conversation, 2026-09-28.
 - Context: [curve-offset.mjs](core/geom/curve-offset.mjs) offset curves loosely without resolving collisions; `prepareSurfaceOffsets` bundled a horizontal ribbon and a normal offset and limited folds instead of trimming them.
-- Revised scope (owner, 2026-09-29): the [0.2.0 plan](plans/0.2.0.md) owns active offset/consumer migration; ribbons are removed under the D-041 amendment, and sleeves derive from offset slice outlines. Full joined trimmed-face solids are deferred to 0.2.1; experimental trimmed records do not establish ecosystem support.
+- Revised scope (owner, 2026-09-29): the [0.2.0 plan](plans/0.2.0.md) owns offset/consumer migration; ribbons are removed and sleeves derive from offset slice outlines. Joined trimmed-face solids move to [0.3.0 intents](plans/0.3.0.md); 0.2.x is for patches. Experimental trimmed records do not establish ecosystem support.
 - Remaining: complete the plan's collision-resolving offset consumers and explicit supported sleeve subset; later implement trimmed-face solids across closure, queries, display and deposition consumers.
 - Completion: shared offsets/consumers satisfy their stated contracts; the separately deferred trimmed-solid scope is implemented and exercised before being advertised.
 

@@ -64,7 +64,7 @@ export function defaults(machine=loadMachine()) {
     },
     slices: defaultSlices(),
     modulations: defaultModulations(),
-    composition: { order: [], dependencies: [], batchLayers: 1 },
+    composition: { order: [], dependencies: [] },
     output: 'griffin-gcode'
   };
   Object.assign(plan.process,machine.defaultProcess??{});
@@ -105,12 +105,12 @@ export function pointOnlyPlan(plan){
 export function validatePlanFields(plan,machine) {
   requireThat(plan && typeof plan === 'object' && (pointOnlyPlan(plan)||GEOMETRY_SHAPES.includes(plan.geometry?.shape)), `Author geometry (${GEOMETRY_SHAPES.join(', ')}) or a points-only inject recipe.`);
   // Validation is check-only: a plan carries every current field or it is
-  // rejected. Pre-policy bundles are recreated from their skills, not migrated.
+  // rejected. Supported older fields require explicit recipe migration and regeneration.
   const expected = { ...defaults(machine), ...(plan.geometry?{geometry:geometryTemplate(plan.geometry.shape,plan.geometry)}:{}) };
+  requireThat(!plan.composition||!Object.hasOwn(plan.composition,'batchLayers'),'composition.batchLayers is retired; explicitly migrate the recipe to ascending-height scheduling and regenerate.');
   keys(plan, expected);
   requireThat(typeof plan.experimental.substrateAdaptation==='boolean','experimental.substrateAdaptation must be true or false.');
   requireThat(plan.schema === expected.schema && plan.generatorVersion === VERSION, 'Unsupported plan or generator version.');
-  requireThat(Number.isInteger(plan.composition.batchLayers)&&plan.composition.batchLayers>=1&&plan.composition.batchLayers<=20,'Batch size must be 1–20 layers.');
   requireThat(Array.isArray(plan.composition.order) && plan.composition.order.every(id=>typeof id==='string') && Array.isArray(plan.composition.dependencies) && plan.composition.dependencies.every(e=>e && typeof e.before==='string' && typeof e.after==='string' && Object.keys(e).sort().join()==='after,before'), 'Invalid composition rules.');
 
   return plan;

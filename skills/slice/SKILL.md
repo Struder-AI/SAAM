@@ -115,8 +115,8 @@ approximate ([measurement](../../DEVLOG.md#2026-09-10--gyroid-contour-constructi
   claims translated roof material. Explicit sources carry contact prerequisites.
 - [plastic-weld](../plastic-weld/SKILL.md) rivets reserve their shafts and keep
   the envelope around them solid.
-- Ownership determines compatible slicing before sequence; assemblies can batch
-  compatible slices (`composition.batchLayers`). Consumers use finalized sources.
+- Ownership determines compatible slicing before ascending-height sequence.
+  Consumers use finalized sources.
 
 ## Limits
 
