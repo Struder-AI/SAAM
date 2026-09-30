@@ -9476,3 +9476,74 @@ junction. All flight performance remains unvalidated.
   manifest bytes/unrelated files, idempotence and rejection of conflicting output.
   No full-job files were staged on USB. Full path and helper still await controller
   syntax checks and Teach Check; the software model has no controller joint limits.
+
+## 2026-09-29 — Bottom-entry heat-set inserts and subordinate reinforcement
+
+At the user's request, updated the heat-set skill on local TK-DEV to accept
+explicit top/bottom entry, retaining top as the default. Bottom-entry seats can
+connect to existing smaller through-bores. Wall loops fit available material
+(up to six); radial fins yield to host boundaries, exterior walls, bore walls,
+other reinforcement and upstream material reservations. Constrained features no
+longer require widening the part. Manuals, discovery text and MCP wording match.
+
+Applied the actual skill to the three SPIROL Series 29 M3 long underside seats
+in the local tour part, preserving its 48 × 32 × 16 mm bounds, 8 mm fin and hole
+centers. Joined the touching components into one editable mesh host so each
+insert spans the base and fin. Regenerated production output passed its checks;
+no manufacturing approval or physical validation was created. Restarted the
+owned Studio on the same local address to load the new code.
+
+Verification: 16 targeted tests passed across heat-set MCP, bottom-entry/taper
+and constrained-reinforcement regressions, regional workflow and print workflow.
+The repository metadata checker still reports existing BR-055 and D-038 errors
+in unchanged build_request.md/DECISIONS.md. Side-entry/inclined axes remain
+unimplemented; this change supports both vertical entry directions.
+
+## 2026-09-30 — Correct heat-set reinforcement to the author's star path
+
+The author clarified that reinforcement is three ordinary hole perimeters plus
+one continuous fourth perimeter with twelve out-and-back radial excursions,
+not six loops with separate filled gussets. Replaced the gusset producer with
+that closed star stroke. Ray reach defaults to 2× receiving-hole diameter,
+measured outward from the fourth perimeter, without a height taper. An explicit
+millimeter reach remains available. Rays retrace their centerline on return.
+
+Per the author's boundary clarification, rays cross infill and other stars
+freely but turn back at the first solid boundary, including neighboring holes,
+with half-bead centerline clearance. Ray paths do not reserve away crossing
+infill. Updated the skill documentation, discovery text, MCP description and
+regressions. Applied the actual skill to all three bottom-entry inserts in the
+local example, with 12 rays and 2× reach; no part dimensions were changed.
+
+Verification: targeted skill tests cover three loops plus one closed star,
+twelve out-and-back excursions, the diameter multiplier, preservation of
+through-bores, boundary containment, and top/bottom entry. The regenerated
+machine program passed its checks. No physical validation or job approval.
+
+## 2026-09-30 — Restrict stars to sparse layers and insert length
+
+Applied the author's follow-up: heat-set stars use the actual solid-surface
+masks, so solid bottom/top regions and full-density fills receive circular
+perimeters without rays. Three circular perimeters precede the fourth star;
+the planar producer preserves that supplied hole sequence instead of applying
+nearest-path ordering. Reinforcement ends at catalog insert length, independent
+of the deeper receiving-hole clearance. Top/bottom entry share these rules.
+
+Verification: all 17 targeted skill, regional and print workflow tests passed.
+The new producer-level regression checks solid bottom/top layers, 100% infill,
+standalone full-fill, insert-length cutoff and explicit inner-to-outer ordering.
+Forced fresh preparation/commit of the local tour part (rather than reusing its
+previous generation) passed machine-program checks, with 43,771 moves. Physical
+validation and manufacturing approval remain absent.
+
+## 2026-09-30: TK-DEV merge resolution
+
+At the user's request, the local heat-set-inserts behavior is retained when
+merging remote commit c968767: four contiguous local loops, a continuous
+two-bead rib excursion on the last loop, local catalog additions, chamfer,
+through-hole and bottom-insertion handling. This supersedes the conflicting
+remote star behavior described above. The separate hole_support skill and its
+chat-first, temporary contextual Studio chooser are retained as well.
+
+Verification: 21 focused hole-support, heat-set geometry/MCP and workflow tests
+pass. No physical print validation or manufacturing approval is claimed.
