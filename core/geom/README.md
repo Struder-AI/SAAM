@@ -25,6 +25,14 @@ regions; [composition](../path/README.md) consumes the resulting skill operation
 
 ## Geometry interoperability for skill authors
 
+`hole_support` retains its original host, selected treatments, construction
+process and compiled mesh as a `hole_support` geometry recipe. Its optional
+`planarDetails` supplies directed `bridges` and a local fill reservation at the
+transition layers. The shared planar producer prints those bridge strokes before
+walls, and keeps both solid and sparse fill out of the reservation. Its supported
+features and numerical construction allowances belong to the
+[hole_support manual](../../skills/hole_support/SKILL.md).
+
 Compiled heat-set and text geometry retains editable feature recipes. The
 builder attaches optional `planarDetails` to geometry with local deposition
 requirements. `translated(dx,dy,dz)` preserves them under placement;

@@ -43,3 +43,13 @@ aside[data-tour-step="6"] #facts,aside[data-tour-step="6"] #guidance,aside[data-
 #activity-percent{font-size:20px;color:var(--teal);font-weight:650}
 #activity-progress{grid-column:1/-1;width:100%;height:7px;accent-color:var(--teal)}
 #activity #activity-detail{grid-column:1/-1;font-size:11px;color:var(--muted);margin:0}
+/* Context-only support choice; no persistent navigation or settings panel. */
+#hole-support-choice { width: min(650px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; }
+#hole-support-choice > label { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; }
+#hole-support-choice select { max-width: 75%; padding: 6px; }
+.hole-support-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.hole-support-option { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px; white-space: normal; border-radius: 6px; }
+.hole-support-option img { width: 96px; height: 72px; }
+.hole-support-option strong { font-size: 14px; }
+.hole-support-option span { font-size: 12px; line-height: 1.4; }
+@media (max-width: 560px) { .hole-support-options { grid-template-columns: 1fr; } .hole-support-option { flex-direction: row; flex-wrap: wrap; text-align: left; } .hole-support-option span { flex-basis: 100%; } }

@@ -1,7 +1,15 @@
 ---
 name: supports
-description: Conventional supports under selected areas, or tree branches at placed contacts; placement trades support against surface contact and removal access.
+description: Conventional supports under selected areas, or tree branches at placed contacts; placement trades support against surface contact and removal access. For downward-facing circular counterbores, first offer hole_support alternatives.
 ---
+
+Before assigning conventional supports for a support request, inspect the part
+with [hole_support](../hole_support/SKILL.md). For a bed-facing circular
+counterbore with a hanging smaller bore, offer its membrane, stepped-reduction
+and removable-sleeve options in chat with their icons. Apply a treatment only
+after the person chooses. Other overhangs remain with this skill. Keep Studio
+clean: a hole-support chooser is temporary and context-only, with no permanent
+control.
 
 # Assigned supports
 

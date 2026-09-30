@@ -138,6 +138,14 @@ The rule file also includes positive and negative examples validated on load.
 
 ## Studio feature references
 
+During support work an agent may append `?hole-support=1` to the owned Studio
+URL to present the [hole_support](../skills/hole_support/SKILL.md) strategy
+chooser. It consumes that parameter, opens once, and leaves no persistent entry
+point. Ordinary Studio loads do not scan for holes or show support controls.
+The chooser reads `GET /api/hole-support`, then applies the chosen feature using
+`POST /api/hole-support` with the inspected `printId`, `revision` and `request`.
+The mutation uses the shared recipe lifecycle and normal final confirmation.
+
 Implement the [maker interaction flow](../MAKERS.md#maker-interaction-flow): geometry
 review and its revision loop, then combined settings/toolpath review followed by
 confirm and export. There is no separate settings pane or settings confirmation.

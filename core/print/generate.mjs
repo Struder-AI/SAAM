@@ -35,8 +35,10 @@ import {heatSetFeatures,validateHeatSetAssignments} from '../../skills/heat-set-
 import {heatSetDetails} from '../../skills/heat-set-inserts/scripts/reinforcement.mjs';
 import {geometrySelections} from '../geom/selections.mjs';
 import {lineNetworkResult} from '../../skills/line-network/scripts/network.mjs';
+import {holeSupportRecords} from '../../skills/hole_support/scripts/record.mjs';
+import {holeSupportDetails} from '../../skills/hole_support/scripts/details.mjs';
 
-export const hasMesh=geometry=>['mesh','pipe','text','gridfinity','heat-set'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
+export const hasMesh=geometry=>['mesh','pipe','text','gridfinity','heat-set','hole_support'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
 
 function primeLineResult(plan,machine){
   const p=plan.process.primeLine;if(p===null)return null;
@@ -62,9 +64,11 @@ function primeLineResult(plan,machine){
 export function buildShell(rhino, geometry) {
   if(geometry.shape==='spline-tube')return splineTubeShell(rhino,geometry);
   if(geometry.shape==='pipe')return pipeMesh(geometry);
-  if(['mesh','text','gridfinity','heat-set'].includes(geometry.shape)){
+  if(['mesh','text','gridfinity','heat-set','hole_support'].includes(geometry.shape)){
     const mesh=makeMesh(geometry.vertices,geometry.triangles),features=heatSetFeatures(geometry);
     if(features.length)mesh.planarDetails=heatSetDetails(features);
+    const holeRecords=holeSupportRecords(geometry);
+    if(holeRecords.length){requireThat(!features.length,'hole_support and heat-set deposition details cannot overlap on one component.');mesh.planarDetails=holeSupportDetails(holeRecords);}
     return mesh;
   }
   if(geometry.shape==='assembly'&&hasMesh(geometry)) {

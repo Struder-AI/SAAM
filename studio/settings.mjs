@@ -147,6 +147,19 @@ export function regionRows(plan){
 }
 export function recipeRows(plan,machine){
   const composition=plan.composition,regions=composition?.regions??[],rows=[];
+  const parts=plan.geometry.shape==='assembly'?plan.geometry.parts:[{id:'Part',geometry:plan.geometry}];
+  for(const part of parts){
+    let geometry=part.geometry;
+    while(geometry){
+      if(geometry.shape==='hole_support')for(const f of geometry.features){
+        const label='Hole support · '+part.id+' / '+f.id;
+        rows.push([label,f.strategy==='membrane'?'Membrane · drill through after printing':f.strategy==='stepped-reduction'?'Stepped reduction · 0 / 90 / 45 degree bridges':'Bore support · '+f.overlap*100+'% bead contact'],
+          [label+' · Bore',f.boreRadiusMm*2+' mm from '+f.counterboreRadiusMm*2+' mm counterbore · shoulder Z='+f.centerMm[2]+' mm'],
+          [label+' · Transition',geometry.process.layerMm+' mm layer · '+f.bridgeSpeedMmS+' mm/s bridge speed']);
+      }
+      geometry=geometry.base;
+    }
+  }
   if(plan.setup.bambu){
     rows.push(['Bambu startup',plan.setup.bambu.fast_start?'Fast — reuse calibration; skip optional scans and vibration tests':'Full — calibration follows startup controls / printer choices']);
     const used=[...new Set([plan.setup.bambu.filament,...regions.map(r=>r.filament)].filter(i=>i!==undefined))];

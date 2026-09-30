@@ -65,6 +65,7 @@ saved IDs; there is no single global plan that overwrites another job.
 | `adjust_print` | Apply a recipe patch with the latest `expectedRevision` from state. |
 | `apply_text` | Add, edit or remove text geometry using the [text skill](../../skills/text/SKILL.md), a local font and current `expectedRevision`. Reuses the shared preparation and review lifecycle. |
 | `heat_set_catalog` | Read packaged heat-set insert IDs and dimensions before choosing a profile. |
+| `inspect_hole_support`, `apply_hole_support` | Detect downward-facing circular counterbores, present three icon choices in chat, then apply the selected treatment at the current revision. Read [hole_support](../../skills/hole_support/SKILL.md); a temporary Studio chooser is optional during support work. |
 | `apply_heat_set` | Add, edit or remove insert holes with four loops and ribs into the surrounding infill using the [heat-set insert skill](../../skills/heat-set-inserts/SKILL.md) and current `expectedRevision`. Reuses the shared preparation and review lifecycle. |
 | `check_print` | Revalidate native geometry, plan and any stored export; no generation. |
 | `check_path` | Check path feasibility through the shared generator without approvals or persisted artifacts; production export/review are still required. |

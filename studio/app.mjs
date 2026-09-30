@@ -10,8 +10,10 @@ import {planRefreshNavigation} from './refresh-plan.mjs';
 import {prepareStudioState,withoutPreviewMaterial} from './studio-state.mjs';
 import {studioControls} from './studio-controls.mjs';
 import {viewerConnected} from './viewer-session.mjs';
+import {createHoleSupportUI} from './hole-support-ui.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const token=$('meta[name="saam-token"]').content;
+const holeSupportUI=createHoleSupportUI({getState:()=>state,token,onChanged:()=>scheduleChange()});
 const exportedThisSession=new Set();
 const exportKey=()=>state?.printId+':'+state?.exportHash;
 let tourUI;
@@ -206,7 +208,7 @@ const views={
     names:{},
     facts(state,tab) {
       const {geometry:g,setup:s,process:p}=state.plan,fill=state.plan.skills['full-fill'],skin=state.plan.skills['draped-skin'],normal=state.plan.skills['planar-infill'],network=state.plan.skills['line-network'];
-      const shape={assembly:'Assembly',box:'Box',wedge:'Wedge','spline-tube':'Bumpy spline tube',"spline-top":'Spline top surface',"spline-shell":'Tapered spline shell',"vertical-spline-shell":'Vertical spline shell'}[g.shape]??g.shape;
+      const shape={hole_support:'Part with hole support',assembly:'Assembly',box:'Box',wedge:'Wedge','spline-tube':'Bumpy spline tube',"spline-top":'Spline top surface',"spline-shell":'Tapered spline shell',"vertical-spline-shell":'Vertical spline shell'}[g.shape]??g.shape;
       if(tab==='geometry') {
         const bounds=state.geometry.boundsMm;
         const rows=[['Shape',shape],['Footprint',round2(bounds.max[0]-bounds.min[0])+' × '+round2(bounds.max[1]-bounds.min[1])+' mm'],['Height',round2(bounds.max[2]-bounds.min[2])+' mm']];
@@ -453,6 +455,7 @@ function selectStudioPresentation(state,tab,{facts,settings}){
   return {stage:null,title,guidance,facts:facts(),settings:settings(),reviewNote};
 }
 function render() {
+  void holeSupportUI.present();
   const presentation=selectStudioPresentation(state,tab,{facts:()=>view().facts(state,tab),
     settings:()=>[...view().facts(state,'plan'),...machineSettings(state,view().settings(state)),...recipeRows(state.plan,state.machine)]});
   $('#repair-review').hidden=tab!=='geometry'||!state.importRepair;

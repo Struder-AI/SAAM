@@ -6,6 +6,7 @@ import {importSTLBundle,setSTLUnits} from './import-stl.mjs';
 import {repairSTLFiles} from './repair-stl.mjs';
 import {applyText} from './text.mjs';
 import {applyHeatSet} from './heat-set.mjs';
+import {inspectHoleSupport,applyHoleSupport} from '../../skills/hole_support/scripts/bundle.mjs';
 const readJson=async file=>JSON.parse(await readFile(file,'utf8'));
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].replace(/\\/g, '/')}`).href) {
   const args=process.argv.slice(2),revisionIndex=args.indexOf('--revision');
@@ -22,7 +23,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
   }, null, 2);
 
   const run = async () => {
-    if(revisionIndex>=0&&(!expectedRevision||!['adjust','text','heat-set','change-machine','stl-units'].includes(command)))throw new Error('--revision requires a revision hash and is supported by adjust, text, heat-set, change-machine and stl-units.');
+    if(revisionIndex>=0&&(!expectedRevision||!['adjust','text','heat-set','hole-support','change-machine','stl-units'].includes(command)))throw new Error('--revision requires a revision hash and a supported edit command.');
     if (command === 'init') {
       const plan = argument&&argument!=='--machine' ? await readJson(resolve(argument)) : undefined;
       const machineId=argument==='--machine'?extra:extra==='--machine'?last:extra;
@@ -36,6 +37,8 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       if(!argument)throw new Error('Use text <print-directory> <text-request.json> [--revision <revision>].');
       const state=await applyText(bundleDirectory(),await readJson(resolve(argument)),{expectedRevision});
       console.log(report(state));
+    } else if(command==='hole-support') {
+      console.log(argument?report(await applyHoleSupport(bundleDirectory(),await readJson(resolve(argument)),{expectedRevision})):JSON.stringify(await inspectHoleSupport(bundleDirectory()),null,2));
     } else if(command==='heat-set') {
       if(!argument)throw new Error('Use heat-set <print-directory> <heat-set-request.json> [--revision <revision>].');
       const state=await applyHeatSet(bundleDirectory(),await readJson(resolve(argument)),{expectedRevision});
@@ -84,6 +87,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.error('       cli.mjs change-machine <print-directory> <machine-id> [--revision <revision>]');
       console.error('       cli.mjs text <print-directory> <text-request.json> [--revision <revision>]');
       console.error('       cli.mjs heat-set <print-directory> <heat-set-request.json> [--revision <revision>]');
+      console.error('       cli.mjs hole-support <print-directory> [request.json] [--revision <revision>]');
       console.error('       cli.mjs stl-units <print-directory> <mm|inch> [--revision HASH]');
       console.error('       cli.mjs import-stl <print-directory> <source.stl> [auto|mm|inch] [machine-id]');
       console.error('       cli.mjs repair-stl <new-repair-directory> <source.stl> <mm|inch> [options.json]');

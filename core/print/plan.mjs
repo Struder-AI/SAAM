@@ -32,6 +32,7 @@ import {WAVE_DEFAULTS,validateWaves} from '../../skills/wave-overhangs/scripts/w
 import {PLASTIC_WELD_DEFAULTS,validatePlasticWeld} from '../../skills/plastic-weld/scripts/weld.mjs';
 import {heatSetTemplate,validateHeatSetRecord} from '../../skills/heat-set-inserts/scripts/feature.mjs';
 import {filamentPlan} from '../machine/filaments.mjs';
+import {holeSupportTemplate,validateHoleSupportRecord,validateHoleSupportPlan} from '../../skills/hole_support/scripts/record.mjs';
 
 export const VERSION = '0.1.0';
 // Fixed release metadata, so regenerating a reviewed plan is byte-identical.
@@ -103,6 +104,7 @@ export function domeHeights(cpU, cpV, peak = 6, rise = 1.2) {
 // Each shape carries its own parameters, so the strict field check is made
 // against the selected shape rather than against whichever shape is the default.
 export function geometryTemplate(shape,geometry) {
+  if(shape==='hole_support')return holeSupportTemplate();
   if(shape==='heat-set')return heatSetTemplate();
   if(shape==='gridfinity')return gridfinityTemplate();
   if(shape==='text')return textTemplate(geometry);
@@ -136,7 +138,7 @@ export function validatePlan(plan,machine) {
 }
 
 export function validatePlanFields(plan,machine) {
-  requireThat(plan && typeof plan === 'object' && ['box', 'wedge', 'spline-top', 'spline-shell', 'vertical-spline-shell', 'assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set'].includes(plan.geometry?.shape), 'Unsupported shape.');
+  requireThat(plan && typeof plan === 'object' && ['box', 'wedge', 'spline-top', 'spline-shell', 'vertical-spline-shell', 'assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set','hole_support'].includes(plan.geometry?.shape), 'Unsupported shape.');
   // Validation is check-only: a plan carries every current field or it is
   // rejected. Pre-policy bundles are recreated from their skills, not migrated.
   const expected = { ...defaults(machine), geometry: geometryTemplate(plan.geometry.shape,plan.geometry) };
@@ -156,17 +158,19 @@ export function validatePlanFields(plan,machine) {
 export function validatePlanGeometry(plan,machine) {
   const {geometry,placement,setup}=plan;
   validatePlasticWeld(plan,machine);
+  validateHoleSupportPlan(plan);
+  if(geometry.shape==='hole_support')validateHoleSupportRecord(geometry);
   if(geometry.shape==='spline-tube')validateSplineTube(geometry);
   if(geometry.shape==='text')validateTextRecord(geometry);
   if(geometry.shape==='heat-set')validateHeatSetRecord(geometry);
   if(geometry.shape==='gridfinity')validateGridfinityRecord(geometry);
-  if(!['assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set'].includes(geometry.shape)) for (const [key, min, max] of [['runMm', 5, 200], ['widthMm', 5, 200]]) number(geometry[key], min, max, key);
+  if(!['assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set','hole_support'].includes(geometry.shape)) for (const [key, min, max] of [['runMm', 5, 200], ['widthMm', 5, 200]]) number(geometry[key], min, max, key);
   if(geometry.shape==='pipe'){
     for(const key of ['innerRadiusMm','outerRadiusMm','heightMm','toleranceMm'])requireThat(Number.isFinite(geometry[key])&&geometry[key]>0,'Invalid pipe '+key+'.');
     requireThat(geometry.toleranceMm<geometry.innerRadiusMm/4,'Pipe mesh tolerance exceeds its bore radius.');pipeMesh(geometry);
   }
   validateCladding(plan,machine);
-  if(['mesh','text','gridfinity','heat-set'].includes(geometry.shape)) {
+  if(['mesh','text','gridfinity','heat-set','hole_support'].includes(geometry.shape)) {
     const mesh=makeMesh(geometry.vertices,geometry.triangles),bounds=toolBounds(machine,setup.tool);
     requireThat(machine.motionChecks==='deferred'||mesh.bounds.min.every((v,i)=>v+[placement.xMm,placement.yMm,0][i]>=bounds.min[i]-1e-8)&&mesh.bounds.max.every((v,i)=>v+[placement.xMm,placement.yMm,0][i]<=bounds.max[i]+1e-8),'Placed mesh exceeds selected tool bounds.');
     if(geometry.shape==='mesh')requireThat(geometry.source===null||(geometry.source?.format==='stl'&&/^[a-f0-9]{64}$/.test(geometry.source.sha256)&&['mm','inch'].includes(geometry.source.units)&&Number.isFinite(geometry.source.scale)&&geometry.source.scale>0),'Invalid mesh source provenance.');
@@ -422,8 +426,8 @@ export function validatePlanPlacement(plan,machine) {
   const xBulgeMm = geometry.shape === 'spline-shell' ? geometry.shortSideOutsetMm
     : geometry.shape === 'vertical-spline-shell' ? geometry.xBulgeMm : 0;
   const bounds=toolBounds(machine,setup.tool);
-  if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set'].includes(geometry.shape)) number(placement.xMm, bounds.min[0]+5 + xBulgeMm, bounds.max[0] - geometry.runMm - xBulgeMm - 5, 'Placement X');
-  if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set'].includes(geometry.shape)) number(placement.yMm, bounds.min[1]+5, bounds.max[1] - geometry.widthMm - 5, 'Placement Y');
+  if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set','hole_support'].includes(geometry.shape)) number(placement.xMm, bounds.min[0]+5 + xBulgeMm, bounds.max[0] - geometry.runMm - xBulgeMm - 5, 'Placement X');
+  if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set','hole_support'].includes(geometry.shape)) number(placement.yMm, bounds.min[1]+5, bounds.max[1] - geometry.widthMm - 5, 'Placement Y');
   requireThat(Number.isFinite(placement.xMm)&&Number.isFinite(placement.yMm),'Placement must be finite.');
   return plan;
 }

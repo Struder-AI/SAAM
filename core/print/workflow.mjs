@@ -37,7 +37,7 @@ function migrateReview(review) {
       'previousGenerationHash','previousPlanHash',`review history ${index}`))};
 }
 const migrateChecks=checks=>migratedIdentity(checks,'generationHash','planHash','saved checks');
-const originalSource=geometry=>geometry?.source??(['text','heat-set'].includes(geometry?.shape)?originalSource(geometry.base):null);
+const originalSource=geometry=>geometry?.source??(['text','heat-set','hole_support'].includes(geometry?.shape)?originalSource(geometry.base):null);
 async function save(file,value){
   await replaceFile(file,typeof value==='string'||value instanceof Uint8Array?value:JSON.stringify(value,null,2)+'\n');
 }

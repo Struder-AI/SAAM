@@ -21,6 +21,7 @@ import {importThingi10KBundle} from '../../../skills/thingi10k/scripts/import.mj
 import {createGridfinityBundle,updateGridfinityBundle} from '../../../skills/gridfinity/scripts/bundle.mjs';
 import { applyText } from '../../../core/print/text.mjs';
 import { applyHeatSet } from '../../../core/print/heat-set.mjs';
+import {inspectHoleSupport,applyHoleSupport} from '../../../skills/hole_support/scripts/bundle.mjs';
 import { INSERT_CATALOG } from '../../../skills/heat-set-inserts/scripts/catalog.mjs';
 import {loadLocalExtension} from '../../../core/local-extension.mjs';
 import {lifecycleReview} from '../../../core/print/review-state.mjs';
@@ -281,6 +282,10 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
       if(state.kind!=='shell')throw new Error('Text modifies shared shell/mesh prints.');
       return summary(printId,await applyText(dir,request,{expectedRevision}));
     },false);
+  tool('inspect_hole_support', 'Find bed-facing circular counterbores and offer membrane, stepped reduction or a breakaway sleeve. When asked for supports, read hole_support and offer these choices in chat before applying conventional supports. Returns current revision, features and icon paths.',
+    {printId:printIdSchema},async({printId})=>{const {dir,state}=await read(printId,{program:false});if(state.kind!=='shell')throw Error('Choose a shell/mesh print.');return inspectHoleSupport(dir);});
+  tool('apply_hole_support', 'Apply, edit or remove a chosen downward-hole treatment. Read hole_support for settings and limits. Rebuilds editable geometry and invalidates confirmation; review afterward. No permanent Studio controls are added.',
+    {printId:printIdSchema,expectedRevision:z.string().min(1),request:objectSchema},async({printId,expectedRevision,request})=>{noApprovalFields(request);const {dir,state}=await read(printId,{program:false});if(state.kind!=='shell')throw Error('Choose a shell/mesh print.');return summary(printId,await applyHoleSupport(dir,request,{expectedRevision}));},false);
   tool('heat_set_catalog', 'Read the packaged heat-set insert profiles and their dimensions. Use an exact insert ID with apply_heat_set and read the heat-set-inserts skill for geometry and reinforcement limits.',
     {},async()=>({inserts:INSERT_CATALOG}));
   tool('apply_heat_set', 'Add, edit or remove a heat-set insert hole and its four-loop reinforcement with ribs into the surrounding infill. Read the heat-set-inserts skill for request fields and supported geometry. Rebuilds geometry and invalidates affected approvals; use request_review afterward.',

@@ -16,6 +16,7 @@ import { Worker } from 'node:worker_threads';
 import {PreparedGenerationJob} from './prepared-generation-job.mjs';
 import { viewerLifetime, DEFAULT_DISCONNECT_MS } from './lifetime.mjs';
 import {loadLocalExtension} from '../core/local-extension.mjs';
+import {inspectHoleSupport,applyHoleSupport} from '../skills/hole_support/scripts/bundle.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
 export const root=resolve(here,'..');
@@ -311,6 +312,12 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       if(req.method==='GET'&&url.pathname==='/struder-logo.png'){
         res.writeHead(200,{'Content-Type':'image/png'});res.end(await readFile(resolve(here,'struder-logo.png')));return;
       }
+      if(req.method==='GET'&&url.pathname==='/hole-support-ui.mjs'){
+        res.writeHead(200,{'Content-Type':'text/javascript'});res.end(await readFile(resolve(here,'hole-support-ui.mjs')));return;
+      }
+      if(req.method==='GET'&&['/hole-support-icons/membrane.svg','/hole-support-icons/stepped-reduction.svg','/hole-support-icons/bore-support.svg'].includes(url.pathname)){
+        res.writeHead(200,{'Content-Type':'image/svg+xml'});res.end(await readFile(resolve(root,'skills/hole_support/icons',basename(url.pathname))));return;
+      }
       if(req.method==='GET'&&playerModules.has(url.pathname.slice(1))){
         res.writeHead(200,{'Content-Type':'text/javascript'});res.end(await readFile(resolve(root,url.pathname.slice(1))));return;
       }
@@ -343,6 +350,9 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       if(req.method==='GET')await queue;
       const readDir=dir,readId=printId();
       const bundle=await opened;
+      if(req.method==='GET'&&url.pathname==='/api/hole-support'){
+        const result=await inspectHoleSupport(readDir);if(readDir!==dir)throw Error('The open print changed.');send(result);return;
+      }
       if(req.method==='GET'&&await localExtension.studioGet?.({url,res,token,dir:readDir,printId:readId,bundle,send,assertCurrent:()=>{if(readDir!==dir)throw new Error('The open print changed.');}}))return;
       if(req.method==='GET'&&url.pathname==='/api/state') {
         const condition=req.headers['if-none-match'];
@@ -405,6 +415,13 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         if(data.printId&&data.printId!==printId())throw new Error('The open print changed. Reload before continuing.');
         const current=await opened;
         const progress=await tour.info();
+        if(url.pathname==='/api/hole-support'){
+          if(data.printId!==printId()||typeof data.revision!=='string'||!data.revision)throw Error('Hole support requires the inspected print and revision.');
+          if(progress.active)throw Error('Finish or exit the tour before adding hole support.');
+          await discardPreparation();
+          await applyHoleSupport(dir,data.request,{expectedRevision:data.revision});
+          note('plan-updated',{revision:data.revision,strategy:data.request?.feature?.strategy??null});send({ok:true});return;
+        }
         if(importing){
           if(progress.active)throw Error('Import STL is available after you finish or exit the tour.');
           await discardPreparation();

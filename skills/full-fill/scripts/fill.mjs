@@ -120,7 +120,7 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
       contours.set(key,prepared);
       if(contours.size>16)contours.delete(contours.keys().next().value);
     }
-    const strokes=[...prepared.walls,...(detailsMode==='deposit'&&detail?[...detail.walls,...detail.fins]:[])];
+    const strokes=[...prepared.walls,...(detailsMode==='deposit'&&detail?[...(detail.bridges??[]),...detail.walls,...detail.fins]:[])];
     report.perimeterLoops+=strokes.filter(s=>s.closed).length;
     let fillRegion = fillRegionAt ? fillRegionAt(region,localIndex,z) : prepared.interior;
     if(detail?.fillExclusion.length)fillRegion=difference(fillRegion,offsetRegion(detail.fillExclusion,width/2));
@@ -148,10 +148,10 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
       lineWidthMm: width
     }) : null;
     const current=[];
-    for(const [role,closed] of [['walls',true],['fins',false],['fill',false]]) {
-      const selected=strokes.filter(stroke=>role==='walls'?stroke.closed&&stroke.role!=='fill':role==='fins'?stroke.localDetail==='fin':stroke.role==='fill').map(stroke=>lowerSurface?{
+    for(const [role,closed] of [['bridges',false],['walls',true],['fins',false],['fill',false]]) {
+      const selected=strokes.filter(stroke=>role==='bridges'?stroke.localDetail==='bridge':role==='walls'?stroke.closed&&stroke.role!=='fill':role==='fins'?stroke.localDetail==='fin':stroke.role==='fill').map(stroke=>lowerSurface?{
         ...stroke,...surfaceStroke({points2d:stroke.points,z,nominalHeightMm:height,widthMm:stroke.beadWidthMm??width,surface:lowerSurface,closed:stroke.closed,maxStepMm:Math.min(0.2,settings.minFeatureMm/2)}),speedMmS:speed
-      }:{...stroke,points:(stroke.closed&&stroke.role==='fill'?[...stroke.points,stroke.points[0]]:stroke.points).map(point=>[...point,z]),speedMmS:speed,beadAreaMm2:(stroke.beadWidthMm??width)*height});
+      }:{...stroke,points:(stroke.closed&&stroke.role==='fill'?[...stroke.points,stroke.points[0]]:stroke.points).map(point=>[...point,z]),speedMmS:stroke.speedMmS??speed,beadAreaMm2:(stroke.beadWidthMm??width)*height});
       if(!selected.length)continue;
       const operationId=id+':'+index+':'+role;
       // Coverage is consumed by material-region publication, not ordinary
@@ -160,7 +160,7 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
       operations.push({id:operationId,layerId:'planar:'+z,phase:'planar',layer:index,rank:z,
         after:[...previous,...current],strokes:selected,connectNearby:true,
         order:closed&&!lowerSurface?'nearest':!closed&&selected.every(s=>s.scanlineCell!==undefined)?'nearest-cells':'given',region,
-        get materialRegion(){const boundary=detail?.interiorBoundary??region;return materialRegion??=role==='fins'?detail.finRegion:closed?union(detail?.wallRegion??[],pitch===width?difference(boundary,offsetRegion(boundary,-width*settings.perimeters)):
+        get materialRegion(){const boundary=detail?.interiorBoundary??region;return materialRegion??=role==='bridges'?detail.reservation:role==='fins'?detail.finRegion:closed?union(detail?.wallRegion??[],pitch===width?difference(boundary,offsetRegion(boundary,-width*settings.perimeters)):
           union(Array.from({length:settings.perimeters},(_,ring)=>difference(ring?offsetRegion(boundary,-ring*pitch):boundary,offsetRegion(boundary,-ring*pitch-width))).flat(),[])):
           // Coverage participates in booleans: a coarse round-join chord can
           // leave artificial corner gaps despite the requested wall overlap.
