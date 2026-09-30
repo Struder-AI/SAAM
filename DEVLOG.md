@@ -1,5 +1,13 @@
 # Development log
 
+## 2026-09-30 — 0.2.1 installer release
+
+- Owner authorized push, public publication and live relay update as 0.2.1, superseding the earlier unpublished local 0.2.1 candidates. Release packages are rebuilt from pushed commit `ebd4a84` in a detached worktree, using official Node v24.19.0.
+- All three ZIP integrity checks pass. Checked packaged installer/update entry points, release metadata, runtime architectures/licenses and omitted build dependency; Mac launchers have Unix 0755 permissions and LF scripts with desktop shortcut/Finder reveal. Windows includes the matching native mesh-repair helper. Reused prior shell checks; no full regression suite, actual Mac Finder/Gatekeeper installation or hardware run.
+- win-x64: 46148558 bytes; SHA-256 `2821db5a4c278db176b100abd05e155de5b8e81692e6acd42e7edcf3877922bd`.
+- darwin-arm64: 50011469 bytes; SHA-256 `a31529729eeb61f24d6c0082fc60af817e793a7e972812139c1bf5ea91075d3e`.
+- darwin-x64: 51365033 bytes; SHA-256 `644166d094b726020f24782de75ab4baedf70736724864330a72ea66d816f63e`.
+
 ## 2026-09-30 — Make the installed Mac app easy to find
 
 - Manual installation adds `~/Desktop/SAAM.app` pointing to the per-user app and reveals that app in Finder. Existing desktop items are preserved; updates do not restore a removed shortcut. Uninstall removes only a symlink to SAAM's installed app. A denied desktop write reports the Applications fallback without failing installation.
