@@ -1131,6 +1131,7 @@ body.noside #side{display:none}
 #canvas.authored .fm-elab:not(.hot),#canvas.authored .fm-endtag:not(.hot){opacity:0}
 #canvas.authored .fm-edge.long:not(.hot){opacity:.18}
 #canvas.authored .fm-edge[data-a^="external:"]:not(.hot),#canvas.authored .fm-edge[data-b^="external:"]:not(.hot){opacity:.35;stroke-width:1.5}
+#canvas.authored.focus .fm-edge:not(.hot){opacity:.06}
 
 /* -- where am I: the whole page, and the rectangle this screen is looking at --------- */
 #minimap{position:absolute;right:16px;bottom:42px;background:rgba(255,255,255,.93);

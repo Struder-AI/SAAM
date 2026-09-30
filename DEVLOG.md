@@ -1,10 +1,15 @@
 # Development log
 
-## 2026-09-30 — 0.2.0 release preparation
+## 2026-09-30 — 0.2.0 live-relay release
 
 - Owner explicitly requested commit, push, publication and live relay update; acceptance testing follows on the actual relay, with fixes in 0.2.1 if needed.
 - Relay harness checks that relay guidance is present without assuming it is the first sentence; direct assertion against current guidance passes. Earlier setup smoke check passes; repository metadata check retains ten existing errors. No regression suite or hardware run.
 - Checkpoint includes concurrent unfinished dev-map changes without certifying them. Final integration, map/design acceptance and known geometry/runtime findings remain open.
+
+- Built from pushed commit `32fc204` in a detached worktree with Node v24.19.0. Package manifests verified; Windows includes native repair, macOS exact cleanup only.
+- win-x64: 46148324 bytes; SHA-256 a74c15275c5ccb4cbe3b509b898f4251659127f74d04c074e00f54833070f7ce.
+- darwin-arm64: 49115889 bytes; SHA-256 cb3dda72d3c4a88a9e559c2df754611bf063a6617c42af35025bf2ba1307510e.
+- darwin-x64: 50353141 bytes; SHA-256 462fb014e6e2871ef7a4be4078ddc3a13c5649947fefbd5b903b5e6d480a3de0.
 
 ## 2026-09-30 — Consolidated deposition, roles and cancellable import
 
