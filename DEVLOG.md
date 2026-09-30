@@ -7,6 +7,7 @@
 - win-x64: 46148558 bytes; SHA-256 `2821db5a4c278db176b100abd05e155de5b8e81692e6acd42e7edcf3877922bd`.
 - darwin-arm64: 50011469 bytes; SHA-256 `a31529729eeb61f24d6c0082fc60af817e793a7e972812139c1bf5ea91075d3e`.
 - darwin-x64: 51365033 bytes; SHA-256 `644166d094b726020f24782de75ab4baedf70736724864330a72ea66d816f63e`.
+- Published public GitHub release `v0.2.1` at `ebd4a84f11b8266eeb5f1ced2ac8f840736c4bf5`; anonymous API access and all three unauthenticated downloads match the recorded hashes. Live relay deployment `35014180-ae23-4e99-9c34-d62dc336610d` advertises 0.2.1; the running 0.2.0 Studio reports connected with an update to 0.2.1. No local update was triggered.
 
 ## 2026-09-30 — Make the installed Mac app easy to find
 
