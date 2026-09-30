@@ -78,7 +78,8 @@ work; [builder orientation](BUILDERS.md) supplies the shared engineering baselin
 The [dev map](dev-map/README.md) is generated from the source and describes core
 and Studio. Draw it with `node dev-map/cli.mjs build`; agents walk it from
 page `0` with `read-map INDEX|DECLARATION` through the agent toolkit.
-Use [GLOSSARY.md](GLOSSARY.md) for terms, [DECISIONS.md](DECISIONS.md) for
+Use the [technical overview](TECHNICAL-OVERVIEW.md) and [0.2.0 plan](plans/0.2.0.md)
+for architecture and build scope, [GLOSSARY.md](GLOSSARY.md) for terms, [DECISIONS.md](DECISIONS.md) for
 contributor choices, the [build requests](build_request.md#outstanding-work)
 for outstanding or incomplete work, and [DEVLOG.md](DEVLOG.md) for dated work
 and evidence.

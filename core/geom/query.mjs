@@ -1,30 +1,28 @@
 // Skill-facing geometry queries. Adding a backend does not add a pattern pipeline.
-import { sectionShell } from './shell.mjs';
 import { topAt as splineTopAt,crossingsAt as splineCrossingsAt } from './field.mjs';
-import { sectionMesh,meshTopAt,meshCrossingsAt,createMeshSectionQuery } from './mesh.mjs';
+import { meshTopAt,meshCrossingsAt } from './mesh.mjs';
+import { section,prepareSection,horizontalSlice } from './slice.mjs';
 import { requireThat } from './tolerance.mjs';
-import { union,intersect,difference } from '../region/intersection.mjs';
+import {chartPrismContains} from './chart-prism.mjs';
 
 export function requireGeometry(geometry, capabilities) {
-  requireThat(geometry?.bounds&&((geometry.kind==='triangle-mesh')||geometry.kind==='boolean'||Array.isArray(geometry.patches)),'Unsupported geometry backend.');
+  requireThat(geometry?.bounds&&((geometry.kind==='triangle-mesh')||geometry.kind==='chart-prism'||geometry.kind==='boolean'||Array.isArray(geometry.patches)),'Unsupported geometry backend.');
   requireThat(capabilities.every(c=>['bounds','planar-section','top-surface'].includes(c)),'Unsupported geometry capability.');
   if(geometry.kind==='boolean')for(const operand of geometry.operands)requireGeometry(operand,capabilities);
   return geometry;
 }
+// Deferred z-only forms, kept only for vase-wall and its test until vase-wall
+// sections by slice. New code sections with section(geometry, slice) in
+// slice.mjs.
 export function sectionGeometry(geometry,z,options={}) {
   requireGeometry(geometry,['planar-section']);
-  if(geometry.kind==='boolean')return combineSections(geometry.operation,geometry.operands.map(o=>sectionGeometry(o,z,options)),z);
-  return geometry.kind==='triangle-mesh'?sectionMesh(geometry,z):sectionShell(geometry,z,options);
+  return section(geometry,horizontalSlice(z),options);
 }
-// Prepare repeated sections of one fixed geometry without changing cut semantics.
-// Keep this query local to generation; rebuild it after changing geometry.
+// Repeated horizontal sections of one fixed geometry, sharing search data.
 export function createSectionQuery(geometry,options={}) {
   requireGeometry(geometry,['planar-section']);
-  if(geometry.kind==='boolean'){
-    const queries=geometry.operands.map(o=>createSectionQuery(o,options));
-    return z=>combineSections(geometry.operation,queries.map(query=>query(z)),z);
-  }
-  return geometry.kind==='triangle-mesh'?createMeshSectionQuery(geometry):z=>sectionShell(geometry,z,options);
+  const prepared=prepareSection(geometry,horizontalSlice(0));
+  return z=>section(prepared,horizontalSlice(z),options);
 }
 export function topAt(geometry,x,y) {
   requireGeometry(geometry,['top-surface']);
@@ -46,17 +44,6 @@ export function sampleTopSurface(geometry,{stepMm=1,maxSlopeDeg=90}={}) {
     samples.push({x,y,...top});
   }
   return {samples,inside,steep,maxSlopeDeg:maxSlope,stepMm};
-}
-
-// Boolean backend (boolean-solid.mjs): every operand keeps its own query.
-// Difference subtracts every later operand from the first.
-function combineSections(operation,sections,z){
-  const loops=sections.map(s=>s.loops);
-  const result=operation==='union'?loops.reduce((a,b)=>union(a,b),[])
-    :operation==='difference'?difference(loops[0],loops.slice(1).reduce((a,b)=>union(a,b),[]))
-    :loops.slice(1).reduce((a,b)=>intersect(a,b),loops[0]);
-  const nudgedByMm=sections.reduce((n,s)=>Math.abs(s.nudgedByMm??0)>Math.abs(n)?s.nudgedByMm:n,0);
-  return {loops:result,requestedZ:z,nudgedByMm};
 }
 
 // A union's highest material in a column is the highest of its operands'.
@@ -99,6 +86,7 @@ function holdsHeight(node,leaves,z){
 // crossings above it. A point on the surface, or a column grazing a vertical
 // wall exactly, is outside what this test decides; callers sample off both.
 export function containsPoint(geometry,[x,y,z]){
+  if(geometry.kind==='chart-prism')return chartPrismContains(geometry,[x,y,z]);
   requireGeometry(geometry,['bounds']);
   return holdsHeight(geometry,columnCrossings(geometry,x,y),z);
 }

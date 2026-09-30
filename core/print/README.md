@@ -39,12 +39,11 @@ unknown; the projection never infers approval from the saved manifest alone.
 Transient calculation, cancellation, request and presentation state remains with
 Studio and does not affect persisted validity.
 
-`generationHash` identifies the combined plan, machine and geometry inputs; it
-is not a plan-only hash. State, checks, review records and worker/cache contracts
-use this name. Legacy `planHash` and `previousPlanHash` fields in saved reviews
-and checks are normalized on read without rewriting the files. Conflicting old
-and new identities are rejected. Matching approved exports remain approved;
-an open view with an old revision token must refresh before changing the print.
+`generationHash` identifies plan, machine, geometry and the adapter's generation
+contract. A changed deposition/inspection contract makes saved programs and their
+approvals stale: regenerate and review again. Reading never rewrites the recipe.
+Legacy `planHash`/`previousPlanHash` fields normalize in memory; conflicting
+identities reject. An open view with an old revision token must refresh before edits.
 
 The [text preparation entry](./text.mjs) compiles editable font/surface features
 into the same native mesh geometry used by Studio and slicing, then calls
@@ -180,7 +179,7 @@ an actionable migration-required error. Run
 `node core/print/cli.mjs migrate Prints/<name>` explicitly to preflight and
 convert one bundle. Migration atomically replaces only `plan.json`, retains the
 legacy sidecars and unknown files, and reports every created, updated, removed
-and retained path. Current-format bundles return a no-op report. Compatibility
+and retained path. Bundles with current layout and recipe fields are no-ops. Compatibility
 remains while supported or distributed print roots contain split-file bundles;
 it can be removed after a bounded inventory reaches zero and the migration
 window is closed in a documented release. The lifecycle and SAAMpath formats
@@ -217,7 +216,7 @@ previous toolpath approval. Local records detect changes relative to recorded
 content; they are not signatures authenticating the files or human statements.
 Use `examples/prints/` only for explicitly curated examples.
 
-## Shell pipeline (full-fill and draped-skin)
+## Shell pipeline (slices and draped-skin)
 
 `core/print/bundle.mjs` adapts shell plans to the [shared lifecycle](#generation-and-review).
 Skills return operations to the [shared composer](../path/README.md#skill-result-composition).

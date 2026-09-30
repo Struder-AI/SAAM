@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {boxMesh,ringMesh,subdividedBox} from './fixtures/mesh.mjs';
 import {existsSync} from 'node:fs';
 import {nativeMeshExecutable} from '../geom/mesh-native.mjs';
-import {makeMesh,parseSTL,sectionMesh} from '../geom/mesh.mjs';
+import {makeMesh,parseSTL} from '../geom/mesh.mjs';
 import {cleanTriangleSoup,encodeRepairSTL,validateRepair} from '../geom/mesh-repair.mjs';
 import {repairSTL,repairSTLFiles} from '../print/repair-stl.mjs';
 import {triangleIndex,trianglesContact} from '../geom/mesh-spatial.mjs';

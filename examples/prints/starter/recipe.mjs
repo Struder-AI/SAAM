@@ -15,8 +15,6 @@ export function starterPlan(){
     {id:'fin',xMm:6,yMm:12,zMm:4,geometry:block(36,8,10)}
   ]};
   plan.placement={xMm:130,yMm:100};
-  plan.skills['draped-skin'].enabled=false;
-  Object.assign(plan.skills['planar-infill'],{enabled:true,pattern:'rectilinear',density:.2,perimeters:2});
-  Object.assign(plan.skills['full-fill'],{mode:'solid-surfaces',bottomLayers:3,topLayers:3});
+  // The default slice assignment is the normal case: 2 loops, 20% fill, 3 solid layers top and bottom.
   return plan;
 }

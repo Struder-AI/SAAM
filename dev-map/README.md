@@ -3,14 +3,13 @@
 Intent, scope, terms and the reading rules are owned by
 [DEVELOPER-CONTEXT.md](../DEVELOPER-CONTEXT.md), what remains by
 [BR-052](../build_request.md#br-052--complete-the-dev-map-against-the-2026-09-21-intent). This guide owns the commands, the addresses, what each
-read carries and the authoring mechanics. Generation derives leaves, links,
-gates and source locations; the cluster solver arranges leaves into maps and
-can add no call, link or prose.
+read carries and authoring mechanics. Generation derives leaves, links, gates
+and source locations; authored grouping or the solver arranges them.
 
 - `lib/`: source scanning, leaves (`leaves.mjs`), the tree (`tree.mjs`), the
   store, scoring, the solver and rendering.
-- `tree.json` (the solver's clusters, with authored labels), `facts.tsv`,
-  `lib/scope.mjs`: the authored inputs.
+- `tree.json`, `facts.tsv`, `lib/scope.mjs`: default authored inputs.
+- `sets/NAME/map.json`, `tree.json`, `facts.tsv`: independent named sets.
 - `store/`, `view/`: generated snapshots and the viewer; git-ignored.
 
 ## Commands
@@ -21,6 +20,7 @@ node scripts/agent-toolkit.mjs regenerate [INDEX]
 node dev-map/cli.mjs check [--json] [--viewer [ADDRESS…]] | build | flow-evidence ADDRESS
 node dev-map/cli.mjs score [--json] | solve [--seed N]
 node dev-map/cli.mjs watch-freshness [--once]
+node dev-map/cli.mjs read ADDRESS [--code] [--details] --set NAME
 ```
 
 An ADDRESS is a node's index or its durable path: a declaration
@@ -32,9 +32,8 @@ leaf in a cluster (`0 --code` is refused), `--details` the read with its evidenc
 expressions, traces, byte offsets. Reads are compact JSON: `range` is
 `[first,last]` inclusive, nested locations inherit `file`, empty arrays omitted.
 
-`regenerate` is the only command that scans; it always regenerates everything
-(about a minute) and redraws the viewer; it keeps the stored tree and places
-new leaves in it. `solve` anneals the tree, writes `tree.json` and
+`regenerate` scans the selected set and redraws its viewer. Default generation
+places new leaves in the existing tree; manual sets require explicit homes. `solve` anneals the tree, writes `tree.json` and
 regenerates. It runs only when the owner asks; an agent may ask for one, never
 start one. `flow-evidence` re-derives one node from source, to audit the generator;
 `build` redraws `view/index.html` from the store, no scan (needs Python 3; set
@@ -53,10 +52,11 @@ receiver an id selector's id, a binding or a member path) and is homed there. A
 record is no node at any depth, so `.` joins its members,
 `createStudio::lifetime.onViewers`; a module-level table keeps its entry keys.
 
-A leaf is a declaration with every declaration written inside it that only it
-reaches; one that other code calls or links to directly, or outside code
-calls, is a leaf of its own (`lib/leaves.mjs`). A class is its construction
-plus its members: the constructor is no node and `new X()` reaches the class.
+A leaf includes enclosed declarations it alone reaches and private module
+helpers called only by that stage (`lib/helpers.mjs`). Exports, shared callers
+and escaping references prevent helper folding. Effects, dependencies, source
+and findings move to the owner; folding asserts ownership, not purity. No
+authored vocabulary list suppresses nodes. `new X()` reaches the class.
 
 ## What each read carries
 
@@ -76,7 +76,7 @@ Every read: `index`, `kind`, `destination`, `stale` when its inputs moved,
   lifted onto the boxes holding each end, with `kinds` and `count`. External
   boxes count toward the map's edge. A link is a call, a value passed between calls or an indirect link.
 - **Leaf** (function, method, handler, class): `path`, `file`, `range`,
-  `folded` (declarations written inside it and folded into it),
+  `folded` (owned declarations), `foldedCode` (helpers outside its source span),
   `inputs` (`parameterTargets` on a port this node calls: each callable a
   caller passes, by `index`, `path` and `from`; its box is on that caller's
   map), `outputs` (each return and throw), `components` (what it calls, in call
@@ -154,19 +154,26 @@ read, a missing one reporting `sourceUnavailable`, not wrong line numbers.
 
 ## Authoring
 
-**Clusters**, `tree.json`, written by `solve` (`lib/solve.mjs`): `clusters`
-(`id`, `label`, `parent`), `leaves` (leaf path → the cluster or `0` homing
-it) and `repeats` (map → the leaves and clusters it repeats). The solver
-anneals the mean map score from the current tree: it forms, dissolves, merges
-and moves clusters, re-homes leaves and adds or drops repeats. Placement is
-total (`lib/tree.mjs`): a leaf the file leaves out goes where most of its
-links are, else to `0`; what no longer exists is dropped; a cluster homing
-nothing or drawing fewer than two boxes is dissolved, and a repeat on its
-node's home map or inside the cluster it repeats is dropped. Nothing fails.
+**Trees**, `tree.json`: `clusters` (`id`, `label`, `parent`), `leaves`
+(declaration → home), `repeats` (map → guests), optional `order` (map → node ids).
+The default solver arranges these only on request. Default placement puts new
+leaves beside their links, drops gone leaves, and dissolves empty/single-box
+clusters. Labels are authored; the solver cannot invent them.
 
-**Labels** are authored in `tree.json` by a label pass, on request, never by
-the solver. A cluster keeps its label and id across a solve while it shares
-more than half its leaves with the cluster it was; any other is `[needs label]`.
+**Named sets**, `--set NAME` on any command: `sets/NAME/map.json` declares
+`title`, `scope` (exact generated leaf paths), optional `scanFiles` (scan boundary)
+and `authoring: "manual"` to disable solving. Select leaves after scanning;
+folded declarations cannot be selected separately. Every selected leaf needs
+an authored home. Unselected scanned connections remain externals, including
+callers the default map only counts. Each set has its own store and viewer.
+`toolpath-pipeline` is the manually authored example. Both sets use one viewer.
+Optional `tree.json.layout[mapId]` supplies `positions` keyed by cluster id,
+leaf path or external declaration path, each `{x,y,emphasis?}`; unpositioned boxes stay
+below. Optional `viewport: [x,y,width,height]` sets initial focus and `captions`
+adds `{x,y,text}` annotations. `build` applies position edits without scanning.
+Omitting layout keeps automatic placement. Fit frames the overview; Fit all includes
+every dependency. `map.json.externalLabels` keeps individual externals distinct;
+`externalGroups: [{id,label,prefixes}]` groups boundaries, retaining every member and link.
 
 **Facts**, `facts.tsv`: tab-separated `declaration kind fact source date`, for
 what the code cannot state. `kind` is `measurement`, `vendor` or `decision`
@@ -192,23 +199,13 @@ states how each item is matched.
 
 ## Scoring
 
-`score` rates every map, `0` and each cluster, as weights times squared
-excesses (`lib/score.mjs`): 1 per box short of 6 and 0.025 per box beyond 20
-(edge boxes do not count); 0.01 per edge box, boundary or external; 0.1 per
-wire a box has beyond 3 more than the map's mean (hubs); 0.2 per extra island;
-0.05 per box pair against the best left-to-right order; and 2 × balance, the
-biggest home box's share of the nested leaves beyond an even share. The energy,
-which `solve` minimises, sums the map scores, each weighted by 1 + log₂ of its
-nested leaves, per leaf mapped.
-Crossing is reported, not scored. The viewer shows each map's score and parts in its bar.
-`score` prints the worst and best maps and writes `view/scores.html`, which
-every viewer build also refreshes, ranking all maps with links into the viewer.
+`score` reports size, boundary, hub, island, backflow and balance penalties;
+`lib/score.mjs` owns their weights. Solver energy weights map scores by nested
+leaf count. Crossing is reported, not scored. The viewer and `view/scores.html`
+show scores; `score` prints the worst and best maps.
 
 ## The viewer
 
 `view/index.html` draws the stored maps in place, following declarations
 across renumbering; its index lists the top map and clusters.
-A leaf opens its source alone. Cluster, leaf, external and boundary boxes
-have their own colours, repeats link
-`home`; below 50% a box is its name alone, hover lights and dims, the minimap
-and hint bar orient you; `generated-map` serves 8765.
+A leaf opens its source and helpers; an external opens members and connections.

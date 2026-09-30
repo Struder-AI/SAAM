@@ -54,8 +54,9 @@ joint limits, calibrated FIG mapping, fixture clearance or manufacturing approva
 ## Tube-first continuous variants
 
 The selected recipe also contains a planar tube substrate. The local
-create-tube-motion.mjs utility consumes the shared full-fill substrate operations
-and emits ring motion. Its standalone output is an earlier staged candidate.
+create-tube-motion.mjs utility repeats the saved study's explicit ring curves
+through shared family/deposition primitives. These tools consume historical study
+inputs, not current SAAM recipes. Its standalone output is an earlier staged candidate.
 For the user's continuous-extrusion trial, create-continuous-pipe.mjs combines that
 tube geometry with either selected cladding sector:
 

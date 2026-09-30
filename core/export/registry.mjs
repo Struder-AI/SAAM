@@ -16,10 +16,7 @@ export function outputAdapter(plan,machine){
   requireThat(declaration.implemented!==false&&adapters[declaration.id],declaration.reason??`No exporter/interpreter for ${declaration.id}.`);
   return adapters[declaration.id];
 }
-const requireSupportedMotion=(path,plan)=>requireThat(plan.output==='denso-pacscript'||!path.initialPose&&!path.actions.some(a=>a.pose),
-  'Selected output cannot represent oriented/rotary motion.');
 export const exportProgram=(path,plan,machine,release)=>{
-  requireSupportedMotion(path,plan);
   return outputAdapter(plan,machine).export(path,plan,machine,release);
 };
 export const interpretProgram=(code,plan,machine)=>withTravelAdvisory(outputAdapter(plan,machine).interpret(code,plan,machine));
@@ -27,7 +24,6 @@ export const interpretProgram=(code,plan,machine)=>withTravelAdvisory(outputAdap
 // One shared lifecycle entry point: adapters that need interpretation while
 // exporting may carry that exact result forward. Others interpret once here.
 export function exportAndInterpretProgram(path,plan,machine,release){
-  requireSupportedMotion(path,plan);
   const adapter=outputAdapter(plan,machine);
   if(adapter.exportAndInterpret){
     const result=adapter.exportAndInterpret(path,plan,machine,release);

@@ -2,7 +2,7 @@
 // planning state through scheduled operations and returns action chunks.
 import { requireThat, distance } from '../geom/tolerance.mjs';
 import { orderStrokes, orderScanlineCells } from './builder.mjs';
-import {ActionAccumulator,planningResult,planContext,planFan,planNozzle,planPark,planConnection,planTravel,planMove,
+import {ActionAccumulator,planningResult,planContext,planFan,planNozzle,planPark,planTravel,planMove,
   planExtrusion,planDwell,planLayerCooling,planSelection} from './planning.mjs';
 
 // Schedule once, then advance explicit motion state through operations. Layer and
@@ -29,15 +29,26 @@ export function planComposition(initialState,skillResults,rules={},onProgress) {
     {summary:{operationOrder:operations.map(op=>op.id),layers:remaining.size}});
 }
 
-export function planOperation(initialState,op,{deposited=[],layerSeconds=0,finishLayer=false}={}) {
+export function planOperation(initialState,op,options={}) {
+  const entered=planOperationEntry(initialState,op,options.layerSeconds??0);
+  const deposited=planPreparedOperation(entered.state,op,options);
+  return planningResult(deposited.state,{chunks:[entered.actions,deposited.actions]},{operationSeconds:deposited.operationSeconds});
+}
+
+export function planOperationEntry(initialState,op,layerSeconds=0) {
   const contextual=planContext({...initialState,layerSeconds},op.phase,op.layer,op.id);
   const selected=planSelection(contextual.state,op.filament??initialState.defaultFilament);
   const prepared=planOperationStart(selected.state,op);
-  const strokes=op.order==='nearest'?orderStrokes(op.strokes,prepared.state.position)
-    :op.order==='nearest-cells'?orderScanlineCells(op.strokes,prepared.state.position):op.strokes;
-  const actions=new ActionAccumulator();actions.add(selected.actions);actions.add(prepared.actions);
+  return planningResult(prepared.state,{chunks:[selected.actions,prepared.actions]});
+}
+
+// The caller has already applied selection, temperature and parking actions.
+export function planPreparedOperation(initialState,op,{deposited=[],finishLayer=false}={}) {
+  const strokes=op.order==='nearest'?orderStrokes(op.strokes,initialState.position)
+    :op.order==='nearest-cells'?orderScanlineCells(op.strokes,initialState.position):op.strokes;
+  const actions=new ActionAccumulator();
   const policy=operationTravelPolicy(op.travelPolicy,deposited);
-  let state=prepared.state;
+  let state=initialState;
   for(const stroke of strokes){
     const approached=planStrokeApproach(state,stroke,op,policy);
     const depositedStroke=planStrokeDeposition(approached.state,stroke,op);
@@ -76,14 +87,9 @@ function segmentExtras(stroke,op,index) {
 export function planStrokeApproach(state,stroke,op,policy) {
   requireThat(stroke.points.length>=(stroke.stationaryExtrusion?1:2),'An operation stroke needs at least two points or an explicit stationary extrusion.');
   requireThat(!stroke.poses||stroke.poses.length===stroke.points.length,'Stroke pose/point count differs.');
-  const connection=op.connectNearby&&!stroke.stationaryExtrusion
-    ?planConnection(state,stroke.points[0],policy,stroke.speedMmS,
-      stroke.volumesMm3?stroke.volumesMm3[0]/distance(stroke.points[0],stroke.points[1]):stroke.beadAreaMm2,
-      segmentExtras(stroke,op,0),stroke.poses?.[0])
-    :planningResult(state,undefined,{connected:false});
-  if(connection.connected)return connection;
-  const travel=planTravel(connection.state,stroke.points[0],policy,stroke.poses?.[0]);
-  return planningResult(travel.state,{chunks:[connection.actions,travel.actions]},
+  // Depositing connections are explicit finalized strokes, never late material.
+  const travel=planTravel(state,stroke.points[0],policy,stroke.poses?.[0]);
+  return planningResult(travel.state,travel.actions,
     {connected:false,travelKind:travel.travelKind});
 }
 
@@ -99,22 +105,23 @@ export function planStrokeDeposition(initialState,stroke,op) {
   for(let i=1;i<stroke.points.length;i++){
     const volume=stroke.volumesMm3?stroke.volumesMm3[i-1]:distance(stroke.points[i-1],stroke.points[i])*stroke.beadAreaMm2;
     requireThat(Number.isFinite(volume)&&volume>=0,'Invalid operation deposition volume.');
-    const moved=planMove(state,stroke.points[i],stroke.speedMmS,volume,segmentExtras(stroke,op,i-1));
+    const speed=stroke.segmentMetadata?.[i-1]?.speedMmS??stroke.speedMmS;
+    requireThat(Number.isFinite(speed)&&speed>0,'Invalid operation deposition speed.');
+    const moved=planMove(state,stroke.points[i],speed,volume,segmentExtras(stroke,op,i-1));
     state=moved.state;actions.add(moved.actions);
   }
   return planningResult(state,actions.finish());
 }
 
-export function scheduleOperations(skillResults, { order = [], dependencies = [], batchLayers = 1 } = {}) {
-  const batch=validateOperationBatch(skillResults,batchLayers);
-  const priorityById=prepareOperationPriorities(batch.operations,batch.resultIndex,batchLayers);
+export function scheduleOperations(skillResults, { order = [], dependencies = [] } = {}) {
+  const batch=validateOperationBatch(skillResults);
+  const priorityById=prepareOperationPriorities(batch.operations,batch.resultIndex);
   const prerequisites=prepareOperationDependencies(batch.operations,batch.byId,{order,dependencies});
   const scheduled=orderReadyOperations(batch.operations,priorityById,prerequisites);
   return scheduled;
 }
 
-export function validateOperationBatch(skillResults,batchLayers) {
-  requireThat(Number.isInteger(batchLayers) && batchLayers >= 1 && batchLayers <= 20, 'Batch size must be 1–20 layers.');
+export function validateOperationBatch(skillResults) {
   const operations = skillResults.flatMap(result => result.operations);
   const resultIndex = new Map(skillResults.flatMap((r,i)=>r.operations.map(op=>[op.id,i])));
   const byId = new Map();
@@ -132,16 +139,14 @@ export function validateOperationBatch(skillResults,batchLayers) {
   return {operations,resultIndex,byId};
 }
 
-export function prepareOperationPriorities(operations,resultIndex,batchLayers) {
+export function prepareOperationPriorities(operations,resultIndex) {
   // Dependencies express what must exist first. Among ready operations, keep
   // skills near the same physical height, even when a skill's rank is merely
   // its construction order (for example draped skin).
   // An atomic continuous operation stays intact; this is a preference, not a
   // height-difference gate or permission to split its deposition.
   const heights=new Map(operations.map(op=>[op.id,op.strokes.reduce((z,s)=>s.points.reduce((h,p)=>Math.max(h,p[2]),z),-Infinity)]));
-  const levels=[...new Set(heights.values())].sort((a,b)=>a-b);
-  const bands=new Map(levels.map((z,i)=>[z,Math.floor(i/batchLayers)]));
-  return new Map(operations.map((op,index)=>[op.id,{band:bands.get(heights.get(op.id)),result:resultIndex.get(op.id),index}]));
+  return new Map(operations.map((op,index)=>[op.id,{height:heights.get(op.id),result:resultIndex.get(op.id),index}]));
 }
 
 export function prepareOperationDependencies(operations,byId,{order=[],dependencies=[]}={}) {
@@ -151,7 +156,8 @@ export function prepareOperationDependencies(operations,byId,{order=[],dependenc
     prerequisites.get(edge.after).add(edge.before);
   }
   for (const [id, after] of prerequisites) for (const predecessor of after)
-    requireThat(byId.has(predecessor) && id !== predecessor, 'Unknown or self-dependent operation: ' + id);
+    requireThat(byId.has(predecessor) && id !== predecessor, id===predecessor
+      ?`Operation ${id} cannot depend on itself.`:`Operation ${id} depends on unknown operation ${predecessor}; use an exact operation ID.`);
   requireThat(new Set(order).size === order.length && order.every(id => byId.has(id)), 'Duplicate or unknown operation in composition order.');
   // Explicit order is an additional precedence constraint, never permission to
   // bypass geometry/support dependencies. Omitted operations remain schedulable.
@@ -167,7 +173,7 @@ export function orderReadyOperations(operations,priorityById,prerequisites) {
     remaining:prerequisites.get(op.id).size,following:[]}));
   const nodesById=new Map(nodes.map(node=>[node.op.id,node]));
   for(const node of nodes)for(const id of prerequisites.get(node.op.id))nodesById.get(id).following.push(node);
-  const compare=(a,b)=>a.band-b.band||a.result-b.result||a.op.rank-b.op.rank||a.index-b.index;
+  const compare=(a,b)=>a.height-b.height||a.result-b.result||a.op.rank-b.op.rank||a.index-b.index;
   const ready=[],scheduled=[];
   const push=node=>{
     let i=ready.length;ready.push(node);

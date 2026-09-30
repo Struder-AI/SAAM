@@ -5,23 +5,20 @@ import {createMachineLayer} from './machine-view.mjs';
 import {CURRENT_LAYER_GAP_MM,layerKey,toolpathStyle} from './toolpath-view.mjs';
 
 export const materialKey=move=>layerKey(move)+'\0'+(move.operation??'')+(move.filament===undefined?'':'\0'+move.filament);
-const mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
 
 // The surface frame a bead's cross-section stands on: one selected normal
 // function per move phase, with the nominal height and centering it implies.
 // `null` refuses the bead rather than inventing a frame.
-function beadFrame(move,plan,geometry,clad){
+function beadFrame(move,plan,geometry,assignment){
   const p=plan.process;
-  if(clad){
-    // Recover the commanded surface frame from interpreted tool orientation.
-    // The cladding producer tilts toward -V and sets tool Y to V cross normal.
-    if(!move.toolAxisTo||!move.toolUpTo)return null;
-    const height=plan.skills['pipe-cladding'].normalMm,tilt=plan.skills['pipe-cladding'].tiltDeg*Math.PI/180;
-    const frame=(axis,up)=>normalize(add(scale(axis,-Math.sin(tilt)),scale(cross(up,axis),-Math.cos(tilt))));
-    const a=frame(move.toolAxisFrom,move.toolUpFrom),b=frame(move.toolAxisTo,move.toolUpTo);
-    const distanceAlong=point=>length(subtract(point,move.from))/Math.max(1e-12,length(subtract(move.to,move.from)));
-    const surfaceNormal=point=>normalize(mix(a,b,Math.min(1,distanceAlong(point))));
-    return {normal:surfaceNormal,height,centered:true};
+  if(assignment?.stack?.direction==='normal'){
+    // Only unmodulated normal alignment lets source orientation identify the
+    // deposition surface. Upright or tilted poses need a labelled line fallback.
+    const tilted=plan.modulations?.modifiers.some(m=>m.channel==='tilt'&&m.amplitude!==0&&(m.assignments===null||m.assignments.includes(assignment.id)));
+    if(!assignment.toolPose?.alignToSliceNormal||tilted||!move.toolAxisFrom||!move.toolAxisTo)return null;
+    const span=length(subtract(move.to,move.from));
+    const normal=point=>{const t=Math.min(1,length(subtract(point,move.from))/span);return normalize(move.toolAxisFrom.map((v,i)=>-(v+(move.toolAxisTo[i]-v)*t)));};
+    return {normal,height:move.layer===0?assignment.stack.firstLayerMm:assignment.stack.layerMm,centered:true};
   }
   if(move.phase==='inclined'&&geometry.roof){
     const roofNormal=()=>normalize([-geometry.roof.a,-geometry.roof.b,1]);
@@ -29,7 +26,9 @@ function beadFrame(move,plan,geometry,clad){
   }
   // Source records do not yet retain these skills' local surface normals.
   // Keep an explicitly labelled line fallback rather than inventing a frame.
-  if(['draped-skin','wave-overhangs'].includes(move.phase))return null;
+  if(['skin','fronts','draped-skin','wave-overhangs'].includes(move.phase))return null;
+  if(assignment?.surface.kind==='plane')return {normal:()=>normalize(assignment.surface.normal),height:p.layerMm,centered:false};
+  if(assignment&&assignment.surface.kind!=='horizontal')return null;
   const layerNormal=()=>[0,0,1];
   return {normal:layerNormal,height:move.layer===0?p.firstLayerMm:p.layerMm,centered:false};
 }
@@ -37,14 +36,14 @@ function beadFrame(move,plan,geometry,clad){
 export function beadSection(move,plan,geometry,from=move.from,to=move.to,{gap=false}={}){
   if(!move.extruding||length(subtract(to,from))<1e-9)return null;
   const p=plan.process,tangent=normalize(subtract(to,from));
-  const clad=['cladding-axial','cladding-hoop','cladding-helix-forward','cladding-helix-reverse'].includes(move.phase);
-  const frame=beadFrame(move,plan,geometry,clad);
+  const assignment=plan.slices.assignments.find(a=>!a.construction&&move.operation?.startsWith((a.part===null?'':a.part+':')+a.id+':'));
+  const frame=beadFrame(move,plan,geometry,assignment);
   if(!frame)return null;
   const centered=frame.centered;let height=frame.height;
   if(!(height>0))return null;
   const originalLength=length(subtract(move.to,move.from));
   const area=originalLength>1e-9?(move.commandedVolumeMm3??move.volumeMm3)/originalLength:NaN;
-  if(!clad&&Number.isFinite(move.lineWidthMm)&&move.lineWidthMm>0&&Number.isFinite(area)&&area>0)height=area/move.lineWidthMm;
+  if(!centered&&Number.isFinite(move.lineWidthMm)&&move.lineWidthMm>0&&Number.isFinite(area)&&area>0)height=area/move.lineWidthMm;
   const width=Number.isFinite(area)&&area>0?area/height:p.lineWidthMm;
   const displayWidth=gap?Math.max(width-CURRENT_LAYER_GAP_MM,width*.5):width;
   function end(point){
@@ -71,7 +70,7 @@ export async function buildMaterialScene(moves,plan,geometry,{onProgress=()=>{},
   const due=()=>performance.now()-lastYield>=8;
   const pause=async progress=>{onProgress(progress);await yieldTask();lastYield=performance.now();};
   const indexedMove=i=>moves[i];
-  const read=moves.reader?.(['extruding','from','to','phase','layer','operation','commandedVolumeMm3','volumeMm3','toolAxisFrom','toolAxisTo','toolUpFrom','toolUpTo','filament','lineWidthMm'])??indexedMove;
+  const read=moves.reader?.(['extruding','from','to','phase','layer','sliceFamily','sliceIndex','modulated','operation','commandedVolumeMm3','volumeMm3','toolAxisFrom','toolAxisTo','toolUpFrom','toolUpTo','filament','lineWidthMm'])??indexedMove;
   for(let i=0;i<moves.length;i++){
     if(i%256===0&&due())await pause(i/Math.max(1,moves.length)*.25);
     const move=read(i);if(!move.extruding)continue;

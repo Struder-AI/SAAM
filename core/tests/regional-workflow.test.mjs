@@ -14,13 +14,14 @@ test('the complete regional stack uses native geometry, final confirmation, shar
   await initBundle(directory,plan,{machineId:machine.id});
   let state=await loadBundle(directory);
   const nativeFile=join(directory,state.geometryArtifact.file),native=await readFile(nativeFile);
-  assert.deepEqual(new Set(state.skills),new Set(['full-fill','vase-wall','planar-infill','draped-skin']));
+  assert.deepEqual(new Set(state.skills),new Set(['slice']));
   assert.doesNotMatch(state.limitations.join('\n'),/cap.*unsupported spans/,'no retired bridge-policy warning in the shared review workflow');
   await generateBundle(directory);state=await loadBundle(directory);
   assert.equal(state.programError,undefined);
-  assert.equal(state.pathSummary.regions.length,5);
+  assert.equal(state.pathSummary.vaseWall.instances.length+state.pathSummary.referenceFamilies.roof.length,2);
+  assert.deepEqual(state.pathSummary.slices.instances.filter(i=>i.layers&&!i.referenceFamily&&!i.construction).map(i=>i.owner),['base','cap','roof-body','upper']);
   assert.ok(state.program.moves.some(move=>move.phase==='vase-wall'&&move.extruding));
-  assert.ok(state.program.moves.some(move=>move.phase==='draped-skin'&&move.extruding));
+  assert.ok(state.program.moves.some(move=>move.operation?.startsWith('roof:roof-finish:')&&move.extruding));
   state=await loadBundle(directory);const bytes=await readFile(join(directory,state.review.generation.file));
   await assert.rejects(()=>deliver(directory),/approval/);
   state=await approve(directory,{actor:'SYNTHETIC REGIONAL SOFTWARE TEST ONLY',revision:state.revision});
@@ -32,11 +33,11 @@ test('the complete regional stack uses native geometry, final confirmation, shar
   const origin=`http://127.0.0.1:${server.address().port}`;
   const reviewed=await(await fetch(origin+'/api/state')).json();
   assert.equal(reviewed.toolpathApproved,true);
-  assert.deepEqual(reviewed.plan.composition.regions,plan.composition.regions);
+  assert.deepEqual(reviewed.plan.slices.assignments,plan.slices.assignments);
   assert.equal((await fetch(origin+'/settings.mjs')).status,200);
 
-  const regions=structuredClone(plan.composition.regions);regions.find(r=>r.id==='cap').skills['full-fill'].fillAnglesDeg=[0,90];
-  await adjustBundle(directory,{composition:{regions}},{expectedRevision:state.revision});
+  const assignments=structuredClone(plan.slices.assignments);assignments.find(a=>a.id==='cap').fillAnglesDeg=[0,90];
+  await adjustBundle(directory,{slices:{assignments}},{expectedRevision:state.revision});
   state=await loadBundle(directory);
   assert.equal(state.toolpathApproved,false);
   assert.deepEqual(await readFile(join(directory,'delivery/part.gcode')),bytes);

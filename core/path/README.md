@@ -1,7 +1,7 @@
 # Skill composition and travel
 
 Operation contracts, scheduling, shared motion state and travel over deposited
-material. [Material regions](../region/README.md#material-regions-and-shared-interfaces)
+material. [Material regions](../region/README.md#material-ownership-and-surface-contact)
 define ownership and interfaces; [print lifecycle](../print/README.md) owns plan
 locking, generation and review.
 
@@ -10,22 +10,27 @@ an unimplemented design for evaluation.
 
 ## Skill-result composition
 
-`toolpath.mjs::planToolpath` is the complete planning boundary: prepared skill
-results and locked machine/process settings enter; a SAAMpath leaves. It passes
-explicit planning state through startup, optional priming, operation composition
-and finishing, then assembles the action batches once. `planning.mjs` stages
-return the next state, emitted actions, timing/accounting and relevant decisions;
-they do not mutate their input state. A merged move returns a replacement for
-the preceding action rather than modifying an earlier stage's action object.
-Local loops may use mutable working collections. State carries the recent motion
-context, not a growing copy of the action history.
+Generation owns one machine-independent execution state through finalized
+deposition and finishing. Exporters add machine startup and service motions. The ready-work graph caches geometry after its material sources
+are finalized; exact operation dependencies remain separate from geometry edges.
+Eligible unmodified Slice strokes use their actual scheduled entry for ordering
+and connectors before publication. Trace, Inject and modified paths stay constrained.
+No later composer changes published material or independently reschedules it.
 
-All callers use these functional stages. `planComposition(state, results, rules,
-onProgress)` returns state, action deltas and a composition summary;
-`planPriming(state, geometryBounds, results)` returns a priming plan.
-`planningPath(state, actionChunks, summary)` materializes the complete path. The
-generated map of `core/path/toolpath.mjs::planToolpath` is the entry for reviewing
-the planning flow and its stages.
+`planOperationEntry` applies context, selection and startup actions once;
+`planPreparedOperation` emits the finalized strokes and operation ending.
+Planning stages return new state and action deltas; `planningPath` assembles them.
+A merged move replaces the preceding action rather than mutating it. Local loops
+own mutable work collections; state does not copy accumulated action history.
+Export preparation adds any profile-owned priming lane and checks its clearance
+against final deposition. Explicit recipe prime lines remain authored SAAMpath.
+
+Slice can emit derived poses: `toolPose:{}` stays upright along print Z;
+`{alignToSliceNormal:true}` follows its normal. The `tilt` field channel modulates
+either baseline. Omitted pose output keeps ordinary three-axis motion. Pose
+samples, tool axes and rotary angles are internal results, not recipe inputs;
+exporters represent these results using their machine's kinematics.
+
 
 Skills return an in-memory result `{id, operations, report}`. An operation has
 a unique `id`, a `layerId` identifying its deposition layer/surface, a numeric
@@ -47,19 +52,17 @@ and one continuous stroke per accepted spline slice. A slice is the cooling unit
 there is no interleaving, retraction or travel between its fronts. Whole-component
 seed and successor dependencies bind through the same composer, with slices in
 array order. The producer rejects geometry requiring disconnected passes.
-Material ownership is explicit; it does not publish `lowerSurfaceFrom` coverage.
+Material ownership is explicit; fronts do not publish a finished surface chart.
 
 `core/path/compose.mjs` is skill-independent. It topologically orders operations,
 rejects duplicate IDs, missing dependencies and cycles, and uses stable result
-order to break ties. Plan `composition` contains `batchLayers` (1–20), `order`
+order to break ties. Plan `composition` contains `order`
 (an optional ordered subsequence of operation IDs), and `dependencies` (additional
-`{before, after}` edges), plus optional material `regions` described below. Ready
-operations are grouped by maximum actual deposition Z to keep skill heights
-similar. Batch size 1 alternates compatible results at each height; size 2 gives
-AA–BB for two results with matching layers. Rank breaks ties within a result's
-height batch. This preference never splits atomic continuous operations. Explicit ordering
+`{before, after}` edges). Material claims live in common slice assignments. Ready
+operations use ascending maximum actual deposition Z. Rank breaks ties within a result's
+height group. This preference never splits atomic continuous operations. Explicit ordering
 and dependencies can interleave operations within a layer. They cannot remove a
-skill's prerequisites. The agent proposes these choices before toolpath generation;
+skill's prerequisites. Old batchLayers recipes require explicit migration and regeneration;
 generation executes the locked rules without a new planning or approval stage.
 
 `scheduleOperations` exposes validation, priority preparation, dependency
@@ -68,71 +71,46 @@ carry the operation batch, priority lookup and prerequisite sets. The ordering
 stage builds its own mutable heap and dependency counters; it does not consume
 or change those inputs.
 
-The composer carries travel/retraction state between operations and finishes
-cooling once after all operations assigned to a shared layer. Hops
-clear all material deposited so far, including travel from a taller batched
-column toward a lower one. This is not a full
-collision or swept-head model. Results must describe compatible regions and
+Execution retains travel/retraction state. On leaving a layer it parks and pays
+remaining minimum-layer cooling debt. Consecutive same-layer work accrues together;
+elapsed work and paid debt survive revisits. This intentionally cools
+noncontiguous dependency-driven layers earlier than the former last-occurrence rule.
+Hops clear previously deposited material; this is not a swept-head collision model. Results must describe compatible regions and
 material ownership; the composer does not infer arbitrary geometric overlap, support,
 bridge printability or a safe order from arbitrary strokes alone.
 
-Full-fill produces separate wall and interior-fill operations for each layer.
+Each slice owner produces separate wall, sparse-fill and solid-fill operations
+for each layer.
 Scanline-based interiors and draped skins label uninterrupted zigzags with
 `scanlineCell` and request `order: 'nearest-cells'`. The shared composer chooses
 the closest endpoint of either end row of each remaining cell by XYZ distance
 from the actual nozzle position. It completes that cell before selecting another.
-Row order and stroke direction can reverse independently, providing up to four
-entry choices. Reversing strokes also reverses per-segment volumes/metadata.
-Equal distances retain producer order. This mode requires open strokes without
-tool poses and does not reorder operations or split continuous operations.
-Concentric/gyroid paths keep their existing ordering.
+Row order and direction can reverse independently; equal distances retain producer
+order. `strokeRange` keeps vertex channels and edge material aligned through
+cropping, reversal and closed-loop rotation. Closed inputs retain their closing
+edge, including explicitly repeated endpoints. Ordering does not split continuous
+strokes or reorder operations; generation selects eligible operations separately.
 No lookahead, travel-time scoring or heat balancing is included; see
 [D-026](../../DECISIONS.md#d-026--closest-region-entry-first-defer-heat-considerations).
 An assembly's `geometry.parts` holds named components with `geometry` and
 `xMm/yMm/zMm` translations; native geometry preserves each component's representation.
-`skills.full-fill.parts` selects the components to fill (empty means all),
-producing one skill instance per component. `skills.draped-skin.part` selects
-the roof component for an assembly. Assemblies accept supported spline builders
+A slice assignment's `part` selects its component (`null` means all), producing
+one owner per component. A roof surface-domain assignment selects its assembly component through the same part field. Assemblies accept supported spline builders
 and validated meshes; they are not automatic boolean solids. Assign regions
 and geometry deliberately; component selection is part of the reviewed recipe.
 
-Full-fill and draped-skin do **not** weave through each other. All supporting fill
-operations precede the first skin, and skin layers remain ordered. Two supporting
-columns may alternate or batch before a spanning roof. The current skin bead
-model is approximate and does not prove that an unsupported span will print.
-Future skills use the same operation/dependency boundary; do not add a new
-composer for each skill pair.
+Dependent surface courses wait for their declared finalized material sources.
+All skills use the same operation/dependency boundary; no skill pair has a
+separate composer. A nominal bead model does not prove physical support.
 
-[Vase-wall](../../skills/vase-wall/SKILL.md) is one atomic continuous operation with
-actual changing-Z section queries; a standard mesh wall may instead follow a
-fitted NURBS sleeve within its sampled `sleeveToleranceMm`, returning to exact
-sections when the fit or wall thickness does not qualify. It accepts one outer section, including
-concavity, while its inset remains one loop without holes or islands. Arc-length
-traversal uses a fixed projected seam rather than a common interior point; mesh and restricted spline
-backends remain behind the shared queries. Its locked `endTransition` can leave
-a spiral rim or complete a level rim with a final turn whose material thickness
-tapers to zero. A planar successor needs that level boundary. The continuous
-stroke cannot weave turn by turn with infill occupying the same height band;
-different regions of the same part can use the other skills. The manual owns
-standoff, sampling and sleeve-tolerance limits; there is no point budget, so a
-wall takes the points its geometry requires. Turn-to-turn bead overlap is a
-geometry/process judgment for the agent and maker, not a generation gate.
-
-The same package also implements [advanced vase mode](../../skills/advanced-vase-wall/SKILL.md#sleeve-patterns).
-The ordinary recipe keeps one cell curve plus cells per turn, course rise,
-course count and tilt. Its regular reference-strip tiler joins identical cell
-endpoints, adds rise, and feeds the existing mapper one connected stroke per
-course. The skill manual owns cell coordinates, placement and tilt semantics.
-Advanced ordered [perimeter turns, height] paths also repeat around a required solid or closed
-sleeve through the same actual-Z contour query. Optional signed contour offsets
-give a tile depth relative to the wall; inward tilted loops can retain the
-host's exterior. The host is only a mapping reference: no guide wall, foundation
-ring or lead-in is deposited in patterned mode. Pattern tilt and overlap remain recipe judgments. Continuous mode joins mapped
-endpoints, including the periodic seam and repetition boundaries; explicit
-segmented mode permits shared travel. Patterns contain deposition only and are
-never independent XYZ shapes. [deposition.mjs](./deposition.mjs) constructs volumes
-for plain spirals and patterns; [contour-path.mjs](../geom/contour-path.mjs) owns
-arc-length traversal. Patterns publish no assumed area, rim or finished side surface.
+[Standard vase](../../skills/vase-wall/SKILL.md) lowers to a continuous Slice
+spiral; [advanced vase](../../skills/advanced-vase-wall/SKILL.md) supplies sleeve-
+mapped Trace courses. Both use shared bead construction and composition. Their
+manuals own fitting, sampling, explicit path and placement controls. A continuous operation
+cannot interleave with infill in the same height band; a planar successor needs
+a level terminal boundary. The sleeve is reference geometry, never an implicit
+wall, foundation or filled support sheet. Dependent contact uses finalized beads
+and explicit prerequisites, preserving the gaps in patterned material.
 
 ## Finished surfaces
 
@@ -146,8 +124,8 @@ as a tiny XYZ move or as retraction recovery.
 
 Optional `nozzleC` and required paired `restoreNozzleC` scope a nozzle temperature
 to an operation. The composer parks before changing temperature and before
-restoring it. [Process controls](./process-controls.mjs) own recipe temperature
-discovery and validation; machine adapters own command semantics. Current
+restoring it. [Process controls](./process-controls.mjs) own export temperature
+validation; machine adapters own command semantics. Current
 filament-axis G-code outputs support these actions; relay outputs reject them.
 [Plastic weld](../../skills/plastic-weld/SKILL.md) is their first producer.
 
@@ -175,7 +153,7 @@ classification and does not become a verified continuous support surface.
 `consumeFinishedSurface` binds a selected native spline or mesh chart to the
 matching component's published boundaries. Chart samples must lie within a
 published extent and boundary, and the consumer inherits source operation
-dependencies. Current cladding needs a rectangular periodic chart and adds
+dependencies. Normal-band Slice cell fill needs a rectangular periodic chart and adds
 outward normal shells; it accepts a finished boundary regardless of which
 producer supplies it. This interface does not add chart unwrapping, arbitrary
 multi-patch routing, physical contact verification or a second scheduler.
@@ -183,24 +161,23 @@ multi-patch routing, physical contact verification or a second scheduler.
 ## Line spacing
 
 [spacing.mjs](./spacing.mjs) derives nominal centerline pitch from bead width and
-one optional per-skill `spacingFactor`: a finite number at least `0.5`, defaulting
+one optional per-skill `spacingFactor`: a finite positive number, defaulting
 to `1`. Values below 1 intentionally overlap adjacent beads; values above 1
 leave space between them. Producers use that pitch for course placement and the actual bead width
 for cross section and segment volume. Agents never need to match independent
 pitch and extrusion settings. Plan validation checks regional overrides through
 the same contract.
 
-Full-fill, planar-infill, draped-skin, supports and pipe-cladding implement it. Existing infill and support density divides the
-derived pitch as before. Full-fill walls retain the exterior contacting bead
-and space successive walls inward. Planar infill's complementary solid masks use the
-full-fill factor. Cladding uses its own factor for axial cells and helix pitch,
+Ordinary and surface-family Slice assignments implement it. Fill density divides the
+derived pitch. Slice loops retain the exterior contacting bead
+and space successive loops inward. Cladding uses its own factor for axial cells and helix pitch,
 while its substrate retains the settings of its producing patterns. Normal shell/layer separation is
 unchanged. Vase-wall's vertical spiral progression is outside this interface.
 
 Circular track counts and native surface metrics still fit local bead widths;
 course-cell width is divided by the factor before computing extrusion. Edge
 tapers use bead width, not widened pitch. Surface spacing remains sampled, with
-the cladding producer's existing metric and fixed-relay flow limitations.
+the periodic-cell field's sampled metric. Exporters own fixed-relay flow representation.
 The setting does not add a material profile or establish physical printability.
 
 Planar interiors with factors above 1 publish sparse coverage; spaced walls
@@ -230,7 +207,7 @@ automatic print rejection or another maker approval. Shared travel handling
 still routes the transitions that remain. Nearest-entry guidance does not
 claim a globally optimal route or implement lookahead by itself.
 
-`planning.mjs::planTravel` is the shared travel stage for full-fill, planar-infill,
+`planning.mjs::planTravel` is the shared travel stage for slices,
 draped-skin and vase-wall. `planMove` returns updated planning state with the highest
 deposited Z from both endpoints of every emitted positive-volume segment,
 including prime lines, sloping strokes and previous components. Travel without
@@ -242,8 +219,8 @@ Lifted traverses use `max(depositedMaxZ + process.liftMm, fromZ, toZ)`.
 Future strokes and unselected geometry do not raise current travel. The endpoint
 floor avoids descending before traversing from a higher startup/park position or
 toward a higher destination. Cooling and final SAAMpath parking use the same
-height calculation. Required clearance above the selected tool's Z bounds is
-rejected. Existing recipes retain their explicit locked clearance value.
+height calculation. Exporters check selected tool bounds. Existing recipes
+retain their explicit locked clearance value.
 Compose all results together so planning state carries chronology across skills.
 Machine firmware service routines (including H2D shutdown) retain their separate
 export contracts; they are not ordinary SAAMpath travel.
@@ -252,13 +229,13 @@ Nearest wall starts, alternating infill and verified combing reduce travel.
 The shared scanline fill completes disconnected components and splits each
 connected component into uninterrupted runs of rows at interval splits/merges.
 This also orders the sides of holes and concavities, rather than crossing each
-hole on every row. Full-fill, planar-infill and draped-skin
+hole on every row. Slices and draped-skin
 use the same scanline implementation. Ordering changes neither row endpoints
 nor deposition coverage; connections still use the shared travel checks.
 
 A stroke of a `connectNearby` operation that starts within 2 mm of the end of
-the preceding deposition continues as deposition: `planConnection` returns
-one straight connector carrying the next stroke's bead (its uniform area, or its
+the preceding deposition can become an explicit finalized connector carrying
+the next stroke's bead (its uniform area, or its
 first segment's volume per length and metadata). This joins fill rows into a
 zigzag, steps between wall loops and concentric rings, and enters fill from the
 last wall without a travel. The connector must pass the same direct-move checks
@@ -267,10 +244,9 @@ operations, not retracted and directly after deposition. Planar regions check it
 with `connectClearanceMm`, the half-line-width standoff less 0.05 mm, because
 wall centerlines lie on that standoff less the offset kernel's arc chords.
 Oriented strokes have no footprint query; they connect only across the
-producer's declared `poseJoinMm` index within one operation. Full-fill and its
-callers (planar-infill, supports, regional fill), draped-skin, thick-lip and
-axial pipe/surface cladding opt in. Line networks, mapped vase patterns, rims,
-waves and welds do not: their gaps are authored. A short distance never permits
+producer's declared `poseJoinMm` index within one operation. General Slice
+fields opt in only where they can prove deposited connectivity. Explicit Trace
+gaps remain authored, and stationary Inject has no stroke connectors. A short distance never permits
 crossing an opening or bypassing an earlier operation's clearance restriction.
 
 Where no connector applies, stroke starts within 1 mm use direct non-extruding
@@ -284,32 +260,30 @@ holds less than 0.001 mm3, which a machine program could only write as travel.
 `trimVanishingEnd` returns the shortened stroke with aligned point, volume and
 segment-metadata arrays; callers use it for both deposition and rim reporting.
 
-`planMove` merges consecutive forward collinear moves with the same
-speed, volume per length and semantic metadata. A fixed line anchors each run
-within the numerical plane tolerance (0.0000001 mm), so successive small turns
-cannot accumulate into curve flattening. It sums deposited volume and retains
-the endpoint. Corners, reversals, process/flow changes, operation/layer/role
-boundaries and intervening retraction/fan/dwell actions remain explicit. All
-skills use this writer; variable-gap/surface samples remain separate when their
-flow or metadata changes. This compacts SAAMpath before any machine export,
-not just the displayed path.
+`planMove` coalesces forward moves with equal speed, flow density, pose and
+semantic metadata. A fixed original axis prevents accumulated curve flattening:
+ordinary collinear runs use 0.0000001 mm tolerance; merging a movement below
+0.0001 mm bounds original-point deviation from the final chord by 0.0001 mm.
+Volume, elapsed time and final endpoints survive. Reversals, changed poses,
+process/flow and operation/layer/role boundaries, and intervening controls stay
+explicit. All producers use this shared SAAMpath writer after field evaluation
+and before export; tiny meaningful movements are retained when merging would
+lose those semantics.
 
 Mesh sections remove numerical triangle seams with `cleanPlanarLoop` before
 offsetting. The distance bound is the existing 0.0000001 mm plane tolerance,
 tested against every original point in the replacement span; it does not use
 an angle cutoff or accumulate successive local simplifications. Closed contours
-retain winding, corners and reversals. Full-fill/planar-infill also clean offset
+retain winding, corners and reversals. Slice loops also clean offset
 deposition contours at that tolerance, while retaining the offset kernel's region
 output for booleans. No curve-resolution or Clipper precision setting is relaxed.
 
-`createSectionQuery` in `core/geom/query.mjs` prepares repeated sections of one
-fixed geometry. Vase-wall uses it for its changing-Z samples. Mesh queries build
-a Z-bound hierarchy and sorted vertex heights once, preserving triangle order,
-vertex nudges and contour construction while skipping irrelevant triangles.
-Each triangle is stored once, so tall triangles do not multiply index storage.
-The query belongs to one generation; recreate it after any geometry edit or
-placement change. Direct one-off cuts and spline sectioning remain available
-through the same shared boundary. The index changes no sampling tolerance.
+`prepareSection` in `core/geom/slice.mjs` prepares repeated sections of one
+fixed geometry by slices of one orientation: each mesh gets sorted vertex
+heights and a height-interval tree in the slice's frame, storing each triangle
+once and keeping triangle order, vertex nudges and contour construction. It
+belongs to one generation; prepare again after any geometry edit or placement
+change. The index changes no sampling tolerance.
 
 The shared S5/H2D motion emitter establishes XYZ/feed state on first use, then
 omits unchanged fields. Retractions update the same modal feed state. E remains

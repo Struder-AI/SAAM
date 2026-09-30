@@ -6,7 +6,7 @@ export const LAYER_FADE_MS=2000;
 // User-verified visible palette; additional colors may be used when needed.
 // Sky blue includes the user's requested slight darkening from #62a9df.
 export const TOOLPATH_COLORS={skyBlue:'#5b9fd3',orange:'#c65b19',teal:'#53b8af',lavender:'#a799dc'};
-export const layerKey=move=>move?`${move.phase}\0${move.layer}`:null;
+export const layerKey=move=>move?(move.sliceFamily?`${move.sliceFamily}\0${move.sliceIndex}`:`${move.phase}\0${move.layer}`):null;
 // Keep the normal two-second fade unless the next layer arrives sooner.
 export function createLayerFade() {
   let previous=null;
@@ -38,13 +38,13 @@ function mixColor(from,to,t){
 }
 export function toolpathStyle(move,current,skinPhase='draped-skin',emphasis,{lineWidthMm=0.4,pixelsPerMm=1,previousLayerOpacity=0.5}={}) {
   lineWidthMm=move.lineWidthMm??lineWidthMm;
-  const active=!!current&&move.layer===current.layer&&move.phase===current.phase;
-  const skin=move.phase===skinPhase||move.phase==='wave-overhangs'||move.phase==='vase-wall'||move.phase==='segmented-paths'||move.phase==='cladding-hoop'||move.phase==='cladding-helix-reverse';
+  const active=!!current&&layerKey(move)===layerKey(current);
+  const skin=move.phase===skinPhase||move.phase==='skin'||move.phase==='fronts'||move.phase==='vase-wall'||move.phase==='segmented-paths'||move.phase==='surface-circumferential'||move.phase==='surface-reverse'||move.phase==='cladding-hoop'||move.phase==='cladding-helix-reverse';
   const baseline=Math.max(0.5,Math.min(1,previousLayerOpacity));
   const opacity=active?1:baseline+(1-baseline)*(emphasis??0);
   const strength=(opacity-0.5)*2;
-  const axial=move.phase==='cladding-axial'||move.phase==='cladding-helix-forward';
-  const foreground=move.extruding?(move.filamentColor??(axial?TOOLPATH_COLORS.teal:skin?TOOLPATH_COLORS.orange:move.phase==='prime'?'#5b92a3':TOOLPATH_COLORS.skyBlue)):'#657fa3';
+  const axial=move.phase==='surface-axial'||move.phase==='cladding-axial'||move.phase==='cladding-helix-forward';
+  const foreground=move.extruding?(move.filamentColor??(move.modulated?TOOLPATH_COLORS.lavender:axial?TOOLPATH_COLORS.teal:skin?TOOLPATH_COLORS.orange:move.phase==='prime'?'#5b92a3':TOOLPATH_COLORS.skyBlue)):'#657fa3';
   const pale=move.extruding?(axial?mixColor(foreground,'#f3f1eb',.55):skin?'#d6a17c':move.phase==='prime'?'#5b92a3':'#b9d6ed'):'#aeb8c5';
   // Inset only the current layer's display strokes to reveal adjacent tracks.
   // This is a model-space gap, not a fixed-pixel minimum or a print change.
@@ -76,10 +76,11 @@ function simplify(moves,first,last) {
 }
 export function buildToolpathView(moves) {
   const groups=[];
-  const value=(i,key)=>moves.value?moves.value(i,key):moves[i][key];
+  const read=moves.reader?.(['sliceFamily','sliceIndex','phase','layer'])??(i=>moves[i]);
+  const keyAt=i=>layerKey(read(i));
   for(let i=0;i<moves.length;){
-    const first=i,layer=value(i,'layer'),phase=value(i,'phase');
-    while(i+1<moves.length&&value(i+1,'layer')===layer&&value(i+1,'phase')===phase)i++;
+    const first=i,key=keyAt(i);
+    while(i+1<moves.length&&keyAt(i+1)===key)i++;
     groups.push({first,last:i});i++;
   }
   return {moves,groups,memo:createToolpathMemo()};

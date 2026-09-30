@@ -8,14 +8,15 @@ import {sectionGeometry} from '../../../core/geom/query.mjs';
 import {pointSegmentDistance,loopArea,dedupe} from '../../../core/region/region2d.mjs';
 import {boxMesh} from '../../../core/tests/fixtures/mesh.mjs';
 import {offsetRegion} from '../../../core/region/offset.mjs';
-import {vaseWallResult} from '../scripts/vase.mjs';
+import {sleeveAssignment} from '../../../core/print/sleeve-constructions.mjs';
+import {prepareSliceContexts,sliceContextResult} from '../../../core/print/slices.mjs';
 
 function vasePlan(machine=loadMachine(),geometry=boxMesh(8,6,1)) {
   const plan=defaults(machine);plan.geometry=geometry;
-  plan.skills['full-fill'].enabled=false;plan.skills['draped-skin'].enabled=false;plan.skills['vase-wall'].enabled=true;plan.skills['vase-wall'].endTransition='spiral';
+  plan.slices.assignments=[sleeveAssignment({id:'wall',endTransition:'spiral'})];
   // These regressions assert the exact per-section wall (kernels, topology,
   // section-following within boundaryToleranceMm).
-  plan.skills['vase-wall'].sleeveToleranceMm=0;
+  plan.slices.assignments[0].sleeveToleranceMm=0;
   return plan;
 }
 // A real rocket-nozzle mesh section captured at the exact height where the exact
@@ -66,10 +67,10 @@ test('expanding polygonal cup keeps continuous phase when the first seam enters 
   for(let i=1;i<n-1;i++)triangles.push([0,i+1,i],[n,n+i,n+i+1]);
   const machine=loadMachine(),geometry={shape:'mesh',vertices,triangles,source:null};
   const plan=vasePlan(machine,geometry),r=await rhino();
-  plan.skills['vase-wall'].endTransition='level';
+  plan.slices.assignments[0].endTransition='level';
   for(const [x,y] of [[0,0],[165,120]]){
     const shell=translateShell(buildShell(r,geometry),x,y);
-    const result=vaseWallResult({shell,plan,machine,zStartMm:1.2,zEndMm:4});
+    const result=sliceContextResult(prepareSliceContexts({plan,machine,shells:[],boundaryAssignments:[{shell,assignment:{...plan.slices.assignments[0],zStartMm:1.2,zEndMm:4},process:plan.process}]}).contexts[0]);
     const points=result.operations[0].strokes[0].points;
     assert.equal(result.report.levelRimMm,4);
     assert.equal(points.at(-1)[2],4);
@@ -79,7 +80,7 @@ test('expanding polygonal cup keeps continuous phase when the first seam enters 
       const angle=p=>Math.atan2(p[1]-y,p[0]-x);
       const delta=Math.atan2(Math.sin(angle(b)-angle(a)),Math.cos(angle(b)-angle(a)));
       assert.ok(delta>=-1e-6,'the spiral does not reverse around its guide');
-      assert.ok(Math.hypot(...b.map((v,k)=>v-a[k]))<=plan.skills['vase-wall'].sampleStepMm+1e-9);
+      assert.ok(Math.hypot(...b.map((v,k)=>v-a[k]))<=plan.slices.assignments[0].sampleStepMm+1e-9);
       assert.ok(b[2]>=a[2]);turns+=delta/(2*Math.PI);
       // Independent regular-polygon boundary at both the emitted endpoint and
       // chord midpoint: the seam fix must not move the wall off its guide.
@@ -87,7 +88,7 @@ test('expanding polygonal cup keeps continuous phase when the first seam enters 
         const radius=18+4*p[2]/18;
         const loop=Array.from({length:n},(_,j)=>[x+radius*Math.cos(j*2*Math.PI/n),y+radius*Math.sin(j*2*Math.PI/n)]);
         const gap=Math.min(...loop.map((q,j)=>pointSegmentDistance(p,q,loop[(j+1)%n])));
-        assert.ok(Math.abs(gap-plan.process.lineWidthMm/2)<=plan.skills['vase-wall'].toleranceMm);
+        assert.ok(Math.abs(gap-plan.process.lineWidthMm/2)<=plan.slices.assignments[0].toleranceMm);
       }
     }
     // The level finish ends where its vanishing taper holds no writable material.
@@ -128,7 +129,7 @@ test('a healthy section with tessellation seam steps still offsets to one contin
   // offset (width/2 = 0.2 mm), on the same grid and arc tolerance the wall uses.
   const rawInset=offsetRegion([dedupe(seamPinchSection)],-0.2,{precisionMm:0.00001,arcToleranceMm:0.005});
   assert.ok(rawInset.length>1&&rawInset.filter(loop=>loopArea(loop)>0).length===1,'the raw seam-stepped section splits a sliver off the inward offset');
-  const plan=vasePlan(machine,seamPinchMesh());plan.skills['vase-wall'].zEndMm=7.5;
+  const plan=vasePlan(machine,seamPinchMesh());plan.slices.assignments[0].zEndMm=7.5;
   const path=generatePath(plan,machine,r),wall=path.actions.filter(a=>a.role==='vase-wall');
   assert.ok(wall.length>100,'the exact wall completes over the seam-stepped section');
   assert.equal(new Set(wall.map(a=>a.operation)).size,1,'one uninterrupted stroke');
@@ -136,23 +137,20 @@ test('a healthy section with tessellation seam steps still offsets to one contin
   for(const action of wall) {
     const loop=sectionGeometry(shell,action.to[2]).loops[0];
     const gap=Math.min(...loop.map((p,i)=>pointSegmentDistance(action.to,p,loop[(i+1)%loop.length])));
-    assert.ok(Math.abs(gap-plan.process.lineWidthMm/2)<=plan.skills['vase-wall'].toleranceMm,'centerline holds the bead-half-width standoff to the actual boundary');
+    assert.ok(Math.abs(gap-plan.process.lineWidthMm/2)<=plan.slices.assignments[0].toleranceMm,'centerline holds the bead-half-width standoff to the actual boundary');
   }
 });
 
 test('a wall takes the points its geometry requires, and a retired point budget is rejected',async()=>{
   const machine=loadMachine(),r=await rhino();
   // Well past the former 100000-point default on the exact per-section path.
-  const tall=vasePlan(machine,boxMesh(8,6,90));tall.skills['vase-wall'].sampleStepMm=0.1;
-  const result=vaseWallResult({shell:translateShell(buildShell(r,tall.geometry),tall.placement.xMm,tall.placement.yMm),plan:tall,machine});
+  const tall=vasePlan(machine,boxMesh(8,6,90));tall.slices.assignments[0].sampleStepMm=0.1;
+  const result=sliceContextResult(prepareSliceContexts({plan:tall,machine,shells:[],boundaryAssignments:[{shell:translateShell(buildShell(r,tall.geometry),tall.placement.xMm,tall.placement.yMm),assignment:tall.slices.assignments[0],process:tall.process}]}).contexts[0]);
   assert.ok(result.report.points>100000,`expected more than 100000 wall points, got ${result.report.points}`);
   assert.equal(result.operations[0].strokes[0].points.length,result.report.points);
   assert.equal('maxPoints' in result.report,false);
   assert.equal('maxSectionQueries' in result.report,false);
   // The retired budget is no longer accepted anywhere in a recipe.
-  const retired=vasePlan();retired.skills['vase-wall'].maxPoints=100;
-  assert.throws(()=>validatePlan(retired,machine),/Unexpected or missing fields/);
-  const regional=vasePlan();
-  regional.composition.regions=[{id:'wall',part:null,zStartMm:0,zEndMm:1,lowerSurfaceFrom:null,skills:{'vase-wall':{maxPoints:100}}}];
-  assert.throws(()=>validatePlan(regional,machine),/Unknown or region-owned skill override/);
+  const retired=vasePlan();retired.slices.assignments[0].maxPoints=100;
+  assert.throws(()=>validatePlan(retired,machine),/Invalid sleeve assignment fields/);
 });

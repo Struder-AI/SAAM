@@ -6,6 +6,7 @@ import {buildMaterialScene,createMaterialRenderer} from './material-view.mjs';
 import {drawMachineCanvas} from './machine-view.mjs';
 import {point} from '../core/machine/rigid.mjs';
 import {createViewPerformance,createMotionQuality} from './view-performance.mjs';
+import {injectionPoints,depositionUnit} from './settings.mjs';
 
 const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 
@@ -33,7 +34,8 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
     groups:pathView?.groups??[],moves:pathView?.moves??[],hasSelectedEdge:id=>geometryScene?.edgeFeatures.has(id)??false,
     edge:id=>geometryScene?.edgeFeatures.get(id),solid:Boolean(materialScene&&materialRenderer)});
   function publishGeometry({geometry,featureEdges=[]}) {
-    geometryScene=buildGeometry(geometry,35,featureEdges);picking.project=null;geometryError='';
+    geometryScene=geometry?buildGeometry(geometry,35,featureEdges):null;picking.project=null;geometryError='';
+    if(!geometry)return sceneState();
     try{geometryRenderer??=createGeometry();if(!geometryRenderer)geometryError='Shading needs WebGL2; showing flat surfaces.';}
     catch(error){geometryError='Shading unavailable: '+error.message;}
     return sceneState();
@@ -75,12 +77,18 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
     const strokeScale={lineWidthMm:shown.plan.process.lineWidthMm,pixelsPerMm:project.pixelsPerMm,previousLayerOpacity:settings.previousLayerOpacity};
     for(let x=bounds.min[0]-10;x<=bounds.max[0]+10;x+=5)segment(referenceProject([x,bounds.min[1]-10,0]),referenceProject([x,bounds.max[1]+10,0]),'#dbe1d4',.6);
     for(let y=bounds.min[1]-10;y<=bounds.max[1]+10;y+=5)segment(referenceProject([bounds.min[0]-10,y,0]),referenceProject([bounds.max[0]+10,y,0]),'#dbe1d4',.6);
-    if(snapshot.showGeometry){picking.project=project;
+    if(snapshot.showGeometry&&geometryScene){picking.project=project;
       if(geometryRenderer)try{const options={project,width,height,ratio,color:TOOLPATH_COLORS.skyBlue,selected};geometryRenderer.draw(geometryScene,{...options,shadow:true});ctx.save();ctx.globalAlpha=.16;ctx.filter='blur(6px)';ctx.drawImage(geometryRenderer.canvas,0,0,width,height);ctx.restore();geometryRenderer.draw(geometryScene,options);ctx.drawImage(geometryRenderer.canvas,0,0,width,height);}catch(error){geometryError=error.message;geometryRenderer.dispose();geometryRenderer=null;}
       if(!geometryRenderer){const pts=state.geometry.vertices.map(project),polygons=state.geometry.faces.map((face,i)=>({id:state.geometry.labels[i],edges:geometryScene.topology.edgeMasks[i],points:face.map(j=>pts[j]),depth:face.reduce((sum,j)=>sum+pts[j][2],0)/face.length})).sort((a,b)=>a.depth-b.depth);
         for(const polygon of polygons){ctx.beginPath();polygon.points.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();ctx.fillStyle=polygon.id===selected?'#83b5d6':TOOLPATH_COLORS.skyBlue;ctx.fill();for(let i=0;i<polygon.points.length;i++)if(polygon.edges[i])segment(polygon.points[i],polygon.points[(i+1)%polygon.points.length],'#5c879e',.6);}}
       if(!geometryRenderer&&geometryScene?.edgeFeatures.has(selected))for(const [a,b]of visibleGeometryEdgeSegments(geometryScene,project,selected))segment(a,b,'#eb591f',3);
       annotations.selectionText=selected?selectionLabel:geometryError||'Click a surface or edge to see its name';
+    }
+    if(snapshot.showGeometry)for(const record of injectionPoints(shown.plan)){
+      const p=project(record.point),above=project([record.point[0],record.point[1],record.point[2]+record.approachMm]);
+      segment(above,p,'#b85c28',1.5);ctx.beginPath();ctx.arc(p[0],p[1],5,0,Math.PI*2);ctx.strokeStyle='#b85c28';ctx.lineWidth=2;ctx.stroke();
+      ctx.fillStyle='#8f451e';ctx.font='12px Segoe UI';ctx.fillText(record.id+' · '+record.volumeMm3+' mm³',p[0]+10,p[1]-8);
+      if(!geometryScene)annotations.selectionText='Authored injection locations and approach; no occupied volume is inferred';
     }
     if(tab==='toolpath'&&shown.program&&pathView){const moves=shown.program.moves,at=frameAtTime(moves,position),count=at.completed,placement=shown.plan.placement,showTravel=settings.showTravel;
       annotations.layerText='Layer '+(layerIndexAt(pathView,position)+1)+'/'+pathView.groups.length;
@@ -96,8 +104,14 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
       const detail=!solid||showTravel||materialScene.unsupported.length?toolpathFrame(pathView,count,showTravel):{segments:[]};
       annotations.detailText=solid?(materialScene.unsupported.length?'Line view for '+materialScene.unsupported.join(', ')+': surface frames unavailable.':''):materialError||(detail.overview?'Layer overview · detail follows playback. Export keeps every point.':detail.reduced?'Curves simplified for display (0.02 mm). Export keeps every point.':'');
       const {displayed,current,currentLayer}=toolpathPresentation(moves,at,detail),fade=fadeState.frame(currentLayer,frameNow,remainingLayerMs(pathView,at.active,position,playbackSpeed)),styles=new Map();
+      const inspection=shown.pathSummary?.inspection,info=inspection?.operations?.[currentLayer?.operation],reference=info?.layers?.[currentLayer?.layer];
+      if(info&&reference){
+        annotations.layerText=`${info.family} · ${depositionUnit(info.kind)} ${reference.index+1} · step ${layerIndexAt(pathView,position)+1}/${pathView.groups.length}`;
+        annotations.detailText=[annotations.detailText,`Roles: ${info.roles.join(', ')}`,...(info.modifiers.length?[`Modulation: ${info.modifiers.join(', ')}`]:[]),
+          ...(info.kind==='trace'&&info.referenceName?[`Reference: ${info.referenceName}`]:[])].filter(Boolean).join(' · ');
+      }
       if(solid)try{const start=now();materialStats=materialRenderer.draw(materialScene,{at,current:currentLayer,fade,project:materialProject,width,height,ratio,skinPhase,previousLayerOpacity:settings.previousLayerOpacity,machine,machineMode:cameraMode,machinePalette:machineColors,quality});ctx.drawImage(materialRenderer.canvas,0,0,width,height);materialMs=now()-start;}catch(error){materialError=error.message;materialRenderer.dispose();materialRenderer=null;materialScene=null;if(!updateUI)throw error;annotations.redraw=true;}
-      for(const active of [false,true])for(const edge of displayed){if(solid&&edge.move.extruding&&materialScene?.supported[edge.first])continue;const key=layerKey(edge.move),styleKey=key+':'+!!edge.move.extruding+':'+(edge.move.filament??'')+':'+(edge.move.lineWidthMm??'');let style=styles.get(styleKey);if(!style){style=toolpathStyle(edge.move,currentLayer,skinPhase,fade.weights.get(key)??0,strokeScale);styles.set(styleKey,style);}if(style.active!==active)continue;ctx.globalAlpha=style.opacity;segment(project(local(edge.from)),project(local(edge.to)),style.color,style.width);}
+      for(const active of [false,true])for(const edge of displayed){if(solid&&edge.move.extruding&&materialScene?.supported[edge.first])continue;const key=layerKey(edge.move),styleKey=key+':'+!!edge.move.extruding+':'+!!edge.move.modulated+':'+(edge.move.filament??'')+':'+(edge.move.lineWidthMm??'');let style=styles.get(styleKey);if(!style){style=toolpathStyle(edge.move,currentLayer,skinPhase,fade.weights.get(key)??0,strokeScale);styles.set(styleKey,style);}if(style.active!==active)continue;ctx.globalAlpha=style.opacity;segment(project(local(edge.from)),project(local(edge.to)),style.color,style.width);}
       ctx.globalAlpha=1;for(const event of shown.program.events??[])if(event.kind==='injection'&&position>=event.startSeconds){const p=project(local(event.positionMm)),active=position<event.startSeconds+event.seconds;ctx.beginPath();ctx.arc(p[0],p[1],active?7:4,0,Math.PI*2);ctx.strokeStyle='#b85c28';ctx.lineWidth=2;ctx.stroke();if(active){ctx.fillStyle='#b85c28';ctx.font='12px Segoe UI';ctx.fillText(`Injecting ${event.volumeMm3.toFixed(2)} mm³ · ${event.nozzleC}°C`,p[0]+11,p[1]-8);}}
       annotations.fadeContinuation=fade.fading&&!playing;
       if(current&&at.fraction<1&&(current.extruding||showTravel)&&!(solid&&materialScene?.supported[at.active])){const style=toolpathStyle(current,current,skinPhase,undefined,strokeScale);segment(project(local(current.from)),project(local(at.point)),style.color,style.width);}

@@ -1,12 +1,14 @@
 ---
 name: plastic-weld
 description: Experimental. Rivets of molten plastic injected into blind shafts across layers, placed individually or staggered through a solid body.
+metadata:
+  saam-kind: hybrid
 ---
 
 # Plastic weld / injected rivets
 
 For maker work read [MAKERS](../../MAKERS.md); for development start at
-[BUILDERS.md](../../BUILDERS.md). Use the [shared print tools](../../core/print/USAGE.md)
+[developer orientation](../../DEVELOPER-CONTEXT.md). Use the [shared print tools](../../core/print/USAGE.md)
 and [standard parameter policy](../../MAKERS.md#standard-parameter-policy).
 
 This skill prints a blind cavity, then injects molten plastic through its small
@@ -17,14 +19,14 @@ quality or strength. No physical result has been validated.
 
 ## Material and interoperability
 
-Full-fill is the natural host. The shaft and basin are reserved through shared
-planar material regions before walls and fill are generated. The bottom basin
+A solid slice is the natural host. The shaft and basin are reserved from the
+part's sliced material before loops and fill are generated. Rivets inherit [print/part nozzle selection](../../core/print/USAGE.md#nozzle-selection). The bottom basin
 narrows upward as a stepped cone; the shaft continues to the injection height.
 The exterior CAD model remains the intended finished part. These temporary
 process cavities are visible in the generated toolpath, not as permanent CAD holes.
 
-For **planar-infill**, shared complementary solid masks add a solid envelope
-around the entire cavity and a floor beneath it. Sparse lines are excluded from
+In a **sparse** slice, a solid envelope surrounds the entire cavity with a floor
+beneath it. Sparse lines are excluded from
 that material. Ordinary sparse infill alone cannot contain an injection. The
 envelope is a nominal planned seal, not proof of pressure-tight printed material.
 Its reinforcement value inside an otherwise sparse body remains unmeasured.
@@ -33,11 +35,10 @@ Supported combinations:
 
 - Native closed mesh and supported spline components, including translated
   assembly parts, imported STL, text and Gridfinity bodies.
-- Full-fill and planar-infill in whole components or material regions. Global
-  weld sites can cross region boundaries when the required solid host is continuous.
-  Regional surface consumers can use the completed mouth after injection.
-  For an unfinished cavity crossing a boundary, use ordinary contiguous flat
-  bands; `lowerSurfaceFrom` still sees that cavity's deeper floor.
+- Slice assignments of any fill density. Global weld sites can cross owner
+  boundaries when the required solid host is continuous. Higher operations wait
+  for injection; surface contact requires finalized deposited coverage and must
+  not treat a reserved or unfinished cavity as filled material.
 - Draped roofs, vase walls, thick lips, waves and supports can coexist elsewhere
   in the plan. The cavity itself must lie in solid planar material. Continuous or
   curved deposition crossing a cavity is rejected, rather than split silently.
@@ -45,13 +46,13 @@ Supported combinations:
   Studio review and exact-byte delivery. Higher operations wait for injection.
 - S5 Griffin and experimental H2D output. The robot relay exporters cannot yet
   represent metered stationary extrusion or nozzle-temperature changes; they
-  reject this skill.
+  reject those unrepresentable actions at export.
 
 The skill does not insert arbitrary holes into a one-bead vase wall, infer
 pressure-tightness from spaced fill, or turn supports into permanent rivets.
 The same feature can occupy a solid base beneath a vase or a solid band beneath
-a curved roof. Required solid masks use the existing full-fill spacing setting;
-use factor 1 so their envelope does not become sparse.
+a curved roof. Solid envelopes use the slice's `spacingFactor`; keep it 1
+so the envelope does not become sparse.
 
 ## Recipe and initial trial values
 
@@ -71,7 +72,7 @@ values and adjust after a small coupon trial:
 | `basinHeightMm` | 1.2 | Upward taper from basin to shaft |
 | `wallMm` | 1.2 | Required solid material outside the cavity; infill gets a full cylindrical envelope |
 | `floorMm` | 0.8 | Solid floor below the blind cavity |
-| `seatDepthMm` | 0 | Nozzle tip at the opening plane; adjustable 0–0.5 mm insertion |
+| `seatDepthMm` | 0 | Nozzle tip at the opening plane; nonnegative insertion remaining within the shaft |
 | `volumeFactor` | 1 | Multiplier on the reserved, stepped cavity volume |
 | `flowMm3S` | 0.5 | Injection flow, capped by the normal process flow limit |
 | `holdSeconds` | 1 | Stationary hold after injecting, before withdrawal |
@@ -121,12 +122,12 @@ distributes reinforcement through the part; it does not claim intersecting rivet
 columns or measured whole-part strength. Keep overlapping-height envelope centers
 at least `basinDiameterMm + 2*wallMm` apart. The helper defaults to 12 mm pitch;
 overlapping staggered levels need at least 10.8 mm pitch with these diameters.
-At most 256 sites are accepted. Check that the chosen grid fits the body.
+Site counts have no fixed cap. Check that the chosen grid fits the body.
 
 ## Generate, review and adjust
 
-Use the normal recipe template, `create_print`/CLI `init`, and
-`adjust_print`/CLI `adjust`; no separate weld command or artifact format exists.
+Use the normal recipe template, `create_bundle`/CLI `init`, and
+`adjust_recipe`/CLI `adjust`; no separate weld command or artifact format exists.
 Disable draped-skin in a plain coupon recipe. For a reproducible unapproved trial:
 
 ```sh
@@ -152,10 +153,8 @@ dependencies, inspect the atomic operation and injection height: a continuous
 path cannot be interrupted mid-operation. Test modest coupons and adjust the
 dimensions, seating, volume, flow and temperature using observed results.
 
-For developer callers, `plasticWeldResult({plan, sites, modelResults})` returns
-`{result, dependencyChanges}`; `result` is null when there are no sites.
-It does not modify the supplied model operations. Cover prerequisites are
-`{operationId, after, mode: 'union'}` records: apply them with
-`applyResultDependencies` from `core/print/generate.mjs` before adding the weld
-result and scheduling. Union preserves first occurrence order while removing
-duplicate prerequisites, including duplicates already present on the operation.
+Developer preparation uses `preparePlasticWeld` for sites and cavity reservations.
+The common dependency graph calls `rivetInjectionResult` for each ready site,
+validating finalized enclosure and using the [shared point operation](../inject/SKILL.md).
+The shared finalizer publishes each result; `validateRivetClearance` audits the
+complete finalized batch. Host and later-cover prerequisites belong to that graph.

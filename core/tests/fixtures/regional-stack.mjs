@@ -1,7 +1,12 @@
 // Synthetic software-only composition example; never a hardware configuration
-// or human job approval. One native roof component and an upper envelope share
-// explicitly assigned material boundaries through lowerSurfaceFrom.
+// or human job approval. A roof component is sliced below and above a vase-wall
+// band and finished with a draped skin; a separate upper component is sliced
+// whole. (A planar region consuming the roof's published lower surface waits
+// for height-field slices.)
 import {defaults} from '../../print/plan.mjs';
+import {sliceAssignment} from '../../print/slices.mjs';
+import {sleeveAssignment} from '../../print/sleeve-constructions.mjs';
+import {skinAssignment} from '../../print/surface-constructions.mjs';
 import {syntheticDobotSetup} from './dobot.mjs';
 import {splineBox,splineBlock} from './spline-shapes.mjs';
 
@@ -26,15 +31,16 @@ export function regionalStackPlan(machine,backend='mesh') {
   const plan=defaults(machine);if(machine.id==='dobot-mg400')syntheticDobotSetup(plan);
   const roof=backend==='mesh'?wavyMesh():splineBlock({runMm:8,widthMm:8,heightsMm:[[3,3,3,3],[3,3.6,3.6,3],[3,3.6,3.6,3],[3,3,3,3]]});
   plan.geometry={shape:'assembly',parts:[{id:'roof',xMm:0,yMm:0,zMm:0,geometry:roof},
-    {id:'upper',xMm:0,yMm:0,zMm:0,geometry:splineBox({runMm:8,widthMm:8,heightMm:4})}]};
+    {id:'upper',xMm:10,yMm:0,zMm:0,geometry:splineBox({runMm:8,widthMm:8,heightMm:4})}]};
   plan.process.minimumLayerSeconds=0;
-  const region=(id,part,zStartMm,zEndMm,skills,lowerSurfaceFrom=null)=>({id,part,zStartMm,zEndMm,skills,lowerSurfaceFrom});
-  plan.composition.regions=[
-    region('base','roof',0,0.4,{'full-fill':{mode:'body'}}),
-    region('wall','roof',0.4,1.2,{'vase-wall':{endTransition:'level'}}),
-    region('cap','roof',1.2,1.6,{'full-fill':{mode:'body'}}),
-    region('roof-finish','roof',1.6,null,{'planar-infill':{},'full-fill':{mode:'solid-surfaces',bottomLayers:1,topLayers:1},'draped-skin':{layers:2,normalMm:0.2,surveyStepMm:0.2,sampleStepMm:0.2}}),
-    region('above-roof','upper',0,4,{'full-fill':{mode:'body',minFeatureMm:0.2}},'roof-finish')
+  const slab=(fromMm,toMm)=>[{kind:'slab',fromMm,toMm}];
+  plan.slices.assignments=[
+    sliceAssignment({id:'base',part:'roof',fillDensity:1,within:slab(0,0.4)}),
+    sliceAssignment({id:'cap',part:'roof',fillDensity:1,within:slab(1.2,1.6)}),
+    sliceAssignment({id:'roof-body',part:'roof',solidTop:1,solidBottom:1}),
+    sliceAssignment({id:'upper',part:'upper',fillDensity:1}),
+    sleeveAssignment({id:'wall',part:'roof',zStartMm:.4,zEndMm:1.2,endTransition:'level'}),
+    skinAssignment({id:'roof-finish',part:'roof',layers:2,pitchMm:.2,surveyStepMm:.2,sampleStepMm:.2})
   ];
   return plan;
 }

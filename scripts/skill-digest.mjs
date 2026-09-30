@@ -1,7 +1,9 @@
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SKILL_IDS, skillMetadata } from '../skills/catalog.mjs';
+import { SKILL_IDS, GUIDANCE_IDS, BUILDER_IDS, skillMetadata } from '../skills/catalog.mjs';
+import { gatedIndex, indexLine } from '../core/agent/layers.mjs';
+import { MACHINE_IDS, loadMachine } from '../core/machine/profile.mjs';
 
 const start = '<!-- BEGIN GENERATED SKILL DIGEST -->';
 const end = '<!-- END GENERATED SKILL DIGEST -->';
@@ -13,16 +15,17 @@ export async function updatedSkillIndex(repoRoot) {
   for (const entry of await readdir(skillsRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     try {
-      await readFile(resolve(skillsRoot, entry.name, 'SKILL.md'), 'utf8');
+      await readFile(resolve(skillsRoot, entry.name, BUILDER_IDS.includes(entry.name)?'BUILDER.md':'SKILL.md'), 'utf8');
       available.push(entry.name);
     } catch (error) { if (error.code !== 'ENOENT') throw error; }
   }
-  const missing = SKILL_IDS.filter(id => !available.includes(id));
-  const unlisted = available.filter(id => !SKILL_IDS.includes(id));
-  if (missing.length || unlisted.length || new Set(SKILL_IDS).size !== SKILL_IDS.length) {
+  const catalogIds=[...SKILL_IDS,...GUIDANCE_IDS,...BUILDER_IDS],manualIds=[...SKILL_IDS,...GUIDANCE_IDS];
+  const missing = catalogIds.filter(id => !available.includes(id));
+  const unlisted = available.filter(id => !catalogIds.includes(id));
+  if (missing.length || unlisted.length || new Set(catalogIds).size !== catalogIds.length) {
     throw new Error(`Skill catalog differs from manuals (missing: ${missing.join(', ') || 'none'}; unlisted: ${unlisted.join(', ') || 'none'}). Update skills/catalog.mjs alongside the manuals.`);
   }
-  const skills = await Promise.all(SKILL_IDS.map(async id => {
+  const skills = await Promise.all(manualIds.map(async id => {
     const skill = skillMetadata(id, await readFile(resolve(skillsRoot, id, 'SKILL.md'), 'utf8'));
     if (!skill.description || /^[>|]/.test(skill.description)) {
       throw new Error(`${id}: the shared catalog reader needs a single-line frontmatter description.`);
@@ -34,7 +37,16 @@ export async function updatedSkillIndex(repoRoot) {
     ...skills.filter(skill => skill.kind === kind).map(skill =>
       `| [${skill.id}](${skill.id}/SKILL.md) | ${skill.description.replaceAll('|', '&#124;')} |`)
   ].join('\n');
-  const block = `${start}\n\n## Toolpath skills\n\n${table('toolpath')}\n\n## Geometry skills\n\n${table('geometry')}\n\n## Hybrid skills\n\n${table('hybrid')}\n\n${end}`;
+  // The index of advanced sections, from the same markers the readers assemble by. Script
+  // sections are not capabilities of their own: a script client reads them anyway, and a
+  // web read lists them as omitted.
+  const gated = await gatedIndex(repoRoot);
+  const known = new Set(MACHINE_IDS.flatMap(id => loadMachine(id).capabilities ?? []));
+  for (const section of gated) for (const token of section.requires)
+    if (!known.has(token.split('>=')[0])) throw new Error(`${section.guidanceId}: no machine declares the capability ${token}.`);
+  const advanced = gated.filter(section => section.layer === 'advanced');
+  const index = advanced.length ? `\n\n## Advanced sections\n\n${advanced.map(indexLine).join('\n')}` : '';
+  const block = `${start}\n\n## Core toolpath skills\n\n${table('toolpath')}\n\n## Core geometry skills\n\n${table('geometry')}\n\n## Core hybrid skills\n\n${table('hybrid')}\n\n## Guidance manuals\n\nRecipes and techniques using Slice, Trace and Inject; no additional deposition families.\n\n${table('guidance')}${index}\n\n${end}`;
   const current = await readFile(resolve(skillsRoot, 'DIGEST.md'), 'utf8');
   if (current.split(start).length !== 2 || current.split(end).length !== 2 || current.indexOf(end) < current.indexOf(start)) {
     throw new Error('skills/DIGEST.md needs exactly one ordered pair of generated skill digest markers.');
@@ -52,5 +64,5 @@ export async function checkSkillDigest(repoRoot) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   await writeFile(resolve(root, 'skills/DIGEST.md'), await updatedSkillIndex(root));
-  console.log('Updated the capability digest in skills/DIGEST.md.');
+  console.log("Updated the skill and gated-section index in skills/DIGEST.md.");
 }

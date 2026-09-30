@@ -36,16 +36,17 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 
 ## Outstanding work
 
-### BR-059 — One offset with collision resolution, ribbons and trimmed surfaces
+### BR-059 — Collision-resolving offsets and deferred trimmed solids
 
 - Status: in progress
 - Contributor: `remettub`, inferred from the checkout's contributor branch and account; attribution unconfirmed.
 - Authorization: human requested — the loose spline, on-surface and surface offsets ("we need them if we don't"), then the rulings in [D-041](DECISIONS.md#d-041--offsets-resolve-collisions-ribbons-displace-without-a-surface) and "Yes migrate vase wall". Scope is core geometry, its consumers and vase-wall.
 - Session: Claude Code desktop, 2026-09-28; exact chat title and ID unavailable.
 - Source: current conversation, 2026-09-28.
-- Context: [curve-offset.mjs](core/geom/curve-offset.mjs) offset curves loosely without resolving collisions; `prepareSurfaceOffsets` bundles a horizontal ribbon and a normal offset and limits folds instead of trimming them.
-- Remaining: (1) curve offsets on periodic patches (phase 1 is otherwise done). (2) Split `prepareSurfaceOffsets` into a surface ribbon and a surface offset with collocated directions and no limiter. (3) Trimmed-surface records produced by resolving their folds and self-intersections. (5) Vase-wall on the ribboned sleeve; where the wall splits, the spiral's behaviour awaits the user's answer on the "pinch" version. (6) Migrate `offsetRegion` and `offsetSurfaceRegion` consumers, including corner treatment. (7) Trimmed faces in printable shells. Curve ribbons (4) are done.
-- Completion: Every offset in core resolves collisions; no fold limiter remains; vase-wall and pipe cladding run on the new operations.
+- Context: [curve-offset.mjs](core/geom/curve-offset.mjs) offset curves loosely without resolving collisions; `prepareSurfaceOffsets` bundled a horizontal ribbon and a normal offset and limited folds instead of trimming them.
+- Revised scope (owner, 2026-09-29): the [0.2.0 plan](plans/0.2.0.md) owns offset/consumer migration; ribbons are removed and sleeves derive from offset slice outlines. Joined trimmed-face solids move to [0.3.0 intents](plans/0.3.0.md); 0.2.x is for patches. Experimental trimmed records do not establish ecosystem support.
+- Remaining: complete the plan's collision-resolving offset consumers and explicit supported sleeve subset; later implement trimmed-face solids across closure, queries, display and deposition consumers.
+- Completion: shared offsets/consumers satisfy their stated contracts; the separately deferred trimmed-solid scope is implemented and exercised before being advertised.
 
 ### BR-058 — Implement the Cloudflare relay alpha milestone
 
@@ -85,8 +86,8 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 - Authorization: human requested — after a physical bed-adhesion failure, asked for a brim on the current print and then: "you may want to escalate to builder and write the first draft of a bed adhesion skill, currently very small, only with one entry - brims." Scope covers the brim entry; a raft, a detached skirt and a removal gap are proposals, not authorized here.
 - Session: Claude Code session `1a69160c-5d8b-4d89-898f-cfcd81550fdb`; exact chat title unavailable.
 - Source: current conversation, 2026-09-19: "It didn't adhere to the print bed, can you give it a good solid brim to start out, maybe 8 layers on the outside before getting to the part, with full flow or maybe even a little more", clarified as "Just do the first layer and then vase on top of that".
-- Context: [bed-adhesion](skills/bed-adhesion/SKILL.md) documents the brim that is achievable today: a flange modeled into the part's first layer height plus a first-layer region assigning `planar-infill` with `density: 0`, a `perimeters` count and a region `process` override for bead width and speed. Verified on the `chalice-drip` bundles — nine loops at the predicted radii, 3,111 mm of first-layer path at a measured 0.652 x 0.2 mm bead. Because the loops come from the region's own section, the brim width lives in the geometry, so an imported STL cannot take a brim without editing its mesh.
-- Remaining: Derive the brim loops from the part's own first-layer section offset outward, rather than from a modeled flange, so brim width and loop count are ordinary recipe settings. Decide where the offset belongs relative to the existing shared section/offset components before adding a producer. Keep `density: 0` behaviour so an open-bottom part stays open.
+- Context: the [slice skill's brim preset](skills/slice/SKILL.md#presets) (0.2.0 phase 2) grows its loops outward from the part's own first-layer section, so `loops` sets its width on any geometry, imported STLs included; the `bed-adhesion` manual and its modeled-flange recipe are retired. Exercised in software only (five loops, 352.8 mm around a 20 × 12 mm box).
+- Remaining: a test; a brim bead width or flow of its own (the preset uses the process bead).
 - Completion: A brim is requested through recipe settings alone on any supported geometry, including an imported STL, with its loop placement visible in Studio's first layer. Covered by a test. No physical validation is implied.
 
 ### BR-053 — Restart an agent-owned Studio on the same port
@@ -151,7 +152,7 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 - Authorization: human requested — generalize wave overhangs to curved bivariate spline slices, support holes as in the exemplar, and use unbroken continuous passes per layer. No exception allowing branch restarts or arbitrary extruded retracing has been approved.
 - Session: “Add wave overhang spline skill” (`01a0a191-8027-7f13-bf42-7b88316cc5ed`).
 - Source: current conversation, 2026-09-14: “Must always use unbroken continuous passes per layer in this type of geometry”; “If the exemplar supports holes, we can too”; supplied [Janis Andersons short](https://www.youtube.com/shorts/RxPW5A4__X4), and clarified that SAAM introduced the glue jogs without an established exemplar.
-- Context: The first generator split fronts and inserted travels. The correction preserves complete fronts and accepts a slice only when short in-domain turns form one continuous stroke. The [reference findings](skills/wave-overhangs/BUILDER.md#research-and-license-findings) establish that the slicer exemplar permits branch restarts; they do not establish an uninterrupted whole-slice strategy for arbitrary holes. A clarification about that distinction is pending. The current no-hole diagnostic is not completion of hole support.
+- Context: The first generator split fronts and inserted travels. The correction preserves complete fronts and accepts a slice only when short in-domain turns form one continuous stroke. The [reference findings](skills/wave-overhangs/DEVELOPER.md#research-and-license-findings) establish that the slicer exemplar permits branch restarts; they do not establish an uninterrupted whole-slice strategy for arbitrary holes. A clarification about that distinction is pending. The current no-hole diagnostic is not completion of hole support.
 - Remaining: Resolve the continuity requirement against the intended exemplar and complete the corresponding hole-branch routing. Retain the strict continuity rejection until an explicit exception is authorized; do not add unreviewed glue/retrace strokes or silently remove holes. The original local hole recipe `Prints/wave-overhangs-preview-20260914` is preserved and presently requires five disconnected passes.
 - Completion: Generate and review the intended curved hole example with the agreed continuity behavior, including support order, in-domain connections and exported movement checks. Update the [skill manual](skills/wave-overhangs/SKILL.md) and record software evidence separately from any physical trial.
 

@@ -1,3 +1,4 @@
+import {prepareMachinePath} from './prepare-path.mjs';
 // Bounded Dobot adapter, sharing SAAMpath, ZIP integrity and bundle lifecycle.
 // The adopted Lua runtime executes the actual delivered helper/entry/body files.
 // Cartesian command space only: this is not robot IK or a measured flow model.
@@ -11,6 +12,7 @@ import {requireThat,distance} from '../geom/tolerance.mjs';
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
 export function exportDobot(path,plan,machine,release={}){
+  path=prepareMachinePath(path,plan,machine);
   const c=config(plan,machine);validatePath(path);
   requireThat(equal(path.initialPosition,c.initialPositionMm),'Dobot initial position differs from the locked external start pose.');
   inside(transform(path.initialPosition,c),c);

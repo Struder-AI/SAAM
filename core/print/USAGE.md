@@ -1,103 +1,111 @@
-# Shared print tools
+# Shared bundle tools
 
-The commands every skill shares: create or import a print, revise its recipe,
-open it for review, generate and deliver. Skill manuals own their settings;
-[machine contracts](../export/README.md) own printer setup and limits.
+The tools every skill shares. Skill manuals own their settings;
+[machine contracts](../export/README.md) own printer setup and limits. A `bundleId`
+is relative to `Prints/` (`Prints/my-part` is `"my-part"`).
 
-## Commands
-
-Run from the repository root with a directory under ignored `Prints/`; quote
-paths containing spaces. MCP tools mirror the commands; their `printId` is
-relative to `Prints/` (`Prints/my-part` is `"my-part"`).
-
-| Operation | CLI (`node core/print/cli.mjs …` unless shown) | MCP |
-|---|---|---|
-| Create from a recipe | `init Prints/my-part plan.json --machine ultimaker-s5` | `get_plan_template`, `create_print` |
-| Import an STL | `import-stl Prints/my-part source.stl auto ultimaker-s5` | `import_stl_print` |
-| Create or rebuild a blob field | `blob-field-create Prints/my-part request.json ultimaker-s5`, `blob-field-update … --revision REV` | `blob_field` |
-| Combine with another solid ([booleans](../../GEOMETRY.md#booleans)) | `combine Prints/my-part request.json --revision REV` | `combine_geometry` |
-| Section a part or find its top ([checking](../../GEOMETRY.md#checking-geometry)) | `intersect Prints/my-part request.json` | `intersect_geometry` |
-| Open in Studio | `node studio/server.mjs --toolkit open-print Prints/my-part` | `list_prints`, `get_print`, `request_review` |
-| Adjust the recipe | `adjust Prints/my-part patch.json --revision REV` | `adjust_print` |
-| Change printer | `change-machine Prints/my-part MACHINE --revision REV` | `change_machine` |
-| Correct STL units | `stl-units Prints/my-part mm` (or `inch`) | `set_stl_units` |
-| Read checked state | `check Prints/my-part` | `check_print`, `get_approval_status` |
-| Investigate path feasibility, when needed | `check-path Prints/my-part` | `check_path` |
-| Generate for review | `generate Prints/my-part` | `generate_print` |
-| Deliver the approved export | `deliver Prints/my-part` | `deliver_print` |
-| Save setup as the machine's default | `remember-setup Prints/my-part` | `remember_setup` |
-
-Creating or importing makes geometry only. `node studio/server.mjs --toolkit
-create-preview Prints/my-part --recipe plan.json` (or `--stl source.stl`) does the
-same and opens Studio on it, for when the person should see the geometry
-([agent CLI toolkit](../agent/README.md)). Generation is a separate step, in the
-CLI or in Studio.
+| Operation | Tool |
+|---|---|
+| Create from a recipe; import an STL | `get_recipe_defaults`, `create_bundle`; `import_stl_bundle`, `set_stl_units` |
+| Geometry tools ([GEOMETRY](../../GEOMETRY.md)) | `blob_field`, `combine_geometry`, `intersect_geometry` |
+| Show in Studio; read state | `request_review`; `list_bundles`, `get_bundle`, `check_bundle` |
+| Adjust recipe/assignments; change printer | `adjust_recipe`, `slice`, `modulate`; `change_machine` |
+| Generate for review; deliver the confirmed export | `generate_toolpath`; `deliver_toolpath` |
+| Path feasibility, when needed; save setup as the machine's default | `check_path`; `remember_setup` |
 
 ## Recipes
 
-`init` without `plan.json` uses the proposed recipe and remembered machine
-setup: a starting point to evaluate against the request. For a complete recipe,
-use `await proposedPlan(machineId)` from [bundle.mjs](bundle.mjs) in a script,
-or MCP `get_plan_template`. The template enables full-fill **and draped-skin**;
-disable what the part doesn't need. STL imports and Gridfinity start with
-draped-skin off.
+`get_recipe_defaults` returns process/setup defaults and one common [slice](../../skills/slice/SKILL.md)
+assignment, with no geometry or automatic skin. Before `create_bundle`, author
+`geometry` or standalone [Trace](../../skills/trace/SKILL.md)/[Inject](../../skills/inject/SKILL.md) assignments.
 
-The recipe's `geometry` is authored as described in [GEOMETRY.md](../../GEOMETRY.md).
+`slice` adds/edits/removes one assignment; `adjust_recipe` patches the recipe.
+Objects merge, arrays replace, unknown fields reject; omit `bundle`.
+`experimental.substrateAdaptation` defaults false. OFF uses nominal references
+without final-material contact/remapping; ON uses finalized deposition for
+gap/volume adjustment or surface-following placement and retains required-contact
+and gap rejection. Existing recipes need explicit migration for missing fields;
+loading never rewrites them. Dependencies and bridge-anchor checks apply in both
+modes.
+After a stale revision, reload and reassess. Reads omit geometry unless asked
+(`includeGeometry: true`). Any geometry, process or setup change invalidates the
+final confirmation. Changing printer applies its process defaults and keeps other
+choices, rejects an incompatible recipe, and names any gated guidance it opens.
 
-A patch is a JSON object in the recipe's field names: nested objects merge,
-arrays replace, unknown fields are rejected. The editable recipe is the
-top-level of `plan.json`; don't copy its `bundle` envelope into a patch. After
-a stale-revision error, reload state and reassess. Reads omit geometry unless
-asked (`get_print` `includeGeometry: true`, `--include-geometry`). Any geometry,
-process or setup change invalidates the final confirmation. Changing printer
-applies its declared process defaults and keeps other choices; an incompatible
-recipe is rejected, not overridden.
+### Nozzle selection
+
+Print setup selects the default nozzle/material for every producer. For Bambu,
+`composition.filaments: [{part:"body",filament:1}]` overrides a component, including
+its Slice, Trace, Inject and rivet work. `{assignment:"supports",filament:1}` routes
+tree supports; any authored assignment ID or `plastic-weld:SITE_ID` can be targeted.
+Priority: print assignment route, assignment's explicit filament, exact part route,
+parent component route, print setup. `part:null` names the single geometry part.
+Trace/Inject `part` associates material ownership; XYZ still uses print placement.
+Filament entries own nozzle/process mapping ([Bambu](../export/bambu.md)); every
+route uses the same generation/export/review. Existing recipes need explicit
+migration for `composition.filaments` and Trace/Inject `part`, then regeneration.
 
 ### Import an STL
 
 Units default to `auto`: SAAM assumes mm unless the raw size only fits the
 printer in inches ([D-030](../../DECISIONS.md#d-030--provisional-stl-units-assumption)),
-and Studio shows the assumption. `stl-units` rescales a plain imported mesh,
+and Studio shows the assumption. `set_stl_units` rescales a plain imported mesh,
 keeping edits and settings; text-wrapped or composed geometry needs its own edit.
-The source must be a local `.stl` on the SAAM computer, at most 64 MiB. If the
-mesh fails validation, read [mesh-tools](../../skills/mesh-tools/SKILL.md) with
-the reported failure.
+Studio, CLI and agent imports first validate the source, then attempt repair only
+for recognized geometric defects, without hole filling. A repair retains both
+STLs and its change report in `repair/`; review changed geometry. Malformed input
+and failed repair keep their diagnostic. Failed or cancelled imports remove only
+the new print. Local paths stream; only browser uploads have the 64 MiB bound.
+Progress and elapsed time are visible to makers; there is no reliable repair ETA.
+Use Studio Cancel or `cancel_studio_calculation` with the observed job identity,
+then explain the decision. Direct repair commands belong to
+[builder diagnosis](../../skills/mesh-tools/BUILDER.md).
 
 ### Line spacing
 
-For an open pattern, set `skills.<skill>.spacingFactor` (default `1`): `3`
-spaces lines three times wider without widening the bead or its extrusion per
-length. It applies to full-fill, planar-infill, draped-skin, supports and
-pipe-cladding, including regional overrides where supported,
-but not to single-wall vase spirals. See the
-[spacing contract](../path/README.md#line-spacing).
-
-```json
-{"skills":{"pipe-cladding":{"spacingFactor":3}}}
-```
+A `slice` edit with `assignment:{spacingFactor:3}` triples spacing without
+widening the bead (default 1). Loop/fill, skin and cladding constructions support
+it; per-assignment `process.lineWidthMm` controls bead width separately.
+Single-wall sleeve spirals use their course pitch instead.
 
 ## Check, generate and deliver
 
-Every toolpath carries a [short-travel advisory](../export/README.md#short-travel-advisory),
-read as `shortTravel` from checks, print state or the program summary. When its
-count is nonzero, tell the person how many travels, which operations, and
-whether they were lifted over a blocked line or moved directly; acknowledge a
-Studio advisory as completed. It asks for no repair, regeneration or extra
-approval.
+When a toolpath's [short-travel advisory](../export/README.md#short-travel-advisory)
+(`shortTravel`) count is nonzero, tell the person how many travels, which
+operations, and whether they were lifted over a blocked line or moved directly;
+it asks for no repair or approval. Acknowledge a Studio advisory as completed.
 
-Final settings/toolpath confirmation happens in Studio, which can also generate
-and export. Delivery copies the exact checked export into `delivery/`, keeps the
-machine's filename and extension, and sends nothing to hardware. Changed inputs
-need generation and review again; an unchanged checked development export can
-become production without slicing again. Before repeating a timed-out operation,
-read state: it may have finished. During tour toolpath lessons Studio generates,
-so don't start another generation. `check` reports `outputAvailability` and any
-missing `machineConfiguration` fields without generating.
+The final confirmation happens in Studio, which can also generate and export.
+Delivery copies the exact checked export into `delivery/` and sends nothing to
+hardware. Changed inputs need generation and review again. Before repeating a
+timed-out operation, read state: it may have finished. During tour toolpath
+lessons Studio generates, so don't start another. A check reports
+`outputAvailability` and missing `machineConfiguration` fields without generating.
 
 ## Remember machine setup
 
-`remember-setup`, and any setup change through `adjust`, saves this print's
+`remember_setup`, and any setup change through `adjust_recipe`, saves this print's
 setup as the default for new prints on that machine; existing prints don't
-change. Only setup is remembered: reuse other values from the saved recipe or
-the conversation. Bambu output needs its [maker setup](../export/bambu.md#maker-setup)
+change. Only setup is remembered. Bambu output needs its [maker setup](../export/bambu.md#maker-setup)
 first; each [machine contract](../export/README.md) owns its own setup questions.
+
+<!-- layer: script -->
+## Command line
+
+Run from the repository root with a directory under `Prints/`; quote paths with
+spaces. Each command is the tool of the same name through `node core/print/cli.mjs`:
+
+```sh
+init Prints/my-part plan.json --machine ultimaker-s5   # geometry or standalone Trace/Inject
+import-stl Prints/my-part source.stl auto ultimaker-s5
+blob-field-create Prints/my-part request.json ultimaker-s5   # blob-field-update … --revision REV
+combine|intersect|adjust Prints/my-part request.json --revision REV   # intersect takes no revision
+change-machine Prints/my-part MACHINE --revision REV
+stl-units Prints/my-part mm|inch
+check|check-path|generate|deliver|remember-setup Prints/my-part
+```
+
+`node studio/server.mjs --toolkit open-print Prints/my-part` shows a print, and
+`create-preview Prints/my-part --recipe plan.json` (or `--stl source.stl`) creates
+one and opens Studio on it ([agent toolkit](../agent/README.md)). In a script,
+`await proposedPlan(machineId)` from [bundle.mjs](bundle.mjs) returns geometry-free recipe defaults.

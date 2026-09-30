@@ -10,7 +10,7 @@ not an account of the current adapter's capabilities.
 
 ## Local MCP access
 
-The adapter uses fixed known profiles and skills under [D-022](../../DECISIONS.md#d-022--defer-automatic-capability-discovery). It delegates manufacturing state to the shared print lifecycle.
+Fixed profiles/skills follow [D-022](../../DECISIONS.md#d-022--defer-automatic-capability-discovery); manufacturing state belongs to the shared lifecycle.
 [The local runtime](src/runtime.mjs) owns every operation, its strict schema,
 the print-work queue and the Studio/request state. It outlives its sessions: one
 is active at a time, an ended session fails its unfinished requests and rejects
@@ -19,19 +19,18 @@ session per connection; stdio owns and closes its runtime. [The relay device](sr
 serves chat sessions from [the relay](../../relay/README.md) the same way.
 
 [The shared manual reader](../../core/agent/manuals.mjs), re-exported by
-[the adapter](src/manuals.mjs), accepts published repository Markdown paths
-and returns the document's own links as resolved IDs. New references therefore
-use ordinary links without a parallel per-document registry. It confines reads
-to the public documentation trees and rejects private locations and filesystem
-links. Optional heading fragments select one section, including its subsections.
+[the adapter](src/manuals.mjs), accepts published repository Markdown paths and
+assembles them by [context layer](../../core/agent/README.md#context-layers) with
+repository-path links, confined to the public documentation trees without
+private locations or filesystem links. A heading fragment selects one section.
 The fixed skill catalog distinguishes toolpath, geometry and hybrid skills;
-making a manual readable does not register a new plan operation or MCP tool.
-Its IDs and frontmatter reader come from the shared [skill catalog](../../skills/catalog.mjs),
-which also supplies the generated maker digest.
+Readable manuals do not register operations. The [catalog](../../skills/catalog.mjs)
+owns IDs/frontmatter and the maker digest. Tool schemas use named local JSON Schema
+definitions through the installed SDK/Zod serializer; all tools remain discoverable.
 Reading one shared manual checks that catalog directly and reads only the selected
 manual. Unknown shared IDs may resolve through the configured local extension.
-`list_prints` returns discovery metadata with `programChecked: false`; it does not
-read native geometry or exports. `get_print`, `check_print` and approval status
+`list_bundles` returns discovery metadata with `programChecked: false`; it does not
+read native geometry or exports. `get_bundle`, `check_bundle` and approval status
 read checked program metadata without copying motion arrays. Edit dispatch reads
 geometry/settings without checking the export it is about to invalidate.
 Unchecked generated-program currency is `null`; an unchecked existing toolpath
@@ -57,9 +56,8 @@ including local font reading, stale-revision checks and geometry updates. The
 adapter does not own a separate text schema, boolean pipeline or approval route.
 
 `apply_heat_set` delegates to [shared insert preparation](../../core/print/heat-set.mjs)
-with the same revision and geometry lifecycle. `heat_set_catalog` exposes the
-skill's packaged insert profiles; geometry and feature validation stay at the
-shared preparation and skill owners.
+with the same revision and geometry lifecycle. The skill manual lists exact
+insert profiles; geometry and dimension validation stay at the shared owners.
 
 `core/tests/mcp.test.mjs` uses actual SDK clients and child processes, temporary
 bundles and synthetic approval fixtures outside the adapter protocol.

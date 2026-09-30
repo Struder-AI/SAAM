@@ -8,7 +8,7 @@ and [numerical precision](../../core/geom/README.md#precision-belongs-to-a-quant
 ## Slicing speed benchmarks
 
 For an existing shell print, [print.mjs](./print.mjs) measures the
-actual generator and checked exporter without changing the bundle or approvals:
+shared prepared generator and checked exporter without changing the bundle or approvals:
 
 ```sh
 node scripts/bench/print.mjs Prints/my-print --out .local/print-timing
@@ -34,15 +34,11 @@ the error and any CPU profile, but produce no complete program or export hash.
 Course throughput is only a provisional time estimate: mesh ledges, local folds,
 composition and checked export can change the remaining cost or reject the job.
 
-`scripts/bench/slicing.mjs` is an opt-in development measurement harness over
-the existing geometry queries, full-fill, planar-infill, draped-skin, composer,
-machine checks, Griffin exporter and interpreter. It adds no product geometry
-type, approval route, toolpath viewer or manufacturing pipeline. Its twisted
-fixture is not yet a shape accepted by the public plan parser. It calls skill
-producers on prepared geometry; it does **not** time a complete public bundle
-generation or Studio load. Geometry construction/validation, section queries,
-roof queries, skill production, composition/checks and export/interpretation
-have separate measurements.
+`scripts/bench/slicing.mjs` measures geometry queries and the shared generator,
+Griffin export and interpretation on authored spline/mesh fixtures. Generation
+includes recipe validation and geometry preparation; it excludes bundle I/O,
+Studio and delivery. Earlier reports measured separate prepared-geometry
+producers; compare their recorded timing boundaries before comparing totals.
 
 ```sh
 node scripts/bench/slicing.mjs --out .local/slicing-bench --trials 3
@@ -69,7 +65,7 @@ they form a waist, not a constant-width helical extrusion. The large fixture
 doubles all dimensions. All three use the same skill settings: 0.2 mm layers,
 0.4 mm line width and two walls. `full` fills the planar body at 100%; `planar`
 uses 20% rectilinear infill with three top/bottom solid layers; `draped` combines
-full-fill with two 0.2 mm skins at 0.5 mm survey/stroke sampling and the S5's
+a solid slice with two 0.2 mm skins at 0.5 mm survey/stroke sampling and the S5's
 15 degree limit. Cooling delay is zero in the benchmark. Draping uses the
 same planar support-height callback as shared generation. All results are
 software-only development data, with no approval or machine execution.

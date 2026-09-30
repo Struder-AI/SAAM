@@ -9,14 +9,17 @@ import {repoRoot,storeDir,readIndex,storedFreshness,matchingSource} from './stor
 import {presentationPage} from './presentation.mjs';
 import {snapshotIdentity} from './freshness.mjs';
 import {writeScorePage,scoreMaps} from './score.mjs';
+import {setFile,setName} from './map-set.mjs';
+import {readTreeFile} from './tree.mjs';
 
-export const regenerate='node scripts/agent-toolkit.mjs regenerate';
+export const regenerate=`node dev-map/cli.mjs regenerate${setName==='default'?'':` --set ${setName}`}`;
 export const noStore=dir=>`No stored map at ${dir}. Run: ${regenerate}`;
 
 // Every stored page, the source behind it, and which pages the source has moved out from under.
 export async function viewModel({repo=repoRoot,readSource=file=>readFile(resolve(repo,file),'utf8'),files}={}) {
   const dir=storeDir(repo),held=await readIndex(dir);
   if(!held)throw Error(noStore(dir));
+  const snapshotId=snapshotIdentity(held);
   const freshness=await storedFreshness(held,{repo,readSource,files});
   const sources={},sourceInfo={};
   const pages=[held.root,...Object.values(held.groupPages??{})];
@@ -30,7 +33,20 @@ export async function viewModel({repo=repoRoot,readSource=file=>readFile(resolve
   const stale=Object.fromEntries(freshness?pages.map(p=>[p.index,freshness]):[]);
   // Each map's score and its parts, drawn in the viewer's bar while the owner checks the scorer.
   const scores=Object.fromEntries((await scoreMaps({repo})).scores.map(s=>[s.index,s]));
-  return {generated:held.generated,scores,snapshotId:snapshotIdentity(held),pages:pages.map(presentationPage),sources,sourceInfo,stale,changed:freshness?.files??[],changedInputs:freshness?.inputs??[]};
+  const {layout}=await readTreeFile(repo);
+  for(const page of pages) {
+    const authored=layout[page.index==='0'?'0':page.cluster];
+    if(!authored)continue;
+    const positions={};
+    for(const [identity,position] of Object.entries(authored.positions??{})) {
+      const component=page.components.find(c=>c.cluster===identity||c.path===identity||c.boundary===identity||c.externals?.includes(identity));
+      if(!component)throw Error(`Layout ${page.path}: ${identity} is not a box on this map.`);
+      if(![position.x,position.y].every(n=>Number.isFinite(n)&&n>=0))throw Error(`Layout ${identity}: x and y must be nonnegative numbers.`);
+      positions[component.index]=position;
+    }
+    page.layout={...authored,positions};
+  }
+  return {generated:held.generated,regenerate,scores,snapshotId,pages:pages.map(presentationPage),sources,sourceInfo,stale,changed:freshness?.files??[],changedInputs:freshness?.inputs??[]};
 }
 
 const bytesUnder=async dir=>{
@@ -46,7 +62,7 @@ const bytesUnder=async dir=>{
 // The viewer is one stable place a person keeps open. It is drawn beside itself and then laid
 // over the old one file by file, the shell last, so an open viewer never finds the folder gone
 // and only sees the new stamp once every drawing behind it is in place.
-export async function buildGeneratedView({repo=repoRoot,out=resolve(repo,'dev-map/view'),readSource}={}) {
+export async function buildGeneratedView({repo=repoRoot,out=resolve(repo,setFile('view')),readSource}={}) {
   const model={...await viewModel({repo,...(readSource?{readSource}:{})}),built:new Date().toISOString()};
   const next=`${out}.next`;
   await rm(next,{recursive:true,force:true});

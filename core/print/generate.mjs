@@ -1,49 +1,38 @@
-// Generation: locked plan in, SAAMpath out.
-//
-// The order is fixed by the geometry, not by a further planning step. If a
-// draped skin is selected, its survey runs first because it decides how much
-// material the planar body must leave under the top surface; the body then
-// fills up to that reserved surface, and the skin follows the surface down to
-// it. With no skin selected the body simply fills the whole solid.
+import {TOLERANCE} from '../geom/tolerance.mjs';
+import {requireExclusiveClaims} from '../region/ownership.mjs';
+// Generation: authored geometry and recipe into finalized deposition and SAAMpath.
+// Ownership precedes construction; one dependency graph schedules shared courses
+// and their finalized-material consumers.
 
 import { makeShell, assertClosed } from '../geom/shell.mjs';
 import {shellFromSurfaces,splineSolidShell} from '../geom/spline-solid.mjs';
-import {planToolpath} from '../path/toolpath.mjs';
-import {filamentSelection} from '../machine/filaments.mjs';
+import {planFinishing} from '../path/toolpath.mjs';
+import {createPlanningState,planFan,planningPath,planningResult} from '../path/planning.mjs';
+import {planOperation,validateOperationBatch,prepareOperationDependencies} from '../path/compose.mjs';
+import {filamentSelection,assignedFilaments} from '../machine/filaments.mjs';
 import {planarPolicy} from '../path/builder.mjs';
-import { fullFillResult } from '../../skills/full-fill/scripts/fill.mjs';
-import { drapedSkinResult, surveySurface, machineMaxAngle, DRAPED_SKIN_DEFAULTS } from '../../skills/draped-skin/scripts/drape.mjs';
+import {assignmentPlan,depositionAssignments} from './assignment-process.mjs';
+import {assignmentFamily} from './slice-settings.mjs';
+import {surveySkinAssignment} from './surface-constructions.mjs';
 import { validatePlan, VERSION } from './plan.mjs';
-import {bridgingResult} from '../../skills/bridging/scripts/bridge.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 import {makeMesh,translateMesh} from '../geom/mesh.mjs';
-import {toolBounds,startupPosition,startupRetracted} from '../machine/profile.mjs';
-import {planarInfillResults} from '../../skills/planar-infill/scripts/infill.mjs';
-import {vaseWallResult} from '../../skills/vase-wall/scripts/vase.mjs';
-import {generateRegionResults,planarSupportTopAt} from './regions.mjs';
-import {supportResults} from '../../skills/supports/scripts/supports.mjs';
-import {surfaceCladdingResult} from '../../skills/pipe-cladding/scripts/surface-clad.mjs';
-import {publishFinishedBoundary,consumeFinishedSurface} from '../path/finished-surface.mjs';
-import {waveResults} from '../../skills/wave-overhangs/scripts/wave.mjs';
-import {preparePlasticWeld,plasticWeldResult} from '../../skills/plastic-weld/scripts/weld.mjs';
-import {heatSetFeatures,validateHeatSetAssignments} from '../../skills/heat-set-inserts/scripts/feature.mjs';
-import {heatSetDetails} from '../../skills/heat-set-inserts/scripts/reinforcement.mjs';
+import {finalizedSliceResults} from './slice-deposition.mjs';
+import {prepareSupportContexts,supportDependencies} from '../../skills/supports/scripts/supports.mjs';
+import {preparePlasticWeld} from '../../skills/plastic-weld/scripts/weld.mjs';
+import {validateHeatSetAssignments} from '../../skills/heat-set-inserts/scripts/feature.mjs';
 import {geometrySelections} from '../geom/selections.mjs';
 import {booleanShell} from '../geom/boolean-solid.mjs';
-import {lineNetworkResult} from '../../skills/line-network/scripts/network.mjs';
 
 // Booleans are stored as their recipe in the native JSON file, like meshes.
-export const hasMesh=geometry=>['mesh','blob-field','text','gridfinity','heat-set','boolean'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
+export const hasMesh=geometry=>!!geometry&&(['mesh','blob-field','text','gridfinity','heat-set','boolean'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry))));
 
 function primeLineResult(plan,machine){
   const p=plan.process.primeLine;if(p===null)return null;
   const passes=p.passes??[p],region=[],strokes=[];
-  const bounds=toolBounds(machine,plan.setup.tool);
   let lengthMm=0,volumeMm3=0,maxZ=0,maxWidth=0;
   for(const pass of passes){
     const [a,b]=[pass.startMm,pass.endMm],dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy),nx=-dy/length*pass.widthMm/2,ny=dx/length*pass.widthMm/2;
-    requireThat([a,b].every(point=>point.every((v,i)=>v>=bounds.min[i]+pass.widthMm/2&&v<=bounds.max[i]-pass.widthMm/2))&&pass.zMm<=bounds.max[2],
-      'Prime line exceeds selected tool bounds.');
     region.push([[a[0]+nx,a[1]+ny],[b[0]+nx,b[1]+ny],[b[0]-nx,b[1]-ny],[a[0]-nx,a[1]-ny]]);
     strokes.push({role:'prime-line',closed:false,points:[[...a,pass.zMm],[...b,pass.zMm]],speedMmS:pass.speedMmS,beadAreaMm2:pass.widthMm*pass.heightMm});
     lengthMm+=length;volumeMm3+=length*pass.widthMm*pass.heightMm;maxZ=Math.max(maxZ,pass.zMm);maxWidth=Math.max(maxWidth,pass.widthMm);
@@ -60,9 +49,7 @@ export function buildShell(rhino, geometry) {
   if(geometry.shape==='spline')return splineSolidShell(rhino,geometry);
   if(geometry.shape==='boolean')return booleanShell(geometry.operation,geometry.operands.map(operand=>buildShell(rhino,operand)));
   if(['mesh','blob-field','text','gridfinity','heat-set'].includes(geometry.shape)){
-    const mesh=makeMesh(geometry.vertices,geometry.triangles),features=heatSetFeatures(geometry);
-    if(features.length)mesh.planarDetails=heatSetDetails(features);
-    return mesh;
+    return makeMesh(geometry.vertices,geometry.triangles);
   }
   if(geometry.shape==='assembly'&&hasMesh(geometry)) {
     const components=geometry.parts.map(part=>translateShell(buildShell(rhino,part.geometry),part.xMm,part.yMm,part.zMm));
@@ -84,9 +71,7 @@ export function buildShell(rhino, geometry) {
 // unaffected apart from the translation.
 export function translateShell(shell, dx, dy, dz = 0) {
   if(shell.kind==='triangle-mesh'){
-    const moved=translateMesh(shell,dx,dy,dz);
-    if(shell.planarDetails)moved.planarDetails=shell.planarDetails.translated(dx,dy,dz);
-    return moved;
+    return translateMesh(shell,dx,dy,dz);
   }
   if(shell.kind==='boolean')return booleanShell(shell.operation,shell.operands.map(s=>translateShell(s,dx,dy,dz)));
   if(shell.kind==='assembly')return {...shell,components:shell.components.map(s=>translateShell(s,dx,dy,dz)),bounds:{min:shell.bounds.min.map((v,i)=>v+[dx,dy,dz][i]),max:shell.bounds.max.map((v,i)=>v+[dx,dy,dz][i])}};
@@ -107,146 +92,104 @@ export function translateShell(shell, dx, dy, dz = 0) {
 
 export function preparePathGeometry(plan,machine,rhino) {
   validatePlan(plan, machine);
+  if(!plan.geometry)return {placed:null,componentShells:null,weldSites:[],bounds:null};
   validateHeatSetAssignments(plan);
   const placed = translateShell(buildShell(rhino, plan.geometry), plan.placement.xMm, plan.placement.yMm);
   const componentShells=plan.geometry.shape==='assembly' ? new Map(plan.geometry.parts.map(part=>[part.id,
     translateShell(buildShell(rhino,part.geometry),plan.placement.xMm+part.xMm,plan.placement.yMm+part.yMm,part.zMm)])) : null;
-  const weldSites=preparePlasticWeld({plan,placed,componentShells});
-  const bounds=toolBounds(machine,plan.setup.tool);
-  const geometryBounds=plan.composition.regions.some(r=>r.filament!==undefined)?machine.bounds:bounds;
-  requireThat(machine.motionChecks==='deferred'||placed.bounds.min.every((v,i)=>v>=geometryBounds.min[i]-1e-8)&&placed.bounds.max.every((v,i)=>v<=geometryBounds.max[i]+1e-8),'Placed geometry exceeds selected tool bounds.');
-  const skin = plan.skills['draped-skin'];
-  const vase=plan.skills['vase-wall'];
-  requireThat(plan.composition.regions.length||!vase.enabled||!skin.enabled||(componentShells&&vase.part!==skin.part),'Vase wall and draped skin overlap on the same component.');
-
-  return {placed,componentShells,weldSites,bounds};
+  const weldSites=preparePlasticWeld({plan,machine,placed,componentShells});
+  return {placed,componentShells,weldSites,bounds:null};
 }
 
-export function generatePlanarComponent(plan,machine,{id,shell,componentShells},survey,onProgress) {
-  const process=plan.process,fill=plan.skills['full-fill'],normal=plan.skills['planar-infill'],vase=plan.skills['vase-wall'];
-  let vaseShell=null;
-  const selected=settings=>settings.enabled&&(!componentShells||!settings.parts.length||settings.parts.includes(id));
-  const useFill=selected(fill),useNormal=selected(normal);
-  const useVase=vase.enabled&&(!componentShells||vase.part===id);
-  let baseTop=null;
-  if(useVase) {
-    vaseShell=shell;
-    requireThat(!useNormal,'Vase wall and planar-infill overlap on the same component.');
-    if(useFill) {
-      requireThat(fill.mode==='body'&&vase.zStartMm>=process.firstLayerMm,'Full-fill below a vase requires body mode and an explicit positive vase zStartMm for its base.');
-      const baseLayers=(vase.zStartMm-process.firstLayerMm)/process.layerMm;
-      requireThat(Math.abs(baseLayers-Math.round(baseLayers))<1e-8,'Vase base height must align with the full-fill layer grid.');
-      baseTop=shell.bounds.min[2]+vase.zStartMm;
-    } else requireThat(vase.zStartMm===0,'A raised vase wall requires full-fill on the same component for its base.');
-  }
-  requireThat(!(useFill&&useNormal&&fill.mode==='body'),'Full-fill body and planar-infill overlap; select full-fill solid-surfaces mode or separate components.');
-  requireThat(!(useFill&&fill.mode==='solid-surfaces'&&!useNormal),'Solid-surface selection requires planar-infill on the same component.');
-  if(useNormal){
-    const [sparse,solid]=planarInfillResults({shell,plan,machine,reserve:survey,id:componentShells?id+':planar-infill':'planar-infill',solid:useFill,onProgress});
-    const publishedSparse=publishFinishedBoundary(sparse,{shell,coverage:normal.perimeters?'nominal':'sparse'});
-    const publishedSolid=solid?publishFinishedBoundary(solid,{shell}):solid;
-    return {results:publishedSolid?[publishedSparse,publishedSolid]:[publishedSparse],fill:publishedSolid,normal:publishedSparse,support:{shell},vaseShell};
-  } else if(useFill){const result=fullFillResult({id,shell,plan,machine,reserve:useVase?null:survey,zEndMm:baseTop,onProgress});
-    const published=publishFinishedBoundary(result,{shell,endMm:baseTop??shell.bounds.max[2],coverage:fill.perimeters||fill.spacingFactor<=1?'nominal':'sparse'});
-    return {results:[published],fill:published,normal:null,support:{shell},vaseShell};}
-  return {results:[],fill:null,normal:null,support:null,vaseShell};
+// Geometry volumes named by slice assignments, placed like their part.
+export function sliceVolumes(plan,rhino) {
+  if(!plan.geometry)return new Map();
+  const selections=geometrySelections(plan.geometry);
+  return new Map(plan.slices.assignments.filter(assignment=>!assignment.construction).map(assignment=>{
+    const part=assignment.part!==null?selections.get(assignment.part):{xMm:0,yMm:0,zMm:0};
+    return [assignment.id,assignment.within.map(volume=>volume.kind==='geometry'
+      ?translateShell(buildShell(rhino,volume.geometry),plan.placement.xMm+part.xMm,plan.placement.yMm+part.yMm,part.zMm):null)];
+  }));
 }
 
-export function generatePlanarResults(plan,machine,{placed,componentShells},survey,onProgress) {
-  const results=[],summary={},fillResults=[],normalResults=[];
-  const planarSupports=[];
-  let vaseShell=null;
-  for(const [id,shell] of componentShells??[['full-fill',placed]]) {
-    const component=generatePlanarComponent(plan,machine,{id,shell,componentShells},survey,onProgress);
-    results.push(...component.results);
-    if(component.fill)fillResults.push(component.fill);
-    if(component.normal)normalResults.push(component.normal);
-    if(component.support)planarSupports.push(component.support);
-    if(component.vaseShell)vaseShell=component.vaseShell;
-  }
-  if(fillResults.length){
-    summary.fullFill=Object.fromEntries(Object.keys(fillResults[0].report).map(key=>[key,fillResults.reduce((sum,r)=>sum+(r.report[key]??0),0)]));
-    summary.fullFill.instances=fillResults.map(r=>({id:r.id,...r.report}));
-  }
-  if(normalResults.length)summary.planarInfill={instances:normalResults.map(r=>({id:r.id,...r.report}))};
-  return {results,summary,planarSupports,vaseShell};
+// The shells slice assignments cut, [part, shell, whole]: every assembly
+// component (or the whole print) for assignments without a part, and each
+// geometry selection an assignment names, placed like the print.
+export function sliceShells(plan,rhino,{placed,componentShells}) {
+  if(!plan.geometry)return [];
+  const selections=geometrySelections(plan.geometry);
+  const named=[...new Set(plan.slices.assignments.filter(a=>a.part!==undefined&&a.preset!=='support').map(a=>a.part).filter(p=>p!==null&&!componentShells?.has(p)))];
+  return [...(componentShells?[...componentShells]:[[null,placed]]).map(([part,shell])=>[part,shell,true]),
+    ...named.map(part=>{const s=selections.get(part);return [part,translateShell(buildShell(rhino,s.geometry),plan.placement.xMm+s.xMm,plan.placement.yMm+s.yMm,s.zMm),false];})];
 }
 
-export function generateModelResults(plan,machine,rhino,{placed,componentShells,bounds},onProgress) {
-  const process=plan.process,skin=plan.skills['draped-skin'],vase=plan.skills['vase-wall'],network=plan.skills['line-network'];
-  const summary = { generatorVersion: VERSION, shape: plan.geometry.shape };
-  const results=[];
-  let survey=null,regionShells=null;
-  if(network.enabled){const result=lineNetworkResult({plan,bounds:machine.motionChecks==='deferred'?null:bounds});results.push(result);summary.lineNetwork=result.report;}
-  else if(plan.composition.regions.length) {
-    const selections=geometrySelections(plan.geometry);regionShells=new Map();
-    for(const assignment of plan.composition.regions){
-      if(regionShells.has(assignment.part))continue;
-      const part=selections.get(assignment.part);
-      let shell=buildShell(rhino,part.geometry);
-      if(part.detailsFrom){
-        const features=heatSetFeatures(part.detailsFrom);
-        if(features.length)shell.planarDetails=heatSetDetails(features);
-      }
-      regionShells.set(assignment.part,translateShell(shell,plan.placement.xMm+part.xMm,plan.placement.yMm+part.yMm,part.zMm));
-    }
-    const regional=generateRegionResults({plan,machine,placed,componentShells:regionShells,selections,onProgress});
-    results.push(...regional.results);Object.assign(summary,regional.summary);
-  } else {
-  requireThat(!plan.skills['thick-lip'].enabled,'thick-lip only applies through composition.regions, assigned directly above a level-ended vase-wall region.');
-  const skinShell=componentShells&&skin.part ? componentShells.get(skin.part):placed;
-  if (skin.enabled) {
-    const declaredLimitDeg = machineMaxAngle(machine);
-    const effectiveLimitDeg = skin.maxAngleDegOverride ?? declaredLimitDeg;
-    survey = surveySurface(skinShell, { ...DRAPED_SKIN_DEFAULTS, ...skin }, effectiveLimitDeg);
-    survey.declaredLimitDeg = declaredLimitDeg;
-    survey.experimentalOverride = Boolean(machine.nonplanar?.experimental)||(skin.maxAngleDegOverride !== null && skin.maxAngleDegOverride !== declaredLimitDeg);
-    requireThat(Number.isFinite(survey.maxMm), 'The top surface survey found no surface to skin.');
+// Survey every selected skin before body ownership, then finalize each
+// supporting producer before constructing surface consumers.
+export function generateModelResults(plan,machine,rhino,{placed,componentShells,bounds,weldSites=[],planningState,emittedIds=[]},onProgress) {
+  const welds=weldSites.map(site=>site.reservation);
+  const summary={generatorVersion:VERSION,shape:plan.geometry?.shape??null},results=[];
+  const shells=sliceShells(plan,rhino,{placed,componentShells});
+  const contexts=depositionAssignments(plan).filter(assignment=>assignment.construction||assignment.surface?.kind==='terminal'||assignment.stack?.direction==='normal'||assignment.within?.some(v=>v.kind==='surface-domain'&&v.loopsUv===null)).map(assignment=>{
+    const shell=shells.find(([part])=>part===(assignment.part??null))?.[1],selected=assignmentPlan(plan,machine,assignment);
+    if(assignment.construction==='sleeve'||!assignment.construction&&assignment.surface?.kind!=='terminal')requireThat(shell,'A surface family needs a selected component or the single solid.');
+    return {assignment,shell,process:selected.process,maxBeadHeightMm:Infinity};
+  });
+  const skins=contexts.filter(({assignment})=>assignment.within?.some(v=>v.kind==='surface-domain'&&v.loopsUv===null)).map(context=>({...context,survey:surveySkinAssignment({...context,machine})}));
+  const sleeves=contexts.filter(({assignment})=>assignment.construction==='sleeve').map(context=>{
+    const {assignment,shell}=context;
+    const startMm=shell.bounds.min[2]+assignment.zStartMm,endMm=assignment.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+assignment.zEndMm;
+    return {...context,startMm,endMm};
+  });
+  for(let i=0;i<sleeves.length;i++)for(let j=i+1;j<sleeves.length;j++)if(sleeves[i].assignment.part===sleeves[j].assignment.part&&Math.min(sleeves[i].endMm,sleeves[j].endMm)-Math.max(sleeves[i].startMm,sleeves[j].startMm)>TOLERANCE.point)requireExclusiveClaims(sleeves[i].assignment,sleeves[j].assignment);
+  const bands=sleeves.map(s=>({part:s.assignment.part,startMm:s.startMm,endMm:s.endMm}));
+  const rims=contexts.filter(({assignment})=>assignment.surface?.kind==='terminal'),referenceAssignments=contexts.filter(({assignment})=>assignment.stack?.direction==='normal');
+  const constructions=[...sleeves.filter(context=>assignmentFamily(context.assignment)==='trace'),
+    ...contexts.filter(({assignment})=>assignment.construction==='inject'),...contexts.filter(({assignment})=>assignment.construction==='curves')];
+  const supportContexts=prepareSupportContexts({plan,machine,shells:componentShells?[...componentShells.values()]:placed?[placed]:[]});
+  const sliced=finalizedSliceResults({plan,machine,shells,volumes:sliceVolumes(plan,rhino),bands,reserves:welds,envelopes:welds,surfaceAssignments:skins,referenceAssignments,terminalAssignments:rims,boundaryAssignments:sleeves.filter(context=>assignmentFamily(context.assignment)==='slice'),constructions,supportContexts,weldSites,onProgress,planningState,emittedIds});
+  results.push(...sliced.results);
+  if(sliced.summary)summary.slices=sliced.summary;
+  for(const [kind,key] of [['sleeve','vaseWall']]){
+    const instances=results.filter(result=>result.report.construction===kind).map(result=>({id:result.id,...result.report}));
+    if(instances.length)summary[key]={...instances[0],instances};
   }
-
-  const planar=generatePlanarResults(plan,machine,{placed,componentShells},survey,onProgress);
-  const {planarSupports,vaseShell}=planar;
-  results.push(...planar.results);Object.assign(summary,planar.summary);
-  if(vase.enabled) {
-    requireThat(vaseShell,'No component selected for vase wall.');
-    const result=vaseWallResult({shell:vaseShell,plan,machine,id:componentShells?vase.part+':vase-wall':'vase-wall',after:results.flatMap(r=>r.operations.map(op=>op.id)),onProgress});
-    const published=vase.pattern==null&&!vase.meshSleeve?publishFinishedBoundary(result,{shell:vaseShell,boundary:'side',startMm:result.report.baseTopMm,
-      endMm:result.report.endMm-(vase.endTransition==='level'?0:process.layerMm),toleranceMm:vase.boundaryToleranceMm}):result;
-    results.push(published);summary.vaseWall=published.report;
-  }
-  if(skin.enabled){
-    // Every skin operation depends transitively on the ENTIRE supporting body.
-    const result=drapedSkinResult({shell:skinShell,plan,machine,survey,after:results.flatMap(r=>r.operations.map(op=>op.id)),
-      supportTopAt:planarSupports.length?planarSupportTopAt(planarSupports,process):null});
-    const published=publishFinishedBoundary(result,{shell:skinShell,boundary:'top',maxSlopeDeg:survey.limitDeg,coverage:skin.spacingFactor>1?'sparse':'nominal'});
-    results.push(published);summary.drapedSkin=published.report;
-  }
-  }
-  if(plan.skills.bridging.enabled){
-    const bridge=bridgingResult({plan,modelResults:results,bounds:machine.motionChecks==='deferred'?null:bounds});
-    results.push(bridge);summary.bridging=bridge.report;
-  }
-  return {results,summary,survey,...(regionShells?{regionShells}:{})};
+  const families=Object.fromEntries(['roof','terminal','normal'].map(kind=>[kind,results.filter(r=>r.report.referenceFamily===kind).map(r=>({id:r.id,...r.report}))]).filter(([,items])=>items.length));
+  if(Object.keys(families).length)summary.referenceFamilies=families;
+  const curves=results.filter(result=>result.report.construction==='curves');
+  if(curves.length)summary.curves=curves.map(result=>({id:result.id,...result.report}));
+  const survey=skins[0]?.survey??null;
+  if(skins.length)summary.surfaceDomain={maxSlopeDeg:Math.max(...skins.map(s=>s.survey.limitDeg)),surfaceMaxSlopeDeg:Math.max(...skins.map(s=>s.survey.maxSlopeDeg)),excludedAreaPercent:Math.max(...skins.map(s=>s.survey.steepFraction))*100};
+  return {results,summary,survey,shells,slicedSupports:sliced.supports,execution:sliced.execution};
 }
 
-export function addComplementaryResults(plan,machine,{placed,componentShells,weldSites},batch) {
+export function addComplementaryResults(plan,machine,{placed,componentShells,weldSites,bounds},batch) {
   const results=[...batch.results],summary={...batch.summary};
-  if(plan.skills['pipe-cladding'].enabled){
-    const settings=plan.skills['pipe-cladding'],shell=batch.regionShells?.get(settings.part)??(componentShells?componentShells.get(settings.part):placed);
-    const finishedSurface=settings.surface?consumeFinishedSurface({shell,selection:settings.surface,results}):null;
-    const result=surfaceCladdingResult({plan,shell,finishedSurface,after:finishedSurface?[]:results.flatMap(r=>r.operations.map(op=>op.id))});
-    results.push(result);summary.pipeCladding=result.report;
+  // Support-preset slices and tree supports print before what they hold up.
+  const supports=batch.slicedSupports??[];
+  const supportedResults=[...supports,...applyResultDependencies(results,supportDependencies(supports,results))];
+  if(supports.length)summary.supports=supports.map(r=>({id:r.id,...r.report}));
+  const weldResult=results.find(result=>result.id==='plastic-weld'),changes=[];
+  for(const site of weldSites)for(const result of supportedResults)if(result!==weldResult)for(const op of result.operations)
+    if(op.strokes.some(stroke=>stroke.points.some(point=>point[2]>site.top+1e-8)))changes.push({operationId:op.id,after:[site.reservation.completion.operationId],mode:'union'});
+  if(weldResult)summary.plasticWeld=weldResult.report;
+  const completed=applyResultDependencies(supportedResults,changes);
+  return {...batch,results:applyDeclaredDependencies(plan,completed),summary};
+}
+
+// The recipe's dependency declarations apply to every construction, including
+// ordinary slice families produced before their later-stage dependents.
+export function applyDeclaredDependencies(plan,results){
+  const changes=[];
+  for(const result of results){
+    const assignment=plan.slices.assignments.find(a=>a.id===(result.report?.owner??result.id));
+    const dependencies=assignment?.dependencies;if(!dependencies)continue;
+    const prior=results.filter(other=>other!==result&&dependencies.afterParts.includes(other.report?.part));
+    const after=[...dependencies.after,...prior.flatMap(other=>other.operations.map(op=>op.id))];
+    for(const op of result.operations)if(after.length)changes.push({operationId:op.id,after,mode:'union'});
+    const before=results.filter(other=>other!==result&&dependencies.beforeParts.includes(other.report?.part));
+    for(const other of before)for(const op of other.operations)changes.push({operationId:op.id,after:result.operations.map(op=>op.id),mode:'union'});
   }
-  const waves=waveResults({plan,machine,placed,componentShells,modelResults:results});
-  const wavedResults=[...applyResultDependencies(results,waves.dependencyChanges),...waves.results];
-  if(waves.results.length)summary.waveOverhangs=waves.results.map(r=>r.report);
-  const supports=supportResults({plan,machine,shells:componentShells?[...componentShells.values()]:[placed],modelResults:wavedResults});
-  const supportedResults=[...supports.results,...applyResultDependencies(wavedResults,supports.dependencyChanges)];
-  if(supports.results.length)summary.supports=supports.results.map(r=>r.report);
-  const welds=plasticWeldResult({plan,sites:weldSites,modelResults:supportedResults});
-  const weldedResults=applyResultDependencies(supportedResults,welds.dependencyChanges);
-  if(welds.result)summary.plasticWeld=welds.result.report;
-  return {...batch,results:welds.result?[...weldedResults,welds.result]:weldedResults,summary};
+  return applyResultDependencies(results,changes);
 }
 
 // Dependency changes address operation IDs, which are unique within a composed
@@ -276,41 +219,70 @@ export function applyResultDependencies(results,dependencyChanges){
   });
 }
 
-export function addPrimeResult(plan,machine,batch) {
-  const prime=primeLineResult(plan,machine);
-  if(!prime)return {...batch,prime};
-  const results=[prime,...batch.results.map(result=>({...result,operations:result.operations.map(op=>({...op,after:[...new Set([...(op.after??[]),'prime-line:0'])]}))}))];
-  return {...batch,results,summary:{...batch.summary,primeLine:prime.report},prime};
-}
-
 export function summarizeGeneratedPath(placed,survey,modelSummary) {
   const summary={...modelSummary};
   summary.composition=null;
 
-  summary.boundsMm = placed.bounds;
+  summary.boundsMm = placed?.bounds??null;
   summary.clearance = 'operator responsibility; no collision model implemented';
   summary.physicalValidation = 'not performed';
-  if (survey) summary.nonplanarLimit = {
-    machineMaxAngleDeg: survey.declaredLimitDeg,
-    effectiveMaxAngleDeg: survey.limitDeg,
-    experimentalOverride: survey.experimentalOverride,
-    surfaceMaxSlopeDeg: Number(survey.maxSlopeDeg.toFixed(3)),
-    excludedAreaPercent: Number((survey.steepFraction * 100).toFixed(2))
+  if (survey&&!summary.surfaceDomain) summary.surfaceDomain = {
+    maxSlopeDeg:survey.limitDeg, surfaceMaxSlopeDeg:survey.maxSlopeDeg,excludedAreaPercent:survey.steepFraction*100
   };
   return summary;
 }
 
-export function generatePath(plan, machine, rhino, {onProgress} = {}) {
+export const GENERATION_CONTRACT='saam-deposition/8';
+export function depositionInspection(results){
+  const operations={};
+  for(const result of results){
+    const family=result.familyId??result.report?.owner??result.id,kind=result.report?.depositionFamily??null;
+    if(!kind)continue;
+    const familyLayers=result.family?.layers??[];
+    const traceLayers=kind==='trace'?[...new Set(result.operations.flatMap(operation=>{
+      const layers=operation.strokes.flatMap(stroke=>stroke.segmentMetadata?.map(segment=>segment.layer).filter(Number.isInteger)??[]);
+      return layers.length?layers:[operation.layer];
+    }))]:[];
+    for(const operation of result.operations){
+      const index=operation.layerIndex??operation.layer;
+      const sourceLayers=new Set([operation.layer,...operation.strokes.flatMap(stroke=>stroke.segmentMetadata?.map(segment=>segment.layer).filter(Number.isInteger)??[])]);
+      const layers=Object.fromEntries([...sourceLayers].map(layer=>{
+        const ordinal=familyLayers.findIndex(reference=>reference.index===layer);
+        const traceIndex=traceLayers.indexOf(layer);
+        return [layer,{index:kind==='slice'&&ordinal>=0?ordinal:kind==='trace'&&operation.layerIndex===undefined?Math.max(0,traceIndex):index}];
+      }));
+      const changed=result.report?.modulation?.changedOperations?.includes(operation.id);
+      operations[operation.id]={family,kind,layers,referenceName:result.family?.name??null,roles:[...new Set(operation.strokes.map(stroke=>stroke.role))],
+        modifiers:changed?(result.report.modulation.operationModifiers?.[operation.id]??result.report.modulation.modifiers):[]};
+    }
+  }
+  return {schema:GENERATION_CONTRACT,operations};
+}
+
+export function generatePath(plan, machine, rhino, {onProgress,modulations,modulationPreparation=[]} = {}) {
   const prepared=preparePathGeometry(plan,machine,rhino);
-  const model=generateModelResults(plan,machine,rhino,prepared,onProgress);
-  const complemented=addComplementaryResults(plan,machine,prepared,model);
-  const primed=addPrimeResult(plan,machine,complemented);
-  const {placed,bounds}=prepared,{results,survey,prime}=primed,process=plan.process;
+  const evaluated=modulations?{...plan,modulations}:plan;
+  const assigned=[...new Set([plan.setup.bambu?.filament,...assignedFilaments(plan)].filter(v=>v!==undefined))];
+  const selections=assignedFilaments(plan).length?Object.fromEntries(assigned.map(i=>[i,filamentSelection(plan,machine,i)])):null;
+  const start=[plan.placement.xMm,plan.placement.yMm,(prepared.placed?.bounds.max[2]??0)+plan.process.liftMm];
+  const started=planFan(createPlanningState({start,process:plan.process,generatorVersion:VERSION,
+    selection:selections?.[plan.setup.bambu.filament]??null,selections}),0);
+  const prime=primeLineResult(plan),startup=prime?planOperation(started.state,prime.operations[0]):planningResult(started.state);
+  const model=generateModelResults(evaluated,machine,rhino,{...prepared,planningState:startup.state,emittedIds:prime?prime.operations.map(op=>op.id):[]},onProgress);
+  const complemented=addComplementaryResults(evaluated,machine,prepared,model);
+  const primed=prime?{...complemented,results:[prime,...complemented.results],summary:{...complemented.summary,primeLine:prime.report}}:complemented;
+  const {placed,bounds}=prepared,{results,survey}=primed,process=plan.process;
   const summary=summarizeGeneratedPath(placed,survey,primed.summary);
-  const assigned=[...new Set([plan.setup.bambu?.filament,...plan.composition.regions.map(r=>r.filament)].filter(v=>v!==undefined))];
-  const selections=plan.composition.regions.some(r=>r.filament!==undefined)?Object.fromEntries(assigned.map(i=>[i,filamentSelection(plan,machine,i)])):null;
-  return planToolpath({start:startupPosition(machine,plan),process,machine,generatorVersion:VERSION,
-    selection:selections?.[plan.setup.bambu.filament]??null,selections,
-    motion:plan.setup.denso??null,motionBounds:bounds,retracted:startupRetracted(machine,plan)},results,
-  {geometryBounds:placed.bounds,rules:plan.composition,prime:!prime,summary,onProgress});
+  summary.substrateAdaptation={experimental:true,enabled:plan.experimental.substrateAdaptation,
+    sliceQueries:results.reduce((sum,result)=>sum+(result.report.substrateContactQueries??0),0),
+    sliceHits:results.reduce((sum,result)=>sum+(result.report.contactSamples??0),0),
+    sliceMisses:results.reduce((sum,result)=>sum+(result.report.uncoveredContactSamples??0),0)};
+  summary.inspection=depositionInspection(results);
+  if(modulationPreparation.length)summary.modulationGeometry=modulationPreparation;
+  const execution=model.execution;
+  const order=[...(prime?prime.operations.map(op=>op.id):[]),...execution.summary.operationOrder],position=new Map(order.map((id,i)=>[id,i]));
+  const inventory=validateOperationBatch(results),prerequisites=prepareOperationDependencies(inventory.operations,inventory.byId,plan.composition);
+  for(const [id,after] of prerequisites)for(const predecessor of after)requireThat(position.has(predecessor)&&position.get(predecessor)<position.get(id),'Final dependency was not scheduled before '+id+': '+predecessor);
+  const finished=planFinishing(execution.state);
+  return planningPath(finished.state,[started.actions,startup.actions,execution.actions,finished.actions],{...summary,composition:{...execution.summary,operationOrder:order}});
 }

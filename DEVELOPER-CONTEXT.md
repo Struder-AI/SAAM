@@ -2,10 +2,9 @@
 
 ## Orientation
 
-A developer is maps-native: the **dev maps** and this file are the orientation
-a developer relies on. The component manuals under `core/` and `studio/` are
-written for makers and builders; open one when the work calls for it, as when a
-change alters the behaviour it describes and it needs rewriting.
+Developers own core skills, core capabilities, Studio and shared interfaces;
+builders compose existing interfaces and author guidance. See [role boundaries](AGENTS.md#choose-your-role).
+Start with [shared terms](GLOSSARY.md), **dev maps** and this file; open component manuals as needed.
 
 ### What the dev maps are for
 
@@ -31,23 +30,21 @@ comes from files or directories.
 - **Node**: anything with an index: a leaf or a cluster. It has exactly one
   **parent map**, its **home**, which numbers it and draws it as a box; it is
   a **child node** there.
-- **Leaf**: one scoped declaration (a function, method, event handler or
-  class) with every declaration written inside it that only it reaches, which
-  is **folded** into it. All scoped code is drawn by exactly one leaf. Leaves
-  are generated; a leaf's view is its **code block**, the source with its
-  callers, calls, links and findings beside it.
+- **Leaf**: one scoped declaration with enclosed code and private helpers
+  owned by that stage folded into it. Source, effects, links and findings stay
+  on the owner; shared or escaping helpers remain separate. Leaves are generated;
+  their view is a **code block**. No manual vocabulary suppression is applied.
 - **Inner** and **outer**: a declaration written inside another's body is
   inner to that outer one. It is folded into the outer's leaf unless code
   outside the outer calls or links to it directly, or code outside the maps
   calls it; then it is a leaf of its own.
 - **Cluster**: a node that groups boxes under a label. Its view is its map,
-  which draws its members and the links between them. The cluster solver
-  authors clusters; a label pass authors their labels, and a cluster without
-  one reads `[needs label]`.
+  which draws its members and calculated links. Groups and labels may be
+  manually authored; a solver-created unlabeled group reads `[needs label]`.
 - **Top map**: `0`, the master cluster: the root of the nesting and no node's
   box.
 - **Nesting**: the tree of maps, `0` and the clusters down to leaves, authored
-  by the solver in `dev-map/tree.json`. Each map numbers the nodes it homes
+  in the set's `tree.json`. Each map numbers the nodes it homes
   `N.1`, `N.2`, … in its left-to-right order: `2.1.3` is homed in `2.1`.
 - **Box**: one drawing of a node on a map. A box on any map other than the
   node's home is a **repeat** (a guest there); it keeps the node's index and
@@ -98,8 +95,8 @@ comes from files or directories.
   backflow and balance (`dev-map/lib/score.mjs`), each squared; the
   energy, the solver's goal, sums the scores of `0` and every cluster, each
   weighted by 1 + log₂ of its nested leaves, per leaf.
-- **Authored inputs**: the tree (clusters by the solver, labels by a label
-  pass), annotations and scope. Everything else is generated.
+- **Authored inputs**: tree, labels, optional page positions, annotations and scope.
+  Leaves and links are generated.
 
 ### Scope
 
@@ -116,17 +113,17 @@ comes from files or directories.
 - The scope edge is drawn both ways, as externals: outside code calling in
   and every call that leaves the maps, at every level.
 
-All of this is authored in one place, `dev-map/lib/scope.mjs`.
+These are the default rules in `dev-map/lib/scope.mjs`. Named sets select
+scanner leaves and retain all scanned outside connections; see
+[set authoring](dev-map/README.md#authoring).
 
 ### The tree
 
 - The walk is `0`, cluster maps down to a leaf, then its code block, the edit,
   `regenerate`, and the read again. Where the code lives does not enter into
   it: the nesting is functional, never a file tree.
-- Leaves and links are generated; the cluster solver arranges the leaves into
-  clusters, repeats included, to lower the energy. Placement is total: every
-  leaf is in the tree whatever `tree.json` says or leaves out, and nothing
-  fails for a leaf that is new or gone.
+- The default solver groups leaves to lower energy; default placement accepts
+  new or gone leaves. Manual sets require an explicit home for each selected leaf.
 - The solver runs only when the owner asks for it. `regenerate` places a new
   leaf beside its links in the existing tree and never re-solves; an agent
   that thinks the clustering needs a solve asks the owner, never runs one.

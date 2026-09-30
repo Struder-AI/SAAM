@@ -1,6 +1,6 @@
 // Smooth open sleeves estimated from validated closed mesh geometry.
 // This is a fit, not a mesh repair or replacement of printable source geometry.
-import {createSectionQuery} from './query.mjs';
+import {section,prepareSection,horizontalSlice} from './slice.mjs';
 import {contourPath} from './contour-path.mjs';
 import {basisFunctions,findSpan,evaluate} from './nurbs.mjs';
 import {leastSquares} from './least-squares.mjs';
@@ -41,14 +41,14 @@ export function detectMeshSleeveInterval(mesh,{
     'Mesh sleeve detection needs a nonempty height interval within the mesh.');
   requireThat(Number.isFinite(marginMm)&&marginMm>0&&marginMm<(zMaxMm-zMinMm)/2,'Mesh sleeve marginMm must be positive and less than half the selected height.');
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0,'Mesh sleeve section toleranceMm must be positive.');
-  requireThat(Number.isInteger(sampleCount)&&sampleCount>=3&&sampleCount<=257,'Mesh sleeve sampleCount must be an integer from 3 to 257.');
-  requireThat(Number.isFinite(maxSecondaryAreaFraction)&&maxSecondaryAreaFraction>=0&&maxSecondaryAreaFraction<=.05,
-    'Mesh sleeve maxSecondaryAreaFraction must be between zero and 0.05.');
-  const query=createSectionQuery(mesh),cache=new Map();
+  requireThat(Number.isSafeInteger(sampleCount)&&sampleCount>=3,'Mesh sleeve sampleCount must be a safe integer of at least 3.');
+  requireThat(Number.isFinite(maxSecondaryAreaFraction)&&maxSecondaryAreaFraction>=0&&maxSecondaryAreaFraction<=1,
+    'Mesh sleeve maxSecondaryAreaFraction must be between zero and one.');
+  const prepared=prepareSection(mesh,horizontalSlice(0)),cache=new Map();
   let maxSecondaryAreaMm2=0,maxPoreAreaMm2=0;
   function inspect(z){
     if(cache.has(z))return cache.get(z);
-    const result=sleeveCut(query(z),z,{toleranceMm,maxSecondaryAreaFraction},true);
+    const result=sleeveCut(section(prepared,horizontalSlice(z)),z,{toleranceMm,maxSecondaryAreaFraction},true);
     if(result){maxSecondaryAreaMm2=Math.max(maxSecondaryAreaMm2,result.secondaryArea);maxPoreAreaMm2=Math.max(maxPoreAreaMm2,result.poreArea);}
     cache.set(z,result);return result;
   }
@@ -105,17 +105,17 @@ function validateSleeveFit(mesh,{zMinMm,zMaxMm,circumferentialControls,heightCon
   requireThat(Number.isFinite(zMinMm)&&Number.isFinite(zMaxMm)&&zMaxMm>zMinMm&&zMinMm>=mesh.bounds.min[2]&&zMaxMm<=mesh.bounds.max[2],
     'Mesh sleeve fitting needs a nonempty height interval within the mesh.');
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0,'Mesh sleeve section toleranceMm must be positive.');
-  requireThat(Number.isFinite(maxSecondaryAreaFraction)&&maxSecondaryAreaFraction>=0&&maxSecondaryAreaFraction<=.05,
-    'Mesh sleeve maxSecondaryAreaFraction must be between zero and 0.05.');
-  for(const [name,count,min,max] of [['circumferentialControls',circumferentialControls,4,64],['heightControls',heightControls,4,64],
-    ['circumferentialSamples',circumferentialSamples,16,1024],['heightSamples',heightSamples,4,257]])
-    requireThat(Number.isInteger(count)&&count>=min&&count<=max,`Mesh sleeve ${name} must be an integer from ${min} to ${max}.`);
+  requireThat(Number.isFinite(maxSecondaryAreaFraction)&&maxSecondaryAreaFraction>=0&&maxSecondaryAreaFraction<=1,
+    'Mesh sleeve maxSecondaryAreaFraction must be between zero and one.');
+  for(const [name,count,min] of [['circumferentialControls',circumferentialControls,4],['heightControls',heightControls,4],
+    ['circumferentialSamples',circumferentialSamples,8],['heightSamples',heightSamples,4]])
+    requireThat(Number.isSafeInteger(count)&&count>=min,`Mesh sleeve ${name} must be a safe integer of at least ${min}.`);
   requireThat(circumferentialSamples>=2*circumferentialControls&&heightSamples>=heightControls,
     'Mesh sleeve fitting needs at least twice as many circumferential samples as controls and at least as many height samples as controls.');
 }
 
 function prepareSleeveSource(mesh,{zMinMm,zMaxMm,toleranceMm,maxSecondaryAreaFraction}){
-  const sectionQuery=createSectionQuery(mesh),sourceCache=new Map();
+  const prepared=prepareSection(mesh,horizontalSlice(0)),sourceCache=new Map();
   // The anchor remains outside the whole mesh and is translated with the part.
   // A fixed direction avoids choosing a new arbitrary triangle seam per ring.
   const anchor=[mesh.bounds.max[0]+Math.max(1,mesh.bounds.max[0]-mesh.bounds.min[0]),(mesh.bounds.min[1]+mesh.bounds.max[1])/2];
@@ -124,7 +124,7 @@ function prepareSleeveSource(mesh,{zMinMm,zMaxMm,toleranceMm,maxSecondaryAreaFra
     requireThat(Number.isFinite(z)&&z>=zMinMm-1e-9&&z<=zMaxMm+1e-9,'Sleeve section height is outside the fitted interval.');
     z=Math.max(zMinMm,Math.min(zMaxMm,z));
     if(sourceCache.has(z))return sourceCache.get(z);
-    const cut=sectionQuery(z),{outer,holes,bores,secondaryOuters,secondaryArea,poreArea}=sleeveCut(cut,z,{toleranceMm,maxSecondaryAreaFraction});
+    const cut=section(prepared,horizontalSlice(z)),{outer,holes,bores,secondaryOuters,secondaryArea,poreArea}=sleeveCut(cut,z,{toleranceMm,maxSecondaryAreaFraction});
     seenHollow ||=bores.length>0;seenSolid ||=bores.length===0;sourceQueries++;
     maxSecondaryAreaMm2=Math.max(maxSecondaryAreaMm2,secondaryArea);maxSecondaryLoops=Math.max(maxSecondaryLoops,secondaryOuters.length);maxPoreAreaMm2=Math.max(maxPoreAreaMm2,poreArea);
     const value={...cut,outer,holes,bores,secondaryOuters,curve:contourPath(outer,anchor),classification:bores.length?'hollow-sleeve':'solid-envelope'};

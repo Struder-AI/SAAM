@@ -1,7 +1,6 @@
 # Machine interfaces and program output
 
-Machine capabilities, motion semantics and exporter/interpreter responsibilities.
-Read the contract for the output being changed:
+Read the output contract for machine behavior and exporter/interpreter responsibilities:
 
 | Output | Contract |
 |---|---|
@@ -19,7 +18,7 @@ but no implemented output contract. X1 Carbon shares the H2D exporter with its
 own pinned envelope; the H2D envelope does not apply to it. S5 startup is not
 assumed for UM3. UM2 Extended uses volumetric UltiGCode rather
 than the filament-length extrusion used by Griffin. Their declared output
-limitations are reported before path generation; catalog presence is not export support.
+limitations are reported at export; catalog presence is not export support.
 
 ## Machine interoperability design
 
@@ -57,21 +56,28 @@ motion and caches it by source text.
 
 ### Output compatibility
 
-Machine profiles validate selected tool bounds, nozzle/core, filament,
-material temperatures, flow/retraction and required skill capabilities. Profiles
-own setup defaults; remembered setup is separate per machine. Skills target
-compatible XYZ extrusion machines through this interface. Planar skills require
-`planar`; drape and vase-wall additionally require `nonplanar` and a declared angle limit.
-Production checks apply to interpreted export commands, including selected-tool
-bounds, feeds and flow.
+SAAMpath generation validates authored geometry and process values independently
+of machine capabilities. Machine profiles supply authoring defaults. They do not
+filter skills, reject tool poses or synthesize poses from the selected machine.
+Slice optionally derives upright orientation (default) or its surface normal; FIELD
+can vary either enabled output. Missing orientation implies ordinary print-Z alignment.
 
-| Profile | Skill checks | Declared export and review |
-|---|---|---|
-| UltiMaker S5 | Fill, planar-infill, drape and bounded vase-wall on mesh/splines | Griffin exporter/interpreter, same-file Studio review/delivery. |
-| Bambu H2D | Fill, planar-infill, drape and bounded vase-wall on mesh/splines | Experimental sliced-3MF exporter, checked firmware envelope and print-body interpreter; same-file review/delivery. |
-| Bambu X1 Carbon | Fill, planar-infill and drape on mesh/splines within an experimental user-chosen 10° nonplanar limit (no clearance rating); PLA output | The H2D exporter, interpreter and package writer with the X1's own pinned envelope and machine-file package facts; same-file review/delivery. |
-| Dobot MG400 | Shared fill, planar-infill, drape and vase-wall paths with synthetic configured installation checks | Experimental Lua source ZIP and bounded interpreter; same-file review/delivery. Setup is unconfigured by default; vendor project import is unverified. |
-| DENSO VS-068A4 / RC8A + rotary | Surface cladding on spline or mesh tubes plus fixed-orientation mesh/spline regional skills, with synthetic setup | Experimental PacScript source ZIP and bounded interpreter; same Studio/lifecycle. Actual rotary/calibration and vendor execution unresolved; feasibility deferred. |
+[Export preparation](./prepare-path.mjs) adds installation startup and priming,
+material-change clearance and axis-feed limits without mutating the authored path.
+Only exporters enforce installed nozzle/material compatibility and required setup.
+Interpreters check the exact emitted program; Studio reviews those same bytes.
+`checkMachinePath` checks an export-prepared path, not neutral authoring intent.
+Unsupported output errors occur after SAAMpath construction and carry `stage: export`.
+
+| Action | Implemented outputs |
+|---|---|
+| XYZ deposition, dwell | Griffin, Bambu, Dobot, DENSO |
+| Filament retraction, fan, stationary extrusion, nozzle temperature | Griffin, Bambu; relay outputs reject controls they cannot express |
+| Logical material/nozzle change | Bambu's declared service contracts |
+| Derived orientation | Upright works on every output; non-upright poses need DENSO |
+
+Robot setup is mandatory at export; software review does not establish controller feasibility,
+actual extrusion or collision clearance.
 
 The user selected H2D left 0.4 mm nozzle, 1.75 mm PLA and experimental 15°
 non-planar limit. The profile records official hardware/slicer sources, separate
@@ -85,15 +91,8 @@ every nozzle, plate or feed configuration. The Bambu contract
 owns the startup duplication inventory, actual installed-nozzle declarations and
 the distinction between logical filament IDs and physical AMS tray intent.
 
-Unavailable outputs are rejected. SAAMpath is an interoperability
-boundary, not an automatic translator to every machine language. Current actions
-are XYZ moves with deposition volume, retraction/recovery, fan and dwell for one
-selected tool, plus optional part-frame tool orientation and an unwrapped rotary
-angle. Existing XYZ-only adapters reject pose-bearing paths rather than discard
-their orientation. New dialects need adapters; in-program tool changes and other
-unsupported semantics need explicit representation extensions.
-Preserve units, transforms, feature identity and material ownership across every
-boundary. A common extension or file suffix alone does not establish compatibility.
+Preserve units, transforms, feature and material identity at every output boundary;
+new dialects need explicit adapters.
 
 ### Stationary extrusion and nozzle control
 

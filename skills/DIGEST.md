@@ -1,44 +1,55 @@
 # Skills
 
-Choose skills here, then read each chosen manual (`read-skill ID`; MCP
-`read_skill`) before using it. The manual owns tools, settings and limits.
-Experimental skills are new printing techniques whose physical behaviour is
-still unknown. A description that is only a keyword marks a
-[keyword skill](../GLOSSARY.md): use it only when the person names it.
+Read each chosen skill's manual (`read_skill`) before using it. "Experimental"
+marks a technique whose physical behaviour is unknown; a keyword-only description
+marks a skill to use only when the person names it. Read an advanced section
+(`title: gate; name`) by name when the print's machine meets its gate or the
+person asks: `read_skill ID#heading`, otherwise `read_guidance`.
 
 <!-- BEGIN GENERATED SKILL DIGEST -->
 
-## Toolpath skills
+## Core toolpath skills
 
 | Skill | Use |
 |---|---|
-| [planar-infill](planar-infill/SKILL.md) | Conventional flat layers, with walls around a patterned sparse interior and density down to a hollow body. Meshes and supported splines; pair with full-fill for solid tops and bases. |
-| [full-fill](full-fill/SKILL.md) | Solid planar layers for a whole body, or solid bases, caps and surface regions around sparse infill. Meshes and supported spline shells. |
-| [line-network](line-network/SKILL.md) | Experimental. Sparse planar frames and trusses from explicit centerline polylines, with per-layer reinforcement strokes; fills no enclosed area. |
-| [bridging](bridging/SKILL.md) | Straight XYZ spans between two supporting rims, with separately controlled attachment motions. Makes no walls; compose with a wall producer. |
-| [plastic-weld](plastic-weld/SKILL.md) | Experimental. Rivets of molten plastic injected into blind shafts across layers, placed individually or staggered through a solid body. |
-| [supports](supports/SKILL.md) | Conventional supports under selected areas, or tree branches at placed contacts; placement trades support against surface contact and removal access. |
-| [bed-adhesion](bed-adhesion/SKILL.md) | A single-layer brim around the outline, for a first layer too small or thin to grip the bed, such as an open-bottom vase. |
-| [draped-skin](draped-skin/SKILL.md) | Top-skin strokes that follow a sloping or curved roof instead of flat-layer steps, within the machine's nonplanar angle limit; steep areas are reported. |
-| [wave-overhangs](wave-overhangs/SKILL.md) | Experimental. Continuous wave passes grown from assigned supported seeds on curved or flat spline slices. |
-| [vase-wall](vase-wall/SKILL.md) | A hollow vase or tube as one continuous rising spiral wall, with an optional solid base. |
-| [advanced-vase-wall](advanced-vase-wall/SKILL.md) | Vase walls patterned with repeated tiles or authored paths on a sleeve, with optional smooth mesh fitting. |
-| [thick-lip](thick-lip/SKILL.md) | A vase wall's top edge thickened into a rigid, optionally rolled rim. |
-| [pipe-cladding](pipe-cladding/SKILL.md) | Experimental. Lengthwise, helical or crossed-helix cladding around a spline or mesh sleeve, or a finished vase wall. Development only; needs a configured DENSO RC8A robot with external rotary. |
+| [slice](slice/SKILL.md) | Construct deposition over 3D regions using slices and slice families: loops, fill, translated or normal stacks, boundary references and joined courses. |
+| [trace](trace/SKILL.md) | Deposit along curves, authored directly or supplied by skills: XYZ, NURBS, surface UV paths and line text, with varying bead and process. |
+| [inject](inject/SKILL.md) | Deposit at points, authored directly or supplied by skills, with explicit volume, flow, vertical approach and hold. |
+| [supports](supports/SKILL.md) | Tree branches at placed contacts; placement trades support against surface contact and removal access. Area supports under a footprint are slices with the support preset. |
 
-## Geometry skills
+## Core geometry skills
 
 | Skill | Use |
 |---|---|
-| [thingi10k](thingi10k/SKILL.md) | Find meshes by keyword or Thingiverse link and download STLs from the Thingi10K mirror. Always link the file's license. |
-| [mesh-tools](mesh-tools/SKILL.md) | Diagnose failed mesh imports, clean duplicate or collapsed facets, repair self-intersections and fill explicitly bounded holes. |
 | [text](text/SKILL.md) | Raised or recessed lettering on a part, or standalone text, from an outline font; flat, along a spline, or bent onto a surface. |
+| [thingi10k](thingi10k/SKILL.md) | Find meshes by keyword or Thingiverse link and download STLs from the Thingi10K mirror. Always link the file's license. |
 | [gridfinity](gridfinity/SKILL.md) | gridfinity |
 
-## Hybrid skills
+## Core hybrid skills
 
 | Skill | Use |
 |---|---|
+| [plastic-weld](plastic-weld/SKILL.md) | Experimental. Rivets of molten plastic injected into blind shafts across layers, placed individually or staggered through a solid body. |
 | [heat-set-inserts](heat-set-inserts/SKILL.md) | Bores for SPIROL Series 19/29 heat-set inserts, metric and imperial, with local wall loops and fins; insertion faces must be flat and face up. |
+
+## Guidance manuals
+
+Recipes and techniques using Slice, Trace and Inject; no additional deposition families.
+
+| Skill | Use |
+|---|---|
+| [line-network](line-network/SKILL.md) | Guidance for sparse frames and trusses made from Trace centerlines. |
+| [bridging](bridging/SKILL.md) | Guidance for Trace spans between supporting rims, including attachment motions. |
+| [draped-skin](draped-skin/SKILL.md) | Guidance for roof-following Slice courses and their contact with prior material. |
+| [wave-overhangs](wave-overhangs/SKILL.md) | Guidance for experimental seeded-front fill on ordinary Slice families. |
+| [vase-wall](vase-wall/SKILL.md) | Guidance for a continuous Slice spiral wall and optional solid base. |
+| [advanced-vase-wall](advanced-vase-wall/SKILL.md) | Guidance for explicit repeated Trace paths mapped onto a fitted sleeve. |
+| [thick-lip](thick-lip/SKILL.md) | Guidance for making a thickened or rolled edge with Slice or Trace. |
+| [pipe-cladding](pipe-cladding/SKILL.md) | Guidance for experimental axial or helical Slice coatings on periodic surface references. |
+
+## Advanced sections
+
+- Surface regions: nonplanar machines; GEOMETRY.md#surface-regions
+- Cladding a vase body: coordinated-rotary machines; gridfinity#cladding-a-vase-body
 
 <!-- END GENERATED SKILL DIGEST -->

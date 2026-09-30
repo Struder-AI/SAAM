@@ -32,7 +32,10 @@ async function prepare(source,options){
   const sourceHash=input.sha256??hash(source),clean=cleanTriangleSoup(input);let result,sourceError;
   progress({stage:'cleanup'});
   try{makeMesh(clean.vertices,clean.triangles);checkAdjacentContacts(clean);result={...clean,report:{method:clean.stitching.edges?'edge-stitch-cleanup/1':'exact-cleanup/1'}};}catch(error){if(error.code==='MESH_MEMORY_EXHAUSTED')throw error;sourceError=error.message;}
-  if(!result)result=await repairMeshNative(clean,options);
+  if(!result){
+    const nativeDirectory=await options.nativeReady?.();
+    signal?.throwIfAborted();result=await repairMeshNative(clean,{...options,nativeDirectory});
+  }
   signal?.throwIfAborted();progress({stage:'validate',triangles:result.triangles.length});makeMesh(result.vertices,result.triangles);checkAdjacentContacts(result);
   const changes=shapeChanges(clean,result,progress,signal);
   if(options.maxSampledDistanceMm!==undefined&&Math.max(changes.sampledDistanceMm.sourceToResult,changes.sampledDistanceMm.resultToSource)>options.maxSampledDistanceMm)throw Object.assign(Error('Repair exceeds maxSampledDistanceMm; no result accepted.'),{code:'MESH_SHAPE_CHANGE',changes});

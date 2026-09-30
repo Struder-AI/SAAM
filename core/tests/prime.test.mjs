@@ -14,7 +14,7 @@ test('S5 shell exports recover, sacrificial strokes, then the part on either noz
   for(const tool of [0,1])for(const retractMm of [0,6.5]){
     const machine=loadMachine(),plan=defaults(machine);
     plan.setup.tool=tool;plan.process.retractMm=retractMm;plan.process.minimumLayerSeconds=0;
-    plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:.6});plan.skills['draped-skin'].enabled=false;
+    plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:.6});
     const path=generatePath(plan,machine,native);
     const program=interpretGriffin(exportGriffin(path,plan,machine,{generatorVersion:'test',buildDate:'2026-09-16'}),plan,machine);
     const depositing=program.moves.filter(m=>m.extruding),prime=depositing.filter(m=>m.phase==='prime');

@@ -39,9 +39,9 @@ async function stage(name,fn){
   return result;
 }
 try{
-  const [generation,planning,exports,geometry]=await stage('runtime',()=>Promise.all([
-    import('../../core/print/generate.mjs'),import('../../core/print/plan.mjs'),
-    import('../../core/export/registry.mjs'),import('../../core/print/geometry.mjs')]));
+  const [generation,planning,exports]=await stage('runtime',()=>Promise.all([
+    import('../../core/print/bundle.mjs'),import('../../core/print/plan.mjs'),
+    import('../../core/export/registry.mjs')]));
   const {plan,machine}=await stage('read-and-parse',async()=>{
     const bytes=await readFile(path.join(input,'plan.json'));report.input['plan.json']={bytes:bytes.length,sha256:digest(bytes)};
     const {bundle,...plan}=JSON.parse(bytes);return {plan,machine:bundle.machine};
@@ -49,13 +49,12 @@ try{
   // A fresh benchmark process has no earlier geometry-ingestion result. Keep
   // this cold cost separate from generation after geometry is already loaded.
   await stage('geometry-and-plan',()=>planning.validatePlan(plan,machine));
-  const native=generation.hasMesh(plan.geometry)?null:await stage('native-runtime',geometry.rhino);
-  const toolpath=await stage('generate',()=>{generationStart=performance.now();return generation.generatePath(plan,machine,native,{onProgress});});
+  const toolpath=await stage('generate',()=>{generationStart=performance.now();return generation.generatePreparedPath(plan,machine,{onProgress});});
   const {bytes,program}=await stage('export-and-interpret',()=>exports.exportAndInterpretProgram(toolpath,plan,machine,
     {generatorVersion:planning.VERSION,buildDate:planning.BUILD_DATE}));
   report.afterLoadMs=report.stagesMs.generate+report.stagesMs['export-and-interpret'];
   report.result={actions:toolpath.actions.length,moves:program.moves.length,exportBytes:Buffer.byteLength(bytes),exportSha256:digest(bytes),travel:toolpath.summary.travel};
-  report.qualification='Generator and checked export only; no Studio transport/rendering, delivery or physical execution. CPU profiling adds overhead. Compare identical input hashes and comparable machine load.';
+  report.qualification='Shared prepared generation (including native runtime and modulation fields) and checked export; no Studio transport/rendering, delivery or physical execution. CPU profiling adds overhead. Compare identical input hashes and comparable machine load.';
   await writeFile(path.join(output,'timing.json'),JSON.stringify(report,null,2)+'\n');
   console.log(`After geometry load: ${(report.afterLoadMs/1000).toFixed(3)} s; ${program.moves.length} moves`);
 }catch(error){

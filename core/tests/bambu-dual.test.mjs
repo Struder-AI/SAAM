@@ -5,6 +5,7 @@ import {defaults} from '../print/plan.mjs';
 import {rhino} from '../print/geometry.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {exportProgram,interpretProgram} from '../export/registry.mjs';
+import {prepareMachinePath} from '../export/prepare-path.mjs';
 import {unpackZip,packZip} from '../export/zip.mjs';
 import {decodeSource} from '../../studio/source-player.mjs';
 import {auditBambu} from '../../scripts/bambu-audit.mjs';
@@ -14,10 +15,11 @@ import {recipeRows} from '../../studio/settings.mjs';
 import {beadSection} from '../../studio/material-view.mjs';
 
 import {mixedNozzleFixture} from './fixtures/bambu-dual.mjs';
+import {splineBox} from './fixtures/spline-shapes.mjs';
 const release={generatorVersion:'test',buildDate:'2026-09-21'};
 test('mixed 0.4/0.8 H2D regions emit tower-free changes, distinct process grids and independently decoded tool state',async()=>{
   const {plan,machine}=mixedNozzleFixture(),path=generatePath(plan,machine,await rhino());
-  checkMachinePath(path,plan,machine);
+  checkMachinePath(prepareMachinePath(path,plan,machine),plan,machine);
   assert.ok(path.actions.filter(a=>a.kind==='toolChange').length>=3);
   const bytes=exportProgram(path,plan,machine,release),z=unpackZip(bytes),code=z.get('Metadata/plate_1.gcode').toString();
   assert.match(code,/^; filament: 1,2$/m,'USB header declares material IDs, not their count');
@@ -27,7 +29,7 @@ test('mixed 0.4/0.8 H2D regions emit tower-free changes, distinct process grids 
   assert.doesNotMatch(code,/Prime tower|prime_tower_interface/);
   const body=code.split(';SAAM_BODY_BEGIN\n')[1].split(';SAAM_BODY_END\n')[0];
   assert.doesNotMatch(body,/^G0(?:\s|$)/m);
-  assert.match(body,/G1 X120.2 Y110.2 Z20 F7200\nG1 Z0.2 F600/,'First deposition is preceded by explicit G1 descent');
+  assert.match(body,/G1 X120.2 Y110.2(?: Z[\d.]+)? F7200\nG1 Z0.2 F600/,'First deposition is preceded by explicit G1 descent');
   assert.throws(()=>decodeSource({program:code.replace('G1 Z0.2 F600','G0 Z0.2 F600')},plan,machine),/travel must use G1/);
   assert.match(code,/M620\.10 A0 .* H0.4 T240 P215/);
   assert.match(code,/M620\.10 A1 .* H0.8 T240 P225/);
@@ -90,16 +92,16 @@ test('feed intentions are independent of logical filament and nozzle identities'
 });
 
 test('mixed nozzle job can start on the right and use each nozzle’s own build area',async()=>{
-  const fixture=mixedNozzleFixture(),machine=fixture.machine;
+  const fixture=mixedNozzleFixture(),machine=fixture.machine,r=await rhino();
   const plan=filamentPlan(fixture.plan,machine,1);
   plan.placement.xMm=310;
-  const path=generatePath(plan,machine,await rhino());checkMachinePath(path,plan,machine);
+  const path=generatePath(plan,machine,await rhino());checkMachinePath(prepareMachinePath(path,plan,machine),plan,machine);
   const program=interpretProgram(exportProgram(path,plan,machine,release),plan,machine);
   assert.equal(program.filamentSequence[0],1);
   assert.ok(program.moves.some(m=>m.extruding&&m.tool===1&&m.to[0]>325));
   assert.ok(program.moves.filter(m=>m.extruding&&m.tool===0).every(m=>m.to[0]<=325));
-  plan.composition.regions[1].filament=0;
-  assert.throws(()=>generatePath(plan,machine,{}),/Placement X/);
+  plan.slices.assignments[1].filament=0;
+  assert.throws(()=>exportProgram(generatePath(plan,machine,r),plan,machine,release),/bounds/);
 });
 
 test('unsafe handoffs and automatic external-spool changes fail before packaging',async()=>{
@@ -122,7 +124,7 @@ test('every supported H2D diameter pair keeps each change descriptor on its own 
     Object.assign(plan.setup,{nozzleMm:left,core:`Hardened steel ${left}`});
     plan.setup.bambu.otherNozzleMm=right;plan.process.lineWidthMm=left;
     plan.setup.bambu.filaments[1].process.lineWidthMm=right;
-    for(const part of plan.geometry.parts)part.geometry.heightMm=0.6;
+    for(const part of plan.geometry.parts)part.geometry=splineBox({runMm:8,widthMm:8,heightMm:0.6});
     const path=generatePath(plan,machine,r),bytes=exportProgram(path,plan,machine,release);
     const report=auditBambu(bytes);assert.deepEqual(report.plates[0].changes.issues,[]);
     const program=interpretProgram(bytes,plan,machine);

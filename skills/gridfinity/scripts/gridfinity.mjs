@@ -17,19 +17,20 @@ export function gridfinityParameters(input={}){
   requireThat(Object.keys(input).every(key=>Object.hasOwn(template,key)),'Unknown or inapplicable gridfinity parameter.');
   const p={...template,...input};
   const range=(key,min,max,integer=false)=>requireThat(Number.isFinite(p[key])&&p[key]>=min&&p[key]<=max&&(!integer||Number.isInteger(p[key])),`${key} must be ${integer?'an integer ':''}between ${min} and ${max}.`);
-  range('xUnits',1,8,true);range('yUnits',1,8,true);range('toleranceMm',0.005,0.1);
+  range('xUnits',1,Number.MAX_SAFE_INTEGER,true);range('yUnits',1,Number.MAX_SAFE_INTEGER,true);range('toleranceMm',Number.MIN_VALUE,Infinity);
   if(kind!=='baseplate'){
-    range('heightUnits',1,20,true);requireThat(typeof p.magnetHoles==='boolean','magnetHoles must be boolean.');
+    range('heightUnits',1,Number.MAX_SAFE_INTEGER,true);requireThat(typeof p.magnetHoles==='boolean','magnetHoles must be boolean.');
   }
-  if(kind==='baseplate')range('floorMm',0,5);
+  if(kind==='baseplate')range('floorMm',0,Infinity);
   if(kind==='bin'){
-    range('heightUnits',2,20,true);range('wallMm',0.8,2.5);range('floorMm',1,5);
-    range('compartmentsX',1,16,true);range('compartmentsY',1,16,true);
+    range('heightUnits',1,Number.MAX_SAFE_INTEGER,true);range('wallMm',Number.MIN_VALUE,3.75);range('floorMm',Number.MIN_VALUE,Infinity);
+    requireThat(p.wallMm<3.75,'Wall thickness must leave a positive inner corner radius.');
+    range('compartmentsX',1,Number.MAX_SAFE_INTEGER,true);range('compartmentsY',1,Number.MAX_SAFE_INTEGER,true);
     requireThat(typeof p.stackingLip==='boolean','stackingLip must be boolean.');
     const floor=4.75+p.floorMm,shoulder=7*p.heightUnits;
-    requireThat(floor+3.8<shoulder,'Bin floor leaves insufficient depth beneath the rim.');
+    requireThat(floor+(p.stackingLip?3.8:0)<shoulder,'Bin floor leaves insufficient depth beneath the rim.');
     for(const [axis,count] of [['xUnits','compartmentsX'],['yUnits','compartmentsY']])
-      requireThat((42*p[axis]-0.5-p.wallMm*(p[count]+1))/p[count]>=4,'Compartments must have at least 4 mm clear width.');
+      requireThat((42*p[axis]-0.5-p.wallMm*(p[count]+1))/p[count]>0,'Compartments must retain positive clear width.');
   }
   return p;
 }
@@ -53,7 +54,7 @@ function roundedRing(width,depth,radius,z,cx,cy,steps){
 export async function compileGridfinity(input={}){
   const p=gridfinityParameters(input),k=await solidKernel(),owned=[];
   const keep=object=>(owned.push(object),object);
-  const steps=Math.max(2,Math.ceil(Math.PI/(4*Math.acos(1-p.toleranceMm/4))));
+  const steps=Math.max(2,Math.ceil(Math.PI/(4*Math.acos(Math.max(-1,1-p.toleranceMm/4)))));
   // All temporaries, including inputs to lazy booleans, survive until extraction.
   const loft=(levels,cx,cy)=>{
     const vertices=levels.flatMap(([z,w,d,r])=>roundedRing(w,d,r,z,cx,cy,steps)),n=4*(steps+1),triangles=[];

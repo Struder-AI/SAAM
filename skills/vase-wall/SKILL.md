@@ -1,6 +1,8 @@
 ---
 name: vase-wall
-description: A hollow vase or tube as one continuous rising spiral wall, with an optional solid base.
+description: Guidance for a continuous Slice spiral wall and optional solid base.
+metadata:
+  saam-kind: guidance
 ---
 
 # Standard vase mode
@@ -11,26 +13,26 @@ recipe leaves the interior hollow. No pattern or `meshSleeve` preparation is nee
 For repeated loops, authored patterns or adjustable mesh conformance, choose
 [advanced vase mode](../advanced-vase-wall/SKILL.md).
 
-Both manuals use the existing `skills.vase-wall` recipe and slicer. Their separate
-skill-digest entries guide selection; they do not introduce another recipe key.
+Normal sleeve assignments use the shared Slice family, spiral joining and bead
+construction. Advanced tiled patterns use Trace on the same sleeve reference.
 
 ## Workflow
 
 Use the [shared print tools](../../core/print/USAGE.md) to create/import a print,
-adjust its recipe, generate and review it in Studio. Enable `skills.vase-wall`,
-set `pattern: null`, `pathMode: "continuous"` and `meshSleeve: null`.
+adjust its recipe, generate and review it in Studio. Add a sleeve assignment with
+`pattern: null`, `pathMode: "continuous"` and `meshSleeve: null`.
 When converting an advanced recipe, reset all three explicitly.
 Disable other wall/interior producers on the same material region.
 
-For a solid base, enable [full-fill](../full-fill/SKILL.md) and set a positive
-`zStartMm` on the process layer grid. The vase wall begins above that base.
-Without a base, disable full-fill and use `zStartMm: 0`.
-Disable unwanted default skills, including draped-skin, through ordinary recipe
-adjustment. A closed top is not part of standard vase mode.
+For a solid base, keep a [slice](../slice/SKILL.md) assignment (`fillDensity: 1`)
+and set a positive `zStartMm` on the process layer grid; the wall claims the part
+above it. Without a base, remove the slice assignments and use `zStartMm: 0`.
+Remove unwanted overlapping assignments. A closed top is not part of this mode.
 
-For a same-part stack, use `composition.regions` to assign full-fill to the base
-and vase-wall to the wall above it. An optional [thick lip](../thick-lip/SKILL.md)
-can follow a level-ended wall through that regional workflow.
+Sleeve bounds select its band; a [rim](../thick-lip/SKILL.md) can follow a level end.
+Experimental [substrate adaptation](../../GLOSSARY.md) defaults off. When enabled,
+a raised first wall course retains XYZ but recalculates local bead gaps from
+final deposited material, rejecting missing/out-of-range contact. It creates no Supports.
 
 ## Input geometry: normally a solid
 
@@ -42,16 +44,16 @@ faces and open uncapped meshes are unsupported.
 
 Standard mode follows changing-height geometry sections. On a mesh it fits one
 periodic NURBS **sleeve** (a surface periodic around the part and open along its
-height, the side of a tube; never itself deposited) to the wall interval and follows its loose offset, which
-avoids rebuilding a section, offset and contour at every rising sample and is
-dramatically faster on curved walls. `sleeveToleranceMm` (default 0.08 mm) is the
+height, the side of a tube; never itself deposited). Native horizontal NURBS
+sections are offset inward by half a bead and crossings resolved before contour
+correspondence and spiral mapping. `sleeveToleranceMm` (default 0.08 mm) is the
 target deviation from the true section: the fit scales its resolution toward it
 and reports the residual achieved. A wall thinner than the bead, or a section
 that is not a single sleeve, returns to the exact per-section wall. Set
 `sleeveToleranceMm: 0` to force the exact wall — for example when a corner or
 feature must be held to `boundaryToleranceMm` rather than the sleeve tolerance.
-Spline geometry always uses the exact section path. Choose `zEndMm` explicitly if
-the upper geometry is unsuitable; generation never silently shortens the wall.
+Fitted offsets are loose, with controlled sampling; source-mesh sections use
+polygon offsets. Choose `zEndMm` if the upper geometry is unsuitable.
 
 ## Settings
 
@@ -64,16 +66,14 @@ the upper geometry is unsuitable; generation never silently shortens the wall.
 | `boundaryToleranceMm`, `minFeatureMm` | Centerline standoff/section allowance and smallest sampled feature. |
 | `sleeveToleranceMm` | Target deviation for the fitted-sleeve fast path on meshes (default 0.08 mm); `0` forces the exact per-section wall. |
 
-A wall takes as many points as its geometry, pitch and tolerances require;
-there is no construction cap to exhaust. An ordinary 100 mm × 250 mm vase at
-0.2 mm pitch needs about 640k points. Memory scales with the emitted program
-(about 0.2 KB per point through generation and export), bounded only by the
-Node heap; raise `--max-old-space-size` for extreme programs.
+Sampling follows geometry and tolerances without a construction cap. Memory
+scales with emitted points and the Node heap; extreme programs may need
+`--max-old-space-size`.
 
 The process layer height controls rise per turn; line width controls the nominal
 wall bead. Cooling can slow the continuous stroke rather than parking between
-turns. The machine must support XYZ extrusion and the required nonplanar motion;
-the spiral's slope is checked against its declared angle limit.
+turns. SAAMpath retains the spatial spiral; the selected exporter checks its
+representation and declared machine envelope.
 
 Review geometry, process settings and the actual toolpath in Studio before
 delivery. Software generation does not establish physical clearance, support,

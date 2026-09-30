@@ -1,5 +1,6 @@
 import {loadMachine} from '../../machine/profile.mjs';
 import {defaults} from '../../print/plan.mjs';
+import {sliceAssignment} from '../../print/slices.mjs';
 import {splineBox} from './spline-shapes.mjs';
 
 export function h2dColourFixture(){
@@ -10,8 +11,8 @@ export function h2dColourFixture(){
     filaments:['#0000FF','#FF8000'].map(colour=>({id:'GFA00',colour,tool:1,source:{type:'auto'}}))});
   plan.geometry=splineBox({runMm:24,widthMm:16,heightMm:1.8});
   plan.placement={xMm:163,yMm:152};
-  plan.composition.regions=['blue-base','orange-middle','blue-top'].map((id,i)=>({id,part:null,filament:i%2,
-    zStartMm:[0,0.6,1.2][i],zEndMm:[0.6,1.2,null][i],lowerSurfaceFrom:i?['blue-base','orange-middle'][i-1]:null,
-    skills:{'full-fill':{mode:'body'}}}));
+
+  plan.slices.assignments=['blue-base','orange-middle','blue-top'].map((id,i)=>sliceAssignment({id,filament:i%2,fillDensity:1,
+    within:[{kind:'slab',fromMm:[0,0.6,1.2][i],toMm:[0.6,1.2,null][i]}]}));
   return {plan,machine};
 }

@@ -80,7 +80,7 @@ footer { color: var(--muted); font-size: 12px; padding-bottom: 32px; }
     <h2>Caveats: where "capabilities skills can call" doesn't quite fit</h2>
     <ol>
       <li><b>There is no declared skill API.</b> Skills import core modules by relative path (<code class="i">../../../core/…</code>). This list is what they actually import, so it's the <i>de facto</i> surface. Only parts of it have written contracts: shared offsets and intersections (<code class="i">core/region/README.md</code>, which skills are <i>required</i> to use), skill-result composition (<code class="i">core/path/README.md</code>) and geometry for skill authors (<code class="i">core/geom/README.md</code>).</li>
-      <li><b>Calls go both ways.</b> Core calls toolpath skills too: <code class="i">core/print/generate.mjs</code> statically imports each producer (<code class="i">fullFillResult</code>, <code class="i">vaseWallResult</code>, <code class="i">waveResults</code> …) and dispatches it. Producers return <code class="i">{id, operations, report}</code> to the composer. <code class="i">core/print/bundle.mjs</code> also imports pipe-cladding directly.</li>
+      <li><b>Calls go both ways.</b> Core calls toolpath skills too: <code class="i">core/print/generate.mjs</code> statically imports each producer (<code class="i">sliceResults</code>, <code class="i">vaseWallResult</code>, <code class="i">waveResults</code> …) and dispatches it. Producers return <code class="i">{id, operations, report}</code> to the composer. <code class="i">core/print/bundle.mjs</code> also imports pipe-cladding directly.</li>
       <li><b>Some skills are mostly core.</b> mesh-tools and advanced-vase-wall have no scripts of their own. Repair lives in <code class="i">core/print/repair-stl.mjs</code> plus native CGAL, and advanced vase is part of vase-wall. text and heat-set-inserts put their main work in <code class="i">core/print/text.mjs</code> and <code class="i">heat-set.mjs</code>. rimming-normal reuses rimming-planar's producer.</li>
       <li><b>Two import paths for the same booleans.</b> <code class="i">core/region/boolean.mjs</code> re-exports <code class="i">union / intersect / difference</code> from <code class="i">intersection.mjs</code>, and skills use both paths.</li>
       <li><b>Not included:</b> imports from skill tests only, such as <code class="i">core/tests/fixtures/*</code> and <code class="i">core/export/registry|griffin|bambu</code>. gridfinity's catalog description is literally "gridfinity" (its manual says this is intentional), so its description here is taken from the manual body.</li>
@@ -92,16 +92,14 @@ footer { color: var(--muted); font-size: 12px; padding-bottom: 32px; }
 <script>
 const SKILLS = [
   // [id, kind, description, core modules imported (non-test), note]
-  ['planar-infill','toolpath','Flat-layer walls with a patterned, variable-density or hollow interior.',
-    ['geom/query','geom/tolerance','path/spacing','region/boolean','region/intersection','region/offset','region/region2d','region/reservation']],
-  ['full-fill','toolpath','Solid planar layers for a whole body, or solid bases, caps and surface regions around sparse infill.',
-    ['geom/polyline','geom/query','geom/tolerance','machine/rules','path/builder','path/compose','path/spacing','region/boolean','region/offset','region/perimeters','region/region2d','region/reservation']],
+  ['slice','toolpath','Horizontal slices: owned volumes of a part cut into layers of loops and fill, with brim and support presets.',
+    ['geom/slice','geom/tolerance','machine/rules','path/builder','path/finished-surface','path/spacing','region/boolean','region/fill-patterns','region/layer-region','region/layer-strokes','region/offset','region/reservation']],
   ['line-network','toolpath','Sparse planar frames and trusses printed directly from explicit centerline polylines.',
     ['geom/tolerance','path/builder']],
   ['plastic-weld','toolpath','Experimental rivets: molten plastic injected into blind shafts with wider basins across layers.',
     ['geom/tolerance','path/process-controls','print/bundle','region/boolean','region/region2d']],
-  ['supports','toolpath','Conventional area supports or explicitly placed tree branches at local contacts.',
-    ['geom/query','geom/tolerance','path/spacing','region/intersection','region/offset','region/region2d']],
+  ['supports','toolpath','Explicitly placed tree branches at local contacts; area supports are slices with the support preset.',
+    ['geom/slice','geom/tolerance','print/slices','region/intersection','region/offset','region/region2d']],
   ['rimming-planar','toolpath','Experimental thin walls, with horizontally offset paired beads, that support edges so a bridge can span between them.',
     ['geom/support-surface','geom/tolerance','path/spacing','region/section-offset']],
   ['rimming-normal','toolpath','Rimming walls whose paired beads follow 3D surface-normal offsets (nonplanar).',

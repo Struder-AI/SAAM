@@ -7,6 +7,9 @@ __pycache__/
 /dev-map/store/
 /dev-map/view/
 /dev-map/view.next/
+/dev-map/sets/*/store/
+/dev-map/sets/*/view/
+/dev-map/sets/*/view.next/
 /dev-map-OLD/audit/
 /dev-map-OLD/view/
 dist/

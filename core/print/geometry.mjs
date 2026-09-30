@@ -38,7 +38,7 @@ export async function createGeometry(parameters) {
 
   const doc = new r.File3dm();
   doc.applicationName = 'SAAM';
-  doc.applicationDetails = 'Shell pipeline (full-fill, draped-skin)';
+  doc.applicationDetails = 'Shell pipeline (slices, draped-skin)';
   doc.settings().modelUnitSystem = r.UnitSystem.Millimeters;
   const geometryVersion = hash(parameters);
   const features = [];

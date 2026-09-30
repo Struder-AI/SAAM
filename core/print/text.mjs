@@ -25,7 +25,7 @@ export async function rebuildTextGeometry(base,layers,{buildGeometry}){
 }
 
 export async function applyText(directory,request,{expectedRevision}={}){
-  requireThat(request&&Object.keys(request).every(k=>['feature','remove','part','standalone','regions','toleranceMm','maxEdgeMm'].includes(k)),'Unknown text request field.');
+  requireThat(request&&Object.keys(request).every(k=>['feature','remove','part','standalone','assignments','toleranceMm','maxEdgeMm'].includes(k)),'Unknown text request field.');
   requireThat(Boolean(request.feature)!==Boolean(request.remove),'Supply one feature to add/update, or remove its id.');
   const state=await loadBundle(directory,{program:false});
   requireThat(expectedRevision===undefined||expectedRevision===state.revision,'This review is stale. Reload before changing text.');
@@ -49,7 +49,7 @@ export async function applyText(directory,request,{expectedRevision}={}){
     // Updates merge feature settings; replace the complete reference/baseline.
     if(feature.fontPath){
       requireThat(isAbsolute(feature.fontPath),'Choose an absolute fontPath.');
-      const info=await stat(feature.fontPath);requireThat(info.isFile()&&info.size<=32*1024*1024,'Font must be a regular file no larger than 32 MiB.');
+      const info=await stat(feature.fontPath);requireThat(info.isFile(),'Font must be a regular file.');
       const bytes=await readFile(feature.fontPath);
       feature.font={data:bytes.toString('base64'),sha256:createHash('sha256').update(bytes).digest('hex'),postscriptName:feature.postscriptName??null};
       delete feature.fontPath;delete feature.postscriptName;
@@ -62,12 +62,12 @@ export async function applyText(directory,request,{expectedRevision}={}){
     const r=await rhino();
     owner.geometry=await compileText(base,features,{buildGeometry:g=>buildShell(r,g),standalone,toleranceMm:request.toleranceMm??old?.toleranceMm??0.02,maxEdgeMm:request.maxEdgeMm??old?.maxEdgeMm??1});
   }
-  // A removed/changed feature may invalidate a region selector. Let the caller
+  // A removed/changed feature may invalidate a material selector. Let the caller
   // replace those assignments in the same validated edit, without an invalid
   // intermediate bundle or silently deleting dependent printing operations.
-  if(request.regions!==undefined){
-    requireThat(Array.isArray(request.regions),'Text regions must be an array of material assignments.');
-    plan.composition.regions=structuredClone(request.regions);
+  if(request.assignments!==undefined){
+    requireThat(Array.isArray(request.assignments),'Text assignments must be the complete common slice assignment list.');
+    plan.slices={...plan.slices,assignments:structuredClone(request.assignments)};
   }
   return updatePlan(directory,plan,state.revision);
 }

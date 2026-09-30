@@ -128,11 +128,11 @@ test('MCP searches, imports and opens an unapproved print; attribution survives 
     assert.ok(!result.isError,JSON.stringify(result));return JSON.parse(result.content[0].text);
   };
   const tools=(await client.listTools()).tools;
-  assert.equal(tools.find(tool=>tool.name==='import_thingi10k_print').annotations.openWorldHint,true);
+  assert.equal(tools.find(tool=>tool.name==='import_thingi10k_bundle').annotations.openWorldHint,true);
   assert.ok((await call('list_skills',{})).some(skill=>skill.id==='thingi10k'&&skill.kind==='geometry'));
   const manual=await call('read_skill',{skillId:'thingi10k'}); assert.ok(manual);
   const results=await call('search_thingi10k',{query:'bunny'});
-  const imported=await call('import_thingi10k_print',{printId:'Bunny',fileId:results.results[0].fileId,machineId:'ultimaker-s5'});
+  const imported=await call('import_thingi10k_bundle',{bundleId:'Bunny',fileId:results.results[0].fileId,machineId:'ultimaker-s5'});
   assert.equal(imported.imported,true);assert.equal(imported.toolpathApproved,false);
   assert.ok(imported.chatNotice.includes(imported.attribution.licenseUrl));
   const dir=resolve(printsRoot,'Bunny');
@@ -140,9 +140,9 @@ test('MCP searches, imports and opens an unapproved print; attribution survives 
   assert.equal(state.plan.geometry.source.sha256,createHash('sha256').update(stl).digest('hex'));
   assert.deepEqual(await readFile(resolve(dir,'geometry/source.stl')),stl);
   assert.deepEqual(state.plan.geometry.source.attribution,imported.attribution);
-  const review=await call('request_review',{printId:'Bunny'}); assert.ok(JSON.stringify(review).includes('http://'));
+  const review=await call('request_review',{bundleId:'Bunny'}); assert.ok(JSON.stringify(review).includes('http://'));
   const count=requests.length;
-  const duplicate=await client.callTool({name:'import_thingi10k_print',arguments:{printId:'Bunny',fileId:'101',machineId:'ultimaker-s5'}});
+  const duplicate=await client.callTool({name:'import_thingi10k_bundle',arguments:{bundleId:'Bunny',fileId:'101',machineId:'ultimaker-s5'}});
   assert.equal(duplicate.isError,true);assert.equal(requests.length,count,'existing print is rejected before download');
   await setSTLUnits(dir,'mm',{expectedRevision:state.revision});
   state=await loadBundle(dir,{program:false});assert.deepEqual(state.plan.geometry.source.attribution,imported.attribution);

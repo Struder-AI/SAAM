@@ -24,7 +24,7 @@ export function validateSplineSolid(geometry){
     const net=patch.controlPoints,nu=net?.length,nv=net?.[0]?.length;
     requireThat(Array.isArray(net)&&net.every(row=>Array.isArray(row)&&row.length===nv),`Patch ${patch.name} needs a rectangular control net (rows along U, points along V).`);
     for(const [degree,count,axis] of [[patch.degreeU,nu,'U'],[patch.degreeV,nv,'V']])
-      requireThat(Number.isInteger(degree)&&degree>=1&&degree<=5&&count>degree,`Patch ${patch.name}: degree${axis} must be 1–5 and less than its control count.`);
+      requireThat(Number.isInteger(degree)&&degree>=1&&count>degree,`Patch ${patch.name}: degree${axis} must be positive and less than its control count.`);
     requireThat(net.every(row=>row.every(p=>Array.isArray(p)&&[3,4].includes(p.length)&&p.every(Number.isFinite)&&(p.length===3||p[3]>0))),
       `Patch ${patch.name}: control points are [x,y,z] or [x,y,z,weight] with a positive weight.`);
     for(const [knots,count,degree,axis] of [[patch.knotsU,nu,patch.degreeU,'U'],[patch.knotsV,nv,patch.degreeV,'V']]){

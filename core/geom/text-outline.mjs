@@ -29,7 +29,7 @@ export function flattenBezier(points,toleranceMm){
 }
 export function textOutlines(feature,toleranceMm){
   const bytes=Buffer.from(feature.font.data,'base64');
-  requireThat(bytes.length>0&&bytes.length<=32*1024*1024&&createHash('sha256').update(bytes).digest('hex')===feature.font.sha256,'Text font bytes or hash are invalid.');
+  requireThat(bytes.length>0&&createHash('sha256').update(bytes).digest('hex')===feature.font.sha256,'Text font bytes or hash are invalid.');
   let font=create(bytes,feature.font.postscriptName??undefined);
   requireThat(font?.layout,'Choose postscriptName for a font collection.');
   if(Object.keys(feature.variation).length){

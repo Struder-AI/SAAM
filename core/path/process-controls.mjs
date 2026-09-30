@@ -8,7 +8,7 @@ export function validateNozzleC(targetC,plan,machine){
 }
 export function plannedNozzleTemperatures(plan){
   const settings=[...Object.values(plan.skills??{}).filter(s=>s.enabled),
-    ...(plan.composition?.regions??[]).flatMap(r=>Object.entries(r.skills).map(([name,s])=>({...plan.skills[name],...s})))];
+    ...(plan.slices?.assignments??[])];
   return new Set([plan.setup.nozzleC,...settings.map(s=>s.nozzleC).filter(Number.isFinite)]);
 }
 export function requireProcessControl(machine){

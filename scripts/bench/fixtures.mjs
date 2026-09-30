@@ -11,10 +11,10 @@ export const fixtures = {
   'twisted-box-large': { width: 48, depth: 48, height: 48, twistDeg: 45, roofControlRise: 3.2 }
 };
 
-export function fixtureShell(r, name) {
+export function fixtureGeometry(name) {
   const f = fixtures[name];
   if (!f) throw new Error('Unknown benchmark fixture: ' + name);
-  if (name === 'box') return splineSolidShell(r, splineBox({ runMm: f.width, widthMm: f.depth, heightMm: f.height }));
+  if (name === 'box') return splineBox({ runMm: f.width, widthMm: f.depth, heightMm: f.height });
   // A bicubic roof with a planar boundary, rotated about the footprint centre.
   // Each side is ruled from its unrotated base edge to the rotated roof edge.
   // Linear interpolation of rotated corners creates a waist, not a helical extrusion.
@@ -26,8 +26,10 @@ export function fixtureShell(r, name) {
   for (const row of top) row.forEach((p, j) => { row[j] = turn(p); });
   const edges = { front: top.map(row => row[0]), back: top.map(row => row[3]), left: top[0], right: top[3] };
   for (const [id, edge] of Object.entries(edges)) patch(id).controlPoints.forEach((row, i) => { row[1] = edge[i]; });
-  return splineSolidShell(r, solid);
+  return solid;
 }
+
+export const fixtureShell=(r,name)=>splineSolidShell(r,fixtureGeometry(name));
 
 export function disposeShell(shell) { for (const e of shell.surfaces ?? []) e.surface.delete(); }
 

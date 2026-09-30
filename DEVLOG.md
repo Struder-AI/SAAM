@@ -1,5 +1,660 @@
 # Development log
 
+## 2026-09-30 — 0.2.0 live-relay release
+
+- Owner explicitly requested commit, push, publication and live relay update; acceptance testing follows on the actual relay, with fixes in 0.2.1 if needed.
+- Relay harness checks that relay guidance is present without assuming it is the first sentence; direct assertion against current guidance passes. Earlier setup smoke check passes; repository metadata check retains ten existing errors. No regression suite or hardware run.
+- Checkpoint includes concurrent unfinished dev-map changes without certifying them. Final integration, map/design acceptance and known geometry/runtime findings remain open.
+
+- Published `v0.2.0` from pushed commit `32fc204` (detached-worktree build, Node v24.19.0); all three public downloads match the hashes below. Windows includes native repair, macOS exact cleanup only. Live relay deployment `b8270301-3c4d-48f3-9fc6-4f8c831b871a` offers 0.2.0.
+- win-x64: 46148324 bytes; SHA-256 a74c15275c5ccb4cbe3b509b898f4251659127f74d04c074e00f54833070f7ce.
+- darwin-arm64: 49115889 bytes; SHA-256 cb3dda72d3c4a88a9e559c2df754611bf063a6617c42af35025bf2ba1307510e.
+- darwin-x64: 50353141 bytes; SHA-256 462fb014e6e2871ef7a4be4078ddc3a13c5649947fefbd5b903b5e6d480a3de0.
+
+## 2026-09-30 — Consolidated deposition, roles and cancellable import
+
+- Core skills and shared implementation are developer-owned; builders compose guidance,
+  web agents remain makers. Guidance authors ordinary Slice/Trace/Inject records;
+  advanced vase has only explicit paths. General gap filling is rejected.
+- Generation is machine-independent; exporters own installation/service motion and
+  representability. Slice optionally derives upright (default) or normal-aligned poses,
+  with FIELD tilt; raw recipe pose samples are removed. Contract /8 invalidates older output.
+- Removed authored size/count ceilings across geometry and deposition while retaining
+  actual representation/process constraints and network boundaries. Exact reference caches
+  and bead-query filtering improve drape/contact without truncation or fixed job budgets.
+- Shared motion writing coalesces tiny forward segments within 0.0001 mm, preserving
+  volume, time, endpoints and meaningful pose/process/operation/control boundaries.
+- Strict STL import attempts eligible repair through one cancellable lifecycle. Studio,
+  MCP, CLI and toolkit reuse expose real progress/elapsed and identity-based cancellation;
+  child processes, scratch work and incomplete bundles clean up on cancellation/crash.
+- Caller audit fixed preview-import bypass, benchmark FIELD preparation, current Studio
+  pose/material consumers, decoder-only browser dependencies and native-helper packaging.
+  Heat-set geometry works on mesh/spline/Boolean hosts and assembly components; scoped
+  reinforcement IDs no longer collide. Arbitrary insertion axes remain unsupported.
+- Detached-worktree evidence: DENSO existing file 7/7, Bambu dual file 6/6; four exporter
+  roundtrips; shared geometry/deposition/field examples; native repair 13/13; cancellation,
+  owner authentication, stdin responsiveness and requester-disconnect cleanup. Lead reran
+  current derived-pose/tiny-move and Studio reuse lifecycle diagnostics independently.
+- Corrected cladding demo rendered in Studio; 15 short travels (12 lifts) remain reported.
+  Tilted/upright nonplanar material rendering falls back to lines when independent surface
+  normals are unavailable. Twisted-roof precision/runtime findings remain unresolved.
+- No new tests, full suite, release, push or hardware run. Three other mechanically updated
+  existing test files were not run. Repository check retains ten pre-existing request/decision
+  metadata failures; import/syntax audit and changed-file whitespace checks pass.
+- Material-overlap/shared-ownership integration is deferred to 0.3.0 by the owner.
+  Competing declared region claims now reject with assignment/component names, including
+  thin between-layer overlap; ordinary remainders and heat-set partitions remain supported.
+  Contact uses 1e-6 mm polygon coincidence and 1e-3 mm spline chord uncertainty. Uncertifiable
+  curved/rotated/concave pairs report inability to establish exclusivity. Direct overlap,
+  touching/noise, normal-band, assembly and four-host heat-set diagnostics pass independently.
+  This is region validation, not arbitrary Trace/FIELD path-collision detection.
+  Concurrent dev-map/onboarding changes are retained; this checkpoint does not certify them.
+- Tracked Markdown totals: 21,361 before, 21,302 after (including this record).
+
+## 2026-09-30 — Print material routing, standalone Trace and guidance manuals
+
+- Common print/part/assignment filament resolution now reaches Slice, Trace, Inject,
+  tree supports and rivets, retaining per-tool process settings. Contract /6 invalidates old output.
+  Griffin retraction recovery clears numerical residue before stationary extrusion.
+- Geometry-free Trace/Inject generates and reopens; Studio launch tolerates absent geometry.
+  Removed the 80-assignment and 50-rim-course caps. No support redesign.
+- Eight technique manuals are explicit guidance in discovery and both readers; lip/roof
+  guidance teaches Slice/Trace. Specialized rim, skin, bridge and cladding records remain.
+- Detached-worktree verification: dual-nozzle file 6/6; four routed H2D examples exported
+  and strictly decoded; support/geometry-free network demos generated and reopened.
+  81 Trace assignments, 51 rim entries and remote guidance reads exercised directly.
+  Gap-volume check: halving projected normal gap halves volume without experimental mode.
+- Both demos opened and inspected in Studio; no approvals, new tests, full suite or hardware run.
+  Map regeneration was interrupted after prolonged scanning without output; maps remain stale.
+  Ownership is in the user's separate task; general gap fill, machine-independent generation,
+  relay repair, remaining authored caps and cladding portability are not completed by this checkpoint.
+
+## 2026-09-29 — Targeted design refactor (0.2.0 unfinished)
+
+- Three workers in a detached worktree removed the stroke-order repair layer,
+  dead owner-wall policy, Clipper forwarding module and duplicate report/validation knowledge.
+  Ownership returns its next state; distinct geometry and assignment contracts remain separate.
+- One stroke-range operation preserves vertex/edge channels through closure, cropping,
+  rotation and reversal. Closed-cell ordering retains its closing material; explicit closed
+  modulation no longer invents an edge. Resampling discards obsolete producer channels.
+- Changed source: 3,246 -> 3,148 lines; AST callables 931 -> 885, named callables 201 -> 191.
+  These are source counts, not map entities. One module removed; no dependencies added.
+- Worktree checks: 846 exact kernel/caller comparisons; 558 stroke/coverage cases,
+  36 ownership allocations and 76 layer records; 214 validation cases and nine constructors.
+  Stroke/closure diagnostics pass; DENSO paths preserve all 4,884/6,685 actions.
+  Lead compared five complete representative paths: exact except the generation contract.
+- Contract /5 invalidates older programs. Lead verified stale rejection, unchanged recipe/review
+  on read, regeneration and checked-program reopening; no confirmation was granted.
+- Single-file prime/DENSO checks retained four baseline failures; the slow DENSO reopen case
+  was interrupted. No new tests, full suite, physical qualification, push or release.
+- Owner deferred scanner work after tracing overreach; scan stopped before solving. Maps and
+  label pass remain deferred. R04 coupled ownership and final release acceptance remain open.
+
+## 2026-09-29 — Actual-entry planning checkpoint; shared-region intent unfinished
+
+- Owner defines 0.2.0 as first alpha, subsequent 0.2.x as patches/bug fixes, and
+  0.3.0 as the next planned upgrade. The new intent document collects deferrals;
+  the two plans total 205 lines versus the former 206-line 0.2.0 plan. Remaining
+  0.2.0 correctness, integration and performance work is not moved out of scope.
+- Shared-region allocation alone does not fulfill R04: lower-ranking layer heights
+  must adapt to principal courses, with angle-dependent interlock cadence and
+  connected transitions. Report incompatible patterns, then inherit the principal
+  pattern in shared material. Keep owner material/process and outside orientation.
+  Normal-band geometry/common-chart allocation has direct evidence; coupled output
+  remains unfinished. No generic grouping rule or transition algorithm is accepted.
+- One scheduler finalizes eligible Slice order/connectors at actual machine entry
+  before publication. Ordinary/tree matched-prime reference material/travel agree;
+  rivets and dependent contact pass. B reviewed/fixed four issues; lead reran the
+  interleaved dependency/cooling diagnostic. Contract /4 mixed/points lifecycle passes.
+  Fixed prime lanes reject occupied footprints; cooling debt is paid on leaving a
+  layer and retained on revisits, intentionally changing old last-occurrence timing.
+- Owner keeps default dependency-aware ascending Z only and defers batching.
+  Studio reference overlays and adaptation selectors are removed; adaptation stays an
+  agent-controlled recipe choice, with no user-selectable Studio control.
+  Owner refreshed Studio and confirmed both controls gone and playback working.
+- Physical qualification is ongoing across releases. SDK audit: 38 valid schemas,
+  79,439 B first-use context, above the 15 KB soft target. Manuals retain capabilities.
+- Terminal rim contact now queries all finalized beads of its named source.
+  A tapered seam's preceding rising bead provided real support excluded by a
+  semantic rim tag. Lead reran flat advanced rim OFF/ON export/interpretation
+  (720/737 moves; equal material within roundoff) and missing/hole/ceiling guards.
+  Worker also verified original looping and morphed cases; no tolerance inflation.
+- The historical exact-rocket failure near Z24.66 was not reproduced in a 201-cut
+  section scan. Full exact-job completion remains unverified; fitted success is
+  separate evidence. Maps remain stale; final design/integration/readback is open.
+  This is an unfinished local checkpoint; no new tests, suites, push or hardware.
+
+## 2026-09-29 — Shared vase construction and continuous inspection (0.2.0 unfinished)
+
+- Normal vase prepares continuous Slice contours and shares joining/deposition with
+  sampled Slice families. Advanced vase keeps its sleeve/tile mapping and now shares
+  Trace course deposition. Removed separate producers; entry points remain available.
+- Ten normal/ordinary cases preserve geometry, material, process, frames and dependencies,
+  including cooling and the full fitted rocket. Authored planar/spatial Trace and five
+  advanced-tile variants retain baseline output; raised level tiles and reversed
+  dependencies pass. Lead reran authored assembly and raised level OFF/ON export checks.
+- Inspection follows semantic Slice references, Trace courses and distinct Inject sites.
+  A generation contract invalidates old programs/approvals through existing lifecycle;
+  reads preserve recipe/review bytes. Lead reran mixed generation/export/reopen/review.
+  Owner passed mixed browser checks and observed correct points-only output after refresh.
+- Plan status now distinguishes implemented capabilities from remaining support/rivet,
+  ownership, travel and contact work. Advanced level rim ON and exact zero-tolerance
+  rocket failures remain unresolved; fitted rocket success does not resolve exact mode.
+- Timing versus ea8e13a: small medians 1.299 -> 1.276 s; fresh large 205.109 -> 222.461 s.
+  Large repeated samples drifted sharply; realistic-case speed remains unresolved.
+- Evidence: `.local/0.2.0/takeover-{A,B,C}.md`, `vase-comparison.json`, and the separately
+  scoped `takeover-B-performance.md`. No new tests or whole suites, maps, push or hardware.
+  Five current manuals total 842 -> 838 lines; plan remains 206. This is a local milestone,
+  not completed integration or release acceptance.
+
+## 2026-09-29 — Periodic contact and curved workflow repairs (0.2.0 unfinished)
+
+- Periodic contact charts now probe across their seam when calculating derivatives;
+  two small-radius cladding patterns generate/export/interpret in both adaptation
+  modes. Lead reran seam, nonperiodic parity and missing-contact/gap rejection checks.
+- Continuous sleeves carry slice frames for modulation; missing frames reject before
+  sampling. Inspection uses geometric layer identity and shows explicit family curves.
+  Lead reran curved and sleeve mixed API workflows: checked output, reopen, bulk parity
+  and review state pass. Worker browser evidence shows overlays and no console errors.
+- Owner clarified normal vase belongs to Slice, advanced vase is a Trace extension
+  with sleeve-mapped repeated tiles, and design refactoring is explicit R13 acceptance.
+- No scheduler changes: preserve default Z ordering, no carriage collision model.
+  Automatic S5 priming predates this work; owner delegates its design judgment.
+  Evidence: `.local/0.2.0/takeover-{B,C}.md`; no new tests, suites, maps, push or hardware.
+  Continuous-turn inspection, construction consolidation and wider acceptance remain.
+
+## 2026-09-29 — Requested stop after travel investigation (0.2.0 unfinished)
+
+- Lip now constructs one common Slice course per step and finalizes it before the
+  next consumes its material. Terminal boundary metadata selects the source beads;
+  actual bead bounds remain intact. Removed the separate rim producer.
+- Four OFF/ON and displaced-course cases export and interpret successfully.
+  Lead reviewed the diff and reran the saved parity comparison: unchanged cases
+  retain exact geometry/material/dependencies; ON now carries a +0.05 mm first-step
+  displacement through later steps, yielding tops 1.25, 1.45, 1.65 mm.
+- Historical starter/box comparisons isolated the travel regression to ordering
+  from the producer's first stroke instead of actual machine entry. A scratch-only
+  prototype using the existing scheduler/finalizer recovers 3899.498/291.648 mm
+  travel, matching historical behavior with cross-operation depositing joins removed.
+  No production optimizer change: one schedule owner must supply entry state before
+  finalization/publication, including dependent Slice producers and prime motion.
+- Travel optimization targets all Slice use cases; Inject and Trace retain their
+  ordering/continuity constraints without requiring elaborate optimization.
+- Evidence lives under `.local/0.2.0`: `slice-geometry/rim-parity.json`, C9 comparison
+  and C10 investigation receipts. No new tests, suites, push, release or hardware.
+  Remaining includes optimizer integration, vase/tile/support/rivet consolidation,
+  broader ownership/workflows, small-radius ON sampling, controlled timings and maps.
+  Owner requested this local checkpoint and a stop after the interface milestone.
+
+## 2026-09-29 — Three construction families and resumed 0.2.0 milestones
+
+- Owner resumed the build and settled Inject at points, Trace along authored or
+  generated curves, and Slice over 3D regions using slices/families. Updated current
+  guidance/manuals; upper entry points balance reading cost against successful choice.
+- Cladding now lowers to shared Slice region-course mapping/contact/join/deposition;
+  removed its producer and scheduler kind. Trace reverse dependencies use finalized
+  beads. Validated bridge press actions retain normal, process and machine checks.
+- Fixed false roof/sleeve band holes through shared boundary polygons, square-corner
+  frame transport, Trace profile-knot/channel preservation, and mixed-family UI labels.
+- Lead directly reran substrate/reverse/bridge, dense/native-roof, Trace profile/export,
+  cladding parity, edit diagnostics and SDK checks. Cladding OFF hashes match; worker ON
+  hashes and export interpretation match. SDK context is 79,118 B with all 38 tools;
+  the 15 KB soft target remains unmet. Evidence is under `.local/0.2.0` progress files.
+- No suites/new tests, hardware, push or release. Existing DENSO fixture was migrated.
+  Remaining: vase/lip/tile consolidation, broader ownership/workflows, small-radius ON
+  sampling failure, historical comparisons, controlled timings and final map rebuild.
+
+## 2026-09-29 — Requested milestone stop (0.2.0 remains unfinished)
+
+- Owner requested three workers stop after their current milestone, followed by
+  an all-work local checkpoint. No next milestone, publication or release.
+- Substrate adaptation is experimental, default OFF, with a recipe/Studio switch
+  and explicit migration for older recipes. Supports are separately assigned
+  sacrificial structures; glossary and manuals distinguish them. Overview/spec
+  amendments are comments as requested, preserving their existing prose.
+- Lead reran slice ON/OFF evidence: OFF makes zero measured contact queries;
+  ON changes skin volume 8.19 -> 7.16625 mm3 over a displaced source with identical
+  XYZ, and rejects missing required substrate or excessive actual gap. Nominal
+  machine/process limits and explicit construction dependencies remain OFF.
+- Rounded square-sleeve curves pass lead generation/export/interpretation:
+  884 moves, 31.79890175535 mm3. Native spline-shell roof tessellation introduced
+  spurious band holes; that new faceted-chart extension explicitly rejects.
+  Repair remains unfinished; existing smooth charts and checked mesh cases differ.
+- Studio browser checks cover points-only markers, approach, settings, generated
+  path and toggle invalidation. Lead reran API/migration: reading an old recipe
+  does not rewrite it; explicit migration adds OFF and clears generation; repeat
+  migration is current; invalid boolean rejects. No dummy geometry is created.
+- Worker cladding ON/OFF generation/export/interpretation passes: one run took
+  1.131 s OFF versus 97.681 s ON, with volumes 162.113858/162.109133 mm3.
+  This is a single-run diagnostic under ongoing work, not a controlled benchmark.
+- Evidence: `.local/0.2.0/slice-geometry/substrate-mode.json`,
+  `general-curves/rounded-production.json`, `general-curves/native-roof-band.json`
+  and `c6-studio-1790706800883/evidence.json` under `.local/0.2.0`.
+- Remaining: native roof atlas repair, dense mesh/partial-occlusion band coverage,
+  broader rounded/curved production and repeat checks, cladding/trace reverse
+  dependencies, mixed-family Studio acceptance, historical seam/travel comparison,
+  controlled timing comparisons, context budget and final maps. No new tests,
+  suites, physical qualification, map regeneration, solver or hardware execution.
+- Changed manuals/glossary since takeover: 1,293 -> 1,210 lines, including new
+  Trace/Inject manuals. Requested intent comments and checkpoint log are additive.
+  Complete first-use web context is 81,141 bytes; the 15 KB soft target is unmet.
+
+## 2026-09-29 — Resumed 0.2.0 integration checkpoint (unfinished)
+
+- Restored explicit depositing connectors before machine adaptation, modulation
+  and material publication. Composition no longer creates unreported deposition.
+  Material-changing modifiers suppress joins whose original region is no longer
+  valid; speed-only effects retain joins. Producer-local seam anchoring and no
+  cross-operation joins intentionally change earlier travel behavior.
+- Lead reviewed the implementation and reran the saved connector execution:
+  one 0.04 mm3 connector appears in published support and exactly three deposited
+  moves total 0.20 mm3. Worker production/API checks passed; historical seam/travel
+  comparison remains open. Evidence: `.local/0.2.0/c4-finalize-evidence.json`.
+- Owner resumed all existing work with three Astra workers and added standalone
+  point injection through shared recipe/edit records. Slice/contact scheduling,
+  curve metrics, API reconciliation and Studio remain unfinished. This checkpoint
+  preserves the shared intermediate tree; it does not verify every saved change.
+  No new tests, whole suites, map regeneration, push, release or hardware run.
+- Injection now shares approach, metered volume and hold machinery with rivets;
+  points-only bundles need no geometry artifact. Lead reran export/interpretation:
+  2 mm3 becomes 2.00000462 mm3 at program precision, with the authored 1.2 mm
+  approach and 65.125 s hold. Studio runtime verification remains open.
+- Adaptive foundation-gap integration retains XYZ and metadata; lead rerun mean
+  gap error was 0.00000098 mm. Piecewise square-sleeve corner/seam and roof-ridge
+  checks retained 1 mm physical ray length; rounded offset joins remain active.
+  Existing completed offset trimming was found intact; an unfinished historical
+  sleeve patch remains preserved in its old worktree and was not restored.
+
+## 2026-09-29 — General geometry, modulation and contact checkpoint (unfinished)
+
+- Added native curved families, authored NURBS/UV curves and profiles, text and
+  parallel bead construction, full modulation fields/frames/scopes, and actual
+  three-dimensional deposited-bead contact. Machine pose selection now has a
+  downstream stage. Public pitch means target mean normal gap; default direction
+  uses the entire reference. Square position/tilt fields transition intrinsically.
+- Added nested tool schemas, immediate checked/blocked edit diagnostics and an
+  explicit saved-skin migration that preserves geometry and invalidates stale
+  generation/confirmation. Studio now carries family identity and previews mapped
+  slice-region boundaries and wire grids. Context cost remains above the 15 KB
+  soft target when full schemas are included; final measurement is pending.
+- Direct checks cover curved/tilted families and contact gaps, curve/text export,
+  offset-surface metrics, modulation limits and current-format migration. Root
+  reran the tilted example: DENSO generates; S5 rejects the 45-degree requirement
+  against its 15-degree limit. Studio inspection contains 34 operations, 21 slice
+  references and 252 finite grid curves. Existing studio-material test passes.
+  No new tests or whole suites. Physical qualification has not occurred.
+- This saves all concurrent unfinished work. Front/skin orchestration, shared
+  sleeve mapping, final-material consumption for sleeve/cladding and combined
+  workflow review remain active obligations. Common records alone do not close
+  the architecture requirement. Map rebuilding is deferred until implementation
+  finishes at the owner's request; earlier diagnostic scans were stopped. No
+  solver, push, release or hardware execution.
+
+## 2026-09-29 — Common deposition and finalized support integration
+
+- Replaced the skin, wave, sleeve, rim and cladding producers with common
+  assignments and shared region/curve/deposition operations. Removed the old
+  regional format; per-assignment process overrides follow filament selection.
+  Native sleeve contours now resolve offsets before correspondence; the former
+  mesh-sleeve ribbon tightness option is removed. Cladding normal offsets remain.
+- Added periodic/ramp/noise/blob modulation before downstream consumers. Final
+  bead coverage preserves holes; changed paths receive conservative travel.
+  Bridges consume finalized anchors and earlier bridge spans. Width-only changes
+  preserve valid unchanged attachment presses. Unsupported posed modulation,
+  bridge displacement and modulated sleeve/rim contact reject explicitly.
+- Studio reads common assignments and modulation, including cladding material
+  frames. Discovery lists eight conceptual skills; technique manuals remain
+  readable through the general slice skill. Updated demos, public help and
+  existing fixtures; historical DENSO utilities retain their saved recipe input.
+- Direct evidence: skin/wave baseline parity (curved skin volume differs by
+  0.000229% from local-normal integration); sleeve/rim/pattern parity and bounds;
+  exact spline/mesh cladding geometry, poses and volume. Synthetic RC8A export
+  and interpretation: 6,640 moves, 203.597 mm3, substrate prerequisites retained.
+  Shifted bridge anchors reject old rails; corrected rails and widened prior
+  bridge support pass production checks. Fuzzy wall, wavy fill and top texture
+  generate; common skin and process-override API/bulk parity pass after schema
+  consolidation. Studio renders all 2,709 cladding beads and current bundle
+  settings without missing values. Evidence is saved under `.local/0.2.0`.
+- Eighteen revised manuals/plan files total 4,068 -> 3,949 lines. Full workflow
+  regression and physical qualification remain; no new tests, whole suites,
+  dependencies, solver, publication or hardware execution. This is a local
+  implementation checkpoint, not a 0.2.0 release declaration.
+- Development-map regeneration is running separately; its output has not yet
+  been inspected at this checkpoint. The existing solver tree is retained.
+
+## 2026-09-29 — Unfinished 0.2.0 recovery checkpoint
+
+- Checkpointed all current shared work after the desktop restart. Includes the
+  overview/plan, tilted and translated roof/spline slicing, ownership-derived
+  dependencies, common curve/bridge deposition, bundle API names and slice edits.
+  This records an unfinished implementation, not release readiness.
+- Reviewed saved direct-execution evidence: tilted export and overlap checks;
+  curved/roof and sparse-coverage results; network/bridge baseline parity;
+  remote slice edit/bulk parity; production bridge generation (102 moves,
+  19.968 mm3, exporter/interpreter checks pass). Whitespace check passed.
+  No whole suites, new tests, physical runs, publication or map solver.
+- Remaining: stale Studio network controls, skin/wave and sleeve/spiral/lip/
+  cladding consolidation, modulation and final coverage integration, manuals
+  and map regeneration. Existing fixture migrations have not been suite-tested.
+- Existing interface manuals total 1,258 -> 1,252 lines; slice 146 -> 143,
+  network 24 -> 21, bridge 79 -> 76. New overview/plan counts are recorded below.
+
+## 2026-09-29 — Technical overview and revised 0.2.0 implementation scope
+
+- Added [TECHNICAL-OVERVIEW.md](TECHNICAL-OVERVIEW.md) (156 lines) and the
+  [repository plan](plans/0.2.0.md) (170), replacing the owner's external 484-line
+  scratch specification as current intent. Glossary 21 -> 26 lines; README gains
+  the two entry links. Preserved the pre-existing D-041 amendment and recorded
+  D-042; BR-059 no longer commissions ribbon work or claims trimmed solids ready.
+- Ownership resolution now explicitly dictates compatible slices and sequence;
+  internal ownership walls are intentional. The general deposition skill must
+  cover the named techniques, with shared operations and common recipe records.
+  Defaults must not author a shape. Full trimmed solids move to 0.2.1; general
+  sleeves and support redesign remain deferred.
+- Dispatched three owner-authorized Astra workers for A1 slicing/ownership,
+  B1 common curve deposition and C1 authoring APIs. These are active milestones,
+  not completed release claims. The lead retains scope and integration review.
+- Verification: read source/contracts and checked conceptual scope against the
+  supplied draft and later user rulings. No software tests for these prose edits;
+  implementation evidence will be recorded as workers complete reviewed milestones.
+
+## 2026-09-28 — Slice skill (0.2.0 phase 2, step 2): shared sections, part-based solids, support preset
+
+- Loops on boundaries between owners are one switch,
+  `LOOPS_ON_OWNER_BOUNDARIES` in [layer-strokes.mjs](core/region/layer-strokes.mjs)
+  (`loopBoundary`), while the owner decides. It is on: every owner lays its
+  loops along every boundary of its region, as in step 1. Off, loops follow
+  only the part's sliced material, clipped to the owner's region (open where
+  cut), and fill reaches past owner boundaries by `fillOverlap`. Solid top
+  and bottom layers come from the part's sliced material (section less region
+  bands and reservations) in [slices.mjs](core/print/slices.mjs), so
+  alternating owners never make an overlap solid. `solidDensity` is gone; the `support` preset prints its
+  interface rows at a fixed 0.8.
+- `ownedLayers` cuts each part section, sliced material and volume section
+  once per height and shares them among owners (`layerRegion` and
+  `validateOwner` are removed from layer-region.mjs); leader probes skip owner
+  pairs whose volume boxes do not meet. Heat-set generation went from 2.9 s to
+  0.87 s (0.50 s for the 7c44c79 tree on the same machine: the remainder is
+  485 operations against 157 and per-owner strokes). Surface-drape and
+  wavy-denso were not slower: side by side with the baseline tree under the
+  same load, 103.8 s against 115.0 s and 42.0 s against 45.4 s; the recorded
+  46 s and 22 s were taken on a less loaded machine.
+- Support preset: `{ kind: 'support', footprint, contactZMm, topGapMm,
+  xyGapMm }` replaces the supports skill's standard style (bed to contact less
+  the gap, clearance checked against every part section); `skills.supports`
+  keeps tree branches, sliced by the same preset. `supportDependencies` orders
+  both before what they hold up.
+- A slice owner uses its filament's process (layer grid, bead width);
+  `assignedFilaments` (filaments.mjs) counts slice and region filaments for
+  bounds, selections, the Bambu export and Studio rows. Bundle state lists the
+  `slice` skill. Studio shows slice assignments (settings.mjs `sliceRows`)
+  and slice layers.
+- Heat-set fins use `fillOverlap: 0`. Heat-set inserts against the 7c44c79
+  baseline: annulus loops 7,220 mm (old heat-set-loop 7,213); the body's two
+  loops now also run around each annulus and fin, 26,416 mm of body loops
+  against 20,290 (+6,126); body fill 22,090 mm (22,896) and infill 29,363
+  (30,042) give up that band; fins 1,796 mm (3,006: old fin rows all ran one
+  way, joined by extruded diagonals; now serpentine with 0.4 mm links);
+  6,966.8 mm³ (6,691.8, +4.1%); 485 operations (157: every fin and annulus is
+  its own owner); travel 13,678 mm (12,994). With the switch off the body
+  loops match the baseline (20,290 mm) and loops total 27,502 mm. Starter, surface-drape and wavy-denso:
+  same layers, operations, per-role length and volume, and travel.
+- Tests updated and run one file at a time (all pass unless noted): workflow,
+  mesh-boundary, regional-workflow (fixture: the upper part no longer consumes
+  the roof's lower surface, which waits for height-field slices; it stands at
+  x 10), denso, bambu, bambu-dual (5 of 6; the diameter-pair test fails at
+  f147053 too: it sets `heightMm` on a spline), bambu-h2d-change,
+  bambu-x1-change, bambu-project, dobot, vase. bambu-hardware-regression fails:
+  the colour print deposits the same segments except loop joins (705.663 →
+  705.096 mm³, travel 250.5 → 213.5 mm, walls start on the inner loop after
+  a tool change) and the dual print's right part now starts at its own layer 0
+  (first-layer speed, 45° fill) where the regional grid numbered it 1
+  (102.94 → 103.04 mm³). The hashes guard physically tested files and are left
+  for review.
+- A slice `part` is any geometry selection (a component or a prepared
+  material part such as `base` or `text/label`); `sliceShells` builds the
+  named ones and plan validation rejects two cut parts that share material.
+  Loops a boundary between owners cuts open are laid in the order found.
+- Rewired: nudge-cup (slab lip owner, vase band, solid foot under a skin
+  region; it generates again, 14,344 mm³), the draped lettering demo (slices
+  on `base`), the vase irregular demo, gridfinity creation, the plastic-weld
+  example (solid by default: same 9,786 moves and 3,514.743 mm³ as 7c44c79;
+  `--sparse` is now the default slice with solid top and bottom, 1,653 mm³
+  against planar-infill's 1,347), `scripts/bench/slicing.mjs` and
+  `diagnose-regions.mjs`, query.mjs's deferred forms (vase-wall only), the
+  MCP `apply_heat_set` description and the package description.
+  `tools/denso/*` still imports the removed full-fill producer (stale).
+- Exercised in scratch plans: a brim (five loops, 352.8 mm around a 20 × 12 mm
+  box, printed first when defined first), two overlapping geometry owners
+  alternating (the follower reports its leader; solid layers only at the part's
+  top and bottom), a support under a ledge (19 layers to 3.8 mm, two interface
+  layers), multi-filament owners (Bambu fixtures). Studio shows a support-preset
+  print: slice rows, `Layers 32 flat`, body summary.
+- Docs: [slice SKILL.md](skills/slice/SKILL.md) (146 lines) replaces full-fill,
+  planar-infill (SKILL and BUILDER) and bed-adhesion (433 lines at 7c44c79);
+  the supports manual keeps tree branches (62 lines, was 137 + 26 BUILDER).
+  Other manuals lose their full-fill/planar-infill references (4,580 → 4,564
+  lines). BR-054 notes the brim preset; a test and a brim bead of its own remain.
+
+## 2026-09-28 — Slice skill (0.2.0 phase 2, step 1): horizontal slices replace full-fill and planar-infill
+
+- One versioned list of slice assignments, `plan.slices` (version 1), replaces
+  `skills.full-fill` and `skills.planar-infill`; `bed-adhesion` is gone (a
+  `brim` preset: loops in a ring grown from the first-layer outline). Defaults
+  are the normal case (2 loops, 20% fill, 3 solid top/bottom); solid, shell and
+  fill-only are `fillDensity: 1`, `fillDensity: 0`, `loops: 0`. Settings:
+  loops, fillDensity, solidDensity, fillPattern, fillAnglesDeg, rotateFill,
+  solidTop, solidBottom, fillOverlap, spacingFactor, sampleStepMm, within
+  (slab, geometry, outline), surface (horizontal), stack, filament.
+- [slices.mjs](core/print/slices.mjs): `sliceOwners`, `ownedLayers` (owners in
+  definition order; a later explicit owner overlapping an earlier one adopts
+  its family and alternates layer by layer, the leader first; region bands of
+  vase-wall/thick-lip and draped-skin/weld reservations claim material),
+  `sliceResult`, `sliceResults`. [layer-strokes.mjs](core/region/layer-strokes.mjs):
+  `layerStrokes`, `liftStrokes`; offsets stay Clipper2: the D-041 curve offset
+  measured 5x to over 1000x slower per layer on the baseline prints
+  (.local/0.2.0/worker-A2.md), so the switch waits for a decision. Patterns
+  moved to [fill-patterns.mjs](core/region/fill-patterns.mjs).
+- Heat-set reinforcement is slice data written by `apply_heat_set` (six-loop
+  annulus owner, fins as solid fixed-angle owners); `planarDetails` and
+  `reinforcement.mjs` are removed. Plastic-weld reservations are passed to the
+  slices as data instead of mutating the shell. Supports run through one
+  `sliceResult` (interface as solid rows at `interfaceDensity`).
+  `SPACING_SKILLS` moved to the skill catalog.
+- Baselines (generated in the worktree, compared with .local/0.2.0/baseline):
+  starter, surface-drape and wavy-denso give the same layers, operations,
+  length and volume per role and travel; the programs differ only in
+  operation-id comments. Heat-set inserts: 60 layers, 485 operations (157),
+  7019.2 mm³ (6691.8): the part's default owner now walls around each
+  reinforcement volume. Path time for wavy-denso rose from 22 s to 37 s (open).
+- Not yet rewired in this step: Studio settings/summary, core tests and
+  fixtures, nudge-cup, gridfinity bundle, text draped demo, plastic-weld
+  example, vase irregular demo, scripts/bench, tools/denso, and the manuals
+  (slice SKILL.md replacing full-fill/planar-infill/bed-adhesion).
+
+## 2026-09-28 — Trimmed-surface records from surface ribbons (BR-059 item 3)
+
+- [trimmed-surface.mjs](core/geom/trimmed-surface.mjs): `trimmedSurface`
+  builds `{kind: 'trimmed-surface', version: 1, patch, periodicU, periodicV,
+  boundary}` (domain edges as boundary chains, fold holes clockwise, degree-1
+  chains in (u,v)); `sleeveFoldHoles` trims a sleeve ribbon's folds per U
+  isocurve with adaptive V levels; `rejectFolds` rejects any other fold naming
+  (u, v) and the point. Surface ribbons and offsets gain `trimmed(depth)`.
+  Provisional ruling (lead, pending the owner): only sleeve ribbons are trimmed.
+- [curve-ribbon.mjs](core/geom/curve-ribbon.mjs): fold cutting moves into an
+  exported `foldCuts`. Two fixes: a closing crossing was dropped when
+  `curveCrossings` listed the pair in the other order (a symmetric ellipse
+  ribbon got one fold cut at its loop's crossing and the other only across the
+  reversal), and a closed curve's fold across its seam is now searched on three
+  copies and cut through the seam; `folds` counts it once.
+- Scratch checks: ellipse ribbon (a 10, b 4, 24 controls) at −2.5 mm now cuts
+  both folds at their closing crossings (length 28.993 mm whatever the start
+  phase, including a fold through the seam; before 30.159/31.324 depending on
+  phase); an open 3D wave's first fold now closes at its crossing. Tapered
+  elliptic sleeve (b 3 → 7 mm over 20 mm, a 10) ribboned −2.5 mm: two holes
+  from the bottom edge to v 0.495 (analytic onset v 0.5), centred on the
+  x-extremes, one unwrapped across the seam (u 0.80–1.11); 82.3% of the chart
+  kept by winding; +1 mm has no holes; the surface offset at −2.5 mm is
+  rejected at (u 0.0026, v 0.0625). About 1.7 s per trimmed ribbon.
+- Not run: any test suite (no test imports these modules).
+
+## 2026-09-28 — Surface ribbon and surface offset (BR-059 item 2)
+
+- [surface-offset.mjs](core/geom/surface-offset.mjs): `prepareSurfaceOffsets`
+  (modes normal/horizontal/projected-normal, tightness, fold limiter) is
+  replaced by `prepareSurfaceRibbon` (unit plan-view normal, Z kept exactly)
+  and `prepareSurfaceOffset` (unit normal), each `{at, exactAt, offsetPatch,
+  report}`. Directions are collocated at the Greville grid (two separable
+  square solves, periodic seam duplicates sharing one unknown), so the loose
+  patch is exact at Greville points. `offset-curvature.mjs` (the limiter) is
+  deleted; folds are left for trimmed-surface records.
+- [sleeve-frame.mjs](core/geom/sleeve-frame.mjs) `prepareLooseSleeveOffsets`
+  becomes `prepareSleeveRibbon`. vase-wall [reference.mjs](skills/vase-wall/scripts/reference.mjs)
+  and pipe-cladding [surface-clad.mjs](skills/pipe-cladding/scripts/surface-clad.mjs)
+  keep `offsetTightness` by blending `at` toward `exactAt` themselves; the
+  standard sleeve's report mode is `loose-ribbon`.
+- Scratch checks (worktree; baseline f49c252 via `git archive`): on 16-control
+  periodic cubic cylinder, cone and tilted-ring patches the ribbon and offset
+  are exact at Greville points (≤2e-15 mm) and within 0.9 µm between at −2 mm;
+  ribbon Z change 0. Vase-wall (level end, z 1.2 to top) on the nudge-cup
+  frustum, a wavy revolved vase and a 20×16×10 box, standard and meshSleeve
+  (tightness 0 and 0.5): the loose path moves toward the exact wall, e.g.
+  frustum 10519.10 → 10516.42 mm (exact 10516.25), wavy 12790.99 → 12787.19
+  (exact 12787.55); frustum mean radial error +1.6 µm → −3.5 µm (exact
+  −4.4 µm, polygon facets); exact-path runs identical. Pipe cladding on a spline
+  tube (tightness 0/0.5): round 2128.054 → 2128.418 mm, wavy 2184.062 →
+  2184.602, where tightness 1 gives 2128.418 and 2184.605; tightness 1
+  unchanged. `node --test skills/vase-wall/tests/vase.test.mjs`: 4 pass.
+- Not run: any test suite, `core/tests/denso.test.mjs` (tightness 1 path
+  untouched).
+
+## 2026-09-28 — Curve offsets: seam contacts and inversion curls (BR-059)
+
+- Fixes the two defects the previous entry recorded. [curve-ops.mjs](core/geom/curve-ops.mjs)
+  `curveCrossings` judged a curve meeting itself (a closed curve's seam,
+  adjacent monotone pieces) or another end to end by a parameter tolerance of
+  1e-12 (ends) or 1e-9 (same point) of the domain; Newton converges only
+  linearly where the tangents are parallel, so a smooth periodic cubic's seam
+  came back 2e-10 from its ends and counted as a crossing. It now judges these
+  contacts by arc length (parameter gap times speed) within twice the crossing
+  tolerance, the gap wrapping across a closed curve's seam.
+- [curve-offset.mjs](core/geom/curve-offset.mjs) `curlArcs`: where the exact
+  offset has an inversion cusp the loose curve turned through a thin loop (a
+  curl) whose winding was +1, so its forward half was kept as an open piece.
+  A loop of one offset curve closed by one self-crossing, with no other
+  crossing on it, entered running with its source and left against it (the
+  shorter arc if both qualify on a closed curve) bounds no material and its
+  pieces are dropped. No area threshold.
+- Scratch check (B2's periodic.mjs, 24 cases, against f49c252 extracted with
+  `git archive`): only B1 changes. The ellipse (u half-width 3.77 mm, v 4 mm on
+  the r 10 cylinder), at the seam and at u 0.5, now reports 0 crossings and one
+  kept piece (the whole curve) at ±1 mm (areas unchanged, 0.057382545 and
+  0.019287011); at −4 mm it returns nothing (was 4 open zero-area chains, 11
+  crossings; now 6 crossings, 0 kept). The planar r 10 circle reports 0
+  crossings (was 1) with areas unchanged. Bands, holes, open courses and
+  periodic V are identical.
+- Not run: any test suite; no test imports these modules.
+
+## 2026-09-28 — Curve offsets on periodic patches (BR-059 item 1)
+
+- [curve-offset.mjs](core/geom/curve-offset.mjs) `prepareCurveOffsets` takes
+  `periodicU`/`periodicV`: curves lie in the unwrapped chart, may cross the
+  seam, and a closed curve may end whole periods from its start (a course
+  around a sleeve). [curve-ops.mjs](core/geom/curve-ops.mjs) adds
+  `translateCurve`, `periodicCurveCrossings` (every whole-period copy reaching
+  the curves' span, crossings listed on the originals) and
+  `preparePeriodicWinding` (ray toward the non-periodic axis's low side through
+  every copy, plus a base winding of 0 or 1 found just left of a source loop).
+  Chains meet modulo the period, each piece moved to continue the one before,
+  and report `wraps`. Loose-field controls of a closed curve now share an
+  unknown by wrapped Greville parameter instead of identical coordinates, so a
+  wrapping loop's repeated controls (moved by a period) collocate once.
+- Scratch checks on a periodic cubic cylinder (r 10, height 20 over v): an
+  ellipse straddling the seam and the same ellipse at u 0.5 give identical
+  loops and (u,v) areas at +1, −1 and −4 mm; a band between a +U loop at v 0.3
+  and a −U loop at v 0.7 gives v 0.2/0.8 at +2, 0.45/0.55 at −3 (wraps +1/−1),
+  vanishes at −5, and is trimmed away past the edges at +7, identically when
+  the loops start at u 0.3; the complementary band grows to 0.4/0.6; a hole
+  straddling the seam grown past the band edges leaves one contractible loop of
+  area 0.0846 (expected about 0.0844); a 1.5-turn open course offsets to one
+  chain; the transposed cylinder with `periodicV` matches. A planar circle
+  still matches before. Periodic and nonperiodic runs of an off-seam ellipse
+  agree exactly, including two defects that predate this change: a smooth
+  ellipse offset reports one spurious crossing (three kept pieces rejoined), and
+  at −4 mm, where the loose offset inverts, four zero-area open pieces are kept
+  instead of nothing.
+- Not run: any test suite. No consumer uses periodic offsets yet.
+
+## 2026-09-28 — Context layers (0.2.0): index, operate, script, advanced
+
+- Owner direction (0.2.0 spec): every agent gets a one-line index including gated
+  capabilities, and loads more only for its client, machine or request; web
+  index + operate at 12 KB or less. Mechanism in
+  [manuals.mjs](core/agent/manuals.mjs) and [layers.mjs](core/agent/layers.mjs),
+  documented at [context layers](core/agent/README.md#context-layers):
+  `<!-- layer: script -->`, `<!-- layer: advanced -->` and
+  `<!-- requires: capability, … | nonplanar>=N -->` above a heading; MCP reads as
+  a web client, the toolkit as a script client; `machineId`/`--machine` opens a
+  machine's sections and `ID#heading` or `PATH#heading` reads any by name, with
+  `omitted` listing the rest. The digest generator writes the advanced sections
+  as index lines; `create_print`, `change_machine` and the CLI `init` and
+  `change-machine` return one `gatedGuidance` line for sections a new printer
+  opens. New `context-budget` command.
+- Onboarding is MAKERS, the digest and print tools; GEOMETRY.md is read by form
+  (MAKERS indexes it). Onboarding drops links, headings and hashes; links become
+  repository paths. Maker/builder split with new `BUILDER.md` for text,
+  gridfinity, thingi10k, mesh-tools and heat-set-inserts. Toolpath manuals are
+  untouched: they fold into slice/trace/inject in 0.2.0.
+- Measured with `context-budget` (bytes): web index + operate 24,579 → 11,880;
+  MCP `maker_onboarding` JSON 32,437 → 12,645; CLI `maker-onboarding` 30,957 →
+  14,702; builder onboarding 70,133 → 45,715. MCP instructions 2,786 and tool
+  descriptions 10,106 are unchanged in scope. Lines: MAKERS 90 → 83, GEOMETRY
+  172 → 159, USAGE 103 → 89, text 310 → 219 with BUILDER, gridfinity 207 → 150,
+  thingi10k 124 → 95, mesh-tools 104 → 72, heat-set-inserts 110 → 98,
+  core/agent README 263 → 261.
+- Checks, in the isolated worktree: `core/tests/mcp-access.test.mjs` (4/4) and
+  `core/tests/mcp.test.mjs` (21/21, two assertions updated for the new read
+  shape), `scripts/check-repo.mjs` (no new findings), anchors of every changed
+  manual, and CLI/MCP smoke reads and hints. Not run: the whole suite.
+
+## 2026-09-28 — 0.2.0 phase 1: section by any slice; layer ownership by volume
+
+- 0.2.0 replaces full-fill and planar-infill with one slice operation (the
+  slice skill). This is its first core piece; the producers are not replaced
+  yet.
+- [slice.mjs](core/geom/slice.mjs): slice records (`horizontalSlice`,
+  `planeSlice` with an orthonormal chart, `patchSlice` in (u,v)),
+  `translateSlice`, `slicePoint`, `sliceNormal`; `section(geometry, slice)` for
+  spline shells, meshes, booleans and assemblies, returning loops in the chart
+  and `touchesEdge` for a patch that stops inside the solid; `prepareSection`
+  for repeated cuts; `sliceFamily` stacks a base slice along a direction by
+  first-layer height and pitch, bit-identical to `layerHeights` when
+  horizontal. Mesh sections take any plane
+  ([mesh.mjs](core/geom/mesh.mjs) `meshSectionIndex`/`sectionMeshIndex`, the
+  band cache dropped), and so do spline shells
+  ([shell.mjs](core/geom/shell.mjs) `sectionShell(shell, slice)`).
+- [layer-region.mjs](core/region/layer-region.mjs): owners `{id, part,
+  within, family}` with geometry, slab and per-layer volumes;
+  `layerRegion(owner, k, others)` = part ∩ within − other owners' claims, all
+  in the chart, rejecting a layer whose slice ends inside the owned volume;
+  `solidMasks` gives bottom/top solid from neighbouring layers.
+- Rewired onto `section`: geometry tools, region rim publication, finished
+  boundaries, mesh sleeves, thick-lip, bench scripts and the mesh, blob and
+  boolean tests. Removed `sectionMesh`, `createMeshSectionQuery` and
+  `combineSections`. `sectionGeometry` and `createSectionQuery` remain as
+  horizontal forms of `section` only for full-fill, planar-infill and supports
+  (replaced in phase 2) and vase-wall and its test.
+- Checks: export hashes of starter, surface-drape, wavy-denso and the
+  heat-set demo identical to 7c44c79; horizontal `layerRegion` areas match the
+  7c44c79 sections of all 390 layers of those prints (≤ 5e-7 mm², the baseline
+  rounding), solid masks match planar-infill's selected areas; tilted planes
+  agree between spline and mesh; three STL meshes give identical loops to the
+  old query at similar speed. Test files run singly and passing:
+  mesh-boundary, mesh-large, mesh-repair, blob-field, boolean-solid,
+  vase-wall. Not run: the whole suite; thick-lip (no example uses it). The
+  nudge-cup example already fails at 7c44c79 ("Unknown composition
+  dependency"), so it has no baseline.
+
 ## 2026-09-28 — 0.1.9: the status-only panel released
 
 - Published `v0.1.9` from `5d57df5` (worktree build, Node v24.19.0):
@@ -8295,7 +8950,7 @@ not full bundle generation, export or Studio. The manual owns pattern limits.
 - Implemented: [text task skill](skills/text/SKILL.md), CLI `text` and MCP `apply_text`; saved fonts, layout/variation controls, Bezier baseline, rigid or bent glyphs, normal relief, independent rational spline/plane references and named original-part patches. Text modifies selected assembly components or becomes standalone geometry. Edits rebuild from the retained original part.
 - Geometry: existing planar Clipper2 union owns outline normalization; pinned Fontkit supplies shaped outlines and Manifold supplies shared 3D solid union/subtraction. Text-modified spline targets are explicitly tessellated; their recipes are retained. The actual resulting mesh is shared by Studio and slicing, with normal review invalidation and original STL integrity checks.
 - Evidence: analytical volume/section checks, glyph counters, curved spline convergence, cylindrical and doubly curved references, baseline/mirror/normal direction, persistent edits, CLI/MCP and shared generation tests. Twelve text tests pass at this checkpoint, including a regression that checks deposition above the curved roof for every letter. The saved G-code was independently interpreted to verify those deposition moves; this is software evidence, not a physical print result.
-- Correction and user confirmation: the user reported that the curved-roof example's visible text was not reproduced by its toolpath. The 6 mm Abel font lost narrow C/U strokes with the selected 0.4 mm bead. Explicit `outlineOffsetMm: 0.15` expands each stroke boundary before layout and warping; the revised saved export contains deposition for all five letters of CURVE, reaching approximately 0.77 mm above the roof for the requested 0.8 mm relief. After inspecting the updated Studio result, the user confirmed it working. This records visual/toolpath confirmation; no physical print outcome is claimed. Reproduction commands are in the [text manual](skills/text/SKILL.md#reproduce-the-development-examples).
+- Correction and user confirmation: the user reported that the curved-roof example's visible text was not reproduced by its toolpath. The 6 mm Abel font lost narrow C/U strokes with the selected 0.4 mm bead. Explicit `outlineOffsetMm: 0.15` expands each stroke boundary before layout and warping; the revised saved export contains deposition for all five letters of CURVE, reaching approximately 0.77 mm above the roof for the requested 0.8 mm relief. After inspecting the updated Studio result, the user confirmed it working. This records visual/toolpath confirmation; no physical print outcome is claimed. Reproduction commands are in the [text manual](skills/text/BUILDER.md#development-examples).
 - Limits: current font/geometry/precision boundaries are owned by the [manual](skills/text/SKILL.md#supported-scope-and-quality) and [geometry reference](core/geom/README.md#text-and-solid-modifiers). Automatic mixed-script paragraph layout, arbitrary trimmed CAD surfaces and a certified global surface-error bound are not implemented.
 
 ## 2026-09-12 — Separate current documentation from work history

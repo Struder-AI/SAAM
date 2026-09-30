@@ -10,7 +10,7 @@ import {parse} from 'acorn';
 import {extractGraph,sourceFiles} from './graph.mjs';
 import {projectGraph,select} from './projection.mjs';
 import {classify,functionAt,iterationMethods} from './shapes.mjs';
-import {importAliases,scanRoots,isMapped} from './scope.mjs';
+import {importAliases,scanRoots} from './scope.mjs';
 
 const functions=new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
 const kids=n=>Object.entries(n).flatMap(([k,v])=>['loc','start','end'].includes(k)?[]:Array.isArray(v)?v.filter(x=>x?.type):v?.type?[v]:[]);
@@ -352,7 +352,7 @@ function thisFields(ast,start,end) {
 // A class page: its members as boxes, the calls and shared fields between them as wires, and
 // every caller outside the class as a port.
 function classPage(node,{graph,projection},ast,head,built=null,initWires=null) {
-  const members=node.children;
+  const members=node.children.filter(child=>projection.nodes.has(child.path));
   const inside=new Set();
   (function mark(n){inside.add(n.path);for(const c of n.children)mark(c);})(node);
   const spans=byAnchor(graph);
@@ -585,7 +585,7 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
   // What a finding row can say beyond its rule: the registering declarations behind a
   // subscriber list, the known callables a still-unresolved site could reach.
   const siteNotes=graph.callSites?.notes??{};
-  for(const child of node.children)components.set(child.path,{node:child,order:child.start,sites:[],links:new Set(['ast-closure'])});
+  for(const child of node.children)if(projection.nodes.has(child.path))components.set(child.path,{node:child,order:child.start,sites:[],links:new Set(['ast-closure'])});
   const assertionAt=(site,path)=>{
     const shape=shapes.assertions.get(path);if(!shape)return null;
     const condition=site.node.arguments[shape.condition],positionUnknown=site.node.arguments.slice(0,shape.condition+1).some(arg=>arg.type==='SpreadElement');
@@ -780,7 +780,7 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
   const outsideInvocation=n=>{
     const relations=targets.get(`${node.file}:${n.start}:${n.end}`)??[];
     const outside=relations.map(relation=>({relation,declaration:declarations.get(relation.to)}))
-      .filter(({declaration})=>declaration&&!isMapped(declaration.file));
+      .filter(({declaration})=>declaration&&!projection.owner.has(declaration.id));
     if(!outside.length)return null;
     const site=siteAt.get(`${n.start}:${n.end}`),callee=expression(n.callee),gate=guarded(shown(site?.gates??[]));
     const args=n.arguments.map((arg,i)=>({port:`arg${i+1}`,position:i+1,...valueDescription(arg),expression:expression(arg),
@@ -1741,6 +1741,7 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
   if(ownedHere.size&&node.children.length) {
     const shared=new Map();
     for(const child of node.children) {
+      if(!projection.nodes.has(child.path))continue;
       const body=childFunctions.get(child.path);if(!body)continue;
       for(const [b,row] of stateUses(body,key,ownedHere,childStops(child)))
         (shared.get(b)??shared.set(b,[]).get(b)).push({child,access:row.access});
@@ -2028,15 +2029,18 @@ export function flowPacket(context,target,{evidence=false}={}) {
   return packet;
 }
 
-export async function loadFlow({repo=fileURLToPath(new URL('../../',import.meta.url)),files,readSource=file=>readFile(resolve(repo,file),'utf8')}={}) {
+export async function loadFlow({repo=fileURLToPath(new URL('../../',import.meta.url)),files,onProgress,readSource=file=>readFile(resolve(repo,file),'utf8')}={}) {
   const list=files??await sourceFiles(repo,scanRoots),sources=new Map();
   const read=async file=>{const text=await readSource(file);sources.set(file,text);return text;};
   const started=Date.now();
-  const graph=await extractGraph({repo,files:list,importAliases,literalCouplings:true,receiverCalls:true,readSource:read});
+  onProgress?.({stage:'link',files:list.length});
+  const graph=await extractGraph({repo,files:list,importAliases,literalCouplings:true,receiverCalls:true,readSource:read,onProgress});
   const linked=Date.now();
+  onProgress?.({stage:'parse',elapsedMs:linked-started});
   const projection=projectGraph(graph),asts=new Map();
   for(const [file,text] of sources)asts.set(file,parse(text,{ecmaVersion:'latest',sourceType:'module',locations:true}));
   const parsed=Date.now();
+  onProgress?.({stage:'classify',elapsedMs:parsed-linked});
   const shapes=classify({graph,projection,asts});
   return {graph,projection,sources,asts,shapes,
     timings:{link:linked-started,parse:parsed-linked,shapes:Date.now()-parsed}};

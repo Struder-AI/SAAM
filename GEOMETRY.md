@@ -1,15 +1,9 @@
 # Geometry
 
-You author the part. SAAM has no shape templates: the geometry is whatever you
-write, in one of three forms, combined with [booleans](#booleans) when one form
-alone won't do. Every toolpath skill slices and follows the result.
-Coordinates are millimetres relative to the recipe's `placement`, Z = 0 on the bed.
-
-| Form | Think of it as | Reach for it for |
-|---|---|---|
-| [Spline surfaces](#spline-surfaces) | A skin of patches stretched over control points | Smooth and curved bodies, exact circles, revolutions, lofts, sleeves, named surfaces for skills to follow |
-| [Blob field](#blob-field) | Freely placed points whose smooth falloffs add up; material where the sum passes a threshold | Organic volumes, blends, holes, voids and several bodies from one description ("put a blob here") |
-| [Mesh](#mesh) | Flat triangles | Flat faces, sharp edges and chamfers, polyhedra, imported STLs |
+You author the part in one of three forms, combined with [booleans](#booleans)
+when one form alone won't do; [MAKERS](MAKERS.md#geometry) says which form suits
+what. Coordinates are millimetres relative to the recipe's `placement`, Z = 0 on
+the bed. Every toolpath skill slices and follows the result.
 
 ## Spline surfaces
 
@@ -59,20 +53,19 @@ rejected with the unmatched `patch:edge`.
 - *Tube.* The same with a bore: outer and bore sides, and two flat annular ends
   ruled between the circles.
 
-**Native use.** Slicing sections the patches themselves, not a tessellation.
-Patch names are how skills address surfaces: the roof a draped skin follows (a
-patch named `bottom` is never draped), the sleeve cladding coats, the slice a
-wave grows on, the reference text bends onto. Trimmed faces are not supported;
-cut openings with patch layout or a [boolean difference](#booleans).
+**Named patches.** Slicing uses the patches themselves, not a tessellation, and
+skills address surfaces by patch name: the roof a draped skin follows (a patch
+named `bottom` is never draped), the sleeve cladding coats, the slice a wave
+grows on, the reference text bends onto. Trimmed faces are not supported; cut
+openings with patch layout or a [boolean difference](#booleans).
 
 ## Blob field
 
-A field built from freely placed points. Each point has a position, a reach and
-a strength, and their smooth contributions add up, like metaballs with spline
-falloff: a point adds `strength · K(distance / reach)`, where `K` is the cubic
-B-spline, 1 at the point and 0 from one reach outward. Material is where the sum
-exceeds the threshold, cut flat at the bed plane Z = 0. Create and rebuild it with
-the `blob_field` tool (CLI `blob-field-create` / `blob-field-update`):
+Freely placed points, each with a position, a reach and a strength, whose smooth
+contributions add up like metaballs: a point adds `strength · K(distance / reach)`,
+where `K` is the cubic B-spline, 1 at the point and 0 from one reach outward.
+Material is where the sum exceeds the threshold, cut flat at Z = 0. Create and
+rebuild it with the `blob_field` tool:
 
 ```json
 {"points": [{"positionMm": [0, 0, 3], "reachMm": 16, "strength": 1},
@@ -82,11 +75,10 @@ the `blob_field` tool (CLI `blob-field-create` / `blob-field-update`):
 ```
 
 `threshold` defaults to 0.25 and `edgeMm` to the smaller of 0.5 mm and an eighth
-of the smallest reach; both are stored in the record. At threshold 0.25:
+of the smallest reach. At threshold 0.25:
 
 - A lone point is a ball of radius `reach × 0.36, 0.5, 0.6, 0.69, 0.75` at
-  strength 0.5, 1, 2, 4, 8, never beyond its reach. A centre on the bed makes a
-  hemisphere; any point below Z = 0 is cut flat there.
+  strength 0.5, 1, 2, 4, 8, never beyond its reach; below Z = 0 it is cut flat.
 - Two strength-1 points with equal reach join with a smooth neck when closer than
   1.2 × reach, and stay separate beyond that.
 - A row of strength-1 points reach/2 apart is a smooth rod of radius about
@@ -94,10 +86,8 @@ of the smallest reach; both are stored in the record. At threshold 0.25:
 - Negative strength carves. In material summing about 1, a point of strength −3
   empties a ball of radius reach/2; −2 empties 0.43 × reach.
 
-`edgeMm` is the extraction mesh's sampling scale: smaller features can be missed,
-and smaller values converge. The field is extracted to a mesh when you create or
-rebuild it, and that mesh is what Studio shows and every skill slices.
-[blob-field.mjs](core/geom/blob-field.mjs) owns the evaluation.
+`edgeMm` is the sampling scale of the mesh Studio shows and every skill slices:
+smaller features can be missed, and smaller values converge.
 
 ## Mesh
 
@@ -105,50 +95,35 @@ rebuild it, and that mesh is what Studio shows and every skill slices.
 The mesh is closed, free of self-intersections, and wound counterclockwise seen
 from outside. A prism is its outline at two heights, a fan on each cap and two
 triangles per side; a chamfer or bevel is another ring of vertices. Normals are
-faceted, so surface-following skills follow the facets.
-
-Existing meshes come from [STL import](core/print/USAGE.md#import-an-stl) or
-[thingi10k](skills/thingi10k/SKILL.md); [mesh-tools](skills/mesh-tools/SKILL.md)
-repairs a rejected one.
+faceted, so surface-following skills follow the facets. Existing meshes come
+from [STL import](core/print/USAGE.md#import-an-stl) or
+[thingi10k](skills/thingi10k/SKILL.md). Import automatically attempts repair for
+recognized defects and reports cancellable progress.
 
 ## Booleans
 
 `geometry: {shape: "boolean", operation, operands: [...]}` combines two or more
-spline, mesh, blob-field or boolean operands, written in the same coordinates.
-`union` joins them, `intersection` keeps what they share, and `difference`
-subtracts every later operand from the first: a drilled plate is a box minus a
-cylinder.
+spline, mesh, blob-field, gridfinity or boolean operands in the same coordinates. `union`
+joins them, `intersection` keeps what they share, and `difference` subtracts
+every later operand from the first: a drilled plate is a box minus a cylinder.
+Spline sections remain exact; all booleans provide tops for roof-following work.
+Named-patch operations need a plain spline part.
 
-Each layer sections every operand natively (exact contours for spline patches)
-and combines the sections, so spline operands are never tessellated for
-printing and no trimmed surface is built. Studio shows a mesh of the combined
-solid. Tops work on every boolean, so draped skins, roof text and heat-set
-inserts do too. Skills that name a patch (wave overhangs, cladding, text on a
-named patch) need a plain spline part.
-
-`combine_geometry` (CLI `combine`) adds an operand to the current geometry, or to
-one assembly part, without resending it: `{operation, operand, part?}`. Repeating
-the same operation appends to the boolean.
+`combine_geometry`: `{operation, operand, part?}` adds to the print or one component;
+repeating the operation appends. Text and heat-set operands cannot preserve their
+material/reinforcement metadata: apply those features to the completed boolean.
 
 ## Assembly
 
 `geometry: {shape: "assembly", parts: [{id, xMm, yMm, zMm, geometry}, ...]}` places
-2–20 components of any form. Parts are translated, not rotated. Each is sliced on
+one or more non-assembly components. Parts are translated, not rotated. Each is sliced on
 its own, so an overlap prints twice; join overlapping bodies with a union instead.
 Skills select components by `id`.
 
-## Features and sources
-
-These build on or supply geometry and have their own manuals in the
-[skill digest](skills/DIGEST.md): text (font outlines on or beside a part),
-heat-set insert bores, Gridfinity bins and baseplates, thingi10k meshes and
-mesh repair.
-
 ## Checking geometry
 
-`intersect_geometry` (CLI `intersect`) intersects a print, one `part`, or a
-`geometry` you are about to write with horizontal planes, vertical lines and
-spline surfaces, in the geometry's own coordinates:
+`intersect_geometry` intersects a print, one `part`, or a `geometry` you are about
+to write, in the geometry's own coordinates:
 
 ```json
 {"sectionsAtZ": [1, 4.5], "topsAtXY": [[10, 10], [2, 2]], "includeLoops": false}
@@ -157,16 +132,27 @@ spline surfaces, in the geometry's own coordinates:
 Each section gives its area, islands, holes and loop bounds (`includeLoops` adds
 the points; outer loops run counterclockwise, holes clockwise). Each top gives
 the highest surface crossing, its normal, slope and surface name, or `zMm: null`
-where the line misses the part. Each entry of `surfaces` is a control net
-(`degreeU`, `degreeV`, `controlPoints`, optional knots and `offsetMm` to shift
-it, as a stacked curved slice) and gives the region of that surface inside the
-part as loops in the surface's own (u,v), from exact surface-surface
-intersection with spline parts and with each mesh triangle.
+where the line misses the part.
 
-## Writing and checking
+<!-- requires: nonplanar -->
+### Surface regions
 
-Geometry is recipe data: `create_print` and `adjust_print` take it like any setting.
-Arrays replace, so send the whole `patches` array, mesh or operand list.
+Each entry of `surfaces` is a control net (`degreeU`, `degreeV`, `controlPoints`,
+optional knots and `offsetMm` to shift it, as a stacked curved slice) and gives
+the region of that surface inside the part as loops in the surface's own (u,v).
+
+## Writing geometry
+
+Geometry is recipe data: `create_print` and `adjust_print` take it like any
+setting. Arrays replace, so send the whole `patches` array, mesh or operand list.
 Validation names what failed; `request_review` shows the result in Studio, and
-`get_print` with `includeGeometry: true` reads it back. Scripts may compute any of
-these for large or repetitive geometry and write the same recipe.
+`get_print` with `includeGeometry: true` reads it back.
+
+<!-- layer: script -->
+## Computing geometry with scripts
+
+For large or repetitive geometry, compute the recipe in a Node script and pass the
+file to `init`, `adjust`, `blob-field-create` or `combine` ([command line](core/print/USAGE.md#command-line)).
+Run it from the repository root; on Windows, import SAAM modules with `file:///`
+URLs. `circlePoints` in [cylinder.mjs](core/geom/cylinder.mjs) gives a circle's
+points for a mesh prism.

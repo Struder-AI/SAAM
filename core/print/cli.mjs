@@ -1,13 +1,17 @@
 // Every command uses the same print bundle; Studio previews the checked export.
 import {readFile,access} from 'node:fs/promises';
 import {resolve} from 'node:path';
-import {initBundle,loadBundle,generateBundle,adjustBundle,rememberSetup,deliver,checkPathBundle,changeMachine,migrateBundle} from './bundle.mjs';
-import {importSTLBundle,setSTLUnits} from './import-stl.mjs';
+import {root,initBundle,loadBundle,generateBundle,adjustBundle,rememberSetup,deliver,checkPathBundle,changeMachine,migrateBundle} from './bundle.mjs';
+import {createSTLBundle,setSTLUnits} from './import-stl.mjs';
 import {repairSTLFiles} from './repair-stl.mjs';
 import {applyText} from './text.mjs';
 import {applyHeatSet} from './heat-set.mjs';
 import {createBlobFieldBundle,updateBlobFieldBundle} from './blob-field.mjs';
 import {intersectRequest,combineGeometry} from './geometry-tools.mjs';
+import {starterGeometry} from '../../examples/prints/starter-geometry.mjs';
+import {defaults} from './plan.mjs';
+import {skinAssignment} from './surface-constructions.mjs';
+import {printHint} from '../agent/layers.mjs';
 const readJson=async file=>JSON.parse(await readFile(file,'utf8'));
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].replace(/\\/g, '/')}`).href) {
   const args=process.argv.slice(2),revisionIndex=args.indexOf('--revision');
@@ -16,11 +20,11 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
   const [command, target, argument,extra,last] = args;
   const bundleDirectory = () => resolve(target ?? 'Prints/shell-part');
   const report = state => JSON.stringify({
-    print: state.dir, skills: state.skills, revision: state.revision, geometryHash:state.geometryHash,
+    bundle: state.dir, skills: state.skills, revision: state.revision, geometryHash:state.geometryHash,
     toolpathApproved: state.toolpathApproved,
     program: state.program?.summary ?? null, programError: state.programError ?? null,
     outputAvailability: state.outputAvailability ?? null, machineConfiguration: state.machineConfiguration ?? null,
-    nonplanarLimit: state.pathSummary?.nonplanarLimit ?? null, limitations: state.limitations
+    surfaceDomain: state.pathSummary?.surfaceDomain ?? null, limitations: state.limitations
   }, null, 2);
 
   const run = async () => {
@@ -29,9 +33,10 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       const plan = argument&&argument!=='--machine' ? await readJson(resolve(argument)) : undefined;
       const machineId=argument==='--machine'?extra:extra==='--machine'?last:extra;
       const directory = await initBundle(bundleDirectory(), plan,{machineId});
-      console.log(`Print created at ${directory}`);
+      console.log(`Bundle created at ${directory}`);
       console.log(`Open it for review with: npm run studio -- ${directory}`);
       console.log('Nothing is approved yet; review the geometry and generate freely, then confirm the exact settings/toolpath together in Studio before export.');
+      const hint=await printHint(root,await loadBundle(directory,{program:false}),null);if(hint)console.log(hint);
     } else if(command==='migrate') {
       console.log(JSON.stringify(await migrateBundle(bundleDirectory()),null,2));
     } else if(command==='blob-field-create'||command==='blob-field-update') {
@@ -59,7 +64,10 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(JSON.stringify(await repairSTLFiles(bundleDirectory(),resolve(argument),{...options,units:extra,progress:event=>console.error(JSON.stringify(event))}),null,2));
     } else if(command==='import-stl') {
       if(!argument||extra!==undefined&&!['auto','mm','inch'].includes(extra))throw new Error('Use import-stl <print-directory> <source.stl> [auto|mm|inch] [machine-id].');
-      await importSTLBundle(bundleDirectory(),resolve(argument),{units:extra,machineId:last});
+      const controller=new AbortController(),cancel=()=>controller.abort(new DOMException('Import cancelled.','AbortError'));
+      process.once('SIGINT',cancel);process.once('SIGTERM',cancel);
+      try{await createSTLBundle(bundleDirectory(),resolve(argument),{units:extra,machineId:last,signal:controller.signal,progress:event=>console.error(JSON.stringify(event))});}
+      finally{process.removeListener('SIGINT',cancel);process.removeListener('SIGTERM',cancel);}
       const imported=await loadBundle(bundleDirectory(),{program:false});
       console.log('STL imported in '+imported.plan.geometry.source.units+(imported.plan.geometry.source.unitsInferred?' (assumed from size)':'')+'; open Studio for geometry review. Nothing is approved.');
     } else if(command==='stl-units') {
@@ -68,14 +76,17 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(JSON.stringify(await checkPathBundle(bundleDirectory()),null,2));
     } else if (command === 'demo') {
       const directory = bundleDirectory();
-      try { await access(resolve(directory, 'plan.json')); } catch { await initBundle(directory); }
+      try { await access(resolve(directory, 'plan.json')); } catch { const plan=defaults();plan.geometry=starterGeometry();plan.slices.assignments.push(skinAssignment({id:'skin'}));await initBundle(directory,plan); }
       const checks = await generateBundle(directory, { development: true });
       console.log(`Development generation only; no human approvals created.`);
       console.log(`  ${checks.moves} moves, about ${checks.estimatedMinutes} minutes`);
       console.log(`Print: ${directory}`);
       console.log(`Open Studio with: npm run studio -- ${directory}`);
     } else if (command === 'change-machine') {
-      console.log(report(await changeMachine(bundleDirectory(),argument,{expectedRevision})));
+      const from=(await loadBundle(bundleDirectory(),{program:false})).machine.id;
+      const state=await changeMachine(bundleDirectory(),argument,{expectedRevision});
+      console.log(report(state));
+      const hint=await printHint(root,state,from);if(hint)console.log(hint);
     } else if (command === 'generate') {
       console.log(JSON.stringify(await generateBundle(bundleDirectory()), null, 2));
     } else if (command === 'adjust') {
@@ -105,7 +116,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.error('       cli.mjs import-stl <print-directory> <source.stl> [auto|mm|inch] [machine-id]');
       console.error('       cli.mjs repair-stl <new-repair-directory> <source.stl> <mm|inch> [options.json]');
       console.error('       cli.mjs check-path <print-directory> (software compatibility only)');
-      console.error('       cli.mjs init <print-directory> [plan.json] [--machine <machine-id>]');
+      console.error('       cli.mjs init <bundle-directory> <plan.json> [--machine <machine-id>]');
       process.exitCode = 1;
     }
   };

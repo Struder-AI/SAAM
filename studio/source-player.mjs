@@ -1,5 +1,5 @@
 import {interpretMachineStudy} from '../core/export/machine-study.mjs';
-import {interpretGriffin} from '../core/export/griffin.mjs';
+import {interpretGriffin} from '../core/export/griffin-player.mjs';
 import {interpretBambuSource} from '../core/export/bambu-player.mjs';
 import {interpretDobotFiles} from '../core/export/dobot-player.mjs';
 import {interpretDensoFiles} from '../core/export/denso-player.mjs';
@@ -7,8 +7,13 @@ import {moveStore} from './move-store.mjs';
 
 // Inputs are the exact checked machine source, plus its locked machine setup.
 // Both runtimes execute the same modal/Lua interpreter used by export checks.
-export function decodeSource(sources,plan,machine,{compact=true}={}) {
-  const options=compact?{moves:moveStore()}:{};
+export function decodeSource(sources,plan,machine,{compact=true,inspection=null}={}) {
+  const store=compact?moveStore():[],moves=new Proxy(store,{get(target,key){
+    if(key!=='push')return Reflect.get(target,key);
+    return row=>{const info=inspection?.operations?.[row.operation],layer=info?.layers?.[row.layer];return target.push({...row,
+      sliceFamily:info?.family??null,sliceIndex:layer?.index??null,modulated:!!info?.modifiers?.length});};
+  }});
+  const options={moves};
   let program;
   if(plan.output==='machine-study')program=interpretMachineStudy(sources['motion.json'],options);
   else if(plan.output==='griffin-gcode')program=interpretGriffin(sources.program,plan,machine,options);

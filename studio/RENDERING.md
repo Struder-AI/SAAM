@@ -126,12 +126,15 @@ guide. Display geometry does not modify deposition spacing, volume or export.
 Studio displays material estimates in grams using a fixed 1.2 g/cm³ density
 for all materials. Robot relay estimates and commanded material intent remain
 separate and labeled; internal volumes and machine flow rates retain their units.
-Outgoing layers normally ease color and opacity over two seconds of wall-clock
-time, including when paused. At accelerated playback, shorten the fade only when
-the next layer begins sooner, using its source timeline and the selected speed.
-A new layer transition completes any preceding fade, so only one outgoing layer
-can fade at a time. Changing speed or pausing never reverses fade progress.
-Scrubbing, replay and opening a print reset fade history.
+Inspection reads `report.depositionFamily`; operation plus exported `layer` selects
+the course ordinal. Continuous Slice keeps its geometric turn identity without
+splitting deposition. Trace keeps authored courses and its reference sleeve name;
+Inject numbers points independently of height. Reference geometry is not drawn.
+Substrate adaptation is agent-controlled through the recipe/API; settings only
+report its current value.
+Outgoing layers fade over two wall-clock seconds, shortened when the next layer
+arrives sooner. A transition completes the previous fade; pausing/changing speed
+never reverses it. Scrubbing, replay and opening a print reset fade history.
 **Export movie** renders the whole interpreted program into a separate canvas
 with the same renderer, selected speed, camera/zoom/framing, travel visibility,
 rotary view, display detail and layer fade. The viewer stays paused at its current
@@ -142,10 +145,8 @@ must support one of these encoders. Render/encode time depends on the computer;
 compressed frames remain in memory until download. Progress and cancellation
 keep the page usable, while view controls are locked for consistent frames.
 Canvas dimensions and device-pixel ratio at export start determine resolution.
-The background is painted by the shared renderer so the movie keeps Studio's
-appearance. Same-tab view settings survive refresh in session storage; tabs
-opened before this feature must have their settings reselected once. Movie
-export does not generate machine code, approve a job, or modify its bundle.
+The shared renderer preserves Studio's appearance. Same-tab view settings survive
+refresh. Movie export neither generates machine code nor approves or edits a bundle.
 
 S5 and H2D profiles supply new shell plans with 40/20/24 mm/s
 planar/skin/first-layer targets, 120 mm/s XY travel and 10 mm/s Z travel.

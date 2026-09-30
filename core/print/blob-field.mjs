@@ -7,7 +7,7 @@ const REQUEST_FIELDS=['points','threshold','edgeMm'];
 
 export async function createBlobFieldBundle(directory,request,options={}){
   const geometry=await compileRequest(request),plan=await proposedPlan(options.machineId,options);
-  plan.geometry=geometry;plan.skills['draped-skin'].enabled=false;
+  plan.geometry=geometry;
   const low=[0,1].map(a=>Math.min(...geometry.vertices.map(v=>v[a])));
   plan.placement={xMm:20-low[0],yMm:20-low[1]};
   await initBundle(directory,plan,options);

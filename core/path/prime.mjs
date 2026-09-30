@@ -9,47 +9,36 @@ export function planPriming(state,geometryBounds,results) {
   const {lineLengthMm:length,clearanceMm:gap}=settings;
   requireThat(Number.isFinite(length)&&length>0&&Number.isFinite(gap)&&gap>0,'Invalid machine priming strokes.');
   const p=state.process;
-  const footprint=preparePrimingFootprint(geometryBounds,results,p.lineWidthMm);
-  if(!footprint.hasDeposition)return planningResult(state);
-  const points=selectPrimingPath(footprint,state.position,state.motionBounds??state.machine.bounds,
-    {lineLengthMm:length,clearanceMm:gap,widthMm:p.lineWidthMm,zMm:p.firstLayerMm});
-  return emitPrimingPath(state,points);
+  const bed=state.motionBounds??state.machine.bounds,w=p.lineWidthMm,z=p.firstLayerMm;
+  const candidates=[];
+  for(const axis of [1,0])for(const sign of [-1,1]){
+    const along=1-axis,edge=sign<0?bed.min[axis]+w/2:bed.max[axis]-w/2,start=bed.min[along]+w/2;
+    const point=(a,b)=>{const q=[0,0,z];q[axis]=a;q[along]=b;return q;};
+    const points=[point(edge,start),point(edge,start+length),point(edge-sign*w,start+length),point(edge-sign*w,start)];
+    if(points.every(q=>q.every((v,i)=>v>=bed.min[i]+(i<2?w/2:0)&&v<=bed.max[i]-(i<2?w/2:0)))){
+      if(distance(state.position,points.at(-1))<distance(state.position,points[0]))points.reverse();candidates.push(points);
+    }
+  }
+  requireThat(candidates.length,'No room for the machine priming lane inside the selected tool bounds.');
+  candidates.sort((a,b)=>distance(state.position,a[0])-distance(state.position,b[0]));
+  const points=candidates[0];
+  if(results)validatePrimingClearance(points,geometryBounds,results,w,gap);
+  const emitted=emitPrimingPath(state,points);return {...emitted,points};
 }
 
 export function preparePrimingFootprint(geometryBounds,results,widthMm) {
-  const lo=[...geometryBounds.min],hi=[...geometryBounds.max];
+  const lo=[...(geometryBounds?.min??[Infinity,Infinity,Infinity])],hi=[...(geometryBounds?.max??[-Infinity,-Infinity,-Infinity])];
   let hasDeposition=false;
   // Include supports/rims and every component, even when they extend beyond
   // the source geometry. Never consume a skirt into a later operation's footprint.
   for(const result of results)for(const op of result.operations)for(const stroke of op.strokes){
+    const radius=(stroke.segmentMetadata??[]).reduce((width,m)=>Math.max(width,m.beadWidthMm??0),Math.max(widthMm,stroke.beadWidthMm??0))/2;
     if(stroke.stationaryExtrusion||stroke.beadAreaMm2>0||stroke.volumesMm3?.some(v=>v>0))hasDeposition=true;
     for(const point of stroke.points)for(let i=0;i<2;i++){
-      lo[i]=Math.min(lo[i],point[i]-widthMm/2);hi[i]=Math.max(hi[i],point[i]+widthMm/2);
+      lo[i]=Math.min(lo[i],point[i]-radius);hi[i]=Math.max(hi[i],point[i]+radius);
     }
   }
   return {min:lo,max:hi,hasDeposition};
-}
-
-export function selectPrimingPath(footprint,startPosition,bed,{lineLengthMm:length,clearanceMm:gap,widthMm:w,zMm:z}) {
-  const candidates=[];
-  // Two parallel passes connected at the far end, outside one side of the
-  // complete footprint. Try all four sides instead of assuming a free front edge.
-  for(const axis of [1,0])for(const sign of [-1,1]){
-    const along=1-axis,edge=(sign<0?footprint.min[axis]:footprint.max[axis])+sign*(gap+w/2);
-    const low=bed.min[along]+w/2,high=bed.max[along]-w/2-length;
-    if(high<low)continue;
-    const start=Math.max(low,Math.min(high,footprint.min[along]));
-    const point=(a,b)=>{const q=[0,0,z];q[axis]=a;q[along]=b;return q;};
-    const points=[point(edge,start),point(edge,start+length),point(edge+sign*w,start+length),point(edge+sign*w,start)];
-    if(points.every(q=>q.every((v,i)=>v>=bed.min[i]+(i<2?w/2:0)&&v<=bed.max[i]-(i<2?w/2:0)))){
-      // Either end is a valid start; prefer the shorter initial approach.
-      if(distance(startPosition,points.at(-1))<distance(startPosition,points[0]))points.reverse();
-      candidates.push(points);
-    }
-  }
-  requireThat(candidates.length,'No room for machine priming strokes outside the part/support footprint; move or resize the part.');
-  candidates.sort((a,b)=>distance(startPosition,a[0])-distance(startPosition,b[0]));
-  return candidates[0];
 }
 
 export function emitPrimingPath(state,points) {
@@ -63,4 +52,11 @@ export function emitPrimingPath(state,points) {
   }
   const parked=planPark(primeState);actions.add(parked.actions);
   return planningResult({...parked.state,layerSeconds:0},actions.finish());
+}
+
+export function validatePrimingClearance(points,geometryBounds,results,widthMm,gap){
+  if(!points?.length)return;
+  const footprint=preparePrimingFootprint(geometryBounds,results,widthMm);
+  const separate=[0,1].some(axis=>Math.max(...points.map(p=>p[axis]))+widthMm/2+gap<=footprint.min[axis]||Math.min(...points.map(p=>p[axis]))-widthMm/2-gap>=footprint.max[axis]);
+  requireThat(separate,'The fixed machine priming lane overlaps the complete part/support/deposition footprint; move or resize the part, or author an explicit prime line.');
 }

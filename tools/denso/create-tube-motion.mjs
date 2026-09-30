@@ -5,15 +5,18 @@ import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {defaults} from '../../core/print/plan.mjs';
 import {loadMachine} from '../../core/machine/profile.mjs';
-import {pipeMesh,substrateSection,substrateLoops} from './pipe.mjs';
-import {fullFillResult} from '../../skills/full-fill/scripts/fill.mjs';
+import {pipeMesh,substrateLoops} from './pipe.mjs';
+import {horizontalSlice,sliceFamily} from '../../core/geom/slice.mjs';
+import {depositCurves} from '../../core/path/deposition.mjs';
 const number=n=>String(Number(n.toFixed(8)));
 export async function createTubeMotion(sourceFile,directory){
  const dir=resolve(directory);try{await stat(dir);throw Error('Choose a new output directory');}catch(e){if(e.code!=='ENOENT')throw e;}
  const bytes=await readFile(sourceFile),saved=JSON.parse(bytes),machine=loadMachine('denso-vs068a4-rc8a'),base=defaults(machine);
- const plan={...base,...saved,placement:{xMm:0,yMm:0},process:{...base.process,...saved.process},skills:Object.fromEntries(Object.entries(base.skills).map(([key,value])=>[key,{...value,...saved.skills[key]}]))};
+ const plan={...base,...saved,placement:{xMm:0,yMm:0},process:{...base.process,...saved.process},skills:structuredClone(saved.skills)};
  assert.equal(plan.geometry.shape,'pipe');assert.equal(plan.skills['pipe-cladding'].enabled,true);assert.equal(plan.skills['full-fill'].perimeters,0);
- const shell=pipeMesh(plan.geometry),result=fullFillResult({shell,plan,machine,sectionAt:substrateSection(shell,plan),interiorStrokes:()=>substrateLoops(plan)});
+ const shell=pipeMesh(plan.geometry),family=sliceFamily({base:horizontalSlice(0),pitchMm:plan.process.layerMm,firstLayerMm:plan.process.firstLayerMm},shell.bounds),curves=substrateLoops(plan);
+ const result={operations:family.layers.map(layer=>({strokes:depositCurves(curves.map(curve=>({...curve,points:curve.points.map(p=>[...p,layer.slice.origin[2]])})),
+   {widthMm:plan.process.lineWidthMm,heightMm:layer.heightMm,speedMmS:layer.index===0?plan.process.firstLayerSpeedMmS:plan.process.planarSpeedMmS})}))};
  const layers=result.operations.map(o=>({z:o.strokes[0].points[0][2],rings:o.strokes.map(s=>{const radius=Math.hypot(...s.points[0].slice(0,2));assert.ok(s.closed);for(const p of s.points)assert.ok(Math.abs(Math.hypot(...p.slice(0,2))-radius)<1e-7&&Math.abs(p[2]-s.points[0][2])<1e-7);return {radius,beadAreaMm2:s.beadAreaMm2,speedMmS:s.speedMmS};})}));
  const first=layers[0],radii=first.rings.map(r=>r.radius),pitch=radii[1]-radii[0];assert.ok(layers.length>1&&radii.length>1);
  for(const [i,layer] of layers.entries()){assert.ok(Math.abs(layer.z-(first.z+i*plan.process.layerMm))<1e-7);assert.equal(layer.rings.length,radii.length);layer.rings.forEach((r,j)=>assert.ok(Math.abs(r.radius-(radii[0]+j*pitch))<1e-7));}

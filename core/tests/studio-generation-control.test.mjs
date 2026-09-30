@@ -60,7 +60,7 @@ async function fixture(t){
   const root=await mkdtemp(resolve(tmpdir(),'saam-generation-control-')),dir=resolve(root,'part');
   t.after(()=>rm(root,{recursive:true,force:true,maxRetries:5,retryDelay:100}));
   const plan=await bundle.proposedPlan('ultimaker-s5');plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:1});
-  plan.skills['draped-skin'].enabled=false;plan.process.minimumLayerSeconds=0;
+  plan.process.minimumLayerSeconds=0;
   await bundle.initBundle(dir,plan,{machineId:'ultimaker-s5'});
   const server=createStudio(dir,{libraryRoot:root,localExtension:{}});t.after(()=>server.shutdown());
   await new Promise(done=>server.listen(0,'127.0.0.1',done));

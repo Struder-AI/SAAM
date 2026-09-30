@@ -1,100 +1,49 @@
 ---
 name: thick-lip
-description: A vase wall's top edge thickened into a rigid, optionally rolled rim.
+description: Guidance for making a thickened or rolled edge with Slice or Trace.
+metadata:
+  saam-kind: guidance
 ---
 
-# Thick lip
+# Making a thick lip
 
-A finishing skill: it does not print a part on its own, it thickens the top
-edge an existing [vase-wall](../vase-wall/SKILL.md) region already produced.
-Read [MAKERS.md](../../MAKERS.md); builders and developers also read [BUILDERS.md](../../BUILDERS.md).
+A lip is a shape and deposition choice, not a separate skill. Use
+[Slice](../slice/SKILL.md) for a modeled thick edge or
+[Trace](../trace/SKILL.md) for explicit rim curves. Both use the print's common
+material, process, dependencies and review.
 
-This recovers a real, robot-tested idea from an earlier StruderBot-only
-version of this project: growing inward perimeters from a frozen rim. That
-version derived its geometry by hand for one regular hexagon, and grew every
-added perimeter purely inward from the frozen outer wall. This version
-replaces the hand-derived corner math with the same convex-section offset
-that vase-wall and full-fill already share, so it works for any convex
-vase-wall section, not just a hexagon — and centers every added ring set on
-the wall's own printed centerline instead of keeping it flush with the outer
-face, so whatever prints here always straddles the exact line the terminal
-wall bead below it followed, rather than depending on which side of a
-computed envelope it happened to land on.
+## Choose a construction
 
-It also structurally avoids that version's one recorded robot failure — a
-lip torn by growing off a raw spiral end — by requiring a phase-neutral,
-fully closed boundary to grow from, which is what vase-wall's
-`endTransition: 'level'` produces and a raw spiral does not.
+- **Slice:** model the added material and assign its band or volume more loops
+  or solid fill. The geometry defines the outer extent. Keep ownership distinct
+  from the wall below so the same material is not deposited twice.
+- **Trace:** author closed curves around the edge, with bead width/height and
+  course heights. Trace's `widthRule` can fit parallel paths to a requested width;
+  explicit curves allow a different width on each course. Name the supporting
+  operations as prerequisites and inspect every curve's contact.
 
-Toolpath reliability across a wide perimeter-count jump is still unproven, so
-this skill does not compute a schedule from a target width. The maker writes
-an explicit, inspectable `steps` list instead — this is deliberately literal
-rather than automatic while that gets validated.
+For a vase ending, first supply a closed, level boundary. A raw rising spiral
+does not supply one. A schedule such as two, three, then two neighboring paths
+can make a rolled profile; paths may extend beyond the modeled wall. Width
+changes must remain supported by preceding material.
 
-## Use
+## Follow a finished boundary
 
-Only through `composition.regions`, in a region assigned directly above a
-`vase-wall` region on the same component, with that vase-wall region's
-`endTransition` set to `level`. There is no simple/global recipe for this
-skill, and no other skill may share its region:
+Ordinary Slice can follow a source's closed, level terminal curve:
 
 ```json
-{"id": "wall", "part": null, "zStartMm": 0, "zEndMm": 40,
- "skills": {"vase-wall": {"endTransition": "level"}}},
-{"id": "lip", "part": null, "zStartMm": 40, "zEndMm": null,
- "skills": {"thick-lip": {"steps": [2, 3, 2]}}}
+{"id":"lip","loops":[2,3,2],"fillDensity":0,"solidTop":0,"solidBottom":0,
+ "surface":{"kind":"terminal","assignment":"wall","minFeatureMm":0.4},
+ "contact":{"source":"wall"}}
 ```
 
-`zStartMm` of the lip region must equal the vase-wall region's `zEndMm`
-(the composer's normal touching-region rule); `zEndMm` is unused by this
-skill's own geometry and can be left `null`. The agent proposes `steps` and
-the other settings with the maker; the maker need not edit JSON.
+Use the normal assignment tool to fill remaining defaults. Each loop count
+selects one course. Spacing and height use the assignment's process settings.
+The source can be Slice or a closed Trace, including a level-ended vase.
+With substrate adaptation enabled, finalized source beads and preceding courses
+supply contact; missing contact rejects. The old `construction:'rim'` record
+requires explicit migration to these fields.
 
-## Locked settings
-
-| Setting | Default | Meaning |
-|---|---|---|
-| `enabled` | `false` | Select thick-lip (only meaningful inside a region). |
-| `part` | `null` | Required component ID in an assembly; null for a single part. |
-| `steps` | `[2]` | One entry per lip layer: how many perimeters that layer prints, one or more each, 1–50 layers. More than about eight perimeters in a step is rarely useful. |
-| `minFeatureMm` | `0.4` | Shared section feature scale for the frozen boundary query, 0.05–5 mm. |
-
-## Geometry
-
-The vase-wall region's top section is queried once, at the shared boundary
-Z, and frozen: every lip layer reuses that exact 2D outer loop, only Z
-advances. For a step of `n` perimeters, ring offsets run symmetrically from
-`-(n-1)/2` to `+(n-1)/2` bead-width spacings around the wall's own centerline
-(`lineWidthMm / 2` in from the true outer surface — the same centerline
-vase-wall itself prints). `n=1` reproduces that centerline exactly; `n=2`
-straddles it with one bead just outside and one just inside; larger `n`
-keeps straddling it symmetrically, which can put the outermost ring's
-centerline outside the modeled surface — centering is not bounded to stay
-inside the wall printed below it, on the reasoning that every ring should
-sit a predictable distance from the bead directly below it, not from
-whichever side of a computed envelope it happened to land on.
-
-There is no automatic width-to-schedule math: `steps` is written out
-explicitly, layer by layer, so its actual toolpath is fully inspectable
-before printing. A schedule can rise, fall, or repeat in any order — for
-example `[2, 3, 2]` prints a doubled ring, then a tripled ring centered on
-the same line, then back to doubled.
-
-Every lip layer is an ordinary planar operation — independently closed rings
-with the shared travel policy between them, not a continuous nonplanar
-stroke — so it only needs `xyz-extrusion`/`planar` on the selected machine,
-even though the vase-wall underneath needs `nonplanar`.
-
-## Limitations
-
-The user reports this skill demonstrated in physical prints (2026-09-24). Adjacent rings of one step are
-joined by a short printed connector inside that step's own ring band, checked
-by the same shared travel policy as every other planar skill; it is
-not specially modeled for the hollow interior beneath a single-wall vase.
-A `steps` entry large enough to push a ring's centerline well outside the
-modeled surface has not been tested for adhesion or overhang at that
-overhang; review the result in Studio, and prefer a short schedule change
-over a large jump between steps until this is validated on hardware.
-
-This skill has no stored tests; write the checks you need from the contract
-above, then run the repository's `npm test` after changes.
+The underlying technique has user-reported physical prints; experimental contact
+adaptation and large width jumps remain unqualified. Follow the shared review
+workflow; no strength or full-head clearance model is implied.

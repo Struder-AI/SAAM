@@ -1,6 +1,7 @@
 import {requireThat} from '../geom/tolerance.mjs';
 import {toolFor,toolBounds,validateSetup,feederSelector} from './rules.mjs';
 
+const PROCESS_FIELDS=['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','skinSpeedMmS','firstLayerSpeedMmS','maxFlowMm3S','retractMm','retractSpeedMmS'];
 // Device numbers are local installation labels, in separate AMS/AMS HT spaces.
 // They are never firmware tray IDs or logical material indices.
 export function validateBambuConnections(connections,machine){
@@ -15,9 +16,13 @@ export function validateBambuConnections(connections,machine){
   'Bambu AMS connections need unique units within the machine device capacities and connected logical tools.');
 }
 
+// Filaments a recipe assigns to deposition assignments, in recipe
+// order; the setup's own filament is not included.
+export const assignedFilaments=plan=>[...(plan.slices?.assignments??[]),...(plan.composition?.filaments??[])].map(a=>a.filament).filter(v=>v!==null&&v!==undefined);
+
 // A logical material selection, separate from installed nozzle and feed route.
 // No device/tray number is ever substituted for the logical filament index.
-export function filamentPlan(plan,machine,index){
+export function checkedFilamentPlan(plan,machine,index){
   requireThat(plan.output==='bambu-gcode','This output has no logical filament-selection adapter.');
   const b=plan.setup.bambu,entry=b?.filaments?.[index];
   requireThat(Number.isInteger(index)&&index>=0&&(entry||index===0&&b?.filaments===null),'Unknown logical filament selection.');
@@ -38,7 +43,7 @@ export function filamentPlan(plan,machine,index){
   const ams=source?.type==='ams'?{unit:source.unit,slot:source.slot}:source?.type==='external'?null:index===b.filament?plan.setup.ams:null;
   const process=entry?.process??{};
   requireThat(process&&typeof process==='object'&&!Array.isArray(process)&&Object.keys(process).every(k=>
-    ['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','skinSpeedMmS','firstLayerSpeedMmS','maxFlowMm3S','retractMm','retractSpeedMmS'].includes(k)&&Number.isFinite(process[k])),
+    PROCESS_FIELDS.includes(k)&&Number.isFinite(process[k])),
   'Unsupported filament process override.');
   if(entry?.nozzleC!==undefined)requireThat(Number.isFinite(entry.nozzleC)&&
     [machine.temperatureLimitsC.nozzle,machine.materials[plan.setup.material]?.nozzleC].every(limits=>limits&&entry.nozzleC>=limits[0]&&entry.nozzleC<=limits[1]),
@@ -52,7 +57,24 @@ export function filamentPlan(plan,machine,index){
   return selected;
 }
 
+// Resolve authored material/nozzle defaults without applying device capability.
+// Physical feeder compatibility is an exporter concern (checkedFilamentPlan).
+export function filamentPlan(plan,machine,index){
+  const b=plan.setup.bambu,entry=b?.filaments?.[index];
+  requireThat(Number.isSafeInteger(index)&&index>=0&&(entry||index===0&&b?.filaments===null),'Unknown logical filament selection.');
+  const tool=entry?.tool??plan.setup.tool;
+  requireThat(Number.isSafeInteger(tool)&&tool>=0,'Filament tool must be a nonnegative integer.');
+  const nozzleMm=tool===plan.setup.tool?plan.setup.nozzleMm:b.otherNozzleMm;
+  requireThat(Number.isFinite(nozzleMm)&&nozzleMm>0,'Filament needs an authored nozzle diameter.');
+  const process=entry?.process??{};
+  requireThat(process&&typeof process==='object'&&!Array.isArray(process)&&Object.keys(process).every(k=>PROCESS_FIELDS.includes(k)&&Number.isFinite(process[k])),'Invalid filament process override.');
+  const setup={...plan.setup,tool,nozzleMm,core:`Hardened steel ${nozzleMm}`,nozzleC:entry?.nozzleC??plan.setup.nozzleC,
+    ams:entry?.source?.type==='ams'?{unit:entry.source.unit,slot:entry.source.slot}:entry?.source?.type==='external'?null:index===b.filament?plan.setup.ams:null,
+    filamentColor:entry?.colour??plan.setup.filamentColor,
+    bambu:{...b,filament:index,otherNozzleMm:tool===plan.setup.tool?b.otherNozzleMm:plan.setup.nozzleMm}};
+  return {...plan,setup,process:{...plan.process,...process}};
+}
 export function filamentSelection(plan,machine,index){
-  const selected=filamentPlan(plan,machine,index);validateSetup(selected,machine);
-  return {filament:index,tool:selected.setup.tool,process:selected.process,bounds:toolBounds(machine,selected.setup.tool)};
+  const selected=filamentPlan(plan,machine,index);
+  return {filament:index,tool:selected.setup.tool,process:selected.process};
 }

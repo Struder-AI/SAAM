@@ -43,7 +43,7 @@ export async function checkSetup({log=console.log}={}) {
       const box={shape:'spline',patches:[face('top',[0,0,2],[0,10,2],[10,0,2],[10,10,2]),face('bottom',[0,0,0],[0,10,0],[10,0,0],[10,10,0]),
         face('front',[0,0,0],[0,0,2],[10,0,0],[10,0,2]),face('right',[10,0,0],[10,0,2],[10,10,0],[10,10,2]),
         face('back',[0,10,0],[0,10,2],[10,10,0],[10,10,2]),face('left',[0,0,0],[0,0,2],[0,10,0],[0,10,2])]};
-      const plan=defaults();plan.geometry=box;plan.skills['draped-skin'].enabled=false;
+      const plan=defaults();plan.geometry=box;
       await initBundle(directory,plan);
       const {createStudio}=await import('../studio/server.mjs');
       server=createStudio(directory);

@@ -4,7 +4,7 @@
 // a client that never surfaces a push still receives the batch on its next read.
 // Observers see every recorded event, held or delivered, and never drain.
 export const DELIVERED_KINDS=new Set(['tour-started','tour-lesson','tour-exited','tour-finished','request-queued','request-presented',
-  'generation-failed','generation-cancelled','import-completed','import-failed','print-opened','export-delivered']);
+  'generation-failed','generation-cancelled','import-completed','import-failed','import-repair-started','import-cancelled','print-opened','export-delivered']);
 export const HELD_KINDS=new Set(['viewer-opened','viewer-closed','view-presented','generation-started','generation-finished','approved',
   'tour-playback','import-started','example-adopted','plan-updated']);
 export const EVENT_KINDS=[...DELIVERED_KINDS,...HELD_KINDS];

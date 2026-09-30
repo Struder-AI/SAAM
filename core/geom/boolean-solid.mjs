@@ -6,7 +6,7 @@
 import {requireThat} from './tolerance.mjs';
 
 export const BOOLEAN_OPERATIONS=['union','difference','intersection'];
-export const BOOLEAN_OPERAND_SHAPES=['spline','mesh','blob-field','boolean'];
+export const BOOLEAN_OPERAND_SHAPES=['spline','mesh','blob-field','gridfinity','boolean'];
 export const booleanSolidTemplate=()=>({shape:'boolean',operation:'union',operands:[]});
 
 // Structure only; the caller validates each operand by its own form's check.

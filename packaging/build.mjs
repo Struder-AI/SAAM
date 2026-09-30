@@ -23,6 +23,7 @@ import {tmpdir} from 'node:os';
 import {resolve,dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';
+import {packageNativeRepair} from './native-repair.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const PLATFORMS={
@@ -121,7 +122,7 @@ async function fetchNode(version,platform,into){
 
 async function main(){
   const {values}=parseArgs({options:{platform:{type:'string'},version:{type:'string'},'relay-url':{type:'string'},
-    'node-version':{type:'string',default:process.version},node:{type:'string'},out:{type:'string',default:'dist'},'update-host':{type:'string'}}});
+    'node-version':{type:'string',default:process.version},node:{type:'string'},out:{type:'string',default:'dist'},'update-host':{type:'string'},'mesh-repair':{type:'string'}}});
   const platform=values.platform,target=PLATFORMS[platform];
   if(!target)throw Error(`Choose --platform: ${Object.keys(PLATFORMS).join(', ')}.`);
   if(!/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(values.version??''))throw Error('Give --version as major.minor.patch.');
@@ -140,6 +141,8 @@ async function main(){
   for(const file of files){await mkdir(dirname(resolve(app,file)),{recursive:true});await copyFile(resolve(root,file),resolve(app,file));}
   await cp(resolve(root,'packaging',target.os),resolve(app,'packaging',target.os),{recursive:true});
   console.log(`Copied ${files.length} tracked files.`);
+  const nativeRepair=await packageNativeRepair({root,app,platform,artifact:values['mesh-repair']});
+  console.log('Native mesh repair:',nativeRepair.available?'included for '+platform:nativeRepair.reason);
 
   run(process.platform==='win32'?'npm.cmd':'npm',['ci','--omit=dev','--ignore-scripts','--no-audit','--no-fund'],{cwd:app});
   const modules=resolve(app,'node_modules'),installed=await measure(modules);
@@ -154,7 +157,7 @@ async function main(){
     console.warn('Bundled the given node binary; it must be built for',platform+'.');}
   else await fetchNode(values['node-version'],platform,runtime);
 
-  const release={version:values.version,relayUrl,platform,updateHost,node:values.node?'supplied':values['node-version'],builtAt:new Date().toISOString()};
+  const release={version:values.version,relayUrl,platform,updateHost,node:values.node?'supplied':values['node-version'],nativeRepair,builtAt:new Date().toISOString()};
   const releaseJson=JSON.stringify(release,null,2)+'\n';
   await writeFile(resolve(app,'release.json'),releaseJson);
   console.log(`Application: ${describe(await measure(app))}.`);

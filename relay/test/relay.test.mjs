@@ -92,22 +92,22 @@ test('a chat reaches the paired computer through the relay; link loss fails fast
 
   // A web chat names no local paths: STL import happens in Studio.
   const listed=(await client.listTools()).tools.map(tool=>tool.name);
-  assert.deepEqual(listed.sort(),runtime.operations.map(operation=>operation.name).filter(name=>name!=='import_stl_print').sort());
-  assert.match(JSON.stringify(await client.callTool({name:'import_stl_print',arguments:{printId:'x',sourcePath:'C:/x.stl',machineId:'ultimaker-s5'}}).catch(error=>({error:error.message}))),/Unknown|not found/i);
-  assert.match(client.getInstructions(),/^This SAAM session reaches the person’s own computer through the SAAM relay/,'relay sessions get relay guidance first');
-  const {plan}=await call('get_plan_template',{kind:'shell',machineId:'ultimaker-s5'});
-  plan.process.minimumLayerSeconds=0;plan.geometry=splineBox({runMm:12,widthMm:10,heightMm:1});plan.skills['draped-skin'].enabled=false;
-  const created=await call('create_print',{printId:'relayed',kind:'shell',machineId:'ultimaker-s5',plan});
+  assert.deepEqual(listed.sort(),runtime.operations.map(operation=>operation.name).filter(name=>name!=='import_stl_bundle').sort());
+  assert.match(JSON.stringify(await client.callTool({name:'import_stl_bundle',arguments:{bundleId:'x',sourcePath:'C:/x.stl',machineId:'ultimaker-s5'}}).catch(error=>({error:error.message}))),/Unknown|not found/i);
+  assert.match(client.getInstructions(),/This SAAM session reaches the person’s own computer through the SAAM relay/,'relay sessions include relay guidance');
+  const {plan}=await call('get_recipe_defaults',{kind:'shell',machineId:'ultimaker-s5'});
+  plan.process.minimumLayerSeconds=0;plan.geometry=splineBox({runMm:12,widthMm:10,heightMm:1});
+  const created=await call('create_bundle',{bundleId:'relayed',kind:'shell',machineId:'ultimaker-s5',plan});
   assert.equal(created.toolpathApproved,false);
-  const repeated=await client.callTool({name:'adjust_print',arguments:{printId:'relayed',expectedRevision:'stale',patch:{}}});
+  const repeated=await client.callTool({name:'adjust_recipe',arguments:{bundleId:'relayed',expectedRevision:'stale',patch:{}}});
   assert.equal(repeated.isError,true,'a stale repeat is rejected by the revision check');
   const fake=resolve(printsRoot,'not-a-system-font.ttf');await writeFile(fake,'x');
-  const font=await client.callTool({name:'apply_text',arguments:{printId:'relayed',expectedRevision:created.revision,request:{feature:{fontPath:fake,text:'A'}}}});
+  const font=await client.callTool({name:'apply_text',arguments:{bundleId:'relayed',expectedRevision:created.revision,request:{feature:{fontPath:fake,text:'A'}}}});
   assert.equal(font.isError,true);assert.match(font.content[0].text,/system font folders/);
 
   // The goalpost: a request made in Studio completes the chat's pending listener
   // through the relay, and the maker path runs to delivery.
-  const review=await call('request_review',{printId:'relayed'});
+  const review=await call('request_review',{bundleId:'relayed'});
   const studioToken=/name="saam-token" content="([^"]+)"/.exec(await(await fetch(review.url)).text())[1];
   const listening=call('wait_for_studio_request',{claim:true});
   await new Promise(r=>setTimeout(r,500));
@@ -115,12 +115,12 @@ test('a chat reaches the paired computer through the relay; link loss fails fast
   const heard=await listening;
   assert.deepEqual(heard.requests.map(request=>request.id),[asked.id]);assert.equal(heard.requests[0].status,'working');
   await call('respond_to_studio_request',{requestId:asked.id,message:'Answered in chat.'});
-  const generated=await call('generate_print',{printId:'relayed'});
+  const generated=await call('generate_toolpath',{bundleId:'relayed'});
   assert.equal(generated.checks.result,'pass');
-  assert.match(JSON.stringify(await client.callTool({name:'deliver_print',arguments:{printId:'relayed'}})),/approval/,'delivery waits for the person');
+  assert.match(JSON.stringify(await client.callTool({name:'deliver_toolpath',arguments:{bundleId:'relayed'}})),/approval/,'delivery waits for the person');
   const dir=resolve(printsRoot,'relayed'),bundle=await bundleFor(dir),state=await bundle.loadBundle(dir);
   await bundle.approve(dir,{stage:'toolpath',revision:state.revision,actor:'SYNTHETIC TEST RELAY FIXTURE — never a real approval'});
-  const delivered=await call('deliver_print',{printId:'relayed'});
+  const delivered=await call('deliver_toolpath',{bundleId:'relayed'});
   assert.deepEqual(await readFile(delivered.file),await readFile(resolve(dir,(await bundle.loadBundle(dir)).review.generation.file)));
 
   // A listener longer than the keepalive interval streams its one result.
@@ -137,7 +137,7 @@ test('a chat reaches the paired computer through the relay; link loss fails fast
   const dropped=Date.now();connection.disconnect();
   await assert.rejects(waiting,/dropped/);assert.ok(Date.now()-dropped<5000,'the relay does not wait out the call');
   await until(async()=>connection.connected(),'device reconnection');
-  assert.equal((await call('get_print',{printId:'relayed'})).printId,'relayed');
+  assert.equal((await call('get_bundle',{bundleId:'relayed'})).bundleId,'relayed');
 
   // A new chat replaces the session; the old one is answered 404 at once, so its client starts over.
   const replaced=transport.sessionId,next=chat('second-chat');await next.client.connect(next.transport);t.after(()=>next.client.close().catch(()=>{}));

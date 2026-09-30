@@ -1,18 +1,27 @@
 #!/usr/bin/env node
 // Building, auditing and checking the generated map. Agents read it with
-// `node scripts/agent-toolkit.mjs read-map INDEX|DECLARATION [--code]`; this script never reads
-// a page for an agent and never scans except through `regenerate`.
+// `node scripts/agent-toolkit.mjs read-map INDEX|DECLARATION [--code]`, or `read --set NAME`.
 import {resolve} from 'node:path';
 import {parseArgs} from 'node:util';
 import {repoRoot as root} from './lib/store.mjs';
+import {commandArgs,setFile,mapSet} from './lib/map-set.mjs';
 
-const usage='Use: node dev-map/cli.mjs build | regenerate [INDEX] | solve [--seed N] | flow-evidence INDEX|DECLARATION | check [--json] | score [--json] | watch-freshness [--once] [--interval-ms 2000]';
-const [command='build',...args]=process.argv.slice(2);
-if(!['build','check','regenerate','solve','flow-evidence','score','watch-freshness'].includes(command))throw Error(usage);
+const usage='Use: node dev-map/cli.mjs [--set NAME] read ADDRESS [--code|--details] | build | regenerate [INDEX] | solve [--seed N] | flow-evidence ADDRESS | check [--json] | score [--json] | watch-freshness [--once] [--interval-ms 2000]';
+const [command='build',...args]=commandArgs;
+if(!['read','build','check','regenerate','solve','flow-evidence','score','watch-freshness'].includes(command))throw Error(usage);
+if(command==='read') {
+  const {values,positionals}=parseArgs({args,allowPositionals:true,options:{code:{type:'boolean'},details:{type:'boolean'}}});
+  const {readGenerated}=await import('./lib/store.mjs');
+  const {presentationPage}=await import('./lib/presentation.mjs');
+  const page=await readGenerated(positionals[0]??'0',{repo:root,code:values.code});
+  console.log(JSON.stringify(values.details||values.code?page:presentationPage(page),null,1));
+  process.exit(0);
+}
 
 // The cluster solver (lib/solve.mjs): anneal the stored tree toward the lowest energy,
 // write it to tree.json, then regenerate so the maps and the viewer show it.
 if(command==='solve') {
+  if(mapSet?.authoring==='manual')throw Error('This map set is manually authored; edit its tree.json.');
   const {values}=parseArgs({args,options:{seed:{type:'string',default:'1'}}});
   const {solve}=await import('./lib/solve.mjs');
   const started=Date.now();
@@ -32,14 +41,14 @@ if(command==='solve') {
 if(command==='score') {
   const {values}=parseArgs({args,options:{json:{type:'boolean'}}});
   const {writeScorePage}=await import('./lib/score.mjs');
-  const result=await writeScorePage({repo:root,out:resolve(root,'dev-map/view')});
+  const result=await writeScorePage({repo:root,out:resolve(root,setFile('view'))});
   if(values.json){console.log(JSON.stringify(result,null,1));process.exit(0);}
   const line=s=>`  ${s.score.toFixed(2)}  ${s.index.padEnd(14)} ${s.kind.padEnd(7)} ${s.nodes} boxes, edge ${s.edge.boundary}+${s.edge.externals}, hub ${s.hubs.max}/${s.hubs.mean}, ${s.islands} islands, ${s.backflow.links} backward, balance ${s.balance}  ${s.label}`;
   console.log(`${result.leaves} leaves, ${result.maps} maps, ${result.links} links, energy ${result.energy} (weighted map score per leaf). Worst:`);
   for(const s of result.scores.slice(0,10))console.log(line(s));
   console.log('Best:');
   for(const s of result.scores.slice(-10))console.log(line(s));
-  console.log(`All maps: ${resolve(root,'dev-map/view/scores.html')}`);
+  console.log(`All maps: ${resolve(root,setFile('view/scores.html'))}`);
   process.exit(0);
 }
 
@@ -85,7 +94,7 @@ if(command==='build') {
   if(args.length)throw Error(usage);
   const {buildGeneratedView,regenerate}=await import('./lib/generated-view.mjs');
   let result;
-  try {result=await buildGeneratedView({repo:root,out:resolve(root,'dev-map/view')});}
+  try {result=await buildGeneratedView({repo:root,out:resolve(root,setFile('view'))});}
   catch(error){console.error(error.message);process.exit(1);}
   console.log(`${result.index}: ${result.pages} nodes, ${result.files} files, ${result.bytes.toLocaleString('en-US')} bytes, ${result.ms} ms`);
   if(result.stale) {
@@ -128,7 +137,7 @@ else {
   for(const row of status.orphanFacts)console.log(`  ${row.line}\t${row.declaration}\t${row.kind}\t${row.fact}\t${row.source}\t${row.date}`);
   if(status.facts.errors.length) {
     console.log(`Malformed facts: ${status.facts.errors.length}`);
-    for(const error of status.facts.errors)console.log(`  dev-map/facts.tsv:${error.line}: ${error.reason}\n    ${error.row}`);
+    for(const error of status.facts.errors)console.log(`  ${setFile('facts.tsv')}:${error.line}: ${error.reason}\n    ${error.row}`);
   }
   if(result.viewer?.undrawnView)console.log(`No drawing at ${result.viewer.undrawnView}. Run: node dev-map/cli.mjs build`);
   else if(result.viewer) {

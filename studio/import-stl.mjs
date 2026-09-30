@@ -1,7 +1,7 @@
-import {mkdir,realpath,rm,readFile} from 'node:fs/promises';
-import {resolve,basename,sep} from 'node:path';
+import {realpath,readFile} from 'node:fs/promises';
+import {resolve,basename,dirname,relative,isAbsolute,sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {importOrRepairSTLBundle} from '../core/print/import-stl.mjs';
+import {createSTLBundle} from '../core/print/import-stl.mjs';
 
 export async function loadStudioImportRepair(directory){
   let report;
@@ -19,37 +19,35 @@ export async function loadStudioImportRepair(directory){
 
 // Browser progress labels for the core import job's stages and repair steps.
 const importStages={import:'Checking your STL',repair:'Repairing your STL','import-repaired':'Opening repaired geometry'};
-const repairSteps={'read-source':'Reading your STL',cleanup:'Cleaning mesh faces','measure-changes':'Measuring repaired geometry',validate:'Checking repaired geometry',complete:'Mesh repair complete'};
+const repairSteps={'read-source':'Reading your STL',cleanup:'Cleaning mesh faces',orient:'Orienting mesh faces',patch:'Repairing mesh intersections',boundaries:'Checking mesh boundaries','native-validation':'Checking repaired topology','read-result':'Reading repaired geometry','measure-changes':'Measuring repaired geometry',validate:'Checking repaired geometry',complete:'Mesh repair complete'};
 
-export async function importStudioSTL(library,bytes,{name,units,machineId,onProgress}={}){
+export async function importStudioSTL(library,bytes,{name,units,machineId='ultimaker-s5',directory:destination,onProgress,signal}={}){
+  signal?.throwIfAborted();
   if(units!==undefined&&!['auto','mm','inch'].includes(units))throw Error('Use auto, mm or inch STL units.');
-  if(typeof name!=='string'||name.length>240||!name.toLowerCase().endsWith('.stl'))throw Error('Choose an STL file.');
-  if(!bytes.length||bytes.length>64*1024*1024)throw Error('Choose an STL file up to 64 MiB.');
+  if(typeof name!=='string'||!name.toLowerCase().endsWith('.stl'))throw Error('Choose an STL file.');
+  if(typeof bytes!=='string'&&(!bytes.length||bytes.length>64*1024*1024))throw Error('Choose an STL file up to 64 MiB.');
   const root=await realpath(library),parent=root;
   const actual=await realpath(parent);if(actual!==root&&!actual.startsWith(root+sep))throw Error('Import must stay in the print library.');
+  if(destination){
+    destination=resolve(destination);
+    const inside=path=>{const rel=relative(root,path);return rel&&!rel.startsWith('..'+sep)&&rel!=='..'&&!isAbsolute(rel);};
+    if(!inside(destination))throw Error('Import must stay in the print library.');
+    let ancestor=dirname(destination);
+    for(;;){try{const resolved=await realpath(ancestor);if(resolved!==root&&!inside(resolved))throw Error('Import must stay in the print library.');break;}catch(error){if(error.code!=='ENOENT')throw error;ancestor=dirname(ancestor);}}
+  }
   let stem=basename(name.replaceAll('\\','/')).slice(0,-4).replace(/[<>:"/\\|?*\x00-\x1f]/g,'-').replace(/[. ]+$/,'');
   if(!stem||/^(con|prn|aux|nul|com\d|lpt\d)(\.|$)/i.test(stem)||stem.startsWith('.'))stem='Imported model';
-  let directory,index=1;
-  for(;;){directory=resolve(actual,stem+(index===1?'':' '+index));try{await mkdir(directory);break;}catch(e){if(e.code!=='EEXIST')throw e;index++;}}
   const defaultRoot=resolve(fileURLToPath(new URL('../Prints/',import.meta.url)));
   const setupFile=root.toLowerCase()===defaultRoot.toLowerCase()?undefined:resolve(root,'.machine-setups',machineId+'.json');
-  let shown;
   const progress=event=>{
     const stage=event.stage==='repair'&&repairSteps[event.step]||importStages[event.stage];
-    if(stage&&stage!==shown){shown=stage;onProgress?.({stage});}
+    onProgress?.({...event,phase:event.stage,stage:stage??event.step??event.stage});
   };
-  try{
-    const {repaired}=await importOrRepairSTLBundle(directory,bytes,{units,machineId,setupFile,progress});
-    return {directory,repaired,repairSummary:repaired?await loadStudioImportRepair(directory):null};
-  }
-  catch(error){
-    // Only remove the directory this invocation reserved; the core job settles
-    // after its worker stops. Do not follow a replaced directory or a path
-    // outside the library.
+  for(let index=1;;index++){
+    const directory=destination??resolve(actual,stem+(index===1?'':' '+index));
     try{
-      const target=await realpath(directory);
-      if(target===directory&&target.startsWith(actual+sep))await rm(target,{recursive:true,force:true,maxRetries:3,retryDelay:100});
-    }catch(cleanup){if(cleanup.code!=='ENOENT')error.cleanupError=cleanup.message;}
-    throw error;
+      const {repaired}=await createSTLBundle(directory,bytes,{units,machineId,setupFile,progress,signal});
+      return {directory,repaired,repairSummary:repaired?await loadStudioImportRepair(directory):null};
+    }catch(error){if(destination||!error.importDestinationExists)throw error;}
   }
 }

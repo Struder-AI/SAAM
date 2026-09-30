@@ -1,24 +1,24 @@
 ---
 name: line-network
-description: Experimental. Sparse planar frames and trusses from explicit centerline polylines, with per-layer reinforcement strokes; fills no enclosed area.
+description: Guidance for sparse frames and trusses made from Trace centerlines.
+metadata:
+  saam-kind: guidance
 ---
 
 # Line network
 
-Prints explicit planar centerline networks as one deposited bead per supplied
-polyline. Use it for sparse frames, trusses, wire-like panels and other designs
-whose intended geometry is the path itself rather than a filled solid.
+Use a `construction: "curves"` assignment in `plan.slices.assignments` for sparse
+frames, trusses and line text. Each supplied centerline receives one bead. This
+record is ordinary Trace input, not a separate skill. Geometry is optional.
 
-`networks` contains independent named groups. Each group is printed as a unit on
-each layer. A stroke has `closed` and finite 2D `points`; closed strokes are
-closed by the generator. An optional `layers` array selects the zero-based
-courses that receive that stroke. Without it, the stroke repeats on every
-course. Global `layers` sets the course count at the ordinary planar layer
-pitch. Bead width, layer heights, speed and flow come from `process`. Placed
-centerlines, widened by half a bead, must stay inside the selected tool's
-bounds; generation rejects a network that leaves them.
+Each assignment has `id`, `construction`, `filament: null`, `after: []`,
+`repeat: null` and `curves`. Each curve has `closed` and finite XYZ `points`;
+XY is relative to plan placement. Use separate assignments for independent
+grids. `repeat: {count, translation: [x,y,z]}` repeats one grid; optional curve
+`courses` selects its zero-based repetitions. Author the initial Z explicitly.
+Curves may override `beadWidthMm`, `heightMm`, `speedMmS`, `flowMultiplier` and
+`role`; defaults come from process. Bounds include half the bead width in XY.
 
-This is an explicit experimental path skill. The supplied centerlines own the
-result; it does not infer junction reinforcement, Euler routing or structural
-adequacy. Intersections must overlap geometrically, and physical welding between
-crossing beads remains a print-validation responsibility.
+Shared placement and deposition preserve the grid and supplied seam.
+No solid or fill is inferred. Junction reinforcement,
+routing and physical welding remain design and print-validation responsibilities.

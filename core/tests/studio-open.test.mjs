@@ -8,7 +8,7 @@ import * as shell from '../print/bundle.mjs';
 import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 // A small planar box keeps these Studio-lifecycle tests fast and machine-neutral.
-const boxPlan=(machine=loadMachine())=>{const p=defaults(machine);p.geometry=splineBox({runMm:10,widthMm:10,heightMm:2});p.skills['draped-skin'].enabled=false;p.process.minimumLayerSeconds=0;return p;};
+const boxPlan=(machine=loadMachine())=>{const p=defaults(machine);p.geometry=splineBox({runMm:10,widthMm:10,heightMm:2});p.process.minimumLayerSeconds=0;return p;};
 import {Worker} from 'node:worker_threads';
 import {once} from 'node:events';
 import workerThreads from 'node:worker_threads';
@@ -67,11 +67,12 @@ test('Studio reopens saved exports without creating or rewriting approvals',asyn
   await shell.initBundle(geometry,boxPlan());
   let state=await shell.loadBundle(geometry);
   // Producers connect their own nearby strokes; an authored 1 mm gap between
-  // two line-network centerlines remains a short same-layer travel to report.
+  // two authored centerlines remains a short same-layer travel to report.
   const gapped=boxPlan(loadMachine('bambu-h2d'));
   for(const settings of Object.values(gapped.skills))settings.enabled=false;
-  Object.assign(gapped.skills['line-network'],{enabled:true,layers:1,networks:[{id:'dashes',strokes:[
-    {closed:false,points:[[0,0],[10,0]]},{closed:false,points:[[11,0],[20,0]]}]}]});
+  gapped.slices.assignments=[{id:'dashes',construction:'curves',filament:null,after:[],repeat:null,curves:[
+    {closed:false,points:[[0,0,gapped.process.firstLayerMm],[10,0,gapped.process.firstLayerMm]]},
+    {closed:false,points:[[11,0,gapped.process.firstLayerMm],[20,0,gapped.process.firstLayerMm]]}]}];
   await shell.initBundle(ready,gapped,{machineId:'bambu-h2d'});
   await shell.generateBundle(ready);
   const original=await readFile(join(ready,'plan.json'));

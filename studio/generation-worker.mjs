@@ -22,7 +22,7 @@ export async function prepareGeneration(bundle,{directory,generationHash,onProgr
     if(candidate.generationHash!==generationHash)throw new Error('The prepared print changed. Reload before generating.');
     return {notification:{type:'prepared'},candidate,error:null};
   } catch(error) {
-    return {notification:{type:'prepared',error:error.message},error};
+    return {notification:{type:'prepared',error:error.message,stage:error.stage},error};
   }
 }
 
@@ -48,7 +48,7 @@ export async function generateMessage(message,ready,bundle,settings) {
     const generation=await runPreparedGeneration(bundle,preparation,message,settings);
     return await loadGeneratedResponse(bundle,generation);
   } catch(error) {
-    return {type:'generated',error:error.message,code:error.code};
+    return {type:'generated',error:error.message,code:error.code,stage:error.stage};
   }
 }
 

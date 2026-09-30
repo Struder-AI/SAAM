@@ -6,8 +6,8 @@ import {heatSetFeature,dimensions,heatSetTemplate,heatSetDigest} from './feature
 
 export async function compileHeatSet(base,features,{buildGeometry,toleranceMm=0.01}={}){
   const normalized=features.map(heatSetFeature),shell=buildGeometry(base),kernel=await solidKernel();
-  requireThat(normalized.length>0&&normalized.length<=40,'Choose 1–40 heat-set features.');
-  requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0&&toleranceMm<=0.1,'Invalid heat-set tolerance.');
+  requireThat(normalized.length>0,'Choose at least one heat-set feature.');
+  requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0,'Invalid heat-set tolerance.');
   let solid=solidFromMesh(kernel,await tessellateSolid(shell,{toleranceMm}));
   try{
     for(const f of normalized){
@@ -19,7 +19,7 @@ export async function compileHeatSet(base,features,{buildGeometry,toleranceMm=0.
         const a=i*Math.PI/8,top=topAt(shell,x+r*Math.cos(a),y+r*Math.sin(a));
         requireThat(top&&Math.abs(top.zMm-z)<=toleranceMm*2,'Heat-set mouth must lie on a flat exterior insertion face normal to Z. Reorient the part first.');
       }
-      const segments=Math.max(32,Math.ceil(Math.PI/Math.acos(1-toleranceMm/r)));
+      const segments=Math.max(32,Math.ceil(Math.PI/Math.acos(Math.max(-1,1-toleranceMm/r))));
       let cylinder=kernel.Manifold.cylinder(depthMm+toleranceMm*2,r,r,segments);
       const placed=cylinder.translate([x,y,z-depthMm]);cylinder.delete();cylinder=placed;
       try{const next=solid.subtract(cylinder);solid.delete();solid=next;}finally{cylinder.delete();}
