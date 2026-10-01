@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-09-30 — Explicit extension resource boundary
+
+- Owner added Extensions → External resources to accepted map 0, with Thingi10K as an extension. Proposed 4.3 contains resource access; direct agent execution can return acquired assets for an explicit bundle edit. Imported assets can be pinned in bundles while scripts remain separate. Updated 0.3.0 intent (71 → 73 lines).
+- Rebuilt the 28-page architecture viewer; freshness and drawn box/wire coverage pass. Contracts remain proposed, implementation unchecked. No runtime/scanner integration, full suite or publication.
+
 ## 2026-09-30 — Architecture-led 0.3.0 intent and design maps
 
 - Retargeted former feature intent to 0.4.0 and corrected active references. Owner accepted map 0; submaps/contracts remain provisional. Recorded shared bundle authority versus exclusive component state, top-down enforcement, separate versioned extensions and desktop deployment in plans/0.3.0.md.
