@@ -18,11 +18,11 @@ function settings(){
     form.append(label);
   }
 }
-async function api(path,body){const response=await fetch(path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{}),result=await response.json();if(!response.ok)throw Error(result.error??'Request failed.');return result;}
+async function api(path,method,body){const response=await fetch(path,{method,...(body===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})}),result=await response.json();if(!response.ok)throw Error(result.error??'Request failed.');return result;}
 function error(message){$('error').hidden=!message;$('error').textContent=message??'';}
 async function update(design){
   const request=++view.request;$('export').disabled=true;
-  try{const r=await api('/api/design',{design});if(request!==view.request)return;view.invalid=false;view.design=r.design;view.preview=r.preview;if(!r.preview.pieces.some(p=>p.id===view.selected))view.selected=r.preview.pieces[0].id;error();settings();pieces();draw();}
+  try{const r=await api('/api/design','POST',{design});if(request!==view.request)return;view.invalid=false;view.design=r.design;view.preview=r.preview;if(!r.preview.pieces.some(p=>p.id===view.selected))view.selected=r.preview.pieces[0].id;error();settings();pieces();draw();}
   catch(e){if(request===view.request){view.invalid=true;error(e.message);}}
   finally{if(request===view.request)$('export').disabled=view.invalid||!!view.job&&!['complete','failed'].includes(view.job.stage);}
 }
@@ -100,6 +100,6 @@ function jobDisplay(job){
     $('results').append(p,copy);
   }
 }
-async function poll(){try{const job=await api('/api/job');jobDisplay(job);if(job&&!['complete','failed'].includes(job.stage))setTimeout(poll,1000);}catch(e){error(e.message);}}
-$('export').onclick=async()=>{try{error();$('export').disabled=true;jobDisplay(await api('/api/export',{design:view.design}));poll();}catch(e){error(e.message);$('export').disabled=false;}};
-try{const result=await api('/api/design');view.design=result.design;view.preview=result.preview;view.selected=result.preview.pieces[0].id;settings();pieces();draw();if(result.job){jobDisplay(result.job);poll();}}catch(e){error(e.message);}
+async function poll(){try{const job=await api('/api/job','GET');jobDisplay(job);if(job&&!['complete','failed'].includes(job.stage))setTimeout(poll,1000);}catch(e){error(e.message);}}
+$('export').onclick=async()=>{try{error();$('export').disabled=true;jobDisplay(await api('/api/wing/export','POST',{design:view.design}));poll();}catch(e){error(e.message);$('export').disabled=false;}};
+try{const result=await api('/api/design','GET');view.design=result.design;view.preview=result.preview;view.selected=result.preview.pieces[0].id;settings();pieces();draw();if(result.job){jobDisplay(result.job);poll();}}catch(e){error(e.message);}

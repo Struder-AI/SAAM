@@ -185,13 +185,12 @@ deadline to open the first viewer, for either CLI or MCP launches. Once opened,
 Studio closes 30 minutes after its last viewer disconnects, allowing task switches,
 browser suspension and refreshes to reconnect. Each reconnection cancels the
 pending shutdown; the next final disconnect starts a fresh 30-minute grace period.
-Connected viewers have no idle deadline. An accepted bundle write finishes before shutdown
-completes. Saved bundles are retained and can be opened in a fresh instance later.
+Connected viewers have no idle deadline. Accepted writes finish before shutdown; saved bundles reopen in a fresh instance.
 The CLI process exits when its work drains. In MCP, only that Studio listener and
 session are released; the adapter and its other viewers stay available. Repeated
 review requests within the same adapter can use that print's still-open session.
-Independent agent ownership uses separate stdio adapters. Distinct instances do not lock a shared bundle against edits
-from another process, so concurrent agent work should use separate bundles.
+Independent agents own separate Studio instances. A bundle opens in one instance at a time;
+switching prints or closing Studio releases it. See [Bundle ownership](../core/print/README.md#bundle-ownership).
 
 ### Historical toolpath inspection
 

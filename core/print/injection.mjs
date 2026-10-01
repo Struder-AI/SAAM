@@ -23,14 +23,14 @@ export function validateInjectionAssignment(assignment,{parts=[]}={}){
   return assignment;
 }
 
-export function injectionResult(assignment,{plan,machine}){
-  const selected=assignmentPlan(plan,machine,assignment);
+export function injectionResult(assignment,{plan}){
+  const selected=assignmentPlan(plan,assignment);
   const operations=assignment.points.map((record,index)=>{
     const point=record.point.map((value,axis)=>value+(axis===0?plan.placement.xMm:axis===1?plan.placement.yMm:0));
     return pointInjectionOperation({...record,point},{id:`${assignment.id}:${index}`,phase:'inject',
       layer:index,layerIndex:index,layerCount:assignment.points.length,layerId:`inject:${assignment.id}:${index}`,rank:point[2],
       after:[...assignment.dependencies.after,...(index?[`${assignment.id}:${index-1}`]:[])],
-      ...(assignment.filament===null?{}:{filament:assignment.filament}),plan:selected,machine,nozzleC:assignment.nozzleC});
+      ...(assignment.filament===null?{}:{filament:assignment.filament}),plan:selected,nozzleC:assignment.nozzleC});
   });
   return {id:assignment.id,operations,report:{owner:assignment.id,depositionFamily:'inject',construction:'inject',points:operations.length,
     authoredVolumeMm3:assignment.points.reduce((sum,p)=>sum+p.volumeMm3,0),materialCoverage:'unspecified-point-volume'}};

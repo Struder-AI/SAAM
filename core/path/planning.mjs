@@ -9,11 +9,11 @@ import {uprightPose,validatePose,samePose,bedPoint} from './pose.mjs';
 
 export const MINIMUM_MOVE_MM=1e-4,NEARBY_MOVE_MM=1,CONNECT_MOVE_MM=2;
 
-export function createPlanningState({start,process,machine,generatorVersion,motion=null,motionBounds,retracted=false,selection=null,selections=null}) {
+export function createPlanningState({start,process,generatorVersion,motion=null,retracted=false,selection=null,selections=null}) {
   requireThat(Array.isArray(start)&&start.length===3&&start.every(Number.isFinite),'Path planning needs a 3D start position.');
-  return {start:[...start],position:[...start],process,machine,generatorVersion,motion:motion??{retreatMm:process.liftMm,transitionSeconds:1,rotaryCenterMm:[0,0,0]},initialPose:motion?.initialPose??null,selection,selections,defaultFilament:selection?.filament,toolRetractions:{},
+  return {start:[...start],position:[...start],process,generatorVersion,motion:motion??{retreatMm:process.liftMm,transitionSeconds:1,rotaryCenterMm:[0,0,0]},initialPose:motion?.initialPose??null,selection,selections,defaultFilament:selection?.filament,
     pose:motion?.initialPose?structuredClone(motion.initialPose):null,retracted,phase:'start',layer:0,layerSeconds:0,depositedMaxZ:0,
-    ...(motionBounds?{motionBounds}:{}),stats:{joined:0,connected:0,combed:0,hopped:0,travelMm:0,retractions:0,printMm:0}};
+    stats:{joined:0,connected:0,combed:0,hopped:0,travelMm:0,retractions:0,printMm:0}};
 }
 
 export function planningResult(state,actions={chunks:[]},decisions={}) {
@@ -28,7 +28,7 @@ export function planSelection(state,filament){
   // The action names material intent. Installed nozzle changes, clearance and
   // retraction debt are resolved by the selected output adapter.
   return appendAction({...state,selection:incoming,process:incoming.process,retracted:false,moveRun:null},
-    {kind:'toolChange',filament:incoming.filament,tool:incoming.tool,phase:state.phase,layer:state.layer,operation:state.operationId});
+    {kind:'toolChange',filament:incoming.filament,phase:state.phase,layer:state.layer,operation:state.operationId});
 }
 
 // Local emission storage for ONE planning stage, never shared planning state.

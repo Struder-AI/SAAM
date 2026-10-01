@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {loadMachine} from '../machine/profile.mjs';
-import {checkMachinePath} from '../machine/rules.mjs';
+import {prepareExportPath} from '../export/prepare-path.mjs';
 import {defaults} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {exportProgram,interpretProgram} from '../export/registry.mjs';
@@ -18,8 +18,10 @@ import {splineBox} from './fixtures/spline-shapes.mjs';
 const release={generatorVersion:'test',buildDate:'2026-09-21'};
 test('mixed 0.4/0.8 H2D regions emit tower-free changes, distinct process grids and independently decoded tool state',async()=>{
   const {plan,machine}=mixedNozzleFixture(),path=await generatePath(plan,machine);
-  checkMachinePath(path,plan,machine);
+  const prepared=prepareExportPath(path,plan,machine);
   assert.ok(path.actions.filter(a=>a.kind==='toolChange').length>=3);
+  assert.ok(path.actions.filter(a=>a.kind==='toolChange').every(a=>!Object.hasOwn(a,'tool')));
+  assert.ok(prepared.actions.filter(a=>a.kind==='toolChange').every(a=>Number.isInteger(a.tool)));
   const bytes=exportProgram(path,plan,machine,release),z=unpackZip(bytes),code=z.get('Metadata/plate_1.gcode').toString();
   assert.match(code,/^; filament: 1,2$/m,'USB header declares material IDs, not their count');
   assert.match(code,/^; filament_diameter: 1.75,1.75$/m);
@@ -94,7 +96,7 @@ test('mixed nozzle job can start on the right and use each nozzle’s own build 
   const fixture=mixedNozzleFixture(),machine=fixture.machine;
   const plan=filamentPlan(fixture.plan,machine,1);
   plan.placement.xMm=310;
-  const path=await generatePath(plan,machine);checkMachinePath(path,plan,machine);
+  const path=await generatePath(plan,machine);prepareExportPath(path,plan,machine);
   const program=interpretProgram(exportProgram(path,plan,machine,release),plan,machine);
   assert.equal(program.filamentSequence[0],1);
   assert.ok(program.moves.some(m=>m.extruding&&m.tool===1&&m.to[0]>325));
@@ -108,7 +110,7 @@ test('unsafe handoffs and automatic external-spool changes fail before packaging
   const {plan,machine}=mixedNozzleFixture();
   const path=await generatePath(plan,machine),first=path.actions.findIndex(a=>a.kind==='toolChange');
   const bad=structuredClone(path);bad.actions[first].tool=0;
-  assert.throws(()=>exportProgram(bad,plan,machine,release),/disagrees/);
+  assert.throws(()=>exportProgram(bad,plan,machine,release),/physical tool/);
   const unret=structuredClone(path);let i=first-1;while(unret.actions[i].kind!=='retract')i--;
   unret.actions.splice(i,1);
   assert.throws(()=>exportProgram(unret,plan,machine,release),/retract|withdrawal|recover/i);

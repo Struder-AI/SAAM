@@ -2,14 +2,10 @@ import {access} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {initBundle,generateBundle} from '../../core/print/bundle.mjs';
-import {surfaceDrapePlan} from './surface-drape/recipe.mjs';
-import {wavyDensoPlan} from './wavy-denso/recipe.mjs';
-import {nudgeCupPlan} from './nudge-cup/recipe.mjs';
-
 export const demos=Object.freeze({
-  'surface-drape':{machineId:'ultimaker-s5',plan:surfaceDrapePlan},
-  'wavy-denso':{machineId:'denso-vs068a4-rc8a',plan:wavyDensoPlan},
-  'nudge-cup':{machineId:'ultimaker-s5',plan:nudgeCupPlan}
+  'surface-drape':{machineId:'ultimaker-s5',plan:async()=>(await import('./surface-drape/recipe.mjs')).surfaceDrapePlan()},
+  'wavy-denso':{machineId:'denso-vs068a4-rc8a',plan:async()=>(await import('./wavy-denso/recipe.mjs')).wavyDensoPlan()},
+  'nudge-cup':{machineId:'ultimaker-s5',plan:async()=>(await import('./nudge-cup/recipe.mjs')).nudgeCupPlan()}
 });
 
 export async function createDemos(selection='all',outputRoot='Prints/tour',{generate=false}={}){
@@ -23,7 +19,7 @@ export async function createDemos(selection='all',outputRoot='Prints/tour',{gene
   const results=[];
   for(const id of ids){
     const directory=resolve(outputRoot,id),demo=demos[id];
-    await initBundle(directory,demo.plan(),{machineId:demo.machineId});
+    await initBundle(directory,await demo.plan(),{machineId:demo.machineId});
     const checks=generate?await generateBundle(directory,{development:true}):undefined;
     results.push({id,directory,checks});
   }

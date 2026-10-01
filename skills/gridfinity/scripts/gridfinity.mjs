@@ -1,7 +1,6 @@
-import {requireThat} from '../../../core/private/extensions/numeric.mjs';
-import {constructSolids} from '../../../core/geom/solid-operations.mjs';
-
 import {gridfinityDigest} from './record.mjs';
+
+const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
 // Dimensional sources and height conventions live in the skill manual.
 const COMMON={kind:'bin',xUnits:1,yUnits:1,toleranceMm:0.03};
@@ -52,7 +51,8 @@ function roundedRing(width,depth,radius,z,cx,cy,steps){
   return ring;
 }
 
-export async function compileGridfinity(input={}){
+export async function compileGridfinity(input={}, {constructSolids}={}){
+  requireThat(typeof constructSolids==='function','Gridfinity needs the Geometry constructSolids operation.');
   const p=gridfinityParameters(input);
   const steps=Math.max(2,Math.ceil(Math.PI/(4*Math.acos(Math.max(-1,1-p.toleranceMm/4)))));
   const loft=(levels,cx,cy)=>({operation:'loft',rings:levels.map(([z,w,d,r])=>roundedRing(w,d,r,z,cx,cy,steps)),centers:[[cx,cy,levels[0][0]],[cx,cy,levels.at(-1)[0]]]});

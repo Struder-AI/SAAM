@@ -63,6 +63,7 @@ async function fixture(t){
   plan.process.minimumLayerSeconds=0;
   await bundle.initBundle(dir,plan,{machineId:'ultimaker-s5'});
   const server=createStudio(dir,{libraryRoot:root});t.after(()=>server.shutdown());
+  await server.ready();
   await new Promise(done=>server.listen(0,'127.0.0.1',done));
   const url='http://127.0.0.1:'+server.address().port,token=/name="saam-token" content="([^"]+)"/.exec(await(await fetch(url)).text())[1];
   const get=async path=>await(await fetch(url+'/api/'+path)).json();
@@ -114,27 +115,29 @@ test('Studio cancellation bypasses the generation queue, stops its worker and pe
 
 test('cancellation before commit preserves files; cancellation after commit begins lets the checked result finish',async t=>{
   const {dir}=await fixture(t),control=generationControl(),manifest=await readFile(resolve(dir,'plan.json'),'utf8');
+  const instance=await bundle.bundleInstance(dir),run=action=>bundle.withBundleInstance(dir,instance,action);
   assert.equal(control.cancel(),true);
-  await assert.rejects(bundle.generateBundle(dir,{development:true,beforeCommit:control.beforeCommit}),{code:'GENERATION_CANCELLED'});
+  await assert.rejects(run(()=>bundle.generateBundle(dir,{development:true,beforeCommit:control.beforeCommit})),{code:'GENERATION_CANCELLED'});
   assert.equal(await readFile(resolve(dir,'plan.json'),'utf8'),manifest);
   const finishing=generationControl();let attempted=false;
-  await bundle.generateBundle(dir,{development:true,beforeCommit:finishing.beforeCommit,onProgress(progress){
+  await run(()=>bundle.generateBundle(dir,{development:true,beforeCommit:finishing.beforeCommit,onProgress(progress){
     if(progress.stage==='Saving your toolpath'){attempted=true;assert.equal(finishing.cancel(),false);}
-  }});
+  }}));
   assert.ok(attempted);assert.ok((await bundle.loadBundle(dir,{program:'source'})).program);
 });
 
 test('conditional state returns approval metadata while keeping the displayed source identity',async t=>{
   const {dir,url}=await fixture(t);
-  await bundle.generateBundle(dir);
+  const instance=await bundle.bundleInstance(dir),run=action=>bundle.withBundleInstance(dir,instance,action);
+  await run(()=>bundle.generateBundle(dir));
   const shownResponse=await fetch(url+'/api/state'),shown=await shownResponse.json(),shownTag=shownResponse.headers.get('etag');
   assert.ok(shownTag);
-  await bundle.approve(dir,{actor:'SYNTHETIC metadata fixture',revision:shown.revision,program:'source'});
+  await run(()=>bundle.approve(dir,{actor:'SYNTHETIC metadata fixture',revision:shown.revision,program:'source'}));
   await bundle.deliver(dir);
   const changedResponse=await fetch(url+'/api/state',{headers:{'If-None-Match':shownTag}}),changed=await changedResponse.json();
   assert.equal(changedResponse.status,200);assert.equal(changed.presentationFingerprint,shown.presentationFingerprint);
   assert.equal(changed.exportHash,shown.exportHash);assert.equal(changed.toolpathApproved,true);assert.notEqual(changed.revision,shown.revision);
-  const latest=await bundle.loadBundle(dir,{program:false});await bundle.adjustBundle(dir,{process:{planarSpeedMmS:30}},{expectedRevision:latest.revision});
+  const latest=await bundle.loadBundle(dir,{program:false});await run(()=>bundle.adjustBundle(dir,{process:{planarSpeedMmS:30}},{expectedRevision:latest.revision}));
   const editedResponse=await fetch(url+'/api/state',{headers:{'If-None-Match':changedResponse.headers.get('etag')}}),edited=await editedResponse.json();
   assert.equal(editedResponse.status,200);
   assert.notEqual(edited.presentationFingerprint,changed.presentationFingerprint,'a real edit still changes scene/source identity');

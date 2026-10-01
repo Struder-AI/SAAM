@@ -380,7 +380,7 @@
     },
     {
       "contract": "griffin-prepare",
-      "target": "core/export/prepare-path.mjs::checkedMachinePath",
+      "target": "core/export/prepare-path.mjs::prepareExportPath",
       "kinds": [
         "call"
       ],
@@ -388,7 +388,7 @@
     },
     {
       "contract": "bambu-prepare",
-      "target": "core/export/prepare-path.mjs::checkedMachinePath",
+      "target": "core/export/prepare-path.mjs::prepareExportPath",
       "kinds": [
         "call"
       ],
@@ -396,7 +396,7 @@
     },
     {
       "contract": "dobot-prepare",
-      "target": "core/export/prepare-path.mjs::checkedMachinePath",
+      "target": "core/export/prepare-path.mjs::prepareExportPath",
       "kinds": [
         "call"
       ],
@@ -404,7 +404,7 @@
     },
     {
       "contract": "denso-prepare",
-      "target": "core/export/prepare-path.mjs::checkedMachinePath",
+      "target": "core/export/prepare-path.mjs::prepareExportPath",
       "kinds": [
         "call"
       ],
@@ -687,6 +687,30 @@
       "kinds": [
         "call"
       ]
+    },
+    {
+      "contract": "extension-planar-region-layers",
+      "target": "core/geom/planar-region-layers.mjs::planarRegionLayers",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public Geometry region-layer entry; synchronous callback effects remain visible."
+    },
+    {
+      "contract": "slice-planar-region-layers",
+      "target": "core/geom/planar-region-layers.mjs::planarRegionLayers",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public Geometry region-layer entry; synchronous callback effects remain visible."
+    },
+    {
+      "contract": "extension-toolpath",
+      "target": "core/print/slice-region-context.mjs::prepareSliceRegionContext",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public typed preset Slice construction context; no private-engine bag or machine selection."
     }
   ]
 }

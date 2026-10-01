@@ -1,7 +1,6 @@
 import {distance,requireThat} from '../private/export/numeric.mjs';
-import {checkedMachinePath} from './prepare-path.mjs';
+import {prepareExportPath} from './prepare-path.mjs';
 
-import {plannedNozzleTemperatures} from '../path/process-controls.mjs';
 // One G4 carries at most this many milliseconds; it is what the firmware reads
 // from a single command, not a limit on how long a path may pause.
 import {DWELL_COMMAND_MS} from './griffin-player.mjs';
@@ -9,7 +8,7 @@ export {interpretGriffin,interpretMotion,interpretMotionChunk} from './griffin-p
 
 const fmt=(n,d=5)=>Number(n.toFixed(d)).toString();
 export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
-  path=checkedMachinePath(path,plan,machine);
+  path=prepareExportPath(path,plan,machine);
   const motionLines=exportMotion(path,plan);
   requireThat(machine.outputs.some(o=>o.id===plan.output && o.flavor==='Griffin'),'Machine does not declare Griffin export.');
   const s=plan.setup, area=Math.PI*(s.filamentMm/2)**2, tool=s.tool;
@@ -107,7 +106,6 @@ export function exportMotion(path,plan,{extrusionMode='absolute',travelCommand='
       motion('G1',null,nextE,feed);
       if(!relativeE)writtenE=nextE;
     } else if(a.kind==='temperature') {
-      requireThat(plannedNozzleTemperatures(plan).has(a.targetC),'Unplanned operation temperature.');
       lines.push(`M400`,`M109 S${fmt(a.targetC)}`);
     } else if(a.kind==='retract'||a.kind==='recover') {
       const filamentMm=(a.kind==='retract'?-1:1)*a.filamentMm;

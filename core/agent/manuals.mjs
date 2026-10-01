@@ -3,10 +3,11 @@
 import { lstat, readFile } from 'node:fs/promises';
 import { resolve, posix } from 'node:path';
 import { loadMachine } from '../machine/profile.mjs';
+import {readExtension} from '../extensions/library.mjs';
 
 const rootManuals = new Set(['AGENTS.md', 'README.md', 'MAKERS.md', 'GEOMETRY.md', 'BUILDERS.md', 'DEVELOPER-CONTEXT.md',
-  'CONTRIBUTING.md', 'CONTRIBUTING-AGENTS.md', 'SETUP.md', 'GLOSSARY.md', 'DECISIONS.md', 'DEVLOG.md', 'build_request.md', 'CLAUDE.md', 'examples/prints/README.md', 'TECHNICAL-OVERVIEW.md', 'plans/0.2.0.md']);
-const documentRoots = new Set(['core', 'skills', 'studio', 'machines', 'adapters', 'scripts', 'dev-map']);
+  'CONTRIBUTING.md', 'CONTRIBUTING-AGENTS.md', 'SETUP.md', 'GLOSSARY.md', 'DECISIONS.md', 'DEVLOG.md', 'build_request.md', 'CLAUDE.md', 'examples/prints/README.md', 'TECHNICAL-OVERVIEW.md']);
+const documentRoots = new Set(['core', 'skills', 'extensions', 'studio', 'machines', 'adapters', 'scripts', 'dev-map', 'plans']);
 const excluded = new Set(['prints', 'node_modules', 'dist', 'build']);
 const aliases = {
   overview: 'TECHNICAL-OVERVIEW.md', makers: 'MAKERS.md', geometry: 'GEOMETRY.md', builders: 'BUILDERS.md', development: 'BUILDERS.md',
@@ -168,6 +169,12 @@ async function loadGuidance(root, guidanceId) {
     anchor = encodedAnchor ? decodeURIComponent(encodedAnchor) : undefined;
   } catch { throw new Error('Invalid documentation path or heading.'); }
   if (!publishedPath(path)) throw new Error('Invalid documentation path. Use a repository-relative Markdown link from a manual.');
+  if(path.startsWith('extensions/')){
+    const [,id,...parts]=path.split('/'),selected=await readExtension(id,{appRoot:root});
+    if(!selected||!parts.length||!selected.files.some(file=>file.path===parts.join('/')))
+      throw new Error(`Extension guidance is missing: ${path}.`);
+    return {path,anchor,markdown:await readFile(resolve(selected.directory,...parts),'utf8')};
+  }
   let current = root;
   for (const part of path.split('/')) {
     current = resolve(current, part);

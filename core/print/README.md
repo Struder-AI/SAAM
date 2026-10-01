@@ -14,9 +14,8 @@ Source metadata does not confer printing approval.
 ## Generation and review
 
 Studio's Export click confirms the displayed settings and exact checked toolpath.
-`exportReviewed` writes the captured bytes without consulting the current bundle
-or pending work. It writes no approval record. Opening a saved bundle checks its
-persisted artifacts before display.
+Studio waits for queued edits and rejects stale displayed snapshots; `exportReviewed`
+then writes the captured bytes unchanged. Opening a bundle checks artifacts before display.
 
 `core/print/workflow.mjs` owns initialization, validation, revisions, preparation,
 reopening and delivery. The shell adapter supplies recipe validation, geometry,
@@ -35,6 +34,10 @@ Geometry extensions return proposals through Geometry; only deposition or hybrid
 assignment contributions need Toolpath composition. Bundle accepts one revisioned
 edit. Saved geometry remains viewable without rerunning the extension.
 
+`prepareSliceRegionContext` accepts a supplied Geometry layer family, preset,
+recipe, process resolver and report. Toolpath resolves the assignment's filament
+and process and returns an ordinary Slice context; it does not infer regions.
+
 [Settings](../machine/settings.mjs) owns reusable profiles, defaults and remembered
 setup. Its [selection/recording API](../machine/bundle-settings.mjs) submits exact
 snapshots to Bundle with an expected revision; Bundle owns invalidation/history.
@@ -45,7 +48,7 @@ never refresh existing bundles; manuals use saved capabilities.
 
 Geometry, completed SAAMpath and program have separate identities. Toolpath owns
 `pathDependencies`; unknown inputs conservatively invalidate the path. Known
-export-only setup fields and disabled optional skills reuse it; machine, output and motion inputs remain dependencies. `generationHash` binds the complete
+export-only setup fields, selected machine/output and disabled optional skills reuse it. Authored motion remains a path dependency. `generationHash` binds the complete
 recipe, machine, geometry and generation contract to the checked program.
 `state.artifacts` distinguishes current, retained stale and absent results.
 Edits retain artifacts and clear approvals; old bytes never become current by omission.
@@ -57,12 +60,12 @@ branch. Immutable history records reference separately saved components and arti
 large geometry/path/program files are shared. Camera and playback remain Studio-private.
 CLI: `undo|redo <directory> --revision <revision>`; Studio exposes Undo/Redo.
 
-Every commit compares the expected content revision while holding a short writer
-lock, then atomically replaces `plan.json`. Interrupted writes leave the previous
-manifest and may leave harmless unreferenced records. A crashed writer can leave
-`.bundle-write.lock`; inspect its PID and remove it only after that writer has exited.
-No automatic timeout takes ownership from a slow process. Power-loss durability
-beyond the filesystem's atomic replacement guarantees is not claimed.
+### Bundle ownership
+
+Studio reserves a bundle on open; a second instance cannot open it. `withBundleInstance` carries that reservation into writes and generation workers. Export uses the existing reservation.
+Claims, releases and manifest commits share `.bundle-write.lock`; commits compare revisions and atomically replace `plan.json`. Interrupted writes may leave unreferenced records.
+The reservation releases on switch or shutdown, never by timeout. `instance-status` and `recover-instance` in `core/print/cli.mjs` inspect and reclaim a dead Studio PID. An interrupted write lock needs separate PID inspection and explicit removal.
+Power-loss durability beyond atomic replacement is not claimed.
 
 `generateToolpath` saves the completed SAAMpath independently of export. CLI
 `toolpath <directory>` exposes it. `prepareGeneration` reuses that path or builds
@@ -70,8 +73,7 @@ one, then asks Export to encode/check the program. One prepared result
 binds the exact bytes to the captured revision; `commitGeneration` rejects stale
 completion, including an intervening edit undone back to the same content.
 Export failure retains the in-memory path. Saved paths survive restarts and history
-restoration. Checked exports retain existing interpretation reuse and production
-promotion; neither grants approval. Delivery copies the confirmed bytes.
+restoration. Checked exports reuse interpretation and production promotion without granting approval. Delivery copies the confirmed bytes.
 
 `loadBundleSnapshot` supplies Studio one persisted revision, artifact currency,
 history, review and checked program with source/presentation fingerprints.

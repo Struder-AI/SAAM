@@ -29,8 +29,9 @@ export async function prepareGeneration(bundle,{directory,generationHash,onProgr
 export async function runPreparedGeneration(bundle,preparation,message,{directory,control,onProgress}) {
   if(preparation.error)throw preparation.error;
   control.check();
-  const checks=await bundle.commitGeneration(directory,preparation.candidate,
+  const commit=()=>bundle.commitGeneration(directory,preparation.candidate,
     {development:message.development===true,onProgress,beforeCommit:control.beforeCommit});
+  const checks=message.instance?await bundle.withBundleInstance(directory,message.instance,commit):await commit();
   return {directory,checks};
 }
 

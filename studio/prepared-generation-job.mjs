@@ -33,13 +33,13 @@ export class PreparedGenerationJob {
   get error(){return this.#failure?.message??null;}
   get cancellable(){return this.started&&this.status!=='disposed'&&!this.control.committing;}
 
-  generate(development){
+  generate(development,instance){
     if(this.status==='failed')return Promise.reject(this.#failure);
     if(this.status==='disposed')return Promise.reject(new Error('The prepared toolpath is no longer available.'));
     if(this.status==='generating')return Promise.reject(new Error('Toolpath generation is already running.'));
     this.status='generating';
     const pending=new Promise((resolve,reject)=>{this.#pending={resolve,reject};});
-    try{this.worker.postMessage({type:'generate',development});}
+    try{this.worker.postMessage(instance?{type:'generate',development,instance}:{type:'generate',development});}
     catch(error){this.#fail(error,true);}
     return pending;
   }

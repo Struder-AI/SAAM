@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes, createHash } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
 import {PreparedGenerationJob} from './prepared-generation-job.mjs';
+import {claimBundleInstance,releaseBundleInstance,withBundleInstance} from '../core/print/studio-ownership.mjs';
 import { viewerLifetime, DEFAULT_DISCONNECT_MS } from './lifetime.mjs';
 
 
@@ -137,11 +138,38 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   };
   const printIdFor=directory=>createHash('sha256').update(resolve(directory)).digest('hex');
   const printId=()=>printIdFor(dir);
-  // Resolved on the first request; the no-op catch keeps an unopened print
-  // from raising an unhandled rejection before a request reports it.
-  const attached=dir?tour.attachStudio(dir):Promise.resolve();
-  let opened=attached.then(()=>dir&&resolveBundle(dir));opened.catch(()=>{});
   let queue=Promise.resolve();
+  let editTail=Promise.resolve(),reservation=null,reservedDirectory=null,switching=false;
+  // Association reserves this bundle before the instance becomes usable.
+  // A Studio without a print remains unreserved until it opens one.
+  let opened=dir?(async()=>{
+    const selected=dir,adapter=await resolveBundle(selected);
+    await readStableBundle(adapter,selected,{program:false});
+    const claim=await claimBundleInstance(selected,{instanceId,ownerId:sessionOwnerId});
+    try{await tour.attachStudio(selected);}
+    catch(error){await releaseBundleInstance(selected,claim);throw error;}
+    reservation=claim;reservedDirectory=selected;return adapter;
+  })():Promise.resolve(null);
+  opened.catch(()=>{});
+  const runBundleEdit=(target,action)=>{
+    if(closed)return Promise.reject(Error('Studio is closing. Reopen it before editing.'));
+    const selected=resolve(target);
+    const run=editTail.then(async()=>{
+      await opened;
+      if(switching||dir!==selected)throw Error('The Studio print changed before editing.');
+      if(!reservation||reservedDirectory!==selected)throw Error('This Studio instance has no association with the print. Open it again.');
+      return withBundleInstance(selected,reservation,()=>action(reservation));
+    });
+    editTail=run.catch(()=>{});
+    return run;
+  };
+  const releaseInstance=()=>{
+    const run=editTail.then(async()=>{
+      if(reservation){await releaseBundleInstance(reservedDirectory,reservation);reservation=null;reservedDirectory=null;}
+    });
+    editTail=run.catch(()=>{});
+    return run;
+  };
   const displayedResults=new Map();
   // Speculation never enters the HTTP mutation queue or the browser's busy
   // state. Keep one worker/candidate, replacing it when the reviewed plan changes.
@@ -256,7 +284,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       const job=prepare(executionState,executionDir,{computationRequired:true});
       if(!job)return execution.runLocally();
       if(job.status==='preparing')markCalculation();
-      const checked=await job.generate(development);
+      const checked=await job.generate(development,reservation);
       if(preparation===job)preparation=null;
       return checked;
     }
@@ -307,10 +335,16 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     return {...delivered,name};
   };
   const openPrint=async input=>{
+    await opened;
     const next=await printDirectory(input,resolveBundle),adapter=await resolveBundle(next);
     await readStableBundle(adapter,next,{program:false});
-    if(next!==dir)discardPreparation();
-    dir=next;opened=Promise.resolve(adapter);
+    if(next!==dir){
+      const claim=await claimBundleInstance(next,{instanceId,ownerId:sessionOwnerId});
+      switching=true;
+      try{await releaseInstance();discardPreparation();dir=next;reservation=claim;reservedDirectory=next;opened=Promise.resolve(adapter);}
+      catch(error){await releaseBundleInstance(next,claim);throw error;}
+      finally{switching=false;}
+    }else opened=Promise.resolve(adapter);
   };
   // Called only by a human Studio action choosing the geometry to print.
   const validateGeometrySelection=async(adapter,seen)=>{
@@ -486,8 +520,23 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         send(await cancelCalculation(data));return;
       }
       if(url.pathname==='/api/export'){
-        const captured=displayedResults.get(data.exportSnapshot);
-        const delivered=await exportPrint(captured.bundle,captured.state,data,await tour.info());
+        const run=queue.then(async()=>{
+          const captured=displayedResults.get(data.exportSnapshot);
+          if(!captured||captured.state.dir!==dir||captured.bundle!==await opened)
+            throw Error('The displayed program changed. Reload before exporting.');
+          const live=(await readStableBundle(captured.bundle,dir,{program:false})).state;
+          if(live.revision!==captured.state.revision||
+            live.review.generation?.exportHash!==captured.state.exportHash||
+            live.review.generation?.generationHash!==live.generationHash||
+            live.review.generation?.mode!=='production')
+            throw Error('The displayed program changed. Reload before exporting.');
+          const currentBytes=await readFile(resolve(dir,live.review.generation.file));
+          if(createHash('sha256').update(currentBytes).digest('hex')!==captured.state.exportHash)
+            throw Error('The displayed program changed. Reload before exporting.');
+          return exportPrint(captured.bundle,captured.state,data,await tour.info());
+        });
+        queue=run.catch(()=>{});
+        const delivered=await run;
         if(data.downloadLink===true){send(stageDownload(delivered));return;}
         res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(delivered.name)}`});res.end(delivered.bytes);return;
       }
@@ -531,16 +580,17 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           // navigation into a separate approval stage.
           if(data.action==='step'&&progress.step===L.import&&data.step===L.playback)
             await validateGeometrySelection(current,data);
+          const ending=['exit','cancel','finish'].includes(data.action);
           const result=await tour.action(data.action,data.step);
-          if(['exit','cancel','finish'].includes(data.action)){if(dir)await useExample(dir);}
-          else if(result.directory&&resolve(result.directory)!==dir)await openPrint(result.directory);
+          if(ending&&dir)await useExample(dir);
+          if(!ending&&result.directory&&resolve(result.directory)!==dir)await openPrint(result.directory);
           const lesson=TOUR_STEPS[result.data.step];
           note(data.action==='fresh'?'tour-started':data.action==='step'?'tour-lesson':data.action==='finish'?'tour-finished':'tour-exited',
             {action:data.action,step:result.data.step,lesson:lesson?{title:lesson.title,tab:lesson.tab,gate:lesson.gate??null}:null,runId:result.data.runId,lessonId:result.data.lessonId,
              active:result.data.active,completed:result.data.completed,canNext:result.data.canNext,agentInstruction:result.data.agentInstruction??null});
           if(result.directory&&result.data.active&&TOUR_STEPS[result.data.step].tab==='toolpath'){
             const adapter=await opened,state=(await readStableBundle(adapter,dir,{program:'source'})).state;
-            if(!state.program||state.programError)await generate(adapter,false,'tour-step');
+            if(!state.program||state.programError)await runBundleEdit(dir,()=>generate(adapter,false,'tour-step'));
             if(result.data.step===L.playback&&!result.data.startAt)await tour.requestStartLayer();
           }
         }
@@ -561,17 +611,17 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         }
         else if(url.pathname==='/api/history'){
           if(progress.active)throw Error('Exit the tour before restoring edits.');
-          const updated=await current.restoreRevision(dir,{direction:data.direction,expectedRevision:data.revision});
+          const updated=await runBundleEdit(dir,()=>current.restoreRevision(dir,{direction:data.direction,expectedRevision:data.revision}));
           note('plan-updated',{revision:updated.revision,history:data.direction});
         }
         else if(url.pathname==='/api/plan'){
-          const updated=await current.updatePlan(dir,data.plan,data.revision),edit=updated?.review?.history?.at(-1);
+          const updated=await runBundleEdit(dir,()=>current.updatePlan(dir,data.plan,data.revision)),edit=updated?.review?.history?.at(-1);
           const changes=updated?.revision!==data.revision&&edit?.event==='plan-edited'?edit.changes??[]:[];
           note('plan-updated',{revision:data.revision??null,changes});
         }
         else if(url.pathname==='/api/generate'){
           if(data.generationHash&&((await readStableBundle(current,dir,{program:false})).state).generationHash!==data.generationHash)throw Error('The print changed before generation. Review the updated print.');
-          await generate(current,data.development===true);
+          await runBundleEdit(dir,()=>generate(current,data.development===true));
         }
         else throw new Error('Unknown operation.');
         send({ok:true});
@@ -597,7 +647,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   const lifetime=viewerLifetime(server,{disconnectMs,onViewers:count=>note(count?'viewer-opened':'viewer-closed',{viewers:count}),onClosing:()=>{
     closed=true;closingPolls.abort();importController?.abort(Object.assign(Error('Import cancelled because Studio closed.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));
   },
-    onShutdown:async()=>{try{importController?.abort(Object.assign(Error('Import cancelled because Studio closed.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));await attached;await queue;await tour.closeStudio();}finally{tour.close();if(ownsRequests||closeAgentRequests)requests.close();if(ownsEvents)events.close();}}});
+    onShutdown:async()=>{try{importController?.abort(Object.assign(Error('Import cancelled because Studio closed.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));await opened.catch(()=>{});await queue;await releaseInstance();await tour.closeStudio();}finally{tour.close();if(ownsRequests||closeAgentRequests)requests.close();if(ownsEvents)events.close();}}});
   const stopRequestFeed=requests.subscribe(record=>{
     if(record.source==='studio'&&record.status==='queued'&&record.studioInstanceId===instanceId&&!queuedNoted.has(record.id)){
       queuedNoted.add(record.id);note('request-queued',{requestId:record.id,requestKind:record.kind,instruction:record.instruction,scope:record.scope??null,printId:record.printId});
@@ -616,11 +666,13 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       }).catch(()=>{/* A partial external write will be rechecked at commit. */}).finally(()=>{checkingGeneration=false;});
     }
   });
-  server.once('close',()=>{closed=true;stopWatching();stopRequestFeed();discardPreparation();});
+  server.once('close',()=>{closed=true;stopWatching();stopRequestFeed();discardPreparation();void releaseInstance().catch(error=>note('instance-release-failed',{error:error.message}));});
   server.shutdown=lifetime.shutdown;server.viewerCount=lifetime.viewers;
   server.agentWorking=working=>{agentActivity.working=Boolean(working);lifetime.notify('agent-activity',agentActivity);};
   server.studioEvents=events;server.generationStatus=generationStatus;
   server.cancelCalculation=cancelCalculation;
+  server.runBundleEdit=runBundleEdit;
+  server.ready=()=>opened;
   server.agentSession=()=>({instanceId,ownerId:sessionOwnerId,printId:workIdFor(dir),directory:dir,connected:!closed});
   server.agentDisconnected=async ownerId=>lifetime.notify('agent-connection-closed',{ownerId,closedAt:Date.now(),requests:await requests.query()});
   return server;
@@ -645,6 +697,7 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)&&p
   const bundle=await bundleFor(dir);
   await readStableBundle(bundle,dir,{program:false});
   const server=createStudio(dir),port=Number(process.env.SAAM_STUDIO_PORT??0);
+  try{await server.ready();}catch(error){await server.shutdown().catch(()=>{});throw error;}
   server.listen(port,'127.0.0.1',()=>console.log(`SAAM Studio: http://127.0.0.1:${server.address().port}\nPrint: ${dir}\nNo deadline to open. Closes ${DEFAULT_DISCONNECT_MS/60000} minutes after the last viewer disconnects.`));
   for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>void server.shutdown());
   server.on('error',e=>{console.error(e.message);process.exitCode=1;});

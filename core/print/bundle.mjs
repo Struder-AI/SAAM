@@ -1,13 +1,16 @@
 // Shell-specific adapter for the shared print lifecycle.
 import { createBundleWorkflow } from './workflow.mjs';
-import { defaults,compileRecipe,geometryTemplate,VERSION,BUILD_DATE } from './plan.mjs';
-import {createGeometry} from './geometry.mjs';
-import {rhino} from '../geom/runtime.mjs';
-import {buildShell,translateShell} from '../geom/build.mjs';
-import {generatePath,pathDependencies,GENERATION_CONTRACT} from './generate.mjs';
-import {MACHINE_PATH_CONTRACT} from '../path/dependencies.mjs';
-import {modulationGeometrySources,prepareModulationFields} from './modulation-fields.mjs';
-import {booleanShell} from '../geom/boolean-solid.mjs';
+import {VERSION,BUILD_DATE} from './version.mjs';
+import {pathDependencies,PATH_CONTRACT,NEUTRAL_PATH_CONTRACT} from '../path/dependencies.mjs';
+import {resolvePlanPatch} from './resolve-plan.mjs';
+import {requireGenerationExtensions} from '../path/extension-dependencies.mjs';
+
+const defaults=async machine=>(await import('./plan.mjs')).defaults(machine);
+const createGeometry=async parameters=>(await import('./geometry.mjs')).createGeometry(parameters);
+async function patchPlan(previous,patch){
+  const {geometryTemplate}=await import('./plan.mjs');
+  return resolvePlanPatch(previous,patch,{geometryTemplate});
+}
 
 export const LIMITATIONS = [
   'Physical clearance is the operator’s responsibility; no collision model is implemented.',
@@ -23,21 +26,27 @@ const limitationsFor = (plan, machine) => {
   return limits;
 };
 
-export async function generatePreparedPath(plan,machine,options){
-  ({plan,machine}=compileRecipe(plan,machine));
+export async function generatePreparedPath(plan,_machine,options){
+  await requireGenerationExtensions(plan);
+  const [{compileRecipe},{rhino},{buildShell,translateShell},{generatePath},
+    {modulationGeometrySources,prepareModulationFields},{booleanShell}]=await Promise.all([
+      import('./plan.mjs'),import('../geom/runtime.mjs'),import('../geom/build.mjs'),import('./generate.mjs'),
+      import('./modulation-fields.mjs'),import('../geom/boolean-solid.mjs')]);
+  plan=compileRecipe(plan).plan;
   const native=await rhino(),sources=modulationGeometrySources(plan.modulations);
   const material=geometry=>geometry.shape==='assembly'
     ?booleanShell('union',geometry.parts.map(part=>translateShell(material(part.geometry),part.xMm,part.yMm,part.zMm)))
     :geometry.shape==='boolean'?booleanShell(geometry.operation,geometry.operands.map(material)):buildShell(native,geometry);
   const fields=await prepareModulationFields(plan.modulations,{solids:sources.map(source=>({key:source.key,geometry:material(source.geometry)}))});
-  return generatePath(plan,machine,{...options,modulations:fields.record,modulationPreparation:fields.report});
+  return generatePath(plan,{...options,modulations:fields.record,modulationPreparation:fields.report});
 }
 
 export const {root, EXPORT_NAME, atomicManifest, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, bundleFingerprint, bundleFingerprints, migrateBundle, prepareGeneration, commitGeneration, generateToolpath, restoreRevision, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, exportReviewed, applySettingsSnapshot}=createBundleWorkflow({
-  kind:'shell',defaults,geometryTemplate,createGeometry,
-  generatePath:generatePreparedPath,pathDependencies,generationContract:GENERATION_CONTRACT,completionContract:MACHINE_PATH_CONTRACT,
+  kind:'shell',defaults,patchPlan,createGeometry,
+  generatePath:generatePreparedPath,pathDependencies,generationContract:PATH_CONTRACT,completionContract:NEUTRAL_PATH_CONTRACT,
   version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode',
   limitations:limitationsFor
 });
 
 export {changeMachine,rememberSetup} from '../machine/bundle-settings.mjs';
+export {bundleInstance,claimBundleInstance,releaseBundleInstance,withBundleInstance,recoverBundleInstance} from './studio-ownership.mjs';

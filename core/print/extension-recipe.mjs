@@ -1,17 +1,20 @@
 // Toolpath combines geometry and deposition contributions into one proposed
 // recipe. It has no bundle directory, persistence or revision ownership.
-import {DEPOSITION_EDITORS} from '../../skills/edits.mjs';
+import {loadExtensionEntry} from '../extensions/library.mjs';
 import {requireThat} from '../private/toolpath/numeric.mjs';
+import {ordinarySliceAssignment} from './slice-settings.mjs';
 
 export async function prepareExtensionRecipe(source,extension,request,{geometryContribution,...options}={}){
   if(geometryContribution){
-    const {plan,assignments,report}=geometryContribution;
-    return {plan:{...plan,slices:{...source.slices,assignments}},report};
+    const {plan,assignments,assignmentRequests,report}=geometryContribution;
+    requireThat(!(assignments&&assignmentRequests),'An extension must return either assignments or assignmentRequests.');
+    return {plan:{...plan,slices:{...source.slices,assignments:assignmentRequests
+      ?assignmentRequests.map(ordinarySliceAssignment):assignments}},report};
   }
   const input=structuredClone({geometry:source.geometry,slices:source.slices,
     process:source.process,composition:source.composition,skills:source.skills});
-  const editor=DEPOSITION_EDITORS[extension];
-  requireThat(editor&&!options.create,`No deposition editor for extension ${extension}.`);
+  requireThat(!options.create,`No deposition creator for extension ${extension}.`);
+  const editor=await loadExtensionEntry(extension,'deposition-edit');
   const contribution=await editor(input,request,options);
   const {geometry,assignments,placement,report}=contribution;
   // Only the declared engine outputs can alter the proposal. Setup, output,

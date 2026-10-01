@@ -1,0 +1,1 @@
+{"schema":"saam-extension/1","id":"thingi10k","dependencies":[],"entries":{"resource-client":{"file":"scripts/library.mjs","export":"createThingi10KClient"}},"license":"Apache-2.0","provenance":"SAAM release"}

@@ -9,13 +9,13 @@ import {root, onboarding, readSkill, readMaps, regenerateMap, contextPacket, pre
 const string = {type: 'string'}, boolean = {type: 'boolean'}, many = {type: 'string', multiple: true};
 const schemas = {
   'maker-onboarding': {machine: string},
-  'builder-onboarding': {area: many},
-  'developer-onboarding': {area: many},
+  'builder-onboarding': {area: many, set: string},
+  'developer-onboarding': {area: many, set: string},
   'read-skill': {maker: boolean, builder: boolean, developer: boolean, machine: string, all: boolean},
   'read-guidance': {machine: string, all: boolean},
   'context-budget': {machine: many},
-  'read-map': {code: boolean, details: boolean},
-  'regenerate': {},
+  'read-map': {code: boolean, source: boolean, details: boolean, set: string},
+  'regenerate': {set: string},
   'start-tour': {library: string, 'start-at-layer': string, 'no-open': boolean,'agent-owner':string},
   'open-print': {library: string, 'no-open': boolean, studio: string, 'agent-owner': string},
   'create-preview': {library: string, recipe: string, stl: string, kind: string, machine: string, units: string, 'no-open': boolean, studio: string, 'agent-owner': string},
@@ -31,9 +31,9 @@ export const help = {
   commands: {
     'maker-onboarding [--machine ID]': 'Maker guidance, the index of skills and gated sections, and print tools, with script sections and the machine’s advanced sections; choose follow-up reads for the task.',
     'builder-onboarding [--area AREA]': 'Guidance/composition authoring, maker context and digest; --area adds consumed contracts or a named map. Core skills and shared implementation require developer.',
-    'developer-onboarding [--area AREA]': 'The glossary, developer orientation and map page 0; each --area adds a node’s map (index or declaration path) or an outside area’s references. Component manuals open as needed.',
-    'read-map INDEX|DECLARATION [--code] [--details]': 'Read one compact stored graph; terminal pages open source. --code returns the page’s source span (a cluster, its members’ spans); refused on 0. --details returns the full stored packet and scanner evidence. Reads never scan. range is [first,last] inclusive; nested locations inherit file. Empty lists are omitted.',
-    'regenerate [INDEX]': 'Scan the source and write the stored map. It always generates everything; an index is accepted and ignored.',
+    'developer-onboarding [--area AREA] [--set NAME]': 'Active release intents, glossary, orientation and selected map 0. Defaults to 030-architecture for 0.3.1; use 030-deployment for 0.3.0 installation work. --area adds a node/contract or component references.',
+    'read-map ADDRESS [--set NAME] [--source|--code] [--details]': 'Read without scanning. Defaults to 030-architecture; 030-deployment owns installation. Design addresses name nodes/contracts and --source opens explicit source references. Original scanned maps require --set default and use --code.',
+    'regenerate [INDEX] [--set NAME]': 'Refresh the selected set (default 030-architecture). Design sets redraw authored maps; audit/audit-check are separate. Scanned sets rescan implementation.',
     'read-skill ID[#HEADING] [--maker] [--builder] [--developer] [--machine ID] [--all]': 'Read only the selected skill roles; defaults to maker. The maker manual opens advanced sections for --machine, or every section with --all; #HEADING reads one section whatever its gate. Missing optional manuals are reported in unavailableRoles.',
     'read-guidance PATH#HEADING [--machine ID] [--all]': 'Read one published manual or section chosen for the task, with its headings and their gates.',
     'context-budget [--machine ID]': 'Bytes of each context layer per client (web, script) and machine, for onboarding and each skill manual.',
@@ -114,12 +114,12 @@ export async function runCLI(args = process.argv.slice(2), {write = value => con
       options.onProgress=progress=>write({ok:true,event:'import-progress',command,elapsedMs:Date.now()-startedAt,progress});
     }
     let result;
-    if (command.endsWith('-onboarding')) result = await onboarding({role: command.replace('-onboarding', ''), areas: v.area, machine: v.machine});
+    if (command.endsWith('-onboarding')) result = await onboarding({role: command.replace('-onboarding', ''), areas: v.area, machine: v.machine, set: v.set});
     else if (command === 'context-budget') result = await contextBudget(root, v.machine ? {machineIds: v.machine} : {});
     else if (command === 'read-skill') result = await readSkill(positionals[0], v);
     else if (command === 'read-guidance') result = await contextPacket([positionals[0]], {machineId: v.machine, all: v.all, headings: true});
     else if (command === 'read-map') result = {maps: await readMaps([positionals[0]], v)};
-    else if (command === 'regenerate') result = await regenerateMap(positionals[0]);
+    else if (command === 'regenerate') result = await regenerateMap(positionals[0], v);
     else if (['open-print', 'create-preview'].includes(command) && v.studio) result = await showPrint({...options, studio: v.studio});
     else if (['start-tour', 'open-print', 'create-preview'].includes(command)) {
       const opened = await preview({...options, onReady: write,onRequest:event=>write({ok:true,event:'studio-request',command,...event}),onEvents:event=>write({ok:true,event:'studio-events',command,...event})});

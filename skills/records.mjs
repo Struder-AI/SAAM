@@ -5,7 +5,6 @@ import {gridfinityTemplate,validateGridfinityRecord} from './gridfinity/scripts/
 import {heatSetTemplate,validateHeatSetRecord,validateHeatSetAssignments} from './heat-set-inserts/scripts/feature.mjs';
 import {SUPPORT_DEFAULTS,validateSupports} from './supports/scripts/supports.mjs';
 import {PLASTIC_WELD_DEFAULTS,validatePlasticWeld} from './plastic-weld/scripts/weld.mjs';
-import {assignmentPlan} from '../core/print/assignment-process.mjs';
 import {sleeveAssignment,validateSleeveAssignment} from './advanced-vase-wall/scripts/assignment.mjs';
 
 export const ASSIGNMENT_RECORDS=Object.freeze({
@@ -21,9 +20,9 @@ export const GEOMETRY_RECORDS=Object.freeze({
 
 export const extensionSettings=()=>({'plastic-weld':structuredClone(PLASTIC_WELD_DEFAULTS),supports:structuredClone(SUPPORT_DEFAULTS)});
 
-export function validateExtensionRecipe(plan,machine){
-  if(plan.skills?.['plastic-weld']!==undefined)validatePlasticWeld(plan,machine);
-  if(plan.skills?.supports!==undefined)validateSupports(plan.skills.supports,assignmentPlan(plan,machine,{id:'supports'}).process);
+export function validateExtensionRecipe(plan,processForAssignment){
+  if(plan.skills?.['plastic-weld']!==undefined)validatePlasticWeld(plan,processForAssignment);
+  if(plan.skills?.supports!==undefined)validateSupports(plan.skills.supports,processForAssignment({id:'supports'}));
   if(plan.geometry)validateHeatSetAssignments(plan);
 }
 

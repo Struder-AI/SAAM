@@ -1,9 +1,10 @@
-import {requireThat} from '../../../core/private/extensions/numeric.mjs';
 // Construct a proposed recipe value; the caller owns the revisioned bundle edit.
 import {readFile,stat} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {isAbsolute} from 'node:path';
 import {compileText} from './text.mjs';
+
+const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
 
 export function unwrapTextGeometry(geometry){
@@ -13,16 +14,16 @@ export function unwrapTextGeometry(geometry){
   return {base,layers};
 }
 
-export async function rebuildTextGeometry(base,layers,{buildGeometry}){
+export async function rebuildTextGeometry(base,layers,geometryOperations){
   let rebuilt=base;
   for(let i=layers.length-1;i>=0;i--){
     const layer=layers[i];
-    rebuilt=await compileText(rebuilt,layer.features,{buildGeometry,toleranceMm:layer.toleranceMm,maxEdgeMm:layer.maxEdgeMm});
+    rebuilt=await compileText(rebuilt,layer.features,{...geometryOperations,toleranceMm:layer.toleranceMm,maxEdgeMm:layer.maxEdgeMm});
   }
   return rebuilt;
 }
 
-export async function editText(source,request,{buildGeometry}){
+export async function editText(source,request,geometryOperations){
   requireThat(request&&Object.keys(request).every(k=>['feature','remove','part','standalone','assignments','toleranceMm','maxEdgeMm'].includes(k)),'Unknown text request field.');
   requireThat(Boolean(request.feature)!==Boolean(request.remove),'Supply one feature to add/update, or remove its id.');
   const plan=structuredClone(source);
@@ -55,7 +56,7 @@ export async function editText(source,request,{buildGeometry}){
   }
   if(!features.length){requireThat(base&&!standalone,'Removing the last standalone text feature would leave no geometry.');owner.geometry=base;}
   else {
-    owner.geometry=await compileText(base,features,{buildGeometry,standalone,toleranceMm:request.toleranceMm??old?.toleranceMm??0.02,maxEdgeMm:request.maxEdgeMm??old?.maxEdgeMm??1});
+    owner.geometry=await compileText(base,features,{...geometryOperations,standalone,toleranceMm:request.toleranceMm??old?.toleranceMm??0.02,maxEdgeMm:request.maxEdgeMm??old?.maxEdgeMm??1});
   }
   // A removed/changed feature may invalidate a material selector. Let the caller
   // replace those assignments in the same validated edit, without an invalid

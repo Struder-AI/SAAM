@@ -12,8 +12,7 @@ import {consumeCheckedProgram,createPendingCheckedProgramStore} from './program-
 import {replaceFile} from '../file-write.mjs';
 import {resolvePlanPatch} from './resolve-plan.mjs';
 import {selectSettings,saveSetup} from '../machine/settings.mjs';
-import {migrateRecipeFields} from './recipe-migration.mjs';
-import {recipeFamily as assignmentFamily} from './assignment-records.mjs';
+import {assignmentFamily as ordinaryAssignmentFamily} from './slice-settings.mjs';
 import {commitManifest,revisionOf,retainContent,restoreContent} from './revisions.mjs';
 
 export const root=resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -95,7 +94,7 @@ export function machineChangedReview(review, from, to, time = new Date().toISOSt
 }
 
 export function createBundleWorkflow(adapter) {
-  const {kind,defaults,createGeometry,generatePath,geometryTemplate,
+  const {kind,defaults,createGeometry,generatePath,geometryTemplate,patchPlan,
     version:VERSION,buildDate:BUILD_DATE,exportName:EXPORT_NAME,limitations:limitationsFor}=adapter;
   const exportName=(plan,machine)=>{
     const extension=machine.outputs.find(o=>o.id===plan.output)?.extension??'.gcode';
@@ -115,7 +114,7 @@ export function createBundleWorkflow(adapter) {
   const programKey=(generationHash,exportHash)=>hash([generationHash,exportHash]);
 async function proposedPlan(machineId, options={}) {
   const {machine,settings}=await selectSettings(machineId,options);
-  return {...defaults(machine),...settings};
+  return {...await defaults(machine),...settings};
 }
 async function initBundle(directory, plan = {schema:'saam-shell-plan/1'}, { setupFile, machineId, sourceBytes,sourcePath,preparedGeometry,attachments=[] } = {}) {
   const dir = resolve(directory);
@@ -258,7 +257,8 @@ async function migrateBundle(directory,{beforeCommit}={}){
 }
 
 async function migrateCurrentRecipe(dir,document,planText,before,{beforeCommit}){
-  const {bundle,...previous}=document,{plan,changes}=migrateRecipeFields(previous);
+  const {migrateRecipeFields}=await import('./recipe-migration.mjs');
+  const {bundle,...previous}=document,{plan,changes}=migrateRecipeFields(previous,bundle.machine);
   if(!changes.length)return {status:'current',directory:dir,created:[],updated:[],removed:[],retained:before};
   const geometry=bundle.geometry;
   requireThat(geometry===null&&!plan.geometry||geometry&&/^[a-f0-9]{64}$/.test(geometry.hash)&&geometry.file===`geometry/${geometry.hash}${nativeSuffix(geometry.descriptor)}`,'Invalid geometry artifact reference.');
@@ -328,7 +328,8 @@ async function describeBundle({dir,plan,machine,geometry,geometryArtifact,geomet
     kind, dir, plan, machine, geometry, geometryChecks, review, geometryHash, generationHash, programChecked:Boolean(program&&review.generation),
     exportName: exportName(plan,machine), limitations: limitationsFor(plan, machine),
     outputAvailability:machine.outputs.find(o=>o.id===plan.output)?.implemented===false?`Machine-file export for ${machine.name} is not available yet; geometry and settings can be reviewed.`:null,
-    skills: [...new Set((plan.slices?.assignments??[]).map(assignmentFamily)),
+    skills: [...new Set((plan.slices?.assignments??[]).map(assignment=>assignment.construction==='sleeve'
+      ?assignment.pattern===null?'slice':'trace':ordinaryAssignmentFamily(assignment))),
       ...Object.entries(plan.skills??{}).filter(([,settings])=>settings?.enabled).map(([name])=>name)]
   };
   state.toolpathApproved = false;
@@ -445,7 +446,7 @@ async function prepareGeneration(directory,{onProgress}={}){
 
 async function prepareToolpath(state,{onProgress}={}){
   const key=hash([state.dir,state.pathHash]);
-  if(pathPreparation?.key===key){onProgress?.({stage:'Reusing completed SAAMpath'});return pathPreparation.result;}
+  if(pathPreparation?.key===key){onProgress?.({stage:'Reusing neutral SAAMpath'});return pathPreparation.result;}
   const result=(async()=>{
     const saved=state.review.path;
     if(saved?.inputHash===state.pathHash){
@@ -471,10 +472,9 @@ async function readPathArtifact(dir,artifact){
   return JSON.parse(bytes);
 }
 
-// Toolpath can be completed and saved independently of device export/checks.
+// Authored SAAMpath can be saved before choosing a machine-program output.
 async function generateToolpath(directory,{onProgress,beforeCommit}={}){
   const state=await loadBundle(directory,{program:false});
-  requireThat(state.machine,'Select a machine and supply its motion prerequisites before completing SAAMpath.');
   const {artifact}=await prepareToolpath(state,{onProgress});
   await beforeCommit?.();
   await readPathArtifact(state.dir,artifact);
@@ -488,7 +488,7 @@ async function generateToolpath(directory,{onProgress,beforeCommit}={}){
 async function adjustBundle(directory, patch, { setupFile, expectedRevision } = {}) {
   const state = await loadBundle(directory, { program: false });
   if(expectedRevision!==undefined)requireThat(expectedRevision===state.revision,'This review is stale. Reload before changing the print.');
-  const plan = applyPlanPatch(state.plan, patch, geometryTemplate);
+  const plan = patchPlan?await patchPlan(state.plan,patch):applyPlanPatch(state.plan, patch, geometryTemplate);
   const updated=await updatePlan(directory, plan, state.revision);
   if (patch.setup&&updated.machine) await saveSetup(updated.machine,updated.plan.setup,{setupFile});
   return updated;

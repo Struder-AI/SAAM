@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "date": "2026-10-01",
-  "description": "0.3.0 causal architecture: arrows carry the named information/action from source to recipient. Each contract separately lists permitted calls/reads, which may run in the opposite direction. Engine 3 makes SAAMpath, 5 owns shared part state, 6 invokes export 8, and 7 wraps specialized workspaces. Submaps/assignments are provisional; no conformance certificate.",
+  "description": "0.3.1 causal architecture (existing set identifier retained): see plans/0.3.1.md. Arrows carry named information/actions; contracts separately list permitted calls/reads, possibly opposite. Engine 3 makes neutral SAAMpath, 5 owns shared part state, 6 invokes Export 8, and 7 wraps specialized workspaces. Submaps/assignments are provisional; no conformance certificate.",
   "actors": {
     "user": {
       "label": "User",
@@ -21,6 +21,7 @@
     }
   },
   "nodes": [
+    {"id":"geometry-planar-region-layers","index":"2.1.4.9","label":"Planar region layers","description":"Build explicit per-height regions, merge their loops and check section-plane obstacle clearance. Source callbacks retain their own effects and provenance.","type":"component","source":{"file":"core/geom/planar-region-layers.mjs"}},
     {"id":"context","index":"1","label":"Maker context","description":"Maker instructions, manual selection and context assembly; click guidance files to preview them.","type":"guidance","notes":["Maker-facing guidance and its selection/assembly belong to 1, including manuals stored beside extensions. File location does not determine ownership. Extension catalog information arrives from 4; printer capabilities from 9 select relevant manual sections."]},
     {"id":"context-onboard","index":"1.1","label":"maker-onboarding / maker_onboarding","description":"Returns MAKERS, DIGEST and print tools.","type":"component","source":{"file":"core/agent/toolkit.mjs","declaration":"onboarding"}},
     {"id":"context-guidance","index":"1.2","label":"read-guidance / read_guidance","description":"Reads a published file or #heading.","type":"component","source":{"file":"core/agent/toolkit.mjs","declaration":"contextPacket"}},
@@ -60,7 +61,7 @@
     {"id":"path-motion","index":"3.7","label":"Path motion & representation","description":"Shared SAAMpath records, process/motion planning and deposited-material representation.","type":"component","source":{"file":"core/path/planning.mjs"}},
     {"id":"build-evaluate","index":"3.8","label":"Prepare recipe inputs","description":"Evaluate pinned geometry/extension inputs and hand construction requests to the Toolpath engine composition stage.","type":"component","source":{"file":"core/print/bundle.mjs","declaration":"generatePreparedPath"}},
     {"id":"extensions","index":"4","label":"Extensions","description":"Extension definitions and scripts, separate from bundles; maker guidance belongs to 1.","type":"component","notes":["Manual reads are concrete existing accesses; the generic execution/resolution contracts remain targets. Source references do not claim the current extension code already respects engine/bundle boundaries."]},
-    {"id":"extension-library","index":"4.1","label":"Extension library / authoring","description":"Installed extension definitions and builder-authorized edits; maker manuals are owned by 1.","type":"component","source":{"file":"skills/edits.mjs"}},
+    {"id":"extension-library","index":"4.1","label":"Extension library / authoring","description":"Installed extension definitions and builder-authorized edits; maker manuals are owned by 1.","type":"component","source":{"file":"core/extensions/library.mjs"}},
     {"id":"extension-run","index":"4.2","label":"Extension loading & invocation","description":"Existing local loader; general package execution still to implement.","type":"component","source":{"file":"core/local-extension.mjs","declaration":"loadLocalExtension"}},
     {"id":"extension-resources","index":"4.3","label":"Thingi10K resource client","description":"Existing search/download/cache client.","type":"component","source":{"file":"skills/thingi10k/scripts/library.mjs","declaration":"createThingi10KClient"}},
     {"id":"extension-catalog","index":"4.4","label":"skills/catalog.mjs","description":"Current IDs and discovery metadata.","type":"component","source":{"file":"skills/catalog.mjs"}},
@@ -104,7 +105,7 @@
     {"id":"workspace-implementations","index":"7.2","label":"Individual workspaces","description":"Wing section design, full-aircraft display context and reproducible continuous Trace construction.","type":"component","source":{"file":"workspaces/wing/construct.mjs","declaration":"wingHandoff"},"notes":["Public loftPolygons constructs section envelopes. Explicit Trace curves and source parameters survive independently in each bundle. Candidate SAAMpath access remains available but unused here; normal bundle generation invokes 3.4."]},
     {"id":"export","index":"8","label":"Export & check","description":"Studio-triggered machine export/checking of the current built path; bundle access only through its explicit contract.","type":"component","notes":["Target: translate the completed SAAMpath; explicit priming/travel/retraction/material-change motion belongs to 3. Current prepareMachinePath still adds motion and remains a migration finding.","Studio invokes Export; the current source player still decodes exported programs, so preview must be reconciled with the separate Export action."]},
     {"id":"export-router","index":"8.1","label":"exportAndInterpretProgram","description":"Select dialect; export and interpret exact bytes.","type":"component","source":{"file":"core/export/registry.mjs","declaration":"exportAndInterpretProgram"}},
-    {"id":"export-prepare","index":"8.2","label":"Completed path admission","description":"Consume completed SAAMpath, check representation and device setup; no motion construction.","type":"component","source":{"file":"core/export/prepare-path.mjs","declaration":"checkedMachinePath"}},
+    {"id":"export-prepare","index":"8.2","label":"Machine-specific Export preparation","description":"Adapt a copy of neutral SAAMpath for selected-machine startup, material tools, clearances and limits; preserve the saved neutral path.","type":"component","source":{"file":"core/export/prepare-path.mjs","declaration":"prepareExportPath"}},
     {"id":"export-griffin","index":"8.3","label":"griffin exporter / interpreter","description":"Existing machine output adapter.","type":"component","source":{"file":"core/export/griffin.mjs"}},
     {"id":"export-bambu","index":"8.4","label":"bambu exporter / interpreter","description":"Existing machine output adapter.","type":"component","source":{"file":"core/export/bambu.mjs"}},
     {"id":"export-dobot","index":"8.5","label":"dobot exporter / interpreter","description":"Existing machine output adapter.","type":"component","source":{"file":"core/export/dobot.mjs"}},
@@ -197,10 +198,8 @@
     {"id":"geometry-leaf-25e09978b468","index":"2.1.3.2.7","label":"heightSliceNormal","description":"heightSliceNormal in core/geom/height-slice.mjs.","type":"component","source":{"file":"core/geom/height-slice.mjs","declaration":"heightSliceNormal"}},
     {"id":"geometry-leaf-a568d221104b","index":"2.1.3.2.8","label":"heightSlicePoint","description":"heightSlicePoint in core/geom/height-slice.mjs.","type":"component","source":{"file":"core/geom/height-slice.mjs","declaration":"heightSlicePoint"}},
     {"id":"geometry-leaf-76c0c4ba3ed3","index":"2.1.3.2.9","label":"referenceHeight","description":"referenceHeight in core/geom/height-slice.mjs.","type":"component","source":{"file":"core/geom/height-slice.mjs","declaration":"referenceHeight"}},
-    {"id":"geometry-leaf-684e9dfb12db","index":"2.1.3.2.10.1","label":"sampledChartRegion body","description":"sampledChartRegion in core/geom/height-slice.mjs.","type":"component","source":{"file":"core/geom/height-slice.mjs","declaration":"sampledChartRegion"}},
-    {"id":"geometry-leaf-ca368031163e","index":"2.1.3.2.10.2","label":"refine","description":"sampledChartRegion::refine in core/geom/height-slice.mjs.","type":"component","source":{"file":"core/geom/height-slice.mjs","declaration":"sampledChartRegion::refine"}},
-    {"id":"geometry-leaf-cca0826c2693","index":"2.1.3.2.11.1","label":"sectionHeightSlice body","description":"sectionHeightSlice in core/geom/height-slice.mjs.","type":"component","source":{"file":"core/geom/height-slice.mjs","declaration":"sectionHeightSlice"}},
-    {"id":"geometry-leaf-49da24cd27b6","index":"2.1.3.2.11.2","label":"contains","description":"sectionHeightSlice::contains in core/geom/height-slice.mjs.","type":"component","source":{"file":"core/geom/height-slice.mjs","declaration":"sectionHeightSlice::contains"}},
+    {"id":"geometry-leaf-684e9dfb12db","index":"2.1.3.2.10","label":"sampledChartRegion","description":"sampledChartRegion and its enclosed refine callback in core/geom/height-slice.mjs.","type":"component","source":{"file":"core/geom/height-slice.mjs","declaration":"sampledChartRegion"}},
+    {"id":"geometry-leaf-cca0826c2693","index":"2.1.3.2.11","label":"sectionHeightSlice","description":"sectionHeightSlice and its enclosed contains callback in core/geom/height-slice.mjs.","type":"component","source":{"file":"core/geom/height-slice.mjs","declaration":"sectionHeightSlice"}},
     {"id":"geometry-module-aa6f3598458a","index":"2.1.3.3","label":"section","description":"Cutting surfaces and oriented section loops; no material assignment policy. Source: core/region/section.mjs.","type":"component","source":{"file":"core/region/section.mjs"}},
     {"id":"geometry-leaf-1a2ba3d25ca5","index":"2.1.3.3.1","label":"Module initialization / exports","description":"Module context and initialization; callable declarations have separate leaves.","type":"component","source":{"file":"core/region/section.mjs"}},
     {"id":"geometry-leaf-1368b4eb3cb2","index":"2.1.3.3.2","label":"bezierHull","description":"bezierHull in core/region/section.mjs.","type":"component","source":{"file":"core/region/section.mjs","declaration":"bezierHull"}},
@@ -647,18 +646,15 @@
     {"id":"geometry-leaf-1ad131a13d17","index":"2.2.4.6.3","label":"runRepairJob","description":"runRepairJob in core/print/mesh-repair-job.mjs.","type":"component","source":{"file":"core/print/mesh-repair-job.mjs","declaration":"runRepairJob"}},
     {"id":"geometry-module-6c7e15e19eef","index":"2.2.4.7","label":"mesh repair worker","description":"Decode user assets, perform requested repairs and release import scratch resources. Source: core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs"}},
     {"id":"geometry-leaf-889c427566e1","index":"2.2.4.7.1","label":"Module initialization / exports","description":"Module context and initialization; callable declarations have separate leaves.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs"}},
-    {"id":"geometry-leaf-9ea43045409f","index":"2.2.4.7.2","label":"closeRepairWorkerChannel","description":"closeRepairWorkerChannel in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"closeRepairWorkerChannel"}},
-    {"id":"geometry-leaf-6797eb9c22ac","index":"2.2.4.7.3","label":"executeRepairWorkerJob","description":"executeRepairWorkerJob in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"executeRepairWorkerJob"}},
-    {"id":"geometry-leaf-de443b92bba5","index":"2.2.4.7.4.1","label":"initializeRepairWorkerChannel body","description":"initializeRepairWorkerChannel in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"initializeRepairWorkerChannel"}},
-    {"id":"geometry-leaf-b73be049ec54","index":"2.2.4.7.4.2","label":"nativeReady","description":"initializeRepairWorkerChannel::nativeReady in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"initializeRepairWorkerChannel::nativeReady"}},
-    {"id":"geometry-leaf-0c96cf324ee6","index":"2.2.4.7.4.3","label":"nativeRun","description":"initializeRepairWorkerChannel::nativeRun in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"initializeRepairWorkerChannel::nativeRun"}},
-    {"id":"geometry-leaf-f547501c0799","index":"2.2.4.7.4.4","label":"onGeometry","description":"initializeRepairWorkerChannel::onGeometry in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"initializeRepairWorkerChannel::onGeometry"}},
-    {"id":"geometry-leaf-650e67700d46","index":"2.2.4.7.4.5","label":"progress","description":"initializeRepairWorkerChannel::progress in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"initializeRepairWorkerChannel::progress"}},
-    {"id":"geometry-leaf-f24e9af51094","index":"2.2.4.7.4.6","label":"receiveMessage","description":"initializeRepairWorkerChannel::receiveMessage in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"initializeRepairWorkerChannel::receiveMessage"}},
-    {"id":"geometry-leaf-7c98ebb07786","index":"2.2.4.7.5","label":"prepareRepairWorkerResponse","description":"prepareRepairWorkerResponse in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"prepareRepairWorkerResponse"}},
-    {"id":"geometry-leaf-dd50282b09b5","index":"2.2.4.7.6","label":"publishRepairWorkerFailure","description":"publishRepairWorkerFailure in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"publishRepairWorkerFailure"}},
-    {"id":"geometry-leaf-a2c8ba3a7ce8","index":"2.2.4.7.7","label":"publishRepairWorkerResponse","description":"publishRepairWorkerResponse in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"publishRepairWorkerResponse"}},
-    {"id":"geometry-leaf-d173c15cb237","index":"2.2.4.7.8","label":"runMeshRepairWorker","description":"runMeshRepairWorker in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"runMeshRepairWorker"}},
+    {"id":"geometry-leaf-6797eb9c22ac","index":"2.2.4.7.2","label":"executeRepairWorkerJob","description":"executeRepairWorkerJob in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"executeRepairWorkerJob"}},
+    {"id":"geometry-leaf-de443b92bba5","index":"2.2.4.7.3.1","label":"initializeRepairWorkerChannel body","description":"initializeRepairWorkerChannel in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"initializeRepairWorkerChannel"}},
+    {"id":"geometry-leaf-b73be049ec54","index":"2.2.4.7.3.2","label":"nativeReady","description":"initializeRepairWorkerChannel::nativeReady in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"initializeRepairWorkerChannel::nativeReady"}},
+    {"id":"geometry-leaf-0c96cf324ee6","index":"2.2.4.7.3.3","label":"nativeRun","description":"initializeRepairWorkerChannel::nativeRun in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"initializeRepairWorkerChannel::nativeRun"}},
+    {"id":"geometry-leaf-f547501c0799","index":"2.2.4.7.3.4","label":"onGeometry","description":"initializeRepairWorkerChannel::onGeometry in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"initializeRepairWorkerChannel::onGeometry"}},
+    {"id":"geometry-leaf-650e67700d46","index":"2.2.4.7.3.5","label":"progress","description":"initializeRepairWorkerChannel::progress in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"initializeRepairWorkerChannel::progress"}},
+    {"id":"geometry-leaf-f24e9af51094","index":"2.2.4.7.3.6","label":"receiveMessage","description":"initializeRepairWorkerChannel::receiveMessage in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"initializeRepairWorkerChannel::receiveMessage"}},
+    {"id":"geometry-leaf-7c98ebb07786","index":"2.2.4.7.4","label":"prepareRepairWorkerResponse","description":"prepareRepairWorkerResponse in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"prepareRepairWorkerResponse"}},
+    {"id":"geometry-leaf-d173c15cb237","index":"2.2.4.7.5","label":"runMeshRepairWorker","description":"runMeshRepairWorker in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"runMeshRepairWorker"}},
     {"id":"geometry-artifacts","index":"2.2.5","label":"Native artifacts and identity","description":"Native/display representations, geometry inspection and stable identity; no bundle persistence.","type":"component"},
     {"id":"geometry-module-e0f7e6b8074c","index":"2.2.5.1","label":"geometry","description":"Native/display representations, geometry inspection and stable identity; no bundle persistence. Source: core/print/geometry.mjs.","type":"component","source":{"file":"core/print/geometry.mjs"}},
     {"id":"geometry-leaf-27d06fef461d","index":"2.2.5.1.1","label":"Module initialization / exports","description":"Module context and initialization; callable declarations have separate leaves.","type":"component","source":{"file":"core/print/geometry.mjs"}},
@@ -897,8 +893,6 @@
     {"id":"geometry-module-264b7777a384-3","index":"2.1.2.2.3","label":"prepareContourFamily","description":"prepareContourFamily and its enclosed declarations.","type":"component"},
     {"id":"geometry-module-e66e19b349d1-2","index":"2.1.2.3.2","label":"meshStripChart","description":"meshStripChart and its enclosed declarations.","type":"component"},
     {"id":"geometry-module-e66e19b349d1-4","index":"2.1.2.3.4","label":"surfaceRegion","description":"surfaceRegion and its enclosed declarations.","type":"component"},
-    {"id":"geometry-module-999b4e259f94-10","index":"2.1.3.2.10","label":"sampledChartRegion","description":"sampledChartRegion and its enclosed declarations.","type":"component"},
-    {"id":"geometry-module-999b4e259f94-11","index":"2.1.3.2.11","label":"sectionHeightSlice","description":"sectionHeightSlice and its enclosed declarations.","type":"component"},
     {"id":"geometry-module-aa6f3598458a-4","index":"2.1.3.3.4","label":"chainPieces","description":"chainPieces and its enclosed declarations.","type":"component"},
     {"id":"geometry-module-aa6f3598458a-16","index":"2.1.3.3.16","label":"surfaceInside","description":"surfaceInside and its enclosed declarations.","type":"component"},
     {"id":"geometry-module-8a986479f654-7","index":"2.1.3.4.7","label":"joinSegments","description":"joinSegments and its enclosed declarations.","type":"component"},
@@ -954,7 +948,7 @@
     {"id":"geometry-module-0e72696a8ac6-5","index":"2.2.4.4.5","label":"repairMeshNative","description":"repairMeshNative and its enclosed declarations.","type":"component"},
     {"id":"geometry-module-0e72696a8ac6-6","index":"2.2.4.4.6","label":"runNativeMeshRepair","description":"runNativeMeshRepair and its enclosed declarations.","type":"component"},
     {"id":"geometry-module-f77e8ca9b056-2","index":"2.2.4.5.2","label":"decodeFile","description":"decodeFile and its enclosed declarations.","type":"component"},
-    {"id":"geometry-module-6c7e15e19eef-4","index":"2.2.4.7.4","label":"initializeRepairWorkerChannel","description":"initializeRepairWorkerChannel and its enclosed declarations.","type":"component"},
+    {"id":"geometry-module-6c7e15e19eef-4","index":"2.2.4.7.3","label":"initializeRepairWorkerChannel","description":"initializeRepairWorkerChannel and its enclosed declarations.","type":"component"},
     {"id":"geometry-module-e0f7e6b8074c-3","index":"2.2.5.1.3","label":"createMeshGeometry","description":"createMeshGeometry and its enclosed declarations.","type":"component"},
     {"id":"geometry-module-5efffd354d0f-2","index":"2.3.1.2.2","label":"baseSurfaceDerivatives","description":"baseSurfaceDerivatives and its enclosed declarations.","type":"component"},
     {"id":"geometry-module-5efffd354d0f-3","index":"2.3.1.2.3","label":"surfaceDerivatives","description":"surfaceDerivatives and its enclosed declarations.","type":"component"},
@@ -1022,6 +1016,62 @@
     {"id":"geometry-stage-2-2-2-1-28","index":"2.2.2.1.28","label":"Crossings and winding","description":"Crossings and winding and their private implementation stages.","type":"component"}
   ],
   "contracts": [
+    {
+      "id": "extension-planar-region-layers",
+      "from": "extension-run",
+      "to": "geometry-planar-region-layers",
+      "label": "construct region layers",
+      "direction": "Causal operation/result flow; access names permitted calls, including supplied synchronous region queries.",
+      "operations": [
+        "planarRegionLayers"
+      ],
+      "inputs": "Explicit height range, authored layer spacing, geometry obstacles, clearance and a synchronous regionsAt query.",
+      "outputs": "Layer family with merged planar regions, or a clearance diagnostic.",
+      "effects": "Local geometry computation and synchronous supplied region-query calls; no Bundle, settings or machine access.",
+      "failure": "Reject invalid input or a region meeting the explicit obstacle clearance.",
+      "excludes": "No inferred supports, branch routing, machine policy or persistence.",
+      "evidence": [
+        "core/geom/planar-region-layers.mjs",
+        "skills/supports/scripts/supports.mjs"
+      ],
+      "status": "Bounded public-operation integration; observed effects and unknowns remain auditable.",
+      "access": [
+        {
+          "from": "extension-run",
+          "to": "geometry-planar-region-layers"
+        },
+        {
+          "from": "geometry-planar-region-layers",
+          "to": "extension-run"
+        }
+      ]
+    },
+    {
+      "id": "slice-planar-region-layers",
+      "from": "geometry-planar-region-layers",
+      "to": "slice",
+      "label": "region layer geometry",
+      "direction": "Causal operation/result flow; access names permitted calls, including supplied synchronous region queries.",
+      "operations": [
+        "planarRegionLayers"
+      ],
+      "inputs": "Explicit height range, authored layer spacing, geometry obstacles, clearance and a synchronous regionsAt query.",
+      "outputs": "Layer family with merged planar regions, or a clearance diagnostic.",
+      "effects": "Local geometry computation and synchronous supplied region-query calls; no Bundle, settings or machine access.",
+      "failure": "Reject invalid input or a region meeting the explicit obstacle clearance.",
+      "excludes": "No inferred supports, branch routing, machine policy or persistence.",
+      "evidence": [
+        "core/geom/planar-region-layers.mjs",
+        "skills/supports/scripts/supports.mjs"
+      ],
+      "status": "Bounded public-operation integration; observed effects and unknowns remain auditable.",
+      "access": [
+        {
+          "from": "slice",
+          "to": "geometry-planar-region-layers"
+        }
+      ]
+    },
     {
       "id": "user-agent",
       "from": "user",
@@ -1168,8 +1218,8 @@
       ],
       "inputs": "Bundle and Studio-instance identity; requested active-bundle selection.",
       "outputs": "Selected bundle identity and access status.",
-      "effects": "Select the active bundle while preserving instance ownership; no direct part-content edits.",
-      "failure": "Reject stale revisions or writes without the active instance edit ownership; keep other viewers read-only.",
+      "effects": "Associate the selected bundle with one Studio instance; no direct part-content edits. See plans/0.3.1.md.",
+      "failure": "Reject opening a bundle already associated with another Studio instance; leave the current selection intact.",
       "excludes": "Geometry, toolpath and settings changes use their owning interfaces; no user confirmation or arbitrary bundle writes.",
       "access": [
         {
@@ -1182,7 +1232,7 @@
         "core/agent/toolkit.mjs"
       ],
       "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
-      "implementation": "Active selection/read exist; exclusive edit ownership is separate unfinished work."
+      "implementation": "Active selection/read exist; one-instance-per-bundle enforcement is being corrected."
     },
     {
       "id": "studio-commands",
@@ -1195,8 +1245,8 @@
       ],
       "inputs": "Owner/Studio-instance and bundle identity, expected revision, and typed edit/open/build command.",
       "outputs": "Accepted revision/job or conflict.",
-      "effects": "5 owns shared part state and grants edit ownership to only one Studio instance per bundle; an agent may own multiple instances.",
-      "failure": "Reject stale revisions or writes without the active instance edit ownership; keep other viewers read-only.",
+      "effects": "5 owns shared part state and associates a bundle with one Studio instance; an agent may own multiple instances for different bundles.",
+      "failure": "Reject a second instance for the same bundle, stale revisions and writes without the associated instance's authority.",
       "excludes": "No bundle-file access or undeclared engine calls; explicit STL import uses studio-import.",
       "access": [
         {
@@ -1452,7 +1502,8 @@
       "label": "construction requests",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
-        "constructAndCompose"
+        "constructAndCompose",
+        "prepareSliceRegionContext"
       ],
       "inputs": "Typed Inject/Trace/Slice construction requests and pinned process context.",
       "outputs": "Operations or SAAMpath value and diagnostics.",
@@ -3575,10 +3626,10 @@
       "id": "griffin-prepare",
       "from": "export-griffin",
       "to": "export-prepare",
-      "label": "prepareMachinePath",
+      "label": "prepareExportPath",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
-        "prepareMachinePath"
+        "prepareExportPath"
       ],
       "inputs": "Neutral SAAMpath and installation setup.",
       "outputs": "Machine-adapted copy of the path.",
@@ -3625,10 +3676,10 @@
       "id": "bambu-prepare",
       "from": "export-bambu",
       "to": "export-prepare",
-      "label": "prepareMachinePath",
+      "label": "prepareExportPath",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
-        "prepareMachinePath"
+        "prepareExportPath"
       ],
       "inputs": "Neutral SAAMpath and installation setup.",
       "outputs": "Machine-adapted copy of the path.",
@@ -3675,10 +3726,10 @@
       "id": "dobot-prepare",
       "from": "export-dobot",
       "to": "export-prepare",
-      "label": "prepareMachinePath",
+      "label": "prepareExportPath",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
-        "prepareMachinePath"
+        "prepareExportPath"
       ],
       "inputs": "Neutral SAAMpath and installation setup.",
       "outputs": "Machine-adapted copy of the path.",
@@ -3725,10 +3776,10 @@
       "id": "denso-prepare",
       "from": "export-denso",
       "to": "export-prepare",
-      "label": "prepareMachinePath",
+      "label": "prepareExportPath",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
-        "prepareMachinePath"
+        "prepareExportPath"
       ],
       "inputs": "Neutral SAAMpath and installation setup.",
       "outputs": "Machine-adapted copy of the path.",

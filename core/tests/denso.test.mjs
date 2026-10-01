@@ -71,7 +71,7 @@ test('oriented motion preserves pose-only actions and unsupported outputs reject
   const plan=small(),initial=createPlanningState({start:[10,0,1],machine,process:plan.process,generatorVersion:'test',motion:plan.setup.denso});
   const rotated=planMove(initial,[10,0,1],10,0,{pose:{...uprightPose(),rotaryDeg:720},durationSeconds:2});
   const raised=planMove(rotated.state,[10,0,2],10,.08,{pose:{...uprightPose(),rotaryDeg:720}});
-  const path=planningPath(raised.state,[rotated.actions,raised.actions]);
+  const path={...planningPath(raised.state,[rotated.actions,raised.actions]),completion:{contract:'saam-neutral-motion/1'}};
   assert.equal(path.actions.length,2);assert.equal(path.actions[0].pose.rotaryDeg,720);
   const s5=loadMachine(),unsupported=defaults(s5);
   assert.throws(()=>exportProgram(path,unsupported,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),/cannot represent non-upright orientation or rotary motion/);
@@ -80,15 +80,17 @@ test('oriented motion preserves pose-only actions and unsupported outputs reject
 
 test('actual T/EX commands reconstruct fixed-room rotary deposition across multiple turns',()=>{
   const plan=small(),c=plan.setup.denso;c.initialPositionMm=[10,0,1];c.workOffsetMm=[15,-8,12];c.workYawDeg=37;c.rotarySign=-1;c.rotaryZeroDeg=20;
-  const path={initialPosition:c.initialPositionMm,initialPose:c.initialPose,actions:[{kind:'move',to:[10,0,1],pose:{...uprightPose(),rotaryDeg:720},durationSeconds:4,speedMmS:10,volumeMm3:8,phase:'hoop',layer:0}]};
+  const path={schema:'saampath/1',completion:{contract:'saam-neutral-motion/1'},initialPosition:c.initialPositionMm,initialPose:c.initialPose,actions:[{kind:'move',to:[10,0,1],pose:{...uprightPose(),rotaryDeg:720},durationSeconds:4,speedMmS:10,volumeMm3:8,phase:'hoop',layer:0}]};
   const bytes=exportProgram(path,plan,machine),program=interpretProgram(bytes,plan,machine),moves=program.moves;
-  near(program.seconds,4);near(program.volumeMm3,8);near(moves.at(-1).rotaryToDeg,720);near(program.summary.estimatedRelayVolumeMm3,2.56);
-  let length=0;for(const m of moves){length+=Math.hypot(...m.to.map((v,i)=>v-m.from[i]));const p=bedPoint(m.to,m.rotaryToDeg,c.rotaryCenterMm);p.forEach((v,i)=>near(v,[10,0,1][i]));}
+  const deposition=moves.filter(m=>m.extruding);
+  near(deposition.reduce((seconds,m)=>seconds+m.durationSeconds,0),4);near(program.volumeMm3,8);near(moves.at(-1).rotaryToDeg,720);near(program.summary.estimatedRelayVolumeMm3,2.56);
+  let length=0;for(const m of deposition){length+=Math.hypot(...m.to.map((v,i)=>v-m.from[i]));const p=bedPoint(m.to,m.rotaryToDeg,c.rotaryCenterMm);p.forEach((v,i)=>near(v,[10,0,1][i]));}
   near(length,40*Math.PI,.01);
-  const at=frameAtTime(moves,1.123),room=displayPoint(at.point,at.rotaryDeg,c.rotaryCenterMm,false);room.forEach((v,i)=>near(v,[10,0,1][i]));
+  const at=frameAtTime(moves,deposition[0].startSeconds+1.123),room=displayPoint(at.point,at.rotaryDeg,c.rotaryCenterMm,false);room.forEach((v,i)=>near(v,[10,0,1][i]));
   assert.notDeepEqual(displayPoint(at.point,at.rotaryDeg,c.rotaryCenterMm,true),room);
   const files=sources(bytes),key=Object.keys(files).find(k=>k.startsWith('chunk'));
-  const edited={...files,[key]:files[key].replace(/T\(([-\d.]+)/,(_,x)=>'T('+(Number(x)+1))};
+  const moveCount=(files[key].match(/Move L, @0 T\(/g)??[]).length;let seen=0;
+  const edited={...files,[key]:files[key].replace(/(Move L, @0 T\()([-\d.]+)/g,(all,prefix,x)=>++seen===moveCount?prefix+(Number(x)+1):all)};
   const changed=interpretDensoFiles(edited,plan,machine);assert.ok(Math.abs(changed.finalPosition[0]-program.finalPosition[0])>.1,'source geometry, not metadata, drives playback');
   assert.throws(()=>interpretDensoFiles({...files,[key]:files[key].replace('Move L','Move P')},plan,machine),/Unsupported/);
   assert.throws(()=>interpretDensoFiles({...files,[key]:files[key].replace('Set IO[64]','Set IO[65]')},plan,machine),/relay output/);
@@ -113,7 +115,7 @@ test('RC8A uses the public bundle, exact browser source and cold reopen without 
   const dir=await mkdtemp(join(tmpdir(),'saam-denso-'));t.after(()=>rm(dir,{recursive:true,force:true}));const plan=small();
   await initBundle(dir,plan,{machineId:machine.id});const checks=await generateBundle(dir,{development:true});assert.equal(checks.mode,'development');assert.ok(!checks.checks.includes('axis-feed'));
   const state=await loadBundle(dir);assert.equal(state.programError,undefined);assert.deepEqual(state.review.approvals,{});await assert.rejects(()=>deliver(dir),/approv/);
-  const server=createStudio(dir);await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>{server.closeAllConnections();return new Promise(done=>server.close(done));});
+  const server=createStudio(dir);await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>server.shutdown());
   const origin=`http://127.0.0.1:${server.address().port}`,fetcher=(url,...args)=>fetch(origin+url,...args),remote=await(await fetcher('/api/state')).json();
   assert.equal(remote.program.moves,undefined);
   const files=await fetchSources(remote,fetcher),decoded=decodeSource(files,remote.plan,remote.machine);
@@ -124,7 +126,8 @@ test('RC8A uses the public bundle, exact browser source and cold reopen without 
   const script=`import {loadBundle} from './core/print/bundle.mjs';const s=await loadBundle(process.argv[1]);if(s.programError)throw new Error(s.programError);console.log(s.exportHash);`;
   assert.equal(execFileSync(process.execPath,['--input-type=module','-e',script,dir],{encoding:'utf8'}).trim(),state.exportHash);
   const actor='SYNTHETIC TEST REVIEWER — no human or hardware approval';
-  await generateBundle(dir);const ready=await loadBundle(dir);await approve(dir,{actor,revision:ready.revision});
+  await server.runBundleEdit(dir,()=>generateBundle(dir));const ready=await loadBundle(dir);
+  await server.runBundleEdit(dir,()=>approve(dir,{actor,revision:ready.revision}));
   const delivered=await deliver(dir);assert.deepEqual(await readFile(delivered),bytes);
-  await adjustBundle(dir,{setup:{denso:{workYawDeg:5}}},{setupFile:join(dir,'synthetic-setup.json')});const altered=await loadBundle(dir);assert.equal(altered.toolpathApproved,false);
+  await server.runBundleEdit(dir,()=>adjustBundle(dir,{setup:{denso:{workYawDeg:5}}},{setupFile:join(dir,'synthetic-setup.json')}));const altered=await loadBundle(dir);assert.equal(altered.toolpathApproved,false);
 });

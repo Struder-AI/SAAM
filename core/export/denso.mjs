@@ -1,6 +1,6 @@
 import {requireThat,distance} from '../private/export/numeric.mjs';
 import {rotateZ,bedPoint} from '../private/export/frame.mjs';
-import {checkedMachinePath} from './prepare-path.mjs';
+import {prepareExportPath} from './prepare-path.mjs';
 import {createHash} from 'node:crypto';
 import {packZip,unpackZip} from './zip.mjs';
 import {interpretDensoFiles,toWork,DENSO_LIMITATIONS} from './denso-player.mjs';
@@ -10,7 +10,7 @@ import {validatePose,uprightPose,samePose} from '../path/pose.mjs';
 const digest=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
 const num=x=>{requireThat(Number.isFinite(x),'Nonfinite PacScript number.');return Number(x.toFixed(8));};
 export function exportDenso(path,plan,machine,release={}){
-  path=checkedMachinePath({schema:'saampath/1',...path},plan,machine);
+  path=prepareExportPath(path,plan,machine);
   validateDensoConfiguration(plan,{required:true});const c=plan.setup.denso;
   requireThat(distance(path.initialPosition,c.initialPositionMm)<1e-8,'DENSO initial position differs from setup.');
   requireThat(samePose(path.initialPose??uprightPose(),c.initialPose),'DENSO initial orientation or rotary position differs from setup.');

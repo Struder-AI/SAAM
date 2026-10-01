@@ -1,8 +1,8 @@
 import {createPlanningState,planningResult,planContext,planFan,planPark,planningPath} from './planning.mjs';
 import {planComposition} from './compose.mjs';
 
-// Complete path boundary: prepared geometry operations and locked machine/process
-// settings in; delivered actions, accounting and composition summary out.
+// Complete neutral path boundary: prepared geometry operations and authored
+// process in; delivered actions, accounting and composition summary out.
 export function planToolpath(planningSettings,skillResults,{rules={},summary={},onProgress}={}) {
   const initialState=createPlanningState(planningSettings);
   const started=planFan(initialState,0);

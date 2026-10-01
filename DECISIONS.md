@@ -472,4 +472,4 @@ Historical approved wording; current persistence direction is [D-027](#d-027--ex
 
 ## D-044 — Architecture-led 0.3.0
 
-- Owner decision, 2026-09-30: [0.3.0 intent](plans/0.3.0.md) owns top-down boundary enforcement, geometry/toolpath consolidation, separate versioned extensions and desktop-only deployment. The former 0.3.0 feature scope moves to [0.4.0](plans/0.4.0.md), superseding D-042/D-043 scheduling. Map 0 accepted; submaps provisional. The bundle is the sole shared part-state authority; other components may exclusively own private state.
+- Owner decision, 2026-09-30, rescheduled 2026-10-01: [0.3.0](plans/0.3.0.md) deploys the installation/invite/relay-service changes independently; [0.3.1](plans/0.3.1.md) owns actively continuing architecture/engine/extension consolidation. Architecture completion must not block the installation trial. [0.4.0](plans/0.4.0.md) retains feature deferrals, superseding D-042/D-043 scheduling. Map 0 accepted; submaps provisional. Bundle alone owns shared part state; other components own private state. One Studio instance per bundle. Source: owner instruction in this task, 2026-10-01; no contributor consensus inferred.

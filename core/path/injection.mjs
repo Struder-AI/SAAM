@@ -11,7 +11,7 @@ export function validateInjectionPoint(record){
   return record;
 }
 
-export function pointInjectionOperation(record,{plan,machine,nozzleC=null,role='injection',...operation}){
+export function pointInjectionOperation(record,{plan,nozzleC=null,role='injection',...operation}){
   validateInjectionPoint(record);
   requireThat(nozzleC===null||Number.isFinite(nozzleC)&&nozzleC>0,'Injection temperature must be positive or null.');
   const point=[...record.point],approach=[point[0],point[1],point[2]+record.approachMm];

@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import { gatedSections, readManual, machineOpens } from './manuals.mjs';
 import { SKILL_IDS, GUIDANCE_IDS, EXTENSION_IDS } from '../../skills/catalog.mjs';
 import { MACHINE_IDS } from '../machine/profile.mjs';
+import {listExtensions} from '../extensions/library.mjs';
 import {z} from 'zod';
 
 // The maker's starting context, for both clients: the index (the digest) and the maker flow and
@@ -17,10 +18,14 @@ export const ONBOARDING = ['MAKERS.md', 'skills/DIGEST.md', 'core/print/USAGE.md
 const skillManual = id => `skills/${id}/SKILL.md`;
 
 export async function onboardingSources(root, context) {
-  return Promise.all(ONBOARDING.map(async id => {
+  const documents=await Promise.all(ONBOARDING.map(async id => {
     const { guidanceId, path, text } = await readManual(root, id, context);
     return { guidanceId, path, text };
   }));
+  const local=(await listExtensions({appRoot:root})).filter(item=>item.origin==='local');
+  if(local.length)documents.push({guidanceId:'extensions',path:'extensions',
+    text:'User extensions selected ahead of release defaults: '+local.map(item=>item.id).join(', ')+'. Read each by ID with read_skill.'});
+  return documents;
 }
 
 // A skill section is named `ID#heading` (read_skill takes it); any other `PATH#heading`.

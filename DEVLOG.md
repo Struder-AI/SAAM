@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-01 — Checkpoint 0.3.1 consolidation
+
+- Preserved the verified source snapshot and integrated neutral Toolpath/Export separation, Bundle/Studio ownership and exact checked-program delivery, portable extension operations and selected local support, explicit worker/HTTP wiring, semantic closure containment and audit evidence inspection. The webmaster handoff and unapproved discussion list follow the supplied site format with plain-copy requirements. Outstanding acceptance and service-client fixes remain in `plans/0.3.1.md`; this checkpoint is not a release.
+- Verified in the isolated managed worktree with focused existing tests and practical native-worker, Wing, local-extension, neutral-reuse and exact-export smokes. Audit is fresh: 647 files, 310 scanned, 94 unassigned, 31 forbidden and 16,216 unknown; 994 viewer pages valid/current. No compliance certification, whole suite, new tests, solver, push or physical qualification. Documentation and local handoffs decreased 1,043 → 1,031 lines, including this entry and both new website documents.
+
 ## 2026-10-01 — Complete Geometry operation submaps
 
 - Integrated reviewed selection/placement, line clipping and sampled-field extraction checkpoints. Authored 17 operation groups with 711 exact declaration homes and five native resource leaves; process policy belongs to Toolpath. Scoped helper/method previews and observed submap call wires preserve authored map-0 contracts; native/dynamic behavior remains explicitly unscanned.

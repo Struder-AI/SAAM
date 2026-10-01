@@ -2976,13 +2976,13 @@
       "owner": "geometry-leaf-684e9dfb12db"
     },
     "core/geom/height-slice.mjs::sampledChartRegion::refine": {
-      "owner": "geometry-leaf-ca368031163e"
+      "owner": "geometry-leaf-684e9dfb12db"
     },
     "core/geom/height-slice.mjs::sectionHeightSlice": {
       "owner": "geometry-leaf-cca0826c2693"
     },
     "core/geom/height-slice.mjs::sectionHeightSlice::contains": {
-      "owner": "geometry-leaf-49da24cd27b6"
+      "owner": "geometry-leaf-cca0826c2693"
     },
     "core/geom/least-squares.mjs::@module": {
       "owner": "geometry-leaf-811fa4f6f7e0"
@@ -5446,9 +5446,6 @@
     "core/print/mesh-repair-worker.mjs::@module": {
       "owner": "geometry-leaf-889c427566e1"
     },
-    "core/print/mesh-repair-worker.mjs::closeRepairWorkerChannel": {
-      "owner": "geometry-leaf-9ea43045409f"
-    },
     "core/print/mesh-repair-worker.mjs::executeRepairWorkerJob": {
       "owner": "geometry-leaf-6797eb9c22ac"
     },
@@ -5472,12 +5469,6 @@
     },
     "core/print/mesh-repair-worker.mjs::prepareRepairWorkerResponse": {
       "owner": "geometry-leaf-7c98ebb07786"
-    },
-    "core/print/mesh-repair-worker.mjs::publishRepairWorkerFailure": {
-      "owner": "geometry-leaf-dd50282b09b5"
-    },
-    "core/print/mesh-repair-worker.mjs::publishRepairWorkerResponse": {
-      "owner": "geometry-leaf-a2c8ba3a7ce8"
     },
     "core/print/mesh-repair-worker.mjs::runMeshRepairWorker": {
       "owner": "geometry-leaf-d173c15cb237"
@@ -10320,7 +10311,7 @@
     "studio/server.mjs::createStudio::exportPrint": {
       "owner": "studio"
     },
-    "core/export/prepare-path.mjs::checkedMachinePath": {
+    "core/export/prepare-path.mjs::prepareExportPath": {
       "owner": "export",
       "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
     },
@@ -10631,6 +10622,54 @@
     },
     "core/geom/runtime.mjs::rhino": {
       "owner": "geometry-leaf-dca04ab2bf6a"
+    },
+    "core/geom/planar-region-layers.mjs::@module": {
+      "owner": "geometry-planar-region-layers",
+      "reason": "Shared planar region construction and obstacle-section queries; supplied callbacks keep their own ownership."
+    },
+    "core/geom/planar-region-layers.mjs::planarRegionLayers": {
+      "owner": "geometry-planar-region-layers",
+      "reason": "Shared planar region construction and obstacle-section queries; supplied callbacks keep their own ownership."
+    },
+    "core/print/slice-region-context.mjs::@module": {
+      "owner": "slice",
+      "reason": "Typed preset Slice request, authored process and material assignment into construction context."
+    },
+    "core/print/slice-region-context.mjs::prepareSliceRegionContext": {
+      "owner": "slice",
+      "reason": "Typed preset Slice request, authored process and material assignment into construction context."
+    },
+    "skills/supports/scripts/supports.mjs::prepareSupportContexts::family.regionsAt": {
+      "owner": "extensions",
+      "reason": "Selected support composition, authored branches and synchronous query callbacks."
+    },
+    "skills/supports/scripts/supports.mjs::requireThat": {
+      "owner": "extensions",
+      "reason": "Selected support composition, authored branches and synchronous query callbacks."
+    },
+    "skills/supports/scripts/supports.mjs::supportRuntime": {
+      "owner": "extensions",
+      "reason": "Selected support composition, authored branches and synchronous query callbacks."
+    },
+    "skills/supports/scripts/supports.mjs::supportRuntime::prepareSupportContexts": {
+      "owner": "extensions",
+      "reason": "Selected support composition, authored branches and synchronous query callbacks."
+    },
+    "core/print/generate.mjs::generateModelResults::extensions.processForAssignment": {
+      "owner": "toolpath",
+      "reason": "Resolve authored assignment process for extension construction."
+    },
+    "studio/server.mjs::createStudio::ready": {
+      "owner": "studio",
+      "reason": "Private instance lifecycle and typed edits through Bundle ownership."
+    },
+    "studio/server.mjs::createStudio::releaseInstance": {
+      "owner": "studio",
+      "reason": "Private instance lifecycle and typed edits through Bundle ownership."
+    },
+    "studio/server.mjs::createStudio::runBundleEdit": {
+      "owner": "studio",
+      "reason": "Private instance lifecycle and typed edits through Bundle ownership."
     }
   },
   "retiredAssignments": [
