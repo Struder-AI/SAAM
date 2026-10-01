@@ -1095,6 +1095,10 @@
       "owner": "export",
       "reason": "Private utility implementation; no cross-bucket imports or re-exports."
     },
+    "core/private/export/temperature.mjs": {
+      "owner": "export",
+      "reason": "Selected-output thermal limits and validation of authored temperature inventory supplied with neutral SAAMpath; no recipe construction."
+    },
     "core/private/export/rigid.mjs": {
       "owner": "export",
       "reason": "Private utility implementation; no cross-bucket imports or re-exports."
@@ -5915,10 +5919,6 @@
       "owner": "bundle",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
-    "core/print/workflow.mjs::createBundleWorkflow::generateBundle::runLocally": {
-      "owner": "bundle",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
     "core/print/workflow.mjs::createBundleWorkflow::generationChecks": {
       "owner": "bundle",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
@@ -9542,6 +9542,18 @@
       "owner": "export",
       "reason": "Private utility implementation; no cross-bucket imports or re-exports."
     },
+    "core/private/export/temperature.mjs::@module": {
+      "owner": "export",
+      "reason": "Thermal output validation shared only by Export-owned operations."
+    },
+    "core/private/export/temperature.mjs::validateTemperatureC": {
+      "owner": "export",
+      "reason": "Rejects selected settings and emitted commands outside the supported output temperature range; relocated from process-controls."
+    },
+    "core/private/export/temperature.mjs::authoredNozzleTargets": {
+      "owner": "export",
+      "reason": "Checks supplied neutral-path target inventory for program interpretation; does not discover targets by executing or inspecting Toolpath recipes."
+    },
     "core/private/export/rigid.mjs::@module": {
       "owner": "export",
       "reason": "Private utility implementation; no cross-bucket imports or re-exports."
@@ -10140,10 +10152,6 @@
       "owner": "settings",
       "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
     },
-    "core/path/process-controls.mjs::validateTemperatureC": {
-      "owner": "toolpath",
-      "reason": "Reviewed checks-refactor declaration: SAAMpath admission/process semantics."
-    },
     "core/path/saampath.mjs::@module": {
       "owner": "toolpath",
       "reason": "Reviewed checks-refactor declaration: SAAMpath admission/process semantics."
@@ -10168,16 +10176,16 @@
       "owner": "geometry-leaf-95d2b56f203c"
     },
     "core/print/plan.mjs::compileRecipe": {
-      "owner": "bundle",
-      "reason": "Reviewed checks-refactor declaration: Recipe admission cache and immutable bundle value."
+      "owner": "toolpath",
+      "reason": "Generation prerequisite compilation called by generatePath, preparePathGeometry and generatePreparedPath; Bundle init/update accept partial records without calling it. Helper and Geometry-validator crossings remain independently assigned."
     },
     "core/print/plan.mjs::freezeRecipe": {
       "owner": "bundle",
       "reason": "Reviewed checks-refactor declaration: Recipe admission cache and immutable bundle value."
     },
     "core/print/plan.mjs::validateRecipeValue": {
-      "owner": "bundle",
-      "reason": "Reviewed checks-refactor declaration: Recipe admission cache and immutable bundle value."
+      "owner": "toolpath",
+      "reason": "CompileRecipe's complete-generation prerequisite sequence: geometry, process, assignments and placement. This is not Bundle storage admission; each called validator retains its actual owner."
     },
     "core/geom/stl-file.mjs::@module": {
       "owner": "geometry-leaf-3d67fee0dc22"
@@ -10803,6 +10811,8 @@
     "core/machine/rules.mjs::lineWidthLimits",
     "core/machine/rules.mjs::range",
     "core/path/process-controls.mjs::validateNozzleC",
+    "core/path/process-controls.mjs::validateTemperatureC",
+    "core/print/workflow.mjs::createBundleWorkflow::generateBundle::runLocally",
     "core/print/workflow.mjs::createBundleWorkflow::fitLineWidthToSetup",
     "core/print/import-stl.mjs::importOrRepairSTLBundle",
     "core/print/import-stl.mjs::importOrRepairSTLBundle::repairReport.progress",

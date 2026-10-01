@@ -1,18 +1,11 @@
 // Plastic weld composes public region, slice, evaluation and injection operations.
 // The selected extension copy owns the technique; it has no release-relative imports.
-export function plasticWeldRuntime({Geometry,Toolpath}) {
-  const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
-  const {difference,union,regionArea,pointSegmentDistance,horizontalSlice,sliceFamily,evaluateSurface,intersect}=Geometry;
-  const {pointInjectionOperation,assignmentFilament}=Toolpath;
-
-const PLASTIC_WELD_DEFAULTS={enabled:false,sites:[],shaftDiameterMm:1.2,basinDiameterMm:3,
+const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
+export const PLASTIC_WELD_DEFAULTS={enabled:false,sites:[],shaftDiameterMm:1.2,basinDiameterMm:3,
   basinHeightMm:1.2,wallMm:1.2,floorMm:0.8,seatDepthMm:0,volumeFactor:1,flowMm3S:0.5,holdSeconds:1,nozzleC:null};
 const positive=(v,name)=>requireThat(Number.isFinite(v)&&v>0,'plastic-weld '+name+' must be positive.');
-const circle=(x,y,r)=>[Array.from({length:96},(_,i)=>[x+r*Math.cos(i*2*Math.PI/96),y+r*Math.sin(i*2*Math.PI/96)])];
-const area=r=>Math.abs(regionArea(r));
-const height=op=>op.strokes.reduce((h,s)=>s.points.reduce((z,p)=>Math.max(z,p[2]),h),-Infinity);
 
-function validatePlasticWeld(plan,processForAssignment){
+export function validatePlasticWeld(plan,processForAssignment){
   const s=plan.skills['plastic-weld'];
   requireThat(typeof s.enabled==='boolean'&&Array.isArray(s.sites),'plastic-weld needs an enabled flag and sites array.');
   for(const k of ['shaftDiameterMm','basinDiameterMm','basinHeightMm','wallMm','floorMm','volumeFactor','flowMm3S'])positive(s[k],k);
@@ -37,9 +30,11 @@ function validatePlasticWeld(plan,processForAssignment){
   }
 }
 
+export const plasticWeldRecordRuntime=()=>({validatePlasticWeld});
+
 // Explicit sites can be spatially staggered while their height ranges overlap.
 // This authoring helper returns ordinary locked sites, not a second recipe.
-function staggeredWeldSites({columns,rows,levels,pitchMm=12,heightStepMm=3,depthMm=4,
+export function staggeredWeldSites({columns,rows,levels,pitchMm=12,heightStepMm=3,depthMm=4,
   xMm=4,yMm=4,zBottomMm=0.8,part=null}){
   requireThat([columns,rows,levels].every(n=>Number.isSafeInteger(n)&&n>0)&&Number.isSafeInteger(columns*rows*levels),'Invalid rivet grid size.');
   [pitchMm,heightStepMm,depthMm].forEach(v=>positive(v,'grid spacing/depth'));
@@ -48,6 +43,13 @@ function staggeredWeldSites({columns,rows,levels,pitchMm=12,heightStepMm=3,depth
     zBottomMm:zBottomMm+k*heightStepMm,zTopMm:zBottomMm+k*heightStepMm+depthMm
   })))).flat(2);
 }
+
+export function plasticWeldRuntime({Geometry,Toolpath}) {
+  const {difference,union,regionArea,pointSegmentDistance,horizontalSlice,sliceFamily,evaluateSurface,intersect}=Geometry;
+  const {pointInjectionOperation,assignmentFilament}=Toolpath;
+  const circle=(x,y,r)=>[Array.from({length:96},(_,i)=>[x+r*Math.cos(i*2*Math.PI/96),y+r*Math.sin(i*2*Math.PI/96)])];
+  const area=r=>Math.abs(regionArea(r));
+  const height=op=>op.strokes.reduce((h,s)=>s.points.reduce((z,p)=>Math.max(z,p[2]),h),-Infinity);
 
 function preparePlasticWeld({plan,placed,componentShells,processForAssignment}){
   const settings=plan.skills?.['plastic-weld'];if(!settings?.enabled)return [];
@@ -192,7 +194,6 @@ function finishWeldResults(plan,sites,{results,supports,workResults:injections})
   return material;
 }
 
-  return {PLASTIC_WELD_DEFAULTS,validatePlasticWeld,staggeredWeldSites,preparePlasticWeld,
-    rivetEnclosureLayers,rivetInjectionResult,validateRivetClearance,weldWork,weldDependencies,
+  return {preparePlasticWeld,weldWork,weldDependencies,
     weldOperationDependencies,finishWeldResults};
 }

@@ -1,24 +1,7 @@
-import {offsetPaths} from '../region/clipper.mjs';
 import {fontMetrics} from './strokefont.mjs';
 import {layoutText} from './layout.mjs';
 
-// Clipper works on integers; keep a tenth of a font unit.
-const SCALE = 10;
 const ALNUM = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'];
-
-const encode = strokes => strokes.map(s => {
-  const pts = s.dot ? [s.points[0], [s.points[0][0] + 1, s.points[0][1]]] : s.closed ? [...s.points, s.points[0]] : s.points;
-  return pts.map(([x, y]) => ({X: Math.round(x * SCALE), Y: Math.round(y * SCALE)}));
-});
-const area = loop => loop.reduce((sum, p, i) => sum + (p.X * loop[(i + 1) % loop.length].Y - loop[(i + 1) % loop.length].X * p.Y), 0) / 2;
-
-// The drawing's topology once every centerline is widened to `widthUnits`:
-// how many separate blobs and how many enclosed counters.
-export function inkTopology(strokes, widthUnits) {
-  const loops = offsetPaths(encode(strokes), widthUnits / 2 * SCALE, {join: 'round', miterLimit: 2, arcTolerance: 0.3 * SCALE, end: 'Round'});
-  const outer = loops.filter(l => area(l) > 0).length;
-  return {components: outer, holes: loops.length - outer};
-}
 
 // Endpoints closer than this to another stroke are drawing imprecision, not
 // design: measured across the bundled fonts, endpoint gaps are exact touches or
@@ -30,14 +13,17 @@ export const JOIN_FRACTION = 0.03;
 // `baseUnits` sets the intended drawing, so near-misses that a snapped junction
 // would close are not counted as gaps. Infinity for a drawing that never changes
 // (a single open stroke). Units are font units.
-export function fusionWidth(strokes, {baseUnits = 4, maxUnits = 400, step = 4} = {}) {
+export function fusionWidth(strokes, strokeTopology, {baseUnits = 4, maxUnits = 400, step = 4} = {}) {
   if (!strokes.length) return Infinity;
-  const base = inkTopology(strokes, baseUnits), same = t => t.components === base.components && t.holes === base.holes;
+  // SVG font dots have a single point; use a short line to measure their bead
+  // footprint, then pass only ordinary centerlines to Geometry.
+  const centerlines=strokes.map(s=>s.dot?{closed:false,points:[s.points[0],[s.points[0][0]+1,s.points[0][1]]]}:s);
+  const base = strokeTopology(centerlines, baseUnits), same = t => t.components === base.components && t.holes === base.holes;
   let lo = baseUnits;
   for (let w = baseUnits + step; w <= maxUnits; w += step) {
-    if (!same(inkTopology(strokes, w))) {
+    if (!same(strokeTopology(centerlines, w))) {
       let hi = w;
-      for (let k = 0; k < 8; k++) { const mid = (lo + hi) / 2; if (same(inkTopology(strokes, mid))) lo = mid; else hi = mid; }
+      for (let k = 0; k < 8; k++) { const mid = (lo + hi) / 2; if (same(strokeTopology(centerlines, mid))) lo = mid; else hi = mid; }
       return (lo + hi) / 2;
     }
     lo = w;
@@ -45,20 +31,20 @@ export function fusionWidth(strokes, {baseUnits = 4, maxUnits = 400, step = 4} =
   return Infinity;
 }
 
-const glyphFusion = (font, ch) => {
+const glyphFusion = (font, ch, strokeTopology) => {
   font.fusion ??= new Map();
-  if (!font.fusion.has(ch)) font.fusion.set(ch, fusionWidth(font.glyphs.get(ch).strokes, {baseUnits: JOIN_FRACTION * fontMetrics(font).capHeight}));
+  if (!font.fusion.has(ch)) font.fusion.set(ch, fusionWidth(font.glyphs.get(ch).strokes, strokeTopology, {baseUnits: JOIN_FRACTION * fontMetrics(font).capHeight}));
   return font.fusion.get(ch);
 };
 
 // Fusion width for exactly the characters in a text, as a fraction of cap height,
 // with the glyph that limits it. Space and unmeasured characters are skipped.
-export function textFusion(font, text) {
+export function textFusion(font, text, strokeTopology) {
   const {capHeight} = fontMetrics(font);
   let worst = {ratio: Infinity, char: null};
   for (const ch of new Set(text)) {
     if (ch === '\n' || !font.glyphs.get(ch)?.strokes.length) continue;
-    const ratio = glyphFusion(font, ch) / capHeight;
+    const ratio = glyphFusion(font, ch, strokeTopology) / capHeight;
     if (ratio < worst.ratio) worst = {ratio, char: ch};
   }
   return worst;
@@ -92,11 +78,11 @@ const quantile = (values, q) => { const s = [...values].sort((a, b) => a - b); r
 
 // Font-level facts used to choose between fonts. Everything is measured from
 // the glyphs; nothing is read from the font's own metric headers.
-export function measureFont(font) {
+export function measureFont(font, strokeTopology) {
   const metrics = fontMetrics(font), cap = metrics.capHeight;
   const ascii = [...Array(95)].map((_, i) => String.fromCharCode(32 + i));
   const letters = ALNUM.filter(ch => font.glyphs.get(ch)?.strokes.length);
-  const fusion = letters.map(ch => glyphFusion(font, ch) / cap).filter(Number.isFinite);
+  const fusion = letters.map(ch => glyphFusion(font, ch, strokeTopology) / cap).filter(Number.isFinite);
   const strokeCounts = letters.map(ch => font.glyphs.get(ch).strokes.length);
   const retraced = letters.filter(ch => retraceFraction(font.glyphs.get(ch).strokes) > 0.15);
   // Joined script: how often adjacent lowercase letters leave and enter at the same point.

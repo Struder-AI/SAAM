@@ -112,6 +112,7 @@ Geometry outputs are ordinary values and evaluations of those values:
 | [sampleCurveIntervals](curve-sampling.mjs) | Trace, sleeve contours and surface deposition share physical chord/step refinement while retaining source parameters and explicit breaks. |
 | [constructSolids](solid-operations.mjs) | Heat-set, text and gridfinity submit construction/translation/Boolean requests; Geometry owns conversion, mapped-extrusion refinement and native disposal. Results are manufacturing meshes (null for empty material). Feature rules and editable records remain with extensions. |
 | [planarRegionLayers](planar-region-layers.mjs) | Given a height range, numeric process, authored `regionsAt(z)` polygons, optional shells and XY clearance, return merged planar Slice layers and family. Geometry checks shell intersections at the sampled layer heights and throws on a positive clearance overlap; it never invents source regions. |
+| [prepareContourSleeve](sleeve/contour-sleeve.mjs) | Given explicit section heights, pitch, standoff, offset, tolerances and fit mode, construct contour correspondence and a Slice family. Extensions choose those values; Geometry checks and maps the sections. |
 | [resolveGeometrySelections](build.mjs) | Resolves whole solids, components, material partitions and replacement volumes in an offset frame; owns runtime loading and reuses source builds within a batch. Async path generation requests these values; Toolpath retains assignment and ownership policy. |
 | [intersectPatches](surface-intersection.mjs) | Section boundaries retain corresponding parameters on both native surfaces. |
 | [extractLevelSet](level-set.mjs) | Sampled scalar fields yield bounded high-side region loops (default) or genuine `{points,closed}` contours (`output: 'curves'`). Roof reservations and chart predicates use regions; gyroid uses curves. |
@@ -270,11 +271,11 @@ seam (the search runs on three copies). `foldCuts(moved, source, closed)`
 returns the cut intervals for other callers. Crossings between distant parts stay.
 Reversals are found from 32 samples per knot span.
 
-`prepareSleeveContours` in `sleeve-frame.mjs` offsets horizontal native NURBS
+`prepareSleeveContours` in [sleeve-frame.mjs](sleeve/sleeve-frame.mjs) offsets horizontal native NURBS
 isocurves of periodic patches whose V chart reproduces actual Z. Crossings
 resolve before chord-controlled sampling and perimeter correspondence.
 `at(phase,zMm,depth)` follows one retained closed contour; split/collapse rejects.
-Vase mapping adds nominal half-bead depth, then applies unilateral mesh contact.
+The caller chooses centerline offset; optional fitted mesh contact is unilateral.
 
 ### Geometry contract
 
@@ -329,8 +330,12 @@ close raises rather than returning a part with a gap in it.
 
 ## Mesh sleeves
 
-Sleeve fitting, mapping and contact belong to the
-[advanced-vase extension](../../skills/advanced-vase-wall/DEVELOPER.md).
+Geometry owns [sleeve fitting, contour mapping and contact](sleeve/contour-sleeve.mjs);
+the [advanced-vase extension](../../skills/advanced-vase-wall/DEVELOPER.md) chooses
+the authored range, fit mode and Trace pattern.
+`prepareContourSleeve` receives that explicit range, spacing, offset, standoff,
+fit mode and tolerances; it returns a boundary family, continuous mapping and
+query report. Section topology, offset collapse and contact error fail there.
 
 ## Text and solid modifiers
 

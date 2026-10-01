@@ -13,7 +13,7 @@ recipe leaves the interior hollow. No pattern or `meshSleeve` preparation is nee
 For repeated loops, authored patterns or adjustable mesh conformance, choose
 [advanced vase mode](../advanced-vase-wall/SKILL.md).
 
-[The extension](scripts/prepare.mjs) prepares the wall and calls Slice family
+[The extension](scripts/runtime.mjs) prepares the wall and calls Slice family
 joining. [Advanced vase](../advanced-vase-wall/SKILL.md) maps patterns into Trace curves.
 
 ## Workflow

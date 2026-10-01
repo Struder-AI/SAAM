@@ -109,3 +109,28 @@ check|check-path|generate|deliver|remember-setup Prints/my-part
 `create-preview Prints/my-part --recipe plan.json` (or `--stl source.stl`) creates
 one and opens Studio on it ([agent toolkit](../agent/README.md)). In a script,
 `await proposedPlan(machineId)` from [bundle.mjs](bundle.mjs) returns geometry-free recipe defaults.
+
+### Calling an extension
+
+Makers call installed extensions to change prints; builders change extension
+code. A script at the repository root can use the existing print operation below.
+Supply `directory`, `extensionId`, `request`, the fresh `expectedRevision`, and
+`work` from `begin-studio-work` in your current agent session. For an open print,
+that request must carry your `studio-ready` owner and instance; never adopt
+another agent's identity from the reservation. An unopened print needs no claim.
+
+```js
+import {bundleInstance, withBundleInstance} from './core/print/bundle.mjs';
+import {applyExtensionEdit} from './core/print/extension-edits.mjs';
+const reservation = await bundleInstance(directory);
+if (reservation && (reservation.ownerId !== work.request.ownerId ||
+    reservation.instanceId !== work.request.studioInstanceId))
+  throw Error('Use your current Studio instance and agent work request.');
+const call = () => applyExtensionEdit(directory, extensionId, request, {expectedRevision});
+const result = reservation ? await withBundleInstance(directory, reservation, call) : await call();
+console.log(JSON.stringify({revision: result.revision, report: result.extensionReport}));
+```
+
+The selected local copy takes precedence. Read the returned report, then follow
+normal generation and Studio review. Discovery-only calls leave the revision
+unchanged. `Edit` here means changing the print, never the extension's source.

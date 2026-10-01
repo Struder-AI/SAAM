@@ -2,8 +2,9 @@
 
 ## 2026-10-01 — Checkpoint 0.3.1 consolidation
 
-- Preserved the verified source snapshot and integrated neutral Toolpath/Export separation, Bundle/Studio ownership and exact checked-program delivery, portable extension operations and selected local support, explicit worker/HTTP wiring, semantic closure containment and audit evidence inspection. The webmaster handoff and unapproved discussion list follow the supplied site format with plain-copy requirements. Outstanding acceptance and service-client fixes remain in `plans/0.3.1.md`; this checkpoint is not a release.
-- Verified in the isolated managed worktree with focused existing tests and practical native-worker, Wing, local-extension, neutral-reuse and exact-export smokes. Audit is fresh: 647 files, 310 scanned, 94 unassigned, 31 forbidden and 16,216 unknown; 994 viewer pages valid/current. No compliance certification, whole suite, new tests, solver, push or physical qualification. Documentation and local handoffs decreased 1,043 → 1,031 lines, including this entry and both new website documents.
+- Integrated neutral Toolpath/Export separation, exact checked-program delivery, one-instance ownership and selected local extension runtimes. Geometry owns shared sleeve numerics; portable hole supports and single-bead line text use existing print calls. Removed duplicate vase validation, superseded scripts, dummy weld runtime setup and recursive Bundle→Studio→Bundle generation dispatch. No new maker editor tool or protocol remains.
+- In this managed worktree, focused generation-control checks passed 7/7; practical checks covered local extension overrides, Studio ownership, unchanged discovery revision, text/support generation, neutral reuse and exact export. Earlier native-worker/service/Wing evidence remains in the owning handoffs. No new tests, whole suite, solver, push or physical qualification.
+- Outstanding: plain-vase's advanced-vase dependency, Geometry–Export frame ownership, integrated retained behavior and packaging. The prior audit (647 files, 94 unassigned, 31 forbidden, 16,216 unknown) is stale; ownership corrections and successful examples do not certify boundaries. Documentation consolidation continues with the Studio/release task; this is a checkpoint, not a release.
 
 ## 2026-10-01 — 0.3.0 desktop installation tester release
 

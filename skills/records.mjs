@@ -58,20 +58,31 @@ export function validateExtensionAssignment(assignment,options){
 
 // The selected copy validates technique semantics only when construction is
 // requested. Opening a saved bundle never evaluates extension code.
-export async function validateSelectedExtensionRecipe(plan,processForAssignment,engines){
-  const geometries=[plan.geometry,...(plan.geometry?.parts??[]).map(part=>part.geometry)].filter(Boolean);
+export async function validateSelectedExtensionRecipe(plan,processForAssignment){
+  const geometries=[];
+  const visit=geometry=>{
+    if(!geometry||typeof geometry!=='object')return;
+    geometries.push(geometry);
+    visit(geometry.base);
+    for(const part of geometry.parts??[])visit(part.geometry);
+    for(const operand of geometry.operands??[])visit(operand);
+  };
+  visit(plan.geometry);
+  let heatSet=false;const runtimes=new Map();
   for(const geometry of geometries){
     const record=GEOMETRY_RECORDS[geometry.shape];if(!record)continue;
-    const runtime=(await loadExtensionEntry(record.extension,'record-runtime'))();
+    if(!runtimes.has(record.extension))runtimes.set(record.extension,(await loadExtensionEntry(record.extension,'record-runtime'))());
+    const runtime=runtimes.get(record.extension);
     runtime.validate(geometry);
-    if(geometry.shape==='heat-set')runtime.validateAssignments(plan);
+    if(geometry.shape==='heat-set')heatSet=true;
   }
-  if(plan.skills?.supports!==undefined){
-    const runtime=(await loadExtensionEntry('supports','deposition-runtime'))(engines);
+  if(heatSet)runtimes.get('heat-set-inserts').validateAssignments(plan);
+  if(plan.skills?.supports?.enabled){
+    const runtime=(await loadExtensionEntry('supports','record-runtime'))();
     runtime.validateSupports(plan.skills.supports,processForAssignment({id:'supports'}));
   }
-  if(plan.skills?.['plastic-weld']!==undefined){
-    const runtime=(await loadExtensionEntry('plastic-weld','deposition-runtime'))(engines);
+  if(plan.skills?.['plastic-weld']?.enabled){
+    const runtime=(await loadExtensionEntry('plastic-weld','record-runtime'))();
     runtime.validatePlasticWeld(plan,processForAssignment);
   }
   if(plan.slices?.assignments?.some(assignment=>assignment.construction==='sleeve')){

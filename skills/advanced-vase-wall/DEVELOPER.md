@@ -1,6 +1,6 @@
 # Advanced vase: sleeve fitting and contact
 
-[mesh-sleeve.mjs](scripts/mesh-sleeve.mjs) exposes `fitMeshSleeve(mesh, options)` for an already validated
+[Geometry's mesh-sleeve.mjs](../../core/geom/sleeve/mesh-sleeve.mjs) exposes `fitMeshSleeve(mesh, options)` for an already validated
 triangle mesh. A **sleeve** here is the open side surface of a vase-like
 envelope, with its top and bottom caps excluded. It is independent of material
 coverage: fitting a solid, or the outer side of a hollow vessel, does not fill its
@@ -89,12 +89,12 @@ not physical support or machine clearance.
 
 ### Prepared mesh contact
 
-[directional-contour.mjs](scripts/directional-contour.mjs) unfolds one-turn section contours into ordered polar
+[Geometry's directional-contour.mjs](../../core/geom/sleeve/directional-contour.mjs) unfolds one-turn section contours into ordered polar
 profiles within the selected planar correspondence allowance. Larger folds
 reject, as does a source whose radial variation needs more angular room than the
 one turn an unfolded profile has. The fixed sample count per profile has a floor,
 not a ceiling: a contour whose sampling error exceeds the detail tolerance says so
-and can be sampled more finely. [prepared-radial-contact.mjs](scripts/prepared-radial-contact.mjs) uses 16,384 fixed
+and can be sampled more finely. [prepared-radial-contact.mjs](../../core/geom/sleeve/prepared-radial-contact.mjs) uses 16,384 fixed
 samples per profile by default and
 interpolates their ordered correspondence across height. At sampled validation
 heights, the actual profile certificate is deducted before allocating the

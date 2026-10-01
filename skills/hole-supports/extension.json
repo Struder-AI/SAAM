@@ -1,0 +1,1 @@
+{"schema":"saam-extension/1","id":"hole-supports","dependencies":[],"entries":{"geometry-edit":{"file":"scripts/edit.mjs","export":"editHoleSupports"}},"license":"Apache-2.0","provenance":"SAAM release"}

@@ -9,8 +9,6 @@ import {strokeRange} from './deposition.mjs';
 import {sampleCurveIntervals} from '../geom/curve-sampling.mjs';
 import {beadWidthRule,parallelBeadCurves} from './parallel-curves.mjs';
 import {strokeSurfaceRegion} from '../region/surface-offset.mjs';
-import {loadFont,fontEntry} from '../text/catalog.mjs';
-import {lineText} from '../text/compile.mjs';
 import {unit,dot,interpolateDirections} from './pose.mjs';
 import {piecewiseChart,piecewiseChartFrame,mapPiecewiseChartPath,splitPiecewiseChartPath} from '../geom/piecewise-chart.mjs';
 
@@ -141,26 +139,7 @@ function samplePiecewiseCurve(source,chart,path,{offset=[0,0,0],toleranceMm=.02,
 // Parallel geometry precedes process profiles. Each offset point carries the
 // closest source segment's authored parameter, so NURBS t does not become arc
 // length when a wide stroke is lowered to several beads.
-export function validateLineTextSource(text){
-  requireThat(text&&Object.keys(text).every(k=>['fontId','text','heightMm','beadRangeMm','origin','weight','stemRatio','letterSpacingMm','align','chain','spacingFactor','onInfeasible'].includes(k)),'Unknown line-text source field.');
-  fontEntry(text.fontId);
-  requireThat(typeof text.text==='string'&&text.text.length&&Number.isFinite(text.heightMm)&&text.heightMm>0&&vec(text.origin,3),'Line text needs content, positive height and XYZ origin.');
-  beadWidthRule({widthMm:text.heightMm*.08,beadRangeMm:text.beadRangeMm,spacingFactor:text.spacingFactor??1});
-  requireThat(text.weight===undefined||['light','regular','bold'].includes(text.weight),'Unknown line-text weight.');
-  requireThat(text.stemRatio===undefined||Number.isFinite(text.stemRatio)&&text.stemRatio>0,'Text stemRatio must be positive.');
-  requireThat(text.letterSpacingMm===undefined||Number.isFinite(text.letterSpacingMm),'Text spacing must be finite.');
-  requireThat(text.align===undefined||['left','center','right'].includes(text.align),'Unknown text alignment.');
-  requireThat(text.chain===undefined||typeof text.chain==='boolean','Text chain must be boolean.');
-  requireThat(text.onInfeasible===undefined||['reduce','error'].includes(text.onInfeasible),'Text infeasibility mode must be reduce or error.');
-}
-
 export function constructAuthoredCurves(curve,options={}){
-  if(curve.text){
-    validateLineTextSource(curve.text);const {fontId,origin,...request}=curve.text;
-    const compiled=lineText({...request,font:loadFont(fontId),layers:1,firstLayerMm:0});
-    const {text,closed,...properties}=curve;
-    return compiled.assignment.curves.flatMap(glyph=>constructAuthoredCurves({...properties,...glyph,points:glyph.points.map(p=>p.map((v,i)=>v+origin[i]))},options));
-  }
   let offsetChart=null,offsetDescriptor=null;
   if(curve.uv?.normalMm){
     const entry=referenceEntry(curve.uv.reference,options.references,options.course??0);

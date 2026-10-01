@@ -9,8 +9,8 @@ metadata:
 
 Use for authored repeating patterns and fitted mesh sleeves. For a conventional
 continuous spiral, choose [standard vase mode](../vase-wall/SKILL.md).
-This extension owns sleeve fitting, pattern mapping, repetition and end transitions.
-Its [script](scripts/advanced-vase.mjs) calls Trace with resolved curves and process
+This extension selects the sleeve fit and maps repeated patterns and end transitions.
+Its [script](scripts/runtime.mjs) calls Trace with resolved curves and process
 values. Trace also retains native XYZ/NURBS and named patch/slice/sleeve UV inputs.
 
 Use for an open single-wall vessel or tube. The selected solid or closed sleeve
@@ -35,13 +35,8 @@ shortens a requested wall.
 
 ### Mesh input workflow
 
-For an imported mesh, prepare a fitted sleeve before generation:
-
-```sh
-node skills/advanced-vase-wall/scripts/cli.mjs Prints/PART --options mesh-vase-options.json
-```
-
-Example `mesh-vase-options.json`:
+For an imported mesh, [call this extension](../../core/print/USAGE.md#calling-an-extension)
+with a preparation request before generation:
 
 ```json
 {
@@ -60,12 +55,10 @@ preserves an existing pattern, or selects a plain spiral on a new wall.
 The helper derives a base from the process settings unless `baseHeightMm` is
 specified.
 
-The preparation command detects one dominant outer sleeve, chooses an explicit
-usable height interval, preserves the source mesh, and writes a normal recipe
-revision. `--expected-revision REV` protects a caller's revision. Preparation
-does not generate a program or grant approval. Existing path/repeat choices are
-retained unless explicitly replaced; conflicting assignments
-must be changed through the ordinary recipe tools.
+Preparation detects one dominant outer sleeve, proposes its usable height
+interval and updates the recipe while preserving the source mesh. Existing paths
+and repeats remain unless explicitly replaced. It neither generates a program
+nor grants approval; change conflicting assignments through ordinary recipe tools.
 
 Use sleeve `zStartMm`/`zEndMm` for a same-part stack: the wall's band
 (ordinary slices own the base and cap), with other assignments for later work.
@@ -178,7 +171,7 @@ review and export do not approve hardware.
 
 ### Script interface
 
-`advancedVaseResult({shell, assignment, process, machine, ...})` returns operations,
+`advancedVaseResult({shell, assignment, process, ...})` returns operations,
 the reference family, optional terminal boundary and a report; it writes no files.
 The build caller supplies finalized foundation strands for substrate adaptation,
 then owns ordinary finalization, composition and export. Continuous patterns are

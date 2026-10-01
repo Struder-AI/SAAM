@@ -1,0 +1,1 @@
+{"schema":"saam-extension/1","id":"line-text","dependencies":[],"entries":{"deposition-edit":{"file":"scripts/edit.mjs","export":"editLineText"}},"license":"Apache-2.0 (scripts); bundled font licenses in scripts/fonts/README.md","provenance":"SAAM release; font source and provenance in scripts/fonts/README.md"}

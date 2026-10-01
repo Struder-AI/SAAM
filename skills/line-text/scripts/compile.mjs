@@ -1,11 +1,8 @@
-import {requireThat} from '../private/extensions/numeric.mjs';
-import {parallelBeadGroup} from '../path/parallel-curves.mjs';
-
 import {chainStrokes, layoutText, strokeBounds, translateStrokes} from './layout.mjs';
 import {JOIN_FRACTION} from './measure.mjs';
 import {planLineText} from './plan.mjs';
 
-const UM = 1000; // Clipper integer units per millimetre
+const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 const round = v => Math.round(v * 1000) / 1000;
 const segments = (pts, closed) => pts.slice(1).concat(closed ? [pts[0]] : []).map((b, i) => [pts[i], b]);
 const glyphKey = s => `${s.glyph.line}:${s.glyph.index}`;
@@ -60,21 +57,12 @@ export function collapseMarks(strokes, widthMm) {
   });
 }
 
-// Text uses the same physical parallel-bead construction as authored curves.
-export function concentricLoops(strokes,{beadWidthMm,pitchMm,parallelCount}){
-  const curves=strokes.map(s=>({closed:s.closed,role:s.dot?'dot':'text',points:(s.dot?[s.points[0],[s.points[0][0]+.001,s.points[0][1]]]:s.points).map(p=>[...p,0])}));
-  if(!curves.length)return [];
-  return parallelBeadGroup(curves,{widthMm:beadWidthMm+(parallelCount-1)*pitchMm,beadRangeMm:[beadWidthMm,beadWidthMm],spacingFactor:pitchMm/beadWidthMm})
-    .filter(c=>c.closed||c.role!=='dot').map(c=>({closed:c.closed,points:c.points.map(p=>p.slice(0,2))}));
-}
-
 const lengthOf = s => segments(s.points, s.closed).reduce((sum, [a, b]) => sum + Math.hypot(b[0] - a[0], b[1] - a[1]), 0);
 
-// Word to `common curve deposition` settings. `beadRangeMm` is the thinnest and widest bead
-// the process allows; the plan decides between one bead and several.
-export function lineText({font, text, heightMm, weight, stemRatio, beadRangeMm, layers = 2, layerMm = .2, firstLayerMm = layerMm, id = 'text', spacingFactor = 1, letterSpacingMm = 0, align = 'left', chain = true, onInfeasible = 'reduce'}) {
+// Word to explicit Trace centerlines, each carrying one bead.
+export function lineText({font, text, heightMm, weight, stemRatio, beadRangeMm, layers = 2, layerMm = .2, firstLayerMm = layerMm, id = 'text', letterSpacingMm = 0, align = 'left', chain = true, onInfeasible = 'reduce',strokeTopology}) {
   requireThat(Number.isInteger(layers) && layers >= 1, 'layers must be a positive integer.');
-  const plan = planLineText({font, text, heightMm, weight, stemRatio, beadRangeMm, spacingFactor, onInfeasible});
+  const plan = planLineText({font, text, heightMm, weight, stemRatio, beadRangeMm, onInfeasible,strokeTopology});
   requireThat(plan.feasible, plan.warnings.at(-1));
   const laid = layoutText(font, text, {heightMm, letterSpacingMm, align});
   const joinMm = JOIN_FRACTION * heightMm, w = plan.beadWidthMm, W = plan.strokeWidthMm;
@@ -84,17 +72,9 @@ export function lineText({font, text, heightMm, weight, stemRatio, beadRangeMm, 
   const b = strokeBounds(strokes);
   strokes = translateStrokes(strokes, W / 2 - b.min[0], W / 2 - b.min[1]);
 
-  let network;
-  if (plan.parallelCount === 1) {
-    network = strokes.map(s => s.dot
+  let network = strokes.map(s => s.dot
       ? {closed: false, points: [[s.points[0][0] - w / 2, s.points[0][1]], [s.points[0][0] + w / 2, s.points[0][1]]]}
       : {closed: s.closed, points: s.points});
-  } else {
-    // Group per glyph (chained strokes travel with their first glyph) so travel stays letter to letter.
-    const groups = new Map();
-    for (const s of strokes) { const k = glyphKey(s); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(s); }
-    network = [...groups.values()].flatMap(g => concentricLoops(g, plan));
-  }
   network = network.filter(s => s.points.length >= (s.closed ? 3 : 2)).map(s => ({closed: s.closed, points: s.points.map(p => [round(p[0]), round(p[1])])}));
   requireThat(network.length,'Line text has no printable strokes.');
   const ink = strokeBounds(network);

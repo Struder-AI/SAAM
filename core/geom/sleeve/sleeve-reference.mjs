@@ -8,8 +8,6 @@ import {createMeshDistanceQuery} from '../../geom/mesh-distance.mjs';
 import {loopArea} from '../../region/region2d.mjs';
 import {union} from '../../region/intersection.mjs';
 
-export const MESH_SLEEVE_SETTINGS={fidelity:1,contactSide:'inside',circumferentialControls:12,heightControls:6,detailToleranceMm:.05};
-
 // Growing periodic control resolution for the automatic standard-mode fit. Each
 // step costs one separable least-squares solve; the first meeting the requested
 // sampled tolerance wins, so a near-constant sleeve stops immediately.
@@ -25,7 +23,7 @@ const STANDARD_SLEEVE_CONTROLS=[[16,8],[16,16],[24,24],[32,32],[40,48],[48,64]];
 // collapsed, branching or multi-bore section). A localized near-crease that the
 // smooth sleeve cannot fully resolve stays on the fast path rather than failing
 // generation, since the exact path is not guaranteed to complete either.
-export function createAutomaticSleeveReference({shell,settings,start,end,width,onProgress}){
+export function createAutomaticSleeveReference({shell,settings,start,end,centerlineOffsetMm,onProgress}){
   const tolerance=settings.sleeveToleranceMm;
   if(!(tolerance>0)||shell.kind!=='triangle-mesh')return null;
   onProgress?.({stage:'Fitting vase sleeve reference',completed:0,total:1});
@@ -52,7 +50,7 @@ export function createAutomaticSleeveReference({shell,settings,start,end,width,o
   const frame=prepareSleeveContours({patch:fit.patch,rangeMm:fit.rangeMm,toleranceMm:Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/8,stepMm:settings.minFeatureMm});
   // The standard wall deposits just inside the outer boundary, matching the
   // exact path's inward centerline offset of one bead half width.
-  const beadOffset=-width/2;
+  const beadOffset=centerlineOffsetMm;
   // The centerline fit is validated per height, but the bead-width offset can
   // still cross itself where the wall is thinner than the bead. Sample the
   // offset loop across the interval; a collapsed or self-intersecting offset
@@ -78,7 +76,7 @@ export function createAutomaticSleeveReference({shell,settings,start,end,width,o
       scope:'Periodic fitted-sleeve horizontal NURBS sections are offset inward and crossings resolved before contour correspondence. Offsets are loose, with chord-controlled contour sampling; fit residuals are sampled, not a global surface-error certificate. Set sleeveToleranceMm to 0 for source-mesh polygon sections.'}})};
 }
 
-export function createFittedSleeveReference({shell,settings,start,end,width,onProgress}){
+export function createFittedSleeveReference({shell,settings,start,end,centerlineOffsetMm,onProgress}){
   const config=settings.meshSleeve;
   if(!config)return null;
   requireThat(shell.kind==='triangle-mesh','Fitted mesh sleeve settings require a mesh component; use the native reference directly for spline geometry.');
@@ -89,7 +87,7 @@ export function createFittedSleeveReference({shell,settings,start,end,width,onPr
   });
   onProgress?.({stage:'Fitting mesh sleeve',completed:1,total:1});
   const frame=prepareSleeveContours({patch:fit.patch,rangeMm:fit.rangeMm,toleranceMm:tolerance/8,stepMm:settings.minFeatureMm});
-  const beadOffset=(config.contactSide==='inside'?-1:1)*width/2;
+  const beadOffset=centerlineOffsetMm;
   const sourceCurves=new Map();
   const curveAt=z=>{
     if(sourceCurves.has(z))return sourceCurves.get(z);

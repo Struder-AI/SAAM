@@ -25,7 +25,7 @@ assets and optional author manuals it uses. The manifest declares
 `schema: "saam-extension/1"`, a lowercase hyphenated `id`, `dependencies`,
 `entries`, `license` and `provenance`. Each dependency names an `id`; missing
 copies and cycles stop execution. Entries map names such as `geometry-edit`,
-`geometry-create`, `deposition-edit`, `deposition-runtime` or `resource-client`
+`geometry-create`, `deposition-edit`, `deposition-runtime`, `record-runtime` or `resource-client`
 to an `.mjs` function. A runtime factory receives named public Geometry and
 Toolpath operations and returns the technique's composition functions. Import
 validates and saves files without running scripts.

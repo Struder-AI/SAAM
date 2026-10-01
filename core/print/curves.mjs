@@ -1,7 +1,7 @@
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 
 import {curveLength} from '../path/curve-construction.mjs';
-import {authoredNurbs,validateCurveProfiles,validateLineTextSource,constructAuthoredCurves} from '../path/authored-curves.mjs';
+import {authoredNurbs,validateCurveProfiles,constructAuthoredCurves} from '../path/authored-curves.mjs';
 import {beadWidthRule} from '../path/parallel-curves.mjs';
 import {depositedCurveSegments,curveSupportsPoint} from '../path/deposited-curves.mjs';
 import {depositCurveCourses} from '../path/curve-courses.mjs';
@@ -31,11 +31,10 @@ export function validateCurveAssignment(a,{parts=null}={}) {
   requireThat(Array.isArray(a.curves)&&a.curves.length>0,'Curve assignment needs explicit centerlines.');
   for(const curve of a.curves){
     if(familyRepeat)requireThat(curve.uv?.reference?.kind==='slice'&&curve.uv.reference.assignment===a.repeat.family&&curve.uv.reference.index===undefined,'Family repeats need UV curves on that slice family without a fixed layer index.');
-    requireThat(curve&&Object.keys(curve).every(k=>['points','nurbs','uv','text','closed','role','beadWidthMm','heightMm','speedMmS','flowMultiplier','courses','vary','widthRule','sampleStepMm','toleranceMm','contact','depositionAction','segmentMetadata'].includes(k))&&typeof curve.closed==='boolean','Invalid authored curve.');
-    requireThat(['points','nurbs','uv','text'].filter(k=>curve[k]!==undefined).length===1,'Curve needs exactly one of points, nurbs, uv or text.');
+    requireThat(curve&&Object.keys(curve).every(k=>['points','nurbs','uv','closed','role','beadWidthMm','heightMm','speedMmS','flowMultiplier','courses','vary','widthRule','sampleStepMm','toleranceMm','contact','depositionAction','segmentMetadata'].includes(k))&&typeof curve.closed==='boolean','Invalid authored curve.');
+    requireThat(['points','nurbs','uv'].filter(k=>curve[k]!==undefined).length===1,'Curve needs exactly one of points, nurbs or uv.');
     const input=curve.uv??curve,dimensions=curve.uv?2:3;
-    if(curve.text){requireThat(curve.closed===false,'Text source closure is determined by its glyph strokes.');validateLineTextSource(curve.text);}
-    else if(input.nurbs)authoredNurbs(input.nurbs,dimensions);
+    if(input.nurbs)authoredNurbs(input.nurbs,dimensions);
     else requireThat(Array.isArray(input.points)&&input.points.length>=(curve.closed?3:2)&&input.points.every(p=>Array.isArray(p)&&p.length===dimensions&&p.every(Number.isFinite))&&input.points.some(p=>p.some((v,i)=>v!==input.points[0][i])),'Curve needs distinct finite points.');
     if(input.points)requireThat(input.points.every((p,i)=>!i||p.some((v,k)=>v!==input.points[i-1][k]))&&(!curve.closed||input.points[0].some((v,k)=>v!==input.points.at(-1)[k])),'Polyline points must not repeat consecutive vertices or the implicit closed endpoint.');
     if(curve.uv){

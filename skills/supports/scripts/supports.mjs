@@ -95,3 +95,4 @@ export function supportDependencies(supports,modelResults) {
 }
 
 export function supportRuntime(engines){return {validateSupports,prepareSupportContexts:input=>prepareSupportContexts(input,engines),supportDependencies};}
+export const supportRecordRuntime=()=>({validateSupports});

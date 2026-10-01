@@ -273,13 +273,12 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     const {directory:generationDir,state}=snapshot;
     let calculated=false;
     const markCalculation=()=>{if(!calculated){calculated=true;beginGeneration(snapshot,development,trigger);}};
-    async function dispatchComputation(execution){
-      const {directory:executionDir,state:executionState}=execution;
+    async function dispatchComputation({directory:executionDir,generationHash}){
       // A stopped worker needs restarting; a completed preparation diagnostic
       // is already useful and need not be recomputed on the first Continue.
-      if(preparation?.status==='failed'&&(!preparation.worker||generationFailure?.directory===executionDir&&generationFailure.generationHash===executionState.generationHash))await discardPreparation();
-      const job=prepare(executionState,executionDir,{computationRequired:true});
-      if(!job)return execution.runLocally();
+      if(preparation?.status==='failed'&&(!preparation.worker||generationFailure?.directory===executionDir&&generationFailure.generationHash===generationHash))await discardPreparation();
+      const job=prepare({generationHash},executionDir,{computationRequired:true});
+      if(!job)return null;
       if(job.status==='preparing')markCalculation();
       const checked=await job.generate(development,reservation);
       if(preparation===job)preparation=null;

@@ -35,13 +35,16 @@ function outerLoop(loops) {
   return loop;
 }
 
-export function prepareContourSleeve({shell,assignment,process,zStartMm=null,zEndMm=null,onProgress}) {
-  const settings=assignment;
-  const width=process.lineWidthMm,pitch=process.layerMm,base=zStartMm??(shell.bounds.min[2]+settings.zStartMm);
-  const firstHeight=Math.abs(base-shell.bounds.min[2])<1e-9?process.firstLayerMm:pitch;
-  const start=base+firstHeight,end=zEndMm??(settings.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+settings.zEndMm);
-  requireThat(base>=shell.bounds.min[2]&&end<=shell.bounds.max[2]+1e-9&&end>start+1e-9,'Vase wall needs room for its first ring and a rising wall; choose zStartMm/zEndMm inside the geometry.');
-  requireThat(settings.boundaryToleranceMm<width/4,'Vase boundaryToleranceMm must be smaller than one quarter of the bead width.');
+export function prepareContourSleeve({shell,baseMm:base,startMm:start,endMm:end,pitchMm:pitch,
+  firstHeightMm:firstHeight,centerlineOffsetMm:centerlineOffset,standoffMm,
+  sampleStepMm,toleranceMm,boundaryToleranceMm,minFeatureMm,sleeveToleranceMm=0,
+  meshSleeve=null,fitMode='none',phaseStableContours=false,onProgress}) {
+  const settings={sampleStepMm,toleranceMm,boundaryToleranceMm,minFeatureMm,sleeveToleranceMm,meshSleeve,phaseStableContours};
+  requireThat([base,start,end,pitch,firstHeight,centerlineOffset,standoffMm,sampleStepMm,toleranceMm,boundaryToleranceMm,minFeatureMm].every(Number.isFinite)
+    &&pitch>0&&firstHeight>0&&standoffMm>0&&sampleStepMm>0&&toleranceMm>0&&boundaryToleranceMm>0&&minFeatureMm>0,
+    'Contour family needs finite positive spacing and tolerances.');
+  requireThat(base>=shell.bounds.min[2]&&end<=shell.bounds.max[2]+1e-9&&end>start+1e-9,'Contour family needs its base, first section and end inside the geometry.');
+  requireThat(settings.boundaryToleranceMm<standoffMm/2,'Contour boundary tolerance must be smaller than half the selected standoff.');
   // The wall takes as many points and section queries as its geometry, pitch
   // and tolerances require: turns are finite and each interval subdivides until
   // its midpoint stops being distinct from its ends, so there is no
@@ -55,9 +58,9 @@ export function prepareContourSleeve({shell,assignment,process,zStartMm=null,zEn
     if(cache.size>=256)cache.delete(cache.keys().next().value);
     cache.set(key,value);return value;
   };
-  const reference=createFittedSleeveReference({shell,settings,start,end,width,onProgress})
-    ??(settings.pattern===null?createAutomaticSleeveReference({shell,settings,start,end,width,onProgress}):null);
-  const centerlineOffset=reference&&settings.meshSleeve?.contactSide==='outside'?width/2:-width/2;
+  requireThat(['none','automatic','mesh'].includes(fitMode),'Unknown contour fit mode.');
+  const reference=fitMode==='mesh'?createFittedSleeveReference({shell,settings,start,end,centerlineOffsetMm:centerlineOffset,onProgress})
+    :fitMode==='automatic'?createAutomaticSleeveReference({shell,settings,start,end,centerlineOffsetMm:centerlineOffset,onProgress}):null;
   const sectionAt=reference?.sectionAt??createSectionQuery(shell,{minFeatureMm:settings.minFeatureMm});
   function section(z) {
     const key=z.toFixed(10);if(cache.has(key))return cache.get(key);
@@ -84,12 +87,12 @@ export function prepareContourSleeve({shell,assignment,process,zStartMm=null,zEn
     // cuts are already chord-controlled and keep their exact contour.
     const rawOuter=outerLoop(cut.loops),seamTolerance=Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/4;
     const meshCut=!reference&&shell.kind==='triangle-mesh';
-    const outer=settings.pattern&&!reference?patternContour(rawOuter,seamTolerance):meshCut?cleanPlanarLoop(rawOuter,seamTolerance):rawOuter;
+    const outer=settings.phaseStableContours&&!reference?patternContour(rawOuter,seamTolerance):meshCut?cleanPlanarLoop(rawOuter,seamTolerance):rawOuter;
     const offsetLoops=offsetRegion([outer],centerlineOffset,{precisionMm:OFFSET_PRECISION_MM,arcToleranceMm:settings.boundaryToleranceMm/4});
     // A pattern follows only the outer boundary. Interior offset holes do not
     // supply another wall; multiple outer components still cannot be mapped.
-    const inset=settings.pattern?offsetLoops.filter(loop=>loopArea(loop)>0):offsetLoops;
-    requireThat(inset.length===1&&loopArea(inset[0])>0,`Vase wall ${centerlineOffset<0?'inward':'outward'} offset is empty, split or collapsed at Z ${z} mm for bead width ${width} mm.`);
+    const inset=settings.phaseStableContours?offsetLoops.filter(loop=>loopArea(loop)>0):offsetLoops;
+    requireThat(inset.length===1&&loopArea(inset[0])>0,`Contour ${centerlineOffset<0?'inward':'outward'} offset is empty, split or collapsed at Z ${z} mm for standoff ${standoffMm} mm.`);
     const loop=dedupe(inset[0]);
     requireThat(loop.length>=3,'Vase wall section collapsed.');
     const curve=contourPath(loop,seam);
@@ -98,7 +101,7 @@ export function prepareContourSleeve({shell,assignment,process,zStartMm=null,zEn
     // switches between opposite edges of a corner and makes phase discontinuous.
     // A +X anchor preserves the initial maximum-X seam and remains exterior as
     // the wall changes height. Offset patterns translate this same anchor below.
-    seam??=[shell.bounds.max[0]+width,curve.seam[1]];
+    seam??=[shell.bounds.max[0]+2*standoffMm,curve.seam[1]];
     const holes=cut.loops.filter(loop=>loopArea(loop)<0);
     const value={outer,loop,curve,holes};lastContours=cut.loops;lastValue=value;return cacheSection(key,value);
   }
@@ -107,8 +110,8 @@ export function prepareContourSleeve({shell,assignment,process,zStartMm=null,zEn
   function mappedPoint(u,z,offsetMm=0) {
     const frame=section(z),{curve,outer,holes}=frame,xy=curve.at(u);
     const standoff=outer.reduce((best,p,i)=>Math.min(best,pointSegmentDistance(xy,p,outer[(i+1)%outer.length])),Infinity);
-    requireThat(Math.abs(standoff-width/2)<=settings.boundaryToleranceMm,'Vase centerline does not preserve the declared bead-width boundary within boundaryToleranceMm.');
-    for(const hole of holes)requireThat(!pointInLoop(xy,hole)&&hole.every((p,i)=>pointSegmentDistance(xy,p,hole[(i+1)%hole.length])>=width/2-settings.boundaryToleranceMm),'Sleeve material is too thin for the selected bead width.');
+    requireThat(Math.abs(standoff-standoffMm)<=settings.boundaryToleranceMm,'Contour centerline does not preserve the selected standoff within boundary tolerance.');
+    for(const hole of holes)requireThat(!pointInLoop(xy,hole)&&hole.every((p,i)=>pointSegmentDistance(xy,p,hole[(i+1)%hole.length])>=standoffMm-settings.boundaryToleranceMm),'Section material is too thin for the selected standoff.');
     if(offsetMm!==0){
       let curves=offsetCurves.get(frame);if(!curves){curves=new Map();offsetCurves.set(frame,curves);}
       let parallel=curves.get(offsetMm);
@@ -145,7 +148,7 @@ export function prepareContourSleeve({shell,assignment,process,zStartMm=null,zEn
     if(offset===0)return frame.curve;
     mappedPoint(0,z,offset);return offsetCurves.get(frame).get(offset);
   };
-  const contours=!reference&&settings.pattern!==null?prepareContourFamily({curveAt,startMm:start,endMm:end,stepMm:settings.minFeatureMm,toleranceMm:mappingErrorMm}):null;
+  const contours=!reference&&settings.phaseStableContours?prepareContourFamily({curveAt,startMm:start,endMm:end,stepMm:settings.minFeatureMm,toleranceMm:mappingErrorMm}):null;
   const mapping=reference?{reference}:contours?{contours}:null;
   // Exact section evaluation remains available between the displayed family
   // layers; interpolation must not flatten native/curved wall geometry.

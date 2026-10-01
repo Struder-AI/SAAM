@@ -1,6 +1,7 @@
-import {requireThat} from '../private/extensions/numeric.mjs';
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
+
+const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
 
 // SVG stroke fonts (Hershey, EMS and Relief SingleLine) store each glyph as

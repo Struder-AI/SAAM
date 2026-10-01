@@ -545,15 +545,14 @@ async function generateBundle(directory, { development = false, onProgress, befo
     return promoteReviewedGeneration(state.dir,confirmed);
   }
   if(dispatchComputation){
-    let localChecks;
-    const runLocally=async()=>localChecks=await generateBundle(directory,{development,onProgress,beforeCommit});
-    const computed=await dispatchComputation({directory,state,development,onProgress,beforeCommit,runLocally});
-    if(computed===localChecks&&localChecks)return localChecks;
-    const checks=computed?.checks,source=consumeCheckedProgram(computed?.checkedProgram,
-      checks?.generationHash,checks?.exportHash);
-    requireThat(checks&&source,'The generation worker returned unchecked machine source.');
-    pendingCheckedPrograms.retain(programKey(checks.generationHash,checks.exportHash),source);
-    return checks;
+    const computed=await dispatchComputation({directory:state.dir,generationHash:state.generationHash});
+    if(computed!==null){
+      const checks=computed?.checks,source=consumeCheckedProgram(computed?.checkedProgram,
+        checks?.generationHash,checks?.exportHash);
+      requireThat(checks&&source,'The generation worker returned unchecked machine source.');
+      pendingCheckedPrograms.retain(programKey(checks.generationHash,checks.exportHash),source);
+      return checks;
+    }
   }
   const prepared=await prepareGeneration(directory,{onProgress});
   return commitGeneration(directory,prepared,{development,onProgress,beforeCommit});

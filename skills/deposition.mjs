@@ -21,7 +21,7 @@ export async function extensionDeposition({plan,placed,componentShells,contexts,
   for(let i=0;i<sleeves.length;i++)for(let j=i+1;j<sleeves.length;j++)
     if(sleeves[i].assignment.part===sleeves[j].assignment.part&&Math.min(sleeves[i].endMm,sleeves[j].endMm)-Math.max(sleeves[i].startMm,sleeves[j].startMm)>TOLERANCE.point)
       requireExclusiveClaims(sleeves[i].assignment,sleeves[j].assignment);
-  const boundaries=sleeves.filter(context=>context.kind==='slice').map(context=>({...context,geometry:engines.Geometry.prepareContourSleeve({...context,onProgress})}));
+  const boundaries=sleeves.filter(context=>context.kind==='slice').map(context=>({...context,geometry:advanced.prepareSleeveGeometry({...context,onProgress})}));
   const trees=support?support.prepareSupportContexts({plan,processForAssignment,shells:componentShells?[...componentShells.values()]:placed?[placed]:[]}):[];
   return {
     bands:sleeves.map(s=>({part:s.assignment.part,startMm:s.startMm,endMm:s.endMm})),

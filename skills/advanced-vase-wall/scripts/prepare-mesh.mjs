@@ -1,20 +1,18 @@
-import {requireThat} from '../../../core/private/extensions/numeric.mjs';
 // Author a normal editable vase recipe on an imported mesh. Geometry/source
 // bytes stay owned by the bundle; this helper authors common assignments.
 import {isDeepStrictEqual} from 'node:util';
-import {defaultSlices} from '../../../core/print/slices.mjs';
-import {makeMesh} from '../../../core/geom/mesh.mjs';
-import {detectMeshSleeveInterval} from '../../../core/geom/sleeve/mesh-sleeve.mjs';
+import {advancedVaseRecordRuntime} from './record.mjs';
 
-import {MESH_SLEEVE_SETTINGS} from '../../../core/geom/sleeve/sleeve-reference.mjs';
-import {validateSleevePattern} from './sleeve-pattern.mjs';
-import {sleeveAssignment} from './assignment.mjs';
-import {horizontalSlice,sliceFamily} from '../../../core/geom/slice.mjs';
+const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
+const {validateSleevePattern,sleeveAssignment}=advancedVaseRecordRuntime();
+const MESH_SLEEVE_SETTINGS={fidelity:1,contactSide:'inside',circumferentialControls:12,heightControls:6,detailToleranceMm:.05};
 
 const keys=(value,allowed,label)=>requireThat(value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).every(k=>allowed.includes(k)),`Unknown or invalid ${label} options.`);
 const same=isDeepStrictEqual;
 
-export async function prepareMeshVase(source,options={}, {machine}){
+export async function prepareMeshVase(source,options={}, {Geometry,Toolpath}){
+  const {makeMesh,detectMeshSleeveInterval,horizontalSlice,sliceFamily}=Geometry;
+  const {defaultSlices}=Toolpath;
   keys(options,['meshSleeve','pattern','baseHeightMm','endTransition','detect'],'mesh vase');
   if(Object.hasOwn(options,'detect'))keys(options.detect,['marginMm','toleranceMm','sampleCount','maxSecondaryAreaFraction','zMinMm','zMaxMm'],'sleeve detection');
   // Generation uses the shared fit's 0.1% extraction allowance. Detection may

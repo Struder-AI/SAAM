@@ -33,6 +33,8 @@ Operation boundaries report missing prerequisites. No machine is inferred at cre
 Geometry extensions return proposals through Geometry; only deposition or hybrid
 assignment contributions need Toolpath composition. Bundle accepts one revisioned
 edit. Saved geometry remains viewable without rerunning the extension.
+Saved records receive structural checks when opened; the selected extension copy
+validates technique semantics at edit and regeneration, after prerequisite resolution.
 
 `prepareSliceRegionContext` accepts a supplied Geometry layer family, preset,
 recipe, process resolver and report. Toolpath resolves the assignment's filament

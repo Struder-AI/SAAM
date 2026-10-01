@@ -1,6 +1,6 @@
-import {requireThat} from '../private/extensions/numeric.mjs';
-
 import {fontMetrics, kernUnits} from './strokefont.mjs';
+
+const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
 // Lay a string out as millimetre centerline strokes, y up, first baseline at y = 0.
 // `heightMm` is the measured capital height of the font, so "6 mm text" means the

@@ -59,5 +59,5 @@ function validateSleeveAssignment(a,{parts}={}){
   requireThat(Number.isFinite(fit.detailToleranceMm)&&fit.detailToleranceMm>0,'Mesh sleeve detail tolerance must be positive.');
 }
 
-  return {sleeveAssignment,validateSleeveAssignment};
+  return {SLEEVE_DEFAULTS,sleeveAssignment,validateSleeveAssignment,validateSleevePattern};
 }

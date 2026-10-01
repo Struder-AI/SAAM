@@ -200,7 +200,8 @@ export function depositionInspection(results){
 }
 
 export async function generatePath(plan, {onProgress,modulations,modulationPreparation=[]} = {}) {
-  await validateSelectedExtensionRecipe(plan,assignment=>assignmentPlan(plan,assignment).process,extensionEngines);
+  plan=compileRecipe(plan).plan;
+  await validateSelectedExtensionRecipe(plan,assignment=>assignmentPlan(plan,assignment).process);
   const prepared=await preparePathGeometry(plan);
   const evaluated=modulations?{...plan,modulations}:plan;
   const materialAssignments=assignedFilaments(plan),defaultFilament=plan.setup.bambu?.filament??materialAssignments[0]??null;
