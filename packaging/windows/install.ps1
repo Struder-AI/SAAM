@@ -11,9 +11,20 @@
 #   powershell -NoProfile -ExecutionPolicy Bypass -File <this file> -WaitPid <pid>
 # when a running SAAM updates itself: it waits for that SAAM to exit, installs
 # without prompts, logs to <data>\logs\update.log and starts the new SAAM.
-param([int]$WaitPid = 0)
+param([int]$WaitPid = 0, [switch]$NoLaunch)
 
 . (Join-Path $PSScriptRoot 'common.ps1')
+$isolated = [bool]$env:SAAM_INSTALL_TEST_ROOT
+if ($isolated) {
+  # The detached in-app updater inherits this root during a disposable trial.
+  $temporary = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
+  $resolved = [IO.Path]::GetFullPath($env:SAAM_INSTALL_TEST_ROOT).TrimEnd('\')
+  if (-not $resolved.StartsWith($temporary, [StringComparison]::OrdinalIgnoreCase)) {
+    Stop-WithMessage 'SAAM_INSTALL_TEST_ROOT must be under the temporary folder.'
+  }
+  $SaamRoot = $resolved
+}
+$NoShortcuts = $isolated
 
 $updating = $WaitPid -gt 0
 if ($updating) {
@@ -61,7 +72,8 @@ New-Item -ItemType Directory -Path $staging -Force | Out-Null
 Write-Host 'Unpacking SAAM...'
 & $tar -xf $archive -C $staging
 $tarExit = $LASTEXITCODE
-if ($tarExit -ne 0 -or -not (Test-Path -LiteralPath (Join-Path $staging 'runtime\node.exe'))) {
+if ($tarExit -ne 0 -or -not (Test-Path -LiteralPath (Join-Path $staging 'runtime\node.exe')) -or
+    -not (Test-Path -LiteralPath (Join-Path $staging 'packaging\windows\SAAM.ico'))) {
   Remove-Folder $staging
   Stop-WithMessage "Unpacking SAAM failed (tar exit code $tarExit). Nothing was changed."
 }
@@ -81,6 +93,7 @@ try {
 
 # An update refreshes only the shortcuts the person still has; it adds the
 # console shortcut for someone who keeps the Start Menu one.
+if (-not $NoShortcuts) {
 $keepConsole = (-not $updating) -or (Test-Path -LiteralPath $StartMenuLink) -or (Test-Path -LiteralPath $ConsoleLink)
 $shell = New-Object -ComObject WScript.Shell
 function Set-Shortcut([string]$Path, [string]$Target, [string]$Arguments, [string]$Description, [bool]$Create = $false) {
@@ -90,7 +103,7 @@ function Set-Shortcut([string]$Path, [string]$Target, [string]$Arguments, [strin
   $link.Arguments = $Arguments
   $link.WorkingDirectory = $env:USERPROFILE
   $link.Description = $Description
-  if ($Target -eq $wscript) { $link.IconLocation = (Join-Path $SaamRoot 'runtime\node.exe') + ',0' }
+  if ($Target -eq $wscript) { $link.IconLocation = (Join-Path $SaamRoot 'packaging\windows\SAAM.ico') + ',0' }
   $link.Save()
 }
 # The SAAM shortcuts start it without a window; Quit in SAAM Studio stops it.
@@ -102,12 +115,19 @@ if ($keepConsole) { Set-Shortcut $ConsoleLink (Join-Path $SaamRoot 'SAAM.cmd') '
 $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $uninstaller = Join-Path $SaamRoot 'packaging\windows\uninstall.ps1'
 Set-Shortcut $UninstallLink $powershell "-NoProfile -ExecutionPolicy Bypass -File `"$uninstaller`"" 'Uninstall SAAM (your prints are kept)'
+}
 
 Write-Host ''
 Write-Step "SAAM $version is installed."
-Write-Host "Start it any time from the SAAM shortcut on the Start Menu or Desktop; stop it by closing the Studio tab or with Quit."
+if (-not $NoShortcuts) { Write-Host "Start it any time from the SAAM shortcut on the Start Menu or Desktop; stop it by closing the Studio tab or with Quit." }
 Write-Host "Your prints and settings stay in $(Get-SaamDataFolder)."
-Write-Host 'Starting SAAM now. Studio opens in your browser; use its Connect panel to link your chat.'
-Start-Process -FilePath $wscript -ArgumentList $launcher -WorkingDirectory $env:USERPROFILE
-Write-Log 'Started SAAM.'
+if (-not $NoLaunch) {
+  Write-Host 'Starting SAAM now. Studio opens in your browser; an alpha invite is optional.'
+  if ($isolated) {
+    Start-Process -FilePath (Join-Path $SaamRoot 'runtime\node.exe') -ArgumentList (Join-Path $SaamRoot 'packaging\launch.mjs') -WorkingDirectory $env:USERPROFILE -WindowStyle Hidden
+  } else {
+    Start-Process -FilePath $wscript -ArgumentList $launcher -WorkingDirectory $env:USERPROFILE
+  }
+  Write-Log 'Started SAAM.'
+}
 exit 0

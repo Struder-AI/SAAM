@@ -1,32 +1,18 @@
 #!/usr/bin/env node
-// The installed SAAM launcher. Prints, the pairing credential and logs live in
+// The installed SAAM launcher. Prints, the optional service credential and logs live in
 // a per-user data folder outside the application, so reinstalling, updating
 // or uninstalling the application never touches them. One SAAM runs per user:
 // launching again asks the running one to show Studio.
 import {readFile,writeFile,mkdir,unlink,appendFile} from 'node:fs/promises';
 import {createServer} from 'node:http';
 import {randomBytes} from 'node:crypto';
-import {homedir} from 'node:os';
 import {resolve,dirname} from 'node:path';
-import {fileURLToPath,pathToFileURL} from 'node:url';
+import {pathToFileURL} from 'node:url';
 import {openBrowser} from '../studio/browser.mjs';
 import {installUpdate} from './update.mjs';
-
-const appRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-
-export function dataFolder(){
-  if(process.env.SAAM_DATA)return resolve(process.env.SAAM_DATA);
-  if(process.platform==='win32')return resolve(process.env.LOCALAPPDATA??resolve(homedir(),'AppData/Local'),'SAAM');
-  if(process.platform==='darwin')return resolve(homedir(),'Library/Application Support/SAAM');
-  return resolve(process.env.XDG_DATA_HOME??resolve(homedir(),'.local/share'),'saam');
-}
-
-// release.json is written by the packager: the version, the relay this build
-// pairs with, its platform and the host its updates may come from.
-async function release(){
-  const saved=JSON.parse(await readFile(resolve(appRoot,'release.json'),'utf8').catch(()=>'{}'));
-  return {version:saved.version??'development',relayUrl:process.env.SAAM_RELAY_URL??saved.relayUrl,platform:saved.platform??null,updateHost:saved.updateHost??null};
-}
+import {startDesktop} from './desktop.mjs';
+import {createReleaseService,dataFolder,releaseConfiguration} from './release-service.mjs';
+export {dataFolder} from './release-service.mjs';
 
 const alive=pid=>{try{process.kill(pid,0);return true;}catch(error){return error.code==='EPERM';}};
 
@@ -65,9 +51,8 @@ const logFile=()=>resolve(dataFolder(),'logs','saam.log');
 const log=(...parts)=>{const line=`${new Date().toISOString()} ${parts.join(' ')}`;console.log(line);return appendFile(logFile(),line+'\n').catch(()=>{});};
 
 async function main(){
-  const data=dataFolder(),{version,relayUrl,platform,updateHost}=await release();
+  const data=dataFolder(),{version,serviceUrl,platform,updateHost}=await releaseConfiguration();
   await mkdir(resolve(data,'logs'),{recursive:true});
-  if(!relayUrl)throw Error('This build names no relay. Set SAAM_RELAY_URL or reinstall a release build.');
   const token=randomBytes(24).toString('hex'),instanceFile=resolve(data,'instance.json');
   // The control server is listening before the record names it.
   const control=createServer();
@@ -81,29 +66,27 @@ async function main(){
     await unlink(instanceFile).catch(()=>{});
     if(await claimInstance(instanceFile,record))throw Error('Another SAAM is starting. Try again in a moment.');
   }
-  log(`SAAM ${version} starting. Data: ${data}. Relay: ${relayUrl}`);
+  log(`SAAM ${version} starting. Data: ${data}. Optional release service: ${serviceUrl??'none'}`);
   // Quit in Studio, closing its last tab, updating and a signal (closing a console window) all end
   // with stop(); it needs the SAAM they belong to.
-  const app={saam:null,stopping:null};
+  const app={desktop:null,stopping:null};
   const stop=()=>app.stopping??=(async()=>{
-    control.close();await app.saam?.stop().catch(error=>log('stop failed',error.message));
+    control.close();await app.desktop?.stop().catch(error=>log('stop failed',error.message));
     await unlink(instanceFile).catch(()=>{});await log('SAAM stopped.');process.exit(0);
   })();
   const later=result=>{setTimeout(()=>void stop(),500);return result;};
-  const installed={version,platform,
+  const services=await createReleaseService({serviceUrl,statePath:resolve(data,'release-service.json'),version,platform,updateHost,watchState:true,
     update:platform&&updateHost?async offered=>later(await installUpdate(offered,{platform,updateHost,data,log})):null,
-    quit:async()=>{log('Quit requested from Studio.');return later({quitting:true});}};
-  const {runPairedSaam}=await import('../adapters/mcp/src/relay-device.mjs');
-  app.saam=await runPairedSaam({relayUrl,statePath:resolve(data,'relay-device.json'),printsRoot:resolve(data,'Prints'),installed,
-    onStatus:status=>log('relay',JSON.stringify(status)),onCall:call=>log('call',JSON.stringify(call))});
-  const saam=app.saam;
+    quit:async()=>{log('Quit requested from Studio.');return later({quitting:true});}});
+  app.desktop=await startDesktop({printsRoot:resolve(data,'Prints'),services});
+  const desktop=app.desktop;
   control.on('request',async(req,res)=>{
     if(req.method!=='POST'||req.url!=='/open'||req.headers['x-saam-launch']!==token){res.writeHead(404);res.end();return;}
-    try{const shown=await saam.runtime.openStudio();res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify(shown));}
+    try{const shown=await desktop.runtime.openStudio();res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify(shown));}
     catch(error){res.writeHead(500);res.end(error.message);}
   });
-  stopWithoutTabs(saam.runtime.observeEvents,()=>{log('No Studio tab is open.');void stop();});
-  log(`SAAM Studio: ${saam.studio.url}. To stop SAAM, close Studio or click Quit.`);
+  stopWithoutTabs(desktop.runtime.observeEvents,()=>{log('No Studio tab is open.');void stop();});
+  log(`SAAM Studio: ${desktop.studio.url}. To stop SAAM, close Studio or click Quit.`);
   process.on('SIGINT',stop);process.on('SIGTERM',stop);process.on('SIGHUP',stop);
 }
 

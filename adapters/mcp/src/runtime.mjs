@@ -1,11 +1,10 @@
 import {applyExtensionEdit,createExtensionBundle} from '../../../core/print/extension-edits.mjs';
 // The local SAAM runtime: every agent operation over the same bundle lifecycle
 // and Studio used by the CLI, and the Studio/request state they share. It knows
-// no transport; stdio MCP (server.mjs) and the relay register these operations.
+// no transport; the local stdio MCP adapter registers these operations.
 import { z } from 'zod';
 import { mkdir, readdir, lstat, realpath, stat } from 'node:fs/promises';
-import { resolve, dirname, relative, isAbsolute, sep } from 'node:path';
-import { homedir } from 'node:os';
+import { resolve, dirname, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {openBrowser} from '../../../studio/browser.mjs';
 import {randomUUID} from 'node:crypto';
@@ -96,29 +95,11 @@ export function summary(bundleId, state) {
   };
 }
 
-// Local clients keep the short bounded wait; a relay session raises it to its
-// client's per-call deadline (see relay-device.mjs).
-export const LOCAL_LISTEN=Object.freeze({defaultMs:25000,maxMs:25000}),LISTEN_LIMIT_MS=450000;
+export const LOCAL_LISTEN=Object.freeze({defaultMs:25000,maxMs:25000}),LISTEN_LIMIT_MS=25000;
 
-// A remote session (a web chat through the relay) reaches only files the person
-// chose in Studio, and fonts in the system font folders.
-function systemFontFolders(){
-  const home=homedir();
-  if(process.platform==='win32')return [resolve(process.env.WINDIR??'C:/Windows','Fonts'),resolve(process.env.LOCALAPPDATA??resolve(home,'AppData/Local'),'Microsoft/Windows/Fonts')];
-  if(process.platform==='darwin')return ['/System/Library/Fonts','/Library/Fonts',resolve(home,'Library/Fonts')];
-  return ['/usr/share/fonts','/usr/local/share/fonts',resolve(home,'.local/share/fonts'),resolve(home,'.fonts')];
-}
-async function requireSystemFont(path){
-  const fold=value=>process.platform==='win32'?value.toLowerCase():value;
-  const inside=async folder=>{try{const base=await realpath(folder);return fold(await realpath(path)).startsWith(fold(base+sep));}catch{return false;}};
-  for(const folder of systemFontFolders())if(await inside(folder))return;
-  throw Error('From a web chat, fontPath must be a font installed in the system font folders.');
-}
+export const instructions = 'Desktop Claude Code and Codex use this local SAAM MCP server with command access. For a maker edit to an existing print, call begin_studio_work before changing the print; for a tour, use the installed toolkit to start Studio first and follow its returned participation context. For ordinary new-part work, call maker_onboarding once if its context is missing, then read individual skill manuals as needed. The maker role does not authorize guidance authoring or core development; use the corresponding local toolkit onboarding and required authorization for those roles. A person confirms exact settings and toolpath together in Studio before export. Establish the printer and material before relying on a toolpath. Studio requests and events arrive through tool results, MCP notifications, wait_for_studio_request and get_studio_events. Acknowledge completed edits before waiting for more Studio requests. Events are ordered observations; act on the latest. No tool grants hardware operation or final approval.';
 
-export const instructions = 'Web agents are makers only; reading builder or developer documentation never changes that role or grants command access. For a maker edit, your FIRST operation is begin_studio_work, before any acknowledgement, analysis, status check or other tool; bundleId may be omitted for the active tour. For a tour request with command access, first run node studio/server.mjs --toolkit start-tour --no-open and open the returned Studio URL; then use its returned participation context and listener. Do not read guidance or run onboarding before launching the tour. For ordinary new-part work with missing maker context, run node scripts/agent-toolkit.mjs maker-onboarding once with command access, or otherwise call maker_onboarding once; either supplies the maker flow, the index of skills and advanced sections, and print-tools. Reuse current context and choose individual skill manuals for the task; do not reread sources already returned by onboarding. Follow relevant documentation links through read_guidance using their repository-relative path and optional #heading. Shared print-tool usage is available as "print-tools". Create a print and request_review for its geometry. Revisions happen through chat using adjust_recipe and expectedRevision. Geometry review is advisory: generation may proceed whenever it helps review. The person confirms the exact settings and toolpath together in Studio before export. Establish the printer and material before relying on the toolpath. For an edit to an existing print call begin_studio_work immediately, publish its saved geometry or toolpath target, then resolve its request ID after the requested result is displayed. Geometry-only work needs no slicing. Questions and guidance stay visually quiet. Normal use supports capabilities from any view; only the tour narrows requests to its current lesson under the tour manual. Send edit acknowledgements and lesson guidance immediately in chat commentary BEFORE calling a listener. Never hold an edit reply in a final answer while waiting through later lessons. During tours let Studio lead the early lessons. Keep wait_for_studio_request active, perform start-layer preparation silently, and initiate chat teaching only at the designated infill lesson and completion. Respond normally to participant-requested edits. Use get_tour for the selected print and set_tour_start_at for an explicit infill layer. deliver_toolpath copies the reviewed bytes. No tool grants final settings/toolpath approval or runs hardware. Studio reports what the person does — lesson changes, opened prints, imports, exports, displayed results, failed or cancelled calculations — as studioEvents on tool results, in wait_for_studio_request returns and in notifications; read the queue any time with get_studio_events, which also reports import/repair and toolpath progress with elapsed time. Events are ordered observations, not simultaneous state: act on the latest.';
-
-// relay: on a computer paired with the SAAM relay, the provider every Studio
-// instance shows in its Connect panel ({status(), linkCode()}).
+// The optional service supplies Studio's release and diagnostics controls.
 export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoOpen = process.env.SAAM_NO_AUTO_OPEN !== '1',localExtension=installedExtension,thingi10kClient,relay } = {}) {
   const libraryRoot = resolve(printsRoot);
   let resourceClient;
@@ -169,8 +150,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     }
     finally{imports.delete(jobId);}
   }
-  // Every runtime-owned Studio instance starts here, showing dir (or no print
-  // when dir is null) and the relay panel when this computer has a relay.
+  // Every runtime-owned Studio instance starts here, showing dir or no print.
   async function startStudio(dir){
     const studio = createStudio(dir, { libraryRoot,agentOwnerId:ownerId,agentRequests,studioEvents,relay });
     try{await studio.ready();}catch(error){await studio.shutdown().catch(()=>{});throw error;}
@@ -178,7 +158,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     catch(error){await studio.shutdown().catch(()=>{});throw error;}
     const session = { server: studio, url: `http://127.0.0.1:${studio.address().port}` },studioInstanceId=studio.agentSession().instanceId;
     studioSessions.set(studioInstanceId, session);
-    studio.agentWorking(chat.working);
+    studio.agentWorking(agent.working);
     studio.once('close',()=>{
       if(studioSessions.get(studioInstanceId)===session)studioSessions.delete(studioInstanceId);
       for(const [id,instance] of preferredStudioByPrint)if(instance===studioInstanceId)preferredStudioByPrint.delete(id);
@@ -254,15 +234,16 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     return found.sort((a, b) => a.id.localeCompare(b.id));
   }
   const immediateTools=new Set(['begin_studio_work','respond_to_studio_request','wait_for_studio_request','get_studio_requests','get_studio_events','get_studio_sessions','cancel_studio_calculation','get_tour']);
-  // Operations that read a path the agent names on this computer.
-  const localOnlyTools=new Set(['import_stl_bundle']);
+  const operationObservers=new Set();
+  const diagnosticFields=(value,keys)=>Object.fromEntries(keys.filter(key=>value&&Object.hasOwn(value,key)).map(key=>[key,value[key]]));
+  const reportOperation=event=>{for(const observer of operationObservers)try{observer(event);}catch{/* Diagnostics never fail an operation. */}};
   function tool(name, description, shape, action, readOnly = true, openWorld = false) {
     const tracked=Boolean(shape.bundleId)&&!immediateTools.has(name);
     const instanceScope=tracked&&!readOnly&&!['request_review','create_bundle','import_stl_bundle','import_thingi10k_bundle','remember_setup','deliver_toolpath'].includes(name);
     // The full strict schema makes unexpected top-level approval data an error
     // instead of letting Zod silently discard it.
     const schema=z.object({...shape,...(tracked?{requestIds:z.array(z.string()).optional()}: {}),...(instanceScope?{studioInstanceId:z.string().optional()}: {})}).strict();
-    operations.set(name,{name,description,schema,readOnly,openWorld,tracked,instanceScope,immediate:immediateTools.has(name),localOnly:localOnlyTools.has(name),action});
+    operations.set(name,{name,description,schema,readOnly,openWorld,tracked,instanceScope,immediate:immediateTools.has(name),action});
   }
   async function associatedStudio(bundleId,studioInstanceId,requestIds){
     const dir=await directory(bundleId);
@@ -289,12 +270,14 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   // `session` carries per-session limits, such as how long this client may listen.
   function invoke(name,args={},session){
     const operation=operations.get(name);
-    if(!operation||operation.localOnly&&session?.remote)return Promise.reject(Error(`Unknown SAAM operation ${name}.`));
+    if(!operation)return Promise.reject(Error(`Unknown SAAM operation ${name}.`));
     const execute=async()=>{
-      const {requestIds,...input}=operation.schema.parse(args);
-      const touch=async()=>{for(const id of requestIds??[])await agentRequests.activity(id,{directory:await directory(input.bundleId)});};
-      if(operation.tracked)await touch();
-      let result;
+      const started=operationObservers.size?Date.now():null;
+      try{
+        const {requestIds,...input}=operation.schema.parse(args);
+        const touch=async()=>{for(const id of requestIds??[])await agentRequests.activity(id,{directory:await directory(input.bundleId)});};
+        if(operation.tracked)await touch();
+        let result;
       try{
         if(operation.instanceScope){
           const {studioInstanceId,...fields}=input;
@@ -302,12 +285,17 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
           result=studio?await studio.server.runBundleEdit(studio.dir,instance=>operation.action(fields,session,instance)):await operation.action(fields,session);
         }else result=await operation.action(input,session);
       }finally{if(operation.tracked)await touch();}
-      if(result&&typeof result==='object'&&!Array.isArray(result)&&!['get_studio_events','wait_for_studio_request'].includes(name)){
-        if(!operation.immediate){const pending=await agentRequests.query({status:'queued'});if(pending.length)result={...result,studioRequests:pending};}
-        // Delivered events push at once; every tool result also carries whatever is still queued.
-        const events=studioEvents.drain();if(events.length)result={...result,studioEvents:events};
-      }
-      return publicBundleIdentity(result);
+        if(started!==null)reportOperation({kind:'operation',name,status:'completed',durationMs:Date.now()-started,readOnly:operation.readOnly,
+          parameters:diagnosticFields(input,['bundleId','kind','machineId','units','action','expectedRevision','skillId']),
+          result:diagnosticFields(result,['revision','geometryHash','generationHash','exportHash','toolpathApproved','programChecked','imported','status'])});
+        if(result&&typeof result==='object'&&!Array.isArray(result)&&!['get_studio_events','wait_for_studio_request'].includes(name)){
+          if(!operation.immediate){const pending=await agentRequests.query({status:'queued'});if(pending.length)result={...result,studioRequests:pending};}
+          // Delivered events push at once; every tool result also carries whatever is still queued.
+          const events=studioEvents.drain();if(events.length)result={...result,studioEvents:events};
+        }
+        return publicBundleIdentity(result);
+      }catch(error){if(started!==null)reportOperation({kind:'operation',name,status:'failed',durationMs:Date.now()-started,
+        parameters:diagnosticFields(args,['bundleId','kind','machineId','units','action','expectedRevision','skillId']),error:error.message});throw error;}
     };
     if(operation.immediate)return execute();
     const run=work.tail.then(execute);
@@ -315,19 +303,16 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     return run;
   }
 
-  // The maker's starting context for a client without command access, as the
-  // toolkit's maker-onboarding gives it to one with, less its script sections. A web
-  // chat also gets how its connection works, which its client may not show from the
-  // server instructions.
+  // The desktop client has local command access, including script sections.
   const machineIdSchema=z.string().optional().describe('Reusable printer profile for discovery before selecting a bundle. Use bundleId for saved capabilities.');
   async function manualContext({bundleId,machineId}){
-    if(bundleId)return {client:'web',machine:(await read(bundleId,{program:false})).state.machine};
-    return {client:'web',machineId};
+    if(bundleId)return {client:'script',machine:(await read(bundleId,{program:false})).state.machine};
+    return {client:'script',machineId};
   }
-  tool('maker_onboarding','Start here: call this once per conversation, before any other SAAM tool. Returns how to work with SAAM: maker guidance, the index of every skill and advanced section, the shared print tools and, from a web chat, how this connection works. Reuse it for the whole conversation.',
-    {machineId:machineIdSchema,bundleId:bundleIdSchema.optional()}, async ({machineId,bundleId}, session) => ({ role:'maker', ...(session?.guidance?{connection:session.guidance}:{}),
+  tool('maker_onboarding','Start here for maker work when context is missing. Returns maker guidance, the skill index and print tools, including local script sections. Reuse it for the conversation.',
+    {machineId:machineIdSchema,bundleId:bundleIdSchema.optional()}, async ({machineId,bundleId}) => ({ role:'maker',
       sources: await onboardingSources(root,await manualContext({machineId,bundleId})),
-      nextStep: 'Web agents remain makers; builders author guidance and developers own core skills. Follow connection first when present. Reuse these sources for the whole conversation; do not reread them or call maker_onboarding again. Read skill manuals (read_skill) and linked references (read_guidance) when a task needs them, and a gated section by name when its gate applies or the person asks.' }));
+      nextStep: 'Reuse these sources for the conversation. Read skill manuals (read_skill) and linked references (read_guidance) when a task needs them. Authoring guidance uses builder onboarding in the local toolkit; core implementation requires explicit developer authorization.' }));
   tool('list_machines', 'List installed machine profiles and declared outputs. Catalog presence is not proof that a particular recipe is supported.', {}, async () => MACHINE_IDS.map(id => {
     const m = loadMachine(id);
     return { id, name: m.name, capabilities: m.capabilities, tools: m.tools, materials: m.materials,
@@ -444,7 +429,6 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   tool('apply_text', 'Add, edit or remove raised/recessed text using a local font and a part or independent spline reference. Read text for request fields; assignments can replace the common plan.slices list atomically with geometry. Rebuilds actual geometry and invalidates approvals; use request_review afterward.',
     {bundleId:bundleIdSchema,expectedRevision:z.string().min(1),request:objectSchema},async({bundleId,expectedRevision,request},session)=>{
       noApprovalFields(request);
-      if(session?.remote&&request.feature?.fontPath!==undefined)await requireSystemFont(String(request.feature.fontPath));
       const {dir,state}=await read(bundleId,{program:false});
       if(state.kind!=='shell')throw new Error('Text modifies shared shell/mesh prints.');
       return summary(bundleId,await applyExtensionEdit(dir,'text',request,{expectedRevision}));
@@ -615,64 +599,26 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     return { ...summary(bundleId, state), file, exportHash: state.exportHash };
   }, false);
   // The runtime outlives its sessions: Studio instances, jobs and bundles stay
-  // while chats come and go. One session is active at a time; an ended
+  // while desktop agent connections come and go. One session is active at a time; an ended
   // session's late calls are rejected rather than run for its successor.
   const runtime={closing:null,session:null};
   // listen: how long this session's client may hold a wait (default and ceiling).
-  // remote: a web chat through the relay; it neither sees nor runs local-only operations.
-  // The chat is working from any call other than the listener, and from a
+  // The agent is working from any call other than the listener, and from a
   // listener that returned something to act on, until it listens again or
   // WORKING_MS pass without a call. Studio shows it as its waiting indicators.
   const WORKING_MS=5*60_000;
-  const chat={working:false,timer:null};
-  function chatWorking(session){
+  const agent={working:false,timer:null};
+  function agentWorking(session){
     const activity=session?.activity;
     return Boolean(activity&&!session.ending&&!activity.listening&&activity.lastCall&&Date.now()-activity.lastCall<WORKING_MS);
   }
   function publishWorking(){
-    const working=chatWorking(runtime.session);
-    clearTimeout(chat.timer);
-    if(working){chat.timer=setTimeout(publishWorking,runtime.session.activity.lastCall+WORKING_MS-Date.now()+50);chat.timer.unref?.();}
-    if(working===chat.working)return;
-    chat.working=working;
+    const working=agentWorking(runtime.session);
+    clearTimeout(agent.timer);
+    if(working){agent.timer=setTimeout(publishWorking,runtime.session.activity.lastCall+WORKING_MS-Date.now()+50);agent.timer.unref?.();}
+    if(working===agent.working)return;
+    agent.working=working;
     for(const {server:studio} of studioSessions.values())studio.agentWorking?.(working);
-    for(const listener of statusListeners)listener();
-  }
-  // What the chat's SAAM panel shows: one light, done, working or error, a line
-  // saying why and the Studio address. It only shows: Studio requests and
-  // events reach the model through the listener. The relay reports an offline
-  // computer and the panel its own lost connection.
-  const statusListeners=new Set();
-  async function chatStatus(){
-    const requests=await agentRequests.query(),clip=text=>String(text??'').replace(/\s+/g,' ').trim().slice(0,120);
-    const queued=requests.filter(r=>r.status==='queued'),working=requests.find(r=>r.status==='working');
-    const calculating=generationStatus().find(g=>['preparing','generating','importing'].includes(g.status));
-    // Only this session's failures: an earlier chat's are not this one's error.
-    const since=runtime.session?.started??Infinity;
-    const latest=requests.filter(r=>!r.connectionClosed&&r.updatedAt>=since).reduce((a,b)=>!a||b.updatedAt>a.updatedAt?b:a,null);
-    // studio: the loopback address of the newest live Studio, carrying no secret.
-    const shown={studio:[...studioSessions.values()].filter(({server:studio})=>studio.listening).at(-1)?.url??null};
-    const light=(state,text)=>({state,text,...shown});
-    if(working)return light('working','Working on: '+clip(working.instruction));
-    if(queued.length)return light('working',queued.length>1?`${queued.length} Studio requests waiting for the chat`:'Studio request waiting for the chat');
-    if(calculating)return light('working',calculating.status==='importing'?'Importing geometry':'Calculating the toolpath');
-    if(chat.working)return light('working','Working');
-    if(latest?.status==='failed')return light('error','Failed: '+clip(latest.message||latest.instruction));
-    if(requests.some(r=>r.status==='waiting'))return light('done','Waiting for you in Studio');
-    return light('done','Done');
-  }
-  // listener() runs on anything that may change the status; read chatStatus().
-  function subscribeStatus(listener){
-    const stops=[agentRequests.subscribe(()=>listener()),studioEvents.observe(()=>listener())];
-    statusListeners.add(listener);
-    return ()=>{statusListeners.delete(listener);for(const stop of stops)stop();};
-  }
-  // A web chat's client may show neither the server instructions nor a tool
-  // description's "start here", so until it onboards the adapter adds this to
-  // every result (see onboardingReminder).
-  const ONBOARDING_REMINDER='You have not called maker_onboarding in this SAAM session. Unless you already have its context in this conversation, call it now, before continuing: it explains how SAAM works and how this connection to the person’s computer works.';
-  function noteOnboarding(session,name,args){
-    if(name==='maker_onboarding'||name==='read_guidance'&&['makers','MAKERS.md'].includes(args?.guidanceId))session.onboarded=true;
   }
   function observed(session,name,pending){
     const activity=session.activity,listener=name==='wait_for_studio_request';
@@ -683,16 +629,14 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       return result;
     }).finally(()=>{if(listener)activity.listening--;publishWorking();});
   }
-  // guidance: how this session's client reaches SAAM, returned by maker_onboarding.
-  function beginSession({listen=LOCAL_LISTEN,remote=false,guidance=null}={}){
+  function beginSession({listen=LOCAL_LISTEN}={}){
     if(runtime.closing)throw Error('The SAAM runtime is closing.');
     if(runtime.session)throw Error('A SAAM session is already active. End it before starting another.');
     if(!(listen.defaultMs<=listen.maxMs&&listen.maxMs<=LISTEN_LIMIT_MS))throw Error('Invalid listener limits.');
-    const session={id:randomUUID(),started:Date.now(),ending:null,listen,remote,guidance,onboarded:false,activity:{listening:0,lastCall:0}};runtime.session=session;
+    const session={id:randomUUID(),ending:null,listen,activity:{listening:0,lastCall:0}};runtime.session=session;
     return {id:session.id,
-      operations:[...operations.values()].filter(operation=>!(remote&&operation.localOnly)).map(({action,...definition})=>definition),
-      invoke:(name,args)=>session.ending?Promise.reject(Error('This SAAM session has ended. Start a new session; saved prints remain available.')):(noteOnboarding(session,name,args),observed(session,name,invoke(name,args,session))),
-      onboardingReminder:()=>session.remote&&!session.onboarded?ONBOARDING_REMINDER:null,
+      operations:[...operations.values()].map(({action,...definition})=>definition),
+      invoke:(name,args)=>session.ending?Promise.reject(Error('This SAAM session has ended. Start a new session; saved prints remain available.')):observed(session,name,invoke(name,args,session)),
       end:()=>endSession(session)};
   }
   function endSession(session){return session.ending??=Promise.resolve().then(async()=>{
@@ -711,10 +655,9 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     await agentRequests.disconnect();
     await Promise.all([...studioSessions.values()].map(({server:studio})=>studio.shutdown()));
     studioEvents.close();
+    operationObservers.clear();
     studioSessions.clear();preferredStudioByPrint.clear();
   });}
-  // A Studio instance with no print, opened when a relay computer starts so the
-  // person can connect a chat. As the sole live instance, request_review reuses it.
   // Shows SAAM Studio: the newest live instance, else a new one with no print.
   // A tab opens only when nobody is viewing it.
   async function openStudio(){
@@ -727,12 +670,11 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     operations:[...operations.values()].map(({action,...definition})=>definition),
     beginSession,
     queuedRequests:async()=>publicBundleIdentity(await agentRequests.query({status:'queued'})),
-    chatStatus,
-    subscribeStatus,
     subscribeRequests:listener=>agentRequests.subscribe(listener),
     subscribeEvents:listener=>studioEvents.subscribe(events=>listener(publicBundleIdentity(events))),
     // Every Studio event as it is recorded, without draining the agent's queue.
     observeEvents:observer=>studioEvents.observe(events=>observer(publicBundleIdentity(events))),
+    observeOperations:observer=>{operationObservers.add(observer);return()=>operationObservers.delete(observer);},
     openStudio,
     close
   };

@@ -5,6 +5,15 @@ import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {contextBudget} from '../core/agent/layers.mjs';
 import {root, onboarding, readSkill, readMaps, regenerateMap, contextPacket, preview, showPrint, beginWork, waitForRequests, readStudioEvents, cancelStudioCalculation, respondToRequest, recordRequestActivity, inspectFailure, developmentAreas} from '../core/agent/toolkit.mjs';
+import {createInstalledReleaseService} from '../packaging/release-service.mjs';
+
+const diagnosticFields=(value,keys)=>Object.fromEntries(keys.filter(key=>value&&Object.hasOwn(value,key)).map(key=>[key,value[key]]));
+const reportCommand=(services,activeAtStart,command,startedAt,status,result,error)=>{
+  if(!activeAtStart||!services?.status().activated)return;
+  services.recordOperation({kind:'operation',name:command,status,durationMs:Date.now()-startedAt,
+    result:diagnosticFields(result,['revision','geometryHash','generationHash','exportHash','status','jobId']),
+    ...(error?{error:error.message}:{})});
+};
 
 const string = {type: 'string'}, boolean = {type: 'boolean'}, many = {type: 'string', multiple: true};
 const schemas = {
@@ -60,7 +69,7 @@ export const help = {
     'Output is newline-delimited JSON: studio-ready for a live preview, then result; failures contain stage and partial results.']
 };
 
-function attachLiveControl(opened,input,write){
+function attachLiveControl(opened,input,write,services){
   if(!input?.on)return()=>{};
   const lines=createInterface({input,terminal:false});let queue=Promise.resolve();
   lines.on('line',line=>{
@@ -68,6 +77,7 @@ function attachLiveControl(opened,input,write){
     try{message=JSON.parse(line);}catch(error){write({ok:false,event:'agent-response',error:'Invalid live command JSON: '+error.message});return;}
     const {id,command}=message,base={requests:opened.agent.requests,studioInstanceId:opened.result.studio.instanceId};
     const run=async()=>{
+    const startedAt=Date.now(),activeAtStart=Boolean(services?.status().activated);
     try{
       let result;
       if(command==='begin-studio-work')result=await beginWork({...base,target:message.target??opened.result.directory,instruction:message.instruction,requestId:message.requestId,includeGeometry:Boolean(message.includeGeometry),kind:message.kind});
@@ -83,7 +93,8 @@ function attachLiveControl(opened,input,write){
       else if(command==='close-studio'){result=opened.agent.session();await opened.server.shutdown();}
       else throw Error('Unknown live Studio command.');
       write({ok:true,event:'agent-response',id,command,result});
-    }catch(error){write({ok:false,event:'agent-response',id,command,error:error.message});}
+      reportCommand(services,activeAtStart,command,startedAt,'completed',result);
+    }catch(error){write({ok:false,event:'agent-response',id,command,error:error.message});reportCommand(services,activeAtStart,command,startedAt,'failed',null,error);}
     };
     if(['cancel-studio-calculation','read-studio-events','close-studio'].includes(command))void run();
     else queue=queue.then(run).catch(error=>write({ok:false,event:'agent-response',error:error.message}));
@@ -93,7 +104,7 @@ function attachLiveControl(opened,input,write){
 
 export async function runCLI(args = process.argv.slice(2), {write = value => console.log(JSON.stringify(value)),input=process.stdin} = {}) {
   const [command, ...rest] = args;
-  let liveServer,stopPreparation;
+  let liveServer,stopPreparation,services,activeAtStart=false,startedAt=Date.now();
   try {
     if (!command || ['help', '--help', '-h'].includes(command)) {write({ok: true, ...help}); return;}
     if (!Object.hasOwn(schemas, command)) throw Error(`Unknown command: ${command}. Use --help.`);
@@ -102,6 +113,8 @@ export async function runCLI(args = process.argv.slice(2), {write = value => con
     const permitsTarget = needsTarget || ['begin-studio-work', 'regenerate'].includes(command);
     if (positionals.length > (permitsTarget ? 1 : 0) || needsTarget && !positionals.length) throw Error('Unexpected or missing positional argument. Use --help.');
     if (command === 'create-preview' && v.units && !v.stl) throw Error('--units applies only to --stl.');
+    try{services=await createInstalledReleaseService();}catch{/* Diagnostics never disable local commands. */}
+    activeAtStart=Boolean(services?.status().activated);startedAt=Date.now();
     const options = {command, target: positionals[0], library: v.library, recipe: v.recipe, stl: v.stl,
       kind: v.kind, machine: v.machine, units: v.units, noOpen: v['no-open'],
       startAtLayer: v['start-at-layer'] === undefined ? 12 : Number(v['start-at-layer']),
@@ -111,7 +124,7 @@ export async function runCLI(args = process.argv.slice(2), {write = value => con
       stopPreparation=()=>controller.abort(new DOMException('Import cancelled.','AbortError'));
       process.on('SIGINT',stopPreparation);process.on('SIGTERM',stopPreparation);
       options.signal=controller.signal;
-      options.onProgress=progress=>write({ok:true,event:'import-progress',command,elapsedMs:Date.now()-startedAt,progress});
+      options.onProgress=progress=>{write({ok:true,event:'import-progress',command,elapsedMs:Date.now()-startedAt,progress});if(services?.status().activated)services.recordStudioEvent({kind:'import-progress',...diagnosticFields(progress,['stage','phase','completed','total','percent','error'])});};
     }
     let result;
     if (command.endsWith('-onboarding')) result = await onboarding({role: command.replace('-onboarding', ''), areas: v.area, machine: v.machine, set: v.set});
@@ -124,10 +137,11 @@ export async function runCLI(args = process.argv.slice(2), {write = value => con
     else if (['start-tour', 'open-print', 'create-preview'].includes(command)) {
       const opened = await preview({...options, onReady: write,onRequest:event=>write({ok:true,event:'studio-request',command,...event}),onEvents:event=>write({ok:true,event:'studio-events',command,...event})});
       result = opened.result; liveServer = opened.server;
-      attachLiveControl(opened,input,write);
+      services?.observeRuntime({observeEvents:observer=>opened.agent.events.observe(observer)});
+      attachLiveControl(opened,input,write,services);
       const stop = () => {void liveServer.shutdown();};
       process.on('SIGINT', stop); process.on('SIGTERM', stop);
-      liveServer.once('close', () => {process.off('SIGINT', stop); process.off('SIGTERM', stop);});
+      liveServer.once('close', () => {process.off('SIGINT', stop); process.off('SIGTERM', stop);services?.close();});
       liveServer.on('error', error => {write({ok: false, command, stage: 'studio-runtime', error: error.message}); process.exitCode = 1; stop();});
     } else if (command === 'begin-studio-work') result = await beginWork(options);
     else if (command === 'wait-for-studio-request') {
@@ -143,11 +157,13 @@ export async function runCLI(args = process.argv.slice(2), {write = value => con
     else if(command==='record-request-activity')result=await recordRequestActivity({library:v.library,requestId:positionals[0]});
     else result = await inspectFailure(options);
     write({ok: true, event: 'result', command, ...result});
+    reportCommand(services,activeAtStart,command,startedAt,'completed',result);
     return liveServer;
   } catch (error) {
     write({ok: false, command, stage: error.stage ?? 'command', error: error.message, partial: error.partial ?? null});
+    reportCommand(services,activeAtStart,command,startedAt,'failed',null,error);
     process.exitCode = 1;
-  }finally{if(stopPreparation){process.off('SIGINT',stopPreparation);process.off('SIGTERM',stopPreparation);}}
+  }finally{if(stopPreparation){process.off('SIGINT',stopPreparation);process.off('SIGTERM',stopPreparation);}if(!liveServer)services?.close();}
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await runCLI();

@@ -100,13 +100,10 @@ export async function listPrints(libraryRoot,resolveBundle=bundleFor) {
   }
   await walk(resolve(libraryRoot),0);return prints.sort((a,b)=>b.modified.localeCompare(a.modified));
 }
-// Studio opened without a print (a relay computer's launch instance) serves the
+// Studio opened without a print serves the
 // page, the library and the tour; everything that reads a print answers this.
-const noPrint=()=>Object.assign(Error('No print is open. Open a saved print, import an STL, start the tour, or ask your chat to make a part.'),{code:'NO_PRINT'});
+const noPrint=()=>Object.assign(Error('No print is open. Open a saved print, import an STL, start the tour, or ask your agent to make a part.'),{code:'NO_PRINT'});
 const printFreeRoutes=new Set(['/api/open','/api/tour','/api/view-performance','/api/import-stl','/api/cancel-calculation']);
-// Studio's view of a relay link, when this computer is paired with one: status()
-// and linkCode() come from relay-device.mjs. The connector URL is the relay's /mcp.
-const relayView=status=>({...status,connectorUrl:new URL('/mcp',status.relayUrl).href});
 // A local development launcher may explicitly supply a scratch adapter resolver.
 // This is a function supplied by code, never a module path supplied by a print or HTTP request.
 // A null directory opens Studio with no print; the person or agent opens one later.
@@ -120,7 +117,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   const viewFingerprint=(id,fingerprint,guide)=>id+fingerprint+(geometryOnly(guide)?':geometry':':program');
   let dir=directory?resolve(directory):null;
   const token=randomBytes(24).toString('hex'),viewPerformance=[];
-  // Whether the owning chat is working; its runtime pushes changes here.
+  // Whether the owning agent is working; its runtime pushes changes here.
   const agentActivity={working:false};
   const workIdFor=directory=>directory?requests.printId(directory,{optional:true}):null;
   // Studio observations for the owning agent: person-driven actions, worker
@@ -376,10 +373,10 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         return;
       }
       if(req.method==='GET'&&url.pathname==='/') {
-        const html=(await readFile(resolve(here,'index.html'),'utf8')).replace('__CSRF__',token).replace('__RELAY__',relay?'on':'');
+        const html=(await readFile(resolve(here,'index.html'),'utf8')).replace('__CSRF__',token).replace('__SERVICE__',relay?'on':'');
         res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end(html);return;
       }
-      if(req.method==='GET'&&['/work-state.mjs','/agent-ui.mjs','/tour-ui.mjs','/tour-catalog.mjs','/viewer-session.mjs','/view-performance.mjs','/refresh-plan.mjs','/viewer-renderer.mjs','/studio-state.mjs','/studio-controls.mjs','/relay-panel.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/machine-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
+      if(req.method==='GET'&&['/work-state.mjs','/agent-ui.mjs','/tour-ui.mjs','/tour-catalog.mjs','/viewer-session.mjs','/view-performance.mjs','/refresh-plan.mjs','/viewer-renderer.mjs','/studio-state.mjs','/studio-controls.mjs','/service-panel.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/machine-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
         res.writeHead(200,{'Content-Type':url.pathname.endsWith('.css')?'text/css':'text/javascript'});res.end(await readFile(resolve(here,url.pathname.slice(1))));return;
       }
       if(req.method==='GET'&&url.pathname==='/struder-logo.png'){
@@ -388,27 +385,27 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       if(req.method==='GET'&&playerModules.has(url.pathname.slice(1))){
         res.writeHead(200,{'Content-Type':'text/javascript'});res.end(await readFile(resolve(root,url.pathname.slice(1))));return;
       }
-      if(url.pathname==='/api/relay'||url.pathname==='/api/relay/link-code'||url.pathname==='/api/relay/pair'||url.pathname==='/api/relay/update'||url.pathname==='/api/relay/quit'){
-        // An invite pairs this computer, link codes pair a chat with it, and an
-        // update replaces SAAM: the same session token and origin checks as
-        // Studio's other routes guard them. Absent without a relay.
-        const reading=req.method==='GET'&&url.pathname==='/api/relay',issuing=req.method==='POST'&&url.pathname==='/api/relay/link-code',pairing=req.method==='POST'&&url.pathname==='/api/relay/pair',updating=req.method==='POST'&&url.pathname==='/api/relay/update',quitting=req.method==='POST'&&url.pathname==='/api/relay/quit';
-        if(!relay||!reading&&!issuing&&!pairing&&!updating&&!quitting){send({error:'Not found'},404);return;}
+      if(url.pathname==='/api/service'||url.pathname.startsWith('/api/service/')){
+        // The optional release service never gates local making or viewing.
+        // Mutations use the same local token and origin checks as Studio edits.
+        const reading=req.method==='GET'&&url.pathname==='/api/service';
+        const action=req.method==='POST'?url.pathname.slice('/api/service/'.length):null;
+        if(!relay||!reading&&!['activate','dismiss','check-update','update','quit'].includes(action)){send({error:'Not found'},404);return;}
         if(req.headers['x-saam-token']!==token||(reading?req.headers.origin&&req.headers.origin!==origin:req.headers.origin!==origin)){send({error:'Invalid local session'},403);return;}
-        if(reading){send(relayView(relay.status()));return;}
-        if(pairing){
+        if(reading){send(relay.status());return;}
+        if(action==='activate'){
           const chunks=[];let size=0;
           for await(const chunk of req){size+=chunk.length;if(size>4_000)throw Error('Request too large.');chunks.push(chunk);}
           const {invite}=JSON.parse(Buffer.concat(chunks).toString()||'{}');
-          try{send(await relay.pair(String(invite??'')));}catch(error){send({error:error.message},400);}
+          try{send(await relay.activate(String(invite??'')));}catch(error){send({error:error.message},400);}
           return;
         }
+        if(action==='dismiss'){try{send(await relay.dismissFirstRun());}catch(error){send({error:error.message},500);}return;}
+        if(action==='check-update'){try{await relay.checkUpdate();send(relay.status());}catch(error){send({error:error.message},502);}return;}
         // Update or quit at an idle boundary: never under a running calculation.
-        if((updating||quitting)&&['preparing','generating'].includes(generationStatus()?.status)){send({error:`Wait for the toolpath calculation to finish, then ${updating?'update':'quit'}.`},409);return;}
-        if(updating){try{send(await relay.update());}catch(error){send({error:'SAAM could not update: '+error.message},502);}return;}
-        if(quitting){try{send(await relay.quit());}catch(error){send({error:error.message},400);}return;}
-        try{const {code,expiresAt}=await relay.linkCode();send({code,expiresAt});}
-        catch(error){send({error:'The relay could not issue a code: '+error.message},502);}
+        if(['update','quit'].includes(action)&&['preparing','generating'].includes(generationStatus()?.status)){send({error:`Wait for the toolpath calculation to finish, then ${action}.`},409);return;}
+        if(action==='update'){try{send(await relay.update());}catch(error){send({error:'SAAM could not update: '+error.message},502);}return;}
+        if(action==='quit'){try{send(await relay.quit());}catch(error){send({error:error.message},400);}return;}
         return;
       }
       if(req.method==='GET'&&url.pathname==='/api/tour'){send(await tour.info());return;}
