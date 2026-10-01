@@ -26,7 +26,7 @@ import {resolve,dirname,join,relative} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';
 import {zipSync} from 'fflate';
-import {packageNativeRepair} from './native-repair.mjs';
+import {executablePlatform,packageNativeRepair} from './native-repair.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const PLATFORMS={
@@ -185,8 +185,15 @@ async function main(){
   console.log(`node_modules: ${describe(installed)} installed, ${describe(await measure(modules))} kept.`);
 
   const runtime=resolve(app,'runtime');
-  if(values.node){await mkdir(runtime,{recursive:true});await copyFile(resolve(values.node),resolve(runtime,target.binary.split('/').pop()));
-    console.warn('Bundled the given node binary; it must be built for',platform+'.');}
+  if(values.node){
+    const binary=resolve(values.node),bytes=await readFile(binary);
+    if(executablePlatform(bytes)!==platform)throw Error(`The supplied Node binary does not target ${platform}.`);
+    const license=resolve(dirname(binary),'LICENSE');
+    if(!existsSync(license))throw Error('The supplied Node binary needs its adjacent LICENSE file.');
+    await mkdir(runtime,{recursive:true});
+    await copyFile(binary,resolve(runtime,target.binary.split('/').pop()));
+    await copyFile(license,resolve(runtime,'LICENSE'));
+  }
   else await fetchNode(values['node-version'],platform,runtime);
 
   const release={version:values.version,relayUrl,platform,updateHost,node:values.node?'supplied':values['node-version'],nativeRepair,builtAt:new Date().toISOString(),...(values.review?{reviewBuild:true}:{})};

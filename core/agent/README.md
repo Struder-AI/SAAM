@@ -201,33 +201,31 @@ and slicing are not prerequisites for that first screen.
 node scripts/agent-toolkit.mjs begin-studio-work Prints/my-part --instruction "Change infill"
 node scripts/agent-toolkit.mjs wait-for-studio-request --studio STUDIO_URL --agent-owner AGENT_OWNER_ID --claim --wait-ms 25000
 node scripts/agent-toolkit.mjs read-studio-events --studio STUDIO_URL --agent-owner AGENT_OWNER_ID
-node scripts/agent-toolkit.mjs begin-studio-work --request REQUEST_ID --include-geometry
-node scripts/agent-toolkit.mjs respond-to-studio-request REQUEST_ID --status working --result-stage toolpath
-node scripts/agent-toolkit.mjs respond-to-studio-request REQUEST_ID --message "Updated and displayed"
+node scripts/agent-toolkit.mjs begin-studio-work --request REQUEST_ID --include-geometry --agent-owner AGENT_OWNER_ID --studio-instance STUDIO_INSTANCE_ID
+node scripts/agent-toolkit.mjs respond-to-studio-request REQUEST_ID --status working --result-stage toolpath --agent-owner AGENT_OWNER_ID --studio-instance STUDIO_INSTANCE_ID
+node scripts/agent-toolkit.mjs respond-to-studio-request REQUEST_ID --message "Updated and displayed" --agent-owner AGENT_OWNER_ID --studio-instance STUDIO_INSTANCE_ID
 node scripts/agent-toolkit.mjs inspect-generation-failure Prints/my-part --request REQUEST_ID
 ```
 
-For new work, supply `--instruction`; omit the directory only when targeting the
-active tour print. Use `--kind guidance` for teaching without an edit. For an
-existing Studio request use `--request`, preserving its identity and kind. Recipe
-geometry is omitted by default and `planComplete` is false; use
-`--include-geometry` for a complete editable recipe. Pass the returned revision
-to the existing adjustment tools. [Studio coordination](../../studio/README.md#agent-request-coordination)
-owns prepared-result targeting and response timing.
+Use `--instruction` for new work, omitting the directory only for the active
+tour; use `--kind guidance` for teaching. `--request` keeps an existing Studio
+request's identity and kind. Geometry is omitted by default; use
+`--include-geometry` for a complete recipe, then pass its revision to the
+adjustment tools. [Studio coordination](../../studio/README.md#agent-request-coordination)
+owns response timing.
 
-One agent may own several Studio instances. Each instance has one immutable
-agent owner and exposes its `studioInstanceId`; use that ID whenever selection
-would otherwise be ambiguous. Another agent may open the same persisted print
-bundle in a separately owned Studio, but it cannot adopt or control this session.
-MCP `request_review` can open another owned instance for the same bundle explicitly;
-work on an ambiguously displayed bundle must name its instance.
-JSON request records retain restart and independent-process recovery; they are not
-the primary transport for an owned live session. A listener without the agent
-owner ID hears no Studio-bound request: pass `--agent-owner` from `studio-ready`.
+One agent may own several Studio instances. Each has an immutable owner and
+`studioInstanceId`; name the instance when selection is ambiguous. Another
+agent may open the same bundle separately but cannot control this session.
+MCP `request_review` can open another owned instance explicitly.
+JSON records support restart and process recovery, while the live session uses
+its owner: pass `--agent-owner` from `studio-ready` to hear its requests.
 The [Studio event queue](../../studio/README.md#studio-event-queue) delivers what the person
 does in an owned instance; reads drain it and report calculation progress.
 
-`respond-to-studio-request` defaults to `completed`; supported statuses are
+`respond-to-studio-request` defaults to `completed`; pass both IDs from
+`studio-ready` to it and `record-request-activity` for a Studio-owned request.
+Supported statuses are
 `working`, `completed`, `failed`, `waiting`, and `cancelled`. After preparation,
 `--status working --result-stage geometry|toolpath` records the result expected
 in the viewer. Send the required chat acknowledgement and resolve only that

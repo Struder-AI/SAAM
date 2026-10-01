@@ -63,11 +63,11 @@ export async function noteSourceSkew(error){
 }
 export function reportedMessage(error){const note=skewNotes.get(error);return note?error.message+note:error.message;}
 // Explicit browser module allowlist; no generic repository/file serving.
-const playerModules=new Set(['core/private/studio/numeric.mjs','core/private/studio/rigid.mjs','core/private/studio/frame.mjs',
-  'core/private/export/numeric.mjs','core/private/export/rigid.mjs','core/private/export/frame.mjs','core/private/toolpath/numeric.mjs',
+const playerModules=new Set(['core/private/studio/numeric.mjs','core/geom/frame.mjs',
+  'core/private/export/numeric.mjs','core/private/export/temperature.mjs','core/private/toolpath/numeric.mjs',
   'studio/source-player.mjs','studio/source-worker.mjs','studio/move-store.mjs',
   'studio/machine-session.mjs','studio/machine-view.mjs','core/export/source-time.mjs','core/export/machine-study.mjs',
-  'core/machine/presentation.mjs','core/machine/rigid.mjs','core/machine/jog.mjs',
+  'core/machine/presentation.mjs','core/machine/jog.mjs',
   'core/machine/dobot-kinematics.mjs','core/machine/denso-kinematics.mjs',
   'core/print/review-state.mjs',
   'core/export/denso-player.mjs','core/machine/denso.mjs','core/path/pose.mjs',
@@ -292,8 +292,6 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   const publishGeneration=async(outcome,development,trigger)=>{
     generationFailure=null;
     if(outcome.calculated)note('generation-finished',{generationHash:outcome.generationHash,development,trigger,durationMs:Date.now()-generationRun.startedAt});
-    const guide=await tour.info();
-    if(guide.active&&guide.directory===outcome.directory&&guide.step===L.playback&&!guide.startAt)await tour.requestStartLayer();
   };
   const publishGenerationFailure=async(error,snapshot,trigger)=>{
       const {directory:generationDir,state}=snapshot;
@@ -467,19 +465,15 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         const presentation=viewFingerprint(readId,presentationFingerprint,guide),name=await printName(readDir,state.plan);
         const assembled=composeStudioState(state,{directory:readDir,printId:readId,workId,instanceId,guide,records,importRepair,
           printName:name,fingerprint:responseFingerprint,presentationFingerprint:presentation,
-          generationFailure:failure,generationCancelled:cancelled,now:Date.now()});
+          generationFailure:failure,generationCancelled:cancelled});
         if(state.checkedBytes){
           const snapshot=`${readId}:${state.revision}:${state.exportHash}`;
           const {dir,plan,revision,exportName,exportHash,checkedBytes}=state;
           displayedResults.set(snapshot,{bundle,state:{dir,plan,revision,exportName,exportHash,checkedBytes}});
-          assembled.response.exportSnapshot=snapshot;
+          assembled.exportSnapshot=snapshot;
         }
         res.setHeader('ETag',tag);
-        send(assembled.response);
-        // Speculate only on the tour's explicitly selected, confirmed part.
-        // Ordinary edits use explicit generation; starting a second worker here
-        // competes with the agent and may slice inputs it is still changing.
-        if(assembled.preparation)prepare(assembled.preparation.state,assembled.preparation.directory);
+        send(assembled);
         return;
       }
       if(req.method==='GET'&&url.pathname==='/api/sources'){
@@ -585,22 +579,20 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           const played=await tour.playback(data.event);if(data.event!=='tick')note('tour-playback',{event:data.event,step:played.step});send(played);return;
         }
         if(url.pathname==='/api/tour'){
-          // This button explicitly selects the displayed part without turning
-          // navigation into a separate approval stage.
-          if(data.action==='step'&&progress.step===L.import&&data.step===L.playback)
+          // Enter playback only from the geometry that was actually displayed.
+          if(data.action==='step'&&progress.step===L.geometry&&data.step===L.playback)
             await validateGeometrySelection(current,data);
-          const ending=['exit','cancel','finish'].includes(data.action);
+          const ending=['exit','cancel','finish','finish-view'].includes(data.action);
           const result=await tour.action(data.action,data.step);
           if(ending&&dir)await useExample(dir);
           if(!ending&&result.directory&&resolve(result.directory)!==dir)await openPrint(result.directory);
           const lesson=TOUR_STEPS[result.data.step];
-          note(data.action==='fresh'?'tour-started':data.action==='step'?'tour-lesson':data.action==='finish'?'tour-finished':'tour-exited',
+          note(data.action==='fresh'?'tour-started':data.action==='step'?'tour-lesson':ending&&data.action!=='exit'&&data.action!=='cancel'?'tour-finished':'tour-exited',
             {action:data.action,step:result.data.step,lesson:lesson?{title:lesson.title,tab:lesson.tab,gate:lesson.gate??null}:null,runId:result.data.runId,lessonId:result.data.lessonId,
              active:result.data.active,completed:result.data.completed,canNext:result.data.canNext,agentInstruction:result.data.agentInstruction??null});
           if(result.directory&&result.data.active&&TOUR_STEPS[result.data.step].tab==='toolpath'){
             const adapter=await opened,state=(await readStableBundle(adapter,dir,{program:'source'})).state;
             if(!state.program||state.programError)await runBundleEdit(dir,()=>generate(adapter,false,'tour-step'));
-            if(result.data.step===L.playback&&!result.data.startAt)await tour.requestStartLayer();
           }
         }
         else if(url.pathname==='/api/use-example'){
@@ -609,13 +601,10 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           await useExample(dir);note('example-adopted',{});
         }
         else if(url.pathname==='/api/open'){
+          if(progress.active)throw Error('Exit the tour to open another print.');
           const selected=await printDirectory(data.path,resolveBundle);
-          if(progress.active)await tour.select(selected);
           await openPrint(selected);
-          const adapter=await opened,state=(await readStableBundle(adapter,dir,{program:progress.active?false:'source'})).state;
-          // Geometry stays visible in the STL lesson while a worker prepares its
-          // selected part. Continuing commits this exact candidate.
-          if(progress.active)prepare(state,dir);
+          const adapter=await opened,state=(await readStableBundle(adapter,dir,{program:'source'})).state;
           note('print-opened',{name:await printName(dir,state.plan),tour:progress.active,revision:state.revision});
         }
         else if(url.pathname==='/api/history'){

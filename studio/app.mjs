@@ -1,7 +1,7 @@
 import {invert,point} from '../core/geom/frame.mjs';
 import {createTourUI,needsTourToolpath} from './tour-ui.mjs';
 import { advancePlayback, exportMovie } from './playback.mjs';
-import { createLayerFade, layerEndSeconds, stepLayerIndex, TOOLPATH_COLORS } from './toolpath-view.mjs';
+import { createLayerFade, layerEndSeconds, layerIndexAt, representativeLayer, stepLayerIndex, TOOLPATH_COLORS } from './toolpath-view.mjs';
 import {hasConstruction,sliceSummary,recipeRows,robotRows,materialGrams,nextExportName,injectionPoints,depositionFamilyRows} from './settings.mjs';
 import {sourceSession,machineCameras} from './studio/machine-session.mjs';
 import {machineFitBounds,boundsCorners,machinePalette} from './machine-view.mjs';
@@ -287,7 +287,7 @@ function partBounds() {
 }
 
 async function api(route,data) {
-  const target=(route==='generate'||route==='tour'&&data?.action!=='finish'&&(data?.step??state?.tour?.step)>=L.playback)
+  const target=(route==='generate'||route==='tour'&&!['finish','finish-view'].includes(data?.action)&&(data?.step??state?.tour?.step)>=L.playback)
     ?{printId:state?.printId,generationHash:route==='generate'?data?.generationHash:null}:null;
   if(target)generationTarget=target;
   try{
@@ -785,16 +785,18 @@ async function poll(){
   }catch(e){reconnecting=true;agentUI.settled(e);$('#confirm').disabled=true;message('Could not update the print: '+e.message+' Reconnecting…');}
   finally{polling=false;}
 }
-function seekTourLayer(startAt){
-  if(!Number.isInteger(startAt?.layer)||startAt.layer<1)throw Error('Your agent must choose an infill layer for this tour.');
-  let move,first;for(const candidate of state.program?.moves??[])if(candidate.extruding){
-    first??=candidate;
-    if(candidate.layer===startAt.layer&&(startAt.fallback||/infill/.test(candidate.operation??'')&&!/solid|walls/.test(candidate.operation??''))){move=candidate;break;}
-  }
-  if(!move&&startAt.fallback)move=first;
-  if(!move)throw Error('That layer has no sparse infill. Ask your agent to choose another startAt layer.');
-  stop();seconds=move.startSeconds;$('#scrub').value=seconds;layerFade.reset();requestDraw();
-  return {layer:move.layer};
+function seekTourLayer(startAt,feature='contour'){
+  const pathView=viewer.sceneState().pathView;
+  if(!pathView)throw Error('The toolpath is still loading.');
+  const selected=startAt?(()=>{
+    if(!Number.isInteger(startAt.layer)||startAt.layer<1)throw Error('Choose a deposited layer after the first.');
+    const move=pathView.moves.find(candidate=>candidate.extruding&&candidate.layer===startAt.layer);
+    if(!move)throw Error('That deposited layer is not in this toolpath.');
+    return {seconds:move.startSeconds,layer:move.layer,index:layerIndexAt(pathView,move.startSeconds)};
+  })():representativeLayer(pathView,{feature});
+  if(!selected)throw Error('This toolpath has no deposited layers to show.');
+  stop();seconds=selected.seconds;$('#scrub').value=seconds;layerFade.reset();requestDraw();
+  return selected;
 }
 function createStudioTour(){
   return createTourUI({post:api,refresh,working,setTab,isBusy:()=>busy,state:()=>state,seek:seekTourLayer});

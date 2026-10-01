@@ -46,15 +46,15 @@ export const help = {
     'read-skill ID[#HEADING] [--maker] [--builder] [--developer] [--machine ID] [--all]': 'Read only the selected skill roles; defaults to maker. The maker manual opens advanced sections for --machine, or every section with --all; #HEADING reads one section whatever its gate. Missing optional manuals are reported in unavailableRoles.',
     'read-guidance PATH#HEADING [--machine ID] [--all]': 'Read one published manual or section chosen for the task, with its headings and their gates.',
     'context-budget [--machine ID]': 'Bytes of each context layer per client (web, script) and machine, for onboarding and each skill manual.',
-    'start-tour [--start-at-layer 12] [--no-open] [--agent-owner ID]': 'Fresh tour copies, live Studio, browser dispatch and participation context. --agent-owner resumes the agent owner of an earlier launch on this new Studio.',
+    'start-tour [--start-at-layer N] [--no-open] [--agent-owner ID]': 'Fresh tour copies, live Studio, browser dispatch and participation context. --agent-owner resumes the agent owner of an earlier launch on this new Studio.',
     'open-print DIRECTORY [--no-open] [--studio URL] [--agent-owner ID]': 'Open saved geometry/toolpath and return current recipe/review state. With the live Studio URL and agentOwnerId from studio-ready it shows the print in that Studio and exits instead of launching another; --agent-owner alone launches a new Studio under that resumed owner.',
     'create-preview DIRECTORY [--recipe FILE | --stl FILE] [--machine ID] [--units auto|mm|inch] [--no-open] [--studio URL] [--agent-owner ID]': 'Create/import unapproved geometry, open Studio and report assumptions. With --studio and --agent-owner the new print is shown in that live Studio instead of a new one; --agent-owner alone launches a new Studio under that resumed owner.',
     'begin-studio-work [DIRECTORY] [--instruction TEXT | --request ID] [--kind edit|guidance] [--include-geometry]': 'Start/claim work first, then read recipe, revision, confirmations and tour instruction.',
     'wait-for-studio-request [--studio URL --agent-owner ID] [--claim] [--wait-ms 25000] [--after ID]': 'Bounded wait for Studio requests and delivered Studio events, optional claim, and next cursor. With the live Studio URL and agentOwnerId from studio-ready it reads the owning agent’s event queue and calculation progress across processes.',
     'read-studio-events --studio URL --agent-owner ID [--wait-ms 0] [--history]': 'Read and clear queued Studio events (what the person did) plus current toolpath calculation progress from a live owned Studio.',
     'cancel-studio-calculation --studio URL --agent-owner ID [--job-id ID | --generation-hash HASH]': 'Cancel the observed import or toolpath calculation. Follow Studio events until cancellation and cleanup settle.',
-    'respond-to-studio-request ID [--status working|completed|failed|waiting|cancelled] [--result-stage geometry|toolpath] [--message TEXT]': 'Record a prepared result or resolve the matching request through the shared coordination API.',
-    'record-request-activity ID': 'Record actual request-specific agent/tool activity without resuming work or changing its target. Never run as an idle heartbeat.',
+    'respond-to-studio-request ID [--status working|completed|failed|waiting|cancelled] [--result-stage geometry|toolpath] [--message TEXT] [--agent-owner ID] [--studio-instance ID]': 'Record a prepared result or resolve the matching request. Pass the owner and instance IDs from the live Studio when responding across processes.',
+    'record-request-activity ID [--agent-owner ID] [--studio-instance ID]': 'Record actual request-specific work with the live Studio owner and instance IDs. Never run as an idle heartbeat.',
     'inspect-generation-failure DIRECTORY [--request ID] [--include-geometry]': 'Saved errors/requests, checked state or invalid recipe, generation guidance and skill links.'
   },
   developmentAreas: Object.keys(developmentAreas),
@@ -117,7 +117,7 @@ export async function runCLI(args = process.argv.slice(2), {write = value => con
     activeAtStart=Boolean(services?.status().activated);startedAt=Date.now();
     const options = {command, target: positionals[0], library: v.library, recipe: v.recipe, stl: v.stl,
       kind: v.kind, machine: v.machine, units: v.units, noOpen: v['no-open'],
-      startAtLayer: v['start-at-layer'] === undefined ? 12 : Number(v['start-at-layer']),
+      startAtLayer: v['start-at-layer'] === undefined ? undefined : Number(v['start-at-layer']),
       instruction: v.instruction, requestId: v.request, includeGeometry: v['include-geometry'],studioInstanceId:v['studio-instance'],ownerId:v['agent-owner']};
     if(options.stl){
       const controller=new AbortController(),startedAt=Date.now();
@@ -153,8 +153,8 @@ export async function runCLI(args = process.argv.slice(2), {write = value => con
       if (!Number.isInteger(waitMs) || waitMs < 0 || waitMs > 25000) throw Error('--wait-ms must be an integer from 0 to 25000.');
       result = await readStudioEvents({studio: v.studio, ownerId: v['agent-owner'], waitMs, history: v.history});
     } else if (command === 'cancel-studio-calculation') result = await cancelStudioCalculation({studio:v.studio,ownerId:v['agent-owner'],jobId:v['job-id'],generationHash:v['generation-hash']});
-    else if (command === 'respond-to-studio-request') result = await respondToRequest({library: v.library, requestId: positionals[0], status: v.status, message: v.message, resultStage: v['result-stage']});
-    else if(command==='record-request-activity')result=await recordRequestActivity({library:v.library,requestId:positionals[0]});
+    else if (command === 'respond-to-studio-request') result = await respondToRequest({library: v.library, requestId: positionals[0], status: v.status, message: v.message, resultStage: v['result-stage'],ownerId:v['agent-owner'],studioInstanceId:v['studio-instance']});
+    else if(command==='record-request-activity')result=await recordRequestActivity({library:v.library,requestId:positionals[0],ownerId:v['agent-owner'],studioInstanceId:v['studio-instance']});
     else result = await inspectFailure(options);
     write({ok: true, event: 'result', command, ...result});
     reportCommand(services,activeAtStart,command,startedAt,'completed',result);

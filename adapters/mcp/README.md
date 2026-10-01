@@ -61,7 +61,7 @@ saved IDs; there is no single global plan that overwrites another job.
 | `get_studio_events` | Read and clear the [Studio event queue](../../studio/README.md#studio-event-queue): what the person did in this agent's Studio instances, plus `generation` progress for any instance still calculating. Delivered events also arrive as `studioEvents` on every tool result and as `saam.studio` notifications. Optional `history` includes recently read events. |
 | `get_studio_sessions`, `close_studio_session` | List or close this agent's explicitly owned Studio instances. One agent may own several; no Studio instance is shared between agents. |
 | `get_tour` | Read tour progress and the next maker-agent chat instruction. Optional `after` cursor and `waitMs` wait for a change for up to 25 seconds. |
-| `set_tour_start_at` | Set explicit `{startAt:{layer:12}}` for the playback lesson; choose a layer with sparse infill. |
+| `set_tour_start_at` | Set explicit `{startAt:{layer:12}}` only when a different deposited layer is requested. |
 | `change_machine` | Change printer with current `expectedRevision`, using remembered/default setup and shared compatibility checks. Final review is invalidated. |
 | `adjust_recipe`, `slice`, `modulate` | Patch the recipe or add/edit/remove a common assignment or field modifier with current `expectedRevision`; each validates the saved recipe and invalidates affected review. |
 | `blob_field` | Create or rebuild a [blob field](../../GEOMETRY.md#blob-field) part from its points. |

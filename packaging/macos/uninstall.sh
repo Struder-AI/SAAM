@@ -1,7 +1,7 @@
 #!/bin/bash
 # Uninstalls SAAM for this macOS user: removes ~/Applications/SAAM and
 # ~/Applications/SAAM.app and its desktop shortcut. Prints, the
-# chat pairing and logs in ~/Library/Application Support/SAAM are kept.
+# settings and logs in ~/Library/Application Support/SAAM are kept.
 # Run it from Terminal:
 #
 #   bash ~/Applications/SAAM/packaging/macos/uninstall.sh [--yes]
@@ -42,7 +42,7 @@ main() {
   rm -rf "$target" "$target.app"
   echo
   echo 'SAAM is uninstalled.'
-  echo "Your prints remain in $(data_folder)/Prints; the chat pairing and logs are in $(data_folder)."
+  echo "Your prints remain in $(data_folder)/Prints; settings and logs are in $(data_folder)."
   echo 'Delete that folder yourself if you no longer want them. Installing SAAM again picks them up.'
 }
 

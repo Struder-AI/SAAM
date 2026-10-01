@@ -264,7 +264,7 @@ async function preparePreviewPrint(options,tour){
   try{
     const fresh=await tour.action('fresh');
     prepared={directory:fresh.directory,created:true};
-    await tour.setStartAt({layer:options.startAtLayer});
+    if(options.startAtLayer!==undefined)await tour.setStartAt({layer:options.startAtLayer});
     return {prepared};
   }catch(error){return {prepared,error};}
 }
@@ -312,10 +312,10 @@ async function closePreview(server,agentRequests,studioEvents){
 
 // The caller owns this live server. No detached process or global session registry.
 export async function preview({command, target, library, recipe, stl, kind = 'shell', machine,
-  units = 'auto', startAtLayer = 12, noOpen = false, ownerId: resumeOwner, onReady = () => {},onRequest=()=>{},onEvents=()=>{},signal,onProgress}) {
+  units = 'auto', startAtLayer, noOpen = false, ownerId: resumeOwner, onReady = () => {},onRequest=()=>{},onEvents=()=>{},signal,onProgress}) {
   if (!['start-tour', 'open-print', 'create-preview'].includes(command)) throw Error('Unknown preview command.');
   validatePreview({command, target, recipe, stl, kind, units});
-  if (!Number.isInteger(startAtLayer) || startAtLayer < 1) throw Error('Start layer must be a positive integer.');
+  if (startAtLayer!==undefined&&(!Number.isInteger(startAtLayer) || startAtLayer < 1)) throw Error('Start layer must be a positive integer.');
   if (command !== 'start-tour' && !target) throw Error('Supply a print directory.');
   // A relaunch may resume the agent owner it reports in studio-ready, so the
   // requests and events of the previous run stay visible to the same agent.

@@ -39,20 +39,12 @@ Use `--no-open` when the client opens the returned URL through its browser
 integration. The original direct launch syntax remains supported.
 
 Run from the repository root, quote a print path containing spaces, and keep
-`node studio/server.mjs` literal. The bare command starts a new [guided tour](../examples/prints/README.md)
-at lesson one, with geometry from the two bundled recipes and new automatically
-saved local copies. Toolpaths are generated when the tour needs them.
-The header's **Tour** button opens a fresh tour directly at the handle geometry
-lesson when no tour is active; no welcome pane precedes the part view. While a
-tour is active, it toggles lesson guidance. Completion has a separate
-congratulations panel. Exit or cancellation ends the tour run. Starting again
-creates a new run at lesson one; there is no Resume control or resume action.
-Earlier example copies remain saved as ordinary prints. Teaching requests carry
-run and lesson-visit identities; leaving a lesson cancels its pending teaching,
-and returning creates a new request. Cancelling an individual edit does not end
-the tour. Brief browser disconnects retain the run during Studio's existing
-30-minute grace period. Shutdown of the owning Studio ends the run and cancels
-pending work; reopening its saved print does not restore a tour.
+`node studio/server.mjs` literal. The bare command starts a new
+[guided tour](../examples/prints/README.md) with one saved fin-block copy.
+The header's **Tour** button starts a fresh tour when none is active and toggles
+guidance during one. Reopening the saved copy after a browser or Studio restart
+resumes its lesson with new request authority. Exit keeps the copy as an ordinary
+print; a new tour creates a new copy.
 Use the client's managed terminal/background session so it can
 retain the process handle. The human-facing `npm run studio` alias still works,
 but the shared permission targets the direct command. Shell wrappers, different
@@ -245,14 +237,9 @@ Selecting another bundle updates this Studio server's active print, including
 other tabs attached to that server. The client sends the current print identity
 with mutations, so an old tab cannot approve, generate or deliver the new print.
 
-Opening does not regenerate current stored files. Selecting a saved print
-confirms its current geometry before entering a valid stored toolpath; the tour
-selection also confirms geometry. It stays in geometry view through the optional
-STL introduction. Step 4 starts speculative preparation of the selected part while
-geometry remains visible; earlier lessons omit program data and do not start
-workers. Continuing commits the candidate for the exact current plan and loads
-playback. The import control is highlighted but disabled for the active tour;
-normal Studio enables it after completion or exit.
+Opening does not regenerate current stored files. The tour begins with geometry
+only, then generates a checked toolpath when its playback lesson opens. Import
+STL is available after completion or exit.
 An ordinary bundle with a current saved SAAMpath and no checked machine program
 opens that neutral path in the line viewer. It is labeled as a saved SAAMpath;
 Export remains unavailable until a machine file is generated and checked.
@@ -345,8 +332,8 @@ Download links retain those bytes for retries, even after a later export.
 Reopening checks saved artifacts. Metadata updates preserve unchanged geometry
 and motion; input/export changes reload the presentation. The pending-work
 projection drives both waiting indicators and Export availability.
-Background `set_tour_start_at` calls must include the `runId` and `lessonId` from
-their request scope or `get_tour`; the tour rejects a choice for an ended lesson.
+Studio chooses the tour's first deposited layer. An explicit `set_tour_start_at`
+override needs the current `runId` and `lessonId`; ended lessons reject it.
 
 The three animated dots immediately right of the logo and the dimmed viewport
 are **Updating preview**, throughout ordinary Studio and the tour. They represent
@@ -382,15 +369,9 @@ launched Studio sees persisted failures by polling. An ended chat turn is not
 always a transport close, and a killed process may provide no callback. Browser
 timeout rendering continues from cached request expiry even if polling fails.
 
-Next blinks after the displayed geometry edit in the first lesson. The optional
-roof lesson starts with an enabled, unhighlighted Next; active work disables it
-with the dots and fade, and a displayed geometry change enables its completion
-cue. These cues apply only to those two edit lessons. The STL introduction points
-to the disabled Import STL control and the orange **Continue with this part**.
-Both initially blink; the first pointer hover over Import STL retires its cue so
-only Continue keeps blinking. The playback
-lesson stops highlighting Play and unlocks Next on its first use; Pause does not
-restart the cue.
+The tour blinks the current control, including with reduced-motion settings. Next unlocks after the
+geometry edit appears, after Play starts, and after the requested printing change
+appears. Active work holds Next. Playback remains free to pause and scrub.
 Generation switches to the rendered replacement only after its checked source is
 loaded; the previous toolpath remains faded while work is active, and the part
 geometry stands in for it at the same opacity when none is retained.
@@ -457,14 +438,10 @@ visible result before resolving it. Generation errors remain available in the
 current state until inputs change or generation succeeds; speculative preparation
 alone does not alert the maker agent.
 
-GET /api/agent-requests remains responsive during generation. Studio tour events
-queue contextual toolpath/process guidance, playback start-layer selection and congratulations
-after downloading. Completion displays a finished tour panel with congratulations
-and an **Exit tour** button that dismisses it without erasing completion,
-and a direction to talk to the agent about the next project. The chat message
-also offers help with difficulties printing the downloaded file and asks what
-to make next, as ordinary chat text without a question-box tool. Send it before
-another listener or bookkeeping call. The client updates completion directly
+GET /api/agent-requests remains responsive during generation. Tour events queue
+contextual printing guidance and one
+completion message. Completion records whether the checked file downloaded or
+the participant finished by viewing. The client updates completion directly
 without reloading the full source and material scene. POST /api/view-ready acknowledges the exact rendered revision
 and export; saving or generating alone does not unlock edit lessons. The settings
 lesson opens on a participant-requested agent edit whose result is the displayed

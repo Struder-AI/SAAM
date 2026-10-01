@@ -5,7 +5,7 @@ export const needsTourToolpath=state=>Boolean(state?.tour?.active&&state.tour.di
   &&!hasUnpreparedEdit(state.work?.requests?.filter(r=>r.printId===state.work.printId),state.work?.snapshot)&&(!state.program||state.programError));
 export function createTourUI({post,refresh,working,setTab,isBusy,state:current,seek}){
   const $=id=>document.getElementById(id);let progress=null,expanded=null,applied=null;
-  const panel=$('tour-panel');let displayedStep=null,workActive=false,playStarted=false,playedSource=null,importObserved=false;
+  const panel=$('tour-panel');let displayedStep=null,playStarted=false,playedSource=null;
   async function load(){const response=await fetch('/api/tour');if(!response.ok)throw Error('Could not load the tour');progress=await response.json();if(current())current().tour=progress;}
   async function action(action,step){await working(TOUR_STEPS[step]?.tab==='toolpath'?'Preparing your toolpath…':'Opening your example…',async()=>{
     // The server saves the lesson before generation. Refresh that lesson even
@@ -22,11 +22,7 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
   $('tour-exit').onclick=attempt(()=>action('exit'));
   $('tour-back').onclick=attempt(()=>action('step',progress.step-1));
   $('tour-next').onclick=attempt(()=>action('step',progress.step+1));
-  $('import-stl').onpointerenter=()=>{
-    if(progress?.active&&progress.step===L.import&&!importObserved){
-      importObserved=true;$('import-stl').classList.remove('tour-highlight');render(current());
-    }
-  };
+  $('tour-finish-view').onclick=attempt(()=>action('finish-view'));
   async function playback(event){
     if(!progress?.active||progress.step!==L.playback)return;
     if(event==='play'){playStarted=true;playedSource=current().printId+':'+current().exportHash;$('play').classList.remove('tour-highlight');}
@@ -38,34 +34,40 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
     if(!progress||!state)return;
     const active=progress.active&&progress.directory===state.localPrintDirectory,step=TOUR_STEPS[progress.step];
     const displayKey=active?progress.step:progress.completed?'completed':'idle';
-    if(displayKey!==displayedStep){$('tour-status').textContent='';displayedStep=displayKey;expanded=true;playStarted=false;importObserved=false;}
+    if(displayKey!==displayedStep){$('tour-status').textContent='';displayedStep=displayKey;expanded=true;playStarted=false;}
     panel.parentElement.dataset.tourStep=active?String(progress.step):'';
     const completed=progress.completed&&progress.directory===state.localPrintDirectory&&!progress.dismissed;
     panel.hidden=!(active||completed)||!expanded;
     $('tour-complete').hidden=!completed;$('tour-lesson').hidden=!active;$('tour-exit').hidden=!active&&!completed;
-    $('canvas').classList.toggle('tour-faded',active&&progress.step===L.open);
-    for(const id of ['import-stl','tour-next'])$(id).classList.toggle('tour-choice',active&&progress.step===L.import);
+    $('tour-complete-text').textContent=progress.completion==='view'
+      ?'You finished the viewing tour. Your part is saved. Ask your agent for help when you have a printer or want to make another part.'
+      :'Your checked print file was downloaded. Your part is saved, and your agent can help with printing or the next part.';
     $('tour-progress').textContent='SAAM TOUR · '+(progress.step+1)+' OF '+TOUR_STEPS.length;
     $('tour-title').textContent=step.title;$('tour-body').textContent=step.body;$('tour-try').textContent=step.try;
     for(const button of panel.querySelectorAll('button'))button.disabled=isBusy();
     $('tour-back').disabled=isBusy()||progress.step===0;
-    $('tour-next').disabled=isBusy()||!progress.canNext||(active&&[L.geometry,L.roof,L.settings].includes(progress.step)&&workActive);
+    const pendingEdit=hasUnpreparedEdit(state.work?.requests?.filter(r=>r.printId===state.work.printId),state.work?.snapshot);
+    $('tour-next').disabled=isBusy()||!progress.canNext||pendingEdit;
     $('tour-next').hidden=progress.step===TOUR_STEPS.length-1;
-    $('tour-next').textContent=progress.step===L.import?'Continue with this part':'Next';
+    $('tour-next').textContent='Next';
+    $('tour-finish-view').hidden=!active||progress.step!==L.export;
+    $('tour-finish-view').disabled=isBusy()||pendingEdit||!progress.gates?.[L.export];
     $('import-stl').disabled=isBusy()||active;
-    $('tour-toggle').disabled=isBusy();$('open-print').disabled=isBusy()||(active&&progress.step!==2);
-    const highlights=active?(progress.step===L.import?(importObserved?['tour-next']:['import-stl','tour-next']):step.highlight?[step.highlight]:[]):[];
-    if(active&&[L.geometry,L.roof].includes(progress.step)&&progress.gates?.[progress.step]&&!$('tour-next').disabled)highlights.push('tour-next');
+    $('tour-toggle').disabled=isBusy();$('open-print').disabled=isBusy()||active;
+    const highlights=active&&step.highlight?[step.highlight]:[];
+    if(active&&[L.geometry,L.settings].includes(progress.step)&&progress.gates?.[progress.step]&&!$('tour-next').disabled)highlights.push('tour-next');
     if(highlights.includes('play')&&progress.step===L.playback&&playStarted)highlights.splice(highlights.indexOf('play'),1);
     document.querySelectorAll('.tour-highlight').forEach(el=>{if(!highlights.includes(el.id))el.classList.remove('tour-highlight');});
     if(active){
       for(const button of document.querySelectorAll('[data-tab]'))button.disabled=true;
       $('next').disabled=true;
-      if(step.tab==='toolpath')$('confirm').textContent='Confirm settings & export';
+      $('confirm').hidden=progress.step!==L.export||$('confirm').hidden;
+      if(progress.step===L.export)$('confirm').disabled=$('confirm').disabled||!progress.gates?.[L.export];
+      if(progress.step===L.export)$('confirm').textContent='Confirm settings & export';
       for(const id of highlights)$(id)?.classList.add('tour-highlight');
       if(progress.step===L.setup)$('more-settings').open=true;
       const desired=step.tab;
-      const key=progress.step+':'+state.printId+':'+(progress.step===L.playback?JSON.stringify(progress.startAt):'')+':'+desired+':'+Boolean(state.program)+':'+(state.generationError??state.programError??'');
+      const key=progress.step+':'+state.printId+':'+(progress.step===L.playback?JSON.stringify(progress.startAt):'')+':'+desired+':'+Boolean(state.program)+':'+state.exportHash+':'+Boolean(progress.gates?.[progress.step])+':'+(state.generationError??state.programError??'');
       if(applied!==key){
         const keepPlayback=progress.step===L.playback&&playStarted&&state.program&&playedSource===state.printId+':'+state.exportHash;
         applied=key;queueMicrotask(()=>{
@@ -74,12 +76,18 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
           if(desired==='toolpath'&&!state.program){$('tour-status').textContent=state.generationError??state.programError??'Preparing your toolpath…';return;}
           $('tour-status').textContent='';
           if(progress.step===L.playback){try{
-            const start=progress.startAt??{layer:1,fallback:true};let landed,fallback=start.fallback;
+            const start=progress.startAt??null;let landed,fallback=!start;
             try{landed=seek(start);}catch(error){
-              if(start.fallback)throw error;
-              landed=seek({layer:1,fallback:true});fallback=true;
+              if(!start)throw error;
+              landed=seek(null);fallback=true;
             }
-            $('tour-status').textContent=(fallback?'Starting at layer '+((landed?.layer??1)+1)+'. ':'')+'Press Play to continue. You can keep watching, scrub or change the speed.';
+            $('tour-status').textContent=(fallback?'Starting at a layer with visible contours. ':'')+'Press Play to continue. You can keep watching, scrub or change the speed.';
+          }catch(e){$('tour-status').textContent=e.message;}}
+          if(progress.step===L.settings){try{
+            const landed=seek(null,'infill');
+            if(landed.feature==='infill')$('tour-status').textContent=progress.gates?.[L.settings]
+              ?'The updated interior is shown. Compare the infill, then continue.'
+              :'Showing an interior layer of the current toolpath. Ask your agent to adjust infill, then inspect the updated path.';
           }catch(e){$('tour-status').textContent=e.message;}}
         });
       }
@@ -90,5 +98,5 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
     const {presentedRequests=[],...guide}=await response.json();
     progress=guide;state.tour=progress;render(state);return presentedRequests;
   }
-  return {load,render,playback,acknowledgeView,activity(active){workActive=active;render(current());},active:()=>Boolean(progress?.active&&progress.directory===current()?.localPrintDirectory),initialTab:()=>progress?.active?TOUR_STEPS[progress.step]?.tab:'geometry'};
+  return {load,render,playback,acknowledgeView,activity(){render(current());},active:()=>Boolean(progress?.active&&progress.directory===current()?.localPrintDirectory),initialTab:()=>progress?.active?TOUR_STEPS[progress.step]?.tab:'geometry'};
 }
