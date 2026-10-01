@@ -10,7 +10,7 @@ import {pointSegmentDistance,loopArea,dedupe} from '../../../core/region/region2
 import {boxMesh} from '../../../core/tests/fixtures/mesh.mjs';
 import {offsetRegion} from '../../../core/region/offset.mjs';
 import {sleeveAssignment} from '../../advanced-vase-wall/scripts/assignment.mjs';
-import {prepareContourSleeve} from '../../advanced-vase-wall/scripts/contour-sleeve.mjs';
+import {prepareContourSleeve} from '../../../core/geom/sleeve/contour-sleeve.mjs';
 import {standardVaseContexts,standardVaseResult} from '../scripts/prepare.mjs';
 
 function vasePlan(machine=loadMachine(),geometry=boxMesh(8,6,1)) {

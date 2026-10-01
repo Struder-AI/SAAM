@@ -2,7 +2,7 @@ import {requireThat} from '../private/toolpath/numeric.mjs';
 import {requireThat as requireExport} from '../private/export/numeric.mjs';
 
 import {toolFor,feederSelector} from './rules.mjs';
-import {validateTemperatureC} from '../path/process-controls.mjs';
+import {validateTemperatureC} from '../private/export/temperature.mjs';
 
 const PROCESS_FIELDS=['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','skinSpeedMmS','firstLayerSpeedMmS','maxFlowMm3S','retractMm','retractSpeedMmS'];
 // Device numbers are local installation labels, in separate AMS/AMS HT spaces.

@@ -52,10 +52,7 @@ run and lesson-visit identities; leaving a lesson cancels its pending teaching,
 and returning creates a new request. Cancelling an individual edit does not end
 the tour. Brief browser disconnects retain the run during Studio's existing
 30-minute grace period. Shutdown of the owning Studio ends the run and cancels
-pending work; reopening its saved print does not restore a tour. Closing an
-observer or a Studio that owned an earlier run leaves another instance's current
-run alone. This cleanup runs after accepted work drains; forced process death
-and cross-process atomic transitions remain unresolved with the file-based store.
+pending work; reopening its saved print does not restore a tour.
 Use the client's managed terminal/background session so it can
 retain the process handle. The human-facing `npm run studio` alias still works,
 but the shared permission targets the direct command. Shell wrappers, different
@@ -256,6 +253,9 @@ geometry remains visible; earlier lessons omit program data and do not start
 workers. Continuing commits the candidate for the exact current plan and loads
 playback. The import control is highlighted but disabled for the active tour;
 normal Studio enables it after completion or exit.
+An ordinary bundle with a current saved SAAMpath and no checked machine program
+opens that neutral path in the line viewer. It is labeled as a saved SAAMpath;
+Export remains unavailable until a machine file is generated and checked.
 Reopening the same selected print retains its matching preparation candidate.
 The first continuation after a completed preparation diagnostic reports it without
 repeating it; an explicit retry can start preparation again. Crashed workers
@@ -307,8 +307,8 @@ binds progress to the current print and plan.
 
 The live request store belongs to one agent and may serve several explicitly
 identified Studio instances. A Studio instance has exactly one agent owner and
-cannot be adopted by another agent; print bundles remain shareable and another
-agent may open the same bundle in its own Studio. Only the owning agent's store
+cannot be adopted by another agent; each bundle opens in one Studio instance
+at a time. Only the owning agent's store
 hears its Studio instances: a listener without an owner ID never receives or
 claims Studio-bound requests live, and reads them only as explicit diagnostic
 history. The [Studio event queue](#studio-event-queue) carries the rest of what
@@ -399,9 +399,7 @@ The maker agent calls MCP begin_studio_work as early as practical for an edit; a
 chat acknowledgement may come first. The claim it records is what later mutations
 and result reports check. It may omit printId for the
 active tour or sole open Studio; with several instances it supplies the returned
-`studioInstanceId`; omission rejects when several owned instances display the
-same print. `request_review` can deliberately open another instance for a shared
-bundle with `newInstance`. CLI preview/tour agents receive `studio-request` events on the
+`studioInstanceId`. CLI preview/tour agents receive `studio-request` events on the
 managed command stream and send begin/respond/activity control messages back on
 that stream. Separate CLI commands and bounded waits remain recovery options.
 Studio-created guidance requests stay visually quiet, including when claimed. The agent claims

@@ -60,3 +60,4 @@ export function validateHeatSetAssignments(plan){
     used.add(assignment.id);
   }
 }
+export const heatSetRecordRuntime=()=>({validate:validateHeatSetRecord,validateAssignments:validateHeatSetAssignments});

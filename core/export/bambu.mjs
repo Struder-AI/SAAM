@@ -128,21 +128,21 @@ export function exportAndInterpretBambu(path,plan,machine,release){
   const filamentSequence=[plan.setup.bambu?.filament,...path.actions.filter(a=>a.kind==='toolChange').map(a=>a.filament)];
   const job=resolveBambuJob(plan,machine,output,{filamentSequence});
   const body=exportBambuBody(path,plan,machine);
-  const program=interpretBody(body,plan,machine);
+  const program=interpretBody(body,plan,machine,{authoredNozzleTemperatures:path.completion?.authoredNozzleTemperatures});
   requireThat(JSON.stringify(program.filamentSequence)===JSON.stringify(filamentSequence),'Bambu interpreted filament order differs from startup calibration.');
   const c=contextFor(path,plan,machine,release),s=sections(c,job,output);
   const code=header(c,program,job)+s.start+BEGIN+body+END+s.end+'; EXECUTABLE_BLOCK_END\n';
   const bytes=packZip(packageEntries(code,c,program,plan,output,job,s));
   return {bytes,program:completeProgram(program,code,c,s,job)};
 }
-export function interpretBambu(bytes,plan,machine){
+export function interpretBambu(bytes,plan,machine,options={}){
   validateSetup(plan,machine);
   const output=configuration(plan,machine),entries=unpackZip(bytes);
   const c=JSON.parse(entries.get('Metadata/saam.json')?.toString()??'null');checkContext(c,plan,machine);
   const code=entries.get(GCODE)?.toString('utf8');requireThat(typeof code==='string','Missing Bambu G-code.');
   const begin=code.indexOf(BEGIN),end=code.indexOf(END);
   requireThat(begin>=0&&end>begin&&code.indexOf(BEGIN,begin+BEGIN.length)===-1&&code.indexOf(END,end+END.length)===-1,'Invalid Bambu body boundary.');
-  const body=code.slice(begin+BEGIN.length,end),program=interpretBody(body,plan,machine);
+  const body=code.slice(begin+BEGIN.length,end),program=interpretBody(body,plan,machine,options);
   const job=resolveBambuJob(plan,machine,output,{filamentSequence:program.filamentSequence}),s=sections(c,job,output);
   requireThat(code===header(c,program,job)+s.start+BEGIN+body+END+s.end+'; EXECUTABLE_BLOCK_END\n','Bambu program differs from its declared firmware envelope.');
   const expected=packageEntries(code,c,program,plan,output,job,s);

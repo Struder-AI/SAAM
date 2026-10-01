@@ -376,7 +376,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         const html=(await readFile(resolve(here,'index.html'),'utf8')).replace('__CSRF__',token).replace('__SERVICE__',relay?'on':'');
         res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end(html);return;
       }
-      if(req.method==='GET'&&['/work-state.mjs','/agent-ui.mjs','/tour-ui.mjs','/tour-catalog.mjs','/viewer-session.mjs','/view-performance.mjs','/refresh-plan.mjs','/viewer-renderer.mjs','/studio-state.mjs','/studio-controls.mjs','/service-panel.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/machine-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
+      if(req.method==='GET'&&['/work-state.mjs','/agent-ui.mjs','/tour-ui.mjs','/tour-catalog.mjs','/viewer-session.mjs','/view-performance.mjs','/refresh-plan.mjs','/viewer-renderer.mjs','/studio-state.mjs','/studio-controls.mjs','/neutral-path.mjs','/service-panel.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/machine-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
         res.writeHead(200,{'Content-Type':url.pathname.endsWith('.css')?'text/css':'text/javascript'});res.end(await readFile(resolve(here,url.pathname.slice(1))));return;
       }
       if(req.method==='GET'&&url.pathname==='/struder-logo.png'){
@@ -442,6 +442,19 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       }
       const readDir=dir,readId=dir&&printId();
       const bundle=await opened;
+      if(req.method==='GET'&&url.pathname==='/api/neutral-path'){
+        const {state}=await readStableBundle(bundle,readDir,{program:false});
+        const artifact=state.review?.path;
+        if(readDir!==dir||url.searchParams.get('printId')!==readId||url.searchParams.get('revision')!==String(state.revision)
+          ||state.artifacts.path!=='current'||!artifact||url.searchParams.get('pathHash')!==artifact.hash)
+          throw Error('The saved SAAMpath changed. Reload before viewing.');
+        if(!/^[a-f0-9]{64}$/.test(artifact.hash)||artifact.file!==`paths/${artifact.hash}.json`)
+          throw Error('Invalid saved SAAMpath reference.');
+        const bytes=await readFile(resolve(readDir,artifact.file));
+        if(createHash('sha256').update(bytes).digest('hex')!==artifact.hash)
+          throw Error('Saved SAAMpath changed; regenerate it.');
+        res.writeHead(200,{'Content-Type':'application/json','Content-Length':bytes.length});res.end(bytes);return;
+      }
       if(req.method==='GET'&&url.pathname==='/api/state') {
         const condition=req.headers['if-none-match'];
         const workId=requests.printId(readDir,{optional:true}),allRecords=workId?await requests.query({printId:workId}):[],records=allRecords.filter(record=>!record.studioInstanceId||record.studioInstanceId===instanceId),guide=await tour.info({records});

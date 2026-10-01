@@ -1,13 +1,13 @@
-import {requireThat} from '../../../core/private/extensions/numeric.mjs';
+import {requireThat} from '../tolerance.mjs';
 // Vase reference construction: section offsets, seam correspondence and mapping.
 // The build caller also supplies this prepared boundary to standard spiral Slice.
-import {createSectionQuery} from '../../../core/geom/query.mjs';
-import {cleanPlanarLoop} from '../../../core/geom/polyline.mjs';
-import {loopArea,dedupe,pointSegmentDistance,pointInRegion} from '../../../core/region/region2d.mjs';
-import {offsetRegion} from '../../../core/region/offset.mjs';
+import {createSectionQuery} from '../../geom/query.mjs';
+import {cleanPlanarLoop} from '../../geom/polyline.mjs';
+import {loopArea,dedupe,pointSegmentDistance,pointInRegion} from '../../region/region2d.mjs';
+import {offsetRegion} from '../../region/offset.mjs';
 
-import {contourPath} from '../../../core/geom/contour-path.mjs';
-import {prepareContourFamily} from '../../../core/geom/prepared-contours.mjs';
+import {contourPath} from '../../geom/contour-path.mjs';
+import {prepareContourFamily} from '../../geom/prepared-contours.mjs';
 import {createFittedSleeveReference,createAutomaticSleeveReference} from './sleeve-reference.mjs';
 const OFFSET_PRECISION_MM=.00001;
 // The family uses horizontal cutting slices. Their chart is

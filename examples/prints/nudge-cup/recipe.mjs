@@ -19,7 +19,7 @@ plan.placement={xMm:165,yMm:120};
 plan.slices.assignments=[sliceAssignment({id:'open-lip',part:'cup',loops:3,fillDensity:0,solidTop:0,solidBottom:0,within:[{kind:'slab',fromMm:0,toMm:1.2}]}),
   sliceAssignment({id:'weighted-foot',part:'foot',loops:3,fillDensity:1,fillAnglesDeg:[0,90]}),
   sleeveAssignment({id:'light-cup',part:'cup',zStartMm:1.2,zEndMm:17.8,endTransition:'level'}),
-  skinAssignment({id:'foot-skin',part:'foot',layers:3,normalMm:.2,sampleStepMm:.25,surveyStepMm:.25})];
+  skinAssignment({id:'foot-skin',part:'foot',layers:3,pitchMm:.2,sampleStepMm:.25,surveyStepMm:.25})];
 plan.composition.dependencies=[{before:'light-cup:wall',after:'foot:weighted-foot:0:walls'}];
 return plan;
 }

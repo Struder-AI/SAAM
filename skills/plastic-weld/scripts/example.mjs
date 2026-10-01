@@ -1,6 +1,7 @@
 import {resolve} from 'node:path';
 import {initBundle,proposedPlan} from '../../../core/print/bundle.mjs';
-import {staggeredWeldSites} from './weld.mjs';
+import {plasticWeldRuntime} from './runtime.mjs';
+const {staggeredWeldSites}=plasticWeldRuntime({Geometry:{},Toolpath:{}});
 // A box is six flat patches, each a 2 × 2 net of shared corners (GEOMETRY.md).
 const splineBox=({runMm:x,widthMm:y,heightMm:z})=>{
   const face=(name,a,b,c,d)=>({name,degreeU:1,degreeV:1,controlPoints:[[a,b],[c,d]]});

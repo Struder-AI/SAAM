@@ -12,3 +12,4 @@ export function validateGridfinityRecord(record){
   requireThat(Object.keys(record).sort().join()===Object.keys(gridfinityTemplate()).sort().join(),'Unexpected gridfinity geometry fields.');
   requireThat(record.parameters&&record.compiledHash===gridfinityDigest(record),'Gridfinity recipe or mesh changed. Rebuild with the gridfinity skill.');
 }
+export const gridfinityRecordRuntime=()=>({validate:validateGridfinityRecord});

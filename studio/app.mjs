@@ -10,6 +10,7 @@ import {createViewerRenderer} from './viewer-renderer.mjs';
 import {planRefreshNavigation} from './refresh-plan.mjs';
 import {prepareStudioState,withoutPreviewMaterial} from './studio-state.mjs';
 import {studioControls} from './studio-controls.mjs';
+import {loadNeutralPath} from './neutral-path.mjs';
 import {viewerConnected} from './viewer-session.mjs';
 import {createServicePanel} from './service-panel.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
@@ -123,7 +124,7 @@ function restoreView(){
     if(saved.exportHash===state.exportHash){
       if(Number.isFinite(saved.seconds))seconds=Math.max(0,Math.min(duration(),saved.seconds));
       if(saved.fitBounds?.min?.length===3&&saved.fitBounds?.max?.length===3&&[...saved.fitBounds.min,...saved.fitBounds.max].every(Number.isFinite))fitBounds=saved.fitBounds;
-      if(['geometry','toolpath'].includes(saved.tab)&&(saved.tab!=='toolpath'||state.program))tab=saved.tab;
+      if(['geometry','toolpath'].includes(saved.tab)&&(saved.tab!=='toolpath'||state.program||state.neutralProgram))tab=saved.tab;
       if(machineSession?.scene)useCamera(cameras.restore(saved.machineCameras));
     }
     $('#fit-program').textContent=fitBounds?.allMoves?'Fit part':'Fit all moves';
@@ -277,7 +278,7 @@ function partBounds() {
     if(waveBoundsMoves!==shown.program.moves){
       waveBoundsMoves=shown.program.moves;waveDisplayBounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
       for(const move of waveBoundsMoves)if(move.extruding&&move.phase!=='prime')for(const p of [move.from,move.to])for(let i=0;i<3;i++){
-        const v=p[i]-(i===0?shown.plan.placement.xMm:i===1?shown.plan.placement.yMm:0);
+        const v=p[i]-(i===0?shown.plan.placement?.xMm??0:i===1?shown.plan.placement?.yMm??0:0);
         waveDisplayBounds.min[i]=Math.min(waveDisplayBounds.min[i],v);waveDisplayBounds.max[i]=Math.max(waveDisplayBounds.max[i],v);
       }
     }
@@ -344,7 +345,7 @@ async function loadAndAdoptStudioState(follow=false,reopen=false,fetchedState=nu
   if(presentationChanged)clearManual();
   const scenes=viewer.sceneState();
   const adopted=await prepareStudioState(fetched,{previous,follow,presentation:activePresentation,
-    pathMoves:scenes.pathMoves,materialMoves:scenes.materialMoves,decode:decodeInWorker,
+    pathMoves:scenes.pathMoves,materialMoves:scenes.materialMoves,decode:decodeInWorker,decodeNeutral:loadNeutralPath,
     // Serializable metadata is bound before the proxy-backed cached move store is adopted.
     bind:bindCachedProgram});
   state=adopted.state;stateTag=fetchedTag;
@@ -352,7 +353,8 @@ async function loadAndAdoptStudioState(follow=false,reopen=false,fetchedState=nu
 }
 async function presentStudioState({adopted,loaded,previous,presentationChanged,follow}) {
   // Metadata can change while the exact same source/move buffers are reused.
-  $('#kind-label').textContent=(state.review.generation?.mode==='development'?'Development preview · ':'')+(state.machine?.name??'No printer selected');
+  $('#kind-label').textContent=state.neutralProgram?'Saved SAAMpath · '+(state.machine?.name??'No printer selected')
+    :(state.review.generation?.mode==='development'?'Development preview · ':'')+(state.machine?.name??'No printer selected');
   document.title='SAAM Studio · '+state.printName;
   $('#open-print').title='Open print: '+state.printName;
   // Geometry keys off the previously loaded state's version (null on a print
@@ -392,7 +394,9 @@ async function applyProgramPresentation(decision,next){
   if(decision.effects.program==='clear')clearProgramView();
   let publication=null;
   if(decision.effects.buildPath||decision.effects.buildMaterial){
-    publication=await viewer.publishProgram({moves:next.program.moves,plan:next.plan,geometry:next.geometry,previewMaterial:next.program.previewMaterial,
+    const visible=next.program??next.neutralProgram;
+    if(visible.neutral)viewer.clearProgram();
+    publication=await viewer.publishProgram({moves:visible.moves,plan:next.plan,geometry:next.geometry,previewMaterial:visible.previewMaterial,
       buildPath:decision.effects.buildPath,buildMaterial:decision.effects.buildMaterial,onProgress:progress=>activity('Preparing material view…',progress)});}
   const state=publication?.previewMaterialConsumed?withoutPreviewMaterial(next):next;
   activePresentation={...decision.model,
@@ -428,7 +432,8 @@ async function decodeInWorker(snapshot){
   machineSession?.dispose();requestingPose=null;
   machineSession=sourceSession(new Worker('/studio/source-worker.mjs',{type:'module'}));
   return machineSession.load({printId:snapshot.printId,revision:snapshot.revision,exportHash:snapshot.exportHash,
-    plan:snapshot.plan,machine:snapshot.machine,inspection:snapshot.pathSummary?.inspection,program:{sources:snapshot.program.sources}});
+    plan:snapshot.plan,machine:snapshot.machine,inspection:snapshot.pathSummary?.inspection,
+    authoredNozzleTemperatures:snapshot.authoredNozzleTemperatures,program:{sources:snapshot.program.sources}});
 }
 function bindCachedProgram(snapshot){return machineSession?.bind(snapshot);}
 function table(entries) {
@@ -437,13 +442,17 @@ function table(entries) {
   return dl;
 }
 function selectStudioPresentation(state,tab,{facts,settings}){
-  if(!state.machine||!state.plan.slices||!state.plan.process)return {stage:null,title:'Your geometry',guidance:'Ask the agent to add printing settings and a toolpath recipe.',facts:views.shell.facts(state,'geometry'),settings:[],reviewNote:state.outputAvailability??''};
+  if(tab==='toolpath'&&state.neutralProgram)return {stage:'SAVED SAAMPATH',title:'Your toolpath',
+    guidance:'Inspect the saved, machine-independent path.',facts:[['Moves',String(state.neutralProgram.summary.moves)],
+      ['Deposited volume',round2(state.neutralProgram.summary.volumeMm3)+' mm³']],settings:[],
+    reviewNote:[state.programError,state.neutralProgram.notice].filter(Boolean).join(' ')};
+  if(!state.machine||!state.plan.slices||!state.plan.process)return {stage:null,title:'Your geometry',guidance:'Ask the agent to add printing settings and a toolpath recipe.',facts:views.shell.facts(state,'geometry'),settings:[],reviewNote:state.neutralPathError??state.outputAvailability??''};
   const inspection=state.inspection;
   if(inspection)return {stage:'DEVELOPMENT INSPECTION',title:inspection.title,guidance:inspection.description,
     facts:inspection.facts,settings:inspection.settings,reviewNote:inspection.note};
   const title=state.tourExample?state.printName+(tab==='toolpath'?' · toolpath':''):{geometry:'Your geometry',toolpath:'Your toolpath'}[tab];
   const guidance={geometry:'Check the shape and dimensions.',toolpath:'Inspect the full toolpath before exporting.'}[tab];
-  const reviewNote=state.outputAvailability??(tab==='toolpath'?(state.generationError??state.programError??(!state.program
+  const reviewNote=state.outputAvailability??(tab==='toolpath'?(state.generationError??state.programError??state.neutralPathError??(!state.program
     ?'Generate the toolpath to review it with all printing settings.'
     :state.program.notice??state.program.envelope?.notice??'Review the settings and full toolpath together before exporting.')):'');
   return {stage:null,title,guidance,facts:facts(),settings:settings(),reviewNote};
@@ -591,11 +600,11 @@ canvas.addEventListener('wheel',e=>{e.preventDefault();viewer.noteMotion('zoom')
 canvas.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;if(e.shiftKey){pan[0]+=e.key==='ArrowLeft'?-20:e.key==='ArrowRight'?20:0;pan[1]+=e.key==='ArrowUp'?-20:e.key==='ArrowDown'?20:0;}else{if(e.key==='ArrowLeft')yaw-=.1;else if(e.key==='ArrowRight')yaw+=.1;else if(e.key==='ArrowUp')tilt-=.1;else tilt+=.1;}e.preventDefault();viewer.noteMotion(e.shiftKey?'pan':'orbit');requestDraw();};
 new ResizeObserver(requestDraw).observe(canvas);
 $$('[data-view]').forEach(b=>b.onclick=()=>{const mode=b.dataset.view;if(mode==='iso'){yaw=-.78;tilt=.62;}if(mode==='side'){yaw=0;tilt=0;}if(mode==='top'){yaw=0;tilt=Math.PI/2;}requestDraw();});
-function worldToDisplay(p,pose=machineSample()?.pose){const plan=(presentedState()??state).plan,q=$('#follow-plate').checked&&pose?point(invert(pose.part),p):p;return [q[0]-plan.placement.xMm,q[1]-plan.placement.yMm,q[2]];}
+function worldToDisplay(p,pose=machineSample()?.pose){const plan=(presentedState()??state).plan,q=$('#follow-plate').checked&&pose?point(invert(pose.part),p):p;return [q[0]-(plan.placement?.xMm??0),q[1]-(plan.placement?.yMm??0),q[2]];}
 function fitMachine(){return machineSession?.scene?machineFitBounds(machineSession.scene,machineSample()?.pose,p=>worldToDisplay(p)):null;}
 function fitDisplayedPart(bounds=partBounds()){
   const pose=machineSample()?.pose;if(!pose||$('#follow-plate').checked)return null;
-  const {xMm,yMm}=(presentedState()??state).plan.placement,points=boundsCorners(bounds).map(p=>worldToDisplay(point(pose.part,[p[0]+xMm,p[1]+yMm,p[2]]),pose));
+  const {xMm,yMm}=(presentedState()??state).plan.placement??{xMm:0,yMm:0},points=boundsCorners(bounds).map(p=>worldToDisplay(point(pose.part,[p[0]+xMm,p[1]+yMm,p[2]]),pose));
   return {min:[0,1,2].map(i=>Math.min(...points.map(p=>p[i]))),max:[0,1,2].map(i=>Math.max(...points.map(p=>p[i])))};
 }
 $('#machine-view').onchange=()=>{
@@ -612,7 +621,7 @@ $('#fit-program').onclick=()=>{
     fitBounds={min:[part.min[0],part.min[1],0],max:[part.max[0],part.max[1],0]};
     const shown=presentedState()??state;
     for(const move of shown.program.moves)for(const p of [move.from,move.to])for(let i=0;i<3;i++){
-      const v=p[i]-(i===0?shown.plan.placement.xMm:i===1?shown.plan.placement.yMm:0);
+      const v=p[i]-(i===0?shown.plan.placement?.xMm??0:i===1?shown.plan.placement?.yMm??0:0);
       fitBounds.min[i]=Math.min(fitBounds.min[i],v);fitBounds.max[i]=Math.max(fitBounds.max[i],v);
     }
     fitBounds=fitDisplayedPart(fitBounds)??fitBounds;fitBounds.allMoves=true;
@@ -745,7 +754,7 @@ $('#export-movie').onclick=async()=>{
     $('#cancel-movie').hidden=true;$('#movie-progress').hidden=true;render();
   }
 };
-$('#play').onclick=()=>{if(busy||!state?.program||state.programError)return;clearManual();if(playing){stop();requestDraw();return;}if(seconds>=duration()){seconds=0;layerFade.reset();}playing=true;void tourUI?.playback('play');lastFrame=0;$('#play').textContent='Pause';frame=requestAnimationFrame(animate);};
+$('#play').onclick=()=>{if(busy||!(state?.program&&!state.programError||state?.neutralProgram))return;clearManual();if(playing){stop();requestDraw();return;}if(seconds>=duration()){seconds=0;layerFade.reset();}playing=true;void tourUI?.playback('play');lastFrame=0;$('#play').textContent='Pause';frame=requestAnimationFrame(animate);};
 async function animate(now){
   if(!playing)return;
   const epoch=playbackEpoch,next=lastFrame?advancePlayback(seconds,now-lastFrame,Number($('#playback-speed').value),duration()):seconds;

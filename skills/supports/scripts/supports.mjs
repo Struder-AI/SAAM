@@ -94,4 +94,4 @@ export function supportDependencies(supports,modelResults) {
   return dependencyChanges;
 }
 
-export function supportRuntime(engines){return {prepareSupportContexts:input=>prepareSupportContexts(input,engines),supportDependencies};}
+export function supportRuntime(engines){return {validateSupports,prepareSupportContexts:input=>prepareSupportContexts(input,engines),supportDependencies};}

@@ -1,13 +1,13 @@
-import {requireThat,distance} from '../../../core/private/extensions/numeric.mjs';
+import {requireThat,distance} from '../tolerance.mjs';
 // Smooth open sleeves estimated from validated closed mesh geometry.
 // This is a fit, not a mesh repair or replacement of printable source geometry.
-import {horizontalSlice} from '../../../core/geom/slice.mjs';
-import {section,prepareSection} from '../../../core/region/section.mjs';
-import {contourPath} from '../../../core/geom/contour-path.mjs';
-import {basisFunctions,findSpan,evaluate} from '../../../core/geom/nurbs.mjs';
-import {leastSquares} from '../../../core/geom/least-squares.mjs';
-import {loopArea,pointInRegion} from '../../../core/region/region2d.mjs';
-import {union} from '../../../core/region/intersection.mjs';
+import {horizontalSlice} from '../../geom/slice.mjs';
+import {section,prepareSection} from '../../region/section.mjs';
+import {contourPath} from '../../geom/contour-path.mjs';
+import {basisFunctions,findSpan,evaluate} from '../../geom/nurbs.mjs';
+import {leastSquares} from '../../geom/least-squares.mjs';
+import {loopArea,pointInRegion} from '../../region/region2d.mjs';
+import {union} from '../../region/intersection.mjs';
 
 
 const wrap=u=>((u%1)+1)%1;

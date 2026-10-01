@@ -1,12 +1,12 @@
-import {surfaceIsoCurve} from '../../../core/geom/surface-curves.mjs';
-import {sampleCurveIntervals} from '../../../core/geom/curve-sampling.mjs';
-import {requireThat,distance} from '../../../core/private/extensions/numeric.mjs';
+import {surfaceIsoCurve} from '../../geom/surface-curves.mjs';
+import {sampleCurveIntervals} from '../../geom/curve-sampling.mjs';
+import {requireThat,distance} from '../tolerance.mjs';
 // Horizontal periodic-patch sections retain NURBS form through offset and
 // crossing resolution. Sampling supplies perimeter correspondence afterward.
-import {evaluateCurve} from '../../../core/geom/nurbs.mjs';
-import {prepareCurveOffsets} from '../../../core/geom/curve-offset.mjs';
-import {contourPath} from '../../../core/geom/contour-path.mjs';
-import {prepareContourFamily} from '../../../core/geom/prepared-contours.mjs';
+import {evaluateCurve} from '../../geom/nurbs.mjs';
+import {prepareCurveOffsets} from '../../geom/curve-offset.mjs';
+import {contourPath} from '../../geom/contour-path.mjs';
+import {prepareContourFamily} from '../../geom/prepared-contours.mjs';
 
 
 export function horizontalSleeveCurve(patch,v,z){

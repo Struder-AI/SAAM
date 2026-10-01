@@ -1,7 +1,7 @@
 import {requireThat,distance} from '../private/export/numeric.mjs';
 
 import {validateDensoConfiguration} from './denso.mjs';
-import {validateTemperatureC,validateNozzleC,plannedNozzleTemperatures} from '../path/process-controls.mjs';
+import {validateTemperatureC,authoredNozzleTargets} from '../private/export/temperature.mjs';
 import {checkedFilamentPlan as filamentPlan} from './filaments.mjs';
 
 export const toolFor=(machine,index)=>{
@@ -103,6 +103,7 @@ export function requireMachine(machine,capabilities,skill) {
 
 // Validate SAAMpath independently of the chosen machine-program language.
 export function checkMachinePath(path,plan,machine) {
+  const temperatures=authoredNozzleTargets(plan,path.completion?.authoredNozzleTemperatures);
   let selected=plan,bounds=toolBounds(machine,plan.setup.tool);
   let from=path.initialPosition;
   const point=p=>requireThat(Array.isArray(p)&&p.length===3&&p.every((v,i)=>Number.isFinite(v)&&v>=bounds.min[i]-1e-7&&v<=bounds.max[i]+1e-7),'SAAMpath exceeds selected tool bounds.');
@@ -122,8 +123,8 @@ export function checkMachinePath(path,plan,machine) {
       requireProcessControl(machine);point(from);
       requireThat(Number.isFinite(action.volumeMm3)&&action.volumeMm3>0&&Number.isFinite(action.flowMm3S)&&action.flowMm3S>0,'Invalid stationary extrusion.');
     } else if(action.kind==='temperature'){
-      requireProcessControl(machine);validateNozzleC(action.targetC,selected,machine);
-      requireThat(plannedNozzleTemperatures(selected).has(action.targetC),'Unplanned operation temperature.');
+      requireProcessControl(machine);validateTemperatureC(action.targetC);
+      requireThat(temperatures.has(action.targetC),'Unplanned operation temperature; supply the saved neutral SAAMpath target inventory.');
     } else if(['retract','recover'].includes(action.kind)&&machine.id==='dobot-mg400')requireThat(action.filamentMm===0,'Relay retraction unsupported.');
     else if(action.kind==='fan'&&machine.id==='dobot-mg400')requireThat(action.percent===0,'Dobot output has no fan control.');
   }

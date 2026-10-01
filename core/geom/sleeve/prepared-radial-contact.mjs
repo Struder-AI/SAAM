@@ -1,4 +1,4 @@
-import {requireThat} from '../../../core/private/extensions/numeric.mjs';
+import {requireThat} from '../tolerance.mjs';
 // Continuous source-side contact preparation. Fixed arc sample correspondence
 // advects steep radial details between Z profiles without switching branches.
 

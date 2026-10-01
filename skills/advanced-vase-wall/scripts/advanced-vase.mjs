@@ -4,7 +4,7 @@ import {requireThat} from '../../../core/private/extensions/numeric.mjs';
 
 import {traceResult} from '../../../core/print/curves.mjs';
 import {contactCurveGaps} from '../../../core/path/contact-curves.mjs';
-import {prepareContourSleeve} from './contour-sleeve.mjs';
+import {prepareContourSleeve} from '../../../core/geom/sleeve/contour-sleeve.mjs';
 import {mappedSleevePatternCurves} from './sleeve-pattern.mjs';
 
 export function advancedVaseResult({shell,assignment,process,after=assignment.after,zStartMm=null,zEndMm=null,foundationSegments=[],maxBeadHeightMm=Infinity,substrateAdaptation=false,onProgress}){

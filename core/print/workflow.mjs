@@ -223,7 +223,10 @@ async function prepareLegacyMigration(dir,document,planText){
   const source=originalSource(document.geometry);
   if(source){const sourceBytes=await readFile(resolve(dir,'geometry/source.stl'));inputs.set('geometry/source.stl',sourceBytes);requireThat(hash(sourceBytes)===source.sha256,'Imported STL source changed; repair it before migration.');}
   const programStatus=!review.generation?'none':review.generation.generationHash===preflight.identity.generationHash?'current':'stale';
-  if(programStatus==='current')interpretProgram(programBytes,document,machine);
+  if(programStatus==='current'){
+    const path=review.path?await readPathArtifact(dir,review.path):null;
+    interpretProgram(programBytes,document,machine,{authoredNozzleTemperatures:path?.completion?.authoredNozzleTemperatures});
+  }
   return {state,manifest,artifacts,planText,inputs,programStatus};
 }
 
@@ -356,6 +359,8 @@ async function restoreBundleProgram(input,program,allSources,previousProgram) {
       const exportHash=hash(code),key=programKey(generationHash,exportHash);observedExportHash=exportHash;
       requireThat(exportHash === review.generation.exportHash,
         'Generated files changed; regenerate and review again.');
+      const path=review.path?await readPathArtifact(dir,review.path):null;
+      const authoredNozzleTemperatures=path?.completion?.authoredNozzleTemperatures;
       if(cachedProgram?.key!==key||(program!=='source'&&!cachedProgram.program)) {
         // Reopen the saved machine program. Interpretation checks the actual
         // commands; reopening never invokes a slicing skill or exporter. Source
@@ -363,9 +368,10 @@ async function restoreBundleProgram(input,program,allSources,previousProgram) {
         // hash above matches. Full-motion and cold callers still interpret.
         const source=program==='source'?pendingCheckedPrograms.take(key):null;
         if(source)cachedProgram={key,...source,bytes:code,program:null};
-        else cachedProgram=programCacheEntry(key,interpretProgram(code, plan, machine),code);
+        else cachedProgram=programCacheEntry(key,interpretProgram(code, plan, machine,{authoredNozzleTemperatures}),code);
       }
       state.program = structuredClone(program==='source'?cachedProgram.metadata:cachedProgram.program);
+      state.authoredNozzleTemperatures=authoredNozzleTemperatures;
       state.limitations=[...new Set([...state.limitations,...(state.program.limitations??[])])];
       state.pathSummary = structuredClone(review.generation.summary??{});
       state.exportHash = exportHash;

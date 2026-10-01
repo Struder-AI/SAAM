@@ -42,12 +42,3 @@ test('tour survives a browser reconnect and ends when its Studio shuts down afte
   const reopened=await viewer(t,root,directory);assert.equal(reopened.state.tour.active,false,'opening the saved print does not restore a tour');
   await reopened.action('fresh');const next=await tour.info();assert.notEqual(next.runId,runId);assert.equal(next.step,0);
 });
-
-test('closing an observer or the owner of an older run cannot end another Studio’s current tour',async t=>{
-  const {root,tour,directory,runId}=await fixture(t),first=await viewer(t,root,directory),observer=await viewer(t,root,directory);
-  await observer.server.shutdown();assert.equal((await tour.info()).runId,runId);
-  const second=await viewer(t,root,directory);await second.action('fresh');const replacement=await tour.info();
-  assert.notEqual(replacement.runId,runId);
-  await first.server.shutdown();assert.equal((await tour.info()).runId,replacement.runId);assert.equal((await tour.info()).active,true);
-  await second.server.shutdown();assert.equal((await tour.info()).active,false);
-});

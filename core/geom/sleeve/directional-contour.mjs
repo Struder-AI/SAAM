@@ -1,4 +1,4 @@
-import {requireThat,distance2} from '../../../core/private/extensions/numeric.mjs';
+import {requireThat,distance2} from '../tolerance.mjs';
 // Bounded directional unfolding of a closed contour. Radius and traversal order
 // are retained; weighted isotonic regression regularizes only polar angle.
 // A fixed arc-length quadrature gives section vertex splits no new fit weight.

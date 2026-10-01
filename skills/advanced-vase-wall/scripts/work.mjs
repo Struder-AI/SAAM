@@ -2,9 +2,8 @@ import {requireThat} from '../../../core/private/extensions/numeric.mjs';
 
 import {depositedBeadSegments} from '../../../core/path/deposited-curves.mjs';
 import {advancedVaseResult} from './advanced-vase.mjs';
-import {standardVaseResult} from '../../vase-wall/scripts/prepare.mjs';
 
-export function constructVaseWork({node,samePart,after,onProgress,substrateAdaptation}){
+export function constructVaseWork({node,samePart,after,onProgress,substrateAdaptation,standardVaseResult}){
   const context=node.context??node.record.context,assignment=node.context?.assignment??node.record.spec.settings;
   const foundations=samePart.filter(item=>item.node.nominalRank<=context.startMm+1e-8);
   if(assignment.zStartMm>0){

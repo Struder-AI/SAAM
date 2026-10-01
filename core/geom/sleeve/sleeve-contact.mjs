@@ -1,4 +1,4 @@
-import {requireThat} from '../../../core/private/extensions/numeric.mjs';
+import {requireThat} from '../tolerance.mjs';
 // Directional unilateral contact in a horizontal section. A smooth interior
 // anchor defines radial rays; only the forbidden side moves toward the target.
 // One simple CCW contour star-shaped about that anchor is required. This avoids

@@ -52,7 +52,17 @@ export function createServicePanel({token}){
   async function checkUpdate(manual=true){
     if(!view.status?.activated)return;
     $('service-check').disabled=true;if(manual)message('Checking for updates…');
-    try{view.status=await request('check-update');render();if(manual)message(view.status.update?`SAAM ${view.status.update.version} is ready to install.`:'SAAM is up to date.');}
+    try{
+      view.status=await request('check-update');render();
+      if(manual){
+        const result=view.status.updateStatus;
+        message(view.status.update?`SAAM ${view.status.update.version} is ready to install.`
+          :result?.state==='current'?'SAAM is up to date.'
+          :result?.state==='platform-unavailable'?`SAAM ${result.version} has no release package for ${result.platform??'this platform'} yet. SAAM still works locally.`
+          :result?.state==='manual-update-required'?`SAAM ${result.version} is available, but this installation cannot update in place. Use the installation guide.`
+          :'No release is available for this installation yet. SAAM still works locally.');
+      }
+    }
     catch(error){await refresh();if(manual)message(error.message+' SAAM still works locally.');}
     finally{$('service-check').disabled=false;}
   }

@@ -1,19 +1,18 @@
-import {requireThat} from '../../../core/private/extensions/numeric.mjs';
+// Plastic weld composes public region, slice, evaluation and injection operations.
+// The selected extension copy owns the technique; it has no release-relative imports.
+export function plasticWeldRuntime({Geometry,Toolpath}) {
+  const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
+  const {difference,union,regionArea,pointSegmentDistance,horizontalSlice,sliceFamily,evaluateSurface,intersect}=Geometry;
+  const {pointInjectionOperation,assignmentFilament}=Toolpath;
 
-import {difference,union} from '../../../core/region/boolean.mjs';
-import {regionArea,pointSegmentDistance} from '../../../core/region/region2d.mjs';
-import {horizontalSlice,sliceFamily} from '../../../core/geom/slice.mjs';
-import {pointInjectionOperation} from '../../../core/path/injection.mjs';
-import {assignmentFilament} from '../../../core/print/assignment-process.mjs';
-
-export const PLASTIC_WELD_DEFAULTS={enabled:false,sites:[],shaftDiameterMm:1.2,basinDiameterMm:3,
+const PLASTIC_WELD_DEFAULTS={enabled:false,sites:[],shaftDiameterMm:1.2,basinDiameterMm:3,
   basinHeightMm:1.2,wallMm:1.2,floorMm:0.8,seatDepthMm:0,volumeFactor:1,flowMm3S:0.5,holdSeconds:1,nozzleC:null};
 const positive=(v,name)=>requireThat(Number.isFinite(v)&&v>0,'plastic-weld '+name+' must be positive.');
 const circle=(x,y,r)=>[Array.from({length:96},(_,i)=>[x+r*Math.cos(i*2*Math.PI/96),y+r*Math.sin(i*2*Math.PI/96)])];
 const area=r=>Math.abs(regionArea(r));
 const height=op=>op.strokes.reduce((h,s)=>s.points.reduce((z,p)=>Math.max(z,p[2]),h),-Infinity);
 
-export function validatePlasticWeld(plan,processForAssignment){
+function validatePlasticWeld(plan,processForAssignment){
   const s=plan.skills['plastic-weld'];
   requireThat(typeof s.enabled==='boolean'&&Array.isArray(s.sites),'plastic-weld needs an enabled flag and sites array.');
   for(const k of ['shaftDiameterMm','basinDiameterMm','basinHeightMm','wallMm','floorMm','volumeFactor','flowMm3S'])positive(s[k],k);
@@ -40,7 +39,7 @@ export function validatePlasticWeld(plan,processForAssignment){
 
 // Explicit sites can be spatially staggered while their height ranges overlap.
 // This authoring helper returns ordinary locked sites, not a second recipe.
-export function staggeredWeldSites({columns,rows,levels,pitchMm=12,heightStepMm=3,depthMm=4,
+function staggeredWeldSites({columns,rows,levels,pitchMm=12,heightStepMm=3,depthMm=4,
   xMm=4,yMm=4,zBottomMm=0.8,part=null}){
   requireThat([columns,rows,levels].every(n=>Number.isSafeInteger(n)&&n>0)&&Number.isSafeInteger(columns*rows*levels),'Invalid rivet grid size.');
   [pitchMm,heightStepMm,depthMm].forEach(v=>positive(v,'grid spacing/depth'));
@@ -50,7 +49,7 @@ export function staggeredWeldSites({columns,rows,levels,pitchMm=12,heightStepMm=
   })))).flat(2);
 }
 
-export function preparePlasticWeld({plan,placed,componentShells,processForAssignment}){
+function preparePlasticWeld({plan,placed,componentShells,processForAssignment}){
   const settings=plan.skills?.['plastic-weld'];if(!settings?.enabled)return [];
   const sites=settings.sites.map(site=>{
     const assignment={id:'plastic-weld:'+site.id,part:site.part,construction:'inject',filament:assignmentFilament(plan,{id:'plastic-weld:'+site.id,part:site.part}),process:null};
@@ -85,7 +84,7 @@ export function preparePlasticWeld({plan,placed,componentShells,processForAssign
 
 // The enclosure's exact reference levels and required material are shared by
 // dependency preparation and the authoritative finalized-material check.
-export function rivetEnclosureLayers(site,process){
+function rivetEnclosureLayers(site,process){
   const {settings:s,shell,x,y,bottom,top}=site;
   return sliceFamily({base:horizontalSlice(shell.bounds.min[2]),pitchMm:process.layerMm,firstLayerMm:process.firstLayerMm},
     {min:shell.bounds.min,max:[shell.bounds.max[0],shell.bounds.max[1],top]}).layers.map(layer=>layer.slice.origin[2]).filter(z=>z>bottom-s.floorMm+1e-8).map(z=>{
@@ -94,7 +93,7 @@ export function rivetEnclosureLayers(site,process){
     });
 }
 
-export function rivetInjectionResult({plan,site,modelResults,siteIndex=0,siteCount=1}){
+function rivetInjectionResult({plan,site,modelResults,siteIndex=0,siteCount=1}){
   const model=modelResults.flatMap(r=>r.operations);
   const planarLayers=new Map();
   for(const op of model)if(op.region&&op.materialCoverage==='area'){
@@ -126,7 +125,7 @@ export function rivetInjectionResult({plan,site,modelResults,siteIndex=0,siteCou
 }
 
 // Audit every finalized producer, including later covers and continuous paths.
-export function validateRivetClearance({plan,sites,modelResults}){
+function validateRivetClearance({plan,sites,modelResults}){
   const model=modelResults.flatMap(result=>result.operations);
   for(const site of sites){
     const {settings:s,x,y,bottom,top}=site;
@@ -150,4 +149,50 @@ export function validateRivetClearance({plan,sites,modelResults}){
       }
     }
   }
+}
+
+
+function weldWork(sites,processForAssignment){
+  return sites.map((site,index)=>({
+    key:'rivet:'+site.id,kind:'inject',construction:'rivet',sourceId:'plastic-weld',part:site.part,nominalRank:site.top,index,
+    context:{site,siteCount:sites.length,assignment:site.assignment},requires:[],operationDependencies:false,
+    construct:({node,plan,predecessors})=>rivetInjectionResult({plan:{...plan,process:processForAssignment(node.context.assignment)},
+      site,siteIndex:index,siteCount:sites.length,modelResults:predecessors.filter(item=>item.node.construction!=='rivet').map(item=>item.result)})
+  }));
+}
+function weldDependencies(node,nodes){
+  const needs=new Set();
+  for(const other of nodes){
+    if(other===node)continue;
+    // Enclosure construction precedes injection; cover construction may then
+    // consume its completed action. Exact physical barriers are checked again
+    // against finalized heights, rather than trusting this construction rank.
+    if(node.construction==='rivet'&&other.kind==='slice'&&!other.record.reference){
+      const layers=other.record.spec.layers.filter(layer=>other.index===null||layer.index===other.index);
+      const enclosure=rivetEnclosureLayers(node.context.site,node.context.site.process);
+      if(layers.some(layer=>{
+        const points=layer.region.map(loop=>loop.map(uv=>evaluateSurface(layer.slice,uv).point)),flat=points.flat();
+        return flat.length&&enclosure.some(({z,required})=>z>=Math.min(...flat.map(p=>p[2]))-1e-8&&z<=Math.max(...flat.map(p=>p[2]))+1e-8&&Math.abs(regionArea(intersect(points.map(loop=>loop.map(p=>p.slice(0,2))),required)))>1e-8);
+      }))needs.add(other.key);
+    }
+
+  }
+  return [...needs];
+}
+
+function weldOperationDependencies(sites,operation){
+  return sites.filter(site=>operation.id!==site.reservation.completion.operationId&&operation.strokes.some(stroke=>stroke.points.some(p=>p[2]>site.top+1e-8)))
+    .map(site=>site.reservation.completion.operationId);
+}
+
+function finishWeldResults(plan,sites,{results,supports,workResults:injections}){
+  const material=results.filter(result=>!injections.includes(result));
+  validateRivetClearance({plan,sites,modelResults:[...supports,...material]});
+  if(injections.length)material.push({id:'plastic-weld',operations:injections.flatMap(result=>result.operations),report:{depositionFamily:'inject',sites:injections.flatMap(result=>result.report.sites),physicalValidation:'not performed'}});
+  return material;
+}
+
+  return {PLASTIC_WELD_DEFAULTS,validatePlasticWeld,staggeredWeldSites,preparePlasticWeld,
+    rivetEnclosureLayers,rivetInjectionResult,validateRivetClearance,weldWork,weldDependencies,
+    weldOperationDependencies,finishWeldResults};
 }

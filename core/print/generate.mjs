@@ -1,6 +1,6 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {resolveGeometrySelections} from '../geom/build.mjs';
-import {ASSIGNMENT_RECORDS} from '../../skills/records.mjs';
+import {ASSIGNMENT_RECORDS,validateSelectedExtensionRecipe} from '../../skills/records.mjs';
 import {extensionDeposition,extensionResultDependencies,extensionSummary} from '../../skills/deposition.mjs';
 // Generation: authored geometry and recipe into finalized deposition and SAAMpath.
 // Ownership precedes construction; one dependency graph schedules shared courses
@@ -15,17 +15,31 @@ import {planOperation,validateOperationBatch,prepareOperationDependencies} from 
 import {filamentSelection,assignedFilaments} from '../machine/filaments.mjs';
 import {planarPolicy} from '../path/builder.mjs';
 import {plannedNozzleTemperatures} from '../path/process-controls.mjs';
-import {assignmentPlan,depositionAssignments} from './assignment-process.mjs';
+import {assignmentPlan,assignmentFilament,depositionAssignments} from './assignment-process.mjs';
 import {planarRegionLayers} from '../geom/planar-region-layers.mjs';
+import {prepareContourSleeve} from '../geom/sleeve/contour-sleeve.mjs';
+import {difference,union,intersect} from '../region/boolean.mjs';
+import {regionArea,pointSegmentDistance} from '../region/region2d.mjs';
+import {horizontalSlice,sliceFamily} from '../geom/slice.mjs';
+import {evaluateSurface} from '../geom/surface-evaluation.mjs';
+import {pointInjectionOperation} from '../path/injection.mjs';
+import {joinSliceFamily} from './slices.mjs';
+import {maximumPathAngle,strokeRange} from '../path/deposition.mjs';
+import {publishFinishedBoundary} from '../path/finished-surface.mjs';
+import {sampleCurveIntervals} from '../geom/curve-sampling.mjs';
+import {traceResult} from './curves.mjs';
+import {contactCurveGaps} from '../path/contact-curves.mjs';
+import {depositedBeadSegments} from '../path/deposited-curves.mjs';
 import {prepareSliceRegionContext} from './slice-region-context.mjs';
 import {surveySurfaceDomain} from './surface-domains.mjs';
 import { compileRecipe, VERSION } from './plan.mjs';
 
 import {finalizedSliceResults} from './slice-deposition.mjs';
 
-const supportEngines={
-  Geometry:{planarRegionLayers},
-  Toolpath:{prepareSliceRegionContext}
+const extensionEngines={
+  Geometry:{planarRegionLayers,prepareContourSleeve,sampleCurveIntervals,difference,union,intersect,regionArea,pointSegmentDistance,horizontalSlice,sliceFamily,evaluateSurface},
+  Toolpath:{prepareSliceRegionContext,pointInjectionOperation,assignmentFilament,
+    joinSliceFamily,maximumPathAngle,strokeRange,publishFinishedBoundary,traceResult,contactCurveGaps,depositedBeadSegments}
 };
 
 
@@ -78,7 +92,7 @@ export async function generateModelResults(plan,{placed,componentShells,shells,v
     return {assignment,shell,process:selected.process,maxBeadHeightMm:Infinity};
   });
   const skins=contexts.filter(({assignment})=>assignment.within?.some(v=>v.kind==='surface-domain'&&v.loopsUv===null)).map(context=>({...context,survey:surveySurfaceDomain(context)}));
-  const extensions=await extensionDeposition({plan,placed,componentShells,contexts,onProgress,engines:supportEngines,
+  const extensions=await extensionDeposition({plan,placed,componentShells,contexts,onProgress,engines:extensionEngines,
     processForAssignment:assignment=>assignmentPlan(plan,assignment).process});
   const rims=contexts.filter(({assignment})=>assignment.surface?.kind==='terminal'),referenceAssignments=contexts.filter(({assignment})=>assignment.stack?.direction==='normal');
   const constructions=[...extensions.constructions,...contexts.filter(({assignment})=>['inject','curves'].includes(assignment.construction))];
@@ -98,7 +112,7 @@ export async function generateModelResults(plan,{placed,componentShells,shells,v
 export async function addComplementaryResults(plan,geometry,batch) {
   const supports=batch.slicedSupports??[],results=[...batch.results],summary={...batch.summary};
   if(supports.length)summary.supports=supports.map(r=>({id:r.id,...r.report}));
-  const completed=[...supports,...applyResultDependencies(results,await extensionResultDependencies(results,supports,supportEngines))];
+  const completed=[...supports,...applyResultDependencies(results,await extensionResultDependencies(results,supports,extensionEngines))];
   return {...batch,results:applyDeclaredDependencies(plan,completed),summary};
 }
 
@@ -186,6 +200,7 @@ export function depositionInspection(results){
 }
 
 export async function generatePath(plan, {onProgress,modulations,modulationPreparation=[]} = {}) {
+  await validateSelectedExtensionRecipe(plan,assignment=>assignmentPlan(plan,assignment).process,extensionEngines);
   const prepared=await preparePathGeometry(plan);
   const evaluated=modulations?{...plan,modulations}:plan;
   const materialAssignments=assignedFilaments(plan),defaultFilament=plan.setup.bambu?.filament??materialAssignments[0]??null;
@@ -215,5 +230,6 @@ export async function generatePath(plan, {onProgress,modulations,modulationPrepa
   const authoredTemperatures=plannedNozzleTemperatures(plan);
   for(const action of path.actions)if(action.kind==='temperature')
     requireThat(authoredTemperatures.has(action.targetC),'Unplanned operation temperature.');
-  return saamPath({...path,completion:{contract:NEUTRAL_PATH_CONTRACT,inputHash:pathInputHash(plan)}});
+  return saamPath({...path,completion:{contract:NEUTRAL_PATH_CONTRACT,inputHash:pathInputHash(plan),
+    authoredNozzleTemperatures:[...authoredTemperatures].sort((a,b)=>a-b)}});
 }

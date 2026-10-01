@@ -4,9 +4,9 @@ import {requireThat} from '../../../core/private/extensions/numeric.mjs';
 import {isDeepStrictEqual} from 'node:util';
 import {defaultSlices} from '../../../core/print/slices.mjs';
 import {makeMesh} from '../../../core/geom/mesh.mjs';
-import {detectMeshSleeveInterval} from './mesh-sleeve.mjs';
+import {detectMeshSleeveInterval} from '../../../core/geom/sleeve/mesh-sleeve.mjs';
 
-import {MESH_SLEEVE_SETTINGS} from './sleeve-reference.mjs';
+import {MESH_SLEEVE_SETTINGS} from '../../../core/geom/sleeve/sleeve-reference.mjs';
 import {validateSleevePattern} from './sleeve-pattern.mjs';
 import {sleeveAssignment} from './assignment.mjs';
 import {horizontalSlice,sliceFamily} from '../../../core/geom/slice.mjs';

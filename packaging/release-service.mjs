@@ -75,7 +75,7 @@ async function save(file,value){
 }
 async function request(fetchImpl,url,path,{secret,body}={}){
   const response=await fetchImpl(new URL(path,url),{method:'POST',headers:{...(secret?{Authorization:`Bearer ${secret}`}:{"Content-Type":"application/json"}),...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});
-  let result;try{result=await response.json();}catch{throw Error(`The release service answered ${response.status} without JSON.`);}
+  let result;try{result=await response.json();}catch{throw Object.assign(Error(`The release service answered ${response.status} without JSON.`),{status:response.status});}
   if(!response.ok)throw Object.assign(Error(result?.error??`The release service answered ${response.status}.`),{status:response.status});
   return result;
 }
@@ -88,14 +88,25 @@ export async function createReleaseService({serviceUrl,statePath,version='develo
   try{stored=JSON.parse(await readFile(file,'utf8'));}
   catch(error){if(error.code!=='ENOENT')stateProblem='Saved service connection could not be read. Enter an invite again.';}
   let state={firstRunDismissed:stored.firstRunDismissed===true,device:savedDevice(stored,url)};
-  let offer=null,problem=stateProblem,runtime=null,unobserve=[],stateWatcher=null,closed=false,refreshQueue=Promise.resolve();
-  const persist=next=>save(file,{serviceUrl:url,firstRunDismissed:next.firstRunDismissed,...next.device});
+  let offer=null,updateStatus=null,problem=stateProblem,runtime=null,unobserve=[],stateWatcher=null,closed=false,refreshQueue=Promise.resolve(),saveQueue=Promise.resolve();
+  const persist=(next,currentOnly=false)=>{
+    const value={serviceUrl:url,firstRunDismissed:next.firstRunDismissed,...next.device};
+    const pending=saveQueue.then(()=>{if(!currentOnly||state===next)return save(file,value);});saveQueue=pending.catch(()=>{});return pending;
+  };
   const status=()=>({available:Boolean(url),activated:Boolean(state.device),firstRunPrompt:Boolean(url&&!state.firstRunDismissed&&!state.device),
-    version,update:offer?{version:offer.version}:null,problem,canQuit:Boolean(quit)});
+    version,update:offer?{version:offer.version}:null,updateStatus,problem,canQuit:Boolean(quit)});
+  const rejectDevice=async(error,device)=>{
+    if(error.status!==401||state.device!==device)return;
+    stopObserving();state={firstRunDismissed:true,device:null};offer=null;updateStatus=null;
+    problem='This service connection is no longer valid. Enter a fresh invite to reconnect. SAAM still works locally.';
+    const rejected=state;
+    try{await persist(rejected,true);}catch{if(state===rejected)problem+=' The invalid connection could not be cleared from disk.';}
+  };
   const emit=(event,about={})=>{
     if(closed||!url||!state.device)return;
+    const device=state.device;
     const body={event:diagnostic(event),about:diagnostic({version,platform,...about})};
-    void request(fetchImpl,url,'/device/events',{secret:state.device.secret,body}).catch(()=>{});
+    void request(fetchImpl,url,'/device/events',{secret:device.secret,body}).catch(error=>rejectDevice(error,device));
   };
   const subscribe=()=>{
     if(!runtime||!state.device||unobserve.length)return;
@@ -109,7 +120,7 @@ export async function createReleaseService({serviceUrl,statePath,version='develo
     if(closed)return;
     const device=savedDevice(saved,url);
     if(state.device?.deviceId===device?.deviceId&&state.device?.secret===device?.secret)return;
-    stopObserving();state={firstRunDismissed:saved?.firstRunDismissed===true,device};offer=null;
+    stopObserving();state={firstRunDismissed:saved?.firstRunDismissed===true,device};offer=null;updateStatus=null;
     subscribe();
   };
   if(watchState&&url){
@@ -120,14 +131,21 @@ export async function createReleaseService({serviceUrl,statePath,version='develo
     stateWatcher.on('error',()=>{stateWatcher?.close();stateWatcher=null;});
   }
   const checkUpdate=async()=>{
-    if(!url||!state.device){offer=null;return {update:null};}
+    if(!url||!state.device){offer=null;updateStatus=null;return {update:null};}
+    const device=state.device;
     try{
-      const {release}=await request(fetchImpl,url,'/device/release',{secret:state.device.secret});
+      const {release}=await request(fetchImpl,url,'/device/release',{secret:device.secret});
+      if(state.device!==device)return {update:null};
       const asset=release?.assets?.[platform];
-      offer=update&&platform&&updateHost&&asset&&newer(release.version,version)
-        &&asset.url===releaseUrl({updateHost,version:release.version,platform})?{version:release.version,...asset}:null;
-      problem=null;return {update:offer?{version:offer.version}:null};
-    }catch(error){offer=null;problem=errorMessage(error);throw error;}
+      offer=null;
+      if(!release)updateStatus={state:'no-release'};
+      else if(!platform||!asset)updateStatus={state:'platform-unavailable',platform,version:release.version};
+      else if(!newer(release.version,version))updateStatus={state:'current'};
+      else if(!update||!updateHost)updateStatus={state:'manual-update-required',version:release.version};
+      else if(asset.url!==releaseUrl({updateHost,version:release.version,platform}))throw Error('The release asset does not match this installation’s trusted update source.');
+      else{offer={version:release.version,...asset};updateStatus={state:'available',version:release.version};}
+      problem=null;return {update:offer?{version:offer.version}:null,updateStatus};
+    }catch(error){if(state.device===device){offer=null;updateStatus=null;problem=errorMessage(error);}await rejectDevice(error,device);throw error;}
   };
   return {
     status,
@@ -137,7 +155,7 @@ export async function createReleaseService({serviceUrl,statePath,version='develo
       try{
         const {deviceId,secret}=await request(fetchImpl,url,'/device/register',{body:{invite:entered}});
         if(typeof deviceId!=='string'||typeof secret!=='string'||!deviceId||!secret)throw Error('The release service returned no installation credential.');
-        const next={firstRunDismissed:true,device:{deviceId,secret}};await persist(next);state=next;offer=null;problem=null;subscribe();
+        const next={firstRunDismissed:true,device:{deviceId,secret}};await persist(next);stopObserving();state=next;offer=null;updateStatus=null;problem=null;subscribe();
         emit({kind:'activation',result:'connected'});return status();
       }catch(error){problem=errorMessage(error);throw error;}
     },

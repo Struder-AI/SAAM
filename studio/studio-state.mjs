@@ -17,8 +17,17 @@ async function adoptProgramState(next,{presentation,decode,bind}){
   }
 }
 
+async function adoptNeutralPath(next,{presentation,decodeNeutral}){
+  if(next.program||next.artifacts?.path!=='current'||!next.review?.path)return next;
+  const reusable=presentation?.identity.printId===next.printId
+    &&presentation.identity.pathHash===next.review.path.hash&&presentation.program?.neutral;
+  if(reusable)return {...next,neutralProgram:presentation.program};
+  try{return {...next,neutralProgram:await decodeNeutral(next)};}
+  catch(error){return {...next,neutralPathError:error.message};}
+}
+
 export async function prepareStudioState(next,context){
-  const state=await adoptProgramState(next,context);
+  const state=await adoptNeutralPath(await adoptProgramState(next,context),context);
   return {state,presentation:planPresentation(context.presentation,state,context)};
 }
 
