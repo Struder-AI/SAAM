@@ -136,7 +136,9 @@ Existing imports through [boolean.mjs](./boolean.mjs) alias this tool:
 slices, skin reservations and common construction assignments, including
 vase/cap transitions. Planar offsets and experimental surface-offset swept-band
 cleanup use this same kernel. Mesh/spline sectioning and sampled level sets
-retain their separate geometry-construction roles.
+retain their separate geometry-construction roles. Sampled fields use Geometry's
+[extractLevelSet](../geom/level-set.mjs): roof/reservation consumers request
+bounded regions, while gyroid clips genuine contours to its material mask.
 Slice fill's bead-coverage expansion uses the existing 0.001 mm `TOLERANCE.chord`
 arc target. This construction avoids artificial corner gaps without deleting
 material or changing deposition strokes; the

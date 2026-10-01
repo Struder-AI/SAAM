@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-01 — Shared sampled-field curves and bounded regions
+
+- Moved sampled level extraction into Geometry. `extractLevelSet` returns bounded high-side regions or genuine contour polylines from shared crossings and chaining. Removed gyroid's reconstruction of contours by stripping artificial domain edges; roof, reservation and chart-region consumers retain bounded output.
+- Preserved high-side equality, ambiguous-cell pairing, sentinel refinement, winding, endpoint tolerance and region cleanup. Toolpath retains field selection/sampling, masks and deposition policy; no distance-query or loft work.
+- First-use setup passed. Field smoke produced byte-identical bounded output against 22554a1 and direct open curves; gyroid smoke produced 7 strokes/307 points. Changed consumers import successfully and diff whitespace check passed. The existing regional-workflow test fails identically on this change and 22554a1 at pre-existing material-ownership overlap. No new test files or suite batches. Default-map generation during onboarding was interrupted after prolonged silence; main task owns full geometry submaps. No shared-checkout integration or publication.
+
 ## 2026-10-01 — Shared geometry operations and native construction lifetime
 
 - Trace, text, Slice and surface deposition share surface evaluation; shell boundaries and sleeve contours use ordinary native isocurves and common adaptive sampling. Planar/curved sections share region dispatch; removed boundary callbacks, Trace reference evaluator, Slice point/normal APIs and duplicate curved Boolean dispatch.

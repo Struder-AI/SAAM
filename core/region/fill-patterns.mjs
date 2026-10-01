@@ -4,7 +4,7 @@ import {requireThat} from '../private/toolpath/numeric.mjs';
 import {scanlineFill} from './region2d.mjs';
 import {offsetRegion} from './offset.mjs';
 import {clipOpenPaths} from './intersection.mjs';
-import {levelSetRegion} from './boolean.mjs';
+import {extractLevelSet} from '../geom/level-set.mjs';
 
 import {lineSpacing} from '../path/spacing.mjs';
 
@@ -33,9 +33,8 @@ export function fillPatternStrokes(region,{pattern='rectilinear',widthMm,density
 }
 
 // Nodal gyroid: sin(x)cos(y)+sin(y)cos(z)+sin(z)cos(x)=0.
-// Reuse the existing sampled level-set constructor. Its artificial domain
-// border closes positive regions, so remove only those border edges before
-// asking Clipper2 to clip the actual open contours to the interior mask.
+// Geometry extracts the genuine level contours; clipping applies the interior
+// material mask without constructing or removing artificial domain edges.
 // The sampling step and the section's own size decide the grid; a layer is
 // never refused because its cell count is large. Column values are typed rows,
 // and the per-row sines are shared across columns.
@@ -57,19 +56,7 @@ function gyroid(region,{periodMm,zMm,sampleStepMm}) {
 
 // Contours retain chart coordinates; callers may evaluate the scalar in XYZ.
 export function sampledFieldStrokes({xs,ys,values},region) {
-  const min=[xs[0],ys[0]],max=[xs.at(-1),ys.at(-1)];
-  const loops=levelSetRegion({xs,ys,values},0),paths=[];
-  const border=(a,b)=>[0,1].some(i=>[min[i],max[i]].some(v=>Math.abs(a[i]-v)<1e-8&&Math.abs(b[i]-v)<1e-8));
-  for(const loop of loops){
-    const cut=loop.findIndex((p,i)=>border(p,loop[(i+1)%loop.length]));
-    if(cut<0){paths.push([...loop,loop[0]]);continue;}
-    let run=[];
-    for(let n=1;n<=loop.length;n++){
-      const a=loop[(cut+n)%loop.length],b=loop[(cut+n+1)%loop.length];
-      if(border(a,b)){if(run.length>1)paths.push(run);run=[];}
-      else {if(!run.length)run.push(a);run.push(b);}
-    }
-    if(run.length>1)paths.push(run);
-  }
+  const curves=extractLevelSet({xs,ys,values},0,{output:'curves'});
+  const paths=curves.map(({points,closed})=>closed?[...points,points[0]]:points);
   return clipOpenPaths(paths,region).filter(points=>points.length>1).map(points=>({points,closed:false}));
 }
