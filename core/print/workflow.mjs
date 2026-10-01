@@ -6,7 +6,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { exportAndInterpretProgram, interpretProgram } from '../export/registry.mjs';
-import { loadMachine, validateDobotConfiguration, lineWidthLimits } from '../machine/profile.mjs';
+import { loadMachine, validateDobotConfiguration } from '../machine/profile.mjs';
 
 import {validateDensoConfiguration} from '../machine/denso.mjs';
 import {consumeCheckedProgram,createPendingCheckedProgramStore} from './program-handoff.mjs';
@@ -53,7 +53,7 @@ export function programCacheEntry(key,program,code) {
   const sources=sourceFiles??{program:text};
   const {moves,events,...metadata}=motion;
   const sourceInfo=Object.entries(sources).map(([name,source])=>({name,sha256:hash(source)}));
-  return {key,program:motion,code:text,sources,metadata:{...metadata,sources:sourceInfo}};
+  return {key,bytes:Buffer.from(code),program:motion,code:text,sources,metadata:{...metadata,sources:sourceInfo}};
 }
 
 export function applyPlanPatch(previous, patch, geometryTemplate) {
@@ -111,20 +111,15 @@ export function createBundleWorkflow(adapter) {
   let verifiedProgram;
   const pendingCheckedPrograms=createPendingCheckedProgramStore();
   let inputCache={};
+  // Private computation results outlive check -> generate, but not this owner.
+  // Tickets expose identity only: callers cannot mutate checked bytes/motion.
+  const preparedResults=new WeakMap();
+  let preparation;
   const programKey=(generationHash,exportHash)=>hash([generationHash,exportHash]);
 async function proposedPlan(machineId, { setupFile } = {}) {
   const machine = machineId ? loadMachine(machineId) : await json(machineFile);
   const remembered = await rememberedSetup(setupFile ?? setupFor(machine), machine);
-  return resolveInitialPlan(machine,{defaults,rememberedSetup:remembered,fit:fitLineWidthToSetup});
-}
-// Returns the plan to use: the given one when its line width already suits the
-// selected tool, otherwise a copy carrying the fitted width.
-function fitLineWidthToSetup(plan,machine) {
-  if(!machine.tools.some(candidate=>candidate.index===plan.setup.tool))return plan;
-  const limits=lineWidthLimits(plan,machine);
-  if(limits&&(plan.process.lineWidthMm<limits[0]||plan.process.lineWidthMm>limits[1]))
-    return {...plan,process:{...plan.process,lineWidthMm:Math.min(limits[1],Math.max(limits[0],plan.setup.nozzleMm))}};
-  return plan;
+  return resolveInitialPlan(machine,{defaults,rememberedSetup:remembered});
 }
 async function initBundle(directory, plan, { setupFile, machineId, sourceBytes,sourcePath } = {}) {
   const dir = resolve(directory);
@@ -311,7 +306,7 @@ async function validateBundleInput(input,previousCache) {
         'Invalid generated program reference. Regenerate the print.');
       const inputsHash=hash({plan,machine});
       if(geometry&&cache.verifiedGeometryHash!==geometryHash){
-        await verifyGeometry(bytes,geometry.descriptor);
+        cache.geometryChecks=(await verifyGeometry(bytes,geometry.descriptor))?.checks??[];
         cache.verifiedGeometryHash=geometryHash;
       }
       if(cache.validatedInputsHash!==inputsHash){
@@ -323,15 +318,14 @@ async function validateBundleInput(input,previousCache) {
       identity={key:identityKey,geometryHash,generationHash:hash({plan,machine,geometryHash,...(adapter.generationContract?{generationContract:adapter.generationContract}:{})})};
       cache.identity=identity;
     }
-    return {dir,plan,machine,geometry:geometry?.descriptor??null,geometryArtifact:geometry,review,identity,cache};
+    return {dir,plan,machine,geometry:geometry?.descriptor??null,geometryArtifact:geometry,geometryChecks:geometry?cache.geometryChecks??[]:[],review,identity,cache};
   } catch(error) {return {cache,error};}
 }
 
-async function describeBundle({dir,plan,machine,geometry,geometryArtifact,review,identity},program) {
+async function describeBundle({dir,plan,machine,geometry,geometryArtifact,geometryChecks,review,identity},program) {
   const {geometryHash,generationHash}=identity;
-  if(originalSource(plan.geometry))requireThat(await hashFile(resolve(dir,'geometry/source.stl'))===originalSource(plan.geometry).sha256,'Imported STL source changed; reload the current geometry.');
   const state = {
-    kind, dir, plan, machine, geometry, review, geometryHash, generationHash, programChecked:Boolean(program&&review.generation),
+    kind, dir, plan, machine, geometry, geometryChecks, review, geometryHash, generationHash, programChecked:Boolean(program&&review.generation),
     exportName: exportName(plan,machine), limitations: limitationsFor(plan, machine),
     outputAvailability:machine.outputs.find(o=>o.id===plan.output)?.implemented===false?`Machine-file export for ${machine.name} is not available yet; geometry and settings can be reviewed.`:null,
     skills: [...new Set((plan.slices?.assignments??[]).map(assignmentFamily)),
@@ -375,7 +369,7 @@ async function restoreBundleProgram(input,program,allSources,previousProgram) {
         // requests can reuse their job's checked result after the current-byte
         // hash above matches. Full-motion and cold callers still interpret.
         const source=program==='source'?pendingCheckedPrograms.take(key):null;
-        if(source)cachedProgram={key,...source,program:null};
+        if(source)cachedProgram={key,...source,bytes:code,program:null};
         else cachedProgram=programCacheEntry(key,interpretProgram(code, plan, machine),code);
       }
       state.program = structuredClone(program==='source'?cachedProgram.metadata:cachedProgram.program);
@@ -383,6 +377,7 @@ async function restoreBundleProgram(input,program,allSources,previousProgram) {
       state.pathSummary = structuredClone(review.generation.summary??{});
       state.exportHash = exportHash;
       state.code = cachedProgram.code;
+      Object.defineProperty(state,'checkedBytes',{value:Buffer.from(cachedProgram.bytes),enumerable:false});
       if(allSources)state.sources={...cachedProgram.sources};
       state.toolpathApproved = review.approvals.toolpath?.hash === state.exportHash
         && review.approvals.toolpath?.generationHash === generationHash
@@ -444,22 +439,28 @@ async function rememberSetup(directory, { setupFile, source = 'User setup suppli
 // Feasibility inspection through the same generator, without persisted output
 // or approval. The approved generation/export step remains the delivery gate.
 async function checkPathBundle(directory, {onProgress} = {}) {
-  const candidate=await prepareGeneration(directory,{onProgress});
+  const candidate=await prepareGeneration(directory,{onProgress}),result=preparedResults.get(candidate);
   return {mode:'development-check-only',revision:candidate.revision,
-    ...structuredClone(candidate.summary),exportSummary:structuredClone(candidate.program.summary)};
+    ...structuredClone(result.summary),exportSummary:structuredClone(result.program.summary)};
 }
 
 async function prepareGeneration(directory,{onProgress}={}){
   const state=await loadBundle(directory,{program:false});
-  onProgress?.({stage:'Preparing geometry'});
-  const path=await generatePath(state.plan,state.machine,{onProgress});
-  onProgress?.({stage:'Writing and checking machine commands'});
-  let exported;
-  try{exported=exportAndInterpretProgram(path,state.plan,state.machine,{generatorVersion:VERSION,buildDate:BUILD_DATE});}
-  catch(error){error.stage='export';throw error;}
-  const {bytes,program}=exported;
-  return {directory:state.dir,revision:state.revision,generationHash:state.generationHash,
-    summary:path.summary,bytes,program};
+  const key=hash([state.dir,state.generationHash]);
+  if(preparation?.key!==key)preparation={key};
+  const candidate=preparation;
+  if(!candidate.path){
+    onProgress?.({stage:'Preparing geometry'});
+    candidate.path=Promise.resolve().then(()=>generatePath(state.plan,state.machine,{onProgress})).catch(error=>{candidate.path=null;throw error;});
+  }else onProgress?.({stage:'Reusing prepared toolpath'});
+  if(!candidate.checked)candidate.checked=candidate.path.then(path=>{
+    onProgress?.({stage:'Writing and checking machine commands'});
+    try{return {summary:path.summary,...exportAndInterpretProgram(path,state.plan,state.machine,{generatorVersion:VERSION,buildDate:BUILD_DATE})};}
+    catch(error){error.stage='export';throw error;}
+  }).catch(error=>{candidate.checked=null;throw error;});
+  const result=await candidate.checked;
+  const ticket=Object.freeze({directory:state.dir,revision:state.revision,generationHash:state.generationHash});
+  preparedResults.set(ticket,result);return ticket;
 }
 
 // Chat-driven adjustment: the agent applies a patch, the plan is revalidated,
@@ -534,13 +535,15 @@ async function generateBundle(directory, { development = false, onProgress, befo
 }
 
 async function commitGeneration(directory,prepared,{development=false,onProgress,beforeCommit}={}){
+  const result=preparedResults.get(prepared);
+  requireThat(result,'Generation requires the owned preparation result.');
   const state=await loadBundle(directory,{program:false});
-  requireThat(state.generationHash===prepared.generationHash&&state.revision===prepared.revision,
+  requireThat(state.dir===prepared.directory&&state.generationHash===prepared.generationHash&&state.revision===prepared.revision,
     'The print changed during generation. Review the updated print.');
   beforeCommit?.();
   onProgress?.({stage:'Saving your toolpath'});
-  const checks=generationChecks(state,prepared,development);
-  const committed=await persistGeneratedProgram(state,prepared,checks);
+  const checks=generationChecks(state,result,development);
+  const committed=await persistGeneratedProgram(state,result,checks);
   verifiedProgram=committed.cachedProgram;
   return committed.checks;
 }
@@ -575,8 +578,7 @@ function generationChecks(state,prepared,development){
     travel: summary.travel,
     shortTravel: program.summary.shortTravel,
     surfaceDomain: summary.surfaceDomain ?? null,
-    checks: ['plan-inputs', ...(state.geometry?['closed-geometry','native-geometry-round-trip']:[]), 'declared-output', ...(program.checks??(program.envelope?['fixed-firmware-envelope','archive-integrity','strict-print-body-interpretation']:['strict-gcode-interpretation'])),
-      ...(state.machine.motionChecks==='deferred'?[]:['xyz-bounds','axis-feed']), ...(program.summary.materialModel==='relay-estimate'?['commanded-flow-intent']:['extrusion-flow','temperature-state'])],
+    checks: ['plan-inputs',...(state.geometryChecks??[]),'declared-output',...(program.checks??[])],
     clearance: 'operator responsibility; no collision model implemented',
     physicalValidation: 'not performed',
     firmwareEnvelope: program.envelope??null,
@@ -597,7 +599,6 @@ async function persistGeneratedProgram(state,{bytes:code,program,summary},checks
 
 // The one human approval: current settings and the exact checked export together.
 async function approve(directory, { actor, revision, program = true }) {
-  requireThat(typeof actor === 'string' && actor.trim().length >= 2 && actor.length <= 100, 'Enter the human reviewer’s name.');
   const state = await loadBundle(directory,{program});
   requireThat(revision === state.revision, 'This review is stale. Reload before approving.');
   requireThat(!state.programError,state.programError);
@@ -605,7 +606,7 @@ async function approve(directory, { actor, revision, program = true }) {
     && state.review.generation?.mode === 'production',
   'Generate and check the production plan before toolpath approval.');
   const record = {
-    actor: actor.trim(), time: new Date().toISOString(),
+    actor: typeof actor==='string'?actor.trim():'Local user', time: new Date().toISOString(),
     hash: state.exportHash, generationHash: state.generationHash, scope: ['settings','toolpath']
   };
   const review=approvedReview(state.review,record);
@@ -620,11 +621,10 @@ async function approve(directory, { actor, revision, program = true }) {
 
 // Delivery copies the bytes that were reviewed. It re-reads and re-hashes them
 // rather than regenerating, so nothing new can appear between review and file.
-async function deliver(directory) {
+async function deliver(directory,{artifact=false}={}) {
   const state = await loadBundle(directory,{program:'source'});
   requireThat(state.toolpathApproved, 'Delivery requires approval of the exact current export.');
-  const bytes = await readFile(resolve(state.dir,state.review.generation.file));
-  requireThat(hash(bytes) === state.exportHash, 'Export changed during delivery.');
+  const bytes = state.checkedBytes;
   const destination = resolve(state.dir, `delivery/${state.exportName}`);
   await save(destination, bytes);
   requireThat(hash(await readFile(destination)) === state.exportHash, 'Delivery bytes differ from reviewed export.');
@@ -634,14 +634,14 @@ async function deliver(directory) {
     changes:'SAAM imported and positioned/scaled the source for printing. The saved plan records the current geometry and printing settings; consult it and any repair reports for subsequent changes.',
     planRevision:state.revision
   });
-  return destination;
+  return artifact?{file:destination,bytes,exportHash:state.exportHash}:destination;
 }
 
 async function changeMachine(directory,machineId,{expectedRevision,setupFile}={}) {
   const state=await loadBundle(directory,{program:false});
   if(expectedRevision!==undefined)requireThat(expectedRevision===state.revision,'This review is stale. Reload before changing the printer.');
   const machine=loadMachine(machineId),remembered=await rememberedSetup(setupFile??setupFor(machine),machine);
-  const plan=resolveMachinePlan(state.plan,state.machine,machine,{defaults,rememberedSetup:remembered,fit:fitLineWidthToSetup});
+  const plan=resolveMachinePlan(state.plan,state.machine,machine,{defaults,rememberedSetup:remembered});
   validatePlan(plan,machine);
   const review=machineChangedReview(state.review,state.machine.id,machineId);
   await saveManifest(state.dir,{plan,machine,review,geometry:state.geometryArtifact});

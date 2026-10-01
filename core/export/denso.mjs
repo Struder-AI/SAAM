@@ -10,7 +10,7 @@ import {validatePose,uprightPose,samePose} from '../path/pose.mjs';
 const digest=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
 const num=x=>{requireThat(Number.isFinite(x),'Nonfinite PacScript number.');return Number(x.toFixed(8));};
 export function exportDenso(path,plan,machine,release={}){
-  path=prepareMachinePath(path,plan,machine);
+  path=prepareMachinePath({schema:'saampath/1',...path},plan,machine);
   validateDensoConfiguration(plan,{required:true});const c=plan.setup.denso;
   requireThat(distance(path.initialPosition,c.initialPositionMm)<1e-8,'DENSO initial position differs from setup.');
   requireThat(samePose(path.initialPose??uprightPose(),c.initialPose),'DENSO initial orientation or rotary position differs from setup.');

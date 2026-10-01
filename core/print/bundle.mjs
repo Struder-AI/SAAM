@@ -1,6 +1,6 @@
 // Shell-specific adapter for the shared print lifecycle.
 import { createBundleWorkflow } from './workflow.mjs';
-import { defaults,validatePlan,geometryTemplate,VERSION,BUILD_DATE } from './plan.mjs';
+import { defaults,validatePlan,compileRecipe,geometryTemplate,VERSION,BUILD_DATE } from './plan.mjs';
 import { createGeometry,verifyGeometry,rhino } from './geometry.mjs';
 import {buildShell,translateShell} from '../geom/build.mjs';
 import {generatePath,GENERATION_CONTRACT} from './generate.mjs';
@@ -22,6 +22,7 @@ const limitationsFor = (plan, machine) => {
 };
 
 export async function generatePreparedPath(plan,machine,options){
+  ({plan,machine}=compileRecipe(plan,machine));
   const native=await rhino(),sources=modulationGeometrySources(plan.modulations);
   const material=geometry=>geometry.shape==='assembly'
     ?booleanShell('union',geometry.parts.map(part=>translateShell(material(part.geometry),part.xMm,part.yMm,part.zMm)))

@@ -97,6 +97,6 @@ new dialects need explicit adapters.
 ### Stationary extrusion and nozzle control
 
 Optional `extrude` actions specify positive stationary volume and volumetric
-flow; `temperature` actions specify a nozzle target within the locked recipe and
-machine/material ranges. Griffin and H2D support these actions; relay robot
+flow; `temperature` actions specify a locked-recipe nozzle target up to 350 °C.
+No generic flow cap applies. Griffin and H2D support these actions; relay robot
 outputs reject them. Thermal wait duration and actual temperature are not simulated.

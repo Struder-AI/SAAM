@@ -70,11 +70,10 @@ the reviewed bytes. This transition does not approve settings or toolpath.
 Stale source falls back to generation. A plan changed during generation cannot
 receive the earlier candidate.
 
-`prepareGeneration` owns the computation boundary and returns one checked,
-in-memory candidate with its `generationHash` and manifest revision.
-`commitGeneration` reloads the manifest, requires those identities to remain
-current, and persists that exact candidate. Callers do not recompute a production
-candidate after preparation.
+`prepareGeneration` reuses computation for unchanged inputs and returns an opaque
+ticket with generation and revision identity. Checked bytes stay private;
+`commitGeneration` reloads those identities before saving them. Export failure
+retains the in-memory path for retry. Changed inputs require new preparation.
 
 Geometry-only bundle reads and their change fingerprints omit export bytes.
 Fingerprint snapshots reuse content digests while file identity, size, modification
@@ -100,23 +99,16 @@ there is no mandatory seed field or randomized skill in this foundation.
 
 ## Validate at the boundary that owns the data
 
-Validate new geometry when it is ingested or its content changes. Carry that
-result into settings, slicing and review. Saving an approval, changing infill,
-loading a viewer state or creating another skill operation must not repeat a
-full mesh topology/intersection pass on unchanged geometry. Reuse prepared
-section indexes and other derived geometry across the skills using that part.
-Public input boundaries still reject malformed new input; internal producers
-consume the already validated data rather than each acting as another importer.
+Validate geometry on ingestion or changed content; reuse identity-bound evidence
+and prepared queries across settings, slicing and review. Viewing baked geometry
+does not depend on rereading its archival STL. Import and source-consuming edits
+still check the source. Public raw inputs require admission; owned immutable
+recipes and SAAMpaths reuse it across internal calls.
 
-The same rule applies beyond meshes. Before adding a validator call, identify
-its owner, its exact inputs, what changed since the previous check and what
-new failure it can detect. If nothing relevant changed, reuse the result or
-remove the call. Do not scatter `validatePlan`, `validateSetup`, `validatePath`
-or equivalent whole-object passes through helper layers merely because they
-are available. Do not add a public skip-validation switch. Reuse must be bound
-to exact relevant content and validator identity, not a filename,
-mutable object identity or a caller's claim that data is trusted. Bound caches
-and prevent caller mutation from changing the recorded validity or shared data.
+Before adding a check, identify its owner, changed inputs and new failure it can
+detect. Otherwise reuse or remove it. Never add a public skip-validation switch.
+Bound reuse to relevant content and validator identity, protect shared results
+from mutation and evict cached values without changing acceptance.
 
 | Boundary | Work owned there |
 |---|---|

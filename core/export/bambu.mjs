@@ -27,7 +27,6 @@ const ENVELOPE_HASHES={
   "x1c-saam-startup-v5": "1efa6f410cdd5628d11cda4dc8732cf7555921f4e409c9246ea74e1d3911067e"
 };
 function configuration(plan,machine){
-  validateSetup(plan,machine);
   const output=machine.outputs.find(o=>o.id===plan.output),s=plan.setup,k=output?.constraints;
   requireThat(plan.output==='bambu-gcode'&&Object.hasOwn(ENVELOPE_HASHES,output?.program?.contract),'Unsupported Bambu output contract.');
   requireThat(digest(JSON.stringify([output.program.start,output.program.end,output.constraints]))===ENVELOPE_HASHES[output.program.contract],'Unknown Bambu firmware envelope; an interpreter update is required.');
@@ -137,6 +136,7 @@ export function exportAndInterpretBambu(path,plan,machine,release){
   return {bytes,program:completeProgram(program,code,c,s,job)};
 }
 export function interpretBambu(bytes,plan,machine){
+  validateSetup(plan,machine);
   const output=configuration(plan,machine),entries=unpackZip(bytes);
   const c=JSON.parse(entries.get('Metadata/saam.json')?.toString()??'null');checkContext(c,plan,machine);
   const code=entries.get(GCODE)?.toString('utf8');requireThat(typeof code==='string','Missing Bambu G-code.');
@@ -169,6 +169,7 @@ function completeProgram(program,code,c,s,job){
   const startup=(job.fastStart?'Fast startup: optional calibration, scans and vibration tests skipped. Homing, temperature waits, loading, wiping and priming remain. ':'')+notice+' '+mapping
     +(materialChanges?` Each same-nozzle AMS change requests ${job.materialChange.flushMm3} mm³ of chute flushing${job.nozzles.length===1?' plus 2 mm of filament for priming':''}; firmware loading/priming and service material/time are additional to the part totals.`:'');
   return {...program,
+    checks:[...(program.checks??[]),'fixed-firmware-envelope'],
     moves:program.moves.map(move=>({...move,line:move.line+prefixLines})),
     events:program.events.map(event=>({...event,line:event.line+prefixLines})),
     summary:{...program.summary,startup,clearance:'Deposited-height travel checked; physical head clearance is not modeled.'},

@@ -178,7 +178,7 @@ export function recipeRows(plan,machine){
       const selected=filamentPlan(plan,machine,id),s=selected.setup,p=selected.process,entry=plan.setup.bambu.filaments?.[id];
       const source=entry?.source?.type==='external'?'External spool':entry?.source?.type==='ams-ht'?`Requested AMS HT ${entry.source.unit}`:s.ams?`Requested AMS ${s.ams.unit}, slot ${s.ams.slot}`:'Automatic material/colour matching';
       rows.push([`Filament ${id+1}`,`${machine.tools.find(t=>t.index===s.tool).label} · ${s.nozzleMm} mm nozzle · ${s.material} ${entry?.colour??s.filamentColor??''} · ${s.nozzleC}°C · ${source}`],
-        [`Filament ${id+1} · Process`,`${p.lineWidthMm} mm bead · ${p.layerMm} mm layers · ${p.maxFlowMm3S} mm³/s maximum flow`]);
+        [`Filament ${id+1} · Process`,`${p.lineWidthMm} mm bead · ${p.layerMm} mm layers`]);
     }
   }
   rows.push(['Machine · Planar wall tolerance',planarWallTolerance(machine)+' mm'],...sliceRows(plan));

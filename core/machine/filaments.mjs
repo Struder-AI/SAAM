@@ -1,6 +1,7 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 
 import {toolFor,toolBounds,validateSetup,feederSelector} from './rules.mjs';
+import {validateTemperatureC} from '../path/process-controls.mjs';
 
 const PROCESS_FIELDS=['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','skinSpeedMmS','firstLayerSpeedMmS','maxFlowMm3S','retractMm','retractSpeedMmS'];
 // Device numbers are local installation labels, in separate AMS/AMS HT spaces.
@@ -46,9 +47,7 @@ export function checkedFilamentPlan(plan,machine,index){
   requireThat(process&&typeof process==='object'&&!Array.isArray(process)&&Object.keys(process).every(k=>
     PROCESS_FIELDS.includes(k)&&Number.isFinite(process[k])),
   'Unsupported filament process override.');
-  if(entry?.nozzleC!==undefined)requireThat(Number.isFinite(entry.nozzleC)&&
-    [machine.temperatureLimitsC.nozzle,machine.materials[plan.setup.material]?.nozzleC].every(limits=>limits&&entry.nozzleC>=limits[0]&&entry.nozzleC<=limits[1]),
-  'Filament nozzle temperature outside machine/material limits.');
+  if(entry?.nozzleC!==undefined)validateTemperatureC(entry.nozzleC);
   const setup={...plan.setup,tool,nozzleMm,core:`Hardened steel ${nozzleMm}`,nozzleC:entry?.nozzleC??plan.setup.nozzleC,
     filamentColor:entry?.colour??plan.setup.filamentColor,ams,
     bambu:{...b,filament:index,otherNozzleMm:machine.tools.length===1?null:tool===plan.setup.tool?b.otherNozzleMm:plan.setup.nozzleMm}};

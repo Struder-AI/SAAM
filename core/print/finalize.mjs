@@ -13,8 +13,6 @@ function finalizedOperation(operation,plan,machine,result){
   const selected=operation.filament===undefined?plan:filamentPlan(plan,machine,operation.filament);
   let high=-Infinity;
   for(const stroke of operation.strokes){
-    if(stroke.stationaryExtrusion)requireThat(stroke.stationaryExtrusion.flowMm3S<=selected.process.maxFlowMm3S+1e-7,
-      `Modulated operation ${operation.id} exceeds the selected stationary extrusion flow limit.`);
     if(stroke.poses){
       requireThat(stroke.poses.length===stroke.points.length,`Modulated operation ${operation.id} has inconsistent pose samples.`);
       stroke.poses.forEach(validatePose);
@@ -28,8 +26,7 @@ function finalizedOperation(operation,plan,machine,result){
         requireThat(Number.isFinite(speed)&&speed>0&&length>0,`Modulated operation ${operation.id} has invalid speed or a zero-length deposition segment.`);
         const seconds=length/speed;
         const flow=volume/seconds;
-        requireThat(Number.isFinite(flow)&&flow<=selected.process.maxFlowMm3S+1e-7,
-          `Modulated operation ${operation.id} requests ${flow.toFixed(4)} mm³/s; selected material limit is ${selected.process.maxFlowMm3S} mm³/s. Reduce speed, width or flow modulation.`);
+        requireThat(Number.isFinite(flow)&&flow>=0,`Modulated operation ${operation.id} produced invalid deposition flow.`);
 
       }
     }

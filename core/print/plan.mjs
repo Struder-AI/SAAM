@@ -78,7 +78,28 @@ export function geometryTemplate(shape,geometry) {
   return splineSolidTemplate();
 }
 
-export function validatePlan(plan,machine) {
+const compiledRecipes=new Map();
+const ownedRecipes=new WeakMap();
+function freezeRecipe(value){
+  if(value&&typeof value==='object'&&!Object.isFrozen(value)){
+    Object.values(value).forEach(freezeRecipe);Object.freeze(value);
+  }
+  return value;
+}
+export function compileRecipe(plan,machine){
+  const owned=ownedRecipes.get(plan);
+  if(owned?.machine===machine)return owned;
+  const identity=hash({plan,machine});
+  if(compiledRecipes.has(identity))return compiledRecipes.get(identity);
+  const value={plan:structuredClone(plan),machine:structuredClone(machine),identity};
+  validateRecipeValue(value.plan,value.machine);
+  freezeRecipe(value);
+  // Eviction only affects reuse, never which recipes are accepted.
+  if(compiledRecipes.size>=4)compiledRecipes.delete(compiledRecipes.keys().next().value);
+  compiledRecipes.set(identity,value);ownedRecipes.set(value.plan,value);return value;
+}
+export function validatePlan(plan,machine){compileRecipe(plan,machine);return plan;}
+function validateRecipeValue(plan,machine) {
   const fields=validatePlanFields(plan,machine);
   const geometry=validatePlanGeometry(fields,machine);
   const process=validatePlanProcess(geometry,machine);
@@ -169,15 +190,12 @@ function authoredBounds(geometry){
 // are checked when translating SAAMpath into a machine program.
 export function validatePlanProcess(plan) {
   const {process}=plan;
-  requireThat_toolpath(typeof process.experimentalDeposition==='boolean','experimentalDeposition must be boolean.');
   const positive=(value,name)=>requireThat_toolpath(Number.isFinite(value)&&value>0,`${name} must be positive and finite.`);
   for(const key of ['firstLayerMm','layerMm','lineWidthMm','maxFlowMm3S','retractSpeedMmS',
     'planarSpeedMmS','skinSpeedMmS','firstLayerSpeedMmS','travelSpeedMmS','zSpeedMmS'])positive(process[key],key);
   for(const key of ['retractMm','liftMm','maxCombMm','minimumLayerSeconds'])
     requireThat_toolpath(Number.isFinite(process[key])&&process[key]>=0,`${key} must be nonnegative and finite.`);
   number(process.fanPercent, 0, 100, 'fanPercent');
-  requireThat_toolpath(process.clearanceResponsibility === 'operator', 'Clearance responsibility must be recorded as operator.');
-  requireThat_toolpath(typeof process.clearanceNote === 'string' && process.clearanceNote.length <= 1000, 'Invalid clearance note.');
   if(process.primeLine!==null){
     const p=process.primeLine;
     requireThat_toolpath(p&&typeof p==='object'&&!Array.isArray(p),'Invalid primeLine.');
@@ -196,11 +214,7 @@ export function validatePlanProcess(plan) {
 }
 
 export function validatePlanAuxiliary(plan,machine) {
-  const {geometry,process,setup,skills}=plan;
-  validateRecipeSetup(plan);
   validateExtensionRecipe(plan,machine);
-  requireThat_toolpath(typeof setup.startupVerified === 'boolean' && typeof setup.firmwareVersion === 'string' && /^[\w .+-]{0,80}$/.test(setup.firmwareVersion), 'Invalid firmware setup.');
-
   return plan;
 }
 

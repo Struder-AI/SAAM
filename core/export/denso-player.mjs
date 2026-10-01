@@ -21,11 +21,7 @@ export function interpretDensoFiles(files,plan,machine,{moves=[]}={}){
   validateDensoConfiguration(plan,{required:true});const c=plan.setup.denso;
   requireThat(files['main.pcs']&&Object.values(files).every(x=>typeof x==='string'),'Missing PacScript entry.');
   const functions=new Map(),visited=new Set();
-  // The only effects a reader can observe are emitted moves and process events.
-  // A delivered program is straight-line, so between two of them it cannot run
-  // more statements than the package contains; a source that keeps calling
-  // without emitting anything is what this counts, not program size.
-  let statements=0;
+  // Finite straight-line bodies and the active-call set establish termination.
   function load(file){
     requireThat(/^[a-z0-9_]+\.pcs$/.test(file)&&files[file],'Missing/invalid PacScript helper '+file);
     requireThat(!visited.has(file),'Duplicate or cyclic PacScript include.');visited.add(file);
@@ -37,27 +33,27 @@ export function interpretDensoFiles(files,plan,machine,{moves=[]}={}){
       if((m=/^#include "([a-z0-9_]+\.pcs)"$/i.exec(text))){requireThat(!body,'Include inside Sub.');load(m[1]);}
       else if((m=/^Sub ([A-Za-z][A-Za-z0-9_]*)$/i.exec(text))){requireThat(!body&&!functions.has(m[1].toLowerCase()),'Duplicate/nested Sub.');body=[];functions.set(m[1].toLowerCase(),body);}
       else if(/^End Sub$/i.test(text)){requireThat(body,'Unexpected End Sub.');body=null;}
-      else{requireThat(body,'Statement outside Sub at '+file+':'+site.line);body.push(site);statements++;}
+      else{requireThat(body,'Statement outside Sub at '+file+':'+site.line);body.push(site);}
     }
     requireThat(!body,'Unclosed Sub in '+file);
   }
   load('main.pcs');requireThat(visited.size===Object.keys(files).length,'Unreferenced source in PacScript package.');
   let rotary=c.initialPose.rotaryDeg,room=bedPoint(c.initialPositionMm,rotary,c.rotaryCenterMm),
     orientation={toolAxis:rotateZ(c.initialPose.toolAxis,rotary),toolUp:rotateZ(c.initialPose.toolUp,rotary)},
-    seconds=0,relay=null,taken=false,tool=null,work=null,volume=0,estimate=0,steps=0;
+    seconds=0,relay=null,taken=false,tool=null,work=null,volume=0,estimate=0;
   const events=[],active=new Set(),numberPattern='[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?';
   const movePattern=new RegExp('^Move L,\\s*@0 T\\(([^)]+)\\) EX\\(\\((\\d+),\\s*('+numberPattern+')\\)\\),\\s*Time\\s*=\\s*('+numberPattern+')$','i');
   function execute(name){
     const body=functions.get(name);requireThat(body&&!active.has(name),'Unknown/recursive PacScript call '+name);active.add(name);
     for(const site of body){
       const need=(ok,msg)=>requireThat(ok,`${site.file}:${site.line}: ${msg}`),text=site.text;
-      need(++steps<=statements,'PacScript runs on without emitting motion or a process event; no straight-line program of this size can execute this long.');let m;
+      let m;
       if((m=/^Call ([A-Za-z][A-Za-z0-9_]*)$/i.exec(text)))execute(m[1].toLowerCase());
       else if((m=/^TakeArm (\d+) Keep\s*=\s*0$/i.exec(text))){need(!taken&&Number(m[1])===c.armGroup,'Unexpected arm group.');taken=true;}
       else if((m=/^ChangeTool (\d+)$/i.exec(text))){need(taken&&Number(m[1])===c.toolFrame,'Unexpected tool frame.');tool=Number(m[1]);}
       else if((m=/^ChangeWork (\d+)$/i.exec(text))){need(taken&&Number(m[1])===c.workFrame,'Unexpected work frame.');work=Number(m[1]);}
-      else if((m=/^(Set|Reset) IO\[(\d+)\]$/i.exec(text))){need(Number(m[2])===c.extrusionOutput,'Unexpected relay output.');relay=m[1].toLowerCase()==='set';events.push({kind:relay?'extrusion-on':'extrusion-off',startSeconds:seconds,file:site.file,line:site.line});steps=0;}
-      else if((m=new RegExp('^Delay ('+numberPattern+')$','i').exec(text))){need(relay===false&&Number(m[1])>=0,'Dwell needs relay off and nonnegative milliseconds.');const duration=Number(m[1])/1000;events.push({kind:'dwell',startSeconds:seconds,seconds:duration,file:site.file,line:site.line});seconds+=duration;steps=0;}
+      else if((m=/^(Set|Reset) IO\[(\d+)\]$/i.exec(text))){need(Number(m[2])===c.extrusionOutput,'Unexpected relay output.');relay=m[1].toLowerCase()==='set';events.push({kind:relay?'extrusion-on':'extrusion-off',startSeconds:seconds,file:site.file,line:site.line});}
+      else if((m=new RegExp('^Delay ('+numberPattern+')$','i').exec(text))){need(relay===false&&Number(m[1])>=0,'Dwell needs relay off and nonnegative milliseconds.');const duration=Number(m[1])/1000;events.push({kind:'dwell',startSeconds:seconds,seconds:duration,file:site.file,line:site.line});seconds+=duration;}
       else if((m=movePattern.exec(text))){
         need(taken&&tool!==null&&work!==null&&relay!==null,'Motion needs explicit arm, frames and relay state.');
         const raw=m[1].split(',').map(x=>x.trim());need(raw.length===10&&raw.every(x=>new RegExp('^'+numberPattern+'$').test(x)),'T requires ten numeric components.');
@@ -83,7 +79,7 @@ export function interpretDensoFiles(files,plan,machine,{moves=[]}={}){
             rotaryFromDeg:oldAngle,rotaryToDeg:a,toolAxisFrom:oldAxis,toolAxisTo:axis,toolUpFrom:oldUp,toolUpTo:up,rotaryCenterMm:c.rotaryCenterMm,interpolation:'nominal-cartesian-rotary'});
           from=to;oldAngle=a;oldAxis=axis;oldUp=up;estimate+=estimated;
         }
-        volume+=label.volumeMm3;seconds+=duration;room=nextRoom;orientation=nextOrientation;rotary=nextRotary;steps=0;
+        volume+=label.volumeMm3;seconds+=duration;room=nextRoom;orientation=nextOrientation;rotary=nextRotary;
       }else need(false,'Unsupported PacScript statement: '+text);
     }
     active.delete(name);

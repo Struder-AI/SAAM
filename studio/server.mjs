@@ -315,8 +315,8 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       presentationFingerprint:viewFingerprint(printId(),presentation,progress),fingerprint:viewFingerprint(printId(),source,progress)}};
   };
   const deliverPrint=async(current,{requestedName,tour=false}={})=>{
-    const file=await current.deliver(dir),fallback=basename(file),name=requestedDownloadName(requestedName,await printName(dir),fallback);
-    const bytes=await readFile(file),exportHash=createHash('sha256').update(bytes).digest('hex');
+    const delivered=await current.deliver(dir,{artifact:true}),file=delivered.file??delivered,fallback=basename(file),name=requestedDownloadName(requestedName,await printName(dir),fallback);
+    const bytes=delivered.bytes??await readFile(file),exportHash=delivered.exportHash??createHash('sha256').update(bytes).digest('hex');
     note('export-delivered',{tour,name,exportHash});
     return {file,name,bytes,exportHash,contentType:fallback.endsWith('.3mf')?'application/vnd.ms-package.3dmanufacturing-3dmodel+xml':fallback.endsWith('.zip')?'application/zip':'text/plain'};
   };

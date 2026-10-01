@@ -76,17 +76,11 @@ export function rankFonts({text, heightMm, intent = [], weight = 'regular', stem
   return rows.sort((a, b) => (b.feasible - a.feasible) || (b.score - a.score) || (Math.abs(1 - a.keptWeight) - Math.abs(1 - b.keptWeight)));
 }
 
-// What one bead costs to deposit. Material volume per millimetre is bead width times
-// layer height, and the path builder slows any move whose flow would exceed the
-// material limit, so the speed a bead actually prints at is the lower of the process
-// speed and maxFlow / (width x layer). Flow never favors doubling up: splitting a
-// stroke across beads moves the same volume.
-export function depositionEstimate({beadWidthMm, layerMm, planarSpeedMmS, maxFlowMm3S, beadLengthMm = null, layers = 1}) {
-  const area = beadWidthMm * layerMm, flowSpeed = maxFlowMm3S / area;
-  const speed = Math.min(planarSpeedMmS, flowSpeed);
+// Estimate authored deposition; firmware may execute it more slowly.
+export function depositionEstimate({beadWidthMm, layerMm, planarSpeedMmS, beadLengthMm = null, layers = 1}) {
+  const area = beadWidthMm * layerMm, speed = planarSpeedMmS;
   return {
-    beadAreaMm2: +area.toFixed(4), planarSpeedMmS, maxFlowMm3S, flowLimitedSpeedMmS: +flowSpeed.toFixed(2),
-    effectiveSpeedMmS: +speed.toFixed(2), limitedBy: flowSpeed < planarSpeedMmS ? 'flow' : 'speed',
+    beadAreaMm2: +area.toFixed(4), planarSpeedMmS, effectiveSpeedMmS: +speed.toFixed(2),
     flowAtSpeedMm3S: +(area * speed).toFixed(2),
     ...(beadLengthMm === null ? {} : {printMinutes: +(beadLengthMm * layers / speed / 60).toFixed(1)})
   };

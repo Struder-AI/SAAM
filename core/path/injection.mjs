@@ -13,7 +13,6 @@ export function validateInjectionPoint(record){
 
 export function pointInjectionOperation(record,{plan,machine,nozzleC=null,role='injection',...operation}){
   validateInjectionPoint(record);
-  requireThat(record.flowMm3S<=plan.process.maxFlowMm3S+1e-8,`Injection ${operation.id} exceeds the selected material flow limit (${plan.process.maxFlowMm3S} mm³/s).`);
   requireThat(nozzleC===null||Number.isFinite(nozzleC)&&nozzleC>0,'Injection temperature must be positive or null.');
   const point=[...record.point],approach=[point[0],point[1],point[2]+record.approachMm];
   const strokes=record.approachMm>0?[{points:[approach,point],closed:false,role:'injection-approach',

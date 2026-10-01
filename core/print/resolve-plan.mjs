@@ -39,18 +39,18 @@ export function resolvePlanPatch(previous,patch,{geometryTemplate}){
   return plan;
 }
 
-export function resolveInitialPlan(machine,{defaults,rememberedSetup,fit}){
+export function resolveInitialPlan(machine,{defaults,rememberedSetup}){
   const plan=defaults(machine);
   if(rememberedSetup)plan.setup={...plan.setup,...rememberedSetup,
     materialGuid:rememberedSetup.materialGuid||plan.setup.materialGuid};
-  return fit(plan,machine);
+  return plan;
 }
 
-export function resolveMachinePlan(previous,previousMachine,machine,{defaults,rememberedSetup,fit}){
-  const proposal=resolveInitialPlan(machine,{defaults,rememberedSetup,fit});
+export function resolveMachinePlan(previous,previousMachine,machine,{defaults,rememberedSetup}){
+  const proposal=resolveInitialPlan(machine,{defaults,rememberedSetup});
   const process={...previous.process};
   for(const key of new Set([...Object.keys(previousMachine.defaultProcess??{}),...Object.keys(machine.defaultProcess??{})]))
     process[key]=proposal.process[key];
   const plan={...structuredClone(previous),setup:proposal.setup,output:proposal.output,process};
-  return fit(plan,machine);
+  return plan;
 }

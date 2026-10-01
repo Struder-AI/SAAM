@@ -1260,9 +1260,9 @@
       ],
       "inputs": "Immutable bundle snapshot, pinned extensions/assets, machine/setup and cancellation signal.",
       "outputs": "Geometry, SAAMpath and diagnostics returned by engine 3; bundle 5 accepts/stores them.",
-      "effects": "7 owns only job-local working state; 5 commits returned result.",
+      "effects": "3 owns engine computation; 5 owns job acceptance and commits the returned result.",
       "failure": "Missing generation dependencies or failure/cancellation leave saved geometry and toolpath viewable; 5 preserves previous valid artifacts.",
-      "excludes": "7 cannot export, write bundle, confirm or deliver.",
+      "excludes": "3 cannot write the bundle, confirm or deliver.",
       "access": [
         {
           "from": "bundle-build",
@@ -1531,11 +1531,11 @@
       "operations": [
         "exportAndCheck"
       ],
-      "inputs": "User Export action, bundle/owner identity, displayed revision and output options.",
-      "outputs": "Checked machine-program attachment and diagnostics for Studio to deliver.",
-      "effects": "8 obtains the current built path and records checked output through export-bundle. The user action is the confirmation.",
+      "inputs": "Settled review candidate or user Export action, bundle/owner identity, displayed revision and output options.",
+      "outputs": "One checked machine-program attachment and diagnostics, reused for review and delivery.",
+      "effects": "Studio may request preparation before review. 8 checks the current path/output once and records it through export-bundle; Export confirms and delivers those exact bytes.",
       "failure": "Reject pending updates or changed review identity; return machine/check failures without delivering output.",
-      "excludes": "No call from Build or Active bundle; no regeneration or additional confirmation ceremony.",
+      "excludes": "No regeneration on Export, second check of unchanged commands or additional confirmation ceremony.",
       "access": [
         {
           "from": "studio-ui",

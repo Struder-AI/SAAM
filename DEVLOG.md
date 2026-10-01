@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-01 — Reuse checks and remove generic material gates
+
+- Removed generic flow caps/rejections and material temperature, layer-height, bead-width and retraction ranges; export rejects temperatures above 350 °C. Preserve authored width on machine changes. Retained concrete firmware/output and changed-content/revision checks after reviewing the keepers.
+- Added owned recipe/path admission, reusable geometry evidence and private checked-program preparation; removed ceremonial gates, unused archival-source rereads and the DENSO statement budget. Delivery reuses its checked source bytes; later download reads still verify identity. Map contracts retain one pre-review export/check and exact-byte confirmation/delivery; no new root edge.
+- Isolated-worktree verification: 15 focused existing checks pass, 26 modules parse, architecture viewer current (91 pages). One old width-fitting assertion intentionally disagrees with the new policy; tests unchanged. Edited documentation totals 11,023 → 11,018 lines, including this entry. Flow/350 °C and check→generate reuse exercises pass. No new tests, whole suite or push. Conditional graph/workspace/persisted-artifact/lease redesigns remain outside this implementation; shared concurrent source untouched.
+
 ## 2026-10-01 — Causal map 0 and initial ownership/boundary audit
 
 - Applied owner corrections to the causal architecture: 3 prepares the recipe and produces SAAMpath; removed the duplicate Build component, made 7 the specialized-workspace wrapper, retained Studio-triggered 8 Export, restored geometry-to-bundle flow, and separated causal arrows from explicit call/read access. Consulted the original sketch for provenance. Provisional source-backed submaps were authored, then deferred when the owner narrowed the current review to map 0 only; no further significant root refactor was adopted.
