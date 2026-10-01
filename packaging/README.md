@@ -5,12 +5,12 @@
 Build one ZIP per platform from a clean tracked snapshot:
 
 ```sh
-node packaging/build.mjs --platform win-x64 --version 0.3.0 --relay-url https://saam-relay.remettub.workers.dev --update-host https://github.com/Struder-AI/SAAM/releases/download
+node packaging/build.mjs --platform darwin-arm64 --version 0.3.1 --relay-url https://saam-relay.remettub.workers.dev --update-host https://github.com/Struder-AI/SAAM/releases/download
 ```
 
 Platforms are `win-x64`, `darwin-arm64`, and `darwin-x64`. `--relay-url` remains the package CLI/`release.json.relayUrl` key for the optional release service; the local launcher interprets it as a service URL. The build downloads and checksum-checks the official Node runtime, or accepts `--node PATH` for a target-platform binary. Optional native mesh repair is included only when the helper matches the target. Each ZIP has an adjacent `.zip.sha256` for agent installation verification.
 
-For an isolated candidate before the release sources are committed, pass `--review` and one `--review-file <relative path>` for each untracked application module or asset. Modified tracked files are copied as they stand; omitted untracked application files fail the build. The manifest records `reviewBuild:true` and the build warns against publishing it. Production builds require a clean tracked snapshot. This makes the new local client/Studio files reviewable without drawing unfinished 0.3.1 work from the shared checkout.
+For an isolated candidate before the release sources are committed, pass `--review` and one `--review-file <relative path>` for each untracked application module or asset. Modified tracked files are copied as they stand; omitted untracked application files fail the build. The manifest records `reviewBuild:true`; production builds require a clean tracked snapshot.
 
 The ZIP contains `app.tar`, the platform installer, a short README and the installer scripts used by in-app updates. The installer stages extraction before replacing the application, creates a SAAM shortcut/icon, and refuses to replace a running SAAM. `packaging/launch.mjs` is the installed entry point; the same per-user data survives installs and updates. Alpha packages are unsigned. Windows packaging can inspect a macOS archive, but macOS installation must be accepted on a Mac.
 

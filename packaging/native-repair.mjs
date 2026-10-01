@@ -3,7 +3,7 @@ import {resolve,join} from 'node:path';
 import {createHash} from 'node:crypto';
 
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
-function executablePlatform(bytes){
+export function executablePlatform(bytes){
   if(bytes.length>=64&&bytes.toString('ascii',0,2)==='MZ'){
     const offset=bytes.readUInt32LE(60);
     if(offset+6<=bytes.length&&bytes.readUInt32LE(offset)===0x4550&&bytes.readUInt16LE(offset+4)===0x8664)return 'win-x64';

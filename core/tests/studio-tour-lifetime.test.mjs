@@ -30,15 +30,15 @@ async function viewer(t,root,directory,disconnectMs=100){
   }};
 }
 
-test('tour survives a browser reconnect and ends when its Studio shuts down after the grace period',async t=>{
+test('tour survives a browser reconnect and resumes after Studio releases its instance',async t=>{
   const {root,tour,directory,runId}=await fixture(t),v=await viewer(t,root,directory,150);
   const requests=createAgentRequests(root),pending=await requests.begin({directory,instruction:'SYNTHETIC pending tour edit'});
   const stopFirst=await v.connect();stopFirst();
   const stopSecond=await v.connect();
   assert.equal((await tour.info()).runId,runId);assert.equal((await tour.info()).active,true);
   const closed=once(v.server,'close');stopSecond();await closed;await v.server.shutdown();
-  assert.equal((await tour.info()).active,false);assert.equal((await tour.info()).runId,null);
-  assert.equal((await requests.get(pending.id)).status,'cancelled');assert.equal(await tourExample(directory),null);
-  const reopened=await viewer(t,root,directory);assert.equal(reopened.state.tour.active,false,'opening the saved print does not restore a tour');
+  assert.equal((await tour.info()).active,true);assert.equal((await tour.info()).runId,runId);
+  assert.equal((await requests.get(pending.id)).status,'cancelled');assert.equal((await tourExample(directory)).id,'starter');
+  const reopened=await viewer(t,root,directory);assert.equal(reopened.state.tour.active,true,'opening the saved print resumes the tour');
   await reopened.action('fresh');const next=await tour.info();assert.notEqual(next.runId,runId);assert.equal(next.step,0);
 });

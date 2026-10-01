@@ -19,14 +19,14 @@
       <div class="machine-options"><label id="rotary-view" hidden><input id="follow-plate" type="checkbox" checked> Follow build plate</label><span id="machine-status" role="status"></span></div>
       <div id="axial-colors" aria-label="Inspect material layers" hidden></div>
       <p id="viewer-detail" class="chat-hint" role="status"></p>
-      <div class="playback-options"><label class="layer-opacity">Previous layer opacity<input id="previous-layer-opacity" type="range" min="50" max="100" step="1" value="50"><output id="previous-layer-opacity-label" for="previous-layer-opacity">50%</output></label><div class="movie-controls"><button id="export-movie" title="Render the full toolpath using this view and speed, including layer fades. Playback is not required.">Export movie</button><button id="cancel-movie" hidden>Cancel</button><progress id="movie-progress" max="1" value="0" aria-label="Movie export progress" hidden></progress><a id="movie-download" hidden>Download movie</a></div></div>
+      <div class="playback-options"><label class="layer-opacity">Previous layer opacity<input id="previous-layer-opacity" type="range" min="50" max="100" step="1" value="90"><output id="previous-layer-opacity-label" for="previous-layer-opacity">90%</output></label><div class="movie-controls"><button id="export-movie" title="Render the full toolpath using this view and speed, including layer fades. Playback is not required.">Export movie</button><button id="cancel-movie" hidden>Cancel</button><progress id="movie-progress" max="1" value="0" aria-label="Movie export progress" hidden></progress><a id="movie-download" hidden>Download movie</a></div></div>
       <p id="movie-status" class="chat-hint" role="status" aria-live="polite"></p>
     </div>
   </section>
   <aside>
     <section id="tour-panel" aria-label="SAAM guided tour" hidden>
-      <div id="tour-complete" hidden><h2>Congratulations!</h2><p>You finished the tour and downloaded your print file. Talk to your agent about what you want to make next!</p></div>
-      <div id="tour-lesson" hidden><p id="tour-progress" class="eyebrow"></p><h2 id="tour-title"></h2><p id="tour-body"></p><p id="tour-try" class="tour-try"></p><div class="tour-actions"><button id="tour-back">Back</button><button id="tour-next" class="primary">Next</button></div></div>
+      <div id="tour-complete" hidden><h2>Tour complete</h2><p id="tour-complete-text"></p></div>
+      <div id="tour-lesson" hidden><p id="tour-progress" class="eyebrow"></p><h2 id="tour-title"></h2><p id="tour-body"></p><p id="tour-try" class="tour-try"></p><div class="tour-actions"><button id="tour-back">Back</button><button id="tour-next" class="primary">Next</button></div><button id="tour-finish-view" hidden>Finish without export</button></div>
       <button id="tour-exit">Exit tour</button><p id="tour-status" role="status"></p>
     </section>
     <div><p class="eyebrow" id="stage-label" hidden></p><p id="guidance">Check the shape and dimensions.</p></div>

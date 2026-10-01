@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-01 — Studio, tour and Wing review
+
+- The tour follows one edited part through playback, a visible infill change, printer/material review and exact export or viewing-only completion. Removed the second-part detour, speculative GET-state generation and its unused response wrapper. Next follows the displayed-result gate instead of waiting for chat; action cues blink even with reduced motion, as requested. Playback chooses an informative deposited layer, with stronger material shading and less transparent completed layers. CLI request replies retain owner/instance authority.
+- Wing adds sourced airfoil choices, quarter-chord sweep, camera presets, staged controls and live slider previews; dihedral/twist remain a construction proposal. Packaging validates the supplied Node architecture and license before a final integrated build. Saved-path, missing-extension and service-reconnection browser trials passed; Wing bundle/checked-program smokes and the existing tour lifecycle check passed. Fixed a missing browser module that had replaced checked material with flat saved-path lines; the rune preview now retains visible relief. No whole suite, new tests, release build, publication or physical qualification. Changed guidance totals 11,949 → 11,873 lines, including this entry and the Wing proposal.
+
 ## 2026-10-01 — Checkpoint 0.3.1 consolidation
 
 - Preserved the verified source snapshot and integrated neutral Toolpath/Export separation, Bundle/Studio ownership and exact checked-program delivery, portable extension operations and selected local support, explicit worker/HTTP wiring, semantic closure containment and audit evidence inspection. The webmaster handoff and unapproved discussion list follow the supplied site format with plain-copy requirements. Outstanding acceptance and service-client fixes remain in `plans/0.3.1.md`; this checkpoint is not a release.
