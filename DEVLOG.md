@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-09-30 — Studio invokes separate Export boundary
+
+- Split target node 7 into Build (7) and Export & check (8), called only by Studio (6 → 8). Replaced Build’s export call and Studio’s direct review/delivery contract with 8 → 5 for the current path/settings and checked export record. Build returns geometry and SAAMpath. Other interface-reduction suggestions remain unadopted.
+- Recorded immediate Export hiding on the waiting indicators’ same pending-update state; current runtime does not implement it. Intent 100 → 99 lines. Rebuilt 29 design pages; viewer coverage/freshness and diff checks pass, and map read confirms 6 → 8 and 8 → 5 with no Build export call. No runtime changes, tests, full suite or publication.
+
 ## 2026-09-30 — Feature preservation and export discussion
 
 - Recorded geometry-task ownership of items 8–9, retained machine/exporter scope and remembered setup, and clarified that ordinary Studio viewing features have no proposed removal. Export confirmation/byte-identity design remains under discussion: owner wants it inherent in the user action, without recurring ceremony. Inspected current generation/approval/delivery code to explain its invariant; no runtime or map-contract change and no tests.

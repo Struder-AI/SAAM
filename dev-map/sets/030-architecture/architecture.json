@@ -151,8 +151,8 @@
     {
       "id": "bundle-review",
       "index": "5.3",
-      "label": "Review & delivery",
-      "description": "Bind confirmation to settings and exact checked program.",
+      "label": "Review & export state",
+      "description": "Own the current review snapshot and export records; reject stale or pending-update exports.",
       "type": "component"
     },
     {
@@ -179,8 +179,8 @@
     {
       "id": "build",
       "index": "7",
-      "label": "Build & export",
-      "description": "Stateless generation job; no general coordination bus.",
+      "label": "Build",
+      "description": "Evaluate a pinned recipe and generate SAAMpath; no machine export.",
       "type": "component"
     },
     {
@@ -198,10 +198,10 @@
       "type": "component"
     },
     {
-      "id": "build-export",
-      "index": "7.3",
+      "id": "export",
+      "index": "8",
       "label": "Export & check",
-      "description": "Machine adapters, limits and checked program decoding.",
+      "description": "Studio-triggered machine export/checking of the current built path; bundle access only through its explicit contract.",
       "type": "component"
     },
     {
@@ -356,19 +356,19 @@
       "excludes": "No direct engine or bundle-file access."
     },
     {
-      "id": "studio-review",
-      "from": "studio-ui",
+      "id": "export-bundle",
+      "from": "export",
       "to": "bundle-review",
-      "label": "confirm / deliver",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "label": "export snapshot / result",
+      "direction": "Caller → provider; declared response included.",
       "operations": [
-        "confirm / deliver"
+        "pinCurrent / recordCheckedExport"
       ],
-      "inputs": "User action plus exact review identity and destination.",
-      "outputs": "Confirmation or delivery receipt.",
-      "effects": "Record confirmation against settings, geometry, dependencies and program hashes.",
-      "failure": "Reject stale identity; never regenerate during delivery.",
-      "excludes": "Agent cannot call confirm; no delivery of unconfirmed bytes."
+      "inputs": "Bundle/owner identity and expected displayed revision; then checked program and matching snapshot identity.",
+      "outputs": "Immutable current SAAMpath, geometry/dependency identity, machine/setup and output options; accepted export record or conflict.",
+      "effects": "5 owns snapshot validity and export records. 8 owns only job-local output.",
+      "failure": "Reject queued updates, stale revisions, unavailable paths and superseded results before releasing the export.",
+      "excludes": "No build request, regeneration, direct bundle-file access or separate user approval step."
     },
     {
       "id": "bundle-views",
@@ -407,12 +407,12 @@
       "label": "review identity",
       "direction": "Bundle \u00e2\u2020\u2019 Studio: review snapshots/events.",
       "operations": [
-        "publish checked review"
+        "publish review / export state"
       ],
-      "inputs": "Exact settings/program identity and confirmation state.",
-      "outputs": "Visible review and delivery status.",
+      "inputs": "Current geometry/settings/path identity, pending-update state and export result.",
+      "outputs": "Visible review and export availability; hide Export as soon as an update is queued, using the waiting indicators’ same pending-update state.",
       "effects": "Private render state only.",
-      "failure": "Mismatch invalidates confirmation display.",
+      "failure": "Pending or changed identity immediately removes export availability.",
       "excludes": "Preview does not count as confirmation."
     },
     {
@@ -449,13 +449,13 @@
       "id": "bundle-review-artifact",
       "from": "bundle-build",
       "to": "bundle-review",
-      "label": "checked artifact",
+      "label": "built artifact",
       "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
       "operations": [
         "publish / invalidate"
       ],
-      "inputs": "Checked program, settings/dependency identities and diagnostics.",
-      "outputs": "Review record.",
+      "inputs": "Finalized SAAMpath, geometry/settings/dependency identities and diagnostics.",
+      "outputs": "Current review snapshot; prior export invalidation.",
       "effects": "State internal to component 5.",
       "failure": "Any identity change invalidates confirmation.",
       "excludes": "No access to unrelated component internals."
@@ -470,10 +470,10 @@
         "build"
       ],
       "inputs": "Immutable bundle snapshot, pinned extensions/assets, machine/setup and cancellation signal.",
-      "outputs": "Geometry, SAAMpath summary, checked program, diagnostics and provenance.",
+      "outputs": "Geometry, finalized SAAMpath, diagnostics and provenance.",
       "effects": "7 owns only job-local working state; 5 commits returned result.",
       "failure": "Missing generation dependencies or failure/cancellation leave saved geometry and toolpath viewable; 5 preserves previous valid artifacts.",
-      "excludes": "7 cannot write bundle, confirm or deliver."
+      "excludes": "7 cannot export, write bundle, confirm or deliver."
     },
     {
       "id": "evaluate-geometry",
@@ -671,19 +671,19 @@
       "excludes": "No access to unrelated component internals."
     },
     {
-      "id": "path-export",
-      "from": "build-path",
-      "to": "build-export",
-      "label": "export & check",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "id": "studio-export",
+      "from": "studio-ui",
+      "to": "export",
+      "label": "Export button",
+      "direction": "Caller → provider; declared response included.",
       "operations": [
         "exportAndCheck"
       ],
-      "inputs": "Final SAAMpath, machine/setup snapshot and output options.",
-      "outputs": "Exact checked machine program, decoded review data and diagnostics.",
-      "effects": "Job-local output only.",
-      "failure": "Fail on unsupported machine behavior or failed checks.",
-      "excludes": "Cannot confirm, deliver or mutate bundle."
+      "inputs": "User Export action, bundle/owner identity, displayed revision and output options.",
+      "outputs": "Checked machine-program attachment and diagnostics for Studio to deliver.",
+      "effects": "8 obtains the current built path and records checked output through export-bundle. The user action is the confirmation.",
+      "failure": "Reject pending updates or changed review identity; return machine/check failures without delivering output.",
+      "excludes": "No call from Build or Active bundle; no regeneration or additional confirmation ceremony."
     },
     {
       "id": "extension-resource-request",
@@ -867,6 +867,10 @@
         "7": {
           "x": 840,
           "y": 565
+        },
+        "8": {
+          "x": 900,
+          "y": 830
         },
         "external:user": {
           "x": 35,
