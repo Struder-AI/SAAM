@@ -2,73 +2,37 @@
 
 ## Repair worker and native process boundary
 
-`core/print/mesh-repair-job.mjs` owns one Node worker per repair or repairing
-import (`importOrRepairSTLBundle`, mode `import`); each of these entries runs the
-job when called on the main thread and works inline inside the worker. The job
-settles only after terminating its worker, so a caller can safely remove the
-directory it was writing. Progress callback
-errors abort work; a geometry callback must acknowledge its matching message ID
-before the worker continues. Abort rejects pending acknowledgements. A worker exit
-without a result is an error, and a result received after caller cancellation does
-not become a success. `mesh-repair-worker.mjs` transfers repaired byte storage and
-closes its message port after result or failure.
-
-The native adapter uses files and an explicit executable, with progress on stderr
-and a result report on stdout. [Native repair](./native/README.md) owns its build,
-algorithm limits and provenance. `mesh-repair.cpp`, CMake configuration, dependency
-hashes and license notices are geometry-owned resources despite being outside the
-JavaScript relationship extractor. Change them with the wrapper protocol in view.
-
-Geometry representations, query semantics, precision, spline sectioning and mesh
-repair. [Regions](../region/README.md) owns offsets, intersections and material
-regions; [composition](../path/README.md) consumes the resulting skill operations.
+`core/print/mesh-repair-job.mjs` owns a worker per repair/import, running inline when already in that worker.
+It settles after worker termination, allowing scratch cleanup. Progress callback errors abort;
+geometry callbacks acknowledge matching message IDs before work continues. Abort rejects pending
+acknowledgements; missing results and results arriving after cancellation cannot become success.
+`mesh-repair-worker.mjs` transfers repaired bytes and closes its message port on completion or failure.
+The native executable uses files, stderr progress and stdout reports. [Native repair](./native/README.md)
+owns build instructions, limits and provenance, including geometry-owned C++, CMake, dependency hashes
+and licenses outside the JavaScript scanner. Keep those resources consistent with the wrapper protocol.
+[Regions](../region/README.md) documents offsets/intersections; [composition](../path/README.md) consumes them.
 
 ## Planar line/region clipping
 
-`clipLineToRegion(origin, direction, loops, {range, fillRule})` in
-[curve-region.mjs](./curve-region.mjs) clips `origin + t * direction` without
-discarding the original parameter. The direction is finite and nonzero; the
-ordered range defaults to the whole line. A singleton range queries membership
-at one parameter. Regions are closed XY loops (the final vertex need not repeat
-the first). `fillRule` is explicitly `nonzero` (default) or `evenodd`.
-
-The result contains ordered `spans: [[t0,t1], ...]` and `contacts: [[t0,t1], ...]`.
-Spans use the scanline half-open vertex rule and retain subdivisions at boundary
-crossings; they are not merged into maximal intervals. Contacts describe input
-boundary intersections: equal endpoints mean a point, unequal endpoints mean a
-collinear interval. Overlapping contacts are merged. A tangent point alone adds
-no span, and a collinear edge does not invent a winding crossing. Contacts are
-input-boundary contacts even for overlapping/cancelling loops; callers needing
-the boundary of combined material must first normalize the region.
-
-Wing chords use even-odd spans, while infill uses nonzero spans and applies its
-existing minimum stroke length. Travel uses spans plus contacts against its
-existing tolerance-expanded material footprint, interpolating move height in
-the returned parameters. Thus top/bottom scanline boundary asymmetry is retained
-for deposition, while travel treats tangency and collinear contact as occupied.
-Vertical travel uses a singleton query instead of an artificial clipping probe.
-
-This is a shared floating-point edge sweep, consolidated from the existing
-wing/infill half-open scanline algorithms; it is not an exact-predicate kernel
-or a spline clipper. It adds no geometric epsilon or grid snapping. Travel's
-footprint offset still supplies its numerical slack. General open-polyline
-clipping remains the Clipper2 operation in `region/intersection.mjs`, with its
-existing grid and upstream boundary rules. It is intentionally not replaced by
-stitching these line results: those consumers require whole-polyline topology.
-In particular, travel no longer quantizes clipped endpoints on Clipper's grid;
-its region offset still uses that grid. No general exact-arithmetic claim is made.
+[clipLineToRegion](curve-region.mjs) clips `origin + t * direction` through closed XY loops,
+retaining source parameters. Direction must be finite/nonzero; ordered `range` defaults to the
+whole line, with a singleton querying point membership. `fillRule` is `nonzero` (default) or `evenodd`.
+It returns ordered `spans: [[t0,t1],…]` and `contacts: [[t0,t1],…]`. Half-open spans retain crossing
+subdivisions. Contacts merge overlapping input-boundary points/collinear intervals; tangency adds no
+span and collinearity no winding crossing. Normalize cancelling/overlapping loops first when the
+combined material boundary is required. Repeating the closing vertex is optional.
+Wing uses even-odd spans; infill uses nonzero spans and its minimum stroke length. Travel uses spans
+and contacts against its existing expanded footprint, interpolates height in source parameters,
+and uses singleton queries for vertical moves. Deposition retains its top/bottom boundary asymmetry.
+This floating-point sweep adds no epsilon, snapping, spline clipping or exact-predicate guarantee.
+Travel's offset retains Clipper precision, but clipped endpoints no longer use its grid. General
+polyline clipping stays in [Clipper2](../region/intersection.mjs) for its topology/grid semantics.
 
 ## Geometry interoperability for skill authors
 
-Compiled heat-set and text geometry retains editable feature recipes. Local
-deposition around a feature is slice data, not geometry: heat-set inserts
-write slice assignments that own their volumes
-([slices.mjs](../../skills/heat-set-inserts/scripts/slices.mjs)); the
-[heat-set manual](../../skills/heat-set-inserts/SKILL.md) owns its constraints.
-
-Skills consume common geometry queries with explicit supported representations.
-The sections below define numerical assumptions, query semantics and the
-representation-specific work behind that boundary.
+Heat-set and text retain editable feature recipes. Heat-set [slice assignments](../../skills/heat-set-inserts/scripts/slices.mjs)
+own local deposition volumes; the [manual](../../skills/heat-set-inserts/SKILL.md) owns feature constraints.
+Skills share geometry queries with the explicit numerical and representation limits below.
 
 ### Shared numerical foundations
 
@@ -99,11 +63,8 @@ evaluations instead of repeatedly flattening and inverse-projecting geometry.
 
 ### Precision belongs to a quantity and an operation
 
-Choose the least expensive precision that preserves the intended process result.
-Name the quantity, units, construction stage and consumer before selecting a
-tolerance. More decimal places are not evidence of accuracy. A millimetre grid,
-a chord-error bound, a parameter increment and an extrusion-volume allowance
-are different contracts; do not replace them with one global epsilon.
+Choose precision by quantity, units, construction stage and consumer. More decimals do not establish
+accuracy; coordinate grids, chord error, parameter increments and volume allowances need separate budgets.
 
 | Dimension | Current examples | Developer guidance |
 |---|---|---|
@@ -115,47 +76,24 @@ are different contracts; do not replace them with one global epsilon.
 | Machine command quantization | S5/H2D XYZ and filament E currently five decimals; feed three decimals in mm/min; dwell integer milliseconds; Dobot ten decimals and RC8A eight | XYZ, filament length, volume, feed, time and pose need independent error budgets even when a formatter currently shares digits. Relative-E rounding can accumulate per move; absolute E has different accumulation. Reconcile final endpoints, length, volume and duration when removing or coalescing points. |
 | Display approximation | Studio bead tessellation, float buffers and distance-based detail | Display budgets are visual only. They must not alter the saved program, geometry identity, deposition volume or machine checks. Printed-looking colors and shading do not establish geometric accuracy. |
 
-Construction must respect the downstream representation. A short segment can
-cross a coordinate rounding boundary, so distance alone cannot establish that
-it will disappear at export. If a point is removed, preserve or recompute the
-following segment's start, volume integral, local gap/width and pose metadata;
-do not keep values calculated for the old endpoints. Simplify before generating
-dependent data where practical. Keep shape simplification distinct from removing
-numerical seams; `cleanPlanarLoop` currently uses the plane tolerance and is not
-a process-resolution simplifier.
-Quantize each output field once and reuse that value for text, flow calculations
-and modal state. Do not format coordinates repeatedly or parse freshly formatted
-commands just to recover numbers already held by the writer.
+Short segments can cross rounding boundaries; length alone cannot predict their disappearance.
+When removing points, preserve/recompute subsequent starts, volume integrals, gaps, widths and pose.
+Simplify before dependent data where practical. `cleanPlanarLoop` removes numerical seams using plane
+tolerance; it is not process-resolution simplification. Quantize each output field once and reuse it
+for text, flow and modal state instead of repeated formatting/parsing.
 
-For ordinary FFF, begin performance experiments with micrometre coordinate
-grids and hundredths-of-a-millimetre curve deviation, then establish the suitable
-budget from feature size, line width, layer height, material interfaces and the
-actual machine output. These are experiment starting points, not blanket changes
-to existing skill defaults or permission to erase narrow regions. A tighter
-predicate can be justified even when a coarser contour approximation is adequate.
-Do not pay for sub-process detail at every offset and emitted move without
-measuring its benefit.
+For ordinary FFF experiments, start with micrometre grids and hundredths-of-a-millimetre deviation,
+then measure against feature size, bead dimensions, material interfaces and actual output. These are
+not new defaults or permission to erase narrow regions; predicates may need tighter precision than contours.
+The [external inspection](../../DEVLOG.md#2026-09-11--external-precision-reference-inspection) separates these
+budgets but establishes neither effective user settings nor speed. Deviation limits can retain short segments.
 
-The [external precision reference inspection](../../DEVLOG.md#2026-09-11--external-precision-reference-inspection)
-illustrates distinct coordinate, segment-resolution, curve-deviation and
-extrusion-area budgets. Its dated values do not establish the user's effective
-settings or a speed guarantee. A deviation constraint can limit simplification
-even when short segments remain.
-
-During development, measure elapsed time, input/output point counts and geometric
-change together on the same recipe. Include translated/scaled geometry, sharp
-corners, small holes, thin walls, repeated operations and variable extrusion when
-those consumers are affected. Compare areas in mm² and distances in mm; use
-independent analytical or reference results rather than only equality to an old
-over-precise output. Fix a physical-invariant failure rather than loosening its
-assertion to accommodate an unexplained error. This is design/review guidance,
-not another runtime precision sweep, validation gate or approval stage.
-
-The [precision audit history](../../DEVLOG.md#br-040--dimension-aware-precision-audit-and-developer-guidance)
-records corrections and proposed follow-ups, including collapsed-segment volume
-and oriented motion. The [provenance audit](../../DEVLOG.md#2026-09-14--build-request-provenance-audit)
-distinguishes the completed audit from approval to implement all its findings.
-Current XYZ behavior is specified under [formats](../print/README.md#formats).
+Measure elapsed time, point counts and geometric change on the same recipe. Include affected translated/scaled
+geometry, corners, holes, thin walls, repeated operations and variable extrusion. Compare areas in mm² and
+distances in mm against independent references; fix physical-invariant failures rather than loosening checks.
+This is development guidance, not a runtime sweep or approval gate. The [precision history](../../DEVLOG.md#br-040--dimension-aware-precision-audit-and-developer-guidance)
+records corrections/follow-ups; the [provenance audit](../../DEVLOG.md#2026-09-14--build-request-provenance-audit)
+does not authorize every finding. [Formats](../print/README.md#formats) specifies current XYZ behavior.
 
 ### Geometry query boundary
 
@@ -177,13 +115,10 @@ Geometry outputs are ordinary values and evaluations of those values:
 | [intersectPatches](surface-intersection.mjs) | Section boundaries retain corresponding parameters on both native surfaces. |
 | [extractLevelSet](level-set.mjs) | Sampled scalar fields yield bounded high-side region loops (default) or genuine `{points,closed}` contours (`output: 'curves'`). Roof reservations and chart predicates use regions; gyroid uses curves. |
 
-Level extraction keeps equality on the high side, ordered exit/entry pairing
-in ambiguous cells, sentinel crossing refinement, `1e-7` chart-coordinate
-endpoint matching and `TOLERANCE.point` cleanup. Only region output adds domain
-edges; curve output joins cell crossings directly and can end at the domain.
-Uniform high/low fields have no contours; their regions are the domain/empty.
-`levelSetCoverage` classifies samples without extraction. Sampling can miss
-features between points; field selection and deposition remain caller policy.
+Level extraction retains high-side equality, ordered ambiguous-cell pairing, sentinel refinement,
+`1e-7` chart endpoint matching and `TOLERANCE.point` cleanup. Only regions add domain edges; curves
+can end there. Uniform high/low fields yield no curves and domain/empty regions. `levelSetCoverage`
+classifies without extraction. Sampling may miss detail; field/deposition choices remain caller policy.
 
 Geodesic region offsets retain their C2/domain limits; piecewise roofs/sleeves
 keep explicit crease transitions. No trimmed-surface capability is introduced.

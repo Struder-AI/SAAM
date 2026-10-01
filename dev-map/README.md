@@ -157,9 +157,9 @@ read, a missing one reporting `sourceUnavailable`, not wrong line numbers.
 stable IDs, indexes, actors, contracts and layout. Nodes reference `source: {file, heading?}` or `{file, declaration?}`;
 `optional: true` allows absent local files. Terminal boxes preview source; `read INDEX|@design/ID|CONTRACT-ID --source`
 adds it to agent reads. `build --set NAME` captures sources; `check --viewer` checks freshness, boxes, wires and previews.
-Architecture arrows show causal information/actions. Contract `access: [{from,to}]` records permitted calls/reads
-between those same endpoints separately, retaining operations, inputs/outputs, effects, errors and exclusions.
-No transitive permission or solver placement. Other design sets may retain explicitly stated call arrows.
+Contract arrows carry information/actions; `access: [{from,to}]` separately records calls/reads, without transitive permission.
+`implementationLinks: [nodeId]` adds observed calls beneath selected roots using exact ownership homes; map 0 retains authored contracts.
+Scoped `source.declaration` identities open nested helpers/methods. External links lift to their nearest shared-parent boundary.
 
 **Scanned trees**: `tree.json` owns `clusters` (`id,label,parent`), `leaves` (declaration → home), `repeats`
 (map → guests), optional `order`. Placement adds leaves beside links, drops gone leaves and dissolves

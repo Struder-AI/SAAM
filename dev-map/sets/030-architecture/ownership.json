@@ -1,155 +1,155 @@
 {
   "schema": 1,
-  "status": "provisional authoring, for map/code negotiation; not conformance approval",
-  "policy": "Exact stable declaration/module assignments to top-level buckets. New declarations remain unassigned. Position-named anonymous bodies inherit their nearest stable declaration. File location does not define architectural ownership.",
+  "status": "Geometry homes authored through terminal declarations; other buckets remain provisional. Not conformance approval.",
+  "policy": "Exact declaration/module ownership; Geometry owners are source-linked leaf IDs. Anonymous bodies inherit their nearest stable declaration. File location does not define architectural ownership.",
   "files": {
     "core/geom/blob-field.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/blob-field-record.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/blob-field-compile.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/boolean-display.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/boolean-solid.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/chart-prism.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/curve-offset.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/curve-ops.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/curve-ribbon.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/cylinder.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/evaluated-surface.mjs": {
       "owner": "geometry",
-      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/field.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/least-squares.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/mesh.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/mesh-capacity.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/mesh-distance.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/mesh-native.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/mesh-spatial.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/mesh-topology.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/normal-band.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/nurbs.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/piecewise-chart.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/polyline.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/reference-surface.mjs": {
       "owner": "geometry",
-      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/selections.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/shell.mjs": {
       "owner": "geometry",
-      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/solid.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/spline-solid.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/surface-derivatives.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/surface-intersection.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/surface-offset.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/surface-region.mjs": {
       "owner": "geometry",
-      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/tessellate.mjs": {
       "owner": "geometry",
-      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/tolerance.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/triangle-bvh.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/trimmed-surface.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/contour-path.mjs": {
       "owner": "geometry",
-      "reason": "Cutting/section/topology query implementation, provisionally private to Slice; review broader existing uses."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "skills/advanced-vase-wall/scripts/directional-contour.mjs": {
       "owner": "extensions",
@@ -157,7 +157,7 @@
     },
     "core/geom/height-slice.mjs": {
       "owner": "geometry",
-      "reason": "Cutting/section/topology query implementation, provisionally private to Slice; review broader existing uses."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs": {
       "owner": "extensions",
@@ -165,7 +165,7 @@
     },
     "core/geom/prepared-contours.mjs": {
       "owner": "geometry",
-      "reason": "Cutting/section/topology query implementation, provisionally private to Slice; review broader existing uses."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "skills/advanced-vase-wall/scripts/prepared-radial-contact.mjs": {
       "owner": "extensions",
@@ -173,7 +173,7 @@
     },
     "core/geom/section.mjs": {
       "owner": "geometry",
-      "reason": "Cutting/section/topology query implementation, provisionally private to Slice; review broader existing uses."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "skills/advanced-vase-wall/scripts/sleeve-contact.mjs": {
       "owner": "extensions",
@@ -185,19 +185,19 @@
     },
     "core/geom/slice.mjs": {
       "owner": "geometry",
-      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/query.mjs": {
       "owner": "geometry",
-      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/stl-decoder.mjs": {
       "owner": "geometry",
-      "reason": "Public geometry query/import/repair entry; mixed section-query methods need review."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/mesh-repair.mjs": {
       "owner": "geometry",
-      "reason": "Public geometry query/import/repair entry; mixed section-query methods need review."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/text-record.mjs": {
       "owner": "extensions",
@@ -237,47 +237,47 @@
     },
     "core/region/boolean.mjs": {
       "owner": "geometry",
-      "reason": "Reusable planar representation and numerical predicates."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/region/clipper.mjs": {
       "owner": "geometry",
-      "reason": "Reusable planar representation and numerical predicates."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/region/offset.mjs": {
       "owner": "geometry",
-      "reason": "Reusable planar representation and numerical predicates."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/region/region2d.mjs": {
       "owner": "geometry",
-      "reason": "Reusable planar representation and numerical predicates."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/region/surface-offset.mjs": {
       "owner": "geometry",
-      "reason": "Reusable planar representation and numerical predicates."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/region/intersection.mjs": {
       "owner": "geometry",
-      "reason": "Slice region/ownership/contact queries rather than deposited-path production."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/region/layer-region.mjs": {
       "owner": "geometry",
-      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/region/material-contact.mjs": {
       "owner": "geometry",
-      "reason": "Slice region/ownership/contact queries rather than deposited-path production."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/region/normal-surface.mjs": {
       "owner": "geometry",
-      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/region/ownership.mjs": {
       "owner": "geometry",
-      "reason": "Slice region/ownership/contact queries rather than deposited-path production."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/region/reservation.mjs": {
       "owner": "geometry",
-      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/region/fill-patterns.mjs": {
       "owner": "toolpath",
@@ -525,19 +525,19 @@
     },
     "core/print/geometry.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation/import/repair mechanics; bundle IO here is a mixed responsibility exposed by audit."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/print/repair-stl.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation/import/repair mechanics; bundle IO here is a mixed responsibility exposed by audit."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/print/mesh-repair-job.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation/import/repair mechanics; bundle IO here is a mixed responsibility exposed by audit."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/print/mesh-repair-worker.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation/import/repair mechanics; bundle IO here is a mixed responsibility exposed by audit."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/print/generate.mjs": {
       "owner": "toolpath",
@@ -1073,7 +1073,7 @@
     },
     "core/geom/extension-edit.mjs": {
       "owner": "geometry",
-      "reason": "Geometry engine executes geometry/hybrid editors and provides native geometry access."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/print/extension-recipe.mjs": {
       "owner": "toolpath",
@@ -1109,7 +1109,7 @@
     },
     "core/private/geometry/hash.mjs": {
       "owner": "geometry",
-      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/private/studio/file-write.mjs": {
       "owner": "studio",
@@ -1141,15 +1141,15 @@
     },
     "core/geom/build.mjs": {
       "owner": "geometry",
-      "reason": "Geometry construction engine."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/loft.mjs": {
       "owner": "geometry",
-      "reason": "Wing workspace implementation and its explicitly owned public handoff/construction entry."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/import-stl.mjs": {
       "owner": "geometry",
-      "reason": "Geometry engine converts resource bytes and provenance into a normalized geometry record."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "workspaces/export-worker.mjs": {
       "owner": "workspace",
@@ -1177,10 +1177,6 @@
     },
     "workspaces/wing/renderer.mjs": {
       "owner": "workspace",
-      "reason": "Wing workspace implementation and its explicitly owned public handoff/construction entry."
-    },
-    "core/geom/polygon-chords.mjs": {
-      "owner": "geometry",
       "reason": "Wing workspace implementation and its explicitly owned public handoff/construction entry."
     },
     "core/private/settings/numeric.mjs": {
@@ -1345,23 +1341,55 @@
     },
     "core/geom/curve-sampling.mjs": {
       "owner": "geometry",
-      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/solid-operations.mjs": {
       "owner": "geometry",
-      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/surface-curves.mjs": {
       "owner": "geometry",
-      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/surface-evaluation.mjs": {
       "owner": "geometry",
-      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/region/section.mjs": {
       "owner": "geometry",
-      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
+      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
+    },
+    "core/geom/level-set.mjs": {
+      "owner": "geometry",
+      "reason": "Shared geometry implementation; exact leaf homes below."
+    },
+    "core/geom/curve-region.mjs": {
+      "owner": "geometry",
+      "reason": "Shared geometry implementation; exact leaf homes below."
+    },
+    "core/geom/runtime.mjs": {
+      "owner": "geometry",
+      "reason": "Shared geometry implementation; exact leaf homes below."
+    },
+    "core/geom/native/mesh-repair.cpp": {
+      "owner": "geometry",
+      "reason": "Native Geometry resource; explicit source leaf under2.3.3.6. Non-JavaScript internals are not scanner-certified."
+    },
+    "core/geom/native/CMakeLists.txt": {
+      "owner": "geometry",
+      "reason": "Native Geometry resource; explicit source leaf under2.3.3.6. Non-JavaScript internals are not scanner-certified."
+    },
+    "core/geom/native/dependencies.json": {
+      "owner": "geometry",
+      "reason": "Native Geometry resource; explicit source leaf under2.3.3.6. Non-JavaScript internals are not scanner-certified."
+    },
+    "core/geom/native/LICENSE.GPL": {
+      "owner": "geometry",
+      "reason": "Native Geometry resource; explicit source leaf under2.3.3.6. Non-JavaScript internals are not scanner-certified."
+    },
+    "core/geom/native/README.md": {
+      "owner": "geometry",
+      "reason": "Native Geometry resource; explicit source leaf under2.3.3.6. Non-JavaScript internals are not scanner-certified."
     }
   },
   "leaves": {
@@ -2546,304 +2574,304 @@
       "owner": "bundle"
     },
     "core/geom/blob-field-compile.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-fb2025a37f8b"
     },
     "core/geom/blob-field-compile.mjs::compileBlobField": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-3bb7558566a2"
     },
     "core/geom/blob-field-record.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b9bc1dee2ebb"
     },
     "core/geom/blob-field-record.mjs::blobFieldDigest": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-20854f6cbcc9"
     },
     "core/geom/blob-field-record.mjs::blobFieldTemplate": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0ae4a0c0eed2"
     },
     "core/geom/blob-field-record.mjs::validateBlobFieldExtraction": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-90be44ad727f"
     },
     "core/geom/blob-field-record.mjs::validateBlobFieldRecord": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0f67bda51184"
     },
     "core/geom/blob-field.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-3e473144513e"
     },
     "core/geom/blob-field.mjs::blobFalloff": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b75825f7cfb0"
     },
     "core/geom/blob-field.mjs::blobFieldBounds": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b176f1017d8e"
     },
     "core/geom/blob-field.mjs::createBlobFieldEvaluator": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f59f872c19d7"
     },
     "core/geom/blob-field.mjs::createBlobFieldEvaluator::key": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c07b6037b154"
     },
     "core/geom/blob-field.mjs::validateBlobField": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-3326c32b9cbd"
     },
     "core/geom/boolean-display.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-8b4bde63a6ac"
     },
     "core/geom/boolean-display.mjs::booleanDisplayMesh": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f27032bb2008"
     },
     "core/geom/boolean-display.mjs::booleanDisplayMesh::solidOf": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-26371bcddc5c"
     },
     "core/geom/boolean-display.mjs::tessellateSolid": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-3fc6eb5a85a4"
     },
     "core/geom/boolean-solid.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9e937f341cd7"
     },
     "core/geom/boolean-solid.mjs::booleanShell": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-97223d9bdb91"
     },
     "core/geom/boolean-solid.mjs::booleanSolidTemplate": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-8212169651cd"
     },
     "core/geom/boolean-solid.mjs::validateBooleanSolid": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-37443eccbab1"
     },
     "core/geom/chart-prism.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-8a857d1de7f3"
     },
     "core/geom/chart-prism.mjs::chartPrism": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-2857d4ca4b9e"
     },
     "core/geom/chart-prism.mjs::chartPrismContains": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c231abfca017"
     },
     "core/geom/contour-path.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9b9a0503959a"
     },
     "core/geom/contour-path.mjs::contourPath": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4ac0c608f737"
     },
     "core/geom/contour-path.mjs::contourPath::at": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-2742358d526a"
     },
     "core/geom/contour-path.mjs::contourPath::breakpoints": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-78ac30e9dda8"
     },
     "core/geom/contour-path.mjs::contourPath::parameters": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b0f0d0b6f0ce"
     },
     "core/geom/curve-offset.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b5ceb548bd63"
     },
     "core/geom/curve-offset.mjs::chainPieces": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-518907fe4601"
     },
     "core/geom/curve-offset.mjs::chainPieces::meet": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f5d51cf662a3"
     },
     "core/geom/curve-offset.mjs::chainPieces::move": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-3f6c15a52c8c"
     },
     "core/geom/curve-offset.mjs::chainPieces::next": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e86e52f9cd76"
     },
     "core/geom/curve-offset.mjs::curlArcs": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d6d0035756c1"
     },
     "core/geom/curve-offset.mjs::curlArcs::on": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f98a5f0a2297"
     },
     "core/geom/curve-offset.mjs::curlArcs::wrap": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-45c97cc13eef"
     },
     "core/geom/curve-offset.mjs::looseCurveField": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c5ef11add048"
     },
     "core/geom/curve-offset.mjs::looseCurveField::greville": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-ac881bc5171f"
     },
     "core/geom/curve-offset.mjs::prepareCurveOffsets": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7b0ae7b12acd"
     },
     "core/geom/curve-offset.mjs::prepareCurveOffsets::gap": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-8050be89f599"
     },
     "core/geom/curve-offset.mjs::prepareCurveOffsets::inside": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-2e3431a71dc3"
     },
     "core/geom/curve-offset.mjs::prepareCurveOffsets::offset": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-ec8081cc6488"
     },
     "core/geom/curve-offset.mjs::prepareCurveOffsets::offset::at": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-74964b80aee3"
     },
     "core/geom/curve-offset.mjs::prepareCurveOffsets::offset::forward": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-882b735444f7"
     },
     "core/geom/curve-offset.mjs::prepareCurveOffsets::offset::shift": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-700f2948a8a5"
     },
     "core/geom/curve-offset.mjs::prepareCurveOffsets::onPatch": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-5cbfbc1a9d17"
     },
     "core/geom/curve-offset.mjs::prepareCurveOffsets::tangentPerMm": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0f9d3e3303e6"
     },
     "core/geom/curve-offset.mjs::rationalBasis": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-645e1cdce1ba"
     },
     "core/geom/curve-offset.mjs::requireCurve": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d95d786f9fef"
     },
     "core/geom/curve-offset.mjs::sideAt": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-ae9ba622c341"
     },
     "core/geom/curve-offset.mjs::solveSparse": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-800a2f0a4c1a"
     },
     "core/geom/curve-offset.mjs::wrap": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-cc5dc23e8429"
     },
     "core/geom/curve-ops.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-8c8edc73dcba"
     },
     "core/geom/curve-ops.mjs::arcCurve": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4938e3fcc4a1"
     },
     "core/geom/curve-ops.mjs::axisRange": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-59c4823dafaa"
     },
     "core/geom/curve-ops.mjs::bezierRoots": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-07ab3cc77ad1"
     },
     "core/geom/curve-ops.mjs::bezierSpans": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-67e6d34b22dc"
     },
     "core/geom/curve-ops.mjs::box": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c484da2c2f23"
     },
     "core/geom/curve-ops.mjs::casteljau": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9b81e27fca39"
     },
     "core/geom/curve-ops.mjs::clampAt": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-133bc6f8806f"
     },
     "core/geom/curve-ops.mjs::curveCrossings": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-aaed8927d511"
     },
     "core/geom/curve-ops.mjs::curveCrossings::arc": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e23f40cd7932"
     },
     "core/geom/curve-ops.mjs::curveCrossings::end": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7cfd05981060"
     },
     "core/geom/curve-ops.mjs::curveCrossings::halves": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-3c1e7f230558"
     },
     "core/geom/curve-ops.mjs::curveCrossings::overlap": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6f64190b64d7"
     },
     "core/geom/curve-ops.mjs::curveCrossings::pair": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f0c6f33da6c6"
     },
     "core/geom/curve-ops.mjs::curveCrossings::pair::visit": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-5f27ca41dc78"
     },
     "core/geom/curve-ops.mjs::curveCrossings::pair::visit::within": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d10c460ba842"
     },
     "core/geom/curve-ops.mjs::curveCrossings::record": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4ec1496b4df4"
     },
     "core/geom/curve-ops.mjs::distinctParams": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-fb77d406a961"
     },
     "core/geom/curve-ops.mjs::extract": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-294f4a1904fa"
     },
     "core/geom/curve-ops.mjs::insideIntervals": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-27013c0de6c6"
     },
     "core/geom/curve-ops.mjs::insideIntervals::values": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e05b6be85c72"
     },
     "core/geom/curve-ops.mjs::join": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-aecc1c303999"
     },
     "core/geom/curve-ops.mjs::monotone": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-3566a5e711ed"
     },
     "core/geom/curve-ops.mjs::monotonePieces": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e9242c725691"
     },
     "core/geom/curve-ops.mjs::monotonePieces::visit": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c9bef124c9b0"
     },
     "core/geom/curve-ops.mjs::periodicCurveCrossings": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-228d1e6dac67"
     },
     "core/geom/curve-ops.mjs::periodicCurveCrossings::source": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-2694d4aed385"
     },
     "core/geom/curve-ops.mjs::planar": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a20e50839c39"
     },
     "core/geom/curve-ops.mjs::preparePeriodicWinding": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-db1aaed25261"
     },
     "core/geom/curve-ops.mjs::preparePeriodicWinding::turn": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9f7a3ecc056d"
     },
     "core/geom/curve-ops.mjs::prepareWinding": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a765a47cdcbf"
     },
     "core/geom/curve-ops.mjs::refine": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-ea9f7b30d63d"
     },
     "core/geom/curve-ops.mjs::reverseCurve": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-5a8ab897021d"
     },
     "core/geom/curve-ops.mjs::size": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-de8f8b47d959"
     },
     "core/geom/curve-ops.mjs::spanCurve": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e040f3fd1270"
     },
     "core/geom/curve-ops.mjs::splitBezier": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a80efb55af36"
     },
     "core/geom/curve-ops.mjs::translateCurve": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-8d2b84cd88d4"
     },
     "core/geom/curve-ribbon.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-8e762d41cbdd"
     },
     "core/geom/curve-ribbon.mjs::foldCuts": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-dc6aea1debc7"
     },
     "core/geom/curve-ribbon.mjs::foldCuts::tripled": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-3a7db5cb4679"
     },
     "core/geom/curve-ribbon.mjs::negativeIntervals": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-aaddfedaf86a"
     },
     "core/geom/curve-ribbon.mjs::negativeIntervals::edge": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-5f3afbac82c1"
     },
     "core/geom/curve-ribbon.mjs::prepareCurveRibbon": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d3269b9735b4"
     },
     "core/geom/curve-ribbon.mjs::prepareCurveRibbon::ribbon": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d6faccd0e82b"
     },
     "core/geom/curve-ribbon.mjs::turning": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-05e43e28783d"
     },
     "core/geom/cylinder.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-93d1d79ce1f3"
     },
     "core/geom/cylinder.mjs::circlePoints": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e1bf6c0150ee"
     },
     "skills/advanced-vase-wall/scripts/directional-contour.mjs::@module": {
       "owner": "extensions"
@@ -2876,163 +2904,163 @@
       "owner": "extensions"
     },
     "core/geom/evaluated-surface.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-18d250971c32"
     },
     "core/geom/evaluated-surface.mjs::evaluatedSurfaceDerivatives": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6158ab5d011b"
     },
     "core/geom/evaluated-surface.mjs::evaluatedSurfaceDerivatives::derivative": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f447106a8021"
     },
     "core/geom/evaluated-surface.mjs::evaluatedSurfaceDerivatives::pointAt": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-2b6e29147ebc"
     },
     "core/geom/evaluated-surface.mjs::evaluatedSurfaceDerivatives::stencil": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d80812ca912a"
     },
     "core/geom/evaluated-surface.mjs::evaluatedSurfaceDerivatives::uvOf": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7d0e4653c82b"
     },
     "core/geom/field.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a80e76e2e449"
     },
     "core/geom/field.mjs::candidateSpansAt": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-88901895ea46"
     },
     "core/geom/field.mjs::crossingsAt": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-bdc9b42a3b8d"
     },
     "core/geom/field.mjs::limitNormal": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-1520a535671e"
     },
     "core/geom/field.mjs::limitNormal::inward": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e4acd2e84d35"
     },
     "core/geom/field.mjs::newton": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-be050d9caf8f"
     },
     "core/geom/field.mjs::projectToPatch": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d4cc2db5968d"
     },
     "core/geom/field.mjs::topAt": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e94754614507"
     },
     "core/geom/height-slice.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9d1fe10fa54d"
     },
     "core/geom/height-slice.mjs::evaluateReferenceHeight": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6addb38e6886"
     },
     "core/geom/height-slice.mjs::heightReferenceBounds": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0648110c9266"
     },
     "core/geom/height-slice.mjs::heightReferenceMetric": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7ce2f4b0b3ce"
     },
     "core/geom/height-slice.mjs::heightReferencePatch": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f7ae672cea77"
     },
     "core/geom/height-slice.mjs::heightSlice": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-1a309ba04c3d"
     },
     "core/geom/height-slice.mjs::heightSliceNormal": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-25e09978b468"
     },
     "core/geom/height-slice.mjs::heightSlicePoint": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a568d221104b"
     },
     "core/geom/height-slice.mjs::referenceHeight": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-76c0c4ba3ed3"
     },
     "core/geom/height-slice.mjs::sampledChartRegion": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-684e9dfb12db"
     },
     "core/geom/height-slice.mjs::sampledChartRegion::refine": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-ca368031163e"
     },
     "core/geom/height-slice.mjs::sectionHeightSlice": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-cca0826c2693"
     },
     "core/geom/height-slice.mjs::sectionHeightSlice::contains": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-49da24cd27b6"
     },
     "core/geom/least-squares.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-811fa4f6f7e0"
     },
     "core/geom/least-squares.mjs::leastSquares": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-1fc220801aca"
     },
     "core/geom/mesh-capacity.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7dc3bf7db864"
     },
     "core/geom/mesh-capacity.mjs::checkMeshCapacity": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-55e4585f309c"
     },
     "core/geom/mesh-capacity.mjs::meshAllocation": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d521e2e116c0"
     },
     "core/geom/mesh-capacity.mjs::meshAllocationError": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6322aed70bcd"
     },
     "core/geom/mesh-distance.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-381e08c35f69"
     },
     "core/geom/mesh-distance.mjs::createMeshDistanceQuery": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-276978a77e57"
     },
     "core/geom/mesh-distance.mjs::pointTriangleDistanceSquared": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-67698896a0ff"
     },
     "core/geom/mesh-distance.mjs::segmentSquared": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0a36c3e7123f"
     },
     "core/geom/mesh-native.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f49a759ca594"
     },
     "core/geom/mesh-native.mjs::checkInstallation": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-806c819741a6"
     },
     "core/geom/mesh-native.mjs::offChunks": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-009edebd430d"
     },
     "core/geom/mesh-native.mjs::readOff": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-62e92a285e05"
     },
     "core/geom/mesh-native.mjs::repairMeshNative": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-494f05e0cc34"
     },
     "core/geom/mesh-native.mjs::repairMeshNative::@default/progress": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-3fc4eeea2d73"
     },
     "core/geom/mesh-native.mjs::runNativeMeshRepair": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-53dcc3729ce4"
     },
     "core/geom/mesh-native.mjs::runNativeMeshRepair::@default/progress": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0023d143a620"
     },
     "core/geom/mesh-repair.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-864f59c96139"
     },
     "core/geom/mesh-repair.mjs::cleanTriangleSoup": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-81939fe380a4"
     },
     "core/geom/mesh-repair.mjs::compactMesh": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-252542945d08"
     },
     "core/geom/mesh-repair.mjs::encodeRepairSTL": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-dff83c448199"
     },
     "core/geom/mesh-repair.mjs::encodeRepairSTLChunks": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b03c9f0a22e6"
     },
     "core/geom/mesh-repair.mjs::stitchCollapsedEdges": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-63e0a486bc5f"
     },
     "core/geom/mesh-repair.mjs::stitchCollapsedEdges::key": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-ce0f43fe1ded"
     },
     "core/geom/mesh-repair.mjs::validateRepair": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-dbf5ef5a8f76"
     },
     "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::@module": {
       "owner": "extensions"
@@ -3110,349 +3138,349 @@
       "owner": "extensions"
     },
     "core/geom/mesh-spatial.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-78799abfeef0"
     },
     "core/geom/mesh-spatial.mjs::checkAdjacentContacts": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f2b950a050b6"
     },
     "core/geom/mesh-spatial.mjs::closestTrianglePoint": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c5df92af9f65"
     },
     "core/geom/mesh-spatial.mjs::closestTrianglePoint::mix": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c7c34292751f"
     },
     "core/geom/mesh-spatial.mjs::triangleIndex": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e785492bb9d2"
     },
     "core/geom/mesh-spatial.mjs::triangleIndex::boxDistance": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-be47b70f66e9"
     },
     "core/geom/mesh-spatial.mjs::triangleIndex::build": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-bf25de8773bc"
     },
     "core/geom/mesh-spatial.mjs::triangleIndex::nearest": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f1c311b14b7d"
     },
     "core/geom/mesh-spatial.mjs::triangleIndex::nearest::visit": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e48c153a807b"
     },
     "core/geom/mesh-spatial.mjs::trianglesContact": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-342391724c33"
     },
     "core/geom/mesh-spatial.mjs::trianglesContact::allowed": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e73a0cbc0bb1"
     },
     "core/geom/mesh-spatial.mjs::trianglesContact::center": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-2ad5d415c6b9"
     },
     "core/geom/mesh-spatial.mjs::trianglesContact::edgeHit": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-45e775ef4b01"
     },
     "core/geom/mesh-spatial.mjs::trianglesContact::orient": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-90758476339b"
     },
     "core/geom/mesh-spatial.mjs::trianglesContact::project": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-540b3aa63b92"
     },
     "core/geom/mesh-spatial.mjs::trianglesContact::strictInside": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4333eca729e9"
     },
     "core/geom/mesh-topology.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9cd5d77e8e40"
     },
     "core/geom/mesh-topology.mjs::meshEdgeMap": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-76f7278e52ef"
     },
     "core/geom/mesh-topology.mjs::meshTopology": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7184774e314d"
     },
     "core/geom/mesh-topology.mjs::meshTopology::a": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a04df91a2398"
     },
     "core/geom/mesh-topology.mjs::meshTopology::b": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c49b43135ab0"
     },
     "core/geom/mesh-topology.mjs::meshTopology::third": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a72ab91c2d91"
     },
     "core/geom/mesh.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f8c3d930f170"
     },
     "core/geom/mesh.mjs::decodeSTL": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c5b4cfe3f36d"
     },
     "core/geom/mesh.mjs::dot": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-97706f29a848"
     },
     "core/geom/mesh.mjs::edgeKey": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-90ac534a9135"
     },
     "core/geom/mesh.mjs::heightTree": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-8a207c7cebdd"
     },
     "core/geom/mesh.mjs::makeMesh": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-538380e91261"
     },
     "core/geom/mesh.mjs::meshContourEdges": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-5f0fb7880788"
     },
     "core/geom/mesh.mjs::meshCrossingsAt": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-caeeac50fffe"
     },
     "core/geom/mesh.mjs::meshFaceGeometry": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-5ccb74d5dc8f"
     },
     "core/geom/mesh.mjs::meshIdentity": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-cb3d9cd699af"
     },
     "core/geom/mesh.mjs::meshIdentity::put": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6d15f74cb48c"
     },
     "core/geom/mesh.mjs::meshInputError": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e7f0604d099e"
     },
     "core/geom/mesh.mjs::meshResult": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-284ff2371853"
     },
     "core/geom/mesh.mjs::meshResult::get": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-88bc6858a35f"
     },
     "core/geom/mesh.mjs::meshResult::set": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-dde8a4801b5c"
     },
     "core/geom/mesh.mjs::meshSectionIndex": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-3ee84bb1e44f"
     },
     "core/geom/mesh.mjs::meshTopAt": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6d3e09956810"
     },
     "core/geom/mesh.mjs::nearVertex": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-780e71faf06d"
     },
     "core/geom/mesh.mjs::parseSTL": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c9229c6d6556"
     },
     "core/geom/mesh.mjs::rejectIntersections": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-26a315fa6a3a"
     },
     "core/geom/mesh.mjs::rejectIntersections::inspectCandidate": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a1b6e7f0b3aa"
     },
     "core/geom/mesh.mjs::requireMeshInput": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-512349f08c01"
     },
     "core/geom/mesh.mjs::retainValidatedMesh": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e6a399d9f272"
     },
     "core/geom/mesh.mjs::sectionMeshIndex": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4f2d56e94ca6"
     },
     "core/geom/mesh.mjs::separatedTriangles": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0cce37820aa7"
     },
     "core/geom/mesh.mjs::separatedTriangles::normal": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-08b11368c1af"
     },
     "core/geom/mesh.mjs::sub": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e3eb6ca3a613"
     },
     "core/geom/mesh.mjs::translateMesh": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-aceb275e39b0"
     },
     "core/geom/mesh.mjs::translateMesh::data": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-653216d53f5b"
     },
     "core/geom/mesh.mjs::trianglesAt": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-19491ec9db2a"
     },
     "core/geom/mesh.mjs::validateMeshGeometry": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-87b1fa86e74d"
     },
     "core/geom/mesh.mjs::validateMeshInput": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a5a855fb7643"
     },
     "core/geom/normal-band.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-47f349422b07"
     },
     "core/geom/normal-band.mjs::normalBandVolume": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-058fec5453c4"
     },
     "core/geom/normal-band.mjs::normalBandVolume::at": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-8b7cdfa9ff93"
     },
     "core/geom/normal-band.mjs::normalBandVolume::divide": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a1dd28c29d98"
     },
     "core/geom/normal-band.mjs::normalBandVolume::vertex": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-bf3ce67f6aa7"
     },
     "core/geom/nurbs.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c78262861a0b"
     },
     "core/geom/nurbs.mjs::basisDerivatives": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0a9a3579ad3e"
     },
     "core/geom/nurbs.mjs::basisFunctions": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9ef2a59df439"
     },
     "core/geom/nurbs.mjs::candidateSpans": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e342fb11723b"
     },
     "core/geom/nurbs.mjs::clamp": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b80de9352568"
     },
     "core/geom/nurbs.mjs::evaluate": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0fcd87a97c90"
     },
     "core/geom/nurbs.mjs::evaluateCurve": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-41159bc5f709"
     },
     "core/geom/nurbs.mjs::evaluateScalar": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7ed1a1ceb59d"
     },
     "core/geom/nurbs.mjs::findSpan": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f1f0b27b5539"
     },
     "core/geom/nurbs.mjs::fullKnots": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-07078ade653d"
     },
     "core/geom/nurbs.mjs::gradientBound": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-eca12efbce30"
     },
     "core/geom/nurbs.mjs::patchFromSurface": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0cc5cac4a5b5"
     },
     "core/geom/nurbs.mjs::planeCoefficients": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-201f02d75f99"
     },
     "core/geom/piecewise-chart.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e714b4dd9ff6"
     },
     "core/geom/piecewise-chart.mjs::add": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-93b74671d3eb"
     },
     "core/geom/piecewise-chart.mjs::candidates": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-2d9b405206cd"
     },
     "core/geom/piecewise-chart.mjs::candidates::height": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f1d0e12d6e08"
     },
     "core/geom/piecewise-chart.mjs::chartFromTriangles": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-62b2b20050e7"
     },
     "core/geom/piecewise-chart.mjs::chartFromTriangles::key": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d833acbe9115"
     },
     "core/geom/piecewise-chart.mjs::chartFromTriangles::vertexKey": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-ff5329358ee1"
     },
     "core/geom/piecewise-chart.mjs::cross2": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-46accf82b71d"
     },
     "core/geom/piecewise-chart.mjs::dot2": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0e896e0f2457"
     },
     "core/geom/piecewise-chart.mjs::mapPiecewiseChartPath": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b0c943c327b7"
     },
     "core/geom/piecewise-chart.mjs::piecewiseChart": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b40ba0fac6f1"
     },
     "core/geom/piecewise-chart.mjs::piecewiseChart::ringAt": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e96e522df57a"
     },
     "core/geom/piecewise-chart.mjs::piecewiseChart::vertex": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-cc3661f2df68"
     },
     "core/geom/piecewise-chart.mjs::piecewiseChartFrame": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-8dca2f1377d0"
     },
     "core/geom/piecewise-chart.mjs::piecewiseChartRay": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-401c138da81c"
     },
     "core/geom/piecewise-chart.mjs::roofChartTriangles": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a3f4864d9a4e"
     },
     "core/geom/piecewise-chart.mjs::roofChartTriangles::split": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c8396fafcee1"
     },
     "core/geom/piecewise-chart.mjs::roofChartTriangles::vertex": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-237874dd212b"
     },
     "core/geom/piecewise-chart.mjs::roundedChart": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-171a30b19a59"
     },
     "core/geom/piecewise-chart.mjs::roundedChart::canonical": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-26e7503949e3"
     },
     "core/geom/piecewise-chart.mjs::roundedChart::interpolate": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f7cc53dcac05"
     },
     "core/geom/piecewise-chart.mjs::roundedChart::placed": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c88addbf2208"
     },
     "core/geom/piecewise-chart.mjs::roundedChart::point": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-29e730e15603"
     },
     "core/geom/piecewise-chart.mjs::roundedChart::vertexKey": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f8ae5a9771bd"
     },
     "core/geom/piecewise-chart.mjs::splitPiecewiseChartPath": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4e673e8333a6"
     },
     "core/geom/piecewise-chart.mjs::sub": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-ba3559ee8957"
     },
     "core/geom/polyline.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-1e5688605896"
     },
     "core/geom/polyline.mjs::cleanPlanarLoop": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e103d97645d8"
     },
     "core/geom/polyline.mjs::cleanPlanarLoop::chain": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-84219cdd89d3"
     },
     "core/geom/polyline.mjs::norm2": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-ff6d293cdc76"
     },
     "core/geom/prepared-contours.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-3e4f15fe61d7"
     },
     "core/geom/prepared-contours.mjs::fits": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b39ddfbb82d3"
     },
     "core/geom/prepared-contours.mjs::prepareContourFamily": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9aab79ade260"
     },
     "core/geom/prepared-contours.mjs::prepareContourFamily::at": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c16ac690acc2"
     },
     "core/geom/prepared-contours.mjs::prepareContourFamily::cell": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-cf7a79b0c2f6"
     },
     "core/geom/prepared-contours.mjs::prepareContourFamily::point": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-2b368eee1194"
     },
     "core/geom/prepared-contours.mjs::prepareContourFamily::preparedCurveAt": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f44a239b73d7"
     },
     "core/geom/prepared-contours.mjs::prepareContourFamily::preparedCurveAt::at": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-38ed80dc74fe"
     },
     "core/geom/prepared-contours.mjs::prepareContourFamily::preparedCurveAt::breakpoints": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0322630ddf91"
     },
     "core/geom/prepared-contours.mjs::prepareContourFamily::preparedCurveAt::knots": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6b31181ec1f6"
     },
     "core/geom/prepared-contours.mjs::prepareContourFamily::select": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-953bed7b2006"
     },
     "core/geom/prepared-contours.mjs::prepareContourFamily::select::curve": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-929f1b127f1a"
     },
     "core/geom/prepared-contours.mjs::prepareContourFamily::weights": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e2038f7c9660"
     },
     "skills/advanced-vase-wall/scripts/prepared-radial-contact.mjs::@module": {
       "owner": "extensions"
@@ -3503,169 +3531,169 @@
       "owner": "extensions"
     },
     "core/geom/query.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-fce3f0f2fffd"
     },
     "core/geom/query.mjs::booleanTopAt": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-eb7b4acb456b"
     },
     "core/geom/query.mjs::columnCrossings": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-67fc9b8b4387"
     },
     "core/geom/query.mjs::columnCrossings::collect": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-71ded990b3c6"
     },
     "core/geom/query.mjs::containsPoint": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-50c9af64d12b"
     },
     "core/geom/query.mjs::createSectionQuery": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-68611e144480"
     },
     "core/geom/query.mjs::crossingsAt": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-56e02eaba31c"
     },
     "core/geom/query.mjs::holdsHeight": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-03bf3c646c67"
     },
     "core/geom/query.mjs::requireGeometry": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7f30eb1ba072"
     },
     "core/geom/query.mjs::sampleTopSurface": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-86ec3aa7f461"
     },
     "core/geom/query.mjs::sectionGeometry": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a850a69f0ba8"
     },
     "core/geom/query.mjs::topAt": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c0e00002f96d"
     },
     "core/geom/query.mjs::unionTopAt": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-064bcc526f7a"
     },
     "core/geom/reference-surface.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a95144c28fda"
     },
     "core/geom/reference-surface.mjs::fullKnots": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-33908d5ccdb9"
     },
     "core/geom/reference-surface.mjs::referenceCurve": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-5fbb209497a5"
     },
     "core/geom/reference-surface.mjs::referencePatch": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b171a5e17c6a"
     },
     "core/geom/reference-surface.mjs::referenceSurface": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-1ebb00df734e"
     },
     "core/geom/section.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a421b2f89adf"
     },
     "core/geom/section.mjs::cellCounts": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-05e6709e132c"
     },
     "core/geom/section.mjs::cellSegments": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-432e220c15a4"
     },
     "core/geom/section.mjs::contourGrid": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4015c7e4ff01"
     },
     "core/geom/section.mjs::contourPointNear": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e17e6b96b88d"
     },
     "core/geom/section.mjs::edgesSimple": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-429251e6763b"
     },
     "core/geom/section.mjs::joinSegments": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-fa444c1f26af"
     },
     "core/geom/section.mjs::joinSegments::add": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-70bcebac7b99"
     },
     "core/geom/section.mjs::joinSegments::cell": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-ef8a5cde530b"
     },
     "core/geom/section.mjs::joinSegments::near": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-45bd53c022e6"
     },
     "core/geom/section.mjs::positive": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-ea7ed7ec613f"
     },
     "core/geom/section.mjs::refine": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-be14e223d258"
     },
     "core/geom/section.mjs::resolved": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-737689e03755"
     },
     "core/geom/section.mjs::sectionPatch": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d1d84537b2e1"
     },
     "core/geom/section.mjs::sectionPatch::g": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4af389daab47"
     },
     "core/geom/section.mjs::spanIndexOf": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f03b80d68da2"
     },
     "core/geom/section.mjs::split": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-43c1424402c9"
     },
     "core/geom/section.mjs::withPoint": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-508675ad4463"
     },
     "core/geom/selections.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7b6d315b94f2"
     },
     "core/geom/selections.mjs::geometrySelections": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-31466bb7642a"
     },
     "core/geom/selections.mjs::geometrySelections::append": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-98aff4ace3f0"
     },
     "core/geom/selections.mjs::selectionsOverlap": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6e1a618d248f"
     },
     "core/geom/shell.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c23be79e2624"
     },
     "core/geom/shell.mjs::assertClosed": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-415df8f06a97"
     },
     "core/geom/shell.mjs::distanceToCurve": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0f2fe10133de"
     },
     "core/geom/shell.mjs::endpointsMatch": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-1a044ae1b690"
     },
     "core/geom/shell.mjs::joinChains": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-71b48228045a"
     },
     "core/geom/shell.mjs::makeShell": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b3b4269eb88a"
     },
     "core/geom/shell.mjs::orientLoops": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0eb3310c26ab"
     },
     "core/geom/shell.mjs::pointInLoop": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-07b7cc735fc1"
     },
     "core/geom/shell.mjs::sameCurve": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a4fbdd8ad805"
     },
     "core/geom/shell.mjs::sectionShell": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a5b5b2a83356"
     },
     "core/geom/shell.mjs::sectionShellAt": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e99e566b7946"
     },
     "core/geom/shell.mjs::shellBounds": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c7d972f57dc2"
     },
     "core/geom/shell.mjs::signedArea": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9c2c74ec84cd"
     },
     "core/geom/shell.mjs::toChart": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a55b87d71dd1"
     },
     "core/geom/shell.mjs::verifyClosure": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9347797fb69d"
     },
     "skills/advanced-vase-wall/scripts/sleeve-contact.mjs::@module": {
       "owner": "extensions"
@@ -3704,391 +3732,391 @@
       "owner": "extensions"
     },
     "core/geom/slice.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f2ff8e00d0c6"
     },
     "core/geom/slice.mjs::horizontalSlice": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-897de27c8b4e"
     },
     "core/geom/slice.mjs::patchExtent": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d9d0470b5f25"
     },
     "core/geom/slice.mjs::patchMeanNormal": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9841e409356a"
     },
     "core/geom/slice.mjs::patchSlice": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f92a3cb71806"
     },
     "core/geom/slice.mjs::planeSlice": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-5344c034c79e"
     },
     "core/geom/slice.mjs::prepareSliceRay": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-084df34a3e35"
     },
     "core/geom/slice.mjs::sliceBoundaryEdges": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-2e5b943f9c7b"
     },
     "core/geom/slice.mjs::sliceChartStep": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f7d4732fa85b"
     },
     "core/geom/slice.mjs::sliceFamily": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-ce3466a010d4"
     },
     "core/geom/slice.mjs::sliceRayIntersections": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-dfae88176ee8"
     },
     "core/geom/slice.mjs::touchesSliceEdge": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a201c25f1724"
     },
     "core/geom/slice.mjs::translateSlice": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-63d94de8bda9"
     },
     "core/geom/slice.mjs::vector": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-ea3e520b7d20"
     },
     "core/geom/solid.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6057ef7f0840"
     },
     "core/geom/solid.mjs::combineSolids": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-73f3fc8970a2"
     },
     "core/geom/solid.mjs::discardSolidKernel": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-bcd3c17a5a5f"
     },
     "core/geom/solid.mjs::meshFromSolid": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d11e213e8af6"
     },
     "core/geom/solid.mjs::preciseSolidMesh": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7e4d5718b562"
     },
     "core/geom/solid.mjs::preciseSolidMesh::root": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-239a56ef7fe8"
     },
     "core/geom/solid.mjs::preciseSolidMesh::vertex": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9b2ff571158c"
     },
     "core/geom/solid.mjs::solidFromMesh": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-bd7a91384908"
     },
     "core/geom/solid.mjs::solidKernel": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-62b4cf49a165"
     },
     "core/geom/spline-solid.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-76366c2b2870"
     },
     "core/geom/spline-solid.mjs::clampedKnots": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-726b923c78cd"
     },
     "core/geom/spline-solid.mjs::nurbsSurface": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4f76a652f79a"
     },
     "core/geom/spline-solid.mjs::nurbsSurface::set": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-8fce8ac3d010"
     },
     "core/geom/spline-solid.mjs::shellFromSurfaces": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-fdf63f93a054"
     },
     "core/geom/spline-solid.mjs::splineSolidBounds": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-63f7da10470e"
     },
     "core/geom/spline-solid.mjs::splineSolidShell": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9f2ba7b82707"
     },
     "core/geom/spline-solid.mjs::splineSolidTemplate": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-90162210a61b"
     },
     "core/geom/spline-solid.mjs::validateSplineSolid": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-87263f2e9f25"
     },
     "core/geom/stl-decoder.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-1471583ba792"
     },
     "core/geom/stl-decoder.mjs::decodeSTLBuffer": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-67f70bf06018"
     },
     "core/geom/stl-decoder.mjs::invalid": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-2cfa85bbc154"
     },
     "core/geom/stl-decoder.mjs::STLDecoder": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a5e03c51f121"
     },
     "core/geom/stl-decoder.mjs::STLDecoder::ascii": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-110fd5a9f422"
     },
     "core/geom/stl-decoder.mjs::STLDecoder::binary": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-016ff74c5f35"
     },
     "core/geom/stl-decoder.mjs::STLDecoder::facet": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-043a04568153"
     },
     "core/geom/stl-decoder.mjs::STLDecoder::finish": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-5a17a0a4f48d"
     },
     "core/geom/stl-decoder.mjs::STLDecoder::selectFormat": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a3c36c74af9c"
     },
     "core/geom/stl-decoder.mjs::STLDecoder::token": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-5f849fddf8ba"
     },
     "core/geom/stl-decoder.mjs::STLDecoder::write": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-bdeb23cafcea"
     },
     "core/geom/surface-derivatives.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0e1a1aa7a00d"
     },
     "core/geom/surface-derivatives.mjs::baseSurfaceDerivatives": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4502d190467d"
     },
     "core/geom/surface-derivatives.mjs::baseSurfaceDerivatives::uvOf": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-300b389377fb"
     },
     "core/geom/surface-derivatives.mjs::surfaceDerivatives": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-fec793136ddc"
     },
     "core/geom/surface-derivatives.mjs::surfaceDerivatives::add": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d73b4e93836a"
     },
     "core/geom/surface-derivatives.mjs::surfaceDerivatives::scale": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a66fcd2b369c"
     },
     "core/geom/surface-derivatives.mjs::surfaceDerivatives::second": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a2524faf94df"
     },
     "core/geom/surface-derivatives.mjs::surfaceDerivatives::uvOf": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c021c6fabdf4"
     },
     "core/geom/surface-intersection.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-5728cc84a0e2"
     },
     "core/geom/surface-intersection.mjs::bezierPieces": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-92f9d2402ab7"
     },
     "core/geom/surface-intersection.mjs::boundaryHits": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6e811a778c2c"
     },
     "core/geom/surface-intersection.mjs::boundaryHits::edgeRange": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-20724f815b73"
     },
     "core/geom/surface-intersection.mjs::boundaryHits::overlap": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f326b765fcaa"
     },
     "core/geom/surface-intersection.mjs::chordHolds": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f3e6a5fdf0c5"
     },
     "core/geom/surface-intersection.mjs::clampParameters": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-04781db22655"
     },
     "core/geom/surface-intersection.mjs::clampTo": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-00479da635c5"
     },
     "core/geom/surface-intersection.mjs::coincidentRun": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d404800c985f"
     },
     "core/geom/surface-intersection.mjs::coincidentRun::onS": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-00cca5fa01b0"
     },
     "core/geom/surface-intersection.mjs::coincidentRun::walk": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-74c403279745"
     },
     "core/geom/surface-intersection.mjs::curvePointAtZ": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-8be0ee36c072"
     },
     "core/geom/surface-intersection.mjs::describe": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d31be269b9f1"
     },
     "core/geom/surface-intersection.mjs::describeCurve": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-ac1d45de6fc5"
     },
     "core/geom/surface-intersection.mjs::edgePieces": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9d4d48bc4e22"
     },
     "core/geom/surface-intersection.mjs::edgeSurfacePoint": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-93585dd66772"
     },
     "core/geom/surface-intersection.mjs::endpointWithin": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-52c8027955c4"
     },
     "core/geom/surface-intersection.mjs::extractPieces": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7447dcf321ac"
     },
     "core/geom/surface-intersection.mjs::extractPieces::at": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b35a21b50a7d"
     },
     "core/geom/surface-intersection.mjs::increments": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-152ec096d713"
     },
     "core/geom/surface-intersection.mjs::increments::move": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d2247339aa8a"
     },
     "core/geom/surface-intersection.mjs::inside": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-ccd233c0b668"
     },
     "core/geom/surface-intersection.mjs::intersectPatches": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9ef41524d2e6"
     },
     "core/geom/surface-intersection.mjs::intersectPatches::near": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-328ab0ecffdf"
     },
     "core/geom/surface-intersection.mjs::intersectPatches::onRun": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9ffb34c8113b"
     },
     "core/geom/surface-intersection.mjs::intersectPatches::record": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-dca316945092"
     },
     "core/geom/surface-intersection.mjs::inwardTangent": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-78e9feda9615"
     },
     "core/geom/surface-intersection.mjs::march": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-cbfdd2e39c7c"
     },
     "core/geom/surface-intersection.mjs::projectToCurve": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a8a98f6265b7"
     },
     "core/geom/surface-intersection.mjs::projectToSurface": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4274d90561f3"
     },
     "core/geom/surface-intersection.mjs::refineRow": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-8bdf7f22ce5f"
     },
     "core/geom/surface-intersection.mjs::segmentDistance": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7082b7158db6"
     },
     "core/geom/surface-intersection.mjs::solveConstrained": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-46d53b05f926"
     },
     "core/geom/surface-intersection.mjs::solveLinear": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e479464d5af7"
     },
     "core/geom/surface-intersection.mjs::splitCurve": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-de5b56cd5ba4"
     },
     "core/geom/surface-intersection.mjs::splitCurve::half": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-33bf02d73b3a"
     },
     "core/geom/surface-intersection.mjs::splitNet": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-2fb8e959e4f6"
     },
     "core/geom/surface-intersection.mjs::splitNet::casteljau": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6d89c121ace6"
     },
     "core/geom/surface-intersection.mjs::splitNet::half": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-55cb79af2664"
     },
     "core/geom/surface-intersection.mjs::state": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-12d874459aad"
     },
     "core/geom/surface-intersection.mjs::stepAlong": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-30fb27eb3f4e"
     },
     "core/geom/surface-intersection.mjs::subdivide": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0a0c02ddd5ee"
     },
     "core/geom/surface-intersection.mjs::subdivide::overlap": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-268133be1421"
     },
     "core/geom/surface-intersection.mjs::tangent": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-31fccdd7257d"
     },
     "core/geom/surface-offset.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6241ed7f33cd"
     },
     "core/geom/surface-offset.mjs::collocationAxis": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-93ed667979bb"
     },
     "core/geom/surface-offset.mjs::looseSurfaceField": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d6fca326761b"
     },
     "core/geom/surface-offset.mjs::prepareLooseSurface": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-3ebc7667edc5"
     },
     "core/geom/surface-offset.mjs::prepareLooseSurface::at": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c3874ba4f347"
     },
     "core/geom/surface-offset.mjs::prepareLooseSurface::exactAt": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-44b51c91b468"
     },
     "core/geom/surface-offset.mjs::prepareLooseSurface::offsetPatch": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-2389aec0c76c"
     },
     "core/geom/surface-offset.mjs::prepareLooseSurface::parameter": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-cf7faf33b7af"
     },
     "core/geom/surface-offset.mjs::prepareLooseSurface::parameters": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b03f33bb6ed2"
     },
     "core/geom/surface-offset.mjs::prepareLooseSurface::report": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-de3a4e553f83"
     },
     "core/geom/surface-offset.mjs::prepareLooseSurface::trimmed": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-65062e49c900"
     },
     "core/geom/surface-offset.mjs::prepareSurfaceOffset": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-76b371e3a1a8"
     },
     "core/geom/surface-offset.mjs::prepareSurfaceRibbon": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a7da49c14c19"
     },
     "core/geom/surface-offset.mjs::unitDirection": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-36153458bc47"
     },
     "core/geom/surface-offset.mjs::weightAt": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-12138720d93d"
     },
     "core/geom/surface-offset.mjs::wrapped": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-786f8621ff53"
     },
     "core/geom/surface-region.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4f4c786a3fe0"
     },
     "core/geom/surface-region.mjs::meshStripChart": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-1f8729703fa9"
     },
     "core/geom/surface-region.mjs::meshStripChart::addFace": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-86049e079bb7"
     },
     "core/geom/surface-region.mjs::meshStripChart::at": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-158c745b3ef0"
     },
     "core/geom/surface-region.mjs::meshStripChart::at::blend": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-73848db77543"
     },
     "core/geom/surface-region.mjs::splinePatchChart": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-77121a25a1f8"
     },
     "core/geom/surface-region.mjs::surfaceRegion": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-3d62be5923d3"
     },
     "core/geom/surface-region.mjs::surfaceRegion::sample": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-041770f2a26f"
     },
     "core/geom/surface-region.mjs::validateSurfaceSelection": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b0cde3174a11"
     },
     "core/geom/tessellate.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-5189ccd426d0"
     },
     "core/geom/tessellate.mjs::closest": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9e58cf81e236"
     },
     "core/geom/tessellate.mjs::orientTriangles": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a1c738af3b17"
     },
     "core/geom/tessellate.mjs::sampleSharedBoundaries": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7899ca06fa5c"
     },
     "core/geom/tessellate.mjs::sampleTessellationCandidate": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f994e21210d7"
     },
     "core/geom/tessellate.mjs::sampleTessellationCandidate::at": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-daef707cec08"
     },
     "core/geom/tessellate.mjs::sampleTessellationCandidate::uv": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c78ba049a059"
     },
     "core/geom/tessellate.mjs::sampleTessellationCandidate::vertex": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-8f6fb9562969"
     },
     "core/geom/tessellate.mjs::tessellateShell": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6a51c822e542"
     },
     "core/geom/text-layout.mjs::@module": {
       "owner": "extensions"
@@ -4118,94 +4146,94 @@
       "owner": "extensions"
     },
     "core/geom/tolerance.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-593499486ccb"
     },
     "core/geom/tolerance.mjs::add": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-5256b3279bd2"
     },
     "core/geom/tolerance.mjs::cross": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-8b4a161f7790"
     },
     "core/geom/tolerance.mjs::distance": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-db951a28d624"
     },
     "core/geom/tolerance.mjs::distance2": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4e1a093599bb"
     },
     "core/geom/tolerance.mjs::dot": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-587e7aab5f2a"
     },
     "core/geom/tolerance.mjs::findRoot": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e6dfff0d3526"
     },
     "core/geom/tolerance.mjs::length": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-283644f414da"
     },
     "core/geom/tolerance.mjs::normalize": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7c4e5cd445d5"
     },
     "core/geom/tolerance.mjs::requireThat": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-1d0964bf8242"
     },
     "core/geom/tolerance.mjs::scale": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-abdf06846ad9"
     },
     "core/geom/tolerance.mjs::subtract": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-acd38c10c25b"
     },
     "core/geom/triangle-bvh.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c6adda3b4bf0"
     },
     "core/geom/triangle-bvh.mjs::triangleBVH": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c597af826759"
     },
     "core/geom/triangle-bvh.mjs::triangleBVH::build": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-887341db8169"
     },
     "core/geom/triangle-bvh.mjs::triangleBVH::center": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-5512e83081d9"
     },
     "core/geom/triangle-bvh.mjs::triangleBVH::query": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-74707f805bfd"
     },
     "core/geom/trimmed-surface.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f8c85a1323a7"
     },
     "core/geom/trimmed-surface.mjs::chartScales": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-ca3fb6d636e2"
     },
     "core/geom/trimmed-surface.mjs::domainBoundary": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-18d77e2ea3cf"
     },
     "core/geom/trimmed-surface.mjs::isoCurveU": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-760dc0fe9161"
     },
     "core/geom/trimmed-surface.mjs::isSleeve": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a41ddfc18f29"
     },
     "core/geom/trimmed-surface.mjs::polylineCurve": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b01304aa8808"
     },
     "core/geom/trimmed-surface.mjs::rejectFolds": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a51f38a2f2df"
     },
     "core/geom/trimmed-surface.mjs::rejectFolds::grid": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-3d22078c41c4"
     },
     "core/geom/trimmed-surface.mjs::sleeveFoldHoles": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4bf1787e2bf3"
     },
     "core/geom/trimmed-surface.mjs::sleeveFoldHoles::cutsAt": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-14a388e054c9"
     },
     "core/geom/trimmed-surface.mjs::sleeveFoldHoles::overlaps": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-1eb6b12ef1f8"
     },
     "core/geom/trimmed-surface.mjs::sleeveFoldHoles::visit": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-547510279f7f"
     },
     "core/geom/trimmed-surface.mjs::trimmedSurface": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-dc9e2015979c"
     },
     "core/machine/denso-kinematics.mjs::@module": {
       "owner": "export"
@@ -5298,14 +5326,6 @@
       "owner": "toolpath",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
-    "core/print/generate.mjs::sliceShells": {
-      "owner": "toolpath",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
-    "core/print/generate.mjs::sliceVolumes": {
-      "owner": "toolpath",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
     "core/print/generate.mjs::summarizeGeneratedPath": {
       "owner": "toolpath"
     },
@@ -5358,37 +5378,34 @@
       "owner": "bundle"
     },
     "core/print/geometry.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-27d06fef461d"
     },
     "core/print/geometry.mjs::createGeometry": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-af9c3c60207a"
     },
     "core/print/geometry.mjs::createMeshGeometry": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b9f0300d7727"
     },
     "core/print/geometry.mjs::createMeshGeometry::append": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6988a8420156"
     },
     "core/print/geometry.mjs::netHash": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6d2b09b678a4"
     },
     "core/print/geometry.mjs::proxyMesh": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b671f2e94576"
     },
     "core/print/geometry.mjs::proxySteps": {
-      "owner": "geometry"
-    },
-    "core/print/geometry.mjs::rhino": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-88ca8cef4708"
     },
     "core/print/geometry.mjs::round": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0226f0f1f4fd"
     },
     "core/print/geometry.mjs::spans": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-73564ff373e6"
     },
     "core/print/geometry.mjs::verifyGeometry": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-2abb9412bf70"
     },
     "core/print/import-stl.mjs::@module": {
       "owner": "agent",
@@ -5418,52 +5435,52 @@
       "owner": "toolpath"
     },
     "core/print/mesh-repair-job.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-cc25efab0326"
     },
     "core/print/mesh-repair-job.mjs::repairMemoryError": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-1efc8357db49"
     },
     "core/print/mesh-repair-job.mjs::runRepairJob": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-1ad131a13d17"
     },
     "core/print/mesh-repair-worker.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-889c427566e1"
     },
     "core/print/mesh-repair-worker.mjs::closeRepairWorkerChannel": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9ea43045409f"
     },
     "core/print/mesh-repair-worker.mjs::executeRepairWorkerJob": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6797eb9c22ac"
     },
     "core/print/mesh-repair-worker.mjs::initializeRepairWorkerChannel": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-de443b92bba5"
     },
     "core/print/mesh-repair-worker.mjs::initializeRepairWorkerChannel::nativeReady": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b73be049ec54"
     },
     "core/print/mesh-repair-worker.mjs::initializeRepairWorkerChannel::nativeRun": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0c96cf324ee6"
     },
     "core/print/mesh-repair-worker.mjs::initializeRepairWorkerChannel::onGeometry": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f547501c0799"
     },
     "core/print/mesh-repair-worker.mjs::initializeRepairWorkerChannel::progress": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-650e67700d46"
     },
     "core/print/mesh-repair-worker.mjs::initializeRepairWorkerChannel::receiveMessage": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f24e9af51094"
     },
     "core/print/mesh-repair-worker.mjs::prepareRepairWorkerResponse": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7c98ebb07786"
     },
     "core/print/mesh-repair-worker.mjs::publishRepairWorkerFailure": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-dd50282b09b5"
     },
     "core/print/mesh-repair-worker.mjs::publishRepairWorkerResponse": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a2c8ba3a7ce8"
     },
     "core/print/mesh-repair-worker.mjs::runMeshRepairWorker": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d173c15cb237"
     },
     "core/print/modulation-fields.mjs::@module": {
       "owner": "toolpath"
@@ -5487,8 +5504,7 @@
       "owner": "bundle"
     },
     "core/print/plan.mjs::authoredBounds": {
-      "owner": "geometry",
-      "reason": "Geometry engine interprets authored geometry records and extension geometry schemas."
+      "owner": "geometry-leaf-5c6e843f9a65"
     },
     "core/print/plan.mjs::canonical": {
       "owner": "bundle"
@@ -5501,8 +5517,7 @@
       "owner": "bundle"
     },
     "core/print/plan.mjs::geometryTemplate": {
-      "owner": "geometry",
-      "reason": "Geometry engine interprets authored geometry records and extension geometry schemas."
+      "owner": "geometry-leaf-65a24fc862d6"
     },
     "core/print/plan.mjs::hash": {
       "owner": "bundle"
@@ -5514,8 +5529,7 @@
       "owner": "bundle"
     },
     "core/print/plan.mjs::validateMeshSource": {
-      "owner": "geometry",
-      "reason": "Geometry engine interprets authored geometry records and extension geometry schemas."
+      "owner": "geometry-leaf-4072acbb5e26"
     },
     "core/print/plan.mjs::validatePlan": {
       "owner": "bundle"
@@ -5528,8 +5542,7 @@
       "owner": "bundle"
     },
     "core/print/plan.mjs::validatePlanGeometry": {
-      "owner": "geometry",
-      "reason": "Geometry engine interprets authored geometry records and extension geometry schemas."
+      "owner": "geometry-leaf-4057187b0154"
     },
     "core/print/plan.mjs::validatePlanPlacement": {
       "owner": "bundle"
@@ -5599,37 +5612,37 @@
       "owner": "bundle"
     },
     "core/print/repair-stl.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d930247fb916"
     },
     "core/print/repair-stl.mjs::emitGeometry": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-001a9e2c7a2b"
     },
     "core/print/repair-stl.mjs::emitGeometry::@default/progress": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b5afa3338932"
     },
     "core/print/repair-stl.mjs::prepare": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b4d3967a9390"
     },
     "core/print/repair-stl.mjs::repairSTL": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-732c445cebd7"
     },
     "core/print/repair-stl.mjs::repairSTLFiles": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-07355070e159"
     },
     "core/print/repair-stl.mjs::repairSTLFiles::chunks": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-5972bbc2b3a3"
     },
     "core/print/repair-stl.mjs::shapeChanges": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-ebb222a7142d"
     },
     "core/print/repair-stl.mjs::shapeChanges::centroid": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-06c1951fcae0"
     },
     "core/print/repair-stl.mjs::shapeChanges::key": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7208b71fa307"
     },
     "core/print/repair-stl.mjs::shapeChanges::sample": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-fdf656c4e4af"
     },
     "core/print/resolve-plan.mjs::@module": {
       "owner": "bundle"
@@ -6060,76 +6073,55 @@
       "owner": "bundle"
     },
     "core/region/boolean.mjs::@module": {
-      "owner": "geometry"
-    },
-    "core/region/boolean.mjs::chain": {
-      "owner": "geometry"
-    },
-    "core/region/boolean.mjs::chain::cell": {
-      "owner": "geometry"
-    },
-    "core/region/boolean.mjs::levelSetBoundarySegments": {
-      "owner": "geometry"
-    },
-    "core/region/boolean.mjs::levelSetBoundarySegments::sample": {
-      "owner": "geometry"
-    },
-    "core/region/boolean.mjs::levelSetCoverage": {
-      "owner": "geometry"
-    },
-    "core/region/boolean.mjs::levelSetInteriorSegments": {
-      "owner": "geometry"
-    },
-    "core/region/boolean.mjs::levelSetRegion": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-cac52e2d9995"
     },
     "core/region/clipper.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4f48706aeb41"
     },
     "core/region/clipper.mjs::canonicalLoops": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-be2bdb9feacd"
     },
     "core/region/clipper.mjs::canonicalLoops::compare": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-19bf131cf713"
     },
     "core/region/clipper.mjs::clipPaths": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d8cc3d75076f"
     },
     "core/region/clipper.mjs::clipPaths::own": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0588ab7354a2"
     },
     "core/region/clipper.mjs::clipperContext": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-5c54b6c3dcb4"
     },
     "core/region/clipper.mjs::clipperContext::decode": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-bc774eec30ee"
     },
     "core/region/clipper.mjs::clipperContext::decodeOpen": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-ed2aa792e602"
     },
     "core/region/clipper.mjs::clipperContext::encode": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-47aaf998a59f"
     },
     "core/region/clipper.mjs::decode": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-dc6641bdf151"
     },
     "core/region/clipper.mjs::encode": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4eee9a07f1f2"
     },
     "core/region/clipper.mjs::normalizedOffsetPaths": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-23c65feca404"
     },
     "core/region/clipper.mjs::normalizedOffsetPaths::own": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-2c0676527a33"
     },
     "core/region/clipper.mjs::offsetPaths": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-ce20eedcc2e3"
     },
     "core/region/clipper.mjs::round": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7179289302a8"
     },
     "core/region/clipper.mjs::simplifyPaths": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-8b2d2f622e6d"
     },
     "core/region/fill-patterns.mjs::@module": {
       "owner": "toolpath"
@@ -6143,44 +6135,42 @@
     "core/region/fill-patterns.mjs::sampledFieldStrokes": {
       "owner": "toolpath"
     },
-    "core/region/fill-patterns.mjs::sampledFieldStrokes::border": {
-      "owner": "toolpath"
-    },
     "core/region/intersection.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-3ee958e79ce5"
     },
     "core/region/intersection.mjs::clipOpenPaths": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4579733d1ea4"
     },
     "core/region/intersection.mjs::combine": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-42ebe6f16476"
     },
     "core/region/intersection.mjs::difference": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-8c1665b3ca75"
     },
     "core/region/intersection.mjs::intersect": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-21f7323b8579"
     },
     "core/region/intersection.mjs::union": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6bcb79ad4e4a"
     },
     "core/region/layer-region.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-5374853af240"
     },
     "core/region/layer-region.mjs::clipHalfPlane": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-bf034df43b2c"
     },
     "core/region/layer-region.mjs::extentLoop": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-062d0b02c491"
     },
     "core/region/layer-region.mjs::slabSection": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-dfe32a5840c4"
     },
     "core/region/layer-region.mjs::solidMasks": {
-      "owner": "geometry"
+      "owner": "slice",
+      "reason": "Toolpath material allocation, deposited contact or deposition volume policy; geometry queries remain explicit dependencies."
     },
     "core/region/layer-region.mjs::volumeSection": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7f59b34ff08b"
     },
     "core/region/layer-strokes.mjs::@module": {
       "owner": "toolpath"
@@ -6213,43 +6203,50 @@
       "owner": "toolpath"
     },
     "core/region/material-contact.mjs::@module": {
-      "owner": "geometry"
+      "owner": "slice",
+      "reason": "Toolpath material allocation, deposited contact or deposition volume policy; geometry queries remain explicit dependencies."
     },
     "core/region/material-contact.mjs::materialContact": {
-      "owner": "geometry"
+      "owner": "slice",
+      "reason": "Toolpath material allocation, deposited contact or deposition volume policy; geometry queries remain explicit dependencies."
     },
     "core/region/material-contact.mjs::materialContact::inRegion": {
-      "owner": "geometry"
+      "owner": "slice",
+      "reason": "Toolpath material allocation, deposited contact or deposition volume policy; geometry queries remain explicit dependencies."
     },
     "core/region/normal-surface.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-1de713055669"
     },
     "core/region/normal-surface.mjs::sampleSurfaceCurve": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-55d2f7cd4baa"
     },
     "core/region/normal-surface.mjs::sampleSurfaceCurve::at": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0a055cbf426e"
     },
     "core/region/offset.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7c79420e5c3f"
     },
     "core/region/offset.mjs::offsetRegion": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-5d3110824761"
     },
     "core/region/ownership.mjs::@module": {
-      "owner": "geometry"
+      "owner": "slice",
+      "reason": "Toolpath material allocation, deposited contact or deposition volume policy; geometry queries remain explicit dependencies."
     },
     "core/region/ownership.mjs::allocateChartClaims": {
-      "owner": "geometry"
+      "owner": "slice",
+      "reason": "Toolpath material allocation, deposited contact or deposition volume policy; geometry queries remain explicit dependencies."
     },
     "core/region/ownership.mjs::positiveClaimRegion": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f56700c5d810"
     },
     "core/region/ownership.mjs::requireExclusiveClaims": {
-      "owner": "geometry"
+      "owner": "slice",
+      "reason": "Toolpath material allocation, deposited contact or deposition volume policy; geometry queries remain explicit dependencies."
     },
     "core/region/ownership.mjs::requireExclusiveClaims::name": {
-      "owner": "geometry"
+      "owner": "slice",
+      "reason": "Toolpath material allocation, deposited contact or deposition volume policy; geometry queries remain explicit dependencies."
     },
     "core/region/patch-strokes.mjs::@module": {
       "owner": "toolpath"
@@ -6276,124 +6273,129 @@
       "owner": "toolpath"
     },
     "core/region/region2d.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-bb5822bc11cc"
     },
     "core/region/region2d.mjs::componentKey": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-5d80d3a2d851"
     },
     "core/region/region2d.mjs::connectScanlineCells": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6afc837a75ae"
     },
     "core/region/region2d.mjs::dedupe": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b2b10f914ba2"
     },
     "core/region/region2d.mjs::loopArea": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0fa46c4ecee7"
     },
     "core/region/region2d.mjs::pointInRegion": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-95b3aaaeb814"
     },
     "core/region/region2d.mjs::pointSegmentDistance": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e17c1be349f2"
     },
     "core/region/region2d.mjs::prepareScanlineFrame": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d4cb7b0a161b"
     },
     "core/region/region2d.mjs::prepareScanlineFrame::toScan": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e7e59a7a677d"
     },
     "core/region/region2d.mjs::regionArea": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c4234d96f1a8"
     },
     "core/region/region2d.mjs::regionComponents": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a8cebc868139"
     },
     "core/region/region2d.mjs::regionComponents::componentFromRoot": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-aaedbd6e2439"
     },
     "core/region/region2d.mjs::regionComponents::componentFromRoot::collectDescendants": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f0e7eeb85c18"
     },
     "core/region/region2d.mjs::sampleScanlineRows": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a69f5e68d24e"
     },
     "core/region/region2d.mjs::sampleScanlineRows::toWorld": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f8ae6969195e"
     },
     "core/region/region2d.mjs::scanlineFill": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-2efe73459b0d"
     },
     "core/region/region2d.mjs::scanlineFillComponent": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-1dc16e2b97d3"
     },
     "core/region/region2d.mjs::SegmentIndex": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9c54080ee023"
     },
     "core/region/region2d.mjs::SegmentIndex::add": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-12ab33f5e73c"
     },
     "core/region/region2d.mjs::SegmentIndex::contains": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9f4a3f56b068"
     },
     "core/region/region2d.mjs::SegmentIndex::distanceTo": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d8005a12332b"
     },
     "core/region/region2d.mjs::SegmentIndex::inBox": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c91ac1f0bf53"
     },
     "core/region/region2d.mjs::SegmentIndex::inCorridor": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-bfd403dbe0f7"
     },
     "core/region/region2d.mjs::SegmentIndex::near": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-3f34af8c72be"
     },
     "core/region/region2d.mjs::segmentIntersection": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-52eff61d13df"
     },
     "core/region/reservation.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-73edbae1e84a"
     },
     "core/region/reservation.mjs::bounds": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-bb414370caf6"
     },
     "core/region/reservation.mjs::boundsOverlap": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f714f209bb60"
     },
     "core/region/reservation.mjs::clipAboveSurface": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-cb8283d04aca"
     },
     "core/region/reservation.mjs::clipReservedRegion": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-04a20a7fd85a"
     },
     "core/region/reservation.mjs::clipReservedSlice": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-832f2cdd5b44"
     },
     "core/region/reservation.mjs::insideOrBoundary": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-432bf6d3965c"
     },
     "core/region/reservation.mjs::reservationFieldHeight": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-3079827a1bc1"
     },
     "core/region/reservation.mjs::reservationFieldHeight::interval": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-8d898ae2be72"
     },
     "core/region/reservation.mjs::reservationFootprint": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-77f42b6d8cb5"
     },
     "core/region/reservation.mjs::surfaceHeight": {
-      "owner": "geometry"
+      "owner": "slice",
+      "reason": "Toolpath material allocation, deposited contact or deposition volume policy; geometry queries remain explicit dependencies."
     },
     "core/region/reservation.mjs::surfaceStroke": {
-      "owner": "geometry"
+      "owner": "slice",
+      "reason": "Toolpath material allocation, deposited contact or deposition volume policy; geometry queries remain explicit dependencies."
     },
     "core/region/reservation.mjs::surfaceStroke::append": {
-      "owner": "geometry"
+      "owner": "slice",
+      "reason": "Toolpath material allocation, deposited contact or deposition volume policy; geometry queries remain explicit dependencies."
     },
     "core/region/reservation.mjs::surfaceStroke::sample": {
-      "owner": "geometry"
+      "owner": "slice",
+      "reason": "Toolpath material allocation, deposited contact or deposition volume policy; geometry queries remain explicit dependencies."
     },
     "core/region/reservation.mjs::surfaceStroke::split": {
-      "owner": "geometry"
+      "owner": "slice",
+      "reason": "Toolpath material allocation, deposited contact or deposition volume policy; geometry queries remain explicit dependencies."
     },
     "core/region/roof-region.mjs::@module": {
       "owner": "toolpath"
@@ -6462,82 +6464,82 @@
       "owner": "toolpath"
     },
     "core/region/surface-offset.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-eaf04cd625f5"
     },
     "core/region/surface-offset.mjs::createSurfaceSampler": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a4232ba4107e"
     },
     "core/region/surface-offset.mjs::createSurfaceSampler::at": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-12c2236fbb85"
     },
     "core/region/surface-offset.mjs::distance": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4be8f2c750bc"
     },
     "core/region/surface-offset.mjs::finishSurfaceOffset": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9b0864327f04"
     },
     "core/region/surface-offset.mjs::midpoint": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4acedcc73403"
     },
     "core/region/surface-offset.mjs::offsetSurfaceRegion": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c20c1d9a5a15"
     },
     "core/region/surface-offset.mjs::plus": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d16c92d77c5e"
     },
     "core/region/surface-offset.mjs::prepareSurfaceOffset": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c668552aaf32"
     },
     "core/region/surface-offset.mjs::simplifySurfaceLoops": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-fc067ff213ee"
     },
     "core/region/surface-offset.mjs::simplifySurfaceLoops::contact": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b0cd3ae387b0"
     },
     "core/region/surface-offset.mjs::strokeSurfaceRegion": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6b8b86c1299c"
     },
     "core/region/surface-offset.mjs::sweepSurfaceOffset": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-aa567ee9dda0"
     },
     "core/region/surface-offset.mjs::sweepSurfaceOffset::addDisk": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-91010458e3a2"
     },
     "core/region/surface-offset.mjs::sweepSurfaceOffset::addDisk::ray": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-1cbdc210e0a8"
     },
     "core/region/surface-offset.mjs::sweepSurfaceOffset::addDisk::sector": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c0fb19002468"
     },
     "core/region/surface-offset.mjs::sweepSurfaceOffset::addDisk::tangent": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9d6a69f96f6f"
     },
     "core/region/surface-offset.mjs::sweepSurfaceOffset::addStrip": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4febb273b740"
     },
     "core/region/surface-offset.mjs::sweepSurfaceOffset::addStrip::sample": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a68e2112efa8"
     },
     "core/region/surface-offset.mjs::sweepSurfaceOffset::addStrip::subdivide": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-462f31044bbf"
     },
     "core/region/surface-offset.mjs::sweepSurfaceOffset::connectRays": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-5ab1e9cd4b42"
     },
     "core/region/surface-offset.mjs::sweepSurfaceOffset::frameAtState": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9c915db6553f"
     },
     "core/region/surface-offset.mjs::sweepSurfaceOffset::rhs": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-f20cc794752f"
     },
     "core/region/surface-offset.mjs::sweepSurfaceOffset::rk4": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-fd4a28fca3aa"
     },
     "core/region/surface-offset.mjs::sweepSurfaceOffset::shoot": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7b3b19878979"
     },
     "core/region/surface-offset.mjs::sweepSurfaceOffset::stopAtBoundary": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-eddc9d84b546"
     },
     "core/region/wrapping-curves.mjs::@module": {
       "owner": "toolpath"
@@ -9642,16 +9644,13 @@
       "reason": "Private utility implementation; no cross-bucket imports or re-exports."
     },
     "core/private/geometry/hash.mjs::@module": {
-      "owner": "geometry",
-      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+      "owner": "geometry-leaf-e3fb231f03f6"
     },
     "core/private/geometry/hash.mjs::canonical": {
-      "owner": "geometry",
-      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+      "owner": "geometry-leaf-2ae1f91498c3"
     },
     "core/private/geometry/hash.mjs::hash": {
-      "owner": "geometry",
-      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+      "owner": "geometry-leaf-4bc740f092e6"
     },
     "core/private/studio/file-write.mjs::@module": {
       "owner": "studio",
@@ -9834,40 +9833,31 @@
       "reason": "Private utility implementation; no cross-bucket imports or re-exports."
     },
     "core/geom/build.mjs::@module": {
-      "owner": "geometry",
-      "reason": "Geometry construction engine."
+      "owner": "geometry-leaf-afcaf504f9b3"
     },
     "core/geom/build.mjs::buildShell": {
-      "owner": "geometry",
-      "reason": "Geometry construction engine."
+      "owner": "geometry-leaf-706e05a6a492"
     },
     "core/geom/build.mjs::hasMesh": {
-      "owner": "geometry",
-      "reason": "Geometry construction engine."
+      "owner": "geometry-leaf-a241650f568c"
     },
     "core/geom/build.mjs::translateShell": {
-      "owner": "geometry",
-      "reason": "Geometry construction engine."
+      "owner": "geometry-leaf-627e4545f233"
     },
     "core/geom/extension-edit.mjs::@module": {
-      "owner": "geometry",
-      "reason": "Geometry engine executes geometry/hybrid editors and provides native geometry access."
+      "owner": "geometry-leaf-7584b7892fc2"
     },
     "core/geom/extension-edit.mjs::prepareExtensionGeometry": {
-      "owner": "geometry",
-      "reason": "Geometry engine executes geometry/hybrid editors and provides native geometry access."
+      "owner": "geometry-leaf-21285af9fc73"
     },
     "core/geom/extension-edit.mjs::prepareExtensionGeometry::buildGeometry": {
-      "owner": "geometry",
-      "reason": "Geometry engine executes geometry/hybrid editors and provides native geometry access."
+      "owner": "geometry-leaf-bd0241faf8b9"
     },
     "core/geom/loft.mjs::@module": {
-      "owner": "geometry",
-      "reason": "Geometry construction engine."
+      "owner": "geometry-leaf-2c7d0ff949f0"
     },
     "core/geom/loft.mjs::loftPolygons": {
-      "owner": "geometry",
-      "reason": "Geometry construction engine."
+      "owner": "geometry-leaf-c3f5ccc3984e"
     },
     "core/path/authored-curves.mjs::authoredSegment": {
       "owner": "toolpath"
@@ -9889,20 +9879,16 @@
       "reason": "Command host adapter; no extension computation."
     },
     "core/geom/import-stl.mjs::@module": {
-      "owner": "geometry",
-      "reason": "Geometry engine converts resource bytes and provenance into a normalized geometry record."
+      "owner": "geometry-leaf-f2aede11e50c"
     },
     "core/geom/import-stl.mjs::geometryFromSTL": {
-      "owner": "geometry",
-      "reason": "Geometry engine converts resource bytes and provenance into a normalized geometry record."
+      "owner": "geometry-leaf-129d3a2157eb"
     },
     "core/geom/import-stl.mjs::inferSTLUnits": {
-      "owner": "geometry",
-      "reason": "Geometry engine converts resource bytes and provenance into a normalized geometry record."
+      "owner": "geometry-leaf-b1be439e06a0"
     },
     "core/geom/import-stl.mjs::prepareImportedGeometry": {
-      "owner": "geometry",
-      "reason": "Geometry engine converts resource bytes and provenance into a normalized geometry record."
+      "owner": "geometry-leaf-1ae33b610ed9"
     },
     "workspaces/export-worker.mjs::@module": {
       "owner": "workspace",
@@ -10147,14 +10133,6 @@
     "workspaces/wing/construct.mjs::sectionStations": {
       "owner": "workspace"
     },
-    "core/geom/polygon-chords.mjs::@module": {
-      "owner": "geometry",
-      "reason": "Planar polygon query; geometry-owned computation."
-    },
-    "core/geom/polygon-chords.mjs::polygonChords": {
-      "owner": "geometry",
-      "reason": "Planar polygon query; geometry-owned computation."
-    },
     "workspaces/wing/construct.mjs::continuousWingCurve::spanAt": {
       "owner": "workspace",
       "reason": "Wing workspace construction and interaction."
@@ -10196,8 +10174,7 @@
       "reason": "Reviewed checks-refactor declaration: SAAMpath admission/process semantics."
     },
     "core/print/geometry.mjs::inspectGeometry": {
-      "owner": "geometry",
-      "reason": "Reviewed checks-refactor declaration: Geometry inspection."
+      "owner": "geometry-leaf-95d2b56f203c"
     },
     "core/print/plan.mjs::compileRecipe": {
       "owner": "bundle",
@@ -10212,40 +10189,40 @@
       "reason": "Reviewed checks-refactor declaration: Recipe admission cache and immutable bundle value."
     },
     "core/geom/stl-file.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-3d67fee0dc22"
     },
     "core/geom/stl-file.mjs::decodeFile": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-73438668a1bc"
     },
     "core/geom/stl-file.mjs::decodeFile::@default/progress": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d69dcdb3efbe"
     },
     "core/geom/stl-file.mjs::decodeSTLFile": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-25357ca88705"
     },
     "core/geom/stl-file.mjs::hashFile": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7055d8c09158"
     },
     "core/geom/import-stl.mjs::prepareSTLImport": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-a83a087eb1dc"
     },
     "core/geom/import-stl.mjs::prepareSTLImportInWorker": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-536bb485e96d"
     },
     "core/geom/import-stl.mjs::prepareSTLImportInWorker::decode": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e9c276f4e5a3"
     },
     "core/geom/import-stl.mjs::prepareSTLImportInWorker::prepare": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-3f3494c0af10"
     },
     "core/geom/import-stl.mjs::prepareSTLImportInWorker::progress": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4a51a1fd3ed1"
     },
     "core/geom/import-stl.mjs::releaseSTLImport": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9e131ce4225f"
     },
     "core/geom/import-stl.mjs::repairable": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-8846a3b6977c"
     },
     "core/print/import-stl.mjs::commitSTLImport": {
       "owner": "bundle"
@@ -10440,13 +10417,13 @@
       "reason": "Validates persisted content-addressed SAAMpath references before reuse or commit."
     },
     "core/geom/curve-ops.mjs::curveCrossings::segment": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-54512fc1eb06"
     },
     "core/geom/curve-ops.mjs::curveCrossings::segment::past": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b6daada701f4"
     },
     "core/geom/curve-ops.mjs::curveCrossings::straight": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-5ed64d99f286"
     },
     "studio/agent-ui.mjs::createAgentUI::@default/onWork": {
       "owner": "studio"
@@ -10467,19 +10444,19 @@
       "owner": "workspace"
     },
     "core/geom/curve-sampling.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0f9d7ea4a5a8"
     },
     "core/geom/solid-operations.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-d5d22dd2c29c"
     },
     "core/geom/surface-curves.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-424268fc4a29"
     },
     "core/geom/surface-evaluation.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-1877afcfa7bb"
     },
     "core/region/section.mjs::@module": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-1a2ba3d25ca5"
     },
     "skills/advanced-vase-wall/scripts/sleeve-frame.mjs::sampleCurveContour::samples.at": {
       "owner": "extensions"
@@ -10488,112 +10465,172 @@
       "owner": "extensions"
     },
     "core/geom/curve-sampling.mjs::sampleCurveIntervals": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-91f5fc3fd0b3"
     },
     "core/geom/curve-sampling.mjs::sampleCurveIntervals::evaluate": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-0749241c8ee1"
     },
     "core/geom/solid-operations.mjs::constructSolids": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-464de5e3f611"
     },
     "core/geom/solid-operations.mjs::constructSolids::keep": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-85599f813812"
     },
     "core/geom/solid-operations.mjs::constructSolids::operandsOf": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-50d426099298"
     },
     "core/geom/solid-operations.mjs::constructSolids::evaluate": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6e6adf01e692"
     },
     "core/geom/solid-operations.mjs::loftMesh": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b665d6f405fc"
     },
     "core/geom/solid-operations.mjs::mappedExtrusion": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c8d4e9d26294"
     },
     "core/geom/solid-operations.mjs::mappedExtrusion::point": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-691758c77be4"
     },
     "core/geom/solid-operations.mjs::mappedExtrusion::grow": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-2767e3c10ff2"
     },
     "core/geom/solid-operations.mjs::mappedExtrusion::at": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-bffc835054c1"
     },
     "core/geom/surface-curves.mjs::surfaceIsoCurve": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c8488dd03300"
     },
     "core/geom/surface-curves.mjs::curvePoint": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-2ac18ceb597d"
     },
     "core/geom/surface-evaluation.mjs::sleeveRing": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-393e1eb716b4"
     },
     "core/geom/surface-evaluation.mjs::evaluateSurface": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6b433a754c88"
     },
     "core/geom/surface-evaluation.mjs::mappedSurface": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-4f938cd1a069"
     },
     "core/geom/surface-evaluation.mjs::mappedSurface::breaks": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-74c8fe303d3a"
     },
     "core/geom/surface-evaluation.mjs::mappedSurface::at": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-3fe3c9ce9a79"
     },
     "core/region/section.mjs::outwardSigns": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-c09692adc6f6"
     },
     "core/region/section.mjs::chainPieces": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-ce03ed3941e1"
     },
     "core/region/section.mjs::chainPieces::close": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-20038281307a"
     },
     "core/region/section.mjs::orient": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-009ab01452c4"
     },
     "core/region/section.mjs::perimeterAt": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-149ff3128844"
     },
     "core/region/section.mjs::corner": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e56f34758d25"
     },
     "core/region/section.mjs::closeOnBoundary": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-de341d944ca9"
     },
     "core/region/section.mjs::trianglePatch": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-2576c758402c"
     },
     "core/region/section.mjs::boundaryPatches": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-6c2af4f94ff0"
     },
     "core/region/section.mjs::bezierHull": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-1368b4eb3cb2"
     },
     "core/region/section.mjs::surfaceInside": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-40630b1f570a"
     },
     "core/region/section.mjs::surfaceInside::sample": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-b6ec229efeeb"
     },
     "core/region/section.mjs::prepareSection": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-315d463535bb"
     },
     "core/region/section.mjs::section": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-fc71a7a40d45"
     },
     "core/region/section.mjs::sectionLoops": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-de23aad02a5a"
     },
     "core/region/section.mjs::sectionPreparedMesh": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-7fca697f5092"
     },
     "core/region/section.mjs::frameAxes": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-9a89c4f12c54"
     },
     "core/region/section.mjs::combine": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-731ad8aad6da"
+    },
+    "core/geom/build.mjs::buildShapes": {
+      "owner": "geometry-leaf-51aa23771b6b"
+    },
+    "core/geom/build.mjs::buildShapes::build": {
+      "owner": "geometry-leaf-fd7bea969ae2"
+    },
+    "core/geom/build.mjs::buildShapes::construct": {
+      "owner": "geometry-leaf-207eb6ad5c11"
+    },
+    "core/geom/build.mjs::resolveGeometrySelections": {
+      "owner": "geometry-leaf-ec92926869c2"
+    },
+    "core/geom/curve-region.mjs::@module": {
+      "owner": "geometry-leaf-1deabd4ccdd2"
+    },
+    "core/geom/curve-region.mjs::clipLineToRegion": {
+      "owner": "geometry-leaf-da41d17272f9"
+    },
+    "core/geom/curve-region.mjs::clipLineToRegion::contact": {
+      "owner": "geometry-leaf-0f09f9cc42b0"
+    },
+    "core/geom/curve-region.mjs::clipLineToRegion::project": {
+      "owner": "geometry-leaf-50c7c51f21db"
+    },
+    "core/geom/level-set.mjs::@module": {
+      "owner": "geometry-leaf-36a04fa3ea3f"
+    },
+    "core/geom/level-set.mjs::chain": {
+      "owner": "geometry-leaf-53d36dfb8551"
+    },
+    "core/geom/level-set.mjs::chain::cell": {
+      "owner": "geometry-leaf-10e62b865ae1"
+    },
+    "core/geom/level-set.mjs::chain::neighbor": {
+      "owner": "geometry-leaf-4e118fcd0a77"
+    },
+    "core/geom/level-set.mjs::crossingPoint": {
+      "owner": "geometry-leaf-6b3ce2f2633a"
+    },
+    "core/geom/level-set.mjs::extractLevelSet": {
+      "owner": "geometry-leaf-2ddf245324ac"
+    },
+    "core/geom/level-set.mjs::levelSetBoundarySegments": {
+      "owner": "geometry-leaf-9e0a2b412549"
+    },
+    "core/geom/level-set.mjs::levelSetBoundarySegments::sample": {
+      "owner": "geometry-leaf-f3241131a5c5"
+    },
+    "core/geom/level-set.mjs::levelSetCoverage": {
+      "owner": "geometry-leaf-ae17c217127e"
+    },
+    "core/geom/level-set.mjs::levelSetInteriorSegments": {
+      "owner": "geometry-leaf-f8edc016cb7c"
+    },
+    "core/geom/runtime.mjs::@module": {
+      "owner": "geometry-leaf-b459837dc7b2"
+    },
+    "core/geom/runtime.mjs::rhino": {
+      "owner": "geometry-leaf-dca04ab2bf6a"
     }
   },
   "retiredAssignments": [
@@ -10749,7 +10786,20 @@
     "core/export/prepare-path.mjs::limitMachineFeed",
     "core/export/prepare-path.mjs::materialSelection",
     "core/export/prepare-path.mjs::prepareMachinePath",
-    "core/export/prepare-path.mjs::prepareMachinePath::append"
+    "core/export/prepare-path.mjs::prepareMachinePath::append",
+    "core/print/generate.mjs::sliceShells",
+    "core/print/generate.mjs::sliceVolumes",
+    "core/print/geometry.mjs::rhino",
+    "core/region/boolean.mjs::chain",
+    "core/region/boolean.mjs::chain::cell",
+    "core/region/boolean.mjs::levelSetBoundarySegments",
+    "core/region/boolean.mjs::levelSetBoundarySegments::sample",
+    "core/region/boolean.mjs::levelSetCoverage",
+    "core/region/boolean.mjs::levelSetInteriorSegments",
+    "core/region/boolean.mjs::levelSetRegion",
+    "core/region/fill-patterns.mjs::sampledFieldStrokes::border",
+    "core/geom/polygon-chords.mjs::@module",
+    "core/geom/polygon-chords.mjs::polygonChords"
   ],
   "scope": "map 0 only; no submap ownership constraints"
 }

@@ -124,7 +124,7 @@ export async function architectureAudit(repo,{inventoryOnly=false}={}) {
     if(++readCount%500===0)console.error(`Inspected effects for ${readCount} declarations.`);
   }
   // Imports and re-exports are dependencies even when no call was resolved.
-  const mixed=new Set(scanFiles.filter(f=>new Set(leaves.filter(n=>n.file===f&&n.kind!=='module').map(n=>n.owner)).size>1));
+  const mixed=new Set(scanFiles.filter(f=>new Set(leaves.filter(n=>n.file===f&&n.kind!=='module').map(n=>top(n.owner))).size>1));
   for(const [file,ast] of context.asts)for(const node of ast.body)if(node.source?.value&&['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(node.type)) {
     const specifier=node.source.value;
     if(!specifier.startsWith('.'))continue;

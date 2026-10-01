@@ -7,6 +7,8 @@ import {parse} from 'acorn';
 import {guidanceSection} from '../../core/agent/manuals.mjs';
 import {mapSet,setFile,setName} from './map-set.mjs';
 import {interfaceCode} from './interface-code.mjs';
+import {extractGraph} from './graph.mjs';
+import {implementationLinks} from './design-implementation.mjs';
 
 // Explicit source references are previews, not implementation ownership or inferred calls.
 async function sourceReferences(repo,nodes) {
@@ -15,11 +17,19 @@ async function sourceReferences(repo,nodes) {
     const s=n.source;if(!s)continue;
     if(typeof s.file!=='string'||isAbsolute(s.file)||s.file.includes('\\')||s.file.split('/').some(p=>!p||p==='.'||p==='..'))
       throw Error(`Invalid source path on ${n.id}`);
+    if(sources[s.file]!==undefined)continue;
     const path=await realpath(resolve(root,s.file)).catch(e=>{if(s.optional&&e.code==='ENOENT')return null;throw e;});
     if(!path)continue;
     const within=relative(root,path);
     if(isAbsolute(within)||within==='..'||within.startsWith('..\\')||within.startsWith('../'))throw Error(`Source outside repository: ${s.file}`);
-    const text=sources[s.file]??await readFile(path,'utf8');sources[s.file]=text;
+    sources[s.file]=await readFile(path,'utf8');
+  }
+  const declarationFiles=[...new Set([...nodes.values()].filter(n=>n.source?.declaration&&sources[n.source.file]!==undefined).map(n=>n.source.file))];
+  const graph=declarationFiles.length?await extractGraph({repo,files:declarationFiles,readSource:file=>sources[file]}):{declarations:[]};
+  const declarations=new Map(graph.declarations.filter(d=>d.anchor&&!d.ambiguousAnchor).map(d=>[d.anchor,d]));
+  for(const n of nodes.values()) {
+    const s=n.source;if(!s||sources[s.file]===undefined)continue;
+    const text=sources[s.file];
     let start=0,end=text.length;
     if(s.heading&&s.declaration)throw Error(`Choose a heading or declaration on ${n.id}`);
     if(s.heading) {
@@ -27,15 +37,21 @@ async function sourceReferences(repo,nodes) {
       const section=guidanceSection(text,s.heading);start=text.indexOf(section);end=start+section.length;
     }
     if(s.declaration) {
-      const found=[];
-      const walk=node=>{
-        if(!node||typeof node!=='object')return;
-        if(['FunctionDeclaration','ClassDeclaration','VariableDeclarator'].includes(node.type)&&node.id?.name===s.declaration)found.push(node);
-        for(const child of Object.values(node))if(Array.isArray(child))child.forEach(walk);else if(child?.type)walk(child);
-      };
-      walk(parse(text,{ecmaVersion:'latest',sourceType:'module'}));
-      if(found.length!==1)throw Error(`Source declaration must match once: ${s.file}::${s.declaration} (${found.length})`);
-      ({start,end}=found[0]);
+      const exact=declarations.get(`${s.file}::${s.declaration}`);
+      if(exact)({start,end}=exact);
+      else {
+        // Legacy source references can name a declaration whose published
+        // scanner identity is a record member. Keep that unique-name form.
+        const found=[];
+        const walk=node=>{
+          if(!node||typeof node!=='object')return;
+          if(['FunctionDeclaration','ClassDeclaration','VariableDeclarator'].includes(node.type)&&node.id?.name===s.declaration)found.push(node);
+          for(const child of Object.values(node))if(Array.isArray(child))child.forEach(walk);else if(child?.type)walk(child);
+        };
+        walk(parse(text,{ecmaVersion:'latest',sourceType:'module'}));
+        if(found.length!==1)throw Error(`Source declaration must match once: ${s.file}::${s.declaration} (${found.length})`);
+        ({start,end}=found[0]);
+      }
     }
     const sha256=createHash('sha256').update(text).digest('hex');
     const span={file:s.file,line:text.slice(0,start).split('\n').length,endLine:text.slice(0,end).replace(/\r?\n$/,'').split('\n').length,
@@ -79,7 +95,8 @@ export async function designModel({repo}) {
   const ancestor=(child,parent)=>parent==='0'||child===parent||child.startsWith(parent+'.');
   const endpoint=id=>nodes.get(id)?.index??`external:${id}`;
   const bindingText=await readFile(resolve(repo,setFile('interfaces.json')),'utf8').catch(e=>{if(e.code==='ENOENT')return '{"bindings":[]}';throw e;});
-  const bindings=JSON.parse(bindingText).bindings??[];
+  const observed=await implementationLinks(repo,spec,nodes);
+  const bindings=[...(JSON.parse(bindingText).bindings??[]),...observed.bindings];
   const references=new Map(nodes);
   for(const b of bindings)references.set(b.target,{id:b.target,source:{file:b.target.split('::')[0]}});
   const {sources,spans,sourceInfo}=await sourceReferences(repo,references);
@@ -90,18 +107,25 @@ export async function designModel({repo}) {
     const visible=new Map(children.map(n=>[n.index,n]));
     const inside=id=>nodes.has(id)&&ancestor(nodes.get(id).index,p.index);
     const lift=id=>{
-      if(!inside(id))return endpoint(id);
+      if(!inside(id)) {
+        const at=nodes.get(id)?.index;
+        if(!at)return endpoint(id);
+        const parts=at.split('.'),here=p.index.split('.');let common=0;
+        while(common<parts.length&&parts[common]===here[common])common++;
+        return parts.slice(0,common+1).join('.');
+      }
       return children.find(n=>ancestor(nodes.get(id).index,n.index))?.index??p.index;
     };
     const links=new Map();
-    for(const c of spec.contracts) {
+    for(const c of [...spec.contracts,...observed.contracts]) {
+      if(p.index==='0'&&c.detailOnly)continue;
       if(p.index!=='0'&&!inside(c.from)&&!inside(c.to))continue;
       const response=p.index==='0'&&c.overview==='response';
       const from=lift(response?c.to:c.from),to=lift(response?c.from:c.to);
       if(from===to)continue;
       for(const id of [c.from,c.to]) {
         const at=lift(id);
-        if(!visible.has(at))visible.set(at,nodes.get(id)??{...actors.get(id),id,index:at,type:'actor'});
+        if(!visible.has(at))visible.set(at,indexes.get(at)??nodes.get(id)??{...actors.get(id),id,index:at,type:'actor'});
       }
       const key=`${from}\0${to}`,wire=links.get(key)??{from,to,contracts:[],count:0,kinds:{contract:0}};
       wire.contracts.push({...c,code:bindings.filter(b=>b.contract===c.id).map(b=>entries.get(b.target)),fromIndex:endpoint(c.from),toIndex:endpoint(c.to),...(c.access?{access:c.access.map(a=>({...a,fromIndex:endpoint(a.from),toIndex:endpoint(a.to)}))}:{}),status:c.status??'proposed; implementation unchecked'});
@@ -123,10 +147,10 @@ export async function designModel({repo}) {
       ...(spans.has(p.id)?{sourceSpan:spans.get(p.id)}:{}),
       components,wires,ports:[],...(layout?{layout}:{}),notes:p.notes??[]});
   }
-  const generatorFiles=['design.mjs','interface-code.mjs','graph.mjs','map-set.mjs','generated-view.mjs','generated-view.py','leveled.py','svg.py','flow.py','viewer.py','../../core/agent/manuals.mjs'];
+  const generatorFiles=['design.mjs','design-implementation.mjs','interface-code.mjs','graph.mjs','map-set.mjs','generated-view.mjs','generated-view.py','leveled.py','svg.py','flow.py','viewer.py','../../core/agent/manuals.mjs'];
   const generator=await Promise.all(generatorFiles.map(file=>readFile(resolve(repo,'dev-map/lib',file),'utf8')));
   const audit=JSON.parse(await readFile(resolve(repo,setFile('view/audit-status.json')),'utf8').catch(e=>{if(e.code==='ENOENT')return 'null';throw e;}));
-  const snapshotId=createHash('sha256').update(text+bindingText+JSON.stringify(mapSet)+generator.join('\n')+JSON.stringify(sourceInfo)+JSON.stringify(audit&&{generated:audit.generated,totals:audit.totals})).digest('hex');
+  const snapshotId=createHash('sha256').update(text+bindingText+observed.ownershipText+JSON.stringify(mapSet)+generator.join('\n')+JSON.stringify(sourceInfo)+JSON.stringify(audit&&{generated:audit.generated,totals:audit.totals})).digest('hex');
   return {design:true,auditAvailable:!!audit,audit,title:mapSet.title,generated:spec.date,snapshotId,pages,sources,sourceInfo,stale:{},
     changed:[],changedInputs:[],scores:{},regenerate:`node dev-map/cli.mjs build --set ${setName}`};
 }

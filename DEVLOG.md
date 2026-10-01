@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-01 — Complete Geometry operation submaps
+
+- Integrated reviewed selection/placement, line clipping and sampled-field extraction checkpoints. Authored 17 operation groups with 711 exact declaration homes and five native resource leaves; process policy belongs to Toolpath. Scoped helper/method previews and observed submap call wires preserve authored map-0 contracts; native/dynamic behavior remains explicitly unscanned.
+- Inventory assigns all 2,958 declarations with no missing/orphan homes. Focused intersection checks pass (11/11); map freshness, source/binding and drawing coverage checked. Existing regional-workflow overlap failure reproduces on the baseline. No new tests, full suite, push or physical qualification. Local HTML browser inspection was blocked by URL policy.
+- Consolidated manuals: Geometry 558 → 533 lines, Regions 229 → 225, map guide unchanged at 209; development log grows 28 lines, net prose decreases one line across this consolidation.
+
 ## 2026-10-01 — Geometry selection and placement
 
 - Geometry resolves batched whole/component/material-part selections and within-volumes in their requested frame, sharing source builds. Removed Slice shell/volume build plumbing; Toolpath retains assignment policy. Path generation is async and no longer accepts Rhino; Geometry owns its runtime. Existing mesh-boundary and mixed-nozzle checks passed (9/9); 20 geometry comparisons and two complete paths exactly matched the prior implementation. No new tests, full suite, map edits or shared-checkout integration.
