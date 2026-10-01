@@ -1,7 +1,8 @@
 // Shell-specific adapter for the shared print lifecycle.
 import { createBundleWorkflow } from './workflow.mjs';
 import { defaults,compileRecipe,geometryTemplate,VERSION,BUILD_DATE } from './plan.mjs';
-import { createGeometry,rhino } from './geometry.mjs';
+import {createGeometry} from './geometry.mjs';
+import {rhino} from '../geom/runtime.mjs';
 import {buildShell,translateShell} from '../geom/build.mjs';
 import {generatePath,pathDependencies,GENERATION_CONTRACT} from './generate.mjs';
 import {MACHINE_PATH_CONTRACT} from '../path/dependencies.mjs';
@@ -29,7 +30,7 @@ export async function generatePreparedPath(plan,machine,options){
     ?booleanShell('union',geometry.parts.map(part=>translateShell(material(part.geometry),part.xMm,part.yMm,part.zMm)))
     :geometry.shape==='boolean'?booleanShell(geometry.operation,geometry.operands.map(material)):buildShell(native,geometry);
   const fields=await prepareModulationFields(plan.modulations,{solids:sources.map(source=>({key:source.key,geometry:material(source.geometry)}))});
-  return generatePath(plan,machine,native,{...options,modulations:fields.record,modulationPreparation:fields.report});
+  return generatePath(plan,machine,{...options,modulations:fields.record,modulationPreparation:fields.report});
 }
 
 export const {root, EXPORT_NAME, atomicManifest, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, bundleFingerprint, bundleFingerprints, migrateBundle, prepareGeneration, commitGeneration, generateToolpath, restoreRevision, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, exportReviewed, applySettingsSnapshot}=createBundleWorkflow({

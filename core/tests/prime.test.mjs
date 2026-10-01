@@ -4,19 +4,17 @@ import {loadMachine} from '../machine/profile.mjs';
 import {startupPosition,startupRetracted} from '../machine/rules.mjs';
 import {defaults} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {rhino} from '../print/geometry.mjs';
 import {createPlanningState,planningPath} from '../path/planning.mjs';
 import {planPriming} from '../path/prime.mjs';
 import {exportGriffin,interpretGriffin} from '../export/griffin.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 
 test('S5 shell exports recover, sacrificial strokes, then the part on either nozzle',async()=>{
-  const native=await rhino();
   for(const tool of [0,1])for(const retractMm of [0,6.5]){
     const machine=loadMachine(),plan=defaults(machine);
     plan.setup.tool=tool;plan.process.retractMm=retractMm;plan.process.minimumLayerSeconds=0;
     plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:.6});
-    const path=generatePath(plan,machine,native);
+    const path=await generatePath(plan,machine);
     const program=interpretGriffin(exportGriffin(path,plan,machine,{generatorVersion:'test',buildDate:'2026-09-16'}),plan,machine);
     const depositing=program.moves.filter(m=>m.extruding),prime=depositing.filter(m=>m.phase==='prime');
     assert.equal(prime.length,3,'two passes and their depositing connector');

@@ -7,7 +7,7 @@ import {hash} from '../private/geometry/hash.mjs';
 // the same check the slicer relies on. Reopening the file and rebuilding the
 // patches is what ties the reviewed geometry to the file on disk.
 
-import rhino3dm from 'rhino3dm';
+import {rhino} from '../geom/runtime.mjs';
 import { patchFromSurface, evaluate } from '../geom/nurbs.mjs';
 import { makeShell, assertClosed } from '../geom/shell.mjs';
 import {buildShell,hasMesh} from '../geom/build.mjs';
@@ -21,9 +21,6 @@ import { booleanDisplayMesh } from '../geom/boolean-display.mjs';
 const PROXY_STEPS_PER_SPAN = 8, PROXY_STEPS_MAX = 64;
 const spans = (knots, order, count) => { let n = 0; for (let i = order - 1; i < count; i++) if (knots[i + 1] > knots[i]) n++; return n; };
 const proxySteps = (knots, order, count) => Math.min(PROXY_STEPS_MAX, PROXY_STEPS_PER_SPAN * spans(knots, order, count));
-
-let runtime;
-export const rhino = () => runtime ??= rhino3dm();
 
 // Control nets are compared through a rounded hash: 3DM stores doubles, and a
 // nanometre is nine orders below the tolerances the process works at.

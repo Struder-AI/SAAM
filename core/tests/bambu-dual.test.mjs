@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {loadMachine} from '../machine/profile.mjs';
 import {checkMachinePath} from '../machine/rules.mjs';
 import {defaults} from '../print/plan.mjs';
-import {rhino} from '../print/geometry.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {exportProgram,interpretProgram} from '../export/registry.mjs';
 import {unpackZip,packZip} from '../export/zip.mjs';
@@ -18,7 +17,7 @@ import {mixedNozzleFixture} from './fixtures/bambu-dual.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 const release={generatorVersion:'test',buildDate:'2026-09-21'};
 test('mixed 0.4/0.8 H2D regions emit tower-free changes, distinct process grids and independently decoded tool state',async()=>{
-  const {plan,machine}=mixedNozzleFixture(),path=generatePath(plan,machine,await rhino());
+  const {plan,machine}=mixedNozzleFixture(),path=await generatePath(plan,machine);
   checkMachinePath(path,plan,machine);
   assert.ok(path.actions.filter(a=>a.kind==='toolChange').length>=3);
   const bytes=exportProgram(path,plan,machine,release),z=unpackZip(bytes),code=z.get('Metadata/plate_1.gcode').toString();
@@ -92,40 +91,40 @@ test('feed intentions are independent of logical filament and nozzle identities'
 });
 
 test('mixed nozzle job can start on the right and use each nozzle’s own build area',async()=>{
-  const fixture=mixedNozzleFixture(),machine=fixture.machine,r=await rhino();
+  const fixture=mixedNozzleFixture(),machine=fixture.machine;
   const plan=filamentPlan(fixture.plan,machine,1);
   plan.placement.xMm=310;
-  const path=generatePath(plan,machine,await rhino());checkMachinePath(path,plan,machine);
+  const path=await generatePath(plan,machine);checkMachinePath(path,plan,machine);
   const program=interpretProgram(exportProgram(path,plan,machine,release),plan,machine);
   assert.equal(program.filamentSequence[0],1);
   assert.ok(program.moves.some(m=>m.extruding&&m.tool===1&&m.to[0]>325));
   assert.ok(program.moves.filter(m=>m.extruding&&m.tool===0).every(m=>m.to[0]<=325));
   plan.slices.assignments[1].filament=0;
-  assert.throws(()=>exportProgram(generatePath(plan,machine,r),plan,machine,release),/bounds/);
+  const outside=await generatePath(plan,machine);
+  assert.throws(()=>exportProgram(outside,plan,machine,release),/bounds/);
 });
 
 test('unsafe handoffs and automatic external-spool changes fail before packaging',async()=>{
-  const {plan,machine}=mixedNozzleFixture(),r=await rhino();
-  const path=generatePath(plan,machine,r),first=path.actions.findIndex(a=>a.kind==='toolChange');
+  const {plan,machine}=mixedNozzleFixture();
+  const path=await generatePath(plan,machine),first=path.actions.findIndex(a=>a.kind==='toolChange');
   const bad=structuredClone(path);bad.actions[first].tool=0;
   assert.throws(()=>exportProgram(bad,plan,machine,release),/disagrees/);
   const unret=structuredClone(path);let i=first-1;while(unret.actions[i].kind!=='retract')i--;
   unret.actions.splice(i,1);
   assert.throws(()=>exportProgram(unret,plan,machine,release),/retract|withdrawal|recover/i);
   plan.setup.bambu.filaments[1].tool=0;
-  const same=generatePath(plan,machine,r);
+  const same=await generatePath(plan,machine);
   assert.throws(()=>exportProgram(same,plan,machine,release),/require AMS feeds/);
 });
 
 test('every supported H2D diameter pair keeps each change descriptor on its own nozzle',async()=>{
-  const r=await rhino();
   for(const left of [0.4,0.6,0.8])for(const right of [0.4,0.6,0.8]){
     const {plan,machine}=mixedNozzleFixture();
     Object.assign(plan.setup,{nozzleMm:left,core:`Hardened steel ${left}`});
     plan.setup.bambu.otherNozzleMm=right;plan.process.lineWidthMm=left;
     plan.setup.bambu.filaments[1].process.lineWidthMm=right;
     for(const part of plan.geometry.parts)part.geometry=splineBox({runMm:8,widthMm:8,heightMm:0.6});
-    const path=generatePath(plan,machine,r),bytes=exportProgram(path,plan,machine,release);
+    const path=await generatePath(plan,machine),bytes=exportProgram(path,plan,machine,release);
     const report=auditBambu(bytes);assert.deepEqual(report.plates[0].changes.issues,[]);
     const program=interpretProgram(bytes,plan,machine);
     assert.deepEqual(program.envelope.job.nozzleDiametersMm,[left,right]);

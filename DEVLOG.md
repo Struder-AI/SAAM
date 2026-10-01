@@ -1,5 +1,9 @@
 # Development log
 
+## 2026-10-01 — Geometry selection and placement
+
+- Geometry resolves batched whole/component/material-part selections and within-volumes in their requested frame, sharing source builds. Removed Slice shell/volume build plumbing; Toolpath retains assignment policy. Path generation is async and no longer accepts Rhino; Geometry owns its runtime. Existing mesh-boundary and mixed-nozzle checks passed (9/9); 20 geometry comparisons and two complete paths exactly matched the prior implementation. No new tests, full suite, map edits or shared-checkout integration.
+
 ## 2026-10-01 — Shared geometry operations and native construction lifetime
 
 - Trace, text, Slice and surface deposition share surface evaluation; shell boundaries and sleeve contours use ordinary native isocurves and common adaptive sampling. Planar/curved sections share region dispatch; removed boundary callbacks, Trace reference evaluator, Slice point/normal APIs and duplicate curved Boolean dispatch.

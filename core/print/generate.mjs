@@ -1,5 +1,5 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
-import {buildShell,translateShell} from '../geom/build.mjs';
+import {resolveGeometrySelections} from '../geom/build.mjs';
 import {ASSIGNMENT_RECORDS} from '../../skills/records.mjs';
 import {extensionDeposition,extensionResultDependencies,extensionSummary} from '../../skills/deposition.mjs';
 // Generation: authored geometry and recipe into finalized deposition and SAAMpath.
@@ -19,7 +19,6 @@ import {surveySurfaceDomain} from './surface-domains.mjs';
 import { compileRecipe, VERSION } from './plan.mjs';
 
 import {finalizedSliceResults} from './slice-deposition.mjs';
-import {geometrySelections} from '../geom/selections.mjs';
 
 
 function primeLineResult(plan,machine){
@@ -40,42 +39,31 @@ function primeLineResult(plan,machine){
   }]};
 }
 
-export function preparePathGeometry(plan,machine,rhino) {
+// Toolpath chooses which geometry its assignments need; Geometry resolves and
+// places those requests, including within-volumes in their owner's frame.
+export async function preparePathGeometry(plan,machine) {
   ({plan,machine}=compileRecipe(plan,machine));
-  if(!plan.geometry)return {placed:null,componentShells:null,bounds:null};
-  const placed = translateShell(buildShell(rhino, plan.geometry), plan.placement.xMm, plan.placement.yMm);
-  const componentShells=plan.geometry.shape==='assembly' ? new Map(plan.geometry.parts.map(part=>[part.id,
-    translateShell(buildShell(rhino,part.geometry),plan.placement.xMm+part.xMm,plan.placement.yMm+part.yMm,part.zMm)])) : null;
-  return {placed,componentShells,bounds:null};
-}
-
-// Geometry volumes named by slice assignments, placed like their part.
-export function sliceVolumes(plan,rhino) {
-  if(!plan.geometry)return new Map();
-  const selections=geometrySelections(plan.geometry);
-  return new Map(plan.slices.assignments.filter(assignment=>!assignment.construction).map(assignment=>{
-    const part=assignment.part!==null?selections.get(assignment.part):{xMm:0,yMm:0,zMm:0};
-    return [assignment.id,assignment.within.map(volume=>volume.kind==='geometry'
-      ?translateShell(buildShell(rhino,volume.geometry),plan.placement.xMm+part.xMm,plan.placement.yMm+part.yMm,part.zMm):null)];
-  }));
-}
-
-// The shells slice assignments cut, [part, shell, whole]: every assembly
-// component (or the whole print) for assignments without a part, and each
-// geometry selection an assignment names, placed like the print.
-export function sliceShells(plan,rhino,{placed,componentShells}) {
-  if(!plan.geometry)return [];
-  const selections=geometrySelections(plan.geometry);
-  const named=[...new Set(plan.slices.assignments.filter(a=>a.part!==undefined&&a.preset!=='support').map(a=>a.part).filter(p=>p!==null&&!componentShells?.has(p)))];
-  return [...(componentShells?[...componentShells]:[[null,placed]]).map(([part,shell])=>[part,shell,true]),
-    ...named.map(part=>{const s=selections.get(part);return [part,translateShell(buildShell(rhino,s.geometry),plan.placement.xMm+s.xMm,plan.placement.yMm+s.yMm,s.zMm),false];})];
+  if(!plan.geometry)return {placed:null,componentShells:null,shells:[],volumes:new Map()};
+  const components=plan.geometry.shape==='assembly'?plan.geometry.parts.map(part=>part.id):[];
+  const named=[...new Set(plan.slices.assignments.filter(a=>a.part!==undefined&&a.preset!=='support').map(a=>a.part).filter(p=>p!==null&&!components.includes(p)))];
+  const assignments=plan.slices.assignments.filter(a=>!a.construction);
+  const requests=[{},...components.map(selection=>({selection})),...named.map(selection=>({selection}))];
+  const volumeSlots=new Map(assignments.map(assignment=>[assignment.id,assignment.within.map(volume=>{
+    if(volume.kind!=='geometry')return null;
+    const index=requests.length;requests.push({selection:assignment.part,geometry:volume.geometry});return index;
+  })]));
+  const values=await resolveGeometrySelections(plan.geometry,requests,{offset:[plan.placement.xMm,plan.placement.yMm,0]});
+  const placed=values[0],componentShells=plan.geometry.shape==='assembly'?new Map(components.map((id,i)=>[id,values[1+i]])):null;
+  const shells=[...(componentShells?[...componentShells]:[[null,placed]]).map(([part,shell])=>[part,shell,true]),
+    ...named.map((part,i)=>[part,values[1+components.length+i],false])];
+  const volumes=new Map([...volumeSlots].map(([id,slots])=>[id,slots.map(index=>index===null?null:values[index])]));
+  return {placed,componentShells,shells,volumes};
 }
 
 // Survey every selected skin before body ownership, then finalize each
 // supporting producer before constructing surface consumers.
-export function generateModelResults(plan,machine,rhino,{placed,componentShells,bounds,planningState,emittedIds=[]},onProgress) {
+export function generateModelResults(plan,machine,{placed,componentShells,shells,volumes,planningState,emittedIds=[]},onProgress) {
   const summary={generatorVersion:VERSION,shape:plan.geometry?.shape??null},results=[];
-  const shells=sliceShells(plan,rhino,{placed,componentShells});
   const contexts=depositionAssignments(plan).filter(assignment=>assignment.construction||assignment.surface?.kind==='terminal'||assignment.stack?.direction==='normal'||assignment.within?.some(v=>v.kind==='surface-domain'&&v.loopsUv===null)).map(assignment=>{
     const shell=shells.find(([part])=>part===(assignment.part??null))?.[1],selected=assignmentPlan(plan,machine,assignment);
     if(ASSIGNMENT_RECORDS[assignment.construction]?.requiresComponent||!assignment.construction&&assignment.surface?.kind!=='terminal')requireThat(shell,'A surface family needs a selected component or the single solid.');
@@ -85,7 +73,7 @@ export function generateModelResults(plan,machine,rhino,{placed,componentShells,
   const extensions=extensionDeposition({plan,machine,placed,componentShells,contexts,onProgress});
   const rims=contexts.filter(({assignment})=>assignment.surface?.kind==='terminal'),referenceAssignments=contexts.filter(({assignment})=>assignment.stack?.direction==='normal');
   const constructions=[...extensions.constructions,...contexts.filter(({assignment})=>['inject','curves'].includes(assignment.construction))];
-  const sliced=finalizedSliceResults({plan,machine,shells,volumes:sliceVolumes(plan,rhino),...extensions,surfaceAssignments:skins,referenceAssignments,terminalAssignments:rims,constructions,onProgress,planningState,emittedIds});
+  const sliced=finalizedSliceResults({plan,machine,shells,volumes,...extensions,surfaceAssignments:skins,referenceAssignments,terminalAssignments:rims,constructions,onProgress,planningState,emittedIds});
   results.push(...sliced.results);
   if(sliced.summary)summary.slices=sliced.summary;
   Object.assign(summary,extensionSummary(results));
@@ -188,8 +176,8 @@ export function depositionInspection(results){
   return {schema:GENERATION_CONTRACT,operations};
 }
 
-export function generatePath(plan, machine, rhino, {onProgress,modulations,modulationPreparation=[]} = {}) {
-  const prepared=preparePathGeometry(plan,machine,rhino);
+export async function generatePath(plan, machine, {onProgress,modulations,modulationPreparation=[]} = {}) {
+  const prepared=await preparePathGeometry(plan,machine);
   const evaluated=modulations?{...plan,modulations}:plan;
   const assigned=[...new Set([plan.setup.bambu?.filament,...assignedFilaments(plan)].filter(v=>v!==undefined))];
   const selections=assignedFilaments(plan).length?Object.fromEntries(assigned.map(i=>[i,filamentSelection(plan,machine,i)])):null;
@@ -197,10 +185,10 @@ export function generatePath(plan, machine, rhino, {onProgress,modulations,modul
   const started=planFan(createPlanningState({start,process:plan.process,generatorVersion:VERSION,
     selection:selections?.[plan.setup.bambu.filament]??null,selections}),0);
   const prime=primeLineResult(plan),startup=prime?planOperation(started.state,prime.operations[0]):planningResult(started.state);
-  const model=generateModelResults(evaluated,machine,rhino,{...prepared,planningState:startup.state,emittedIds:prime?prime.operations.map(op=>op.id):[]},onProgress);
+  const model=generateModelResults(evaluated,machine,{...prepared,planningState:startup.state,emittedIds:prime?prime.operations.map(op=>op.id):[]},onProgress);
   const complemented=addComplementaryResults(evaluated,machine,prepared,model);
   const primed=prime?{...complemented,results:[prime,...complemented.results],summary:{...complemented.summary,primeLine:prime.report}}:complemented;
-  const {placed,bounds}=prepared,{results,survey}=primed,process=plan.process;
+  const {placed}=prepared,{results,survey}=primed,process=plan.process;
   const summary=summarizeGeneratedPath(placed,survey,primed.summary);
   summary.substrateAdaptation={experimental:true,enabled:plan.experimental.substrateAdaptation,
     sliceQueries:results.reduce((sum,result)=>sum+(result.report.substrateContactQueries??0),0),

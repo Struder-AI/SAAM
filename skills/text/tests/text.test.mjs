@@ -5,7 +5,7 @@ import {createHash} from 'node:crypto';
 import {compileText,textFeature} from '../scripts/text.mjs';
 import {solidKernel,solidFromMesh} from '../../../core/geom/solid.mjs';
 import {makeMesh} from '../../../core/geom/mesh.mjs';
-import {rhino} from '../../../core/print/geometry.mjs';
+import {rhino} from '../../../core/geom/runtime.mjs';
 import {buildShell} from '../../../core/geom/build.mjs';
 
 const fontPath=new URL('./fixtures/Abel-Regular.ttf',import.meta.url);

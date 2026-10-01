@@ -138,6 +138,7 @@ Geometry outputs are ordinary values and evaluations of those values:
 | [evaluateSurface / mappedSurface](surface-evaluation.mjs) | Trace, text, Slice mapping and surface deposition share point/normal/derivative evaluation. Affine selection retains native UV and derivative units; sleeve phase is periodic arc length, height charts use world XY. |
 | [sampleCurveIntervals](curve-sampling.mjs) | Trace, sleeve contours and surface deposition share physical chord/step refinement while retaining source parameters and explicit breaks. |
 | [constructSolids](solid-operations.mjs) | Heat-set, text and gridfinity submit construction/translation/Boolean requests; Geometry owns conversion, mapped-extrusion refinement and native disposal. Results are manufacturing meshes (null for empty material). Feature rules and editable records remain with extensions. |
+| [resolveGeometrySelections](build.mjs) | Resolves whole solids, components, material partitions and replacement volumes in an offset frame; owns runtime loading and reuses source builds within a batch. Async path generation requests these values; Toolpath retains assignment and ownership policy. |
 | [intersectPatches](surface-intersection.mjs) | Section boundaries retain corresponding parameters on both native surfaces. |
 
 Geodesic region offsets retain their C2/domain limits; piecewise roofs/sleeves

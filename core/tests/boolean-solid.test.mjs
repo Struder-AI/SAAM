@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {buildShell} from '../geom/build.mjs';
-import {rhino} from '../print/geometry.mjs';
+import {rhino} from '../geom/runtime.mjs';
 import {topAt} from '../geom/query.mjs';
 import {horizontalSlice} from '../geom/slice.mjs';
 import {section} from '../region/section.mjs';

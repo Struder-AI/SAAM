@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {defaults,validatePlan} from '../../../core/print/plan.mjs';
 import {buildShell,translateShell} from '../../../core/geom/build.mjs';
 import {generatePath} from '../../../core/print/generate.mjs';
-import {rhino} from '../../../core/print/geometry.mjs';
+import {rhino} from '../../../core/geom/runtime.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
 import {sectionGeometry} from '../../../core/geom/query.mjs';
 import {pointSegmentDistance,loopArea,dedupe} from '../../../core/region/region2d.mjs';
@@ -108,7 +108,7 @@ test('convex wall retains the near-straight corner regression across offset kern
   for(let i=0;i<n;i++){const j=(i+1)%n;triangles.push([i,j,j+n],[i,j+n,i+n]);}
   for(let i=1;i<n-1;i++)triangles.push([0,i+1,i],[n,n+i,n+i+1]);
   const machine=loadMachine(),plan=vasePlan(machine,{shape:'mesh',vertices,triangles,source:null});
-  const path=generatePath(plan,machine,await rhino());
+  const path=await generatePath(plan,machine);
   assert.equal(path.summary.vaseWall.offsetPrecisionMm,.00001);
   const wall=path.actions.filter(a=>a.role==='vase-wall');
   assert.ok(wall.length>100);assert.equal(wall.at(-1).to[2],.6);
@@ -132,7 +132,7 @@ test('a healthy section with tessellation seam steps still offsets to one contin
   const rawInset=offsetRegion([dedupe(seamPinchSection)],-0.2,{precisionMm:0.00001,arcToleranceMm:0.005});
   assert.ok(rawInset.length>1&&rawInset.filter(loop=>loopArea(loop)>0).length===1,'the raw seam-stepped section splits a sliver off the inward offset');
   const plan=vasePlan(machine,seamPinchMesh());plan.slices.assignments[0].zEndMm=7.5;
-  const path=generatePath(plan,machine,r),wall=path.actions.filter(a=>a.role==='vase-wall');
+  const path=await generatePath(plan,machine),wall=path.actions.filter(a=>a.role==='vase-wall');
   assert.ok(wall.length>100,'the exact wall completes over the seam-stepped section');
   assert.equal(new Set(wall.map(a=>a.operation)).size,1,'one uninterrupted stroke');
   const shell=translateShell(buildShell(r,plan.geometry),plan.placement.xMm,plan.placement.yMm);

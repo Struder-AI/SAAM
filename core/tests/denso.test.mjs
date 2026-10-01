@@ -10,7 +10,8 @@ import {loadMachine} from '../machine/profile.mjs';
 import {validateDensoConfiguration} from '../machine/denso.mjs';
 import {defaults,validatePlan} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {rhino,createGeometry,verifyGeometry} from '../print/geometry.mjs';
+import {createGeometry,verifyGeometry} from '../print/geometry.mjs';
+import {rhino} from '../geom/runtime.mjs';
 import {initBundle,generateBundle,loadBundle,approve,deliver,adjustBundle} from '../print/bundle.mjs';
 import {exportProgram,interpretProgram,exportAndInterpretProgram} from '../export/registry.mjs';
 import {interpretDensoFiles} from '../export/denso-player.mjs';
@@ -36,9 +37,9 @@ test('DENSO setup is unresolved by default; tube geometry uses the shared native
   const native=await createGeometry(plan.geometry);await verifyGeometry(native.bytes,native.descriptor);
   assert.equal(native.descriptor.nativeFile,undefined);
   const s5=loadMachine(),old=defaults(s5);old.geometry=plan.geometry;old.placement={xMm:100,yMm:100};
-  const path=generatePath(old,s5,await rhino());assert.ok(interpretProgram(exportProgram(path,old,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),old,s5).moves.some(m=>m.extruding));
+  const path=await generatePath(old,s5);assert.ok(interpretProgram(exportProgram(path,old,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),old,s5).moves.some(m=>m.extruding));
   old.slices.assignments.push(structuredClone(plan.slices.assignments.find(a=>a.stack?.direction==='normal')));validatePlan(old,s5);
-  const oriented=generatePath(old,s5,await rhino());assert.ok(oriented.actions.some(action=>action.pose),'derived poses survive machine-independent generation');
+  const oriented=await generatePath(old,s5);assert.ok(oriented.actions.some(action=>action.pose),'derived poses survive machine-independent generation');
   assert.throws(()=>exportProgram(oriented,old,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),/cannot represent non-upright orientation or rotary motion/);
 });
 
@@ -58,7 +59,7 @@ test('same-height cylindrical shells retain explicit prerequisites in the existi
 test('existing mesh/spline regional skills use RC8A at fixed orientation',async()=>{
   for(const backend of ['mesh','spline']) {
     const plan=regionalStackPlan(machine,backend);plan.setup=small().setup;
-    const path=generatePath(plan,machine,await rhino()),program=interpretProgram(exportProgram(path,plan,machine),plan,machine);
+    const path=await generatePath(plan,machine),program=interpretProgram(exportProgram(path,plan,machine),plan,machine);
     for(const phase of ['planar','vase-wall'])assert.ok(program.moves.some(m=>m.extruding&&m.phase===phase),phase);
     assert.ok(program.moves.some(m=>m.extruding&&m.operation?.startsWith('roof:roof-finish:')),'roof Slice deposition survives export');
     assert.ok(program.moves.every(m=>m.rotaryToDeg===0&&m.toolAxisTo[2]===-1));
@@ -96,7 +97,7 @@ test('actual T/EX commands reconstruct fixed-room rotary deposition across multi
 });
 
 test('tube export retains the substrate and normal-aligned axial/hoop shells outside it',async()=>{
-  const plan=small(),path=generatePath(plan,machine,await rhino()),program=interpretProgram(exportProgram(path,plan,machine),plan,machine);
+  const plan=small(),path=await generatePath(plan,machine),program=interpretProgram(exportProgram(path,plan,machine),plan,machine);
   const order=path.summary.composition.operationOrder;assert.deepEqual(order.slice(-2),['pipe-cladding:0','pipe-cladding:1']);
   const body=program.moves.filter(m=>m.extruding&&m.phase==='planar'),clad=program.moves.filter(m=>m.extruding&&m.operation?.startsWith('pipe-cladding:'));
   assert.ok(body.length&&clad.length);

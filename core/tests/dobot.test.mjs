@@ -7,7 +7,6 @@ import {defaults,validatePlan} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {checkMachinePath} from '../machine/rules.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {rhino} from '../print/geometry.mjs';
 import {exportProgram,interpretProgram} from '../export/registry.mjs';
 import {packZip,unpackZip} from '../export/zip.mjs';
 import {LuaRuntime} from '../export/dobot-lua-subset.mjs';
@@ -34,7 +33,7 @@ test('Dobot unconfigured profile is discoverable and allows geometry review, but
   }finally{await rm(dir,{recursive:true,force:true});}
 });
 test('Dobot executes actual archived Lua, preserves three skill paths and reports relay estimates separately',async()=>{
-  const {machine,plan}=fixture(),path=generatePath(plan,machine,await rhino());
+  const {machine,plan}=fixture(),path=await generatePath(plan,machine);
   const bytes=exportProgram(path,plan,machine,release),program=interpretProgram(bytes,plan,machine);
   assert.deepEqual(bytes,exportProgram(path,plan,machine,release));
   const expected=path.actions.filter(a=>a.kind==='move');assert.equal(program.moves.length,expected.length);
@@ -49,7 +48,7 @@ test('Dobot executes actual archived Lua, preserves three skill paths and report
   assert.equal(checkMachinePath(path,plan,machine).configuration.configured,true);
 });
 test('Dobot Lua interpreter rejects missing helpers, unsupported commands, altered frames, blending and relay state',async()=>{
-  const {machine,plan}=fixture(),path=generatePath(plan,machine,await rhino()),bytes=exportProgram(path,plan,machine,release);
+  const {machine,plan}=fixture(),path=await generatePath(plan,machine),bytes=exportProgram(path,plan,machine,release);
   const change=(file,before,after)=>{const e=unpackZip(bytes);e.set(file,Buffer.from(e.get(file).toString().replace(before,after)));return packZip(e);};
   const e=unpackZip(bytes);e.delete('global.lua');assert.throws(()=>interpretProgram(packZip(e),plan,machine),/must contain exactly/);
   assert.throws(()=>interpretProgram(change('src1.lua','  MovL(','  MovJ('),plan,machine),/MovJ/);
@@ -75,7 +74,7 @@ test('the Lua reader stops a program that commands nothing, not one that keeps c
 });
 
 test('Dobot rejects invalid instance/unsupported process and checks calibrated workspace and feed',async()=>{
-  const {machine,plan}=fixture(),path=generatePath(plan,machine,await rhino());
+  const {machine,plan}=fixture(),path=await generatePath(plan,machine);
   for(const [key,value,pattern] of [['scaleX',0,/scaleX/],['relayPolicy','continuous',/relay policy/],['temperatureControl',null,/unconfigured/],['workspaceMaxMm',[0,0,1],/workspace/],['maxLinearSpeedMmS',1,/linear speed/],['initialPositionMm',[1,1,1],/initial position/]]){
     const p=structuredClone(plan);p.setup.dobot[key]=value;assert.throws(()=>exportProgram(path,p,machine,release),pattern);
   }

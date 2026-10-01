@@ -4,7 +4,7 @@ import {requireThat} from '../private/bundle/numeric.mjs';
 // tops of a print (or of geometry it is about to write) and combines solids
 // without writing a script.
 import {loadBundle,updatePlan} from './bundle.mjs';
-import {rhino} from './geometry.mjs';
+import {rhino} from '../geom/runtime.mjs';
 import {buildShell,translateShell} from '../geom/build.mjs';
 import {topAt} from '../geom/query.mjs';
 import {horizontalSlice,patchSlice} from '../geom/slice.mjs';

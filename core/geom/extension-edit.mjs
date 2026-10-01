@@ -1,7 +1,7 @@
 // Geometry owns extension geometry authoring. Hybrid editors also return
 // deposition assignments; Toolpath incorporates those in the same proposal.
 import {GEOMETRY_EDITORS,GEOMETRY_CREATORS} from '../../skills/edits.mjs';
-import {rhino} from '../print/geometry.mjs';
+import {rhino} from './runtime.mjs';
 import {buildShell} from './build.mjs';
 
 export async function prepareExtensionGeometry(source,extension,request,options={}){
