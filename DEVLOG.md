@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-09-30 — Accepted workspace direction
+
+- Recorded owner acceptance relayed by the dedicated evaluation task: specialized workspaces are external bundle producers with public geometry/toolpath access, private design state, and a reproducible handoff carrying construction/process requirements and dependencies. SAAM retains generation/export/checking/confirmation. Initial scope is one-way creation; no live synchronization or simultaneous workspace/Studio editing. PR #23 and the separate wing prototype were not inspected or adopted here.
+- Added the external workspace and proposed public-engine/bundle contracts to map 0, preserving seven core components. Intent 90 → 98 lines. Rebuilt 29 maps; viewer coverage/freshness and diff check pass. No runtime implementation, new tests, full suite, merge or publication.
+
 ## 2026-09-30 — Feature review decisions 1–7
 
 - Recorded web-path removal, preserved/simplified Studio–agent channel, priority event batches, retained/rethought tour with outside introduction, single editing instance per bundle, saved-artifact viewing without extensions, and text/heat-set/Thingi10K extension migration. Remaining feature-review items are undecided.

@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "date": "2026-09-30",
-  "description": "0.3.0 target architecture. Map 0 accepted by the owner; submaps and detailed contracts are provisional. Arrows are calls including their declared response, except explicitly named guidance/data/event arrows. No transitive access. Only 5 exposes shared part state; each other component may exclusively own private state. No source compliance has been established. Extension resource access added by owner request: Thingi10K belongs in Extensions, with an explicit external-resource wire. Extensions are unsandboxed local code; contracts describe intended SAAM/reviewed-extension structure, not confinement of arbitrary scripts. Owner confirmed preservation of a simplified Studio\u2013agent channel, priority event batches and exclusive per-bundle editing; saved artifacts remain inspectable without regeneration dependencies.",
+  "description": "0.3.0 target architecture. Map 0 accepted by the owner; submaps and detailed contracts are provisional. Arrows are calls including their declared response, except explicitly named guidance/data/event arrows. No transitive access. Only 5 exposes shared part state; each other component may exclusively own private state. No source compliance has been established. Extension resource access added by owner request: Thingi10K belongs in Extensions, with an explicit external-resource wire. Extensions are unsandboxed local code; contracts describe intended SAAM/reviewed-extension structure, not confinement of arbitrary scripts. Owner confirmed preservation of a simplified Studio\u2013agent channel, priority event batches and exclusive per-bundle editing; saved artifacts remain inspectable without regeneration dependencies. Specialized workspaces are external bundle producers with public engine access; handoff is one-way and does not grant confirmation authority.",
   "actors": {
     "user": {
       "label": "User",
@@ -14,6 +14,10 @@
     "resources": {
       "label": "External resources",
       "description": "Thingi10K and other asset/data sources; network or local resource providers."
+    },
+    "workspace": {
+      "label": "Specialized workspace",
+      "description": "Private design UI/state; one-way reproducible bundle producer."
     }
   },
   "nodes": [
@@ -770,6 +774,66 @@
       "failure": "Ignore stale identities; do not claim unseen output was displayed.",
       "excludes": "Held observations alone do not trigger a live alert.",
       "direction": "Caller \u2192 provider; declared response included."
+    },
+    {
+      "id": "user-workspace",
+      "from": "user",
+      "to": "workspace",
+      "label": "design",
+      "direction": "Caller \u2192 provider; declared response included.",
+      "operations": [
+        "edit design / export bundle"
+      ],
+      "inputs": "User design choices and an explicit export action.",
+      "outputs": "Interactive design feedback and a created bundle identity.",
+      "effects": "Workspace-private UI and design state.",
+      "failure": "Display unsatisfied requirements and export failures.",
+      "excludes": "No SAAM toolpath confirmation or active-bundle synchronization."
+    },
+    {
+      "id": "workspace-geometry",
+      "from": "workspace",
+      "to": "geometry-api",
+      "label": "geometry API",
+      "direction": "Caller \u2192 provider; declared response included.",
+      "operations": [
+        "construct / transform / query"
+      ],
+      "inputs": "Explicit geometry/region values, design parameters, assets and tolerances.",
+      "outputs": "Geometry and query results for further design or bundle handoff.",
+      "effects": "Workspace owns returned design values.",
+      "failure": "Report unsupported geometry or failed construction explicitly.",
+      "excludes": "No bundle mutation, private Slice-only geometry access or machine export authority."
+    },
+    {
+      "id": "workspace-toolpath",
+      "from": "workspace",
+      "to": "compose",
+      "label": "candidate paths",
+      "direction": "Caller \u2192 provider; declared response included.",
+      "operations": [
+        "constructAndCompose"
+      ],
+      "inputs": "Explicit construction requests plus geometry/process context and requirements.",
+      "outputs": "Candidate operations/SAAMpath and diagnostics for evaluating the design strategy.",
+      "effects": "Private design iteration only.",
+      "failure": "Expose unsupported construction/process requirements.",
+      "excludes": "A candidate path is not an approved machine program; no confirmation or delivery authority."
+    },
+    {
+      "id": "workspace-bundle",
+      "from": "workspace",
+      "to": "bundle-edit",
+      "label": "export bundle",
+      "direction": "Caller \u2192 provider; declared response included.",
+      "operations": [
+        "createFromWorkspace"
+      ],
+      "inputs": "Named geometry/regions, reproducible construction recipe, process intent, requirements versus editable defaults, regeneration parameters/assets and extension dependencies.",
+      "outputs": "New unconfirmed bundle identity and snapshot for ordinary Studio work.",
+      "effects": "5 creates and owns shared part state; subsequent edits obey exclusive instance ownership.",
+      "failure": "Reject an incomplete handoff and report unsupported requirements; later requirement-breaking edits must be visible.",
+      "excludes": "No live workspace/Studio synchronization, simultaneous editing, automatic confirmation, or transient path as a substitute for a recipe."
     }
   ],
   "layout": {
@@ -815,6 +879,10 @@
         "external:resources": {
           "x": 35,
           "y": 835
+        },
+        "external:workspace": {
+          "x": 450,
+          "y": 850
         }
       },
       "viewport": [
