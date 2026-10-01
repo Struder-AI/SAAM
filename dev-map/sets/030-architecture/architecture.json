@@ -701,12 +701,12 @@
     {
       "id": "bundle-setup",
       "index": "5.7",
-      "label": "rememberSetup",
-      "description": "Save per-machine private setup defaults.",
+      "label": "applySettingsSnapshot",
+      "description": "Commit supplied machine/settings values at the expected revision.",
       "type": "component",
       "source": {
         "file": "core/print/workflow.mjs",
-        "declaration": "rememberSetup"
+        "declaration": "applySettingsSnapshot"
       }
     },
     {
@@ -973,9 +973,12 @@
       "type": "component",
       "stateful": true,
       "notes": [
-        "Top-level settings bucket; its internal map is deferred. Owns reusable machine/material information and remembered installation settings. Bundle retains an explicit selected snapshot; changing a preset must not silently change existing parts.",
-        "Profile loading is assigned here now. Extraction of remembered setup and settings resolution from current mixed declarations remains visible migration work. Printer capabilities supply the existing Maker-context manual filtering."
-      ]
+        "Owns reusable profiles, process/material/installation defaults, remembered setup and settings resolution. Bundle stores selected snapshots; reusable changes never silently update existing bundles.",
+        "Agent settings commands in core/machine/bundle-settings.mjs read the current Bundle, resolve owned settings, and submit one expected-revision snapshot. Maker context accepts saved capabilities; profile lookup is explicit discovery."
+      ],
+      "source": {
+        "file": "core/machine/settings.mjs"
+      }
     }
   ],
   "contracts": [
@@ -4361,11 +4364,13 @@
       "label": "selected settings",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
-        "resolve / apply settings snapshot"
+        "selectSettings / settingsDefaults / resolveSettingsPatch",
+        "saveSetup",
+        "loadBundle / applySettingsSnapshot"
       ],
-      "inputs": "Explicit machine/material selection and expected bundle revision.",
-      "outputs": "Exact selected settings snapshot and its identity.",
-      "effects": "Bundle commits the selected settings through its revisioned interface.",
+      "inputs": "Explicit selection or patch, immutable current Bundle snapshot, and expected revision.",
+      "outputs": "Exact selected machine/settings snapshot; accepted Bundle state or stale-revision error.",
+      "effects": "9 owns reusable settings and resolution; 5 accepts supplied setup/process/output/placement and machine values, preserving other components. Bundle owns invalidation and history.",
       "failure": "Return an explicit error without changing the last valid state.",
       "excludes": "No silent updates of existing bundles when reusable presets change.",
       "access": [
@@ -4388,8 +4393,8 @@
       "operations": [
         "read profile capabilities"
       ],
-      "inputs": "Selected printer identity.",
-      "outputs": "Capabilities and limits used to select relevant manual sections.",
+      "inputs": "Explicit reusable profile identity before selection, or supplied saved machine capabilities after selection.",
+      "outputs": "Capabilities used to select manual sections without refreshing a saved bundle from live profiles.",
       "effects": "Read only; Maker context selects and assembles guidance.",
       "failure": "Report unknown printer identity; do not silently choose another printer.",
       "excludes": "No settings changes, bundle access or machine operation.",

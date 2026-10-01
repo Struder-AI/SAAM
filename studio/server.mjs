@@ -220,7 +220,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     importProgress={studioInstanceId:instanceId,printId:dir?printId():null,directory:dir??null,jobId:randomBytes(16).toString('hex'),name:name??null,generationHash:null,status:'importing',startedAt:Date.now(),progress:{stage:'Checking your STL',phase:'import'}};publishProgress();
     note('import-started',{jobId:importProgress.jobId,name:name??null,units:units??null});
     let imported;
-    try{imported=await importStudioSTL(libraryRoot,source,{name,units,machineId,directory,signal:importController.signal,
+    try{imported=await importStudioSTL(libraryRoot,source,{name,units,directory,signal:importController.signal,
       onProgress:value=>{
         if(value.phase==='repair'&&importProgress.progress.phase!=='repair')note('import-repair-started',{jobId:importProgress.jobId,name:name??null,elapsedMs:Date.now()-importProgress.startedAt});
         importProgress={...importProgress,progress:value};publishProgress();

@@ -46,7 +46,7 @@ export async function machineHint(root, { from, to, skills = [] }) {
 
 // The hint for a print state: its toolpath skills and the geometry skill that made its shape.
 const geometrySkills = { text: 'text', gridfinity: 'gridfinity', 'heat-set': 'heat-set-inserts' };
-export const printHint = (root, state, from) => machineHint(root, { from, to: state.machine.id,
+export const printHint = (root, state, from) => machineHint(root, { from, to: state.machine,
   skills: [...state.skills ?? [], geometrySkills[state.plan?.geometry?.shape]].filter(Boolean) });
 
 // Bytes of each layer per client and machine. Layers are cumulative reads, so each is the

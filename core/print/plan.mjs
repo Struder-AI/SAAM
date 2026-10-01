@@ -11,7 +11,8 @@ import {ASSIGNMENT_RECORDS,GEOMETRY_RECORDS,extensionSettings,validateExtensionR
 
 import { createHash } from 'node:crypto';
 import {requireThat} from '../geom/tolerance.mjs';
-import {loadMachine,centeredPlacement} from '../machine/profile.mjs';
+import {loadMachine} from '../machine/profile.mjs';
+import {settingsDefaults} from '../machine/settings.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
 import {splineSolidTemplate,validateSplineSolid,splineSolidBounds} from '../geom/spline-solid.mjs';
 import {blobFieldTemplate,validateBlobFieldRecord} from '../geom/blob-field-record.mjs';
@@ -40,31 +41,16 @@ export function number(value, min, max, name) {
 }
 
 export function defaults(machine=loadMachine()) {
-  const plan = {
-    schema: 'saam-shell-plan/1',
-    generatorVersion: VERSION,
-    placement: centeredPlacement(machine, machine.defaultSetup.tool, { runMm: 0, widthMm: 0 }) ?? { xMm: 140, yMm: 100 },
-    setup: structuredClone(machine.defaultSetup),
-    experimental: {substrateAdaptation:false},
-    process: {
-      firstLayerMm: 0.2, layerMm: 0.2, lineWidthMm: 0.4,
-      planarSpeedMmS: 20, skinSpeedMmS: 10, firstLayerSpeedMmS: 12, travelSpeedMmS: 60, zSpeedMmS: 5,
-      retractMm: 6.5, retractSpeedMmS: 25, liftMm: 1, maxCombMm: 6,
-      fanPercent: 100, maxFlowMm3S: 4, minimumLayerSeconds: 6,
-      experimentalDeposition: false,
-      primeLine: null,
-      clearanceResponsibility: 'operator',
-      clearanceNote: 'No collision model is implemented; the operator owns physical clearance.'
-    },
-    skills: extensionSettings(),
-    slices: defaultSlices(),
-    modulations: defaultModulations(),
-    composition: { order: [], dependencies: [], filaments: [] },
-    output: 'griffin-gcode'
+  return {...recipeDefaults(),...settingsDefaults(machine)};
+}
+
+export function recipeDefaults(){
+  return {
+    schema:'saam-shell-plan/1',generatorVersion:VERSION,
+    experimental:{substrateAdaptation:false},skills:extensionSettings(),
+    slices:defaultSlices(),modulations:defaultModulations(),
+    composition:{order:[],dependencies:[],filaments:[]}
   };
-  Object.assign(plan.process,machine.defaultProcess??{});
-  plan.output=machine.outputs[0].id;
-  return plan;
 }
 
 // Each shape carries its own parameters, so the strict field check is made
@@ -120,7 +106,7 @@ export function validatePlanFields(plan,machine) {
   requireThat_bundle(plan && typeof plan === 'object' && (depositionOnlyPlan(plan)||GEOMETRY_SHAPES.includes(plan.geometry?.shape)), `Author geometry (${GEOMETRY_SHAPES.join(', ')}) or a Trace/Inject recipe.`);
   // Validation is check-only: a plan carries every current field or it is
   // rejected. Supported older fields require explicit recipe migration and regeneration.
-  const expected = { ...defaults(), ...(plan.geometry?{geometry:geometryTemplate(plan.geometry.shape,plan.geometry)}:{}),...(Object.hasOwn(plan,'workspace')?{workspace:plan.workspace}:{}) };
+  const expected = { ...defaults(machine), ...(plan.geometry?{geometry:geometryTemplate(plan.geometry.shape,plan.geometry)}:{}),...(Object.hasOwn(plan,'workspace')?{workspace:plan.workspace}:{}) };
   if(plan.workspace){
     requireThat_bundle(plan.workspace.schema==='saam-workspace-source/1'&&plan.workspace.source&&plan.workspace.requirements,'Invalid workspace construction source.');
     requireThat_bundle(plan.workspace.constructionIdentity===workspaceConstructionIdentity(plan),'This edit changes the workspace construction requirements. Regenerate the section in its workspace, or explicitly detach the workspace source before changing its construction.');
@@ -128,7 +114,7 @@ export function validatePlanFields(plan,machine) {
   }
   requireThat_bundle(!plan.composition||!Object.hasOwn(plan.composition,'batchLayers'),'composition.batchLayers is retired; explicitly migrate the recipe to ascending-height scheduling and regenerate.');
   keys({...plan,setup:null},{...expected,setup:null});
-  validateRecipeSetup(plan);
+  validateRecipeSetup(plan,machine);
   requireThat_bundle(typeof plan.experimental.substrateAdaptation==='boolean','experimental.substrateAdaptation must be true or false.');
   requireThat_bundle(plan.schema === expected.schema && plan.generatorVersion === VERSION, 'Unsupported plan or generator version.');
   requireThat_bundle(Array.isArray(plan.composition.order) && plan.composition.order.every(id=>typeof id==='string') && Array.isArray(plan.composition.dependencies) && plan.composition.dependencies.every(e=>e && typeof e.before==='string' && typeof e.after==='string' && Object.keys(e).sort().join()==='after,before'), 'Invalid composition rules.');
@@ -139,7 +125,7 @@ export function validatePlanFields(plan,machine) {
     const key=Object.hasOwn(route,'part')?'part':'assignment',target=route[key];
     requireThat_bundle(typeof target==='string'&&target.length>0||key==='part'&&target===null,'Invalid filament routing target.');
     const identity=key+':'+target;requireThat_bundle(!routes.has(identity),'Duplicate filament routing target.');routes.add(identity);
-    validateRecipeSetup(filamentPlan(plan,machine,route.filament));
+    validateRecipeSetup(filamentPlan(plan,machine,route.filament),machine);
   }
 
   return plan;
@@ -231,7 +217,7 @@ export function validatePlanSelections(plan,machine) {
   for(const route of plan.composition.filaments)requireThat_toolpath(Object.hasOwn(route,'part')?selections.has(route.part):producerIds.has(route.assignment),'Filament routing names an absent part or deposition assignment.');
   for(const assignment of depositionAssignments(plan)){
     const selected=assignmentPlan(plan,machine,assignment);
-    validatePlanProcess(selected);validateRecipeSetup(selected);
+    validatePlanProcess(selected);validateRecipeSetup(selected,machine);
 
   }
   validateModulations(plan.modulations,{assignmentIds:plan.slices.assignments.map(a=>a.id)});

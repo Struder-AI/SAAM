@@ -7,17 +7,18 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { exportAndInterpretProgram, interpretProgram } from '../export/registry.mjs';
-import { loadMachine, validateDobotConfiguration } from '../machine/profile.mjs';
+import {loadMachine} from '../machine/profile.mjs';
+import {validateDobotConfiguration} from '../machine/rules.mjs';
 
 import {validateDensoConfiguration} from '../machine/denso.mjs';
 import {consumeCheckedProgram,createPendingCheckedProgramStore} from './program-handoff.mjs';
 import {replaceFile} from '../file-write.mjs';
-import {resolveInitialPlan,resolveMachinePlan,resolvePlanPatch} from './resolve-plan.mjs';
+import {resolvePlanPatch} from './resolve-plan.mjs';
+import {selectSettings,saveSetup} from '../machine/settings.mjs';
 import {migrateRecipeFields} from './recipe-migration.mjs';
 import {recipeFamily as assignmentFamily} from './assignment-records.mjs';
 
 export const root=resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const setupFor=machine=>resolve(root,`.local/machine-setups/${machine.id}.json`);
 const BUNDLE_SCHEMA='saam-print-bundle/2';
 const nativeSuffix=geometry=>{const name=geometry.nativeFile??'model.3dm';requireThat(['model.3dm','model.mesh.json'].includes(name),'Unsupported native geometry file.');return name==='model.3dm'?'.3dm':'.mesh.json';};
 const canonical=value=>JSON.stringify(value,function(_key,item){return item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.keys(item).sort().map(k=>[k,item[k]])):item;});
@@ -98,7 +99,6 @@ export function machineChangedReview(review, from, to, time = new Date().toISOSt
 export function createBundleWorkflow(adapter) {
   const {kind,defaults,createGeometry,generatePath,geometryTemplate,
     version:VERSION,buildDate:BUILD_DATE,exportName:EXPORT_NAME,limitations:limitationsFor}=adapter;
-  const machineFile=resolve(root,adapter.machineFile);
   const exportName=(plan,machine)=>{
     const extension=machine.outputs.find(o=>o.id===plan.output)?.extension??'.gcode';
     requireThat(/^\.[a-z0-9.]+$/.test(extension),'Invalid export extension.');
@@ -117,10 +117,9 @@ export function createBundleWorkflow(adapter) {
   const preparedResults=new WeakMap();
   let preparation;
   const programKey=(generationHash,exportHash)=>hash([generationHash,exportHash]);
-async function proposedPlan(machineId, { setupFile } = {}) {
-  const machine = machineId ? loadMachine(machineId) : await json(machineFile);
-  const remembered = await rememberedSetup(setupFile ?? setupFor(machine), machine);
-  return resolveInitialPlan(machine,{defaults,rememberedSetup:remembered});
+async function proposedPlan(machineId, options={}) {
+  const {machine,settings}=await selectSettings(machineId,options);
+  return {...defaults(machine),...settings};
 }
 async function initBundle(directory, plan, { setupFile, machineId, sourceBytes,sourcePath,preparedGeometry,attachments=[] } = {}) {
   const dir = resolve(directory);
@@ -165,16 +164,6 @@ async function saveGeometry(dir, geometry) {
 
 const manifestDocument=({plan,machine,review,geometry})=>({...plan,bundle:{schema:BUNDLE_SCHEMA,machine,review,geometry}});
 const saveManifest=(dir,state)=>save(resolve(dir,'plan.json'),manifestDocument(state));
-
-// Remembered setup is an editable starting point. Only fields this pipeline
-// already has are taken, so a setup saved by another skill cannot introduce one.
-async function rememberedSetup(setupFile, machine) {
-  let saved;
-  try { saved = await json(setupFile); } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
-  requireThat(saved.schema === 'saam-machine-setup/1' && saved.machineId === machine.id, 'Saved machine setup is incompatible.');
-  const known = defaults(machine).setup;
-  return Object.fromEntries(Object.entries(saved.setup ?? {}).filter(([key]) => Object.hasOwn(known, key)));
-}
 
 async function bundleFiles(dir,at=dir){
   const files=[];
@@ -426,17 +415,6 @@ async function bundleFingerprint(directory, options) {
   return (await bundleFingerprints(directory, options)).source;
 }
 
-async function rememberSetup(directory, { setupFile, source = 'User setup supplied through chat' } = {}) {
-  const state = await loadBundle(directory, { program: false });
-  requireThat(state.machine&&state.plan.setup,'Choose a machine and setup before remembering settings.');
-  setupFile??=setupFor(state.machine);
-  await save(setupFile, {
-    schema: 'saam-machine-setup/1', machineId: state.machine.id, setup: state.plan.setup,
-    source, updatedAt: new Date().toISOString()
-  });
-  return setupFile;
-}
-
 // Feasibility inspection through the same generator, without persisted output
 // or approval. The approved generation/export step remains the delivery gate.
 async function checkPathBundle(directory, {onProgress} = {}) {
@@ -473,7 +451,7 @@ async function adjustBundle(directory, patch, { setupFile, expectedRevision } = 
   if(expectedRevision!==undefined)requireThat(expectedRevision===state.revision,'This review is stale. Reload before changing the print.');
   const plan = applyPlanPatch(state.plan, patch, geometryTemplate);
   const updated=await updatePlan(directory, plan, state.revision);
-  if (patch.setup&&state.machine) await rememberSetup(directory, { setupFile });
+  if (patch.setup&&updated.machine) await saveSetup(updated.machine,updated.plan.setup,{setupFile});
   return updated;
 }
 
@@ -639,16 +617,22 @@ async function deliver(directory,{artifact=false}={}) {
   return artifact?{file:destination,bytes,exportHash:state.exportHash}:destination;
 }
 
-async function changeMachine(directory,machineId,{expectedRevision,setupFile}={}) {
+async function applySettingsSnapshot(directory,selection,expectedRevision) {
   const state=await loadBundle(directory,{program:false});
-  if(expectedRevision!==undefined)requireThat(expectedRevision===state.revision,'This review is stale. Reload before changing the printer.');
-  const machine=loadMachine(machineId),remembered=await rememberedSetup(setupFile??setupFor(machine),machine);
-  const plan=resolveMachinePlan(state.plan,state.machine,machine,{defaults,rememberedSetup:remembered});
-  const review=machineChangedReview(state.review,state.machine?.id??null,machineId);
+  requireThat(expectedRevision===state.revision,'This review is stale. Reload before changing the printer.');
+  const {machine,settings}=structuredClone(selection);
+  requireThat((machine===null||machine&&typeof machine==='object'&&!Array.isArray(machine))
+    &&settings&&typeof settings==='object'&&!Array.isArray(settings)
+    &&Object.keys(settings).every(k=>['setup','process','output','placement'].includes(k)),'Invalid selected settings snapshot.');
+  const plan={...state.plan,...settings};
+  if(canonical(machine)===canonical(state.machine)&&canonical(plan)===canonical(state.plan))return state;
+  const review=canonical(machine)===canonical(state.machine)
+    ?editedPlanReview(state.review,state.generationHash,false,planChanges(state.plan,plan))
+    :machineChangedReview(state.review,state.machine?.id??null,machine?.id??null);
   await saveManifest(state.dir,{plan,machine,review,geometry:state.geometryArtifact});
   return loadBundle(directory,{program:false});
 }
 
-return {root,EXPORT_NAME,atomicManifest:true,proposedPlan,initBundle,loadBundle,loadBundleSnapshot,bundleFingerprint,bundleFingerprints,rememberSetup,
-  migrateBundle,prepareGeneration,commitGeneration,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,changeMachine};
+return {root,EXPORT_NAME,atomicManifest:true,proposedPlan,initBundle,loadBundle,loadBundleSnapshot,bundleFingerprint,bundleFingerprints,
+  migrateBundle,prepareGeneration,commitGeneration,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,applySettingsSnapshot};
 }

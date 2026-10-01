@@ -197,7 +197,7 @@ async function preparePrint({command, target, libraryRoot, recipe, stl, machine,
       const {createSTLBundle} = await import('../print/import-stl.mjs');
       const imported=importSTL?await importSTL({directory:prepared.directory,source:resolve(stl),machineId:machine,units})
         :await createSTLBundle(prepared.directory, resolve(stl), {...options, units,signal,progress:onProgress});
-      if(importSTL&&machine){const {changeMachine}=await import('../print/bundle.mjs');await changeMachine(prepared.directory,machine,{setupFile});}
+      if(importSTL&&machine){const {changeMachine}=await import('../machine/bundle-settings.mjs');await changeMachine(prepared.directory,machine,{setupFile});}
       prepared.repaired=imported.repaired;
     } else {
       const adapter = await import('../print/bundle.mjs');

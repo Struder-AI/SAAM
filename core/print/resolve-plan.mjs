@@ -1,4 +1,5 @@
 import {requireThat} from '../private/bundle/numeric.mjs';
+import {SETTINGS_FIELDS,resolveSettingsPatch} from '../machine/settings.mjs';
 
 
 const record=value=>value&&typeof value==='object'&&!Array.isArray(value);
@@ -26,32 +27,13 @@ export function mergeRecord(previous,changes,{geometryTemplate,key}={}){
 }
 
 export function resolvePlanPatch(previous,patch,{geometryTemplate}){
-  const {geometry,...settings}=patch;
-  let plan=mergeRecord(previous,settings,{geometryTemplate});
+  const {geometry,...fields}=patch;
+  const settings=Object.fromEntries(Object.entries(fields).filter(([key])=>SETTINGS_FIELDS.includes(key)));
+  const recipe=Object.fromEntries(Object.entries(fields).filter(([key])=>!SETTINGS_FIELDS.includes(key)));
+  let plan={...mergeRecord(previous,recipe,{geometryTemplate}),...resolveSettingsPatch(previous,settings)};
   if(Object.hasOwn(patch,'geometry')){
     if(geometry===null){const {geometry:removed,...withoutGeometry}=plan;plan=withoutGeometry;}
     else plan={...plan,geometry:previous.geometry?mergeRecord(previous.geometry,geometry,{geometryTemplate,key:'geometry'}):structuredClone(geometry)};
   }
-  if(patch.setup?.firmwareVersion!==undefined
-    &&patch.setup.firmwareVersion!==previous.setup.firmwareVersion
-    &&patch.setup.startupVerified===undefined)
-    plan={...plan,setup:{...plan.setup,startupVerified:false}};
-  return plan;
-}
-
-export function resolveInitialPlan(machine,{defaults,rememberedSetup}){
-  const plan=defaults(machine);
-  if(rememberedSetup)plan.setup={...plan.setup,...rememberedSetup,
-    materialGuid:rememberedSetup.materialGuid||plan.setup.materialGuid};
-  return plan;
-}
-
-export function resolveMachinePlan(previous,previousMachine,machine,{defaults,rememberedSetup}){
-  const proposal=resolveInitialPlan(machine,{defaults,rememberedSetup});
-  if(!previousMachine)return {...structuredClone(previous),setup:{...proposal.setup,...previous.setup},process:{...proposal.process,...previous.process},output:previous.output??proposal.output,placement:previous.placement??proposal.placement};
-  const process={...previous.process};
-  for(const key of new Set([...Object.keys(previousMachine.defaultProcess??{}),...Object.keys(machine.defaultProcess??{})]))
-    process[key]=proposal.process[key];
-  const plan={...structuredClone(previous),setup:proposal.setup,output:proposal.output,process};
   return plan;
 }

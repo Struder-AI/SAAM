@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {h2dColourFixture} from './fixtures/bambu-h2d-colours.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {rhino} from '../print/geometry.mjs';
-import {checkMachinePath} from '../machine/profile.mjs';
+import {checkMachinePath} from '../machine/rules.mjs';
 import {exportProgram,interpretProgram} from '../export/registry.mjs';
 import {unpackZip,packZip} from '../export/zip.mjs';
 import {decodeSource} from '../../studio/source-player.mjs';

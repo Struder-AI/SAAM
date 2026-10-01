@@ -473,6 +473,78 @@
     "call"
    ],
    "evidence": "Bundle directly requests Geometry contributions; Toolpath combines only deposition or hybrid assignment results."
+  },
+  {
+   "contract": "settings-bundle",
+   "target": "core/machine/settings.mjs::selectSettings",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Settings resolves values and owns reusable storage; Bundle commits exact selections against an expected revision. Reads never re-resolve presets."
+  },
+  {
+   "contract": "settings-bundle",
+   "target": "core/machine/settings.mjs::settingsDefaults",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Settings resolves values and owns reusable storage; Bundle commits exact selections against an expected revision. Reads never re-resolve presets."
+  },
+  {
+   "contract": "settings-bundle",
+   "target": "core/machine/settings.mjs::resolveSettingsPatch",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Settings resolves values and owns reusable storage; Bundle commits exact selections against an expected revision. Reads never re-resolve presets."
+  },
+  {
+   "contract": "settings-bundle",
+   "target": "core/machine/settings.mjs::saveSetup",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Settings resolves values and owns reusable storage; Bundle commits exact selections against an expected revision. Reads never re-resolve presets."
+  },
+  {
+   "contract": "settings-bundle",
+   "target": "core/print/workflow.mjs::createBundleWorkflow::applySettingsSnapshot",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Settings resolves values and owns reusable storage; Bundle commits exact selections against an expected revision. Reads never re-resolve presets."
+  },
+  {
+   "contract": "settings-bundle",
+   "target": "core/print/workflow.mjs::createBundleWorkflow::loadBundle",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Settings resolves values and owns reusable storage; Bundle commits exact selections against an expected revision. Reads never re-resolve presets."
+  },
+  {
+   "contract": "agent-settings",
+   "target": "core/machine/bundle-settings.mjs::changeMachine",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Agent calls settings-owned selection, settings edits and setup persistence."
+  },
+  {
+   "contract": "agent-settings",
+   "target": "core/machine/bundle-settings.mjs::adjustSettings",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Agent calls settings-owned selection, settings edits and setup persistence."
+  },
+  {
+   "contract": "agent-settings",
+   "target": "core/machine/bundle-settings.mjs::rememberSetup",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Agent calls settings-owned selection, settings edits and setup persistence."
   }
  ]
 }
