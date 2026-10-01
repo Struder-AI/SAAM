@@ -113,7 +113,10 @@ Empty material is `[]`; boundary-only point/edge contact has no material area.
 region using the same Clipper2 kernel, precision and allocation lifetime. Gyroid
 infill needs this to retain curved strokes while splitting at holes and solid
 masks. Open paths preserve point sequence; they are not rotated or closed by the
-closed-loop canonicalizer. There is no XOR, contact-event API, UV surface adapter, mesh booleans,
+closed-loop canonicalizer. Parameter-preserving line spans and boundary contacts
+for wing, scanline and travel queries use the separate shared Geometry
+[line/region query](../geom/README.md#planar-lineregion-clipping); it explicitly
+preserves their parity, winding and boundary policies. There is no XOR, UV surface adapter, mesh booleans,
 NURBS intersections or backend-selection framework. Use Clipper2; consider CGAL
 only if tests show an unmet requirement.
 

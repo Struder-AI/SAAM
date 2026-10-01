@@ -1,5 +1,5 @@
 import {loftPolygons} from '../../core/geom/loft.mjs';
-import {polygonChords} from '../../core/geom/polygon-chords.mjs';
+import {clipLineToRegion} from '../../core/geom/curve-region.mjs';
 import {wingDesign,wingSections,wingStation,sectionRoute,foil,wingletThickness} from './design.mjs';
 import {aircraftContext} from './aircraft.mjs';
 
@@ -42,7 +42,7 @@ export function continuousWingCurve(d,piece){
     const polygon=wingEnvelope(d,piece,piece.toMm),ys=polygon.map(p=>p[1]),low=Math.min(...ys)+d.beadWidthMm/2,high=Math.max(...ys)-d.beadWidthMm/2;
     const count=Math.ceil((high-low)/(d.beadWidthMm*.9)),raster=[];
     for(let i=0;i<=count;i++){
-      const y=low+(high-low)*i/count,segments=polygonChords(polygon,y).filter(([a,b])=>b-a>d.beadWidthMm);
+      const y=low+(high-low)*i/count,segments=clipLineToRegion([0,y],[1,0],[polygon],{fillRule:'evenodd'}).spans.filter(([a,b])=>b-a>d.beadWidthMm);
       if(segments.length!==1)throw Error('Winglet face must have one connected chord on every fill row.');
       const [a,b]=segments[0],row=[[a+d.beadWidthMm/2,y],[b-d.beadWidthMm/2,y]];
       raster.push(...(i%2?row.reverse():row));

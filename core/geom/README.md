@@ -23,6 +23,41 @@ Geometry representations, query semantics, precision, spline sectioning and mesh
 repair. [Regions](../region/README.md) owns offsets, intersections and material
 regions; [composition](../path/README.md) consumes the resulting skill operations.
 
+## Planar line/region clipping
+
+`clipLineToRegion(origin, direction, loops, {range, fillRule})` in
+[curve-region.mjs](./curve-region.mjs) clips `origin + t * direction` without
+discarding the original parameter. The direction is finite and nonzero; the
+ordered range defaults to the whole line. A singleton range queries membership
+at one parameter. Regions are closed XY loops (the final vertex need not repeat
+the first). `fillRule` is explicitly `nonzero` (default) or `evenodd`.
+
+The result contains ordered `spans: [[t0,t1], ...]` and `contacts: [[t0,t1], ...]`.
+Spans use the scanline half-open vertex rule and retain subdivisions at boundary
+crossings; they are not merged into maximal intervals. Contacts describe input
+boundary intersections: equal endpoints mean a point, unequal endpoints mean a
+collinear interval. Overlapping contacts are merged. A tangent point alone adds
+no span, and a collinear edge does not invent a winding crossing. Contacts are
+input-boundary contacts even for overlapping/cancelling loops; callers needing
+the boundary of combined material must first normalize the region.
+
+Wing chords use even-odd spans, while infill uses nonzero spans and applies its
+existing minimum stroke length. Travel uses spans plus contacts against its
+existing tolerance-expanded material footprint, interpolating move height in
+the returned parameters. Thus top/bottom scanline boundary asymmetry is retained
+for deposition, while travel treats tangency and collinear contact as occupied.
+Vertical travel uses a singleton query instead of an artificial clipping probe.
+
+This is a shared floating-point edge sweep, consolidated from the existing
+wing/infill half-open scanline algorithms; it is not an exact-predicate kernel
+or a spline clipper. It adds no geometric epsilon or grid snapping. Travel's
+footprint offset still supplies its numerical slack. General open-polyline
+clipping remains the Clipper2 operation in `region/intersection.mjs`, with its
+existing grid and upstream boundary rules. It is intentionally not replaced by
+stitching these line results: those consumers require whole-polyline topology.
+In particular, travel no longer quantizes clipped endpoints on Clipper's grid;
+its region offset still uses that grid. No general exact-arithmetic claim is made.
+
 ## Geometry interoperability for skill authors
 
 Compiled heat-set and text geometry retains editable feature recipes. Local
