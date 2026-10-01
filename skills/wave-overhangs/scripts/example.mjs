@@ -1,6 +1,6 @@
 import {pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
-import {frontAssignment} from '../../../core/print/surface-constructions.mjs';
+import {frontAssignment} from './prepare.mjs';
 import {defaults} from '../../../core/print/plan.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
 // A box is six flat patches, each a 2 × 2 net of shared corners (GEOMETRY.md).

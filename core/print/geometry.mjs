@@ -9,7 +9,7 @@
 import rhino3dm from 'rhino3dm';
 import { patchFromSurface, evaluate } from '../geom/nurbs.mjs';
 import { makeShell, assertClosed } from '../geom/shell.mjs';
-import { buildShell,hasMesh } from './generate.mjs';
+import {buildShell,hasMesh} from '../geom/build.mjs';
 import { hash } from './plan.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 import { booleanDisplayMesh } from '../geom/boolean-display.mjs';

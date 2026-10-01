@@ -154,12 +154,12 @@ read, a missing one reporting `sourceUnavailable`, not wrong line numbers.
 ## Authoring
 
 **Design sets**: `map.json` declares `mode: "design"`, `title`, `authoring: "manual"`; `architecture.json` owns
-stable IDs, indexes, descriptions/types, actors, contracts and layout. Nodes may reference `source: {file, heading?}`
-or `{file, declaration?}` (`optional: true` allows absent local files); terminal boxes preview source. `read INDEX|@design/ID|CONTRACT-ID`
-prints intent; `--source` adds referenced text. `build --set NAME` and `regenerate` capture sources without scanning;
-`check --viewer` checks freshness, boxes, wires and previews. Contracts retain status/evidence and exact endpoints,
-operations, inputs/outputs, effects, failure and exclusions; calls include responses. `overview: "response"` draws
-the response direction on map 0 only. No transitive access, solving or inferred ownership/conformance is granted.
+stable IDs, indexes, actors, contracts and layout. Nodes reference `source: {file, heading?}` or `{file, declaration?}`;
+`optional: true` allows absent local files. Terminal boxes preview source; `read INDEX|@design/ID|CONTRACT-ID --source`
+adds it to agent reads. `build --set NAME` captures sources; `check --viewer` checks freshness, boxes, wires and previews.
+Architecture arrows show causal information/actions. Contract `access: [{from,to}]` records permitted calls/reads
+between those same endpoints separately, retaining operations, inputs/outputs, effects, errors and exclusions.
+No transitive permission or solver placement. Other design sets may retain explicitly stated call arrows.
 
 **Scanned trees**: `tree.json` owns `clusters` (`id,label,parent`), `leaves` (declaration → home), `repeats`
 (map → guests), optional `order`. Placement adds leaves beside links, drops gone leaves and dissolves
@@ -190,18 +190,17 @@ counted; `importAliases` name served paths that are not the path on disk.
 
 ## Checking
 
-`check` exits non-zero when the store is missing or stale, or a fact row is
-malformed. It reports leaves, clusters, links, the `linked`, `unresolved`,
-`outside` and `platform` totals and orphan facts; `--json` the same as data.
-`--viewer` adds coverage: map by map, whether the built drawing carries what
-the read presents, naming the fields nothing stands for. It only reports and
-is opt-in, reading a view `build` drew; an address scopes it, `coverage.mjs`
-states how each item is matched.
+Scanned `check` fails for missing/stale stores or malformed facts; `--json` reports totals and orphan facts.
+`--viewer [ADDRESS]` checks drawing coverage against stored reads (`coverage.mjs`).
+Design `inventory --set NAME` gathers runtime declarations/modules; `audit` compares exact `ownership.json`
+assignments against map 0 connections, writing `view/audit.html` and `store/audit.json`; submaps are ignored.
+`audit-check` fails when that snapshot is missing/stale. The viewer's Boundary audit opens filtered crossings,
+code/source, bucket counts and scope exclusions. Missing connections, direction review and unknown are distinct;
+represented means a pair exists; `interfaces.json` target/kind bindings do not certify schema/effect compliance. This pass leaves receiver/holder propagation unresolved; no code is moved or auto-rehomed.
 
 ## Scoring
 
-`score` reports size, boundary, hub, island, backflow and balance penalties;
-`lib/score.mjs` owns their weights. Solver energy weights map scores by nested
+`score` reports size, boundary, hub, island, backflow and balance penalties (`lib/score.mjs`). Solver energy weights scores by nested
 leaf count. Crossing is reported, not scored. The viewer and `view/scores.html`
 show scores; `score` prints the worst and best maps.
 

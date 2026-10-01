@@ -1,19 +1,19 @@
 ---
 name: wave-overhangs
-description: Guidance for experimental seeded-front fill on ordinary Slice families.
+description: Extension for experimental seeded-front fill on ordinary Slice families.
 metadata:
-  saam-kind: guidance
+  saam-kind: extension
 ---
 
-# Seeded-front Slice guidance
+# Seeded-front Slice extension
 
-This is a guide to the [slice skill](../slice/SKILL.md) when a region can grow laterally from
+This extension uses the [slice skill](../slice/SKILL.md) when a region can grow laterally from
 an authored seed. Fronts attach to preceding fronts; backing beneath every
 point is not required. This is an experimental process: lateral attachment,
 cooling and thermal warping need judgment and physical trials.
 
 `frontAssignment({id,...options})` in
-[shared constructions](../../core/print/surface-constructions.mjs) expands to
+[extension script](scripts/prepare.mjs) expands to
 an ordinary assignment: a surface-domain owned volume, `fillOrder:{kind:'fronts',...}`,
 shared process overrides and dependencies. Persist that expanded record in
 `plan.slices.assignments`; legacy `construction:'fronts'` requires migration.

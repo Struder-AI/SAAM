@@ -4,7 +4,7 @@ import {textOutlines} from '../../../core/geom/text-outline.mjs';
 import {textLayout} from '../../../core/geom/text-layout.mjs';
 import {referenceSurface} from '../../../core/geom/reference-surface.mjs';
 import {tessellateSolid} from '../../../core/geom/boolean-display.mjs';
-import {textTemplate,textDigest} from '../../../core/geom/text-record.mjs';
+import {textTemplate,textDigest} from './record.mjs';
 import {union} from '../../../core/region/intersection.mjs';
 
 export const TEXT_DEFAULTS={id:'text',text:'',mode:'raised',sizeMm:6,lineHeightMm:8,letterSpacingMm:0,outlineOffsetMm:0,align:'left',

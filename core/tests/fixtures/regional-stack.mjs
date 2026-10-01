@@ -5,8 +5,8 @@
 // for height-field slices.)
 import {defaults} from '../../print/plan.mjs';
 import {sliceAssignment} from '../../print/slices.mjs';
-import {sleeveAssignment} from '../../print/sleeve-constructions.mjs';
-import {skinAssignment} from '../../print/surface-constructions.mjs';
+import {sleeveAssignment} from '../../../skills/advanced-vase-wall/scripts/assignment.mjs';
+import {skinAssignment} from '../../../skills/draped-skin/scripts/prepare.mjs';
 import {syntheticDobotSetup} from './dobot.mjs';
 import {splineBox,splineBlock} from './spline-shapes.mjs';
 

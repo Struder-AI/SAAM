@@ -1,18 +1,13 @@
-import {loadBundle,updatePlan} from './bundle.mjs';
-import {rhino} from './geometry.mjs';
-import {buildShell} from './generate.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
-import {compileHeatSet} from '../../skills/heat-set-inserts/scripts/geometry.mjs';
-import {heatSetFeature,heatSetAssignmentId,legacyHeatSetAssignmentId} from '../../skills/heat-set-inserts/scripts/feature.mjs';
-import {heatSetSlices} from '../../skills/heat-set-inserts/scripts/slices.mjs';
-import {unwrapTextGeometry,rebuildTextGeometry} from './text.mjs';
+import {requireThat} from '../../../core/geom/tolerance.mjs';
+import {compileHeatSet} from './geometry.mjs';
+import {heatSetFeature,heatSetAssignmentId,legacyHeatSetAssignmentId} from './feature.mjs';
+import {heatSetSlices} from './slices.mjs';
+import {unwrapTextGeometry,rebuildTextGeometry} from '../../text/scripts/edit.mjs';
 
-export async function applyHeatSet(directory,request,{expectedRevision}={}){
+export async function editHeatSet(source,request,{buildGeometry}){
   requireThat(request&&Object.keys(request).every(k=>['feature','remove','part','toleranceMm'].includes(k)),'Unknown heat-set request field.');
   requireThat(Boolean(request.feature)!==Boolean(request.remove),'Supply one heat-set feature or remove id.');
-  const state=await loadBundle(directory,{program:false});
-  requireThat(expectedRevision===undefined||expectedRevision===state.revision,'This review is stale. Reload before changing inserts.');
-  const plan=structuredClone(state.plan),owner=request.part?plan.geometry.parts?.find(p=>p.id===request.part):plan;
+  const plan=structuredClone(source),owner=request.part?plan.geometry.parts?.find(p=>p.id===request.part):plan;
   requireThat(owner&&owner.geometry.shape!=='assembly','Select an existing assembly part before applying heat-set inserts.');
   const {base:geometry,layers}=unwrapTextGeometry(owner.geometry);
   const old=geometry.shape==='heat-set'?geometry:null,base=old?old.base:geometry;
@@ -28,7 +23,6 @@ export async function applyHeatSet(directory,request,{expectedRevision}={}){
     requireThat(next.insertId,'Choose an exact insertId from the heat-set manual size/profile table.');
     if(index>=0)features[index]=next;else features.push(next);
   }
-  const r=await rhino(),buildGeometry=g=>buildShell(r,g);
   const rebuilt=features.length?await compileHeatSet(base,features,{buildGeometry,toleranceMm:request.toleranceMm??old?.toleranceMm??0.01}):base;
   owner.geometry=await rebuildTextGeometry(rebuilt,layers,{buildGeometry});
   // Reinforcement is slice data: this part's heat-set owners are rewritten
@@ -47,5 +41,5 @@ export async function applyHeatSet(directory,request,{expectedRevision}={}){
   }
   plan.slices={...plan.slices,assignments:[...features.flatMap(f=>heatSetSlices(heatSetFeature(f),part,plan.process,
     {existingIds:existingByFeature.get(f.id)??new Set()})),...kept]};
-  return updatePlan(directory,plan,state.revision);
+  return plan;
 }

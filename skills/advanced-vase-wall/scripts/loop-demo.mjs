@@ -5,7 +5,7 @@ import {defaults} from '../../../core/print/plan.mjs';
 import {initBundle,generateBundle} from '../../../core/print/bundle.mjs';
 import {circlePoints} from '../../../core/geom/cylinder.mjs';
 import {loopPath} from './loop-path.mjs';
-import {sleeveAssignment} from '../../../core/print/sleeve-constructions.mjs';
+import {sleeveAssignment} from './assignment.mjs';
 
 // A vase host is normally solid. The recipe creates the hollow printed wall.
 export function loopHost({radius,heightMm,waveDepthMm=0,rows=25}){

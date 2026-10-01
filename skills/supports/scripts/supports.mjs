@@ -87,7 +87,7 @@ export function prepareSupportContexts({plan,machine,shells}) {
   });
   const lastLayer=a=>Math.floor((a.contactZMm-settings.topGapMm-process.firstLayerMm+1e-8)/process.layerMm);
   const shell={bounds:{min:[0,0,0],max:[0,0,top]}};
-  return [{spec:{id:'supports',layers,material:new Map(layers.map(layer=>[layer.index,layer.region])),settings:assignment,filament:assignment.filament,totalLayerCount:layers.length},
+  return [{validateResult:result=>requireThat(result.operations.length>0,'Assigned tree support produced no strokes; enlarge its branches.'),spec:{id:'supports',layers,material:new Map(layers.map(layer=>[layer.index,layer.region])),settings:assignment,filament:assignment.filament,totalLayerCount:layers.length},
     context:{process,machine,shell,startMm:0,endMm:top,report:{assignments:settings.assignments.map(a=>({id:a.id,reason:a.reason,
       contactZMm:a.contactZMm,actualTopGapMm:a.contactZMm-(process.firstLayerMm+lastLayer(a)*process.layerMm)})),
     limitations:'Bed-rooted branches, explicit skeletons, planar contact heights; slice-plane clearance checks only. No automatic branch routing; physical performance unvalidated.'}},

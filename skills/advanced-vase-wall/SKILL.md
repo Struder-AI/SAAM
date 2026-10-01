@@ -1,16 +1,17 @@
 ---
 name: advanced-vase-wall
-description: Guidance for explicit repeated Trace paths mapped onto a fitted sleeve.
+description: Extension that fits a sleeve, repeats authored patterns and calls Trace.
 metadata:
-  saam-kind: guidance
+  saam-kind: extension
 ---
 
 # Advanced vase mode
 
 Use for authored repeating patterns and fitted mesh sleeves. For a conventional
 continuous spiral, choose [standard vase mode](../vase-wall/SKILL.md).
-Sleeve assignments lower plain spirals to Slice and patterns to Trace with a
-sleeve fitting/morphing extension. This is guidance, not another deposition skill.
+This extension owns sleeve fitting, pattern mapping, repetition and end transitions.
+Its [script](scripts/advanced-vase.mjs) calls Trace with resolved curves and process
+values. Trace also retains native XYZ/NURBS and named patch/slice/sleeve UV inputs.
 
 Use for an open single-wall vessel or tube. The selected solid or closed sleeve
 is a reference envelope; vase-wall deposits the wall and leaves the interior and
@@ -25,8 +26,9 @@ paths. `pattern` always has `{paths, advance, repeats}`.
 
 ## Workflow
 
-Use the [shared print tools](../../core/print/USAGE.md) for import, recipe changes, generation, Studio review
-and delivery. Add a sleeve assignment; keep an ordinary assignment for a base.
+Use the [shared print tools](../../core/print/USAGE.md). A sleeve assignment with
+`pattern` selects this extension; a null pattern selects standard spiral Slice.
+Keep an ordinary assignment for a base.
 For a base, set a positive `zStartMm` aligned to the process layer grid. Set
 `zEndMm` explicitly when the upper geometry is unsuitable; generation never
 shortens a requested wall.
@@ -114,9 +116,8 @@ Author `pattern: {paths, advance, repeats}`. Each path has `points` as
 These coordinates are not world XYZ. `advance: [turns, riseMm]` translates
 successive repeats. The explicit paths are the tile; there is no separate
 cell-layout, tilt or loop-preset input. Bake those geometric choices into the
-points. [loop-path.mjs](../vase-wall/scripts/loop-path.mjs) is an example
-geometry helper returning explicit points, used by the
-[irregular demo](../vase-wall/scripts/irregular-demo.mjs).
+points. [loop-path.mjs](scripts/loop-path.mjs) returns explicit points for the
+[irregular demo](scripts/irregular-demo.mjs).
 
 The mapper queries actual sleeve sections at sampled Z and maps normalized
 perimeter phase onto them. A smaller perimeter narrows phase intervals;
@@ -175,18 +176,11 @@ continuous robot motion or calibrated variable flow. The user reports advanced
 vase walls demonstrated in physical prints (2026-09-24); software generation,
 review and export do not approve hardware.
 
-### Quality and generation cost
+### Script interface
 
-Choose fit control counts for the smooth envelope, `fidelity` for the strength of
-one-sided contact, and `detailToleranceMm` for its sampled detail allowance.
-The helper defaults to fidelity 1 and detail tolerance 0.05 mm; these can be much
-more expensive or reject folds that a looser allowance accepts. Fidelity 0
-isolates smooth mapping cost; a middle fidelity with a coarser explicit detail
-tolerance is a useful preview choice. Final path chord tolerance remains separate.
-
-Use Studio's generation progress and reports before changing quality settings.
-Changing a tolerance changes the numerical allowance and the point count that
-follows from it. Nothing permits silently trimming a wall.
-Reuse current checked output through the shared lifecycle instead of generating
-duplicate jobs. [Prepared contact](../../core/geom/README.md#prepared-mesh-contact)
-owns the numerical limits; [the devlog](../../DEVLOG.md) holds measured examples.
+`advancedVaseResult({shell, assignment, process, machine, ...})` returns operations,
+the reference family, optional terminal boundary and a report; it writes no files.
+The build caller supplies finalized foundation strands for substrate adaptation,
+then owns ordinary finalization, composition and export. Continuous patterns are
+submitted together to Trace so crossings, joins and terminal taper remain intact.
+Standard spiral Slice also consumes the extension's prepared contour reference.

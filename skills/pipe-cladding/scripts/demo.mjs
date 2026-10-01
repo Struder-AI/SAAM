@@ -1,5 +1,5 @@
 // Explicit development setup; never remembered as an installation calibration.
-import {claddingAssignment} from '../../../core/print/cladding-constructions.mjs';
+import {claddingAssignment} from './prepare.mjs';
 import {defaults} from '../../../core/print/plan.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
 import {clampedKnots} from '../../../core/geom/spline-solid.mjs';

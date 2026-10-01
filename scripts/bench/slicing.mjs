@@ -15,7 +15,7 @@ import { signedArea } from '../../core/geom/shell.mjs';
 import { generatePath } from '../../core/print/generate.mjs';
 import { defaults, VERSION, BUILD_DATE } from '../../core/print/plan.mjs';
 import { loadMachine } from '../../core/machine/profile.mjs';
-import { skinAssignment } from '../../core/print/surface-constructions.mjs';
+import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
 import { exportProgram, interpretProgram } from '../../core/export/registry.mjs';
 
 const args = process.argv.slice(2), arg = (name, fallback) => args.includes(name) ? args[args.indexOf(name) + 1] : fallback;

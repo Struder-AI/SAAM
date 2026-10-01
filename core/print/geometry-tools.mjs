@@ -3,7 +3,7 @@
 // without writing a script.
 import {loadBundle,updatePlan} from './bundle.mjs';
 import {rhino} from './geometry.mjs';
-import {buildShell,translateShell} from './generate.mjs';
+import {buildShell,translateShell} from '../geom/build.mjs';
 import {topAt} from '../geom/query.mjs';
 import {section,horizontalSlice,patchSlice,slicePoint,sliceNormal} from '../geom/slice.mjs';
 import {sliceAssignment,validateSlices,sliceOwners,ownedLayers} from './slices.mjs';
@@ -103,7 +103,7 @@ export async function combineGeometry(directory,request,{expectedRevision}={}){
   const plan=structuredClone(state.plan),owner=request.part?plan.geometry.parts?.find(p=>p.id===request.part):plan;
   requireThat(owner&&owner.geometry.shape!=='assembly','Select an assembly part with part.');
   const current=owner.geometry;
-  requireThat(BOOLEAN_OPERAND_SHAPES.includes(current.shape),`Only ${BOOLEAN_OPERAND_SHAPES.join(', ')} geometry combines; text, heat-set and Gridfinity records are finished bodies.`);
+  requireThat(BOOLEAN_OPERAND_SHAPES.includes(current.shape)||Array.isArray(current.vertices)&&!current.base,`Only ${BOOLEAN_OPERAND_SHAPES.join(', ')} geometry combines; feature-modified records are finished bodies.`);
   owner.geometry=current.shape==='boolean'&&current.operation===request.operation
     ?{...current,operands:[...current.operands,request.operand]}
     :{shape:'boolean',operation:request.operation,operands:[current,request.operand]};

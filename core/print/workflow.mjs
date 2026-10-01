@@ -12,7 +12,7 @@ import {consumeCheckedProgram,createPendingCheckedProgramStore} from './program-
 import {replaceFile} from '../file-write.mjs';
 import {resolveInitialPlan,resolveMachinePlan,resolvePlanPatch} from './resolve-plan.mjs';
 import {migrateRecipeFields} from './recipe-migration.mjs';
-import {assignmentFamily} from './slice-settings.mjs';
+import {recipeFamily as assignmentFamily} from './assignment-records.mjs';
 
 export const root=resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const setupFor=machine=>resolve(root,`.local/machine-setups/${machine.id}.json`);
@@ -39,7 +39,7 @@ function migrateReview(review) {
       'previousGenerationHash','previousPlanHash',`review history ${index}`))};
 }
 const migrateChecks=checks=>migratedIdentity(checks,'generationHash','planHash','saved checks');
-const originalSource=geometry=>geometry?.source??(['text','heat-set'].includes(geometry?.shape)?originalSource(geometry.base):null);
+const originalSource=geometry=>geometry?.source??(geometry?.base?originalSource(geometry.base):null);
 async function save(file,value){
   await replaceFile(file,typeof value==='string'||value instanceof Uint8Array?value:JSON.stringify(value,null,2)+'\n');
 }

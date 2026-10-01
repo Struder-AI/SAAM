@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseSTL, makeMesh } from '../../core/geom/mesh.mjs';
 import { section, horizontalSlice, sliceFamily } from '../../core/geom/slice.mjs';
-import { translateShell } from '../../core/print/generate.mjs';
+import {translateShell} from '../../core/geom/build.mjs';
 import { defaults } from '../../core/print/plan.mjs';
 import { sliceAssignment } from '../../core/print/slices.mjs';
 import { layerStrokes } from '../../core/region/layer-strokes.mjs';

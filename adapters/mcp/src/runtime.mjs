@@ -1,8 +1,9 @@
+import {applyExtensionEdit,createExtensionBundle} from '../../../core/print/extension-edits.mjs';
 // The local SAAM runtime: every agent operation over the same bundle lifecycle
 // and Studio used by the CLI, and the Studio/request state they share. It knows
 // no transport; stdio MCP (server.mjs) and the relay register these operations.
 import { z } from 'zod';
-import { mkdir, readdir, readFile, lstat, realpath, stat } from 'node:fs/promises';
+import { mkdir, readdir, lstat, realpath, stat } from 'node:fs/promises';
 import { resolve, dirname, relative, isAbsolute, sep } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -18,19 +19,16 @@ import {createAgentRequests} from '../../../studio/agent-requests.mjs';
 import {createStudioEvents} from '../../../studio/studio-events.mjs';
 import { createSTLBundle,setSTLUnits } from '../../../core/print/import-stl.mjs';
 import {createThingi10KClient} from '../../../skills/thingi10k/scripts/library.mjs';
-import {importThingi10KBundle} from '../../../skills/thingi10k/scripts/import.mjs';
-import {createGridfinityBundle,updateGridfinityBundle} from '../../../skills/gridfinity/scripts/bundle.mjs';
+import {importSTLResource} from '../../../core/print/import-resource.mjs';
 import {createBlobFieldBundle,updateBlobFieldBundle} from '../../../core/print/blob-field.mjs';
-import { applyText } from '../../../core/print/text.mjs';
 import {applySlice} from '../../../core/print/slice-edit.mjs';
 import {applyModulation} from '../../../core/print/modulation.mjs';
-import { applyHeatSet } from '../../../core/print/heat-set.mjs';
 import {intersectRequest,combineGeometry} from '../../../core/print/geometry-tools.mjs';
 import {loadLocalExtension} from '../../../core/local-extension.mjs';
 import {lifecycleReview} from '../../../core/print/review-state.mjs';
 import { readGuidance, readManual } from './manuals.mjs';
 import { onboardingSources, printHint } from '../../../core/agent/layers.mjs';
-import { SKILL_IDS, GUIDANCE_IDS, skillMetadata } from '../../../skills/catalog.mjs';
+import { SKILL_IDS, GUIDANCE_IDS, EXTENSION_IDS, skillMetadata } from '../../../skills/catalog.mjs';
 import {slicePatchSchema,modulationPatchSchema,geometrySchema,patchSchema,draftFamilySchema} from './deposition-schemas.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -214,7 +212,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   }
   async function skills() {
     const found = [];
-    for (const id of [...SKILL_IDS,...GUIDANCE_IDS]) {
+    for (const id of [...SKILL_IDS,...GUIDANCE_IDS,...EXTENSION_IDS]) {
       try {
         const { text: manual } = await readGuidance(root, `skills/${id}/SKILL.md`);
         found.push({ ...skillMetadata(id, manual), manualTool: 'read_skill' });
@@ -273,11 +271,11 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       outputs: m.outputs.map(({ id, extension, flavor, implemented, experimental, constraints, reason }) => ({ id, extension, flavor, implemented: implemented !== false, experimental, constraints, reason })),
       defaultSetup: m.defaultSetup };
   }));
-  tool('list_skills', 'List toolpath, geometry, hybrid and guidance manuals. Guidance teaches compositions of existing skills, not additional deposition operations. Catalog membership does not establish recipe compatibility.', {}, skills);
+  tool('list_skills', 'List toolpath, geometry, hybrid, guidance and extension manuals. Extensions compose engine operations; catalog membership does not establish recipe compatibility.', {}, skills);
   tool('read_skill', 'Read a skill or guidance manual by ID, or one section as ID#heading whatever its gate. Sections gated to command access or to machine capabilities are listed in omitted; machineId opens the ones that printer meets. Links are repository paths for read_guidance.',
     { skillId: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}(#[^\s#]{1,200})?$/), machineId: machineIdSchema }, async ({ skillId: name, machineId }) => {
     const [skillId, anchor] = name.split('#');
-    if (!SKILL_IDS.includes(skillId)&&!GUIDANCE_IDS.includes(skillId)) {
+    if (!SKILL_IDS.includes(skillId)&&!GUIDANCE_IDS.includes(skillId)&&!EXTENSION_IDS.includes(skillId)) {
       const local=await localExtension.readSkill?.(skillId);if(local)return local;
       throw new Error('Unknown skill or guidance manual ID. Use list_skills and its manual links.');
     }
@@ -339,7 +337,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     async({bundleId,fileId,machineId,units})=>{
       const dir=await directory(bundleId,{create:true});
       const remembered=await setupFile(machineId);
-      const result=await importing(bundleId,options=>importThingi10KBundle(meshLibrary,dir,fileId,{machineId,units,setupFile:remembered,...options}));
+      const result=await importing(bundleId,options=>importSTLResource(dir,()=>meshLibrary.download(fileId,options),{machineId,units,setupFile:remembered,...options}));
       return {...result,...(result.imported?summary(bundleId,await (await bundles.shell()).loadBundle(dir)):{bundleId})};
     },false,true);
   localExtension.registerMcp?.({tool,z,bundleIdSchema,objectSchema,idSchema,read,noApprovalFields});
@@ -370,12 +368,13 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
         if(!machineId||expectedRevision!==undefined||part!==undefined)throw new Error('Creation requires machineId; revision and part apply to updates.');
         loadMachine(machineId);
         const dir=await directory(bundleId,{create:true});
-        return summary(bundleId,await createGridfinityBundle(dir,parameters,{machineId,setupFile:await setupFile(machineId)}));
+        return summary(bundleId,await createExtensionBundle(dir,'gridfinity',parameters,{machineId,setupFile:await setupFile(machineId)}));
       }
       if(machineId!==undefined)throw new Error('Use the existing print machine for updates.');
       const {dir,state}=await read(bundleId,{program:false});
       if(state.kind!=='shell')throw new Error('Select a shared shell/mesh print.');
-      return summary(bundleId,await updateGridfinityBundle(dir,parameters,{expectedRevision,part}));
+      if(!expectedRevision)throw Error('Gridfinity edits require expectedRevision from the current print.');
+      return summary(bundleId,await applyExtensionEdit(dir,'gridfinity',parameters,{expectedRevision,part}));
     },false);
   tool('apply_text', 'Add, edit or remove raised/recessed text using a local font and a part or independent spline reference. Read text for request fields; assignments can replace the common plan.slices list atomically with geometry. Rebuilds actual geometry and invalidates approvals; use request_review afterward.',
     {bundleId:bundleIdSchema,expectedRevision:z.string().min(1),request:objectSchema},async({bundleId,expectedRevision,request},session)=>{
@@ -383,14 +382,14 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       if(session?.remote&&request.feature?.fontPath!==undefined)await requireSystemFont(String(request.feature.fontPath));
       const {dir,state}=await read(bundleId,{program:false});
       if(state.kind!=='shell')throw new Error('Text modifies shared shell/mesh prints.');
-      return summary(bundleId,await applyText(dir,request,{expectedRevision}));
+      return summary(bundleId,await applyExtensionEdit(dir,'text',request,{expectedRevision}));
     },false);
   tool('apply_heat_set', 'Add, edit or remove a heat-set insert hole; its reinforcement (a six-loop annulus and connecting fins) is written as slice assignments ahead of the others. Select the exact insertId from the heat-set-inserts manual size/profile table; read its request and geometry limits. Rebuilds geometry and invalidates affected approvals; use request_review afterward.',
     {bundleId:bundleIdSchema,expectedRevision:z.string().min(1),request:objectSchema},async({bundleId,expectedRevision,request})=>{
       noApprovalFields(request);
       const {dir,state}=await read(bundleId,{program:false});
       if(state.kind!=='shell')throw new Error('Heat-set inserts modify shared shell/mesh prints.');
-      return summary(bundleId,await applyHeatSet(dir,request,{expectedRevision}));
+      return summary(bundleId,await applyExtensionEdit(dir,'heat-set-inserts',request,{expectedRevision}));
     },false);
   tool('intersect_geometry', 'Query saved or draft geometry before placement: horizontal sections, vertical top crossings, spline surface cuts, or draft slice families. Families report layer counts, ownership, full-crossing findings and sampled local thickness; no recipe is saved. includeLoops adds chart/world points. Geometry findings are not machine/export approval.',
     {bundleId:bundleIdSchema.optional(),request:z.object({geometry:geometrySchema.optional(),part:z.string().optional(),sectionsAtZ:z.array(z.number()).optional(),topsAtXY:z.array(z.tuple([z.number(),z.number()])).optional(),surfaces:z.array(patchSchema.omit({name:true}).extend({offsetMm:z.tuple([z.number(),z.number(),z.number()]).optional()})).optional(),families:z.array(draftFamilySchema).describe('Ordinary assignment patches; default first/pitch 0.2mm and width0.4mm, override stack/process explicitly. Geometry belongs to outer request; part null inside drafts.').optional(),includeLoops:z.boolean().optional()}).strict()},async({bundleId,request})=>

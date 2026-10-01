@@ -18,7 +18,7 @@ import {unpackZip} from '../export/zip.mjs';
 import {bedPoint,uprightPose} from '../path/pose.mjs';
 import {prepareSliceContexts,sliceContextResult} from '../print/slices.mjs';
 import {surfaceRegion} from '../geom/surface-region.mjs';
-import {buildShell} from '../print/generate.mjs';
+import {buildShell} from '../geom/build.mjs';
 import {splineTube} from './fixtures/spline-shapes.mjs';
 import {scheduleOperations} from '../path/compose.mjs';
 import {frameAtTime,displayPoint} from '../../studio/playback.mjs';

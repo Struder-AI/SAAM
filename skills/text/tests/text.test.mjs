@@ -6,7 +6,7 @@ import {compileText,textFeature} from '../scripts/text.mjs';
 import {solidKernel,solidFromMesh} from '../../../core/geom/solid.mjs';
 import {makeMesh} from '../../../core/geom/mesh.mjs';
 import {rhino} from '../../../core/print/geometry.mjs';
-import {buildShell} from '../../../core/print/generate.mjs';
+import {buildShell} from '../../../core/geom/build.mjs';
 
 const fontPath=new URL('./fixtures/Abel-Regular.ttf',import.meta.url);
 const bytes=await readFile(fontPath),font={data:bytes.toString('base64'),sha256:createHash('sha256').update(bytes).digest('hex')};

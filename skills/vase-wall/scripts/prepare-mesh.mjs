@@ -9,9 +9,9 @@ import {defaults} from '../../../core/print/plan.mjs';
 import {makeMesh} from '../../../core/geom/mesh.mjs';
 import {detectMeshSleeveInterval} from '../../../core/geom/mesh-sleeve.mjs';
 import {requireThat} from '../../../core/geom/tolerance.mjs';
-import {MESH_SLEEVE_SETTINGS} from '../../../core/geom/sleeve-reference.mjs';
-import {validateSleevePattern} from '../../../core/path/sleeve-pattern.mjs';
-import {sleeveAssignment} from '../../../core/print/sleeve-constructions.mjs';
+import {MESH_SLEEVE_SETTINGS} from '../../advanced-vase-wall/scripts/sleeve-reference.mjs';
+import {validateSleevePattern} from '../../advanced-vase-wall/scripts/sleeve-pattern.mjs';
+import {sleeveAssignment} from '../../advanced-vase-wall/scripts/assignment.mjs';
 import {horizontalSlice,sliceFamily} from '../../../core/geom/slice.mjs';
 
 const keys=(value,allowed,label)=>requireThat(value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).every(k=>allowed.includes(k)),`Unknown or invalid ${label} options.`);

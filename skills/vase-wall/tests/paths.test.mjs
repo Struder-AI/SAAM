@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {generatePath} from '../../../core/print/generate.mjs';
 import {rhino} from '../../../core/print/geometry.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
-import {loopDemoPlan} from '../scripts/loop-demo.mjs';
+import {loopDemoPlan} from '../../advanced-vase-wall/scripts/loop-demo.mjs';
 
 const wall=path=>path.actions.filter(a=>a.role==='vase-wall'||a.role==='segmented-path');
 

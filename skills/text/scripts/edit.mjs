@@ -1,12 +1,9 @@
-// Public geometry preparation entry; writes only through the existing lifecycle.
+// Construct a proposed recipe value; the caller owns the revisioned bundle edit.
 import {readFile,stat} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {isAbsolute} from 'node:path';
-import {loadBundle,updatePlan} from './bundle.mjs';
-import {rhino} from './geometry.mjs';
-import {buildShell} from './generate.mjs';
-import {compileText} from '../../skills/text/scripts/text.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
+import {compileText} from './text.mjs';
+import {requireThat} from '../../../core/geom/tolerance.mjs';
 
 export function unwrapTextGeometry(geometry){
   const layers=[];
@@ -24,12 +21,10 @@ export async function rebuildTextGeometry(base,layers,{buildGeometry}){
   return rebuilt;
 }
 
-export async function applyText(directory,request,{expectedRevision}={}){
+export async function editText(source,request,{buildGeometry}){
   requireThat(request&&Object.keys(request).every(k=>['feature','remove','part','standalone','assignments','toleranceMm','maxEdgeMm'].includes(k)),'Unknown text request field.');
   requireThat(Boolean(request.feature)!==Boolean(request.remove),'Supply one feature to add/update, or remove its id.');
-  const state=await loadBundle(directory,{program:false});
-  requireThat(expectedRevision===undefined||expectedRevision===state.revision,'This review is stale. Reload before changing text.');
-  const plan=structuredClone(state.plan);
+  const plan=structuredClone(source);
   const owner=request.part?plan.geometry.parts?.find(p=>p.id===request.part):plan;
   requireThat(owner,'Unknown text target part.');
   const geometry=owner.geometry;
@@ -59,8 +54,7 @@ export async function applyText(directory,request,{expectedRevision}={}){
   }
   if(!features.length){requireThat(base&&!standalone,'Removing the last standalone text feature would leave no geometry.');owner.geometry=base;}
   else {
-    const r=await rhino();
-    owner.geometry=await compileText(base,features,{buildGeometry:g=>buildShell(r,g),standalone,toleranceMm:request.toleranceMm??old?.toleranceMm??0.02,maxEdgeMm:request.maxEdgeMm??old?.maxEdgeMm??1});
+    owner.geometry=await compileText(base,features,{buildGeometry,standalone,toleranceMm:request.toleranceMm??old?.toleranceMm??0.02,maxEdgeMm:request.maxEdgeMm??old?.maxEdgeMm??1});
   }
   // A removed/changed feature may invalidate a material selector. Let the caller
   // replace those assignments in the same validated edit, without an invalid
@@ -69,5 +63,5 @@ export async function applyText(directory,request,{expectedRevision}={}){
     requireThat(Array.isArray(request.assignments),'Text assignments must be the complete common slice assignment list.');
     plan.slices={...plan.slices,assignments:structuredClone(request.assignments)};
   }
-  return updatePlan(directory,plan,state.revision);
+  return plan;
 }

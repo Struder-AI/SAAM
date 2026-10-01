@@ -2,12 +2,12 @@
 name: thingi10k
 description: Find meshes by keyword or Thingiverse link and download STLs from the Thingi10K mirror. Always link the file's license.
 metadata:
-  saam-kind: geometry
+  saam-kind: extension
 ---
 
 # Find and import existing meshes
 
-Use this geometry skill when an existing model serves the request, including
+Use this extension when an existing model serves the request, including
 "fetch me a bunny" or a supplied Thingiverse link. Prefer making tailored
 geometry when that is attractive; an explicit request to fetch a model or use a
 link is a reason to search directly.

@@ -8,7 +8,7 @@ import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {rhino} from '../print/geometry.mjs';
-import {buildShell} from '../print/generate.mjs';
+import {buildShell} from '../geom/build.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 
 test('prepared sections exactly match direct cuts across heights, holes, islands and placement',async()=>{

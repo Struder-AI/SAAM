@@ -1,3 +1,4 @@
+import {ASSIGNMENT_RECORDS,GEOMETRY_RECORDS,extensionSettings,validateExtensionRecipe,extensionProducerIds,validateExtensionAssignment} from '../../skills/records.mjs';
 // Recipe (plan.json) for shell-based prints: geometry, placement, setup, shared
 // process settings, and the settings of each selected skill.
 //
@@ -10,10 +11,7 @@ import { createHash } from 'node:crypto';
 import { requireThat } from '../geom/tolerance.mjs';
 import {loadMachine,centeredPlacement} from '../machine/profile.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
-import {SUPPORT_DEFAULTS,validateSupports} from '../../skills/supports/scripts/supports.mjs';
 import {splineSolidTemplate,validateSplineSolid,splineSolidBounds} from '../geom/spline-solid.mjs';
-import {gridfinityTemplate,validateGridfinityRecord} from '../../skills/gridfinity/scripts/record.mjs';
-import {textTemplate,validateTextRecord} from '../geom/text-record.mjs';
 import {blobFieldTemplate,validateBlobFieldRecord} from '../geom/blob-field-record.mjs';
 import {booleanSolidTemplate,validateBooleanSolid,booleanShell} from '../geom/boolean-solid.mjs';
 import {geometrySelections} from '../geom/selections.mjs';
@@ -21,8 +19,6 @@ import {defaultSlices,validateSlices} from './slices.mjs';
 import {defaultModulations,validateModulations} from '../path/modulation.mjs';
 import {modulationGeometrySources} from '../path/modulation-field.mjs';
 import {assignmentPlan,depositionAssignments} from './assignment-process.mjs';
-import {PLASTIC_WELD_DEFAULTS,validatePlasticWeld} from '../../skills/plastic-weld/scripts/weld.mjs';
-import {heatSetTemplate,validateHeatSetRecord} from '../../skills/heat-set-inserts/scripts/feature.mjs';
 import {filamentPlan} from '../machine/filaments.mjs';
 import {validateRecipeSetup} from './recipe-setup.mjs';
 
@@ -58,10 +54,7 @@ export function defaults(machine=loadMachine()) {
       clearanceResponsibility: 'operator',
       clearanceNote: 'No collision model is implemented; the operator owns physical clearance.'
     },
-    skills: {
-      'plastic-weld':structuredClone(PLASTIC_WELD_DEFAULTS),
-      supports: structuredClone(SUPPORT_DEFAULTS),
-    },
+    skills: extensionSettings(),
     slices: defaultSlices(),
     modulations: defaultModulations(),
     composition: { order: [], dependencies: [], filaments: [] },
@@ -77,9 +70,7 @@ export function defaults(machine=loadMachine()) {
 export function geometryTemplate(shape,geometry) {
   if(shape==='blob-field')return blobFieldTemplate();
   if(shape==='boolean')return booleanSolidTemplate();
-  if(shape==='heat-set')return heatSetTemplate();
-  if(shape==='gridfinity')return gridfinityTemplate();
-  if(shape==='text')return textTemplate(geometry);
+  if(Object.hasOwn(GEOMETRY_RECORDS,shape))return GEOMETRY_RECORDS[shape].template(geometry);
   if(shape==='mesh')return {shape:'mesh',vertices:[],triangles:[],source:null};
   if(shape==='assembly')return {shape:'assembly',parts:[]};
   return splineSolidTemplate();
@@ -96,7 +87,7 @@ export function validatePlan(plan,machine) {
 
 // Authored forms (spline patches, meshes, assemblies of them) and the
 // compiled records of geometry skills.
-export const GEOMETRY_SHAPES=['spline','blob-field','mesh','boolean','assembly','text','gridfinity','heat-set'];
+export const GEOMETRY_SHAPES=['spline','blob-field','mesh','boolean','assembly',...Object.keys(GEOMETRY_RECORDS)];
 
 export function depositionOnlyPlan(plan){
   return plan?.geometry===undefined&&plan.slices?.assignments?.length>0&&plan.slices.assignments.every(a=>['curves','inject'].includes(a.construction)||!a.construction&&a.surface?.kind==='terminal');
@@ -129,15 +120,12 @@ export function validatePlanFields(plan,machine) {
 export function validatePlanGeometry(plan,machine) {
   const {geometry,placement,setup}=plan;
   if(!geometry)requireThat(Object.values(plan.skills).every(settings=>!settings.enabled),'Geometry-free deposition cannot enable geometry-dependent skills.');
-  validatePlasticWeld(plan,machine);
   if(!geometry)return plan;
   if(geometry.shape==='spline')validateSplineSolid(geometry);
   if(geometry.shape==='boolean')authoredBounds(geometry);
-  if(geometry.shape==='text')validateTextRecord(geometry);
-  if(geometry.shape==='heat-set')validateHeatSetRecord(geometry);
-  if(geometry.shape==='gridfinity')validateGridfinityRecord(geometry);
+  GEOMETRY_RECORDS[geometry.shape]?.validate(geometry);
   if(geometry.shape==='blob-field')validateBlobFieldRecord(geometry);
-  if(['mesh','blob-field','text','gridfinity','heat-set'].includes(geometry.shape)) {
+  if(Array.isArray(geometry.vertices)&&Array.isArray(geometry.triangles)) {
     makeMesh(geometry.vertices,geometry.triangles);
     if(geometry.shape==='mesh')validateMeshSource(geometry);
   }
@@ -162,9 +150,7 @@ function authoredBounds(geometry){
   if(geometry.shape==='boolean')return booleanShell(validateBooleanSolid(geometry).operation,geometry.operands.map(operand=>({bounds:authoredBounds(operand)}))).bounds;
   if(geometry.shape==='spline')return splineSolidBounds(validateSplineSolid(geometry));
   if(geometry.shape==='blob-field')validateBlobFieldRecord(geometry);
-  else if(geometry.shape==='text')validateTextRecord(geometry);
-  else if(geometry.shape==='heat-set')validateHeatSetRecord(geometry);
-  else if(geometry.shape==='gridfinity')validateGridfinityRecord(geometry);
+  else if(Object.hasOwn(GEOMETRY_RECORDS,geometry.shape))GEOMETRY_RECORDS[geometry.shape].validate(geometry);
   else {keys(geometry,{shape:'mesh',vertices:[],triangles:[],source:null},'boolean operand');validateMeshSource(geometry);}
   return makeMesh(geometry.vertices,geometry.triangles).bounds;
 }
@@ -202,7 +188,7 @@ export function validatePlanProcess(plan) {
 export function validatePlanAuxiliary(plan,machine) {
   const {geometry,process,setup,skills}=plan;
   validateRecipeSetup(plan);
-  validateSupports(skills.supports,assignmentPlan(plan,machine,{id:'supports'}).process);
+  validateExtensionRecipe(plan,machine);
   requireThat(typeof setup.startupVerified === 'boolean' && typeof setup.firmwareVersion === 'string' && /^[\w .+-]{0,80}$/.test(setup.firmwareVersion), 'Invalid firmware setup.');
 
   return plan;
@@ -214,10 +200,9 @@ export function validatePlanSelections(plan,machine) {
   // A slice part is a geometry selection: a component or a prepared material
   // part; two cut parts never share material.
   const selections=geometry?geometrySelections(geometry):new Map();
-  validateSlices(plan.slices,{parts:[...selections.keys()].filter(key=>key!==null),lineWidthMm:plan.process.lineWidthMm,firstLayerMm:plan.process.firstLayerMm});
+  validateSlices(plan.slices,{validateConstruction:validateExtensionAssignment,parts:[...selections.keys()].filter(key=>key!==null),lineWidthMm:plan.process.lineWidthMm,firstLayerMm:plan.process.firstLayerMm});
   const producerIds=new Set(plan.slices.assignments.map(a=>a.id));
-  if(skills.supports.enabled)producerIds.add('supports');
-  if(skills['plastic-weld'].enabled)for(const site of skills['plastic-weld'].sites)producerIds.add('plastic-weld:'+site.id);
+  for(const id of extensionProducerIds(plan))producerIds.add(id);
   for(const route of plan.composition.filaments)requireThat(Object.hasOwn(route,'part')?selections.has(route.part):producerIds.has(route.assignment),'Filament routing names an absent part or deposition assignment.');
   for(const assignment of depositionAssignments(plan)){
     const selected=assignmentPlan(plan,machine,assignment);
@@ -240,7 +225,6 @@ export function validatePlanSelections(plan,machine) {
       const assigned=depositionAssignments(plan).find(a=>a.part===part.id);
       const child=structuredClone(assignmentPlan(plan,machine,assigned??{part:part.id}));child.geometry=part.geometry;
       child.placement={xMm:placement.xMm+part.xMm,yMm:placement.yMm+part.yMm};
-      child.skills['plastic-weld'].enabled=false;
       // Global assignment/process/dependency validation has already run. Only
       // this component's geometry and placement change in the local check.
       validatePlanFields(child,machine);validatePlanGeometry(child,machine);validatePlanPlacement(child,machine);
@@ -248,7 +232,7 @@ export function validatePlanSelections(plan,machine) {
   }
   requireThat(sliced, 'Add a slice assignment.');
   if(geometry?.shape==='assembly')for(const assignment of plan.slices.assignments){
-    const needsComponent=assignment.construction==='sleeve'||!assignment.construction&&(assignment.surface?.kind==='terminal'||assignment.stack?.direction==='normal'||assignment.within.some(r=>r.kind==='surface-domain'&&r.loopsUv===null));
+    const needsComponent=ASSIGNMENT_RECORDS[assignment.construction]?.requiresComponent||!assignment.construction&&(assignment.surface?.kind==='terminal'||assignment.stack?.direction==='normal'||assignment.within.some(r=>r.kind==='surface-domain'&&r.loopsUv===null));
     requireThat(!needsComponent||assignment.part!==null,'An assembly reference-surface assignment must select a component.');
   }
   return plan;

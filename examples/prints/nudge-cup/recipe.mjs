@@ -1,8 +1,8 @@
 import {defaults} from '../../../core/print/plan.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
 import {sliceAssignment} from '../../../core/print/slices.mjs';
-import {sleeveAssignment} from '../../../core/print/sleeve-constructions.mjs';
-import {skinAssignment} from '../../../core/print/surface-constructions.mjs';
+import {sleeveAssignment} from '../../../skills/advanced-vase-wall/scripts/assignment.mjs';
+import {skinAssignment} from '../../../skills/draped-skin/scripts/prepare.mjs';
 export function nudgeCupPlan(){
 const N=120;
 function meshBuilder(){const vertices=[],triangles=[];return {vertices,triangles,ring(r,z){const s=vertices.length;for(let i=0;i<N;i++){const t=2*Math.PI*i/N;vertices.push([r*Math.cos(t),r*Math.sin(t),z]);}return s;},connect(a,b,reverse=false){for(let i=0;i<N;i++){const j=(i+1)%N;for(let f of [[a+i,a+j,b+j],[a+i,b+j,b+i]])triangles.push(reverse?f.reverse():f);}},disk(ring,z,up){const c=vertices.length;vertices.push([0,0,z]);for(let i=0;i<N;i++)triangles.push(up?[ring+i,ring+(i+1)%N,c]:[ring+(i+1)%N,ring+i,c]);},geometry(){return {shape:'mesh',vertices,triangles,source:null};}};}

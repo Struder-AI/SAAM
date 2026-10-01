@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
 import {createHash} from 'node:crypto';
 import {createThingi10KClient, csvRows, readRemote, REVISION} from '../scripts/library.mjs';
-import {importThingi10KBundle} from '../scripts/import.mjs';
+import {importSTLResource} from '../../../core/print/import-resource.mjs';
 import {boxMesh} from '../../../core/tests/fixtures/mesh.mjs';
 import {loadBundle, generateBundle, approve, deliver, updatePlan} from '../../../core/print/bundle.mjs';
 import {setSTLUnits} from '../../../core/print/import-stl.mjs';
@@ -107,7 +107,7 @@ test('downloads enforce streamed and declared limits, redirect boundaries, HTTP 
 test('failed mesh import retains exact download, attribution and mandatory chat notice',async t=>{
   const broken=Buffer.from('not an STL'), {client,root}=await fixture(t,broken);
   const directory=resolve(root,'broken');
-  const result=await importThingi10KBundle(client,directory,'101',{machineId:'ultimaker-s5',setupFile:resolve(root,'setup.json')});
+  const result=await importSTLResource(directory,()=>client.download('101'),{machineId:'ultimaker-s5',setupFile:resolve(root,'setup.json')});
   assert.equal(result.imported,false); assert.ok(result.error);
   assert.deepEqual(await readFile(result.sourcePath),broken);
   assert.equal(JSON.parse(await readFile(result.sourcePath+'.json')).license,result.attribution.license);
@@ -129,11 +129,11 @@ test('MCP searches, imports and opens an unapproved print; attribution survives 
   };
   const tools=(await client.listTools()).tools;
   assert.equal(tools.find(tool=>tool.name==='import_thingi10k_bundle').annotations.openWorldHint,true);
-  assert.ok((await call('list_skills',{})).some(skill=>skill.id==='thingi10k'&&skill.kind==='geometry'));
+  assert.ok((await call('list_skills',{})).some(skill=>skill.id==='thingi10k'&&skill.layer==='extension'&&skill.kind==='extension'));
   const manual=await call('read_skill',{skillId:'thingi10k'}); assert.ok(manual);
   const results=await call('search_thingi10k',{query:'bunny'});
   const imported=await call('import_thingi10k_bundle',{bundleId:'Bunny',fileId:results.results[0].fileId,machineId:'ultimaker-s5'});
-  assert.equal(imported.imported,true);assert.equal(imported.toolpathApproved,false);
+  assert.equal(imported.imported,true);assert.equal(imported.toolpathApproved,null);
   assert.ok(imported.chatNotice.includes(imported.attribution.licenseUrl));
   const dir=resolve(printsRoot,'Bunny');
   let state=await loadBundle(dir,{program:false});

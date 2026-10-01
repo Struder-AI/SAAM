@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {MACHINE_IDS,loadMachine,checkMachinePath,validateSetup} from '../machine/profile.mjs';
 import {defaults,validatePlan} from '../print/plan.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
-import {skinAssignment} from '../print/surface-constructions.mjs';
+import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
 import {outputAdapter} from '../export/registry.mjs';
 import {initBundle,loadBundle,adjustBundle,generateBundle,proposedPlan} from '../print/bundle.mjs';
 

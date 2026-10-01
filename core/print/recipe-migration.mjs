@@ -1,9 +1,10 @@
-import {skinAssignment,frontAssignment} from './surface-constructions.mjs';
-import {rimAssignment} from './sleeve-constructions.mjs';
+import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
+import {frontAssignment} from '../../skills/wave-overhangs/scripts/prepare.mjs';
+import {rimAssignment} from '../../skills/thick-lip/scripts/prepare.mjs';
 import {bridgeAssignment} from '../../skills/bridging/scripts/prepare.mjs';
-import {sliceAssignment} from './slices.mjs';
+import {depositionAssignment} from './assignment-records.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
-import {validateSleevePattern} from '../path/sleeve-pattern.mjs';
+import {validateSleevePattern} from '../../skills/advanced-vase-wall/scripts/sleeve-pattern.mjs';
 
 // Retired cell layouts expand only during an explicitly requested migration.
 function explicitSleevePaths(pattern){
@@ -49,7 +50,7 @@ export function migrateRecipeFields(plan){
     }
     const {construction,...legacy}=source;
     requireThat(construction!=='cladding','Legacy cladding pose cannot be migrated automatically: author normal-band Slice with optional derived pose and field tilt, then review.');
-    const canonical=construction==='bridges'?bridgeAssignment({...legacy,process:{...legacy.process,firstLayerMm:legacy.process?.layerMm??plan.process.layerMm}}):construction==='skin'?skinAssignment({...legacy,process:{...legacy.process,planarSpeedMmS:plan.process.skinSpeedMmS,firstLayerSpeedMmS:plan.process.skinSpeedMmS}}):construction==='fronts'?frontAssignment(legacy):construction==='rim'?rimAssignment(legacy):sliceAssignment(source);
+    const canonical=construction==='bridges'?bridgeAssignment({...legacy,process:{...legacy.process,firstLayerMm:legacy.process?.layerMm??plan.process.layerMm}}):construction==='skin'?skinAssignment({...legacy,process:{...legacy.process,planarSpeedMmS:plan.process.skinSpeedMmS,firstLayerSpeedMmS:plan.process.skinSpeedMmS}}):construction==='fronts'?frontAssignment(legacy):construction==='rim'?rimAssignment(legacy):depositionAssignment(source);
     for(const key of new Set([...Object.keys(source),...Object.keys(canonical)]))if(JSON.stringify(source[key])!==JSON.stringify(canonical[key]))changes.push({path:`slices.assignments.${index}.${key}`,assignment:assignment.id,before:source[key]??null,after:canonical[key]??null,meaning:Object.hasOwn(source,key)?'Explicit shared-construction migration.':'Explicitly added current shared default.'});
     return canonical;
   });

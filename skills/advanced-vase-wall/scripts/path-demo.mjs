@@ -3,7 +3,7 @@ import {resolve} from 'node:path';
 import {defaults} from '../../../core/print/plan.mjs';
 import {initBundle,generateBundle} from '../../../core/print/bundle.mjs';
 import {splineTube} from '../../pipe-cladding/scripts/demo.mjs';
-import {sleeveAssignment} from '../../../core/print/sleeve-constructions.mjs';
+import {sleeveAssignment} from './assignment.mjs';
 const mode=process.argv[3]??'continuous';
 if(!['continuous','segmented'].includes(mode))throw new Error('Choose continuous or segmented.');
 const plan=defaults();

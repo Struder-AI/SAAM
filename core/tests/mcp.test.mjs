@@ -13,7 +13,7 @@ import { boxMesh } from './fixtures/mesh.mjs';
 import {createTour} from '../../studio/tour.mjs';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
-import {sleeveAssignment} from '../print/sleeve-constructions.mjs';
+import {sleeveAssignment} from '../../skills/advanced-vase-wall/scripts/assignment.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 async function clientFor(t, printsRoot) {

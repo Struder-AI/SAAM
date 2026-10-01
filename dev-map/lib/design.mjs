@@ -65,6 +65,10 @@ export async function designModel({repo}) {
     if(!/^[a-z][a-z0-9-]*$/.test(c.id)||ids.has(c.id))throw Error(`Invalid/duplicate contract: ${c.id}`);
     ids.add(c.id);
     for(const end of [c.from,c.to])if(!nodes.has(end)&&!actors.has(end))throw Error(`Unknown endpoint ${end} on ${c.id}`);
+    for(const a of c.access??[])for(const end of [a.from,a.to]) {
+      if(!nodes.has(end)&&!actors.has(end))throw Error(`Unknown access endpoint ${end} on ${c.id}`);
+      if(![c.from,c.to].includes(end))throw Error(`Access must stay on the drawn interface: ${c.id}`);
+    }
     if(c.from===c.to)throw Error(`Self contract: ${c.id}`);
     if(c.overview!==undefined&&c.overview!=='response')throw Error(`Invalid overview direction: ${c.id}`);
     for(const field of ['label','direction','inputs','outputs','effects','failure','excludes'])
@@ -94,7 +98,7 @@ export async function designModel({repo}) {
         if(!visible.has(at))visible.set(at,nodes.get(id)??{...actors.get(id),id,index:at,type:'actor'});
       }
       const key=`${from}\0${to}`,wire=links.get(key)??{from,to,contracts:[],count:0,kinds:{contract:0}};
-      wire.contracts.push({...c,fromIndex:endpoint(c.from),toIndex:endpoint(c.to),status:c.status??'proposed; implementation unchecked'});
+      wire.contracts.push({...c,fromIndex:endpoint(c.from),toIndex:endpoint(c.to),...(c.access?{access:c.access.map(a=>({...a,fromIndex:endpoint(a.from),toIndex:endpoint(a.to)}))}:{}),status:c.status??'proposed; implementation unchecked'});
       wire.count++;wire.kinds.contract++;links.set(key,wire);
     }
     // Unbound terminal concepts retain their intent page; bound terminals preview source.
@@ -115,12 +119,21 @@ export async function designModel({repo}) {
   }
   const generatorFiles=['design.mjs','map-set.mjs','generated-view.mjs','generated-view.py','leveled.py','svg.py','flow.py','viewer.py','../../core/agent/manuals.mjs'];
   const generator=await Promise.all(generatorFiles.map(file=>readFile(resolve(repo,'dev-map/lib',file),'utf8')));
-  const snapshotId=createHash('sha256').update(text+JSON.stringify(mapSet)+generator.join('\n')+JSON.stringify(sourceInfo)).digest('hex');
-  return {design:true,title:mapSet.title,generated:spec.date,snapshotId,pages,sources,sourceInfo,stale:{},
+  const audit=JSON.parse(await readFile(resolve(repo,setFile('view/audit-status.json')),'utf8').catch(e=>{if(e.code==='ENOENT')return 'null';throw e;}));
+  const snapshotId=createHash('sha256').update(text+JSON.stringify(mapSet)+generator.join('\n')+JSON.stringify(sourceInfo)+JSON.stringify(audit&&{generated:audit.generated,totals:audit.totals})).digest('hex');
+  return {design:true,auditAvailable:!!audit,audit,title:mapSet.title,generated:spec.date,snapshotId,pages,sources,sourceInfo,stale:{},
     changed:[],changedInputs:[],scores:{},regenerate:`node dev-map/cli.mjs build --set ${setName}`};
 }
 
 export async function designCommand(command,args,{repo}) {
+  if(['audit','inventory','audit-check'].includes(command)) {
+    const {architectureAudit,auditStatus}=await import('./architecture-audit.mjs');
+    const result=command==='audit-check'?await auditStatus(repo):await architectureAudit(repo,{inventoryOnly:command==='inventory'});
+    if(command==='audit-check')await writeFile(resolve(repo,setFile('view/audit-status.json')),JSON.stringify(result));
+    console.log(JSON.stringify(result));
+    if(command==='audit-check'&&result.state!=='current')throw Error('Architecture audit missing or stale; run audit.');
+    return;
+  }
   const model=await designModel({repo});
   if(command==='read') {
     if(args.includes('--code'))throw Error('A design has no scanned code. Use --source for an explicit source reference.');
@@ -161,12 +174,12 @@ export async function designCommand(command,args,{repo}) {
         for(const w of page.wires)if(!svg.includes(`data-a="${w.from}" data-b="${w.to}"`))missing.push(`${page.index}: wire ${w.from} -> ${w.to}`);
       }
     }
-    console.log(JSON.stringify({mode:'design',valid:true,pages:model.pages.length,viewer:current?'current':'missing or stale',...(args.includes('--viewer')?{undrawn:missing}:{}),implementation:'unchecked; conformance scanner not implemented'}));
+    console.log(JSON.stringify({mode:'design',valid:true,pages:model.pages.length,viewer:current?'current':'missing or stale',...(args.includes('--viewer')?{undrawn:missing}:{}),implementation:model.auditAvailable?'partial map 0 audit available; run audit-check for freshness':'unchecked; no audit snapshot'}));
     if(missing.length)throw Error('Design viewer is missing boxes, wires or source previews.');
     if(!current)process.exitCode=1;
     // cli dispatch must preserve a failing check.
     if(!current)throw Error('Build this design set to refresh the viewer.');
     return;
   }
-  throw Error('Design sets support read [INDEX|@design/ID|CONTRACT-ID], build, regenerate and check. Solving and code evidence require a scanned set.');
+  throw Error('Design sets support read [INDEX|@design/ID|CONTRACT-ID], build, regenerate, check, inventory, audit and audit-check. Solving requires a scanned set.');
 }

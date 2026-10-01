@@ -5,8 +5,9 @@ description: Deposit along curves, authored directly or supplied by skills: XYZ,
 
 # Trace
 
-Trace deposits along spatial curves, authored directly or supplied by skills; self-contained Trace/Inject recipes omit `geometry`.
-[Slice](../slice/SKILL.md) covers 3D regions; [text](../text/SKILL.md) makes solid lettering.
+Trace deposits along spatial curves; self-contained Trace/Inject recipes omit `geometry`.
+[Slice](../slice/SKILL.md) covers 3D regions. Extensions supply curves through
+`traceResult(assignment, {courses, process})` in [curves.mjs](../../core/print/curves.mjs).
 
 Use the existing `slice` editing tool, or the same bulk recipe edit, to add a
 `construction: "curves"` record in `plan.slices.assignments`; no separate controller.
@@ -32,9 +33,9 @@ named slice family. Surface references and family repetition use finalized
 source data; dependencies must exist. Optional [modulation](../slice/SKILL.md#modulation)
 primarily adds visual/surface effects; the profiles above directly express process variation.
 
-[Networks](../line-network/SKILL.md), [bridging](../bridging/SKILL.md) and
-[sleeve tiles](../advanced-vase-wall/SKILL.md) supply Trace curves; generation
-establishes no physical adhesion or strength.
+[Networks](../line-network/SKILL.md) and [bridging](../bridging/SKILL.md) supply curves.
+[Advanced vase](../advanced-vase-wall/SKILL.md) owns sleeve fitting and pattern repetition;
+Trace receives its resolved curves. Generation establishes no adhesion or strength.
 
 ## Ordered courses and declared contact
 
@@ -48,6 +49,5 @@ uses the resolved bead height; null reference Z uses each sampled curve point.
 Contact is checked vertically against positive-volume strands, not inferred
 from a solid guide. This also works without an enclosing geometry.
 
-A down-and-up extrusion curve can declare `depositionAction:{kind:"press",depthMm}`;
-depth must stay within its bead height. Polyline `segmentMetadata` retains authored
-segment identities through resampling and compaction.
+A down-and-up curve can declare `depositionAction:{kind:"press",depthMm}` within its bead height.
+Polyline `segmentMetadata` retains segment identities through resampling and compaction.

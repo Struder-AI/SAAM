@@ -1,5 +1,5 @@
 import {defaults} from '../../../core/print/plan.mjs';
-import {skinAssignment} from '../../../core/print/surface-constructions.mjs';
+import {skinAssignment} from '../../../skills/draped-skin/scripts/prepare.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
 import {clampedKnots} from '../../../core/geom/spline-solid.mjs';
 // A block whose cubic top follows a grid of control heights: top controls sit on

@@ -2,7 +2,8 @@
 import { createBundleWorkflow } from './workflow.mjs';
 import { defaults,validatePlan,geometryTemplate,VERSION,BUILD_DATE } from './plan.mjs';
 import { createGeometry,verifyGeometry,rhino } from './geometry.mjs';
-import { generatePath,buildShell,translateShell,GENERATION_CONTRACT } from './generate.mjs';
+import {buildShell,translateShell} from '../geom/build.mjs';
+import {generatePath,GENERATION_CONTRACT} from './generate.mjs';
 import {modulationGeometrySources,prepareModulationFields} from './modulation-fields.mjs';
 import {booleanShell} from '../geom/boolean-solid.mjs';
 

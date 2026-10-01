@@ -4,7 +4,7 @@ import {pathToFileURL} from 'node:url';
 import {defaults} from '../../../core/print/plan.mjs';
 import {initBundle,generateBundle} from '../../../core/print/bundle.mjs';
 import {loopPath} from './loop-path.mjs';
-import {sleeveAssignment} from '../../../core/print/sleeve-constructions.mjs';
+import {sleeveAssignment} from './assignment.mjs';
 
 export function irregularLoopHost(){
   const rows=9,columns=48,height=30,vertices=[],triangles=[];

@@ -1,8 +1,8 @@
 ---
 name: draped-skin
-description: Guidance for roof-following Slice courses and their contact with prior material.
+description: Extension for roof-following Slice courses and their contact with prior material.
 metadata:
-  saam-kind: guidance
+  saam-kind: extension
 ---
 
 # Roof-following Slice courses

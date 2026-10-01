@@ -1,16 +1,15 @@
+import {applyExtensionEdit} from './extension-edits.mjs';
 // Every command uses the same print bundle; Studio previews the checked export.
 import {readFile,access} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {root,initBundle,loadBundle,generateBundle,adjustBundle,rememberSetup,deliver,checkPathBundle,changeMachine,migrateBundle} from './bundle.mjs';
 import {createSTLBundle,setSTLUnits} from './import-stl.mjs';
 import {repairSTLFiles} from './repair-stl.mjs';
-import {applyText} from './text.mjs';
-import {applyHeatSet} from './heat-set.mjs';
 import {createBlobFieldBundle,updateBlobFieldBundle} from './blob-field.mjs';
 import {intersectRequest,combineGeometry} from './geometry-tools.mjs';
 import {starterGeometry} from '../../examples/prints/starter-geometry.mjs';
 import {defaults} from './plan.mjs';
-import {skinAssignment} from './surface-constructions.mjs';
+import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
 import {printHint} from '../agent/layers.mjs';
 const readJson=async file=>JSON.parse(await readFile(file,'utf8'));
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].replace(/\\/g, '/')}`).href) {
@@ -46,7 +45,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(report(state));
     } else if(command==='text') {
       if(!argument)throw new Error('Use text <print-directory> <text-request.json> [--revision <revision>].');
-      const state=await applyText(bundleDirectory(),await readJson(resolve(argument)),{expectedRevision});
+      const state=await applyExtensionEdit(bundleDirectory(),'text',await readJson(resolve(argument)),{expectedRevision});
       console.log(report(state));
     } else if(command==='intersect') {
       if(!argument)throw new Error('Use intersect <print-directory> <intersect-request.json>.');
@@ -56,7 +55,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(report(await combineGeometry(bundleDirectory(),await readJson(resolve(argument)),{expectedRevision})));
     } else if(command==='heat-set') {
       if(!argument)throw new Error('Use heat-set <print-directory> <heat-set-request.json> [--revision <revision>].');
-      const state=await applyHeatSet(bundleDirectory(),await readJson(resolve(argument)),{expectedRevision});
+      const state=await applyExtensionEdit(bundleDirectory(),'heat-set-inserts',await readJson(resolve(argument)),{expectedRevision});
       console.log(report(state));
     } else if(command==='repair-stl') {
       if(!argument||!['mm','inch'].includes(extra))throw new Error('Use repair-stl <new-repair-directory> <source.stl> <mm|inch> [options.json].');

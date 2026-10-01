@@ -4,9 +4,6 @@ import {authoredNurbs,validateCurveProfiles,validateLineTextSource,constructAuth
 import {beadWidthRule} from '../path/parallel-curves.mjs';
 import {depositedCurveSegments,curveSupportsPoint} from '../path/deposited-curves.mjs';
 import {depositCurveCourses} from '../path/curve-courses.mjs';
-import {prepareContourSleeve} from '../geom/contour-sleeve.mjs';
-import {mappedSleevePatternCurves} from '../path/sleeve-pattern.mjs';
-import {contactCurveGaps} from '../path/contact-curves.mjs';
 import {assignmentPlan} from './assignment-process.mjs';
 import {finalizeDepositionResult,combineFinalizedResults} from './finalize.mjs';
 
@@ -116,7 +113,7 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,bounds
 // Authored and skill-mapped centerlines share bead calculation, joining,
 // travel packaging, bounds and aggregate measures. Extensions supply geometry
 // and course data; they do not assemble a separate deposition result.
-function traceResult(assignment,{courses,process,bounds=null,sequential=true,report={}}){
+export function traceResult(assignment,{courses,process,bounds=null,sequential=true,report={}}){
   const operations=depositCurveCourses({id:assignment.id,courses,process,after:assignment.after,filament:assignment.filament,sequential});
   let lengthMm=0,strokeCount=0,volumeMm3=0;
   for(const operation of operations)for(const stroke of operation.strokes){
@@ -128,22 +125,6 @@ function traceResult(assignment,{courses,process,bounds=null,sequential=true,rep
     volumeMm3+=stroke.volumesMm3?stroke.volumesMm3.reduce((sum,v)=>sum+v,0):(length+closing)*stroke.beadAreaMm2;
   }
   return {id:assignment.id,operations,report:{...report,depositionFamily:'trace',strokes:strokeCount,lengthMm,volumeMm3}};
-}
-
-// Sleeve tiling is a Trace geometry extension. Its authored cells and reference
-// morphing determine centerlines; shared Trace owns all deposition assembly.
-export function sleeveTraceResult({shell,assignment,process,machine,after=assignment.after,zStartMm=null,zEndMm=null,foundationSegments=[],maxBeadHeightMm=Infinity,substrateAdaptation=false,onProgress}){
-  requireThat(assignment.pattern!==null,'Sleeve Trace requires an authored repeated pattern.');
-  const reference=prepareContourSleeve({shell,assignment,process,machine,zStartMm,zEndMm,onProgress});
-  const {base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm}=reference;
-  const mapped=mappedSleevePatternCurves({settings:assignment,process,base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm,onProgress});
-  const courses=mapped.courses.map(({layerIdSuffix,...course})=>({...course,layerId:assignment.id+layerIdSuffix,
-    ...(substrateAdaptation&&foundationSegments.length?{curves:contactCurveGaps(course.curves,{segments:foundationSegments,maxHeightMm:maxBeadHeightMm})}:{})}));
-  const family={...reference.family(),name:`${assignment.id} sleeve`};
-  const result=traceResult({...assignment,after},{courses,process,report:{...mapped.report,...reference.report(),construction:'sleeve',part:assignment.part}});
-  const level=mapped.levelBoundary,strokes=result.operations.flatMap(o=>o.strokes);
-  return {...result,family,
-    ...(level?{levelBoundary:{zMm:level.zMm,widthMm:level.widthMm,strokes:strokes.slice(-level.tailCount)}}:{})};
 }
 
 // Construct one graph-selected trace from finalized predecessors. Bridges finalize

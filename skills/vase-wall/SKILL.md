@@ -1,8 +1,8 @@
 ---
 name: vase-wall
-description: Guidance for a continuous Slice spiral wall and optional solid base.
+description: Extension for a continuous Slice spiral wall and optional solid base.
 metadata:
-  saam-kind: guidance
+  saam-kind: extension
 ---
 
 # Standard vase mode
@@ -13,8 +13,8 @@ recipe leaves the interior hollow. No pattern or `meshSleeve` preparation is nee
 For repeated loops, authored patterns or adjustable mesh conformance, choose
 [advanced vase mode](../advanced-vase-wall/SKILL.md).
 
-Normal sleeve assignments use the shared Slice family, spiral joining and bead
-construction. Advanced tiled patterns use Trace on the same sleeve reference.
+[The extension](scripts/prepare.mjs) prepares the wall and calls Slice family
+joining. [Advanced vase](../advanced-vase-wall/SKILL.md) maps patterns into Trace curves.
 
 ## Workflow
 

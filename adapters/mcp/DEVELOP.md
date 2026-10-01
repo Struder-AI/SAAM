@@ -48,16 +48,13 @@ sole live instance, so switching prints opens no second Studio;
 an instance never crosses adapter ownership, while print bundles remain shared.
 Tour start-layer writes require the run and lesson identities they were prepared
 for. See [coordination and its concurrency limits](../../studio/README.md#agent-request-coordination).
-Geometry and hybrid skill manuals identify themselves with `metadata.saam-kind: geometry` or
-`hybrid` in their frontmatter; toolpath skill manuals keep the default `toolpath` kind.
+[The catalog](../../skills/catalog.mjs) distinguishes the three primitives,
+extensions and guidance. Extension manuals use `metadata.saam-kind: extension`.
 
-`apply_text` delegates to [shared text preparation](../../core/print/text.mjs),
-including local font reading, stale-revision checks and geometry updates. The
-adapter does not own a separate text schema, boolean pipeline or approval route.
-
-`apply_heat_set` delegates to [shared insert preparation](../../core/print/heat-set.mjs)
-with the same revision and geometry lifecycle. The skill manual lists exact
-insert profiles; geometry and dimension validation stay at the shared owners.
+`apply_text`, `apply_heat_set` and `gridfinity` use the shared
+[extension edit lifecycle](../../core/print/extension-edits.mjs): scripts return
+recipe values; the caller checks revisions and commits through the bundle.
+Thingi10K returns downloaded assets to the shared resource importer.
 
 `core/tests/mcp.test.mjs` uses actual SDK clients and child processes, temporary
 bundles and synthetic approval fixtures outside the adapter protocol.

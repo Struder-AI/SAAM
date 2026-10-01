@@ -2,7 +2,7 @@
 name: gridfinity
 description: gridfinity
 metadata:
-  saam-kind: geometry
+  saam-kind: extension
 ---
 
 # Gridfinity

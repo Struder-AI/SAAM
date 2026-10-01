@@ -1,11 +1,11 @@
 // Mesh estimation and unilateral contact feed the same vase path producer.
-import {fitMeshSleeve} from './mesh-sleeve.mjs';
-import {prepareSleeveContours} from './sleeve-frame.mjs';
-import {prepareRadialSleeveContact} from './prepared-radial-contact.mjs';
-import {createMeshDistanceQuery} from './mesh-distance.mjs';
-import {requireThat} from './tolerance.mjs';
-import {loopArea} from '../region/region2d.mjs';
-import {union} from '../region/intersection.mjs';
+import {fitMeshSleeve} from '../../../core/geom/mesh-sleeve.mjs';
+import {prepareSleeveContours} from '../../../core/geom/sleeve-frame.mjs';
+import {prepareRadialSleeveContact} from '../../../core/geom/prepared-radial-contact.mjs';
+import {createMeshDistanceQuery} from '../../../core/geom/mesh-distance.mjs';
+import {requireThat} from '../../../core/geom/tolerance.mjs';
+import {loopArea} from '../../../core/region/region2d.mjs';
+import {union} from '../../../core/region/intersection.mjs';
 
 export const MESH_SLEEVE_SETTINGS={fidelity:1,contactSide:'inside',circumferentialControls:12,heightControls:6,detailToleranceMm:.05};
 

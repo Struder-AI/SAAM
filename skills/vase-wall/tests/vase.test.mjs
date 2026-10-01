@@ -1,15 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {defaults,validatePlan} from '../../../core/print/plan.mjs';
-import {generatePath,buildShell,translateShell} from '../../../core/print/generate.mjs';
+import {buildShell,translateShell} from '../../../core/geom/build.mjs';
+import {generatePath} from '../../../core/print/generate.mjs';
 import {rhino} from '../../../core/print/geometry.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
 import {sectionGeometry} from '../../../core/geom/query.mjs';
 import {pointSegmentDistance,loopArea,dedupe} from '../../../core/region/region2d.mjs';
 import {boxMesh} from '../../../core/tests/fixtures/mesh.mjs';
 import {offsetRegion} from '../../../core/region/offset.mjs';
-import {sleeveAssignment} from '../../../core/print/sleeve-constructions.mjs';
-import {prepareSliceContexts,sliceContextResult} from '../../../core/print/slices.mjs';
+import {sleeveAssignment} from '../../advanced-vase-wall/scripts/assignment.mjs';
+import {prepareContourSleeve} from '../../advanced-vase-wall/scripts/contour-sleeve.mjs';
+import {standardVaseContexts,standardVaseResult} from '../scripts/prepare.mjs';
 
 function vasePlan(machine=loadMachine(),geometry=boxMesh(8,6,1)) {
   const plan=defaults(machine);plan.geometry=geometry;
@@ -70,7 +72,7 @@ test('expanding polygonal cup keeps continuous phase when the first seam enters 
   plan.slices.assignments[0].endTransition='level';
   for(const [x,y] of [[0,0],[165,120]]){
     const shell=translateShell(buildShell(r,geometry),x,y);
-    const result=sliceContextResult(prepareSliceContexts({plan,machine,shells:[],boundaryAssignments:[{shell,assignment:{...plan.slices.assignments[0],zStartMm:1.2,zEndMm:4},process:plan.process}]}).contexts[0]);
+    const result=standardVaseResult(standardVaseContexts([{shell,assignment:{...plan.slices.assignments[0],zStartMm:1.2,zEndMm:4},process:plan.process}].map(context=>({...context,geometry:prepareContourSleeve({...context,machine})})),machine)[0]);
     const points=result.operations[0].strokes[0].points;
     assert.equal(result.report.levelRimMm,4);
     assert.equal(points.at(-1)[2],4);
@@ -145,7 +147,7 @@ test('a wall takes the points its geometry requires, and a retired point budget 
   const machine=loadMachine(),r=await rhino();
   // Well past the former 100000-point default on the exact per-section path.
   const tall=vasePlan(machine,boxMesh(8,6,90));tall.slices.assignments[0].sampleStepMm=0.1;
-  const result=sliceContextResult(prepareSliceContexts({plan:tall,machine,shells:[],boundaryAssignments:[{shell:translateShell(buildShell(r,tall.geometry),tall.placement.xMm,tall.placement.yMm),assignment:tall.slices.assignments[0],process:tall.process}]}).contexts[0]);
+  const result=standardVaseResult(standardVaseContexts([{shell:translateShell(buildShell(r,tall.geometry),tall.placement.xMm,tall.placement.yMm),assignment:tall.slices.assignments[0],process:tall.process}].map(context=>({...context,geometry:prepareContourSleeve({...context,machine})})),machine)[0]);
   assert.ok(result.report.points>100000,`expected more than 100000 wall points, got ${result.report.points}`);
   assert.equal(result.operations[0].strokes[0].points.length,result.report.points);
   assert.equal('maxPoints' in result.report,false);

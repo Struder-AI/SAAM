@@ -1,3 +1,4 @@
+import {GEOMETRY_SHAPES} from '../../../core/print/plan.mjs';
 // Discoverable patch schemas. Named records let the existing SDK emit local
 // references instead of repeated shapes; recipe validators still own completeness.
 import {z} from 'zod';
@@ -5,7 +6,7 @@ import {FILL_PATTERNS} from '../../../core/region/fill-patterns.mjs';
 const number=z.number().finite(),positive=number.positive(),names=z.array(z.string()),xyz=z.tuple([number,number,number]).meta({id:'saam.xyz'}),uv=z.tuple([number,number]).meta({id:'saam.uv'});
 const weighted=z.union([xyz,z.tuple([number,number,number,positive])]).meta({id:'saam.weightedPoint'});
 export const patchSchema=z.object({name:z.string(),degreeU:z.number().int().min(1),degreeV:z.number().int().min(1),controlPoints:z.array(z.array(weighted)),knotsU:z.array(number).nullable().optional(),knotsV:z.array(number).nullable().optional()}).describe('Named NURBS patch; control-net rows along U, points along V; optional full knot vectors.').meta({id:'saam.patch'});
-export const geometrySchema=z.lazy(()=>z.object({shape:z.enum(['spline','mesh','blob-field','boolean','assembly','text','heat-set','gridfinity']),patches:z.array(patchSchema).optional(),vertices:z.array(xyz).optional(),triangles:z.array(z.tuple([z.number().int(),z.number().int(),z.number().int()])).optional(),source:z.unknown().optional(),operation:z.enum(['union','difference','intersection']).optional(),operands:z.array(geometrySchema).optional(),parts:z.array(z.object({id:z.string(),geometry:geometrySchema,xMm:number,yMm:number,zMm:number})).optional()}).passthrough()).describe('Same authored geometry record as recipe geometry; derived mesh forms retain their feature/provenance fields.');
+export const geometrySchema=z.lazy(()=>z.object({shape:z.enum(GEOMETRY_SHAPES),patches:z.array(patchSchema).optional(),vertices:z.array(xyz).optional(),triangles:z.array(z.tuple([z.number().int(),z.number().int(),z.number().int()])).optional(),source:z.unknown().optional(),operation:z.enum(['union','difference','intersection']).optional(),operands:z.array(geometrySchema).optional(),parts:z.array(z.object({id:z.string(),geometry:geometrySchema,xMm:number,yMm:number,zMm:number})).optional()}).passthrough()).describe('Same authored geometry record as recipe geometry; derived mesh forms retain their feature/provenance fields.');
 const blob=z.object({schema:z.literal('saam-blob-field/1'),points:z.array(z.object({positionMm:xyz,reachMm:positive,strength:number})),threshold:positive});
 export const fieldSchema=z.lazy(()=>z.object({
   kind:z.enum(['periodic','noise','bumps','ramp','blob','solid-distance','transfer','add','multiply']).optional(),

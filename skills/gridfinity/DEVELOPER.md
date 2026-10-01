@@ -6,9 +6,8 @@ Manifold boundary performs unions and differences. Arcs are inscribed polygons
 with a common segment count from a 4 mm maximum radius, and output passes the
 closed-mesh validation. [record.mjs](scripts/record.mjs) hashes mesh and
 parameters together, detecting stale pairs (not forged records); reopening and
-slicing use the saved mesh. [bundle.mjs](scripts/bundle.mjs) prepares prints
-through the shared lifecycle for CLI and MCP; these modules are part of the
-bundle runtime identity, so changed construction invalidates old generation.
+slicing use the saved mesh. [edit.mjs](scripts/edit.mjs) returns recipe values;
+[the lifecycle](../../core/print/extension-edits.mjs) applies them for CLI and MCP.
 A compiled record from `compileGridfinity` can be a part's geometry in a
 complete plan; assembly transforms act after local construction.
 

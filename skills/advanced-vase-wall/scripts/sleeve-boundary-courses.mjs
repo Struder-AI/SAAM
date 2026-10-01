@@ -1,6 +1,6 @@
 // Start/end courses are built in the regular reference strip, before flow
 // mapping. The caps retain the selected pattern's advance and transverse shape.
-import {requireThat} from '../geom/tolerance.mjs';
+import {requireThat} from '../../../core/geom/tolerance.mjs';
 
 export function* patternCourses(pattern,{level=false,spanMm,firstHeightMm,referenceLengthMm}){
   const rise=pattern.advance[1],count=pattern.repeats;

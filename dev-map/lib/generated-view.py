@@ -1482,7 +1482,7 @@ function openContracts(from,to){
   closeCode();legendPane.classList.remove('on');codePane.classList.add('on');
   codePane.innerHTML=`<div class="ch"><span class="x" onclick="dismissCode()">&times;</span><h3>${esc(from)} → ${esc(to)}</h3><p>Authored interfaces · inspect status and source evidence below</p></div>`+
     contracts.map(c=>`<div style="padding:16px"><h3>${esc(c.id)} · ${esc(c.label)}</h3><p>${esc(c.fromIndex)} → ${esc(c.toIndex)}</p>`+
-      ['status','evidence','direction','operations','inputs','outputs','effects','failure','excludes'].filter(k=>c[k]!==undefined).map(k=>`<p><b>${esc(k)}</b><br>${esc(Array.isArray(c[k])?c[k].join('; '):c[k])}</p>`).join('')+'</div>').join('');
+      ['status','evidence','direction','access','operations','inputs','outputs','effects','failure','excludes'].filter(k=>c[k]!==undefined).map(k=>`<p><b>${esc(k)}</b><br>${esc(k==='access'?c[k].map(a=>a.fromIndex+' → '+a.toIndex).join('; '):Array.isArray(c[k])?c[k].join('; '):c[k])}</p>`).join('')+'</div>').join('');
 }
 function pageCode(){const p=PAGES[cur];if(p&&p.r)openCode(p.r,p.destination==='code'?cur:null);}
 function copy(t){navigator.clipboard.writeText(t);}
@@ -1603,7 +1603,7 @@ def emit(out, model, pages, svgs):
     heading = model.get("title", "SAAM — the generated map")
     legend = ("<p>Authored target architecture, not scanned implementation.</p>"
               "<p>Boxes open submaps or referenced source. Wires open contracts and evidence, including exact nested endpoints. "
-              "A call includes its declared response; guidance and event arrows state their direction separately. "
+              "Wire direction follows the stated contract flow. Separate access entries, where supplied, name permitted call/read directions. "
               "No transitive access is granted. Implementation conformance remains unchecked.</p>"
               if model.get("design") else legend_html())
     html = f"""<!doctype html><meta charset="utf-8"><title>{escape(heading)}</title>
@@ -1627,6 +1627,7 @@ def emit(out, model, pages, svgs):
     <button onclick="toggleLegend()">Legend</button>
     <button onclick="const s=document.getElementById('score');s.hidden=!s.hidden;overview()">Score</button>
     <button onclick="pageCode()">Source</button>
+    {f'''<button onclick="location.href='audit.html#'+cur">Boundary audit · {model['audit']['totals'].get('forbidden', 0)} conflicts</button>''' if model.get('design') and model.get('auditAvailable') else ''}
     <button onclick="overview()">Fit</button><button id="fit-all" onclick="fit()" hidden>Fit all dependencies</button>
     <button onclick="actual()">100%</button>
     <button onclick="toggleMinimap()" title="show or hide the minimap">Minimap</button>

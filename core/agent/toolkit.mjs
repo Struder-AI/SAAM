@@ -8,7 +8,7 @@ import {promisify} from 'node:util';
 import {randomUUID} from 'node:crypto';
 import {readManual} from './manuals.mjs';
 import {ONBOARDING} from './layers.mjs';
-import {SKILL_IDS,GUIDANCE_IDS,BUILDER_IDS} from '../../skills/catalog.mjs';
+import {SKILL_IDS, GUIDANCE_IDS, EXTENSION_IDS,BUILDER_IDS} from '../../skills/catalog.mjs';
 import {lifecycleReview} from '../print/review-state.mjs';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -76,7 +76,7 @@ async function environmentStatus() {
 // `ID#heading` reads one section of the maker manual, whatever its gate.
 export async function readSkill(name, {maker = false, builder = false, developer = false, machine: machineId, all = false} = {}) {
   const [id, anchor] = name.split('#');
-  if (!SKILL_IDS.includes(id)&&!GUIDANCE_IDS.includes(id)&&!BUILDER_IDS.includes(id)) throw Error(`Unknown skill or guidance manual: ${id}. Known skills and guidance manuals: ${[...SKILL_IDS,...GUIDANCE_IDS].join(', ')}.`);
+  if (!SKILL_IDS.includes(id)&&!GUIDANCE_IDS.includes(id)&&!EXTENSION_IDS.includes(id)&&!BUILDER_IDS.includes(id)) throw Error(`Unknown skill or guidance manual: ${id}. Known skills and guidance manuals: ${[...SKILL_IDS,...GUIDANCE_IDS,...EXTENSION_IDS].join(', ')}.`);
   if (anchor && (builder || developer)) throw Error('A #heading reads the maker manual; drop --builder and --developer.');
   if(BUILDER_IDS.includes(id)&&maker)throw Error(`${id} is builder context; import and repair are handled by the ordinary maker lifecycle.`);
   const roles = {maker, builder:builder||BUILDER_IDS.includes(id), developer};
@@ -486,7 +486,7 @@ export async function inspectFailure({target, library, requestId, includeGeometr
     } catch (readError) { result.recipeReadError = readError.message; }
   }
   result.context = await contextPacket(['core/print/USAGE.md#check-generate-and-deliver']);
-  result.skillReferences = [...new Set(skills ?? [])].filter(id => SKILL_IDS.includes(id)||GUIDANCE_IDS.includes(id))
+  result.skillReferences = [...new Set(skills ?? [])].filter(id => SKILL_IDS.includes(id)||GUIDANCE_IDS.includes(id)||EXTENSION_IDS.includes(id))
     .map(id => ({skillId: id, guidanceId: `skills/${id}/SKILL.md`, command: `read-skill ${id}`}));
   result.nextStep = 'Judge which skill limits and linked references explain this failure, then read the selected manuals individually before choosing a correction.';
   result.failureEvidence = 'Requests preserve Studio failure messages. CLI-only failures are not persisted; supply the original error alongside this report. Requests can describe earlier revisions.';

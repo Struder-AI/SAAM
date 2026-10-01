@@ -6,7 +6,7 @@
 import {requireThat} from './tolerance.mjs';
 
 export const BOOLEAN_OPERATIONS=['union','difference','intersection'];
-export const BOOLEAN_OPERAND_SHAPES=['spline','mesh','blob-field','gridfinity','boolean'];
+export const BOOLEAN_OPERAND_SHAPES=['spline','mesh','blob-field','boolean'];
 export const booleanSolidTemplate=()=>({shape:'boolean',operation:'union',operands:[]});
 
 // Structure only; the caller validates each operand by its own form's check.
@@ -15,7 +15,7 @@ export function validateBooleanSolid(geometry){
   requireThat(BOOLEAN_OPERATIONS.includes(geometry.operation),`Boolean operation is one of ${BOOLEAN_OPERATIONS.join(', ')}.`);
   requireThat(Array.isArray(geometry.operands)&&geometry.operands.length>=2,'A boolean solid needs at least two operands.');
   for(const operand of geometry.operands){
-    requireThat(BOOLEAN_OPERAND_SHAPES.includes(operand?.shape),`Boolean operands are ${BOOLEAN_OPERAND_SHAPES.join(', ')} geometry.`);
+    requireThat(BOOLEAN_OPERAND_SHAPES.includes(operand?.shape)||Array.isArray(operand?.vertices)&&!operand.base,`Boolean operands are ${BOOLEAN_OPERAND_SHAPES.join(', ')} geometry.`);
   }
   return geometry;
 }

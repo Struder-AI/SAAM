@@ -4,7 +4,7 @@ import {mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
-import {buildShell} from '../print/generate.mjs';
+import {buildShell} from '../geom/build.mjs';
 import {rhino} from '../print/geometry.mjs';
 import {topAt} from '../geom/query.mjs';
 import {section,horizontalSlice} from '../geom/slice.mjs';

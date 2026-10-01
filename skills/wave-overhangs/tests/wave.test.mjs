@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {referencePatch} from '../../../core/geom/reference-surface.mjs';
 import {seededSurfaceFronts,connectSurfacePasses} from '../../../core/region/seeded-fronts.mjs';
-import {FRONT_DEFAULTS} from '../../../core/print/surface-constructions.mjs';
+import {FRONT_DEFAULTS} from '../scripts/prepare.mjs';
 
 const settings={...FRONT_DEFAULTS,lineSpacingMm:0.5,propagationStepMm:0.25,sampleStepMm:0.5};
 

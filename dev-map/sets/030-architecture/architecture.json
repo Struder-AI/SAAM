@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "date": "2026-09-30",
-  "description": "0.3.0 target architecture. Map 0 accepted by the owner; submaps and detailed contracts are provisional. Arrows are calls including their declared response, except explicitly named guidance/data/event arrows. No transitive access. Only 5 exposes shared part state; each other component may exclusively own private state. No source compliance has been established. Extension resource access added by owner request: Thingi10K belongs in Extensions, with an explicit external-resource wire. Extensions are unsandboxed local code; contracts describe intended SAAM/reviewed-extension structure, not confinement of arbitrary scripts. Owner confirmed preservation of a simplified Studio–agent channel, priority event batches and exclusive per-bundle editing; saved artifacts remain inspectable without regeneration dependencies. Specialized workspaces are external bundle producers with public engine access; handoff is one-way and does not grant confirmation authority.",
+  "description": "0.3.0 causal architecture: arrows carry the named information/action from source to recipient. Each contract separately lists permitted calls/reads, which may run in the opposite direction. Engine 3 makes SAAMpath, 5 owns shared part state, 6 invokes export 8, and 7 wraps specialized workspaces. Submaps/assignments are provisional; no conformance certificate.",
   "actors": {
     "user": {
       "label": "User",
@@ -14,10 +14,6 @@
     "resources": {
       "label": "External resources",
       "description": "Thingi10K and other asset/data sources; network or local resource providers."
-    },
-    "workspace": {
-      "label": "Specialized workspace",
-      "description": "Private design UI/state; one-way reproducible bundle producer."
     }
   },
   "nodes": [
@@ -28,9 +24,8 @@
       "description": "Actual maker-context access: agent calls and directly readable files. Click a file to preview it.",
       "type": "guidance",
       "notes": [
-        "This flat map traces current maker-facing reads; it stops at the actual file. Shared reader helpers are folded into each access path, not invented as a new service.",
-        "The overview retains the guidance-delivery direction (1 → agent); this expanded map draws requests (agent → tool/file). Each is the same request/response interaction, not an additional permission.",
-        "Core-family read-skill selections are shown here; extension selections are shown in 4. Both currently use the same reader implementation. Source previews do not assign that whole implementation to both components. Builder/developer-only reads are outside this maker slice."
+        "Flat maker-context flow: files supply actual onboarding/read/tour/failure outputs to the external agent. Click a file to preview it. Tool invocation/read direction is recorded separately in each interface.",
+        "The same reader currently serves core and extension manuals; source references do not assign duplicate implementation ownership."
       ]
     },
     {
@@ -295,28 +290,49 @@
       "index": "2",
       "label": "Geometry engine",
       "description": "Geometry values and queries; no bundle access.",
-      "type": "component"
+      "type": "component",
+      "notes": [
+        "Provisional assignment for negotiation with the geometry task. Public entry points, Slice-private queries and reusable numerical representations are separate buckets, regardless of current source directory. Crossings expose where existing modules mix these responsibilities."
+      ]
     },
     {
       "id": "slice-geometry",
       "index": "2.1",
       "label": "Slice-only geometry",
       "description": "Cutting, section topology and region queries private to Slice.",
-      "type": "component"
+      "type": "component",
+      "source": {
+        "file": "core/geom/slice.mjs"
+      },
+      "notes": [
+        "Section/cutting-surface, region topology and reservation queries; path construction stays in 3.3."
+      ]
     },
     {
       "id": "geometry-api",
       "index": "2.2",
       "label": "Public geometry",
       "description": "Construct, import, transform and query geometry.",
-      "type": "component"
+      "type": "component",
+      "source": {
+        "file": "core/geom/query.mjs"
+      },
+      "notes": [
+        "Geometry construction, transform, import/repair and non-Slice public queries. Bundle-editing wrappers remain in 5. Shared implementations use 2.3."
+      ]
     },
     {
       "id": "geometry-kernel",
       "index": "2.3",
       "label": "Shared geometry kernel",
       "description": "Numerical and representation operations owned here.",
-      "type": "component"
+      "type": "component",
+      "source": {
+        "file": "core/geom/nurbs.mjs"
+      },
+      "notes": [
+        "Mesh/spline/blob representations, predicates, spatial queries and numerics. Existing callers bypassing the two facades will remain visible as crossings."
+      ]
     },
     {
       "id": "toolpath",
@@ -361,11 +377,53 @@
     {
       "id": "compose",
       "index": "3.4",
-      "label": "Compose & finalize",
-      "description": "Composition and finalization return SAAMpath; export is later.",
+      "label": "Construct & compose SAAMpath",
+      "description": "Public toolpath entry: dispatch producers and compose their finalized results into SAAMpath.",
       "type": "component",
       "source": {
-        "file": "core/path/compose.mjs"
+        "file": "core/print/generate.mjs",
+        "declaration": "generatePath"
+      }
+    },
+    {
+      "id": "path-fields",
+      "index": "3.5",
+      "label": "Fields & modulation",
+      "description": "Evaluate scalar fields and apply displacement, width, flow, speed and tilt before publishing deposition.",
+      "type": "component",
+      "source": {
+        "file": "core/path/modulation.mjs"
+      }
+    },
+    {
+      "id": "path-finalize",
+      "index": "3.6",
+      "label": "Finalize deposition",
+      "description": "Apply fields, check motion/process and publish final material for consumers.",
+      "type": "component",
+      "source": {
+        "file": "core/print/finalize.mjs"
+      }
+    },
+    {
+      "id": "path-motion",
+      "index": "3.7",
+      "label": "Path motion & representation",
+      "description": "Shared SAAMpath records, process/motion planning and deposited-material representation.",
+      "type": "component",
+      "source": {
+        "file": "core/path/planning.mjs"
+      }
+    },
+    {
+      "id": "build-evaluate",
+      "index": "3.8",
+      "label": "Prepare recipe inputs",
+      "description": "Evaluate pinned geometry/extension inputs and hand construction requests to the Toolpath engine composition stage.",
+      "type": "component",
+      "source": {
+        "file": "core/print/bundle.mjs",
+        "declaration": "generatePreparedPath"
       }
     },
     {
@@ -650,6 +708,26 @@
       }
     },
     {
+      "id": "bundle-schema",
+      "index": "5.8",
+      "label": "Recipe & machine settings",
+      "description": "Validate/resolve saved recipe, machine setup and migration; no engine execution.",
+      "type": "component",
+      "source": {
+        "file": "core/print/plan.mjs"
+      }
+    },
+    {
+      "id": "build-jobs",
+      "index": "5.9",
+      "label": "Generation jobs",
+      "description": "Bundle-owned worker/cancellation and acceptance lifecycle; engine 3 makes SAAMpath.",
+      "type": "component",
+      "source": {
+        "file": "studio/generation-worker.mjs"
+      }
+    },
+    {
       "id": "studio",
       "index": "6",
       "label": "Studio",
@@ -755,47 +833,38 @@
       }
     },
     {
-      "id": "build",
+      "id": "studio-state",
+      "index": "6.10",
+      "label": "Studio private state",
+      "description": "View/session/readiness/playback/UI state; shared part state is accessed through bundle commands.",
+      "type": "component",
+      "source": {
+        "file": "studio/studio-state.mjs"
+      }
+    },
+    {
+      "id": "workspace",
       "index": "7",
-      "label": "Build",
-      "description": "Evaluate a pinned recipe and generate SAAMpath; no machine export.",
+      "label": "Specialized workspaces",
+      "description": "Common interaction/handoff interface wrapping individual specialized design workspaces.",
       "type": "component",
       "notes": [
-        "References show existing computation entry points. Bundle IO, worker acceptance and immediate export in workflow.prepareGeneration must be separated during implementation assignment; these are not claimed to be compliant already."
+        "Numbered by owner request. Existing external prototypes are not adopted or silently included in the code inventory."
       ]
     },
     {
-      "id": "build-evaluate",
+      "id": "workspace-interface",
       "index": "7.1",
-      "label": "generatePreparedPath",
-      "description": "Load geometry runtime and prepare modulation fields.",
-      "type": "component",
-      "source": {
-        "file": "core/print/bundle.mjs",
-        "declaration": "generatePreparedPath"
-      }
+      "label": "Workspace interaction interface",
+      "description": "Consistent user interaction and one-way reproducible bundle handoff.",
+      "type": "component"
     },
     {
-      "id": "build-path",
+      "id": "workspace-implementations",
       "index": "7.2",
-      "label": "generatePath",
-      "description": "Construction scheduling through finalized SAAMpath.",
-      "type": "component",
-      "source": {
-        "file": "core/print/generate.mjs",
-        "declaration": "generatePath"
-      }
-    },
-    {
-      "id": "build-fields",
-      "index": "7.3",
-      "label": "prepareModulationFields",
-      "description": "Prepare field inputs from geometry sources.",
-      "type": "component",
-      "source": {
-        "file": "core/print/modulation-fields.mjs",
-        "declaration": "prepareModulationFields"
-      }
+      "label": "Individual workspaces",
+      "description": "Specialized design logic and private UI state behind the common interface; implementations await adoption.",
+      "type": "component"
     },
     {
       "id": "export",
@@ -868,6 +937,16 @@
       "source": {
         "file": "core/export/denso.mjs"
       }
+    },
+    {
+      "id": "export-program",
+      "index": "8.7",
+      "label": "Program parsing & playback",
+      "description": "Shared program syntax/time/representation helpers used by dialect adapters.",
+      "type": "component",
+      "source": {
+        "file": "core/export/gcode-lines.mjs"
+      }
     }
   ],
   "contracts": [
@@ -876,7 +955,7 @@
       "from": "user",
       "to": "agent",
       "label": "request",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "request / clarify"
       ],
@@ -884,14 +963,20 @@
       "outputs": "Agent response and proposed actions.",
       "effects": "Conversation only.",
       "failure": "Ask for missing intent.",
-      "excludes": "No physical confirmation on behalf of the user."
+      "excludes": "No physical confirmation on behalf of the user.",
+      "access": [
+        {
+          "from": "user",
+          "to": "agent"
+        }
+      ]
     },
     {
       "id": "user-studio",
       "from": "user",
       "to": "studio-ui",
       "label": "interact / confirm",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "interact / confirm / deliver"
       ],
@@ -899,14 +984,20 @@
       "outputs": "Visible state and outcomes.",
       "effects": "Studio private UI state; part commands use studio-commands.",
       "failure": "Show errors without hiding the previous valid view.",
-      "excludes": "Agent messages are not user confirmation."
+      "excludes": "Agent messages are not user confirmation.",
+      "access": [
+        {
+          "from": "user",
+          "to": "studio-ui"
+        }
+      ]
     },
     {
       "id": "agent-geometry",
       "from": "agent",
       "to": "geometry-api",
       "label": "geometry API",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "construct / import / transform / query"
       ],
@@ -914,14 +1005,20 @@
       "outputs": "Immutable geometry values or diagnostics.",
       "effects": "Local scratch computation only.",
       "failure": "Unsupported or invalid geometry is explicit.",
-      "excludes": "Cannot persist into a bundle or invoke Slice-private geometry."
+      "excludes": "Cannot persist into a bundle or invoke Slice-private geometry.",
+      "access": [
+        {
+          "from": "agent",
+          "to": "geometry-api"
+        }
+      ]
     },
     {
       "id": "agent-toolpath",
       "from": "agent",
       "to": "compose",
       "label": "toolpath API",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "constructAndCompose"
       ],
@@ -929,14 +1026,20 @@
       "outputs": "SAAMpath candidate and diagnostics.",
       "effects": "Local scratch computation only.",
       "failure": "Return construction diagnostics.",
-      "excludes": "Cannot export, confirm or mutate a bundle."
+      "excludes": "Cannot export, confirm or mutate a bundle.",
+      "access": [
+        {
+          "from": "agent",
+          "to": "compose"
+        }
+      ]
     },
     {
       "id": "agent-extensions",
       "from": "agent",
       "to": "extension-library",
       "label": "guidance / author",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "list / read / create / override"
       ],
@@ -944,14 +1047,20 @@
       "outputs": "Extension identity, guidance or saved local edit.",
       "effects": "Library owns its storage; builder edits are preserved separately from release updates.",
       "failure": "Report missing extensions and edit conflicts.",
-      "excludes": "Maker cannot author; installed defaults never silently overwrite local edits."
+      "excludes": "Maker cannot author; installed defaults never silently overwrite local edits.",
+      "access": [
+        {
+          "from": "agent",
+          "to": "extension-library"
+        }
+      ]
     },
     {
       "id": "agent-bundle",
       "from": "agent",
       "to": "bundle-edit",
       "label": "part commands",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "open / snapshot / edit / requestBuild"
       ],
@@ -959,14 +1068,20 @@
       "outputs": "New revision or job identity; immutable snapshot.",
       "effects": "5 owns shared part state and grants edit ownership to only one Studio instance per bundle; an agent may own multiple instances.",
       "failure": "Reject stale revisions or writes without the active instance edit ownership; keep other viewers read-only.",
-      "excludes": "No arbitrary disk/script access; no user confirmation operation."
+      "excludes": "No arbitrary disk/script access; no user confirmation operation.",
+      "access": [
+        {
+          "from": "agent",
+          "to": "bundle-edit"
+        }
+      ]
     },
     {
       "id": "studio-commands",
       "from": "studio-ui",
       "to": "bundle-edit",
       "label": "commands",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "open / edit / requestBuild"
       ],
@@ -974,29 +1089,41 @@
       "outputs": "Accepted revision/job or conflict.",
       "effects": "5 owns shared part state and grants edit ownership to only one Studio instance per bundle; an agent may own multiple instances.",
       "failure": "Reject stale revisions or writes without the active instance edit ownership; keep other viewers read-only.",
-      "excludes": "No direct engine or bundle-file access."
+      "excludes": "No direct engine or bundle-file access.",
+      "access": [
+        {
+          "from": "studio-ui",
+          "to": "bundle-edit"
+        }
+      ]
     },
     {
       "id": "export-bundle",
-      "from": "export-router",
-      "to": "bundle-review",
-      "label": "export snapshot / result",
-      "direction": "Caller → provider; declared response included.",
+      "from": "bundle-review",
+      "to": "export-router",
+      "label": "current SAAMpath/settings",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "pinCurrent / recordCheckedExport"
       ],
       "inputs": "Bundle/owner identity and expected displayed revision; then checked program and matching snapshot identity.",
       "outputs": "Immutable current SAAMpath, geometry/dependency identity, machine/setup and output options; accepted export record or conflict.",
-      "effects": "5 owns snapshot validity and export records. 8 owns only job-local output.",
+      "effects": "5 supplies the current snapshot and accepts checked export records through the declared access; 8 cannot regenerate.",
       "failure": "Reject queued updates, stale revisions, unavailable paths and superseded results before releasing the export.",
-      "excludes": "No build request, regeneration, direct bundle-file access or separate user approval step."
+      "excludes": "No build request, regeneration, direct bundle-file access or separate user approval step.",
+      "access": [
+        {
+          "from": "export-router",
+          "to": "bundle-review"
+        }
+      ]
     },
     {
       "id": "bundle-views",
       "from": "bundle-edit",
       "to": "studio-projection",
       "label": "snapshot / events",
-      "direction": "Bundle \u00e2\u2020\u2019 Studio: snapshots/events; subscription establishment is included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "snapshot / subscribe"
       ],
@@ -1004,14 +1131,20 @@
       "outputs": "Part presentation data; subscription cancellation.",
       "effects": "Subscription state remains in owner; Studio renders its own projection.",
       "failure": "Recover missed events by snapshot; missing extension dependencies block regeneration, not inspection of available saved artifacts.",
-      "excludes": "No shared mutable object references."
+      "excludes": "No shared mutable object references.",
+      "access": [
+        {
+          "from": "bundle-edit",
+          "to": "studio-projection"
+        }
+      ]
     },
     {
       "id": "generation-views",
       "from": "bundle-build",
       "to": "studio-projection",
       "label": "build status",
-      "direction": "Bundle \u00e2\u2020\u2019 Studio: revisioned events.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "publish build status"
       ],
@@ -1019,14 +1152,20 @@
       "outputs": "UI presentation update.",
       "effects": "Private render caches only.",
       "failure": "Ignore obsolete jobs; retain last valid artifacts.",
-      "excludes": "No UI access to worker internals."
+      "excludes": "No UI access to worker internals.",
+      "access": [
+        {
+          "from": "bundle-build",
+          "to": "studio-projection"
+        }
+      ]
     },
     {
       "id": "review-views",
       "from": "bundle-review",
       "to": "studio-projection",
       "label": "review identity",
-      "direction": "Bundle \u00e2\u2020\u2019 Studio: review snapshots/events.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "publish review / export state"
       ],
@@ -1034,14 +1173,20 @@
       "outputs": "Visible review and export availability; hide Export as soon as an update is queued, using the waiting indicators’ same pending-update state.",
       "effects": "Private render state only.",
       "failure": "Pending or changed identity immediately removes export availability.",
-      "excludes": "Preview does not count as confirmation."
+      "excludes": "Preview does not count as confirmation.",
+      "access": [
+        {
+          "from": "bundle-review",
+          "to": "studio-projection"
+        }
+      ]
     },
     {
       "id": "studio-render",
       "from": "studio-ui",
       "to": "studio-projection",
       "label": "render view",
-      "direction": "Caller → renderer; results/callbacks included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "requestDraw / prepare views"
       ],
@@ -1054,14 +1199,20 @@
         "studio/app.mjs::createViewerRenderer",
         "studio/app.mjs::requestDraw"
       ],
-      "status": "observed in source; manually traced"
+      "status": "observed in source; manually traced",
+      "access": [
+        {
+          "from": "studio-ui",
+          "to": "studio-projection"
+        }
+      ]
     },
     {
       "id": "bundle-revision",
       "from": "bundle-edit",
       "to": "bundle-build",
       "label": "generation request",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "prepare / invalidate / cancel"
       ],
@@ -1069,14 +1220,20 @@
       "outputs": "Job state / result identity.",
       "effects": "State internal to component 5.",
       "failure": "Obsolete jobs cannot replace current state.",
-      "excludes": "No access to unrelated component internals."
+      "excludes": "No access to unrelated component internals.",
+      "access": [
+        {
+          "from": "bundle-edit",
+          "to": "bundle-build"
+        }
+      ]
     },
     {
       "id": "bundle-review-artifact",
       "from": "bundle-build",
       "to": "bundle-review",
       "label": "built artifact",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "publish / invalidate"
       ],
@@ -1084,29 +1241,41 @@
       "outputs": "Current review snapshot; prior export invalidation.",
       "effects": "State internal to component 5.",
       "failure": "Any identity change invalidates confirmation.",
-      "excludes": "No access to unrelated component internals."
+      "excludes": "No access to unrelated component internals.",
+      "access": [
+        {
+          "from": "bundle-build",
+          "to": "bundle-review"
+        }
+      ]
     },
     {
       "id": "build-job",
-      "from": "bundle-build",
-      "to": "build-evaluate",
-      "label": "build snapshot",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "from": "build-evaluate",
+      "to": "bundle-build",
+      "label": "geometry + SAAMpath",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "build"
       ],
       "inputs": "Immutable bundle snapshot, pinned extensions/assets, machine/setup and cancellation signal.",
-      "outputs": "Geometry, finalized SAAMpath, diagnostics and provenance.",
+      "outputs": "Geometry, SAAMpath and diagnostics returned by engine 3; bundle 5 accepts/stores them.",
       "effects": "7 owns only job-local working state; 5 commits returned result.",
       "failure": "Missing generation dependencies or failure/cancellation leave saved geometry and toolpath viewable; 5 preserves previous valid artifacts.",
-      "excludes": "7 cannot export, write bundle, confirm or deliver."
+      "excludes": "7 cannot export, write bundle, confirm or deliver.",
+      "access": [
+        {
+          "from": "bundle-build",
+          "to": "build-evaluate"
+        }
+      ]
     },
     {
       "id": "evaluate-geometry",
-      "from": "build-evaluate",
-      "to": "geometry-api",
-      "label": "evaluate geometry",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "from": "geometry-api",
+      "to": "build-evaluate",
+      "label": "geometry values",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "evaluate"
       ],
@@ -1114,14 +1283,20 @@
       "outputs": "Geometry values and diagnostics.",
       "effects": "No shared mutation; returns owned values.",
       "failure": "Return a structured error; no partial commit.",
-      "excludes": "No access to unrelated component internals."
+      "excludes": "No access to unrelated component internals.",
+      "access": [
+        {
+          "from": "build-evaluate",
+          "to": "geometry-api"
+        }
+      ]
     },
     {
       "id": "evaluate-extensions",
-      "from": "build-evaluate",
-      "to": "extension-run",
-      "label": "run pinned effects",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "from": "extension-run",
+      "to": "build-evaluate",
+      "label": "extension construction values",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "run"
       ],
@@ -1129,14 +1304,20 @@
       "outputs": "Geometry/recipe/construction values and provenance.",
       "effects": "Extension-local state and declared resource IO through 4.3; cached/pinned assets are preferred for reproducibility.",
       "failure": "Missing dependencies stop this generation with an actionable error; migration guidance handles actual engine breaks.",
-      "excludes": "No bundle/Studio internals, hidden IO or confirmation authority."
+      "excludes": "No bundle/Studio internals, hidden IO or confirmation authority.",
+      "access": [
+        {
+          "from": "build-evaluate",
+          "to": "extension-run"
+        }
+      ]
     },
     {
       "id": "resolve-extension",
       "from": "extension-run",
       "to": "extension-library",
       "label": "resolve exact version",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "resolve"
       ],
@@ -1144,14 +1325,20 @@
       "outputs": "Script/guidance package and assets with recorded identity.",
       "effects": "Library may cache exclusively owned content.",
       "failure": "Report missing dependencies; breaking engine changes get migration guidance when needed.",
-      "excludes": "No silent latest-version substitution."
+      "excludes": "No silent latest-version substitution.",
+      "access": [
+        {
+          "from": "extension-run",
+          "to": "extension-library"
+        }
+      ]
     },
     {
       "id": "extension-geometry",
       "from": "extension-run",
       "to": "geometry-api",
       "label": "geometry API",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "construct / import / transform / query"
       ],
@@ -1159,14 +1346,20 @@
       "outputs": "Geometry values and diagnostics.",
       "effects": "Extension owns returned values.",
       "failure": "Structured geometry diagnostics.",
-      "excludes": "No Slice-only capability or raw kernel import."
+      "excludes": "No Slice-only capability or raw kernel import.",
+      "access": [
+        {
+          "from": "extension-run",
+          "to": "geometry-api"
+        }
+      ]
     },
     {
       "id": "extension-toolpath",
       "from": "extension-run",
       "to": "compose",
       "label": "construction API",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "constructAndCompose"
       ],
@@ -1174,14 +1367,20 @@
       "outputs": "Operations or SAAMpath value and diagnostics.",
       "effects": "No shared mutation.",
       "failure": "Unsupported constructions are explicit.",
-      "excludes": "No export, bundle writes or confirmation."
+      "excludes": "No export, bundle writes or confirmation.",
+      "access": [
+        {
+          "from": "extension-run",
+          "to": "compose"
+        }
+      ]
     },
     {
       "id": "recipe-path",
       "from": "build-evaluate",
-      "to": "build-path",
+      "to": "compose",
       "label": "construction plan",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "generate"
       ],
@@ -1189,29 +1388,20 @@
       "outputs": "Generated result and diagnostics.",
       "effects": "No shared mutation; returns owned values.",
       "failure": "Return a structured error; no partial commit.",
-      "excludes": "No access to unrelated component internals."
-    },
-    {
-      "id": "build-toolpath",
-      "from": "build-path",
-      "to": "compose",
-      "label": "generate path",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
-      "operations": [
-        "constructAndCompose"
-      ],
-      "inputs": "Construction plan plus geometry/process/machine snapshot.",
-      "outputs": "Finalized SAAMpath and diagnostics.",
-      "effects": "No shared mutation; returns owned values.",
-      "failure": "Return a structured error; no partial commit.",
-      "excludes": "No access to unrelated component internals."
+      "excludes": "No access to unrelated component internals.",
+      "access": [
+        {
+          "from": "build-evaluate",
+          "to": "compose"
+        }
+      ]
     },
     {
       "id": "dispatch-inject",
-      "from": "compose",
-      "to": "inject",
+      "from": "inject",
+      "to": "compose",
       "label": "point requests",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "construct"
       ],
@@ -1219,14 +1409,20 @@
       "outputs": "Deposition operations.",
       "effects": "No shared mutation; returns owned values.",
       "failure": "Return a structured error; no partial commit.",
-      "excludes": "No access to unrelated component internals."
+      "excludes": "No access to unrelated component internals.",
+      "access": [
+        {
+          "from": "compose",
+          "to": "inject"
+        }
+      ]
     },
     {
       "id": "dispatch-trace",
-      "from": "compose",
-      "to": "trace",
+      "from": "trace",
+      "to": "compose",
       "label": "curve requests",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "construct"
       ],
@@ -1234,14 +1430,20 @@
       "outputs": "Deposition operations.",
       "effects": "No shared mutation; returns owned values.",
       "failure": "Return a structured error; no partial commit.",
-      "excludes": "No access to unrelated component internals."
+      "excludes": "No access to unrelated component internals.",
+      "access": [
+        {
+          "from": "compose",
+          "to": "trace"
+        }
+      ]
     },
     {
       "id": "dispatch-slice",
-      "from": "compose",
-      "to": "slice",
+      "from": "slice",
+      "to": "compose",
       "label": "region requests",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "construct"
       ],
@@ -1249,14 +1451,20 @@
       "outputs": "Deposition operations.",
       "effects": "No shared mutation; returns owned values.",
       "failure": "Return a structured error; no partial commit.",
-      "excludes": "No access to unrelated component internals."
+      "excludes": "No access to unrelated component internals.",
+      "access": [
+        {
+          "from": "compose",
+          "to": "slice"
+        }
+      ]
     },
     {
       "id": "slice-query",
-      "from": "slice",
-      "to": "slice-geometry",
-      "label": "section query",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "from": "slice-geometry",
+      "to": "slice",
+      "label": "sections / regions",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "intersect / partition / sectionQuery"
       ],
@@ -1264,14 +1472,20 @@
       "outputs": "Sections, region topology and correspondence.",
       "effects": "Query-local state only.",
       "failure": "Report unsupported topology with geometry evidence.",
-      "excludes": "Slice-only API cannot be imported by extensions, Inject or Trace."
+      "excludes": "Slice-only API cannot be imported by extensions, Inject or Trace.",
+      "access": [
+        {
+          "from": "slice",
+          "to": "slice-geometry"
+        }
+      ]
     },
     {
       "id": "public-kernel",
-      "from": "geometry-api",
-      "to": "geometry-kernel",
+      "from": "geometry-kernel",
+      "to": "geometry-api",
       "label": "geometry primitives",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "evaluateGeometry"
       ],
@@ -1279,14 +1493,20 @@
       "outputs": "Geometry value/query result.",
       "effects": "No shared mutation; returns owned values.",
       "failure": "Return a structured error; no partial commit.",
-      "excludes": "No access to unrelated component internals."
+      "excludes": "No access to unrelated component internals.",
+      "access": [
+        {
+          "from": "geometry-api",
+          "to": "geometry-kernel"
+        }
+      ]
     },
     {
       "id": "slice-kernel",
-      "from": "slice-geometry",
-      "to": "geometry-kernel",
+      "from": "geometry-kernel",
+      "to": "slice-geometry",
       "label": "section primitives",
-      "direction": "Caller \u00e2\u2020\u2019 provider; the synchronous or awaited response is included in this contract.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "evaluateSection"
       ],
@@ -1294,14 +1514,20 @@
       "outputs": "Region/section result.",
       "effects": "No shared mutation; returns owned values.",
       "failure": "Return a structured error; no partial commit.",
-      "excludes": "No access to unrelated component internals."
+      "excludes": "No access to unrelated component internals.",
+      "access": [
+        {
+          "from": "slice-geometry",
+          "to": "geometry-kernel"
+        }
+      ]
     },
     {
       "id": "studio-export",
       "from": "studio-ui",
       "to": "export-router",
       "label": "Export button",
-      "direction": "Caller → provider; declared response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "exportAndCheck"
       ],
@@ -1309,14 +1535,20 @@
       "outputs": "Checked machine-program attachment and diagnostics for Studio to deliver.",
       "effects": "8 obtains the current built path and records checked output through export-bundle. The user action is the confirmation.",
       "failure": "Reject pending updates or changed review identity; return machine/check failures without delivering output.",
-      "excludes": "No call from Build or Active bundle; no regeneration or additional confirmation ceremony."
+      "excludes": "No call from Build or Active bundle; no regeneration or additional confirmation ceremony.",
+      "access": [
+        {
+          "from": "studio-ui",
+          "to": "export-router"
+        }
+      ]
     },
     {
       "id": "extension-resource-request",
       "from": "extension-run",
       "to": "extension-resources",
       "label": "resource request",
-      "direction": "Caller → provider; declared response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "search / retrieve"
       ],
@@ -1324,14 +1556,20 @@
       "outputs": "Search results or acquired asset bytes, digest, provenance and license metadata.",
       "effects": "Explicit resource IO; no bundle mutation.",
       "failure": "Return unavailable, denied, invalid response or cancellation; never substitute another asset silently.",
-      "excludes": "Reviewed extensions keep IO explicit; this convention does not technically restrict arbitrary local scripts."
+      "excludes": "Reviewed extensions keep IO explicit; this convention does not technically restrict arbitrary local scripts.",
+      "access": [
+        {
+          "from": "extension-run",
+          "to": "extension-resources"
+        }
+      ]
     },
     {
       "id": "external-resources",
       "from": "extension-resources",
       "to": "resources",
       "label": "search / download",
-      "direction": "Extensions → external resource provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "search / retrieve"
       ],
@@ -1339,14 +1577,20 @@
       "outputs": "Results, resource bytes and available provenance/license metadata.",
       "effects": "Declared network/local-source reads; owned temporary/cache storage.",
       "failure": "Report network/provider/permission failures; validate acquired content before use.",
-      "excludes": "No uploads or remote code execution are included in this proposed retrieval contract; arbitrary local scripts are not sandboxed."
+      "excludes": "No uploads or remote code execution are included in this proposed retrieval contract; arbitrary local scripts are not sandboxed.",
+      "access": [
+        {
+          "from": "extension-resources",
+          "to": "resources"
+        }
+      ]
     },
     {
       "id": "agent-run-extension",
       "from": "agent",
       "to": "extension-run",
       "label": "run extension",
-      "direction": "Caller → provider; declared response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "run"
       ],
@@ -1354,7 +1598,13 @@
       "outputs": "Geometry/construction values or acquired assets plus provenance, for an explicit bundle edit.",
       "effects": "Extension-private computation and declared resource IO only.",
       "failure": "Return structured errors or cancellation without changing the active bundle.",
-      "excludes": "No confirmation, direct bundle mutation or private engine access."
+      "excludes": "No confirmation, direct bundle mutation or private engine access.",
+      "access": [
+        {
+          "from": "agent",
+          "to": "extension-run"
+        }
+      ]
     },
     {
       "id": "studio-agent-events",
@@ -1369,7 +1619,13 @@
       "effects": "Channel-private queue/request state; edits still use the bundle interface.",
       "failure": "Expose disconnected/failed work without inventing agent progress; explicit reads can recover pending requests.",
       "excludes": "No cross-agent ownership or direct mutation of Studio internals; diagnostic emission is a separate service interface.",
-      "direction": "Studio → owning agent: requests and alert-level event batches; subscription setup and correlated responses are included."
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "access": [
+        {
+          "from": "studio-agent",
+          "to": "agent"
+        }
+      ]
     },
     {
       "id": "studio-user-request",
@@ -1384,7 +1640,13 @@
       "effects": "Studio-private coordination only.",
       "failure": "Show pending/disconnected status; preserve request identity.",
       "excludes": "No recipe mutation through event payloads.",
-      "direction": "Caller → provider; declared response included."
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "access": [
+        {
+          "from": "studio-ui",
+          "to": "studio-agent"
+        }
+      ]
     },
     {
       "id": "studio-observations",
@@ -1399,14 +1661,20 @@
       "effects": "Studio-private queue state only.",
       "failure": "Ignore stale identities; do not claim unseen output was displayed.",
       "excludes": "Held observations alone do not trigger a live alert.",
-      "direction": "Caller → provider; declared response included."
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "access": [
+        {
+          "from": "studio-projection",
+          "to": "studio-agent"
+        }
+      ]
     },
     {
       "id": "user-workspace",
       "from": "user",
-      "to": "workspace",
+      "to": "workspace-interface",
       "label": "design",
-      "direction": "Caller → provider; declared response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "edit design / export bundle"
       ],
@@ -1414,14 +1682,20 @@
       "outputs": "Interactive design feedback and a created bundle identity.",
       "effects": "Workspace-private UI and design state.",
       "failure": "Display unsatisfied requirements and export failures.",
-      "excludes": "No SAAM toolpath confirmation or active-bundle synchronization."
+      "excludes": "No SAAM toolpath confirmation or active-bundle synchronization.",
+      "access": [
+        {
+          "from": "user",
+          "to": "workspace-interface"
+        }
+      ]
     },
     {
       "id": "workspace-geometry",
-      "from": "workspace",
-      "to": "geometry-api",
-      "label": "geometry API",
-      "direction": "Caller → provider; declared response included.",
+      "from": "geometry-api",
+      "to": "workspace-implementations",
+      "label": "geometry results",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "construct / transform / query"
       ],
@@ -1429,14 +1703,20 @@
       "outputs": "Geometry and query results for further design or bundle handoff.",
       "effects": "Workspace owns returned design values.",
       "failure": "Report unsupported geometry or failed construction explicitly.",
-      "excludes": "No bundle mutation, private Slice-only geometry access or machine export authority."
+      "excludes": "No bundle mutation, private Slice-only geometry access or machine export authority.",
+      "access": [
+        {
+          "from": "workspace-implementations",
+          "to": "geometry-api"
+        }
+      ]
     },
     {
       "id": "workspace-toolpath",
-      "from": "workspace",
-      "to": "compose",
-      "label": "candidate paths",
-      "direction": "Caller → provider; declared response included.",
+      "from": "compose",
+      "to": "workspace-implementations",
+      "label": "SAAMpath candidates",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "constructAndCompose"
       ],
@@ -1444,14 +1724,20 @@
       "outputs": "Candidate operations/SAAMpath and diagnostics for evaluating the design strategy.",
       "effects": "Private design iteration only.",
       "failure": "Expose unsupported construction/process requirements.",
-      "excludes": "A candidate path is not an approved machine program; no confirmation or delivery authority."
+      "excludes": "A candidate path is not an approved machine program; no confirmation or delivery authority.",
+      "access": [
+        {
+          "from": "workspace-implementations",
+          "to": "compose"
+        }
+      ]
     },
     {
       "id": "workspace-bundle",
-      "from": "workspace",
+      "from": "workspace-interface",
       "to": "bundle-edit",
       "label": "export bundle",
-      "direction": "Caller → provider; declared response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "createFromWorkspace"
       ],
@@ -1459,14 +1745,20 @@
       "outputs": "New unconfirmed bundle identity and snapshot for ordinary Studio work.",
       "effects": "5 creates and owns shared part state; subsequent edits obey exclusive instance ownership.",
       "failure": "Reject an incomplete handoff and report unsupported requirements; later requirement-breaking edits must be visible.",
-      "excludes": "No live workspace/Studio synchronization, simultaneous editing, automatic confirmation, or transient path as a substitute for a recipe."
+      "excludes": "No live workspace/Studio synchronization, simultaneous editing, automatic confirmation, or transient path as a substitute for a recipe.",
+      "access": [
+        {
+          "from": "workspace-interface",
+          "to": "bundle-edit"
+        }
+      ]
     },
     {
       "id": "agent-context-onboard",
-      "from": "agent",
-      "to": "context-onboard",
+      "from": "context-onboard",
+      "to": "agent",
       "label": "maker-onboarding / maker_onboarding",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "maker-onboarding / maker_onboarding"
       ],
@@ -1481,14 +1773,19 @@
         "scripts/agent-toolkit.mjs",
         "adapters/mcp/src/runtime.mjs"
       ],
-      "overview": "response"
+      "access": [
+        {
+          "from": "agent",
+          "to": "context-onboard"
+        }
+      ]
     },
     {
       "id": "agent-context-guidance",
-      "from": "agent",
-      "to": "context-guidance",
+      "from": "context-guidance",
+      "to": "agent",
       "label": "read-guidance / read_guidance",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read-guidance / read_guidance"
       ],
@@ -1503,14 +1800,19 @@
         "scripts/agent-toolkit.mjs",
         "adapters/mcp/src/runtime.mjs"
       ],
-      "overview": "response"
+      "access": [
+        {
+          "from": "agent",
+          "to": "context-guidance"
+        }
+      ]
     },
     {
       "id": "agent-context-skill",
-      "from": "agent",
-      "to": "context-skill",
+      "from": "context-skill",
+      "to": "agent",
       "label": "read-skill / read_skill",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read-skill / read_skill"
       ],
@@ -1525,14 +1827,19 @@
         "scripts/agent-toolkit.mjs",
         "adapters/mcp/src/runtime.mjs"
       ],
-      "overview": "response"
+      "access": [
+        {
+          "from": "agent",
+          "to": "context-skill"
+        }
+      ]
     },
     {
       "id": "agent-context-tour",
-      "from": "agent",
-      "to": "context-tour",
+      "from": "context-tour",
+      "to": "agent",
       "label": "start-tour: returned context",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "start-tour: returned context"
       ],
@@ -1547,14 +1854,19 @@
         "scripts/agent-toolkit.mjs",
         "adapters/mcp/src/runtime.mjs"
       ],
-      "overview": "response"
+      "access": [
+        {
+          "from": "agent",
+          "to": "context-tour"
+        }
+      ]
     },
     {
       "id": "agent-context-failure",
-      "from": "agent",
-      "to": "context-failure",
+      "from": "context-failure",
+      "to": "agent",
       "label": "inspect-generation-failure: guidance",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "inspect-generation-failure: guidance"
       ],
@@ -1569,14 +1881,19 @@
         "scripts/agent-toolkit.mjs",
         "adapters/mcp/src/runtime.mjs"
       ],
-      "overview": "response"
+      "access": [
+        {
+          "from": "agent",
+          "to": "context-failure"
+        }
+      ]
     },
     {
       "id": "agent-file-agents",
-      "from": "agent",
-      "to": "context-file-agents",
+      "from": "context-file-agents",
+      "to": "agent",
       "label": "read file",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file"
       ],
@@ -1590,14 +1907,19 @@
         "AGENTS.md",
         "CLAUDE.md"
       ],
-      "overview": "response"
+      "access": [
+        {
+          "from": "agent",
+          "to": "context-file-agents"
+        }
+      ]
     },
     {
       "id": "agent-file-claude",
-      "from": "agent",
-      "to": "context-file-claude",
+      "from": "context-file-claude",
+      "to": "agent",
       "label": "read file",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file"
       ],
@@ -1611,14 +1933,19 @@
         "AGENTS.md",
         "CLAUDE.md"
       ],
-      "overview": "response"
+      "access": [
+        {
+          "from": "agent",
+          "to": "context-file-claude"
+        }
+      ]
     },
     {
       "id": "agent-file-local",
-      "from": "agent",
-      "to": "context-file-local",
+      "from": "context-file-local",
+      "to": "agent",
       "label": "read file",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file"
       ],
@@ -1632,14 +1959,19 @@
         "AGENTS.md",
         "CLAUDE.md"
       ],
-      "overview": "response"
+      "access": [
+        {
+          "from": "agent",
+          "to": "context-file-local"
+        }
+      ]
     },
     {
       "id": "claude-entry-link",
-      "from": "context-file-claude",
-      "to": "context-file-agents",
+      "from": "context-file-agents",
+      "to": "context-file-claude",
       "label": "follow entry pointer",
-      "direction": "Document navigation link; no executable call inferred.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "follow entry pointer"
       ],
@@ -1651,14 +1983,20 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "CLAUDE.md"
+      ],
+      "access": [
+        {
+          "from": "context-file-claude",
+          "to": "context-file-agents"
+        }
       ]
     },
     {
       "id": "context-onboard-reads-makers",
-      "from": "context-onboard",
-      "to": "context-file-makers",
+      "from": "context-file-makers",
+      "to": "context-onboard",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -1672,14 +2010,20 @@
         "core/agent/layers.mjs::ONBOARDING",
         "core/agent/toolkit.mjs::onboarding",
         "adapters/mcp/src/runtime.mjs::maker_onboarding"
+      ],
+      "access": [
+        {
+          "from": "context-onboard",
+          "to": "context-file-makers"
+        }
       ]
     },
     {
       "id": "context-onboard-reads-digest",
-      "from": "context-onboard",
-      "to": "context-file-digest",
+      "from": "context-file-digest",
+      "to": "context-onboard",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -1693,14 +2037,20 @@
         "core/agent/layers.mjs::ONBOARDING",
         "core/agent/toolkit.mjs::onboarding",
         "adapters/mcp/src/runtime.mjs::maker_onboarding"
+      ],
+      "access": [
+        {
+          "from": "context-onboard",
+          "to": "context-file-digest"
+        }
       ]
     },
     {
       "id": "context-onboard-reads-usage",
-      "from": "context-onboard",
-      "to": "context-file-usage",
+      "from": "context-file-usage",
+      "to": "context-onboard",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -1714,14 +2064,20 @@
         "core/agent/layers.mjs::ONBOARDING",
         "core/agent/toolkit.mjs::onboarding",
         "adapters/mcp/src/runtime.mjs::maker_onboarding"
+      ],
+      "access": [
+        {
+          "from": "context-onboard",
+          "to": "context-file-usage"
+        }
       ]
     },
     {
       "id": "context-tour-reads-makers",
-      "from": "context-tour",
-      "to": "context-file-makers",
+      "from": "context-file-makers",
+      "to": "context-tour",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -1733,14 +2089,20 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "core/agent/toolkit.mjs::preview"
+      ],
+      "access": [
+        {
+          "from": "context-tour",
+          "to": "context-file-makers"
+        }
       ]
     },
     {
       "id": "context-tour-reads-tour",
-      "from": "context-tour",
-      "to": "context-file-tour",
+      "from": "context-file-tour",
+      "to": "context-tour",
       "label": "read participation section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read participation section"
       ],
@@ -1752,14 +2114,20 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "core/agent/toolkit.mjs::preview"
+      ],
+      "access": [
+        {
+          "from": "context-tour",
+          "to": "context-file-tour"
+        }
       ]
     },
     {
       "id": "context-failure-reads-usage",
-      "from": "context-failure",
-      "to": "context-file-usage",
+      "from": "context-file-usage",
+      "to": "context-failure",
       "label": "read #check-generate-and-deliver",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read #check-generate-and-deliver"
       ],
@@ -1771,14 +2139,20 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "core/agent/toolkit.mjs::inspectFailure"
+      ],
+      "access": [
+        {
+          "from": "context-failure",
+          "to": "context-file-usage"
+        }
       ]
     },
     {
       "id": "context-skill-reads-slice",
-      "from": "context-skill",
-      "to": "context-file-slice",
+      "from": "context-file-slice",
+      "to": "context-skill",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -1791,14 +2165,20 @@
       "evidence": [
         "core/agent/toolkit.mjs::readSkill",
         "skills/catalog.mjs"
+      ],
+      "access": [
+        {
+          "from": "context-skill",
+          "to": "context-file-slice"
+        }
       ]
     },
     {
       "id": "context-skill-reads-trace",
-      "from": "context-skill",
-      "to": "context-file-trace",
+      "from": "context-file-trace",
+      "to": "context-skill",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -1811,14 +2191,20 @@
       "evidence": [
         "core/agent/toolkit.mjs::readSkill",
         "skills/catalog.mjs"
+      ],
+      "access": [
+        {
+          "from": "context-skill",
+          "to": "context-file-trace"
+        }
       ]
     },
     {
       "id": "context-skill-reads-inject",
-      "from": "context-skill",
-      "to": "context-file-inject",
+      "from": "context-file-inject",
+      "to": "context-skill",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -1831,14 +2217,20 @@
       "evidence": [
         "core/agent/toolkit.mjs::readSkill",
         "skills/catalog.mjs"
+      ],
+      "access": [
+        {
+          "from": "context-skill",
+          "to": "context-file-inject"
+        }
       ]
     },
     {
       "id": "context-guidance-reads-agents",
-      "from": "context-guidance",
-      "to": "context-file-agents",
+      "from": "context-file-agents",
+      "to": "context-guidance",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -1851,14 +2243,20 @@
       "evidence": [
         "core/agent/manuals.mjs::readManual",
         "core/agent/manuals.mjs::loadGuidance"
+      ],
+      "access": [
+        {
+          "from": "context-guidance",
+          "to": "context-file-agents"
+        }
       ]
     },
     {
       "id": "context-guidance-reads-claude",
-      "from": "context-guidance",
-      "to": "context-file-claude",
+      "from": "context-file-claude",
+      "to": "context-guidance",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -1871,14 +2269,20 @@
       "evidence": [
         "core/agent/manuals.mjs::readManual",
         "core/agent/manuals.mjs::loadGuidance"
+      ],
+      "access": [
+        {
+          "from": "context-guidance",
+          "to": "context-file-claude"
+        }
       ]
     },
     {
       "id": "context-guidance-reads-makers",
-      "from": "context-guidance",
-      "to": "context-file-makers",
+      "from": "context-file-makers",
+      "to": "context-guidance",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -1891,14 +2295,20 @@
       "evidence": [
         "core/agent/manuals.mjs::readManual",
         "core/agent/manuals.mjs::loadGuidance"
+      ],
+      "access": [
+        {
+          "from": "context-guidance",
+          "to": "context-file-makers"
+        }
       ]
     },
     {
       "id": "context-guidance-reads-digest",
-      "from": "context-guidance",
-      "to": "context-file-digest",
+      "from": "context-file-digest",
+      "to": "context-guidance",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -1911,14 +2321,20 @@
       "evidence": [
         "core/agent/manuals.mjs::readManual",
         "core/agent/manuals.mjs::loadGuidance"
+      ],
+      "access": [
+        {
+          "from": "context-guidance",
+          "to": "context-file-digest"
+        }
       ]
     },
     {
       "id": "context-guidance-reads-usage",
-      "from": "context-guidance",
-      "to": "context-file-usage",
+      "from": "context-file-usage",
+      "to": "context-guidance",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -1931,14 +2347,20 @@
       "evidence": [
         "core/agent/manuals.mjs::readManual",
         "core/agent/manuals.mjs::loadGuidance"
+      ],
+      "access": [
+        {
+          "from": "context-guidance",
+          "to": "context-file-usage"
+        }
       ]
     },
     {
       "id": "context-guidance-reads-geometry",
-      "from": "context-guidance",
-      "to": "context-file-geometry",
+      "from": "context-file-geometry",
+      "to": "context-guidance",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -1951,14 +2373,20 @@
       "evidence": [
         "core/agent/manuals.mjs::readManual",
         "core/agent/manuals.mjs::loadGuidance"
+      ],
+      "access": [
+        {
+          "from": "context-guidance",
+          "to": "context-file-geometry"
+        }
       ]
     },
     {
       "id": "context-guidance-reads-glossary",
-      "from": "context-guidance",
-      "to": "context-file-glossary",
+      "from": "context-file-glossary",
+      "to": "context-guidance",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -1971,14 +2399,20 @@
       "evidence": [
         "core/agent/manuals.mjs::readManual",
         "core/agent/manuals.mjs::loadGuidance"
+      ],
+      "access": [
+        {
+          "from": "context-guidance",
+          "to": "context-file-glossary"
+        }
       ]
     },
     {
       "id": "context-guidance-reads-slice",
-      "from": "context-guidance",
-      "to": "context-file-slice",
+      "from": "context-file-slice",
+      "to": "context-guidance",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -1991,14 +2425,20 @@
       "evidence": [
         "core/agent/manuals.mjs::readManual",
         "core/agent/manuals.mjs::loadGuidance"
+      ],
+      "access": [
+        {
+          "from": "context-guidance",
+          "to": "context-file-slice"
+        }
       ]
     },
     {
       "id": "context-guidance-reads-trace",
-      "from": "context-guidance",
-      "to": "context-file-trace",
+      "from": "context-file-trace",
+      "to": "context-guidance",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -2011,14 +2451,20 @@
       "evidence": [
         "core/agent/manuals.mjs::readManual",
         "core/agent/manuals.mjs::loadGuidance"
+      ],
+      "access": [
+        {
+          "from": "context-guidance",
+          "to": "context-file-trace"
+        }
       ]
     },
     {
       "id": "context-guidance-reads-inject",
-      "from": "context-guidance",
-      "to": "context-file-inject",
+      "from": "context-file-inject",
+      "to": "context-guidance",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -2031,14 +2477,20 @@
       "evidence": [
         "core/agent/manuals.mjs::readManual",
         "core/agent/manuals.mjs::loadGuidance"
+      ],
+      "access": [
+        {
+          "from": "context-guidance",
+          "to": "context-file-inject"
+        }
       ]
     },
     {
       "id": "context-guidance-reads-toolkit",
-      "from": "context-guidance",
-      "to": "context-file-toolkit",
+      "from": "context-file-toolkit",
+      "to": "context-guidance",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -2051,14 +2503,20 @@
       "evidence": [
         "core/agent/manuals.mjs::readManual",
         "core/agent/manuals.mjs::loadGuidance"
+      ],
+      "access": [
+        {
+          "from": "context-guidance",
+          "to": "context-file-toolkit"
+        }
       ]
     },
     {
       "id": "context-guidance-reads-studio",
-      "from": "context-guidance",
-      "to": "context-file-studio",
+      "from": "context-file-studio",
+      "to": "context-guidance",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -2071,14 +2529,20 @@
       "evidence": [
         "core/agent/manuals.mjs::readManual",
         "core/agent/manuals.mjs::loadGuidance"
+      ],
+      "access": [
+        {
+          "from": "context-guidance",
+          "to": "context-file-studio"
+        }
       ]
     },
     {
       "id": "context-guidance-reads-tour",
-      "from": "context-guidance",
-      "to": "context-file-tour",
+      "from": "context-file-tour",
+      "to": "context-guidance",
       "label": "read participation section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read participation section"
       ],
@@ -2091,14 +2555,20 @@
       "evidence": [
         "core/agent/manuals.mjs::readManual",
         "core/agent/manuals.mjs::loadGuidance"
+      ],
+      "access": [
+        {
+          "from": "context-guidance",
+          "to": "context-file-tour"
+        }
       ]
     },
     {
       "id": "context-guidance-reads-machines",
-      "from": "context-guidance",
-      "to": "context-file-machines",
+      "from": "context-file-machines",
+      "to": "context-guidance",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -2111,14 +2581,20 @@
       "evidence": [
         "core/agent/manuals.mjs::readManual",
         "core/agent/manuals.mjs::loadGuidance"
+      ],
+      "access": [
+        {
+          "from": "context-guidance",
+          "to": "context-file-machines"
+        }
       ]
     },
     {
       "id": "context-guidance-reads-outputs",
-      "from": "context-guidance",
-      "to": "context-file-outputs",
+      "from": "context-file-outputs",
+      "to": "context-guidance",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -2131,14 +2607,20 @@
       "evidence": [
         "core/agent/manuals.mjs::readManual",
         "core/agent/manuals.mjs::loadGuidance"
+      ],
+      "access": [
+        {
+          "from": "context-guidance",
+          "to": "context-file-outputs"
+        }
       ]
     },
     {
       "id": "context-guidance-reads-griffin",
-      "from": "context-guidance",
-      "to": "context-file-griffin",
+      "from": "context-file-griffin",
+      "to": "context-guidance",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -2151,14 +2633,20 @@
       "evidence": [
         "core/agent/manuals.mjs::readManual",
         "core/agent/manuals.mjs::loadGuidance"
+      ],
+      "access": [
+        {
+          "from": "context-guidance",
+          "to": "context-file-griffin"
+        }
       ]
     },
     {
       "id": "context-guidance-reads-bambu",
-      "from": "context-guidance",
-      "to": "context-file-bambu",
+      "from": "context-file-bambu",
+      "to": "context-guidance",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -2171,14 +2659,20 @@
       "evidence": [
         "core/agent/manuals.mjs::readManual",
         "core/agent/manuals.mjs::loadGuidance"
+      ],
+      "access": [
+        {
+          "from": "context-guidance",
+          "to": "context-file-bambu"
+        }
       ]
     },
     {
       "id": "context-guidance-reads-dobot",
-      "from": "context-guidance",
-      "to": "context-file-dobot",
+      "from": "context-file-dobot",
+      "to": "context-guidance",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -2191,14 +2685,20 @@
       "evidence": [
         "core/agent/manuals.mjs::readManual",
         "core/agent/manuals.mjs::loadGuidance"
+      ],
+      "access": [
+        {
+          "from": "context-guidance",
+          "to": "context-file-dobot"
+        }
       ]
     },
     {
       "id": "context-guidance-reads-denso",
-      "from": "context-guidance",
-      "to": "context-file-denso",
+      "from": "context-file-denso",
+      "to": "context-guidance",
       "label": "read file/section",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read file/section"
       ],
@@ -2211,6 +2711,12 @@
       "evidence": [
         "core/agent/manuals.mjs::readManual",
         "core/agent/manuals.mjs::loadGuidance"
+      ],
+      "access": [
+        {
+          "from": "context-guidance",
+          "to": "context-file-denso"
+        }
       ]
     },
     {
@@ -2218,7 +2724,7 @@
       "from": "extension-library",
       "to": "extension-catalog",
       "label": "read catalog",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read catalog"
       ],
@@ -2231,6 +2737,12 @@
       "evidence": [
         "core/agent/toolkit.mjs::readSkill",
         "adapters/mcp/src/runtime.mjs::skills"
+      ],
+      "access": [
+        {
+          "from": "extension-library",
+          "to": "extension-catalog"
+        }
       ]
     },
     {
@@ -2238,7 +2750,7 @@
       "from": "extension-library",
       "to": "extension-manual-plastic-weld",
       "label": "read plastic-weld",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read plastic-weld"
       ],
@@ -2251,6 +2763,12 @@
       "evidence": [
         "core/agent/toolkit.mjs::readSkill",
         "skills/catalog.mjs"
+      ],
+      "access": [
+        {
+          "from": "extension-library",
+          "to": "extension-manual-plastic-weld"
+        }
       ]
     },
     {
@@ -2258,7 +2776,7 @@
       "from": "extension-library",
       "to": "extension-manual-heat-set-inserts",
       "label": "read heat-set-inserts",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read heat-set-inserts"
       ],
@@ -2271,6 +2789,12 @@
       "evidence": [
         "core/agent/toolkit.mjs::readSkill",
         "skills/catalog.mjs"
+      ],
+      "access": [
+        {
+          "from": "extension-library",
+          "to": "extension-manual-heat-set-inserts"
+        }
       ]
     },
     {
@@ -2278,7 +2802,7 @@
       "from": "extension-library",
       "to": "extension-manual-text",
       "label": "read text",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read text"
       ],
@@ -2291,6 +2815,12 @@
       "evidence": [
         "core/agent/toolkit.mjs::readSkill",
         "skills/catalog.mjs"
+      ],
+      "access": [
+        {
+          "from": "extension-library",
+          "to": "extension-manual-text"
+        }
       ]
     },
     {
@@ -2298,7 +2828,7 @@
       "from": "extension-library",
       "to": "extension-manual-thingi10k",
       "label": "read thingi10k",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read thingi10k"
       ],
@@ -2311,6 +2841,12 @@
       "evidence": [
         "core/agent/toolkit.mjs::readSkill",
         "skills/catalog.mjs"
+      ],
+      "access": [
+        {
+          "from": "extension-library",
+          "to": "extension-manual-thingi10k"
+        }
       ]
     },
     {
@@ -2318,7 +2854,7 @@
       "from": "extension-library",
       "to": "extension-manual-gridfinity",
       "label": "read gridfinity",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read gridfinity"
       ],
@@ -2331,6 +2867,12 @@
       "evidence": [
         "core/agent/toolkit.mjs::readSkill",
         "skills/catalog.mjs"
+      ],
+      "access": [
+        {
+          "from": "extension-library",
+          "to": "extension-manual-gridfinity"
+        }
       ]
     },
     {
@@ -2338,7 +2880,7 @@
       "from": "extension-library",
       "to": "extension-manual-supports",
       "label": "read supports",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read supports"
       ],
@@ -2351,6 +2893,12 @@
       "evidence": [
         "core/agent/toolkit.mjs::readSkill",
         "skills/catalog.mjs"
+      ],
+      "access": [
+        {
+          "from": "extension-library",
+          "to": "extension-manual-supports"
+        }
       ]
     },
     {
@@ -2358,7 +2906,7 @@
       "from": "extension-library",
       "to": "extension-manual-line-network",
       "label": "read line-network",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read line-network"
       ],
@@ -2371,6 +2919,12 @@
       "evidence": [
         "core/agent/toolkit.mjs::readSkill",
         "skills/catalog.mjs"
+      ],
+      "access": [
+        {
+          "from": "extension-library",
+          "to": "extension-manual-line-network"
+        }
       ]
     },
     {
@@ -2378,7 +2932,7 @@
       "from": "extension-library",
       "to": "extension-manual-bridging",
       "label": "read bridging",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read bridging"
       ],
@@ -2391,6 +2945,12 @@
       "evidence": [
         "core/agent/toolkit.mjs::readSkill",
         "skills/catalog.mjs"
+      ],
+      "access": [
+        {
+          "from": "extension-library",
+          "to": "extension-manual-bridging"
+        }
       ]
     },
     {
@@ -2398,7 +2958,7 @@
       "from": "extension-library",
       "to": "extension-manual-draped-skin",
       "label": "read draped-skin",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read draped-skin"
       ],
@@ -2411,6 +2971,12 @@
       "evidence": [
         "core/agent/toolkit.mjs::readSkill",
         "skills/catalog.mjs"
+      ],
+      "access": [
+        {
+          "from": "extension-library",
+          "to": "extension-manual-draped-skin"
+        }
       ]
     },
     {
@@ -2418,7 +2984,7 @@
       "from": "extension-library",
       "to": "extension-manual-wave-overhangs",
       "label": "read wave-overhangs",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read wave-overhangs"
       ],
@@ -2431,6 +2997,12 @@
       "evidence": [
         "core/agent/toolkit.mjs::readSkill",
         "skills/catalog.mjs"
+      ],
+      "access": [
+        {
+          "from": "extension-library",
+          "to": "extension-manual-wave-overhangs"
+        }
       ]
     },
     {
@@ -2438,7 +3010,7 @@
       "from": "extension-library",
       "to": "extension-manual-vase-wall",
       "label": "read vase-wall",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read vase-wall"
       ],
@@ -2451,6 +3023,12 @@
       "evidence": [
         "core/agent/toolkit.mjs::readSkill",
         "skills/catalog.mjs"
+      ],
+      "access": [
+        {
+          "from": "extension-library",
+          "to": "extension-manual-vase-wall"
+        }
       ]
     },
     {
@@ -2458,7 +3036,7 @@
       "from": "extension-library",
       "to": "extension-manual-advanced-vase-wall",
       "label": "read advanced-vase-wall",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read advanced-vase-wall"
       ],
@@ -2471,6 +3049,12 @@
       "evidence": [
         "core/agent/toolkit.mjs::readSkill",
         "skills/catalog.mjs"
+      ],
+      "access": [
+        {
+          "from": "extension-library",
+          "to": "extension-manual-advanced-vase-wall"
+        }
       ]
     },
     {
@@ -2478,7 +3062,7 @@
       "from": "extension-library",
       "to": "extension-manual-thick-lip",
       "label": "read thick-lip",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read thick-lip"
       ],
@@ -2491,6 +3075,12 @@
       "evidence": [
         "core/agent/toolkit.mjs::readSkill",
         "skills/catalog.mjs"
+      ],
+      "access": [
+        {
+          "from": "extension-library",
+          "to": "extension-manual-thick-lip"
+        }
       ]
     },
     {
@@ -2498,7 +3088,7 @@
       "from": "extension-library",
       "to": "extension-manual-pipe-cladding",
       "label": "read pipe-cladding",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read pipe-cladding"
       ],
@@ -2511,6 +3101,12 @@
       "evidence": [
         "core/agent/toolkit.mjs::readSkill",
         "skills/catalog.mjs"
+      ],
+      "access": [
+        {
+          "from": "extension-library",
+          "to": "extension-manual-pipe-cladding"
+        }
       ]
     },
     {
@@ -2518,7 +3114,7 @@
       "from": "bundle-edit",
       "to": "bundle-load",
       "label": "load current revision",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "load current revision"
       ],
@@ -2530,6 +3126,12 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "core/print/workflow.mjs"
+      ],
+      "access": [
+        {
+          "from": "bundle-edit",
+          "to": "bundle-load"
+        }
       ]
     },
     {
@@ -2537,7 +3139,7 @@
       "from": "bundle-build",
       "to": "bundle-load",
       "label": "load current revision",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "load current revision"
       ],
@@ -2549,6 +3151,12 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "core/print/workflow.mjs"
+      ],
+      "access": [
+        {
+          "from": "bundle-build",
+          "to": "bundle-load"
+        }
       ]
     },
     {
@@ -2556,7 +3164,7 @@
       "from": "bundle-edit",
       "to": "bundle-patch",
       "label": "apply recipe patch",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "apply recipe patch"
       ],
@@ -2569,6 +3177,12 @@
       "evidence": [
         "core/print/workflow.mjs::applyPlanPatch",
         "core/print/resolve-plan.mjs::resolvePlanPatch"
+      ],
+      "access": [
+        {
+          "from": "bundle-edit",
+          "to": "bundle-patch"
+        }
       ]
     },
     {
@@ -2576,7 +3190,7 @@
       "from": "bundle-edit",
       "to": "bundle-save",
       "label": "persist edited plan",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "persist edited plan"
       ],
@@ -2588,6 +3202,12 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "core/print/workflow.mjs::persistPlanUpdate"
+      ],
+      "access": [
+        {
+          "from": "bundle-edit",
+          "to": "bundle-save"
+        }
       ]
     },
     {
@@ -2595,7 +3215,7 @@
       "from": "bundle-build",
       "to": "bundle-save",
       "label": "persist generated artifacts",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "persist generated artifacts"
       ],
@@ -2607,6 +3227,12 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "core/print/workflow.mjs::persistGeneratedProgram"
+      ],
+      "access": [
+        {
+          "from": "bundle-build",
+          "to": "bundle-save"
+        }
       ]
     },
     {
@@ -2614,7 +3240,7 @@
       "from": "bundle-edit",
       "to": "bundle-setup",
       "label": "remember changed setup",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "remember changed setup"
       ],
@@ -2626,6 +3252,12 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "core/print/workflow.mjs::adjustBundle"
+      ],
+      "access": [
+        {
+          "from": "bundle-edit",
+          "to": "bundle-setup"
+        }
       ]
     },
     {
@@ -2633,7 +3265,7 @@
       "from": "bundle-setup",
       "to": "bundle-load",
       "label": "load setup",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "load setup"
       ],
@@ -2645,6 +3277,12 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "core/print/workflow.mjs::rememberSetup"
+      ],
+      "access": [
+        {
+          "from": "bundle-setup",
+          "to": "bundle-load"
+        }
       ]
     },
     {
@@ -2652,7 +3290,7 @@
       "from": "studio-projection",
       "to": "studio-path-view",
       "label": "build path view",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "build path view"
       ],
@@ -2664,6 +3302,12 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "studio/viewer-renderer.mjs"
+      ],
+      "access": [
+        {
+          "from": "studio-projection",
+          "to": "studio-path-view"
+        }
       ]
     },
     {
@@ -2671,7 +3315,7 @@
       "from": "studio-projection",
       "to": "studio-geometry-view",
       "label": "build geometry view",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "build geometry view"
       ],
@@ -2683,6 +3327,12 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "studio/viewer-renderer.mjs"
+      ],
+      "access": [
+        {
+          "from": "studio-projection",
+          "to": "studio-geometry-view"
+        }
       ]
     },
     {
@@ -2690,7 +3340,7 @@
       "from": "studio-projection",
       "to": "studio-material-view",
       "label": "build material scene",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "build material scene"
       ],
@@ -2702,6 +3352,12 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "studio/viewer-renderer.mjs"
+      ],
+      "access": [
+        {
+          "from": "studio-projection",
+          "to": "studio-material-view"
+        }
       ]
     },
     {
@@ -2709,7 +3365,7 @@
       "from": "studio-agent",
       "to": "studio-requests",
       "label": "query / update requests",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "query / update requests"
       ],
@@ -2721,6 +3377,12 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "studio/server.mjs::createStudio"
+      ],
+      "access": [
+        {
+          "from": "studio-agent",
+          "to": "studio-requests"
+        }
       ]
     },
     {
@@ -2728,7 +3390,7 @@
       "from": "studio-agent",
       "to": "studio-events",
       "label": "record / drain events",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "record / drain events"
       ],
@@ -2740,6 +3402,12 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "studio/server.mjs::createStudio"
+      ],
+      "access": [
+        {
+          "from": "studio-agent",
+          "to": "studio-events"
+        }
       ]
     },
     {
@@ -2747,7 +3415,7 @@
       "from": "studio-agent",
       "to": "studio-tour-state",
       "label": "read / advance tour",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read / advance tour"
       ],
@@ -2759,6 +3427,12 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "studio/server.mjs::createStudio"
+      ],
+      "access": [
+        {
+          "from": "studio-agent",
+          "to": "studio-tour-state"
+        }
       ]
     },
     {
@@ -2766,7 +3440,7 @@
       "from": "studio-tour-state",
       "to": "studio-requests",
       "label": "coordinate lesson requests",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "coordinate lesson requests"
       ],
@@ -2778,14 +3452,20 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "studio/tour.mjs::createTour"
+      ],
+      "access": [
+        {
+          "from": "studio-tour-state",
+          "to": "studio-requests"
+        }
       ]
     },
     {
       "id": "build-field-preparation",
-      "from": "build-evaluate",
-      "to": "build-fields",
+      "from": "path-fields",
+      "to": "build-evaluate",
       "label": "prepare fields",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "prepare fields"
       ],
@@ -2797,6 +3477,12 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "core/print/bundle.mjs::generatePreparedPath"
+      ],
+      "access": [
+        {
+          "from": "build-evaluate",
+          "to": "path-fields"
+        }
       ]
     },
     {
@@ -2804,7 +3490,7 @@
       "from": "export-router",
       "to": "export-griffin",
       "label": "export / interpret",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "export / interpret"
       ],
@@ -2816,6 +3502,12 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "core/export/registry.mjs"
+      ],
+      "access": [
+        {
+          "from": "export-router",
+          "to": "export-griffin"
+        }
       ]
     },
     {
@@ -2823,7 +3515,7 @@
       "from": "export-griffin",
       "to": "export-prepare",
       "label": "prepareMachinePath",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "prepareMachinePath"
       ],
@@ -2835,6 +3527,12 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "core/export/griffin.mjs"
+      ],
+      "access": [
+        {
+          "from": "export-griffin",
+          "to": "export-prepare"
+        }
       ]
     },
     {
@@ -2842,7 +3540,7 @@
       "from": "export-router",
       "to": "export-bambu",
       "label": "export / interpret",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "export / interpret"
       ],
@@ -2854,6 +3552,12 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "core/export/registry.mjs"
+      ],
+      "access": [
+        {
+          "from": "export-router",
+          "to": "export-bambu"
+        }
       ]
     },
     {
@@ -2861,7 +3565,7 @@
       "from": "export-bambu",
       "to": "export-prepare",
       "label": "prepareMachinePath",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "prepareMachinePath"
       ],
@@ -2873,6 +3577,12 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "core/export/bambu.mjs"
+      ],
+      "access": [
+        {
+          "from": "export-bambu",
+          "to": "export-prepare"
+        }
       ]
     },
     {
@@ -2880,7 +3590,7 @@
       "from": "export-router",
       "to": "export-dobot",
       "label": "export / interpret",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "export / interpret"
       ],
@@ -2892,6 +3602,12 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "core/export/registry.mjs"
+      ],
+      "access": [
+        {
+          "from": "export-router",
+          "to": "export-dobot"
+        }
       ]
     },
     {
@@ -2899,7 +3615,7 @@
       "from": "export-dobot",
       "to": "export-prepare",
       "label": "prepareMachinePath",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "prepareMachinePath"
       ],
@@ -2911,6 +3627,12 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "core/export/dobot.mjs"
+      ],
+      "access": [
+        {
+          "from": "export-dobot",
+          "to": "export-prepare"
+        }
       ]
     },
     {
@@ -2918,7 +3640,7 @@
       "from": "export-router",
       "to": "export-denso",
       "label": "export / interpret",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "export / interpret"
       ],
@@ -2930,6 +3652,12 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "core/export/registry.mjs"
+      ],
+      "access": [
+        {
+          "from": "export-router",
+          "to": "export-denso"
+        }
       ]
     },
     {
@@ -2937,7 +3665,7 @@
       "from": "export-denso",
       "to": "export-prepare",
       "label": "prepareMachinePath",
-      "direction": "Caller → provider; response included.",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "prepareMachinePath"
       ],
@@ -2949,7 +3677,604 @@
       "status": "observed in source; manually traced",
       "evidence": [
         "core/export/denso.mjs"
+      ],
+      "access": [
+        {
+          "from": "export-denso",
+          "to": "export-prepare"
+        }
       ]
+    },
+    {
+      "id": "inject-finalize",
+      "from": "inject",
+      "to": "path-finalize",
+      "label": "produced deposition",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "finalize deposition"
+      ],
+      "inputs": "Produced operations, process and prepared fields.",
+      "outputs": "Finalized deposition returned to its producer for material-dependent construction.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "inject",
+          "to": "path-finalize"
+        }
+      ]
+    },
+    {
+      "id": "trace-finalize",
+      "from": "trace",
+      "to": "path-finalize",
+      "label": "produced deposition",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "finalize deposition"
+      ],
+      "inputs": "Produced operations, process and prepared fields.",
+      "outputs": "Finalized deposition returned to its producer for material-dependent construction.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "trace",
+          "to": "path-finalize"
+        }
+      ]
+    },
+    {
+      "id": "slice-finalize",
+      "from": "slice",
+      "to": "path-finalize",
+      "label": "produced deposition",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "finalize deposition"
+      ],
+      "inputs": "Produced operations, process and prepared fields.",
+      "outputs": "Finalized deposition returned to its producer for material-dependent construction.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "slice",
+          "to": "path-finalize"
+        }
+      ]
+    },
+    {
+      "id": "compose-finalize",
+      "from": "path-finalize",
+      "to": "compose",
+      "label": "finalized deposition",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "finalize deposition"
+      ],
+      "inputs": "Produced operations, process and prepared fields.",
+      "outputs": "Finalized operations/material and diagnostics.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "compose",
+          "to": "path-finalize"
+        }
+      ]
+    },
+    {
+      "id": "finalize-fields",
+      "from": "path-fields",
+      "to": "path-finalize",
+      "label": "apply fields",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "apply fields"
+      ],
+      "inputs": "Deposition and prepared field settings.",
+      "outputs": "Modulated deposition and changes.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "path-finalize",
+          "to": "path-fields"
+        }
+      ]
+    },
+    {
+      "id": "inject-motion",
+      "from": "path-motion",
+      "to": "inject",
+      "label": "path values and motion",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "path values and motion"
+      ],
+      "inputs": "Explicit process/pose/path values.",
+      "outputs": "Validated/planned path values.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "inject",
+          "to": "path-motion"
+        }
+      ]
+    },
+    {
+      "id": "trace-motion",
+      "from": "path-motion",
+      "to": "trace",
+      "label": "path values and motion",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "path values and motion"
+      ],
+      "inputs": "Explicit process/pose/path values.",
+      "outputs": "Validated/planned path values.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "trace",
+          "to": "path-motion"
+        }
+      ]
+    },
+    {
+      "id": "slice-motion",
+      "from": "path-motion",
+      "to": "slice",
+      "label": "path values and motion",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "path values and motion"
+      ],
+      "inputs": "Explicit process/pose/path values.",
+      "outputs": "Validated/planned path values.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "slice",
+          "to": "path-motion"
+        }
+      ]
+    },
+    {
+      "id": "compose-motion",
+      "from": "path-motion",
+      "to": "compose",
+      "label": "path values and motion",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "path values and motion"
+      ],
+      "inputs": "Explicit process/pose/path values.",
+      "outputs": "Validated/planned path values.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "compose",
+          "to": "path-motion"
+        }
+      ]
+    },
+    {
+      "id": "path-finalize-motion",
+      "from": "path-motion",
+      "to": "path-finalize",
+      "label": "path values and motion",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "path values and motion"
+      ],
+      "inputs": "Explicit process/pose/path values.",
+      "outputs": "Validated/planned path values.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "path-finalize",
+          "to": "path-motion"
+        }
+      ]
+    },
+    {
+      "id": "path-fields-motion",
+      "from": "path-motion",
+      "to": "path-fields",
+      "label": "path values and motion",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "path values and motion"
+      ],
+      "inputs": "Explicit process/pose/path values.",
+      "outputs": "Validated/planned path values.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "path-fields",
+          "to": "path-motion"
+        }
+      ]
+    },
+    {
+      "id": "bundle-edit-schema",
+      "from": "bundle-schema",
+      "to": "bundle-edit",
+      "label": "recipe/settings values",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "recipe/settings values"
+      ],
+      "inputs": "Recipe, machine and setup values.",
+      "outputs": "Validated settings and diagnostics.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "bundle-edit",
+          "to": "bundle-schema"
+        }
+      ]
+    },
+    {
+      "id": "bundle-build-schema",
+      "from": "bundle-schema",
+      "to": "bundle-build",
+      "label": "recipe/settings values",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "recipe/settings values"
+      ],
+      "inputs": "Recipe, machine and setup values.",
+      "outputs": "Validated settings and diagnostics.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "bundle-build",
+          "to": "bundle-schema"
+        }
+      ]
+    },
+    {
+      "id": "bundle-review-schema",
+      "from": "bundle-schema",
+      "to": "bundle-review",
+      "label": "recipe/settings values",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "recipe/settings values"
+      ],
+      "inputs": "Recipe, machine and setup values.",
+      "outputs": "Validated settings and diagnostics.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "bundle-review",
+          "to": "bundle-schema"
+        }
+      ]
+    },
+    {
+      "id": "bundle-load-schema",
+      "from": "bundle-schema",
+      "to": "bundle-load",
+      "label": "recipe/settings values",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "recipe/settings values"
+      ],
+      "inputs": "Recipe, machine and setup values.",
+      "outputs": "Validated settings and diagnostics.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "bundle-load",
+          "to": "bundle-schema"
+        }
+      ]
+    },
+    {
+      "id": "bundle-patch-schema",
+      "from": "bundle-schema",
+      "to": "bundle-patch",
+      "label": "recipe/settings values",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "recipe/settings values"
+      ],
+      "inputs": "Recipe, machine and setup values.",
+      "outputs": "Validated settings and diagnostics.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "bundle-patch",
+          "to": "bundle-schema"
+        }
+      ]
+    },
+    {
+      "id": "bundle-setup-schema",
+      "from": "bundle-schema",
+      "to": "bundle-setup",
+      "label": "recipe/settings values",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "recipe/settings values"
+      ],
+      "inputs": "Recipe, machine and setup values.",
+      "outputs": "Validated settings and diagnostics.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "bundle-setup",
+          "to": "bundle-schema"
+        }
+      ]
+    },
+    {
+      "id": "studio-ui-private-state",
+      "from": "studio-ui",
+      "to": "studio-state",
+      "label": "private state",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "private state"
+      ],
+      "inputs": "View/session command or snapshot.",
+      "outputs": "Updated private Studio state.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "studio-ui",
+          "to": "studio-state"
+        }
+      ]
+    },
+    {
+      "id": "export-griffin-program",
+      "from": "export-program",
+      "to": "export-griffin",
+      "label": "program helpers",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "program helpers"
+      ],
+      "inputs": "Machine program text/records.",
+      "outputs": "Parsed program/time values.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "export-griffin",
+          "to": "export-program"
+        }
+      ]
+    },
+    {
+      "id": "export-bambu-program",
+      "from": "export-program",
+      "to": "export-bambu",
+      "label": "program helpers",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "program helpers"
+      ],
+      "inputs": "Machine program text/records.",
+      "outputs": "Parsed program/time values.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "export-bambu",
+          "to": "export-program"
+        }
+      ]
+    },
+    {
+      "id": "export-dobot-program",
+      "from": "export-program",
+      "to": "export-dobot",
+      "label": "program helpers",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "program helpers"
+      ],
+      "inputs": "Machine program text/records.",
+      "outputs": "Parsed program/time values.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "export-dobot",
+          "to": "export-program"
+        }
+      ]
+    },
+    {
+      "id": "export-denso-program",
+      "from": "export-program",
+      "to": "export-denso",
+      "label": "program helpers",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "program helpers"
+      ],
+      "inputs": "Machine program text/records.",
+      "outputs": "Parsed program/time values.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "export-denso",
+          "to": "export-program"
+        }
+      ]
+    },
+    {
+      "id": "export-router-program",
+      "from": "export-program",
+      "to": "export-router",
+      "label": "program helpers",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "program helpers"
+      ],
+      "inputs": "Machine program text/records.",
+      "outputs": "Parsed program/time values.",
+      "effects": "Private computation; no access to another component mutable state.",
+      "failure": "Return an explicit error; preserve the last valid result.",
+      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
+      "status": "proposed boundary; compare observed code in the audit",
+      "access": [
+        {
+          "from": "export-router",
+          "to": "export-program"
+        }
+      ]
+    },
+    {
+      "id": "workspace-interaction",
+      "from": "workspace-interface",
+      "to": "workspace-implementations",
+      "label": "design interaction",
+      "direction": "Causal input from common interaction interface to specialized implementation.",
+      "access": [
+        {
+          "from": "workspace-interface",
+          "to": "workspace-implementations"
+        }
+      ],
+      "operations": [
+        "open / edit / evaluate / prepare handoff"
+      ],
+      "inputs": "Workspace identity and explicit design inputs.",
+      "outputs": "Design view, candidate geometry/path and reproducible handoff values.",
+      "effects": "Workspace-private state only.",
+      "failure": "Present unsupported requirements or evaluation errors.",
+      "excludes": "No live shared bundle mutation or export confirmation."
+    },
+    {
+      "id": "bundle-generation-job",
+      "from": "bundle-build",
+      "to": "build-jobs",
+      "label": "generation request",
+      "direction": "Causal job request.",
+      "access": [
+        {
+          "from": "bundle-build",
+          "to": "build-jobs"
+        }
+      ],
+      "operations": [
+        "run / cancel / accept generation"
+      ],
+      "inputs": "Pinned recipe and job identity.",
+      "outputs": "Engine results accepted only for the current bundle revision.",
+      "effects": "Private job lifecycle; bundle commits shared results.",
+      "failure": "Cancellation/failure preserves last valid artifacts.",
+      "excludes": "No separate generation engine or export."
+    },
+    {
+      "id": "job-engine",
+      "from": "build-evaluate",
+      "to": "build-jobs",
+      "label": "generation result",
+      "direction": "Causal job request.",
+      "access": [
+        {
+          "from": "build-jobs",
+          "to": "build-evaluate"
+        }
+      ],
+      "operations": [
+        "run / cancel / accept generation"
+      ],
+      "inputs": "Pinned recipe and job identity.",
+      "outputs": "Engine results accepted only for the current bundle revision.",
+      "effects": "Private job lifecycle; bundle commits shared results.",
+      "failure": "Cancellation/failure preserves last valid artifacts.",
+      "excludes": "No separate generation engine or export."
+    },
+    {
+      "id": "geometry-bundle",
+      "from": "geometry-api",
+      "to": "bundle-build",
+      "label": "saved geometry",
+      "direction": "Geometry output populates the bundle; bundle requests the geometry value.",
+      "access": [
+        {
+          "from": "bundle-build",
+          "to": "geometry-api"
+        }
+      ],
+      "operations": [
+        "evaluate / serialize geometry"
+      ],
+      "inputs": "Pinned geometry recipe/assets.",
+      "outputs": "Geometry value and serialized/display artifacts.",
+      "effects": "2 computes; 5 commits.",
+      "failure": "Keep the previous valid bundle geometry.",
+      "excludes": "No direct geometry-engine writes to bundle state.",
+      "authorship": "Owner original sketch: Geometry -> Bundle."
     }
   ],
   "layout": {
@@ -2981,8 +4306,8 @@
           "y": 670
         },
         "7": {
-          "x": 840,
-          "y": 565
+          "x": 430,
+          "y": 800
         },
         "8": {
           "x": 900,
@@ -2999,10 +4324,6 @@
         "external:resources": {
           "x": 35,
           "y": 835
-        },
-        "external:workspace": {
-          "x": 450,
-          "y": 850
         }
       },
       "viewport": [

@@ -1,5 +1,5 @@
 import {loadBundle,updatePlan} from './bundle.mjs';
-import {sliceAssignment} from './slices.mjs';
+import {depositionAssignment} from './assignment-records.mjs';
 import {mergeRecord} from './resolve-plan.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
 import {diagnoseDepositionPlan} from './deposition-diagnostics.mjs';
@@ -16,7 +16,7 @@ export function editSliceAssignments(slices,{action,id,assignment,before}) {
   if(action==='remove')return {...slices,assignments:entries};
   const current=slices.assignments[index];
   const next=action==='add'||assignment.construction!==undefined&&assignment.construction!==current.construction
-    ?sliceAssignment({...assignment,id}):mergeRecord(current,assignment);
+    ?depositionAssignment({...assignment,id}):mergeRecord(current,assignment);
   const destination=before===undefined?(action==='add'?entries.length:index):before===null?entries.length:entries.findIndex(item=>item.id===before);
   requireThat(destination>=0,'before must name another slice assignment or be null to append.');
   return {...slices,assignments:[...entries.slice(0,destination),next,...entries.slice(destination)]};
