@@ -1,6 +1,6 @@
 // One print lifecycle for every geometry/generator adapter.
 import { readFile, mkdir, rename, access, rm,copyFile,readdir } from 'node:fs/promises';
-import {hashFile} from '../geom/stl-file.mjs';
+import {hashFile} from './stl-file.mjs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';

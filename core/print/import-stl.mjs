@@ -7,7 +7,7 @@ import {isMainThread} from 'node:worker_threads';
 import { hash } from './plan.mjs';
 import { loadMachine, toolBounds, centeredPlacement } from '../machine/profile.mjs';
 import { decodeSTL,parseSTL,makeMesh } from '../geom/mesh.mjs';
-import {decodeSTLFile} from '../geom/stl-file.mjs';
+import {decodeSTLFile} from './stl-file.mjs';
 import {repairSTLFiles} from './repair-stl.mjs';
 import {runRepairJob} from './mesh-repair-job.mjs';
 

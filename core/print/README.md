@@ -7,6 +7,11 @@ operations and checked program used by this lifecycle.
 
 ## Downloaded mesh attribution
 
+[STL file ingestion](./stl-file.mjs) owns filesystem reads, source hashes,
+progress and cancellation. It feeds byte chunks to the geometry engine's
+incremental decoder, which owns parsing, unit conversion and indexed geometry.
+Bundle persistence and source-file identity checks stay in print workflow.
+
 The [Thingi10K geometry skill](../../skills/thingi10k/SKILL.md) downloads a
 selected STL and calls the shared importer with hash-matched attribution.
 The importer retains that record in `geometry.source.attribution`, alongside

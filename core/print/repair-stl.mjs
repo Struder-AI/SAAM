@@ -6,7 +6,7 @@ import {join,dirname,basename,resolve} from 'node:path';
 import {createHash} from 'node:crypto';
 import {decodeSTL,cleanTriangleSoup,encodeRepairSTLChunks,validateRepair} from '../geom/mesh-repair.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
-import {decodeSTLFile} from '../geom/stl-file.mjs';
+import {decodeSTLFile} from './stl-file.mjs';
 import {repairMeshNative} from '../geom/mesh-native.mjs';
 import {triangleIndex,checkAdjacentContacts} from '../geom/mesh-spatial.mjs';
 import {hash} from './plan.mjs';

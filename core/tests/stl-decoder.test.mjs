@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {appendFileSync} from 'node:fs';
 import {STLDecoder} from '../geom/stl-decoder.mjs';
 import {decodeSTL} from '../geom/mesh.mjs';
-import {decodeSTLFile} from '../geom/stl-file.mjs';
+import {decodeSTLFile} from '../print/stl-file.mjs';
 
 const ascii=Buffer.from('  solid m\u00e9sh\r\nfacet normal 0 0 1\r\n outer loop\r\n vertex 0 0 0\r\n vertex 1 0 0\r\n vertex 0 1 0\r\n endloop\r\nendfacet\r\nendsolid m\u00e9sh\r\n');
 function binary(){

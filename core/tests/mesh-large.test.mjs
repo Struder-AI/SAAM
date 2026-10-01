@@ -7,7 +7,7 @@ import {join} from 'node:path';
 import {pipeline} from 'node:stream/promises';
 import {subdividedBox} from './fixtures/mesh.mjs';
 import {encodeRepairSTLChunks} from '../geom/mesh-repair.mjs';
-import {decodeSTLFile} from '../geom/stl-file.mjs';
+import {decodeSTLFile} from '../print/stl-file.mjs';
 import {makeMesh,sectionMesh} from '../geom/mesh.mjs';
 import {checkMeshCapacity,meshAllocation,meshAllocationError} from '../geom/mesh-capacity.mjs';
 import {repairMemoryError} from '../print/mesh-repair-job.mjs';
