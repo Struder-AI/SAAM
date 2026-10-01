@@ -30,16 +30,10 @@ const limitationsFor = (plan, machine) => {
 
 export async function generatePreparedPath(plan,options){
   await requireGenerationExtensions(plan);
-  const [{compileRecipe},{rhino},{buildShell,translateShell},{generatePath},
-    {modulationGeometrySources,prepareModulationFields},{booleanShell}]=await Promise.all([
-      import('./plan.mjs'),import('../geom/runtime.mjs'),import('../geom/build.mjs'),import('./generate.mjs'),
-      import('./modulation-fields.mjs'),import('../geom/boolean-solid.mjs')]);
+  const [{compileRecipe},{generatePath},{prepareModulationFields}]=await Promise.all([
+    import('./plan.mjs'),import('./generate.mjs'),import('./modulation-fields.mjs')]);
   plan=compileRecipe(plan).plan;
-  const native=await rhino(),sources=modulationGeometrySources(plan.modulations);
-  const material=geometry=>geometry.shape==='assembly'
-    ?booleanShell('union',geometry.parts.map(part=>translateShell(material(part.geometry),part.xMm,part.yMm,part.zMm)))
-    :geometry.shape==='boolean'?booleanShell(geometry.operation,geometry.operands.map(material)):buildShell(native,geometry);
-  const fields=await prepareModulationFields(plan.modulations,{solids:sources.map(source=>({key:source.key,geometry:material(source.geometry)}))});
+  const fields=await prepareModulationFields(plan.modulations);
   return generatePath(plan,{...options,modulations:fields.record,modulationPreparation:fields.report});
 }
 

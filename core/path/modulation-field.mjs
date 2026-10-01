@@ -1,8 +1,7 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 
 import {blobFalloff,validateBlobField} from '../geom/blob-field.mjs';
-import {pointTriangleDistanceSquared} from '../geom/mesh-distance.mjs';
-import {containsPoint} from '../geom/query.mjs';
+import {solidDistance} from '../geom/solid-distance.mjs';
 
 const vector=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite);
 const fields=(record,names)=>record&&Object.keys(record).sort().join()===names.split(',').sort().join();
@@ -63,14 +62,7 @@ const smooth=t=>t*t*(3-2*t);
 
 export function evaluateScalarField(field,point,{phaseRad=0,continuous=false,sideDirection=null}={}) {
   const options={phaseRad,continuous,sideDirection};
-  if(field.kind==='solid-distance'){
-    requireThat(field.prepared?.kind==='triangle-mesh','Solid-distance fields need async geometry preparation before sampling.');
-    const mesh=field.prepared;
-    let squared=Infinity;
-    for(const triangle of mesh.triangles)squared=Math.min(squared,pointTriangleDistanceSquared(point,...triangle.map(i=>mesh.vertices[i])));
-    const magnitude=Math.sqrt(squared);
-    return field.signed&&magnitude>1e-12&&containsPoint(mesh,point)?-magnitude:magnitude;
-  }
+  if(field.kind==='solid-distance')return solidDistance(field.prepared,point,{signed:field.signed});
   if(field.kind==='add')return field.sources.reduce((v,source)=>v+evaluateScalarField(source,point,options),0);
   if(field.kind==='multiply')return field.sources.reduce((v,source)=>v*evaluateScalarField(source,point,options),1);
   if(field.kind==='transfer'){

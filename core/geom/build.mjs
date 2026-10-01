@@ -16,7 +16,7 @@ export function buildShell(rhino, geometry) {
 
 // One construction batch shares immutable source shapes, including components
 // encountered first while building an assembly. No caller owns this cache.
-function buildShapes(rhino,geometries){
+function buildShapes(rhino,geometries,{material=false}={}){
   const cache=new Map();
   const build=geometry=>{
     if(cache.has(geometry))return cache.get(geometry);
@@ -27,6 +27,9 @@ function buildShapes(rhino,geometries){
     if(geometry.shape==='boolean')return booleanShell(geometry.operation,geometry.operands.map(build));
     if(Array.isArray(geometry.vertices)&&Array.isArray(geometry.triangles)){
       return makeMesh(geometry.vertices,geometry.triangles);
+    }
+    if(geometry.shape==='assembly'&&material){
+      return booleanShell('union',geometry.parts.map(part=>translateShell(build(part.geometry),part.xMm,part.yMm,part.zMm)));
     }
     if(geometry.shape==='assembly'&&hasMesh(geometry)) {
       const components=geometry.parts.map(part=>translateShell(build(part.geometry),part.xMm,part.yMm,part.zMm));
@@ -43,6 +46,12 @@ function buildShapes(rhino,geometries){
     throw new Error(`Unsupported geometry shape: ${geometry.shape}.`);
   }
   return geometries.map(build);
+}
+
+// Material queries combine placed components, including nested assemblies.
+// Ordinary construction retains its component/surface representation.
+export async function resolveMaterialGeometry(geometries){
+  return buildShapes(await rhino(),geometries,{material:true});
 }
 
 // Each request returns ordinary geometry in the requested frame. A replacement

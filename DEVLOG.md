@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-01 — Consolidate material construction and solid distance
+
+- Geometry owns batched material construction and solid-distance preparation/query. Removed Agent's assembly builder and generation's recursive material/key bridge; Toolpath retains composition and sampling. Ordinary assemblies, native lifetime, tessellation, reports, errors and the `1e-12` sign threshold stay intact.
+- Isolated-worktree trials against `7bad131` matched eight geometry forms, 160 signed/unsigned samples, ten composed samples, placement, draft families, four errors and two complete generated paths. Existing `boolean-solid.test.mjs`: four pass; its recipe-prerequisite failure also reproduces on the baseline. No new tests, suite batch, solver or publication; root owns map integration and package rebuilding.
+
 ## 2026-10-01 — Update active bundles and simplify map navigation
 
 - Active edits/generation compare one saved source record with the installed release and selected extensions; stale output and confirmation invalidate through existing commits. Viewing/delivery use saved artifacts. MCP shares Bundle generation dispatch; Studio workers include revision. Actual local-runtime, missing-code, upgrade, same-byte, cancellation and stale-commit checks passed; no new tests or whole suite.
