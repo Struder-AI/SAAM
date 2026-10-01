@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "date": "2026-09-30",
-  "description": "0.3.0 target architecture. Map 0 accepted by the owner; submaps and detailed contracts are provisional. Arrows are calls including their declared response, except explicitly named guidance/data/event arrows. No transitive access. Only 5 exposes shared part state; each other component may exclusively own private state. No source compliance has been established. Extension resource access added by owner request: Thingi10K belongs in Extensions, with an explicit external-resource wire. Extensions are unsandboxed local code; contracts describe intended SAAM/reviewed-extension structure, not confinement of arbitrary scripts.",
+  "description": "0.3.0 target architecture. Map 0 accepted by the owner; submaps and detailed contracts are provisional. Arrows are calls including their declared response, except explicitly named guidance/data/event arrows. No transitive access. Only 5 exposes shared part state; each other component may exclusively own private state. No source compliance has been established. Extension resource access added by owner request: Thingi10K belongs in Extensions, with an explicit external-resource wire. Extensions are unsandboxed local code; contracts describe intended SAAM/reviewed-extension structure, not confinement of arbitrary scripts. Owner confirmed preservation of a simplified Studio\u2013agent channel, priority event batches and exclusive per-bundle editing; saved artifacts remain inspectable without regeneration dependencies.",
   "actors": {
     "user": {
       "label": "User",
@@ -206,6 +206,13 @@
       "label": "Resource access",
       "description": "Conventional resource IO; no runtime permission broker.",
       "type": "component"
+    },
+    {
+      "id": "studio-agent",
+      "index": "6.3",
+      "label": "Agent channel",
+      "description": "Owned requests; alert events carry queued observations.",
+      "type": "component"
     }
   ],
   "contracts": [
@@ -323,10 +330,10 @@
       "operations": [
         "open / snapshot / edit / requestBuild"
       ],
-      "inputs": "Bundle identity, expected revision and declarative patch or build request.",
+      "inputs": "Owner/Studio-instance and bundle identity, expected revision, and typed edit/open/build command.",
       "outputs": "New revision or job identity; immutable snapshot.",
-      "effects": "5 alone owns shared part state; requestBuild routes internally to 5.2.",
-      "failure": "Reject stale revisions and unsupported commands.",
+      "effects": "5 owns shared part state and grants edit ownership to only one Studio instance per bundle; an agent may own multiple instances.",
+      "failure": "Reject stale revisions or writes without the active instance edit ownership; keep other viewers read-only.",
       "excludes": "No arbitrary disk/script access; no user confirmation operation."
     },
     {
@@ -338,10 +345,10 @@
       "operations": [
         "open / edit / requestBuild"
       ],
-      "inputs": "Expected revision and typed UI command.",
+      "inputs": "Owner/Studio-instance and bundle identity, expected revision, and typed edit/open/build command.",
       "outputs": "Accepted revision/job or conflict.",
-      "effects": "Bundle owns commits; Studio owns only its local UI state.",
-      "failure": "Keep prior valid view on failure.",
+      "effects": "5 owns shared part state and grants edit ownership to only one Studio instance per bundle; an agent may own multiple instances.",
+      "failure": "Reject stale revisions or writes without the active instance edit ownership; keep other viewers read-only.",
       "excludes": "No direct engine or bundle-file access."
     },
     {
@@ -368,10 +375,10 @@
       "operations": [
         "snapshot / subscribe"
       ],
-      "inputs": "Immutable revisioned part view and ordered event cursor.",
+      "inputs": "Immutable revisioned part view and event cursor, including saved geometry and any saved toolpath.",
       "outputs": "Part presentation data; subscription cancellation.",
       "effects": "Subscription state remains in owner; Studio renders its own projection.",
-      "failure": "Reconnect by snapshot after missed revisions.",
+      "failure": "Recover missed events by snapshot; missing extension dependencies block regeneration, not inspection of available saved artifacts.",
       "excludes": "No shared mutable object references."
     },
     {
@@ -461,7 +468,7 @@
       "inputs": "Immutable bundle snapshot, pinned extensions/assets, machine/setup and cancellation signal.",
       "outputs": "Geometry, SAAMpath summary, checked program, diagnostics and provenance.",
       "effects": "7 owns only job-local working state; 5 commits returned result.",
-      "failure": "Return failure/cancellation; 5 preserves previous valid revision.",
+      "failure": "Missing generation dependencies or failure/cancellation leave saved geometry and toolpath viewable; 5 preserves previous valid artifacts.",
       "excludes": "7 cannot write bundle, confirm or deliver."
     },
     {
@@ -718,6 +725,51 @@
       "effects": "Extension-private computation and declared resource IO only.",
       "failure": "Return structured errors or cancellation without changing the active bundle.",
       "excludes": "No confirmation, direct bundle mutation or private engine access."
+    },
+    {
+      "id": "studio-agent-events",
+      "from": "studio-agent",
+      "to": "agent",
+      "label": "requests / event batches",
+      "operations": [
+        "subscribe / notify / acknowledge / respond"
+      ],
+      "inputs": "Owner/instance/bundle identity, request identity and ordered batch: an alert plus accumulated held observations.",
+      "outputs": "Agent acknowledgement, progress/result or waiting/failure response for the matching request.",
+      "effects": "Channel-private queue/request state; edits still use the bundle interface.",
+      "failure": "Expose disconnected/failed work without inventing agent progress; explicit reads can recover pending requests.",
+      "excludes": "No cross-agent ownership or direct mutation of Studio internals; diagnostic emission is a separate service interface.",
+      "direction": "Studio \u2192 owning agent: requests and alert-level event batches; subscription setup and correlated responses are included."
+    },
+    {
+      "id": "studio-user-request",
+      "from": "studio-ui",
+      "to": "studio-agent",
+      "label": "request / tour event",
+      "operations": [
+        "request / record event"
+      ],
+      "inputs": "User request or tour event, scoped to the owning Studio instance and bundle.",
+      "outputs": "Request identity and channel status.",
+      "effects": "Studio-private coordination only.",
+      "failure": "Show pending/disconnected status; preserve request identity.",
+      "excludes": "No recipe mutation through event payloads.",
+      "direction": "Caller \u2192 provider; declared response included."
+    },
+    {
+      "id": "studio-observations",
+      "from": "studio-projection",
+      "to": "studio-agent",
+      "label": "observe changes",
+      "operations": [
+        "record event"
+      ],
+      "inputs": "Revisioned observations, displayed result, build failure/cancellation or other classified event.",
+      "outputs": "Queued observation or alert batch.",
+      "effects": "Studio-private queue state only.",
+      "failure": "Ignore stale identities; do not claim unseen output was displayed.",
+      "excludes": "Held observations alone do not trigger a live alert.",
+      "direction": "Caller \u2192 provider; declared response included."
     }
   ],
   "layout": {

@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-09-30 — Feature review decisions 1–7
+
+- Recorded web-path removal, preserved/simplified Studio–agent channel, priority event batches, retained/rethought tour with outside introduction, single editing instance per bundle, saved-artifact viewing without extensions, and text/heat-set/Thingi10K extension migration. Remaining feature-review items are undecided.
+- Confirmed delivered/held behavior in studio-events.mjs; current normal tool results and explicit reads also drain held observations. Added the proposed Studio–agent wire and 6.3 channel submap; generation remains separate from saved-artifact viewing. Built 29 architecture pages; fresh viewer coverage and diff check pass. No product runtime edits or tests.
+
 ## 2026-09-30 — Optional alpha services and live diagnostics intent
 
 - Recorded owner decisions: SAAM works without activation; invites enable updates and official-alpha diagnostics only. Diagnostics chirp live from a SAAM emitter, with no local record/upload pipeline or offline backlog. Connect gets a simple statement. Unsandboxed local extensions are individually reviewed before adoption; stable engines and migration guidance replace speculative compatibility planning.
