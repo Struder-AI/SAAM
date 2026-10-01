@@ -907,12 +907,12 @@
     {
       "id": "export-prepare",
       "index": "8.2",
-      "label": "prepareMachinePath",
-      "description": "Installation startup, material changes and feed limits.",
+      "label": "Completed path admission",
+      "description": "Consume completed SAAMpath, check representation and device setup; no motion construction.",
       "type": "component",
       "source": {
         "file": "core/export/prepare-path.mjs",
-        "declaration": "prepareMachinePath"
+        "declaration": "checkedMachinePath"
       }
     },
     {
@@ -1151,20 +1151,20 @@
       "id": "bundle-views",
       "from": "bundle-edit",
       "to": "studio-projection",
-      "label": "snapshot / events",
+      "label": "persisted bundle snapshot",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
-        "snapshot / subscribe"
+        "loadBundleSnapshot"
       ],
-      "inputs": "Immutable revisioned part view and event cursor, including saved geometry and any saved toolpath.",
-      "outputs": "Part presentation data; subscription cancellation.",
-      "effects": "Subscription state remains in owner; Studio renders its own projection.",
-      "failure": "Recover missed events by snapshot; missing extension dependencies block regeneration, not inspection of available saved artifacts.",
-      "excludes": "No shared mutable object references.",
+      "inputs": "Bundle directory and program read options.",
+      "outputs": "One persisted revision: geometry/recipe, artifact currency, history navigation, checked program and confirmation, with source/presentation fingerprints.",
+      "effects": "Read-only; polling, pending requests and job progress remain Studio-private.",
+      "failure": "Invalid artifacts report their error; incomplete or stale saved state remains inspectable.",
+      "excludes": "No subscription API, private pending queues or job progress; no click-time Export currency gate.",
       "access": [
         {
-          "from": "bundle-edit",
-          "to": "studio-projection"
+          "from": "studio-projection",
+          "to": "bundle-edit"
         }
       ]
     },
@@ -1185,27 +1185,6 @@
       "access": [
         {
           "from": "bundle-build",
-          "to": "studio-projection"
-        }
-      ]
-    },
-    {
-      "id": "review-views",
-      "from": "bundle-review",
-      "to": "studio-projection",
-      "label": "review identity",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "publish review / export state"
-      ],
-      "inputs": "Current geometry/settings/path identity, pending-update state and export result.",
-      "outputs": "Visible review and export availability; hide Export as soon as an update is queued, using the waiting indicators’ same pending-update state.",
-      "effects": "Private render state only.",
-      "failure": "Pending or changed identity immediately removes export availability.",
-      "excludes": "Preview does not count as confirmation.",
-      "access": [
-        {
-          "from": "bundle-review",
           "to": "studio-projection"
         }
       ]

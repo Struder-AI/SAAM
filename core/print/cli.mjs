@@ -2,7 +2,7 @@ import {applyExtensionEdit} from './extension-edits.mjs';
 // Every command uses the same print bundle; Studio previews the checked export.
 import {readFile,access} from 'node:fs/promises';
 import {resolve} from 'node:path';
-import {root,initBundle,loadBundle,generateBundle,adjustBundle,rememberSetup,deliver,checkPathBundle,changeMachine,migrateBundle} from './bundle.mjs';
+import {root,initBundle,loadBundle,generateBundle,generateToolpath,restoreRevision,adjustBundle,rememberSetup,deliver,checkPathBundle,changeMachine,migrateBundle} from './bundle.mjs';
 import {createSTLBundle,setSTLUnits} from './import-stl.mjs';
 import {repairSTLFiles} from './repair-stl.mjs';
 import {createBlobFieldBundle,updateBlobFieldBundle} from './blob-field.mjs';
@@ -20,14 +20,14 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
   const bundleDirectory = () => resolve(target ?? 'Prints/shell-part');
   const report = state => JSON.stringify({
     bundle: state.dir, skills: state.skills, revision: state.revision, geometryHash:state.geometryHash,
-    toolpathApproved: state.toolpathApproved,
+    toolpathApproved: state.toolpathApproved, history:state.history,artifacts:state.artifacts,
     program: state.program?.summary ?? null, programError: state.programError ?? null,
     outputAvailability: state.outputAvailability ?? null, machineConfiguration: state.machineConfiguration ?? null,
     surfaceDomain: state.pathSummary?.surfaceDomain ?? null, limitations: state.limitations
   }, null, 2);
 
   const run = async () => {
-    if(revisionIndex>=0&&(!expectedRevision||!['adjust','text','heat-set','blob-field-update','combine','change-machine','stl-units'].includes(command)))throw new Error('--revision requires a revision hash and is supported by adjust, text, heat-set, blob-field-update, combine, change-machine and stl-units.');
+    if(revisionIndex>=0&&(!expectedRevision||!['undo','redo','adjust','text','heat-set','blob-field-update','combine','change-machine','stl-units'].includes(command)))throw new Error('--revision requires a revision hash and an edit, undo or redo command.');
     if (command === 'init') {
       const plan = argument&&argument!=='--machine' ? await readJson(resolve(argument)) : undefined;
       const machineId=argument==='--machine'?extra:extra==='--machine'?last:extra;
@@ -36,6 +36,10 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(`Open it for review with: npm run studio -- ${directory}`);
       console.log('Nothing is approved yet; review the geometry and generate freely, then confirm the exact settings/toolpath together in Studio before export.');
       const hint=await printHint(root,await loadBundle(directory,{program:false}),null);if(hint)console.log(hint);
+    } else if(command==='undo'||command==='redo') {
+      console.log(report(await restoreRevision(bundleDirectory(),{direction:command,expectedRevision})));
+    } else if(command==='toolpath') {
+      console.log(report(await generateToolpath(bundleDirectory())));
     } else if(command==='migrate') {
       console.log(JSON.stringify(await migrateBundle(bundleDirectory()),null,2));
     } else if(command==='blob-field-create'||command==='blob-field-update') {
@@ -75,7 +79,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(JSON.stringify(await checkPathBundle(bundleDirectory()),null,2));
     } else if (command === 'demo') {
       const directory = bundleDirectory();
-      try { await access(resolve(directory, 'plan.json')); } catch { const plan=defaults();plan.geometry=starterGeometry();plan.slices.assignments.push(skinAssignment({id:'skin'}));await initBundle(directory,plan); }
+      try { await access(resolve(directory, 'plan.json')); } catch { const plan=defaults();plan.geometry=starterGeometry();plan.slices.assignments.push(skinAssignment({id:'skin'}));await initBundle(directory,plan,{machineId:'ultimaker-s5'}); }
       const checks = await generateBundle(directory, { development: true });
       console.log(`Development generation only; no human approvals created.`);
       console.log(`  ${checks.moves} moves, about ${checks.estimatedMinutes} minutes`);
@@ -103,6 +107,8 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       if(state.programError)process.exitCode=1;
     } else {
       console.error('       cli.mjs init|migrate|demo|generate|check|deliver|remember-setup [print-directory] [plan.json]');
+      console.error('       cli.mjs undo|redo <print-directory> --revision <revision>');
+      console.error('       cli.mjs toolpath <print-directory> (save completed SAAMpath without export)');
       console.error('       cli.mjs adjust <print-directory> <patch.json> [--revision <revision>]');
       console.error('       cli.mjs change-machine <print-directory> <machine-id> [--revision <revision>]');
       console.error('       cli.mjs text <print-directory> <text-request.json> [--revision <revision>]');

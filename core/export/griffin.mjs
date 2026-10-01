@@ -1,6 +1,5 @@
-import {saamPath} from '../path/saampath.mjs';
 import {distance,requireThat} from '../private/export/numeric.mjs';
-import {prepareMachinePath} from './prepare-path.mjs';
+import {checkedMachinePath} from './prepare-path.mjs';
 
 import {plannedNozzleTemperatures} from '../path/process-controls.mjs';
 // One G4 carries at most this many milliseconds; it is what the firmware reads
@@ -10,7 +9,7 @@ export {interpretGriffin,interpretMotion,interpretMotionChunk} from './griffin-p
 
 const fmt=(n,d=5)=>Number(n.toFixed(d)).toString();
 export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
-  path=prepareMachinePath(path,plan,machine);
+  path=checkedMachinePath(path,plan,machine);
   const motionLines=exportMotion(path,plan);
   requireThat(machine.outputs.some(o=>o.id===plan.output && o.flavor==='Griffin'),'Machine does not declare Griffin export.');
   const s=plan.setup, area=Math.PI*(s.filamentMm/2)**2, tool=s.tool;
@@ -47,7 +46,6 @@ export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
 
 // The same volumetric SAAMpath actions and rounding rules feed every dialect.
 export function exportMotion(path,plan,{extrusionMode='absolute',travelCommand='G0'}={}) {
-  path=saamPath(path);
   requireThat(['absolute','relative'].includes(extrusionMode),'Unsupported extrusion mode.');
   requireThat(['G0','G1'].includes(travelCommand),'Unsupported travel command.');
   const relativeE=extrusionMode==='relative';

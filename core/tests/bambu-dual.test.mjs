@@ -5,7 +5,6 @@ import {defaults} from '../print/plan.mjs';
 import {rhino} from '../print/geometry.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {exportProgram,interpretProgram} from '../export/registry.mjs';
-import {prepareMachinePath} from '../export/prepare-path.mjs';
 import {unpackZip,packZip} from '../export/zip.mjs';
 import {decodeSource} from '../../studio/source-player.mjs';
 import {auditBambu} from '../../scripts/bambu-audit.mjs';
@@ -19,7 +18,7 @@ import {splineBox} from './fixtures/spline-shapes.mjs';
 const release={generatorVersion:'test',buildDate:'2026-09-21'};
 test('mixed 0.4/0.8 H2D regions emit tower-free changes, distinct process grids and independently decoded tool state',async()=>{
   const {plan,machine}=mixedNozzleFixture(),path=generatePath(plan,machine,await rhino());
-  checkMachinePath(prepareMachinePath(path,plan,machine),plan,machine);
+  checkMachinePath(path,plan,machine);
   assert.ok(path.actions.filter(a=>a.kind==='toolChange').length>=3);
   const bytes=exportProgram(path,plan,machine,release),z=unpackZip(bytes),code=z.get('Metadata/plate_1.gcode').toString();
   assert.match(code,/^; filament: 1,2$/m,'USB header declares material IDs, not their count');
@@ -95,7 +94,7 @@ test('mixed nozzle job can start on the right and use each nozzle’s own build 
   const fixture=mixedNozzleFixture(),machine=fixture.machine,r=await rhino();
   const plan=filamentPlan(fixture.plan,machine,1);
   plan.placement.xMm=310;
-  const path=generatePath(plan,machine,await rhino());checkMachinePath(prepareMachinePath(path,plan,machine),plan,machine);
+  const path=generatePath(plan,machine,await rhino());checkMachinePath(path,plan,machine);
   const program=interpretProgram(exportProgram(path,plan,machine,release),plan,machine);
   assert.equal(program.filamentSequence[0],1);
   assert.ok(program.moves.some(m=>m.extruding&&m.tool===1&&m.to[0]>325));

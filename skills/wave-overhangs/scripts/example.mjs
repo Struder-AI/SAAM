@@ -26,7 +26,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).hr
   if(!process.argv[2])throw new Error('Provide a new print directory for this development example.');
   const {initBundle,generateBundle,loadBundle}=await import('../../../core/print/bundle.mjs');
   const dir=resolve(process.argv[2]);
-  await initBundle(dir,waveExamplePlan());
+  await initBundle(dir,waveExamplePlan(),{machineId:'ultimaker-s5'});
   const result=await generateBundle(dir,{development:true});
   const state=await loadBundle(dir);
   console.log(JSON.stringify({directory:dir,mode:result.mode,fronts:state.pathSummary.slices.instances.filter(r=>r.fillOrder).map(r=>({id:r.id,...r.fillOrder}))},null,2));

@@ -41,7 +41,7 @@ export function irregularLoopDemoPlan(){
 
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){
   const directory=resolve(process.argv[2]??'Prints/development/irregular-loop-vase');
-  await initBundle(directory,irregularLoopDemoPlan());
+  await initBundle(directory,irregularLoopDemoPlan(),{machineId:'ultimaker-s5'});
   const checked=await generateBundle(directory,{development:true,onProgress:p=>console.log(JSON.stringify(p))});
   console.log(JSON.stringify({directory,result:checked.result,moves:checked.moves,
     scope:'Complete mapped-loop development preview; no human manufacturing approval or physical validation.'}));

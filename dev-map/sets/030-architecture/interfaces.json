@@ -292,7 +292,7 @@
   },
   {
    "contract": "griffin-prepare",
-   "target": "core/export/prepare-path.mjs::prepareMachinePath",
+   "target": "core/export/prepare-path.mjs::checkedMachinePath",
    "kinds": [
     "call"
    ],
@@ -300,7 +300,7 @@
   },
   {
    "contract": "bambu-prepare",
-   "target": "core/export/prepare-path.mjs::prepareMachinePath",
+   "target": "core/export/prepare-path.mjs::checkedMachinePath",
    "kinds": [
     "call"
    ],
@@ -308,7 +308,7 @@
   },
   {
    "contract": "dobot-prepare",
-   "target": "core/export/prepare-path.mjs::prepareMachinePath",
+   "target": "core/export/prepare-path.mjs::checkedMachinePath",
    "kinds": [
     "call"
    ],
@@ -316,7 +316,7 @@
   },
   {
    "contract": "denso-prepare",
-   "target": "core/export/prepare-path.mjs::prepareMachinePath",
+   "target": "core/export/prepare-path.mjs::checkedMachinePath",
    "kinds": [
     "call"
    ],
@@ -465,6 +465,30 @@
     "call"
    ],
    "evidence": "Persist a completed import candidate; no engine dispatch."
+  },
+  {
+   "contract": "build-job",
+   "target": "core/path/dependencies.mjs::pathDependencies",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Producer dependency projection / revision-checked history entry; no additional topology permission."
+  },
+  {
+   "contract": "studio-commands",
+   "target": "core/print/workflow.mjs::createBundleWorkflow::restoreRevision",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Producer dependency projection / revision-checked history entry; no additional topology permission."
+  },
+  {
+   "contract": "bundle-views",
+   "target": "core/print/workflow.mjs::createBundleWorkflow::loadBundleSnapshot",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "All Studio persisted reads pass through readStableBundle to this one snapshot of revision, artifacts, history and review. Private job/pending state is composed separately."
   }
  ]
 }

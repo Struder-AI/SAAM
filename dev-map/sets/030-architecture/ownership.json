@@ -2458,21 +2458,6 @@
     "core/export/prepare-path.mjs::@module": {
       "owner": "export"
     },
-    "core/export/prepare-path.mjs::depositionBounds": {
-      "owner": "export"
-    },
-    "core/export/prepare-path.mjs::limitMachineFeed": {
-      "owner": "export"
-    },
-    "core/export/prepare-path.mjs::materialSelection": {
-      "owner": "export"
-    },
-    "core/export/prepare-path.mjs::prepareMachinePath": {
-      "owner": "export"
-    },
-    "core/export/prepare-path.mjs::prepareMachinePath::append": {
-      "owner": "export"
-    },
     "core/export/registry.mjs::@module": {
       "owner": "export"
     },
@@ -10454,6 +10439,102 @@
     },
     "core/print/workflow.mjs::hashFile": {
       "owner": "bundle"
+    },
+    "core/export/prepare-path.mjs::checkedMachinePath": {
+      "owner": "export",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/path/dependencies.mjs::@module": {
+      "owner": "toolpath",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/path/dependencies.mjs::pathDependencies": {
+      "owner": "toolpath",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/path/dependencies.mjs::pathInputHash": {
+      "owner": "toolpath",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/path/machine-path.mjs::@module": {
+      "owner": "toolpath",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/path/machine-path.mjs::completeMachinePath": {
+      "owner": "toolpath",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/path/machine-path.mjs::completeMachinePath::append": {
+      "owner": "toolpath",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/path/machine-path.mjs::depositionBounds": {
+      "owner": "toolpath",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/path/machine-path.mjs::limitMachineFeed": {
+      "owner": "toolpath",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/path/machine-path.mjs::materialSelection": {
+      "owner": "toolpath",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/print/revisions.mjs::@module": {
+      "owner": "bundle",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/print/revisions.mjs::commitManifest": {
+      "owner": "bundle",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/print/revisions.mjs::digest": {
+      "owner": "bundle",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/print/revisions.mjs::readRecord": {
+      "owner": "bundle",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/print/revisions.mjs::restoreContent": {
+      "owner": "bundle",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/print/revisions.mjs::retainContent": {
+      "owner": "bundle",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/print/revisions.mjs::revisionOf": {
+      "owner": "bundle",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/print/revisions.mjs::storeRecord": {
+      "owner": "bundle",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::commitState": {
+      "owner": "bundle",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::generateToolpath": {
+      "owner": "bundle",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::prepareToolpath": {
+      "owner": "bundle",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::restoreRevision": {
+      "owner": "bundle",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "studio/app.mjs::onclick": {
+      "owner": "studio",
+      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::readPathArtifact": {
+      "owner": "bundle",
+      "reason": "Validates persisted content-addressed SAAMpath references before reuse or commit."
     }
   },
   "retiredAssignments": [
@@ -10594,7 +10675,12 @@
     "studio/app.mjs::@handler/close-machine-picker.onclick",
     "studio/app.mjs::@handler/machine-form.onsubmit",
     "studio/app.mjs::choosePrinter",
-    "studio/server.mjs::importMachines"
+    "studio/server.mjs::importMachines",
+    "core/export/prepare-path.mjs::depositionBounds",
+    "core/export/prepare-path.mjs::limitMachineFeed",
+    "core/export/prepare-path.mjs::materialSelection",
+    "core/export/prepare-path.mjs::prepareMachinePath",
+    "core/export/prepare-path.mjs::prepareMachinePath::append"
   ],
   "scope": "map 0 only; no submap ownership constraints"
 }

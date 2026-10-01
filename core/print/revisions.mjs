@@ -1,0 +1,52 @@
+// Bundle-owned immutable records and the single manifest commit boundary.
+import {readFile,open,rm,mkdir} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {createHash,randomUUID} from 'node:crypto';
+import {replaceFile} from '../file-write.mjs';
+
+export const digest=value=>createHash('sha256').update(typeof value==='string'||value instanceof Uint8Array?value:JSON.stringify(value)).digest('hex');
+export async function storeRecord(dir,value){
+  const bytes=JSON.stringify(value),id=digest(bytes),file=resolve(dir,`history/${id}.json`);
+  try{if(digest(await readFile(file))!==id)throw Error('Bundle history record changed.');}
+  catch(error){if(error.code!=='ENOENT')throw error;await replaceFile(file,bytes);}
+  return id;
+}
+export async function readRecord(dir,id){
+  if(!/^[a-f0-9]{64}$/.test(id))throw Error('Invalid bundle history reference.');
+  const bytes=await readFile(resolve(dir,`history/${id}.json`));
+  if(digest(bytes)!==id)throw Error('Bundle history record changed.');
+  return JSON.parse(bytes);
+}
+export async function retainContent(dir,{plan,machine,geometry,review}){
+  const {geometry:shape,...recipe}=plan;
+  return storeRecord(dir,{recipe:await storeRecord(dir,recipe),shape:shape?await storeRecord(dir,shape):null,
+    machine:machine?await storeRecord(dir,machine):null,geometry:geometry?await storeRecord(dir,geometry):null,
+    path:review.path??null,generation:review.generation?await storeRecord(dir,review.generation):null});
+}
+export async function restoreContent(dir,id){
+  const saved=await readRecord(dir,id),plan=await readRecord(dir,saved.recipe);
+  if(saved.shape)plan.geometry=await readRecord(dir,saved.shape);
+  return {...saved,plan,machine:saved.machine?await readRecord(dir,saved.machine):null,
+    geometry:saved.geometry?await readRecord(dir,saved.geometry):null,generation:saved.generation?await readRecord(dir,saved.generation):null};
+}
+export function revisionOf(document){
+  return digest(JSON.stringify(document,function(key,value){return value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.keys(value).sort().map(k=>[k,value[k]])):value;}));
+}
+// Fail closed on a competing/crashed writer. The lock records its process for
+// explicit recovery; never guess that a slow live writer has expired.
+export async function commitManifest(dir,document,expected){
+  await mkdir(dir,{recursive:true});
+  const lock=resolve(dir,'.bundle-write.lock');
+  let handle;
+  try{handle=await open(lock,'wx');}
+  catch(error){if(error.code==='EEXIST')throw Error('Bundle has an active or interrupted writer. Retry after it finishes; an abandoned .bundle-write.lock requires explicit recovery.');throw error;}
+  try{
+    await handle.writeFile(JSON.stringify({pid:process.pid,time:new Date().toISOString()}));
+    let current=null;
+    try{current=JSON.parse(await readFile(resolve(dir,'plan.json'),'utf8'));}catch(error){if(error.code!=='ENOENT')throw error;}
+    if(expected===null?current!==null:!current||revisionOf(current)!==expected)throw Error('This revision is stale. Reload before changing the print.');
+    const next={...document,bundle:{...document.bundle,revision:randomUUID()}};
+    await replaceFile(resolve(dir,'plan.json'),JSON.stringify(next,null,2)+'\n');
+    return next;
+  }finally{await handle.close();await rm(lock,{force:true});}
+}

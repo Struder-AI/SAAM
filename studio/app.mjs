@@ -448,6 +448,7 @@ function selectStudioPresentation(state,tab,{facts,settings}){
   return {stage:null,title,guidance,facts:facts(),settings:settings(),reviewNote};
 }
 function render() {
+  for(const direction of ['undo','redo'])$('#'+direction).disabled=busy||generating||generationPending()||tourUI?.active()||!state.history?.[direction==='undo'?'canUndo':'canRedo'];
   const presentation=selectStudioPresentation(state,tab,{facts:()=>view().facts(state,tab),
     settings:()=>[...view().facts(state,'plan'),...machineSettings(state,view().settings(state)),...recipeRows(state.plan,state.machine)]});
   $('#repair-review').hidden=tab!=='geometry'||!state.importRepair;
@@ -624,6 +625,10 @@ async function approval(){
   Object.assign(state,result.approval);
   if(!result.approval.programAvailable){delete state.program;clearProgramView();}
 }
+for(const direction of ['undo','redo'])$('#'+direction).onclick=async()=>{
+  try{await working('Restoring print…',async()=>{await api('history',{direction,revision:state.revision});await refresh();});}
+  catch(error){$('#message').textContent=error.message;}
+};
 async function download(route='deliver',data={}){
   const name=$('#export-name').value.trim();if(!name)throw Error('Enter a print name before exporting.');
   const key=exportKey(),response=await api(route,{...data,name,downloadLink:true});

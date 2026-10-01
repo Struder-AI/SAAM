@@ -40,7 +40,7 @@ plan.geometry={shape:'assembly',parts:[
   {id:'curved-roof',xMm:0,yMm:20,zMm:0,geometry:splineBlock({runMm:24,widthMm:14,heightsMm:[[3,3,3,3],[3,7,7,3],[3,7,7,3],[3,3,3,3]]})},
   {id:'wrapped-pipe',xMm:43,yMm:31,zMm:0,geometry:splineTube({columns:24,heightMm:12,boreRadiusMm:8,radiusAt:()=>10.4})}
 ]};
-await initBundle(directory,plan);
+await initBundle(directory,plan,{machineId:'ultimaker-s5'});
 for(const part of ['raised','recessed'])await applyExtensionEdit(directory,'text',{part,feature:{fontPath,text:'SAAM',sizeMm:7,positionMm:[4,4],mode:part==='raised'?'raised':'recessed',depthMm:0.8,
   reference:{kind:'plane',origin:[0,0,3],xAxis:[1,0,0],yAxis:[0,1,0]}}});
 await applyExtensionEdit(directory,'text',{part:'curved-roof',feature:{fontPath,text:'CURVE',sizeMm:6,outlineOffsetMm:0.15,positionMm:[4,4],depthMm:0.8,

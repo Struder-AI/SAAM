@@ -233,7 +233,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   };
   const readGeneration=async current=>{
     generationCancelled=null;
-    const directory=dir,state=await current.loadBundle(directory,{program:false});
+    const directory=dir,state=(await readStableBundle(current,directory,{program:false})).state;
     if(state.inspection)throw Error('This inspection does not support print generation.');
     return {directory,state};
   };
@@ -319,7 +319,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   };
   // Called only by a human Studio action choosing the geometry to print.
   const validateGeometrySelection=async(adapter,seen)=>{
-    const state=await adapter.loadBundle(dir,{program:false,live:true});
+    const state=(await readStableBundle(adapter,dir,{program:false,live:true})).state;
     if(seen&&(seen.revision!==state.revision||seen.geometryHash!==state.geometryHash))throw Error('The geometry changed. Review the current shape before confirming.');
   };
   const server=http.createServer(async(req,res)=>{
@@ -497,7 +497,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           let presentedRequests=[];
           const stage=data.stage??(progress.step===L.geometry?'geometry':'toolpath');
           if(!['geometry','toolpath'].includes(stage))throw Error('Unknown displayed stage.');
-          const state=await current.loadBundle(dir,{program:stage==='geometry'?false:'source'});
+          const state=(await readStableBundle(current,dir,{program:stage==='geometry'?false:'source'})).state;
           if(data.revision===state.revision&&(stage==='geometry'||state.program&&!state.programError&&data.exportHash===state.exportHash)){
             presentedRequests=await requests.presented(dir,{...workSnapshot(state),stage,studioInstanceId:instanceId});
             note('view-presented',{stage,revision:state.revision,exportHash:stage==='toolpath'?state.exportHash??null:null,presentedRequestIds:presentedRequests.map(record=>record.id)});
@@ -518,13 +518,13 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         }
         if(url.pathname==='/api/tour-export'){
           if(!progress.active||progress.directory!==dir)throw Error('Open this print in its tour to confirm and export.');
-          let state=await current.loadBundle(dir,{program:'source'});
+          let state=(await readStableBundle(current,dir,{program:'source'})).state;
           if(data.revision!==state.revision||data.exportHash!==state.exportHash||!state.program||state.programError)throw Error('The print changed. Review the loaded toolpath before exporting.');
           const shownHash=state.exportHash;
           await useExample(dir);
           try{
-            state=await current.loadBundle(dir,{program:'source'});
-            if(state.review.generation?.mode!=='production'){await generate(current,false,'tour-export');state=await current.loadBundle(dir,{program:'source'});}
+            state=(await readStableBundle(current,dir,{program:'source'})).state;
+            if(state.review.generation?.mode!=='production'){await generate(current,false,'tour-export');state=(await readStableBundle(current,dir,{program:'source'})).state;}
             if(state.exportHash!==shownHash)throw Error('The regenerated toolpath changed. Review it, then confirm export again.');
             if(!state.toolpathApproved)state=(await approvePrint(current,{actor:'Local user — tour export',revision:state.revision},progress)).state;
             const {file,name,bytes}=await deliverPrint(current,{requestedName:data.name,tour:true});
@@ -551,7 +551,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
             {action:data.action,step:result.data.step,lesson:lesson?{title:lesson.title,tab:lesson.tab,gate:lesson.gate??null}:null,runId:result.data.runId,lessonId:result.data.lessonId,
              active:result.data.active,completed:result.data.completed,canNext:result.data.canNext,agentInstruction:result.data.agentInstruction??null});
           if(result.directory&&result.data.active&&TOUR_STEPS[result.data.step].tab==='toolpath'){
-            const adapter=await opened,state=await adapter.loadBundle(dir,{program:'source'});
+            const adapter=await opened,state=(await readStableBundle(adapter,dir,{program:'source'})).state;
             if(!state.program||state.programError||state.review.generation?.mode!=='production')await generate(adapter,false,'tour-step');
             if(result.data.step===L.playback&&!result.data.startAt)await tour.requestStartLayer();
           }
@@ -565,11 +565,16 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           const selected=await printDirectory(data.path,resolveBundle);
           if(progress.active)await tour.select(selected);
           await openPrint(selected);
-          const adapter=await opened,state=await adapter.loadBundle(dir,{program:progress.active?false:'source'});
+          const adapter=await opened,state=(await readStableBundle(adapter,dir,{program:progress.active?false:'source'})).state;
           // Geometry stays visible in the STL lesson while a worker prepares its
           // selected part. Continuing commits this exact candidate.
           if(progress.active)prepare(state,dir);
           note('print-opened',{name:await printName(dir,state.plan),tour:progress.active,revision:state.revision});
+        }
+        else if(url.pathname==='/api/history'){
+          if(progress.active)throw Error('Exit the tour before restoring edits.');
+          const updated=await current.restoreRevision(dir,{direction:data.direction,expectedRevision:data.revision});
+          note('plan-updated',{revision:updated.revision,history:data.direction});
         }
         else if(url.pathname==='/api/plan'){
           const updated=await current.updatePlan(dir,data.plan,data.revision),edit=updated?.review?.history?.at(-1);
@@ -580,7 +585,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           const approved=await approvePrint(current,data,progress);send({ok:true,approval:approved.response});return;
         }
         else if(url.pathname==='/api/generate'){
-          if(data.generationHash&&(await current.loadBundle(dir,{program:false})).generationHash!==data.generationHash)throw Error('The print changed before generation. Review the updated print.');
+          if(data.generationHash&&((await readStableBundle(current,dir,{program:false})).state).generationHash!==data.generationHash)throw Error('The print changed before generation. Review the updated print.');
           await generate(current,data.development===true);
         }
         else if(url.pathname==='/api/deliver') {
@@ -657,7 +662,7 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)&&p
   const dir=requested?resolve(requested):(await guide.action('fresh')).directory;
   if(startAt)await guide.setStartAt(startAt);
   const bundle=await bundleFor(dir);
-  await bundle.loadBundle(dir,{program:false});
+  await readStableBundle(bundle,dir,{program:false});
   const server=createStudio(dir),port=Number(process.env.SAAM_STUDIO_PORT??0);
   server.listen(port,'127.0.0.1',()=>console.log(`SAAM Studio: http://127.0.0.1:${server.address().port}\nPrint: ${dir}\nNo deadline to open. Closes ${DEFAULT_DISCONNECT_MS/60000} minutes after the last viewer disconnects.`));
   for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>void server.shutdown());
