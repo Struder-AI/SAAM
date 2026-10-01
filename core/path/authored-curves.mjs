@@ -1,4 +1,5 @@
-import {requireThat,distance,normalize,cross} from '../geom/tolerance.mjs';
+import {requireThat,distance,normalize,cross} from '../private/toolpath/numeric.mjs';
+
 import {evaluateCurve,evaluate} from '../geom/nurbs.mjs';
 import {slicePoint,sliceNormal} from '../geom/slice.mjs';
 import {heightReferenceBounds} from '../geom/height-slice.mjs';
@@ -57,13 +58,18 @@ export function referenceCurvePoint(entry,p,normalMm=0){
 
 // Native t is normalized over the active knot domain; polylines use cumulative
 // source chord length. Refinement retains profile knots and native knot spans.
+function authoredSegment(lengths,distanceMm){
+  let lo=1,hi=lengths.length-1;
+  while(lo<hi){const mid=Math.floor((lo+hi)/2);if(lengths[mid]<distanceMm)lo=mid+1;else hi=mid;}
+  return lo;
+}
 export function sampleAuthoredCurve(curve,{references={},course=0,offset=[0,0,0],toleranceMm=.02,sampleStepMm=1}={}){
   const input=curve.uv??curve,dimension=curve.uv?2:3,native=input.nurbs?authoredNurbs(input.nurbs,dimension):null;
   const points=input.points,entry=curve.uv?referenceEntry(input.reference,references,course):null;
   if(native&&curve.closed)requireThat(distance(evaluateCurve(native,native.domain[0]).point,evaluateCurve(native,native.domain[1]).point)<1e-7,'Closed NURBS must meet at their domain endpoints.');
   const source=native?null:(curve.closed?[...points,points[0]]:points),lengths=[0];
   if(source)for(let i=1;i<source.length;i++)lengths.push(lengths.at(-1)+Math.hypot(...source[i].map((x,k)=>x-source[i-1][k])));
-  const local=t=>{if(native)return evaluateCurve(native,native.domain[0]+t*(native.domain[1]-native.domain[0])).point.slice(0,dimension);let i=1,d=t*lengths.at(-1);while(i<lengths.length-1&&lengths[i]<d)i++;const f=(d-lengths[i-1])/(lengths[i]-lengths[i-1]);return source[i-1].map((v,k)=>v+(source[i][k]-v)*f);};
+  const local=t=>{if(native)return evaluateCurve(native,native.domain[0]+t*(native.domain[1]-native.domain[0])).point.slice(0,dimension);const d=t*lengths.at(-1),i=authoredSegment(lengths,d),f=(d-lengths[i-1])/(lengths[i]-lengths[i-1]);return source[i-1].map((v,k)=>v+(source[i][k]-v)*f);};
   const at=t=>{const chart=local(t),e=entry?referenceCurvePoint(entry,chart,input.normalMm??0):{point:chart};return {t,chart,...e,point:e.point.map((v,i)=>v+offset[i])};};
   const breaks=[0,1,...(native?[...native.knots].filter(k=>k>native.domain[0]&&k<native.domain[1]).map(k=>(k-native.domain[0])/(native.domain[1]-native.domain[0])):lengths.map(l=>l/lengths.at(-1))),...Object.values(curve.vary??{}).flatMap(v=>v.map(p=>p[0]))];
   const samples=sampleCurveIntervals({at,cuts:breaks,stepMm:curve.sampleStepMm??sampleStepMm,toleranceMm:curve.toleranceMm??toleranceMm,
@@ -71,8 +77,7 @@ export function sampleAuthoredCurve(curve,{references={},course=0,offset=[0,0,0]
   const {nurbs,uv,vary,courses,widthRule,toleranceMm:tol,sampleStepMm:maxStep,...properties}=curve;
   const result={...properties,role:curve.role??'curve',closed:false,points:samples.map(s=>s.point),curveParameters:samples.map(s=>s.t)};
   if(curve.segmentMetadata)result.segmentMetadata=samples.slice(1).map((sample,i)=>{
-    const d=(sample.t+samples[i].t)/2*lengths.at(-1);let segment=1;
-    while(segment<lengths.length-1&&lengths[segment]<d)segment++;
+    const d=(sample.t+samples[i].t)/2*lengths.at(-1),segment=authoredSegment(lengths,d);
     return {...curve.segmentMetadata[segment-1]};
   });
   if(samples[0].normal){result.frameSamples=samples.map(s=>{

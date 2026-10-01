@@ -1,10 +1,11 @@
+import {requireThat,distance} from '../../../core/private/extensions/numeric.mjs';
 // Horizontal periodic-patch sections retain NURBS form through offset and
 // crossing resolution. Sampling supplies perimeter correspondence afterward.
-import {findSpan,basisFunctions,evaluateCurve} from './nurbs.mjs';
-import {prepareCurveOffsets} from './curve-offset.mjs';
-import {contourPath} from './contour-path.mjs';
-import {prepareContourFamily} from './prepared-contours.mjs';
-import {requireThat,distance} from './tolerance.mjs';
+import {findSpan,basisFunctions,evaluateCurve} from '../../../core/geom/nurbs.mjs';
+import {prepareCurveOffsets} from '../../../core/geom/curve-offset.mjs';
+import {contourPath} from '../../../core/geom/contour-path.mjs';
+import {prepareContourFamily} from '../../../core/geom/prepared-contours.mjs';
+
 
 export function horizontalSleeveCurve(patch,v,z){
   const {nu,nv,orderU,orderV,knotsU,knotsV,cp,domainU}=patch;

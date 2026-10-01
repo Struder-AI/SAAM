@@ -21,7 +21,7 @@ export async function auditInputs(repo) {
   for(const file of [...new Set(listed)].sort()) {
     const bytes=await readFile(resolve(repo,file)).catch(e=>{if(e.code==='ENOENT')return null;throw e;});if(bytes===null)continue;
     let scope='outside-product',reason='Development, documentation tooling or example; inventoried, not a product bucket.';
-    if(/^(core|studio|skills|adapters)\//.test(file)||file==='scripts/agent-toolkit.mjs') {
+    if(/^(core|studio|skills|adapters|workspaces)\//.test(file)||file==='scripts/agent-toolkit.mjs') {
       scope=support.test(file)?'support':'runtime';reason=scope==='support'?'Test, fixture, benchmark or example.':'Product/extension/agent runtime.';
     } else if(/^(packaging|relay)\//.test(file)){scope='deployment';reason='Separate deployment architecture; not granted core-map access.';}
     else if(file.startsWith('machines/')){scope='asset';reason='Machine configuration dependency; declaration extraction not applicable.';}

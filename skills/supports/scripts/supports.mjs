@@ -1,3 +1,4 @@
+import {requireThat} from '../../../core/private/extensions/numeric.mjs';
 // Tree supports: explicitly placed branches ending at assigned contacts. No
 // overhang/angle area discovery. A standard support under a footprint is a
 // slice assignment with the support preset (core/print/slices.mjs); trees are
@@ -7,7 +8,7 @@ import {sliceAssignment,SUPPORT_GAPS} from '../../../core/print/slices.mjs';
 import {offsetRegion} from '../../../core/region/offset.mjs';
 import {union,intersect} from '../../../core/region/intersection.mjs';
 import {regionArea} from '../../../core/region/region2d.mjs';
-import {requireThat} from '../../../core/geom/tolerance.mjs';
+
 import {assignmentPlan,assignmentFilament} from '../../../core/print/assignment-process.mjs';
 
 export const SUPPORT_DEFAULTS={enabled:false,assignments:[],...SUPPORT_GAPS,treeChordMm:0.02};

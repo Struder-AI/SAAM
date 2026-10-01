@@ -1,6 +1,7 @@
+import {requireThat} from '../private/toolpath/numeric.mjs';
 // Resolve unbounded roof domains before shared Slice ownership allocation.
 import {heightReferenceMetric} from '../geom/height-slice.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
+
 import {surveyRoofRegion} from '../region/roof-region.mjs';
 
 export function surveySurfaceDomain({assignment,shell}) {

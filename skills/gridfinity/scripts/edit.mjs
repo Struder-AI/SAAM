@@ -1,9 +1,10 @@
-import {requireThat} from '../../../core/geom/tolerance.mjs';
+import {requireThat} from '../../../core/private/extensions/numeric.mjs';
+
 import {compileText} from '../../text/scripts/text.mjs';
 import {compileGridfinity} from './gridfinity.mjs';
 
 export async function gridfinityPlan(source,parameters){
-  return {...structuredClone(source),geometry:await compileGridfinity(parameters),placement:{xMm:20,yMm:20}};
+  return {geometry:await compileGridfinity(parameters),placement:{xMm:20,yMm:20}};
 }
 
 export async function editGridfinity(source,parameters,{part,buildGeometry}){
@@ -19,5 +20,5 @@ export async function editGridfinity(source,parameters,{part,buildGeometry}){
   if(text){
     owner.geometry=await compileText(geometry,text.features,{buildGeometry,toleranceMm:text.toleranceMm,maxEdgeMm:text.maxEdgeMm});
   }else owner.geometry=geometry;
-  return plan;
+  return {geometry:plan.geometry};
 }

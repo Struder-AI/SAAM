@@ -1,7 +1,8 @@
+import {requireThat} from '../../../core/private/extensions/numeric.mjs';
 // Guidance authors explicit Trace centerlines; attachment checking is general Trace contact.
 import {attachmentCurves} from './attachment-curves.mjs';
 import {curveAssignment} from '../../../core/print/curves.mjs';
-import {requireThat} from '../../../core/geom/tolerance.mjs';
+
 const fields='attachmentSpeedMmS,flowMultiplier,id,jogMm,leadInMm,mode,overlapMm,pressMm,rails,speedMmS';
 const point=p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite);
 

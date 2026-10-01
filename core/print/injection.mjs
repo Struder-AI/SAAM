@@ -1,4 +1,5 @@
-import {requireThat} from '../geom/tolerance.mjs';
+import {requireThat} from '../private/toolpath/numeric.mjs';
+
 import {validateInjectionPoint,pointInjectionOperation} from '../path/injection.mjs';
 import {assignmentPlan,validateAssignmentProcess} from './assignment-process.mjs';
 

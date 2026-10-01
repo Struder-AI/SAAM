@@ -1,3 +1,4 @@
+import {normalize,cross,dot,requireThat} from '../private/toolpath/numeric.mjs';
 // Native UV regions with physical surface offsets and projected-plane fill.
 // No affine UV-to-mm assumption or inverse surface mapping enters this stage.
 import {offsetSurfaceRegion} from './surface-offset.mjs';
@@ -6,7 +7,7 @@ import {patchMeanNormal,slicePoint,sliceChartStep} from '../geom/slice.mjs';
 import {sampledFieldStrokes} from './fill-patterns.mjs';
 import {frontLayerStrokes} from './seeded-fronts.mjs';
 import {clipOpenPaths,intersect,difference} from './intersection.mjs';
-import {normalize,cross,dot,requireThat} from '../geom/tolerance.mjs';
+
 import {lineSpacing} from '../path/spacing.mjs';
 
 export function patchOffset(slice,region,distanceMm,{sampleStepMm=.2}={}) {

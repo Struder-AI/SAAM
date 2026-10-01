@@ -1,3 +1,5 @@
+import {replaceFile} from '../core/private/studio/file-write.mjs';
+import {canonical} from '../core/private/studio/hash.mjs';
 import {readFile,mkdir,stat,realpath,unlink} from 'node:fs/promises';
 import {resolve,dirname,relative,sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -5,10 +7,10 @@ import {createHash,randomUUID} from 'node:crypto';
 import {TOUR_VERSION,TOUR_DECK_VERSION,TOUR_DEMOS,TOUR_STEPS,TOUR_LESSONS as L,tourAgentInstruction} from './tour-catalog.mjs';
 import {starterPlan} from '../examples/prints/starter/recipe.mjs';
 import {demos} from '../examples/prints/create.mjs';
-import {canonical} from '../core/print/plan.mjs';
+
 import {createAgentRequests,workSnapshot} from './agent-requests.mjs';
 import {requestReceiptState} from './work-state.mjs';
-import {replaceFile} from '../core/file-write.mjs';
+
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..'),packages=resolve(root,'examples/prints');
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const json=async file=>JSON.parse(await readFile(file,'utf8'));

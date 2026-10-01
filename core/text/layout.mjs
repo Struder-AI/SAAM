@@ -1,4 +1,5 @@
-import {requireThat} from '../geom/tolerance.mjs';
+import {requireThat} from '../private/extensions/numeric.mjs';
+
 import {fontMetrics, kernUnits} from './strokefont.mjs';
 
 // Lay a string out as millimetre centerline strokes, y up, first baseline at y = 0.

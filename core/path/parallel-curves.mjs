@@ -1,6 +1,7 @@
+import {requireThat,normalize,cross,dot,distance} from '../private/toolpath/numeric.mjs';
 import {transportCurveFrames} from './curve-frame.mjs';
 import {offsetPaths} from '../region/clipper.mjs';
-import {requireThat,normalize,cross,dot,distance} from '../geom/tolerance.mjs';
+
 
 // Wanted ink width -> one sized bead or the fewest side-by-side beads.
 export function beadWidthRule(rule){

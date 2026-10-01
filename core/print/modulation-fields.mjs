@@ -1,8 +1,9 @@
+import {requireThat} from '../private/toolpath/numeric.mjs';
 // Expensive native-solid preparation stays at the async print boundary. The
 // synchronous field evaluator consumes only the returned immutable mesh data.
 import {tessellateSolid} from '../geom/boolean-display.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
+
 export {modulationGeometrySources} from '../path/modulation-field.mjs';
 
 export async function prepareModulationFields(record,{solids=[]}={}){

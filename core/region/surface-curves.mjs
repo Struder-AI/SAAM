@@ -1,8 +1,9 @@
+import {requireThat,normalize,dot} from '../private/toolpath/numeric.mjs';
 // Local process gaps on mapped surface curves. Geometry mapping supplies XYZ
 // and optional normals; sampled lower heights describe the supporting material.
 // The normal projection is a local rectangular-bead model, not an exact offset.
 import {sliceNormal} from '../geom/slice.mjs';
-import {requireThat,normalize,dot} from '../geom/tolerance.mjs';
+
 import {maximumPathAngle} from '../path/deposition.mjs';
 
 export function surfaceGapCurves(curves,{slice,lowerHeightsMm=null,distancesMm=null,direction=[0,0,1],maxAngleDeg=90,allowZero=false}) {

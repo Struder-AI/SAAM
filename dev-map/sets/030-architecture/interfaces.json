@@ -1,350 +1,350 @@
 {
- "schema": 1,
- "policy": "Entry bindings name exact callable targets and access kind; they do not approve all operations/effects between connected buckets.",
- "bindings": [
-  {
-   "contract": "slice-query",
-   "target": "core/geom/slice.mjs::section",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "slice-query",
-   "target": "core/geom/slice.mjs::prepareSection",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "slice-query",
-   "target": "core/geom/slice.mjs::slicePoint",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "slice-query",
-   "target": "core/geom/slice.mjs::sliceNormal",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "slice-query",
-   "target": "core/region/intersection.mjs::intersect",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "slice-query",
-   "target": "core/region/intersection.mjs::difference",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "slice-query",
-   "target": "core/region/intersection.mjs::union",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "slice-query",
-   "target": "core/region/ownership.mjs::requireExclusiveClaims",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "evaluate-geometry",
-   "target": "core/print/generate.mjs::buildShell",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "evaluate-geometry",
-   "target": "core/print/generate.mjs::translateShell",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "geometry-bundle",
-   "target": "core/print/geometry.mjs::createGeometry",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "geometry-bundle",
-   "target": "core/print/geometry.mjs::verifyGeometry",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "dispatch-slice",
-   "target": "core/print/slice-deposition.mjs::finalizedSliceResults",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "dispatch-trace",
-   "target": "core/print/curves.mjs::curveAssignmentResult",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "dispatch-trace",
-   "target": "core/path/deposition.mjs::depositCurves",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "dispatch-inject",
-   "target": "core/print/injection.mjs::injectionResult",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "dispatch-inject",
-   "target": "core/path/injection.mjs::pointInjectionOperation",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "finalize-fields",
-   "target": "core/path/modulation.mjs::finalizeModulatedResult",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "build-field-preparation",
-   "target": "core/print/modulation-fields.mjs::prepareModulationFields",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "recipe-path",
-   "target": "core/print/generate.mjs::generatePath",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "build-job",
-   "target": "core/print/bundle.mjs::generatePreparedPath",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "job-engine",
-   "target": "core/print/bundle.mjs::generatePreparedPath",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "agent-bundle",
-   "target": "core/print/workflow.mjs::createBundleWorkflow::adjustBundle",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "agent-bundle",
-   "target": "core/print/workflow.mjs::createBundleWorkflow::updatePlan",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "agent-bundle",
-   "target": "core/print/workflow.mjs::createBundleWorkflow::initBundle",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "studio-render",
-   "target": "studio/viewer-renderer.mjs::createViewerRenderer",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "agent-context-onboard",
-   "target": "core/agent/toolkit.mjs::onboarding",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "agent-context-guidance",
-   "target": "core/agent/toolkit.mjs::contextPacket",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "agent-context-skill",
-   "target": "core/agent/toolkit.mjs::readSkill",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "inject-finalize",
-   "target": "core/print/finalize.mjs::finalizeDepositionResult",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "inject-finalize",
-   "target": "core/print/finalize.mjs::combineFinalizedResults",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "trace-finalize",
-   "target": "core/print/finalize.mjs::finalizeDepositionResult",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "trace-finalize",
-   "target": "core/print/finalize.mjs::combineFinalizedResults",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "slice-finalize",
-   "target": "core/print/finalize.mjs::finalizeDepositionResult",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "slice-finalize",
-   "target": "core/print/finalize.mjs::combineFinalizedResults",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "compose-finalize",
-   "target": "core/print/finalize.mjs::finalizeDepositionResult",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "compose-finalize",
-   "target": "core/print/finalize.mjs::combineFinalizedResults",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "bundle-edit-load",
-   "target": "core/print/workflow.mjs::createBundleWorkflow::loadBundle",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "bundle-build-load",
-   "target": "core/print/workflow.mjs::createBundleWorkflow::loadBundle",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "griffin-prepare",
-   "target": "core/export/prepare-path.mjs::prepareMachinePath",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "bambu-prepare",
-   "target": "core/export/prepare-path.mjs::prepareMachinePath",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "dobot-prepare",
-   "target": "core/export/prepare-path.mjs::prepareMachinePath",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "denso-prepare",
-   "target": "core/export/prepare-path.mjs::prepareMachinePath",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  }
- ]
+  "schema": 1,
+  "policy": "Entry bindings name exact callable targets and access kind; they do not approve all operations/effects between connected buckets.",
+  "bindings": [
+    {
+      "contract": "slice-query",
+      "target": "core/geom/slice.mjs::section",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "slice-query",
+      "target": "core/geom/slice.mjs::prepareSection",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "slice-query",
+      "target": "core/geom/slice.mjs::slicePoint",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "slice-query",
+      "target": "core/geom/slice.mjs::sliceNormal",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "slice-query",
+      "target": "core/region/intersection.mjs::intersect",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "slice-query",
+      "target": "core/region/intersection.mjs::difference",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "slice-query",
+      "target": "core/region/intersection.mjs::union",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "slice-query",
+      "target": "core/region/ownership.mjs::requireExclusiveClaims",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "evaluate-geometry",
+      "target": "core/geom/build.mjs::buildShell",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "evaluate-geometry",
+      "target": "core/geom/build.mjs::translateShell",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "geometry-bundle",
+      "target": "core/print/geometry.mjs::createGeometry",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "geometry-bundle",
+      "target": "core/print/geometry.mjs::verifyGeometry",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "dispatch-slice",
+      "target": "core/print/slice-deposition.mjs::finalizedSliceResults",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "dispatch-trace",
+      "target": "core/print/curves.mjs::curveAssignmentResult",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "dispatch-trace",
+      "target": "core/path/deposition.mjs::depositCurves",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "dispatch-inject",
+      "target": "core/print/injection.mjs::injectionResult",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "dispatch-inject",
+      "target": "core/path/injection.mjs::pointInjectionOperation",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "finalize-fields",
+      "target": "core/path/modulation.mjs::finalizeModulatedResult",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "build-field-preparation",
+      "target": "core/print/modulation-fields.mjs::prepareModulationFields",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "recipe-path",
+      "target": "core/print/generate.mjs::generatePath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "build-job",
+      "target": "core/print/bundle.mjs::generatePreparedPath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "job-engine",
+      "target": "core/print/bundle.mjs::generatePreparedPath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "agent-bundle",
+      "target": "core/print/workflow.mjs::createBundleWorkflow::adjustBundle",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "agent-bundle",
+      "target": "core/print/workflow.mjs::createBundleWorkflow::updatePlan",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "agent-bundle",
+      "target": "core/print/workflow.mjs::createBundleWorkflow::initBundle",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "studio-render",
+      "target": "studio/viewer-renderer.mjs::createViewerRenderer",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "agent-context-onboard",
+      "target": "core/agent/toolkit.mjs::onboarding",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "agent-context-guidance",
+      "target": "core/agent/toolkit.mjs::contextPacket",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "agent-context-skill",
+      "target": "core/agent/toolkit.mjs::readSkill",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "inject-finalize",
+      "target": "core/print/finalize.mjs::finalizeDepositionResult",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "inject-finalize",
+      "target": "core/print/finalize.mjs::combineFinalizedResults",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "trace-finalize",
+      "target": "core/print/finalize.mjs::finalizeDepositionResult",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "trace-finalize",
+      "target": "core/print/finalize.mjs::combineFinalizedResults",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "slice-finalize",
+      "target": "core/print/finalize.mjs::finalizeDepositionResult",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "slice-finalize",
+      "target": "core/print/finalize.mjs::combineFinalizedResults",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "compose-finalize",
+      "target": "core/print/finalize.mjs::finalizeDepositionResult",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "compose-finalize",
+      "target": "core/print/finalize.mjs::combineFinalizedResults",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "bundle-edit-load",
+      "target": "core/print/workflow.mjs::createBundleWorkflow::loadBundle",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "bundle-build-load",
+      "target": "core/print/workflow.mjs::createBundleWorkflow::loadBundle",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "griffin-prepare",
+      "target": "core/export/prepare-path.mjs::prepareMachinePath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "bambu-prepare",
+      "target": "core/export/prepare-path.mjs::prepareMachinePath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "dobot-prepare",
+      "target": "core/export/prepare-path.mjs::prepareMachinePath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    },
+    {
+      "contract": "denso-prepare",
+      "target": "core/export/prepare-path.mjs::prepareMachinePath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+    }
+  ]
 }

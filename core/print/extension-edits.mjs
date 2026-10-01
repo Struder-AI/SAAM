@@ -1,25 +1,21 @@
-// The lifecycle applies returned extension values through the same revisioned
-// edit as any other author. Extensions never receive a bundle directory.
+import {requireThat} from '../private/bundle/numeric.mjs';
+// Bundle commits one engine-authored proposal through its revisioned edit.
+// Extension execution and contribution assembly belong to the engines.
 import {loadBundle,updatePlan,proposedPlan,initBundle} from './bundle.mjs';
-import {rhino} from './geometry.mjs';
-import {buildShell} from '../geom/build.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
-import {RECIPE_EDITORS,RECIPE_CREATORS} from '../../skills/edits.mjs';
+
+import {prepareExtensionRecipe} from './extension-recipe.mjs';
 
 export async function applyExtensionEdit(directory,extension,request,{expectedRevision,...options}={}){
-  const edit=RECIPE_EDITORS[extension];
-  requireThat(typeof edit==='function',`No recipe editor for extension ${extension}.`);
   const state=await loadBundle(directory,{program:false});
   requireThat(expectedRevision===undefined||expectedRevision===state.revision,'This review is stale. Reload before changing the print.');
-  const r=await rhino();
-  const plan=await edit(state.plan,request,{...options,buildGeometry:geometry=>buildShell(r,geometry)});
-  return updatePlan(directory,plan,state.revision);
+  const {plan,report}=await prepareExtensionRecipe(state.plan,extension,request,{...options,machine:state.machine});
+  const updated=await updatePlan(directory,plan,state.revision);
+  return report?{...updated,extensionReport:report}:updated;
 }
 
 export async function createExtensionBundle(directory,extension,request,options={}){
-  const create=RECIPE_CREATORS[extension];
-  requireThat(typeof create==='function',`No recipe creator for extension ${extension}.`);
-  const plan=await create(await proposedPlan(options.machineId,options),request);
+  const source=await proposedPlan(options.machineId,options);
+  const {plan}=await prepareExtensionRecipe(source,extension,request,{...options,create:true});
   await initBundle(directory,plan,options);
   return loadBundle(directory,{program:false});
 }

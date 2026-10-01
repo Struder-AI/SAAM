@@ -1,7 +1,8 @@
+import {requireThat} from '../private/toolpath/numeric.mjs';
 // Nominal XY material footprint of open/closed deposition polylines. This
 // represents bead-width strips, including overlaps, never their guide's fill.
 import {clipperContext,offsetPaths} from './clipper.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
+
 import {OFFSET_PRECISION_MM} from './offset.mjs';
 
 export function strokeRegion(paths,widthMm,{precisionMm=OFFSET_PRECISION_MM,arcToleranceMm=.005}={}){

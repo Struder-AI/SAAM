@@ -1,4 +1,5 @@
-import {requireThat} from '../geom/tolerance.mjs';
+import {requireThat} from '../private/extensions/numeric.mjs';
+
 import {textFusion} from './measure.mjs';
 import {FONTS, loadFont} from './catalog.mjs';
 

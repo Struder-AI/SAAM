@@ -1,6 +1,8 @@
+import {rotation,mm,mv} from '../private/export/rigid.mjs';
+import {bedPoint,rotateZ} from '../private/export/frame.mjs';
 // One command-time evaluator for source playback and machine presentation.
-import {bedPoint,rotateZ,interpolateDirections} from '../path/pose.mjs';
-import {rotation,mm,mv} from '../machine/rigid.mjs';
+import {interpolateDirections} from '../path/pose.mjs';
+
 export function frameAtTime(moves, seconds) {
   if(!moves.length)return {completed:0,active:-1,fraction:0,point:null};
   let low=0,high=moves.length;

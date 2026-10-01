@@ -1,8 +1,9 @@
+import {requireThat} from '../../../core/private/extensions/numeric.mjs';
 // Directional unilateral contact in a horizontal section. A smooth interior
 // anchor defines radial rays; only the forbidden side moves toward the target.
 // One simple CCW contour star-shaped about that anchor is required. This avoids
 // nearest-projection jumps at concave medial axes without deforming loop backs.
-import {requireThat} from './tolerance.mjs';
+
 const TAU=2*Math.PI;
 const cross=(a,b)=>a[0]*b[1]-a[1]*b[0];
 

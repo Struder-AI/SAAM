@@ -1,9 +1,10 @@
+import {requireThat} from '../../../core/private/extensions/numeric.mjs';
 // Construct a proposed recipe value; the caller owns the revisioned bundle edit.
 import {readFile,stat} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {isAbsolute} from 'node:path';
 import {compileText} from './text.mjs';
-import {requireThat} from '../../../core/geom/tolerance.mjs';
+
 
 export function unwrapTextGeometry(geometry){
   const layers=[];
@@ -63,5 +64,5 @@ export async function editText(source,request,{buildGeometry}){
     requireThat(Array.isArray(request.assignments),'Text assignments must be the complete common slice assignment list.');
     plan.slices={...plan.slices,assignments:structuredClone(request.assignments)};
   }
-  return plan;
+  return {geometry:plan.geometry,...(request.assignments===undefined?{}:{assignments:plan.slices.assignments})};
 }

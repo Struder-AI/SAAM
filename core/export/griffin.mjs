@@ -1,5 +1,6 @@
+import {distance,requireThat} from '../private/export/numeric.mjs';
 import {prepareMachinePath} from './prepare-path.mjs';
-import { distance, requireThat } from '../geom/tolerance.mjs';
+
 import {plannedNozzleTemperatures} from '../path/process-controls.mjs';
 const number = (v,min,max,name) => requireThat(Number.isFinite(v) && v>=min && v<=max, `${name} outside limits.`);
 // One G4 carries at most this many milliseconds; it is what the firmware reads

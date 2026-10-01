@@ -1,4 +1,5 @@
-import {requireThat} from '../geom/tolerance.mjs';
+import {requireThat} from '../private/toolpath/numeric.mjs';
+
 import {blobFalloff,validateBlobField} from '../geom/blob-field.mjs';
 import {pointTriangleDistanceSquared} from '../geom/mesh-distance.mjs';
 import {containsPoint} from '../geom/query.mjs';

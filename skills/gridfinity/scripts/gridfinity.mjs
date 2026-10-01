@@ -1,5 +1,6 @@
+import {requireThat} from '../../../core/private/extensions/numeric.mjs';
 import {solidKernel,meshFromSolid} from '../../../core/geom/solid.mjs';
-import {requireThat} from '../../../core/geom/tolerance.mjs';
+
 import {gridfinityDigest} from './record.mjs';
 
 // Dimensional sources and height conventions live in the skill manual.

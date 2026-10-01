@@ -1,3 +1,4 @@
+import {requireThat} from '../private/bundle/numeric.mjs';
 // Geometry intersections and booleans as tools: an agent reads sections and
 // tops of a print (or of geometry it is about to write) and combines solids
 // without writing a script.
@@ -11,7 +12,7 @@ import {booleanShell,BOOLEAN_OPERATIONS,BOOLEAN_OPERAND_SHAPES} from '../geom/bo
 import {loopArea} from '../region/region2d.mjs';
 import {referencePatch} from '../geom/reference-surface.mjs';
 import {evaluate} from '../geom/nurbs.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
+
 
 const round=v=>Math.round(v*1e4)/1e4;
 const INTERSECT_FIELDS=['geometry','part','sectionsAtZ','topsAtXY','surfaces','families','includeLoops'];

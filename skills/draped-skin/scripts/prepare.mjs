@@ -1,4 +1,5 @@
-import {requireThat} from '../../../core/geom/tolerance.mjs';
+import {requireThat} from '../../../core/private/extensions/numeric.mjs';
+
 import {ordinarySliceAssignment} from '../../../core/print/slice-settings.mjs';
 export const SKIN_DEFAULTS=Object.freeze({spacingFactor:1,layers:2,pitchMm:.2,strokeAngleDeg:0,sampleStepMm:.5,surveyStepMm:.5,maxAngleDegOverride:null});
 export function skinAssignment({id,...options}){

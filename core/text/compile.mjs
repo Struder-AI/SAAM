@@ -1,5 +1,6 @@
+import {requireThat} from '../private/extensions/numeric.mjs';
 import {parallelBeadGroup} from '../path/parallel-curves.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
+
 import {chainStrokes, layoutText, strokeBounds, translateStrokes} from './layout.mjs';
 import {JOIN_FRACTION} from './measure.mjs';
 import {planLineText} from './plan.mjs';

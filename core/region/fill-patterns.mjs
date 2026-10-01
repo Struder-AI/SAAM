@@ -1,10 +1,11 @@
+import {requireThat} from '../private/toolpath/numeric.mjs';
 // Sparse fill patterns of a slice layer, in its chart. Shared kernels own
 // clipping and offsets.
 import {scanlineFill} from './region2d.mjs';
 import {offsetRegion} from './offset.mjs';
 import {clipOpenPaths} from './intersection.mjs';
 import {levelSetRegion} from './boolean.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
+
 import {lineSpacing} from '../path/spacing.mjs';
 
 export const FILL_PATTERNS=['rectilinear','grid','triangles','concentric','gyroid'];

@@ -1,9 +1,10 @@
+import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 // A producer's fields run before any consumer sees its supporting deposition.
 import {matchingModulations,finalizeModulatedResult} from '../path/modulation.mjs';
 import {depositedBeadFrames} from '../path/deposited-curves.mjs';
 import {republishDepositedBoundary} from '../path/finished-surface.mjs';
 import {filamentPlan} from '../machine/filaments.mjs';
-import {requireThat,distance} from '../geom/tolerance.mjs';
+
 import {validatePose} from '../path/pose.mjs';
 import {prepareDepositionMotion,prepareReferenceMotion} from '../machine/deposition-motion.mjs';
 import {resolveDepositionConnections} from '../path/deposition-connections.mjs';

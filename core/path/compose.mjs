@@ -1,6 +1,7 @@
+import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 // Skill results describe deposition operations. The composer advances explicit
 // planning state through scheduled operations and returns action chunks.
-import { requireThat, distance } from '../geom/tolerance.mjs';
+
 import { orderStrokes, orderScanlineCells } from './builder.mjs';
 import {ActionAccumulator,planningResult,planContext,planFan,planNozzle,planPark,planTravel,planMove,
   planExtrusion,planDwell,planLayerCooling,planSelection} from './planning.mjs';

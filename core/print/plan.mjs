@@ -1,3 +1,5 @@
+import {requireThat as requireThat_toolpath} from '../private/toolpath/numeric.mjs';
+import {requireThat as requireThat_bundle} from '../private/bundle/numeric.mjs';
 import {ASSIGNMENT_RECORDS,GEOMETRY_RECORDS,extensionSettings,validateExtensionRecipe,extensionProducerIds,validateExtensionAssignment} from '../../skills/records.mjs';
 // Recipe (plan.json) for shell-based prints: geometry, placement, setup, shared
 // process settings, and the settings of each selected skill.
@@ -8,7 +10,7 @@ import {ASSIGNMENT_RECORDS,GEOMETRY_RECORDS,extensionSettings,validateExtensionR
 // identical to the reviewed one.
 
 import { createHash } from 'node:crypto';
-import { requireThat } from '../geom/tolerance.mjs';
+import {requireThat} from '../geom/tolerance.mjs';
 import {loadMachine,centeredPlacement} from '../machine/profile.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
 import {splineSolidTemplate,validateSplineSolid,splineSolidBounds} from '../geom/spline-solid.mjs';
@@ -34,7 +36,7 @@ export const hash = value => createHash('sha256')
   .update(typeof value === 'string' || Buffer.isBuffer(value) || value instanceof Uint8Array ? value : canonical(value)).digest('hex');
 
 export function number(value, min, max, name) {
-  requireThat(typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max, `${name} must be between ${min} and ${max}.`);
+  requireThat_bundle(typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max, `${name} must be between ${min} and ${max}.`);
 }
 
 export function defaults(machine=loadMachine()) {
@@ -94,27 +96,35 @@ export function depositionOnlyPlan(plan){
 }
 
 export function validatePlanFields(plan,machine) {
-  requireThat(plan && typeof plan === 'object' && (depositionOnlyPlan(plan)||GEOMETRY_SHAPES.includes(plan.geometry?.shape)), `Author geometry (${GEOMETRY_SHAPES.join(', ')}) or a Trace/Inject recipe.`);
+  requireThat_bundle(plan && typeof plan === 'object' && (depositionOnlyPlan(plan)||GEOMETRY_SHAPES.includes(plan.geometry?.shape)), `Author geometry (${GEOMETRY_SHAPES.join(', ')}) or a Trace/Inject recipe.`);
   // Validation is check-only: a plan carries every current field or it is
   // rejected. Supported older fields require explicit recipe migration and regeneration.
-  const expected = { ...defaults(), ...(plan.geometry?{geometry:geometryTemplate(plan.geometry.shape,plan.geometry)}:{}) };
-  requireThat(!plan.composition||!Object.hasOwn(plan.composition,'batchLayers'),'composition.batchLayers is retired; explicitly migrate the recipe to ascending-height scheduling and regenerate.');
+  const expected = { ...defaults(), ...(plan.geometry?{geometry:geometryTemplate(plan.geometry.shape,plan.geometry)}:{}),...(Object.hasOwn(plan,'workspace')?{workspace:plan.workspace}:{}) };
+  if(plan.workspace){
+    requireThat_bundle(plan.workspace.schema==='saam-workspace-source/1'&&plan.workspace.source&&plan.workspace.requirements,'Invalid workspace construction source.');
+    requireThat_bundle(plan.workspace.constructionIdentity===workspaceConstructionIdentity(plan),'This edit changes the workspace construction requirements. Regenerate the section in its workspace, or explicitly detach the workspace source before changing its construction.');
+  }
+  requireThat_bundle(!plan.composition||!Object.hasOwn(plan.composition,'batchLayers'),'composition.batchLayers is retired; explicitly migrate the recipe to ascending-height scheduling and regenerate.');
   keys({...plan,setup:null},{...expected,setup:null});
   validateRecipeSetup(plan);
-  requireThat(typeof plan.experimental.substrateAdaptation==='boolean','experimental.substrateAdaptation must be true or false.');
-  requireThat(plan.schema === expected.schema && plan.generatorVersion === VERSION, 'Unsupported plan or generator version.');
-  requireThat(Array.isArray(plan.composition.order) && plan.composition.order.every(id=>typeof id==='string') && Array.isArray(plan.composition.dependencies) && plan.composition.dependencies.every(e=>e && typeof e.before==='string' && typeof e.after==='string' && Object.keys(e).sort().join()==='after,before'), 'Invalid composition rules.');
-  requireThat(Array.isArray(plan.composition.filaments),'composition.filaments must be a list of part or assignment selections.');
+  requireThat_bundle(typeof plan.experimental.substrateAdaptation==='boolean','experimental.substrateAdaptation must be true or false.');
+  requireThat_bundle(plan.schema === expected.schema && plan.generatorVersion === VERSION, 'Unsupported plan or generator version.');
+  requireThat_bundle(Array.isArray(plan.composition.order) && plan.composition.order.every(id=>typeof id==='string') && Array.isArray(plan.composition.dependencies) && plan.composition.dependencies.every(e=>e && typeof e.before==='string' && typeof e.after==='string' && Object.keys(e).sort().join()==='after,before'), 'Invalid composition rules.');
+  requireThat_bundle(Array.isArray(plan.composition.filaments),'composition.filaments must be a list of part or assignment selections.');
   const routes=new Set();
   for(const route of plan.composition.filaments){
-    requireThat(route&&['filament,part','assignment,filament'].includes(Object.keys(route).sort().join())&&Number.isInteger(route.filament)&&route.filament>=0,'Filament routing needs {part,filament} or {assignment,filament}.');
+    requireThat_bundle(route&&['filament,part','assignment,filament'].includes(Object.keys(route).sort().join())&&Number.isInteger(route.filament)&&route.filament>=0,'Filament routing needs {part,filament} or {assignment,filament}.');
     const key=Object.hasOwn(route,'part')?'part':'assignment',target=route[key];
-    requireThat(typeof target==='string'&&target.length>0||key==='part'&&target===null,'Invalid filament routing target.');
-    const identity=key+':'+target;requireThat(!routes.has(identity),'Duplicate filament routing target.');routes.add(identity);
+    requireThat_bundle(typeof target==='string'&&target.length>0||key==='part'&&target===null,'Invalid filament routing target.');
+    const identity=key+':'+target;requireThat_bundle(!routes.has(identity),'Duplicate filament routing target.');routes.add(identity);
     validateRecipeSetup(filamentPlan(plan,machine,route.filament));
   }
 
   return plan;
+}
+
+export function workspaceConstructionIdentity(plan){
+  return hash({geometry:plan.geometry,slices:plan.slices,layerMm:plan.process.layerMm,firstLayerMm:plan.process.firstLayerMm,lineWidthMm:plan.process.lineWidthMm});
 }
 
 export function validatePlanGeometry(plan,machine) {
@@ -159,25 +169,25 @@ function authoredBounds(geometry){
 // are checked when translating SAAMpath into a machine program.
 export function validatePlanProcess(plan) {
   const {process}=plan;
-  requireThat(typeof process.experimentalDeposition==='boolean','experimentalDeposition must be boolean.');
-  const positive=(value,name)=>requireThat(Number.isFinite(value)&&value>0,`${name} must be positive and finite.`);
+  requireThat_toolpath(typeof process.experimentalDeposition==='boolean','experimentalDeposition must be boolean.');
+  const positive=(value,name)=>requireThat_toolpath(Number.isFinite(value)&&value>0,`${name} must be positive and finite.`);
   for(const key of ['firstLayerMm','layerMm','lineWidthMm','maxFlowMm3S','retractSpeedMmS',
     'planarSpeedMmS','skinSpeedMmS','firstLayerSpeedMmS','travelSpeedMmS','zSpeedMmS'])positive(process[key],key);
   for(const key of ['retractMm','liftMm','maxCombMm','minimumLayerSeconds'])
-    requireThat(Number.isFinite(process[key])&&process[key]>=0,`${key} must be nonnegative and finite.`);
+    requireThat_toolpath(Number.isFinite(process[key])&&process[key]>=0,`${key} must be nonnegative and finite.`);
   number(process.fanPercent, 0, 100, 'fanPercent');
-  requireThat(process.clearanceResponsibility === 'operator', 'Clearance responsibility must be recorded as operator.');
-  requireThat(typeof process.clearanceNote === 'string' && process.clearanceNote.length <= 1000, 'Invalid clearance note.');
+  requireThat_toolpath(process.clearanceResponsibility === 'operator', 'Clearance responsibility must be recorded as operator.');
+  requireThat_toolpath(typeof process.clearanceNote === 'string' && process.clearanceNote.length <= 1000, 'Invalid clearance note.');
   if(process.primeLine!==null){
     const p=process.primeLine;
-    requireThat(p&&typeof p==='object'&&!Array.isArray(p),'Invalid primeLine.');
+    requireThat_toolpath(p&&typeof p==='object'&&!Array.isArray(p),'Invalid primeLine.');
     const multi=Object.keys(p).sort().join()==='passes',passes=multi?p.passes:[p];
-    requireThat((multi&&Array.isArray(passes)&&passes.length>=1)||Object.keys(p).sort().join()==='endMm,heightMm,speedMmS,startMm,widthMm,zMm','Invalid primeLine fields.');
+    requireThat_toolpath((multi&&Array.isArray(passes)&&passes.length>=1)||Object.keys(p).sort().join()==='endMm,heightMm,speedMmS,startMm,widthMm,zMm','Invalid primeLine fields.');
     for(const pass of passes){
-      requireThat(pass&&typeof pass==='object'&&!Array.isArray(pass)&&Object.keys(pass).sort().join()==='endMm,heightMm,speedMmS,startMm,widthMm,zMm','Invalid prime pass fields.');
-      requireThat([pass.startMm,pass.endMm].every(point=>Array.isArray(point)&&point.length===2&&point.every(Number.isFinite))&&
+      requireThat_toolpath(pass&&typeof pass==='object'&&!Array.isArray(pass)&&Object.keys(pass).sort().join()==='endMm,heightMm,speedMmS,startMm,widthMm,zMm','Invalid prime pass fields.');
+      requireThat_toolpath([pass.startMm,pass.endMm].every(point=>Array.isArray(point)&&point.length===2&&point.every(Number.isFinite))&&
         Math.hypot(pass.endMm[0]-pass.startMm[0],pass.endMm[1]-pass.startMm[1])>0,'Prime pass needs two distinct finite XY endpoints.');
-      requireThat(Number.isFinite(pass.zMm),'Prime line Z must be finite.');
+      requireThat_toolpath(Number.isFinite(pass.zMm),'Prime line Z must be finite.');
       for(const key of ['widthMm','heightMm','speedMmS'])positive(pass[key],'Prime line '+key);
     }
   }
@@ -189,7 +199,7 @@ export function validatePlanAuxiliary(plan,machine) {
   const {geometry,process,setup,skills}=plan;
   validateRecipeSetup(plan);
   validateExtensionRecipe(plan,machine);
-  requireThat(typeof setup.startupVerified === 'boolean' && typeof setup.firmwareVersion === 'string' && /^[\w .+-]{0,80}$/.test(setup.firmwareVersion), 'Invalid firmware setup.');
+  requireThat_toolpath(typeof setup.startupVerified === 'boolean' && typeof setup.firmwareVersion === 'string' && /^[\w .+-]{0,80}$/.test(setup.firmwareVersion), 'Invalid firmware setup.');
 
   return plan;
 }
@@ -203,7 +213,7 @@ export function validatePlanSelections(plan,machine) {
   validateSlices(plan.slices,{validateConstruction:validateExtensionAssignment,parts:[...selections.keys()].filter(key=>key!==null),lineWidthMm:plan.process.lineWidthMm,firstLayerMm:plan.process.firstLayerMm});
   const producerIds=new Set(plan.slices.assignments.map(a=>a.id));
   for(const id of extensionProducerIds(plan))producerIds.add(id);
-  for(const route of plan.composition.filaments)requireThat(Object.hasOwn(route,'part')?selections.has(route.part):producerIds.has(route.assignment),'Filament routing names an absent part or deposition assignment.');
+  for(const route of plan.composition.filaments)requireThat_toolpath(Object.hasOwn(route,'part')?selections.has(route.part):producerIds.has(route.assignment),'Filament routing names an absent part or deposition assignment.');
   for(const assignment of depositionAssignments(plan)){
     const selected=assignmentPlan(plan,machine,assignment);
     validatePlanProcess(selected);validateRecipeSetup(selected);
@@ -211,17 +221,17 @@ export function validatePlanSelections(plan,machine) {
   }
   validateModulations(plan.modulations,{assignmentIds:plan.slices.assignments.map(a=>a.id)});
   for(const {geometry:source} of modulationGeometrySources(plan.modulations)){
-    requireThat(GEOMETRY_SHAPES.includes(source.shape),'Unsupported solid-distance geometry shape.');
+    requireThat_toolpath(GEOMETRY_SHAPES.includes(source.shape),'Unsupported solid-distance geometry shape.');
     keys(source,geometryTemplate(source.shape,source),'modulation geometry');authoredBounds(source);
   }
   if(geometry?.shape==='assembly') {
-    requireThat(Array.isArray(geometry.parts)&&geometry.parts.length>=1,'An assembly needs at least one component.');
+    requireThat_toolpath(Array.isArray(geometry.parts)&&geometry.parts.length>=1,'An assembly needs at least one component.');
     const ids=new Set();
     for(const part of geometry.parts){
-      requireThat(part&&Object.keys(part).sort().join()==='geometry,id,xMm,yMm,zMm'&&/^[a-z][a-z0-9-]*$/.test(part.id)&&!ids.has(part.id),'Invalid or duplicate component.');
+      requireThat_toolpath(part&&Object.keys(part).sort().join()==='geometry,id,xMm,yMm,zMm'&&/^[a-z][a-z0-9-]*$/.test(part.id)&&!ids.has(part.id),'Invalid or duplicate component.');
       ids.add(part.id);
-      requireThat(part.geometry?.shape!=='assembly','Nested assemblies are not supported.');
-      requireThat([part.xMm,part.yMm,part.zMm].every(Number.isFinite),'Component placement must be finite XYZ.');
+      requireThat_toolpath(part.geometry?.shape!=='assembly','Nested assemblies are not supported.');
+      requireThat_toolpath([part.xMm,part.yMm,part.zMm].every(Number.isFinite),'Component placement must be finite XYZ.');
       const assigned=depositionAssignments(plan).find(a=>a.part===part.id);
       const child=structuredClone(assignmentPlan(plan,machine,assigned??{part:part.id}));child.geometry=part.geometry;
       child.placement={xMm:placement.xMm+part.xMm,yMm:placement.yMm+part.yMm};
@@ -230,29 +240,29 @@ export function validatePlanSelections(plan,machine) {
       validatePlanFields(child,machine);validatePlanGeometry(child,machine);validatePlanPlacement(child,machine);
     }
   }
-  requireThat(sliced, 'Add a slice assignment.');
+  requireThat_toolpath(sliced, 'Add a slice assignment.');
   if(geometry?.shape==='assembly')for(const assignment of plan.slices.assignments){
     const needsComponent=ASSIGNMENT_RECORDS[assignment.construction]?.requiresComponent||!assignment.construction&&(assignment.surface?.kind==='terminal'||assignment.stack?.direction==='normal'||assignment.within.some(r=>r.kind==='surface-domain'&&r.loopsUv===null));
-    requireThat(!needsComponent||assignment.part!==null,'An assembly reference-surface assignment must select a component.');
+    requireThat_toolpath(!needsComponent||assignment.part!==null,'An assembly reference-surface assignment must select a component.');
   }
   return plan;
 }
 
 export function validatePlanPlacement(plan,machine) {
   const {placement}=plan;
-  requireThat(typeof plan.output==='string'&&plan.output.length>0,'Output identity must be nonempty.');
-  requireThat(Number.isFinite(placement.xMm)&&Number.isFinite(placement.yMm),'Placement must be finite.');
+  requireThat_bundle(typeof plan.output==='string'&&plan.output.length>0,'Output identity must be nonempty.');
+  requireThat_bundle(Number.isFinite(placement.xMm)&&Number.isFinite(placement.yMm),'Placement must be finite.');
   return plan;
 }
 
 // Reject misspelled or unused settings instead of silently ignoring them.
 function keys(actual, expected, path = 'plan') {
-  requireThat(actual && typeof actual === 'object' && !Array.isArray(actual), `${path} must be an object.`);
+  requireThat_bundle(actual && typeof actual === 'object' && !Array.isArray(actual), `${path} must be an object.`);
   // Name the offending keys: a retired or misspelled field is otherwise invisible
   // to the agent or maker holding the recipe.
   const unexpected = Object.keys(actual).filter(key => !Object.hasOwn(expected, key)).sort();
   const missing = Object.keys(expected).filter(key => !Object.hasOwn(actual, key)).sort();
-  requireThat(!unexpected.length && !missing.length, `Unexpected or missing fields in ${path}: `
+  requireThat_bundle(!unexpected.length && !missing.length, `Unexpected or missing fields in ${path}: `
     + [unexpected.length ? 'unexpected ' + unexpected.join(', ') : '', missing.length ? 'missing ' + missing.join(', ') : ''].filter(Boolean).join('; ') + '.');
   for (const key of Object.keys(expected)) {
     const value = expected[key];

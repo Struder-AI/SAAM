@@ -1,5 +1,6 @@
+import {distance,requireThat} from '../private/toolpath/numeric.mjs';
 // Deposition geometry contains no travel. The composer connects these strokes.
-import {distance,requireThat} from '../geom/tolerance.mjs';
+
 
 // Curves enter in world coordinates. Mapping and ordering belong to earlier
 // stages; bead calculation preserves roles, closure, orientation and metadata.

@@ -1,10 +1,11 @@
+import {point} from '../core/private/studio/rigid.mjs';
 import {frameAtTime,displayPoint} from './playback.mjs';
 import {createProjection} from './camera.mjs';
 import {buildToolpathView,toolpathFrame,toolpathPresentation,toolpathStyle,layerKey,remainingLayerMs,layerIndexAt,TOOLPATH_COLORS} from './toolpath-view.mjs';
 import {buildGeometryView,createGeometryRenderer,pickGeometry,visibleGeometryEdgeSegments} from './mesh-view.mjs';
 import {buildMaterialScene,createMaterialRenderer} from './material-view.mjs';
 import {drawMachineCanvas} from './machine-view.mjs';
-import {point} from '../core/machine/rigid.mjs';
+
 import {createViewPerformance,createMotionQuality} from './view-performance.mjs';
 import {injectionPoints,depositionUnit} from './settings.mjs';
 

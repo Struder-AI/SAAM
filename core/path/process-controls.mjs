@@ -1,4 +1,5 @@
-import {requireThat} from '../geom/tolerance.mjs';
+import {requireThat} from '../private/toolpath/numeric.mjs';
+
 
 // Operation-scoped nozzle settings use the same material and machine envelope
 // as startup. The shared interpreter consumes this set from the locked recipe.

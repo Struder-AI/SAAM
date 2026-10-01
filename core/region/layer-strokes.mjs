@@ -1,3 +1,4 @@
+import {requireThat,normalize,cross,dot} from '../private/toolpath/numeric.mjs';
 // Strokes of one slice layer. layerStrokes fills an owned layer region with
 // loops and fill in the slice's chart; mapSliceStrokes maps coordinates to XYZ.
 // Deposition dimensions belong to core/path/deposition.mjs. Both are plain functions of their inputs: the slice
@@ -17,7 +18,7 @@ import { lineSpacing } from '../path/spacing.mjs';
 import { cleanPlanarLoop } from '../geom/polyline.mjs';
 import { slicePoint, sliceNormal } from '../geom/slice.mjs';
 import { evaluate } from '../geom/nurbs.mjs';
-import { requireThat, TOLERANCE, normalize, cross, dot } from '../geom/tolerance.mjs';
+import {TOLERANCE} from '../geom/tolerance.mjs';
 
 // region: owned loops in the chart. material: the part's sliced material on
 // the layer (the region itself by default). Every owner walls all its boundaries.
