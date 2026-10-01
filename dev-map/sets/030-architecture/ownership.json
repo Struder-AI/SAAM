@@ -452,8 +452,8 @@
       "reason": "Machine feasibility/kinematics and dialect preparation; rules currently mix setup and path checks."
     },
     "core/machine/profile.mjs": {
-      "owner": "bundle",
-      "reason": "Stored/remembered machine setup and profile loading."
+      "owner": "settings",
+      "reason": "Machine profile discovery and loading; legacy rule re-exports remain migration work."
     },
     "core/machine/jog.mjs": {
       "owner": "studio",
@@ -1198,6 +1198,146 @@
     "core/geom/polygon-chords.mjs": {
       "owner": "geometry",
       "reason": "Wing workspace implementation and its explicitly owned public handoff/construction entry."
+    },
+    "core/private/settings/numeric.mjs": {
+      "owner": "settings",
+      "reason": "Private settings helper."
+    },
+    "AGENTS.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "CLAUDE.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    ".local/AGENTS.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "MAKERS.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "skills/DIGEST.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "core/print/USAGE.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "GEOMETRY.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "GLOSSARY.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "skills/slice/SKILL.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "skills/trace/SKILL.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "skills/inject/SKILL.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "core/agent/README.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "studio/README.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "examples/prints/README.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "machines/README.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "core/export/README.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "core/export/griffin.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "core/export/bambu.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "core/export/dobot.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "core/export/denso.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "skills/plastic-weld/SKILL.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "skills/heat-set-inserts/SKILL.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "skills/text/SKILL.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "skills/thingi10k/SKILL.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "skills/gridfinity/SKILL.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "skills/supports/SKILL.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "skills/line-network/SKILL.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "skills/bridging/SKILL.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "skills/draped-skin/SKILL.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "skills/wave-overhangs/SKILL.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "skills/vase-wall/SKILL.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "skills/advanced-vase-wall/SKILL.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "skills/thick-lip/SKILL.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "skills/pipe-cladding/SKILL.md": {
+      "owner": "context",
+      "reason": "Maker-facing guidance, regardless of physical directory."
     }
   },
   "leaves": {
@@ -4364,10 +4504,12 @@
       "owner": "studio"
     },
     "core/machine/profile.mjs::@module": {
-      "owner": "bundle"
+      "owner": "settings",
+      "reason": "Machine profile discovery/loading belongs to settings 9."
     },
     "core/machine/profile.mjs::loadMachine": {
-      "owner": "bundle"
+      "owner": "settings",
+      "reason": "Machine profile discovery/loading belongs to settings 9."
     },
     "core/machine/rigid.mjs::@module": {
       "owner": "toolpath"
@@ -10280,6 +10422,14 @@
     },
     "core/print/workspace.mjs::createFromWorkspace::local": {
       "owner": "bundle"
+    },
+    "core/private/settings/numeric.mjs::@module": {
+      "owner": "settings",
+      "reason": "Private settings assertion helper."
+    },
+    "core/private/settings/numeric.mjs::requireThat": {
+      "owner": "settings",
+      "reason": "Private settings assertion helper."
     }
   },
   "retiredAssignments": [

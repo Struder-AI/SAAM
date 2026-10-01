@@ -15,7 +15,7 @@ async function fixture(t){
   return {root,tour,directory,runId:data.runId};
 }
 async function viewer(t,root,directory,disconnectMs=100){
-  const server=createStudio(directory,{libraryRoot:root,disconnectMs,localExtension:{}});
+  const server=createStudio(directory,{libraryRoot:root,disconnectMs});
   t.after(()=>server.shutdown());await new Promise(done=>server.listen(0,'127.0.0.1',done));
   const url='http://127.0.0.1:'+server.address().port;
   const html=await(await fetch(url)).text(),token=/name="saam-token" content="([^"]+)"/.exec(html)[1];

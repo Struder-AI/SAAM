@@ -62,7 +62,7 @@ async function fixture(t){
   const plan=await bundle.proposedPlan('ultimaker-s5');plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:1});
   plan.process.minimumLayerSeconds=0;
   await bundle.initBundle(dir,plan,{machineId:'ultimaker-s5'});
-  const server=createStudio(dir,{libraryRoot:root,localExtension:{}});t.after(()=>server.shutdown());
+  const server=createStudio(dir,{libraryRoot:root});t.after(()=>server.shutdown());
   await new Promise(done=>server.listen(0,'127.0.0.1',done));
   const url='http://127.0.0.1:'+server.address().port,token=/name="saam-token" content="([^"]+)"/.exec(await(await fetch(url)).text())[1];
   const get=async path=>await(await fetch(url+'/api/'+path)).json();

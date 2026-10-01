@@ -21,11 +21,10 @@
       "id": "context",
       "index": "1",
       "label": "Maker context",
-      "description": "Actual maker-context access: agent calls and directly readable files. Click a file to preview it.",
+      "description": "Maker instructions, manual selection and context assembly; click guidance files to preview them.",
       "type": "guidance",
       "notes": [
-        "Flat maker-context flow: files supply actual onboarding/read/tour/failure outputs to the external agent. Click a file to preview it. Tool invocation/read direction is recorded separately in each interface.",
-        "The same reader currently serves core and extension manuals; source references do not assign duplicate implementation ownership."
+        "Maker-facing guidance and its selection/assembly belong to 1, including manuals stored beside extensions. File location does not determine ownership. Extension catalog information arrives from 4; printer capabilities from 9 select relevant manual sections."
       ]
     },
     {
@@ -338,7 +337,7 @@
       "id": "toolpath",
       "index": "3",
       "label": "Toolpath engine",
-      "description": "Inject, Trace and Slice produce one SAAMpath.",
+      "description": "Inject, Trace and Slice produce the completed SAAMpath, including explicit motion planning.",
       "type": "component"
     },
     {
@@ -430,7 +429,7 @@
       "id": "extensions",
       "index": "4",
       "label": "Extensions",
-      "description": "Guidance and scripts stored separately from bundles.",
+      "description": "Extension definitions and scripts, separate from bundles; maker guidance belongs to 1.",
       "type": "component",
       "notes": [
         "Manual reads are concrete existing accesses; the generic execution/resolution contracts remain targets. Source references do not claim the current extension code already respects engine/bundle boundaries."
@@ -439,12 +438,11 @@
     {
       "id": "extension-library",
       "index": "4.1",
-      "label": "list_skills / read-skill",
-      "description": "Catalog discovery and selected extension manual.",
+      "label": "Extension library / authoring",
+      "description": "Installed extension definitions and builder-authorized edits; maker manuals are owned by 1.",
       "type": "component",
       "source": {
-        "file": "core/agent/toolkit.mjs",
-        "declaration": "readSkill"
+        "file": "skills/edits.mjs"
       }
     },
     {
@@ -481,9 +479,9 @@
     },
     {
       "id": "extension-manual-plastic-weld",
-      "index": "4.5",
+      "index": "1.26",
       "label": "plastic-weld/SKILL.md",
-      "description": "Read the actual extension manual.",
+      "description": "Maker-context guidance stored alongside its extension; read by the context reader.",
       "type": "guidance",
       "source": {
         "file": "skills/plastic-weld/SKILL.md"
@@ -491,9 +489,9 @@
     },
     {
       "id": "extension-manual-heat-set-inserts",
-      "index": "4.6",
+      "index": "1.27",
       "label": "heat-set-inserts/SKILL.md",
-      "description": "Read the actual extension manual.",
+      "description": "Maker-context guidance stored alongside its extension; read by the context reader.",
       "type": "guidance",
       "source": {
         "file": "skills/heat-set-inserts/SKILL.md"
@@ -501,9 +499,9 @@
     },
     {
       "id": "extension-manual-text",
-      "index": "4.7",
+      "index": "1.28",
       "label": "text/SKILL.md",
-      "description": "Read the actual extension manual.",
+      "description": "Maker-context guidance stored alongside its extension; read by the context reader.",
       "type": "guidance",
       "source": {
         "file": "skills/text/SKILL.md"
@@ -511,9 +509,9 @@
     },
     {
       "id": "extension-manual-thingi10k",
-      "index": "4.8",
+      "index": "1.29",
       "label": "thingi10k/SKILL.md",
-      "description": "Read the actual extension manual.",
+      "description": "Maker-context guidance stored alongside its extension; read by the context reader.",
       "type": "guidance",
       "source": {
         "file": "skills/thingi10k/SKILL.md"
@@ -521,9 +519,9 @@
     },
     {
       "id": "extension-manual-gridfinity",
-      "index": "4.9",
+      "index": "1.30",
       "label": "gridfinity/SKILL.md",
-      "description": "Read the actual extension manual.",
+      "description": "Maker-context guidance stored alongside its extension; read by the context reader.",
       "type": "guidance",
       "source": {
         "file": "skills/gridfinity/SKILL.md"
@@ -531,9 +529,9 @@
     },
     {
       "id": "extension-manual-supports",
-      "index": "4.10",
+      "index": "1.31",
       "label": "supports/SKILL.md",
-      "description": "Read the actual extension manual.",
+      "description": "Maker-context guidance stored alongside its extension; read by the context reader.",
       "type": "guidance",
       "source": {
         "file": "skills/supports/SKILL.md"
@@ -541,9 +539,9 @@
     },
     {
       "id": "extension-manual-line-network",
-      "index": "4.11",
+      "index": "1.32",
       "label": "line-network/SKILL.md",
-      "description": "Read the actual extension manual.",
+      "description": "Maker-context guidance stored alongside its extension; read by the context reader.",
       "type": "guidance",
       "source": {
         "file": "skills/line-network/SKILL.md"
@@ -551,9 +549,9 @@
     },
     {
       "id": "extension-manual-bridging",
-      "index": "4.12",
+      "index": "1.33",
       "label": "bridging/SKILL.md",
-      "description": "Read the actual extension manual.",
+      "description": "Maker-context guidance stored alongside its extension; read by the context reader.",
       "type": "guidance",
       "source": {
         "file": "skills/bridging/SKILL.md"
@@ -561,9 +559,9 @@
     },
     {
       "id": "extension-manual-draped-skin",
-      "index": "4.13",
+      "index": "1.34",
       "label": "draped-skin/SKILL.md",
-      "description": "Read the actual extension manual.",
+      "description": "Maker-context guidance stored alongside its extension; read by the context reader.",
       "type": "guidance",
       "source": {
         "file": "skills/draped-skin/SKILL.md"
@@ -571,9 +569,9 @@
     },
     {
       "id": "extension-manual-wave-overhangs",
-      "index": "4.14",
+      "index": "1.35",
       "label": "wave-overhangs/SKILL.md",
-      "description": "Read the actual extension manual.",
+      "description": "Maker-context guidance stored alongside its extension; read by the context reader.",
       "type": "guidance",
       "source": {
         "file": "skills/wave-overhangs/SKILL.md"
@@ -581,9 +579,9 @@
     },
     {
       "id": "extension-manual-vase-wall",
-      "index": "4.15",
+      "index": "1.36",
       "label": "vase-wall/SKILL.md",
-      "description": "Read the actual extension manual.",
+      "description": "Maker-context guidance stored alongside its extension; read by the context reader.",
       "type": "guidance",
       "source": {
         "file": "skills/vase-wall/SKILL.md"
@@ -591,9 +589,9 @@
     },
     {
       "id": "extension-manual-advanced-vase-wall",
-      "index": "4.16",
+      "index": "1.37",
       "label": "advanced-vase-wall/SKILL.md",
-      "description": "Read the actual extension manual.",
+      "description": "Maker-context guidance stored alongside its extension; read by the context reader.",
       "type": "guidance",
       "source": {
         "file": "skills/advanced-vase-wall/SKILL.md"
@@ -601,9 +599,9 @@
     },
     {
       "id": "extension-manual-thick-lip",
-      "index": "4.17",
+      "index": "1.38",
       "label": "thick-lip/SKILL.md",
-      "description": "Read the actual extension manual.",
+      "description": "Maker-context guidance stored alongside its extension; read by the context reader.",
       "type": "guidance",
       "source": {
         "file": "skills/thick-lip/SKILL.md"
@@ -611,9 +609,9 @@
     },
     {
       "id": "extension-manual-pipe-cladding",
-      "index": "4.18",
+      "index": "1.39",
       "label": "pipe-cladding/SKILL.md",
-      "description": "Read the actual extension manual.",
+      "description": "Maker-context guidance stored alongside its extension; read by the context reader.",
       "type": "guidance",
       "source": {
         "file": "skills/pipe-cladding/SKILL.md"
@@ -887,7 +885,8 @@
       "description": "Studio-triggered machine export/checking of the current built path; bundle access only through its explicit contract.",
       "type": "component",
       "notes": [
-        "Studio → export and export → bundle are target integration contracts. Internal router/dialect/preparation calls below are present in source. Dialect files retain export and interpretation together; supporting player modules remain to be assigned."
+        "Target: translate the completed SAAMpath; explicit priming/travel/retraction/material-change motion belongs to 3. Current prepareMachinePath still adds motion and remains a migration finding.",
+        "Studio invokes Export; the current source player still decodes exported programs, so preview must be reconciled with the separate Export action."
       ]
     },
     {
@@ -961,6 +960,18 @@
       "source": {
         "file": "core/export/gcode-lines.mjs"
       }
+    },
+    {
+      "id": "settings",
+      "index": "9",
+      "label": "Machine & material settings",
+      "description": "Printer definitions, installed setup and material presets; supplies selected settings to Bundle.",
+      "type": "component",
+      "stateful": true,
+      "notes": [
+        "Top-level settings bucket; its internal map is deferred. Owns reusable machine/material information and remembered installation settings. Bundle retains an explicit selected snapshot; changing a preset must not silently change existing parts.",
+        "Profile loading is assigned here now. Extraction of remembered setup and settings resolution from current mixed declarations remains visible migration work. Printer capabilities supply the existing Maker-context manual filtering."
+      ]
     }
   ],
   "contracts": [
@@ -1052,13 +1063,13 @@
       "id": "agent-extensions",
       "from": "agent",
       "to": "extension-library",
-      "label": "guidance / author",
+      "label": "discover / author",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
-        "list / read / create / override"
+        "list / create / override"
       ],
-      "inputs": "Extension identity; guidance lookup or builder-authorized content.",
-      "outputs": "Extension identity, guidance or saved local edit.",
+      "inputs": "Extension identity or builder-authorized definition edits.",
+      "outputs": "Extension definitions and identity; maker guidance is read through 1.",
       "effects": "Library owns its storage; builder edits are preserved separately from release updates.",
       "failure": "Report missing extensions and edit conflicts.",
       "excludes": "Maker cannot author; installed defaults never silently overwrite local edits.",
@@ -1073,16 +1084,16 @@
       "id": "agent-bundle",
       "from": "agent",
       "to": "bundle-edit",
-      "label": "part commands",
+      "label": "open / switch bundle",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
-        "open / snapshot / edit / requestBuild"
+        "open / switch active bundle"
       ],
-      "inputs": "Owner/Studio-instance and bundle identity, expected revision, and typed edit/open/build command.",
-      "outputs": "New revision or job identity; immutable snapshot.",
-      "effects": "5 owns shared part state and grants edit ownership to only one Studio instance per bundle; an agent may own multiple instances.",
+      "inputs": "Bundle and Studio-instance identity; requested active-bundle selection.",
+      "outputs": "Selected bundle identity and access status.",
+      "effects": "Select the active bundle while preserving instance ownership; no direct part-content edits.",
       "failure": "Reject stale revisions or writes without the active instance edit ownership; keep other viewers read-only.",
-      "excludes": "No arbitrary disk/script access; no user confirmation operation.",
+      "excludes": "Geometry, toolpath and settings changes use their owning interfaces; no user confirmation or arbitrary bundle writes.",
       "access": [
         {
           "from": "agent",
@@ -2741,9 +2752,9 @@
     },
     {
       "id": "extension-catalog-read",
-      "from": "extension-library",
-      "to": "extension-catalog",
-      "label": "read catalog",
+      "from": "extension-catalog",
+      "to": "context-skill",
+      "label": "available extensions",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read catalog"
@@ -2760,16 +2771,16 @@
       ],
       "access": [
         {
-          "from": "extension-library",
+          "from": "context-skill",
           "to": "extension-catalog"
         }
       ]
     },
     {
       "id": "read-extension-plastic-weld",
-      "from": "extension-library",
-      "to": "extension-manual-plastic-weld",
-      "label": "read plastic-weld",
+      "from": "extension-manual-plastic-weld",
+      "to": "context-skill",
+      "label": "manual content",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read plastic-weld"
@@ -2786,16 +2797,16 @@
       ],
       "access": [
         {
-          "from": "extension-library",
+          "from": "context-skill",
           "to": "extension-manual-plastic-weld"
         }
       ]
     },
     {
       "id": "read-extension-heat-set-inserts",
-      "from": "extension-library",
-      "to": "extension-manual-heat-set-inserts",
-      "label": "read heat-set-inserts",
+      "from": "extension-manual-heat-set-inserts",
+      "to": "context-skill",
+      "label": "manual content",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read heat-set-inserts"
@@ -2812,16 +2823,16 @@
       ],
       "access": [
         {
-          "from": "extension-library",
+          "from": "context-skill",
           "to": "extension-manual-heat-set-inserts"
         }
       ]
     },
     {
       "id": "read-extension-text",
-      "from": "extension-library",
-      "to": "extension-manual-text",
-      "label": "read text",
+      "from": "extension-manual-text",
+      "to": "context-skill",
+      "label": "manual content",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read text"
@@ -2838,16 +2849,16 @@
       ],
       "access": [
         {
-          "from": "extension-library",
+          "from": "context-skill",
           "to": "extension-manual-text"
         }
       ]
     },
     {
       "id": "read-extension-thingi10k",
-      "from": "extension-library",
-      "to": "extension-manual-thingi10k",
-      "label": "read thingi10k",
+      "from": "extension-manual-thingi10k",
+      "to": "context-skill",
+      "label": "manual content",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read thingi10k"
@@ -2864,16 +2875,16 @@
       ],
       "access": [
         {
-          "from": "extension-library",
+          "from": "context-skill",
           "to": "extension-manual-thingi10k"
         }
       ]
     },
     {
       "id": "read-extension-gridfinity",
-      "from": "extension-library",
-      "to": "extension-manual-gridfinity",
-      "label": "read gridfinity",
+      "from": "extension-manual-gridfinity",
+      "to": "context-skill",
+      "label": "manual content",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read gridfinity"
@@ -2890,16 +2901,16 @@
       ],
       "access": [
         {
-          "from": "extension-library",
+          "from": "context-skill",
           "to": "extension-manual-gridfinity"
         }
       ]
     },
     {
       "id": "read-extension-supports",
-      "from": "extension-library",
-      "to": "extension-manual-supports",
-      "label": "read supports",
+      "from": "extension-manual-supports",
+      "to": "context-skill",
+      "label": "manual content",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read supports"
@@ -2916,16 +2927,16 @@
       ],
       "access": [
         {
-          "from": "extension-library",
+          "from": "context-skill",
           "to": "extension-manual-supports"
         }
       ]
     },
     {
       "id": "read-extension-line-network",
-      "from": "extension-library",
-      "to": "extension-manual-line-network",
-      "label": "read line-network",
+      "from": "extension-manual-line-network",
+      "to": "context-skill",
+      "label": "manual content",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read line-network"
@@ -2942,16 +2953,16 @@
       ],
       "access": [
         {
-          "from": "extension-library",
+          "from": "context-skill",
           "to": "extension-manual-line-network"
         }
       ]
     },
     {
       "id": "read-extension-bridging",
-      "from": "extension-library",
-      "to": "extension-manual-bridging",
-      "label": "read bridging",
+      "from": "extension-manual-bridging",
+      "to": "context-skill",
+      "label": "manual content",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read bridging"
@@ -2968,16 +2979,16 @@
       ],
       "access": [
         {
-          "from": "extension-library",
+          "from": "context-skill",
           "to": "extension-manual-bridging"
         }
       ]
     },
     {
       "id": "read-extension-draped-skin",
-      "from": "extension-library",
-      "to": "extension-manual-draped-skin",
-      "label": "read draped-skin",
+      "from": "extension-manual-draped-skin",
+      "to": "context-skill",
+      "label": "manual content",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read draped-skin"
@@ -2994,16 +3005,16 @@
       ],
       "access": [
         {
-          "from": "extension-library",
+          "from": "context-skill",
           "to": "extension-manual-draped-skin"
         }
       ]
     },
     {
       "id": "read-extension-wave-overhangs",
-      "from": "extension-library",
-      "to": "extension-manual-wave-overhangs",
-      "label": "read wave-overhangs",
+      "from": "extension-manual-wave-overhangs",
+      "to": "context-skill",
+      "label": "manual content",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read wave-overhangs"
@@ -3020,16 +3031,16 @@
       ],
       "access": [
         {
-          "from": "extension-library",
+          "from": "context-skill",
           "to": "extension-manual-wave-overhangs"
         }
       ]
     },
     {
       "id": "read-extension-vase-wall",
-      "from": "extension-library",
-      "to": "extension-manual-vase-wall",
-      "label": "read vase-wall",
+      "from": "extension-manual-vase-wall",
+      "to": "context-skill",
+      "label": "manual content",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read vase-wall"
@@ -3046,16 +3057,16 @@
       ],
       "access": [
         {
-          "from": "extension-library",
+          "from": "context-skill",
           "to": "extension-manual-vase-wall"
         }
       ]
     },
     {
       "id": "read-extension-advanced-vase-wall",
-      "from": "extension-library",
-      "to": "extension-manual-advanced-vase-wall",
-      "label": "read advanced-vase-wall",
+      "from": "extension-manual-advanced-vase-wall",
+      "to": "context-skill",
+      "label": "manual content",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read advanced-vase-wall"
@@ -3072,16 +3083,16 @@
       ],
       "access": [
         {
-          "from": "extension-library",
+          "from": "context-skill",
           "to": "extension-manual-advanced-vase-wall"
         }
       ]
     },
     {
       "id": "read-extension-thick-lip",
-      "from": "extension-library",
-      "to": "extension-manual-thick-lip",
-      "label": "read thick-lip",
+      "from": "extension-manual-thick-lip",
+      "to": "context-skill",
+      "label": "manual content",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read thick-lip"
@@ -3098,16 +3109,16 @@
       ],
       "access": [
         {
-          "from": "extension-library",
+          "from": "context-skill",
           "to": "extension-manual-thick-lip"
         }
       ]
     },
     {
       "id": "read-extension-pipe-cladding",
-      "from": "extension-library",
-      "to": "extension-manual-pipe-cladding",
-      "label": "read pipe-cladding",
+      "from": "extension-manual-pipe-cladding",
+      "to": "context-skill",
+      "label": "manual content",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "read pipe-cladding"
@@ -3124,7 +3135,7 @@
       ],
       "access": [
         {
-          "from": "extension-library",
+          "from": "context-skill",
           "to": "extension-manual-pipe-cladding"
         }
       ]
@@ -4295,6 +4306,94 @@
       "failure": "Keep the previous valid bundle geometry.",
       "excludes": "No direct geometry-engine writes to bundle state.",
       "authorship": "Owner original sketch: Geometry -> Bundle."
+    },
+    {
+      "id": "bundle-agent-state",
+      "from": "bundle-load",
+      "to": "agent",
+      "label": "current state / status",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "read snapshot / inspect status"
+      ],
+      "inputs": "Bundle identity and optional revision.",
+      "outputs": "Current immutable recipe, geometry, SAAMpath, selected settings and job status.",
+      "effects": "Read only.",
+      "failure": "Return an explicit error without changing the last valid state.",
+      "excludes": "No content edits or implicit regeneration.",
+      "access": [
+        {
+          "from": "agent",
+          "to": "bundle-load"
+        }
+      ]
+    },
+    {
+      "id": "agent-settings",
+      "from": "agent",
+      "to": "settings",
+      "label": "choose / configure",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "list / inspect / select / configure"
+      ],
+      "inputs": "Machine identity, installation details and material selections.",
+      "outputs": "Available profiles or a resolved settings selection.",
+      "effects": "Settings owns its reusable configuration storage.",
+      "failure": "Return an explicit error without changing the last valid state.",
+      "excludes": "No direct geometry/toolpath edits or automatic mutation of existing bundles.",
+      "access": [
+        {
+          "from": "agent",
+          "to": "settings"
+        }
+      ]
+    },
+    {
+      "id": "settings-bundle",
+      "from": "settings",
+      "to": "bundle-edit",
+      "label": "selected settings",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "resolve / apply settings snapshot"
+      ],
+      "inputs": "Explicit machine/material selection and expected bundle revision.",
+      "outputs": "Exact selected settings snapshot and its identity.",
+      "effects": "Bundle commits the selected settings through its revisioned interface.",
+      "failure": "Return an explicit error without changing the last valid state.",
+      "excludes": "No silent updates of existing bundles when reusable presets change.",
+      "access": [
+        {
+          "from": "bundle-edit",
+          "to": "settings"
+        },
+        {
+          "from": "settings",
+          "to": "bundle-edit"
+        }
+      ]
+    },
+    {
+      "id": "settings-context",
+      "from": "settings",
+      "to": "context-guidance",
+      "label": "printer capabilities",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "read profile capabilities"
+      ],
+      "inputs": "Selected printer identity.",
+      "outputs": "Capabilities and limits used to select relevant manual sections.",
+      "effects": "Read only; Maker context selects and assembles guidance.",
+      "failure": "Report unknown printer identity; do not silently choose another printer.",
+      "excludes": "No settings changes, bundle access or machine operation.",
+      "access": [
+        {
+          "from": "context-guidance",
+          "to": "settings"
+        }
+      ]
     }
   ],
   "layout": {
@@ -4332,6 +4431,10 @@
         "8": {
           "x": 900,
           "y": 830
+        },
+        "9": {
+          "x": 840,
+          "y": 425
         },
         "external:user": {
           "x": 35,

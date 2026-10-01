@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-10-01 — Settings bucket, context ownership and Studio hook removal
+
+- Added owner-approved map-0 bucket 9 for Machine & material settings, with Agent → Settings → Bundle and Settings → Maker context capability information. Kept Agent ↔ Bundle for active-bundle switching and state reads; removed direct-edit entry bindings. Recorded completed explicit motion planning in 3 as the accepted target, with Export's remaining motion construction still a migration finding.
+- Moved extension-manual map entries and guidance-file ownership into Maker context without moving files; context selection/assembly already belonged to 1. Added Extensions → Context catalog information. Retained printer-specific manual filtering after owner clarification. Bucket 9 is intentionally awaiting internal authoring; removed its misleading single-function preview. Profile loading and its private assertion helper are assigned to 9; remaining setup/settings extraction is unfinished.
+- Removed Studio's unused studioGet/studioPost hooks, local extension loading and the MCP-to-Studio extension argument. Updated existing fixture calls. Other extension capabilities remain available through their own interfaces. The captured audit has all 2,916 leaves assigned and no orphan entries or resolved Studio–Extensions crossing; remaining crossings, including newly exposed settings consumers, are not certified compliant.
+- Verification: existing focused Studio opening/switching test passed in an isolated worktree; edited server/MCP modules parse. Refreshed map/audit and source coverage. No new tests or whole suite; intent 91 → 90 lines. No push.
+
 ## 2026-10-01 — Printable wing workspace example
 
 - Implemented map 7's wing workspace against the latest inspected TK-DEV head `217a6e0`, retaining only its standalone renderer. Full-aircraft display includes fuselage and tail as context; bundles contain wing sections and separate flaps only. Control transitions and printer height determine divisions. Upturned winglets have flat outside faces and remain integral to the outer panels, which print face-down on those faces. Straight reinforcement/pivot passages and glue assembly replace mounting hardware.

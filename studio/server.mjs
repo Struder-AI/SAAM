@@ -15,12 +15,10 @@ import { randomBytes, createHash } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
 import {PreparedGenerationJob} from './prepared-generation-job.mjs';
 import { viewerLifetime, DEFAULT_DISCONNECT_MS } from './lifetime.mjs';
-import {loadLocalExtension} from '../core/local-extension.mjs';
 import {MACHINE_IDS,loadMachine} from '../core/machine/profile.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
 export const root=resolve(here,'..');
-const installedExtension=await loadLocalExtension(root);
 // This process keeps one module graph for its lifetime, while generation
 // workers, the CLI and MCP load whatever is on disk at the moment they run.
 // Source edited after startup is therefore a real explanation for a rejected
@@ -118,7 +116,7 @@ const relayView=status=>({...status,connectorUrl:new URL('/mcp',status.relayUrl)
 // A local development launcher may explicitly supply a scratch adapter resolver.
 // This is a function supplied by code, never a module path supplied by a print or HTTP request.
 // A null directory opens Studio with no print; the person or agent opens one later.
-export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libraryRoot=resolve(root,'Prints'),resolveBundle=bundleFor,localExtension=installedExtension,agentOwnerId,agentRequests,closeAgentRequests=false,studioEvents,relay}={}) {
+export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libraryRoot=resolve(root,'Prints'),resolveBundle=bundleFor,agentOwnerId,agentRequests,closeAgentRequests=false,studioEvents,relay}={}) {
   const instanceId=randomBytes(16).toString('hex');
   const sessionOwnerId=agentOwnerId??agentRequests?.ownerId??`studio:${instanceId}`;
   if(agentRequests?.ownerId&&agentRequests.ownerId!==sessionOwnerId)throw Error('A Studio instance belongs to exactly one agent owner.');
@@ -427,7 +425,6 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       }
       const readDir=dir,readId=dir&&printId();
       const bundle=await opened;
-      if(req.method==='GET'&&await localExtension.studioGet?.({url,res,token,dir:readDir,printId:readId,bundle,send,assertCurrent:()=>{if(readDir!==dir)throw new Error('The open print changed.');}}))return;
       if(req.method==='GET'&&url.pathname==='/api/state') {
         const condition=req.headers['if-none-match'];
         const workId=requests.printId(readDir,{optional:true}),allRecords=workId?await requests.query({printId:workId}):[],records=allRecords.filter(record=>!record.studioInstanceId||record.studioInstanceId===instanceId),guide=await tour.info({records});
@@ -585,7 +582,6 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           if(progress.active)prepare(state,dir);
           note('print-opened',{name:await printName(dir,state.plan),tour:progress.active,revision:state.revision});
         }
-        else if(await localExtension.studioPost?.({url,data,dir,printId:printId(),send}))return;
         else if(url.pathname==='/api/plan'){
           const updated=await current.updatePlan(dir,data.plan,data.revision),edit=updated?.review?.history?.at(-1);
           const changes=updated?.revision!==data.revision&&edit?.event==='plan-edited'?edit.changes??[]:[];

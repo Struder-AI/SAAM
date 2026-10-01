@@ -147,7 +147,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   // Every runtime-owned Studio instance starts here, showing dir (or no print
   // when dir is null) and the relay panel when this computer has a relay.
   async function startStudio(dir){
-    const studio = createStudio(dir, { libraryRoot,localExtension,agentOwnerId:ownerId,agentRequests,studioEvents,relay });
+    const studio = createStudio(dir, { libraryRoot,agentOwnerId:ownerId,agentRequests,studioEvents,relay });
     await new Promise((resolveListen, reject) => { studio.once('error', reject); studio.listen(0, '127.0.0.1', resolveListen); });
     const session = { server: studio, url: `http://127.0.0.1:${studio.address().port}` },studioInstanceId=studio.agentSession().instanceId;
     studioSessions.set(studioInstanceId, session);

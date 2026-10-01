@@ -179,30 +179,6 @@
    "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
   },
   {
-   "contract": "agent-bundle",
-   "target": "core/print/workflow.mjs::createBundleWorkflow::adjustBundle",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "agent-bundle",
-   "target": "core/print/workflow.mjs::createBundleWorkflow::updatePlan",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "agent-bundle",
-   "target": "core/print/workflow.mjs::createBundleWorkflow::initBundle",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
    "contract": "studio-render",
    "target": "studio/viewer-renderer.mjs::createViewerRenderer",
    "kinds": [
@@ -433,6 +409,46 @@
     "call"
    ],
    "evidence": "Implemented wing workspace boundary; exercised by actual folder creation and section generation. No export authority granted."
+  },
+  {
+   "contract": "bundle-agent-state",
+   "target": "core/print/workflow.mjs::createBundleWorkflow::loadBundle",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Owner-approved map-0 responsibility; named access only, not complete effect verification."
+  },
+  {
+   "contract": "settings-bundle",
+   "target": "core/machine/profile.mjs::loadMachine",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Owner-approved map-0 responsibility; named access only, not complete effect verification."
+  },
+  {
+   "contract": "agent-settings",
+   "target": "core/machine/profile.mjs::loadMachine",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Owner-approved map-0 responsibility; named access only, not complete effect verification."
+  },
+  {
+   "contract": "extension-catalog-read",
+   "target": "skills/catalog.mjs::@module",
+   "kinds": [
+    "import"
+   ],
+   "evidence": "Owner-approved map-0 responsibility; named access only, not complete effect verification."
+  },
+  {
+   "contract": "settings-context",
+   "target": "core/machine/profile.mjs::loadMachine",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Existing manual-section filtering reads printer capabilities; approved context input."
   }
  ]
 }
