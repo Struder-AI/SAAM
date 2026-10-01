@@ -3,7 +3,8 @@ import { createBundleWorkflow } from './workflow.mjs';
 import { defaults,compileRecipe,geometryTemplate,VERSION,BUILD_DATE } from './plan.mjs';
 import { createGeometry,rhino } from './geometry.mjs';
 import {buildShell,translateShell} from '../geom/build.mjs';
-import {generatePath,GENERATION_CONTRACT} from './generate.mjs';
+import {generatePath,pathDependencies,GENERATION_CONTRACT} from './generate.mjs';
+import {MACHINE_PATH_CONTRACT} from '../path/dependencies.mjs';
 import {modulationGeometrySources,prepareModulationFields} from './modulation-fields.mjs';
 import {booleanShell} from '../geom/boolean-solid.mjs';
 
@@ -31,9 +32,9 @@ export async function generatePreparedPath(plan,machine,options){
   return generatePath(plan,machine,native,{...options,modulations:fields.record,modulationPreparation:fields.report});
 }
 
-export const {root, EXPORT_NAME, atomicManifest, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, bundleFingerprint, bundleFingerprints, migrateBundle, prepareGeneration, commitGeneration, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, exportReviewed, applySettingsSnapshot}=createBundleWorkflow({
+export const {root, EXPORT_NAME, atomicManifest, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, bundleFingerprint, bundleFingerprints, migrateBundle, prepareGeneration, commitGeneration, generateToolpath, restoreRevision, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, exportReviewed, applySettingsSnapshot}=createBundleWorkflow({
   kind:'shell',defaults,geometryTemplate,createGeometry,
-  generatePath:generatePreparedPath,generationContract:GENERATION_CONTRACT,
+  generatePath:generatePreparedPath,pathDependencies,generationContract:GENERATION_CONTRACT,completionContract:MACHINE_PATH_CONTRACT,
   version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode',
   limitations:limitationsFor
 });

@@ -291,56 +291,8 @@
    "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
   },
   {
-   "contract": "griffin-prepare",
-   "target": "core/export/prepare-path.mjs::prepareMachinePath",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "bambu-prepare",
-   "target": "core/export/prepare-path.mjs::prepareMachinePath",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "dobot-prepare",
-   "target": "core/export/prepare-path.mjs::prepareMachinePath",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "denso-prepare",
-   "target": "core/export/prepare-path.mjs::prepareMachinePath",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
    "contract": "workspace-geometry",
    "target": "core/geom/loft.mjs::loftPolygons",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Implemented wing workspace boundary; exercised by actual folder creation and section generation. No export authority granted."
-  },
-  {
-   "contract": "workspace-bundle",
-   "target": "core/print/workspace.mjs::workspacePrinter",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Implemented wing workspace boundary; exercised by actual folder creation and section generation. No export authority granted."
-  },
-  {
-   "contract": "workspace-bundle",
-   "target": "core/print/workspace.mjs::createFromWorkspace",
    "kinds": [
     "call"
    ],
@@ -569,6 +521,70 @@
     "import"
    ],
    "evidence": "Static named-configuration target metadata only; no installation discovery or execution."
+  },
+  {
+   "contract": "griffin-prepare",
+   "target": "core/export/prepare-path.mjs::checkedMachinePath",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+  },
+  {
+   "contract": "bambu-prepare",
+   "target": "core/export/prepare-path.mjs::checkedMachinePath",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+  },
+  {
+   "contract": "dobot-prepare",
+   "target": "core/export/prepare-path.mjs::checkedMachinePath",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+  },
+  {
+   "contract": "denso-prepare",
+   "target": "core/export/prepare-path.mjs::checkedMachinePath",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+  },
+  {
+   "contract": "build-job",
+   "target": "core/path/dependencies.mjs::pathDependencies",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Producer dependency projection / revision-checked history entry; no additional topology permission."
+  },
+  {
+   "contract": "studio-commands",
+   "target": "core/print/workflow.mjs::createBundleWorkflow::restoreRevision",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Producer dependency projection / revision-checked history entry; no additional topology permission."
+  },
+  {
+   "contract": "bundle-views",
+   "target": "core/print/workflow.mjs::createBundleWorkflow::loadBundleSnapshot",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "All Studio persisted reads pass through readStableBundle to this one snapshot of revision, artifacts, history and review. Private job/pending state is composed separately."
+  },
+  {
+   "contract": "workspace-bundle",
+   "target": "core/print/workflow.mjs::createBundleWorkflow::initBundle",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Workspace export supplies its prepared geometry and recipe to Bundle creation; no printer lookup."
   }
  ]
 }

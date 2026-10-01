@@ -61,7 +61,8 @@ export function referenceAdapter(live){
     proposedPlan:live.proposedPlan,
     rememberSetup:live.rememberSetup,
     root:live.root,
-    updatePlan:live.updatePlan
+    updatePlan:live.updatePlan,
+    restoreRevision:live.restoreRevision
   };
 }
 export async function useExample(directory){try{await unlink(resolve(directory,'.tour-reference.json'));}catch(e){if(e.code!=='ENOENT')throw e;}}

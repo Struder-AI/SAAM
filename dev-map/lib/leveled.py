@@ -761,6 +761,12 @@ class Page:
                     d += " C" + " ".join(f"{x:.1f},{y:.1f}" for x, y in pts[i:i + 3])
             # The endpoints ride on the path so the viewer can thicken every wire touching
             # a hovered box -- what a box connects to is the question the drawing is for.
+            if getattr(self, "design", False):
+                label = f'Open interface: {self._tag(e["src"])} → {self._tag(e["dst"])} · {e["label"]}'
+                o.append(f'<path class="fm-wire-hit"{_ends(e)} d="{d}" '
+                         f'fill="none" stroke="transparent" stroke-width="14" '
+                         f'vector-effect="non-scaling-stroke" pointer-events="stroke" '
+                         f'tabindex="0" role="button" aria-label="{escape(label, {chr(34): "&quot;"})}"/>')
             o.append(f'<path class="fm-edge{" long" if broken else ""}"{_ends(e)} d="{d}" '
                      f'fill="none" stroke="{st["stroke"]}" '
                      f'stroke-width="{st["sw"]}"{dash}{wrap} '

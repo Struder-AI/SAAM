@@ -6,6 +6,9 @@ import {extensionDeposition,extensionResultDependencies,extensionSummary} from '
 // Ownership precedes construction; one dependency graph schedules shared courses
 // and their finalized-material consumers.
 
+import {completeMachinePath} from '../path/machine-path.mjs';
+import {PATH_CONTRACT} from '../path/dependencies.mjs';
+export {pathDependencies} from '../path/dependencies.mjs';
 import {planFinishing} from '../path/toolpath.mjs';
 import {createPlanningState,planFan,planningPath,planningResult} from '../path/planning.mjs';
 import {planOperation,validateOperationBatch,prepareOperationDependencies} from '../path/compose.mjs';
@@ -158,7 +161,7 @@ export function summarizeGeneratedPath(placed,survey,modelSummary) {
   return summary;
 }
 
-export const GENERATION_CONTRACT='saam-deposition/9';
+export const GENERATION_CONTRACT=PATH_CONTRACT;
 export function depositionInspection(results){
   const operations={};
   for(const result of results){
@@ -210,5 +213,6 @@ export function generatePath(plan, machine, rhino, {onProgress,modulations,modul
   const inventory=validateOperationBatch(results),prerequisites=prepareOperationDependencies(inventory.operations,inventory.byId,plan.composition);
   for(const [id,after] of prerequisites)for(const predecessor of after)requireThat(position.has(predecessor)&&position.get(predecessor)<position.get(id),'Final dependency was not scheduled before '+id+': '+predecessor);
   const finished=planFinishing(execution.state);
-  return planningPath(finished.state,[started.actions,startup.actions,execution.actions,finished.actions],{...summary,composition:{...execution.summary,operationOrder:order}});
+  const path=planningPath(finished.state,[started.actions,startup.actions,execution.actions,finished.actions],{...summary,composition:{...execution.summary,operationOrder:order}});
+  return completeMachinePath(path,plan,machine);
 }

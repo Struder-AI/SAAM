@@ -44,7 +44,7 @@ export async function checkSetup({log=console.log}={}) {
         face('front',[0,0,0],[0,0,2],[10,0,0],[10,0,2]),face('right',[10,0,0],[10,0,2],[10,10,0],[10,10,2]),
         face('back',[0,10,0],[0,10,2],[10,10,0],[10,10,2]),face('left',[0,0,0],[0,0,2],[0,10,0],[0,10,2])]};
       const plan=defaults();plan.geometry=box;
-      await initBundle(directory,plan);
+      await initBundle(directory,plan,{machineId:'ultimaker-s5'});
       const {createStudio}=await import('../studio/server.mjs');
       server=createStudio(directory);
       await new Promise((done,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',done);});

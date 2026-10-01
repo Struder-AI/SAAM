@@ -1143,6 +1143,29 @@ body.noside #side{display:none}
 #codepane details{margin:8px 14px;color:#475569}
 #codepane details summary{cursor:pointer;font-size:12px}
 #codepane details pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:8px 0}
+#codepane .interfaces{padding:16px;overflow-wrap:anywhere}
+#codepane .interface{border:1px solid #e2e8f0;border-radius:7px;padding:14px;margin-bottom:16px}
+#codepane .interface h3{margin:0 0 6px;font-size:15px}
+#codepane .interface-id{font:11px ui-monospace,Consolas,monospace;color:#64748b}
+#codepane .interface pre{padding:10px;margin:8px 0;background:#f8fafc;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
+#codepane .interface .entry{border-top:1px solid #e2e8f0;margin-top:14px;padding-top:8px}
+#codepane .interface h4{margin:8px 0;font:600 13px ui-monospace,Consolas,monospace}
+#codepane .interface details{margin:10px 0}
+#codepane .interface dt{font-size:11px;font-weight:650;color:#64748b;margin-top:14px}
+#codepane .interface dd{margin:4px 0;white-space:pre-wrap}
+#codepane .interface ul{margin:0;padding-left:20px}
+#codepane .endpoint{font:inherit;color:#0369a1;background:none;border:0;padding:0;cursor:pointer;text-align:left}
+#codepane .endpoint:hover{text-decoration:underline}
+#canvas.design .fm-edge,#canvas.design .fm-elab,.fm-wire-hit{cursor:pointer}
+#canvas.design .fm-edge.wire-hot{stroke:#0284c7;stroke-width:3.4;opacity:1}
+#canvas.design .fm-elab.wire-hot{opacity:1}
+#canvas.wire-focus .fm-node:not(.wire-end){opacity:.14}
+#canvas.wire-focus .fm-node.wire-end{opacity:1}
+#canvas.wire-focus .fm-node.wire-end rect:first-of-type{stroke:#0284c7;stroke-width:3.4}
+#canvas.wire-focus .fm-edge:not(.wire-hot){opacity:.07}
+#canvas.wire-focus .fm-elab:not(.wire-hot),#canvas.wire-focus .fm-endtag:not(.wire-hot){opacity:.12}
+#canvas.authored .fm-elab:not(.hot):not(.wire-hot){pointer-events:none}
+.fm-wire-hit:focus{outline:none;stroke:#38bdf8;stroke-opacity:.3}
 
 #back:disabled{opacity:.4;cursor:default}
 
@@ -1309,8 +1332,9 @@ function show(key,push,restore){const p=PAGES[key];if(!p)return false;
   let drawing=restore?restore.graph:(p.destination==='code'&&graphCur?graphCur:key);
   while(PAGES[drawing]&&PAGES[drawing].destination==='code')drawing=PAGES[drawing].p;
   load(drawing,()=>{if(version!==showVersion)return;
-    canvas.innerHTML=SVG[drawing]||'';cur=drawing;graphCur=drawing;pinId=null;jumped=[];hot(null);
+    canvas.innerHTML=SVG[drawing]||'';cur=drawing;graphCur=drawing;pinId=null;jumped=[];hot(null);highlightWire(null);
     canvas.classList.toggle('authored',!!PAGES[drawing].focus);
+    canvas.classList.toggle('design',DESIGN);
     document.getElementById('fit-all').hidden=!PAGES[drawing].focus;
     crumb.innerHTML=trail(drawing);showScore(PAGES[drawing].sc);
     const mapped=PAGES[drawing];
@@ -1359,10 +1383,30 @@ function walk(step){const from=pinId||hotId;if(!from)return;
   canvas.querySelectorAll('.at').forEach(el=>el.classList.remove('at'));
   const g=node(near[peerAt]);if(g)g.classList.add('at');
   centre(near[peerAt]);}
-stage.addEventListener('pointerover',e=>{if(pinId)return;
+function highlightWire(edge){
+  canvas.querySelectorAll('.wire-hot,.wire-end').forEach(w=>w.classList.remove('wire-hot','wire-end'));
+  canvas.classList.toggle('wire-focus',!!edge);
+  if(!edge)return;
+  const {a,b}=edge.dataset;
+  canvas.querySelectorAll(`[data-a="${CSS.escape(a)}"][data-b="${CSS.escape(b)}"]`)
+    .forEach(w=>w.classList.add('wire-hot'));
+  for(const id of [a,b])node(id)?.classList.add('wire-end');
+}
+stage.addEventListener('pointerover',e=>{
   const el=document.elementFromPoint(e.clientX,e.clientY),g=el&&el.closest('.fm-node');
-  hot(g?g.dataset.id:null);});
-stage.addEventListener('pointerleave',()=>{if(!pinId)hot(null);});
+  const edge=DESIGN&&el?.closest('.fm-edge,.fm-elab,.fm-wire-hit');
+  hot(edge?null:pinId??g?.dataset.id??null);
+  highlightWire(edge);});
+stage.addEventListener('pointerleave',()=>{highlightWire(null);hot(pinId);});
+stage.addEventListener('focusin',e=>{
+  const edge=e.target.closest('.fm-wire-hit');
+  if(edge){hot(null);highlightWire(edge);}
+});
+stage.addEventListener('focusout',e=>{if(e.target.closest('.fm-wire-hit')){highlightWire(null);hot(pinId);}});
+stage.addEventListener('keydown',e=>{
+  const edge=e.target.closest('.fm-wire-hit');
+  if(edge&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openContracts(edge.dataset.a,edge.dataset.b);}
+});
 
 /* -- pan / zoom ------------------------------------------------------------ */
 stage.addEventListener('wheel',e=>{if(e.target.closest('#codepane,#legendpane'))return;e.preventDefault();
@@ -1382,13 +1426,13 @@ stage.addEventListener('pointerup',()=>{down=null;stage.classList.remove('drag')
    hit-tested rather than read off the event. */
 stage.addEventListener('click',e=>{if(e.target.closest('#codepane,#legendpane')||moved)return;
   const el=document.elementFromPoint(e.clientX,e.clientY);if(!el)return;
-  const edge=el.closest('[data-a][data-b]');
-  if(edge&&DESIGN){openContracts(edge.dataset.a,edge.dataset.b);return;}
   if(el.closest('.fm-caller-unresolved'))return;
   /* A long wire is drawn as its two ends; its end tag names the other end and is the way
      to go and stand there. */
   const jump=el.closest('.fm-endtag[data-jump]');
   if(jump){standAt(jump.dataset.jump);return;}
+  const edge=el.closest('[data-a][data-b]');
+  if(edge&&DESIGN){openContracts(edge.dataset.a,edge.dataset.b);return;}
   const src=el.closest('.fm-src');
   if(src){const target=PAGES[src.dataset.key];
     if(target&&target.destination==='code')show(src.dataset.key);else openCode(src.dataset.ref);return;}
@@ -1479,10 +1523,26 @@ function openCode(ref,key){const cut=ref.lastIndexOf(':'),file=ref.slice(0,cut),
 function openContracts(from,to){
   const contracts=(PAGES[cur]?.contracts??[]).filter(w=>w.from===from&&w.to===to).flatMap(w=>w.contracts);
   if(!contracts.length)return;
-  closeCode();legendPane.classList.remove('on');codePane.classList.add('on');
-  codePane.innerHTML=`<div class="ch"><span class="x" onclick="dismissCode()">&times;</span><h3>${esc(from)} → ${esc(to)}</h3><p>Authored interfaces · inspect status and source evidence below</p></div>`+
-    contracts.map(c=>`<div style="padding:16px"><h3>${esc(c.id)} · ${esc(c.label)}</h3><p>${esc(c.fromIndex)} → ${esc(c.toIndex)}</p>`+
-      ['status','evidence','direction','access','operations','inputs','outputs','effects','failure','excludes'].filter(k=>c[k]!==undefined).map(k=>`<p><b>${esc(k)}</b><br>${esc(k==='access'?c[k].map(a=>a.fromIndex+' → '+a.toIndex).join('; '):Array.isArray(c[k])?c[k].join('; '):c[k])}</p>`).join('')+'</div>').join('');
+  const name=index=>PAGES[index]?.t??PAGES[cur]?.componentLabels?.[index]??index;
+  const endpoint=index=>PAGES[index]?`<button class="endpoint" data-go="${esc(index)}">${esc(name(index))}</button>`:esc(name(index));
+  closeCode();legendPane.classList.remove('on');
+  const version=sourceVersion;
+  need(()=>{if(version!==sourceVersion)return;
+  const entry=e=>{
+    if(e.unavailable)return `<p class="note">${esc(e.target)} · ${esc(e.unavailable)}</p>`;
+    const source=SRC[e.file]?.split('\\n').slice(e.line-1,e.endLine).join('\\n');
+    return `<article class="entry"><h4>${esc(e.name)}</h4><pre>${esc(e.signature)}</pre>`+
+      (e.returns.length?`<div class="interface-id">Returns</div>`+e.returns.map(r=>`<pre>${esc(r)}</pre>`).join(''):'')+
+      `<details><summary>Implementation · ${esc(e.file)}:${e.line}–${e.endLine}</summary><pre>${esc(source??'Source unavailable in this build.')}</pre></details></article>`;
+  };
+  codePane.innerHTML=`<div class="ch"><button class="x" onclick="dismissCode()" aria-label="Close interfaces">&times;</button>`+
+    `<div class="num">${contracts.length===1?'Interface':`Interface set · ${contracts.length} interfaces`}</div>`+
+    `<h3>${esc(name(from))} → ${esc(name(to))}</h3></div>`+
+    '<div class="cb interfaces">'+contracts.map(c=>`<section class="interface"><h3>${esc(c.label)}</h3>`+
+      `<p>${endpoint(c.fromIndex)} → ${endpoint(c.toIndex)}</p>`+
+      ((c.code??[]).length?c.code.map(entry).join(''):'<p class="note">No code entry is bound to this wire.</p>')+
+      '</section>').join('')+'</div>';
+  codePane.classList.add('on');});
 }
 function pageCode(){const p=PAGES[cur];if(p&&p.r)openCode(p.r,p.destination==='code'?cur:null);}
 function copy(t){navigator.clipboard.writeText(t);}
@@ -1639,7 +1699,7 @@ def emit(out, model, pages, svgs):
       <div class="lb">{legend}</div></div>
     <div id="minimap"></div>
     <div id="pin"></div>
-    <div id="hint">scroll = zoom · drag = pan · click a box = its page · click a box foot = its
+    <div id="hint">{"click a wire = its interface set · " if model.get("design") else ""}scroll = zoom · drag = pan · click a box = its page · click a box foot = its
       source · hover = its wires · x pin focus · ] [ next/previous end · \ back to the box ·
       click a wire's end tag = stand at its other end · Back previous map · f fit · 0 actual ·
       u up · esc close</div>
@@ -1703,6 +1763,7 @@ def build(model, out):
         pages[index]["externalConnections"] = {c["index"]: c.get("externalConnections", []) for c in p.get("components", []) if c.get("kind") == "external"}
         if p.get("design"):
             pages[index]["contracts"] = p["wires"]
+            pages[index]["componentLabels"] = {c["index"]: c["label"] for c in p["components"]}
         score = model.get("scores", {}).get(index)
         if score:
             pages[index]["sc"] = score

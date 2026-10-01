@@ -6,6 +6,7 @@ import {createHash} from 'node:crypto';
 import {parse} from 'acorn';
 import {guidanceSection} from '../../core/agent/manuals.mjs';
 import {mapSet,setFile,setName} from './map-set.mjs';
+import {interfaceCode} from './interface-code.mjs';
 
 // Explicit source references are previews, not implementation ownership or inferred calls.
 async function sourceReferences(repo,nodes) {
@@ -77,7 +78,12 @@ export async function designModel({repo}) {
   }
   const ancestor=(child,parent)=>parent==='0'||child===parent||child.startsWith(parent+'.');
   const endpoint=id=>nodes.get(id)?.index??`external:${id}`;
-  const {sources,spans,sourceInfo}=await sourceReferences(repo,nodes);
+  const bindingText=await readFile(resolve(repo,setFile('interfaces.json')),'utf8').catch(e=>{if(e.code==='ENOENT')return '{"bindings":[]}';throw e;});
+  const bindings=JSON.parse(bindingText).bindings??[];
+  const references=new Map(nodes);
+  for(const b of bindings)references.set(b.target,{id:b.target,source:{file:b.target.split('::')[0]}});
+  const {sources,spans,sourceInfo}=await sourceReferences(repo,references);
+  const entries=await interfaceCode(repo,bindings,sources);
   const pages=[];
   for(const p of [{index:'0',label:mapSet.title,description:spec.description},...nodes.values()]) {
     const children=[...nodes.values()].filter(n=>n.parent===p.index);
@@ -98,7 +104,7 @@ export async function designModel({repo}) {
         if(!visible.has(at))visible.set(at,nodes.get(id)??{...actors.get(id),id,index:at,type:'actor'});
       }
       const key=`${from}\0${to}`,wire=links.get(key)??{from,to,contracts:[],count:0,kinds:{contract:0}};
-      wire.contracts.push({...c,fromIndex:endpoint(c.from),toIndex:endpoint(c.to),...(c.access?{access:c.access.map(a=>({...a,fromIndex:endpoint(a.from),toIndex:endpoint(a.to)}))}:{}),status:c.status??'proposed; implementation unchecked'});
+      wire.contracts.push({...c,code:bindings.filter(b=>b.contract===c.id).map(b=>entries.get(b.target)),fromIndex:endpoint(c.from),toIndex:endpoint(c.to),...(c.access?{access:c.access.map(a=>({...a,fromIndex:endpoint(a.from),toIndex:endpoint(a.to)}))}:{}),status:c.status??'proposed; implementation unchecked'});
       wire.count++;wire.kinds.contract++;links.set(key,wire);
     }
     // Unbound terminal concepts retain their intent page; bound terminals preview source.
@@ -117,10 +123,10 @@ export async function designModel({repo}) {
       ...(spans.has(p.id)?{sourceSpan:spans.get(p.id)}:{}),
       components,wires,ports:[],...(layout?{layout}:{}),notes:p.notes??[]});
   }
-  const generatorFiles=['design.mjs','map-set.mjs','generated-view.mjs','generated-view.py','leveled.py','svg.py','flow.py','viewer.py','../../core/agent/manuals.mjs'];
+  const generatorFiles=['design.mjs','interface-code.mjs','graph.mjs','map-set.mjs','generated-view.mjs','generated-view.py','leveled.py','svg.py','flow.py','viewer.py','../../core/agent/manuals.mjs'];
   const generator=await Promise.all(generatorFiles.map(file=>readFile(resolve(repo,'dev-map/lib',file),'utf8')));
   const audit=JSON.parse(await readFile(resolve(repo,setFile('view/audit-status.json')),'utf8').catch(e=>{if(e.code==='ENOENT')return 'null';throw e;}));
-  const snapshotId=createHash('sha256').update(text+JSON.stringify(mapSet)+generator.join('\n')+JSON.stringify(sourceInfo)+JSON.stringify(audit&&{generated:audit.generated,totals:audit.totals})).digest('hex');
+  const snapshotId=createHash('sha256').update(text+bindingText+JSON.stringify(mapSet)+generator.join('\n')+JSON.stringify(sourceInfo)+JSON.stringify(audit&&{generated:audit.generated,totals:audit.totals})).digest('hex');
   return {design:true,auditAvailable:!!audit,audit,title:mapSet.title,generated:spec.date,snapshotId,pages,sources,sourceInfo,stale:{},
     changed:[],changedInputs:[],scores:{},regenerate:`node dev-map/cli.mjs build --set ${setName}`};
 }
@@ -162,6 +168,7 @@ export async function designCommand(command,args,{repo}) {
       const pages=JSON.parse(html.match(/const PAGES=(.*);\r?\nconst BUILT=/)?.[1]??'{}');
       const sourceScript=await readFile(resolve(repo,setFile('view/sources.js')),'utf8');
       const sources=JSON.parse(sourceScript.slice(7,-1));
+      for(const [file,text] of Object.entries(model.sources))if(sources[file]!==text)missing.push(`${file}: source snapshot`);
       for(const page of model.pages) {
         const span=page.sourceSpan;
         if(pages[page.index]?.destination!==page.destination)missing.push(`${page.index}: destination`);
@@ -172,6 +179,7 @@ export async function designCommand(command,args,{repo}) {
         const [,svg]=JSON.parse(`[${script.slice(6,-1)}]`);
         for(const c of page.components)if(!svg.includes(`data-id="${c.index}"`))missing.push(`${page.index}: box ${c.index}`);
         for(const w of page.wires)if(!svg.includes(`data-a="${w.from}" data-b="${w.to}"`))missing.push(`${page.index}: wire ${w.from} -> ${w.to}`);
+        if(JSON.stringify(pages[page.index]?.contracts)!==JSON.stringify(page.wires))missing.push(`${page.index}: interface code`);
       }
     }
     console.log(JSON.stringify({mode:'design',valid:true,pages:model.pages.length,viewer:current?'current':'missing or stale',...(args.includes('--viewer')?{undrawn:missing}:{}),implementation:model.auditAvailable?'partial map 0 audit available; run audit-check for freshness':'unchecked; no audit snapshot'}));

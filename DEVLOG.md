@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-10-01 — Integrate Bundle history and source interface viewer
+
+- Completed the pending bundle-dependencies-history merge, preserving Settings-owned snapshots and Studio's captured-byte Export. Bundle retains saved completed paths, dependency-aware artifact currency and revision-checked undo/redo. Geometry implementation remains in its separate worktree.
+- Wires have wider click targets, a bold hover/focus state and highlighted endpoints. Their scrollable pane shows bound source signatures, parameter defaults/destructuring and return expressions, with expandable implementations. Source snapshots and bindings participate in viewer freshness; unbound wires explicitly say no code entry is bound.
+- Reconciled stale workspace map entries with the existing explicit-dimension handoff. Audit: 2,956 declarations assigned, no missing/orphan assignments; 58 forbidden, 160 direction-review and 16,427 unknown findings remain, so conformance is not certified.
+- Verified in the coordinated shared checkout: real Trace generation, export-only path reuse, undo/redo, stale revision rejection and matching Bundle snapshot. All 55 bound code entries resolve; 92 viewer pages and their code/source snapshots pass coverage. Browser verified the Geometry → Toolpath pane, scrolling, one highlighted wire and two endpoints. No new tests, whole suite or physical printing. Lifecycle README: 256 → 255 lines; glossary unchanged at 31. No push.
+
 ## 2026-10-01 — Export the displayed Studio result
 
 - Ordinary Studio and the tour export the snapshot attached to the displayed result. One control owns availability; the tour only changes its label. Queued edits share the waiting-indicator projection. Once clicked, Export writes the captured bytes without checking current revisions, the manifest or pending work, and without approval persistence, promotion, regeneration or interpretation. Later edits and downloads cannot change those bytes.

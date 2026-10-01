@@ -907,12 +907,12 @@
     {
       "id": "export-prepare",
       "index": "8.2",
-      "label": "prepareMachinePath",
-      "description": "Installation startup, material changes and feed limits.",
+      "label": "Completed path admission",
+      "description": "Consume completed SAAMpath, check representation and device setup; no motion construction.",
       "type": "component",
       "source": {
         "file": "core/export/prepare-path.mjs",
-        "declaration": "prepareMachinePath"
+        "declaration": "checkedMachinePath"
       }
     },
     {
@@ -1207,16 +1207,16 @@
       "id": "bundle-views",
       "from": "bundle-edit",
       "to": "studio-projection",
-      "label": "snapshot / events",
+      "label": "persisted bundle snapshot",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
-        "snapshot / subscribe"
+        "loadBundleSnapshot"
       ],
-      "inputs": "Immutable revisioned part view and event cursor, including saved geometry and any saved toolpath.",
-      "outputs": "Part presentation data; subscription cancellation.",
-      "effects": "Subscription state remains in owner; Studio renders its own projection.",
-      "failure": "Recover missed events by snapshot; missing extension dependencies block regeneration, not inspection of available saved artifacts.",
-      "excludes": "No shared mutable object references.",
+      "inputs": "Bundle directory and program read options.",
+      "outputs": "One persisted revision: geometry/recipe, artifact currency, history navigation, checked program and confirmation, with source/presentation fingerprints.",
+      "effects": "Read-only; polling, pending requests and job progress remain Studio-private.",
+      "failure": "Invalid artifacts report their error; incomplete or stale saved state remains inspectable.",
+      "excludes": "No subscription API, private pending queues or job progress; no click-time Export currency gate.",
       "access": [
         {
           "from": "studio-projection",
@@ -1261,34 +1261,6 @@
       ],
       "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
       "implementation": "Job status and progress enter Studio by reads, worker messages and callbacks."
-    },
-    {
-      "id": "review-views",
-      "from": "bundle-review",
-      "to": "studio-projection",
-      "label": "review identity",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "publish review / export state"
-      ],
-      "inputs": "Current geometry/settings/path identity, pending-update state and export result.",
-      "outputs": "Visible review and export availability; hide Export as soon as an update is queued, using the waiting indicators’ same pending-update state.",
-      "effects": "Private render state only.",
-      "failure": "Pending or changed identity immediately removes export availability.",
-      "excludes": "Preview does not count as confirmation.",
-      "access": [
-        {
-          "from": "studio-projection",
-          "to": "bundle-review"
-        }
-      ],
-      "evidence": [
-        "studio/server.mjs",
-        "studio/state-response.mjs",
-        "core/print/review-state.mjs"
-      ],
-      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
-      "implementation": "Studio reads saved review identity and derives presentation; queued-update availability is Studio-private state."
     },
     {
       "id": "studio-render",
@@ -1938,14 +1910,13 @@
       "label": "create bundles",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
-        "workspacePrinter",
-        "createFromWorkspace"
+        "initBundle"
       ],
-      "inputs": "Geometry, explicit reproducible Trace construction, process intent, source parameters and construction requirements; target printer identity.",
-      "outputs": "New unconfirmed bundle identities; current printer-dimension relay is under owner review.",
-      "effects": "5 creates and owns shared part state; subsequent edits obey exclusive instance ownership.",
-      "failure": "Reject incomplete handoffs, existing directories and unsupported requirements. Construction identity detects breaking edits; explicit source detachment permits independent editing.",
-      "excludes": "No live workspace/Studio synchronization, simultaneous editing, automatic confirmation, or transient path as a substitute for a recipe. No direct Settings–Workspace wire is approved; workspacePrinter is a flagged relay, not an endorsed settings channel.",
+      "inputs": "Prepared geometry, explicit reproducible Trace recipe, process intent, source parameters and construction requirements.",
+      "outputs": "New unconfirmed bundle identities with no selected machine.",
+      "effects": "Bundle persists supplied components; subsequent edits use expected revisions.",
+      "failure": "Reject existing directories, invalid component identity and references.",
+      "excludes": "No live workspace/Studio synchronization, automatic confirmation, printer lookup or transient path as a substitute for a recipe.",
       "access": [
         {
           "from": "workspace-interface",
@@ -1953,12 +1924,12 @@
         }
       ],
       "evidence": [
-        "workspaces/server.mjs",
-        "core/print/workspace.mjs",
-        "workspaces/export-worker.mjs"
+        "workspaces/wing/handoff.mjs",
+        "workspaces/export-worker.mjs",
+        "core/print/workflow.mjs"
       ],
       "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
-      "implementation": "Creation exists. workspacePrinter relays live profile limits for height/chord and remains unresolved. Explicit workspace dimensions versus printer-derived sizing requires owner decision; no Settings → Workspace permission. Handoff machine selection also needs consideration."
+      "implementation": "Workspace owns explicit dimensions and constructs supplied components. Bundle stores them; machine selection is a later Settings operation."
     },
     {
       "id": "agent-context-onboard",

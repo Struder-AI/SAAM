@@ -50,7 +50,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).hr
   const options=variant==='wavy'?{exterior:'scalloped',waveDepthMm:.6,courses:36,loopsPerTurn:32,tileWidthMm:3.2,tileDepthMm:2.4,samplesPerLoop:40}:
     {exterior:variant};
   const plan=loopDemoPlan(options);
-  await initBundle(directory,plan);
+  await initBundle(directory,plan,{machineId:'ultimaker-s5'});
   const checked=await generateBundle(directory,{development:true});
   console.log(JSON.stringify({directory,moves:checked.moves,estimatedMinutes:checked.estimatedMinutes,
     variant,options,
