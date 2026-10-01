@@ -1,10 +1,10 @@
 # Dev maps
 
-Intent, scope, terms and the reading rules are owned by
-[DEVELOPER-CONTEXT.md](../DEVELOPER-CONTEXT.md), what remains by
-[BR-052](../build_request.md#br-052--complete-the-dev-map-against-the-2026-09-21-intent). This guide owns the commands, the addresses, what each
-read carries and authoring mechanics. Generation derives leaves, links, gates
-and source locations; authored grouping or the solver arranges them.
+Implementation-map intent: [DEVELOPER-CONTEXT.md](../DEVELOPER-CONTEXT.md);
+remaining work: [BR-052](../build_request.md#br-052--complete-the-dev-map-against-the-2026-09-21-intent).
+Target architecture and planned enforcement: [0.3.0](../plans/0.3.0.md).
+This guide owns commands, reads and authoring. Scanned maps derive code relationships;
+design maps describe proposed boundaries and never certify implementation.
 
 - `lib/`: source scanning, leaves (`leaves.mjs`), the tree (`tree.mjs`), the
   store, scoring, the solver and rendering.
@@ -154,26 +154,28 @@ read, a missing one reporting `sourceUnavailable`, not wrong line numbers.
 
 ## Authoring
 
-**Trees**, `tree.json`: `clusters` (`id`, `label`, `parent`), `leaves`
-(declaration → home), `repeats` (map → guests), optional `order` (map → node ids).
-The default solver arranges these only on request. Default placement puts new
-leaves beside their links, drops gone leaves, and dissolves empty/single-box
-clusters. Labels are authored; the solver cannot invent them.
+**Design sets**: `map.json` declares `mode: "design"`, `title`, `authoring: "manual"`; `architecture.json`
+owns stable node IDs, indexes, descriptions/types, actors, contracts and layout; empty/guidance nodes are valid.
+Contracts name endpoints, direction, operations, inputs/outputs, effects, failure and exclusions. Calls include
+declared responses; events may be separate. Nested endpoints lift without granting broader access.
+`build --set 030-architecture` draws the target; `030-deployment` draws deployment. `read INDEX|@design/ID|CONTRACT-ID`
+prints intent; `check --viewer` validates inputs, freshness and drawn coverage. `regenerate` rebuilds without scanning.
+No `solve`, `--code` or source evidence; inventory attachment and conformance enforcement remain planned.
 
-**Named sets**, `--set NAME` on any command: `sets/NAME/map.json` declares
-`title`, `scope` (exact generated leaf paths), optional `scanFiles` (scan boundary)
-and `authoring: "manual"` to disable solving. Select leaves after scanning;
-folded declarations cannot be selected separately. Every selected leaf needs
-an authored home. Unselected scanned connections remain externals, including
-callers the default map only counts. Each set has its own store and viewer.
-`toolpath-pipeline` is the manually authored example. Both sets use one viewer.
-Optional `tree.json.layout[mapId]` supplies `positions` keyed by cluster id,
-leaf path or external declaration path, each `{x,y,emphasis?}`; unpositioned boxes stay
-below. Optional `viewport: [x,y,width,height]` sets initial focus and `captions`
-adds `{x,y,text}` annotations. `build` applies position edits without scanning.
-Omitting layout keeps automatic placement. Fit frames the overview; Fit all includes
-every dependency. `map.json.externalLabels` keeps individual externals distinct;
-`externalGroups: [{id,label,prefixes}]` groups boundaries, retaining every member and link.
+**Scanned trees**: `tree.json` owns `clusters` (`id,label,parent`), `leaves` (declaration → home), `repeats`
+(map → guests), optional `order`. Placement adds leaves beside links, drops gone leaves and dissolves
+empty/single-box clusters. Solving requires owner request; labels are authored.
+
+**Scanned named sets**, `--set NAME`: `sets/NAME/map.json` declares `title`, `scope` (exact generated leaves),
+optional `scanFiles`, and `authoring: "manual"` to disable solving. Selected leaves need homes; folded declarations
+cannot be selected independently. Unselected connections stay external, including normally counted callers.
+Example: `toolpath-pipeline`. Each set owns its store/viewer.
+
+**Layout**: scanned `tree.json.layout[mapId]` keys positions by cluster/leaf/external identity; design
+`architecture.json.layout[index]` uses drawn indexes. Positions: `{x,y,emphasis?}`; viewport: `[x,y,width,height]`;
+captions: `{x,y,text}`. Unpositioned boxes stay below; absent layout uses automatic placement. `build` needs no scan.
+Fit frames the overview; Fit all includes dependencies. Scanned `externalLabels` names externals;
+`externalGroups` (`id,label,prefixes`) groups them, preserving every declaration/connection.
 
 **Facts**, `facts.tsv`: tab-separated `declaration kind fact source date`, for
 what the code cannot state. `kind` is `measurement`, `vendor` or `decision`
@@ -206,6 +208,4 @@ show scores; `score` prints the worst and best maps.
 
 ## The viewer
 
-`view/index.html` draws the stored maps in place, following declarations
-across renumbering; its index lists the top map and clusters.
-A leaf opens its source and helpers; an external opens members and connections.
+`view/index.html` follows declarations across renumbering. Leaves open source/helpers; externals open connections; design wires open contracts.

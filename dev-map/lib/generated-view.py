@@ -148,6 +148,23 @@ class MapPage(Page):
                 self.fan[end] = self.fan.get(end, 0) + 1
         def route(edge):
             a, b = self.index[edge["src"]], self.index[edge["dst"]]
+            if getattr(self, "design", False):
+                paired = any(e["src"] == edge["dst"] and e["dst"] == edge["src"] for e in self.edges)
+                if abs(b.cy - a.cy) > abs(b.cx - a.cx):
+                    down = b.cy > a.cy
+                    offset = (35 if down else -35) if paired else 0
+                    sx, sy = a.cx + offset, a.y + a.h if down else a.y
+                    dx, dy = b.cx + offset, b.y if down else b.y + b.h
+                    bend = (dy - sy) * .45
+                    return ([(sx, sy), (sx, sy + bend), (dx, dy - bend), (dx, dy)],
+                            ((sx + dx) / 2 + (55 if down else -55) if paired else (sx + dx) / 2, (sy + dy) / 2))
+                right = b.cx > a.cx
+                offset = (20 if right else -20) if paired else 0
+                sx, sy = a.x + a.w if right else a.x, a.cy + offset
+                dx, dy = b.x if right else b.x + b.w, b.cy + offset
+                bend = (dx - sx) * .45
+                return ([(sx, sy), (sx + bend, sy), (dx - bend, dy), (dx, dy)],
+                        ((sx + dx) / 2, (sy + dy) / 2))
             if (a.id.startswith("external:") or b.id.startswith("external:")) and abs(b.cy - a.cy) > 100:
                 down = b.cy > a.cy
                 sx, sy = a.cx, a.y + a.h if down else a.y
@@ -367,6 +384,7 @@ def build_page(packet, ctx):
     page = MapPage(stale, key=packet["index"], title=meta["t"], subtitle=meta["s"])
     page.context_pages = pages
     page.authored = packet.get("layout", {})
+    page.design = packet.get("design", False)
     page.key_line = meta["k"] + ("  ·  " + meta["d"] if meta["d"] else "")
     if packet.get("stateful"):
         page.key_line += " · stateful boundary"
@@ -448,6 +466,14 @@ def build_page(packet, ctx):
         # The top map and each cluster draw leaves and clusters, and at the edge a boundary box
         # for each node on another map that a link crosses to.
         for c in packet["components"]:
+            if c.get("kind") == "concept":
+                note = textwrap.fill(c.get("description", ""), 31)
+                style = "emphasis" if c.get("stateful") else "recv" if c.get("type") == "actor" else "stage"
+                node = unit(c["index"], c["label"], note, "", style, path=c["path"])
+                node.show_foot = False
+                if c.get("type") == "actor":
+                    node.num = ""
+                continue
             # A box whose code is in no single source file (a cluster, or externals from several
             # files) draws no line naming where it is: the list would outgrow the box.
             if c.get("kind") == "group":
@@ -805,6 +831,15 @@ def value_text(value):
 
 def lists(packet, page, pages):
     """What the stored packet holds beside its boxes and wires, printed as data."""
+    if packet.get("design"):
+        page.row("head", "Proposed architecture · implementation unchecked")
+        for line in textwrap.wrap(packet.get("description", ""), 115):
+            page.row("item", line)
+        for note in packet.get("notes", []):
+            for line in textwrap.wrap(note, 115):
+                page.row("item", line)
+        page.row("item", "Click any wire to inspect all of its proposed contracts. No wire grants transitive access.")
+        return
     # How this page came to be drawn: whether its wires are relationships rather than execution,
     # how many call sites are behind them, and where its grouping was authored. A reader who does
     # not know which kind of drawing this is would read every arrow wrong. A code destination is
@@ -1161,6 +1196,7 @@ const visits=[],visitSession=Date.now()+'-'+Math.random();
 let visitAt=-1,showVersion=0,sourceVersion=0;
 let liveFreshness=null;
 function freshnessMessage(now=Date.now()){
+  if(DESIGN)return {warning:'PROPOSED · implementation unchecked',source:'Authored intent; no scanned implementation evidence'};
   const status=liveFreshness,checked=status&&Date.parse(status.checkedAt);
   if(!status||!Number.isFinite(checked)||now<checked||now-checked>Math.min(status.validForMs||0,10000))
     return {warning:'Live freshness unavailable',source:'Snapshot source · live freshness unavailable'};
@@ -1183,6 +1219,7 @@ function updateFreshness(){
 function freshnessAt(status){liveFreshness=status;updateFreshness();}
 function pollFreshness(){
   updateFreshness();
+  if(DESIGN)return;
   const script=document.createElement('script');script.src='freshness.js?'+Date.now();
   script.onload=script.onerror=()=>{script.remove();updateFreshness();};document.head.appendChild(script);
 }
@@ -1343,6 +1380,8 @@ stage.addEventListener('pointerup',()=>{down=null;stage.classList.remove('drag')
    hit-tested rather than read off the event. */
 stage.addEventListener('click',e=>{if(e.target.closest('#codepane,#legendpane')||moved)return;
   const el=document.elementFromPoint(e.clientX,e.clientY);if(!el)return;
+  const edge=el.closest('[data-a][data-b]');
+  if(edge&&DESIGN){openContracts(edge.dataset.a,edge.dataset.b);return;}
   if(el.closest('.fm-caller-unresolved'))return;
   /* A long wire is drawn as its two ends; its end tag names the other end and is the way
      to go and stand there. */
@@ -1435,6 +1474,14 @@ function openCode(ref,key){const cut=ref.lastIndexOf(':'),file=ref.slice(0,cut),
         `<div class="cb">${body}</div>`;
       codePane.classList.add('on');};
     paint();});}
+function openContracts(from,to){
+  const contracts=(PAGES[cur]?.contracts??[]).filter(w=>w.from===from&&w.to===to).flatMap(w=>w.contracts);
+  if(!contracts.length)return;
+  closeCode();legendPane.classList.remove('on');codePane.classList.add('on');
+  codePane.innerHTML=`<div class="ch"><span class="x" onclick="dismissCode()">&times;</span><h3>${esc(from)} → ${esc(to)}</h3><p>Proposed contracts · implementation unchecked</p></div>`+
+    contracts.map(c=>`<div style="padding:16px"><h3>${esc(c.id)} · ${esc(c.label)}</h3><p>${esc(c.fromIndex)} → ${esc(c.toIndex)}</p>`+
+      ['direction','operations','inputs','outputs','effects','failure','excludes'].map(k=>`<p><b>${esc(k)}</b><br>${esc(Array.isArray(c[k])?c[k].join('; '):c[k])}</p>`).join('')+'</div>').join('');
+}
 function pageCode(){const p=PAGES[cur];if(p&&p.r)openCode(p.r,p.destination==='code'?cur:null);}
 function copy(t){navigator.clipboard.writeText(t);}
 
@@ -1551,10 +1598,16 @@ def emit(out, model, pages, svgs):
                     f' data-go="{escape(key, QUOTE)}" style="padding-left:{26 + 11 * depth(key)}px">'
                     f'{twisty}<span class="ix">{escape(key)}</span>'
                     f'{escape(p["t"].split(" ", 1)[-1])}</a>')
-    html = f"""<!doctype html><meta charset="utf-8"><title>SAAM generated map</title>
+    heading = model.get("title", "SAAM — the generated map")
+    legend = ("<p>Authored target architecture, not scanned implementation.</p>"
+              "<p>Boxes open submaps. Wires open every proposed contract, including exact nested endpoints. "
+              "A call includes its declared response; guidance and event arrows state their direction separately. "
+              "No transitive access is granted. Implementation conformance remains unchecked.</p>"
+              if model.get("design") else legend_html())
+    html = f"""<!doctype html><meta charset="utf-8"><title>{escape(heading)}</title>
 <style>{CSS}</style>
 <div id="side">
-  <h1>SAAM — the generated map</h1>
+  <h1>{escape(heading)}</h1>
   <div class="sub">{len(svgs)} graph pages · {len(pages) - len(svgs)} code destinations, stored {escape(model["generated"])}, drawn
     {escape(model.get("built", "")[:16].replace("T", " "))} UTC.
     <span id="freshness-status">Live freshness unavailable; snapshot remains readable.</span>
@@ -1580,7 +1633,7 @@ def emit(out, model, pages, svgs):
   <div id="stage"><div id="canvas"></div>
     <div id="codepane"></div>
     <div id="legendpane"><div class="lh">Legend<span class="x" onclick="toggleLegend()">&times;</span></div>
-      <div class="lb">{legend_html()}</div></div>
+      <div class="lb">{legend}</div></div>
     <div id="minimap"></div>
     <div id="pin"></div>
     <div id="hint">scroll = zoom · drag = pan · click a box = its page · click a box foot = its
@@ -1593,6 +1646,7 @@ def emit(out, model, pages, svgs):
 const PAGES={page_data};
 const BUILT={json.dumps(model.get("built", ""))};
 const SNAPSHOT_ID={json.dumps(model.get("snapshotId"))};
+const DESIGN={json.dumps(model.get("design", False))};
 {JS}
 </script>
 """
@@ -1619,6 +1673,8 @@ def build(model, out):
             sub = (f'{p["path"]} · {p["file"]}:{p["line"]}-{p["endLine"]} · {p["lines"]} lines · '
                    f'{len(p["components"])} components, {len(p["wires"])} wires')
             detail, ref = p["path"], f'{p["file"]}:{p["line"]}-{p["endLine"]}'
+        if p.get("design"):
+            sub = f'proposed architecture · {len(p["components"])} boxes · {len(p["wires"])} interfaces · implementation unchecked'
         parent = None
         cut = index
         while "." in cut:
@@ -1642,6 +1698,8 @@ def build(model, out):
             pages[index]["foldedCode"] = p["foldedCode"]
         pages[index]["externals"] = {c["index"]: c["externals"] for c in p.get("components", []) if c.get("kind") == "external"}
         pages[index]["externalConnections"] = {c["index"]: c.get("externalConnections", []) for c in p.get("components", []) if c.get("kind") == "external"}
+        if p.get("design"):
+            pages[index]["contracts"] = p["wires"]
         score = model.get("scores", {}).get(index)
         if score:
             pages[index]["sc"] = score

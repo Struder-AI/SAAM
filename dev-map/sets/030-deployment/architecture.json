@@ -1,0 +1,214 @@
+{
+  "schema": 1,
+  "date": "2026-09-30",
+  "description": "Proposed deployment shape, separate from the part-making architecture. Release & diagnostics service is a working name for the former relay. Activation/offline policy, supported OS matrix, diagnostic policy and distribution endpoint remain decisions to make.",
+  "actors": {
+    "agent": {
+      "label": "Desktop agent",
+      "description": "Codex or Claude Code executes user-requested installation."
+    }
+  },
+  "nodes": [
+    {
+      "id": "installer",
+      "index": "1",
+      "label": "Chat installer",
+      "description": "Version-pinned release instructions for a desktop agent.",
+      "type": "component"
+    },
+    {
+      "id": "installation",
+      "index": "2",
+      "label": "Local SAAM installation",
+      "description": "Release code; transactional update and rollback.",
+      "type": "component"
+    },
+    {
+      "id": "studio",
+      "index": "3",
+      "label": "Studio activation",
+      "description": "Invite entry and local activation status.",
+      "type": "component"
+    },
+    {
+      "id": "service",
+      "index": "4",
+      "label": "Release & diagnostics service",
+      "description": "Invite validation, update manifests and consented diagnostics.",
+      "type": "service"
+    },
+    {
+      "id": "library",
+      "index": "5",
+      "label": "Local extension library",
+      "description": "User versions/overrides survive release updates.",
+      "type": "component"
+    },
+    {
+      "id": "bundles",
+      "index": "6",
+      "label": "Local bundles",
+      "description": "Versioned recipes, assets, dependency locks and review artifacts.",
+      "type": "component"
+    },
+    {
+      "id": "sharing",
+      "index": "7",
+      "label": "Extension package exchange",
+      "description": "Export/import packages; promotion through release review.",
+      "type": "component"
+    }
+  ],
+  "contracts": [
+    {
+      "id": "install-release",
+      "from": "agent",
+      "to": "installer",
+      "label": "install URL",
+      "operations": [
+        "resolve release / install"
+      ],
+      "inputs": "Documented release URL and supported desktop/OS.",
+      "outputs": "Verified pinned package and install instructions.",
+      "effects": "Agent installs local files.",
+      "excludes": "No web agent runtime or executable bootstrap fetched without identity verification.",
+      "direction": "Caller → provider; declared response included.",
+      "failure": "Return a named failure; retain previous valid local content."
+    },
+    {
+      "id": "apply-package",
+      "from": "installer",
+      "to": "installation",
+      "label": "install / upgrade",
+      "operations": [
+        "stage / activate / rollback"
+      ],
+      "inputs": "Verified release, compatibility report and backup.",
+      "outputs": "Working local installation or restored previous version.",
+      "effects": "Release storage only; user data migrated only through explicit versioned migration.",
+      "excludes": "No overwrite of local bundles or extension edits.",
+      "direction": "Caller → provider; declared response included.",
+      "failure": "Return a named failure; retain previous valid local content."
+    },
+    {
+      "id": "activate",
+      "from": "studio",
+      "to": "service",
+      "label": "invite activation",
+      "operations": [
+        "activate"
+      ],
+      "inputs": "Invite code and minimal installation identity over authenticated transport.",
+      "outputs": "Scoped local activation credential.",
+      "effects": "Service activation state; credentials privately owned by local install.",
+      "excludes": "No chat relay, remote agent execution or printer access.",
+      "direction": "Caller → provider; declared response included.",
+      "failure": "Return a named failure; retain previous valid local content."
+    },
+    {
+      "id": "activation-ui",
+      "from": "studio",
+      "to": "installation",
+      "label": "store activation",
+      "operations": [
+        "save / status"
+      ],
+      "inputs": "Activation credential and status.",
+      "outputs": "Local readiness state.",
+      "effects": "Installation-private credential storage.",
+      "excludes": "No bundle mutation.",
+      "direction": "Caller → provider; declared response included.",
+      "failure": "Return a named failure; retain previous valid local content."
+    },
+    {
+      "id": "updates",
+      "from": "installation",
+      "to": "service",
+      "label": "update manifest",
+      "operations": [
+        "check / download"
+      ],
+      "inputs": "Current release/platform and authenticated installation identity.",
+      "outputs": "Versioned manifest, compatibility metadata and verified release artifact.",
+      "effects": "Private download cache.",
+      "excludes": "No update while a job is active; no forced loss of user data.",
+      "direction": "Caller → provider; declared response included.",
+      "failure": "Return a named failure; retain previous valid local content."
+    },
+    {
+      "id": "diagnostics",
+      "from": "installation",
+      "to": "service",
+      "label": "diagnostics",
+      "operations": [
+        "send consented diagnostics"
+      ],
+      "inputs": "Redacted diagnostics under visible user settings.",
+      "outputs": "Receipt and diagnostic status.",
+      "effects": "Explicit network upload.",
+      "excludes": "No bundle geometry, scripts, credentials or chat content by default.",
+      "direction": "Caller → provider; declared response included.",
+      "failure": "Return a named failure; retain previous valid local content."
+    },
+    {
+      "id": "resolve-local",
+      "from": "installation",
+      "to": "library",
+      "label": "resolve dependencies",
+      "operations": [
+        "list / resolve / migrate"
+      ],
+      "inputs": "Exact extension identity, API compatibility and requested migration.",
+      "outputs": "Pinned extension or actionable compatibility failure.",
+      "effects": "Versioned library storage and reversible migrations.",
+      "excludes": "No silent local override replacement.",
+      "direction": "Caller → provider; declared response included.",
+      "failure": "Return a named failure; retain previous valid local content."
+    },
+    {
+      "id": "open-local",
+      "from": "installation",
+      "to": "bundles",
+      "label": "open / migrate",
+      "operations": [
+        "open / save / migrate"
+      ],
+      "inputs": "Bundle identity, format version, assets and dependencies.",
+      "outputs": "Compatible bundle snapshot or explicit migration need.",
+      "effects": "Atomic saves and backed-up migration.",
+      "excludes": "No silent regeneration of confirmed programs.",
+      "direction": "Caller → provider; declared response included.",
+      "failure": "Return a named failure; retain previous valid local content."
+    },
+    {
+      "id": "export-extension",
+      "from": "library",
+      "to": "sharing",
+      "label": "package / import",
+      "operations": [
+        "package / inspect / import"
+      ],
+      "inputs": "Manifest, scripts, guidance, declared assets and version digest.",
+      "outputs": "Portable extension package or namespaced installed version.",
+      "effects": "Explicit local package import/export.",
+      "excludes": "No scripts hidden in bundles; imported scripts do not autorun.",
+      "direction": "Caller → provider; declared response included.",
+      "failure": "Return a named failure; retain previous valid local content."
+    },
+    {
+      "id": "promote-extension",
+      "from": "sharing",
+      "to": "service",
+      "label": "release candidate",
+      "operations": [
+        "submit explicit contribution"
+      ],
+      "inputs": "Tester-selected extension package and provenance/license.",
+      "outputs": "Reviewable contribution; later release may include an accepted version.",
+      "effects": "Explicit contribution upload only when requested.",
+      "excludes": "No automatic harvesting or promotion of local edits.",
+      "direction": "Caller → provider; declared response included.",
+      "failure": "Return a named failure; retain previous valid local content."
+    }
+  ]
+}

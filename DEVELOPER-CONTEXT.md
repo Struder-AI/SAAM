@@ -8,16 +8,15 @@ Start with [shared terms](GLOSSARY.md), **dev maps** and this file; open compone
 
 ### What the dev maps are for
 
-The dev maps are a visual knowledge graph of core and Studio, generated from
-source; each graph in it is a **map**. They exist so that a reviewer moves
-through the code an order of magnitude faster with several times the
-confidence, and so that an agent gets an orientation it can trust, because a
-person can trace the same path. The standard they are held to: for any code
-you are about to edit, the maps tell you where it is, what it does with what,
-and every consequence of changing it, without a separate trace and without
-anything extra in your head. They contain exactly everything, and nothing
-more. Map compatibility is worth adjusting how the code is written, within the
-rules under [Code shape](#code-shape).
+Implementation dev maps are a visual knowledge graph of core and Studio,
+generated from source; each graph is a **map**. Separately, [0.3.0](plans/0.3.0.md)
+introduces authored target-architecture sets; their proposed contracts are not
+scanned evidence. The glossary/rules below describe implementation maps.
+The goal is an order-of-magnitude faster review with greater confidence: the
+person and agent trace the same trustworthy path. For any code to edit, maps
+must show its location, interactions and every consequence of changing it,
+without a separate trace or hidden context: exactly everything, nothing more.
+Map compatibility warrants code changes within [Code shape](#code-shape).
 
 ### Dev map glossary
 

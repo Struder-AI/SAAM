@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-09-30 — Architecture-led 0.3.0 intent and design maps
+
+- Retargeted former feature intent to 0.4.0 and corrected active references. Owner accepted map 0; submaps/contracts remain provisional. Recorded shared bundle authority versus exclusive component state, top-down enforcement, separate versioned extensions and desktop deployment in plans/0.3.0.md.
+- Added design sets to the existing map CLI/viewer, with conceptual/guidance nodes, stable IDs, nested endpoint projection, inspectable/printable contracts and explicit unchecked implementation status. Architecture: 27 pages; separate deployment: 8. No inventory attachment or conformance scanner is claimed.
+- Checks in the shared checkout: both builds and design checks with viewer coverage pass (no undrawn boxes/wires); generated browser JavaScript parses; existing implementation map 0 remains readable; diff whitespace check passes. Owner reviewed map 0. Browser automation rejected the local-file URL; no automated click check, whole suite, new tests or hardware run. Scanner/renderer tooling is outside the product map; existing implementation snapshot remains stale from prior source changes.
+- Documentation: DEVELOPER-CONTEXT 215 → 214 lines; map guide 211 → 211; old intent retained as 0.4.0 (35 lines); replacement 0.3.0 intent 71 lines. Added intent is required by the owner's explicit request. Geometry consolidation task creation requested separately; no push/release.
+
 ## 2026-09-30 — 0.2.1 installer release
 
 - Owner authorized push, public publication and live relay update as 0.2.1, superseding the earlier unpublished local 0.2.1 candidates. Release packages are rebuilt from pushed commit `ebd4a84` in a detached worktree, using official Node v24.19.0.

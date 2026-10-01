@@ -20,7 +20,7 @@ export const unmappedAreas=[
 export const scanRoots=[...mappedRoots,...outsideRoots];
 const mappedPrefix=new RegExp(`^(${mappedRoots.join('|')})/`);
 const unmappedArea=path=>{const file=path.split('::')[0];return unmappedAreas.find(area=>area.contains(file));};
-const selectedFiles=new Set(mapSet?.scope.map(path=>path.split('::')[0])??[]);
+const selectedFiles=new Set(mapSet?.scope?.map(path=>path.split('::')[0])??[]);
 export const isMapped=file=>selectedFiles.has(file)||mappedPrefix.test(file)&&!unmappedArea(file);
 // The outside root a scanned but unmapped path belongs to, as a port names it: the unmapped area
 // when the path is inside one, otherwise its top-level root.
