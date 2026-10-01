@@ -72,7 +72,16 @@ export async function createGeometry(parameters) {
 // Reopen the stored file, rebuild the patches from it, and require the closed
 // shell they form to be the one the descriptor was written for. A file edited
 // outside SAAM fails here rather than being sliced as something else.
-export async function verifyGeometry(bytes, descriptor) {
+const verifiedGeometry=new Map();
+export async function verifyGeometry(bytes,descriptor){
+  const identity=hash({bytes:hash(bytes),descriptor});
+  if(verifiedGeometry.has(identity))return verifiedGeometry.get(identity);
+  await inspectGeometry(bytes,descriptor);
+  const evidence=Object.freeze({identity,checks:Object.freeze(['native-geometry-identity','native-geometry-round-trip'])});
+  if(verifiedGeometry.size>=4)verifiedGeometry.delete(verifiedGeometry.keys().next().value);
+  verifiedGeometry.set(identity,evidence);return evidence;
+}
+async function inspectGeometry(bytes, descriptor) {
   requireThat(hash(bytes) === descriptor.fileHash, 'Geometry file changed; reload the current geometry.');
   if(descriptor.nativeFile==='model.mesh.json') {
     const saved=JSON.parse(Buffer.from(bytes).toString('utf8'));

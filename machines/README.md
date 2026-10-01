@@ -19,13 +19,10 @@ PETG, ABS, ASA, PC and TPU entries remain setup-review material profiles.
 | [Ultimaker 2 Extended](./ultimaker-2-extended.json) | Original single 0.4 mm nozzle, 2.85 mm filament; 305 mm height | PLA / ABS | UltiGCode, with volumetric extrusion and firmware-owned material/startup settings |
 | [Ultimaker 3](./ultimaker-3.json) | One selected AA 0.4 core, 2.85 mm filament; 200 mm height | PLA / ABS | UM3-specific Griffin startup and shutdown |
 
-PLA is a default, not a fixed material requirement. Change `setup.material`
-together with nozzle/bed temperatures and the necessary process settings through
-the ordinary setup adjustment. Material selection does not automatically retune
-temperature, cooling, retraction or flow. TPU's flow cap is 2 mm³/s; the other
-listed materials use a conservative 4 mm³/s cap. UM3 material changes also need
-the correct material GUID before eventual Griffin output. Material windows are
-starting limits, not certification for every brand or a physical print result.
+PLA is a default. Material selection does not retune temperature, cooling,
+retraction or flow. SAAM preserves authored flow and dimensions; it applies no
+material-range gates. Export rejects temperatures above 350 °C. A particular
+firmware template can still require a material, GUID or temperature branch.
 
 These are the original **2 Extended** and standard **3**, not the 2+, Extended+,
 2+ Connect, 3 Extended or S3. UM3 hardware has two nozzles, but SAAM plans select

@@ -13,7 +13,7 @@ import {filamentSelection,assignedFilaments} from '../machine/filaments.mjs';
 import {planarPolicy} from '../path/builder.mjs';
 import {assignmentPlan,depositionAssignments} from './assignment-process.mjs';
 import {surveySurfaceDomain} from './surface-domains.mjs';
-import { validatePlan, VERSION } from './plan.mjs';
+import { compileRecipe, VERSION } from './plan.mjs';
 
 import {finalizedSliceResults} from './slice-deposition.mjs';
 import {geometrySelections} from '../geom/selections.mjs';
@@ -38,7 +38,7 @@ function primeLineResult(plan,machine){
 }
 
 export function preparePathGeometry(plan,machine,rhino) {
-  validatePlan(plan, machine);
+  ({plan,machine}=compileRecipe(plan,machine));
   if(!plan.geometry)return {placed:null,componentShells:null,bounds:null};
   const placed = translateShell(buildShell(rhino, plan.geometry), plan.placement.xMm, plan.placement.yMm);
   const componentShells=plan.geometry.shape==='assembly' ? new Map(plan.geometry.parts.map(part=>[part.id,
@@ -158,7 +158,7 @@ export function summarizeGeneratedPath(placed,survey,modelSummary) {
   return summary;
 }
 
-export const GENERATION_CONTRACT='saam-deposition/8';
+export const GENERATION_CONTRACT='saam-deposition/9';
 export function depositionInspection(results){
   const operations={};
   for(const result of results){

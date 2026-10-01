@@ -1,12 +1,11 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 
 
-// Operation-scoped nozzle settings use the same material and machine envelope
-// as startup. The shared interpreter consumes this set from the locked recipe.
-export function validateNozzleC(targetC,plan,machine){
-  const ranges=[machine.temperatureLimitsC.nozzle,machine.materials?.[plan.setup.material]?.nozzleC];
-  requireThat(Number.isFinite(targetC)&&ranges.every(r=>r&&targetC>=r[0]&&targetC<=r[1]),'Operation nozzle temperature outside machine/material limits.');
+// Temperature is bounded independently of material recommendations.
+export function validateTemperatureC(targetC){
+  requireThat(Number.isFinite(targetC)&&targetC>=0&&targetC<=350,'Temperature must be between 0 and 350 °C.');
 }
+export const validateNozzleC=validateTemperatureC;
 export function plannedNozzleTemperatures(plan){
   const settings=[...Object.values(plan.skills??{}).filter(s=>s.enabled),
     ...(plan.slices?.assignments??[])];

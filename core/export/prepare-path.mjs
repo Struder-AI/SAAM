@@ -1,3 +1,4 @@
+import {saamPath} from '../path/saampath.mjs';
 import {requireThat,distance} from '../private/export/numeric.mjs';
 // Export boundary: turn an authored SAAMpath into the selected installation's
 // startup, material-change and feed commands. The input path is never changed.
@@ -26,19 +27,18 @@ function depositionBounds(path,plan){
   return min.every(Number.isFinite)?{min,max}:path.summary?.boundsMm??null;
 }
 function limitMachineFeed(path,actions,plan,machine){
-  let from=path.initialPosition,process=plan.process;
+  let from=path.initialPosition;
   return actions.map(action=>{
-    if(action.kind==='toolChange'){process=checkedFilamentPlan(plan,machine,action.filament).process;return action;}
     if(action.kind!=='move')return action;
     const length=distance(from,action.to),delta=action.to.map((v,i)=>Math.abs(v-from[i]));
     let speed=action.speedMmS;
     for(let i=0;i<3;i++)if(delta[i]>0)speed=Math.min(speed,machine.maxFeedMmS['xyz'[i]]*length/delta[i]);
-    if(action.volumeMm3>0&&length>0)speed=Math.min(speed,process.maxFlowMm3S*length/action.volumeMm3);
     from=action.to;
     return {...action,speedMmS:speed,...(action.durationSeconds?{durationSeconds:Math.max(action.durationSeconds,length/speed)}:{})};
   });
 }
 export function prepareMachinePath(path,plan,machine){
+  path=saamPath(path);
   validateSetup(plan,machine,{required:true});
   const orientedOutput=plan.output==='denso-pacscript';
   const inputPoses=[path.initialPose,...path.actions.map(a=>a.pose)].filter(Boolean);
