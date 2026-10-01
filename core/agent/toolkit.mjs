@@ -160,7 +160,7 @@ export function printSummary(state, {includeGeometry = false, programChecked = t
   return {directory: state.dir, kind: state.kind, revision: state.revision, geometryHash:state.geometryHash,
     plan, planComplete: includeGeometry,
     geometry: {boundsMm: state.geometry?.boundsMm, nativeFile: state.geometry?.nativeFile},
-    machine: {id: state.machine.id, name: state.machine.name}, skills: state.skills,
+    machine: state.machine?{id: state.machine.id, name: state.machine.name}:null, skills: state.skills,
     toolpathApproved: lifecycle.toolpathApproved,
     generation: {record: state.review.generation, programChecked,
       current: lifecycle.current,
@@ -197,6 +197,7 @@ async function preparePrint({command, target, libraryRoot, recipe, stl, machine,
       const {createSTLBundle} = await import('../print/import-stl.mjs');
       const imported=importSTL?await importSTL({directory:prepared.directory,source:resolve(stl),machineId:machine,units})
         :await createSTLBundle(prepared.directory, resolve(stl), {...options, units,signal,progress:onProgress});
+      if(importSTL&&machine){const {changeMachine}=await import('../print/bundle.mjs');await changeMachine(prepared.directory,machine,{setupFile});}
       prepared.repaired=imported.repaired;
     } else {
       const adapter = await import('../print/bundle.mjs');

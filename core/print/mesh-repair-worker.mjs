@@ -1,6 +1,6 @@
 import {parentPort,workerData} from 'node:worker_threads';
 import {repairSTL,repairSTLFiles} from './repair-stl.mjs';
-import {importOrRepairSTLBundle} from './import-stl.mjs';
+import {prepareSTLImportInWorker} from '../geom/import-stl.mjs';
 await runMeshRepairWorker(parentPort,workerData);
 
 async function runMeshRepairWorker(port,job){
@@ -60,7 +60,7 @@ function initializeRepairWorkerChannel(port,geometry){
 async function executeRepairWorkerJob(job,options){
   const {mode,directory,source}=job;
   if(mode==='import'){
-    return await importOrRepairSTLBundle(directory,source,options);
+    return await prepareSTLImportInWorker(directory,source,options);
   }else if(mode==='files'){
     return await repairSTLFiles(directory,source,options);
   }else{

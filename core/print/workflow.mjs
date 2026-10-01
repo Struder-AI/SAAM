@@ -1,7 +1,8 @@
 import {requireThat} from '../private/bundle/numeric.mjs';
 // One print lifecycle for every geometry/generator adapter.
 import { readFile, mkdir, rename, access, rm,copyFile,readdir } from 'node:fs/promises';
-import {hashFile} from '../geom/stl-file.mjs';
+import {createReadStream} from 'node:fs';
+async function hashFile(path){const sha=createHash('sha256');for await(const chunk of createReadStream(path))sha.update(chunk);return sha.digest('hex');}
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -95,7 +96,7 @@ export function machineChangedReview(review, from, to, time = new Date().toISOSt
 }
 
 export function createBundleWorkflow(adapter) {
-  const {kind,defaults,validatePlan,createGeometry,verifyGeometry,generatePath,geometryTemplate,
+  const {kind,defaults,createGeometry,generatePath,geometryTemplate,
     version:VERSION,buildDate:BUILD_DATE,exportName:EXPORT_NAME,limitations:limitationsFor}=adapter;
   const machineFile=resolve(root,adapter.machineFile);
   const exportName=(plan,machine)=>{
@@ -121,22 +122,27 @@ async function proposedPlan(machineId, { setupFile } = {}) {
   const remembered = await rememberedSetup(setupFile ?? setupFor(machine), machine);
   return resolveInitialPlan(machine,{defaults,rememberedSetup:remembered});
 }
-async function initBundle(directory, plan, { setupFile, machineId, sourceBytes,sourcePath } = {}) {
+async function initBundle(directory, plan, { setupFile, machineId, sourceBytes,sourcePath,preparedGeometry,attachments=[] } = {}) {
   const dir = resolve(directory);
   try {
     await access(resolve(dir, 'plan.json'));
     throw new Error('Print already exists. Open it or choose another directory.');
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
 
+  let machineSnapshot;
   if(plan?.bundle){
     const {bundle,...recipe}=plan;
     plan=recipe;
-    machineId??=bundle.machine?.id;
+    machineSnapshot=bundle.machine;
   }
-  const machine = machineId?loadMachine(machineId):await json(machineFile);
-  setupFile??=setupFor(machine);
-  validatePlan(plan, machine);
-  const geometry = plan.geometry?await createGeometry(plan.geometry):null;
+  const machine = machineId?loadMachine(machineId):machineSnapshot??null;
+  requireThat(plan&&typeof plan==='object'&&!Array.isArray(plan),'Bundle contents must be a record.');
+  const geometry = preparedGeometry??(plan.geometry?await createGeometry(plan.geometry):null);
+  if(preparedGeometry)requireThat(hash(preparedGeometry.descriptor.parameters)===hash(plan.geometry)&&hash(preparedGeometry.bytes)===preparedGeometry.descriptor.fileHash,'Prepared geometry does not match the bundle recipe.');
+  for(const attachment of attachments){
+    requireThat(['repair/original.stl','repair/repaired.stl','repair/repair.json'].includes(attachment.file),'Unsupported import attachment.');
+    const target=resolve(dir,attachment.file);await mkdir(dirname(target),{recursive:true});await copyFile(attachment.sourcePath,target);
+  }
   if(originalSource(plan.geometry)){
     if(sourcePath){
       const target=resolve(dir,'geometry/source.stl'),temporary=target+'.tmp';await mkdir(dirname(target),{recursive:true});
@@ -304,26 +310,20 @@ async function validateBundleInput(input,previousCache) {
       requireThat(!geometry||geometry.file===`geometry/${geometry.hash}${nativeSuffix(geometry.descriptor)}`,'Invalid geometry artifact reference.');
       if(review.generation)requireThat(review.generation.file===exportArtifactPath(plan,machine,review.generation.exportHash),
         'Invalid generated program reference. Regenerate the print.');
-      const inputsHash=hash({plan,machine});
-      if(geometry&&cache.verifiedGeometryHash!==geometryHash){
-        cache.geometryChecks=(await verifyGeometry(bytes,geometry.descriptor))?.checks??[];
-        cache.verifiedGeometryHash=geometryHash;
-      }
-      if(cache.validatedInputsHash!==inputsHash){
-        validatePlan(plan,machine);
-        cache.validatedInputsHash=inputsHash;
-        cache.validatedPlanText=JSON.stringify(plan);
-      }
       requireThat(canonical(plan.geometry)===canonical(geometry?.descriptor.parameters),'Plan and geometry disagree. Rebuild the print geometry.');
       identity={key:identityKey,geometryHash,generationHash:hash({plan,machine,geometryHash,...(adapter.generationContract?{generationContract:adapter.generationContract}:{})})};
       cache.identity=identity;
     }
-    return {dir,plan,machine,geometry:geometry?.descriptor??null,geometryArtifact:geometry,geometryChecks:geometry?cache.geometryChecks??[]:[],review,identity,cache};
+    return {dir,plan,machine,geometry:geometry?.descriptor??null,geometryArtifact:geometry,geometryChecks:[],review,identity,cache};
   } catch(error) {return {cache,error};}
 }
 
 async function describeBundle({dir,plan,machine,geometry,geometryArtifact,geometryChecks,review,identity},program) {
   const {geometryHash,generationHash}=identity;
+  if(!machine){
+    const state={kind,dir,plan,machine:null,geometry,geometryChecks,review,geometryHash,generationHash,programChecked:false,exportName:null,limitations:[],skills:[],toolpathApproved:false,revision:hash({geometryHash,generationHash,review}),setupBasis:null,outputAvailability:'Ask the agent to supply a printer, material and toolpath recipe.'};
+    Object.defineProperty(state,'geometryArtifact',{value:geometryArtifact,enumerable:false});return state;
+  }
   const state = {
     kind, dir, plan, machine, geometry, geometryChecks, review, geometryHash, generationHash, programChecked:Boolean(program&&review.generation),
     exportName: exportName(plan,machine), limitations: limitationsFor(plan, machine),
@@ -341,7 +341,7 @@ async function describeBundle({dir,plan,machine,geometry,geometryArtifact,geomet
   }
   state.toolpathApproved = false;
   state.revision = hash({ geometryHash, generationHash, review });
-  state.setupBasis = plan.setup.startupVerified
+  state.setupBasis = plan.setup?.startupVerified
     ? 'Confirmed startup behavior'
     : machine.startup.validation;
 
@@ -428,6 +428,7 @@ async function bundleFingerprint(directory, options) {
 
 async function rememberSetup(directory, { setupFile, source = 'User setup supplied through chat' } = {}) {
   const state = await loadBundle(directory, { program: false });
+  requireThat(state.machine&&state.plan.setup,'Choose a machine and setup before remembering settings.');
   setupFile??=setupFor(state.machine);
   await save(setupFile, {
     schema: 'saam-machine-setup/1', machineId: state.machine.id, setup: state.plan.setup,
@@ -446,6 +447,7 @@ async function checkPathBundle(directory, {onProgress} = {}) {
 
 async function prepareGeneration(directory,{onProgress}={}){
   const state=await loadBundle(directory,{program:false});
+  requireThat(state.machine,'Supply a machine, material and toolpath recipe before generation.');
   const key=hash([state.dir,state.generationHash]);
   if(preparation?.key!==key)preparation={key};
   const candidate=preparation;
@@ -471,7 +473,7 @@ async function adjustBundle(directory, patch, { setupFile, expectedRevision } = 
   if(expectedRevision!==undefined)requireThat(expectedRevision===state.revision,'This review is stale. Reload before changing the print.');
   const plan = applyPlanPatch(state.plan, patch, geometryTemplate);
   const updated=await updatePlan(directory, plan, state.revision);
-  if (patch.setup) await rememberSetup(directory, { setupFile });
+  if (patch.setup&&state.machine) await rememberSetup(directory, { setupFile });
   return updated;
 }
 
@@ -491,7 +493,7 @@ async function updatePlan(directory, plan, revision) {
 
 function validatePlanUpdate(state, candidate) {
   const plan = structuredClone(candidate);
-  validatePlan(plan, state.machine);
+  requireThat(plan&&typeof plan==='object'&&!Array.isArray(plan),'Bundle contents must be a record.');
   const changed = canonical(plan) !== canonical(state.plan);
   const geometryChanged = changed && canonical(plan.geometry) !== canonical(state.plan.geometry);
   return {plan, changed, geometryChanged};
@@ -642,8 +644,7 @@ async function changeMachine(directory,machineId,{expectedRevision,setupFile}={}
   if(expectedRevision!==undefined)requireThat(expectedRevision===state.revision,'This review is stale. Reload before changing the printer.');
   const machine=loadMachine(machineId),remembered=await rememberedSetup(setupFile??setupFor(machine),machine);
   const plan=resolveMachinePlan(state.plan,state.machine,machine,{defaults,rememberedSetup:remembered});
-  validatePlan(plan,machine);
-  const review=machineChangedReview(state.review,state.machine.id,machineId);
+  const review=machineChangedReview(state.review,state.machine?.id??null,machineId);
   await saveManifest(state.dir,{plan,machine,review,geometry:state.geometryArtifact});
   return loadBundle(directory,{program:false});
 }

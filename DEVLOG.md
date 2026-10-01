@@ -1,5 +1,14 @@
 # Development log
 
+## 2026-10-01 — Direct STL import and operation-scoped recipe validation
+
+- Added the approved Studio → Geometry import interface and external STL input. Geometry owns decoding, explicit repair, native construction and scratch; Studio commits completed artifacts through Bundle. Removed the Bundle import worker relay.
+- Import now creates a geometry-only bundle with no selected printer or invented recipe. Removed Studio's printer catalog/picker. Agent commands may separately select a machine; partial settings survive that selection.
+- Removed full recipe admission from bundle creation, reopening, edits and machine selection. Generation still compiles its required recipe. Storage retains artifact identity, source retention and revision checks; reopening no longer repeats geometric validation. Patches can introduce absent components. Export controls hide against the existing pending-update signal.
+- Verified in the isolated architecture checkout: existing targeted STL importer case passed; actual clean/repaired imports, partial edit/reopen, explicit machine selection and generation rejection for a missing recipe; Studio HTTP state and browser rendering of the geometry-only bundle. Changed modules passed syntax checks. No new tests or full suite.
+- Map audit: 2,920 leaves assigned, zero missing/orphan assignments; 97 forbidden findings, 252 direction reviews and 16,348 unknown effects. Remaining findings include exporter/toolpath responsibilities, Studio helpers, settings access and mediated context data-flow. Conformance is not certified.
+- Outstanding architecture: separate completed SAAMpath from export, move export motion into Toolpath, finish settings ownership, dependency-aware invalidation, and review workspace printer lookup plus geometry-only extension routing. Undo/redo was recommended for Bundle but is not implemented. Legacy creation callers relying on an implicit printer need explicit choices or incomplete-bundle handling; broad compatibility checks remain.
+
 ## 2026-10-01 — Settings bucket, context ownership and Studio hook removal
 
 - Added owner-approved map-0 bucket 9 for Machine & material settings, with Agent → Settings → Bundle and Settings → Maker context capability information. Kept Agent ↔ Bundle for active-bundle switching and state reads; removed direct-edit entry bindings. Recorded completed explicit motion planning in 3 as the accepted target, with Export's remaining motion construction still a migration finding.

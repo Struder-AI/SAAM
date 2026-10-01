@@ -82,7 +82,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(`Print: ${directory}`);
       console.log(`Open Studio with: npm run studio -- ${directory}`);
     } else if (command === 'change-machine') {
-      const from=(await loadBundle(bundleDirectory(),{program:false})).machine.id;
+      const from=(await loadBundle(bundleDirectory(),{program:false})).machine?.id??null;
       const state=await changeMachine(bundleDirectory(),argument,{expectedRevision});
       console.log(report(state));
       const hint=await printHint(root,state,from);if(hint)console.log(hint);

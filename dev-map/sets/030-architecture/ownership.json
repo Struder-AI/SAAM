@@ -199,10 +199,6 @@
       "owner": "geometry",
       "reason": "Public geometry query/import/repair entry; mixed section-query methods need review."
     },
-    "core/geom/stl-file.mjs": {
-      "owner": "geometry",
-      "reason": "Public geometry query/import/repair entry; mixed section-query methods need review."
-    },
     "core/geom/mesh-repair.mjs": {
       "owner": "geometry",
       "reason": "Public geometry query/import/repair entry; mixed section-query methods need review."
@@ -1338,6 +1334,10 @@
     "skills/pipe-cladding/SKILL.md": {
       "owner": "context",
       "reason": "Maker-facing guidance, regardless of physical directory."
+    },
+    "core/print/stl-file.mjs": {
+      "owner": "bundle",
+      "reason": "Source IO, identity and progress; geometry receives bytes or decoded values."
     }
   },
   "leaves": {
@@ -2392,9 +2392,6 @@
     "core/export/griffin-player.mjs::applyGcodeCommand::only": {
       "owner": "export"
     },
-    "core/export/griffin-player.mjs::fmt": {
-      "owner": "export"
-    },
     "core/export/griffin-player.mjs::gcodeProgram": {
       "owner": "export"
     },
@@ -2447,15 +2444,6 @@
       "owner": "export"
     },
     "core/export/griffin.mjs::fmt": {
-      "owner": "export"
-    },
-    "core/export/griffin.mjs::number": {
-      "owner": "export"
-    },
-    "core/export/griffin.mjs::validatePath": {
-      "owner": "export"
-    },
-    "core/export/griffin.mjs::validatePath::point": {
       "owner": "export"
     },
     "core/export/machine-study.mjs::@module": {
@@ -3940,21 +3928,6 @@
     "core/geom/stl-decoder.mjs::STLDecoder::write": {
       "owner": "geometry"
     },
-    "core/geom/stl-file.mjs::@module": {
-      "owner": "geometry"
-    },
-    "core/geom/stl-file.mjs::decodeFile": {
-      "owner": "geometry"
-    },
-    "core/geom/stl-file.mjs::decodeFile::@default/progress": {
-      "owner": "geometry"
-    },
-    "core/geom/stl-file.mjs::decodeSTLFile": {
-      "owner": "geometry"
-    },
-    "core/geom/stl-file.mjs::hashFile": {
-      "owner": "geometry"
-    },
     "core/geom/surface-derivatives.mjs::@module": {
       "owner": "geometry"
     },
@@ -4586,13 +4559,7 @@
     "core/machine/rules.mjs::feederSelector": {
       "owner": "export"
     },
-    "core/machine/rules.mjs::lineWidthLimits": {
-      "owner": "export"
-    },
     "core/machine/rules.mjs::planarWallTolerance": {
-      "owner": "export"
-    },
-    "core/machine/rules.mjs::range": {
       "owner": "export"
     },
     "core/machine/rules.mjs::requireMachine": {
@@ -5282,9 +5249,6 @@
     "core/path/process-controls.mjs::requireProcessControl": {
       "owner": "toolpath"
     },
-    "core/path/process-controls.mjs::validateNozzleC": {
-      "owner": "toolpath"
-    },
     "core/path/spacing.mjs::@module": {
       "owner": "toolpath"
     },
@@ -5544,22 +5508,16 @@
       "owner": "geometry"
     },
     "core/print/import-stl.mjs::@module": {
-      "owner": "bundle"
+      "owner": "agent",
+      "reason": "Agent command coordinates direct Geometry preparation and Bundle persistence."
     },
     "core/print/import-stl.mjs::createSTLBundle": {
-      "owner": "bundle"
-    },
-    "core/print/import-stl.mjs::importOrRepairSTLBundle": {
-      "owner": "bundle"
-    },
-    "core/print/import-stl.mjs::importOrRepairSTLBundle::repairReport.progress": {
-      "owner": "bundle"
+      "owner": "agent",
+      "reason": "Agent command coordinates direct Geometry preparation and Bundle persistence."
     },
     "core/print/import-stl.mjs::importSTLBundle": {
-      "owner": "bundle"
-    },
-    "core/print/import-stl.mjs::repairable": {
-      "owner": "bundle"
+      "owner": "agent",
+      "reason": "Agent command coordinates direct Geometry preparation and Bundle persistence."
     },
     "core/print/import-stl.mjs::setSTLUnits": {
       "owner": "bundle"
@@ -6073,10 +6031,6 @@
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
     "core/print/workflow.mjs::createBundleWorkflow::exportName": {
-      "owner": "bundle",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
-    "core/print/workflow.mjs::createBundleWorkflow::fitLineWidthToSetup": {
       "owner": "bundle",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
@@ -7613,9 +7567,6 @@
     "studio/app.mjs::@handler/canvas.wheel": {
       "owner": "studio"
     },
-    "studio/app.mjs::@handler/close-machine-picker.onclick": {
-      "owner": "studio"
-    },
     "studio/app.mjs::@handler/close-picker.onclick": {
       "owner": "studio"
     },
@@ -7644,9 +7595,6 @@
       "owner": "studio"
     },
     "studio/app.mjs::@handler/import-stl.onclick": {
-      "owner": "studio"
-    },
-    "studio/app.mjs::@handler/machine-form.onsubmit": {
       "owner": "studio"
     },
     "studio/app.mjs::@handler/machine-view.onchange": {
@@ -7743,9 +7691,6 @@
       "owner": "studio"
     },
     "studio/app.mjs::cancelCanvasDrag": {
-      "owner": "studio"
-    },
-    "studio/app.mjs::choosePrinter": {
       "owner": "studio"
     },
     "studio/app.mjs::chooseSTL": {
@@ -8892,9 +8837,6 @@
       "owner": "studio"
     },
     "studio/server.mjs::createStudio::workIdFor": {
-      "owner": "studio"
-    },
-    "studio/server.mjs::importMachines": {
       "owner": "studio"
     },
     "studio/server.mjs::listPrints": {
@@ -10430,6 +10372,88 @@
     "core/private/settings/numeric.mjs::requireThat": {
       "owner": "settings",
       "reason": "Private settings assertion helper."
+    },
+    "core/path/process-controls.mjs::validateTemperatureC": {
+      "owner": "toolpath",
+      "reason": "Reviewed checks-refactor declaration: SAAMpath admission/process semantics."
+    },
+    "core/path/saampath.mjs::@module": {
+      "owner": "toolpath",
+      "reason": "Reviewed checks-refactor declaration: SAAMpath admission/process semantics."
+    },
+    "core/path/saampath.mjs::freeze": {
+      "owner": "toolpath",
+      "reason": "Reviewed checks-refactor declaration: SAAMpath admission/process semantics."
+    },
+    "core/path/saampath.mjs::pathAction": {
+      "owner": "toolpath",
+      "reason": "Reviewed checks-refactor declaration: SAAMpath admission/process semantics."
+    },
+    "core/path/saampath.mjs::point": {
+      "owner": "toolpath",
+      "reason": "Reviewed checks-refactor declaration: SAAMpath admission/process semantics."
+    },
+    "core/path/saampath.mjs::saamPath": {
+      "owner": "toolpath",
+      "reason": "Reviewed checks-refactor declaration: SAAMpath admission/process semantics."
+    },
+    "core/print/geometry.mjs::inspectGeometry": {
+      "owner": "geometry",
+      "reason": "Reviewed checks-refactor declaration: Geometry inspection."
+    },
+    "core/print/plan.mjs::compileRecipe": {
+      "owner": "bundle",
+      "reason": "Reviewed checks-refactor declaration: Recipe admission cache and immutable bundle value."
+    },
+    "core/print/plan.mjs::freezeRecipe": {
+      "owner": "bundle",
+      "reason": "Reviewed checks-refactor declaration: Recipe admission cache and immutable bundle value."
+    },
+    "core/print/plan.mjs::validateRecipeValue": {
+      "owner": "bundle",
+      "reason": "Reviewed checks-refactor declaration: Recipe admission cache and immutable bundle value."
+    },
+    "core/geom/stl-file.mjs::@module": {
+      "owner": "geometry"
+    },
+    "core/geom/stl-file.mjs::decodeFile": {
+      "owner": "geometry"
+    },
+    "core/geom/stl-file.mjs::decodeFile::@default/progress": {
+      "owner": "geometry"
+    },
+    "core/geom/stl-file.mjs::decodeSTLFile": {
+      "owner": "geometry"
+    },
+    "core/geom/stl-file.mjs::hashFile": {
+      "owner": "geometry"
+    },
+    "core/geom/import-stl.mjs::prepareSTLImport": {
+      "owner": "geometry"
+    },
+    "core/geom/import-stl.mjs::prepareSTLImportInWorker": {
+      "owner": "geometry"
+    },
+    "core/geom/import-stl.mjs::prepareSTLImportInWorker::decode": {
+      "owner": "geometry"
+    },
+    "core/geom/import-stl.mjs::prepareSTLImportInWorker::prepare": {
+      "owner": "geometry"
+    },
+    "core/geom/import-stl.mjs::prepareSTLImportInWorker::progress": {
+      "owner": "geometry"
+    },
+    "core/geom/import-stl.mjs::releaseSTLImport": {
+      "owner": "geometry"
+    },
+    "core/geom/import-stl.mjs::repairable": {
+      "owner": "geometry"
+    },
+    "core/print/import-stl.mjs::commitSTLImport": {
+      "owner": "bundle"
+    },
+    "core/print/workflow.mjs::hashFile": {
+      "owner": "bundle"
     }
   },
   "retiredAssignments": [
@@ -10555,7 +10579,22 @@
     "core/print/slice-deposition.mjs::constructDepositionWork::@default/operationDependencies",
     "core/print/extension-edits.mjs::applyExtensionEdit::plan.buildGeometry",
     "core/print/import-stl.mjs::geometryFromSTL",
-    "core/print/import-stl.mjs::inferSTLUnits"
+    "core/print/import-stl.mjs::inferSTLUnits",
+    "core/export/griffin-player.mjs::fmt",
+    "core/export/griffin.mjs::number",
+    "core/export/griffin.mjs::validatePath",
+    "core/export/griffin.mjs::validatePath::point",
+    "core/machine/rules.mjs::lineWidthLimits",
+    "core/machine/rules.mjs::range",
+    "core/path/process-controls.mjs::validateNozzleC",
+    "core/print/workflow.mjs::createBundleWorkflow::fitLineWidthToSetup",
+    "core/print/import-stl.mjs::importOrRepairSTLBundle",
+    "core/print/import-stl.mjs::importOrRepairSTLBundle::repairReport.progress",
+    "core/print/import-stl.mjs::repairable",
+    "studio/app.mjs::@handler/close-machine-picker.onclick",
+    "studio/app.mjs::@handler/machine-form.onsubmit",
+    "studio/app.mjs::choosePrinter",
+    "studio/server.mjs::importMachines"
   ],
   "scope": "map 0 only; no submap ownership constraints"
 }

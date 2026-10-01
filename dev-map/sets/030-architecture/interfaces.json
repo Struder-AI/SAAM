@@ -395,14 +395,6 @@
    "evidence": "Engine entry implemented for extension contributions; atomic acceptance stays in Bundle."
   },
   {
-   "contract": "geometry-bundle",
-   "target": "core/geom/import-stl.mjs::prepareImportedGeometry",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Engine entry implemented for extension contributions; atomic acceptance stays in Bundle."
-  },
-  {
    "contract": "workspace-geometry",
    "target": "core/geom/polygon-chords.mjs::polygonChords",
    "kinds": [
@@ -449,6 +441,30 @@
     "call"
    ],
    "evidence": "Existing manual-section filtering reads printer capabilities; approved context input."
+  },
+  {
+   "contract": "studio-import",
+   "target": "core/geom/import-stl.mjs::prepareSTLImport",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Studio directly invokes the Geometry import boundary; Bundle only persists completed artifacts."
+  },
+  {
+   "contract": "studio-import",
+   "target": "core/geom/import-stl.mjs::releaseSTLImport",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Studio directly invokes the Geometry import boundary; Bundle only persists completed artifacts."
+  },
+  {
+   "contract": "studio-commands",
+   "target": "core/print/import-stl.mjs::commitSTLImport",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Persist a completed import candidate; no engine dispatch."
   }
  ]
 }

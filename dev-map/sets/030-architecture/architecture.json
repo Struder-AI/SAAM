@@ -14,6 +14,10 @@
     "resources": {
       "label": "External resources",
       "description": "Thingi10K and other asset/data sources; network or local resource providers."
+    },
+    "stl-file": {
+      "label": "STL file",
+      "description": "A user-selected local STL supplied to Studio by file selection or drop; import processing is internal."
     }
   },
   "nodes": [
@@ -621,7 +625,7 @@
       "id": "bundle",
       "index": "5",
       "label": "Active bundle",
-      "description": "Only shared part-state authority; revisioned commands and views.",
+      "description": "Stores supplied part components, artifacts and revisioned review state; completeness is required only by consuming operations.",
       "type": "component",
       "stateful": true,
       "notes": [
@@ -4394,6 +4398,50 @@
           "to": "settings"
         }
       ]
+    },
+    {
+      "id": "stl-studio",
+      "from": "stl-file",
+      "to": "studio-ui",
+      "label": "select / drop STL",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "select file / drop file"
+      ],
+      "inputs": "User-selected STL bytes and filename.",
+      "outputs": "An explicit Studio import request.",
+      "effects": "Studio requests explicit import/repair from Geometry and saves the completed result in Bundle.",
+      "failure": "Report unreadable or malformed input without replacing the current valid bundle.",
+      "excludes": "The external file executes no code and has no access to shared state.",
+      "access": [
+        {
+          "from": "studio-ui",
+          "to": "stl-file"
+        }
+      ]
+    },
+    {
+      "id": "studio-import",
+      "from": "studio-ui",
+      "to": "geometry-api",
+      "label": "import STL",
+      "direction": "Causal flow: Studio requests explicit geometry import; the completed geometry returns to Studio.",
+      "operations": [
+        "prepareSTLImport",
+        "releaseSTLImport"
+      ],
+      "inputs": "Selected STL source, explicit or assumed millimetre units, progress and cancellation.",
+      "outputs": "Completed native geometry, provenance and optional explicit repair artifacts.",
+      "effects": "Geometry decodes, explicitly repairs eligible defects and constructs native geometry in private scratch. Studio creates a geometry-only bundle from the completed artifacts; no machine or recipe is invented.",
+      "failure": "Release scratch and preserve the current bundle on failure or cancellation.",
+      "excludes": "No Bundle import relay, direct Geometry writes to Bundle or implicit repair during generation.",
+      "access": [
+        {
+          "from": "studio-ui",
+          "to": "geometry-api"
+        }
+      ],
+      "authorship": "Owner approved direct Studio → Geometry import."
     }
   ],
   "layout": {
@@ -4447,13 +4495,17 @@
         "external:resources": {
           "x": 35,
           "y": 835
+        },
+        "external:stl-file": {
+          "x": 1260,
+          "y": 960
         }
       },
       "viewport": [
         0,
         0,
         1570,
-        1040
+        1190
       ]
     }
   }

@@ -7,7 +7,7 @@ export function mergeRecord(previous,changes,{geometryTemplate,key}={}){
   requireThat(record(changes),'Adjustment must be an object.');
   const target={...previous};
   for(const [field,value] of Object.entries(changes)){
-    requireThat(Object.hasOwn(target,field),`Unknown setting: ${field}`);
+    if(!Object.hasOwn(target,field)){target[field]=structuredClone(value);continue;}
     const current=target[field];
     if(key==='geometry'&&field==='shape'&&typeof value==='string'&&value!==previous.shape){
       const template=geometryTemplate(value,changes);
@@ -48,6 +48,7 @@ export function resolveInitialPlan(machine,{defaults,rememberedSetup}){
 
 export function resolveMachinePlan(previous,previousMachine,machine,{defaults,rememberedSetup}){
   const proposal=resolveInitialPlan(machine,{defaults,rememberedSetup});
+  if(!previousMachine)return {...structuredClone(previous),setup:{...proposal.setup,...previous.setup},process:{...proposal.process,...previous.process},output:previous.output??proposal.output,placement:previous.placement??proposal.placement};
   const process={...previous.process};
   for(const key of new Set([...Object.keys(previousMachine.defaultProcess??{}),...Object.keys(machine.defaultProcess??{})]))
     process[key]=proposal.process[key];
