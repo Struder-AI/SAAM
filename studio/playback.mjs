@@ -1,5 +1,4 @@
 import {bedPoint} from '../core/private/studio/frame.mjs';
-import {rotateZ,interpolateDirections} from '../core/path/pose.mjs';
 export function advancePlayback(seconds, elapsedMs, speed, duration) {
   return Math.min(duration, Math.max(0, seconds + Math.max(0, elapsedMs) / 1000 * speed));
 }

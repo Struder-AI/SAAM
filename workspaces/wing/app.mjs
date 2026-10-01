@@ -3,7 +3,7 @@ const $=id=>document.getElementById(id),renderer=createAssemblyRenderer(),canvas
 canvas.replaceWith(renderer.canvas);renderer.canvas.id='model';renderer.canvas.setAttribute('aria-label','Interactive aircraft with printable wing sections');
 const view={design:null,preview:null,selected:null,mode:'assembled',yaw:-.45,tilt:.75,zoom:1,pan:[0,0],request:0,drag:null,job:null,invalid:false};
 const controls=[
-  ['Planform'],['spanMm','Span',300,1800,20,' mm'],['chordMm','Root chord',100,250,5,' mm'],['taper','Tip / root chord',.75,1,.025,''],['camber','Camber',0,.04,.005,''],['thickness','Thickness ratio',.1,.18,.01,''],['tipLengthMm','Integrated tip length',40,160,5,' mm'],
+  ['Planform'],['spanMm','Span',300,1800,20,' mm'],['chordMm','Root chord',100,250,5,' mm'],['taper','Tip / root chord',.75,1,.025,''],['camber','Camber',0,.04,.005,''],['thickness','Thickness ratio',.1,.18,.01,''],['wingletHeightMm','Winglet height',40,160,5,' mm'],
   ['Print sections'],['sectionHeightMm','Maximum section height',40,280,5,' mm'],['flaps','Separate flaps'],['flapStart','Flap starts · half-span',.1,.7,.025,''],['flapEnd','Flap ends · half-span',.3,.9,.025,''],['flapChord','Flap chord fraction',.2,.32,.01,''],
   ['Construction'],['rodDiameterMm','Reinforcement rod',2,8,.5,' mm'],['pivotDiameterMm','Pivot rod',2,5,.5,' mm'],['clearanceMm','Radial clearance',.1,.5,.05,' mm'],['beadWidthMm','Bead width',.35,.6,.05,' mm'],['layerMm','Layer height',.15,.3,.025,' mm']
 ];
@@ -40,17 +40,18 @@ function assembly(){
   const parts=view.mode==='print'?[]:[...view.preview.context],chosen=view.preview.pieces.find(p=>p.id===view.selected),list=view.mode==='print'?[chosen]:view.preview.pieces;
   for(const piece of list){
     const faces=[],lines=[],index=view.preview.cuts.findIndex(c=>c>=piece.toMm-1e-6)-1;
-    const place=(point,span)=>view.mode==='print'?[point[0],piece.hand*point[1],span-piece.fromMm]:[piece.hand*(span+(view.mode==='exploded'?index*28:0)),point[0]+(piece.kind==='flap'&&view.mode==='exploded'?35:0),point[1]];
+    const sense=piece.integratedTip?-1:1;
+    const place=(point,span)=>view.mode==='print'?[point[0],piece.hand*sense*point[1],piece.integratedTip?piece.toMm-span:span-piece.fromMm]:[piece.hand*(span+(view.mode==='exploded'?index*28:0)),point[0]+(piece.kind==='flap'&&view.mode==='exploded'?35:0),point[1]];
     for(let i=1;i<piece.sections.length;i++){
       const a=piece.sections[i-1],b=piece.sections[i];
       for(let j=0;j<a.points.length;j++){const k=(j+1)%a.points.length;faces.push([place(a.points[j],a.span),place(a.points[k],a.span),place(b.points[k],b.span),place(b.points[j],b.span)]);}
     }
-    for(const s of [piece.sections[0],piece.sections.at(-1)])lines.push([...s.points,s.points[0]].map(p=>place(p,s.span)));
+    for(const s of [piece.sections[0],piece.sections.at(-1)]){lines.push([...s.points,s.points[0]].map(p=>place(p,s.span)));faces.push(s.points.map(p=>place(p,s.span)));}
     if($('wire').checked){const span=(piece.fromMm+piece.toMm)/2;lines.push([...piece.route,piece.route[0]].map(p=>place(p,span)));}
     parts.push({id:piece.id,group:'skin',color:piece.id===view.selected?'#d89954':piece.kind==='flap'?'#769d88':'#bdcbbc',faces,lines});
   }
   if($('rods').checked&&view.mode!=='print')for(const rod of view.preview.rods){
-    const end=view.design.spanMm/2-view.design.tipLengthMm,r=rod.diameterMm/2,faces=[],n=12,cy=rod.centerMm;
+    const end=view.preview.rodEndMm,r=rod.diameterMm/2,faces=[],n=12,cy=rod.centerMm;
     for(let i=0;i<n;i++){const a=i*2*Math.PI/n,b=(i+1)*2*Math.PI/n;faces.push([[-end,rod.xMm+r*Math.cos(a),cy+r*Math.sin(a)],[end,rod.xMm+r*Math.cos(a),cy+r*Math.sin(a)],[end,rod.xMm+r*Math.cos(b),cy+r*Math.sin(b)],[-end,rod.xMm+r*Math.cos(b),cy+r*Math.sin(b)]]);}
     parts.push({group:'rods',color:'#51677a',faces,lines:[]});
   }

@@ -1,15 +1,13 @@
-export const wingDefaults=Object.freeze({schema:'saam-wing/1',name:'Wing study',spanMm:900,chordMm:160,taper:1,camber:0.02,thickness:0.12,tipLengthMm:90,sectionHeightMm:180,flaps:true,flapStart:0.35,flapEnd:0.75,flapChord:0.26,rodDiameterMm:5,pivotDiameterMm:3,clearanceMm:0.2,gapMm:0.8,beadWidthMm:0.45,layerMm:0.25,speedMmS:20});
+export const wingDefaults=Object.freeze({schema:'saam-wing/1',name:'Wing study',spanMm:900,chordMm:160,taper:1,camber:0.02,thickness:0.12,wingletHeightMm:90,sectionHeightMm:180,flaps:true,flapStart:0.35,flapEnd:0.75,flapChord:0.26,rodDiameterMm:5,pivotDiameterMm:3,clearanceMm:0.2,gapMm:0.8,beadWidthMm:0.45,layerMm:0.25,speedMmS:20});
 
 export function wingDesign(input={}){
   if(!input||typeof input!=='object'||Array.isArray(input))throw Error('Expected a wing design.');
   for(const key of Object.keys(input))if(!Object.hasOwn(wingDefaults,key))throw Error('Unknown wing setting: '+key);
   const d={...wingDefaults,...input};
   if(d.schema!==wingDefaults.schema||typeof d.name!=='string'||!d.name.trim()||typeof d.flaps!=='boolean')throw Error('Invalid wing identity or flap choice.');
-  const ranges={spanMm:[300,2400],chordMm:[100,300],taper:[0.75,1],camber:[0,0.04],thickness:[0.1,0.18],tipLengthMm:[40,200],sectionHeightMm:[40,300],flapStart:[0.1,0.7],flapEnd:[0.3,0.9],flapChord:[0.2,0.32],rodDiameterMm:[2,8],pivotDiameterMm:[2,5],clearanceMm:[0.1,0.5],gapMm:[0.5,2],beadWidthMm:[0.35,0.6],layerMm:[0.15,0.3],speedMmS:[8,40]};
+  const ranges={spanMm:[300,2400],chordMm:[100,300],taper:[0.75,1],camber:[0,0.04],thickness:[0.1,0.18],wingletHeightMm:[40,200],sectionHeightMm:[40,300],flapStart:[0.1,0.7],flapEnd:[0.3,0.9],flapChord:[0.2,0.32],rodDiameterMm:[2,8],pivotDiameterMm:[2,5],clearanceMm:[0.1,0.5],gapMm:[0.5,2],beadWidthMm:[0.35,0.6],layerMm:[0.15,0.3],speedMmS:[8,40]};
   for(const [key,[min,max]] of Object.entries(ranges))if(!Number.isFinite(d[key])||d[key]<min||d[key]>max)throw Error(`${key} must be between ${min} and ${max}.`);
-  if(d.flaps&&(d.flapEnd<=d.flapStart||d.flapEnd*d.spanMm/2>=d.spanMm/2-d.tipLengthMm))throw Error('Flaps must end before the integrated tip begins.');
-  if(d.sectionHeightMm<=d.tipLengthMm)throw Error('Section height must exceed the tip length so the complete tip fits inside an outer wing print.');
-  if(d.tipLengthMm>=d.spanMm/2-d.sectionHeightMm/2)throw Error('Leave room for an inboard wing section before the tip.');
+  if(d.flaps&&d.flapEnd<=d.flapStart)throw Error('Flaps must end after they start.');
   if(d.layerMm>d.beadWidthMm*.7)throw Error('Layer height must be at most 70% of bead width.');
   return d;
 }
@@ -23,11 +21,7 @@ export function wingSections(input){
   const cuts=[0];
   for(let i=1;i<mandatory.length;i++){
     const start=mandatory[i-1],end=mandatory[i],count=Math.ceil((end-start)/d.sectionHeightMm);
-    if(i===mandatory.length-1&&count>1){
-      const outerHeight=Math.max((end-start)/count,Math.min(d.sectionHeightMm,d.tipLengthMm*1.5,end-start));
-      for(let j=1;j<count;j++)cuts.push(start+(end-start-outerHeight)*j/(count-1));
-      cuts.push(end);
-    }else for(let j=1;j<=count;j++)cuts.push(start+(end-start)*j/count);
+    for(let j=1;j<=count;j++)cuts.push(start+(end-start)*j/count);
   }
   const pieces=[];
   for(const hand of [-1,1])for(let i=1;i<cuts.length;i++){
@@ -46,13 +40,11 @@ export function foil(d,x,chord){
   return {center,half};
 }
 
+export const wingletThickness=d=>2*Math.ceil(2/(2*d.layerMm))*d.layerMm;
+
 export function wingStation(d,piece,span){
-  const half=d.spanMm/2,baseChord=d.chordMm*(1-(1-d.taper)*span/half),tipStart=half-d.tipLengthMm;
-  // TK-DEV's rounded planform, centred at 45% chord. The final section is
-  // bead-sized so its two walls meet; the complete cap belongs to this panel.
-  const t=Math.max(0,(span-tipStart)/d.tipLengthMm),terminalScale=Math.min(Math.sqrt(.002),d.beadWidthMm/(d.thickness*baseChord));
-  const scale=Math.sqrt(Math.max(terminalScale**2,1-t*t));
-  const shift=(baseChord-baseChord*scale)*.45,chord=baseChord*scale;
+  const half=d.spanMm/2,chord=d.chordMm*(1-(1-d.taper)*span/half),shift=0;
+  const t=Math.max(0,1-(half-span-wingletThickness(d))/4);
   const hinge=d.chordMm*(1-d.flapChord),lo=piece.kind==='flap'?hinge+d.gapMm/2:shift;
   const hi=piece.kind==='wing'&&piece.control?hinge-d.gapMm/2:shift+chord;
   const rods=[{id:'front',xMm:d.chordMm*.28,diameterMm:d.rodDiameterMm},{id:'rear',xMm:d.chordMm*.5,diameterMm:d.rodDiameterMm},...(d.flaps?[{id:'pivot',xMm:d.chordMm*(1-d.flapChord)+d.pivotDiameterMm/2+d.clearanceMm+d.beadWidthMm,diameterMm:d.pivotDiameterMm}]:[])].filter(r=>piece.kind==='flap'?r.id==='pivot':r.id!=='pivot'||!piece.control);
@@ -70,8 +62,7 @@ export function sectionRoute(d,piece,span,{webs=true}={}){
   const skin=(a,b,side,count=24)=>{for(let j=0;j<count;j++){const x=a+(b-a)*j/count;push(x,edge(x,side));}};
   let previous=lo;
   for(const rod of webs?s.rods:[]){
-    const fade=Math.max(0,1-s.tip*4),cx=s.shift+rod.xMm/d.chordMm*s.chord,cy=foil(d,rod.xMm,d.chordMm).center;
-    const straightX=rod.xMm,rodX=straightX*fade+cx*(1-fade);
+    const fade=Math.max(0,1-s.tip),cy=foil(d,rod.xMm,d.chordMm).center,rodX=rod.xMm;
     const r=(rod.diameterMm/2+d.clearanceMm+w/2)*fade,neck=w*.45*fade;
     if(!s.tip&&(rodX-neck<=lo||rodX+neck>=hi))throw Error('Rod lies outside its wing/control section.');
     const top=edge(rodX,1),bottom=edge(rodX,-1);

@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-10-01 — Easy map-0 boundary cleanup
+
+- Removed unused Studio imports of geometry addition and toolpath pose functions, plus unused filament-module imports. Corrected checkedFilamentPlan and validateBambuConnections to Export ownership based on their output-specific implementation and exclusively Export callers; they now use Export's identical private assertion helper. File boundaries and check behavior are unchanged.
+- Audit: 2,913 assigned leaves, zero unassigned/orphan leaves and zero cross-owner calls into private helpers; 91 missing-pair observations remain (75 Toolpath–Export, 6 Context–Bundle, 5 Studio–Toolpath, 3 Studio–Extensions, one Export–Geometry and one Context–Extensions). The previous 137-count reduction includes module imports becoming unknown for the now explicitly mixed-owner filament file, not only resolved call violations. Direction-review is 308 after concurrent workspace additions. Mediated data flow still needs distinction from direct access.
+- Architectural decisions remain: complete motion planning before Export versus Export adding moves; ownership/delivery of resolved machine and material settings; direct Studio extension hooks versus the specialized-workspace interface; and agent-side assembly of context from its separate providers. No new map connections were added. Checks placement remains with its dedicated task.
+- Verified unchanged filament function logic after normalizing only the assertion alias, syntax of all three edited modules, and a fresh audit/viewer build. No new tests, existing test suite, or manuals changed. Assigned four concurrent geometry/workspace declarations; the standing all-changes checkpoint also carries the wing task’s ongoing changes without independent product verification here. No push.
+
 ## 2026-10-01 — Remaining map-0 crossings reviewed
 
 - Corrected the external-resources causal arrow to Resources → Extensions, labelled assets/results; extension-initiated retrieval access is unchanged. No root connection was added.

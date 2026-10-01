@@ -1194,6 +1194,10 @@
     "workspaces/wing/renderer.mjs": {
       "owner": "workspace",
       "reason": "Wing workspace implementation and its explicitly owned public handoff/construction entry."
+    },
+    "core/geom/polygon-chords.mjs": {
+      "owner": "geometry",
+      "reason": "Planar polygon query; geometry-owned computation."
     }
   },
   "leaves": {
@@ -4268,7 +4272,8 @@
       "owner": "toolpath"
     },
     "core/machine/filaments.mjs::checkedFilamentPlan": {
-      "owner": "toolpath"
+      "owner": "export",
+      "reason": "Output-specific Bambu installation/feeder compatibility; only exporter declarations call this function."
     },
     "core/machine/filaments.mjs::filamentPlan": {
       "owner": "toolpath"
@@ -4277,7 +4282,8 @@
       "owner": "toolpath"
     },
     "core/machine/filaments.mjs::validateBambuConnections": {
-      "owner": "toolpath"
+      "owner": "export",
+      "reason": "Output-specific Bambu installation/feeder compatibility; only exporter declarations call this function."
     },
     "core/machine/jog.mjs::@module": {
       "owner": "studio"
@@ -10255,6 +10261,22 @@
     },
     "workspaces/wing/construct.mjs::sectionStations": {
       "owner": "workspace"
+    },
+    "core/geom/polygon-chords.mjs::@module": {
+      "owner": "geometry",
+      "reason": "Planar polygon query; geometry-owned computation."
+    },
+    "core/geom/polygon-chords.mjs::polygonChords": {
+      "owner": "geometry",
+      "reason": "Planar polygon query; geometry-owned computation."
+    },
+    "workspaces/wing/construct.mjs::continuousWingCurve::spanAt": {
+      "owner": "workspace",
+      "reason": "Wing workspace construction and interaction."
+    },
+    "workspaces/wing/design.mjs::wingletThickness": {
+      "owner": "workspace",
+      "reason": "Wing workspace construction and interaction."
     }
   },
   "retiredAssignments": [
