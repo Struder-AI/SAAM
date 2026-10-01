@@ -9,7 +9,8 @@ import {strokeRange} from './deposition.mjs';
 import {sampleCurveIntervals} from '../geom/curve-sampling.mjs';
 import {beadWidthRule,parallelBeadCurves} from './parallel-curves.mjs';
 import {strokeSurfaceRegion} from '../region/surface-offset.mjs';
-import {unit,dot,interpolateDirections} from './pose.mjs';
+import {interpolatePose} from './pose.mjs';
+import {unitDirection as unit,dot} from '../geom/frame.mjs';
 import {piecewiseChart,piecewiseChartFrame,mapPiecewiseChartPath,splitPiecewiseChartPath} from '../geom/piecewise-chart.mjs';
 
 const vec=(p,n)=>Array.isArray(p)&&p.length===n&&p.every(Number.isFinite);
@@ -96,7 +97,7 @@ export function applyCurveProfiles(input,curve){
   for(const key of ['normals','chartPoints','referenceAlong'])if(source[key])result[key]=positions.map(({segment:i,fraction:t})=>{
     const value=mix(source[key][i],source[key][i+1],t);return key==='normals'?unit(value):value;
   });
-  if(source.poses)result.poses=positions.map(({segment:i,fraction:t})=>({...interpolateDirections(source.poses[i],source.poses[i+1],t),rotaryDeg:source.poses[i].rotaryDeg+t*(source.poses[i+1].rotaryDeg-source.poses[i].rotaryDeg)}));
+  if(source.poses)result.poses=positions.map(({segment:i,fraction:t})=>interpolatePose(source.poses[i],source.poses[i+1],t));
   if(source.frameSamples)result.frameSamples=positions.map(({segment:i,fraction:t})=>{
     const a=source.frameSamples[i],b=source.frameSamples[i+1],normal=unit(mix(a.normal,b.normal,t)),v=unit(cross(normal,unit(mix(a.u,b.u,t))));
     return {point:mix(a.point,b.point,t),u:unit(cross(v,normal)),v,normal};

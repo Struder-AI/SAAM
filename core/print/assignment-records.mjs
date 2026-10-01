@@ -1,5 +1,5 @@
-// Recipe construction belongs to the build/lifecycle boundary. The deposition
-// engines accept their own records or prepared extension work.
+// Toolpath constructs complete recipe assignments from authoring requests.
+// Bundle stores those supplied records; generation resolves their work.
 import {ordinarySliceAssignment,assignmentFamily} from './slice-settings.mjs';
 import {curveAssignment} from './curves.mjs';
 import {injectionAssignment} from './injection.mjs';

@@ -1,7 +1,7 @@
 import {requireThat,distance} from '../private/export/numeric.mjs';
 import {AdaptationMotion,machinePriming} from '../private/export/adaptation-motion.mjs';
 import {validateSetup,checkMachinePath,toolBounds,startupPosition,startupRetracted,sameNozzleMaterialChanges} from '../machine/rules.mjs';
-import {filamentPlan,assignedFilaments} from '../machine/filaments.mjs';
+import {checkedFilamentPlan} from '../machine/filaments.mjs';
 
 export const PREPARED_PATH_CONTRACT='saam-export-prepared/1';
 const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/1';
@@ -9,7 +9,7 @@ const upright=pose=>!pose||Math.abs(pose.rotaryDeg)<1e-9&&
   pose.toolAxis.every((v,i)=>Math.abs(v-[0,0,-1][i])<1e-9)&&
   pose.toolUp.every((v,i)=>Math.abs(v-[0,1,0][i])<1e-9);
 const selection=(plan,machine,index)=>{
-  const selected=filamentPlan(plan,machine,index);
+  const selected=checkedFilamentPlan(plan,machine,index);
   return {plan:selected,filament:index,tool:selected.setup.tool,process:selected.process,bounds:toolBounds(machine,selected.setup.tool)};
 };
 function depositionBounds(path,plan){
@@ -46,9 +46,8 @@ export function prepareExportPath(path,plan,machine){
   const oriented=plan.output==='denso-pacscript';
   requireThat(oriented||[path.initialPose,...path.actions.map(a=>a.pose)].every(upright),
     'Selected output cannot represent non-upright orientation or rotary motion.');
-  const bounds=toolBounds(machine,plan.setup.tool),hasSelections=assignedFilaments(plan).length>0;
-  let selected=hasSelections?selection(plan,machine,plan.setup.bambu?.filament??assignedFilaments(plan)[0]):
-    {plan,tool:plan.setup.tool,process:plan.process,bounds};
+  const bounds=toolBounds(machine,plan.setup.tool);
+  let selected={plan,tool:plan.setup.tool,process:plan.process,bounds};
   const start=startupPosition(machine,plan),motion=new AdaptationMotion({start,process:plan.process,
     retracted:startupRetracted(machine,plan),pose:plan.setup.denso?.initialPose??null,motion:plan.setup.denso??null});
   const deposited=depositionBounds(path,plan),model=path.summary?.boundsMm;
@@ -104,7 +103,8 @@ export function prepareExportPath(path,plan,machine){
     motion.actions.push(action);
   }
   if(relocating)motion.travel(neutralFrom);
-  const prepared={...path,completion:{contract:PREPARED_PATH_CONTRACT,sourceHash:path.completion.inputHash},
+  const prepared={...path,completion:{contract:PREPARED_PATH_CONTRACT,sourceHash:path.completion.inputHash,
+    authoredNozzleTemperatures:path.completion.authoredNozzleTemperatures},
     initialPosition:start,...(plan.setup.denso?{initialPose:plan.setup.denso.initialPose}:{}),
     actions:limitedFeed(start,motion.actions,machine),summary:{...path.summary,boundsMm:geometryBounds}};
   if(!oriented)delete prepared.initialPose;

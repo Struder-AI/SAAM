@@ -1,7 +1,20 @@
 // Standard continuous wall composition over public Toolpath operations.
-export function vaseWallRuntime({Toolpath}) {
+export function prepareSleeveGeometry({shell,assignment,process,zStartMm=null,zEndMm=null,onProgress},{prepareContourSleeve}){
+  const base=zStartMm??shell.bounds.min[2]+assignment.zStartMm;
+  const firstHeight=Math.abs(base-shell.bounds.min[2])<1e-9?process.firstLayerMm:process.layerMm;
+  const start=base+firstHeight,end=zEndMm??(assignment.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+assignment.zEndMm);
+  const fitMode=assignment.meshSleeve?'mesh':assignment.pattern===null&&assignment.sleeveToleranceMm>0?'automatic':'none';
+  const centerlineOffsetMm=(assignment.meshSleeve?.contactSide==='outside'?1:-1)*process.lineWidthMm/2;
+  return prepareContourSleeve({shell,baseMm:base,startMm:start,endMm:end,pitchMm:process.layerMm,firstHeightMm:firstHeight,
+    centerlineOffsetMm,standoffMm:process.lineWidthMm/2,sampleStepMm:assignment.sampleStepMm,
+    toleranceMm:assignment.toleranceMm,boundaryToleranceMm:assignment.boundaryToleranceMm,
+    minFeatureMm:assignment.minFeatureMm,sleeveToleranceMm:assignment.sleeveToleranceMm,
+    meshSleeve:assignment.meshSleeve,fitMode,phaseStableContours:assignment.pattern!==null,onProgress});
+}
+
+export function vaseWallRuntime({Geometry,Toolpath}) {
   const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
-  const {joinSliceFamily,maximumPathAngle,strokeRange,publishFinishedBoundary}=Toolpath;
+  const {joinSliceFamily,maximumPathAngle,strokeRange,publishFinishedBoundary,depositedBeadSegments}=Toolpath;
 
 function standardVaseResult(record,{foundationSegments=[],substrateAdaptation=false}={}){
   const {process,shell,geometry,maxBeadHeightMm}=record.context,settings=record.spec.settings;
@@ -40,5 +53,31 @@ function standardVaseContexts(boundaryAssignments){
   return contexts;
 }
 
-  return {standardVaseResult,standardVaseContexts};
+function vaseFoundationSegments({node,samePart,substrateAdaptation}){
+  const context=node.context??node.record.context,assignment=node.context?.assignment??node.record.spec.settings;
+  const foundations=samePart.filter(item=>item.node.nominalRank<=context.startMm+1e-8);
+  if(assignment.zStartMm>0){
+    const grid=(assignment.zStartMm-context.process.firstLayerMm)/context.process.layerMm;
+    requireThat(Math.abs(grid-Math.round(grid))<1e-8,'A raised sleeve must start on its resolved process layer grid.');
+    requireThat(foundations.some(item=>item.result.operations.length),'A raised sleeve needs supporting deposition below its start.');
+  }
+  return substrateAdaptation&&assignment.zStartMm>0?depositedBeadSegments(foundations.flatMap(item=>item.result.operations),{widthMm:context.process.lineWidthMm}):[];
+}
+
+function vaseDependencies(node,nodes){
+  const needs=new Set();
+  for(const other of nodes){
+    if(other===node)continue;
+    if(node.construction==='sleeve'&&other.part===node.part){
+      if(other.kind==='slice'&&!other.record.reference&&other.nominalRank<=(node.context??node.record.context).startMm+1e-8||other.construction==='sleeve'&&(other.context??other.record.context).endMm<=(node.context??node.record.context).startMm+1e-8)needs.add(other.key);
+    }
+    if(node.kind==='slice'&&!node.record.reference&&other.construction==='sleeve'&&other.part===node.part&&node.nominalRank>(other.context??other.record.context).endMm+1e-8){
+      requireThat((other.context?.assignment??other.record.spec.settings).endTransition==='level','Slices above a sleeve need its ending transition to be level.');needs.add(other.key);
+    }
+  }
+  return [...needs];
+}
+
+  return {standardVaseResult,standardVaseContexts,vaseFoundationSegments,vaseDependencies,
+    prepareSleeveGeometry:input=>prepareSleeveGeometry(input,Geometry)};
 }

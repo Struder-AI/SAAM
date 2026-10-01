@@ -5,13 +5,14 @@ import {requireThat} from '../private/toolpath/numeric.mjs';
 import {ordinarySliceAssignment} from './slice-settings.mjs';
 import {curveAssignment} from './curves.mjs';
 import {defaultSlices} from './slices.mjs';
+import {depositionAssignment} from './assignment-records.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
 import {detectMeshSleeveInterval} from '../geom/sleeve/mesh-sleeve.mjs';
 import {horizontalSlice,sliceFamily} from '../geom/slice.mjs';
 import {strokeTopology} from '../geom/stroke-topology.mjs';
 
 const editEngines={Geometry:{makeMesh,detectMeshSleeveInterval,horizontalSlice,sliceFamily,strokeTopology},
-  Toolpath:{defaultSlices,curveAssignment}};
+  Toolpath:{defaultSlices,curveAssignment,depositionAssignment}};
 
 export async function prepareExtensionRecipe(source,extension,request,{geometryContribution,...options}={}){
   if(geometryContribution){

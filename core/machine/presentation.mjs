@@ -1,11 +1,9 @@
-import {rigid,sub,scale,norm,mv,mm,axisFrame,rodFrame,rotation,point,invert,compose} from '../private/studio/rigid.mjs';
-import {rotateZ} from '../private/studio/frame.mjs';
+import {rigid,mv,mm,axisFrame,rodFrame,rotation,point,invert,compose,rotateZ,validateRigid,add,subtract as sub,scale,length as norm} from '../geom/frame.mjs';
 import {frameAtTime} from '../export/source-time.mjs';
 
 import {densoGeometry,densoInverse,densoWristFromPose} from './denso-kinematics.mjs';
 import {dobotGeometry,dobotInverse} from './dobot-kinematics.mjs';
 import {constrainedJog} from './jog.mjs';
-import {add,validateRigid} from './rigid.mjs';
 
 // Gantry machines are drawn from profile data alone; each arm has its own trusted model.
 const ARMS=new Set(['dobot-mg400','denso-vs068a4-rc8a']);

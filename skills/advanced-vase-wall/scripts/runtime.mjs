@@ -1,23 +1,10 @@
 // Authored sleeve pattern and Trace composition over named public operations.
 // Numerical contour and fitted-reference construction belongs to Geometry.
-export function prepareSleeveGeometry({shell,assignment,process,zStartMm=null,zEndMm=null,onProgress},{prepareContourSleeve}){
-  const base=zStartMm??shell.bounds.min[2]+assignment.zStartMm;
-  const firstHeight=Math.abs(base-shell.bounds.min[2])<1e-9?process.firstLayerMm:process.layerMm;
-  const start=base+firstHeight,end=zEndMm??(assignment.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+assignment.zEndMm);
-  const fitMode=assignment.meshSleeve?'mesh':assignment.pattern===null&&assignment.sleeveToleranceMm>0?'automatic':'none';
-  const centerlineOffsetMm=(assignment.meshSleeve?.contactSide==='outside'?1:-1)*process.lineWidthMm/2;
-  return prepareContourSleeve({shell,baseMm:base,startMm:start,endMm:end,pitchMm:process.layerMm,firstHeightMm:firstHeight,
-    centerlineOffsetMm,standoffMm:process.lineWidthMm/2,sampleStepMm:assignment.sampleStepMm,
-    toleranceMm:assignment.toleranceMm,boundaryToleranceMm:assignment.boundaryToleranceMm,
-    minFeatureMm:assignment.minFeatureMm,sleeveToleranceMm:assignment.sleeveToleranceMm,
-    meshSleeve:assignment.meshSleeve,fitMode,phaseStableContours:assignment.pattern!==null,onProgress});
-}
-
 export function advancedVaseRuntime({Geometry,Toolpath},vase){
   const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
   const distance=(a,b)=>Math.hypot(...a.map((v,i)=>v-b[i]));
   const {sampleCurveIntervals}=Geometry;
-  const {maximumPathAngle,traceResult,contactCurveGaps,depositedBeadSegments}=Toolpath;
+  const {maximumPathAngle,traceResult,contactCurveGaps}=Toolpath;
 // Start/end courses are built in the regular reference strip, before flow
 // mapping. The caps retain the selected pattern's advance and transverse shape.
 
@@ -116,13 +103,13 @@ function mappedSleevePatternCurves({settings,process,base,start,end,firstHeight,
       points:count,endTransition:settings.endTransition,levelRimMm:level?end:null,...(level?{flatStartMm:start,boundaryCourses:2}:{}),maximumAngleDeg,maximumBeadHeightMm,
       scope:'Repeated tiles mapped to actual inset sleeve sections. Only supplied pattern strokes deposit, with nominal bead heights; arbitrary crossing contact and strength are not inferred.'}};
 }
-// The extension owns fitting, pattern repetition and boundary transitions.
+// The extension owns pattern repetition and boundary transitions.
 // Trace receives only resolved spatial curves and their deposition settings.
 
 
 function advancedVaseResult({shell,assignment,process,geometry,after=assignment.after,zStartMm=null,zEndMm=null,foundationSegments=[],maxBeadHeightMm=Infinity,substrateAdaptation=false,onProgress}){
   requireThat(assignment.pattern!==null,'Advanced vase requires an authored repeated pattern.');
-  const reference=geometry??prepareSleeveGeometry({shell,assignment,process,zStartMm,zEndMm,onProgress},Geometry);
+  const reference=geometry??vase.prepareSleeveGeometry({shell,assignment,process,zStartMm,zEndMm,onProgress});
   const {base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm}=reference;
   const mapped=mappedSleevePatternCurves({settings:assignment,process,base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm,onProgress});
   const parts=[];
@@ -139,32 +126,5 @@ function advancedVaseResult({shell,assignment,process,geometry,after=assignment.
 }
 
 
-function constructVaseWork({node,samePart,after,onProgress,substrateAdaptation,standardVaseResult}){
-  const context=node.context??node.record.context,assignment=node.context?.assignment??node.record.spec.settings;
-  const foundations=samePart.filter(item=>item.node.nominalRank<=context.startMm+1e-8);
-  if(assignment.zStartMm>0){
-    const grid=(assignment.zStartMm-context.process.firstLayerMm)/context.process.layerMm;
-    requireThat(Math.abs(grid-Math.round(grid))<1e-8,'A raised sleeve must start on its resolved process layer grid.');
-    requireThat(foundations.some(item=>item.result.operations.length),'A raised sleeve needs supporting deposition below its start.');
-  }
-  const foundationSegments=substrateAdaptation&&assignment.zStartMm>0?depositedBeadSegments(foundations.flatMap(item=>item.result.operations),{widthMm:context.process.lineWidthMm}):[];
-  return node.kind==='slice'?standardVaseResult(node.record,{foundationSegments,substrateAdaptation}):advancedVaseResult({...context,after,onProgress,foundationSegments,substrateAdaptation});
-}
-
-function vaseDependencies(node,nodes){
-  const needs=new Set();
-  for(const other of nodes){
-    if(other===node)continue;
-    if(node.construction==='sleeve'&&other.part===node.part){
-      if(other.kind==='slice'&&!other.record.reference&&other.nominalRank<=(node.context??node.record.context).startMm+1e-8||other.construction==='sleeve'&&(other.context??other.record.context).endMm<=(node.context??node.record.context).startMm+1e-8)needs.add(other.key);
-    }
-    if(node.kind==='slice'&&!node.record.reference&&other.construction==='sleeve'&&other.part===node.part&&node.nominalRank>(other.context??other.record.context).endMm+1e-8){
-      requireThat((other.context?.assignment??other.record.spec.settings).endTransition==='level','Slices above a sleeve need its ending transition to be level.');needs.add(other.key);
-    }
-  }
-  return [...needs];
-}
-
-  return {prepareSleeveGeometry:input=>prepareSleeveGeometry(input,Geometry),advancedVaseResult,
-    constructVaseWork:args=>constructVaseWork({...args,standardVaseResult:vase.standardVaseResult}),vaseDependencies};
+  return {advancedVaseResult};
 }

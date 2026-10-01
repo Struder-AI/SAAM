@@ -102,12 +102,18 @@ export function depositionOnlyPlan(plan){
   return plan?.geometry===undefined&&plan.slices?.assignments?.length>0&&plan.slices.assignments.every(a=>['curves','inject'].includes(a.construction)||!a.construction&&a.surface?.kind==='terminal');
 }
 
+const positiveProcessFields=['firstLayerMm','layerMm','lineWidthMm','maxFlowMm3S','retractSpeedMmS',
+  'planarSpeedMmS','skinSpeedMmS','firstLayerSpeedMmS','travelSpeedMmS','zSpeedMmS'];
+const nonnegativeProcessFields=['retractMm','liftMm','maxCombMm','minimumLayerSeconds','planarWallToleranceMm'];
+
 export function validatePlanFields(plan) {
   requireThat_bundle(plan && typeof plan === 'object' && (depositionOnlyPlan(plan)||GEOMETRY_SHAPES.includes(plan.geometry?.shape)), `Author geometry (${GEOMETRY_SHAPES.join(', ')}) or a Trace/Inject recipe.`);
   // Validation is check-only: a plan carries every current field or it is
   // rejected. Supported older fields require explicit recipe migration and regeneration.
-  const {skills,...base}=defaults();
-  const expected = {...base,
+  const {skills,...base}=recipeDefaults();
+  const expected = {...base,setup:null,output:null,placement:{xMm:null,yMm:null},
+    process:{...Object.fromEntries([...positiveProcessFields,...nonnegativeProcessFields].map(key=>[key,null])),
+      fanPercent:null,experimentalDeposition:null,primeLine:null,clearanceResponsibility:null,clearanceNote:null},
     ...(Object.hasOwn(plan,'skills')?{skills:Object.fromEntries(Object.entries(skills).filter(([id])=>Object.hasOwn(plan.skills??{},id)))}:{}),
     ...(plan.geometry?{geometry:geometryTemplate(plan.geometry.shape,plan.geometry)}:{}),...(Object.hasOwn(plan,'workspace')?{workspace:plan.workspace}:{})};
   if(plan.workspace){
@@ -180,12 +186,9 @@ function authoredBounds(geometry){
 export function validatePlanProcess(plan) {
   const {process}=plan;
   const positive=(value,name)=>requireThat_toolpath(Number.isFinite(value)&&value>0,`${name} must be positive and finite.`);
-  for(const key of ['firstLayerMm','layerMm','lineWidthMm','maxFlowMm3S','retractSpeedMmS',
-    'planarSpeedMmS','skinSpeedMmS','firstLayerSpeedMmS','travelSpeedMmS','zSpeedMmS'])positive(process[key],key);
-  for(const key of ['retractMm','liftMm','maxCombMm','minimumLayerSeconds'])
+  for(const key of positiveProcessFields)positive(process[key],key);
+  for(const key of nonnegativeProcessFields)
     requireThat_toolpath(Number.isFinite(process[key])&&process[key]>=0,`${key} must be nonnegative and finite.`);
-  requireThat_toolpath(Number.isFinite(process.planarWallToleranceMm)&&process.planarWallToleranceMm>=0,
-    'planarWallToleranceMm must be nonnegative and finite.');
   number(process.fanPercent, 0, 100, 'fanPercent');
   if(process.primeLine!==null){
     const p=process.primeLine;

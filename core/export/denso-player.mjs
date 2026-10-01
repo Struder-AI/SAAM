@@ -1,11 +1,10 @@
-import {rotateZ,bedPoint,interpolateDirections} from '../private/export/frame.mjs';
+import {rotateZ,rotatePointZ as bedPoint,interpolateDirectionPair,validateDirectionPair} from '../geom/frame.mjs';
 import {requireThat,distance} from '../private/export/numeric.mjs';
 // A deliberately bounded PacScript interpreter. Executes the delivered source,
 // including helper calls and actual T/EX/TIME/IO fields. Annotations supply only
 // process intent and labels, never playback coordinates or rotary motion.
 
 import {validateDensoConfiguration} from '../machine/denso.mjs';
-import {validatePose} from '../path/pose.mjs';
 export const DENSO_LIMITATIONS=[
   'RC8A is confirmed; mounting, calibration and rotary installation are stated setup assumptions, not measured facts.',
   'Cartesian linear T poses, @0 endpoints, relative EX and TIME are interpreted. IK, reach, singularities, joint and motion limits and collisions are deferred to commissioning/controller behavior.',
@@ -61,7 +60,7 @@ export function interpretDensoFiles(files,plan,machine,{moves=[]}={}){
         const duration=Number(m[4])/1000,nextRotary=rotary+Number(m[3])/c.rotarySign;
         need(Number.isFinite(duration)&&duration>0&&Number.isFinite(nextRotary),'Invalid requested motion time/angle.');
         const nextRoom=fromWork(v.slice(0,3),c),nextOrientation={toolUp:rotateZ(v.slice(3,6),-c.workYawDeg),toolAxis:rotateZ(v.slice(6,9),-c.workYawDeg)};
-        validatePose({...nextOrientation,rotaryDeg:nextRotary});
+        validateDirectionPair(nextOrientation.toolAxis,nextOrientation.toolUp);
         need(site.annotation,'Missing process-intent annotation.');const label=JSON.parse(site.annotation);
         need(typeof label.phase==='string'&&Number.isFinite(label.layer)&&Number.isFinite(label.volumeMm3)&&label.volumeMm3>=0&&relay===(label.volumeMm3>0),'Relay differs from deposition intent.');
         // Subdivision follows the interpreted room trajectory and the moving
@@ -72,8 +71,8 @@ export function interpretDensoFiles(files,plan,machine,{moves=[]}={}){
         need(Number.isSafeInteger(n),'Requested rotary sweep or travel is too large to subdivide.');
         let from=bedPoint(room,rotary,c.rotaryCenterMm,true),oldAngle=rotary,oldAxis=rotateZ(orientation.toolAxis,-rotary),oldUp=rotateZ(orientation.toolUp,-rotary);
         for(let i=1;i<=n;i++){
-          const t=i/n,a=rotary+(nextRotary-rotary)*t,world=room.map((x,k)=>x+(nextRoom[k]-x)*t),dirs=interpolateDirections(orientation,nextOrientation,t),
-            to=bedPoint(world,a,c.rotaryCenterMm,true),axis=rotateZ(dirs.toolAxis,-a),up=rotateZ(dirs.toolUp,-a),intent=label.volumeMm3/n,estimated=relay?c.extrusionRateMm3S*duration/n:0;
+          const t=i/n,a=rotary+(nextRotary-rotary)*t,world=room.map((x,k)=>x+(nextRoom[k]-x)*t),[axisRoom,upRoom]=interpolateDirectionPair([orientation.toolAxis,orientation.toolUp],[nextOrientation.toolAxis,nextOrientation.toolUp],t),
+            to=bedPoint(world,a,c.rotaryCenterMm,true),axis=rotateZ(axisRoom,-a),up=rotateZ(upRoom,-a),intent=label.volumeMm3/n,estimated=relay?c.extrusionRateMm3S*duration/n:0;
           moves.push({line:site.line,file:site.file,from,to,extruding:relay,volumeMm3:intent,commandedVolumeMm3:intent,estimatedRelayVolumeMm3:estimated,
             phase:label.phase,layer:label.layer,operation:label.operation??null,fan:0,speedMmS:distance(from,to)/(duration/n),startSeconds:seconds+(i-1)*duration/n,durationSeconds:duration/n,
             rotaryFromDeg:oldAngle,rotaryToDeg:a,toolAxisFrom:oldAxis,toolAxisTo:axis,toolUpFrom:oldUp,toolUpTo:up,rotaryCenterMm:c.rotaryCenterMm,interpolation:'nominal-cartesian-rotary'});

@@ -10,8 +10,12 @@ export async function extensionDeposition({plan,placed,componentShells,contexts,
   const sites=placed&&weld?weld.preparePlasticWeld({plan,placed,componentShells,processForAssignment}):[];
   const hasSleeve=contexts.some(({assignment})=>assignment.construction==='sleeve');
   const vase=hasSleeve?await (await loadExtensionEntry('vase-wall','deposition-runtime'))(engines):null;
-  const advanced=hasSleeve?await (await loadExtensionEntry('advanced-vase-wall','deposition-runtime'))(engines,vase):null;
-  const vaseWork=advanced?.constructVaseWork;
+  const advanced=contexts.some(({assignment})=>assignment.construction==='sleeve'&&assignment.pattern!==null)?await (await loadExtensionEntry('advanced-vase-wall','deposition-runtime'))(engines,vase):null;
+  const vaseWork=vase?args=>{
+    const foundationSegments=vase.vaseFoundationSegments(args),{node,after,onProgress,substrateAdaptation}=args;
+    return node.kind==='slice'?vase.standardVaseResult(node.record,{foundationSegments,substrateAdaptation})
+      :advanced.advancedVaseResult({...node.context,after,onProgress,foundationSegments,substrateAdaptation});
+  }:null;
   const sleeves=contexts.filter(({assignment})=>assignment.construction==='sleeve').map(context=>{
     const {assignment,shell}=context;
     return {...context,startMm:shell.bounds.min[2]+assignment.zStartMm,
@@ -21,14 +25,14 @@ export async function extensionDeposition({plan,placed,componentShells,contexts,
   for(let i=0;i<sleeves.length;i++)for(let j=i+1;j<sleeves.length;j++)
     if(sleeves[i].assignment.part===sleeves[j].assignment.part&&Math.min(sleeves[i].endMm,sleeves[j].endMm)-Math.max(sleeves[i].startMm,sleeves[j].startMm)>TOLERANCE.point)
       requireExclusiveClaims(sleeves[i].assignment,sleeves[j].assignment);
-  const boundaries=sleeves.filter(context=>context.kind==='slice').map(context=>({...context,geometry:advanced.prepareSleeveGeometry({...context,onProgress})}));
+  const boundaries=sleeves.filter(context=>context.kind==='slice').map(context=>({...context,geometry:vase.prepareSleeveGeometry({...context,onProgress})}));
   const trees=support?support.prepareSupportContexts({plan,processForAssignment,shells:componentShells?[...componentShells.values()]:placed?[placed]:[]}):[];
   return {
     bands:sleeves.map(s=>({part:s.assignment.part,startMm:s.startMm,endMm:s.endMm})),
     reserves:sites.map(site=>site.reservation),envelopes:sites.map(site=>site.reservation),
     constructions:sleeves.filter(context=>context.kind==='trace'),
     additionalContexts:[...(vase?.standardVaseContexts(boundaries)??[]).map(record=>({...record,constructWork:vaseWork,providesSurface:true})),...trees],
-    work:weld?.weldWork(sites,processForAssignment)??[],workDependencies:(node,nodes)=>[...(advanced?.vaseDependencies(node,nodes)??[]),...(weld?.weldDependencies(node,nodes)??[])],
+    work:weld?.weldWork(sites,processForAssignment)??[],workDependencies:(node,nodes)=>[...(vase?.vaseDependencies(node,nodes)??[]),...(weld?.weldDependencies(node,nodes)??[])],
     operationDependencies:operation=>weld?.weldOperationDependencies(sites,operation)??[],
     finishResults:batch=>weld?weld.finishWeldResults(plan,sites,batch):batch.results
   };

@@ -26,7 +26,7 @@ import {intersectRequest,combineGeometry} from '../../../core/print/geometry-too
 import {loadLocalExtension} from '../../../core/local-extension.mjs';
 import {lifecycleReview} from '../../../core/print/review-state.mjs';
 import { readGuidance, readManual } from './manuals.mjs';
-import { onboardingSources, printHint } from '../../../core/agent/layers.mjs';
+import { onboardingSources, machineHint } from '../../../core/agent/layers.mjs';
 import { SKILL_IDS, GUIDANCE_IDS, EXTENSION_IDS, skillMetadata } from '../../../skills/catalog.mjs';
 import {slicePatchSchema,modulationPatchSchema,geometrySchema,patchSchema,draftFamilySchema} from './deposition-schemas.mjs';
 
@@ -211,10 +211,9 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     const {dir,bundle}=await locate(bundleId);
     return {dir,bundle,state:await bundle.loadBundle(dir,{program})};
   }
-  // A print's summary with one line naming the gated guidance its printer opens
-  // that `from` did not (layers.mjs#machineHint).
-  async function withMachineHint(bundleId,state,from){
-    const result=summary(bundleId,state),hint=await printHint(root,state,from);
+  // Settings select available guidance; only summary consumes the print state.
+  async function withMachineHint(bundleId,state,machine){
+    const result=summary(bundleId,state),hint=await machineHint(root,{to:machine});
     return hint?{...result,gatedGuidance:hint}:result;
   }
   async function skills() {
@@ -364,7 +363,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       recipe.validatePlan(plan, machine);
       const dir = await directory(bundleId, { create: true }), bundle = await bundles[kind]();
       await bundle.initBundle(dir, plan, { machineId, setupFile: await setupFile(machineId) });
-      return withMachineHint(bundleId, await bundle.loadBundle(dir), null);
+      return withMachineHint(bundleId, await bundle.loadBundle(dir), machine);
     }, false);
   tool('import_stl_bundle', 'Import a local STL into a new named bundle. Default units auto chooses a reasonable mm/inch assumption from model size and printer bounds, without interrupting the person; honor explicit units when supplied. Preserves source bytes and hash and reuses remembered setup. Show geometry dimensions; units can be corrected with set_stl_units.',
     { bundleId: bundleIdSchema, sourcePath: z.string().min(1), units: z.enum(['auto','mm', 'inch']).default('auto'), machineId: z.string() },
@@ -552,8 +551,8 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     {startAt:z.object({layer:z.number().int().min(1)}).strict(),runId:z.string(),lessonId:z.string()},async({startAt,...scope})=>tour.setStartAt(startAt,scope),false);
   tool('change_machine','Change a print to a supported printer using its remembered or default setup. Invalidates final settings/toolpath confirmation and validates compatibility before saving.',
     {bundleId:bundleIdSchema,machineId:z.string(),expectedRevision:z.string()},async({bundleId,machineId,expectedRevision})=>{
-      const {dir,bundle,state:before}=await read(bundleId,{program:false});if(!bundle.changeMachine)throw Error('This adapter cannot change its printer.');
-      return withMachineHint(bundleId,await changeMachine(dir,machineId,{expectedRevision,setupFile:await setupFile(machineId)}),before.machine?.id??null);
+      const {dir,bundle}=await locate(bundleId);if(!bundle.changeMachine)throw Error('This adapter cannot change its printer.');
+      return withMachineHint(bundleId,await changeMachine(dir,machineId,{expectedRevision,setupFile:await setupFile(machineId)}),machineId);
     },false);
   tool('request_review', 'Serve this bundle through an exclusively owned SAAM Studio instance. Reuse is the default: the instance already showing this print, else the sole live instance, is rebound to it in the same browser tab. With several live instances supply studioInstanceId to choose the one to rebind; otherwise an unshown print opens another. Use newInstance only when the person asks for another Studio, or for a compelling reason you tell them. Optional startAt selects the tour infill layer. No approval or generation is performed.', { bundleId: bundleIdSchema,studioInstanceId:z.string().optional(),newInstance:z.boolean().default(false),startAt:z.object({layer:z.number().int().min(1)}).strict().optional(),...localExtension.reviewSchema?.(z) }, async ({ bundleId,studioInstanceId,newInstance,startAt,...viewOptions }) => {
     if(studioInstanceId&&newInstance)throw Error('Choose an existing studioInstanceId or request a new instance, not both.');

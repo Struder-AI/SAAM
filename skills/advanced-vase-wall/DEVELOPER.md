@@ -48,7 +48,7 @@ recovery and residual orthogonality independently of the fitted mesh.
 
 | Option | Meaning and default |
 |---|---|
-| `circumferentialControls`, `heightControls` | Independent fit resolution; defaults 12 and 6. Fewer controls smooth local texture; increasing them permits more detail in the underlying estimate. Both accept 4–64. |
+| `circumferentialControls`, `heightControls` | Independent fit resolution, defaults 12 and 6; each needs at least 4 controls. More controls permit finer detail. |
 | `circumferentialSamples`, `heightSamples` | Uniform observation grid, defaults 96 and 25. At least twice as many circumferential samples as controls, and at least as many height samples as controls, are required. These are fit samples, not a certified mesh-error bound. |
 | `toleranceMm` | Bounded chord deviation for polyline sections of the fitted polynomial spline, default 0.02 mm. It is independent of fit residual and source-mesh detail. |
 

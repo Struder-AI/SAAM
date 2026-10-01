@@ -7,29 +7,24 @@ metadata:
 
 # Standard vase mode
 
-Use for conventional vase printing: one continuous spiral wall, an open top,
-and an optional solid base. The input describes the vessel's exterior; the
-recipe leaves the interior hollow. No pattern or `meshSleeve` preparation is needed.
-For repeated loops, authored patterns or adjustable mesh conformance, choose
-[advanced vase mode](../advanced-vase-wall/SKILL.md).
-
-[The extension](scripts/runtime.mjs) prepares the wall and calls Slice family
-joining. [Advanced vase](../advanced-vase-wall/SKILL.md) maps patterns into Trace curves.
+[This extension](scripts/runtime.mjs) joins Slice courses into one continuous
+spiral wall with an open top, hollow interior and optional solid base. It needs
+no advanced-vase package, including when `meshSleeve` supplies a fit.
+[Advanced vase](../advanced-vase-wall/SKILL.md) adds repeated patterns through Trace.
 
 ## Workflow
 
 Use the [shared print tools](../../core/print/USAGE.md) to create/import a print,
 adjust its recipe, generate and review it in Studio. Add a sleeve assignment with
 `pattern: null`, `pathMode: "continuous"` and `meshSleeve: null`.
-When converting an advanced recipe, reset all three explicitly.
+A fitted wall may retain `meshSleeve`; a non-null `pattern` selects advanced vase.
 Disable other wall/interior producers on the same material region.
 
 For a solid base, keep a [slice](../slice/SKILL.md) assignment (`fillDensity: 1`)
 and set a positive `zStartMm` on the process layer grid; the wall claims the part
 above it. Without a base, remove the slice assignments and use `zStartMm: 0`.
-Remove unwanted overlapping assignments. A closed top is not part of this mode.
 
-Sleeve bounds select its band; a [rim](../thick-lip/SKILL.md) can follow a level end.
+A [rim](../thick-lip/SKILL.md) can follow a level end.
 Experimental [substrate adaptation](../../GLOSSARY.md) defaults off. When enabled,
 a raised first wall course retains XYZ but recalculates local bead gaps from
 final deposited material, rejecting missing/out-of-range contact. It creates no Supports.
@@ -42,18 +37,14 @@ one bore is allowed. Concave sections work while the requested inset remains one
 closed loop. Multiple islands, split/collapsed contours, arbitrary trimmed CAD
 faces and open uncapped meshes are unsupported.
 
-Standard mode follows changing-height geometry sections. On a mesh it fits one
-periodic NURBS **sleeve** (a surface periodic around the part and open along its
-height, the side of a tube; never itself deposited). Native horizontal NURBS
-sections are offset inward by half a bead and crossings resolved before contour
-correspondence and spiral mapping. `sleeveToleranceMm` (default 0.08 mm) is the
-target deviation from the true section: the fit scales its resolution toward it
-and reports the residual achieved. A wall thinner than the bead, or a section
-that is not a single sleeve, returns to the exact per-section wall. Set
-`sleeveToleranceMm: 0` to force the exact wall — for example when a corner or
-feature must be held to `boundaryToleranceMm` rather than the sleeve tolerance.
-Fitted offsets are loose, with controlled sampling; source-mesh sections use
-polygon offsets. Choose `zEndMm` if the upper geometry is unsuitable.
+Mesh sections are fitted to a periodic NURBS **sleeve**: a reference surface open
+along its height, never itself deposited. Horizontal sections are offset inward
+by half a bead, with crossings resolved before spiral mapping. The fit adapts to
+`sleeveToleranceMm` and reports its residual. A wall thinner than the bead, or a
+section unsuitable for a single sleeve, falls back to exact per-section tracing.
+Set `sleeveToleranceMm: 0` to require exact tracing within `boundaryToleranceMm`.
+Fitted offsets use controlled sampling; source-mesh sections use polygon offsets.
+Choose `zEndMm` if the upper geometry is unsuitable.
 
 ## Settings
 
@@ -61,7 +52,7 @@ polygon offsets. Choose `zEndMm` if the upper geometry is unsuitable.
 |---|---|
 | `zStartMm`, `zEndMm` | Wall interval above the component base; `zEndMm: null` uses the geometry top. |
 | `endTransition` | `level` finishes with a level rim; `spiral` retains the rising ending. New recipes default to `level`. |
-| `pattern`, `pathMode`, `meshSleeve` | Use `null`, `continuous`, `null` for standard vase mode. |
+| `pattern`, `pathMode`, `meshSleeve` | Use `null`, `continuous`, and `null` or an explicit mesh fit for standard vase mode. |
 | `sampleStepMm`, `toleranceMm` | Emitted segment length and contour subdivision limits. |
 | `boundaryToleranceMm`, `minFeatureMm` | Centerline standoff/section allowance and smallest sampled feature. |
 | `sleeveToleranceMm` | Target deviation for the fitted-sleeve fast path on meshes (default 0.08 mm); `0` forces the exact per-section wall. |
@@ -75,8 +66,6 @@ wall bead. Cooling can slow the continuous stroke rather than parking between
 turns. SAAMpath retains the spatial spiral; the selected exporter checks its
 representation and declared machine envelope.
 
-Review geometry, process settings and the actual toolpath in Studio before
-delivery. Software generation does not establish physical clearance, support,
-watertightness or a successful print. [MAKERS](../../MAKERS.md) owns review and
-approval; the [shared lifecycle](../../core/print/README.md) owns generation and
-delivery of the checked machine bytes.
+Follow [MAKERS](../../MAKERS.md) for Studio review and confirmation before
+[delivery](../../core/print/README.md). Generation does not establish physical
+clearance, support, watertightness or print success.

@@ -3,7 +3,6 @@
 import {resolveExtensions} from '../extensions/library.mjs';
 
 const geometryExtensions={text:'text',gridfinity:'gridfinity','heat-set':'heat-set-inserts'};
-const constructionExtensions={sleeve:'advanced-vase-wall'};
 
 function geometryIds(geometry,ids){
   if(!geometry||typeof geometry!=='object')return;
@@ -17,7 +16,7 @@ export function requiredExtensionIds(plan){
   const ids=new Set();
   geometryIds(plan.geometry,ids);
   for(const assignment of plan.slices?.assignments??[])
-    if(constructionExtensions[assignment.construction])ids.add(constructionExtensions[assignment.construction]);
+    if(assignment.construction==='sleeve')ids.add(assignment.pattern===null?'vase-wall':'advanced-vase-wall');
   for(const [id,settings] of Object.entries(plan.skills??{}))
     if(settings?.enabled)ids.add(id);
   return [...ids].sort();

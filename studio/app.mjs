@@ -1,11 +1,10 @@
-import {invert} from '../core/private/studio/rigid.mjs';
+import {invert,point} from '../core/geom/frame.mjs';
 import {createTourUI,needsTourToolpath} from './tour-ui.mjs';
 import { advancePlayback, exportMovie } from './playback.mjs';
 import { createLayerFade, layerEndSeconds, stepLayerIndex, TOOLPATH_COLORS } from './toolpath-view.mjs';
 import {hasConstruction,sliceSummary,recipeRows,robotRows,materialGrams,nextExportName,injectionPoints,depositionFamilyRows} from './settings.mjs';
 import {sourceSession,machineCameras} from './studio/machine-session.mjs';
 import {machineFitBounds,boundsCorners,machinePalette} from './machine-view.mjs';
-import {point} from '../core/private/studio/rigid.mjs';
 import {createViewerRenderer} from './viewer-renderer.mjs';
 import {planRefreshNavigation} from './refresh-plan.mjs';
 import {prepareStudioState,withoutPreviewMaterial} from './studio-state.mjs';

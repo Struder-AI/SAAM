@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-01 — Share frames and remove hidden recipe dependencies
+
+- Owner-approved Geometry frame operations replace five duplicate modules; Toolpath retains authored poses and Export retains machine policy. Export consumes explicit neutral material changes and preserves authored temperatures. Plain/fitted vase generation no longer requires advanced-vase; recipe field validation no longer loads a default machine. Printer guidance takes the selected machine without loading Bundle.
+- Focused Bambu, Griffin and DENSO checks passed; old/new prepared actions matched three material configurations. Independent local-extension removal and MCP creation/machine-change smokes passed. Two MCP assertions retain stale maker-catalog/unchecked-approval expectations; no product workaround or test rewrite. No new tests, suite batch, solver or push. Map and Studio integration remain underway.
+
 ## 2026-10-01 — Checkpoint 0.3.1 consolidation
 
 - Integrated neutral Toolpath/Export separation, exact checked-program delivery, one-instance ownership and selected local extension runtimes. Geometry owns shared sleeve numerics; portable hole supports and single-bead line text use existing print calls. Removed duplicate vase validation, superseded scripts, dummy weld runtime setup and recursive Bundle→Studio→Bundle generation dispatch. No new maker editor tool or protocol remains.

@@ -9,9 +9,9 @@ import {sectionGeometry} from '../../../core/geom/query.mjs';
 import {pointSegmentDistance,loopArea,dedupe} from '../../../core/region/region2d.mjs';
 import {boxMesh} from '../../../core/tests/fixtures/mesh.mjs';
 import {offsetRegion} from '../../../core/region/offset.mjs';
-import {sleeveAssignment} from '../../advanced-vase-wall/scripts/assignment.mjs';
+import {depositionAssignment} from '../../../core/print/assignment-records.mjs';
 import {prepareContourSleeve} from '../../../core/geom/sleeve/contour-sleeve.mjs';
-import {prepareSleeveGeometry} from '../../advanced-vase-wall/scripts/runtime.mjs';
+import {prepareSleeveGeometry} from '../scripts/runtime.mjs';
 import {vaseWallRuntime} from '../scripts/runtime.mjs';
 import {joinSliceFamily} from '../../../core/print/slices.mjs';
 import {maximumPathAngle,strokeRange} from '../../../core/path/deposition.mjs';
@@ -20,7 +20,7 @@ const {standardVaseContexts,standardVaseResult}=vaseWallRuntime({Toolpath:{joinS
 
 function vasePlan(machine=loadMachine(),geometry=boxMesh(8,6,1)) {
   const plan=defaults(machine);plan.geometry=geometry;
-  plan.slices.assignments=[sleeveAssignment({id:'wall',endTransition:'spiral'})];
+  plan.slices.assignments=[depositionAssignment({construction:'sleeve',id:'wall',endTransition:'spiral'})];
   // These regressions assert the exact per-section wall (kernels, topology,
   // section-following within boundaryToleranceMm).
   plan.slices.assignments[0].sleeveToleranceMm=0;

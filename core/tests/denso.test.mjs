@@ -16,7 +16,8 @@ import {initBundle,generateBundle,loadBundle,approve,deliver,adjustBundle} from 
 import {exportProgram,interpretProgram,exportAndInterpretProgram} from '../export/registry.mjs';
 import {interpretDensoFiles} from '../export/denso-player.mjs';
 import {unpackZip} from '../export/zip.mjs';
-import {bedPoint,uprightPose} from '../path/pose.mjs';
+import {uprightPose} from '../path/pose.mjs';
+import {rotatePointZ as bedPoint} from '../geom/frame.mjs';
 import {prepareSliceContexts,sliceContextResult} from '../print/slices.mjs';
 import {surfaceRegion} from '../geom/surface-region.mjs';
 import {buildShell} from '../geom/build.mjs';
@@ -120,7 +121,7 @@ test('RC8A uses the public bundle, exact browser source and cold reopen without 
   assert.equal(remote.program.moves,undefined);
   const files=await fetchSources(remote,fetcher),decoded=decodeSource(files,remote.plan,remote.machine);
   assert.deepEqual([...decoded.moves],state.program.moves.map(move=>({...move,sliceFamily:null,sliceIndex:null,modulated:false})));
-  for(const name of ['/core/export/denso-player.mjs','/core/path/pose.mjs','/core/machine/denso.mjs'])assert.equal((await fetcher(name)).status,200);
+  for(const name of ['/core/export/denso-player.mjs','/core/geom/frame.mjs','/core/geom/tolerance.mjs','/core/machine/denso.mjs'])assert.equal((await fetcher(name)).status,200);
   const bytes=await readFile(join(dir,state.review.generation.file));
   for(const [name,source] of Object.entries(files))assert.equal(source,unpackZip(bytes).get(name).toString());
   const script=`import {loadBundle} from './core/print/bundle.mjs';const s=await loadBundle(process.argv[1]);if(s.programError)throw new Error(s.programError);console.log(s.exportHash);`;

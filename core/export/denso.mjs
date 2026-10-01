@@ -1,11 +1,10 @@
 import {requireThat,distance} from '../private/export/numeric.mjs';
-import {rotateZ,bedPoint} from '../private/export/frame.mjs';
+import {rotateZ,rotatePointZ as bedPoint,validateDirectionPair} from '../geom/frame.mjs';
 import {prepareExportPath} from './prepare-path.mjs';
 import {createHash} from 'node:crypto';
 import {packZip,unpackZip} from './zip.mjs';
 import {interpretDensoFiles,toWork,DENSO_LIMITATIONS} from './denso-player.mjs';
 import {validateDensoConfiguration} from '../machine/denso.mjs';
-import {validatePose,uprightPose,samePose} from '../path/pose.mjs';
 
 const digest=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
 const num=x=>{requireThat(Number.isFinite(x),'Nonfinite PacScript number.');return Number(x.toFixed(8));};
@@ -13,12 +12,16 @@ export function exportDenso(path,plan,machine,release={}){
   path=prepareExportPath(path,plan,machine);
   validateDensoConfiguration(plan,{required:true});const c=plan.setup.denso;
   requireThat(distance(path.initialPosition,c.initialPositionMm)<1e-8,'DENSO initial position differs from setup.');
-  requireThat(samePose(path.initialPose??uprightPose(),c.initialPose),'DENSO initial orientation or rotary position differs from setup.');
+  const defaultPose={rotaryDeg:0,toolAxis:[0,0,-1],toolUp:[0,1,0]},initial=path.initialPose??defaultPose;
+  requireThat(Math.abs(initial.rotaryDeg-c.initialPose.rotaryDeg)<1e-9&&['toolAxis','toolUp'].every(k=>initial[k].every((v,i)=>Math.abs(v-c.initialPose[k][i])<1e-9)),'DENSO initial orientation or rotary position differs from setup.');
   let rotary=path.initialPose?.rotaryDeg??c.initialPose.rotaryDeg,from=path.initialPosition,relay=false;
   const lines=[];
   for(const action of path.actions){
     if(action.kind==='move'){
-      const pose=validatePose(action.pose??uprightPose()),room=bedPoint(action.to,pose.rotaryDeg,c.rotaryCenterMm),work=toWork(room,c),
+      const pose=action.pose??defaultPose;
+      requireThat(Number.isFinite(pose.rotaryDeg),'DENSO motion needs a finite rotary angle.');
+      validateDirectionPair(pose.toolAxis,pose.toolUp);
+      const room=bedPoint(action.to,pose.rotaryDeg,c.rotaryCenterMm),work=toWork(room,c),
         up=rotateZ(pose.toolUp,pose.rotaryDeg+c.workYawDeg),axis=rotateZ(pose.toolAxis,pose.rotaryDeg+c.workYawDeg),on=action.volumeMm3>0;
       if(on!==relay){lines.push(`${on?'Set':'Reset'} IO[${c.extrusionOutput}]`);relay=on;}
       const ms=num((action.durationSeconds??distance(from,action.to)/action.speedMmS)*1000);requireThat(ms>0,'DENSO motion needs a positive requested duration.');

@@ -1,5 +1,5 @@
 import {distance,requireThat} from './numeric.mjs';
-import {bedPoint} from './frame.mjs';
+import {rotatePointZ as bedPoint} from '../../geom/frame.mjs';
 
 // Motion needed only to enter a selected installation and service its material
 // changes. The authored deposition/travel actions are retained by Export.

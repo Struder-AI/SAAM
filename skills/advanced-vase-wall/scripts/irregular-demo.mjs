@@ -4,7 +4,7 @@ import {pathToFileURL} from 'node:url';
 import {defaults} from '../../../core/print/plan.mjs';
 import {initBundle,generateBundle} from '../../../core/print/bundle.mjs';
 import {loopPath} from './loop-path.mjs';
-import {sleeveAssignment} from './assignment.mjs';
+import {depositionAssignment} from '../../../core/print/assignment-records.mjs';
 
 export function irregularLoopHost(){
   const rows=9,columns=48,height=30,vertices=[],triangles=[];
@@ -34,7 +34,7 @@ export function irregularLoopDemoPlan(){
   for(const settings of Object.values(plan.skills))settings.enabled=false;
   // A solid base below the vase wall.
   plan.slices.assignments[0].fillDensity=1;
-  plan.slices.assignments.push(sleeveAssignment({id:'wall',endTransition:'spiral',zStartMm:.6,
+  plan.slices.assignments.push(depositionAssignment({construction:'sleeve',id:'wall',endTransition:'spiral',zStartMm:.6,
     pattern:{paths:[loopPath({loops:20,widthCells:2.8,depthMm:4.8,samples:64,beadHeightMm:.2,exterior:'smooth'})],advance:[1,.2],repeats:145}}));
   return plan;
 }

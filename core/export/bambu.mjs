@@ -12,7 +12,6 @@ import {gcodeLines} from './gcode-lines.mjs';
 import {packZip,unpackZip,crc32} from './zip.mjs';
 
 import {validateSetup,toolBounds,startupPosition} from '../machine/rules.mjs';
-import {assignedFilaments} from '../machine/filaments.mjs';
 import {resolveBambuJob} from './bambu-job.mjs';
 import {materializeBambuProject,serializeBambuProject} from './bambu-project.mjs';
 const digest=(bytes,algorithm='sha256')=>createHash(algorithm).update(bytes).digest('hex');
@@ -47,10 +46,12 @@ function contextFor(path,plan,machine,release){
   const layers=new Set(deposits.map(m=>`${m.phase}:${m.layer}`));
   const context={schema:'saam-bambu-artifact/1',contract:machine.outputs.find(o=>o.id===plan.output).program.contract,release,bounds,initialPosition:path.initialPosition,
     pathMaxZ:points.reduce((maximum,p)=>Math.max(maximum,p[2]),-Infinity),layers:layers.size};
-  checkContext(context,plan,machine);return context;
+  checkContext(context,plan,machine,[plan.setup.tool,...path.actions.filter(a=>a.kind==='toolChange').map(a=>a.tool)]);return context;
 }
-function checkContext(c,plan,machine){
-  const b=assignedFilaments(plan).length?machine.bounds:toolBounds(machine,plan.setup.tool),output=machine.outputs.find(o=>o.id===plan.output),k=output.constraints;
+function checkContext(c,plan,machine,tools){
+  const areas=[...new Set(tools)].map(tool=>toolBounds(machine,tool));
+  const b={min:[0,1,2].map(i=>Math.min(...areas.map(a=>a.min[i]))),max:[0,1,2].map(i=>Math.max(...areas.map(a=>a.max[i])))};
+  const output=machine.outputs.find(o=>o.id===plan.output),k=output.constraints;
   requireThat(c?.schema==='saam-bambu-artifact/1'&&c.contract===output.program.contract&&JSON.stringify(c.initialPosition)===JSON.stringify(startupPosition(machine,plan)),'Invalid Bambu artifact context.');
   requireThat(c.bounds&&['min','max'].every(side=>Array.isArray(c.bounds[side])&&c.bounds[side].length===3&&c.bounds[side].every(Number.isFinite)),'Missing Bambu geometry bounds.');
   requireThat(c.bounds.min.every((v,i)=>v>=b.min[i]&&v<c.bounds.max[i])&&c.bounds.max.every((v,i)=>v<=b.max[i]),'Bambu geometry bounds exceed selected nozzle area.');
@@ -138,12 +139,14 @@ export function exportAndInterpretBambu(path,plan,machine,release){
 export function interpretBambu(bytes,plan,machine,options={}){
   validateSetup(plan,machine);
   const output=configuration(plan,machine),entries=unpackZip(bytes);
-  const c=JSON.parse(entries.get('Metadata/saam.json')?.toString()??'null');checkContext(c,plan,machine);
+  const c=JSON.parse(entries.get('Metadata/saam.json')?.toString()??'null');
   const code=entries.get(GCODE)?.toString('utf8');requireThat(typeof code==='string','Missing Bambu G-code.');
   const begin=code.indexOf(BEGIN),end=code.indexOf(END);
   requireThat(begin>=0&&end>begin&&code.indexOf(BEGIN,begin+BEGIN.length)===-1&&code.indexOf(END,end+END.length)===-1,'Invalid Bambu body boundary.');
   const body=code.slice(begin+BEGIN.length,end),program=interpretBody(body,plan,machine,options);
-  const job=resolveBambuJob(plan,machine,output,{filamentSequence:program.filamentSequence}),s=sections(c,job,output);
+  const job=resolveBambuJob(plan,machine,output,{filamentSequence:program.filamentSequence});
+  checkContext(c,plan,machine,program.filamentSequence.map(filament=>job.selections[filament].setup.tool));
+  const s=sections(c,job,output);
   requireThat(code===header(c,program,job)+s.start+BEGIN+body+END+s.end+'; EXECUTABLE_BLOCK_END\n','Bambu program differs from its declared firmware envelope.');
   const expected=packageEntries(code,c,program,plan,output,job,s);
   requireThat(entries.size===expected.size&&[...expected].every(([name,value])=>entries.get(name)?.equals(Buffer.from(value))),'Bambu package metadata, checksum or thumbnail differs from the program.');

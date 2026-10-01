@@ -23,9 +23,10 @@ const textTemplate=(record={})=>({shape:'text',base:null,features:[],toleranceMm
 const gridfinityTemplate=()=>({shape:'gridfinity',parameters:null,vertices:[],triangles:[],compiledHash:''});
 const heatSetTemplate=()=>({shape:'heat-set',base:null,features:[],toleranceMm:0.01,vertices:[],triangles:[],compiledHash:''});
 const meshRecord=(record,template)=>{
-  requireThat(sameFields(record,template(record)),`Unexpected ${record.shape} geometry fields.`);
-  requireThat(Array.isArray(record.vertices)&&Array.isArray(record.triangles)&&typeof record.compiledHash==='string',
-    `Invalid ${record.shape} saved geometry record.`);
+  if(!record||typeof record!=='object'||Array.isArray(record)||Object.keys(record).sort().join()!==Object.keys(template(record)).sort().join())
+    throw Error(`Unexpected ${record?.shape} geometry fields.`);
+  if(!Array.isArray(record.vertices)||!Array.isArray(record.triangles)||typeof record.compiledHash!=='string')
+    throw Error(`Invalid ${record.shape} saved geometry record.`);
 };
 export const GEOMETRY_RECORDS=Object.freeze({
   text:{extension:'text',template:textTemplate,validate:record=>meshRecord(record,textTemplate)},
@@ -85,9 +86,14 @@ export async function validateSelectedExtensionRecipe(plan,processForAssignment)
     const runtime=(await loadExtensionEntry('plastic-weld','record-runtime'))();
     runtime.validatePlasticWeld(plan,processForAssignment);
   }
-  if(plan.slices?.assignments?.some(assignment=>assignment.construction==='sleeve')){
-    const runtime=(await loadExtensionEntry('advanced-vase-wall','record-runtime'))();
-    const parts=plan.geometry?.shape==='assembly'?plan.geometry.parts.map(part=>part.id):[];
-    for(const assignment of plan.slices.assignments)if(assignment.construction==='sleeve')runtime.validateSleeveAssignment(assignment,{parts});
+  const sleeves=plan.slices?.assignments?.filter(assignment=>assignment.construction==='sleeve')??[];
+  if(sleeves.length){
+    const runtime=(await loadExtensionEntry('vase-wall','record-runtime'))();
+    for(const assignment of sleeves)runtime.validateSleeveAssignment(assignment);
+    const patterns=sleeves.filter(assignment=>assignment.pattern!==null);
+    if(patterns.length){
+      const advanced=(await loadExtensionEntry('advanced-vase-wall','record-runtime'))();
+      for(const assignment of patterns)advanced.validateSleevePattern(assignment.pattern,assignment.pathMode);
+    }
   }
 }

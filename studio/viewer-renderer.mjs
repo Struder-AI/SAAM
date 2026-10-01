@@ -1,4 +1,4 @@
-import {point} from '../core/private/studio/rigid.mjs';
+import {point} from '../core/geom/frame.mjs';
 import {frameAtTime,displayPoint} from './playback.mjs';
 import {createProjection} from './camera.mjs';
 import {buildToolpathView,toolpathFrame,toolpathPresentation,toolpathStyle,layerKey,remainingLayerMs,layerIndexAt,TOOLPATH_COLORS} from './toolpath-view.mjs';

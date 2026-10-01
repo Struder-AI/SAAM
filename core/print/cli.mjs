@@ -12,7 +12,7 @@ import {intersectRequest,combineGeometry} from './geometry-tools.mjs';
 import {starterGeometry} from '../../examples/prints/starter-geometry.mjs';
 import {defaults} from './plan.mjs';
 import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
-import {printHint} from '../agent/layers.mjs';
+import {machineHint} from '../agent/layers.mjs';
 const readJson=async file=>JSON.parse(await readFile(file,'utf8'));
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].replace(/\\/g, '/')}`).href) {
   const args=process.argv.slice(2),revisionIndex=args.indexOf('--revision');
@@ -37,7 +37,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(`Bundle created at ${directory}`);
       console.log(`Open it for review with: npm run studio -- ${directory}`);
       console.log('Nothing is approved yet; review the geometry and generate freely, then confirm the exact settings/toolpath together in Studio before export.');
-      const hint=await printHint(root,await loadBundle(directory,{program:false}),null);if(hint)console.log(hint);
+      const hint=await machineHint(root,{to:machineId});if(hint)console.log(hint);
     } else if(command==='undo'||command==='redo') {
       console.log(report(await restoreRevision(bundleDirectory(),{direction:command,expectedRevision})));
     } else if(command==='toolpath') {
@@ -93,10 +93,9 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(`Print: ${directory}`);
       console.log(`Open Studio with: npm run studio -- ${directory}`);
     } else if (command === 'change-machine') {
-      const from=(await loadBundle(bundleDirectory(),{program:false})).machine?.id??null;
       const state=await changeMachine(bundleDirectory(),argument,{expectedRevision});
       console.log(report(state));
-      const hint=await printHint(root,state,from);if(hint)console.log(hint);
+      const hint=await machineHint(root,{to:argument});if(hint)console.log(hint);
     } else if (command === 'generate') {
       console.log(JSON.stringify(await generateBundle(bundleDirectory()), null, 2));
     } else if (command === 'adjust') {
