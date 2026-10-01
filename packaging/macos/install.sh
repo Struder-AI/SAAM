@@ -12,7 +12,7 @@
 # launcher ~/Applications/SAAM/SAAM.command are written by this script rather
 # than copied from the download, so they carry no download quarantine.
 # Quarantine attributes and Gatekeeper settings are left alone.
-# Prints, the chat pairing and logs live in ~/Library/Application Support/SAAM
+# Prints, optional release-service settings and logs live in ~/Library/Application Support/SAAM
 # and are never touched: to go back to an older version, install its release.
 set -Eeuo pipefail
 
@@ -42,7 +42,8 @@ saam_running() {
 write_app() {
   local target="$1" version="$2" bundle="$HOME/Applications/SAAM.app"
   rm -rf "$bundle"
-  mkdir -p "$bundle/Contents/MacOS"
+  mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
+  cp "$target/packaging/macos/SAAM.icns" "$bundle/Contents/Resources/SAAM.icns"
   cat > "$bundle/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -53,6 +54,7 @@ write_app() {
   <key>CFBundleName</key><string>SAAM</string>
   <key>CFBundleDisplayName</key><string>SAAM</string>
   <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleIconFile</key><string>SAAM</string>
   <key>CFBundleShortVersionString</key><string>$version</string>
   <key>CFBundleVersion</key><string>$version</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
@@ -169,8 +171,7 @@ LAUNCHER
   echo 'Start it from the SAAM desktop shortcut or ~/Applications/SAAM.app,'
   echo 'and stop it by closing the Studio tab or with Quit.'
   echo "Your prints and settings stay in $(data_folder)."
-  echo 'Starting SAAM now. Studio opens in your browser; use its Connect panel'
-  echo 'to link your chat.'
+  echo 'Starting SAAM now. Studio opens in your browser; an alpha invite is optional.'
   if [ -z "$wait_pid" ]; then open -R "$target.app" || say "SAAM is installed at $target.app."; fi
   open "$HOME/Applications/SAAM.app"
   log 'Started SAAM.'

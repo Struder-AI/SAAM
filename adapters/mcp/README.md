@@ -46,7 +46,7 @@ saved IDs; there is no single global plan that overwrites another job.
 
 | Tool | Role |
 |---|---|
-| `maker_onboarding` | Listed first. The maker's starting context for a client without command access, as a web client of the [context layers](../../core/agent/README.md#context-layers): MAKERS, the digest (the index) and shared print tools, with a `machineId`'s advanced sections, plus how a relayed session reaches the computer. A relayed session also offers the [SAAM panel](RELAY-PLAN.md#saam-panel) with its result. Until a relayed session calls it (or reads `makers`), every result carries a second text item asking it to. |
+| `maker_onboarding` | The desktop maker context: MAKERS, the skill index and shared print tools, including local script sections and a selected `machineId`'s advanced sections. Read it once when maker context is missing. |
 | `list_machines`, `list_skills`, `read_skill` | Read this checkout's known profiles and manuals. Each skill entry is a toolpath, geometry (such as mesh tools) or hybrid skill. `read_skill` takes `ID` or `ID#heading` and an optional `machineId`. These small fixed lists are not an automatic discovery or installation system. |
 | `read_guidance` | Read a published Markdown path, optionally ending in `#heading`, or a short ID: `makers`, `geometry`, `development`, `glossary`, `mcp`, `print-tools`, with an optional `machineId`. |
 | `get_recipe_defaults` | Read geometry-free process/setup defaults, reusing remembered setup. |

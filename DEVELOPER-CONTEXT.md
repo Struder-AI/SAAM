@@ -4,14 +4,11 @@
 
 Developers own core skills, core capabilities, Studio and shared interfaces;
 builders compose existing interfaces and author guidance. See [role boundaries](AGENTS.md#choose-your-role).
-Start with [shared terms](GLOSSARY.md), **dev maps** and this file; open component manuals as needed.
+Read current release intent first: [0.3.0 installation](plans/0.3.0.md), then [0.3.1 architecture](plans/0.3.1.md) when relevant. Start with [shared terms](GLOSSARY.md), dev maps and this file.
 
 ### What the dev maps are for
 
-Implementation dev maps are a visual knowledge graph of core and Studio,
-generated from source; each graph is a **map**. Separately, [0.3.0](plans/0.3.0.md)
-introduces authored target-architecture sets; their proposed contracts are not
-scanned evidence. The glossary/rules below describe implementation maps.
+Use `030-deployment` for 0.3.0 and `030-architecture` for 0.3.1; select `--set` explicitly. The original `default` set is implementation evidence, not release intent. Authored contracts and scanned evidence are distinct.
 The goal is an order-of-magnitude faster review with greater confidence: the
 person and agent trace the same trustworthy path. For any code to edit, maps
 must show its location, interactions and every consequence of changing it,
@@ -157,19 +154,9 @@ for a compelling case:
    site. Owned state lives in an explicit record or behind an explicit
    stateful boundary; a callback chosen once is a `const` or a named function.
 2. No callee chosen by an expression: the call site would not name its callee.
-3. A stage does not mutate caller-owned state; it returns its result, so the
-   effect is on a link rather than invisible on the caller's map. The
-   exception is an explicit stateful controller (a UI controller, a session,
-   the tour) operating on state it owns.
+3. A sequential stage may mutate exclusively owned inputs and hand the result forward. Ownership transfers with the data: earlier stages/other consumers must not retain access to the same changing value. No hidden lookbacks to shared mutable sources; Bundle remains the explicit shared part-state authority. Private UI/session/job controllers own their state. Copies are needed only where ownership actually branches or a snapshot must be retained.
 
-A rewrite counts as a code-shape fix only when it preserves behaviour and,
-after regeneration, the map draws what was hidden. Anything the scanner cannot
-yet follow by syntax (`super`, destructuring, loop variables, nested-call
-arguments, `Promise.all`, instance receivers, passed callbacks) has a definite
-meaning, so teaching the scanner is cheaper and more trustworthy than touching
-ordinary code: generator work, never code churn. Reading a map does not by
-itself authorise a rewrite.
-
+A rewrite must preserve intended behavior and expose its actual interactions. Apply the [release's simplification rule](plans/0.3.1.md) before choosing scanner work: direct wiring and explicit operations should remove unnecessary indirection, retaining necessary lifecycle handling. Improve syntax resolution where the existing abstraction earns its place. Authorized architecture work includes these rewrites; an unrelated map read grants no extra scope.
 Also: give conceptual stages and callbacks code names, so clusters survive
 line edits; when code replaces an entity, rewire every consumer and remove the
 old one, with no compatibility wrapper or parallel path.

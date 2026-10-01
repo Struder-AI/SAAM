@@ -1,58 +1,29 @@
 SAAM for Windows
 ================
 
-SAAM makes 3D-printed parts through conversation with your web chat
-(Claude or ChatGPT). This release installs for your Windows user only and
-needs no administrator rights.
-
+SAAM makes 3D-printed parts through a local desktop coding agent. This
+per-user alpha installer needs no administrator rights.
 
 Install
 -------
-1. Extract the whole ZIP (right-click it, Extract All...).
-2. In the extracted folder, double-click "Install SAAM.cmd".
-   This alpha build is not signed, so Windows may show "Windows protected
-   your PC" or another security warning for the download. Choose
-   "More info", then "Run anyway".
-3. The installer unpacks SAAM into %LOCALAPPDATA%\Programs\SAAM, adds a
-   "SAAM" shortcut to the Start Menu and the Desktop, and starts SAAM.
+1. Extract the entire ZIP, then run "Install SAAM.cmd" in that folder.
+2. This build is unsigned. If Windows shows a protection warning, choose
+   More info > Run anyway only for a release you obtained from Struder-AI/SAAM.
+3. The installer creates SAAM icons on the Start Menu and Desktop, then
+   opens Studio. Quit a running SAAM before installing another version.
 
-Quit SAAM before installing a new version: the installer refuses while
-SAAM is running. Installing replaces the installed version. To go back to
-an older version, install its ZIP the same way; your prints are not affected.
+Studio offers an optional alpha invite on first launch. SAAM still makes,
+views and exports parts if you skip it. A valid invite enables official
+updates and live diagnostics. Later use Studio's Update button.
 
+Start SAAM from its icon. Closing the last Studio tab or choosing Quit stops
+it; starting again while it runs shows Studio. The Start Menu's "SAAM (with
+console)" shortcut shows startup errors.
 
-Start and stop
---------------
-Start SAAM from its Start Menu or Desktop shortcut: Studio opens in your
-browser and no window stays open. To stop SAAM, close the Studio tab or click Quit.
-Starting SAAM again while it runs just shows Studio. If SAAM does not
-start, Start Menu > "SAAM (with console)" shows its messages.
+Your prints and settings remain in %LOCALAPPDATA%\SAAM, separate from
+%LOCALAPPDATA%\Programs\SAAM. Installing, updating and uninstalling keep
+that data. The desktop agent's local MCP connection uses the bundled Node
+runtime; see the agent installation instructions for its paths.
 
-
-Connect your chat (first time)
-------------------------------
-1. In Studio, click "Connect" at the top right.
-2. Copy the connector URL and add it as a custom connector in your chat app.
-3. When the chat asks for a code, click "Show code" in Studio and type the
-   code into the chat's approval page. A code is valid for two minutes;
-   click "New code" for another.
-Studio opens this panel by itself until a chat app is set up.
-The two lights on "Connect" show whether this computer is paired with the
-relay and whether a chat is connected. To add another chat app later, open
-the panel and click "Connect another chat app".
-
-
-Where your prints live
-----------------------
-Prints, the chat pairing and logs are kept in %LOCALAPPDATA%\SAAM
-(prints in %LOCALAPPDATA%\SAAM\Prints, logs in %LOCALAPPDATA%\SAAM\logs),
-separate from the program. Installing, reinstalling and uninstalling never
-change them.
-
-
-Uninstall
----------
-Start Menu > "Uninstall SAAM", or run:
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%LOCALAPPDATA%\Programs\SAAM\packaging\windows\uninstall.ps1"
-This removes the program and its shortcuts and keeps %LOCALAPPDATA%\SAAM.
-Delete that folder yourself if you no longer want your prints.
+To uninstall, use Start Menu > Uninstall SAAM. The data folder stays until
+you choose to remove it yourself.

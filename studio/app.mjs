@@ -11,11 +11,11 @@ import {planRefreshNavigation} from './refresh-plan.mjs';
 import {prepareStudioState,withoutPreviewMaterial} from './studio-state.mjs';
 import {studioControls} from './studio-controls.mjs';
 import {viewerConnected} from './viewer-session.mjs';
-import {createRelayPanel} from './relay-panel.mjs';
+import {createServicePanel} from './service-panel.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const token=$('meta[name="saam-token"]').content;
-const relayPanel=$('meta[name="saam-relay"]').content==='on'?createRelayPanel({token}):null;
-const NO_PRINT='No print is open. Open a saved print, import an STL, start the tour, or ask your chat to make a part.';
+if($('meta[name="saam-service"]').content==='on')createServicePanel({token});
+const NO_PRINT='No print is open. Open a saved print, import an STL, start the tour, or ask your agent to make a part.';
 const exportedThisSession=new Set();
 const exportKey=()=>state?.printId+':'+state?.exportHash;
 let tourUI;
@@ -216,7 +216,7 @@ const views={
         if(!g)return [['Source',shape],...slices.map(a=>[a.id,sliceSummary(a)]),['Markers','Authored locations; no occupied material shape is inferred']];
         const bounds=state.geometry.boundsMm;
         const rows=[['Shape',shape],['Footprint',round2(bounds.max[0]-bounds.min[0])+' × '+round2(bounds.max[1]-bounds.min[1])+' mm'],['Height',round2(bounds.max[2]-bounds.min[2])+' mm']];
-        if(g.shape==='mesh'&&g.source?.format==='stl')rows.push(['STL units',g.source.units+(g.source.unitsInferred?' · assumed':'')+' · change in chat']);
+        if(g.shape==='mesh'&&g.source?.format==='stl')rows.push(['STL units',g.source.units+(g.source.unitsInferred?' · assumed':'')+' · ask your agent to change']);
         if(g.shape==='spline')rows.push(['Patches',g.patches.map(p=>p.name+' '+p.controlPoints.length+' × '+p.controlPoints[0].length).join(' · ')]);
         const textRows=(geometry,prefix='')=>{if(geometry.shape==='text')for(const feature of geometry.features)rows.push([prefix+feature.id,(feature.mode==='raised'?'Raised':'Recessed')+' “'+feature.text+'” · '+feature.depthMm+' mm']);};
         const blobFieldRows=(geometry,prefix='')=>{if(geometry.shape==='blob-field')rows.push([prefix+'Points',String(geometry.field.points.length)],[prefix+'Surface sampling',geometry.extraction.edgeMm+' mm · finer features may be missed'],[prefix+'Material threshold',String(geometry.field.threshold)]);};
@@ -691,13 +691,12 @@ $('#stl-file').onchange=async()=>{
   if(file.size>64*1024*1024){message('Choose an STL file up to 64 MiB.',true);return;}
   try{await working('Importing your STL…',async()=>{
     const query=new URLSearchParams({name:file.name,...(state?{printId:state.printId}:{})});
-    const target={printId:state?.printId??null,generationHash:null},firstPrint=!state;generationTarget=target;
+    const target={printId:state?.printId??null,generationHash:null};generationTarget=target;
     let response;
     try{response=await fetch('/api/import-stl?'+query,{method:'POST',headers:{'X-SAAM-Token':token,'Content-Type':'application/octet-stream'},body:file});}
     finally{if(generationTarget===target){generationTarget=null;$('#cancel-generation').hidden=true;}}
     if(!response.ok){const result=await response.json();throw Object.assign(Error(result.error),{code:result.code});}
     await tourUI.load();await refresh(false,true);message('');
-    if(firstPrint)relayPanel?.close();
   });}catch(error){message(error.message,error.code!=='IMPORT_CANCELLED');await tourUI.load();if(state)await refresh(false,true);}
 };
 $('#open-path').onsubmit=event=>{event.preventDefault();openPrint($('#print-path').value.trim());};
@@ -771,11 +770,9 @@ async function poll(){
     if(state?.instanceId&&next.instanceId!==state.instanceId){window.location.reload();return;}
     if(reconnecting)message('');
     const refreshUpdatedPrint=()=>refresh(true,false,next,nextTag);
-    const metadataOnly=Boolean(state&&!needsFullState&&next.presentationFingerprint===state.presentationFingerprint),firstPrint=!state;
+    const metadataOnly=Boolean(state&&!needsFullState&&next.presentationFingerprint===state.presentationFingerprint);
     if(metadataOnly)await refreshUpdatedPrint();
     else await working('Loading and checking the updated print…',refreshUpdatedPrint);
-    // The chat opened the first print into an empty Studio: show it.
-    if(firstPrint)relayPanel?.close();
     reconnecting=false;loadedUpdate=update;if(state)render();
   }catch(e){reconnecting=true;agentUI.settled(e);$('#confirm').disabled=true;message('Could not update the print: '+e.message+' Reconnecting…');}
   finally{polling=false;}
@@ -843,12 +840,11 @@ function connectStudioSession(){
   window.addEventListener('pagehide',disposeStudioSession);
   window.addEventListener('pageshow',restoreStudioSession);
 }
-// Studio opened with no print (a relay computer at launch) waits for one: the
-// person opens a print or the tour, or the chat opens one through request_review.
+// Studio opened with no print waits for one: the person opens a print or the
+// tour, or the agent opens one through request_review.
 function showNoPrint(error){
   $('#kind-label').textContent='SAAM STUDIO';$('#view-title').textContent='No print open';
   $('#guidance').textContent=error.message;message('');
-  relayPanel?.openIfNeeded();
 }
 function reportOpening(error){
   if(error.code==='NO_PRINT')showNoPrint(error);

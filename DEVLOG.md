@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-01 — 0.3.0 desktop installation tester release
+
+- Desktop Claude Code and Codex install from the published installation guide, configure local stdio tools and leave a SAAM icon. Studio runs locally without activation; an optional first-run invite enables releases and live diagnostics. Removed chat relay, OAuth, remote dispatch and web-only onboarding. Application replacement preserves the separate data folder.
+- Windows tester cut only. A disposable packaged installation updated through its real in-app button, stopped, replaced itself and restarted with remembered activation and unchanged data/local-edit markers. A genuine bundle and remembered setup opened afterward; their survival through an update was not separately tested. First-run skip, invalid invite, activation, live diagnostic gating and local MCP onboarding were checked. No new tests, full suite or macOS installation acceptance; broader architecture continues independently in 0.3.1.
+- Publication assets are the Windows ZIP, SHA-256 sidecar and INSTALL.md; the existing release service publishes the matching version/checksum. Review packages and local service state are excluded from source and publication.
+
 ## 2026-10-01 — Complete Geometry operation submaps
 
 - Integrated reviewed selection/placement, line clipping and sampled-field extraction checkpoints. Authored 17 operation groups with 711 exact declaration homes and five native resource leaves; process policy belongs to Toolpath. Scoped helper/method previews and observed submap call wires preserve authored map-0 contracts; native/dynamic behavior remains explicitly unscanned.

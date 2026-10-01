@@ -66,7 +66,7 @@ export async function contextBudget(root, { machineIds = MACHINE_IDS } = {}) {
   let tools = 0,toolSchemas=0;const operations={},toolDefinitions=[];
   try {
     const runtime = createLocalRuntime({ printsRoot, autoOpen: false });
-    for (const operation of runtime.beginSession({remote:true}).operations){
+    for (const operation of runtime.beginSession().operations){
       // Match the installed MCP SDK's tools/list conversion and registration
       // envelope, including draft-7 input semantics and task support metadata.
       const inputSchema=z.toJSONSchema(operation.schema,{target:'draft-7',io:'input'});
