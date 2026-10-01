@@ -19,7 +19,7 @@ import {createTour,tourExample} from '../../../studio/tour.mjs';
 import {createAgentRequests} from '../../../studio/agent-requests.mjs';
 import {createStudioEvents} from '../../../studio/studio-events.mjs';
 import {listExtensions,loadExtensionEntry,readExtension} from '../../../core/extensions/library.mjs';
-import {createBlobFieldBundle,updateBlobFieldBundle} from '../../../core/print/blob-field.mjs';
+import {createBlobFieldBundle,updateBlobFieldBundle} from '../../../core/agent/blob-field.mjs';
 import {applySlice} from '../../../core/print/slice-edit.mjs';
 import {applyModulation} from '../../../core/print/modulation.mjs';
 import {intersectRequest,combineGeometry} from '../../../core/print/geometry-tools.mjs';

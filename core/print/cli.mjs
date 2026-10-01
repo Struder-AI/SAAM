@@ -7,7 +7,7 @@ import {changeMachine,rememberSetup,adjustSettings} from '../machine/bundle-sett
 import {SETTINGS_FIELDS} from '../machine/settings.mjs';
 import {createSTLBundle,setSTLUnits} from './import-stl.mjs';
 import {repairSTLFiles} from './repair-stl.mjs';
-import {createBlobFieldBundle,updateBlobFieldBundle} from './blob-field.mjs';
+import {createBlobFieldBundle,updateBlobFieldBundle} from '../agent/blob-field.mjs';
 import {intersectRequest,combineGeometry} from './geometry-tools.mjs';
 import {starterGeometry} from '../../examples/prints/starter-geometry.mjs';
 import {defaults} from './plan.mjs';

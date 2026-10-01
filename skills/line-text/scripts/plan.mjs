@@ -20,7 +20,7 @@ export function planLineText({font,text,heightMm,weight='regular',stemRatio,bead
   let beadWidthMm=Math.max(minimum,Math.min(maximum,requestedMm));
   const warnings=[];
   if(requestedMm<minimum)warnings.push(`The thinnest bead (${minimum} mm) is heavier than the ${requestedMm.toFixed(2)} mm stroke this weight asks for at ${heightMm} mm.`);
-  if(requestedMm>maximum)warnings.push(`One bead is limited to ${maximum} mm; requested stroke was ${requestedMm.toFixed(2)} mm. Edit this extension locally to construct parallel beads.`);
+  if(requestedMm>maximum)warnings.push(`One bead is limited to ${maximum} mm; requested stroke was ${requestedMm.toFixed(2)} mm. Ask a local builder to modify this extension for parallel beads.`);
   let feasible=beadWidthMm*(1+clearanceFactor)<=limitMm+1e-9;
   if(!feasible&&limitMm/(1+clearanceFactor)>=minimum){
     beadWidthMm=Math.min(beadWidthMm,limitMm/(1+clearanceFactor));feasible=true;

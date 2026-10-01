@@ -69,3 +69,35 @@ export function semanticContainment({graph,projection,asts,spec,ownership,bindin
     provisional.push({owner,declarations:paths,reason:'Authored box groups distinct semantic declarations; containment remains unproved.'});
   return {schema:1,homes,owners,provenance,folds,blocked,provisional,protected:[...protectedPaths].sort()};
 }
+
+// A declaration-only module body is source navigation, not another operation.
+// Keep the raw module identity/import evidence; this changes only its drawn box.
+export function inertModuleNavigation({asts,spec,ownership,bindings,rows}) {
+  const candidates=[],blocked=[],owned=new Map();
+  for(const [path,{owner}] of Object.entries(ownership.leaves??{}))
+    (owned.get(owner)??owned.set(owner,[]).get(owner)).push(path);
+  const publicNodes=new Set(spec.contracts.flatMap(c=>[c.from,c.to,...(c.access??[]).flatMap(a=>[a.from,a.to])]));
+  const bound=new Set((bindings.bindings??bindings).flatMap(b=>[b.target,...(b.callers??[])]));
+  const definition=n=>n?.type==='FunctionDeclaration'||n?.type==='VariableDeclaration'&&n.kind==='const'&&n.declarations.every(d=>
+    d.id.type==='Identifier'&&['FunctionExpression','ArrowFunctionExpression'].includes(d.init?.type));
+  const inert=n=>definition(n)||n.type==='ImportDeclaration'&&n.specifiers.length>0||
+    n.type==='ExportNamedDeclaration'&&(!n.declaration||definition(n.declaration));
+  for(const node of spec.nodes) {
+    const file=node.source?.file,declaration=`${file}::@module`,paths=owned.get(node.id)??[],ast=asts.get(file);
+    if(!ast||node.source.declaration||!paths.includes(declaration))continue;
+    const observations=rows.filter(r=>r.from===declaration||r.to===declaration),active=observations.filter(r=>
+      !['import','re-export'].includes(r.kind)||['unknown','unassigned'].includes(r.status));
+    const executable=ast.body.filter(n=>!inert(n));
+    const reason=!node.index.includes('.')||publicNodes.has(node.id)||bound.has(declaration)?'Public or fixed responsibility entry.':
+      paths.length!==1?'This box also owns callable or other source declarations.':
+      executable.length?'Module has initialization, state, a class, or an unproved declaration/import.':
+      active.length?'Module has non-import, state/resource, or unknown observations.':null;
+    const evidence={statements:ast.body.map(n=>({kind:n.type,line:n.loc.start.line,start:n.start,end:n.end,
+      ...(n.source?{source:n.source.value}:{}),...(n.declaration?{declarationKind:n.declaration.type}:{})})),
+      observations:observations.map(r=>({kind:r.kind,from:r.from,to:r.to,site:r.site,status:r.status,...(r.reason?{reason:r.reason}:{})}))};
+    const entry={node:node.id,index:node.index,declaration,file,evidence};
+    if(reason)blocked.push({...entry,reason});
+    else candidates.push({...entry,reason:'Only bound imports, named exports and function definitions; no independent module operation was observed.'});
+  }
+  return {candidates,blocked};
+}

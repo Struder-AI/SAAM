@@ -1,8 +1,7 @@
-import {requireThat} from '../private/bundle/numeric.mjs';
 import {compileBlobField} from '../geom/blob-field-compile.mjs';
 import {BLOB_FIELD_SCHEMA,BLOB_FIELD_THRESHOLD} from '../geom/blob-field.mjs';
-import {initBundle,loadBundle,updatePlan} from './bundle.mjs';
-import {defaults} from './plan.mjs';
+import {initBundle,loadBundle,updatePlan} from '../print/bundle.mjs';
+import {defaults} from '../print/plan.mjs';
 import {selectSettings} from '../machine/settings.mjs';
 
 
@@ -18,17 +17,17 @@ export async function createBlobFieldBundle(directory,request,options={}){
   return loadBundle(directory,{program:false});
 }
 export async function updateBlobFieldBundle(directory,request,{expectedRevision,part}={}){
-  requireThat(typeof expectedRevision==='string'&&expectedRevision.length>0,'Blob field edits require expectedRevision from the current print.');
+  if(!(typeof expectedRevision==='string'&&expectedRevision.length>0))throw Error('Blob field edits require expectedRevision from the current print.');
   const state=await loadBundle(directory,{program:false});
-  requireThat(state.revision===expectedRevision,'This review is stale. Reload before changing the blob field.');
+  if(state.revision!==expectedRevision)throw Error('This review is stale. Reload before changing the blob field.');
   const plan=structuredClone(state.plan),owner=part?plan.geometry.parts?.find(p=>p.id===part):plan;
-  requireThat(owner?.geometry?.shape==='blob-field','Select an existing blob field part.');
+  if(owner?.geometry?.shape!=='blob-field')throw Error('Select an existing blob field part.');
   owner.geometry=await compileRequest(request);
   return updatePlan(directory,plan,state.revision);
 }
 // Threshold and sampling default here and are stored explicitly in the record.
 export function compileRequest(request){
-  requireThat(request&&typeof request==='object'&&Object.keys(request).every(k=>REQUEST_FIELDS.includes(k)),`A blob field request has ${REQUEST_FIELDS.join(', ')}.`);
+  if(!(request&&typeof request==='object'&&Object.keys(request).every(k=>REQUEST_FIELDS.includes(k))))throw Error(`A blob field request has ${REQUEST_FIELDS.join(', ')}.`);
   const {points,threshold=BLOB_FIELD_THRESHOLD,edgeMm=defaultEdgeMm(points)}=request;
   return compileBlobField({schema:BLOB_FIELD_SCHEMA,threshold,points},{edgeMm});
 }

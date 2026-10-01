@@ -4,7 +4,7 @@ import {requireThat,distance,normalize,cross,scale,add,dot,subtract} from '../pr
 import {prepareSurfaceOffset} from '../geom/surface-offset.mjs';
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {sampleSurfaceCurve} from '../region/normal-surface.mjs';
-import {findRoot} from '../geom/tolerance.mjs';
+import {sampledPositiveIntervals} from '../geom/curve-sampling.mjs';
 import {lineSpacing,spacingFactor} from '../path/spacing.mjs';
 
 
@@ -86,7 +86,6 @@ export function surfaceCellField({shell,settings,process,chart,courses=null,star
             const f=(arc-r.lengths[lo])/(r.lengths[hi]-r.lengths[lo]||1),u=r.samples[lo].u+(r.samples[hi].u-r.samples[lo].u)*f;
             return {u,width};
           };
-          let start=lengths[0]>threshold?v0:null;
           const run=(a,b)=>{
             if(b-a<1e-8)return;
             let samples=sampleSurfaceCurve(offsetChart(offset),t=>{const v=a+(b-a)*t;return [centerAt(v).u,v];},offsetField?0:offset,options);
@@ -96,12 +95,7 @@ export function surfaceCellField({shell,settings,process,chart,courses=null,star
             report.axialPasses++;
             if(a>v0+1e-7||b<v1-1e-7)report.partialAxialPasses++;else report.fullAxialPasses++;
           };
-          for(let j=1;j<vs.length;j++){
-            const active=lengths[j]>threshold,before=lengths[j-1]>threshold;
-            if(active!==before){const root=findRoot(v=>ring(v).length-threshold,vs[j-1],vs[j],lengths[j-1]-threshold,lengths[j]-threshold);
-              if(active)start=root;else{run(start,root);start=null;}}
-          }
-          if(start!==null)run(start,v1);
+          for(const [a,b] of sampledPositiveIntervals(v=>ring(v).length-threshold,vs,lengths.map(n=>n-threshold)))run(a,b);
         }
       }
     }else{

@@ -1,8 +1,10 @@
 import {prepareSolidDistance} from '../geom/solid-distance.mjs';
+import {prepareScalarField} from '../path/modulation-field.mjs';
 
 export async function prepareModulationFields(record){
   const report=[];
   const prepare=async(field,key)=>{
+    if(field.kind==='blob'||field.kind==='bumps')return prepareScalarField(field);
     if(field.kind==='solid-distance'){
       const {prepared,report:geometryReport}=await prepareSolidDistance(field.geometry,{toleranceMm:field.toleranceMm});
       report.push({key,...geometryReport});

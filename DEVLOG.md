@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-01 — Consolidate remaining Geometry operations
+
+- Geometry now owns planar stroke widening, sampled positive intervals and finite/periodic blob accumulation. Toolpath keeps printing policy; Agent owns blob authoring commands, supplying geometry through Bundle's ordinary API. Removed private-kernel crossings and two unused helpers. Preparation precedes sampling; unrepresentable blob buckets use ordered direct evaluation without size caps.
+- Exact comparisons covered 216 widened curves, 40 topology queries, 36 interval surveys, three complete wrapping outputs and 19,200 blob samples. Extreme coordinates, 150,000 points, raw/prepared generation and actual Studio worker serialization passed. Inert module previews become source navigation only with conservative AST/effect evidence; no new tests, suite batch or publication.
+
 ## 2026-10-01 — Consolidate material construction and solid distance
 
 - Geometry owns batched material construction and solid-distance preparation/query. Removed Agent's assembly builder and generation's recursive material/key bridge; Toolpath retains composition and sampling. Ordinary assemblies, native lifetime, tessellation, reports, errors and the `1e-12` sign threshold stay intact.

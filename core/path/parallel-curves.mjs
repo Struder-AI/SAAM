@@ -1,6 +1,6 @@
 import {requireThat,normalize,cross,dot,distance} from '../private/toolpath/numeric.mjs';
 import {transportCurveFrames} from './curve-frame.mjs';
-import {offsetPaths} from '../region/clipper.mjs';
+import {widenPlanarStrokes} from '../geom/stroke-topology.mjs';
 
 
 // Wanted ink width -> one sized bead or the fewest side-by-side beads.
@@ -31,12 +31,11 @@ export function parallelBeadGroup(curves,rule){
   }
   if(points.some(p=>Math.abs(dot(p.map((v,i)=>v-origin[i]),normal))>1e-6))return curves.flatMap(source=>transportedBeadBand(source,construction,rule));
   if(!rule.initialNormal&&points.every(p=>Math.abs(p[2]-origin[2])<1e-9)){origin[0]=0;origin[1]=0;x.splice(0,3,1,0,0);normal=[0,0,1];}
-  const y=cross(normal,x),local=curves.map(c=>c.points.map(p=>{const v=p.map((n,i)=>n-origin[i]);requireThat(Math.abs(dot(v,normal))<=1e-6,'Curved parallel strokes need physical surface offsets.');return {X:Math.round(dot(v,x)*1000),Y:Math.round(dot(v,y)*1000)};}));
-  const source=local.map((pts,i)=>curves[i].closed?[...pts,pts[0]]:pts),output=[];
+  const output=[];
   for(let k=0;k<Math.ceil(construction.parallelCount/2);k++){
     const radius=(construction.parallelCount-1)*construction.pitchMm/2-k*construction.pitchMm;
     if(radius<=1e-9){output.push(...curves.map(c=>({...c,beadWidthMm:construction.beadWidthMm})));continue;}
-    for(const loop of offsetPaths(source,radius*1000,{join:'round',end:'Round',miterLimit:2,arcTolerance:Math.max(5,Math.min(50,construction.beadWidthMm*1000/16))}))if(loop.length>=3)output.push({...curve,closed:true,beadWidthMm:construction.beadWidthMm,points:loop.map(p=>origin.map((v,i)=>v+x[i]*p.X/1000+y[i]*p.Y/1000))});
+    for(const points of widenPlanarStrokes(curves,radius,{origin,xAxis:x,normal,arcToleranceMm:Math.max(.005,Math.min(.05,construction.beadWidthMm/16))}))output.push({...curve,closed:true,beadWidthMm:construction.beadWidthMm,points});
   }
   return output;
 }

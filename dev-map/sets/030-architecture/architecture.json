@@ -52,7 +52,7 @@
     {"id":"context-file-bambu","index":"1.23","label":"core/export/bambu.md","description":"Bambu setup and output.","type":"guidance","source":{"file":"core/export/bambu.md"}},
     {"id":"context-file-dobot","index":"1.24","label":"core/export/dobot.md","description":"Dobot setup and output.","type":"guidance","source":{"file":"core/export/dobot.md"}},
     {"id":"context-file-denso","index":"1.25","label":"core/export/denso.md","description":"DENSO setup and output.","type":"guidance","source":{"file":"core/export/denso.md"}},
-    {"id":"geometry","index":"2","label":"Geometry engine","description":"Ordinary geometric values and evaluations shared by existing consumers; native library lifetime belongs here.","type":"component","notes":["Two consumer output families: ordinary geometry values and evaluations. Submaps group shared operations, not consumer names or source directories. Every assigned Geometry declaration has one source-linked terminal home. Process policy stays with Toolpath.","Wires show resolved implementation calls and bound consumer entries; dynamic/native findings remain unchecked. Selection/placement, line clipping and field extraction are implemented. Distance-query consolidation is undecided; loft consolidation is deferred."]},
+    {"id":"geometry","index":"2","label":"Geometry engine","description":"Ordinary geometric values and evaluations shared by existing consumers; native library lifetime belongs here.","type":"component","notes":["Two consumer output families: ordinary geometry values and evaluations. Submaps group shared operations, not consumer names or source directories. Every assigned Geometry declaration has one source-linked terminal home. Process policy stays with Toolpath.","Wires show resolved implementation calls and bound consumer entries; dynamic/native findings remain unchecked. Selection/placement, line clipping and field extraction are implemented. Material construction and prepared signed-distance queries are shared Geometry operations; loft consolidation remains deferred."]},
     {"id":"geometry-evaluations","index":"2.1","label":"Geometric evaluations","description":"Sample, section, clip and measure geometry through shared operations.","type":"component","source":{"file":"core/geom/surface-evaluation.mjs"},"notes":["Slice, Trace, text, surface deposition and Supports consume common geometric operations. Region loops retain their chart; contact with actual deposited material remains Toolpath policy."]},
     {"id":"geometry-api","index":"2.2","label":"Geometric values","description":"Construct, select, place, import and represent ordinary geometry values.","type":"component","source":{"file":"core/geom/solid-operations.mjs"},"notes":["Native isocurves replace boundary callbacks. Heat-set, text and gridfinity submit construction requests; Geometry owns kernel conversion and disposal. Existing geometry identities and editable feature records are preserved."]},
     {"id":"geometry-kernel","index":"2.3","label":"Shared geometry kernel","description":"Representation algorithms, numerical primitives and privately managed native resources.","type":"component","visibility":"private","source":{"file":"core/geom/nurbs.mjs"},"notes":["Representation-specific numerical implementations support both shared output families; existing limitations remain explicit."]},
@@ -411,7 +411,6 @@
     {"id":"geometry-leaf-7b6d315b94f2","index":"2.2.1.2.1","label":"Module initialization / exports","description":"Module context and initialization; callable declarations have separate leaves.","type":"component","source":{"file":"core/geom/selections.mjs"}},
     {"id":"geometry-leaf-31466bb7642a","index":"2.2.1.2.2.1","label":"geometrySelections body","description":"geometrySelections in core/geom/selections.mjs.","type":"component","source":{"file":"core/geom/selections.mjs","declaration":"geometrySelections"}},
     {"id":"geometry-leaf-98aff4ace3f0","index":"2.2.1.2.2.2","label":"append","description":"geometrySelections::append in core/geom/selections.mjs.","type":"component","source":{"file":"core/geom/selections.mjs","declaration":"geometrySelections::append"}},
-    {"id":"geometry-leaf-6e1a618d248f","index":"2.2.1.2.3","label":"selectionsOverlap","description":"selectionsOverlap in core/geom/selections.mjs.","type":"component","source":{"file":"core/geom/selections.mjs","declaration":"selectionsOverlap"}},
     {"id":"geometry-module-f1d315a678e1","index":"2.2.1.3","label":"solid operations","description":"Build and place native solids, selections and extension construction results. Source: core/geom/solid-operations.mjs.","type":"component","source":{"file":"core/geom/solid-operations.mjs"}},
     {"id":"geometry-leaf-d5d22dd2c29c","index":"2.2.1.3.1","label":"Module initialization / exports","description":"Module context and initialization; callable declarations have separate leaves.","type":"component","source":{"file":"core/geom/solid-operations.mjs"}},
     {"id":"geometry-leaf-464de5e3f611","index":"2.2.1.3.2.1","label":"constructSolids body","description":"constructSolids in core/geom/solid-operations.mjs.","type":"component","source":{"file":"core/geom/solid-operations.mjs","declaration":"constructSolids"}},
@@ -641,7 +640,6 @@
     {"id":"geometry-leaf-73438668a1bc","index":"2.2.4.5.2.1","label":"decodeFile body","description":"decodeFile in core/geom/stl-file.mjs.","type":"component","source":{"file":"core/geom/stl-file.mjs","declaration":"decodeFile"}},
     {"id":"geometry-leaf-d69dcdb3efbe","index":"2.2.4.5.2.2","label":"@default/progress","description":"decodeFile::@default/progress in core/geom/stl-file.mjs.","type":"component","source":{"file":"core/geom/stl-file.mjs","declaration":"decodeFile::@default/progress"}},
     {"id":"geometry-leaf-25357ca88705","index":"2.2.4.5.3","label":"decodeSTLFile","description":"decodeSTLFile in core/geom/stl-file.mjs.","type":"component","source":{"file":"core/geom/stl-file.mjs","declaration":"decodeSTLFile"}},
-    {"id":"geometry-leaf-7055d8c09158","index":"2.2.4.5.4","label":"hashFile","description":"hashFile in core/geom/stl-file.mjs.","type":"component","source":{"file":"core/geom/stl-file.mjs","declaration":"hashFile"}},
     {"id":"geometry-module-bb649d5bbf48","index":"2.2.4.6","label":"mesh repair job","description":"Decode user assets, perform requested repairs and release import scratch resources. Source: core/print/mesh-repair-job.mjs.","type":"component","source":{"file":"core/print/mesh-repair-job.mjs"}},
     {"id":"geometry-leaf-cc25efab0326","index":"2.2.4.6.1","label":"Module initialization / exports","description":"Module context and initialization; callable declarations have separate leaves.","type":"component","source":{"file":"core/print/mesh-repair-job.mjs"}},
     {"id":"geometry-leaf-1efc8357db49","index":"2.2.4.6.2","label":"repairMemoryError","description":"repairMemoryError in core/print/mesh-repair-job.mjs.","type":"component","source":{"file":"core/print/mesh-repair-job.mjs","declaration":"repairMemoryError"}},
@@ -700,7 +698,7 @@
     {"id":"geometry-leaf-0e1a1aa7a00d","index":"2.3.1.2.1","label":"Module initialization / exports","description":"Module context and initialization; callable declarations have separate leaves.","type":"component","source":{"file":"core/geom/surface-derivatives.mjs"}},
     {"id":"geometry-leaf-4502d190467d","index":"2.3.1.2.2.1","label":"baseSurfaceDerivatives body","description":"baseSurfaceDerivatives in core/geom/surface-derivatives.mjs.","type":"component","source":{"file":"core/geom/surface-derivatives.mjs","declaration":"baseSurfaceDerivatives"}},
     {"id":"geometry-leaf-300b389377fb","index":"2.3.1.2.2.2","label":"uvOf","description":"baseSurfaceDerivatives::uvOf in core/geom/surface-derivatives.mjs.","type":"component","source":{"file":"core/geom/surface-derivatives.mjs","declaration":"baseSurfaceDerivatives::uvOf"}},
-    {"id":"geometry-leaf-fec793136ddc","index":"2.3.1.2.3.1","label":"surfaceDerivatives body","description":"surfaceDerivatives in core/geom/surface-derivatives.mjs.","type":"component","source":{"file":"core/geom/surface-derivatives.mjs","declaration":"surfaceDerivatives"}},
+    {"id":"geometry-leaf-fec793136ddc","index":"2.1.1.6","label":"surfaceDerivatives","description":"Checked native surface differential evaluation: point, first/second derivatives, normal and vector-to-UV map; domain, positive weight and regular tangent checks remain mandatory.","type":"component","source":{"file":"core/geom/surface-derivatives.mjs","declaration":"surfaceDerivatives"}},
     {"id":"geometry-leaf-d73b4e93836a","index":"2.3.1.2.3.2","label":"add","description":"surfaceDerivatives::add in core/geom/surface-derivatives.mjs.","type":"component","source":{"file":"core/geom/surface-derivatives.mjs","declaration":"surfaceDerivatives::add"}},
     {"id":"geometry-leaf-a66fcd2b369c","index":"2.3.1.2.3.3","label":"scale","description":"surfaceDerivatives::scale in core/geom/surface-derivatives.mjs.","type":"component","source":{"file":"core/geom/surface-derivatives.mjs","declaration":"surfaceDerivatives::scale"}},
     {"id":"geometry-leaf-a2524faf94df","index":"2.3.1.2.3.4","label":"second","description":"surfaceDerivatives::second in core/geom/surface-derivatives.mjs.","type":"component","source":{"file":"core/geom/surface-derivatives.mjs","declaration":"surfaceDerivatives::second"}},
@@ -867,12 +865,12 @@
     {"id":"geometry-leaf-3e473144513e","index":"2.3.5.1.1","label":"Module initialization / exports","description":"Module context and initialization; callable declarations have separate leaves.","type":"component","source":{"file":"core/geom/blob-field.mjs"}},
     {"id":"geometry-leaf-b75825f7cfb0","index":"2.3.5.1.2","label":"blobFalloff","description":"blobFalloff in core/geom/blob-field.mjs.","type":"component","source":{"file":"core/geom/blob-field.mjs","declaration":"blobFalloff"}},
     {"id":"geometry-leaf-b176f1017d8e","index":"2.3.5.1.3","label":"blobFieldBounds","description":"blobFieldBounds in core/geom/blob-field.mjs.","type":"component","source":{"file":"core/geom/blob-field.mjs","declaration":"blobFieldBounds"}},
-    {"id":"geometry-leaf-f59f872c19d7","index":"2.3.5.1.4.1","label":"createBlobFieldEvaluator body","description":"createBlobFieldEvaluator in core/geom/blob-field.mjs.","type":"component","source":{"file":"core/geom/blob-field.mjs","declaration":"createBlobFieldEvaluator"}},
+    {"id":"geometry-leaf-f59f872c19d7","index":"2.1.9","label":"Prepare blob field evaluator","description":"Prepare finite weighted blob sources or an explicit periodic bump lattice for repeated geometric scalar queries; field composition and deposition policy remain with the caller.","type":"component","source":{"file":"core/geom/blob-field.mjs","declaration":"createBlobFieldEvaluator"}},
     {"id":"geometry-leaf-c07b6037b154","index":"2.3.5.1.4.2","label":"key","description":"createBlobFieldEvaluator::key in core/geom/blob-field.mjs.","type":"component","source":{"file":"core/geom/blob-field.mjs","declaration":"createBlobFieldEvaluator::key"}},
-    {"id":"geometry-leaf-3326c32b9cbd","index":"2.3.5.1.5","label":"validateBlobField","description":"validateBlobField in core/geom/blob-field.mjs.","type":"component","source":{"file":"core/geom/blob-field.mjs","declaration":"validateBlobField"}},
+    {"id":"geometry-leaf-3326c32b9cbd","index":"2.1.10","label":"validateBlobField","description":"Validate an explicit finite weighted blob native value, preserving exact schema, finite source and positive-material preconditions.","type":"component","source":{"file":"core/geom/blob-field.mjs","declaration":"validateBlobField"}},
     {"id":"geometry-module-24b1b9d62ba8","index":"2.3.5.2","label":"blob field compile","description":"Blob-field evaluation and compilation to supported manufacturing geometry. Source: core/geom/blob-field-compile.mjs.","type":"component","source":{"file":"core/geom/blob-field-compile.mjs"}},
     {"id":"geometry-leaf-fb2025a37f8b","index":"2.3.5.2.1","label":"Module initialization / exports","description":"Module context and initialization; callable declarations have separate leaves.","type":"component","source":{"file":"core/geom/blob-field-compile.mjs"}},
-    {"id":"geometry-leaf-3bb7558566a2","index":"2.3.5.2.2","label":"compileBlobField","description":"compileBlobField in core/geom/blob-field-compile.mjs.","type":"component","source":{"file":"core/geom/blob-field-compile.mjs","declaration":"compileBlobField"}},
+    {"id":"geometry-leaf-3bb7558566a2","index":"2.1.11","label":"compileBlobField","description":"Construct a manufacturing mesh from an explicit blob field and extraction edge size; Geometry owns native extraction, clipping, mesh admission, digest and disposal.","type":"component","source":{"file":"core/geom/blob-field-compile.mjs","declaration":"compileBlobField"}},
     {"id":"geometry-dormant","index":"2.3.6","label":"Unconsumed surface records","description":"Existing dormant implementation, inventoried for completeness; no supported trimmed-surface output or consumer.","type":"component"},
     {"id":"geometry-module-839d4ecfd2cd","index":"2.3.6.1","label":"trimmed surface","description":"Existing dormant implementation, inventoried for completeness; no supported trimmed-surface output or consumer. Source: core/geom/trimmed-surface.mjs.","type":"component","source":{"file":"core/geom/trimmed-surface.mjs"}},
     {"id":"geometry-leaf-f8c85a1323a7","index":"2.3.6.1.1","label":"Module initialization / exports","description":"Module context and initialization; callable declarations have separate leaves.","type":"component","source":{"file":"core/geom/trimmed-surface.mjs"},"notes":["Existing unconsumed code, not an offered geometry capability."]},
@@ -1016,7 +1014,12 @@
     {"id":"geometry-stage-2-1-5-4-35","index":"2.1.5.4.35","label":"Intersection continuation","description":"Intersection continuation and their private implementation stages.","type":"component"},
     {"id":"geometry-stage-2-2-2-1-26","index":"2.2.2.1.26","label":"Curve editing","description":"Curve editing and their private implementation stages.","type":"component"},
     {"id":"geometry-stage-2-2-2-1-27","index":"2.2.2.1.27","label":"Bezier spans and bounds","description":"Bezier spans and bounds and their private implementation stages.","type":"component"},
-    {"id":"geometry-stage-2-2-2-1-28","index":"2.2.2.1.28","label":"Crossings and winding","description":"Crossings and winding and their private implementation stages.","type":"component"}
+    {"id":"geometry-stage-2-2-2-1-28","index":"2.2.2.1.28","label":"Crossings and winding","description":"Crossings and winding and their private implementation stages.","type":"component"},
+    {"id":"geometry-positive-intervals","index":"2.1.1.7","label":"Sampled positive intervals","description":"Extract positive parameter intervals from an ordered scalar survey, refining only evidenced sign changes with the shared bracketed solver.","type":"component","source":{"file":"core/geom/curve-sampling.mjs","declaration":"sampledPositiveIntervals"}},
+    {"id":"geometry-material-resolution","index":"2.2.1.1.9","label":"Resolve material geometry","description":"Construct an ordered batch of authored material definitions, including placed recursive assemblies, with shared Geometry runtime and identity cache.","type":"component","source":{"file":"core/geom/build.mjs","declaration":"resolveMaterialGeometry"}},
+    {"id":"geometry-prepare-solid-distance","index":"2.1.7","label":"Prepare solid distance","description":"Resolve and tessellate authored material at explicit tolerance, returning prepared manufacturing mesh and representation diagnostics for synchronous distance queries.","type":"component","source":{"file":"core/geom/solid-distance.mjs","declaration":"prepareSolidDistance"}},
+    {"id":"geometry-solid-distance","index":"2.1.8","label":"Solid distance","description":"Exact exhaustive triangle-distance evaluation over the supplied prepared mesh, optionally signed by containment; no modulation channel or transfer policy.","type":"component","source":{"file":"core/geom/solid-distance.mjs","declaration":"solidDistance"}},
+    {"id":"geometry-widen-strokes","index":"2.1.4.11","label":"Widen planar strokes","description":"Round-joined/capped widening of coplanar XYZ centerlines in a supplied unit frame, owning the fixed millimetre rounding grid and native contour construction.","type":"component","source":{"file":"core/geom/stroke-topology.mjs","declaration":"widenPlanarStrokes"}}
   ],
   "contracts": [
     {"id":"trace-geometry-curve-point","from":"geometry-leaf-2ac18ceb597d","to":"trace","label":"rational curve point","direction":"Geometry returns an ordinary rational-curve point; Trace invokes the operation through the explicit access direction.","operations":["curvePoint"],"inputs":"An ordinary rational curve with its native active domain and a normalized domain fraction.","outputs":"The evaluated point in the curve coordinate dimension.","effects":"Numerical evaluation over supplied curve values; no retained state or machine/profile access.","failure":"Retains existing rational-curve evaluator behavior and representational preconditions; no independent regularity guarantee is added.","excludes":"No bead width, course selection, process policy or access to the private NURBS kernel.","access":[{"from":"trace","to":"geometry-leaf-2ac18ceb597d"}],"evidence":["core/geom/surface-curves.mjs::curvePoint","core/path/authored-curves.mjs::sampleAuthoredCurve"],"status":"Reviewed public operation within the existing Geometry–Toolpath root pair; exact caller operation placement may remain unresolved."},
@@ -1139,33 +1142,7 @@
       "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
       "implementation": "UI actions initiate work and exact confirmation; no agent confirmation authority."
     },
-    {
-      "id": "agent-geometry",
-      "from": "agent",
-      "to": "geometry-api",
-      "label": "geometry API",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "construct / import / transform / query"
-      ],
-      "inputs": "Explicit geometry values, assets, parameters and tolerance.",
-      "outputs": "Immutable geometry values or diagnostics.",
-      "effects": "Local scratch computation only.",
-      "failure": "Unsupported or invalid geometry is explicit.",
-      "excludes": "Cannot persist into a bundle or manage native kernel objects.",
-      "access": [
-        {
-          "from": "agent",
-          "to": "geometry-api"
-        }
-      ],
-      "evidence": [
-        "core/print/geometry-tools.mjs",
-        "core/print/import-stl.mjs"
-      ],
-      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
-      "implementation": "Agent commands request construction/import; Geometry returns values for explicit acceptance."
-    },
+    {"id":"agent-geometry","from":"agent","to":"geometry-api","label":"geometry API","direction":"Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.","operations":["construct / import / transform / query"],"inputs":"Explicit geometry values, assets, parameters and tolerance.","outputs":"Immutable geometry values or diagnostics.","effects":"Geometry owns conversion scratch, native/worker lifetime and explicit repair artifact outputs; Bundle persistence is a separate acceptance operation.","failure":"Unsupported or invalid geometry is explicit.","excludes":"Cannot persist into a bundle or manage native kernel objects.","access":[{"from":"agent","to":"geometry-api"}],"evidence":["core/print/geometry-tools.mjs","core/print/import-stl.mjs","core/geom/import-stl.mjs","core/print/repair-stl.mjs"],"status":"Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.","implementation":"Agent commands request construction/import; Geometry returns values for explicit acceptance."},
     {
       "id": "agent-toolpath",
       "from": "agent",
@@ -1641,33 +1618,7 @@
       "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
       "implementation": "Provider search/download results flow into Extensions; fetch/read calls go outward. No upload authority."
     },
-    {
-      "id": "agent-run-extension",
-      "from": "agent",
-      "to": "extension-run",
-      "label": "run extension",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "run"
-      ],
-      "inputs": "Selected extension identity, parameters, explicit inputs and documented resource use.",
-      "outputs": "Geometry/construction values or acquired assets plus provenance, for an explicit bundle edit.",
-      "effects": "Extension-private computation and declared resource IO only.",
-      "failure": "Return structured errors or cancellation without changing the active bundle.",
-      "excludes": "No confirmation, direct bundle mutation or private engine access.",
-      "access": [
-        {
-          "from": "agent",
-          "to": "extension-run"
-        }
-      ],
-      "evidence": [
-        "skills/gridfinity/scripts/cli.mjs",
-        "adapters/mcp/src/runtime.mjs"
-      ],
-      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
-      "implementation": "Local command/adapter initiates selected extension work through engines. No arbitrary extension bundle access."
-    },
+    {"id":"agent-run-extension","from":"agent","to":"extension-run","label":"run extension","direction":"Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.","operations":["run","loadLocalExtension"],"inputs":"Selected extension identity, parameters, explicit inputs and documented resource use.","outputs":"Geometry/construction values or acquired assets plus provenance, for an explicit bundle edit.","effects":"Extension-private computation and declared resource IO only.","failure":"Return structured errors or cancellation without changing the active bundle.","excludes":"No confirmation, direct bundle mutation or private engine access.","access":[{"from":"agent","to":"extension-run"}],"evidence":["skills/gridfinity/scripts/cli.mjs","adapters/mcp/src/runtime.mjs"],"status":"Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.","implementation":"Local command/adapter initiates selected extension work through engines. No arbitrary extension bundle access. Optional checkout-owned hook loading reads only the regular .local/extension.mjs file and returns an empty interface when absent."},
     {
       "id": "studio-agent-events",
       "from": "studio-agent",
@@ -3302,106 +3253,10 @@
         }
       ]
     },
-    {
-      "id": "channel-studio-requests",
-      "from": "studio-agent",
-      "to": "studio-requests",
-      "label": "query / update requests",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "query / update requests"
-      ],
-      "inputs": "Scoped Studio operation.",
-      "outputs": "Owned channel/tour state and result.",
-      "effects": "Returns values to the caller; state effects stay with the declared owner.",
-      "failure": "Propagate the operation error to its caller.",
-      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
-      "status": "observed in source; manually traced",
-      "evidence": [
-        "studio/server.mjs::createStudio"
-      ],
-      "access": [
-        {
-          "from": "studio-agent",
-          "to": "studio-requests"
-        }
-      ]
-    },
-    {
-      "id": "channel-studio-events",
-      "from": "studio-agent",
-      "to": "studio-events",
-      "label": "record / drain events",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "record / drain events"
-      ],
-      "inputs": "Scoped Studio operation.",
-      "outputs": "Owned channel/tour state and result.",
-      "effects": "Returns values to the caller; state effects stay with the declared owner.",
-      "failure": "Propagate the operation error to its caller.",
-      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
-      "status": "observed in source; manually traced",
-      "evidence": [
-        "studio/server.mjs::createStudio"
-      ],
-      "access": [
-        {
-          "from": "studio-agent",
-          "to": "studio-events"
-        }
-      ]
-    },
-    {
-      "id": "channel-studio-tour-state",
-      "from": "studio-agent",
-      "to": "studio-tour-state",
-      "label": "read / advance tour",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "read / advance tour"
-      ],
-      "inputs": "Scoped Studio operation.",
-      "outputs": "Owned channel/tour state and result.",
-      "effects": "Returns values to the caller; state effects stay with the declared owner.",
-      "failure": "Propagate the operation error to its caller.",
-      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
-      "status": "observed in source; manually traced",
-      "evidence": [
-        "studio/server.mjs::createStudio"
-      ],
-      "access": [
-        {
-          "from": "studio-agent",
-          "to": "studio-tour-state"
-        }
-      ]
-    },
-    {
-      "id": "tour-requests",
-      "from": "studio-tour-state",
-      "to": "studio-requests",
-      "label": "coordinate lesson requests",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "coordinate lesson requests"
-      ],
-      "inputs": "Current lesson and owner.",
-      "outputs": "Lesson request/result state.",
-      "effects": "Returns values to the caller; state effects stay with the declared owner.",
-      "failure": "Propagate the operation error to its caller.",
-      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
-      "status": "observed in source; manually traced",
-      "evidence": [
-        "studio/tour.mjs::createTour"
-      ],
-      "access": [
-        {
-          "from": "studio-tour-state",
-          "to": "studio-requests"
-        }
-      ]
-    },
+    {"id":"channel-studio-requests","from":"studio-agent","to":"studio-requests","label":"query / update requests","direction":"Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.","operations":["query / update requests","createAgentRequests"],"inputs":"Scoped Studio operation.","outputs":"Owned channel/tour state and result.","effects":"The returned service owns its state and operations. The caller closes only owned handles; supplied handles retain explicit ownership/handoff.","failure":"Propagate the operation error to its caller.","excludes":"This source reference is not an exhaustive code assignment or a conformance certificate.","status":"observed in source; manually traced","evidence":["studio/server.mjs::createStudio","studio/agent-requests.mjs::createAgentRequests"],"access":[{"from":"studio-agent","to":"studio-requests"}]},
+    {"id":"channel-studio-events","from":"studio-agent","to":"studio-events","label":"record / drain events","direction":"Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.","operations":["record / drain events","createStudioEvents"],"inputs":"Scoped Studio operation.","outputs":"Owned channel/tour state and result.","effects":"The returned service owns its state and operations. The caller closes only owned handles; supplied handles retain explicit ownership/handoff.","failure":"Propagate the operation error to its caller.","excludes":"This source reference is not an exhaustive code assignment or a conformance certificate.","status":"observed in source; manually traced","evidence":["studio/server.mjs::createStudio","studio/studio-events.mjs::createStudioEvents"],"access":[{"from":"studio-agent","to":"studio-events"}]},
+    {"id":"channel-studio-tour-state","from":"studio-agent","to":"studio-tour-state","label":"read / advance tour","direction":"Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.","operations":["read / advance tour","createTour"],"inputs":"Scoped Studio operation.","outputs":"Owned channel/tour state and result.","effects":"The returned service owns its state and operations. The caller closes only owned handles; supplied handles retain explicit ownership/handoff.","failure":"Propagate the operation error to its caller.","excludes":"This source reference is not an exhaustive code assignment or a conformance certificate.","status":"observed in source; manually traced","evidence":["studio/server.mjs::createStudio","studio/tour.mjs::createTour"],"access":[{"from":"studio-agent","to":"studio-tour-state"}]},
+    {"id":"tour-requests","from":"studio-tour-state","to":"studio-requests","label":"coordinate lesson requests","direction":"Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.","operations":["coordinate lesson requests","createAgentRequests"],"inputs":"Current lesson and owner.","outputs":"Lesson request/result state.","effects":"The returned service owns its state and operations. The caller closes only owned handles; supplied handles retain explicit ownership/handoff.","failure":"Propagate the operation error to its caller.","excludes":"This source reference is not an exhaustive code assignment or a conformance certificate.","status":"observed in source; manually traced","evidence":["studio/tour.mjs::createTour","studio/agent-requests.mjs::createAgentRequests"],"access":[{"from":"studio-tour-state","to":"studio-requests"}]},
     {
       "id": "build-field-preparation",
       "from": "path-fields",
@@ -4257,41 +4112,7 @@
       "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
       "implementation": "Agent settings-only commands call Settings selection/patch/remember operations. Mixed recipe edits still use the existing combined Bundle operation with settings resolution delegated to its owner."
     },
-    {
-      "id": "settings-bundle",
-      "from": "settings",
-      "to": "bundle-edit",
-      "label": "selected settings",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "selectSettings / settingsDefaults / resolveSettingsPatch",
-        "saveSetup",
-        "loadBundle / applySettingsSnapshot",
-        "record named extension configuration"
-      ],
-      "inputs": "Explicit selection or patch, immutable current Bundle snapshot, and expected revision.",
-      "outputs": "Exact selected machine/settings snapshot; accepted Bundle state or stale-revision error.",
-      "effects": "9 owns reusable settings and resolution; 5 accepts supplied setup/process/output/placement and machine values, preserving other components. Bundle owns invalidation and history. Named dependency configuration uses existing plan.skills; no duplicate dependency list or extension execution.",
-      "failure": "Return an explicit error without changing the last valid state.",
-      "excludes": "No silent updates of existing bundles when reusable presets change.",
-      "access": [
-        {
-          "from": "bundle-edit",
-          "to": "settings"
-        },
-        {
-          "from": "settings",
-          "to": "bundle-edit"
-        }
-      ],
-      "evidence": [
-        "core/machine/settings.mjs",
-        "core/machine/bundle-settings.mjs",
-        "core/print/workflow.mjs"
-      ],
-      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
-      "implementation": "Settings resolves reusable values and submits exact snapshot at expected revision. Bundle owns acceptance, invalidation and history; agreed integration entry is applySettingsSnapshot."
-    },
+    {"id":"settings-bundle","from":"settings","to":"bundle-edit","label":"selected settings","direction":"Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.","operations":["selectSettings / settingsDefaults / resolveSettingsPatch","saveSetup","loadBundle / applySettingsSnapshot","record named extension configuration"],"inputs":"Explicit selection or patch, immutable current Bundle snapshot, and expected revision.","outputs":"Exact selected machine/settings snapshot; accepted Bundle state or stale-revision error.","effects":"9 owns reusable settings and resolution; 5 accepts supplied setup/process/output/placement and machine values, preserving other components. Bundle owns invalidation and history. Named dependency configuration uses existing plan.skills; no duplicate dependency list or extension execution.","failure":"Return an explicit error without changing the last valid state.","excludes":"No silent updates of existing bundles when reusable presets change.","access":[{"from":"bundle-edit","to":"settings"},{"from":"settings","to":"bundle-edit"}],"evidence":["core/machine/settings.mjs","core/machine/bundle-settings.mjs","core/print/workflow.mjs","core/print/resolve-plan.mjs::resolvePlanPatch"],"status":"Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.","implementation":"Settings resolves reusable values and submits exact snapshot at expected revision. Bundle owns acceptance, invalidation and history; agreed integration entry is applySettingsSnapshot."},
     {
       "id": "settings-context",
       "from": "settings",
@@ -5223,7 +5044,37 @@
         "core/geom/mesh-native.mjs",
         "core/geom/native/mesh-repair.cpp"
       ]
-    }
+    },
+    {"id":"slice-checked-surface-derivatives","from":"geometry-leaf-fec793136ddc","to":"slice","label":"checked native differential samples","direction":"Geometry supplies the named result; the consumer calls the exact operation.","operations":["surfaceDerivatives"],"inputs":"Native homogeneous spline patch, native u/v parameters and optional finite normalMm.","outputs":"Point, du/dv, duu/duv/dvv, unit normal and uvOf; derivatives retain native parameter units.","effects":"Local numerical work; no persistence or caller policy lookup.","failure":"Reject out-of-domain samples, nonpositive weight, singular base tangents or offset focal collapse.","excludes":"No relaxed validation, deposition residual tolerance choice or generic numerical-kernel access.","access":[{"from":"slice","to":"geometry-leaf-fec793136ddc"}],"evidence":["core/geom/surface-derivatives.mjs::surfaceDerivatives","core/region/seeded-fronts.mjs::seededSurfaceFronts::roundingResiduals","core/region/seeded-fronts.mjs::seededSurfaceFronts::resolvedResiduals"],"status":"Exact operation and responsibility reviewed against source for 0.3.1; not conformance certification."},
+    {"id":"slice-positive-intervals","from":"geometry-positive-intervals","to":"slice","label":"positive geometric query intervals","direction":"Geometry supplies the named result; the consumer calls the exact operation.","operations":["sampledPositiveIntervals"],"inputs":"Caller-supplied scalar geometric query, ordered parameter samples and optional precomputed values.","outputs":"Ordered positive [start,end] parameter intervals, retaining exact-zero splits and original endpoints.","effects":"Invokes only the supplied scalar query while refining observed crossings; caller retains its query state.","failure":"Existing bracketed root prerequisites and 1e-9 parameter convergence apply.","excludes":"No unseen-crossing guarantee, interval merging, bead threshold/count policy or generic solver entry.","access":[{"from":"slice","to":"geometry-positive-intervals"}],"evidence":["core/geom/curve-sampling.mjs::sampledPositiveIntervals","core/region/wrapping-curves.mjs::surfaceCellField"],"status":"Exact operation and responsibility reviewed against source for 0.3.1; not conformance certification."},
+    {"id":"agent-material-resolution","from":"geometry-material-resolution","to":"agent","label":"resolved material definitions","direction":"Geometry supplies the named result; the consumer calls the exact operation.","operations":["resolveMaterialGeometry"],"inputs":"Ordered authored geometry definitions with placement and recursive assembly/Boolean operands.","outputs":"Corresponding material shells in input order.","effects":"Geometry owns runtime initialization and private per-batch identity reuse.","failure":"Unsupported/malformed geometry reports the original construction error.","excludes":"No recipe assignment, Bundle writes or caller-owned native construction.","access":[{"from":"agent","to":"geometry-material-resolution"}],"evidence":["core/geom/build.mjs::resolveMaterialGeometry","core/print/geometry-tools.mjs::intersectGeometry"],"status":"Exact operation and responsibility reviewed against source for 0.3.1; not conformance certification."},
+    {"id":"slice-material-resolution","from":"geometry-material-resolution","to":"slice","label":"resolved draft material volumes","direction":"Geometry supplies the named result; the consumer calls the exact operation.","operations":["resolveMaterialGeometry"],"inputs":"Ordered authored geometry definitions for explicit draft within-volumes.","outputs":"Corresponding material shells in input order.","effects":"Geometry owns runtime initialization and private per-batch identity reuse.","failure":"Unsupported/malformed geometry reports the original construction error.","excludes":"No assignment/process policy or Bundle mutation.","access":[{"from":"slice","to":"geometry-material-resolution"}],"evidence":["core/geom/build.mjs::resolveMaterialGeometry","core/print/geometry-tools.mjs::intersectDraftFamilies"],"status":"Exact operation and responsibility reviewed against source for 0.3.1; not conformance certification."},
+    {"id":"fields-prepare-solid-distance","from":"geometry-prepare-solid-distance","to":"path-fields","label":"prepared solid-distance geometry","direction":"Geometry supplies the named result; the consumer calls the exact operation.","operations":["prepareSolidDistance"],"inputs":"Authored geometry plus explicit tessellation toleranceMm.","outputs":"Prepared triangle mesh and {toleranceMm,triangles,representation} report.","effects":"Geometry owns material construction, tessellation, mesh conversion and native disposal.","failure":"Existing unsupported geometry/tessellation failures propagate.","excludes":"No modifier keys, channel/transfer composition or Toolpath process state.","access":[{"from":"path-fields","to":"geometry-prepare-solid-distance"}],"evidence":["core/geom/solid-distance.mjs::prepareSolidDistance","core/print/modulation-fields.mjs::prepareModulationFields::prepare"],"status":"Exact operation and responsibility reviewed against source for 0.3.1; not conformance certification."},
+    {"id":"fields-solid-distance","from":"geometry-solid-distance","to":"path-fields","label":"signed or unsigned mesh distance","direction":"Geometry supplies the named result; the consumer calls the exact operation.","operations":["solidDistance"],"inputs":"Prepared manufacturing triangle mesh, query XYZ point and signed boolean.","outputs":"Euclidean nearest triangle distance; negative inside when requested and magnitude exceeds 1e-12.","effects":"Exhaustive triangle query and optional containment over caller-supplied geometry.","failure":"Reject missing/non-mesh preparation.","excludes":"No cutoff approximation, new BVH, modulation-channel choice or native construction during sampling.","access":[{"from":"path-fields","to":"geometry-solid-distance"}],"evidence":["core/geom/solid-distance.mjs::solidDistance","core/path/modulation-field.mjs::evaluateScalarField"],"status":"Exact operation and responsibility reviewed against source for 0.3.1; not conformance certification."},
+    {"id":"trace-widen-planar-strokes","from":"geometry-widen-strokes","to":"trace","label":"physical stroke footprints","direction":"Geometry supplies the named result; the consumer calls the exact operation.","operations":["widenPlanarStrokes"],"inputs":"Finite XYZ centerlines, positive radiusMm, explicit origin/unit orthogonal xAxis+normal and positive arcToleranceMm.","outputs":"Closed XYZ loops in kernel contour order.","effects":"Geometry owns projection, Math.round on a 0.001 mm grid, round joins/caps, miter2, closure, native lifetime and reconstruction.","failure":"Reject malformed frames/points, nonpositive tolerances or coplanarity error above 1e-6 mm.","excludes":"No bead width/count/pitch choice, toolpath metadata or nonplanar transport policy.","access":[{"from":"trace","to":"geometry-widen-strokes"}],"evidence":["core/geom/stroke-topology.mjs::widenPlanarStrokes","core/path/parallel-curves.mjs::parallelBeadGroup"],"status":"Exact operation and responsibility reviewed against source for 0.3.1; not conformance certification."},
+    {"id":"agent-studio-events-lifecycle","from":"studio-events","to":"agent","label":"Studio event service lifetime","operations":["createStudioEvents"],"direction":"The named operation supplies its result/completion to the consumer; access explicitly permits the invocation.","inputs":"Explicit library/owner identity and optional supplied service handles.","outputs":"Owned public service handle; methods retain encapsulated state and resource effects.","effects":"Service owns queue/request/tour state, subscriptions, timers and storage. Caller owns disposal until explicit handoff; pre-launch failure closes owned handles.","failure":"Propagate the existing operation error; no fabricated success.","excludes":"No direct state access, Bundle relay, implicit server launch or transfer of ownership for borrowed handles.","access":[{"from":"agent","to":"studio-events"}],"evidence":["studio/studio-events.mjs::createStudioEvents","core/agent/toolkit.mjs::preview","adapters/mcp/src/runtime.mjs::createLocalRuntime"],"status":"Exact source operation and callers reviewed for 0.3.1; schemas/effects remain subject to audit."},
+    {"id":"agent-studio-requests-lifecycle","from":"studio-requests","to":"agent","label":"Studio request service lifetime","operations":["createAgentRequests"],"direction":"The named operation supplies its result/completion to the consumer; access explicitly permits the invocation.","inputs":"Explicit library/owner identity and optional supplied service handles.","outputs":"Owned public service handle; methods retain encapsulated state and resource effects.","effects":"Service owns queue/request/tour state, subscriptions, timers and storage. Caller owns disposal until explicit handoff; pre-launch failure closes owned handles.","failure":"Propagate the existing operation error; no fabricated success.","excludes":"No direct state access, Bundle relay, implicit server launch or transfer of ownership for borrowed handles.","access":[{"from":"agent","to":"studio-requests"}],"evidence":["studio/agent-requests.mjs::createAgentRequests","core/agent/toolkit.mjs::preview","core/agent/toolkit.mjs::beginWork","core/agent/toolkit.mjs::waitForRequests","core/agent/toolkit.mjs::respondToRequest","core/agent/toolkit.mjs::recordRequestActivity","core/agent/toolkit.mjs::inspectFailure","adapters/mcp/src/runtime.mjs::createLocalRuntime"],"status":"Exact source operation and callers reviewed for 0.3.1; schemas/effects remain subject to audit."},
+    {"id":"agent-studio-tour-lifecycle","from":"studio-tour-state","to":"agent","label":"Studio tour service lifetime","operations":["createTour"],"direction":"The named operation supplies its result/completion to the consumer; access explicitly permits the invocation.","inputs":"Explicit library/owner identity and optional supplied service handles.","outputs":"Owned public service handle; methods retain encapsulated state and resource effects.","effects":"Service owns queue/request/tour state, subscriptions, timers and storage. Caller owns disposal until explicit handoff; pre-launch failure closes owned handles.","failure":"Propagate the existing operation error; no fabricated success.","excludes":"No direct state access, Bundle relay, implicit server launch or transfer of ownership for borrowed handles.","access":[{"from":"agent","to":"studio-tour-state"}],"evidence":["studio/tour.mjs::createTour","core/agent/toolkit.mjs::preview","core/agent/toolkit.mjs::beginWork","adapters/mcp/src/runtime.mjs::createLocalRuntime"],"status":"Exact source operation and callers reviewed for 0.3.1; schemas/effects remain subject to audit."},
+    {"id":"agent-studio-server-lifecycle","from":"studio-agent","to":"agent","label":"Studio instance lifetime","operations":["createStudio"],"direction":"The named operation supplies its result/completion to the consumer; access explicitly permits the invocation.","inputs":"Prepared print directory, explicit library/owner and optional request/event/relay handles; closeAgentRequests states cleanup handoff.","outputs":"Studio server/session handle for explicit listening and closure.","effects":"Studio owns instance/channel/tour state and service resources. Supplied handles are borrowed unless cleanup is explicitly handed off; Agent retains pre-launch failure cleanup.","failure":"Propagate the existing operation error; no fabricated success.","excludes":"No facade factory, hidden server startup for request queries, Bundle mutation relay or direct store access.","access":[{"from":"agent","to":"studio-agent"}],"evidence":["studio/server.mjs::createStudio","core/agent/toolkit.mjs::preview","adapters/mcp/src/runtime.mjs::createLocalRuntime::startStudio"],"status":"Exact source operation and callers reviewed for 0.3.1; schemas/effects remain subject to audit."},
+    {"id":"geometry-import-cleanup","from":"geometry-leaf-9e131ce4225f","to":"geometry-leaf-a83a087eb1dc","label":"failed import scratch cleanup","operations":["releaseSTLImport"],"direction":"The named operation supplies its result/completion to the consumer; access explicitly permits the invocation.","inputs":"Geometry-owned scratch token","outputs":"Completion of registered scratch removal","effects":"Only registered import scratch can be removed; failure propagates after cleanup.","failure":"Propagate the existing operation error; no fabricated success.","excludes":"No transitive access, private state manipulation or additional API permission.","access":[{"from":"geometry-leaf-a83a087eb1dc","to":"geometry-leaf-9e131ce4225f"}],"evidence":["core/geom/import-stl.mjs::releaseSTLImport","core/geom/import-stl.mjs::prepareSTLImport"],"status":"Exact source operation and callers reviewed for 0.3.1; schemas/effects remain subject to audit."},
+    {"id":"geometry-mapped-text-reference","from":"geometry-leaf-1ebb00df734e","to":"geometry-mapped-text-material","label":"selected text reference chart","operations":["referenceSurface"],"direction":"The named operation supplies its result/completion to the consumer; access explicitly permits the invocation.","inputs":"Explicit target surface specification and material part","outputs":"Prepared reference chart","effects":"Geometry resolves the selected chart; text layout and feature policy remain with its caller.","failure":"Propagate the existing operation error; no fabricated success.","excludes":"No transitive access, private state manipulation or additional API permission.","access":[{"from":"geometry-mapped-text-material","to":"geometry-leaf-1ebb00df734e"}],"evidence":["core/geom/reference-surface.mjs::referenceSurface","core/geom/mapped-text-material.mjs::mappedTextMaterial"],"status":"Exact source operation and callers reviewed for 0.3.1; schemas/effects remain subject to audit."},
+    {"id":"geometry-normal-band-region","from":"geometry-leaf-3d62be5923d3","to":"geometry-leaf-058fec5453c4","label":"normal-band selected surface region","operations":["surfaceRegion"],"direction":"The named operation supplies its result/completion to the consumer; access explicitly permits the invocation.","inputs":"Supplied shell and surface selection","outputs":"Reference surface region","effects":"Geometry resolves the region; no Toolpath process or assignment reads.","failure":"Propagate the existing operation error; no fabricated success.","excludes":"No transitive access, private state manipulation or additional API permission.","access":[{"from":"geometry-leaf-058fec5453c4","to":"geometry-leaf-3d62be5923d3"}],"evidence":["core/geom/surface-region.mjs::surfaceRegion","core/geom/normal-band.mjs::normalBandVolume"],"status":"Exact source operation and callers reviewed for 0.3.1; schemas/effects remain subject to audit."},
+    {"id":"geometry-reference-mapped-surface","from":"geometry-leaf-4f938cd1a069","to":"geometry-leaf-1ebb00df734e","label":"selected affine chart","operations":["mappedSurface"],"direction":"The named operation supplies its result/completion to the consumer; access explicitly permits the invocation.","inputs":"Native surface, selected bounds/domain and orientation","outputs":"Mapped evaluation chart retaining derivative units","effects":"Local chart construction with source parameters preserved.","failure":"Propagate the existing operation error; no fabricated success.","excludes":"No transitive access, private state manipulation or additional API permission.","access":[{"from":"geometry-leaf-1ebb00df734e","to":"geometry-leaf-4f938cd1a069"}],"evidence":["core/geom/surface-evaluation.mjs::mappedSurface","core/geom/reference-surface.mjs::referenceSurface"],"status":"Exact source operation and callers reviewed for 0.3.1; schemas/effects remain subject to audit."},
+    {"id":"geometry-sleeve-interval-section","from":"geometry-leaf-315d463535bb","to":"geometry-mesh-sleeve-interval","label":"mesh sleeve section preparation","operations":["prepareSection"],"direction":"The named operation supplies its result/completion to the consumer; access explicitly permits the invocation.","inputs":"Explicit mesh/material geometry and cutting surface","outputs":"Prepared section query","effects":"Geometry owns section preparation and sampling; caller selects its search interval.","failure":"Propagate the existing operation error; no fabricated success.","excludes":"No transitive access, private state manipulation or additional API permission.","access":[{"from":"geometry-mesh-sleeve-interval","to":"geometry-leaf-315d463535bb"}],"evidence":["core/region/section.mjs::prepareSection","core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval"],"status":"Exact source operation and callers reviewed for 0.3.1; schemas/effects remain subject to audit."},
+    {"id":"geometry-constructed-geometry-verification","from":"geometry-leaf-2abb9412bf70","to":"geometry-leaf-af9c3c60207a","label":"constructed native geometry verification","operations":["verifyGeometry"],"direction":"The named operation supplies its result/completion to the consumer; access explicitly permits the invocation.","inputs":"Native artifact bytes and explicit geometry descriptor","outputs":"Geometry identity and validation evidence","effects":"Geometry checks its serialization and representation; Bundle acceptance remains separate.","failure":"Propagate the existing operation error; no fabricated success.","excludes":"No transitive access, private state manipulation or additional API permission.","access":[{"from":"geometry-leaf-af9c3c60207a","to":"geometry-leaf-2abb9412bf70"}],"evidence":["core/print/geometry.mjs::verifyGeometry","core/print/geometry.mjs::createGeometry"],"status":"Exact source operation and callers reviewed for 0.3.1; schemas/effects remain subject to audit."},
+    {"id":"agent-thingi-resource-client","from":"extension-resources","to":"agent","label":"Thingi10K resource service","operations":["createThingi10KClient"],"direction":"The named operation supplies its result/completion to the consumer; access explicitly permits the invocation.","inputs":"Explicit client/cache configuration for the pinned resource snapshot.","outputs":"Public metadata/search/download client and provenance.","effects":"Extension owns its cache and allowlisted upstream/CDN IO; acquired values still require explicit Geometry/Bundle acceptance.","failure":"Propagate the existing operation error; no fabricated success.","excludes":"No arbitrary URL fetching, Bundle mutation, confirmation or private engine calls.","access":[{"from":"agent","to":"extension-resources"}],"evidence":["skills/thingi10k/scripts/library.mjs::createThingi10KClient","skills/thingi10k/scripts/cli.mjs::@module"],"status":"Exact source operation and callers reviewed for 0.3.1; schemas/effects remain subject to audit."},
+    {"id":"fields-blob-evaluator","from":"geometry-leaf-f59f872c19d7","to":"path-fields","label":"prepared geometric scalar field","operations":["createBlobFieldEvaluator"],"direction":"Geometry provides a prepared evaluator to Toolpath; Toolpath invokes the exact preparation operation.","inputs":"Finite saam-blob-field/1 point field or {kind:bumps,periodMm,radiusMm,originMm} periodic lattice descriptor.","outputs":"Reusable evaluate(point) closure returning {value}; finite fields additionally support optional gradient derivatives.","effects":"Geometry snapshots the descriptor and owns spatial indexing and ordered accumulation; unrepresentable finite bucket coordinates use the ordered direct sum. Caller owns evaluation lifetime and sampling/composition policy.","failure":"Existing field validation propagates; periodic lattice indices must remain safe integers.","excludes":"No private falloff access, Toolpath channel/transfer policy or implicit Bundle state.","access":[{"from":"path-fields","to":"geometry-leaf-f59f872c19d7"}],"evidence":["core/geom/blob-field.mjs::createBlobFieldEvaluator","core/path/modulation-field.mjs::prepareScalarField","core/path/modulation-field.mjs::validateModulationField"]},
+    {"id":"fields-validate-blob","from":"geometry-leaf-3326c32b9cbd","to":"path-fields","label":"validateBlobField","operations":["validateBlobField"],"direction":"Provider supplies the named operation result; consumer explicitly invokes it.","inputs":"Explicit finite blob native value.","outputs":"Validated original value.","effects":"Local schema/value checks only.","failure":"Preserve operation prerequisites and original errors; no fabricated result.","excludes":"No transitive private access, caller state reads or additional operation permission.","access":[{"from":"path-fields","to":"geometry-leaf-3326c32b9cbd"}],"evidence":["core/geom/blob-field.mjs::validateBlobField","core/path/modulation-field.mjs::validateModulationField"]},
+    {"id":"agent-compile-blob","from":"geometry-leaf-3bb7558566a2","to":"agent","label":"compileBlobField","operations":["compileBlobField"],"direction":"Provider supplies the named operation result; consumer explicitly invokes it.","inputs":"Explicit finite field and positive extraction edgeMm.","outputs":"Manufacturing mesh record with field, extraction and compiledHash.","effects":"Geometry owns native extraction/clipping, mesh validation and finally disposal; Agent supplies explicit authoring inputs and submits the result to Bundle.","failure":"Preserve operation prerequisites and original errors; no fabricated result.","excludes":"No transitive private access, caller state reads or additional operation permission.","access":[{"from":"agent","to":"geometry-leaf-3bb7558566a2"}],"evidence":["core/geom/blob-field-compile.mjs::compileBlobField","core/agent/blob-field.mjs::compileRequest"]},
+    {"id":"geometry-distance-material","from":"geometry-material-resolution","to":"geometry-prepare-solid-distance","label":"resolveMaterialGeometry","operations":["resolveMaterialGeometry"],"direction":"Provider supplies the named operation result; consumer explicitly invokes it.","inputs":"One authored material definition.","outputs":"Resolved material shell.","effects":"Geometry shares its runtime and per-batch construction cache.","failure":"Preserve operation prerequisites and original errors; no fabricated result.","excludes":"No transitive private access, caller state reads or additional operation permission.","access":[{"from":"geometry-prepare-solid-distance","to":"geometry-material-resolution"}],"evidence":["core/geom/build.mjs::resolveMaterialGeometry","core/geom/solid-distance.mjs::prepareSolidDistance"]},
+    {"id":"geometry-evaluator-validation","from":"geometry-leaf-3326c32b9cbd","to":"geometry-leaf-f59f872c19d7","label":"validateBlobField","operations":["validateBlobField"],"direction":"Provider supplies the named operation result; consumer explicitly invokes it.","inputs":"Finite blob field branch of the explicit evaluator input.","outputs":"Validated source descriptor.","effects":"Local native-value validation before evaluator snapshot/index preparation.","failure":"Preserve operation prerequisites and original errors; no fabricated result.","excludes":"No transitive private access, caller state reads or additional operation permission.","access":[{"from":"geometry-leaf-f59f872c19d7","to":"geometry-leaf-3326c32b9cbd"}],"evidence":["core/geom/blob-field.mjs::validateBlobField","core/geom/blob-field.mjs::createBlobFieldEvaluator"]},
+    {"id":"geometry-blob-compilation-evaluator","from":"geometry-leaf-f59f872c19d7","to":"geometry-leaf-3bb7558566a2","label":"createBlobFieldEvaluator","operations":["createBlobFieldEvaluator"],"direction":"Provider supplies the named operation result; consumer explicitly invokes it.","inputs":"Finite field source definition.","outputs":"Prepared evaluator for native extraction callbacks.","effects":"Compiler retains callback lifetime and native disposal; evaluator owns source snapshot/indexing.","failure":"Preserve operation prerequisites and original errors; no fabricated result.","excludes":"No transitive private access, caller state reads or additional operation permission.","access":[{"from":"geometry-leaf-3bb7558566a2","to":"geometry-leaf-f59f872c19d7"}],"evidence":["core/geom/blob-field.mjs::createBlobFieldEvaluator","core/geom/blob-field-compile.mjs::compileBlobField"]},
+    {"id":"settings-bundle-patch","from":"settings","to":"bundle-patch","label":"resolveSettingsPatch","operations":["resolveSettingsPatch"],"direction":"Provider supplies the named operation result; consumer explicitly invokes it.","inputs":"Explicit requested settings patch and current Bundle values.","outputs":"Resolved explicit settings patch.","effects":"Settings resolves reusable values; Bundle retains acceptance, revision and invalidation.","failure":"Preserve operation prerequisites and original errors; no fabricated result.","excludes":"No transitive private access, caller state reads or additional operation permission.","access":[{"from":"bundle-patch","to":"settings"}],"evidence":["core/machine/settings.mjs::resolveSettingsPatch","core/print/resolve-plan.mjs::resolvePlanPatch"]},
+    {"id":"geometry-blob-extraction-schema","from":"geometry-leaf-90be44ad727f","to":"geometry-leaf-3bb7558566a2","label":"validateBlobFieldExtraction","operations":["validateBlobFieldExtraction"],"direction":"Provider supplies the named operation result; consumer explicitly invokes it.","inputs":"Explicit compiler identity and edgeMm extraction record.","outputs":"Validated extraction record.","effects":"Geometry checks its supported compiler and positive edge length before native extraction.","failure":"Preserve operation prerequisites and original errors; no fabricated result.","excludes":"No transitive private access, caller state reads or additional operation permission.","access":[{"from":"geometry-leaf-3bb7558566a2","to":"geometry-leaf-90be44ad727f"}],"evidence":["core/geom/blob-field-record.mjs::validateBlobFieldExtraction","core/geom/blob-field-compile.mjs::compileBlobField"]},
+    {"id":"geometry-blob-compiled-identity","from":"geometry-leaf-20854f6cbcc9","to":"geometry-leaf-3bb7558566a2","label":"blobFieldDigest","operations":["blobFieldDigest"],"direction":"Provider supplies the named operation result; consumer explicitly invokes it.","inputs":"Completed field, extraction and mesh record.","outputs":"Stable compiled representation digest.","effects":"Geometry canonicalizes and hashes its record through node:crypto; resource observations remain explicit.","failure":"Preserve operation prerequisites and original errors; no fabricated result.","excludes":"No transitive private access, caller state reads or additional operation permission.","access":[{"from":"geometry-leaf-3bb7558566a2","to":"geometry-leaf-20854f6cbcc9"}],"evidence":["core/geom/blob-field-record.mjs::blobFieldDigest","core/geom/blob-field-compile.mjs::compileBlobField"]},
+    {"id":"geometry-blob-record-native-value","from":"geometry-leaf-3326c32b9cbd","to":"geometry-leaf-0f67bda51184","label":"validateBlobField","operations":["validateBlobField"],"direction":"Provider supplies the named operation result; consumer explicitly invokes it.","inputs":"Persisted field native value.","outputs":"Validated field value.","effects":"Geometry verifies the source field before validating persisted extraction, mesh and compiled identity.","failure":"Preserve operation prerequisites and original errors; no fabricated result.","excludes":"No transitive private access, caller state reads or additional operation permission.","access":[{"from":"geometry-leaf-0f67bda51184","to":"geometry-leaf-3326c32b9cbd"}],"evidence":["core/geom/blob-field.mjs::validateBlobField","core/geom/blob-field-record.mjs::validateBlobFieldRecord"]},
+    {"id":"geometry-blob-record-extraction","from":"geometry-leaf-90be44ad727f","to":"geometry-leaf-0f67bda51184","label":"Blob record extraction","operations":["validateBlobFieldExtraction"],"direction":"Provider supplies validation/identity to Geometry record checking.","inputs":"Explicit persisted blob field record/extraction values.","outputs":"Validation completion or canonical compiled digest.","effects":"Geometry validates its own representation; digest uses node:crypto with raw external observations retained.","failure":"Existing schema, extraction and identity mismatch errors propagate.","excludes":"No Bundle reads, caller policy or transitive private access.","access":[{"from":"geometry-leaf-0f67bda51184","to":"geometry-leaf-90be44ad727f"}],"evidence":["core/geom/blob-field-record.mjs::validateBlobFieldRecord","core/geom/blob-field-record.mjs::validateBlobFieldExtraction"]},
+    {"id":"geometry-blob-record-identity","from":"geometry-leaf-20854f6cbcc9","to":"geometry-leaf-0f67bda51184","label":"Blob record identity","operations":["blobFieldDigest"],"direction":"Provider supplies validation/identity to Geometry record checking.","inputs":"Explicit persisted blob field record/extraction values.","outputs":"Validation completion or canonical compiled digest.","effects":"Geometry validates its own representation; digest uses node:crypto with raw external observations retained.","failure":"Existing schema, extraction and identity mismatch errors propagate.","excludes":"No Bundle reads, caller policy or transitive private access.","access":[{"from":"geometry-leaf-0f67bda51184","to":"geometry-leaf-20854f6cbcc9"}],"evidence":["core/geom/blob-field-record.mjs::validateBlobFieldRecord","core/geom/blob-field-record.mjs::blobFieldDigest"]}
   ],
   "layout": {
     "0": {

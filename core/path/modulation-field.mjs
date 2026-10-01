@@ -1,6 +1,6 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 
-import {blobFalloff,validateBlobField} from '../geom/blob-field.mjs';
+import {createBlobFieldEvaluator,validateBlobField} from '../geom/blob-field.mjs';
 import {solidDistance} from '../geom/solid-distance.mjs';
 
 const vector=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite);
@@ -34,8 +34,7 @@ export function validateModulationField(field) {
     validateModulationField(field.source);return field;
   }
   if(field.kind==='bumps'){
-    requireThat(fields(field,'kind,periodMm,radiusMm,originMm')&&vector(field.periodMm)&&field.periodMm.every(positive)&&positive(field.radiusMm)&&vector(field.originMm),
-      'Bumps field needs positive XYZ periodMm, radiusMm and originMm.');return field;
+    createBlobFieldEvaluator(field);return field;
   }
   if(field.kind==='blob'){
     requireThat(fields(field,'kind,field'),'Blob modulation needs kind and field.');
@@ -60,6 +59,13 @@ function latticeNoise(x,y,z,seed) {
 }
 const smooth=t=>t*t*(3-2*t);
 
+export function prepareScalarField(field){
+  if(field.kind==='blob'||field.kind==='bumps')return field.prepared?field:{...field,prepared:createBlobFieldEvaluator(field.kind==='blob'?field.field:field)};
+  if(field.sources)return {...field,sources:field.sources.map(prepareScalarField)};
+  if(field.source)return {...field,source:prepareScalarField(field.source)};
+  return field;
+}
+
 export function evaluateScalarField(field,point,{phaseRad=0,continuous=false,sideDirection=null}={}) {
   const options={phaseRad,continuous,sideDirection};
   if(field.kind==='solid-distance')return solidDistance(field.prepared,point,{signed:field.signed});
@@ -70,17 +76,7 @@ export function evaluateScalarField(field,point,{phaseRad=0,continuous=false,sid
     const t=Math.max(0,Math.min(1,(value-field.input[0])/(field.input[1]-field.input[0])));
     return field.output[0]+t*(field.output[1]-field.output[0]);
   }
-  if(field.kind==='bumps'){
-    let value=0;
-    const ranges=point.map((v,i)=>[Math.ceil((v-field.radiusMm-field.originMm[i])/field.periodMm[i]),Math.floor((v+field.radiusMm-field.originMm[i])/field.periodMm[i])]);
-    requireThat(ranges.flat().every(Number.isSafeInteger),'Bump lattice indices exceed exact integer representation; increase lattice spacing or move its origin closer.');
-    for(let x=ranges[0][0];x<=ranges[0][1];x++)for(let y=ranges[1][0];y<=ranges[1][1];y++)for(let z=ranges[2][0];z<=ranges[2][1];z++){
-      const center=[x,y,z].map((v,i)=>field.originMm[i]+v*field.periodMm[i]);
-      value+=blobFalloff(Math.hypot(...point.map((v,i)=>v-center[i]))/field.radiusMm).value;
-    }
-    return value;
-  }
-  if(field.kind==='blob')return field.field.points.reduce((sum,p)=>sum+p.strength*blobFalloff(Math.hypot(...point.map((v,i)=>v-p.positionMm[i]))/p.reachMm).value,0);
+  if(field.kind==='bumps'||field.kind==='blob')return (field.prepared??prepareScalarField(field).prepared)(point).value;
   if(field.kind==='noise'){
     const grid=point.map(v=>v/field.cellMm),base=grid.map(Math.floor),fraction=grid.map((v,i)=>smooth(v-base[i]));
     let value=0;

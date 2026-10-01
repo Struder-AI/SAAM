@@ -1135,6 +1135,449 @@
         "call"
       ],
       "evidence": "Bundle generation currency invokes Toolpath-owned digest of current recipe-selected source dependencies; cryptographic and resolver effects remain in the audit."
+    },
+    {
+      "contract": "slice-checked-surface-derivatives",
+      "target": "core/geom/surface-derivatives.mjs::surfaceDerivatives",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/region/seeded-fronts.mjs::seededSurfaceFronts::roundingResiduals",
+        "core/region/seeded-fronts.mjs::seededSurfaceFronts::resolvedResiduals"
+      ],
+      "evidence": "Exact reviewed consumer calls; source effects and unresolved callable/alias observations remain visible."
+    },
+    {
+      "contract": "slice-positive-intervals",
+      "target": "core/geom/curve-sampling.mjs::sampledPositiveIntervals",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/region/wrapping-curves.mjs::surfaceCellField"
+      ],
+      "evidence": "Exact reviewed consumer calls; source effects and unresolved callable/alias observations remain visible."
+    },
+    {
+      "contract": "agent-material-resolution",
+      "target": "core/geom/build.mjs::resolveMaterialGeometry",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/print/geometry-tools.mjs::intersectGeometry"
+      ],
+      "evidence": "Exact reviewed consumer calls; source effects and unresolved callable/alias observations remain visible."
+    },
+    {
+      "contract": "slice-material-resolution",
+      "target": "core/geom/build.mjs::resolveMaterialGeometry",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/print/geometry-tools.mjs::intersectDraftFamilies"
+      ],
+      "evidence": "Exact reviewed consumer calls; source effects and unresolved callable/alias observations remain visible."
+    },
+    {
+      "contract": "fields-prepare-solid-distance",
+      "target": "core/geom/solid-distance.mjs::prepareSolidDistance",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/print/modulation-fields.mjs::prepareModulationFields::prepare"
+      ],
+      "evidence": "Exact reviewed consumer calls; source effects and unresolved callable/alias observations remain visible."
+    },
+    {
+      "contract": "fields-solid-distance",
+      "target": "core/geom/solid-distance.mjs::solidDistance",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/path/modulation-field.mjs::evaluateScalarField"
+      ],
+      "evidence": "Exact reviewed consumer calls; source effects and unresolved callable/alias observations remain visible."
+    },
+    {
+      "contract": "trace-widen-planar-strokes",
+      "target": "core/geom/stroke-topology.mjs::widenPlanarStrokes",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/path/parallel-curves.mjs::parallelBeadGroup"
+      ],
+      "evidence": "Exact reviewed consumer calls; source effects and unresolved callable/alias observations remain visible."
+    },
+    {
+      "contract": "agent-geometry",
+      "target": "core/geom/import-stl.mjs::prepareSTLImport",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "adapters/mcp/src/runtime.mjs::createLocalRuntime::importSTL",
+        "core/print/import-stl.mjs::createSTLBundle"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "agent-geometry",
+      "target": "core/geom/import-stl.mjs::releaseSTLImport",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "adapters/mcp/src/runtime.mjs::createLocalRuntime::importSTL",
+        "core/print/import-stl.mjs::createSTLBundle"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "agent-geometry",
+      "target": "core/print/repair-stl.mjs::repairSTLFiles",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/print/cli.mjs::run"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "agent-run-extension",
+      "target": "core/local-extension.mjs::loadLocalExtension",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "adapters/mcp/src/runtime.mjs::@module"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "channel-studio-requests",
+      "target": "studio/agent-requests.mjs::createAgentRequests",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "studio/server.mjs::createStudio"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "channel-studio-events",
+      "target": "studio/studio-events.mjs::createStudioEvents",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "studio/server.mjs::createStudio"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "channel-studio-tour-state",
+      "target": "studio/tour.mjs::createTour",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "studio/server.mjs::createStudio"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "tour-requests",
+      "target": "studio/agent-requests.mjs::createAgentRequests",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "studio/tour.mjs::createTour"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "agent-studio-events-lifecycle",
+      "target": "studio/studio-events.mjs::createStudioEvents",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/agent/toolkit.mjs::preview",
+        "adapters/mcp/src/runtime.mjs::createLocalRuntime"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "agent-studio-requests-lifecycle",
+      "target": "studio/agent-requests.mjs::createAgentRequests",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/agent/toolkit.mjs::preview",
+        "core/agent/toolkit.mjs::beginWork",
+        "core/agent/toolkit.mjs::waitForRequests",
+        "core/agent/toolkit.mjs::respondToRequest",
+        "core/agent/toolkit.mjs::recordRequestActivity",
+        "core/agent/toolkit.mjs::inspectFailure",
+        "adapters/mcp/src/runtime.mjs::createLocalRuntime"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "agent-studio-tour-lifecycle",
+      "target": "studio/tour.mjs::createTour",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/agent/toolkit.mjs::preview",
+        "core/agent/toolkit.mjs::beginWork",
+        "adapters/mcp/src/runtime.mjs::createLocalRuntime"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "agent-studio-server-lifecycle",
+      "target": "studio/server.mjs::createStudio",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/agent/toolkit.mjs::preview",
+        "adapters/mcp/src/runtime.mjs::createLocalRuntime::startStudio"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "geometry-import-cleanup",
+      "target": "core/geom/import-stl.mjs::releaseSTLImport",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/import-stl.mjs::prepareSTLImport"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "geometry-mapped-text-reference",
+      "target": "core/geom/reference-surface.mjs::referenceSurface",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/mapped-text-material.mjs::mappedTextMaterial"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "geometry-normal-band-region",
+      "target": "core/geom/surface-region.mjs::surfaceRegion",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/normal-band.mjs::normalBandVolume"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "geometry-reference-mapped-surface",
+      "target": "core/geom/surface-evaluation.mjs::mappedSurface",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/reference-surface.mjs::referenceSurface"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "geometry-sleeve-interval-section",
+      "target": "core/region/section.mjs::prepareSection",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "geometry-constructed-geometry-verification",
+      "target": "core/print/geometry.mjs::verifyGeometry",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/print/geometry.mjs::createGeometry"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "agent-thingi-resource-client",
+      "target": "skills/thingi10k/scripts/library.mjs::createThingi10KClient",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "skills/thingi10k/scripts/cli.mjs::@module"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "fields-blob-evaluator",
+      "target": "core/geom/blob-field.mjs::createBlobFieldEvaluator",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/path/modulation-field.mjs::prepareScalarField",
+        "core/path/modulation-field.mjs::validateModulationField"
+      ],
+      "evidence": "Exact prepared field construction and validation calls; returned closure effects and aliases remain observed."
+    },
+    {
+      "contract": "fields-validate-blob",
+      "target": "core/geom/blob-field.mjs::validateBlobField",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/path/modulation-field.mjs::validateModulationField"
+      ],
+      "evidence": "Reviewed exact operation and caller; resource and value-flow observations remain visible."
+    },
+    {
+      "contract": "agent-compile-blob",
+      "target": "core/geom/blob-field-compile.mjs::compileBlobField",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/agent/blob-field.mjs::compileRequest"
+      ],
+      "evidence": "Reviewed exact operation and caller; resource and value-flow observations remain visible."
+    },
+    {
+      "contract": "geometry-distance-material",
+      "target": "core/geom/build.mjs::resolveMaterialGeometry",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/solid-distance.mjs::prepareSolidDistance"
+      ],
+      "evidence": "Reviewed exact operation and caller; resource and value-flow observations remain visible."
+    },
+    {
+      "contract": "geometry-evaluator-validation",
+      "target": "core/geom/blob-field.mjs::validateBlobField",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/blob-field.mjs::createBlobFieldEvaluator"
+      ],
+      "evidence": "Reviewed exact operation and caller; resource and value-flow observations remain visible."
+    },
+    {
+      "contract": "geometry-blob-compilation-evaluator",
+      "target": "core/geom/blob-field.mjs::createBlobFieldEvaluator",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/blob-field-compile.mjs::compileBlobField"
+      ],
+      "evidence": "Reviewed exact operation and caller; resource and value-flow observations remain visible."
+    },
+    {
+      "contract": "settings-bundle-patch",
+      "target": "core/machine/settings.mjs::resolveSettingsPatch",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/print/resolve-plan.mjs::resolvePlanPatch"
+      ],
+      "evidence": "Reviewed exact operation and caller; resource and value-flow observations remain visible."
+    },
+    {
+      "contract": "geometry-blob-extraction-schema",
+      "target": "core/geom/blob-field-record.mjs::validateBlobFieldExtraction",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/blob-field-compile.mjs::compileBlobField"
+      ],
+      "evidence": "Reviewed exact operation and caller; resource and value-flow observations remain visible."
+    },
+    {
+      "contract": "geometry-blob-compiled-identity",
+      "target": "core/geom/blob-field-record.mjs::blobFieldDigest",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/blob-field-compile.mjs::compileBlobField"
+      ],
+      "evidence": "Reviewed exact operation and caller; resource and value-flow observations remain visible."
+    },
+    {
+      "contract": "geometry-blob-record-native-value",
+      "target": "core/geom/blob-field.mjs::validateBlobField",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/blob-field-record.mjs::validateBlobFieldRecord"
+      ],
+      "evidence": "Reviewed exact operation and caller; resource and value-flow observations remain visible."
+    },
+    {
+      "contract": "geometry-blob-record-extraction",
+      "target": "core/geom/blob-field-record.mjs::validateBlobFieldExtraction",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/blob-field-record.mjs::validateBlobFieldRecord"
+      ],
+      "evidence": "Exact internal record-validation composition; effects remain observable."
+    },
+    {
+      "contract": "geometry-blob-record-identity",
+      "target": "core/geom/blob-field-record.mjs::blobFieldDigest",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/blob-field-record.mjs::validateBlobFieldRecord"
+      ],
+      "evidence": "Exact internal record-validation composition; effects remain observable."
+    },
+    {
+      "contract": "agent-settings",
+      "target": "core/machine/settings.mjs::selectSettings",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/agent/blob-field.mjs::createBlobFieldBundle"
+      ],
+      "evidence": "Relocated authoring command explicitly selects Settings before submitting supplied geometry/settings to Bundle."
     }
   ]
 }

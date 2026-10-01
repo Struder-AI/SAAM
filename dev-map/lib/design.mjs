@@ -64,13 +64,14 @@ async function sourceReferences(repo,nodes) {
 
 // Presentation only: authored IDs, ownership and contract endpoints stay intact.
 // Small navigation groups add a click without enough internal structure to draw.
-function flattenNavigation(nodes,protectedNodes) {
+function flattenNavigation(nodes,protectedNodes,inertModules=[]) {
   const children=p=>[...nodes.values()].filter(n=>!n.collapsed&&n.parent===p.index);
   const inline=p=>{
     const held=children(p);p.contents=held.map(n=>n.index);
     for(const n of held)n.parent=p.parent;
     if(!protectedNodes.has(p.id))p.collapsed=true;
   };
+  for(const id of inertModules)if(nodes.has(id)&&!protectedNodes.has(id))inline(nodes.get(id));
   let changed=true;
   while(changed) {
     changed=false;
@@ -145,7 +146,9 @@ export async function designModel({repo}) {
   // Keep actual semantic owners visible even when they have no resolved caller;
   // flattening must not hide a disconnected operation that needs investigation.
   const semanticOwners=containment?Object.values(containment.owners):Object.values(JSON.parse(ownershipText).leaves).map(n=>n.owner);
-  flattenNavigation(nodes,new Set([...protectedNodes,...semanticOwners,...observed.contracts.flatMap(c=>[c.from,c.to])]));
+  const observedEndpoints=new Set(observed.contracts.flatMap(c=>[c.from,c.to]));
+  const inertModules=(containment?.navigation?.candidates??[]).map(n=>n.node).filter(id=>!protectedNodes.has(id)&&!observedEndpoints.has(id));
+  flattenNavigation(nodes,new Set([...protectedNodes,...semanticOwners.filter(id=>!inertModules.includes(id)),...observedEndpoints]),inertModules);
   const bindings=[...(JSON.parse(bindingText).bindings??[]),...observed.bindings];
   const references=new Map(nodes);
   for(const [id,n] of foldedNodes)references.set(id,n);

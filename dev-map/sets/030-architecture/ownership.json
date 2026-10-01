@@ -383,10 +383,6 @@
       "owner": "studio",
       "reason": "Interactive machine presentation and jog state."
     },
-    "core/print/blob-field.mjs": {
-      "owner": "bundle",
-      "reason": "Bundle-editing command wrappers; construction must go through the appropriate engine/extension."
-    },
     "core/print/geometry-tools.mjs": {
       "owner": "agent",
       "reason": "Mixed command module: Agent request/bundle orchestration; Geometry query/intersection calculations; Toolpath ordinary slice-family construction. Anonymous geometric callbacks inside intersectGeometry remain folded into their lexical Agent orchestrator, an attribution limit rather than a new API."
@@ -1342,6 +1338,14 @@
     "core/geom/frame.mjs": {
       "owner": "geometry-frames",
       "reason": "Explicit public frame operations consolidate old machine, Export and Studio arithmetic."
+    },
+    "core/geom/solid-distance.mjs": {
+      "owner": "geometry",
+      "reason": "Material preparation and distance/containment queries, separate from Toolpath modulation policy."
+    },
+    "core/agent/blob-field.mjs": {
+      "owner": "agent",
+      "reason": "Blob authoring commands compose Geometry construction, Settings selection and Bundle acceptance."
     }
   },
   "leaves": {
@@ -2317,7 +2321,8 @@
       "owner": "geometry-leaf-b176f1017d8e"
     },
     "core/geom/blob-field.mjs::createBlobFieldEvaluator": {
-      "owner": "geometry-leaf-f59f872c19d7"
+      "owner": "geometry-leaf-f59f872c19d7",
+      "reason": "Prepare finite weighted blob sources or an explicit periodic bump lattice for repeated geometric scalar queries; field composition and deposition policy remain with the caller."
     },
     "core/geom/blob-field.mjs::createBlobFieldEvaluator::key": {
       "owner": "geometry-leaf-c07b6037b154"
@@ -3207,9 +3212,6 @@
     "core/geom/selections.mjs::geometrySelections::append": {
       "owner": "geometry-leaf-98aff4ace3f0"
     },
-    "core/geom/selections.mjs::selectionsOverlap": {
-      "owner": "geometry-leaf-6e1a618d248f"
-    },
     "core/geom/shell.mjs::@module": {
       "owner": "geometry-leaf-c23be79e2624"
     },
@@ -3394,7 +3396,8 @@
       "owner": "geometry-leaf-300b389377fb"
     },
     "core/geom/surface-derivatives.mjs::surfaceDerivatives": {
-      "owner": "geometry-leaf-fec793136ddc"
+      "owner": "geometry-leaf-fec793136ddc",
+      "reason": "Checked native surface differential evaluation: point, first/second derivatives, normal and vector-to-UV map; domain, positive weight and regular tangent checks remain mandatory."
     },
     "core/geom/surface-derivatives.mjs::surfaceDerivatives::add": {
       "owner": "geometry-leaf-d73b4e93836a"
@@ -4603,29 +4606,10 @@
     "core/print/assignment-process.mjs::validateAssignmentProcess": {
       "owner": "toolpath"
     },
-    "core/print/blob-field.mjs::@module": {
-      "owner": "bundle"
-    },
-    "core/print/blob-field.mjs::compileRequest": {
-      "owner": "bundle"
-    },
-    "core/print/blob-field.mjs::createBlobFieldBundle": {
-      "owner": "bundle"
-    },
-    "core/print/blob-field.mjs::defaultEdgeMm": {
-      "owner": "bundle"
-    },
-    "core/print/blob-field.mjs::updateBlobFieldBundle": {
-      "owner": "bundle"
-    },
     "core/print/bundle.mjs::@module": {
       "owner": "bundle"
     },
     "core/print/bundle.mjs::generatePreparedPath": {
-      "owner": "toolpath",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
-    "core/print/bundle.mjs::generatePreparedPath::material": {
       "owner": "toolpath",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
@@ -4782,10 +4766,6 @@
     "core/print/geometry-tools.mjs::intersectRequest": {
       "owner": "agent",
       "reason": "Selects supplied or Bundle geometry and delegates explicit requested queries."
-    },
-    "core/print/geometry-tools.mjs::queryShell": {
-      "owner": "geometry",
-      "reason": "Constructs union query semantics for placed assembly component geometry."
     },
     "core/print/geometry-tools.mjs::round": {
       "owner": "geometry",
@@ -8848,9 +8828,6 @@
     "core/geom/stl-file.mjs::decodeSTLFile": {
       "owner": "geometry-leaf-25357ca88705"
     },
-    "core/geom/stl-file.mjs::hashFile": {
-      "owner": "geometry-leaf-7055d8c09158"
-    },
     "core/geom/import-stl.mjs::prepareSTLImport": {
       "owner": "geometry-leaf-a83a087eb1dc"
     },
@@ -10621,6 +10598,66 @@
     "core/print/workflow.mjs::createBundleWorkflow::requireGenerationSource": {
       "owner": "bundle",
       "reason": "Checks current supplied generation-source identity and invalidates/accepts saved review and generation state through Bundle revision ownership."
+    },
+    "core/geom/curve-sampling.mjs::sampledPositiveIntervals": {
+      "owner": "geometry-positive-intervals",
+      "reason": "Extract positive parameter intervals from an ordered scalar survey, refining only evidenced sign changes with the shared bracketed solver."
+    },
+    "core/geom/build.mjs::resolveMaterialGeometry": {
+      "owner": "geometry-material-resolution",
+      "reason": "Construct an ordered batch of authored material definitions, including placed recursive assemblies, with shared Geometry runtime and identity cache."
+    },
+    "core/geom/solid-distance.mjs::prepareSolidDistance": {
+      "owner": "geometry-prepare-solid-distance",
+      "reason": "Resolve and tessellate authored material at explicit tolerance, returning prepared manufacturing mesh and representation diagnostics for synchronous distance queries."
+    },
+    "core/geom/solid-distance.mjs::solidDistance": {
+      "owner": "geometry-solid-distance",
+      "reason": "Exact exhaustive triangle-distance evaluation over the supplied prepared mesh, optionally signed by containment; no modulation channel or transfer policy."
+    },
+    "core/geom/stroke-topology.mjs::widenPlanarStrokes": {
+      "owner": "geometry-widen-strokes",
+      "reason": "Round-joined/capped widening of coplanar XYZ centerlines in a supplied unit frame, owning the fixed millimetre rounding grid and native contour construction."
+    },
+    "core/geom/stroke-topology.mjs::strokeFootprint": {
+      "owner": "geometry-kernel",
+      "reason": "Shared private footprint construction owns integer quantization and native offset invocation for both public Geometry stroke operations; no Toolpath policy."
+    },
+    "core/geom/solid-distance.mjs::@module": {
+      "owner": "geometry",
+      "reason": "Declaration/import context for public prepared distance operations; native and dependency effects remain observable."
+    },
+    "core/path/modulation-field.mjs::prepareScalarField": {
+      "owner": "path-fields",
+      "reason": "Toolpath recursively prepares authored scalar field composition once, preserving existing prepared values and consuming Geometry evaluator results."
+    },
+    "core/geom/blob-field.mjs::createBlobFieldEvaluator::vector": {
+      "owner": "geometry-leaf-f59f872c19d7",
+      "reason": "Private local periodic-field input predicate used only by Geometry evaluator preparation; no new public operation."
+    },
+    "core/geom/blob-field.mjs::createBlobFieldEvaluator::positive": {
+      "owner": "geometry-leaf-f59f872c19d7",
+      "reason": "Private local periodic-field input predicate used only by Geometry evaluator preparation; no new public operation."
+    },
+    "core/agent/blob-field.mjs::@module": {
+      "owner": "agent",
+      "reason": "Explicit blob authoring command/defaults construct a supplied Geometry proposal and submit it through Bundle acceptance; no Bundle-owned compilation."
+    },
+    "core/agent/blob-field.mjs::compileRequest": {
+      "owner": "agent",
+      "reason": "Explicit blob authoring command/defaults construct a supplied Geometry proposal and submit it through Bundle acceptance; no Bundle-owned compilation."
+    },
+    "core/agent/blob-field.mjs::createBlobFieldBundle": {
+      "owner": "agent",
+      "reason": "Explicit blob authoring command/defaults construct a supplied Geometry proposal and submit it through Bundle acceptance; no Bundle-owned compilation."
+    },
+    "core/agent/blob-field.mjs::defaultEdgeMm": {
+      "owner": "agent",
+      "reason": "Explicit blob authoring command/defaults construct a supplied Geometry proposal and submit it through Bundle acceptance; no Bundle-owned compilation."
+    },
+    "core/agent/blob-field.mjs::updateBlobFieldBundle": {
+      "owner": "agent",
+      "reason": "Explicit blob authoring command/defaults construct a supplied Geometry proposal and submit it through Bundle acceptance; no Bundle-owned compilation."
     }
   },
   "retiredAssignments": [
@@ -11199,7 +11236,16 @@
     "workspaces/wing/app.mjs::@handler/button.onclick",
     "core/region/boolean.mjs::@module",
     "core/region/stroke.mjs::@module",
-    "core/region/stroke.mjs::strokeRegion"
+    "core/region/stroke.mjs::strokeRegion",
+    "core/print/bundle.mjs::generatePreparedPath::material",
+    "core/print/geometry-tools.mjs::queryShell",
+    "core/geom/selections.mjs::selectionsOverlap",
+    "core/geom/stl-file.mjs::hashFile",
+    "core/print/blob-field.mjs::@module",
+    "core/print/blob-field.mjs::compileRequest",
+    "core/print/blob-field.mjs::createBlobFieldBundle",
+    "core/print/blob-field.mjs::defaultEdgeMm",
+    "core/print/blob-field.mjs::updateBlobFieldBundle"
   ],
   "scope": "Exact root responsibilities plus evidenced operation homes; unresolved submap containment remains explicit."
 }

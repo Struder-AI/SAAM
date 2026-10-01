@@ -7,7 +7,7 @@ import {createHash} from 'node:crypto';
 import {loadFlow,flowPacket} from './flow.mjs';
 import {pipelineOwnership} from './pipeline-ownership.mjs';
 import {resourceProvenance} from './resource-provenance.mjs';
-import {semanticContainment} from './semantic-containment.mjs';
+import {semanticContainment,inertModuleNavigation} from './semantic-containment.mjs';
 import {setFile} from './map-set.mjs';
 import {renderAudit} from './architecture-audit-view.mjs';
 const hash=text=>createHash('sha256').update(text).digest('hex');
@@ -226,6 +226,7 @@ export async function architectureAudit(repo,{inventoryOnly=false}={}) {
     add({kind:node.type==='ImportDeclaration'?'import':'re-export',from:`${file}::@module`,to:byPath.has(`${target}::@module`)?`${target}::@module`:null,site:{file,line:node.loc.start.line},
       ...(mixed.has(file)||mixed.has(target)?{status:'unknown',reason:'Module has mixed owners; named call evidence determines access, module-level import alone cannot.'}:byPath.has(`${target}::@module`)?{}:{status:'unknown',reason:`Unanalyzed dependency ${target}`})});
   }
+  containment.navigation=inertModuleNavigation({asts:context.asts,spec,ownership:authored,bindings:allowed,rows});
   const totals={files:files.length,scannedFiles:scanFiles.length,leaves:leaves.length,representedDeclarations:graph.declarations.filter(d=>projection.owner.has(d.id)).length,
     unrepresentedDeclarations:graph.declarations.filter(d=>!projection.owner.has(d.id)).length,assigned:leaves.filter(n=>n.owner).length,unassignedLeaves:leaves.filter(n=>!n.owner).length,orphan:orphan.length,unsupported:files.filter(f=>f.unsupported).length};
   for(const row of rows)totals[row.status]=(totals[row.status]??0)+1;
