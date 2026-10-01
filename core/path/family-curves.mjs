@@ -1,7 +1,8 @@
+import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {requireThat,dot,cross,normalize,distance} from '../private/toolpath/numeric.mjs';
 
-import {sampleAuthoredCurve,referenceCurvePoint} from './authored-curves.mjs';
-import {sampleCurveIntervals} from './curve-sampling.mjs';
+import {sampleAuthoredCurve} from './authored-curves.mjs';
+import {sampleCurveIntervals} from '../geom/curve-sampling.mjs';
 import {spiralProfile,spiralHeight,spiralBeadCurve} from './curve-construction.mjs';
 
 // Family boundaries are already offset/clipped/mapped. A sleeve is their
@@ -9,7 +10,7 @@ import {spiralProfile,spiralHeight,spiralBeadCurve} from './curve-construction.m
 export function boundarySleeve(family){
   requireThat(family?.layers?.length>=2,'A boundary sleeve needs at least two layers.');
   for(const layer of family.layers)requireThat(layer.curves?.length===1&&layer.curves[0].closed&&layer.curves[0].points.length>=3,'Spiral joining needs one closed boundary per family layer, with no holes.');
-  return {layers:family.layers,direction:normalize(family.direction??[0,0,1])};
+  return {kind:'sleeve-chart',layers:family.layers,direction:normalize(family.direction??[0,0,1])};
 }
 
 function familyNormal(sleeve,u,v){
@@ -56,7 +57,7 @@ export function spiralFamilyCurve({family,firstHeightMm,widthMm,speedMmS,levelEn
   const heightsMm=family.boundary?bead.heightsMm:curve.points.slice(1).map((point,i)=>{
     const a=curve.frameSamples[i].point,b=curve.frameSamples[i+1].point,u=(a[0]+b[0])/2,v=(a[1]+b[1])/2;
     if(u<=1)return firstHeightMm;
-    const normal=familyNormal(sleeve,u,v),current=referenceCurvePoint(sleeve,[u,v]).point,previous=referenceCurvePoint(sleeve,[u,Math.max(0,Math.min(n-1,u-2))]).point;
+    const normal=familyNormal(sleeve,u,v),current=evaluateSurface(sleeve,[u,v]).point,previous=evaluateSurface(sleeve,[u,Math.max(0,Math.min(n-1,u-2))]).point;
     const gap=dot(current.map((x,k)=>x-previous[k]),normal);
     requireThat(gap>=-1e-8,'Spiral family reverses its deposited layer gap.');return Math.max(0,gap);
   });

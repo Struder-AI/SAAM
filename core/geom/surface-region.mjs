@@ -1,6 +1,6 @@
 // A rectangular surface chart shared by surface pattern producers. Native
 // spline evaluation or an explicitly mapped triangle strip; no inverse mapping.
-import {evaluate} from './nurbs.mjs';
+import {mappedSurface} from './surface-evaluation.mjs';
 import {requireThat,subtract,cross,normalize,scale,add,distance} from './tolerance.mjs';
 
 export function validateSurfaceSelection(s){
@@ -18,11 +18,7 @@ function splinePatchChart(shell,spec){
   requireThat(patch,'Selected native spline patch is missing.');
   const [u,v]=spec.uvBounds;
   requireThat(u[0]>=patch.domainU[0]&&u[1]<=patch.domainU[1]&&v[0]>=patch.domainV[0]&&v[1]<=patch.domainV[1],'Selected UV region exceeds the native patch.');
-  const at=(a,b)=>{const e=evaluate(patch,u[0]+a*(u[1]-u[0]),v[0]+b*(v[1]-v[0]));
-    requireThat(e.normal,'Surface region has a singular tangent.');
-    return {point:e.point,normal:scale(e.normal,spec.normalSide),du:scale(e.du,u[1]-u[0]),dv:scale(e.dv,v[1]-v[0])};};
-  const breaks=(knots,b)=>[0,...new Set([...knots].filter(x=>x>b[0]&&x<b[1]).map(x=>(x-b[0])/(b[1]-b[0]))),1];
-  return {at,breaksU:breaks(patch.knotsU,u),breaksV:breaks(patch.knotsV,v)};
+  return mappedSurface(patch,spec.uvBounds,[[0,1],[0,1]],spec);
 }
 function meshStripChart(shell,spec){
   requireThat(shell.kind==='triangle-mesh','Mesh-strip selection requires native mesh geometry.');

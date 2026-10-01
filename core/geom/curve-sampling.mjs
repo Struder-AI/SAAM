@@ -1,4 +1,4 @@
-import {distance,requireThat} from '../private/toolpath/numeric.mjs';
+import {distance,requireThat} from './tolerance.mjs';
 
 
 // Numerical curve refinement shared by native, mapped and family curves.

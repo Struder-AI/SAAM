@@ -3,7 +3,8 @@ import {requireThat} from '../private/toolpath/numeric.mjs';
 // of the deposition strategy. They are not measured bead-surface reconstructions.
 import {surfaceRegion} from '../geom/surface-region.mjs';
 import {topAt} from '../geom/query.mjs';
-import {section,prepareSection,horizontalSlice} from '../geom/slice.mjs';
+import {horizontalSlice} from '../geom/slice.mjs';
+import {section,prepareSection} from '../region/section.mjs';
 import {pointSegmentDistance,loopArea} from '../region/region2d.mjs';
 
 import {depositedBeadSegments,depositedBeadsContain,depositedBeadBounds} from './deposited-curves.mjs';

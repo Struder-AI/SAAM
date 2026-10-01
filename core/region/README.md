@@ -148,24 +148,15 @@ Verification scope, reference regeneration and provenance are in the
 
 ## Layer regions and several solids
 
-`core/region/` does the planar work: shared Clipper2 offsets for perimeters and
-coverage, scanline fill, and shared Clipper2 region boolean operations.
-See [shared offsets](#shared-offset-functions) for the construction boundary.
+[section](section.mjs) extracts planar and curved regions through one dispatch
+for native shells, meshes, chart prisms, assemblies and Boolean operands. Its
+loops retain the supporting chart: XY/plane coordinates are millimetres, native
+patch coordinates remain UV. Both use the same winding and Boolean topology;
+physical offsets retain the appropriate planar or surface metric.
 
-Booleans are how several solids are meant to combine: section each solid on its
-own and combine the layers, rather than building a boolean B-rep. A slicer only
-needs the result one layer at a time, so surface-surface intersection curves and
-tolerance-consistent shell stitching are never posed. The same operation
-reserves material under a top surface, by intersecting a section with the level
-set of the reserve height. The [shared planar intersection tool](#shared-planar-intersections)
-owns these combinations. Sectioning and sampled level-set extraction remain separate
-constructions; this is not a general curve/surface intersection engine.
-
-The region layer is implemented and tested. A `boolean` geometry
-([boolean-solid.mjs](../geom/boolean-solid.mjs)) is this construction as a
-recipe form: its section query combines every operand's section at the layer.
-Assemblies select separate components for fill instances and a roof for
-draping; an assembly is not a boolean union.
+Section each Boolean operand and combine its regions without building a B-rep.
+Supports, Slice, terminal-boundary queries and geometry tools use this operation.
+Material masks, fill patterns and actual deposited contact retain Toolpath policy.
 
 ## Material ownership and surface contact
 

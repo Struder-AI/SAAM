@@ -3,7 +3,8 @@ import {requireThat} from '../../../core/private/extensions/numeric.mjs';
 // overhang/angle area discovery. A standard support under a footprint is a
 // slice assignment with the support preset (core/print/slices.mjs); trees are
 // sliced by the same preset, their branch sections as the layer regions.
-import {horizontalSlice,sliceFamily,prepareSection,section} from '../../../core/geom/slice.mjs';
+import {horizontalSlice,sliceFamily} from '../../../core/geom/slice.mjs';
+import {prepareSection,section} from '../../../core/region/section.mjs';
 import {sliceAssignment,SUPPORT_GAPS} from '../../../core/print/slices.mjs';
 import {offsetRegion} from '../../../core/region/offset.mjs';
 import {union,intersect} from '../../../core/region/intersection.mjs';

@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-01 — Shared geometry operations and native construction lifetime
+
+- Trace, text, Slice and surface deposition share surface evaluation; shell boundaries and sleeve contours use ordinary native isocurves and common adaptive sampling. Planar/curved sections share region dispatch; removed boundary callbacks, Trace reference evaluator, Slice point/normal APIs and duplicate curved Boolean dispatch.
+- Heat-set, text and gridfinity request shared construction/translation/booleans. Geometry owns native conversion, mapped-extrusion refinement and disposal; feature rules, editable records and hybrid routing stay in place. No trimmed-surface support, contact-policy change or display-derived manufacturing geometry.
+- Isolated branch based on coordinated 226dcff. Setup, text, gridfinity access, heat-set MCP, curved intersections, four targeted Boolean/closure cases and cylindrical deposition scheduler passed; Trace sleeve sampling smoke passed. No new tests, full suite, physical qualification or shared-checkout edits. Manuals: geometry 559 → 554 lines; regions 230 → 221.
+
 ## 2026-10-01 — Integrate Bundle history and source interface viewer
 
 - Completed the pending bundle-dependencies-history merge, preserving Settings-owned snapshots and Studio's captured-byte Export. Bundle retains saved completed paths, dependency-aware artifact currency and revision-checked undo/redo. Geometry implementation remains in its separate worktree.

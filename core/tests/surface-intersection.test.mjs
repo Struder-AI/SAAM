@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {splineSolidShell} from '../geom/spline-solid.mjs';
 import {rhino} from '../print/geometry.mjs';
 import {intersectPatches} from '../geom/surface-intersection.mjs';
-import {surfaceInside} from '../geom/slice-region.mjs';
+import {surfaceInside} from '../region/section.mjs';
 import {referencePatch} from '../geom/reference-surface.mjs';
 import {evaluate} from '../geom/nurbs.mjs';
 import {makeMesh} from '../geom/mesh.mjs';

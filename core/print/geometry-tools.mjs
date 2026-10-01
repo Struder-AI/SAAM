@@ -1,3 +1,4 @@
+import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {requireThat} from '../private/bundle/numeric.mjs';
 // Geometry intersections and booleans as tools: an agent reads sections and
 // tops of a print (or of geometry it is about to write) and combines solids
@@ -6,7 +7,8 @@ import {loadBundle,updatePlan} from './bundle.mjs';
 import {rhino} from './geometry.mjs';
 import {buildShell,translateShell} from '../geom/build.mjs';
 import {topAt} from '../geom/query.mjs';
-import {section,horizontalSlice,patchSlice,slicePoint,sliceNormal} from '../geom/slice.mjs';
+import {horizontalSlice,patchSlice} from '../geom/slice.mjs';
+import {section} from '../region/section.mjs';
 import {sliceAssignment,validateSlices,sliceOwners,ownedLayers} from './slices.mjs';
 import {booleanShell,BOOLEAN_OPERATIONS,BOOLEAN_OPERAND_SHAPES} from '../geom/boolean-solid.mjs';
 import {loopArea} from '../region/region2d.mjs';
@@ -61,13 +63,13 @@ export function intersectDraftFamilies(shell,drafts,{native,includeLoops=false})
   return ownedLayers(owners,{shells}).map(({owner,family,layers,leader})=>({
     id:owner.assignment.id,owner:owner.id,principal:leader??owner.id,direction:family.direction,layerCount:layers.length,targetGapMm:family.pitchMm,translationStepMm:family.translationStepMm,gapMetric:family.gapMetric,
     fullCrossing:'checked at computed section boundaries',layers:layers.map(layer=>{
-      const samples=layer.region.flat(),normals=samples.map(p=>sliceNormal(layer.slice,p));
+      const samples=layer.region.flat(),normals=samples.map(p=>evaluateSurface(layer.slice,p).normal);
       const step=layer.translationMm??(layer.referenceIndex===0||layer.index===0?family.firstTranslationMm??family.firstLayerMm:family.translationStepMm??family.pitchMm);
       const gaps=normals.map(n=>step*n.reduce((sum,v,i)=>sum+v*family.direction[i],0));
       return {index:layer.index,shared:layer.shared,loops:layer.region.length,sampleCount:samples.length,
         sampledThicknessMm:gaps.length?[Math.min(...gaps),Math.max(...gaps)]:null,nonpositiveGapSamples:gaps.filter(v=>v<=0).length,
         thicknessSampling:'section-boundary normals; first contact may taper further',
-        ...(includeLoops?{loops:layer.region.map(loop=>({chart:loop,pointsMm:loop.map(p=>slicePoint(layer.slice,p))}))}:{})};
+        ...(includeLoops?{loops:layer.region.map(loop=>({chart:loop,pointsMm:loop.map(p=>evaluateSurface(layer.slice,p).point)}))}:{})};
     })}));
 }
 

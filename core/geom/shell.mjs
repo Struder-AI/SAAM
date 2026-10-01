@@ -11,6 +11,7 @@
 // fails that test rather than silently producing an open section.
 
 import { evaluate } from './nurbs.mjs';
+import {surfaceIsoCurve,curvePoint} from './surface-curves.mjs';
 import { sectionPatch } from './section.mjs';
 import { TOLERANCE, requireThat, distance, distance2, dot, subtract } from './tolerance.mjs';
 
@@ -49,16 +50,6 @@ function shellBounds(patches) {
   return { min, max };
 }
 
-export const boundaryCurve = (patch, edge) => {
-  const [u0, u1] = patch.domainU, [v0, v1] = patch.domainV;
-  const at = t => edge === 0 ? [u0 + (u1 - u0) * t, v0]
-    : edge === 1 ? [u1, v0 + (v1 - v0) * t]
-    : edge === 2 ? [u0 + (u1 - u0) * t, v1]
-    : [u0, v0 + (v1 - v0) * t];
-  const pointAt = t => evaluate(patch, ...at(t), false).point;
-  return pointAt;
-};
-
 // Two patches can share an edge with different parameterizations - a ruled
 // surface built from an iso-curve reparameterizes it - so boundaries are
 // compared geometrically: each sample of one boundary must lie on the other
@@ -67,9 +58,10 @@ function verifyClosure(patches) {
   const edges = [];
   for (const patch of patches)
     for (let edge = 0; edge < 4; edge++) {
-      const curve = boundaryCurve(patch, edge);
+      const axis=edge%2===0?1:0,value=edge===0?patch.domainV[0]:edge===1?patch.domainU[1]:edge===2?patch.domainV[1]:patch.domainU[0];
+      const curve = surfaceIsoCurve(patch,axis,value);
       const samples = [];
-      for (let i = 0; i <= BOUNDARY_SAMPLES; i++) samples.push(curve(i / BOUNDARY_SAMPLES));
+      for (let i = 0; i <= BOUNDARY_SAMPLES; i++) samples.push(curvePoint(curve,i / BOUNDARY_SAMPLES));
       const degenerate = samples.every(p => distance(p, samples[0]) <= TOLERANCE.point);
       edges.push({ patch: patch.name, edge, curve, samples, degenerate, matched: degenerate });
     }
@@ -98,16 +90,16 @@ const sameCurve = (a, b) => a.samples.every(point => distanceToCurve(point, b.cu
 function distanceToCurve(point, curve, scan = 32) {
   let best = Infinity, bestT = 0;
   for (let i = 0; i <= scan; i++) {
-    const t = i / scan, d = distance(point, curve(t));
+    const t = i / scan, d = distance(point, curvePoint(curve,t));
     if (d < best) { best = d; bestT = t; }
   }
   const phi = (Math.sqrt(5) - 1) / 2;
   let lo = Math.max(0, bestT - 1 / scan), hi = Math.min(1, bestT + 1 / scan);
   let c = hi - phi * (hi - lo), d = lo + phi * (hi - lo);
-  let fc = distance(point, curve(c)), fd = distance(point, curve(d));
+  let fc = distance(point, curvePoint(curve,c)), fd = distance(point, curvePoint(curve,d));
   for (let i = 0; i < 60 && hi - lo > 1e-12; i++) {
-    if (fc < fd) { hi = d; d = c; fd = fc; c = hi - phi * (hi - lo); fc = distance(point, curve(c)); }
-    else { lo = c; c = d; fc = fd; d = lo + phi * (hi - lo); fd = distance(point, curve(d)); }
+    if (fc < fd) { hi = d; d = c; fd = fc; c = hi - phi * (hi - lo); fc = distance(point, curvePoint(curve,c)); }
+    else { lo = c; c = d; fc = fd; d = lo + phi * (hi - lo); fd = distance(point, curvePoint(curve,d)); }
   }
   return Math.min(best, fc, fd);
 }

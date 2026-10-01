@@ -1,3 +1,4 @@
+import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 // Volumes and solid masks of slice layers. An owner of a part (core/print/
 // slices.mjs) owns the part's material inside its within volumes, less what
 // the owners it yields to claim; every term is a 2D region in the layer's
@@ -9,7 +10,8 @@
 //  {kind: 'layer-regions', regions: [{index, loops}]}  given per layer in
 //                                   the family's charts: derived volumes
 //                                   computed from neighbouring layers.
-import { section, slicePoint, sliceChartStep } from '../geom/slice.mjs';
+import {sliceChartStep} from '../geom/slice.mjs';
+import {section} from '../region/section.mjs';
 import { sampledChartRegion, referenceHeight } from '../geom/height-slice.mjs';
 import { union, intersect, difference } from './intersection.mjs';
 import { requireThat, dot } from '../geom/tolerance.mjs';
@@ -30,11 +32,11 @@ function slabSection({ fromMm, toMm, axis = [0, 0, 1] }, slice, extent) {
   requireThat(Number.isFinite(fromMm) && Number.isFinite(toMm) && toMm > fromMm, 'A slab volume needs fromMm below toMm.');
   if(slice.kind==='height-field')return sampledChartRegion(extent,slice.sampleStepMm,point=>{
     if(!referenceHeight(slice.reference,...point))return false;
-    const h=dot(axis,slicePoint(slice,point));return h>fromMm+1e-9&&h<=toMm+1e-9;
+    const h=dot(axis,evaluateSurface(slice,point).point);return h>fromMm+1e-9&&h<=toMm+1e-9;
   });
   if(slice.kind==='patch')return sampledChartRegion(extent,sliceChartStep(slice,slice.sampleStepMm??.2),point=>{
     if(point.some((v,k)=>v<extent.min[k]||v>extent.max[k]))return false;
-    const h=dot(axis,slicePoint(slice,point));return h>fromMm+1e-9&&h<=toMm+1e-9;
+    const h=dot(axis,evaluateSurface(slice,point).point);return h>fromMm+1e-9&&h<=toMm+1e-9;
   });
   requireThat(slice.kind === 'plane', 'Unknown slice chart.');
   const h0 = dot(axis, slice.origin), ha = dot(axis, slice.xAxis), hb = dot(axis, slice.yAxis);

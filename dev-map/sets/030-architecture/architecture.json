@@ -292,36 +292,36 @@
       "id": "geometry",
       "index": "2",
       "label": "Geometry engine",
-      "description": "Geometry values and queries; no bundle access.",
+      "description": "Ordinary geometric values and evaluations shared by existing consumers; native library lifetime belongs here.",
       "type": "component",
       "notes": [
-        "Provisional assignment for negotiation with the geometry task. Public entry points, Slice-private queries and reusable numerical representations are separate buckets, regardless of current source directory. Crossings expose where existing modules mix these responsibilities."
+        "Values retain source/parameter correspondence. Evaluations retain physical units, tolerances and discontinuities. Display approximations do not replace manufacturing geometry. No trimmed-surface capability or hybrid-routing redesign."
       ]
     },
     {
-      "id": "slice-geometry",
+      "id": "geometry-evaluations",
       "index": "2.1",
-      "label": "Slice-only geometry",
-      "description": "Cutting, section topology and region queries private to Slice.",
+      "label": "Geometric evaluations",
+      "description": "Shared surface/curve sampling, planar and curved sections, region topology and queries.",
       "type": "component",
       "source": {
-        "file": "core/geom/slice.mjs"
+        "file": "core/geom/surface-evaluation.mjs"
       },
       "notes": [
-        "Section/cutting-surface, region topology and reservation queries; path construction stays in 3.3."
+        "Slice, Trace, text, surface deposition and Supports consume common geometric operations. Region loops retain their chart; contact with actual deposited material remains Toolpath policy."
       ]
     },
     {
       "id": "geometry-api",
       "index": "2.2",
-      "label": "Public geometry",
-      "description": "Construct, import, transform and query geometry.",
+      "label": "Geometric values",
+      "description": "Construct, import and transform ordinary curves, surfaces, volumes and collections.",
       "type": "component",
       "source": {
-        "file": "core/geom/query.mjs"
+        "file": "core/geom/solid-operations.mjs"
       },
       "notes": [
-        "Geometry construction, transform, import/repair and non-Slice public queries. Bundle-editing wrappers remain in 5. Shared implementations use 2.3."
+        "Native isocurves replace boundary callbacks. Heat-set, text and gridfinity submit construction requests; Geometry owns kernel conversion and disposal. Existing geometry identities and editable feature records are preserved."
       ]
     },
     {
@@ -334,7 +334,7 @@
         "file": "core/geom/nurbs.mjs"
       },
       "notes": [
-        "Mesh/spline/blob representations, predicates, spatial queries and numerics. Existing callers bypassing the two facades will remain visible as crossings."
+        "Representation-specific numerical implementations support both shared output families; existing limitations remain explicit."
       ]
     },
     {
@@ -1049,7 +1049,7 @@
       "outputs": "Immutable geometry values or diagnostics.",
       "effects": "Local scratch computation only.",
       "failure": "Unsupported or invalid geometry is explicit.",
-      "excludes": "Cannot persist into a bundle or invoke Slice-private geometry.",
+      "excludes": "Cannot persist into a bundle or manage native kernel objects.",
       "access": [
         {
           "from": "agent",
@@ -1447,7 +1447,7 @@
       "outputs": "Geometry values and diagnostics.",
       "effects": "Extension constructs values from supplied recipe inputs; Geometry accepts the contribution. No extension bundle read/write.",
       "failure": "Structured geometry diagnostics.",
-      "excludes": "No Slice-only capability or raw kernel import.",
+      "excludes": "No native solid-library objects, conversions or disposal in extensions.",
       "access": [
         {
           "from": "extension-run",
@@ -1464,7 +1464,7 @@
         "skills/heat-set-inserts/scripts/edit.mjs"
       ],
       "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
-      "implementation": "Extensions request Geometry operations and return geometry contributions to its facade. Bundle-owned dispatch remains a design topic, not permission for direct Extensions–Bundle access."
+      "implementation": "Extensions retain feature rules and editable records; constructSolids owns construction, conversion and native lifetime. Existing hybrid contribution routing is unchanged."
     },
     {
       "id": "extension-toolpath",
@@ -1578,31 +1578,37 @@
       ]
     },
     {
-      "id": "slice-query",
-      "from": "slice-geometry",
+      "id": "geometry-evaluation",
+      "from": "geometry-evaluations",
       "to": "slice",
-      "label": "sections / regions",
+      "label": "sections / surface evaluations",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
-        "intersect / partition / sectionQuery"
+        "section",
+        "prepareSection",
+        "evaluateSurface",
+        "mappedSurface",
+        "sampleCurveIntervals",
+        "region booleans"
       ],
-      "inputs": "Geometry values, cutting surface/family and tolerances.",
-      "outputs": "Sections, region topology and correspondence.",
+      "inputs": "Native geometry, supporting surface/chart and operation-specific physical/parameter tolerances.",
+      "outputs": "Oriented planar/curved loops, point/normal/derivative samples, source parameters and diagnostics.",
       "effects": "Query-local state only.",
       "failure": "Report unsupported topology with geometry evidence.",
-      "excludes": "Slice-only API cannot be imported by extensions, Inject or Trace.",
+      "excludes": "No deposition policy, display-to-manufacturing substitution or trimmed-surface output.",
       "access": [
         {
           "from": "slice",
-          "to": "slice-geometry"
+          "to": "geometry-evaluations"
         }
       ],
       "evidence": [
-        "core/print/slice-deposition.mjs",
-        "core/geom/slice.mjs"
+        "core/region/section.mjs",
+        "core/geom/surface-evaluation.mjs",
+        "core/geom/curve-sampling.mjs"
       ],
       "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
-      "implementation": "Slice calls Geometry for sections; section values flow Geometry → Toolpath."
+      "implementation": "One section dispatch combines native planar and curved regions. Common evaluation replaces Slice/Trace/text-specific point and normal branches."
     },
     {
       "id": "public-kernel",
@@ -1626,9 +1632,9 @@
       ]
     },
     {
-      "id": "slice-kernel",
+      "id": "evaluation-kernel",
       "from": "geometry-kernel",
-      "to": "slice-geometry",
+      "to": "geometry-evaluations",
       "label": "section primitives",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
@@ -1641,7 +1647,7 @@
       "excludes": "No access to unrelated component internals.",
       "access": [
         {
-          "from": "slice-geometry",
+          "from": "geometry-evaluations",
           "to": "geometry-kernel"
         }
       ]
@@ -1861,7 +1867,7 @@
       "outputs": "Geometry and query results for further design or bundle handoff.",
       "effects": "Workspace owns returned design values.",
       "failure": "Report unsupported geometry or failed construction explicitly.",
-      "excludes": "No bundle mutation, private Slice-only geometry access or machine export authority.",
+      "excludes": "No bundle mutation or machine export authority.",
       "access": [
         {
           "from": "workspace-implementations",
@@ -4677,6 +4683,67 @@
       ],
       "status": "Implemented data recording; generation prerequisites remain in existing recipe references.",
       "implementation": "supports/plastic-weld consume named plan.skills configuration. Geometry shapes and sleeve construction already identify their dependencies. Supplied configuration fields are retained; this is not version pinning."
+    },
+    {
+      "id": "trace-geometry-evaluation",
+      "from": "geometry-evaluations",
+      "to": "trace",
+      "label": "surface / curve evaluations",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "evaluateSurface",
+        "sampleCurveIntervals"
+      ],
+      "inputs": "Native geometry, supporting surface/chart and operation-specific physical/parameter tolerances.",
+      "outputs": "Oriented planar/curved loops, point/normal/derivative samples, source parameters and diagnostics.",
+      "effects": "Query-local state only.",
+      "failure": "Report unsupported topology with geometry evidence.",
+      "excludes": "No deposition policy, display-to-manufacturing substitution or trimmed-surface output.",
+      "access": [
+        {
+          "from": "trace",
+          "to": "geometry-evaluations"
+        }
+      ],
+      "evidence": [
+        "core/region/section.mjs",
+        "core/geom/surface-evaluation.mjs",
+        "core/geom/curve-sampling.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "One section dispatch combines native planar and curved regions. Common evaluation replaces Slice/Trace/text-specific point and normal branches."
+    },
+    {
+      "id": "extension-geometry-evaluation",
+      "from": "geometry-evaluations",
+      "to": "extension-run",
+      "label": "section / surface evaluations",
+      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "operations": [
+        "section",
+        "prepareSection",
+        "referenceSurface",
+        "surfaceRegion",
+        "sampleCurveIntervals"
+      ],
+      "inputs": "Native geometry, supporting surface/chart and operation-specific physical/parameter tolerances.",
+      "outputs": "Oriented planar/curved loops, point/normal/derivative samples, source parameters and diagnostics.",
+      "effects": "Query-local state only.",
+      "failure": "Report unsupported topology with geometry evidence.",
+      "excludes": "No deposition policy, display-to-manufacturing substitution or trimmed-surface output.",
+      "access": [
+        {
+          "from": "extension-run",
+          "to": "geometry-evaluations"
+        }
+      ],
+      "evidence": [
+        "core/region/section.mjs",
+        "core/geom/surface-evaluation.mjs",
+        "core/geom/curve-sampling.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "One section dispatch combines native planar and curved regions. Common evaluation replaces Slice/Trace/text-specific point and normal branches."
     }
   ],
   "layout": {

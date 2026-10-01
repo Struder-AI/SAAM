@@ -4,7 +4,8 @@ import {cleanPlanarLoop} from '../geom/polyline.mjs';
 import {loopArea} from '../region/region2d.mjs';
 import {offsetRegion} from '../region/offset.mjs';
 
-import {section as geometrySection,horizontalSlice} from '../geom/slice.mjs';
+import {horizontalSlice} from '../geom/slice.mjs';
+import {section as geometrySection} from '../region/section.mjs';
 
 // Ten-nanometer integer grid: independent of contour/chord and boundary
 // tolerances; shared Clipper2 offsets use this same grid by default.

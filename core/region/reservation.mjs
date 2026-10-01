@@ -1,10 +1,11 @@
+import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 // Spatial material ownership at the shared planar-region boundary. A roof's
 // sampled reserve is defined only over its actual footprint; extrapolated field
 // samples must never truncate another component or material outside that roof.
 import {difference,intersect,levelSetCoverage,levelSetRegion} from './boolean.mjs';
 import {regionArea,pointInRegion,pointSegmentDistance} from './region2d.mjs';
 import {requireThat,TOLERANCE} from '../geom/tolerance.mjs';
-import {slicePoint,sliceChartStep} from '../geom/slice.mjs';
+import {sliceChartStep} from '../geom/slice.mjs';
 import {sampledChartRegion} from '../geom/height-slice.mjs';
 
 // Sample a reservation in the cutting surface's chart. Pointwise world-space
@@ -15,7 +16,7 @@ export function clipReservedSlice(region,slice,reserve,{sampleStepMm=.2}={}) {
   const footprint=reservationFootprint(reserve);
   const blocked=sampledChartRegion(bounds(region),sliceChartStep(slice,sampleStepMm),chart=>{
     if(!insideOrBoundary(chart,region))return false;
-    const point=slicePoint(slice,chart);
+    const point=evaluateSurface(slice,chart).point;
     if(!insideOrBoundary(point,footprint))return false;
     if(reserve.regionAt)return insideOrBoundary(point,reserve.regionAt(point[2]));
     return point[2]>reservationFieldHeight(reserve.field,point);

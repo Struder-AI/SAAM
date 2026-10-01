@@ -3,7 +3,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseSTL, makeMesh } from '../../core/geom/mesh.mjs';
-import { section, horizontalSlice, sliceFamily } from '../../core/geom/slice.mjs';
+import {horizontalSlice, sliceFamily } from '../../core/geom/slice.mjs';
+import {section} from '../../core/region/section.mjs';
 import {translateShell} from '../../core/geom/build.mjs';
 import { defaults } from '../../core/print/plan.mjs';
 import { sliceAssignment } from '../../core/print/slices.mjs';

@@ -1,16 +1,14 @@
 import {requireThat} from '../../../core/private/extensions/numeric.mjs';
-import {solidKernel,solidFromMesh,meshFromSolid} from '../../../core/geom/solid.mjs';
-import {tessellateSolid} from '../../../core/geom/boolean-display.mjs';
+import {constructSolids} from '../../../core/geom/solid-operations.mjs';
 import {topAt} from '../../../core/geom/query.mjs';
 
 import {heatSetFeature,dimensions,heatSetTemplate,heatSetDigest} from './feature.mjs';
 
 export async function compileHeatSet(base,features,{buildGeometry,toleranceMm=0.01}={}){
-  const normalized=features.map(heatSetFeature),shell=buildGeometry(base),kernel=await solidKernel();
+  const normalized=features.map(heatSetFeature),shell=buildGeometry(base);
   requireThat(normalized.length>0,'Choose at least one heat-set feature.');
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0,'Invalid heat-set tolerance.');
-  let solid=solidFromMesh(kernel,await tessellateSolid(shell,{toleranceMm}));
-  try{
+  let solid=shell;
     for(const f of normalized){
       const {diameterMm,depthMm}=dimensions(f),[x,y,z]=f.positionMm,r=diameterMm/2;
       requireThat(z-depthMm>shell.bounds.min[2]+toleranceMm,'Blind heat-set hole needs material below its floor; increase host thickness or change depth.');
@@ -21,11 +19,11 @@ export async function compileHeatSet(base,features,{buildGeometry,toleranceMm=0.
         requireThat(top&&Math.abs(top.zMm-z)<=toleranceMm*2,'Heat-set mouth must lie on a flat exterior insertion face normal to Z. Reorient the part first.');
       }
       const segments=Math.max(32,Math.ceil(Math.PI/Math.acos(Math.max(-1,1-toleranceMm/r))));
-      let cylinder=kernel.Manifold.cylinder(depthMm+toleranceMm*2,r,r,segments);
-      const placed=cylinder.translate([x,y,z-depthMm]);cylinder.delete();cylinder=placed;
-      try{const next=solid.subtract(cylinder);solid.delete();solid=next;}finally{cylinder.delete();}
+      const cylinder={operation:'translate',geometry:{operation:'cylinder',heightMm:depthMm+toleranceMm*2,radiusMm:r,segments},offset:[x,y,z-depthMm]};
+      solid={operation:'difference',operands:[solid,cylinder]};
     }
-    const mesh=meshFromSolid(solid),record={...heatSetTemplate(),base:structuredClone(base),features:normalized,toleranceMm,vertices:mesh.vertices,triangles:mesh.triangles};
+    const [mesh]=await constructSolids([solid],{toleranceMm});
+    requireThat(mesh,'Heat-set operation produced an empty solid.');
+    const record={...heatSetTemplate(),base:structuredClone(base),features:normalized,toleranceMm,vertices:mesh.vertices,triangles:mesh.triangles};
     record.compiledHash=heatSetDigest(record);return record;
-  }finally{solid.delete();}
 }

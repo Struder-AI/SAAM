@@ -3,39 +3,23 @@
  "policy": "Entry bindings name exact callable targets and access kind; they do not approve all operations/effects between connected buckets.",
  "bindings": [
   {
-   "contract": "slice-query",
-   "target": "core/geom/slice.mjs::section",
+   "contract": "geometry-evaluation",
+   "target": "core/region/section.mjs::section",
    "kinds": [
     "call"
    ],
    "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
   },
   {
-   "contract": "slice-query",
-   "target": "core/geom/slice.mjs::prepareSection",
+   "contract": "geometry-evaluation",
+   "target": "core/region/section.mjs::prepareSection",
    "kinds": [
     "call"
    ],
    "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
   },
   {
-   "contract": "slice-query",
-   "target": "core/geom/slice.mjs::slicePoint",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "slice-query",
-   "target": "core/geom/slice.mjs::sliceNormal",
-   "kinds": [
-    "call"
-   ],
-   "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-  },
-  {
-   "contract": "slice-query",
+   "contract": "geometry-evaluation",
    "target": "core/region/intersection.mjs::intersect",
    "kinds": [
     "call"
@@ -43,7 +27,7 @@
    "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
   },
   {
-   "contract": "slice-query",
+   "contract": "geometry-evaluation",
    "target": "core/region/intersection.mjs::difference",
    "kinds": [
     "call"
@@ -51,7 +35,7 @@
    "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
   },
   {
-   "contract": "slice-query",
+   "contract": "geometry-evaluation",
    "target": "core/region/intersection.mjs::union",
    "kinds": [
     "call"
@@ -59,7 +43,7 @@
    "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
   },
   {
-   "contract": "slice-query",
+   "contract": "geometry-evaluation",
    "target": "core/region/ownership.mjs::requireExclusiveClaims",
    "kinds": [
     "call"
@@ -585,6 +569,126 @@
     "call"
    ],
    "evidence": "Workspace export supplies its prepared geometry and recipe to Bundle creation; no printer lookup."
+  },
+  {
+   "contract": "geometry-evaluation",
+   "target": "core/geom/surface-evaluation.mjs::evaluateSurface",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Current migrated consumer; exact source signature and return expressions are available in the viewer."
+  },
+  {
+   "contract": "geometry-evaluation",
+   "target": "core/geom/surface-evaluation.mjs::mappedSurface",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Current migrated consumer; exact source signature and return expressions are available in the viewer."
+  },
+  {
+   "contract": "geometry-evaluation",
+   "target": "core/geom/curve-sampling.mjs::sampleCurveIntervals",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Current migrated consumer; exact source signature and return expressions are available in the viewer."
+  },
+  {
+   "contract": "trace-geometry-evaluation",
+   "target": "core/geom/surface-evaluation.mjs::evaluateSurface",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Current migrated consumer; exact source signature and return expressions are available in the viewer."
+  },
+  {
+   "contract": "trace-geometry-evaluation",
+   "target": "core/geom/surface-evaluation.mjs::mappedSurface",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Current migrated consumer; exact source signature and return expressions are available in the viewer."
+  },
+  {
+   "contract": "trace-geometry-evaluation",
+   "target": "core/geom/curve-sampling.mjs::sampleCurveIntervals",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Current migrated consumer; exact source signature and return expressions are available in the viewer."
+  },
+  {
+   "contract": "extension-geometry-evaluation",
+   "target": "core/geom/surface-evaluation.mjs::evaluateSurface",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Current migrated consumer; exact source signature and return expressions are available in the viewer."
+  },
+  {
+   "contract": "extension-geometry-evaluation",
+   "target": "core/geom/surface-evaluation.mjs::mappedSurface",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Current migrated consumer; exact source signature and return expressions are available in the viewer."
+  },
+  {
+   "contract": "extension-geometry-evaluation",
+   "target": "core/geom/curve-sampling.mjs::sampleCurveIntervals",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Current migrated consumer; exact source signature and return expressions are available in the viewer."
+  },
+  {
+   "contract": "extension-geometry-evaluation",
+   "target": "core/region/section.mjs::section",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Current migrated consumer; exact source signature and return expressions are available in the viewer."
+  },
+  {
+   "contract": "extension-geometry-evaluation",
+   "target": "core/region/section.mjs::prepareSection",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Current migrated consumer; exact source signature and return expressions are available in the viewer."
+  },
+  {
+   "contract": "extension-geometry-evaluation",
+   "target": "core/geom/reference-surface.mjs::referenceSurface",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Current migrated consumer; exact source signature and return expressions are available in the viewer."
+  },
+  {
+   "contract": "extension-geometry-evaluation",
+   "target": "core/geom/surface-region.mjs::surfaceRegion",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Current migrated consumer; exact source signature and return expressions are available in the viewer."
+  },
+  {
+   "contract": "extension-geometry",
+   "target": "core/geom/solid-operations.mjs::constructSolids",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Current migrated consumer; exact source signature and return expressions are available in the viewer."
+  },
+  {
+   "contract": "extension-geometry",
+   "target": "core/geom/surface-curves.mjs::surfaceIsoCurve",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Current migrated consumer; exact source signature and return expressions are available in the viewer."
   }
  ]
 }

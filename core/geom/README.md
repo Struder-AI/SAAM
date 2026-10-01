@@ -124,32 +124,27 @@ Current XYZ behavior is specified under [formats](../print/README.md#formats).
 
 ### Geometry query boundary
 
-`core/geom/slice.mjs` sections every backend: `section(geometry, slice)` returns
-the solid's region on a slice (a plane with an orthonormal chart, the
-horizontal plane's being XY, or a spline patch in its (u,v)) as loops in that
-chart, and `sliceFamily` stacks one slice into layers.
-[slices.mjs](../print/slices.mjs) assigns each layer's region to owners by
-volume ([layer-region.mjs](../region/layer-region.mjs) sections volumes and
-solid masks). `core/geom/query.mjs` holds `topAt`, `sampleTopSurface` and
-`containsPoint`. All take closed untrimmed spline shells, validated indexed
-triangle meshes and booleans of them. Pattern skills use these queries;
-pattern code must not branch on triangle versus spline internals. Declare new
-capabilities here and provide a backend implementation or an explicit rejection.
-Both backends are supported under [D-021](../../DECISIONS.md#d-021--native-mesh-geometry).
-Mesh conversion is not required before SAAMpath generation.
+[section](../region/section.mjs) returns a solid's oriented loops on a plane,
+patch or height chart, with nudge/edge diagnostics. Planar and curved sections
+share Boolean topology, holes and disconnected components. [sliceFamily](slice.mjs)
+stacks cutting surfaces; [slices](../print/slices.mjs) owns material allocation.
+[query](query.mjs) supplies top/containment queries on native shells and meshes.
 
-| Representation | Role |
+Geometry outputs are ordinary values and evaluations of those values:
+
+| Operation | Current consumers and contract |
 |---|---|
-| Spline shell / triangle mesh | Part geometry behind common queries. [normalBandVolume](normal-band.mjs) also samples a closed chart-normal band into a validated mesh for claim queries; mixed deposition integration is unfinished. |
-| [Blob field](blob-field.mjs) | Points with reach and strength whose cubic B-spline falloffs sum; explicitly extracted to the shared manufacturing mesh backend for slicing and Studio. |
-| [Surface intersection](surface-intersection.mjs) | Curves where two NURBS patches meet, with both patches' parameters: boundary points first (each patch's edges against the other surface), then marching between them; interior loops seeded by Bezier subdivision; edges lying in the other surface are curves themselves. |
-| [Surface region](slice-region.mjs) | The part of a spline surface inside a solid (spline shell or triangle mesh) as loops in the surface's (u,v): intersection curves chained, oriented by the partner's outward normal and closed along the domain boundary. The basis of curved slices and trimmed patches. |
-| [Boolean solid](boolean-solid.mjs) | Operands of any backend behind the common queries: sections combined per layer with Clipper2, tops from operand crossings. [boolean-display.mjs](boolean-display.mjs) meshes it with Manifold for Studio and solid modifiers only. |
-| Closed regions with holes | Planar sections, offsets, solid masks and infill clipping. |
-| Surface height and normal | Accessible roof sampling for drape; faceted normals stay faceted. |
-| Skill operation result | Composable strokes, dependencies, layer references and travel policies. |
-| SAAMpath | Machine-independent XYZ motion, deposition and process actions. |
-| Output artifact | Machine-specific commands/packaging with a matching interpreter. |
+| [surfaceIsoCurve](surface-curves.mjs) | Shell closure, conforming tessellation and sleeve offsets use ordinary rational curves retaining knots, weights, native domain and source surface coordinates. |
+| [evaluateSurface / mappedSurface](surface-evaluation.mjs) | Trace, text, Slice mapping and surface deposition share point/normal/derivative evaluation. Affine selection retains native UV and derivative units; sleeve phase is periodic arc length, height charts use world XY. |
+| [sampleCurveIntervals](curve-sampling.mjs) | Trace, sleeve contours and surface deposition share physical chord/step refinement while retaining source parameters and explicit breaks. |
+| [constructSolids](solid-operations.mjs) | Heat-set, text and gridfinity submit construction/translation/Boolean requests; Geometry owns conversion, mapped-extrusion refinement and native disposal. Results are manufacturing meshes (null for empty material). Feature rules and editable records remain with extensions. |
+| [intersectPatches](surface-intersection.mjs) | Section boundaries retain corresponding parameters on both native surfaces. |
+
+Geodesic region offsets retain their C2/domain limits; piecewise roofs/sleeves
+keep explicit crease transitions. No trimmed-surface capability is introduced.
+Native geometry and explicit manufacturing meshes remain authoritative; display
+approximations never replace them. Saved/native/display artifacts retain their
+existing geometry identity. Deposited-material contact remains in Toolpath.
 
 Native mesh assets use `geometry/model.mesh.json` with `saam-native-geometry/1`,
 millimeter indexed triangles, original source provenance and shape parameters.

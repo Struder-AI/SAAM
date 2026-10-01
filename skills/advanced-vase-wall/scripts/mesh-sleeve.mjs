@@ -1,7 +1,8 @@
 import {requireThat,distance} from '../../../core/private/extensions/numeric.mjs';
 // Smooth open sleeves estimated from validated closed mesh geometry.
 // This is a fit, not a mesh repair or replacement of printable source geometry.
-import {section,prepareSection,horizontalSlice} from '../../../core/geom/slice.mjs';
+import {horizontalSlice} from '../../../core/geom/slice.mjs';
+import {section,prepareSection} from '../../../core/region/section.mjs';
 import {contourPath} from '../../../core/geom/contour-path.mjs';
 import {basisFunctions,findSpan,evaluate} from '../../../core/geom/nurbs.mjs';
 import {leastSquares} from '../../../core/geom/least-squares.mjs';

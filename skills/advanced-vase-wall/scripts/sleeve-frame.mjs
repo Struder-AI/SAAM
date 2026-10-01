@@ -1,19 +1,19 @@
+import {surfaceIsoCurve} from '../../../core/geom/surface-curves.mjs';
+import {sampleCurveIntervals} from '../../../core/geom/curve-sampling.mjs';
 import {requireThat,distance} from '../../../core/private/extensions/numeric.mjs';
 // Horizontal periodic-patch sections retain NURBS form through offset and
 // crossing resolution. Sampling supplies perimeter correspondence afterward.
-import {findSpan,basisFunctions,evaluateCurve} from '../../../core/geom/nurbs.mjs';
+import {evaluateCurve} from '../../../core/geom/nurbs.mjs';
 import {prepareCurveOffsets} from '../../../core/geom/curve-offset.mjs';
 import {contourPath} from '../../../core/geom/contour-path.mjs';
 import {prepareContourFamily} from '../../../core/geom/prepared-contours.mjs';
 
 
 export function horizontalSleeveCurve(patch,v,z){
-  const {nu,nv,orderU,orderV,knotsU,knotsV,cp,domainU}=patch;
-  const span=findSpan(knotsV,nv,orderV,v),basis=basisFunctions(knotsV,span,v,orderV),out=new Float64Array(nu*4);
-  for(let i=0;i<nu;i++)for(let k=0;k<orderV;k++)for(let c=0;c<4;c++)out[i*4+c]+=basis[k]*cp[(i*nv+span-orderV+1+k)*4+c];
-  for(let i=0;i<nu;i++)requireThat(Math.abs(out[i*4+2]/out[i*4+3]-z)<=1e-8,
+  const curve=surfaceIsoCurve(patch,1,v);
+  for(let i=0;i<curve.n;i++)requireThat(Math.abs(curve.cp[i*4+2]/curve.cp[i*4+3]-z)<=1e-8,
     'Horizontal sleeve contours require patch V to reproduce actual Z; bent sleeves need a different chart.');
-  return {n:nu,order:orderU,knots:knotsU,cp:out,domain:[...domainU]};
+  return curve;
 }
 
 export function sampleCurveContour(pieces,toleranceMm){
@@ -21,20 +21,11 @@ export function sampleCurveContour(pieces,toleranceMm){
   const points=[];
   for(const curve of pieces){
     const breaks=[...new Set([curve.domain[0],...curve.knots.filter(t=>t>curve.domain[0]&&t<curve.domain[1]),curve.domain[1]])];
-    const at=t=>evaluateCurve(curve,t).point;
-    const append=(a,b,pa,pb)=>{
-      const mid=(a+b)/2,pm=at(mid),q1=at(a+(b-a)/4),q3=at(a+3*(b-a)/4);
-      const error=Math.max(...[[q1,.25],[pm,.5],[q3,.75]].map(([p,t])=>distance(p,pa.map((x,k)=>x+(pb[k]-x)*t))));
-      if(error>toleranceMm){
-        requireThat(mid>a&&mid<b,'Native curve contour cannot meet its chord tolerance at machine precision.');
-        append(a,mid,pa,pm);append(mid,b,pm,pb);return;
-      }
-      points.push(pb.slice(0,2));
-    };
-    const first=at(breaks[0]).slice(0,2);
+    const samples=sampleCurveIntervals({at:t=>evaluateCurve(curve,t),cuts:breaks,toleranceMm,stepMm:Infinity});
+    const first=samples[0].point.slice(0,2);
     if(!points.length)points.push(first);
     else requireThat(distance(points.at(-1),first)<=1e-6,'Resolved contour pieces do not meet.');
-    for(let i=1;i<breaks.length;i++)append(breaks[i-1],breaks[i],at(breaks[i-1]),at(breaks[i]));
+    points.push(...samples.slice(1).map(s=>s.point.slice(0,2)));
   }
   requireThat(points.length>=4&&distance(points[0],points.at(-1))<=1e-6,'A sleeve offset must retain a closed contour.');
   return points.slice(0,-1);

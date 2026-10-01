@@ -1,6 +1,7 @@
+import {evaluateSurface} from '../../../core/geom/surface-evaluation.mjs';
 import {rivetInjectionResult,rivetEnclosureLayers,validateRivetClearance} from './weld.mjs';
 import {assignmentPlan} from '../../../core/print/assignment-process.mjs';
-import {slicePoint} from '../../../core/geom/slice.mjs';
+
 import {intersect} from '../../../core/region/boolean.mjs';
 import {regionArea} from '../../../core/region/region2d.mjs';
 
@@ -24,7 +25,7 @@ export function weldDependencies(node,nodes){
       const layers=other.record.spec.layers.filter(layer=>other.index===null||layer.index===other.index);
       const enclosure=rivetEnclosureLayers(node.context.site,node.context.site.process);
       if(layers.some(layer=>{
-        const points=layer.region.map(loop=>loop.map(uv=>slicePoint(layer.slice,uv))),flat=points.flat();
+        const points=layer.region.map(loop=>loop.map(uv=>evaluateSurface(layer.slice,uv).point)),flat=points.flat();
         return flat.length&&enclosure.some(({z,required})=>z>=Math.min(...flat.map(p=>p[2]))-1e-8&&z<=Math.max(...flat.map(p=>p[2]))+1e-8&&Math.abs(regionArea(intersect(points.map(loop=>loop.map(p=>p.slice(0,2))),required)))>1e-8);
       }))needs.add(other.key);
     }

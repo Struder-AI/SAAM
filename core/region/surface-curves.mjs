@@ -1,8 +1,9 @@
+import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {requireThat,normalize,dot} from '../private/toolpath/numeric.mjs';
 // Local process gaps on mapped surface curves. Geometry mapping supplies XYZ
 // and optional normals; sampled lower heights describe the supporting material.
 // The normal projection is a local rectangular-bead model, not an exact offset.
-import {sliceNormal} from '../geom/slice.mjs';
+
 
 import {maximumPathAngle} from '../path/deposition.mjs';
 
@@ -11,7 +12,7 @@ export function surfaceGapCurves(curves,{slice,lowerHeightsMm=null,distancesMm=n
   const report={minGapMm:Infinity,maxGapMm:-Infinity,minNormalGapMm:Infinity,maxNormalGapMm:-Infinity,maxMappedSlopeDeg:0};
   const result=curves.map((curve,j)=>{
     requireThat((distancesMm??lowerHeightsMm)[j].length===curve.points.length,'Surface gaps need one contact sample per mapped point.');
-    const normals=curve.normals??curve.points.map((point,i)=>sliceNormal(slice,curve.chartPoints?.[i]??point));
+    const normals=curve.normals??curve.points.map((point,i)=>evaluateSurface(slice,curve.chartPoints?.[i]??point).normal);
     const samples=curve.points.map((point,i)=>{
       const normal=normals[i],cosine=dot(normal,direction),gap=distancesMm?distancesMm[j][i]:point[2]-lowerHeightsMm[j][i];
       requireThat(cosine>1e-9,'Stacking direction is tangent to or reverses across the slice.');

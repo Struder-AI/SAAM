@@ -1,3 +1,4 @@
+import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {requireThat,normalize} from '../private/toolpath/numeric.mjs';
 // General slicing: exclusive spatial claims -> chart regions/strokes -> world
 // curves -> deposition. Default owners retain material outside explicit claims.
@@ -14,7 +15,8 @@ import { heightSlice, heightSliceNormal, referenceHeight, heightReferencePatch, 
 import { validateSplineSolid } from '../geom/spline-solid.mjs';
 import { geometrySelections } from '../geom/selections.mjs';
 import {TOLERANCE} from '../geom/tolerance.mjs';
-import { horizontalSlice, planeSlice, patchSlice, translateSlice, slicePoint, prepareSection, section, sliceFamily, sliceBoundaryEdges, sliceChartStep, patchMeanNormal } from '../geom/slice.mjs';
+import {horizontalSlice,planeSlice,patchSlice,translateSlice,sliceFamily,sliceBoundaryEdges,sliceChartStep,patchMeanNormal} from '../geom/slice.mjs';
+import {prepareSection,section} from '../region/section.mjs';
 import {patchLayerStrokes} from '../region/patch-strokes.mjs';
 import {surfaceGapCurves} from '../region/surface-curves.mjs';
 import {spiralFamilyCurve} from '../path/family-curves.mjs';
@@ -450,7 +452,7 @@ function sliceTravelPolicy(slice, region, worldRegion, maxZ, process) {
   const options = { liftMm: process.liftMm, maxCombMm: process.maxCombMm, lineWidthMm: process.lineWidthMm };
   if (horizontal(slice)) return planarPolicy(region, { ...options, layerZ: slice.origin[2] });
   if(slice.kind==='patch'||Math.abs(slice.normal?.[2]??1)<1e-8)return {maxCombMm:0,canTravelDirect:()=>false,clearanceFor:()=>maxZ+process.liftMm};
-  const surfaceZ = slice.kind==='height-field'?(x,y)=>referenceHeight(slice.reference,x,y)?slicePoint(slice,[x,y])[2]:null:(x, y) => slice.origin[2] - ((x - slice.origin[0]) * slice.normal[0] + (y - slice.origin[1]) * slice.normal[1]) / slice.normal[2];
+  const surfaceZ = slice.kind==='height-field'?(x,y)=>referenceHeight(slice.reference,x,y)?evaluateSurface(slice,[x,y]).point[2]:null:(x, y) => slice.origin[2] - ((x - slice.origin[0]) * slice.normal[0] + (y - slice.origin[1]) * slice.normal[1]) / slice.normal[2];
   return surfacePolicy(worldRegion, { ...options, surfaceZ, maxZ });
 }
 
@@ -519,8 +521,8 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
     report.loops += strokes.walls.length; report.fillRows += strokes.infill.length + strokes.fill.length;
     const ordinal=(extra.layerStartOrdinal??0)+report.layers;
     const speedMmS = (horizontal(slice) ? index === 0 : ordinal === 0) ? process.firstLayerSpeedMmS : process.planarSpeedMmS;
-    const worldRegion = region.map(loop => loop.map(point => slicePoint(slice, point).slice(0, 2)));
-    const maxZ = Math.max(...region.flatMap(loop => loop.map(point => slicePoint(slice, point)[2])));
+    const worldRegion = region.map(loop => loop.map(point => evaluateSurface(slice,point).point.slice(0, 2)));
+    const maxZ = Math.max(...region.flatMap(loop => loop.map(point => evaluateSurface(slice,point).point[2])));
     const travelPolicy = sliceTravelPolicy(slice, region, worldRegion, maxZ, process);
     const current = [];
     for (const [group, found] of [['walls', strokes.walls], ['infill', strokes.infill], ['fill', strokes.fill]]) {
@@ -548,7 +550,7 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
         // Coverage is consumed by material-region publication; built on first use.
         get materialRegion() {
           return covered ??= (slice.kind==='patch'?region:group === 'walls' ? wallMaterial()
-            : fillMaterial(group === 'infill' ? strokes.sparseRegion : strokes.solidRegion, width)).map(loop => loop.map(point => slicePoint(slice, point).slice(0, 2)));
+            : fillMaterial(group === 'infill' ? strokes.sparseRegion : strokes.solidRegion, width)).map(loop => loop.map(point => evaluateSurface(slice,point).point.slice(0, 2)));
         },
         materialCoverage: group !== 'walls' && spacing > width + 1e-8 ? 'sparse' : 'area',
         travelPolicy, ...((Object.hasOwn(settings.process??{},'fanPercent')||(horizontal(slice) ? index === 1 : ordinal === 1)) ? { fanPercent: process.fanPercent } : {}), ...(filament === null ? {} : { filament }) });

@@ -1,3 +1,4 @@
+import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {requireThat,normalize,cross,dot} from '../private/toolpath/numeric.mjs';
 // Strokes of one slice layer. layerStrokes fills an owned layer region with
 // loops and fill in the slice's chart; mapSliceStrokes maps coordinates to XYZ.
@@ -16,8 +17,7 @@ import { difference, intersect, union } from './intersection.mjs';
 import { fillPatternStrokes } from './fill-patterns.mjs';
 import { lineSpacing } from '../path/spacing.mjs';
 import { cleanPlanarLoop } from '../geom/polyline.mjs';
-import { slicePoint, sliceNormal } from '../geom/slice.mjs';
-import { evaluate } from '../geom/nurbs.mjs';
+
 import {TOLERANCE} from '../geom/tolerance.mjs';
 
 // region: owned loops in the chart. material: the part's sliced material on
@@ -99,12 +99,12 @@ export function mapSliceStrokes(strokes, slice, options={}) {
       normals:samples.map(e=>e.normal),referenceAlong:samples.map(e=>e.dv),widthsMm,
       segmentMetadata:samples.slice(1).map(e=>({surfaceNormal:[...e.normal]}))};
   });
-  if(slice.kind==='plane')return strokes.map(stroke=>({...stroke,points:stroke.points.map(point=>slicePoint(slice,point)),...(options.frames?{chartPoints:stroke.points,normals:stroke.points.map(()=>[...slice.normal]),frameSamples:stroke.points.map(point=>sliceFrame(slice,point))}:{})}));
+  if(slice.kind==='plane')return strokes.map(stroke=>({...stroke,points:stroke.points.map(point=>evaluateSurface(slice,point).point),...(options.frames?{chartPoints:stroke.points,normals:stroke.points.map(()=>[...slice.normal]),frameSamples:stroke.points.map(point=>sliceFrame(slice,point))}:{})}));
   return strokes.map(stroke=>mapSliceStroke(stroke,slice,options));
 }
 
 export function sliceFrame(slice,point){
-  const normal=sliceNormal(slice,point),seed=slice.kind==='plane'?slice.xAxis:slice.kind==='patch'?evaluate(slice.patch,...point).du:[1,0,-normal[0]/normal[2]];
+  const {normal,du:seed}=evaluateSurface(slice,point);
   const u=normalize(seed.map((value,k)=>value-dot(seed,normal)*normal[k])),v=cross(normal,u);
   return {point:[...point,0],u,v,normal};
 }
@@ -120,9 +120,9 @@ export function mapSliceStroke(stroke,slice,{sampleStepMm=slice.sampleStepMm??.2
     return Math.max(lo,Math.min(hi,x));
   }):point;
   const source=(stroke.closed?[...stroke.points,stroke.points[0]]:stroke.points).map(chartPoint);
-  const points=[slicePoint(slice,source[0])],chartPoints=[source[0]],counts={evaluations:1};
+  const points=[evaluateSurface(slice,source[0]).point],chartPoints=[source[0]],counts={evaluations:1};
   const split=(a,b,pa,pb)=>{
-    const probes=[.25,.5,.75].map(t=>{const chart=a.map((v,k)=>v+t*(b[k]-v));return {chart,point:slicePoint(slice,chart),t};});
+    const probes=[.25,.5,.75].map(t=>{const chart=a.map((v,k)=>v+t*(b[k]-v));return {chart,point:evaluateSurface(slice,chart).point,t};});
     counts.evaluations+=3;
     const error=Math.max(...probes.map(({point,t})=>Math.hypot(...point.map((v,k)=>v-pa[k]-t*(pb[k]-pa[k])))));
     const polyline=[pa,...probes.map(probe=>probe.point),pb];
@@ -133,8 +133,8 @@ export function mapSliceStroke(stroke,slice,{sampleStepMm=slice.sampleStepMm??.2
       split(a,middle.chart,pa,middle.point);split(middle.chart,b,middle.point,pb);
     }else {points.push(pb);chartPoints.push(b);}
   };
-  for(let i=1;i<source.length;i++) {counts.evaluations++;split(source[i-1],source[i],points.at(-1),slicePoint(slice,source[i]));}
-  const normals=frames?chartPoints.map(point=>sliceNormal(slice,point)):null;
+  for(let i=1;i<source.length;i++) {counts.evaluations++;split(source[i-1],source[i],points.at(-1),evaluateSurface(slice,source[i]).point);}
+  const normals=frames?chartPoints.map(point=>evaluateSurface(slice,point).normal):null;
   const frameSamples=frames?chartPoints.map(point=>sliceFrame(slice,point)):null;
   return {...stroke,closed:false,points,...(frames?{chartPoints,normals,frameSamples,mappingReport:{evaluations:counts.evaluations+chartPoints.length,points:points.length}}:{})};
 }

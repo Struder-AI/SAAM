@@ -1,7 +1,8 @@
 // Skill-facing geometry queries. Adding a backend does not add a pattern pipeline.
 import { topAt as splineTopAt,crossingsAt as splineCrossingsAt } from './field.mjs';
 import { meshTopAt,meshCrossingsAt } from './mesh.mjs';
-import { section,prepareSection,horizontalSlice } from './slice.mjs';
+import {horizontalSlice} from './slice.mjs';
+import {section,prepareSection} from '../region/section.mjs';
 import { requireThat } from './tolerance.mjs';
 import {chartPrismContains} from './chart-prism.mjs';
 

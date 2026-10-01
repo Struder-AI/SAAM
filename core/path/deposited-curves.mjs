@@ -1,6 +1,7 @@
+import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {distance,requireThat,subtract,add,scale,dot,cross,normalize} from '../private/toolpath/numeric.mjs';
 
-import {sliceNormal} from '../geom/slice.mjs';
+
 import {strokeRange} from './deposition.mjs';
 import {pointSegmentDistance} from '../region/region2d.mjs';
 
@@ -45,7 +46,7 @@ export function depositedBeadFrames(result){
     const segmentMetadata=points.slice(1).map((b,i)=>{
       const previous=stroke.segmentMetadata?.[i]??{};
       const normal=previous.surfaceNormal??stroke.frameSamples?.[i]?.normal??stroke.normals?.[i]??(op.slice
-        ?sliceNormal(op.slice,op.slice.kind==='height-field'?points[i].slice(0,2):[0,0]):[0,0,1]);
+        ?evaluateSurface(op.slice,op.slice.kind==='height-field'?points[i].slice(0,2):[0,0]).normal:[0,0,1]);
       return {...previous,surfaceNormal:[...normal]};
     });
     return {...stroke,segmentMetadata};
@@ -69,7 +70,7 @@ export function depositedBeadSegments(operations,{widthMm,boundaryRole=null}={})
       if(boundaryRole!==null&&metadata?.boundaryRole!==boundaryRole)continue;
       const width=metadata?.beadWidthMm??stroke.beadWidthMm??widthMm;
       const normal=metadata?.surfaceNormal??stroke.frameSamples?.[i-1]?.normal??stroke.normals?.[i-1]??(op.slice
-        ?sliceNormal(op.slice,op.slice.kind==='height-field'?a.slice(0,2):[0,0]):[0,0,1]);
+        ?evaluateSurface(op.slice,op.slice.kind==='height-field'?a.slice(0,2):[0,0]).normal:[0,0,1]);
       requireThat(Number.isFinite(width)&&width>0,'Deposited bead coverage needs positive width.');
       const tangent=normalize(subtract(b,a));
       const reference=normalize(subtract(normal,scale(tangent,dot(normal,tangent))));

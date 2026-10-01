@@ -3,7 +3,7 @@ import {distance,requireThat} from '../../../core/private/extensions/numeric.mjs
 
 import {maximumPathAngle} from '../../../core/path/deposition.mjs';
 import {patternCourses} from './sleeve-boundary-courses.mjs';
-import {sampleCurveIntervals} from '../../../core/path/curve-sampling.mjs';
+import {sampleCurveIntervals} from '../../../core/geom/curve-sampling.mjs';
 const sameSurfacePoint=(a,b)=>Math.abs((a[0]-b[0])-Math.round(a[0]-b[0]))<=1e-10&&Math.abs(a[1]-b[1])<=1e-9;
 const offsetAt=(path,i)=>Array.isArray(path.offsetMm)?path.offsetMm.at(i):(path.offsetMm??0);
 const joined=(a,b)=>sameSurfacePoint(a.points.at(-1),b.points[0])&&Math.abs(offsetAt(a,-1)-offsetAt(b,0))<=1e-9;

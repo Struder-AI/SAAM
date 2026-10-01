@@ -45,7 +45,7 @@
     },
     "core/geom/evaluated-surface.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
     },
     "core/geom/field.mjs": {
       "owner": "geometry",
@@ -97,7 +97,7 @@
     },
     "core/geom/reference-surface.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
     },
     "core/geom/selections.mjs": {
       "owner": "geometry",
@@ -105,7 +105,7 @@
     },
     "core/geom/shell.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
     },
     "core/geom/solid.mjs": {
       "owner": "geometry",
@@ -129,11 +129,11 @@
     },
     "core/geom/surface-region.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
     },
     "core/geom/tessellate.mjs": {
       "owner": "geometry",
-      "reason": "Geometry representation, numerical operations or spatial predicates; public consumers should use the facade."
+      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
     },
     "core/geom/tolerance.mjs": {
       "owner": "geometry",
@@ -185,15 +185,11 @@
     },
     "core/geom/slice.mjs": {
       "owner": "geometry",
-      "reason": "Cutting/section/topology query implementation, provisionally private to Slice; review broader existing uses."
-    },
-    "core/geom/slice-region.mjs": {
-      "owner": "geometry",
-      "reason": "Cutting/section/topology query implementation, provisionally private to Slice; review broader existing uses."
+      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
     },
     "core/geom/query.mjs": {
       "owner": "geometry",
-      "reason": "Public geometry query/import/repair entry; mixed section-query methods need review."
+      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
     },
     "core/geom/stl-decoder.mjs": {
       "owner": "geometry",
@@ -265,7 +261,7 @@
     },
     "core/region/layer-region.mjs": {
       "owner": "geometry",
-      "reason": "Slice region/ownership/contact queries rather than deposited-path production."
+      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
     },
     "core/region/material-contact.mjs": {
       "owner": "geometry",
@@ -273,7 +269,7 @@
     },
     "core/region/normal-surface.mjs": {
       "owner": "geometry",
-      "reason": "Slice region/ownership/contact queries rather than deposited-path production."
+      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
     },
     "core/region/ownership.mjs": {
       "owner": "geometry",
@@ -281,7 +277,7 @@
     },
     "core/region/reservation.mjs": {
       "owner": "geometry",
-      "reason": "Slice region/ownership/contact queries rather than deposited-path production."
+      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
     },
     "core/region/fill-patterns.mjs": {
       "owner": "toolpath",
@@ -336,10 +332,6 @@
       "reason": "Curve construction and deposition belong to Trace; cross-engine geometry calls remain visible."
     },
     "core/path/curve-frame.mjs": {
-      "owner": "toolpath",
-      "reason": "Curve construction and deposition belong to Trace; cross-engine geometry calls remain visible."
-    },
-    "core/path/curve-sampling.mjs": {
       "owner": "toolpath",
       "reason": "Curve construction and deposition belong to Trace; cross-engine geometry calls remain visible."
     },
@@ -1350,6 +1342,26 @@
     "workspaces/wing/handoff.mjs": {
       "owner": "workspace",
       "reason": "Workspace constructs supplied components before Bundle persistence."
+    },
+    "core/geom/curve-sampling.mjs": {
+      "owner": "geometry",
+      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
+    },
+    "core/geom/solid-operations.mjs": {
+      "owner": "geometry",
+      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
+    },
+    "core/geom/surface-curves.mjs": {
+      "owner": "geometry",
+      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
+    },
+    "core/geom/surface-evaluation.mjs": {
+      "owner": "geometry",
+      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
+    },
+    "core/region/section.mjs": {
+      "owner": "geometry",
+      "reason": "Shared geometric construction/evaluation; native representations and operation-specific tolerances remain owned here."
     }
   },
   "leaves": {
@@ -3506,8 +3518,7 @@
       "owner": "geometry"
     },
     "core/geom/query.mjs::createSectionQuery": {
-      "owner": "geometry",
-      "reason": "Section-query declaration belongs to Slice-private API; other queries in the file stay public."
+      "owner": "geometry"
     },
     "core/geom/query.mjs::crossingsAt": {
       "owner": "geometry"
@@ -3516,15 +3527,13 @@
       "owner": "geometry"
     },
     "core/geom/query.mjs::requireGeometry": {
-      "owner": "geometry",
-      "reason": "Shared representation validation used by public and Slice-private facades."
+      "owner": "geometry"
     },
     "core/geom/query.mjs::sampleTopSurface": {
       "owner": "geometry"
     },
     "core/geom/query.mjs::sectionGeometry": {
-      "owner": "geometry",
-      "reason": "Section-query declaration belongs to Slice-private API; other queries in the file stay public."
+      "owner": "geometry"
     },
     "core/geom/query.mjs::topAt": {
       "owner": "geometry"
@@ -3619,15 +3628,6 @@
     "core/geom/shell.mjs::assertClosed": {
       "owner": "geometry"
     },
-    "core/geom/shell.mjs::boundaryCurve": {
-      "owner": "geometry"
-    },
-    "core/geom/shell.mjs::boundaryCurve::at": {
-      "owner": "geometry"
-    },
-    "core/geom/shell.mjs::boundaryCurve::pointAt": {
-      "owner": "geometry"
-    },
     "core/geom/shell.mjs::distanceToCurve": {
       "owner": "geometry"
     },
@@ -3703,82 +3703,7 @@
     "skills/advanced-vase-wall/scripts/sleeve-frame.mjs::sampleCurveContour": {
       "owner": "extensions"
     },
-    "skills/advanced-vase-wall/scripts/sleeve-frame.mjs::sampleCurveContour::append": {
-      "owner": "extensions"
-    },
-    "skills/advanced-vase-wall/scripts/sleeve-frame.mjs::sampleCurveContour::at": {
-      "owner": "extensions"
-    },
-    "core/geom/slice-region.mjs::@module": {
-      "owner": "geometry"
-    },
-    "core/geom/slice-region.mjs::bezierHull": {
-      "owner": "geometry"
-    },
-    "core/geom/slice-region.mjs::boundaryCurves": {
-      "owner": "geometry"
-    },
-    "core/geom/slice-region.mjs::boundaryCurves::cells": {
-      "owner": "geometry"
-    },
-    "core/geom/slice-region.mjs::boundaryCurves::key": {
-      "owner": "geometry"
-    },
-    "core/geom/slice-region.mjs::boundaryPatches": {
-      "owner": "geometry"
-    },
-    "core/geom/slice-region.mjs::chainPieces": {
-      "owner": "geometry"
-    },
-    "core/geom/slice-region.mjs::chainPieces::close": {
-      "owner": "geometry"
-    },
-    "core/geom/slice-region.mjs::closeOnBoundary": {
-      "owner": "geometry"
-    },
-    "core/geom/slice-region.mjs::corner": {
-      "owner": "geometry"
-    },
-    "core/geom/slice-region.mjs::joinPolylines": {
-      "owner": "geometry"
-    },
-    "core/geom/slice-region.mjs::joinPolylines::near": {
-      "owner": "geometry"
-    },
-    "core/geom/slice-region.mjs::orient": {
-      "owner": "geometry"
-    },
-    "core/geom/slice-region.mjs::outwardSigns": {
-      "owner": "geometry"
-    },
-    "core/geom/slice-region.mjs::patchBox": {
-      "owner": "geometry"
-    },
-    "core/geom/slice-region.mjs::perimeterAt": {
-      "owner": "geometry"
-    },
-    "core/geom/slice-region.mjs::solidPatches": {
-      "owner": "geometry"
-    },
-    "core/geom/slice-region.mjs::surfaceInside": {
-      "owner": "geometry"
-    },
-    "core/geom/slice-region.mjs::surfaceInside::sample": {
-      "owner": "geometry"
-    },
-    "core/geom/slice-region.mjs::surfaceRegion": {
-      "owner": "geometry"
-    },
-    "core/geom/slice-region.mjs::trianglePatch": {
-      "owner": "geometry"
-    },
     "core/geom/slice.mjs::@module": {
-      "owner": "geometry"
-    },
-    "core/geom/slice.mjs::combine": {
-      "owner": "geometry"
-    },
-    "core/geom/slice.mjs::frameAxes": {
       "owner": "geometry"
     },
     "core/geom/slice.mjs::horizontalSlice": {
@@ -3796,19 +3721,7 @@
     "core/geom/slice.mjs::planeSlice": {
       "owner": "geometry"
     },
-    "core/geom/slice.mjs::prepareSection": {
-      "owner": "geometry"
-    },
     "core/geom/slice.mjs::prepareSliceRay": {
-      "owner": "geometry"
-    },
-    "core/geom/slice.mjs::section": {
-      "owner": "geometry"
-    },
-    "core/geom/slice.mjs::sectionLoops": {
-      "owner": "geometry"
-    },
-    "core/geom/slice.mjs::sectionPreparedMesh": {
       "owner": "geometry"
     },
     "core/geom/slice.mjs::sliceBoundaryEdges": {
@@ -3818,12 +3731,6 @@
       "owner": "geometry"
     },
     "core/geom/slice.mjs::sliceFamily": {
-      "owner": "geometry"
-    },
-    "core/geom/slice.mjs::sliceNormal": {
-      "owner": "geometry"
-    },
-    "core/geom/slice.mjs::slicePoint": {
       "owner": "geometry"
     },
     "core/geom/slice.mjs::sliceRayIntersections": {
@@ -4145,12 +4052,6 @@
       "owner": "geometry"
     },
     "core/geom/surface-region.mjs::splinePatchChart": {
-      "owner": "geometry"
-    },
-    "core/geom/surface-region.mjs::splinePatchChart::at": {
-      "owner": "geometry"
-    },
-    "core/geom/surface-region.mjs::splinePatchChart::breaks": {
       "owner": "geometry"
     },
     "core/geom/surface-region.mjs::surfaceRegion": {
@@ -4604,12 +4505,6 @@
     "core/path/authored-curves.mjs::curveProfile": {
       "owner": "toolpath"
     },
-    "core/path/authored-curves.mjs::referenceCurvePoint": {
-      "owner": "toolpath"
-    },
-    "core/path/authored-curves.mjs::referenceCurvePoint::ring": {
-      "owner": "toolpath"
-    },
     "core/path/authored-curves.mjs::referenceEntry": {
       "owner": "toolpath"
     },
@@ -4836,15 +4731,6 @@
       "owner": "toolpath"
     },
     "core/path/curve-frame.mjs::transportCurveFrames::transport": {
-      "owner": "toolpath"
-    },
-    "core/path/curve-sampling.mjs::@module": {
-      "owner": "toolpath"
-    },
-    "core/path/curve-sampling.mjs::sampleCurveIntervals": {
-      "owner": "toolpath"
-    },
-    "core/path/curve-sampling.mjs::sampleCurveIntervals::evaluate": {
       "owner": "toolpath"
     },
     "core/path/deposited-curves.mjs::@module": {
@@ -6338,16 +6224,10 @@
     "core/region/normal-surface.mjs::@module": {
       "owner": "geometry"
     },
-    "core/region/normal-surface.mjs::normalSurfacePoint": {
-      "owner": "geometry"
-    },
     "core/region/normal-surface.mjs::sampleSurfaceCurve": {
       "owner": "geometry"
     },
     "core/region/normal-surface.mjs::sampleSurfaceCurve::at": {
-      "owner": "geometry"
-    },
-    "core/region/normal-surface.mjs::sampleSurfaceCurve::split": {
       "owner": "geometry"
     },
     "core/region/offset.mjs::@module": {
@@ -7044,9 +6924,6 @@
     "skills/gridfinity/scripts/gridfinity.mjs::compileGridfinity::cube": {
       "owner": "extensions"
     },
-    "skills/gridfinity/scripts/gridfinity.mjs::compileGridfinity::keep": {
-      "owner": "extensions"
-    },
     "skills/gridfinity/scripts/gridfinity.mjs::compileGridfinity::loft": {
       "owner": "extensions"
     },
@@ -7273,18 +7150,6 @@
       "owner": "extensions"
     },
     "skills/text/scripts/text.mjs::layoutGroup::refine": {
-      "owner": "extensions"
-    },
-    "skills/text/scripts/text.mjs::mappedSolid": {
-      "owner": "extensions"
-    },
-    "skills/text/scripts/text.mjs::mappedSolid::at": {
-      "owner": "extensions"
-    },
-    "skills/text/scripts/text.mjs::mappedSolid::grow": {
-      "owner": "extensions"
-    },
-    "skills/text/scripts/text.mjs::mappedSolid::point": {
       "owner": "extensions"
     },
     "skills/text/scripts/text.mjs::mapper": {
@@ -9383,16 +9248,13 @@
       "reason": "Shared surface-domain family/ownership lowering for Slice."
     },
     "core/print/terminal-boundary.mjs::@module": {
-      "owner": "toolpath",
-      "reason": "Reference boundary from finalized deposited material; geometry query dependency remains explicit."
+      "owner": "toolpath"
     },
     "core/print/terminal-boundary.mjs::boundaryOffsetField": {
-      "owner": "toolpath",
-      "reason": "Reference boundary from finalized deposited material; geometry query dependency remains explicit."
+      "owner": "toolpath"
     },
     "core/print/terminal-boundary.mjs::terminalBoundaryReference": {
-      "owner": "toolpath",
-      "reason": "Reference boundary from finalized deposited material; geometry query dependency remains explicit."
+      "owner": "toolpath"
     },
     "skills/advanced-vase-wall/scripts/assignment.mjs::@module": {
       "owner": "extensions",
@@ -9491,28 +9353,22 @@
       "reason": "Reviewed extension construction/registration logic; bundle/engine bypasses remain findings."
     },
     "skills/plastic-weld/scripts/work.mjs::@module": {
-      "owner": "extensions",
-      "reason": "Reviewed extension construction/registration logic; bundle/engine bypasses remain findings."
+      "owner": "extensions"
     },
     "skills/plastic-weld/scripts/work.mjs::finishWeldResults": {
-      "owner": "extensions",
-      "reason": "Reviewed extension construction/registration logic; bundle/engine bypasses remain findings."
+      "owner": "extensions"
     },
     "skills/plastic-weld/scripts/work.mjs::weldDependencies": {
-      "owner": "extensions",
-      "reason": "Reviewed extension construction/registration logic; bundle/engine bypasses remain findings."
+      "owner": "extensions"
     },
     "skills/plastic-weld/scripts/work.mjs::weldOperationDependencies": {
-      "owner": "extensions",
-      "reason": "Reviewed extension construction/registration logic; bundle/engine bypasses remain findings."
+      "owner": "extensions"
     },
     "skills/plastic-weld/scripts/work.mjs::weldWork": {
-      "owner": "extensions",
-      "reason": "Reviewed extension construction/registration logic; bundle/engine bypasses remain findings."
+      "owner": "extensions"
     },
     "skills/supports/scripts/supports.mjs::prepareSupportContexts::validateResult": {
-      "owner": "extensions",
-      "reason": "Reviewed extension construction/registration logic; bundle/engine bypasses remain findings."
+      "owner": "extensions"
     },
     "skills/text/scripts/edit.mjs::@module": {
       "owner": "extensions",
@@ -9635,8 +9491,7 @@
       "reason": "Reviewed current construction/family assignment adapter."
     },
     "core/print/slices.mjs::validateSlices::@default/validateConstruction": {
-      "owner": "toolpath",
-      "reason": "Reviewed current construction/family assignment adapter."
+      "owner": "toolpath"
     },
     "skills/records.mjs::validateExtensionAssignment": {
       "owner": "extensions",
@@ -10015,8 +9870,7 @@
       "reason": "Geometry construction engine."
     },
     "core/path/authored-curves.mjs::authoredSegment": {
-      "owner": "toolpath",
-      "reason": "Curve construction and deposition belong to Trace; cross-engine geometry calls remain visible."
+      "owner": "toolpath"
     },
     "core/print/extension-recipe.mjs::@module": {
       "owner": "toolpath",
@@ -10611,6 +10465,135 @@
     },
     "workspaces/wing/handoff.mjs::prepareWingBundle::local": {
       "owner": "workspace"
+    },
+    "core/geom/curve-sampling.mjs::@module": {
+      "owner": "geometry"
+    },
+    "core/geom/solid-operations.mjs::@module": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-curves.mjs::@module": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-evaluation.mjs::@module": {
+      "owner": "geometry"
+    },
+    "core/region/section.mjs::@module": {
+      "owner": "geometry"
+    },
+    "skills/advanced-vase-wall/scripts/sleeve-frame.mjs::sampleCurveContour::samples.at": {
+      "owner": "extensions"
+    },
+    "skills/text/scripts/text.mjs::compileText::difference": {
+      "owner": "extensions"
+    },
+    "core/geom/curve-sampling.mjs::sampleCurveIntervals": {
+      "owner": "geometry"
+    },
+    "core/geom/curve-sampling.mjs::sampleCurveIntervals::evaluate": {
+      "owner": "geometry"
+    },
+    "core/geom/solid-operations.mjs::constructSolids": {
+      "owner": "geometry"
+    },
+    "core/geom/solid-operations.mjs::constructSolids::keep": {
+      "owner": "geometry"
+    },
+    "core/geom/solid-operations.mjs::constructSolids::operandsOf": {
+      "owner": "geometry"
+    },
+    "core/geom/solid-operations.mjs::constructSolids::evaluate": {
+      "owner": "geometry"
+    },
+    "core/geom/solid-operations.mjs::loftMesh": {
+      "owner": "geometry"
+    },
+    "core/geom/solid-operations.mjs::mappedExtrusion": {
+      "owner": "geometry"
+    },
+    "core/geom/solid-operations.mjs::mappedExtrusion::point": {
+      "owner": "geometry"
+    },
+    "core/geom/solid-operations.mjs::mappedExtrusion::grow": {
+      "owner": "geometry"
+    },
+    "core/geom/solid-operations.mjs::mappedExtrusion::at": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-curves.mjs::surfaceIsoCurve": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-curves.mjs::curvePoint": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-evaluation.mjs::sleeveRing": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-evaluation.mjs::evaluateSurface": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-evaluation.mjs::mappedSurface": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-evaluation.mjs::mappedSurface::breaks": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-evaluation.mjs::mappedSurface::at": {
+      "owner": "geometry"
+    },
+    "core/region/section.mjs::outwardSigns": {
+      "owner": "geometry"
+    },
+    "core/region/section.mjs::chainPieces": {
+      "owner": "geometry"
+    },
+    "core/region/section.mjs::chainPieces::close": {
+      "owner": "geometry"
+    },
+    "core/region/section.mjs::orient": {
+      "owner": "geometry"
+    },
+    "core/region/section.mjs::perimeterAt": {
+      "owner": "geometry"
+    },
+    "core/region/section.mjs::corner": {
+      "owner": "geometry"
+    },
+    "core/region/section.mjs::closeOnBoundary": {
+      "owner": "geometry"
+    },
+    "core/region/section.mjs::trianglePatch": {
+      "owner": "geometry"
+    },
+    "core/region/section.mjs::boundaryPatches": {
+      "owner": "geometry"
+    },
+    "core/region/section.mjs::bezierHull": {
+      "owner": "geometry"
+    },
+    "core/region/section.mjs::surfaceInside": {
+      "owner": "geometry"
+    },
+    "core/region/section.mjs::surfaceInside::sample": {
+      "owner": "geometry"
+    },
+    "core/region/section.mjs::prepareSection": {
+      "owner": "geometry"
+    },
+    "core/region/section.mjs::section": {
+      "owner": "geometry"
+    },
+    "core/region/section.mjs::sectionLoops": {
+      "owner": "geometry"
+    },
+    "core/region/section.mjs::sectionPreparedMesh": {
+      "owner": "geometry"
+    },
+    "core/region/section.mjs::frameAxes": {
+      "owner": "geometry"
+    },
+    "core/region/section.mjs::combine": {
+      "owner": "geometry"
     }
   },
   "retiredAssignments": [

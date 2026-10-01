@@ -1,3 +1,9 @@
+import {evaluateSurface} from '../geom/surface-evaluation.mjs';
+import {sectionHeightSlice,sampledChartRegion,referenceHeight} from '../geom/height-slice.mjs';
+import {chartPrismContains} from '../geom/chart-prism.mjs';
+import {sectionShell} from '../geom/shell.mjs';
+import {meshSectionIndex,sectionMeshIndex} from '../geom/mesh.mjs';
+import {sliceChartStep,touchesSliceEdge} from '../geom/slice.mjs';
 // The part of a surface that lies inside a solid, as closed loops in the
 // surface's own (u,v): the region a curved slice owns, or the part of a patch a
 // boolean keeps. Its boundary is where the surface meets the solid's patches
@@ -5,11 +11,11 @@
 // so the solid's inside is on their left using each partner patch's outward
 // normal, and closed along the surface's domain boundary, walked
 // counterclockwise from each curve's end to the next curve's start.
-import { evaluate } from './nurbs.mjs';
-import { intersectPatches } from './surface-intersection.mjs';
-import { containsPoint } from './query.mjs';
-import { union, intersect, difference } from '../region/intersection.mjs';
-import { requireThat, dot } from './tolerance.mjs';
+import { evaluate } from '../geom/nurbs.mjs';
+import { intersectPatches } from '../geom/surface-intersection.mjs';
+import { containsPoint } from '../geom/query.mjs';
+import { union, intersect, difference } from './intersection.mjs';
+import { requireThat, dot } from '../geom/tolerance.mjs';
 
 const OFF_SURFACE_MM = 1e-4;
 
@@ -156,66 +162,90 @@ export function surfaceInside(P, solid, { chordMm = 1e-3, seedMm = 0.4 } = {}) {
 }
 
 
-// Region of P inside any queried geometry: a layered boolean (or an assembly
-// queried as a union) combines its operands' regions in P's (u,v).
-export function surfaceRegion(P, geometry, options) {
-  if (geometry.kind !== 'boolean') return surfaceInside(P, geometry, options).loops;
-  const [first, ...rest] = geometry.operands.map(operand => surfaceRegion(P, operand, options));
-  if (geometry.operation === 'union') return rest.reduce((a, b) => union(a, b), first);
-  if (geometry.operation === 'intersection') return rest.reduce((a, b) => intersect(a, b), first);
-  return difference(first, rest.reduce((a, b) => union(a, b), []));
+
+// Search data for many sections of one geometry by slices sharing a chart
+// orientation (a plane family): every mesh leaf is indexed in the slice's
+// frame. The result is sectioned exactly like the geometry it came from.
+export function prepareSection(geometry, slice) {
+  if (slice.kind !== 'plane') return geometry;
+  if (geometry.kind === 'boolean') return { ...geometry, operands: geometry.operands.map(o => prepareSection(o, slice)) };
+  if (geometry.kind === 'assembly') return { ...geometry, components: geometry.components.map(c => prepareSection(c, slice)) };
+  if (geometry.kind === 'prepared-mesh') return prepareSection(geometry.mesh, slice);
+  if (geometry.kind !== 'triangle-mesh') return geometry;
+  return { kind: 'prepared-mesh', mesh: geometry, bounds: geometry.bounds, index: meshSectionIndex(geometry, frameAxes(slice)) };
 }
 
-// A solid's boundary as patches: a spline shell's own, or each mesh triangle
-// as a flat patch.
-export function solidPatches(solid) {
-  return solid.kind === 'triangle-mesh' ? solid.triangles.map((_, i) => trianglePatch(solid, i).patch) : solid.patches;
+// The region of a solid on a slice: {slice, loops, nudgedByMm, touchesEdge}.
+// Geometry is a spline shell, a triangle mesh, a boolean of solids or an
+// assembly (the union of its components), each possibly prepared. nudgedByMm
+// is the largest displacement a degenerate plane cut needed; touchesEdge says
+// the region reaches a patch slice's edge, where the slice stops inside the
+// solid instead of crossing it.
+export function section(geometry, slice, options = {}) {
+  requireThat(geometry?.bounds, 'Section needs a solid with bounds.');
+  const { loops, nudgedByMm } = sectionLoops(geometry, slice, options);
+  return { slice, loops, nudgedByMm, touchesEdge: touchesSliceEdge(slice, loops) };
 }
 
-function patchBox(patch) { return bezierHull(patch); }
-
-// Where two solids' boundaries meet (spline shells, meshes, or one of each):
-// every pair of patches whose control hulls overlap is intersected, and the
-// pieces are joined end to end into 3D polylines.
-export function boundaryCurves(a, b, { chordMm = 1e-3, seedMm = 0.4 } = {}) {
-  const A = solidPatches(a), B = solidPatches(b), boxesB = B.map(patchBox), pieces = [];
-  // Uniform grid over B's boxes, one cell per typical patch size.
-  const sizes = boxesB.map(x => Math.max(...[0, 1, 2].map(k => x.max[k] - x.min[k]))).sort((p, q) => p - q);
-  const cell = Math.max(sizes[Math.floor(sizes.length / 2)] ?? 1, 1e-3), grid = new Map(), key = (i, j, k) => i + ',' + j + ',' + k;
-  const cells = x => { const lo = x.min.map(v => Math.floor(v / cell)), hi = x.max.map(v => Math.floor(v / cell)), out = [];
-    for (let i = lo[0]; i <= hi[0]; i++) for (let j = lo[1]; j <= hi[1]; j++) for (let k = lo[2]; k <= hi[2]; k++) out.push(key(i, j, k));
-    return out; };
-  boxesB.forEach((x, n) => { for (const c of cells(x)) { if (!grid.has(c)) grid.set(c, []); grid.get(c).push(n); } });
-  let pairs = 0;
-  for (const p of A) {
-    const box = patchBox(p), candidates = new Set(cells(box).flatMap(c => grid.get(c) ?? []));
-    for (const n of candidates) {
-      const q = boxesB[n];
-      if (![0, 1, 2].every(k => box.min[k] <= q.max[k] + 1e-9 && q.min[k] <= box.max[k] + 1e-9)) continue;
-      pairs++;
-      for (const c of intersectPatches(p, B[n], { chordMm, seedMm }).curves) pieces.push(c.points);
+function sectionLoops(geometry, slice, options) {
+  if(geometry.kind==='chart-prism'){
+    if(slice.kind==='height-field'&&slice.reference===geometry.reference.reference){
+      const offset=slice.offsetMm-geometry.reference.offsetMm;
+      return {loops:offset>geometry.fromMm+1e-8&&offset<=geometry.toMm+1e-8?geometry.loopsUv:[],nudgedByMm:0};
     }
+    if(slice.kind==='patch'&&slice.referencePatch===geometry.reference.referencePatch){
+      const delta=(slice.translation??[0,0,0]).map((v,k)=>v-(geometry.reference.translation?.[k]??0)),offset=dot(delta,geometry.direction);
+      if(Math.hypot(...delta.map((v,k)=>v-offset*geometry.direction[k]))<1e-8)return {loops:offset>geometry.fromMm+1e-8&&offset<=geometry.toMm+1e-8?geometry.loopsUv:[],nudgedByMm:0};
+    }
+    let extent;
+    if(slice.kind==='patch')extent={min:[slice.patch.domainU[0],slice.patch.domainV[0]],max:[slice.patch.domainU[1],slice.patch.domainV[1]]};
+    else if(slice.kind==='plane'){
+      const corners=Array.from({length:8},(_,i)=>[0,1,2].map(k=>((i>>k)&1?geometry.bounds.max[k]:geometry.bounds.min[k])-slice.origin[k]));
+      const points=corners.map(p=>[dot(p,slice.xAxis),dot(p,slice.yAxis)]);extent={min:[0,1].map(k=>Math.min(...points.map(p=>p[k]))),max:[0,1].map(k=>Math.max(...points.map(p=>p[k])))};
+    }else extent={min:geometry.bounds.min.slice(0,2),max:geometry.bounds.max.slice(0,2)};
+    const loops=sampledChartRegion(extent,sliceChartStep(slice,options.sampleStepMm??.2),uv=>{
+      if(uv.some((v,k)=>v<extent.min[k]||v>extent.max[k]))return false;
+      if(slice.kind==='height-field'&&!referenceHeight(slice.reference,...uv))return false;
+      return chartPrismContains(geometry,evaluateSurface(slice,uv).point);
+    });
+    return {loops,nudgedByMm:0};
   }
-  return { polylines: joinPolylines(pieces), pairs, patches: [A.length, B.length] };
+  if (geometry.kind === 'boolean') return combine(geometry.operation, geometry.operands.map(o => sectionLoops(o, slice, options)));
+  if (geometry.kind === 'assembly') return combine('union', geometry.components.map(c => sectionLoops(c, slice, options)));
+  if (slice.kind === 'height-field') return sectionHeightSlice(geometry, slice, options);
+  if (slice.kind === 'patch') {
+    const solid = geometry.kind === 'prepared-mesh' ? geometry.mesh : geometry;
+    return { loops: surfaceInside(slice.patch, solid, options).loops, nudgedByMm: 0 };
+  }
+  requireThat(slice.kind === 'plane', `Unsupported slice kind ${slice.kind}.`);
+  if (geometry.kind === 'prepared-mesh') return sectionPreparedMesh(geometry, slice);
+  if (geometry.kind === 'triangle-mesh') return sectionPreparedMesh({ mesh: geometry, index: meshSectionIndex(geometry, frameAxes(slice), { search: false }) }, slice);
+  requireThat(Array.isArray(geometry.patches), 'Unsupported geometry backend.');
+  return sectionShell(geometry, slice, options);
 }
 
-function joinPolylines(pieces, tolerance = 1e-6) {
-  const pool = pieces.map(p => [...p]), out = [], near = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) <= tolerance;
-  while (pool.length) {
-    let line = pool.pop();
-    for (let grown = true; grown;) {
-      grown = false;
-      for (let i = 0; i < pool.length; i++) {
-        const q = pool[i];
-        if (near(line.at(-1), q[0])) line = [...line, ...q.slice(1)];
-        else if (near(line.at(-1), q.at(-1))) line = [...line, ...[...q].reverse().slice(1)];
-        else if (near(line[0], q.at(-1))) line = [...q, ...line.slice(1)];
-        else if (near(line[0], q[0])) line = [...[...q].reverse(), ...line.slice(1)];
-        else continue;
-        pool.splice(i, 1);grown = true;break;
-      }
-    }
-    out.push(line);
-  }
-  return out;
+// A mesh index cuts at frame height n·origin; its loops sit in the frame's
+// (x, y) and shift to the slice's chart origin.
+function sectionPreparedMesh({ mesh, index }, slice) {
+  const axes = frameAxes(slice);
+  if (!axes.every((axis, i) => axis.every((v, k) => v === index.axes[i][k])))
+    return sectionPreparedMesh({ mesh, index: meshSectionIndex(mesh, axes, { search: false }) }, slice);
+  const [x, y, n] = axes, o = slice.origin;
+  const cut = sectionMeshIndex(index, dot(n, o));
+  const ox = dot(x, o), oy = dot(y, o);
+  return { loops: ox === 0 && oy === 0 ? cut.loops : cut.loops.map(loop => loop.map(([a, b]) => [a - ox, b - oy])), nudgedByMm: cut.nudgedByMm };
 }
+
+const frameAxes = slice => [slice.xAxis, slice.yAxis, slice.normal];
+
+// Operands share the slice's chart, so a boolean of solids is the same boolean
+// of their regions. Difference subtracts every later operand from the first.
+function combine(operation, sections) {
+  const loops = sections.map(s => s.loops);
+  const result = operation === 'union' ? loops.reduce((a, b) => union(a, b), [])
+    : operation === 'difference' ? difference(loops[0], loops.slice(1).reduce((a, b) => union(a, b), []))
+    : loops.slice(1).reduce((a, b) => intersect(a, b), loops[0]);
+  const nudgedByMm = sections.reduce((n, s) => Math.abs(s.nudgedByMm ?? 0) > Math.abs(n) ? s.nudgedByMm : n, 0);
+  return { loops: result, nudgedByMm };
+}
+

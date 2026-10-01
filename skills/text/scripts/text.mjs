@@ -1,10 +1,9 @@
 import {requireThat,distance,cross,normalize} from '../../../core/private/extensions/numeric.mjs';
 
-import {solidKernel,solidFromMesh,meshFromSolid,combineSolids,discardSolidKernel,KERNEL_TRIANGLE_CAPACITY} from '../../../core/geom/solid.mjs';
+import {constructSolids} from '../../../core/geom/solid-operations.mjs';
 import {textOutlines} from '../../../core/geom/text-outline.mjs';
 import {textLayout} from '../../../core/geom/text-layout.mjs';
 import {referenceSurface} from '../../../core/geom/reference-surface.mjs';
-import {tessellateSolid} from '../../../core/geom/boolean-display.mjs';
 import {textTemplate,textDigest} from './record.mjs';
 import {union} from '../../../core/region/intersection.mjs';
 
@@ -59,99 +58,34 @@ function mapper(reference,anchor){
   return ([x,y,z])=>{const e=reference(x,y);return e.point.map((v,i)=>v+z*e.normal[i]);};
 }
 
-function mappedSolid(kernel,loops,map,lower,upper,{maxEdgeMm,toleranceMm,normalSide=1}){
-  let solid=kernel.Manifold.extrude(loops,upper-lower);
-  try{
-    const shifted=solid.translate([0,0,lower]);solid.delete();solid=shifted;
-    // maxEdgeMm and toleranceMm decide the triangle count. Only a mesh the
-    // 32-bit kernel cannot address at all is refused in advance; an actual
-    // kernel failure discards the aborted instance and names its cause.
-    const input=solid.getMesh();let estimated=0;
-    const point=id=>Array.from(input.vertProperties.slice(id*input.numProp,id*input.numProp+3));
-    for(let i=0;i<input.triVerts.length;i+=3){
-      const p=Array.from(input.triVerts.slice(i,i+3),point),n=Math.ceil(Math.max(...p.map((v,j)=>distance(v,p[(j+1)%3])))/maxEdgeMm);
-      estimated+=n*n;
-    }
-    requireThat(estimated<=KERNEL_TRIANGLE_CAPACITY,`Text subdivision at ${maxEdgeMm} mm needs about ${estimated} triangles, beyond the ${KERNEL_TRIANGLE_CAPACITY} the solid kernel can address; increase maxEdgeMm or shorten the text.`);
-    const grow=(step,what)=>{
-      try{const next=step();solid.delete();return next;}
-      catch(error){discardSolidKernel();throw new Error(`The solid kernel failed while ${what}: ${error.message}. Increase maxEdgeMm or toleranceMm, or shorten the text.`);}
-    };
-    solid=grow(()=>solid.refineToLength(maxEdgeMm),`refining text to ${maxEdgeMm} mm edges`);
-    // Each pass quarters the sampled deviation of a smooth reference, so a pass
-    // that fails to reduce it is reported as a reference that cannot be
-    // resolved rather than counted against a fixed number of passes.
-    for(let previousError=Infinity;;){
-      const mesh=solid.getMesh();
-      let error=0;
-      const at=id=>Array.from(mesh.vertProperties.slice(id*mesh.numProp,id*mesh.numProp+3));
-      for(let i=0;i<mesh.triVerts.length;i+=3){
-        const p=Array.from(mesh.triVerts.slice(i,i+3),at),q=p.map(map);
-        for(const w of [[0.5,0.5,0],[0,0.5,0.5],[0.5,0,0.5],[1/3,1/3,1/3]]){
-          const mid=p[0].map((_,k)=>p.reduce((sum,v,n)=>sum+v[k]*w[n],0));
-          const chord=q[0].map((_,k)=>q.reduce((sum,v,n)=>sum+v[k]*w[n],0));
-          error=Math.max(error,distance(map(mid),chord));
-        }
-      }
-      if(error<=toleranceMm){
-        // Reversing the reference normal reverses the map's handedness.
-        // Manifold's mirror updates winding before the orientation-preserving warp.
-        const source=normalSide===-1?solid.mirror([0,0,1]):solid;
-        let warped;
-        try{warped=source.warp(p=>{const q=map([p[0],p[1],p[2]*normalSide]);p[0]=q[0];p[1]=q[1];p[2]=q[2];});}
-        finally{if(source!==solid)source.delete();}
-        try{meshFromSolid(warped);return warped;}catch(error){warped.delete();throw error;}
-      }
-      requireThat(error<previousError*0.9,`Curved text tessellation stopped converging at ${error.toFixed(6)} mm against a ${toleranceMm} mm tolerance; revise the reference or toleranceMm.`);
-      previousError=error;
-      solid=grow(()=>solid.refine(2),'refining curved text against its reference');
-    }
-    // A discarded kernel cannot free its own solids; releasing this one must not
-    // replace the failure that discarded it.
-  }finally{try{solid.delete();}catch{}}
-}
-
 export async function compileText(base,features,{buildGeometry,toleranceMm=0.02,maxEdgeMm=1,standalone=false}={}){
   requireThat(typeof buildGeometry==='function'&&Array.isArray(features)&&features.length>0,'Text needs a geometry builder and at least one feature.');
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0&&Number.isFinite(maxEdgeMm)&&maxEdgeMm>0,'Text toleranceMm and maxEdgeMm must be positive.');
   const normalized=features.map(textFeature);
   requireThat(new Set(normalized.map(f=>f.id)).size===normalized.length,'Text feature ids must be unique.');
-  const kernel=await solidKernel(),target=base?buildGeometry(base):null;
-  let result=target&&!standalone?solidFromMesh(kernel,await tessellateSolid(target,{toleranceMm})):null;
+  const target=base?buildGeometry(base):null;
+  let result=target&&!standalone?target:null;
   const materials=new Map();let baseUncut=Boolean(result);
-  if(result)materials.set('base',result.translate([0,0,0]));
-  try{
-    for(const f of normalized){
-      requireThat(result||f.mode==='raised','Standalone text must begin with a raised feature.');
-      const outline=textOutlines(f,toleranceMm),reference=referenceSurface(f.reference,target);
-      const lower=f.offsetMm+(f.mode==='raised'?-f.overlapMm:-f.depthMm),upper=f.offsetMm+(f.mode==='raised'?f.depthMm:f.overlapMm);
-      let textSolid=null;
-      try{
-        for(const group of f.bendGlyphs?[{loops:outline.loops}]:outline.glyphs){
-          const placed=layoutGroup(group,f,toleranceMm);
-          const next=mappedSolid(kernel,placed.loops,mapper(reference,placed.anchor),lower,upper,{maxEdgeMm,toleranceMm,normalSide:f.reference.normalSide??1});
-          if(textSolid){const joined=combineSolids(textSolid,next,'add');textSolid.delete();next.delete();textSolid=joined;}else textSolid=next;
-        }
-        if(f.mode==='raised'){
-          // Earlier material owns overlaps. Store only this feature's added
-          // volume, so selecting adjacent/overlapping labels cannot print twice.
-          materials.set('text/'+f.id,result?textSolid.subtract(result):textSolid.translate([0,0,0]));
-        }else{
-          baseUncut=false;
-          for(const [id,material] of materials){const cut=material.subtract(textSolid);material.delete();materials.set(id,cut);}
-        }
-        if(result){const next=combineSolids(result,textSolid,f.mode==='raised'?'add':'subtract');result.delete();result=next;}
-        else {result=textSolid;textSolid=null;}
-      }finally{textSolid?.delete();}
-    }
-    const mesh=meshFromSolid(result),record={...textTemplate(),base:structuredClone(base),features:normalized,toleranceMm,maxEdgeMm,vertices:mesh.vertices,triangles:mesh.triangles};
-    record.materialParts=[];
-    for(const [id,solid] of materials)if(!solid.isEmpty()){
-      if(id==='base'&&baseUncut)record.materialParts.push({id,geometry:null});
-      else{const mesh=meshFromSolid(solid);record.materialParts.push({id,geometry:{shape:'mesh',source:null,vertices:mesh.vertices,triangles:mesh.triangles}});}
-    }
-    if(standalone)record.standalone=true;
-    record.compiledHash=textDigest(record);
-    return record;
-  }finally{result?.delete();for(const material of materials.values())material.delete();}
+  if(result)materials.set('base',result);
+  const difference=(a,b)=>({operation:'difference',operands:[a,b]});
+  for(const f of normalized){
+    requireThat(result||f.mode==='raised','Standalone text must begin with a raised feature.');
+    const outline=textOutlines(f,toleranceMm),reference=referenceSurface(f.reference,target);
+    const lower=f.offsetMm+(f.mode==='raised'?-f.overlapMm:-f.depthMm),upper=f.offsetMm+(f.mode==='raised'?f.depthMm:f.overlapMm);
+    const glyphs=(f.bendGlyphs?[{loops:outline.loops}]:outline.glyphs).map(group=>{
+      const placed=layoutGroup(group,f,toleranceMm);
+      return {operation:'mapped-extrusion',loops:placed.loops,map:mapper(reference,placed.anchor),lower,upper,maxEdgeMm,toleranceMm,normalSide:f.reference.normalSide??1};
+    });
+    // Preserve the existing ordered union of glyphs and material precedence.
+    const textSolid=glyphs.reduce((a,b)=>a?{operation:'union',operands:[a,b]}:b,null);
+    if(f.mode==='raised')materials.set('text/'+f.id,result?difference(textSolid,result):textSolid);
+    else {baseUncut=false;for(const [id,material] of materials)materials.set(id,difference(material,textSolid));}
+    result=result?{operation:f.mode==='raised'?'union':'difference',operands:[result,textSolid]}:textSolid;
+  }
+  const [mesh,...parts]=await constructSolids([result,...materials.values()],{toleranceMm});
+  requireThat(mesh,'Text operation produced an empty solid.');
+  const record={...textTemplate(),base:structuredClone(base),features:normalized,toleranceMm,maxEdgeMm,vertices:mesh.vertices,triangles:mesh.triangles};
+  record.materialParts=[...materials.keys()].flatMap((id,i)=>!parts[i]?[]:[{id,geometry:id==='base'&&baseUncut?null:{shape:'mesh',source:null,vertices:parts[i].vertices,triangles:parts[i].triangles}}]);
+  if(standalone)record.standalone=true;
+  record.compiledHash=textDigest(record);return record;
 }
