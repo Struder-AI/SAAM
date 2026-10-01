@@ -2,7 +2,9 @@ import {applyExtensionEdit} from './extension-edits.mjs';
 // Every command uses the same print bundle; Studio previews the checked export.
 import {readFile,access} from 'node:fs/promises';
 import {resolve} from 'node:path';
-import {root,initBundle,loadBundle,generateBundle,adjustBundle,rememberSetup,deliver,checkPathBundle,changeMachine,migrateBundle} from './bundle.mjs';
+import {root,initBundle,loadBundle,generateBundle,adjustBundle,deliver,checkPathBundle,migrateBundle} from './bundle.mjs';
+import {changeMachine,rememberSetup,adjustSettings} from '../machine/bundle-settings.mjs';
+import {SETTINGS_FIELDS} from '../machine/settings.mjs';
 import {createSTLBundle,setSTLUnits} from './import-stl.mjs';
 import {repairSTLFiles} from './repair-stl.mjs';
 import {createBlobFieldBundle,updateBlobFieldBundle} from './blob-field.mjs';
@@ -90,7 +92,10 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(JSON.stringify(await generateBundle(bundleDirectory()), null, 2));
     } else if (command === 'adjust') {
       if (!argument) throw new Error('Supply a JSON patch file after the print directory.');
-      const state = await adjustBundle(bundleDirectory(), await readJson(resolve(argument)),{expectedRevision});
+      const patch=await readJson(resolve(argument));
+      const state=Object.keys(patch).every(key=>SETTINGS_FIELDS.includes(key))
+        ?await adjustSettings(bundleDirectory(),patch,{expectedRevision})
+        :await adjustBundle(bundleDirectory(),patch,{expectedRevision});
       console.log(report(state));
     } else if (command === 'remember-setup') {
       console.log(await rememberSetup(bundleDirectory()));

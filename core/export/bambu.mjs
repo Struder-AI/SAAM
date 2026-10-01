@@ -11,7 +11,7 @@ import {interpretBody} from './bambu-player.mjs';
 import {gcodeLines} from './gcode-lines.mjs';
 import {packZip,unpackZip,crc32} from './zip.mjs';
 
-import {validateSetup,toolBounds,startupPosition} from '../machine/profile.mjs';
+import {validateSetup,toolBounds,startupPosition} from '../machine/rules.mjs';
 import {assignedFilaments} from '../machine/filaments.mjs';
 import {resolveBambuJob} from './bambu-job.mjs';
 import {materializeBambuProject,serializeBambuProject} from './bambu-project.mjs';

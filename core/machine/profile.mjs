@@ -6,4 +6,3 @@ export function loadMachine(id='ultimaker-s5') {
   requireThat(MACHINE_IDS.includes(id),'Unknown machine profile.');
   return JSON.parse(readFileSync(new URL(`../../machines/${id}.json`,import.meta.url),'utf8'));
 }
-export * from './rules.mjs';

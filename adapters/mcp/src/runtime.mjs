@@ -11,6 +11,8 @@ import {openBrowser} from '../../../studio/browser.mjs';
 import {randomUUID} from 'node:crypto';
 import {Worker} from 'node:worker_threads';
 import {PreparedGenerationJob} from '../../../studio/prepared-generation-job.mjs';
+import {changeMachine,rememberSetup,adjustSettings} from '../../../core/machine/bundle-settings.mjs';
+import {SETTINGS_FIELDS} from '../../../core/machine/settings.mjs';
 import { MACHINE_IDS, loadMachine } from '../../../core/machine/profile.mjs';
 import { createStudio, listPrints } from '../../../studio/server.mjs';
 import { bundleFor } from '../../../studio/adapter-resolution.mjs';
@@ -260,10 +262,14 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   // toolkit's maker-onboarding gives it to one with, less its script sections. A web
   // chat also gets how its connection works, which its client may not show from the
   // server instructions.
-  const machineIdSchema=z.string().optional().describe('The print’s printer: adds the sections its capabilities open.');
+  const machineIdSchema=z.string().optional().describe('Reusable printer profile for discovery before selecting a bundle. Use bundleId for saved capabilities.');
+  async function manualContext({bundleId,machineId}){
+    if(bundleId)return {client:'web',machine:(await read(bundleId,{program:false})).state.machine};
+    return {client:'web',machineId};
+  }
   tool('maker_onboarding','Start here: call this once per conversation, before any other SAAM tool. Returns how to work with SAAM: maker guidance, the index of every skill and advanced section, the shared print tools and, from a web chat, how this connection works. Reuse it for the whole conversation.',
-    {machineId:machineIdSchema}, async ({machineId}, session) => ({ role:'maker', ...(session?.guidance?{connection:session.guidance}:{}),
-      sources: await onboardingSources(root,{client:'web',machineId}),
+    {machineId:machineIdSchema,bundleId:bundleIdSchema.optional()}, async ({machineId,bundleId}, session) => ({ role:'maker', ...(session?.guidance?{connection:session.guidance}:{}),
+      sources: await onboardingSources(root,await manualContext({machineId,bundleId})),
       nextStep: 'Web agents remain makers; builders author guidance and developers own core skills. Follow connection first when present. Reuse these sources for the whole conversation; do not reread them or call maker_onboarding again. Read skill manuals (read_skill) and linked references (read_guidance) when a task needs them, and a gated section by name when its gate applies or the person asks.' }));
   tool('list_machines', 'List installed machine profiles and declared outputs. Catalog presence is not proof that a particular recipe is supported.', {}, async () => MACHINE_IDS.map(id => {
     const m = loadMachine(id);
@@ -272,18 +278,18 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       defaultSetup: m.defaultSetup };
   }));
   tool('list_skills', 'List toolpath, geometry, hybrid, guidance and extension manuals. Extensions compose engine operations; catalog membership does not establish recipe compatibility.', {}, skills);
-  tool('read_skill', 'Read a skill or guidance manual by ID, or one section as ID#heading whatever its gate. Sections gated to command access or to machine capabilities are listed in omitted; machineId opens the ones that printer meets. Links are repository paths for read_guidance.',
-    { skillId: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}(#[^\s#]{1,200})?$/), machineId: machineIdSchema }, async ({ skillId: name, machineId }) => {
+  tool('read_skill', 'Read a skill or guidance manual by ID, or one section as ID#heading whatever its gate. Sections gated to command access or to machine capabilities are listed in omitted; bundleId uses the saved printer snapshot; machineId selects a reusable profile before bundle selection. Links are repository paths for read_guidance.',
+    { skillId: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}(#[^\s#]{1,200})?$/), machineId: machineIdSchema, bundleId:bundleIdSchema.optional() }, async ({ skillId: name, machineId,bundleId }) => {
     const [skillId, anchor] = name.split('#');
     if (!SKILL_IDS.includes(skillId)&&!GUIDANCE_IDS.includes(skillId)&&!EXTENSION_IDS.includes(skillId)) {
       const local=await localExtension.readSkill?.(skillId);if(local)return local;
       throw new Error('Unknown skill or guidance manual ID. Use list_skills and its manual links.');
     }
-    const { text: manual, ...reference } = await readManual(root, `skills/${skillId}/SKILL.md${anchor ? '#' + anchor : ''}`, { client: 'web', machineId });
+    const { text: manual, ...reference } = await readManual(root, `skills/${skillId}/SKILL.md${anchor ? '#' + anchor : ''}`, await manualContext({machineId,bundleId}));
     return { skillId, manual, ...reference };
   });
-  tool('read_guidance', 'Read published repository Markdown by relative path, optionally with #heading for one section whatever its gate. Results list the headings with their gates and the gated sections omitted; machineId opens the ones that printer meets. Short IDs: makers, geometry, development, glossary, mcp, print-tools. This reader does not expose private files, source code or register capabilities.',
-    { guidanceId: z.string().min(1), machineId: machineIdSchema }, async ({ guidanceId, machineId }) => readManual(root, guidanceId, { client: 'web', machineId, headings: true }));
+  tool('read_guidance', 'Read published repository Markdown by relative path, optionally with #heading for one section whatever its gate. Results list the headings with their gates and the gated sections omitted; bundleId uses the saved printer snapshot; machineId selects a reusable profile before bundle selection. Short IDs: makers, geometry, development, glossary, mcp, print-tools. This reader does not expose private files, source code or register capabilities.',
+    { guidanceId: z.string().min(1), machineId: machineIdSchema,bundleId:bundleIdSchema.optional() }, async ({ guidanceId, machineId,bundleId }) => readManual(root, guidanceId, {...await manualContext({machineId,bundleId}),headings:true}));
   tool('get_recipe_defaults', 'Get process, setup and common assignment defaults, including remembered setup. Supply geometry or standalone Trace/Inject assignments before create_bundle. Defaults never confer job approval.',
     { kind: kindSchema, machineId: z.string() }, async ({ kind, machineId }) => ({ kind, machineId,
       plan: await (await bundles[kind]()).proposedPlan(machineId, { setupFile: await setupFile(machineId) }) }));
@@ -419,7 +425,9 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     { bundleId: bundleIdSchema, expectedRevision: z.string().min(1), patch: z.object({experimental:z.object({substrateAdaptation:z.boolean().describe('Experimental deposited-substrate adaptation; default false.').optional()}).strict().optional()}).passthrough() }, async ({ bundleId, expectedRevision, patch }) => {
       noApprovalFields(patch);
       const { dir, bundle, state } = await read(bundleId,{program:false});
-      const next = await bundle.adjustBundle(dir, patch, { expectedRevision, setupFile: state.machine?await setupFile(state.machine.id):undefined });
+      const options={expectedRevision,setupFile:state.machine?await setupFile(state.machine.id):undefined};
+      const next=Object.keys(patch).every(key=>SETTINGS_FIELDS.includes(key))
+        ?await adjustSettings(dir,patch,options):await bundle.adjustBundle(dir,patch,options);
       return summary(bundleId, next);
     }, false);
   tool('check_bundle', 'Validate saved native geometry, recipe and any exact generated export using the shared bundle checks. Does not generate or approve.', { bundleId: bundleIdSchema }, async ({ bundleId }) => {
@@ -433,7 +441,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   });
   tool('remember_setup', 'Remember this saved print setup for later prints on the same machine, shared with CLI initialization. This saves setup defaults, never job approvals.', { bundleId: bundleIdSchema }, async ({ bundleId }) => {
     const { dir, bundle, state } = await read(bundleId,{program:false});
-    await bundle.rememberSetup(dir, { setupFile: await setupFile(state.machine.id) });
+    await rememberSetup(dir, { setupFile: await setupFile(state.machine.id) });
     return { bundleId, machineId: state.machine.id, remembered: true, approvalsChanged: false };
   }, false);
   tool('get_approval_status', 'Read the fresh hash-bound final settings/toolpath approval from the saved bundle. Caller-provided approvals are never accepted.', { bundleId: bundleIdSchema }, async ({ bundleId }) => summary(bundleId, (await read(bundleId)).state));
@@ -497,7 +505,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   tool('change_machine','Change a print to a supported printer using its remembered or default setup. Invalidates final settings/toolpath confirmation and validates compatibility before saving.',
     {bundleId:bundleIdSchema,machineId:z.string(),expectedRevision:z.string()},async({bundleId,machineId,expectedRevision})=>{
       const {dir,bundle,state:before}=await read(bundleId,{program:false});if(!bundle.changeMachine)throw Error('This adapter cannot change its printer.');
-      return withMachineHint(bundleId,await bundle.changeMachine(dir,machineId,{expectedRevision,setupFile:await setupFile(machineId)}),before.machine?.id??null);
+      return withMachineHint(bundleId,await changeMachine(dir,machineId,{expectedRevision,setupFile:await setupFile(machineId)}),before.machine?.id??null);
     },false);
   tool('request_review', 'Serve this bundle through an exclusively owned SAAM Studio instance. Reuse is the default: the instance already showing this print, else the sole live instance, is rebound to it in the same browser tab. With several live instances supply studioInstanceId to choose the one to rebind; otherwise an unshown print opens another. Use newInstance only when the person asks for another Studio, or for a compelling reason you tell them. Optional startAt selects the tour infill layer. No approval or generation is performed.', { bundleId: bundleIdSchema,studioInstanceId:z.string().optional(),newInstance:z.boolean().default(false),startAt:z.object({layer:z.number().int().min(1)}).strict().optional(),...localExtension.reviewSchema?.(z) }, async ({ bundleId,studioInstanceId,newInstance,startAt,...viewOptions }) => {
     if(studioInstanceId&&newInstance)throw Error('Choose an existing studioInstanceId or request a new instance, not both.');

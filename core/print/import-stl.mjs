@@ -1,5 +1,6 @@
 // Agent import commands coordinate Geometry and Bundle; persistence accepts completed artifacts.
-import {initBundle,loadBundle,updatePlan,changeMachine} from './bundle.mjs';
+import {initBundle,loadBundle,updatePlan} from './bundle.mjs';
+import {changeMachine} from '../machine/bundle-settings.mjs';
 import {readFile,mkdir,realpath,rm} from 'node:fs/promises';
 import {resolve,join,dirname,basename} from 'node:path';
 import {hash} from './plan.mjs';

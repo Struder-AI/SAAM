@@ -1,7 +1,9 @@
 import {requireThat} from '../private/bundle/numeric.mjs';
 // Bundle commits one engine-authored proposal through its revisioned edit.
 // Extension execution and contribution assembly belong to the engines.
-import {loadBundle,updatePlan,proposedPlan,initBundle} from './bundle.mjs';
+import {loadBundle,updatePlan,initBundle} from './bundle.mjs';
+import {defaults} from './plan.mjs';
+import {selectSettings} from '../machine/settings.mjs';
 
 import {prepareExtensionRecipe} from './extension-recipe.mjs';
 import {prepareExtensionGeometry} from '../geom/extension-edit.mjs';
@@ -21,8 +23,9 @@ export async function applyExtensionEdit(directory,extension,request,{expectedRe
 }
 
 export async function createExtensionBundle(directory,extension,request,options={}){
-  const source=await proposedPlan(options.machineId,options);
+  const selection=options.machineId?await selectSettings(options.machineId,options):null;
+  const source=selection?{...defaults(selection.machine),...selection.settings}:{schema:'saam-shell-plan/1'};
   const {plan}=await prepareExtensionEdit(source,extension,request,{...options,create:true});
-  await initBundle(directory,plan,options);
+  await initBundle(directory,{...plan,bundle:{machine:selection?.machine??null}},{...options,machineId:undefined});
   return loadBundle(directory,{program:false});
 }

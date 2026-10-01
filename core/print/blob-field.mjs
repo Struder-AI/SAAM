@@ -1,17 +1,20 @@
 import {requireThat} from '../private/bundle/numeric.mjs';
 import {compileBlobField} from '../geom/blob-field-compile.mjs';
 import {BLOB_FIELD_SCHEMA,BLOB_FIELD_THRESHOLD} from '../geom/blob-field.mjs';
-import {proposedPlan,initBundle,loadBundle,updatePlan} from './bundle.mjs';
+import {initBundle,loadBundle,updatePlan} from './bundle.mjs';
+import {defaults} from './plan.mjs';
+import {selectSettings} from '../machine/settings.mjs';
 
 
 const REQUEST_FIELDS=['points','threshold','edgeMm'];
 
 export async function createBlobFieldBundle(directory,request,options={}){
-  const geometry=await compileRequest(request),plan=await proposedPlan(options.machineId,options);
+  const geometry=await compileRequest(request),selection=options.machineId?await selectSettings(options.machineId,options):null;
+  const plan=selection?{...defaults(selection.machine),...selection.settings}:{schema:'saam-shell-plan/1'};
   plan.geometry=geometry;
   const low=[0,1].map(a=>Math.min(...geometry.vertices.map(v=>v[a])));
   plan.placement={xMm:20-low[0],yMm:20-low[1]};
-  await initBundle(directory,plan,options);
+  await initBundle(directory,{...plan,bundle:{machine:selection?.machine??null}},{...options,machineId:undefined});
   return loadBundle(directory,{program:false});
 }
 export async function updateBlobFieldBundle(directory,request,{expectedRevision,part}={}){

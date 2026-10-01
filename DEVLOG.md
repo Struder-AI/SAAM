@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-10-01 — Settings owns selection and remembered setup
+
+- Extracted reusable machine/material/installation defaults, setup persistence and settings resolution into Settings. Agent settings commands submit exact snapshots through Bundle's expected-revision applySettingsSnapshot; Bundle retains unrelated components and owns review/history. Bundle worker agreed its integration uses commitState(state,{plan,machine,review},{edit:true}) in place of this baseline's saveManifest, retaining generation evidence for dependency-aware currency.
+- Setup admission and selected-bundle manual filtering consume saved machine data, not current profiles. Removed Settings' re-export of Export rules and migrated imports (existing test imports only). Geometry-only creation no longer invents a printer/recipe; explicit creation stores the resolved snapshot. Fixed Studio import's stale machineId reference.
+- Isolated-worktree verification: focused existing printer profile/tool-bound cases passed (2/2); actual STL import, partial firmware/setup edits, H2D selection, remembered-setup isolation, stale snapshot rejection, incomplete-recipe rejection, geometry-only gridfinity edit and explicit selected creation passed. Actual Studio import and HTTP state returned 200 with geometry and no machine/recipe. Snapshot capability gate exercised without a catalog ID. No new tests or suite batch.
+- Map ownership is complete after extraction; first audit has 2,932 assigned declarations and no orphan/unassigned leaves. Root access/causal review and final refresh follow. Documentation: core/print/README.md 267 → 266 lines (DEVLOG excluded).
+
 ## 2026-10-01 — Direct geometry extension edits
 
 - Bundle directly requests Geometry contributions; geometry-only edits bypass Toolpath. Deposition editors and hybrid assignment composition remain in Toolpath, with one Bundle revision commit and no Extensions–Bundle access. Engine inputs are cloned and returned fields restricted.

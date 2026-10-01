@@ -120,9 +120,10 @@ export function guidanceSection(markdown, anchor) {
 }
 
 // What a machine opens: its capabilities, and its nonplanar limit for `nonplanar>=N`.
-export function machineOpens(machineId) {
-  if (!machineId) return () => false;
-  const machine = loadMachine(machineId), capabilities = new Set(machine.capabilities ?? []);
+export function machineOpens(selection) {
+  if (!selection) return () => false;
+  const machine = typeof selection==='string'?loadMachine(selection):selection;
+  const capabilities = new Set(machine.capabilities ?? []);
   return token => {
     const [name, degrees] = token.split('>=');
     return degrees === undefined ? capabilities.has(name)
@@ -135,8 +136,8 @@ export function machineOpens(machineId) {
 // and every one with `all`. A heading asked for by name is always returned whole of its own gate.
 // Closed sections are cut and listed in `omitted`; frontmatter and markers are dropped, line
 // endings are LF and relative links become repository paths.
-export function assembleGuidance(markdown, path, { anchor, client = 'web', machineId, all = false } = {}) {
-  const sections = headings(markdown), opens = machineOpens(machineId);
+export function assembleGuidance(markdown, path, { anchor, client = 'web', machineId, machine, all = false } = {}) {
+  const sections = headings(markdown), opens = machineOpens(machine===undefined?machineId:machine);
   let start = /^---\r?\n[\s\S]*?\r?\n---\r?\n/.exec(markdown)?.[0].length ?? 0, end = markdown.length, requested;
   if (anchor) {
     requested = sections.findIndex(section => section.anchor === anchor);

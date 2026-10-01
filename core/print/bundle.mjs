@@ -31,9 +31,11 @@ export async function generatePreparedPath(plan,machine,options){
   return generatePath(plan,machine,native,{...options,modulations:fields.record,modulationPreparation:fields.report});
 }
 
-export const {root, EXPORT_NAME, atomicManifest, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, bundleFingerprint, bundleFingerprints, rememberSetup, migrateBundle, prepareGeneration, commitGeneration, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, changeMachine}=createBundleWorkflow({
+export const {root, EXPORT_NAME, atomicManifest, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, bundleFingerprint, bundleFingerprints, migrateBundle, prepareGeneration, commitGeneration, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, applySettingsSnapshot}=createBundleWorkflow({
   kind:'shell',defaults,geometryTemplate,createGeometry,
   generatePath:generatePreparedPath,generationContract:GENERATION_CONTRACT,
-  version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode',machineFile:'machines/ultimaker-s5.json',
+  version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode',
   limitations:limitationsFor
 });
+
+export {changeMachine,rememberSetup} from '../machine/bundle-settings.mjs';

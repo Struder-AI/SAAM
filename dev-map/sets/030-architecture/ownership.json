@@ -1338,6 +1338,18 @@
     "core/print/stl-file.mjs": {
       "owner": "bundle",
       "reason": "Source IO, identity and progress; geometry receives bytes or decoded values."
+    },
+    "core/machine/settings.mjs": {
+      "owner": "settings",
+      "reason": "Reusable settings ownership and selected snapshot service."
+    },
+    "core/machine/bundle-settings.mjs": {
+      "owner": "settings",
+      "reason": "Reusable settings ownership and selected snapshot service."
+    },
+    "core/private/settings/file-write.mjs": {
+      "owner": "settings",
+      "reason": "Reusable settings ownership and selected snapshot service."
     }
   },
   "leaves": {
@@ -5611,8 +5623,8 @@
       "owner": "bundle"
     },
     "core/print/plan.mjs::defaults": {
-      "owner": "toolpath",
-      "reason": "Toolpath engine owns deposition recipe defaults, assignments and extension process interpretation."
+      "owner": "bundle",
+      "reason": "Combines Toolpath recipe structure and Settings selections as an explicit new-recipe proposal."
     },
     "core/print/plan.mjs::depositionOnlyPlan": {
       "owner": "bundle"
@@ -5755,12 +5767,6 @@
       "owner": "bundle"
     },
     "core/print/resolve-plan.mjs::record": {
-      "owner": "bundle"
-    },
-    "core/print/resolve-plan.mjs::resolveInitialPlan": {
-      "owner": "bundle"
-    },
-    "core/print/resolve-plan.mjs::resolveMachinePlan": {
       "owner": "bundle"
     },
     "core/print/resolve-plan.mjs::resolvePlanPatch": {
@@ -6002,10 +6008,6 @@
       "owner": "bundle",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
-    "core/print/workflow.mjs::createBundleWorkflow::changeMachine": {
-      "owner": "bundle",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
     "core/print/workflow.mjs::createBundleWorkflow::checkPathBundle": {
       "owner": "bundle",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
@@ -6106,14 +6108,6 @@
       "owner": "bundle",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
-    "core/print/workflow.mjs::createBundleWorkflow::rememberedSetup": {
-      "owner": "bundle",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
-    "core/print/workflow.mjs::createBundleWorkflow::rememberSetup": {
-      "owner": "bundle",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
     "core/print/workflow.mjs::createBundleWorkflow::requireLegacyCurrent": {
       "owner": "bundle",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
@@ -6193,10 +6187,6 @@
     },
     "core/print/workflow.mjs::save": {
       "owner": "bundle"
-    },
-    "core/print/workflow.mjs::setupFor": {
-      "owner": "bundle",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
     "core/region/boolean.mjs::@module": {
       "owner": "geometry"
@@ -10367,11 +10357,11 @@
     },
     "core/private/settings/numeric.mjs::@module": {
       "owner": "settings",
-      "reason": "Private settings assertion helper."
+      "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
     },
     "core/private/settings/numeric.mjs::requireThat": {
       "owner": "settings",
-      "reason": "Private settings assertion helper."
+      "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
     },
     "core/path/process-controls.mjs::validateTemperatureC": {
       "owner": "toolpath",
@@ -10458,6 +10448,74 @@
     "core/print/extension-edits.mjs::prepareExtensionEdit": {
       "owner": "bundle",
       "reason": "Dispatches engine preparation and accepts one revisioned proposal; geometry-only results bypass Toolpath."
+    },
+    "core/machine/bundle-settings.mjs::@module": {
+      "owner": "settings",
+      "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
+    },
+    "core/machine/bundle-settings.mjs::adjustSettings": {
+      "owner": "settings",
+      "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
+    },
+    "core/machine/bundle-settings.mjs::changeMachine": {
+      "owner": "settings",
+      "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
+    },
+    "core/machine/bundle-settings.mjs::rememberSetup": {
+      "owner": "settings",
+      "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
+    },
+    "core/machine/settings.mjs::@module": {
+      "owner": "settings",
+      "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
+    },
+    "core/machine/settings.mjs::mergeSettings": {
+      "owner": "settings",
+      "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
+    },
+    "core/machine/settings.mjs::resolveMachineSettings": {
+      "owner": "settings",
+      "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
+    },
+    "core/machine/settings.mjs::resolveSettingsPatch": {
+      "owner": "settings",
+      "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
+    },
+    "core/machine/settings.mjs::saveSetup": {
+      "owner": "settings",
+      "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
+    },
+    "core/machine/settings.mjs::selectSettings": {
+      "owner": "settings",
+      "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
+    },
+    "core/machine/settings.mjs::settingsDefaults": {
+      "owner": "settings",
+      "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
+    },
+    "core/machine/settings.mjs::setupFor": {
+      "owner": "settings",
+      "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
+    },
+    "core/private/settings/file-write.mjs::@module": {
+      "owner": "settings",
+      "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
+    },
+    "core/private/settings/file-write.mjs::replaceFile": {
+      "owner": "settings",
+      "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
+    },
+    "core/print/plan.mjs::recipeDefaults": {
+      "owner": "toolpath",
+      "reason": "Deposition recipe structure and extension assignment defaults, independent of machine catalogs."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::applySettingsSnapshot": {
+      "owner": "bundle",
+      "reason": "Revisioned acceptance of supplied settings; owns shared snapshot and review commit, never resolves reusable presets."
+    },
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::manualContext": {
+      "owner": "agent",
+      "reason": "Agent passes a saved Bundle machine snapshot into Maker context, or explicitly requests reusable profile discovery."
     }
   },
   "retiredAssignments": [
@@ -10598,7 +10656,13 @@
     "studio/app.mjs::@handler/close-machine-picker.onclick",
     "studio/app.mjs::@handler/machine-form.onsubmit",
     "studio/app.mjs::choosePrinter",
-    "studio/server.mjs::importMachines"
+    "studio/server.mjs::importMachines",
+    "core/print/resolve-plan.mjs::resolveInitialPlan",
+    "core/print/resolve-plan.mjs::resolveMachinePlan",
+    "core/print/workflow.mjs::createBundleWorkflow::changeMachine",
+    "core/print/workflow.mjs::createBundleWorkflow::rememberedSetup",
+    "core/print/workflow.mjs::createBundleWorkflow::rememberSetup",
+    "core/print/workflow.mjs::setupFor"
   ],
   "scope": "map 0 only; no submap ownership constraints"
 }

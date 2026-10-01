@@ -20,7 +20,7 @@ current plan revision. Source metadata does not confer a printing approval.
 Implement the single human confirmation in [the maker interaction flow](../../MAKERS.md#maker-interaction-flow):
 settings and the exact toolpath together immediately before export. `core/print/workflow.mjs` owns
 initialization, verification, revision hashes, adjustment, approvals, generation,
-reopening, setup reuse and delivery. The shell adapter supplies
+reopening and delivery. The shell adapter supplies
 recipe validation, geometry, generator, limitations and release metadata.
 Studio chooses the adapter by saved plan schema. There is no standalone settings
 confirmation. `approve({actor, revision})` writes the only approval record,
@@ -45,17 +45,16 @@ approvals stale: regenerate and review again. Reading never rewrites the recipe.
 Legacy `planHash`/`previousPlanHash` fields normalize in memory; conflicting
 identities reject. An open view with an old revision token must refresh before edits.
 
-The [text preparation entry](./text.mjs) compiles editable font/surface features
-into the same native mesh geometry used by Studio and slicing, then calls
-`updatePlan`. It retains the original target and exact font bytes in the geometry
-recipe. Reopening checks the saved result without rerunning its construction;
-text edits reconstruct from the retained source and invalidate geometry review.
+Geometry extensions return proposals through Geometry; only deposition or hybrid
+assignment contributions need Toolpath composition. Bundle accepts one revisioned
+edit. Saved geometry remains viewable without rerunning the extension.
 
-The [mesh vase preparation tool](../../skills/advanced-vase-wall/SKILL.md#mesh-input-workflow)
-authors sleeve-fit, tile and base settings on an imported mesh through
-`adjustBundle`, using the expected revision. It preserves the source geometry
-and selected machine, and rejects conflicting composition instead of replacing
-it. The resulting recipe uses the same generation, review and delivery lifecycle.
+[Settings](../machine/settings.mjs) owns reusable profiles, material/installation
+defaults, remembered setup and resolution. Agent selection/edits go through
+[bundle-settings.mjs](../machine/bundle-settings.mjs); Bundle accepts exact
+machine and setup/process/output/placement values with `applySettingsSnapshot`
+and an expected revision. It preserves unrelated components and owns invalidation.
+Reusable changes never refresh existing bundles; manuals use saved capabilities.
 
 Generate the machine-declared export from the complete plan whenever it helps review,
 using transient motion objects. Check its actual commands before Studio plays
