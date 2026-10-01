@@ -18,7 +18,7 @@ async function prepareExtensionEdit(source,extension,request,options){
 export async function applyExtensionEdit(directory,extension,request,{expectedRevision,...options}={}){
   const state=await loadBundle(directory,{program:false});
   requireThat(expectedRevision===undefined||expectedRevision===state.revision,'This review is stale. Reload before changing the print.');
-  const {plan,report}=await prepareExtensionEdit(state.plan,extension,request,{...options,machine:state.machine});
+  const {plan,report}=await prepareExtensionEdit(state.plan,extension,request,options);
   await validateSelectedExtensionRecipe(plan,assignment=>assignmentPlan(plan,assignment).process);
   const updated=await updatePlan(directory,plan,state.revision);
   return report?{...updated,extensionReport:report}:updated;
