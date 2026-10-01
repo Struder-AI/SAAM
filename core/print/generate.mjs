@@ -132,37 +132,26 @@ export function sliceShells(plan,rhino,{placed,componentShells}) {
 // Survey every selected skin before body ownership, then finalize each
 // supporting producer before constructing surface consumers.
 export function generateModelResults(plan,machine,rhino,{placed,componentShells,bounds,weldSites=[],planningState,emittedIds=[]},onProgress) {
-  const welds=weldSites.map(site=>site.reservation),process=plan.process;
+  const welds=weldSites.map(site=>site.reservation);
   const summary={generatorVersion:VERSION,shape:plan.geometry?.shape??null},results=[];
   const shells=sliceShells(plan,rhino,{placed,componentShells});
-  const skins=plan.slices.assignments.filter(a=>a.construction==='skin').map(assignment=>{
-    const shell=shells.find(([part])=>part===assignment.part)?.[1];
-    requireThat(shell,'Skin needs a selected component or the single solid.');
-    const selectedProcess=assignmentPlan(plan,machine,assignment).process;
-    return {assignment,shell,process:selectedProcess,survey:surveySkinAssignment({assignment,shell,machine})};
+  const contexts=plan.slices.assignments.filter(assignment=>assignment.construction).map(assignment=>{
+    const shell=shells.find(([part])=>part===(assignment.part??null))?.[1],selected=assignmentPlan(plan,machine,assignment);
+    if(['skin','sleeve','rim','cladding'].includes(assignment.construction))requireThat(shell,
+      `${assignment.construction[0].toUpperCase()+assignment.construction.slice(1)} needs a selected component or the single solid.`);
+    return {assignment,shell,process:selected.process,maxBeadHeightMm:machine.tools.find(tool=>tool.index===selected.setup.tool)?.layerHeightMm?.[1]??Infinity};
   });
-  const sleeves=plan.slices.assignments.filter(a=>a.construction==='sleeve').map(assignment=>{
-    const shell=shells.find(([part])=>part===assignment.part)?.[1];
-    requireThat(shell,'Sleeve needs a selected component or the single solid.');
+  const skins=contexts.filter(({assignment})=>assignment.construction==='skin').map(context=>({...context,survey:surveySkinAssignment({...context,machine})}));
+  const sleeves=contexts.filter(({assignment})=>assignment.construction==='sleeve').map(context=>{
+    const {assignment,shell}=context;
     const startMm=shell.bounds.min[2]+assignment.zStartMm,endMm=assignment.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+assignment.zEndMm;
-    return {assignment,shell,startMm,endMm,process:assignmentPlan(plan,machine,assignment).process};
+    return {...context,startMm,endMm};
   });
   for(let i=0;i<sleeves.length;i++)for(let j=i+1;j<sleeves.length;j++)requireThat(sleeves[i].assignment.part!==sleeves[j].assignment.part||Math.min(sleeves[i].endMm,sleeves[j].endMm)<=Math.max(sleeves[i].startMm,sleeves[j].startMm)+1e-8,'Sleeve assignments cannot claim overlapping material bands.');
   const bands=sleeves.map(s=>({part:s.assignment.part,startMm:s.startMm,endMm:s.endMm}));
-  const rims=plan.slices.assignments.filter(a=>a.construction==='rim').map(assignment=>{
-    const shell=shells.find(([part])=>part===assignment.part)?.[1];
-    requireThat(shell,'Rim needs a selected component or single solid.');
-    return {assignment,shell,process:assignmentPlan(plan,machine,assignment).process};
-  });
-  const injections=plan.slices.assignments.filter(a=>a.construction==='inject').map(assignment=>({assignment,process:assignmentPlan(plan,machine,assignment).process}));
-  const remaining=plan.slices.assignments.filter(a=>['curves','bridges'].includes(a.construction)).map(assignment=>({assignment,
-    shell:shells.find(([part])=>part===(assignment.part??null))?.[1],process:assignmentPlan(plan,machine,assignment).process}));
-  const referenceAssignments=plan.slices.assignments.filter(a=>a.construction==='cladding').map(assignment=>{
-    const shell=shells.find(([part])=>part===assignment.part)?.[1];
-    requireThat(shell,'Cladding needs a selected component or the single solid.');
-    return {assignment,shell,process:assignmentPlan(plan,machine,assignment).process};
-  });
-  const constructions=[...sleeves.filter(context=>assignmentFamily(context.assignment)==='trace'),...injections,...remaining].map(context=>({...context,maxBeadHeightMm:machine.tools.find(tool=>tool.index===assignmentPlan(plan,machine,context.assignment).setup.tool)?.layerHeightMm?.[1]??Infinity}));
+  const rims=contexts.filter(({assignment})=>assignment.construction==='rim'),referenceAssignments=contexts.filter(({assignment})=>assignment.construction==='cladding');
+  const constructions=[...sleeves.filter(context=>assignmentFamily(context.assignment)==='trace'),
+    ...contexts.filter(({assignment})=>assignment.construction==='inject'),...contexts.filter(({assignment})=>['curves','bridges'].includes(assignment.construction))];
   const supportContexts=prepareSupportContexts({plan,machine,shells:componentShells?[...componentShells.values()]:placed?[placed]:[]});
   const sliced=finalizedSliceResults({plan,machine,shells,volumes:sliceVolumes(plan,rhino),bands,reserves:welds,envelopes:welds,surfaceAssignments:skins,referenceAssignments,terminalAssignments:rims,boundaryAssignments:sleeves.filter(context=>assignmentFamily(context.assignment)==='slice'),constructions,supportContexts,weldSites,onProgress,planningState,emittedIds});
   results.push(...sliced.results);
@@ -254,7 +243,7 @@ export function summarizeGeneratedPath(placed,survey,modelSummary) {
   return summary;
 }
 
-export const GENERATION_CONTRACT='saam-deposition/4';
+export const GENERATION_CONTRACT='saam-deposition/5';
 export function depositionInspection(results){
   const operations={};
   for(const result of results){

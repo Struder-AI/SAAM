@@ -17,7 +17,7 @@ function measure(name,fn,count) {
 const nested=offsetFixtures.find(f=>f.name==='nested/-0.2/round');
 const cp=[];for(const [x,y,w] of [[10,0,1],[10,10,Math.SQRT1_2],[0,10,1]])for(const z of [0,20])cp.push(x*w,y*w,z*w,w);
 const patch={nu:3,nv:2,orderU:3,orderV:2,knotsU:[0,0,0,1,1,1],knotsV:[0,0,20,20],domainU:[0,1],domainV:[0,20],cp};
-const files=['core/region/offset.mjs','core/region/clipper.mjs','core/region/clipper2.mjs','core/region/surface-offset.mjs','core/geom/surface-derivatives.mjs','node_modules/clipper2-wasm/dist/umd/clipper2z.js','node_modules/clipper2-wasm/dist/umd/clipper2z.wasm'];
+const files=['core/region/offset.mjs','core/region/clipper.mjs','core/region/surface-offset.mjs','core/geom/surface-derivatives.mjs','node_modules/clipper2-wasm/dist/umd/clipper2z.js','node_modules/clipper2-wasm/dist/umd/clipper2z.wasm'];
 console.log(JSON.stringify({node:process.version,platform:process.platform,sourceHashes:Object.fromEntries(files.map(file=>[file,hash(fs.readFileSync(file))])),
   measurements:[measure('planar nested loops, 16 vertices',()=>offsetRegion(nested.loops,nested.delta,nested),100),
     measure('planar 90-case corpus',()=>offsetFixtures.map(f=>offsetRegion(f.loops,f.delta,f)),3),

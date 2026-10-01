@@ -3,6 +3,7 @@
 import { requireThat, distance, TOLERANCE } from '../geom/tolerance.mjs';
 import {prepareCombCorners} from './comb.mjs';
 import {materialRegion} from './material.mjs';
+import {strokeRange} from './deposition.mjs';
 
 import { pointInRegion, pointSegmentDistance, SegmentIndex } from '../region/region2d.mjs';
 
@@ -81,13 +82,10 @@ export function orderStrokes(strokes, from) {
       }
     }
     const stroke = remaining.splice(best, 1)[0];
-    let points = stroke.points;
-    if (stroke.closed) {
-      points = [...points.slice(bestRotation), ...points.slice(0, bestRotation)];
-      points = [...points, points[0]];
-    } else if (bestRotation === -1) points = [...points].reverse();
-    ordered.push({ ...stroke, points });
-    cursor = points[points.length - 1];
+    const selected=stroke.closed?strokeRange(stroke,bestRotation)
+      :bestRotation===-1?strokeRange(stroke,stroke.points.length-1,0):stroke;
+    ordered.push(selected);
+    cursor = selected.points.at(-1);
   }
   return ordered;
 }
@@ -97,7 +95,8 @@ export function orderStrokes(strokes, from) {
 // independently. Stable ties retain producer order; segment data stays attached.
 export function orderScanlineCells(strokes, from) {
   const cells = new Map();
-  for (const stroke of strokes) {
+  for (const input of strokes) {
+    const stroke=input.closed?strokeRange(input):input;
     const cell = cells.get(stroke.scanlineCell) ?? [];
     cell.push(stroke);
     cells.set(stroke.scanlineCell, cell);
@@ -123,11 +122,7 @@ export function orderScanlineCells(strokes, from) {
     }
     let cell = remaining.splice(best, 1)[0];
     if (reverseRows) cell = [...cell].reverse();
-    if (reverseStrokes) cell = cell.map(stroke => ({
-      ...stroke, points: [...stroke.points].reverse(),
-      ...(stroke.volumesMm3 ? {volumesMm3: [...stroke.volumesMm3].reverse()} : {}),
-      ...(stroke.segmentMetadata ? {segmentMetadata: [...stroke.segmentMetadata].reverse()} : {})
-    }));
+    if (reverseStrokes) cell = cell.map(stroke => strokeRange(stroke,stroke.points.length-1,0));
     ordered.push(...cell);
     cursor = cell.at(-1).points.at(-1);
   }

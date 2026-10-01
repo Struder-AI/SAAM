@@ -77,15 +77,17 @@ export function validateSlices(slices, { parts, lineWidthMm, firstLayerMm }) {
   const ids = new Set();
   for (const a of slices.assignments) {
     validateAssignmentProcess(a?.process);
-    if(a.construction==='inject'){validateInjectionAssignment(a,{parts});requireThat(!ids.has(a.id),'Duplicate slice assignment id.');ids.add(a.id);continue;}
-    if(a.construction==='sleeve'){validateSleeveAssignment(a,{parts});requireThat(!ids.has(a.id),'Duplicate slice assignment id.');ids.add(a.id);continue;}
-    if(a.construction==='rim'){validateRimAssignment(a,{parts});requireThat(!ids.has(a.id),'Duplicate slice assignment id.');ids.add(a.id);continue;}
-    if(a.construction==='cladding'){validateCladdingAssignment(a,{parts});requireThat(!ids.has(a.id),'Duplicate slice assignment id.');ids.add(a.id);continue;}
-    if(['skin','fronts'].includes(a.construction)){validateSurfaceConstruction(a,{parts,lineWidthMm});requireThat(!ids.has(a.id),'Duplicate slice assignment id.');ids.add(a.id);continue;}
-    if(a.construction){validateCurveAssignment(a);requireThat(!ids.has(a.id),'Duplicate slice assignment id.');ids.add(a.id);continue;}
+    // IDs address the whole batch, including dependencies across constructions.
+    requireThat(!ids.has(a.id),'Duplicate slice assignment id.');ids.add(a.id);
+    if(a.construction==='inject'){validateInjectionAssignment(a,{parts});continue;}
+    if(a.construction==='sleeve'){validateSleeveAssignment(a,{parts});continue;}
+    if(a.construction==='rim'){validateRimAssignment(a,{parts});continue;}
+    if(a.construction==='cladding'){validateCladdingAssignment(a,{parts});continue;}
+    if(['skin','fronts'].includes(a.construction)){validateSurfaceConstruction(a,{parts,lineWidthMm});continue;}
+    if(a.construction){validateCurveAssignment(a);continue;}
     const unexpected = Object.keys(a ?? {}).filter(k => !FIELDS.includes(k)), missing = FIELDS.filter(k => !Object.hasOwn(a ?? {}, k));
     requireThat(!unexpected.length && !missing.length, `Slice assignment ${a?.id ?? ''} has ${[unexpected.length ? 'unexpected ' + unexpected.join(', ') : '', missing.length ? 'missing ' + missing.join(', ') : ''].filter(Boolean).join('; ')}.`);
-    requireThat(typeof a.id === 'string' && /^[a-z][a-z0-9-]*$/.test(a.id) && !ids.has(a.id), 'Invalid or duplicate slice assignment id.'); ids.add(a.id);
+    requireThat(typeof a.id === 'string' && /^[a-z][a-z0-9-]*$/.test(a.id), 'Invalid slice assignment id.');
     requireThat(a.part === null || parts?.includes(a.part), `Slice ${a.id} names an unknown part.`);
     requireThat(a.preset === null || Object.hasOwn(SLICE_PRESETS, a.preset), `Slice ${a.id} has an unknown preset.`);
     requireThat(a.filament === null || Number.isInteger(a.filament) && a.filament >= 0, `Slice ${a.id} filament must be null or a filament index.`);
@@ -301,7 +303,8 @@ export function ownedLayers(inputOwners, { shells = [], bands = [], reserves = [
     const cuts = owner.within.map(v => volumeSection(v, layer, chartExtent(owner, layer.slice))).filter(c => c !== null);
     return cuts.length ? cuts.reduce((a, b) => a.length && b.length ? intersect(a, b) : []) : null;
   });
-  const explicit = owners.filter(o => o.kind === 'part' && o.within.length), firstShared = new Map(), results = [];
+  const explicit = owners.filter(o => o.kind === 'part' && o.within.length), results = [];
+  let firstShared = new Map();
   let done = 0;
   const total = owners.reduce((n, o) => n + o.family.layers.length, 0);
   for (const principal of owners) {
@@ -326,8 +329,10 @@ export function ownedLayers(inputOwners, { shells = [], bands = [], reserves = [
         }
         allocated = [{ owner: principal, region: own, boundary: own }];
       } else {
-        allocated=allocateChartClaims(own,candidates.map(owner=>({owner,region:volume(owner,layer)})),
-          {principal,courseIndex:layer.index,firstShared,retainUnclaimed:!principal.within.length}).map(cell=>({...cell,boundary:own}));
+        const claims=allocateChartClaims(own,candidates.map(owner=>({owner,region:volume(owner,layer)})),
+          {principal,courseIndex:layer.index,firstShared,retainUnclaimed:!principal.within.length});
+        firstShared=claims.firstShared;
+        allocated=claims.allocated.map(cell=>({...cell,boundary:own}));
       }
       for (const owner of new Set(allocated.map(a => a.owner))) {
         const cells = allocated.filter(a => a.owner === owner), region = cells.length === 1 ? cells[0].region : union(cells.flatMap(a => a.region), []);
@@ -335,7 +340,7 @@ export function ownedLayers(inputOwners, { shells = [], bands = [], reserves = [
         const authoredBoundary=owner.shell.kind==='chart-prism'&&layer.slice.referencePatch===owner.shell.reference.referencePatch;
         requireThat(authoredBoundary||!edges.length,`Slice ${owner.assignment.id} layer ${layer.index} stops inside owned material at patch edge ${edges.join(', ')}; extend the reference to fully cross.`);
         const layers = byOwner.get(owner) ?? [];
-        layers.push({ ...layer, region, material: cells[0].boundary, share: owner.within.length || candidates.length ? { within: region, claims: [] } : null,
+        layers.push({ ...layer, region, material: cells[0].boundary,
           outward: owner.kind === 'outline', shared: cells.some(a => a.shared) });
         byOwner.set(owner, layers);
       }
@@ -438,7 +443,7 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
   let operations = [];const familyLayers=[], report = { depositionFamily:'slice',layers: 0, skippedLayers: 0, areaMm2: 0, loops: 0, fillRows: 0, solidAreaMm2: 0, ...extra };
   let previous = [];
   for (const layer of layers) {
-    const { index, slice, region, share = null } = layer, z = slice.origin?.[2]??slice.offsetMm;
+    const { index, slice, region } = layer, z = slice.origin?.[2]??slice.offsetMm;
     const area=loops=>!loops.length?0:slice.kind==='patch'?patchMeanNormal(slice.patch,loops,{sampleStepMm:settings.sampleStepMm}).areaMm2:regionArea(loops);
     if (!region.length || (slice.kind==='patch'?patchMeanNormal(slice.patch,region,{sampleStepMm:settings.sampleStepMm}).areaMm2:regionArea(region)) < width * width) { report.skippedLayers++; continue; }
     const own = layer.material ?? region, outward = layer.outward ?? false;
@@ -446,7 +451,7 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
       intersect(region, union(solidRegions.get(index) ?? [], []))) : null;
     const strokeSettings={ ...settings, widthMm: width, fillAngleDeg: angleAt(index), solidDensity,direction:layer.direction,layer,supportSegments:seedSegments,
       patternAngleDeg: settings.fillPattern === 'rectilinear' ? angleAt(index) : angles[0], phaseMm: z, wallToleranceMm, solid,
-      material: own, share, outward };
+      material: own, outward };
     const strokes = slice.kind==='patch'?patchLayerStrokes(slice,region,strokeSettings):layerStrokes(region,strokeSettings);
     if(strokes.constructionReport)report.fillOrder=strokes.constructionReport;
     const boundaries=mapSliceStrokes(strokes.walls,slice,{frames:true,sampleStepMm:settings.sampleStepMm}).map(curve=>{
@@ -454,7 +459,7 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
       return !duplicate?curve:{...curve,closed:true,points:curve.points.slice(0,-1),chartPoints:curve.chartPoints.slice(0,-1),normals:curve.normals.slice(0,-1),frameSamples:curve.frameSamples.slice(0,-1)};
     });
     familyLayers.push({...layer,curves:boundaries});
-    const wallMaterial = () => loopMaterial(region, { widthMm: width, loops: settings.loops, spacingFactor: settings.spacingFactor }, { material: own, share, outward });
+    const wallMaterial = () => loopMaterial(region, { widthMm: width, loops: settings.loops, spacingFactor: settings.spacingFactor }, { outward });
     report.solidAreaMm2 += area(strokes.solidRegion);
     report.loops += strokes.walls.length; report.fillRows += strokes.infill.length + strokes.fill.length;
     const ordinal=(extra.layerStartOrdinal??0)+report.layers;

@@ -79,11 +79,11 @@ Scanline-based interiors and draped skins label uninterrupted zigzags with
 `scanlineCell` and request `order: 'nearest-cells'`. The shared composer chooses
 the closest endpoint of either end row of each remaining cell by XYZ distance
 from the actual nozzle position. It completes that cell before selecting another.
-Row order and stroke direction can reverse independently, providing up to four
-entry choices. Reversing strokes also reverses per-segment volumes/metadata.
-Equal distances retain producer order. This mode requires open strokes without
-tool poses and does not reorder operations or split continuous operations.
-Concentric/gyroid paths keep their existing ordering.
+Row order and direction can reverse independently; equal distances retain producer
+order. `strokeRange` keeps vertex channels and edge material aligned through
+cropping, reversal and closed-loop rotation. Closed inputs retain their closing
+edge, including explicitly repeated endpoints. Ordering does not split continuous
+strokes or reorder operations; generation selects eligible operations separately.
 No lookahead, travel-time scoring or heat balancing is included; see
 [D-026](../../DECISIONS.md#d-026--closest-region-entry-first-defer-heat-considerations).
 An assembly's `geometry.parts` holds named components with `geometry` and
@@ -101,36 +101,14 @@ model is approximate and does not prove that an unsupported span will print.
 Future skills use the same operation/dependency boundary; do not add a new
 composer for each skill pair.
 
-[Vase-wall](../../skills/vase-wall/SKILL.md) is one atomic continuous operation with
-actual changing-Z section queries; a standard mesh wall may instead follow a
-fitted NURBS sleeve within its sampled `sleeveToleranceMm`, returning to exact
-sections when the fit or wall thickness does not qualify. It accepts one outer section, including
-concavity, while its inset remains one loop without holes or islands. Arc-length
-traversal uses a fixed projected seam rather than a common interior point; mesh and restricted spline
-backends remain behind the shared queries. Its locked `endTransition` can leave
-a spiral rim or complete a level rim with a final turn whose material thickness
-tapers to zero. A planar successor needs that level boundary. The continuous
-stroke cannot weave turn by turn with infill occupying the same height band;
-different regions of the same part can use the other skills. The manual owns
-standoff, sampling and sleeve-tolerance limits; there is no point budget, so a
-wall takes the points its geometry requires. Turn-to-turn bead overlap is a
-geometry/process judgment for the agent and maker, not a generation gate.
-
-The same package also implements [advanced vase mode](../../skills/advanced-vase-wall/SKILL.md#sleeve-patterns).
-The ordinary recipe keeps one cell curve plus cells per turn, course rise,
-course count and tilt. Its regular reference-strip tiler joins identical cell
-endpoints, adds rise, and feeds the existing mapper one connected stroke per
-course. The skill manual owns cell coordinates, placement and tilt semantics.
-Advanced ordered [perimeter turns, height] paths also repeat around a required solid or closed
-sleeve through the same actual-Z contour query. Optional signed contour offsets
-give a tile depth relative to the wall; inward tilted loops can retain the
-host's exterior. The host is only a mapping reference: no guide wall, foundation
-ring or lead-in is deposited in patterned mode. Pattern tilt and overlap remain recipe judgments. Continuous mode joins mapped
-endpoints, including the periodic seam and repetition boundaries; explicit
-segmented mode permits shared travel. Patterns contain deposition only and are
-never independent XYZ shapes. [deposition.mjs](./deposition.mjs) constructs volumes
-for plain spirals and patterns; [contour-path.mjs](../geom/contour-path.mjs) owns
-arc-length traversal. Patterns publish no assumed area, rim or finished side surface.
+[Standard vase](../../skills/vase-wall/SKILL.md) lowers to a continuous Slice
+spiral; [advanced vase](../../skills/advanced-vase-wall/SKILL.md) supplies sleeve-
+mapped Trace courses. Both use shared bead construction and composition. Their
+manuals own fitting, sampling, tile and placement controls. A continuous operation
+cannot interleave with infill in the same height band; a planar successor needs
+a level terminal boundary. The sleeve is reference geometry, never an implicit
+wall, foundation or filled support sheet. Dependent contact uses finalized beads
+and explicit prerequisites, preserving the gaps in patterned material.
 
 ## Finished surfaces
 

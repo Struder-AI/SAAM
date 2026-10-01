@@ -1,4 +1,5 @@
 import {distance,requireThat} from '../geom/tolerance.mjs';
+import {strokeRange} from './deposition.mjs';
 import {validateModulationField,evaluateScalarField,fieldSampleStep,scalarFieldRange,scalarFieldInvariant,scalarFieldBreakpoints} from './modulation-field.mjs';
 import {interpolateDirections,validatePose,uprightPose} from './pose.mjs';
 import {transportCurveFrames} from './curve-frame.mjs';
@@ -187,15 +188,13 @@ export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}
   }
   validateFillModulation(stroke,modifiers,{layerIndex});
   requireThat(stroke.points.length>=2,'Modulation needs a curve with at least two points.');
-  const points=stroke.closed?[...stroke.points,stroke.points[0]]:stroke.points;
+  const source=stroke.closed?strokeRange(stroke):stroke,{points,frameSamples:frames,poses:sourcePoses}=source;
   requireThat(!stroke.volumesMm3||stroke.volumesMm3.length===points.length-1,'Modulation needs one source volume per segment.');
   requireThat(!stroke.segmentMetadata||stroke.segmentMetadata.length===points.length-1,'Modulation needs one source metadata record per segment.');
   requireThat(!stroke.poses||stroke.poses.length===stroke.points.length,'Modulation source poses must align with vertices.');
   requireThat(!stroke.frameSamples||stroke.frameSamples.length===stroke.points.length,'Modulation source frameSamples must align with vertices.');
   requireThat(stroke.frameSamples||!modifiers.some(m=>m.frame==='slice'),'Slice-frame modulation needs producer frameSamples aligned with stroke points.');
   const directions=modifiers.some(m=>m.direction==='lateral'&&(m.frame??'world')==='world')?lateralDirections(points,stroke.closed):null;
-  const frames=stroke.frameSamples&&(stroke.closed?[...stroke.frameSamples,stroke.frameSamples[0]]:stroke.frameSamples);
-  const sourcePoses=stroke.poses&&(stroke.closed?[...stroke.poses,stroke.poses[0]]:stroke.poses);
   const curve=modifiers.some(m=>m.frame==='curve'||m.direction==='lateral'&&m.frame==='slice')?curveFrames(stroke,points):null;
   const output=[],volumes=[],metadata=[],poses=[],sampleFrames=[],parameters=[];let maxExcursionMm=0,changed=false;
   for(let i=0;i<points.length-1;i++){
@@ -206,7 +205,7 @@ export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}
     requireThat(Number.isFinite(volume)&&volume>=0&&positive(width),'Modulation needs deposited segment volume and bead width.');
     const context={layerIndex,stackDirection,fillDirection:stroke.fillFamily?.direction,frames:frames?[frames[i],frames[i+1]]:null,curveFrames:curve?[curve[i],curve[i+1]]:null,poses:sourcePoses?[sourcePoses[i],sourcePoses[i+1]]:null};
     const samples=sampleModulatedSegment(points[i],points[i+1],modifiers,directions?[directions[i],directions[i+1]]:null,context);
-    const append=sample=>{output.push(sample.point);poses.push(sample.pose??uprightPose());if(frames)sampleFrames.push(sampledFrame(context.frames,sample.t));if(stroke.curveParameters)parameters.push(stroke.curveParameters[i]+sample.t*((stroke.curveParameters[i+1]??1)-stroke.curveParameters[i]));};
+    const append=sample=>{output.push(sample.point);poses.push(sample.pose??uprightPose());if(frames)sampleFrames.push(sampledFrame(context.frames,sample.t));if(stroke.curveParameters)parameters.push(source.curveParameters[i]+sample.t*(source.curveParameters[i+1]-source.curveParameters[i]));};
     if(!output.length)append(samples[0]);
     for(let j=1;j<samples.length;j++){
       const left=samples[j-1],right=samples[j],mid=evaluateModulatedPoint(points[i],points[i+1],(left.t+right.t)/2,modifiers,directions?[directions[i],directions[i+1]]:null,context);
@@ -222,10 +221,10 @@ export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}
   if(!changed)return {stroke,changed:false,maxExcursionMm:0};
   const closedSource=stroke.closed||distance(stroke.points[0],stroke.points.at(-1))<1e-12;
   requireThat(!closedSource||distance(output[0],output.at(-1))<=1e-8,'Closed-curve modulation does not meet at its seam; make curve-frame periods/phases agree at both ends.');
-  // Sampling arrays describe the producer's original vertices. The final
-  // segment metadata retains its frozen surfaceNormal, but these vertex/chart
-  // samples and the former uniform area must not describe subdivided output.
-  const {normals,chartPoints,beadAreaMm2,frameSamples,curveParameters,...retained}=stroke;
+  // Producer samples and process profiles belong to the original discretization.
+  // Final segment metadata retains frozen surfaceNormal and bead dimensions;
+  // resampled vertices/volumes replace those inputs and the former uniform area.
+  const {normals,chartPoints,referenceAlong,heightsMm,widthsMm,flowMultipliers,beadAreaMm2,frameSamples,curveParameters,...retained}=stroke;
   return {stroke:{...retained,closed:false,points:output,volumesMm3:volumes,segmentMetadata:metadata,
     ...(sourcePoses||modifiers.some(m=>m.channel==='tilt')?{poses}:{}),...(frames?{frameSamples:sampleFrames}:{}),...(curveParameters?{curveParameters:parameters}:{})},changed:true,maxExcursionMm};
 }
