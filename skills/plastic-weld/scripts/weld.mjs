@@ -52,7 +52,7 @@ export function staggeredWeldSites({columns,rows,levels,pitchMm=12,heightStepMm=
 }
 
 export function preparePlasticWeld({plan,machine,placed,componentShells}){
-  const settings=plan.skills['plastic-weld'];if(!settings.enabled)return [];
+  const settings=plan.skills?.['plastic-weld'];if(!settings?.enabled)return [];
   const sites=settings.sites.map(site=>{
     const assignment={id:'plastic-weld:'+site.id,part:site.part,construction:'inject',filament:assignmentFilament(plan,{id:'plastic-weld:'+site.id,part:site.part}),process:null};
     const process=assignmentPlan(plan,machine,{part:site.part}).process;

@@ -10516,6 +10516,10 @@
     "adapters/mcp/src/runtime.mjs::createLocalRuntime::manualContext": {
       "owner": "agent",
       "reason": "Agent passes a saved Bundle machine snapshot into Maker context, or explicitly requests reusable profile discovery."
+    },
+    "core/machine/bundle-settings.mjs::recordExtensionDependency": {
+      "owner": "settings",
+      "reason": "Records supplied extension dependency configuration through Bundle snapshot interface without executing or preparing work."
     }
   },
   "retiredAssignments": [

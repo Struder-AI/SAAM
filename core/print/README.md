@@ -49,16 +49,16 @@ Geometry extensions return proposals through Geometry; only deposition or hybrid
 assignment contributions need Toolpath composition. Bundle accepts one revisioned
 edit. Saved geometry remains viewable without rerunning the extension.
 
-[Settings](../machine/settings.mjs) owns reusable profiles, material/installation
-defaults, remembered setup and resolution. Agent selection/edits go through
-[bundle-settings.mjs](../machine/bundle-settings.mjs); Bundle accepts exact
-machine and setup/process/output/placement values with `applySettingsSnapshot`
-and an expected revision. It preserves unrelated components and owns invalidation.
-Reusable changes never refresh existing bundles; manuals use saved capabilities.
+[Settings](../machine/settings.mjs) owns reusable profiles, defaults and remembered
+setup. Its [selection/recording API](../machine/bundle-settings.mjs) submits exact
+snapshots to Bundle with an expected revision; Bundle owns invalidation/history.
+`recordExtensionDependency` records supplied supports/plastic-weld configuration
+in existing `plan.skills`; absence means unselected. No defaults or execution occur.
+Geometry/construction references retain their own dependencies. Reusable changes
+never refresh existing bundles; manuals use saved capabilities.
 
-Generate the machine-declared export from the complete plan whenever it helps review,
-using transient motion objects. Check its actual commands before Studio plays
-that export for combined settings/toolpath confirmation. Delivery copies those reviewed bytes unchanged.
+Generate and check machine commands from the complete plan for Studio review.
+The person confirms settings and toolpath together; delivery copies those exact bytes.
 Geometry, process, composition or machine changes invalidate the
 combined settings/toolpath confirmation. Development generation records
 `mode: development`, creates no human approvals and cannot satisfy delivery.

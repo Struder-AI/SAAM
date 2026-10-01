@@ -11,7 +11,7 @@ import {openBrowser} from '../../../studio/browser.mjs';
 import {randomUUID} from 'node:crypto';
 import {Worker} from 'node:worker_threads';
 import {PreparedGenerationJob} from '../../../studio/prepared-generation-job.mjs';
-import {changeMachine,rememberSetup,adjustSettings} from '../../../core/machine/bundle-settings.mjs';
+import {changeMachine,rememberSetup,adjustSettings,recordExtensionDependency} from '../../../core/machine/bundle-settings.mjs';
 import {SETTINGS_FIELDS} from '../../../core/machine/settings.mjs';
 import { MACHINE_IDS, loadMachine } from '../../../core/machine/profile.mjs';
 import { createStudio, listPrints } from '../../../studio/server.mjs';
@@ -439,6 +439,10 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     const { dir, bundle } = await locate(bundleId);
     return { bundleId, ...await bundle.checkPathBundle(dir), physicalValidation: 'not performed' };
   });
+  tool('record_extension_dependency','Record supplied named extension configuration in the existing recipe skills record. No defaults, installation lookup or execution. Later operations validate what they consume. Null removes the named record.',
+    {bundleId:bundleIdSchema,extensionId:idSchema,configuration:objectSchema.nullable(),expectedRevision:z.string()},
+    async({bundleId,extensionId,configuration,expectedRevision})=>summary(bundleId,
+      await recordExtensionDependency(await directory(bundleId),extensionId,configuration,{expectedRevision})),false);
   tool('remember_setup', 'Remember this saved print setup for later prints on the same machine, shared with CLI initialization. This saves setup defaults, never job approvals.', { bundleId: bundleIdSchema }, async ({ bundleId }) => {
     const { dir, bundle, state } = await read(bundleId,{program:false});
     await rememberSetup(dir, { setupFile: await setupFile(state.machine.id) });

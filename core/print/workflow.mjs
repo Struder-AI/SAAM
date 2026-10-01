@@ -623,7 +623,7 @@ async function applySettingsSnapshot(directory,selection,expectedRevision) {
   const {machine,settings}=structuredClone(selection);
   requireThat((machine===null||machine&&typeof machine==='object'&&!Array.isArray(machine))
     &&settings&&typeof settings==='object'&&!Array.isArray(settings)
-    &&Object.keys(settings).every(k=>['setup','process','output','placement'].includes(k)),'Invalid selected settings snapshot.');
+    &&Object.keys(settings).every(k=>['setup','process','output','placement','skills'].includes(k)),'Invalid selected settings snapshot.');
   const plan={...state.plan,...settings};
   if(canonical(machine)===canonical(state.machine)&&canonical(plan)===canonical(state.plan))return state;
   const review=canonical(machine)===canonical(state.machine)
