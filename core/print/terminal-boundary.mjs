@@ -1,8 +1,9 @@
+import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 // Query and offset a completed producer's terminal boundary.
 import {cleanPlanarLoop} from '../geom/polyline.mjs';
 import {loopArea} from '../region/region2d.mjs';
 import {offsetRegion} from '../region/offset.mjs';
-import {requireThat,distance} from '../geom/tolerance.mjs';
+
 import {section as geometrySection,horizontalSlice} from '../geom/slice.mjs';
 
 // Ten-nanometer integer grid: independent of contour/chord and boundary

@@ -1,3 +1,4 @@
+import {requireThat} from '../private/export/numeric.mjs';
 import {prepareMachinePath} from './prepare-path.mjs';
 // Bounded Bambu output (H2D, X1 Carbon), not an interpreter for arbitrary
 // Bambu Studio jobs. Firmware service commands are matched to the pinned
@@ -9,7 +10,7 @@ import {exportBambuBody} from './bambu-body.mjs';
 import {interpretBody} from './bambu-player.mjs';
 import {gcodeLines} from './gcode-lines.mjs';
 import {packZip,unpackZip,crc32} from './zip.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
+
 import {validateSetup,toolBounds,startupPosition} from '../machine/profile.mjs';
 import {assignedFilaments} from '../machine/filaments.mjs';
 import {resolveBambuJob} from './bambu-job.mjs';

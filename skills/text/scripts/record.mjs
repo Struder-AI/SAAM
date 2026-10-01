@@ -1,6 +1,7 @@
+import {requireThat} from '../../../core/private/extensions/numeric.mjs';
 // Persisted text results are native meshes with their editable construction recipe.
 import {createHash} from 'node:crypto';
-import {requireThat} from '../../../core/geom/tolerance.mjs';
+
 
 // Every record carries its derived material partitions. standalone is present
 // only on a reference body, so it stays optional.

@@ -1,4 +1,5 @@
-import {requireThat,distance} from '../geom/tolerance.mjs';
+import {requireThat,distance} from '../private/export/numeric.mjs';
+
 import {validateDensoConfiguration} from './denso.mjs';
 import {requireProcessControl,validateNozzleC,plannedNozzleTemperatures} from '../path/process-controls.mjs';
 import {checkedFilamentPlan as filamentPlan} from './filaments.mjs';

@@ -1,7 +1,8 @@
+import {requireThat} from '../../../core/private/extensions/numeric.mjs';
 import {solidKernel,solidFromMesh,meshFromSolid} from '../../../core/geom/solid.mjs';
 import {tessellateSolid} from '../../../core/geom/boolean-display.mjs';
 import {topAt} from '../../../core/geom/query.mjs';
-import {requireThat} from '../../../core/geom/tolerance.mjs';
+
 import {heatSetFeature,dimensions,heatSetTemplate,heatSetDigest} from './feature.mjs';
 
 export async function compileHeatSet(base,features,{buildGeometry,toleranceMm=0.01}={}){

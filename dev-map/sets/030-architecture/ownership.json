@@ -151,37 +151,37 @@
       "owner": "geometry",
       "reason": "Cutting/section/topology query implementation, provisionally private to Slice; review broader existing uses."
     },
-    "core/geom/directional-contour.mjs": {
-      "owner": "geometry",
-      "reason": "Cutting/section/topology query implementation, provisionally private to Slice; review broader existing uses."
+    "skills/advanced-vase-wall/scripts/directional-contour.mjs": {
+      "owner": "extensions",
+      "reason": "Vase-specific fitting, contact or recipe preparation owned by the advanced-vase extension."
     },
     "core/geom/height-slice.mjs": {
       "owner": "geometry",
       "reason": "Cutting/section/topology query implementation, provisionally private to Slice; review broader existing uses."
     },
-    "core/geom/mesh-sleeve.mjs": {
-      "owner": "geometry",
-      "reason": "Cutting/section/topology query implementation, provisionally private to Slice; review broader existing uses."
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs": {
+      "owner": "extensions",
+      "reason": "Vase-specific fitting, contact or recipe preparation owned by the advanced-vase extension."
     },
     "core/geom/prepared-contours.mjs": {
       "owner": "geometry",
       "reason": "Cutting/section/topology query implementation, provisionally private to Slice; review broader existing uses."
     },
-    "core/geom/prepared-radial-contact.mjs": {
-      "owner": "geometry",
-      "reason": "Cutting/section/topology query implementation, provisionally private to Slice; review broader existing uses."
+    "skills/advanced-vase-wall/scripts/prepared-radial-contact.mjs": {
+      "owner": "extensions",
+      "reason": "Vase-specific fitting, contact or recipe preparation owned by the advanced-vase extension."
     },
     "core/geom/section.mjs": {
       "owner": "geometry",
       "reason": "Cutting/section/topology query implementation, provisionally private to Slice; review broader existing uses."
     },
-    "core/geom/sleeve-contact.mjs": {
-      "owner": "geometry",
-      "reason": "Cutting/section/topology query implementation, provisionally private to Slice; review broader existing uses."
+    "skills/advanced-vase-wall/scripts/sleeve-contact.mjs": {
+      "owner": "extensions",
+      "reason": "Vase-specific fitting, contact or recipe preparation owned by the advanced-vase extension."
     },
-    "core/geom/sleeve-frame.mjs": {
-      "owner": "geometry",
-      "reason": "Cutting/section/topology query implementation, provisionally private to Slice; review broader existing uses."
+    "skills/advanced-vase-wall/scripts/sleeve-frame.mjs": {
+      "owner": "extensions",
+      "reason": "Vase-specific fitting, contact or recipe preparation owned by the advanced-vase extension."
     },
     "core/geom/slice.mjs": {
       "owner": "geometry",
@@ -496,8 +496,8 @@
       "reason": "Saved recipe validation/defaults/migration."
     },
     "core/print/recipe-migration.mjs": {
-      "owner": "bundle",
-      "reason": "Saved recipe validation/defaults/migration."
+      "owner": "toolpath",
+      "reason": "Explicit deposition recipe migration."
     },
     "core/print/recipe-setup.mjs": {
       "owner": "bundle",
@@ -916,8 +916,8 @@
       "reason": "Reviewed catalogued extension implementation; existing engine/bundle bypasses remain findings."
     },
     "skills/gridfinity/scripts/cli.mjs": {
-      "owner": "extensions",
-      "reason": "Reviewed catalogued extension implementation; existing engine/bundle bypasses remain findings."
+      "owner": "agent",
+      "reason": "Command host adapter invokes the bundle lifecycle; extension computation lives in edit.mjs."
     },
     "skills/gridfinity/scripts/gridfinity.mjs": {
       "owner": "extensions",
@@ -972,8 +972,8 @@
       "reason": "Reviewed catalogued extension implementation; existing engine/bundle bypasses remain findings."
     },
     "skills/thingi10k/scripts/cli.mjs": {
-      "owner": "extensions",
-      "reason": "Reviewed catalogued extension implementation; existing engine/bundle bypasses remain findings."
+      "owner": "agent",
+      "reason": "Command host for resource acquisition and geometry import."
     },
     "skills/thingi10k/scripts/import.mjs": {
       "owner": "extensions",
@@ -983,9 +983,9 @@
       "owner": "extensions",
       "reason": "Reviewed catalogued extension implementation; existing engine/bundle bypasses remain findings."
     },
-    "skills/vase-wall/scripts/prepare-mesh.mjs": {
+    "skills/advanced-vase-wall/scripts/prepare-mesh.mjs": {
       "owner": "extensions",
-      "reason": "Reviewed catalogued extension implementation; existing engine/bundle bypasses remain findings."
+      "reason": "Extension computes vase deposition assignments without reading a bundle."
     },
     "skills/wave-overhangs/scripts/example.mjs": {
       "owner": "extensions",
@@ -1073,7 +1073,7 @@
     },
     "skills/edits.mjs": {
       "owner": "extensions",
-      "reason": "Extension feature edit/registry returns values; bundle commit belongs to 5."
+      "reason": "Extension editor registries consumed by geometry and toolpath engines."
     },
     "skills/gridfinity/scripts/edit.mjs": {
       "owner": "extensions",
@@ -1082,6 +1082,74 @@
     "core/print/assignment-records.mjs": {
       "owner": "toolpath",
       "reason": "Reviewed current construction/family assignment adapter."
+    },
+    "core/geom/extension-edit.mjs": {
+      "owner": "geometry",
+      "reason": "Geometry engine executes geometry/hybrid editors and provides native geometry access."
+    },
+    "core/print/extension-recipe.mjs": {
+      "owner": "toolpath",
+      "reason": "Toolpath combines engine contributions into one recipe proposal without persistence."
+    },
+    "skills/advanced-vase-wall/scripts/cli.mjs": {
+      "owner": "agent",
+      "reason": "Command host adapter; no extension computation."
+    },
+    "core/private/extensions/numeric.mjs": {
+      "owner": "extensions",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/toolpath/numeric.mjs": {
+      "owner": "toolpath",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/rigid.mjs": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/numeric.mjs": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/bundle/numeric.mjs": {
+      "owner": "bundle",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/frame.mjs": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/rigid.mjs": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/geometry/hash.mjs": {
+      "owner": "geometry",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/frame.mjs": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/numeric.mjs": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/hash.mjs": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/file-write.mjs": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/extensions/file-write.mjs": {
+      "owner": "extensions",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/agent/numeric.mjs": {
+      "owner": "agent",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
     }
   },
   "leaves": {
@@ -2592,35 +2660,35 @@
     "core/geom/cylinder.mjs::circlePoints": {
       "owner": "geometry"
     },
-    "core/geom/directional-contour.mjs::@module": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/directional-contour.mjs::@module": {
+      "owner": "extensions"
     },
-    "core/geom/directional-contour.mjs::conditionDirectionalSpacing": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/directional-contour.mjs::conditionDirectionalSpacing": {
+      "owner": "extensions"
     },
-    "core/geom/directional-contour.mjs::fitDirectionalAngles": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/directional-contour.mjs::fitDirectionalAngles": {
+      "owner": "extensions"
     },
-    "core/geom/directional-contour.mjs::prepareRegularizedSleeveContact": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/directional-contour.mjs::prepareRegularizedSleeveContact": {
+      "owner": "extensions"
     },
-    "core/geom/directional-contour.mjs::prepareRegularizedSleeveContact::contact.loopsAt": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/directional-contour.mjs::prepareRegularizedSleeveContact::contact.loopsAt": {
+      "owner": "extensions"
     },
-    "core/geom/directional-contour.mjs::reconstructDirectionalContour": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/directional-contour.mjs::reconstructDirectionalContour": {
+      "owner": "extensions"
     },
-    "core/geom/directional-contour.mjs::regularizeDirectionalContour": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/directional-contour.mjs::regularizeDirectionalContour": {
+      "owner": "extensions"
     },
-    "core/geom/directional-contour.mjs::sampleDirectionalContour": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/directional-contour.mjs::sampleDirectionalContour": {
+      "owner": "extensions"
     },
-    "core/geom/directional-contour.mjs::unwrapDirectionalProfile": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/directional-contour.mjs::unwrapDirectionalProfile": {
+      "owner": "extensions"
     },
-    "core/geom/directional-contour.mjs::verifyDirectionalContour": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/directional-contour.mjs::verifyDirectionalContour": {
+      "owner": "extensions"
     },
     "core/geom/evaluated-surface.mjs::@module": {
       "owner": "geometry"
@@ -2781,80 +2849,80 @@
     "core/geom/mesh-repair.mjs::validateRepair": {
       "owner": "geometry"
     },
-    "core/geom/mesh-sleeve.mjs::@module": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::@module": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::assembleSleevePatch": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::assembleSleevePatch": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::basisRow": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::basisRow": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::detectMeshSleeveInterval": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::detectMeshSleeveInterval": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::detectMeshSleeveInterval::end": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::detectMeshSleeveInterval::end": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::detectMeshSleeveInterval::inspect": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::detectMeshSleeveInterval::inspect": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::fitMeshSleeve": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::fitMeshSleeve": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::fitMeshSleeve::maxPoreAreaMm2": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::fitMeshSleeve::maxPoreAreaMm2": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::fitMeshSleeve::maxSecondaryAreaMm2": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::fitMeshSleeve::maxSecondaryAreaMm2": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::fitMeshSleeve::maxSecondaryLoops": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::fitMeshSleeve::maxSecondaryLoops": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::fitMeshSleeve::sourceClassification": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::fitMeshSleeve::sourceClassification": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::fitMeshSleeve::sourceSectionQueries": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::fitMeshSleeve::sourceSectionQueries": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::fitSleeveControls": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::fitSleeveControls": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::measureSleeveFit": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::measureSleeveFit": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::prepareFittedSections": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::prepareFittedSections": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::prepareSleeveBasis": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::prepareSleeveBasis": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::prepareSleeveSource": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::prepareSleeveSource": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::prepareSleeveSource::sourceClassification": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::prepareSleeveSource::sourceClassification": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::prepareSleeveSource::sourceSectionAt": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::prepareSleeveSource::sourceSectionAt": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::prepareSleeveSource::sourceSectionQueries": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::prepareSleeveSource::sourceSectionQueries": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::sampleSleeveSections": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::sampleSleeveSections": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::sleeveCut": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::sleeveCut": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::sleevePointQuery": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::sleevePointQuery": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::validateSleeveFit": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::validateSleeveFit": {
+      "owner": "extensions"
     },
-    "core/geom/mesh-sleeve.mjs::wrap": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::wrap": {
+      "owner": "extensions"
     },
     "core/geom/mesh-spatial.mjs::@module": {
       "owner": "geometry"
@@ -3201,53 +3269,53 @@
     "core/geom/prepared-contours.mjs::prepareContourFamily::weights": {
       "owner": "geometry"
     },
-    "core/geom/prepared-radial-contact.mjs::@module": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/prepared-radial-contact.mjs::@module": {
+      "owner": "extensions"
     },
-    "core/geom/prepared-radial-contact.mjs::atIndex": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/prepared-radial-contact.mjs::atIndex": {
+      "owner": "extensions"
     },
-    "core/geom/prepared-radial-contact.mjs::discrepancy": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/prepared-radial-contact.mjs::discrepancy": {
+      "owner": "extensions"
     },
-    "core/geom/prepared-radial-contact.mjs::prepareRadialSleeveContact": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/prepared-radial-contact.mjs::prepareRadialSleeveContact": {
+      "owner": "extensions"
     },
-    "core/geom/prepared-radial-contact.mjs::prepareRadialSleeveContact::at": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/prepared-radial-contact.mjs::prepareRadialSleeveContact::at": {
+      "owner": "extensions"
     },
-    "core/geom/prepared-radial-contact.mjs::prepareRadialSleeveContact::frame": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/prepared-radial-contact.mjs::prepareRadialSleeveContact::frame": {
+      "owner": "extensions"
     },
-    "core/geom/prepared-radial-contact.mjs::prepareRadialSleeveContact::interval": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/prepared-radial-contact.mjs::prepareRadialSleeveContact::interval": {
+      "owner": "extensions"
     },
-    "core/geom/prepared-radial-contact.mjs::prepareRadialSleeveContact::meshTransition": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/prepared-radial-contact.mjs::prepareRadialSleeveContact::meshTransition": {
+      "owner": "extensions"
     },
-    "core/geom/prepared-radial-contact.mjs::prepareRadialSleeveContact::meshTransition::at": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/prepared-radial-contact.mjs::prepareRadialSleeveContact::meshTransition::at": {
+      "owner": "extensions"
     },
-    "core/geom/prepared-radial-contact.mjs::prepareRadialSleeveContact::meshTransition::validate": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/prepared-radial-contact.mjs::prepareRadialSleeveContact::meshTransition::validate": {
+      "owner": "extensions"
     },
-    "core/geom/prepared-radial-contact.mjs::prepareRadialSleeveContact::select": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/prepared-radial-contact.mjs::prepareRadialSleeveContact::select": {
+      "owner": "extensions"
     },
-    "core/geom/prepared-radial-contact.mjs::profile": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/prepared-radial-contact.mjs::profile": {
+      "owner": "extensions"
     },
-    "core/geom/prepared-radial-contact.mjs::radius": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/prepared-radial-contact.mjs::radius": {
+      "owner": "extensions"
     },
-    "core/geom/prepared-radial-contact.mjs::radius::angle": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/prepared-radial-contact.mjs::radius::angle": {
+      "owner": "extensions"
     },
-    "core/geom/prepared-radial-contact.mjs::shift": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/prepared-radial-contact.mjs::shift": {
+      "owner": "extensions"
     },
-    "core/geom/prepared-radial-contact.mjs::wrap": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/prepared-radial-contact.mjs::wrap": {
+      "owner": "extensions"
     },
     "core/geom/query.mjs::@module": {
       "owner": "geometry"
@@ -3426,47 +3494,47 @@
     "core/geom/shell.mjs::verifyClosure": {
       "owner": "geometry"
     },
-    "core/geom/sleeve-contact.mjs::@module": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/sleeve-contact.mjs::@module": {
+      "owner": "extensions"
     },
-    "core/geom/sleeve-contact.mjs::cross": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/sleeve-contact.mjs::cross": {
+      "owner": "extensions"
     },
-    "core/geom/sleeve-contact.mjs::prepareSleeveContact": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/sleeve-contact.mjs::prepareSleeveContact": {
+      "owner": "extensions"
     },
-    "core/geom/sleeve-contact.mjs::prepareSleeveContact::at": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/sleeve-contact.mjs::prepareSleeveContact::at": {
+      "owner": "extensions"
     },
-    "core/geom/sleeve-contact.mjs::prepareSleeveContact::boundary": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/sleeve-contact.mjs::prepareSleeveContact::boundary": {
+      "owner": "extensions"
     },
-    "core/geom/sleeve-frame.mjs::@module": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/sleeve-frame.mjs::@module": {
+      "owner": "extensions"
     },
-    "core/geom/sleeve-frame.mjs::horizontalSleeveCurve": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/sleeve-frame.mjs::horizontalSleeveCurve": {
+      "owner": "extensions"
     },
-    "core/geom/sleeve-frame.mjs::prepareSleeveContours": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/sleeve-frame.mjs::prepareSleeveContours": {
+      "owner": "extensions"
     },
-    "core/geom/sleeve-frame.mjs::prepareSleeveContours::at": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/sleeve-frame.mjs::prepareSleeveContours::at": {
+      "owner": "extensions"
     },
-    "core/geom/sleeve-frame.mjs::prepareSleeveContours::curveAt": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/sleeve-frame.mjs::prepareSleeveContours::curveAt": {
+      "owner": "extensions"
     },
-    "core/geom/sleeve-frame.mjs::prepareSleeveContours::report": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/sleeve-frame.mjs::prepareSleeveContours::report": {
+      "owner": "extensions"
     },
-    "core/geom/sleeve-frame.mjs::sampleCurveContour": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/sleeve-frame.mjs::sampleCurveContour": {
+      "owner": "extensions"
     },
-    "core/geom/sleeve-frame.mjs::sampleCurveContour::append": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/sleeve-frame.mjs::sampleCurveContour::append": {
+      "owner": "extensions"
     },
-    "core/geom/sleeve-frame.mjs::sampleCurveContour::at": {
-      "owner": "geometry"
+    "skills/advanced-vase-wall/scripts/sleeve-frame.mjs::sampleCurveContour::at": {
+      "owner": "extensions"
     },
     "core/geom/slice-region.mjs::@module": {
       "owner": "geometry"
@@ -5404,19 +5472,22 @@
       "owner": "bundle"
     },
     "core/print/plan.mjs::authoredBounds": {
-      "owner": "bundle"
+      "owner": "geometry",
+      "reason": "Geometry engine interprets authored geometry records and extension geometry schemas."
     },
     "core/print/plan.mjs::canonical": {
       "owner": "bundle"
     },
     "core/print/plan.mjs::defaults": {
-      "owner": "bundle"
+      "owner": "toolpath",
+      "reason": "Toolpath engine owns deposition recipe defaults, assignments and extension process interpretation."
     },
     "core/print/plan.mjs::depositionOnlyPlan": {
       "owner": "bundle"
     },
     "core/print/plan.mjs::geometryTemplate": {
-      "owner": "bundle"
+      "owner": "geometry",
+      "reason": "Geometry engine interprets authored geometry records and extension geometry schemas."
     },
     "core/print/plan.mjs::hash": {
       "owner": "bundle"
@@ -5428,31 +5499,37 @@
       "owner": "bundle"
     },
     "core/print/plan.mjs::validateMeshSource": {
-      "owner": "bundle"
+      "owner": "geometry",
+      "reason": "Geometry engine interprets authored geometry records and extension geometry schemas."
     },
     "core/print/plan.mjs::validatePlan": {
       "owner": "bundle"
     },
     "core/print/plan.mjs::validatePlanAuxiliary": {
-      "owner": "bundle"
+      "owner": "toolpath",
+      "reason": "Toolpath engine owns deposition recipe defaults, assignments and extension process interpretation."
     },
     "core/print/plan.mjs::validatePlanFields": {
       "owner": "bundle"
     },
     "core/print/plan.mjs::validatePlanGeometry": {
-      "owner": "bundle"
+      "owner": "geometry",
+      "reason": "Geometry engine interprets authored geometry records and extension geometry schemas."
     },
     "core/print/plan.mjs::validatePlanPlacement": {
       "owner": "bundle"
     },
     "core/print/plan.mjs::validatePlanProcess": {
-      "owner": "bundle"
+      "owner": "toolpath",
+      "reason": "Toolpath engine owns deposition recipe defaults, assignments and extension process interpretation."
     },
     "core/print/plan.mjs::validatePlanProcess::positive": {
-      "owner": "bundle"
+      "owner": "toolpath",
+      "reason": "Toolpath engine owns deposition recipe defaults, assignments and extension process interpretation."
     },
     "core/print/plan.mjs::validatePlanSelections": {
-      "owner": "bundle"
+      "owner": "toolpath",
+      "reason": "Toolpath engine owns deposition recipe defaults, assignments and extension process interpretation."
     },
     "core/print/program-handoff.mjs::@module": {
       "owner": "bundle"
@@ -5485,16 +5562,20 @@
       "owner": "bundle"
     },
     "core/print/recipe-migration.mjs::@module": {
-      "owner": "bundle"
+      "owner": "toolpath",
+      "reason": "Explicit deposition recipe migration."
     },
     "core/print/recipe-migration.mjs::explicitSleevePaths": {
-      "owner": "bundle"
+      "owner": "toolpath",
+      "reason": "Explicit deposition recipe migration."
     },
     "core/print/recipe-migration.mjs::explicitSleevePaths::at": {
-      "owner": "bundle"
+      "owner": "toolpath",
+      "reason": "Explicit deposition recipe migration."
     },
     "core/print/recipe-migration.mjs::migrateRecipeFields": {
-      "owner": "bundle"
+      "owner": "toolpath",
+      "reason": "Explicit deposition recipe migration."
     },
     "core/print/recipe-setup.mjs::@module": {
       "owner": "bundle"
@@ -6845,7 +6926,8 @@
       "owner": "extensions"
     },
     "skills/gridfinity/scripts/cli.mjs::@module": {
-      "owner": "extensions"
+      "owner": "agent",
+      "reason": "Command host adapter invokes the bundle lifecycle; extension computation lives in edit.mjs."
     },
     "skills/gridfinity/scripts/gridfinity.mjs::@module": {
       "owner": "extensions"
@@ -7103,7 +7185,8 @@
       "owner": "extensions"
     },
     "skills/thingi10k/scripts/cli.mjs::@module": {
-      "owner": "extensions"
+      "owner": "agent",
+      "reason": "Command host for resource acquisition and geometry import."
     },
     "skills/thingi10k/scripts/library.mjs::@module": {
       "owner": "extensions"
@@ -7138,14 +7221,17 @@
     "skills/thingi10k/scripts/library.mjs::readRemote": {
       "owner": "extensions"
     },
-    "skills/vase-wall/scripts/prepare-mesh.mjs::@module": {
-      "owner": "extensions"
+    "skills/advanced-vase-wall/scripts/prepare-mesh.mjs::@module": {
+      "owner": "extensions",
+      "reason": "Extension computes vase deposition assignments without reading a bundle."
     },
-    "skills/vase-wall/scripts/prepare-mesh.mjs::keys": {
-      "owner": "extensions"
+    "skills/advanced-vase-wall/scripts/prepare-mesh.mjs::keys": {
+      "owner": "extensions",
+      "reason": "Extension computes vase deposition assignments without reading a bundle."
     },
-    "skills/vase-wall/scripts/prepare-mesh.mjs::prepareMeshVase": {
-      "owner": "extensions"
+    "skills/advanced-vase-wall/scripts/prepare-mesh.mjs::prepareMeshVase": {
+      "owner": "extensions",
+      "reason": "Extension computes vase deposition assignments without reading a bundle."
     },
     "skills/wave-overhangs/scripts/example.mjs::@module": {
       "owner": "extensions"
@@ -9306,8 +9392,8 @@
       "reason": "Reviewed extension construction/registration logic; bundle/engine bypasses remain findings."
     },
     "skills/heat-set-inserts/scripts/edit.mjs::@module": {
-      "owner": "bundle",
-      "reason": "Assign by responsibility: bundle-editing wrapper versus reusable feature geometry; file location does not determine ownership."
+      "owner": "extensions",
+      "reason": "Pure extension contribution authoring; no bundle persistence or lifecycle."
     },
     "skills/pipe-cladding/scripts/prepare.mjs::@module": {
       "owner": "extensions",
@@ -9342,16 +9428,16 @@
       "reason": "Reviewed extension construction/registration logic; bundle/engine bypasses remain findings."
     },
     "skills/text/scripts/edit.mjs::@module": {
-      "owner": "bundle",
-      "reason": "Assign by responsibility: bundle-editing wrapper versus reusable feature geometry; file location does not determine ownership."
+      "owner": "extensions",
+      "reason": "Pure extension contribution authoring; no bundle persistence or lifecycle."
     },
     "skills/text/scripts/edit.mjs::rebuildTextGeometry": {
       "owner": "extensions",
-      "reason": "Assign by responsibility: bundle-editing wrapper versus reusable feature geometry; file location does not determine ownership."
+      "reason": "Pure extension contribution authoring; no bundle persistence or lifecycle."
     },
     "skills/text/scripts/edit.mjs::unwrapTextGeometry": {
       "owner": "extensions",
-      "reason": "Assign by responsibility: bundle-editing wrapper versus reusable feature geometry; file location does not determine ownership."
+      "reason": "Pure extension contribution authoring; no bundle persistence or lifecycle."
     },
     "skills/text/scripts/record.mjs::@module": {
       "owner": "extensions",
@@ -9439,27 +9525,27 @@
     },
     "skills/edits.mjs::@module": {
       "owner": "extensions",
-      "reason": "Extension feature edit/registry returns values; bundle commit belongs to 5."
+      "reason": "Extension editor registries consumed by geometry and toolpath engines."
     },
     "skills/gridfinity/scripts/edit.mjs::@module": {
       "owner": "extensions",
-      "reason": "Extension feature edit/registry returns values; bundle commit belongs to 5."
+      "reason": "Pure extension contribution authoring; no bundle persistence or lifecycle."
     },
     "skills/gridfinity/scripts/edit.mjs::editGridfinity": {
       "owner": "extensions",
-      "reason": "Extension feature edit/registry returns values; bundle commit belongs to 5."
+      "reason": "Pure extension contribution authoring; no bundle persistence or lifecycle."
     },
     "skills/gridfinity/scripts/edit.mjs::gridfinityPlan": {
       "owner": "extensions",
-      "reason": "Extension feature edit/registry returns values; bundle commit belongs to 5."
+      "reason": "Pure extension contribution authoring; no bundle persistence or lifecycle."
     },
     "skills/heat-set-inserts/scripts/edit.mjs::editHeatSet": {
       "owner": "extensions",
-      "reason": "Extension feature edit/registry returns values; bundle commit belongs to 5."
+      "reason": "Pure extension contribution authoring; no bundle persistence or lifecycle."
     },
     "skills/text/scripts/edit.mjs::editText": {
       "owner": "extensions",
-      "reason": "Extension feature edit/registry returns values; bundle commit belongs to 5."
+      "reason": "Pure extension contribution authoring; no bundle persistence or lifecycle."
     },
     "core/print/assignment-records.mjs::@module": {
       "owner": "toolpath",
@@ -9488,6 +9574,330 @@
     "core/print/assignment-records.mjs::recipeFamily": {
       "owner": "toolpath",
       "reason": "Selects recipe preparation family from built-in or extension assignment records."
+    },
+    "core/private/extensions/numeric.mjs::@module": {
+      "owner": "extensions",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/extensions/numeric.mjs::requireThat": {
+      "owner": "extensions",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/extensions/numeric.mjs::distance2": {
+      "owner": "extensions",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/extensions/numeric.mjs::distance": {
+      "owner": "extensions",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/extensions/numeric.mjs::cross": {
+      "owner": "extensions",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/extensions/numeric.mjs::normalize": {
+      "owner": "extensions",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/extensions/numeric.mjs::length": {
+      "owner": "extensions",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/toolpath/numeric.mjs::@module": {
+      "owner": "toolpath",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/toolpath/numeric.mjs::requireThat": {
+      "owner": "toolpath",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/toolpath/numeric.mjs::normalize": {
+      "owner": "toolpath",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/toolpath/numeric.mjs::cross": {
+      "owner": "toolpath",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/toolpath/numeric.mjs::dot": {
+      "owner": "toolpath",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/toolpath/numeric.mjs::distance": {
+      "owner": "toolpath",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/toolpath/numeric.mjs::scale": {
+      "owner": "toolpath",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/toolpath/numeric.mjs::add": {
+      "owner": "toolpath",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/toolpath/numeric.mjs::subtract": {
+      "owner": "toolpath",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/toolpath/numeric.mjs::length": {
+      "owner": "toolpath",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/rigid.mjs::@module": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/rigid.mjs::add": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/rigid.mjs::sub": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/rigid.mjs::scale": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/rigid.mjs::dot": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/rigid.mjs::cross": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/rigid.mjs::norm": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/rigid.mjs::mv": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/rigid.mjs::mm": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/rigid.mjs::transpose": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/rigid.mjs::identity": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/rigid.mjs::rotation": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/rigid.mjs::rigid": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/rigid.mjs::unit": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/numeric.mjs::@module": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/numeric.mjs::requireThat": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/numeric.mjs::distance": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/bundle/numeric.mjs::@module": {
+      "owner": "bundle",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/bundle/numeric.mjs::requireThat": {
+      "owner": "bundle",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/frame.mjs::@module": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/frame.mjs::rotateZ": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/frame.mjs::bedPoint": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/rigid.mjs::@module": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/rigid.mjs::rigid": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/rigid.mjs::sub": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/rigid.mjs::scale": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/rigid.mjs::norm": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/rigid.mjs::mv": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/rigid.mjs::mm": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/rigid.mjs::axisFrame": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/rigid.mjs::rodFrame": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/rigid.mjs::rotation": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/rigid.mjs::point": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/rigid.mjs::invert": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/rigid.mjs::compose": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/rigid.mjs::dot": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/rigid.mjs::cross": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/rigid.mjs::identity": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/rigid.mjs::transpose": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/rigid.mjs::unit": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/rigid.mjs::add": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/geometry/hash.mjs::@module": {
+      "owner": "geometry",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/geometry/hash.mjs::hash": {
+      "owner": "geometry",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/geometry/hash.mjs::canonical": {
+      "owner": "geometry",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/frame.mjs::@module": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/frame.mjs::bedPoint": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/export/frame.mjs::rotateZ": {
+      "owner": "export",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/numeric.mjs::@module": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/numeric.mjs::add": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/numeric.mjs::subtract": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/numeric.mjs::scale": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/numeric.mjs::dot": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/numeric.mjs::normalize": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/numeric.mjs::cross": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/numeric.mjs::length": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/numeric.mjs::requireThat": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/hash.mjs::@module": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/hash.mjs::canonical": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/file-write.mjs::@module": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/studio/file-write.mjs::replaceFile": {
+      "owner": "studio",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/extensions/file-write.mjs::@module": {
+      "owner": "extensions",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/extensions/file-write.mjs::replaceFile": {
+      "owner": "extensions",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/agent/numeric.mjs::@module": {
+      "owner": "agent",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+    },
+    "core/private/agent/numeric.mjs::requireThat": {
+      "owner": "agent",
+      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
     }
   },
   "retiredAssignments": [
@@ -9502,8 +9912,8 @@
     "core/geom/curve-ops.mjs::prepareWinding::<return@284:10>",
     "core/geom/least-squares.mjs::leastSquares::<return@27:10>",
     "core/geom/mesh-distance.mjs::createMeshDistanceQuery::<return@25:10>",
-    "core/geom/mesh-sleeve.mjs::prepareFittedSections::<return@209:10>",
-    "core/geom/mesh-sleeve.mjs::sleevePointQuery::<return@176:10>",
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::prepareFittedSections::<return@209:10>",
+    "skills/advanced-vase-wall/scripts/mesh-sleeve.mjs::sleevePointQuery::<return@176:10>",
     "core/geom/piecewise-chart.mjs::roofChartTriangles::<return@78:94>",
     "core/geom/query.mjs::createSectionQuery::<return@25:10>",
     "core/geom/reference-surface.mjs::referenceSurface::<return@44:12>",

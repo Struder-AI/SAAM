@@ -1,4 +1,5 @@
-import {distance,requireThat} from '../geom/tolerance.mjs';
+import {distance,requireThat} from '../private/toolpath/numeric.mjs';
+
 
 // Numerical curve refinement shared by native, mapped and family curves.
 // The evaluator is geometry-only: samples contain a world point and optional

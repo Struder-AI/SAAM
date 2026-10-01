@@ -1,7 +1,8 @@
+import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 // Explicit path transitions. A stage owns its local work; its inputs are read-only.
 // Actions are append/replace-tail deltas, never the accumulated program. A merge
 // allocates a replacement action; earlier states and returned chunks stay intact.
-import {requireThat,distance,TOLERANCE} from '../geom/tolerance.mjs';
+import {TOLERANCE} from '../geom/tolerance.mjs';
 import {combRoute,combSegment} from './comb.mjs';
 import {uprightPose,validatePose,samePose,bedPoint} from './pose.mjs';
 

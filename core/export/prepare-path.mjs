@@ -1,6 +1,7 @@
+import {requireThat,distance} from '../private/export/numeric.mjs';
 // Export boundary: turn an authored SAAMpath into the selected installation's
 // startup, material-change and feed commands. The input path is never changed.
-import {requireThat,distance} from '../geom/tolerance.mjs';
+
 import {validateSetup,toolBounds,startupPosition,startupRetracted,sameNozzleMaterialChanges} from '../machine/rules.mjs';
 import {checkedFilamentPlan,assignedFilaments} from '../machine/filaments.mjs';
 import {createPlanningState,planTravel,planRetraction,planRecovery,planMove,materializeActions} from '../path/planning.mjs';

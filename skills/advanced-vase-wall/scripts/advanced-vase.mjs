@@ -1,6 +1,7 @@
+import {requireThat} from '../../../core/private/extensions/numeric.mjs';
 // The extension owns fitting, pattern repetition and boundary transitions.
 // Trace receives only resolved spatial curves and their deposition settings.
-import {requireThat} from '../../../core/geom/tolerance.mjs';
+
 import {traceResult} from '../../../core/print/curves.mjs';
 import {contactCurveGaps} from '../../../core/path/contact-curves.mjs';
 import {prepareContourSleeve} from './contour-sleeve.mjs';

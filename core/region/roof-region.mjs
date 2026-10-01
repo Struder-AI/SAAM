@@ -1,8 +1,9 @@
+import {requireThat} from '../private/toolpath/numeric.mjs';
 // Native roof survey for reserved material and supported surface courses.
 import {topAt} from '../geom/query.mjs';
 import {regionArea} from './region2d.mjs';
 import {levelSetRegion,SENTINEL} from './boolean.mjs';
-import {requireThat,TOLERANCE} from '../geom/tolerance.mjs';
+import {TOLERANCE} from '../geom/tolerance.mjs';
 
 // Survey the top surface once: the reserve height the body must stay under, and
 // the area the angle limit allows to be skinned.

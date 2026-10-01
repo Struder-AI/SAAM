@@ -1,9 +1,10 @@
+import {requireThat} from '../../../core/private/extensions/numeric.mjs';
 // Mesh estimation and unilateral contact feed the same vase path producer.
-import {fitMeshSleeve} from '../../../core/geom/mesh-sleeve.mjs';
-import {prepareSleeveContours} from '../../../core/geom/sleeve-frame.mjs';
-import {prepareRadialSleeveContact} from '../../../core/geom/prepared-radial-contact.mjs';
+import {fitMeshSleeve} from './mesh-sleeve.mjs';
+import {prepareSleeveContours} from './sleeve-frame.mjs';
+import {prepareRadialSleeveContact} from './prepared-radial-contact.mjs';
 import {createMeshDistanceQuery} from '../../../core/geom/mesh-distance.mjs';
-import {requireThat} from '../../../core/geom/tolerance.mjs';
+
 import {loopArea} from '../../../core/region/region2d.mjs';
 import {union} from '../../../core/region/intersection.mjs';
 

@@ -1,3 +1,4 @@
+import {requireThat} from '../private/bundle/numeric.mjs';
 // One print lifecycle for every geometry/generator adapter.
 import { readFile, mkdir, rename, access, rm,copyFile,readdir } from 'node:fs/promises';
 import {hashFile} from '../geom/stl-file.mjs';
@@ -6,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { exportAndInterpretProgram, interpretProgram } from '../export/registry.mjs';
 import { loadMachine, validateDobotConfiguration, lineWidthLimits } from '../machine/profile.mjs';
-import { requireThat } from '../geom/tolerance.mjs';
+
 import {validateDensoConfiguration} from '../machine/denso.mjs';
 import {consumeCheckedProgram,createPendingCheckedProgramStore} from './program-handoff.mjs';
 import {replaceFile} from '../file-write.mjs';

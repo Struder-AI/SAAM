@@ -1,3 +1,4 @@
+import {requireThat} from '../private/toolpath/numeric.mjs';
 // Resolve ownership and prerequisites before selecting work. Every construction
 // consumes finalized predecessor beads; authored rank never becomes run order.
 import {prepareSliceContexts,sliceContextResult,ownershipDependencies} from './slices.mjs';
@@ -8,7 +9,7 @@ import {assignmentFamily} from './slice-settings.mjs';
 import {publishFinishedBoundary,consumeFinishedSurface,republishDepositedBoundary} from '../path/finished-surface.mjs';
 import {depositedBeadSegments} from '../path/deposited-curves.mjs';
 import {translateSlice} from '../geom/slice.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
+
 import {matchingModulations} from '../path/modulation.mjs';
 import {planOperationEntry,planPreparedOperation} from '../path/compose.mjs';
 import {ActionAccumulator,planLayerCooling} from '../path/planning.mjs';
@@ -126,7 +127,7 @@ export function constructDepositionWork(node,completed,{plan,machine,onProgress,
     const results=predecessors.map(item=>item.result);
     result=curveAssignmentResult(node.context.assignment,{plan,machine,modelResults:results,
       references:depositionReferences(shells,results)});
-  }  else if(node.kind==='inject')result=injectionResult(node.context.assignment,{plan,machine});
+  }else if(node.kind==='inject')result=injectionResult(node.context.assignment,{plan,machine});
   else throw new Error(`Unsupported deposition construction ${node.kind}.`);
   const assignment=node.kind==='slice'?node.record.spec.settings:node.context.assignment;
   const motionIntent=assignment.toolPose?{kind:'derived-pose',alignToSliceNormal:assignment.toolPose.alignToSliceNormal}:null;

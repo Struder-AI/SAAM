@@ -1,6 +1,7 @@
+import {distance} from '../private/toolpath/numeric.mjs';
 // Freeze operation-local deposition before downstream material consumers.
 // Machine positioning, retraction and travel remain the composer's single pass.
-import {distance} from '../geom/tolerance.mjs';
+
 import {orderStrokes,orderScanlineCells} from './builder.mjs';
 import {canDepositConnection} from './planning.mjs';
 

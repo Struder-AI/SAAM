@@ -1,8 +1,9 @@
+import {requireThat} from '../private/export/numeric.mjs';
 // Bounded ZIP container for output artifacts. No filesystem extraction, ZIP64,
 // encryption, symlinks, duplicate names or path aliases. Dates are fixed so the
 // exact same locked program produces the exact same archive bytes.
 import {deflateRawSync,inflateRawSync} from 'node:zlib';
-import {requireThat} from '../geom/tolerance.mjs';
+
 // ZIP32 has 32-bit member sizes and offsets. This is the container's actual
 // representational boundary, not a manufacturing/file-size policy. ZIP64 is
 // outside the currently declared machine artifact contract.

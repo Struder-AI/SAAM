@@ -1,5 +1,6 @@
+import {dot,normalize,subtract,scale,distance,requireThat} from '../private/toolpath/numeric.mjs';
 // Derive optional Slice orientation output. Machine compatibility belongs to export.
-import {dot,normalize,subtract,scale,distance,requireThat} from '../geom/tolerance.mjs';
+
 import {strokeRange} from '../path/deposition.mjs';
 import {validatePose,uprightPose} from '../path/pose.mjs';
 

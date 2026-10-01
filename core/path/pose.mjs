@@ -1,5 +1,6 @@
+import {requireThat} from '../private/toolpath/numeric.mjs';
 // Shared part/bed frame arithmetic. No robot inverse kinematics or feasibility solver.
-import {requireThat} from '../geom/tolerance.mjs';
+
 export const uprightPose=()=>({rotaryDeg:0,toolAxis:[0,0,-1],toolUp:[0,1,0]});
 export const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
 export const unit=v=>{const n=Math.hypot(...v);requireThat(n>1e-12,'Degenerate direction.');return v.map(x=>x/n);};

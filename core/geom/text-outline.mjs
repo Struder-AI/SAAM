@@ -1,6 +1,7 @@
+import {requireThat} from '../private/extensions/numeric.mjs';
 import {create} from 'fontkit';
 import {createHash} from 'node:crypto';
-import {requireThat} from './tolerance.mjs';
+
 import {union} from '../region/intersection.mjs';
 import {offsetRegion} from '../region/offset.mjs';
 

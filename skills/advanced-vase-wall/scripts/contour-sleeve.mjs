@@ -1,10 +1,11 @@
+import {requireThat} from '../../../core/private/extensions/numeric.mjs';
 // Vase reference construction: section offsets, seam correspondence and mapping.
 // The build caller also supplies this prepared boundary to standard spiral Slice.
 import {createSectionQuery} from '../../../core/geom/query.mjs';
 import {cleanPlanarLoop} from '../../../core/geom/polyline.mjs';
 import {loopArea,dedupe,pointSegmentDistance,pointInRegion} from '../../../core/region/region2d.mjs';
 import {offsetRegion} from '../../../core/region/offset.mjs';
-import {requireThat} from '../../../core/geom/tolerance.mjs';
+
 import {contourPath} from '../../../core/geom/contour-path.mjs';
 import {prepareContourFamily} from '../../../core/geom/prepared-contours.mjs';
 import {createFittedSleeveReference,createAutomaticSleeveReference} from './sleeve-reference.mjs';

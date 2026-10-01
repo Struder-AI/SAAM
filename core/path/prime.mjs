@@ -1,4 +1,5 @@
-import {distance,requireThat} from '../geom/tolerance.mjs';
+import {distance,requireThat} from '../private/toolpath/numeric.mjs';
+
 import {ActionAccumulator,planningResult,planContext,planTravel,planMove,planPark} from './planning.mjs';
 
 // Profile-owned sacrificial strokes for the shared shell generator. Keep them

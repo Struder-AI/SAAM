@@ -1,4 +1,5 @@
-import {distance,requireThat,subtract,add,scale,dot,cross,normalize} from '../geom/tolerance.mjs';
+import {distance,requireThat,subtract,add,scale,dot,cross,normalize} from '../private/toolpath/numeric.mjs';
+
 import {sliceNormal} from '../geom/slice.mjs';
 import {strokeRange} from './deposition.mjs';
 import {pointSegmentDistance} from '../region/region2d.mjs';

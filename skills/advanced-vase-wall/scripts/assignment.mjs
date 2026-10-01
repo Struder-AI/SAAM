@@ -1,4 +1,5 @@
-import {requireThat} from '../../../core/geom/tolerance.mjs';
+import {requireThat} from '../../../core/private/extensions/numeric.mjs';
+
 import {validateSleevePattern} from './sleeve-pattern.mjs';
 export const SLEEVE_DEFAULTS={zStartMm:0,zEndMm:null,endTransition:'level',pattern:null,pathMode:'continuous',meshSleeve:null,sampleStepMm:1,toleranceMm:0.02,boundaryToleranceMm:0.02,minFeatureMm:0.4,sleeveToleranceMm:0.08};
 export const sleeveAssignment=({id,...options})=>structuredClone({id,construction:'sleeve',part:null,filament:null,process:null,after:[],...SLEEVE_DEFAULTS,...options});

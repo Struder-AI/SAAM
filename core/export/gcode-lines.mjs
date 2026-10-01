@@ -1,4 +1,5 @@
-import {requireThat} from '../geom/tolerance.mjs';
+import {requireThat} from '../private/export/numeric.mjs';
+
 
 // Iterate a string or synchronous stream of text chunks without allocating an
 // array containing every program line. Chunk boundaries have no modal meaning;

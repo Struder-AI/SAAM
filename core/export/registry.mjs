@@ -1,8 +1,9 @@
+import {requireThat} from '../private/export/numeric.mjs';
 import {exportGriffin,interpretGriffin} from './griffin.mjs';
 import {exportBambu,interpretBambu,exportAndInterpretBambu} from './bambu.mjs';
 import {exportDobot,interpretDobot} from './dobot.mjs';
 import {exportDenso,interpretDenso} from './denso.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
+
 import {withTravelAdvisory} from './travel-advisory.mjs';
 const adapters={
   'denso-pacscript':{export:exportDenso,interpret:interpretDenso},

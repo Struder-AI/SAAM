@@ -1,4 +1,5 @@
-import {requireThat,distance,normalize,dot,cross} from '../geom/tolerance.mjs';
+import {requireThat,distance,normalize,dot,cross} from '../private/toolpath/numeric.mjs';
+
 import {beadContactAlong,depositedBeadBounds} from './deposited-curves.mjs';
 
 // A geometric query over final beads, shared by contact gaps and contact charts.

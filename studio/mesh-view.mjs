@@ -1,4 +1,5 @@
-import {add,subtract,scale,dot,length,normalize} from '../core/geom/tolerance.mjs';
+import {add,subtract,scale,dot,normalize} from '../core/private/studio/numeric.mjs';
+import {length} from '../core/private/studio/numeric.mjs';
 import {materialProjection} from './material-view.mjs';
 
 // Display creases, not tessellation. Weld coincident proxy vertices for edge

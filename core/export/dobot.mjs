@@ -1,3 +1,4 @@
+import {requireThat,distance} from '../private/export/numeric.mjs';
 import {prepareMachinePath} from './prepare-path.mjs';
 // Bounded Dobot adapter, sharing SAAMpath, ZIP integrity and bundle lifecycle.
 // The adopted Lua runtime executes the actual delivered helper/entry/body files.
@@ -7,7 +8,7 @@ import {packZip,unpackZip} from './zip.mjs';
 import {interpretDobotFiles,DOBOT_LIMITATIONS,WAIT_COMMAND_MS,config,num,transform,inside,equal} from './dobot-player.mjs';
 export {motionProfile,DOBOT_LIMITATIONS} from './dobot-player.mjs';
 import {validatePath} from './griffin.mjs';
-import {requireThat,distance} from '../geom/tolerance.mjs';
+
 
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 

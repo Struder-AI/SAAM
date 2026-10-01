@@ -1,9 +1,10 @@
+import {requireThat,distance,normalize,cross,scale,add,dot,subtract} from '../private/toolpath/numeric.mjs';
 // Physical cell fields on a periodic reference family. Samples carry the
 // evaluated geometry/metric; mapping, deposition and machine motion are downstream.
 import {prepareSurfaceOffset} from '../geom/surface-offset.mjs';
 import {evaluate} from '../geom/nurbs.mjs';
 import {sampleSurfaceCurve} from '../region/normal-surface.mjs';
-import {requireThat,distance,normalize,cross,scale,add,dot,findRoot,subtract} from '../geom/tolerance.mjs';
+import {findRoot} from '../geom/tolerance.mjs';
 import {lineSpacing,spacingFactor} from '../path/spacing.mjs';
 
 

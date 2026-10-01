@@ -1,11 +1,13 @@
+import {replaceFile} from '../core/private/studio/file-write.mjs';
+import {canonical} from '../core/private/studio/hash.mjs';
 import {readFile,mkdir} from 'node:fs/promises';
 import {resolve,relative,isAbsolute} from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {canonical} from '../core/print/plan.mjs';
+
 import {requestReceiptState} from './work-state.mjs';
 import {createRequestIndex} from './request-index.mjs';
-import {replaceFile} from '../core/file-write.mjs';
+
 
 export function workSnapshot({plan,machine,review}){
   const hash=value=>createHash('sha256').update(canonical(value)).digest('hex');

@@ -1,4 +1,5 @@
-import {requireThat} from '../geom/tolerance.mjs';
+import {requireThat} from '../private/bundle/numeric.mjs';
+
 
 const record=value=>value&&typeof value==='object'&&!Array.isArray(value);
 

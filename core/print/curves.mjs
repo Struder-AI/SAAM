@@ -1,4 +1,5 @@
-import {requireThat,distance} from '../geom/tolerance.mjs';
+import {requireThat,distance} from '../private/toolpath/numeric.mjs';
+
 import {curveLength} from '../path/curve-construction.mjs';
 import {authoredNurbs,validateCurveProfiles,validateLineTextSource,constructAuthoredCurves} from '../path/authored-curves.mjs';
 import {beadWidthRule} from '../path/parallel-curves.mjs';
@@ -117,7 +118,7 @@ export function traceResult(assignment,{courses,process,bounds=null,sequential=t
   const operations=depositCurveCourses({id:assignment.id,courses,process,after:assignment.after,filament:assignment.filament,sequential});
   let lengthMm=0,strokeCount=0,volumeMm3=0;
   for(const operation of operations)for(const stroke of operation.strokes){
-    const width=Math.max(stroke.beadWidthMm??process.lineWidthMm,...(stroke.segmentMetadata??[]).map(m=>m.beadWidthMm??0));
+    const width=(stroke.segmentMetadata??[]).reduce((width,m)=>Math.max(width,m.beadWidthMm??0),stroke.beadWidthMm??process.lineWidthMm);
     if(bounds)requireThat(stroke.points.every(p=>p.every((v,i)=>v>=(i===2?bounds.min[i]:bounds.min[i]+width/2)-1e-8&&v<=(i===2?bounds.max[i]:bounds.max[i]-width/2)+1e-8)),
       `Curve assignment ${assignment.id} exceeds selected tool bounds on course ${operation.layer}.`);
     const length=curveLength(stroke.points);lengthMm+=length;strokeCount++;
@@ -127,8 +128,8 @@ export function traceResult(assignment,{courses,process,bounds=null,sequential=t
   return {id:assignment.id,operations,report:{...report,depositionFamily:'trace',strokes:strokeCount,lengthMm,volumeMm3}};
 }
 
-// Construct one graph-selected trace from finalized predecessors. Bridges finalize
-// their internal sequence before subsequent attachment checks.
+// Construct a selected trace from finalized predecessors. Dependent courses
+// finalize their internal sequence before subsequent contact checks.
 export function curveAssignmentResult(assignment,{plan,machine,modelResults,bounds=null,references={}}) {
   validateCurveAssignment(assignment);
   const selected=assignmentPlan(plan,machine,assignment);
