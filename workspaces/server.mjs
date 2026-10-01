@@ -6,7 +6,6 @@ import {Worker} from 'node:worker_threads';
 import {randomUUID} from 'node:crypto';
 import {wingDesign,wingDefaults} from './wing/design.mjs';
 import {wingPreview} from './wing/construct.mjs';
-import {workspacePrinter} from '../core/print/workspace.mjs';
 
 const root=fileURLToPath(new URL('.',import.meta.url));
 const files=new Set(['index.html','app.mjs','style.css','renderer.mjs']);
@@ -25,17 +24,14 @@ export async function startWingWorkspace({port=0,directory=resolve(process.env.S
       if(req.method==='GET'&&url.pathname==='/api/job')return send(res,state.job);
       if(req.method==='POST'&&['/api/design','/api/export'].includes(url.pathname)){
         const chunks=[];for await(const chunk of req)chunks.push(chunk);
-        const request=JSON.parse(Buffer.concat(chunks).toString()),machineId=request.machineId??'ultimaker-s5',printer=workspacePrinter(machineId);
-        const requested=wingDesign(request.design),design=wingDesign({...requested,sectionHeightMm:Math.min(requested.sectionHeightMm,printer.maxSectionHeightMm)}),preview=wingPreview(design);
-        if(design.chordMm>printer.maxChordMm)throw Error(`Reduce the chord below ${printer.maxChordMm} mm for ${printer.name}.`);
+        const request=JSON.parse(Buffer.concat(chunks).toString()),design=wingDesign(request.design),preview=wingPreview(design);
         if(url.pathname==='/api/design'){
           state.design=design;await writeFile(saved,JSON.stringify(design,null,2));return send(res,{design,preview});
         }
         if(state.job&&!['complete','failed'].includes(state.job.stage))return send(res,{error:'An export is already running.'},409);
         const id=randomUUID(),out=join(directory,'set-'+new Date().toISOString().replace(/[:.]/g,'-')+'-'+id.slice(0,6));
-        if(!['ultimaker-s5','bambu-h2d','bambu-x1-carbon'].includes(machineId))throw Error('Choose a supported three-axis printer.');
         state.job={id,stage:'starting',directory:out,completed:0,total:preview.pieces.length,bundles:[]};
-        const worker=new Worker(new URL('./export-worker.mjs',import.meta.url),{workerData:{design,directory:out,machineId}});
+        const worker=new Worker(new URL('./export-worker.mjs',import.meta.url),{workerData:{design,directory:out}});
         worker.on('message',message=>{if(state.job.id===id)state.job={...state.job,...message};});
         worker.on('error',error=>{if(state.job.id===id)state.job={...state.job,stage:'failed',error:error.message};});
         worker.on('exit',code=>{if(state.job.id===id&&!['complete','failed'].includes(state.job.stage))state.job={...state.job,stage:'failed',error:'Export worker exited before completing ('+code+').'};});

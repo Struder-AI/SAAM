@@ -1,14 +1,18 @@
-export const wingDefaults=Object.freeze({schema:'saam-wing/1',name:'Wing study',spanMm:900,chordMm:160,taper:1,camber:0.02,thickness:0.12,wingletHeightMm:90,sectionHeightMm:180,flaps:true,flapStart:0.35,flapEnd:0.75,flapChord:0.26,rodDiameterMm:5,pivotDiameterMm:3,clearanceMm:0.2,gapMm:0.8,beadWidthMm:0.45,layerMm:0.25,speedMmS:20});
+export const wingDefaults=Object.freeze({schema:'saam-wing/1',name:'Wing study',spanMm:900,chordMm:160,taper:1,camber:0.02,thickness:0.12,wingletHeightMm:90,maxSectionHeightMm:180,maxChordMm:250,flaps:true,flapStart:0.35,flapEnd:0.75,flapChord:0.26,rodDiameterMm:5,pivotDiameterMm:3,clearanceMm:0.2,gapMm:0.8,beadWidthMm:0.45,layerMm:0.25,speedMmS:20});
 
 export function wingDesign(input={}){
   if(!input||typeof input!=='object'||Array.isArray(input))throw Error('Expected a wing design.');
-  for(const key of Object.keys(input))if(!Object.hasOwn(wingDefaults,key))throw Error('Unknown wing setting: '+key);
-  const d={...wingDefaults,...input};
+  // Read earlier saved designs; new designs persist the explicit limit.
+  const {sectionHeightMm,...values}=input;
+  if(sectionHeightMm!==undefined&&values.maxSectionHeightMm!==undefined&&sectionHeightMm!==values.maxSectionHeightMm)throw Error('Conflicting section height limits.');
+  for(const key of Object.keys(values))if(!Object.hasOwn(wingDefaults,key))throw Error('Unknown wing setting: '+key);
+  const d={...wingDefaults,...(sectionHeightMm===undefined?{}:{maxSectionHeightMm:sectionHeightMm}),...values};
   if(d.schema!==wingDefaults.schema||typeof d.name!=='string'||!d.name.trim()||typeof d.flaps!=='boolean')throw Error('Invalid wing identity or flap choice.');
-  const ranges={spanMm:[300,2400],chordMm:[100,300],taper:[0.75,1],camber:[0,0.04],thickness:[0.1,0.18],wingletHeightMm:[40,200],sectionHeightMm:[40,300],flapStart:[0.1,0.7],flapEnd:[0.3,0.9],flapChord:[0.2,0.32],rodDiameterMm:[2,8],pivotDiameterMm:[2,5],clearanceMm:[0.1,0.5],gapMm:[0.5,2],beadWidthMm:[0.35,0.6],layerMm:[0.15,0.3],speedMmS:[8,40]};
+  const ranges={spanMm:[300,2400],chordMm:[100,300],taper:[0.75,1],camber:[0,0.04],thickness:[0.1,0.18],wingletHeightMm:[40,200],maxSectionHeightMm:[40,300],maxChordMm:[100,300],flapStart:[0.1,0.7],flapEnd:[0.3,0.9],flapChord:[0.2,0.32],rodDiameterMm:[2,8],pivotDiameterMm:[2,5],clearanceMm:[0.1,0.5],gapMm:[0.5,2],beadWidthMm:[0.35,0.6],layerMm:[0.15,0.3],speedMmS:[8,40]};
   for(const [key,[min,max]] of Object.entries(ranges))if(!Number.isFinite(d[key])||d[key]<min||d[key]>max)throw Error(`${key} must be between ${min} and ${max}.`);
   if(d.flaps&&d.flapEnd<=d.flapStart)throw Error('Flaps must end after they start.');
   if(d.layerMm>d.beadWidthMm*.7)throw Error('Layer height must be at most 70% of bead width.');
+  if(d.chordMm>d.maxChordMm)throw Error(`Root chord exceeds the explicit ${d.maxChordMm} mm chord limit. Reduce the chord or increase the limit.`);
   return d;
 }
 
@@ -20,7 +24,7 @@ export function wingSections(input){
   mandatory.sort((a,b)=>a-b);
   const cuts=[0];
   for(let i=1;i<mandatory.length;i++){
-    const start=mandatory[i-1],end=mandatory[i],count=Math.ceil((end-start)/d.sectionHeightMm);
+    const start=mandatory[i-1],end=mandatory[i],count=Math.ceil((end-start)/d.maxSectionHeightMm);
     for(let j=1;j<=count;j++)cuts.push(start+(end-start)*j/count);
   }
   const pieces=[];

@@ -4,7 +4,7 @@ canvas.replaceWith(renderer.canvas);renderer.canvas.id='model';renderer.canvas.s
 const view={design:null,preview:null,selected:null,mode:'assembled',yaw:-.45,tilt:.75,zoom:1,pan:[0,0],request:0,drag:null,job:null,invalid:false};
 const controls=[
   ['Planform'],['spanMm','Span',300,1800,20,' mm'],['chordMm','Root chord',100,250,5,' mm'],['taper','Tip / root chord',.75,1,.025,''],['camber','Camber',0,.04,.005,''],['thickness','Thickness ratio',.1,.18,.01,''],['wingletHeightMm','Winglet height',40,160,5,' mm'],
-  ['Print sections'],['sectionHeightMm','Maximum section height',40,280,5,' mm'],['flaps','Separate flaps'],['flapStart','Flap starts · half-span',.1,.7,.025,''],['flapEnd','Flap ends · half-span',.3,.9,.025,''],['flapChord','Flap chord fraction',.2,.32,.01,''],
+  ['Print limits'],['maxSectionHeightMm','Maximum section height',40,300,5,' mm'],['maxChordMm','Maximum chord',100,300,5,' mm'],['Print sections'],['flaps','Separate flaps'],['flapStart','Flap starts · half-span',.1,.7,.025,''],['flapEnd','Flap ends · half-span',.3,.9,.025,''],['flapChord','Flap chord fraction',.2,.32,.01,''],
   ['Construction'],['rodDiameterMm','Reinforcement rod',2,8,.5,' mm'],['pivotDiameterMm','Pivot rod',2,5,.5,' mm'],['clearanceMm','Radial clearance',.1,.5,.05,' mm'],['beadWidthMm','Bead width',.35,.6,.05,' mm'],['layerMm','Layer height',.15,.3,.025,' mm']
 ];
 function settings(){
@@ -22,14 +22,13 @@ async function api(path,body){const response=await fetch(path,body?{method:'POST
 function error(message){$('error').hidden=!message;$('error').textContent=message??'';}
 async function update(design){
   const request=++view.request;$('export').disabled=true;
-  try{const r=await api('/api/design',{design,machineId:$('machine').value});if(request!==view.request)return;view.invalid=false;view.design=r.design;view.preview=r.preview;if(!r.preview.pieces.some(p=>p.id===view.selected))view.selected=r.preview.pieces[0].id;error();settings();pieces();draw();}
+  try{const r=await api('/api/design',{design});if(request!==view.request)return;view.invalid=false;view.design=r.design;view.preview=r.preview;if(!r.preview.pieces.some(p=>p.id===view.selected))view.selected=r.preview.pieces[0].id;error();settings();pieces();draw();}
   catch(e){if(request===view.request){view.invalid=true;error(e.message);}}
   finally{if(request===view.request)$('export').disabled=view.invalid||!!view.job&&!['complete','failed'].includes(view.job.stage);}
 }
 $('settings').onchange=e=>{const key=e.target.dataset.key;if(!key)return;const value=key==='flaps'?e.target.checked:+e.target.value;update({...view.design,[key]:value});};
 $('settings').oninput=e=>{const key=e.target.dataset.key;if(key&&key!=='flaps')e.target.previousElementSibling.querySelector('output').textContent=Number((+e.target.value).toFixed(3))+e.target.dataset.unit;};
 $('settings').onsubmit=e=>e.preventDefault();
-$('machine').onchange=()=>update(view.design);
 function pieces(){
   $('pieces').replaceChildren();
   for(const p of view.preview.pieces){const b=document.createElement('button');b.className='piece'+(p.id===view.selected?' active':'');const name=document.createElement('span'),info=document.createElement('small');name.textContent=p.id;info.textContent=(p.toMm-p.fromMm).toFixed(1)+' mm'+(p.integratedTip?' · tip':'');b.append(name,info);b.onclick=()=>{view.selected=p.id;pieces();draw();};$('pieces').append(b);}
@@ -97,10 +96,10 @@ function jobDisplay(job){
   $('results').replaceChildren();const path=document.createElement('code');path.textContent=job.directory;$('results').append(path);
   if(job.stage==='complete'){
     const p=document.createElement('p'),copy=document.createElement('button');p.textContent='All wing parts are saved together in this folder. One request handles the whole set.';
-    copy.textContent='Copy request for all parts';copy.onclick=async()=>{try{await navigator.clipboard.writeText(`Generate and check every wing print bundle listed in export.json in ${job.directory}, then open the set for review in Studio. Handle the whole folder as one task; preserve each part’s workspace construction requirements.`);copy.textContent='Copied';}catch(e){error(e.message);}};
+    copy.textContent='Copy request for all parts';copy.onclick=async()=>{try{await navigator.clipboard.writeText(`Select a printer and setup for the whole wing set, then generate and check every print bundle listed in export.json in ${job.directory}, then open the set for review in Studio. Handle the whole folder as one task; preserve each part’s workspace construction requirements.`);copy.textContent='Copied';}catch(e){error(e.message);}};
     $('results').append(p,copy);
   }
 }
 async function poll(){try{const job=await api('/api/job');jobDisplay(job);if(job&&!['complete','failed'].includes(job.stage))setTimeout(poll,1000);}catch(e){error(e.message);}}
-$('export').onclick=async()=>{try{error();$('export').disabled=true;jobDisplay(await api('/api/export',{design:view.design,machineId:$('machine').value}));poll();}catch(e){error(e.message);$('export').disabled=false;}};
+$('export').onclick=async()=>{try{error();$('export').disabled=true;jobDisplay(await api('/api/export',{design:view.design}));poll();}catch(e){error(e.message);$('export').disabled=false;}};
 try{const result=await api('/api/design');view.design=result.design;view.preview=result.preview;view.selected=result.preview.pieces[0].id;settings();pieces();draw();if(result.job){jobDisplay(result.job);poll();}}catch(e){error(e.message);}
