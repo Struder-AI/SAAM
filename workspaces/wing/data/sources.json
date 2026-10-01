@@ -1,0 +1,49 @@
+{
+  "source": "UIUC Airfoil Coordinates Database",
+  "retrieved": "2026-09-19",
+  "scope": "Six coordinate files for the local design prototype; no performance dataset",
+  "records": [
+    {
+      "id": "naca2412",
+      "name": "NACA 2412",
+      "url": "https://m-selig.ae.illinois.edu/ads/coord/naca2412.dat",
+      "sha256": "dce4261b15ef4177ce80563d5980891178c8ec8cbb1e270f0708a18f28d8bf56",
+      "format": "Original UIUC DAT bytes"
+    },
+    {
+      "id": "clarky",
+      "name": "Clark Y",
+      "url": "https://m-selig.ae.illinois.edu/ads/coord/clarky.dat",
+      "sha256": "bd1822f02d71bf66357774ec58279ff26f75f911414cded2fb34cafd15935f13",
+      "format": "Original UIUC DAT bytes"
+    },
+    {
+      "id": "sd7037",
+      "name": "SD7037",
+      "url": "https://m-selig.ae.illinois.edu/ads/coord/sd7037.dat",
+      "sha256": "58dc2b375e8c96c4b2ad7acd2968de9d69334ec80c656da10a022981e470784f",
+      "format": "Original UIUC DAT bytes"
+    },
+    {
+      "id": "e205",
+      "name": "Eppler E205",
+      "url": "https://m-selig.ae.illinois.edu/ads/coord/e205.dat",
+      "sha256": "1c3803f85baba50351a0885820d94c2e4aaff7aa4dce4f320da85b166809e131",
+      "format": "Original UIUC DAT bytes"
+    },
+    {
+      "id": "n0012",
+      "name": "NACA 0012",
+      "url": "https://m-selig.ae.illinois.edu/ads/coord/n0012.dat",
+      "sha256": "89401cc1e82bb768c4aff0ee293bb1fb2682a3aa3343d02ece62d7230e16b95c",
+      "format": "Original UIUC DAT bytes"
+    },
+    {
+      "id": "s1223",
+      "name": "Selig S1223",
+      "url": "https://m-selig.ae.illinois.edu/ads/coord/s1223.dat",
+      "sha256": "f2e06d165d6244d2fc1c7dde9e46c46c4d42a70b183620ea02fd693fbfa5cf53",
+      "format": "Original UIUC DAT bytes"
+    }
+  ]
+}
