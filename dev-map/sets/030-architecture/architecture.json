@@ -4302,11 +4302,12 @@
         }
       ],
       "operations": [
-        "evaluate / serialize geometry"
+        "evaluate / serialize geometry",
+        "prepareExtensionGeometry"
       ],
       "inputs": "Pinned geometry recipe/assets.",
-      "outputs": "Geometry value and serialized/display artifacts.",
-      "effects": "2 computes; 5 commits.",
+      "outputs": "Geometry recipe contribution and serialized/display artifacts; hybrid contributions separately identify deposition assignments.",
+      "effects": "2 computes geometry-only proposals directly; 5 commits. Contributions containing deposition assignments are composed by 3 before one Bundle commit.",
       "failure": "Keep the previous valid bundle geometry.",
       "excludes": "No direct geometry-engine writes to bundle state.",
       "authorship": "Owner original sketch: Geometry -> Bundle."

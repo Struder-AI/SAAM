@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-01 — Direct geometry extension edits
+
+- Bundle directly requests Geometry contributions; geometry-only edits bypass Toolpath. Deposition editors and hybrid assignment composition remain in Toolpath, with one Bundle revision commit and no Extensions–Bundle access. Engine inputs are cloned and returned fields restricted.
+- Isolated-worktree verification: existing gridfinity CLI create/update/stale-revision case passed (1/1). Ownership and Geometry–Bundle entry updated; complete map refresh follows settings work. No new tests, batch suite or push.
+
 ## 2026-10-01 — Direct STL import and operation-scoped recipe validation
 
 - Added the approved Studio → Geometry import interface and external STL input. Geometry owns decoding, explicit repair, native construction and scratch; Studio commits completed artifacts through Bundle. Removed the Bundle import worker relay.
