@@ -69,7 +69,9 @@ export function looseCurveField(curve,closed,directionAt){
     for(const {index,value} of rationalBasis(curve,t))if(value!==0)row.set(groups[index],(row.get(groups[index])??0)+value);
     return row;
   });
-  const solved=solveSparse(matrix,rhs),cache=new Map();
+  // A degree-1 basis is 1 at its own control's Greville parameter and 0 at
+  // every other, so a polyline's collocation is the identity.
+  const solved=curve.order===2?rhs:solveSparse(matrix,rhs),cache=new Map();
   return depth=>{
     requireThat(Number.isFinite(depth),'Curve offset depth must be finite.');
     if(cache.has(depth))return cache.get(depth);
