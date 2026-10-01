@@ -1,5 +1,9 @@
 # Development log
 
+## 2026-09-30 — Feature preservation and export discussion
+
+- Recorded geometry-task ownership of items 8–9, retained machine/exporter scope and remembered setup, and clarified that ordinary Studio viewing features have no proposed removal. Export confirmation/byte-identity design remains under discussion: owner wants it inherent in the user action, without recurring ceremony. Inspected current generation/approval/delivery code to explain its invariant; no runtime or map-contract change and no tests.
+
 ## 2026-09-30 — Accepted workspace direction
 
 - Recorded owner acceptance relayed by the dedicated evaluation task: specialized workspaces are external bundle producers with public geometry/toolpath access, private design state, and a reproducible handoff carrying construction/process requirements and dependencies. SAAM retains generation/export/checking/confirmation. Initial scope is one-way creation; no live synchronization or simultaneous workspace/Studio editing. PR #23 and the separate wing prototype were not inspected or adopted here.
