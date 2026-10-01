@@ -12,7 +12,7 @@
     // The release Studio offers as an update, as JSON:
     // {"version":"0.1.1","assets":{"win-x64":{"url":"https://…/SAAM-0.1.1-win-x64.zip","sha256":"…"}}}
     // Empty offers none. packaging/build.mjs prints each asset's entry.
-    "LATEST_RELEASE": "{\"version\":\"0.3.0\",\"assets\":{\"win-x64\":{\"url\":\"https://github.com/Struder-AI/SAAM/releases/download/v0.3.0/SAAM-0.3.0-win-x64.zip\",\"sha256\":\"455bb7e7917e78e4951eac3ddf7a070f54c17366e2389b8b4d2516173524241f\"}}}",
+    "LATEST_RELEASE": "{\"version\":\"0.3.0\",\"assets\":{\"win-x64\":{\"url\":\"https://github.com/Struder-AI/SAAM/releases/download/v0.3.0/SAAM-0.3.0-win-x64.zip\",\"sha256\":\"455bb7e7917e78e4951eac3ddf7a070f54c17366e2389b8b4d2516173524241f\"},\"darwin-arm64\":{\"url\":\"https://github.com/Struder-AI/SAAM/releases/download/v0.3.0/SAAM-0.3.0-darwin-arm64.zip\",\"sha256\":\"e8cc0feba64201e13843be88bbcb10a95bc1fa85fb7a6e0920783ee008e224b1\"}}}",
     // Days received diagnostics are kept; "0" records nothing. Reading them,
     // and issuing invites, needs the OPERATOR_TOKEN secret (README.md#operating).
     "RECORD_DAYS": "30"
