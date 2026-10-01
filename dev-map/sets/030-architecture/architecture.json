@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "date": "2026-09-30",
-  "description": "0.3.0 target architecture. Map 0 accepted by the owner; submaps and detailed contracts are provisional. Arrows are calls including their declared response, except explicitly named guidance/data/event arrows. No transitive access. Only 5 exposes shared part state; each other component may exclusively own private state. No source compliance has been established. Extension resource access added by owner request: Thingi10K belongs in Extensions, with an explicit external-resource wire.",
+  "description": "0.3.0 target architecture. Map 0 accepted by the owner; submaps and detailed contracts are provisional. Arrows are calls including their declared response, except explicitly named guidance/data/event arrows. No transitive access. Only 5 exposes shared part state; each other component may exclusively own private state. No source compliance has been established. Extension resource access added by owner request: Thingi10K belongs in Extensions, with an explicit external-resource wire. Extensions are unsandboxed local code; contracts describe intended SAAM/reviewed-extension structure, not confinement of arbitrary scripts.",
   "actors": {
     "user": {
       "label": "User",
@@ -112,14 +112,14 @@
       "id": "extension-library",
       "index": "4.1",
       "label": "Library & resolution",
-      "description": "Versioned manifests, guidance, scripts and local overrides.",
+      "description": "Guidance, scripts, identities and preserved local edits.",
       "type": "component"
     },
     {
       "id": "extension-run",
       "index": "4.2",
       "label": "Execute extension",
-      "description": "Run pinned scripts with explicit engine capabilities.",
+      "description": "Ordinary local extension code; adopted contributions are reviewed.",
       "type": "component"
     },
     {
@@ -204,7 +204,7 @@
       "id": "extension-resources",
       "index": "4.3",
       "label": "Resource access",
-      "description": "Declared searches/downloads; return assets with provenance.",
+      "description": "Conventional resource IO; no runtime permission broker.",
       "type": "component"
     }
   ],
@@ -309,9 +309,9 @@
         "list / read / create / override"
       ],
       "inputs": "Extension identity; guidance lookup or builder-authorized content.",
-      "outputs": "Manifest, guidance or new immutable extension version.",
-      "effects": "Library owns its storage; builder edits create local versions.",
-      "failure": "Report conflicts and incompatible API requirements.",
+      "outputs": "Extension identity, guidance or saved local edit.",
+      "effects": "Library owns its storage; builder edits are preserved separately from release updates.",
+      "failure": "Report missing extensions and edit conflicts.",
       "excludes": "Maker cannot author; installed defaults never silently overwrite local edits."
     },
     {
@@ -491,7 +491,7 @@
       "inputs": "Resolved extension identity, immutable inputs and engine capability object.",
       "outputs": "Geometry/recipe/construction values and provenance.",
       "effects": "Extension-local state and declared resource IO through 4.3; cached/pinned assets are preferred for reproducibility.",
-      "failure": "Missing or incompatible dependency stops this generation; report exact identity.",
+      "failure": "Missing dependencies stop this generation with an actionable error; migration guidance handles actual engine breaks.",
       "excludes": "No bundle/Studio internals, hidden IO or confirmation authority."
     },
     {
@@ -503,10 +503,10 @@
       "operations": [
         "resolve"
       ],
-      "inputs": "Extension id/version/content digest and supported API version.",
-      "outputs": "Immutable script/guidance package, manifest and declared resource permissions.",
+      "inputs": "Bundle-declared extension identity and local library selection.",
+      "outputs": "Script/guidance package and assets with recorded identity.",
       "effects": "Library may cache exclusively owned content.",
-      "failure": "Missing versions or digest mismatch are errors.",
+      "failure": "Report missing dependencies; breaking engine changes get migration guidance when needed.",
       "excludes": "No silent latest-version substitution."
     },
     {
@@ -683,11 +683,11 @@
       "operations": [
         "search / retrieve"
       ],
-      "inputs": "Source identity, query or asset identity and manifest-declared access.",
+      "inputs": "Source identity and query or asset identity.",
       "outputs": "Search results or acquired asset bytes, digest, provenance and license metadata.",
       "effects": "Explicit resource IO; no bundle mutation.",
       "failure": "Return unavailable, denied, invalid response or cancellation; never substitute another asset silently.",
-      "excludes": "No unrestricted filesystem/network access, credentials in outputs or hidden IO."
+      "excludes": "Reviewed extensions keep IO explicit; this convention does not technically restrict arbitrary local scripts."
     },
     {
       "id": "external-resources",
@@ -698,11 +698,11 @@
       "operations": [
         "search / retrieve"
       ],
-      "inputs": "Explicit provider request within declared permissions; credentials remain privately owned.",
+      "inputs": "Explicit provider request; credentials remain privately owned.",
       "outputs": "Results, resource bytes and available provenance/license metadata.",
       "effects": "Declared network/local-source reads; owned temporary/cache storage.",
       "failure": "Report network/provider/permission failures; validate acquired content before use.",
-      "excludes": "No automatic upload of bundles, geometry, scripts or chat; no arbitrary remote code execution."
+      "excludes": "No uploads or remote code execution are included in this proposed retrieval contract; arbitrary local scripts are not sandboxed."
     },
     {
       "id": "agent-run-extension",
@@ -713,7 +713,7 @@
       "operations": [
         "run"
       ],
-      "inputs": "Pinned extension identity, parameters, explicit inputs and permitted resource access.",
+      "inputs": "Selected extension identity, parameters, explicit inputs and documented resource use.",
       "outputs": "Geometry/construction values or acquired assets plus provenance, for an explicit bundle edit.",
       "effects": "Extension-private computation and declared resource IO only.",
       "failure": "Return structured errors or cancellation without changing the active bundle.",

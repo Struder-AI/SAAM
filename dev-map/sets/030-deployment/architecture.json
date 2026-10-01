@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "date": "2026-09-30",
-  "description": "Proposed deployment shape, separate from the part-making architecture. Release & diagnostics service is a working name for the former relay. Activation/offline policy, supported OS matrix, diagnostic policy and distribution endpoint remain decisions to make.",
+  "description": "Desktop Codex/Claude Code deployment. SAAM works without a code; optional invite activation enables update service and official-alpha diagnostics. No diagnostics are collected before activation. Simple Connect-panel statement; no separate offline or speculative compatibility subsystem. Release & diagnostics service is a working name.",
   "actors": {
     "agent": {
       "label": "Desktop agent",
@@ -26,8 +26,8 @@
     {
       "id": "studio",
       "index": "3",
-      "label": "Studio activation",
-      "description": "Invite entry and local activation status.",
+      "label": "Studio Connect",
+      "description": "Optional alpha invite; simple update/diagnostics statement.",
       "type": "component"
     },
     {
@@ -48,7 +48,7 @@
       "id": "bundles",
       "index": "6",
       "label": "Local bundles",
-      "description": "Versioned recipes, assets, dependency locks and review artifacts.",
+      "description": "Local recipes, assets, extension references and review artifacts.",
       "type": "component"
     },
     {
@@ -72,7 +72,7 @@
       "outputs": "Verified pinned package and install instructions.",
       "effects": "Agent installs local files.",
       "excludes": "No web agent runtime or executable bootstrap fetched without identity verification.",
-      "direction": "Caller → provider; declared response included.",
+      "direction": "Caller \u2192 provider; declared response included.",
       "failure": "Return a named failure; retain previous valid local content."
     },
     {
@@ -83,27 +83,27 @@
       "operations": [
         "stage / activate / rollback"
       ],
-      "inputs": "Verified release, compatibility report and backup.",
+      "inputs": "Verified release and existing local installation.",
       "outputs": "Working local installation or restored previous version.",
-      "effects": "Release storage only; user data migrated only through explicit versioned migration.",
+      "effects": "Replace release code, preserve user data; supply migration guidance only for actual breaking changes.",
       "excludes": "No overwrite of local bundles or extension edits.",
-      "direction": "Caller → provider; declared response included.",
+      "direction": "Caller \u2192 provider; declared response included.",
       "failure": "Return a named failure; retain previous valid local content."
     },
     {
       "id": "activate",
       "from": "studio",
       "to": "service",
-      "label": "invite activation",
+      "label": "connect alpha services",
       "operations": [
         "activate"
       ],
       "inputs": "Invite code and minimal installation identity over authenticated transport.",
-      "outputs": "Scoped local activation credential.",
+      "outputs": "Credential for updates and official-alpha diagnostics.",
       "effects": "Service activation state; credentials privately owned by local install.",
-      "excludes": "No chat relay, remote agent execution or printer access.",
-      "direction": "Caller → provider; declared response included.",
-      "failure": "Return a named failure; retain previous valid local content."
+      "excludes": "No code required to use SAAM; no chat relay, remote agent execution or printer access.",
+      "direction": "Caller \u2192 provider; declared response included.",
+      "failure": "Report connection/invalid-invite failure without disabling SAAM."
     },
     {
       "id": "activation-ui",
@@ -114,10 +114,10 @@
         "save / status"
       ],
       "inputs": "Activation credential and status.",
-      "outputs": "Local readiness state.",
+      "outputs": "Optional service connection status; SAAM remains usable without a code.",
       "effects": "Installation-private credential storage.",
       "excludes": "No bundle mutation.",
-      "direction": "Caller → provider; declared response included.",
+      "direction": "Caller \u2192 provider; declared response included.",
       "failure": "Return a named failure; retain previous valid local content."
     },
     {
@@ -128,27 +128,27 @@
       "operations": [
         "check / download"
       ],
-      "inputs": "Current release/platform and authenticated installation identity.",
-      "outputs": "Versioned manifest, compatibility metadata and verified release artifact.",
+      "inputs": "Activated installation identity and current release/platform.",
+      "outputs": "Update manifest, release notes/migration guidance when needed and verified release artifact.",
       "effects": "Private download cache.",
-      "excludes": "No update while a job is active; no forced loss of user data.",
-      "direction": "Caller → provider; declared response included.",
+      "excludes": "No update service for unactivated users; no update during a job or overwrite of user data.",
+      "direction": "Caller \u2192 provider; declared response included.",
       "failure": "Return a named failure; retain previous valid local content."
     },
     {
       "id": "diagnostics",
       "from": "installation",
       "to": "service",
-      "label": "diagnostics",
+      "label": "live diagnostic events",
       "operations": [
-        "send consented diagnostics"
+        "emit runtime event"
       ],
-      "inputs": "Redacted diagnostics under visible user settings.",
-      "outputs": "Receipt and diagnostic status.",
-      "effects": "Explicit network upload.",
-      "excludes": "No bundle geometry, scripts, credentials or chat content by default.",
-      "direction": "Caller → provider; declared response included.",
-      "failure": "Return a named failure; retain previous valid local content."
+      "inputs": "Live SAAM emitter events from activated-alpha tool calls and runtime boundaries; proposed job/stage, extension and install/update fields.",
+      "outputs": "Immediate service receipt/status; local work never waits on diagnostic success.",
+      "effects": "Live emission only while activated and connected; the service may retain received events for the provisional existing 30 days.",
+      "excludes": "No emission/diagnostic collection from unactivated users; no backfill, chat transcript/reasoning, credentials or bulk files. Compact large arrays and redact sensitive fields.",
+      "direction": "Caller \u2192 provider; declared response included.",
+      "failure": "Drop unavailable diagnostic delivery without blocking SAAM; no offline backlog or record-then-upload pipeline."
     },
     {
       "id": "resolve-local",
@@ -156,28 +156,28 @@
       "to": "library",
       "label": "resolve dependencies",
       "operations": [
-        "list / resolve / migrate"
+        "list / resolve"
       ],
-      "inputs": "Exact extension identity, API compatibility and requested migration.",
-      "outputs": "Pinned extension or actionable compatibility failure.",
-      "effects": "Versioned library storage and reversible migrations.",
+      "inputs": "Bundle extension references and local library.",
+      "outputs": "Resolved extension or actionable missing-dependency error.",
+      "effects": "Library-owned storage preserving local edits; guidance for actual breaking changes.",
       "excludes": "No silent local override replacement.",
-      "direction": "Caller → provider; declared response included.",
+      "direction": "Caller \u2192 provider; declared response included.",
       "failure": "Return a named failure; retain previous valid local content."
     },
     {
       "id": "open-local",
       "from": "installation",
       "to": "bundles",
-      "label": "open / migrate",
+      "label": "open / save",
       "operations": [
-        "open / save / migrate"
+        "open / save"
       ],
-      "inputs": "Bundle identity, format version, assets and dependencies.",
-      "outputs": "Compatible bundle snapshot or explicit migration need.",
-      "effects": "Atomic saves and backed-up migration.",
+      "inputs": "Bundle identity, assets and extension references.",
+      "outputs": "Bundle snapshot or actionable error with migration guidance when needed.",
+      "effects": "Atomic saves; no speculative migration framework.",
       "excludes": "No silent regeneration of confirmed programs.",
-      "direction": "Caller → provider; declared response included.",
+      "direction": "Caller \u2192 provider; declared response included.",
       "failure": "Return a named failure; retain previous valid local content."
     },
     {
@@ -192,7 +192,7 @@
       "outputs": "Portable extension package or namespaced installed version.",
       "effects": "Explicit local package import/export.",
       "excludes": "No scripts hidden in bundles; imported scripts do not autorun.",
-      "direction": "Caller → provider; declared response included.",
+      "direction": "Caller \u2192 provider; declared response included.",
       "failure": "Return a named failure; retain previous valid local content."
     },
     {
@@ -204,10 +204,10 @@
         "submit explicit contribution"
       ],
       "inputs": "Tester-selected extension package and provenance/license.",
-      "outputs": "Reviewable contribution; later release may include an accepted version.",
+      "outputs": "Individual contribution review; later release may include an explicitly accepted extension.",
       "effects": "Explicit contribution upload only when requested.",
       "excludes": "No automatic harvesting or promotion of local edits.",
-      "direction": "Caller → provider; declared response included.",
+      "direction": "Caller \u2192 provider; declared response included.",
       "failure": "Return a named failure; retain previous valid local content."
     }
   ]

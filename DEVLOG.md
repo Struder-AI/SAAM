@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-09-30 — Optional alpha services and live diagnostics intent
+
+- Recorded owner decisions: SAAM works without activation; invites enable updates and official-alpha diagnostics only. Diagnostics chirp live from a SAAM emitter, with no local record/upload pipeline or offline backlog. Connect gets a simple statement. Unsandboxed local extensions are individually reviewed before adoption; stable engines and migration guidance replace speculative compatibility planning.
+- Proposed additional emitter fields/events after reading current relay code: correlated jobs/revisions, build-stage timing/progress, worker exits/stacks, extension identity/local changes, native-helper context and install/update outcomes. Current request/result, timing, event and environment fields remain useful; no collection behavior changed. Feature preservation remains open; workflows evaluation was dispatched to a separate user-facing task without reading its proposal here.
+- Updated intent (73 → 81 lines, including diagnostic proposals) and both design sets. Rebuilt 28 architecture/8 deployment pages; fresh viewer coverage has no missing boxes/wires. Diff check passes; no new tests, full suite, runtime changes or deployment.
+
 ## 2026-09-30 — Explicit extension resource boundary
 
 - Owner added Extensions → External resources to accepted map 0, with Thingi10K as an extension. Proposed 4.3 contains resource access; direct agent execution can return acquired assets for an explicit bundle edit. Imported assets can be pinned in bundles while scripts remain separate. Updated 0.3.0 intent (71 → 73 lines).
