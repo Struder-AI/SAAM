@@ -7,7 +7,8 @@ export function wingDesign(input={}){
   if(d.schema!==wingDefaults.schema||typeof d.name!=='string'||!d.name.trim()||typeof d.flaps!=='boolean')throw Error('Invalid wing identity or flap choice.');
   const ranges={spanMm:[300,2400],chordMm:[100,300],taper:[0.75,1],camber:[0,0.04],thickness:[0.1,0.18],tipLengthMm:[40,200],sectionHeightMm:[40,300],flapStart:[0.1,0.7],flapEnd:[0.3,0.9],flapChord:[0.2,0.32],rodDiameterMm:[2,8],pivotDiameterMm:[2,5],clearanceMm:[0.1,0.5],gapMm:[0.5,2],beadWidthMm:[0.35,0.6],layerMm:[0.15,0.3],speedMmS:[8,40]};
   for(const [key,[min,max]] of Object.entries(ranges))if(!Number.isFinite(d[key])||d[key]<min||d[key]>max)throw Error(`${key} must be between ${min} and ${max}.`);
-  if(d.flaps&&(d.flapEnd<=d.flapStart||d.flapEnd*d.spanMm/2>d.spanMm/2-d.tipLengthMm))throw Error('Flaps must end before the integrated tip begins.');
+  if(d.flaps&&(d.flapEnd<=d.flapStart||d.flapEnd*d.spanMm/2>=d.spanMm/2-d.tipLengthMm))throw Error('Flaps must end before the integrated tip begins.');
+  if(d.sectionHeightMm<=d.tipLengthMm)throw Error('Section height must exceed the tip length so the complete tip fits inside an outer wing print.');
   if(d.tipLengthMm>=d.spanMm/2-d.sectionHeightMm/2)throw Error('Leave room for an inboard wing section before the tip.');
   if(d.layerMm>d.beadWidthMm*.7)throw Error('Layer height must be at most 70% of bead width.');
   return d;
@@ -22,7 +23,11 @@ export function wingSections(input){
   const cuts=[0];
   for(let i=1;i<mandatory.length;i++){
     const start=mandatory[i-1],end=mandatory[i],count=Math.ceil((end-start)/d.sectionHeightMm);
-    for(let j=1;j<=count;j++)cuts.push(start+(end-start)*j/count);
+    if(i===mandatory.length-1&&count>1){
+      const outerHeight=Math.max((end-start)/count,Math.min(d.sectionHeightMm,d.tipLengthMm*1.5,end-start));
+      for(let j=1;j<count;j++)cuts.push(start+(end-start-outerHeight)*j/(count-1));
+      cuts.push(end);
+    }else for(let j=1;j<=count;j++)cuts.push(start+(end-start)*j/count);
   }
   const pieces=[];
   for(const hand of [-1,1])for(let i=1;i<cuts.length;i++){
@@ -43,10 +48,11 @@ export function foil(d,x,chord){
 
 export function wingStation(d,piece,span){
   const half=d.spanMm/2,baseChord=d.chordMm*(1-(1-d.taper)*span/half),tipStart=half-d.tipLengthMm;
-  // Close the outer panel as a supported tapered nose. Rod ends stay straight
-  // and stop at the beginning of this integral closure, before the bore tapers.
-  const t=Math.max(0,(span-tipStart)/d.tipLengthMm),scale=1-.98*t;
-  const shift=(baseChord-baseChord*scale)*.38,chord=baseChord*scale;
+  // TK-DEV's rounded planform, centred at 45% chord. The final section is
+  // bead-sized so its two walls meet; the complete cap belongs to this panel.
+  const t=Math.max(0,(span-tipStart)/d.tipLengthMm),terminalScale=Math.min(Math.sqrt(.002),d.beadWidthMm/(d.thickness*baseChord));
+  const scale=Math.sqrt(Math.max(terminalScale**2,1-t*t));
+  const shift=(baseChord-baseChord*scale)*.45,chord=baseChord*scale;
   const hinge=d.chordMm*(1-d.flapChord),lo=piece.kind==='flap'?hinge+d.gapMm/2:shift;
   const hi=piece.kind==='wing'&&piece.control?hinge-d.gapMm/2:shift+chord;
   const rods=[{id:'front',xMm:d.chordMm*.28,diameterMm:d.rodDiameterMm},{id:'rear',xMm:d.chordMm*.5,diameterMm:d.rodDiameterMm},...(d.flaps?[{id:'pivot',xMm:d.chordMm*(1-d.flapChord)+d.pivotDiameterMm/2+d.clearanceMm+d.beadWidthMm,diameterMm:d.pivotDiameterMm}]:[])].filter(r=>piece.kind==='flap'?r.id==='pivot':r.id!=='pivot'||!piece.control);

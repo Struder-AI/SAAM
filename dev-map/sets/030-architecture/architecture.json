@@ -1585,9 +1585,9 @@
     },
     {
       "id": "external-resources",
-      "from": "extension-resources",
-      "to": "resources",
-      "label": "search / download",
+      "from": "resources",
+      "to": "extension-resources",
+      "label": "assets / results",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "search / retrieve"

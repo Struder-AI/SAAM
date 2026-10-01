@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-10-01 — Remaining map-0 crossings reviewed
+
+- Corrected the external-resources causal arrow to Resources → Extensions, labelled assets/results; extension-initiated retrieval access is unchanged. No root connection was added.
+- Fresh audit: 2,909 assigned leaves, zero unassigned/orphan leaves, 137 missing-pair observations across seven pairs: Toolpath–Export 118, Studio–Toolpath 7, Context–Bundle 6, Studio–Extensions 3, and Export–Geometry, Context–Extensions, Studio–Geometry one each. Existing-pair direction review remains 307; unresolved/static-analysis limitations prevent a compliance claim. No resolved direct Extensions–Bundle crossing remains.
+- Source review distinguishes wrong ownership (export-specific checkedFilamentPlan assigned to Toolpath), genuine shared planning/pose semantics, unused Studio imports, agent-mediated data flow drawn as a direct dependency, and Studio's direct local-extension HTTP hooks. These require different remedies; no new wires or ownership changes were made to hide findings. Generation still invokes export/check in this checkout; the separate checks task owns that reconciliation.
+- Rebuilt the architecture viewer and refreshed the audit. No product changes, tests or whole suite in this pass; no manuals changed. The standing all-changes checkpoint also carries concurrent wing/workspace code and its ownership increment without asserting independent validation here. No push.
+
 ## 2026-10-01 — Private utilities and engine-routed extension contributions
 
 - Implemented bucket-private numeric/vector, rigid-frame, hashing and file-replacement helpers: 14 small modules, 148 lines. Consumers use their own implementations; remaining machine/pose semantics and domain validation are not duplicated as generic utilities. Mixed files remain supported through declaration ownership and explicit per-owner imports. No root node or connection was added.

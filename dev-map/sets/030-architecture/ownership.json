@@ -10252,6 +10252,9 @@
     "workspaces/wing/renderer.mjs::createAssemblyRenderer::paint": {
       "owner": "workspace",
       "reason": "Specialized workspace design, interaction, or one-way handoff implementation."
+    },
+    "workspaces/wing/construct.mjs::sectionStations": {
+      "owner": "workspace"
     }
   },
   "retiredAssignments": [

@@ -19,7 +19,7 @@ export async function createFromWorkspace(directory,handoff,{machineId='ultimake
   const plan={...base,geometry:handoff.geometry,
     placement:{xMm:base.placement.xMm-(min[0]+max[0])/2,yMm:base.placement.yMm-(min[1]+max[1])/2},
     process:{...base.process,...handoff.process},
-    slices:{...base.slices,assignments:[curveAssignment({id:handoff.id,curves:handoff.curves})]}};
+    slices:{...base.slices,assignments:[curveAssignment({id:handoff.id,...handoff.trace,curves:handoff.curves})]}};
   const workspace={schema:'saam-workspace-source/1',source:handoff.source,requirements:handoff.requirements,constructionIdentity:workspaceConstructionIdentity(plan)};
   return initBundle(directory,{...plan,workspace},{machineId});
 }

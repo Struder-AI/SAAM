@@ -98,13 +98,13 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,bounds
     });
     if(assignment.maxExcursionMm!==null){const heights=ready.flatMap(c=>c.points.map(p=>p[2]));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+1e-8,'Trace course exceeds its authored Z excursion limit.');}
     const spec={key:assignment.courseIds?.[course]??course,curves:ready,heightMm,speedMmS,layer:course,layerIndex:course,layerCount:count,rank:course,
-      regionId:assignment.id,travel:{kind:'auto'},...(assignment.sequence?{join:{mode:'ordered'}}:{})};
+      regionId:assignment.id,travel:{kind:'auto'},...(Object.hasOwn(assignment.process??{},'fanPercent')||course===1?{fanPercent:process.fanPercent}:{}),...(assignment.sequence?{join:{mode:'ordered'}}:{})};
     courses.push(spec);
     if(finalizeInside){const previous=(assignment.sequence?parts.at(-1)?.operations.map(o=>o.id):null)??assignment.after;
       const raw=traceResult({...assignment,after:previous},{courses:[spec],process,bounds,report:{construction:'curves'}}),result=finalizeDepositionResult(raw,plan,machine);
       for(const op of result.operations)for(const stroke of op.strokes)requireCurveContact(stroke,supportSegments,heightMm,assignment.id);
       if(assignment.maxExcursionMm!==null){const heights=result.operations.flatMap(o=>o.strokes.flatMap(c=>c.points.map(p=>p[2])));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+1e-8,'Final Trace course exceeds its authored Z excursion limit.');}
-      parts.push(result);for(const op of result.operations)supportSegments.push(...depositedCurveSegments([{...op,strokes:op.strokes.filter(s=>!s.depositionAction)}],{widthMm:process.lineWidthMm,source:op.id}));
+      parts.push(result);for(const op of result.operations)for(const segment of depositedCurveSegments([{...op,strokes:op.strokes.filter(s=>!s.depositionAction)}],{widthMm:process.lineWidthMm,source:op.id}))supportSegments.push(segment);
     }
   }
   if(finalizeInside)return combineFinalizedResults({id:assignment.id,report:{construction:'curves',depositionFamily:'trace',courses:count}},parts);
