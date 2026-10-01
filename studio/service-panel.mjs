@@ -23,7 +23,10 @@ export function createServicePanel({token}){
     const offer=status?.update,button=$('service-update');
     button.hidden=!offer;button.disabled=view.updating;
     if(offer&&!view.updating){button.textContent='Update to '+offer.version;button.title='SAAM '+offer.version+' is available.';}
-    $('service-toggle').textContent=status?.activated?'Connected':'Connect';
+    const connection=$('service-toggle'),paired=Boolean(status?.activated);
+    connection.classList.toggle('paired',paired);
+    connection.title=`Updates and diagnostics: ${paired?'paired':'not paired'}`;
+    connection.setAttribute('aria-label',connection.title+'. Open connection settings.');
     $('service-status').textContent=!status?'Checking release service status…'
       :!available?'This installation has no release service. SAAM works locally.'
       :status.activated?`Connected for alpha updates and diagnostics · SAAM ${status.version}`

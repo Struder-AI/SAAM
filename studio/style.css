@@ -37,7 +37,7 @@ aside dl>div{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:
 #activity #activity-detail{grid-column:1/-1;font-size:11px;color:var(--muted);margin:0}
 
 /* Optional alpha updates and diagnostics, separate from local print work. */
-#service-toggle{white-space:nowrap}
+#service-toggle{display:grid;place-items:center;width:34px;padding:8px}#service-toggle[hidden]{display:none}#service-toggle::before{content:'';width:12px;height:12px;border-radius:50%;background:#858d8b;box-shadow:inset 0 0 0 1px #0002}#service-toggle.paired::before{background:#27853b}
 #service-panel{position:fixed;z-index:30;top:84px;right:34px;width:min(400px,calc(100vw - 32px));padding:20px;border:1px solid var(--line);border-radius:14px;background:#fafbf7;box-shadow:0 12px 40px #163c3029}.service-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.service-head h2{font-size:17px;margin:0;letter-spacing:-.3px}.service-head button{font-size:11px;padding:5px 8px}
 #service-panel p{font-size:12px;line-height:1.55;margin:0 0 12px}#service-status{font-weight:600;color:var(--teal)}#service-invite-row label{display:block;font-size:12px;margin-bottom:6px}.service-invite{display:flex;gap:6px;margin-bottom:12px}#service-invite{flex:1;min-width:0;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:7px;padding:8px 9px;background:#fff;color:#1b2929}.service-invite .primary{width:auto;padding:8px 16px}.service-actions{display:flex;gap:8px;justify-content:space-between}#service-message{margin:12px 0 0!important;color:#a64437}#service-message:empty{display:none}
 @media(max-width:700px){#service-panel{top:auto;bottom:16px;right:16px}}
