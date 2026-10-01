@@ -26,21 +26,44 @@
       "index": "1",
       "label": "Maker context",
       "description": "Guidance for the agent; numbered without pretending it is code.",
-      "type": "guidance"
+      "type": "guidance",
+      "notes": [
+        "Inventory reviewed 2026-10-01 against actual guidance readers, CLI/MCP entry points and the skill catalog. Source references below are migration evidence, not scanned ownership or enforced contracts.",
+        "Group by how content is retrieved: one context reader, shared starting content, selected construction references, selected machine references, and Studio/tour participation. Source passages have one home even when several commands request them. A prose hyperlink is navigation, not a runtime component call.",
+        "Keep the map 0 boundary: context is delivered only to the agent. Installed extension manuals and discovery metadata belong in 4, accessed through the existing agent–Extensions interface; no hidden 1 → 4 loader. Geometry implementation remains the separate map 2 task.",
+        "The current reader can also expose builder/developer/history documentation. That allowlist is not the ownership of Maker context: BUILDERS.md, DEVELOPER-CONTEXT.md, CONTRIBUTING*.md, DECISIONS.md, DEVLOG.md, skill BUILDER/DEVELOPER manuals and implementation sections retain their own purposes. Maker-relevant sections in mixed files are identified below.",
+        "Current system can author these nodes, notes and contracts. It cannot bind Markdown sections or scanned declarations to them, track source freshness for these notes, enforce parent contracts, or certify conformance. Add inventory/source bindings and explicit unassigned/split-required/forbidden/unknown states before code assignment."
+      ]
     },
     {
-      "id": "roles",
+      "id": "context-reader",
       "index": "1.1",
-      "label": "Roles & entry",
-      "description": "Maker workflow and explicit builder escalation.",
-      "type": "guidance"
+      "label": "Read maker context",
+      "description": "One reader selects startup, named references or task guidance; owns no part or Studio state.",
+      "type": "component",
+      "notes": [
+        "Current CLI access: maker-onboarding [--machine], read-guidance PATH#HEADING [--machine|--all], read-skill ID#HEADING, start-tour returned participation context, and inspect-generation-failure guidance. Direct startup reads AGENTS.md (CLAUDE.md points to it); onboarding does not repeat it.",
+        "Current MCP equivalents: maker_onboarding, read_guidance, read_skill and list_skills; runtime instructions, tool descriptions and onboarding reminders also deliver prose. These are evidence of existing delivery paths, not a decision to retain web/relay sessions in 0.3.0.",
+        "Candidate reusable code: core/agent/manuals.mjs::readManual, readGuidance, loadGuidance, assembleGuidance, guidanceSection, guidanceLinks, repositoryLinks, headings and gate parsing; core/agent/toolkit.mjs::contextPacket, readSkill and the context-only part of onboarding; core/agent/layers.mjs::onboardingSources, gatedIndex, machineHint and printHint; scripts/skill-digest.mjs::updatedSkillIndex.",
+        "Split mixed responsibilities instead of moving entire files: onboarding also fetches Git and probes dependencies; start-tour launches Studio; inspectFailure loads bundle state; runtime.mjs combines tool declarations, context and operational handlers. Only content selection/assembly belongs here.",
+        "Reuse one document/section selection mechanism for all four content groups, preserving IDs, anchors, links and omitted-section explanations. Direct file reads and tool wrappers select the same sources; do not add one reader implementation per group.",
+        "Machine-gated content needs explicit capability facts from the caller or owned published guidance metadata. Current manuals.mjs::machineOpens imports loadMachine: that dependency needs classification; do not smuggle an engine/private machine-state call through this bin.",
+        "Inventory schemas and command help as guidance too: scripts/agent-toolkit.mjs help, core/print/cli.mjs usage, adapters/mcp/src/runtime.mjs instructions/tool descriptions, and adapters/mcp/src/deposition-schemas.mjs. Operational schema validation stays with the API owner; prose/schema publication must be bound to the same contract, not copied into an independent schema."
+      ]
     },
     {
-      "id": "manuals",
+      "id": "context-start",
       "index": "1.2",
-      "label": "Capabilities & manuals",
-      "description": "Discover engine contracts, extensions and machine limits.",
-      "type": "guidance"
+      "label": "Entry, workflow & bundle tools",
+      "description": "Shared starting sources; follow-up reads reuse their sections.",
+      "type": "guidance",
+      "notes": [
+        "AGENTS.md and CLAUDE.md: desktop entry routing, maker boundary, escalation pointers, tour-first rule and instruction to read local preferences. .local/AGENTS.md is checkout-owned guidance, not a release default or a globally published manual.",
+        "MAKERS.md: geometry/toolpath choice, interaction flow, assumptions and last-used settings, working boundaries, Studio reuse and command access. maker-onboarding returns this; start-tour reuses it.",
+        "core/print/USAGE.md: shared operation index, recipe edits and revision conflicts, nozzle selection, STL import/units/repair, spacing, generation/advisories/export, remembered setup and CLI forms. It is read in onboarding and by section; inspect-generation-failure reuses #check-generate-and-deliver, not a second failure manual.",
+        "skills/DIGEST.md and skills/catalog.mjs: existing discovery source contains 17 maker manuals (3 core families, 6 feature skills, 8 composition guides), plus builder-only mesh-tools outside maker context. Target starting context keeps core discovery and how to query Extensions; the 14 non-primitive manuals and their live discovery entries belong in 4.",
+        "Migration corrections, not implemented here: remove web-agent/relay workflow instructions, reflect Studio-triggered export, remove outdated delivery/approval ceremony, and route extension discovery through 4. Retain current content as evidence until its consumers migrate."
+      ]
     },
     {
       "id": "geometry",
@@ -102,22 +125,36 @@
       "id": "compose",
       "index": "3.4",
       "label": "Compose & finalize",
-      "description": "Dependency order, material contacts, motion and process actions.",
-      "type": "component"
+      "description": "Compose/finalize deposition into machine-independent SAAMpath; no export preparation or encoding.",
+      "type": "component",
+      "notes": [
+        "Keep ordering, finalized-material/contact data, modulation and authored motion/process actions here. Candidate sources span core/path/compose.mjs, planning.mjs, toolpath.mjs, modulation.mjs and core/print/finalize.mjs; source location alone does not assign ownership.",
+        "Export preparation, machine-axis/feed adaptation, startup/priming, material-change routines, encoding and exact-program interpretation belong in 8. core/print/workflow.mjs::createBundleWorkflow currently nests prepareGeneration, which calls generatePath then exportAndInterpretProgram: split that orchestration across the accepted boundaries.",
+        "core/export/prepare-path.mjs currently imports core/path/planning.mjs, prime.mjs, process-controls.mjs and pose.mjs. Map 0 has no 8 → 3 call: inventory those shared primitives and resolve ownership/call boundaries explicitly. Returning SAAMpath does not authorize calling private engine helpers."
+      ]
     },
     {
       "id": "extensions",
       "index": "4",
       "label": "Extensions",
       "description": "Guidance and scripts stored separately from bundles.",
-      "type": "component"
+      "type": "component",
+      "notes": [
+        "Assessment: library/resolution and execution are useful boundaries. Keep resource retrieval explicit at map 0, but 4.3 need not become a generic resource broker: first inventory real provider clients such as skills/thingi10k/scripts/library.mjs. Group providers beneath execution if they do not share a substantive interface.",
+        "Use existing scripts where they compose public engines. Existing geometry/feature and deposition code that spans extension and engine responsibilities needs an explicit split; do not retain old implementations behind a renamed wrapper."
+      ]
     },
     {
       "id": "extension-library",
       "index": "4.1",
       "label": "Library & resolution",
       "description": "Guidance, scripts, identities and preserved local edits.",
-      "type": "component"
+      "type": "component",
+      "notes": [
+        "Context inventory: the following 14 current maker manuals move with their extension, not into 1: skills/plastic-weld/SKILL.md, skills/heat-set-inserts/SKILL.md, skills/text/SKILL.md, skills/thingi10k/SKILL.md, skills/gridfinity/SKILL.md, skills/supports/SKILL.md, skills/line-network/SKILL.md, skills/bridging/SKILL.md, skills/draped-skin/SKILL.md, skills/wave-overhangs/SKILL.md, skills/vase-wall/SKILL.md, skills/advanced-vase-wall/SKILL.md, skills/thick-lip/SKILL.md, skills/pipe-cladding/SKILL.md.",
+        "Also retain extension-local references such as skills/heat-set-inserts/CATALOG.md and maker-facing dimensions in skills/gridfinity/DEVELOPER.md#dimensions. Builder/developer manuals, scripts and assets remain part of the extension package where present. The 3 primitive family manuals belong in 1.3; mesh-tools is builder-only.",
+        "Current catalog/digest and core/local-extension.mjs are usable migration evidence, not a complete extension library. The loader only imports one checkout-local .local/extension.mjs; dependency resolution, package exchange and preserved overrides are still to build."
+      ]
     },
     {
       "id": "extension-run",
@@ -132,7 +169,12 @@
       "label": "Active bundle",
       "description": "Only shared part-state authority; revisioned commands and views.",
       "type": "component",
-      "stateful": true
+      "stateful": true,
+      "notes": [
+        "Assessment: the present edit → generation → review sequence is too coarse to assign ownership safely. Prefer one revision/lifecycle authority plus artifact storage and job/result handling, with narrow internal boundaries only where the inventory supports them; do not create three independently maintained notions of current/pending/valid.",
+        "Concrete migration seams: core/print/workflow.mjs mixes persistent commits, setup memory, generation, export/interpretation and approval/delivery. core/print/resolve-plan.mjs handles recipe resolution. Split only declarations that cross the accepted boundaries; retain proven persistence/validation algorithms.",
+        "The three Bundle → Studio contracts could share one revisioned snapshot/event interface. This is a proposal, not applied here; keep command authority and snapshot/event delivery explicit. Remembered setup needs a private owner and a declared source for the bundle snapshot."
+      ]
     },
     {
       "id": "bundle-edit",
@@ -160,7 +202,12 @@
       "index": "6",
       "label": "Studio",
       "description": "Owns UI state exclusively; accesses part state through 5.",
-      "type": "component"
+      "type": "component",
+      "notes": [
+        "Assessment: UI/private-state versus presentation is not yet a convincing implementation split: studio/app.mjs coordinates both. Preserve one UI controller and derive renderer/playback/agent-channel boundaries from actual consumers rather than dividing the same UI state between shallow modules.",
+        "Reusable seams include studio/viewer-renderer.mjs, material-view.mjs, toolpath-view.mjs, source-player.mjs, machine-session.mjs, agent-requests.mjs and studio-events.mjs. Server routes, subscriptions, tour and worker transport also need explicit homes; the three current boxes are provisional, not an exhaustive assignment.",
+        "Pre-export preview currently uses interpreted machine-program data. With Export only on the button, Studio must also present saved/generated SAAMpath before export. Inventory a SAAMpath-to-view conversion that reuses current renderers; do not generate a machine program secretly inside 3, 6 or 7 to preserve playback."
+      ]
     },
     {
       "id": "studio-ui",
@@ -181,7 +228,12 @@
       "index": "7",
       "label": "Build",
       "description": "Evaluate a pinned recipe and generate SAAMpath; no machine export.",
-      "type": "component"
+      "type": "component",
+      "notes": [
+        "Assessment: recipe evaluation is a real boundary; Generate SAAMpath may be only a forwarding stage around 3.4. Inventory first, then fold it into the recipe job if it adds no independent policy. Keep 7 as the pinned-snapshot computation boundary while 5 owns acceptance/cancellation state.",
+        "Candidate seams: core/print/generate.mjs interleaves geometry preparation, skill-specific work and construction/composition; core/print/bundle.mjs::generatePreparedPath loads kernels and prepares fields. Existing generation workers load/commit bundles and return checked machine source; those duties cannot all be assigned to 7.",
+        "Jobs receive immutable inputs, report progress/cancellation through their explicit job contract and return geometry/SAAMpath. They never obtain general mutable bundle access or call Export."
+      ]
     },
     {
       "id": "build-evaluate",
@@ -202,7 +254,12 @@
       "index": "8",
       "label": "Export & check",
       "description": "Studio-triggered machine export/checking of the current built path; bundle access only through its explicit contract.",
-      "type": "component"
+      "type": "component",
+      "notes": [
+        "Assessment: preserve the strong existing exporter/interpreter pairs per output. Candidate lower bins are shared export preparation/checking plus Griffin, Bambu, Dobot and DENSO adapters, each keeping its encoder and decoder together. Do not create mirrored encode/decode trees with many cross-links.",
+        "Current code seams: core/export/registry.mjs routes output; prepare-path.mjs adapts neutral SAAMpath for the installation; dialect modules encode and interpret; travel-advisory.mjs and source-time.mjs provide output-derived information. Shared helpers and machine profiles need explicit ownership review rather than directory-based assignment.",
+        "Only 6 invokes export. Existing workflow generation/reopen paths call export or interpretation directly; inventory those migration conflicts and saved-artifact viewing needs before assigning code to 5/6/7/8. No new top-map permission is granted by these notes."
+      ]
     },
     {
       "id": "extension-resources",
@@ -217,6 +274,47 @@
       "label": "Agent channel",
       "description": "Owned requests; alert events carry queued observations.",
       "type": "component"
+    },
+    {
+      "id": "context-construction",
+      "index": "1.3",
+      "label": "Core construction references",
+      "description": "Explicit geometry/manual or Inject/Trace/Slice reads; never bundled wholesale into onboarding.",
+      "type": "guidance",
+      "notes": [
+        "GEOMETRY.md: spline patches and closure, blob fields, mesh, booleans, assembly, queries/surface regions, recipe writing and script construction. read-guidance geometry or PATH#HEADING loads the requested form; map 2 owns implementation decisions.",
+        "skills/inject/SKILL.md: point volume/flow, approach/hold, ordering, process inheritance and supported output limits. skills/trace/SKILL.md: XYZ/NURBS/UV/text curves, varying process profiles, repetition, ordered courses and declared contact. skills/slice/SKILL.md: assignments, regions/owners, presets, fill patterns, limits, modulation, script interfaces and surface families. read-skill selects only the requested family/heading.",
+        "GLOSSARY.md supplies shared maker terms on demand. Selected maker-facing explanations linked from core/path/README.md#whole-plan-travel-requirement and core/geom/README.md remain references; those complete implementation manuals do not all become maker content.",
+        "Known migration findings: GEOMETRY.md still names create_print/adjust_print/get_print where current tools use bundle/recipe names; Slice still dates joint adaptation/interlock to 0.3.0 although intent defers it to 0.4.0. Correct at the owning manual during migration, without treating stale prose as retained behavior."
+      ]
+    },
+    {
+      "id": "context-machines",
+      "index": "1.4",
+      "label": "Machine setup & limits",
+      "description": "Machine-selected maker sections and capability gates; dialect implementation stays in Export.",
+      "type": "guidance",
+      "notes": [
+        "machines/README.md and core/export/README.md: available profiles versus implemented outputs, supported actions, short-travel advisory, installation requirements and transfer responsibilities. Geometry/setup profile availability does not imply export support.",
+        "core/export/griffin.md#s5-setup-and-troubleshooting: S5 setup and transfer/troubleshooting. core/export/bambu.md#maker-setup, #choosing-the-spool, #making-an-h2d-dual-nozzle-print and #making-an-h2d-two-colour-print: nozzle/material/AMS mapping and maker workflows; H2D evidence does not certify X1 behavior.",
+        "core/export/dobot.md and core/export/denso.md: installation setup, executable output limits and transfer instructions. Split maker sections from detailed dialect/firmware contracts during ownership assignment; preserve the latter with 8.",
+        "read-guidance PATH#HEADING accesses these sources. --machine/machineId affects core-manual gates; current gatedIndex/machineHint and printHint select new sections after a machine change. Inputs must be explicit rather than reading shared part state from context code.",
+        "Builder-only machine implementation studies, calibration evidence/history and exporter tests are not starter context. SETUP.md is first-use installation guidance, with its owner in deployment; a link to it does not move installation operations into 1."
+      ]
+    },
+    {
+      "id": "context-studio",
+      "index": "1.5",
+      "label": "Studio & tour participation",
+      "description": "Task-selected operating instructions; live requests, tour state and observations remain in Studio.",
+      "type": "guidance",
+      "notes": [
+        "core/agent/README.md: command bundles, read order, individual reads, context layers, preview lifetime and work/recovery. Select maker-operating sections; implementation/verification and builder/developer instructions keep their owners.",
+        "studio/README.md#studio-agent-permissions, #opening-local-prints-in-studio, #carrying-a-maker-request and #studio-event-queue: launch/reuse, request/result/display acknowledgement, event delivery and cancellation. UI internals, worker protocols, rendering and kinematics are implementation guidance outside Maker context.",
+        "examples/prints/README.md#maker-agent-participation: current lesson scope, Studio-led start, request/listener handling, playback start layer, chat teaching and completion. start-tour returns this with MAKERS.md. Tour redesign is still open; current lesson text is preservation evidence, not frozen 0.3.0 pedagogy.",
+        "begin-studio-work and wait-for-studio-request return live bundle/request/tour facts through their owners; get_tour and Studio tour instruction strings are 6-owned live state/presentation. Failure guidance reuses 1.2; machine-change hints reuse 1.3/1.4. Context reader does not subscribe to Studio or read bundle state.",
+        "Additional embedded delivery surfaces: core/agent/toolkit.mjs::startPreview nextStep and inspectFailure nextStep; adapters/mcp/src/runtime.mjs instructions, onboarding reminders and summary nextStep. Consolidate repeated operating prose with these sources when migrating, preserving operation-specific errors/results in their owning components."
+      ]
     }
   ],
   "contracts": [
@@ -252,33 +350,33 @@
     },
     {
       "id": "maker-guidance",
-      "from": "roles",
+      "from": "context-reader",
       "to": "agent",
-      "label": "role guidance",
+      "label": "entry / task context",
       "direction": "Guidance provider \u00e2\u2020\u2019 reader.",
       "operations": [
-        "read role instructions"
+        "read entry / maker-onboarding / task guidance"
       ],
-      "inputs": "Published role guidance.",
-      "outputs": "Instructions interpreted by the agent.",
-      "effects": "No runtime state.",
-      "failure": "Missing guidance blocks the relevant action.",
-      "excludes": "No executable call inferred from prose."
+      "inputs": "Desktop role and task selection; explicit machine capability facts when needed.",
+      "outputs": "Selected source text and IDs, startup workflow or task guidance with follow-up references.",
+      "effects": "Read/assemble published guidance only; no bundle, Studio or environment mutation.",
+      "failure": "Report unavailable sources or unsupported selections.",
+      "excludes": "No extension execution, live request/state reads, implicit approval or web-session machinery."
     },
     {
       "id": "capability-guidance",
-      "from": "manuals",
+      "from": "context-reader",
       "to": "agent",
-      "label": "capabilities",
+      "label": "named core references",
       "direction": "Guidance provider \u00e2\u2020\u2019 reader.",
       "operations": [
-        "read capability manuals"
+        "read-guidance / read-skill core family / core discovery"
       ],
-      "inputs": "Versioned engine/extension contracts.",
-      "outputs": "Agent context.",
-      "effects": "No runtime state.",
-      "failure": "Report unavailable capabilities.",
-      "excludes": "No permission granted by undocumented capability."
+      "inputs": "Core guidance ID and optional heading; role/explicit gate selection and machine capability facts.",
+      "outputs": "Selected core manual text, headings, omitted-section explanations and navigation references.",
+      "effects": "Read/assemble published guidance only.",
+      "failure": "Unknown core IDs or headings are explicit; extension lookup belongs to 4.",
+      "excludes": "No private source access, extension-library access or runtime permission granted by prose."
     },
     {
       "id": "agent-geometry",
@@ -834,6 +932,66 @@
       "effects": "5 creates and owns shared part state; subsequent edits obey exclusive instance ownership.",
       "failure": "Reject an incomplete handoff and report unsupported requirements; later requirement-breaking edits must be visible.",
       "excludes": "No live workspace/Studio synchronization, simultaneous editing, automatic confirmation, or transient path as a substitute for a recipe."
+    },
+    {
+      "id": "context-content-1",
+      "from": "context-reader",
+      "to": "context-start",
+      "label": "starting sources",
+      "direction": "Reader → owned content; selected source text is the response.",
+      "operations": [
+        "select document / heading"
+      ],
+      "inputs": "Source ID, optional section and explicit selection context.",
+      "outputs": "Canonical source text, identity and section metadata; no duplicate copy for each calling tool.",
+      "effects": "Read-only guidance assembly.",
+      "failure": "Report missing document or section without silently substituting a summary.",
+      "excludes": "No live state, engine calls, extension discovery or workflow execution."
+    },
+    {
+      "id": "context-content-2",
+      "from": "context-reader",
+      "to": "context-construction",
+      "label": "construction sources",
+      "direction": "Reader → owned content; selected source text is the response.",
+      "operations": [
+        "select document / heading"
+      ],
+      "inputs": "Source ID, optional section and explicit selection context.",
+      "outputs": "Canonical source text, identity and section metadata; no duplicate copy for each calling tool.",
+      "effects": "Read-only guidance assembly.",
+      "failure": "Report missing document or section without silently substituting a summary.",
+      "excludes": "No live state, engine calls, extension discovery or workflow execution."
+    },
+    {
+      "id": "context-content-3",
+      "from": "context-reader",
+      "to": "context-machines",
+      "label": "machine sources",
+      "direction": "Reader → owned content; selected source text is the response.",
+      "operations": [
+        "select document / heading"
+      ],
+      "inputs": "Source ID, optional section and explicit selection context.",
+      "outputs": "Canonical source text, identity and section metadata; no duplicate copy for each calling tool.",
+      "effects": "Read-only guidance assembly.",
+      "failure": "Report missing document or section without silently substituting a summary.",
+      "excludes": "No live state, engine calls, extension discovery or workflow execution."
+    },
+    {
+      "id": "context-content-4",
+      "from": "context-reader",
+      "to": "context-studio",
+      "label": "participation sources",
+      "direction": "Reader → owned content; selected source text is the response.",
+      "operations": [
+        "select document / heading"
+      ],
+      "inputs": "Source ID, optional section and explicit selection context.",
+      "outputs": "Canonical source text, identity and section metadata; no duplicate copy for each calling tool.",
+      "effects": "Read-only guidance assembly.",
+      "failure": "Report missing document or section without silently substituting a summary.",
+      "excludes": "No live state, engine calls, extension discovery or workflow execution."
     }
   ],
   "layout": {

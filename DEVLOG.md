@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-01 — Source-based maker-context grouping and submap assessment
+
+- Replaced map 1’s two abstract labels with one context reader and four source groups selected by actual access paths: entry/workflow/bundle tools, core construction references, machine guidance, Studio/tour participation. Inventoried CLI/MCP/embedded guidance, shared reuse, all 17 catalogued maker manuals and the 14 extension-owned manuals; retained source/section references and candidate delivery declarations in map notes. These are manually reviewed migration evidence, not scanner bindings.
+- Left all 24 top-map directed connections and map 2’s nodes/contracts unchanged. Clarified neutral SAAMpath finalization in 3; recorded concrete generation/export, playback, shared-helper, bundle-state, extension and worker seams against current source. Other submaps remain provisional; no runtime rewrite or hidden permission was added. Updated intent with the required inventory/ownership/source-binding bridge and honest conformance limits (99 → 97 lines).
+- Verified 65 referenced source/section targets; the optional .local/extension.mjs is absent, as permitted by its loader. Built 32 design pages; freshness and drawn coverage pass. Read-back and diff checks pass. No map-system implementation upgrade, code assignment, tests, full suite or publication.
+
 ## 2026-09-30 — Studio invokes separate Export boundary
 
 - Split target node 7 into Build (7) and Export & check (8), called only by Studio (6 → 8). Replaced Build’s export call and Studio’s direct review/delivery contract with 8 → 5 for the current path/settings and checked export record. Build returns geometry and SAAMpath. Other interface-reduction suggestions remain unadopted.
