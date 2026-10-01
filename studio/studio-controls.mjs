@@ -17,11 +17,11 @@ export function studioControls(state,ui){
     :'Part viewer. Drag or use arrow keys to rotate; scroll to zoom; click a surface or edge to see its name.';
   return {
     flags:{programReady,productionReady,pending,approved,exportReady:approved,exported:Boolean(exported),toolpathViewable},
-    confirm:{label:confirmLabel,hidden:Boolean(inspection),disabled:busy&&!(generating&&toolpathViewable),'aria-disabled':String(busy&&!(generating&&toolpathViewable))},
+    confirm:{label:confirmLabel,hidden:Boolean(inspection)||!state.machine||!state.plan.slices||pending&&productionReady,disabled:busy&&!(generating&&toolpathViewable),'aria-disabled':String(busy&&!(generating&&toolpathViewable))},
     exportName:{hidden:tab!=='toolpath'||!state.program||Boolean(inspection),disabled:busy},
     playback:{hidden:tab!=='toolpath'||!state.program,playDisabled:busy||!programReady},
     selection:{hidden:tab==='toolpath'},canvas:{label:canvasLabel,stale:tab==='toolpath'&&!state.program&&Boolean(staleProgram)},
     tabs:{geometry:{disabled:busy&&!generating},toolpath:{disabled:(busy&&!generating)||!toolpathViewable,done:approved}},
-    reviewedDownload:{hidden:ui.reviewedExportKey!==currentExportKey},fitProgram:{hidden:Boolean(machineView)}
+    reviewedDownload:{hidden:pending||ui.reviewedExportKey!==currentExportKey},fitProgram:{hidden:Boolean(machineView)}
   };
 }

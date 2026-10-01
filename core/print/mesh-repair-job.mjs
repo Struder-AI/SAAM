@@ -3,7 +3,7 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {join,dirname,resolve as resolvePath} from 'node:path';
 import {tmpdir} from 'node:os';
 import {runNativeMeshRepair} from '../geom/mesh-native.mjs';
-// Runs repairSTL ('bytes'), repairSTLFiles ('files') or importOrRepairSTLBundle
+// Runs repairSTL ('bytes'), repairSTLFiles ('files') or prepareSTLImportInWorker
 // ('import') in a worker. It settles only after the worker has stopped, so a
 // caller may then remove the directory the job was writing.
 // A worker whose heap is exhausted reaches the supervisor as

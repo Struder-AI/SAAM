@@ -215,7 +215,7 @@ const views={
         if(!g)return [['Source',shape],...slices.map(a=>[a.id,sliceSummary(a)]),['Markers','Authored locations; no occupied material shape is inferred']];
         const bounds=state.geometry.boundsMm;
         const rows=[['Shape',shape],['Footprint',round2(bounds.max[0]-bounds.min[0])+' × '+round2(bounds.max[1]-bounds.min[1])+' mm'],['Height',round2(bounds.max[2]-bounds.min[2])+' mm']];
-        if(g.shape==='mesh'&&g.source?.format==='stl')rows.push(['STL units',g.source.units+(g.source.unitsInferred?' · assumed from size':'')+' · change in chat']);
+        if(g.shape==='mesh'&&g.source?.format==='stl')rows.push(['STL units',g.source.units+(g.source.unitsInferred?' · assumed':'')+' · change in chat']);
         if(g.shape==='spline')rows.push(['Patches',g.patches.map(p=>p.name+' '+p.controlPoints.length+' × '+p.controlPoints[0].length).join(' · ')]);
         const textRows=(geometry,prefix='')=>{if(geometry.shape==='text')for(const feature of geometry.features)rows.push([prefix+feature.id,(feature.mode==='raised'?'Raised':'Recessed')+' “'+feature.text+'” · '+feature.depthMm+' mm']);};
         const blobFieldRows=(geometry,prefix='')=>{if(geometry.shape==='blob-field')rows.push([prefix+'Points',String(geometry.field.points.length)],[prefix+'Surface sampling',geometry.extraction.edgeMm+' mm · finer features may be missed'],[prefix+'Material threshold',String(geometry.field.threshold)]);};
@@ -351,7 +351,7 @@ async function loadAndAdoptStudioState(follow=false,reopen=false,fetchedState=nu
 }
 async function presentStudioState({adopted,loaded,previous,presentationChanged,follow}) {
   // Metadata can change while the exact same source/move buffers are reused.
-  $('#kind-label').textContent=(state.review.generation?.mode==='development'?'Development preview · ':'')+state.machine.name;
+  $('#kind-label').textContent=(state.review.generation?.mode==='development'?'Development preview · ':'')+(state.machine?.name??'No printer selected');
   document.title='SAAM Studio · '+state.printName;
   $('#open-print').title='Open print: '+state.printName;
   // Geometry keys off the previously loaded state's version (null on a print
@@ -436,6 +436,7 @@ function table(entries) {
   return dl;
 }
 function selectStudioPresentation(state,tab,{facts,settings}){
+  if(!state.machine||!state.plan.slices||!state.plan.process)return {stage:null,title:'Your geometry',guidance:'Ask the agent to add printing settings and a toolpath recipe.',facts:views.shell.facts(state,'geometry'),settings:[],reviewNote:state.outputAvailability??''};
   const inspection=state.inspection;
   if(inspection)return {stage:'DEVELOPMENT INSPECTION',title:inspection.title,guidance:inspection.description,
     facts:inspection.facts,settings:inspection.settings,reviewNote:inspection.note};
@@ -457,7 +458,7 @@ function render() {
   $('#facts').replaceChildren(table(presentation.facts));
   $('#more-settings').hidden=tab!=='toolpath';
   $('#print-setup').hidden=tab!=='toolpath';
-  $('#print-setup-values').textContent=state.machine.name+' · '+state.plan.setup.material;
+  $('#print-setup-values').textContent=state.machine?[state.machine.name,state.plan.setup?.material].filter(Boolean).join(' · '):'No printer selected';
   const suggestedName=state.printName??'';
   if(!exportNameState||exportNameState.printId!==state.printId)exportNameState={printId:state.printId,suggested:suggestedName,value:suggestedName,dirty:false};
   else if(!exportNameState.dirty&&exportNameState.suggested!==suggestedName)Object.assign(exportNameState,{suggested:suggestedName,value:suggestedName});
@@ -500,7 +501,7 @@ function render() {
   $('#selection').hidden=controls.selection.hidden;
   canvas.setAttribute('aria-label',controls.canvas.label);canvas.classList.toggle('stale-toolpath',controls.canvas.stale);
   $('#scrub').max=duration();$('#scrub').value=seconds;
-  $('#rotary-view').hidden=!machineSession?.scene&&!state.plan.setup.denso;
+  $('#rotary-view').hidden=!machineSession?.scene&&!state.plan.setup?.denso;
   $('#fit-program').hidden=controls.fitProgram.hidden;
   updateMachineStatus();
   // Keep the tabs live during a toolpath generation: the geometry pane stays
@@ -685,25 +686,12 @@ $('#open-print').onclick=async()=>{
 };
 $('#close-picker').onclick=()=>$('#print-picker').close();
 function chooseSTL(){$('#stl-file').value='';$('#stl-file').click();}
-// With no print open there is no printer to inherit: ask for one first,
-// defaulting to the printer of the most recently changed print.
-async function choosePrinter(){
-  $('#machine-message').textContent='Loading printers…';$('#import-machine').replaceChildren();$('#machine-picker').showModal();
-  try{
-    const response=await fetch('/api/machines');if(!response.ok)throw Error('Could not list printers.');
-    const {machines,defaultId}=await response.json();
-    for(const machine of machines){const option=document.createElement('option');option.value=machine.id;option.textContent=machine.name;option.selected=machine.id===defaultId;$('#import-machine').append(option);}
-    $('#machine-message').textContent='';$('#import-machine').focus();
-  }catch(error){$('#machine-message').textContent=error.message;}
-}
-$('#import-stl').onclick=()=>{if(busy)return;if(state)chooseSTL();else void choosePrinter();};
-$('#machine-form').onsubmit=event=>{event.preventDefault();if(!$('#import-machine').value)return;$('#machine-picker').close();chooseSTL();};
-$('#close-machine-picker').onclick=()=>$('#machine-picker').close();
+$('#import-stl').onclick=()=>{if(!busy)chooseSTL();};
 $('#stl-file').onchange=async()=>{
   const file=$('#stl-file').files[0];if(!file||busy)return;
   if(file.size>64*1024*1024){message('Choose an STL file up to 64 MiB.',true);return;}
   try{await working('Importing your STL…',async()=>{
-    const query=new URLSearchParams(state?{name:file.name,printId:state.printId}:{name:file.name,machineId:$('#import-machine').value});
+    const query=new URLSearchParams({name:file.name,...(state?{printId:state.printId}:{})});
     const target={printId:state?.printId??null,generationHash:null},firstPrint=!state;generationTarget=target;
     let response;
     try{response=await fetch('/api/import-stl?'+query,{method:'POST',headers:{'X-SAAM-Token':token,'Content-Type':'application/octet-stream'},body:file});}

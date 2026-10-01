@@ -1,5 +1,4 @@
 # Geometry and numerical contracts
-
 ## Repair worker and native process boundary
 
 `core/print/mesh-repair-job.mjs` owns one Node worker per repair or repairing
@@ -497,7 +496,7 @@ needs review, and successful processing creates no manufacturing approval.
 
 ### Memory, files and progress
 
-[File decoding](./stl-file.mjs) reads ASCII and binary STL in 64 KiB blocks and
+[File ingestion](../print/stl-file.mjs) reads ASCII and binary STL in 64 KiB blocks and
 drives the same incremental parser as complete-buffer decoding. Format validation,
 unit scaling, finite-coordinate checks, exact indexing and capacity checks therefore
 have one owner. The wrapper computes the source hash and reports progress while

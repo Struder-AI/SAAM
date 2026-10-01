@@ -83,14 +83,14 @@ export function summary(bundleId, state) {
   const lifecycle=lifecycleReview(state,{programChecked});
   return {
     bundleId, kind: state.kind, revision: state.revision, geometryHash:state.geometryHash,
-    machineId: state.machine.id, output: state.plan.output, skills: state.skills,
+    machineId: state.machine?.id??null, output: state.plan.output, skills: state.skills,
     toolpathApproved: lifecycle.toolpathApproved,
     programChecked,
     generation: state.review.generation ? { mode: state.review.generation.mode, current: lifecycle.current } : null,
     programError: state.programError ?? null, exportHash: state.exportHash ?? null,
     shortTravel: state.program?.summary?.shortTravel ?? null,
     outputAvailability: state.outputAvailability, limitations: state.limitations,
-    nextStep: lifecycle.action==='check'?'Open Studio or check_bundle to check the current export.'
+    nextStep: !state.machine?'Supply the machine, material and recipe components needed for the requested operation.':lifecycle.action==='check'?'Open Studio or check_bundle to check the current export.'
       : lifecycle.action==='generate'?'Generate the toolpath from the complete settings.'
       : lifecycle.action==='review'?'Review settings and the exact toolpath together in Studio.':'Deliver the reviewed export.'
   };
@@ -419,7 +419,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     { bundleId: bundleIdSchema, expectedRevision: z.string().min(1), patch: z.object({experimental:z.object({substrateAdaptation:z.boolean().describe('Experimental deposited-substrate adaptation; default false.').optional()}).strict().optional()}).passthrough() }, async ({ bundleId, expectedRevision, patch }) => {
       noApprovalFields(patch);
       const { dir, bundle, state } = await read(bundleId,{program:false});
-      const next = await bundle.adjustBundle(dir, patch, { expectedRevision, setupFile: await setupFile(state.machine.id) });
+      const next = await bundle.adjustBundle(dir, patch, { expectedRevision, setupFile: state.machine?await setupFile(state.machine.id):undefined });
       return summary(bundleId, next);
     }, false);
   tool('check_bundle', 'Validate saved native geometry, recipe and any exact generated export using the shared bundle checks. Does not generate or approve.', { bundleId: bundleIdSchema }, async ({ bundleId }) => {
@@ -497,7 +497,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   tool('change_machine','Change a print to a supported printer using its remembered or default setup. Invalidates final settings/toolpath confirmation and validates compatibility before saving.',
     {bundleId:bundleIdSchema,machineId:z.string(),expectedRevision:z.string()},async({bundleId,machineId,expectedRevision})=>{
       const {dir,bundle,state:before}=await read(bundleId,{program:false});if(!bundle.changeMachine)throw Error('This adapter cannot change its printer.');
-      return withMachineHint(bundleId,await bundle.changeMachine(dir,machineId,{expectedRevision,setupFile:await setupFile(machineId)}),before.machine.id);
+      return withMachineHint(bundleId,await bundle.changeMachine(dir,machineId,{expectedRevision,setupFile:await setupFile(machineId)}),before.machine?.id??null);
     },false);
   tool('request_review', 'Serve this bundle through an exclusively owned SAAM Studio instance. Reuse is the default: the instance already showing this print, else the sole live instance, is rebound to it in the same browser tab. With several live instances supply studioInstanceId to choose the one to rebind; otherwise an unshown print opens another. Use newInstance only when the person asks for another Studio, or for a compelling reason you tell them. Optional startAt selects the tour infill layer. No approval or generation is performed.', { bundleId: bundleIdSchema,studioInstanceId:z.string().optional(),newInstance:z.boolean().default(false),startAt:z.object({layer:z.number().int().min(1)}).strict().optional(),...localExtension.reviewSchema?.(z) }, async ({ bundleId,studioInstanceId,newInstance,startAt,...viewOptions }) => {
     if(studioInstanceId&&newInstance)throw Error('Choose an existing studioInstanceId or request a new instance, not both.');

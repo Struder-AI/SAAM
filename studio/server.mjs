@@ -15,7 +15,7 @@ import { randomBytes, createHash } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
 import {PreparedGenerationJob} from './prepared-generation-job.mjs';
 import { viewerLifetime, DEFAULT_DISCONNECT_MS } from './lifetime.mjs';
-import {MACHINE_IDS,loadMachine} from '../core/machine/profile.mjs';
+
 
 const here=dirname(fileURLToPath(import.meta.url));
 export const root=resolve(here,'..');
@@ -90,8 +90,8 @@ export async function listPrints(libraryRoot,resolveBundle=bundleFor) {
   async function walk(dir,depth){
     let entries;try{entries=await readdir(dir,{withFileTypes:true});}catch(error){if(error.code==='ENOENT')return;throw error;}
     if(entries.some(e=>e.name==='plan.json'&&e.isFile())){
-      try{const document=JSON.parse(await readFile(resolve(dir,'plan.json'),'utf8')),{bundle,...plan}=document,machine=bundle?.machine??JSON.parse(await readFile(resolve(dir,'machine.json'),'utf8'));
-        if(supportsBundleSchema(plan.schema)||await resolveBundle(dir))prints.push({path:dir,name:await printName(dir,plan),machine:machine.name,machineId:machine.id,modified:(await stat(resolve(dir,'plan.json'))).mtime.toISOString()});
+      try{const document=JSON.parse(await readFile(resolve(dir,'plan.json'),'utf8')),{bundle,...plan}=document,machine=bundle?bundle.machine:JSON.parse(await readFile(resolve(dir,'machine.json'),'utf8'));
+        if(supportsBundleSchema(plan.schema)||await resolveBundle(dir))prints.push({path:dir,name:await printName(dir,plan),machine:machine?.name??'No printer selected',machineId:machine?.id??null,modified:(await stat(resolve(dir,'plan.json'))).mtime.toISOString()});
       }catch{/* One damaged bundle must not hide the other prints. */}
       return;
     }
@@ -103,13 +103,6 @@ export async function listPrints(libraryRoot,resolveBundle=bundleFor) {
 // page, the library and the tour; everything that reads a print answers this.
 const noPrint=()=>Object.assign(Error('No print is open. Open a saved print, import an STL, start the tour, or ask your chat to make a part.'),{code:'NO_PRINT'});
 const printFreeRoutes=new Set(['/api/open','/api/tour','/api/view-performance','/api/import-stl','/api/cancel-calculation']);
-// Printers an STL imported with no print open can use: installed profiles, the
-// most recently modified print's printer first, else the first profile.
-export function importMachines(prints){
-  const machines=MACHINE_IDS.map(id=>({id,name:loadMachine(id).name}));
-  const recent=prints.find(print=>MACHINE_IDS.includes(print.machineId));
-  return {machines,defaultId:recent?.machineId??machines[0].id};
-}
 // Studio's view of a relay link, when this computer is paired with one: status()
 // and linkCode() come from relay-device.mjs. The connector URL is the relay's /mcp.
 const relayView=status=>({...status,connectorUrl:new URL('/mcp',status.relayUrl).href});
@@ -215,7 +208,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   const activePreparationStatus=()=>{const status=preparationStatus();return status.requested||['preparing','generating','importing'].includes(status.status)?status:null;};
   const generationStatus=()=>{const status=activePreparationStatus();return status?{...status,printId:status.directory?requests.printId(status.directory,{optional:true}):null}:null;};
   const publishProgress=(status=activePreparationStatus())=>lifetime.notify('studio-update',{kind:'progress',status});
-  const runImport=async(source,{name,units,machineId,directory,signal}={})=>{
+  const runImport=async(source,{name,units,directory,signal}={})=>{
     signal?.throwIfAborted();
     if(closed)throw Error('Studio is closing. Reopen it before importing.');
     if((await tour.info()).active)throw Error('Import STL is available after you finish or exit the tour.');
@@ -235,7 +228,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     catch(error){note(importController.signal.aborted?'import-cancelled':'import-failed',{jobId:importProgress.jobId,name:name??null,error:error.message,elapsedMs:Date.now()-importProgress.startedAt});throw error;}
     finally{signal?.removeEventListener('abort',abort);const finished=importProgress;importProgress=null;importController=null;publishProgress({...finished,status:'idle',progress:null,cancellable:false});}
     await openPrint(imported.directory);
-    note('import-completed',{name:await printName(dir),units:units??null,machineId});
+    note('import-completed',{name:await printName(dir),units:units??null});
     return imported;
   };
   const readGeneration=async current=>{
@@ -410,7 +403,6 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       if(req.method==='GET'&&url.pathname==='/api/preparation'){
         send(preparationStatus());return;
       }
-      if(req.method==='GET'&&url.pathname==='/api/machines'){send(importMachines(await listPrints(libraryRoot,resolveBundle)));return;}
       if(req.method==='GET'&&url.pathname==='/api/prints'){
         const p=await tour.info(),prints=p.active
           ?(await Promise.all(Object.values(p.copies).map(name=>listPrints(resolve(libraryRoot,'tour',name),resolveBundle)))).flat()
@@ -498,10 +490,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         const current=await opened;
         const progress=await tour.info();
         if(importing){
-          // With a print open the import uses its printer; with none, the person's choice.
-          if(!current&&!MACHINE_IDS.includes(data.machineId))throw Error('Choose a printer for the imported STL.');
-          const machineId=current?(await current.loadBundle(dir,{program:false})).machine.id:data.machineId;
-          await runImport(body,{name:data.name,units:data.units,machineId});
+          await runImport(body,{name:data.name,units:data.units});
           send({ok:true});return;
         }
         if(url.pathname==='/api/view-ready'){
@@ -610,10 +599,10 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     const run=queue.then(async()=>{const before=dir;await openPrint(input);if(dir!==before)lifetime.notify('studio-update',{kind:'state',kinds:['print']});});
     queue=run.catch(()=>{});return run;
   };
-  server.importSTL=({directory,source,units,machineId},{signal}={})=>{
+  server.importSTL=({directory,source,units},{signal}={})=>{
     const run=queue.then(()=>{
       if(typeof directory!=='string'||typeof source!=='string')throw Error('Import needs a destination and local STL path.');
-      return runImport(resolve(source),{name:basename(source),directory,units,machineId,signal});
+      return runImport(resolve(source),{name:basename(source),directory,units,signal});
     });
     queue=run.catch(()=>{});return run;
   };

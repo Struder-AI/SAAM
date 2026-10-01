@@ -75,7 +75,7 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
     const background=ctx.createRadialGradient(0,0,0,0,0,1);background.addColorStop(0,'#f8faf1');background.addColorStop(1,'#eaf0e0');ctx.fillStyle=background;ctx.fillRect(-1,-1,2,2);ctx.restore();
     const project=createProjection(tab==='toolpath'&&camera.fitBounds?camera.fitBounds:bounds,width,height,camera.yaw,camera.tilt,camera.zoom,camera.pan,tab==='toolpath'&&cameraMode==='machine');
     const referenceProject=tab==='toolpath'&&machineState?.pose&&!settings.followPlate?p=>{const {xMm,yMm}=shown.plan.placement,q=point(machineState.pose.part,[p[0]+xMm,p[1]+yMm,p[2]]);return project([q[0]-xMm,q[1]-yMm,q[2]]);}:project;
-    const strokeScale={lineWidthMm:shown.plan.process.lineWidthMm,pixelsPerMm:project.pixelsPerMm,previousLayerOpacity:settings.previousLayerOpacity};
+    const strokeScale={lineWidthMm:shown.plan.process?.lineWidthMm,pixelsPerMm:project.pixelsPerMm,previousLayerOpacity:settings.previousLayerOpacity};
     for(let x=bounds.min[0]-10;x<=bounds.max[0]+10;x+=5)segment(referenceProject([x,bounds.min[1]-10,0]),referenceProject([x,bounds.max[1]+10,0]),'#dbe1d4',.6);
     for(let y=bounds.min[1]-10;y<=bounds.max[1]+10;y+=5)segment(referenceProject([bounds.min[0]-10,y,0]),referenceProject([bounds.max[0]+10,y,0]),'#dbe1d4',.6);
     if(snapshot.showGeometry&&geometryScene){picking.project=project;

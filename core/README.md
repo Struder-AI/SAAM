@@ -10,7 +10,6 @@ Studio opening and request coordination around these existing owners.
 
 [Private utilities](./private/) give each consuming map-0 bucket its own arithmetic and file replacement.
 [Bundle file replacement](./file-write.mjs) preserves complete files with Windows sharing-conflict retries; it is not a lock or multi-file transaction.
-
 ## Current organization
 
 The [developer orientation](../DEVELOPER-CONTEXT.md#orientation) indexes region
@@ -95,7 +94,7 @@ These limits are deliberately kept. They are not work budgets.
 | One-command dwell maximum, with splitting | [griffin.mjs](./export/griffin.mjs) `G4 P`, [dobot-player.mjs](./export/dobot-player.mjs) `Wait` | What one firmware command expresses | A longer pause becomes consecutive commands whose milliseconds sum to it; the limit never shortens a wait |
 | ZIP32 entry and member sizes | [zip.mjs](./export/zip.mjs) | The container format | The format cannot represent more; the message says ZIP64 is unsupported |
 | DENSO 2,000-statement source blocks | [denso.mjs](./export/denso.mjs) | Compiler and project structure | Segmentation, not refusal: a program of any length is written, split into blocks called in order, which changes no motion |
-| Malformed-file guards: STL header and token length, non-finite values, OFF header shape | [stl-file.mjs](./geom/stl-file.mjs), [mesh.mjs](./geom/mesh.mjs), [mesh-native.mjs](./geom/mesh-native.mjs) | The parsers | They detect a file that is not what it claims to be, before any work is attempted |
+| Malformed-file guards: STL header and token length, non-finite values, OFF header shape | [stl-file.mjs](./print/stl-file.mjs), [mesh.mjs](./geom/mesh.mjs), [mesh-native.mjs](./geom/mesh-native.mjs) | The parsers | They detect a file that is not what it claims to be, before any work is attempted |
 | Download size, timeout and redirect count | [library.mjs](../skills/thingi10k/scripts/library.mjs) | An external HTTP boundary | Input safety on somebody else's server, the same class as the upload limit |
 | Coordination timers as a class: viewer grace period, SSE keep-alive, bounded event waits, debounce and polling intervals, Windows sharing-conflict retries, download-link expiry | [lifetime.mjs](../studio/lifetime.mjs), [agent-requests.mjs](../studio/agent-requests.mjs), [studio-events.mjs](../studio/studio-events.mjs), [server.mjs](../studio/server.mjs), [file-write.mjs](./file-write.mjs) | Coordination between processes and viewers | None of them discards work: a bounded wait returns "nothing yet" with a cursor, and a retry rethrows the real error |
 | Display budgets | [toolpath-view.mjs](../studio/toolpath-view.mjs), and see [rendering](../studio/RENDERING.md) | What the browser draws | Visual only; they must never alter the saved program, geometry or export |
