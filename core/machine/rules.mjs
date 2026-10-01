@@ -25,7 +25,15 @@ export const planarWallTolerance=machine=>machine?.planarWallToleranceMm===undef
 export function validateSetup(plan,machine,{required=false}={}) {
   requireThat(machine.schema==='saam-machine/1'&&machine.units==='mm','Unsupported machine schema or units.');
   requireThat(Number.isFinite(planarWallTolerance(machine))&&planarWallTolerance(machine)>=0,'Machine planar wall tolerance must be finite and nonnegative.');
-  const s=plan.setup,p=plan.process,t=toolFor(machine,s.tool);
+  const s=plan.setup,p=plan.process;
+  const common=['tool','core','material','firmwareVersion','nozzleMm','filamentMm','nozzleC','bedC','buildVolumeC','startupVerified','materialGuid'];
+  const allowed=[...common,'filamentColor','ams','bambu','dobot','denso'];
+  requireThat(s&&typeof s==='object'&&!Array.isArray(s)&&common.every(k=>Object.hasOwn(s,k))&&Object.keys(s).every(k=>allowed.includes(k)),'Invalid export setup fields.');
+  requireThat(typeof s.material==='string'&&typeof s.firmwareVersion==='string','Material and firmware version must be text.');
+  requireThat(typeof s.startupVerified==='boolean','Startup verification must be a boolean.');
+  for(const name of ['bambu','dobot','denso'])if(s[name]!==undefined)
+    requireThat(s[name]&&typeof s[name]==='object'&&!Array.isArray(s[name]),`Invalid ${name} configuration fields.`);
+  const t=toolFor(machine,s.tool);
   if(machine.id==='denso-vs068a4-rc8a')validateDensoConfiguration(plan,{required});
   requireThat(machine.capabilities?.includes('xyz-extrusion'),'Machine does not support XYZ extrusion.');
   requireThat(t.cores?.includes(s.core)&&t.nozzleDiametersMm?.includes(s.nozzleMm),'Nozzle/core not supported by the selected tool.');

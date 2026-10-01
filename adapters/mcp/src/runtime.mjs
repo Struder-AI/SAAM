@@ -15,7 +15,7 @@ import {SETTINGS_FIELDS} from '../../../core/machine/settings.mjs';
 import { MACHINE_IDS, loadMachine } from '../../../core/machine/profile.mjs';
 import { createStudio, listPrints } from '../../../studio/server.mjs';
 import { bundleFor } from '../../../studio/adapter-resolution.mjs';
-import {createTour} from '../../../studio/tour.mjs';
+import {createTour,tourExample} from '../../../studio/tour.mjs';
 import {createAgentRequests} from '../../../studio/agent-requests.mjs';
 import {createStudioEvents} from '../../../studio/studio-events.mjs';
 import {listExtensions,loadExtensionEntry,readExtension} from '../../../core/extensions/library.mjs';
@@ -360,7 +360,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     { bundleId: bundleIdSchema, kind: kindSchema, machineId: z.string(), plan: objectSchema }, async ({ bundleId, kind, machineId, plan }) => {
       noApprovalFields(plan);
       const machine = loadMachine(machineId), recipe = await recipes[kind]();
-      recipe.validatePlan(plan, machine);
+      recipe.validatePlan(plan);
       const dir = await directory(bundleId, { create: true }), bundle = await bundles[kind]();
       await bundle.initBundle(dir, plan, { machineId, setupFile: await setupFile(machineId) });
       return withMachineHint(bundleId, await bundle.loadBundle(dir), machine);
@@ -594,6 +594,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   }, false);
   tool('deliver_toolpath', 'Copy the exact current human-reviewed export bytes into the bundle delivery folder. Fails without current toolpath approval. Does not run hardware.', { bundleId: bundleIdSchema }, async ({ bundleId }) => {
     const { dir, bundle } = await locate(bundleId);
+    if(await tourExample(dir))throw Error('Exit the tour before confirming a real print.');
     const file = await bundle.deliver(dir), state = await bundle.loadBundle(dir);
     return { ...summary(bundleId, state), file, exportHash: state.exportHash };
   }, false);

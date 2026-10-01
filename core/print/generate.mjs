@@ -201,6 +201,7 @@ export function depositionInspection(results){
 
 export async function generatePath(plan, {onProgress,modulations,modulationPreparation=[]} = {}) {
   plan=compileRecipe(plan).plan;
+  const authoredTemperatures=plannedNozzleTemperatures(plan);
   await validateSelectedExtensionRecipe(plan,assignment=>assignmentPlan(plan,assignment).process);
   const prepared=await preparePathGeometry(plan);
   const evaluated=modulations?{...plan,modulations}:plan;
@@ -228,7 +229,6 @@ export async function generatePath(plan, {onProgress,modulations,modulationPrepa
   for(const [id,after] of prerequisites)for(const predecessor of after)requireThat(position.has(predecessor)&&position.get(predecessor)<position.get(id),'Final dependency was not scheduled before '+id+': '+predecessor);
   const finished=planFinishing(execution.state);
   const path=planningPath(finished.state,[started.actions,startup.actions,execution.actions,finished.actions],{...summary,composition:{...execution.summary,operationOrder:order}});
-  const authoredTemperatures=plannedNozzleTemperatures(plan);
   for(const action of path.actions)if(action.kind==='temperature')
     requireThat(authoredTemperatures.has(action.targetC),'Unplanned operation temperature.');
   return saamPath({...path,completion:{contract:NEUTRAL_PATH_CONTRACT,inputHash:pathInputHash(plan),

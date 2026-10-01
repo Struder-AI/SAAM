@@ -21,9 +21,13 @@
     }
   },
   "nodes": [
+    {"id":"geometry-stroke-topology","index":"2.1.4.10","label":"Stroke footprint topology","description":"Widen supplied centerlines and query footprint components and holes; no font or bead-planning policy.","type":"component","source":{"file":"core/geom/stroke-topology.mjs","declaration":"strokeTopology"}},
+    {"id":"geometry-mapped-text-material","index":"2.2.1.8","label":"Mapped outline material","description":"Map normalized text outlines into solid construction requests; extension controls feature selection and Boolean composition order.","type":"component","source":{"file":"core/geom/mapped-text-material.mjs","declaration":"mappedTextMaterial"}},
+    {"id":"geometry-mesh-sleeve-interval","index":"2.2.3.6","label":"Mesh sleeve interval","description":"Classify mesh sections and propose a geometric fitting interval; the caller authors the selected recipe bounds.","type":"component","source":{"file":"core/geom/sleeve/mesh-sleeve.mjs","declaration":"detectMeshSleeveInterval"}},
+    {"id":"geometry-contour-sleeve","index":"2.1.2.4","label":"Contour sleeve correspondence","description":"Explicit geometric section ranges, offsets and fitting choices produce contour families and coordinate queries; callers select deposition policy.","type":"component","source":{"file":"core/geom/sleeve/contour-sleeve.mjs","declaration":"prepareContourSleeve"}},
     {"id":"geometry-planar-region-layers","index":"2.1.4.9","label":"Planar region layers","description":"Build explicit per-height regions, merge their loops and check section-plane obstacle clearance. Source callbacks retain their own effects and provenance.","type":"component","source":{"file":"core/geom/planar-region-layers.mjs"}},
     {"id":"context","index":"1","label":"Maker context","description":"Maker instructions, manual selection and context assembly; click guidance files to preview them.","type":"guidance","notes":["Maker-facing guidance and its selection/assembly belong to 1, including manuals stored beside extensions. File location does not determine ownership. Extension catalog information arrives from 4; printer capabilities from 9 select relevant manual sections."]},
-    {"id":"context-onboard","index":"1.1","label":"maker-onboarding / maker_onboarding","description":"Returns MAKERS, DIGEST and print tools.","type":"component","source":{"file":"core/agent/toolkit.mjs","declaration":"onboarding"}},
+    {"id":"context-onboard","index":"1.1","label":"Starting maker context","description":"Assembles starting manuals and selected local-extension guidance for the agent.","type":"component","source":{"file":"core/agent/layers.mjs","declaration":"onboardingSources"}},
     {"id":"context-guidance","index":"1.2","label":"read-guidance / read_guidance","description":"Reads a published file or #heading.","type":"component","source":{"file":"core/agent/toolkit.mjs","declaration":"contextPacket"}},
     {"id":"context-skill","index":"1.3","label":"read-skill / read_skill","description":"Core selection: slice, trace or inject.","type":"component","source":{"file":"core/agent/toolkit.mjs","declaration":"readSkill"}},
     {"id":"context-tour","index":"1.4","label":"start-tour: returned context","description":"Returns MAKERS and tour participation.","type":"component","source":{"file":"core/agent/toolkit.mjs","declaration":"preview"}},
@@ -103,7 +107,7 @@
     {"id":"workspace","index":"7","label":"Specialized workspaces","description":"Common interaction/handoff interface wrapping individual specialized design workspaces.","type":"component","notes":["Wing implementation authorized from the latest TK-DEV investigation (217a6e0); only its standalone renderer is adopted. Domain construction is implemented against current public APIs. Full-aircraft display context produces no bundles."]},
     {"id":"workspace-interface","index":"7.1","label":"Workspace interaction interface","description":"Consistent user interaction and one-way reproducible bundle handoff.","type":"component","source":{"file":"workspaces/server.mjs","declaration":"startWingWorkspace"},"notes":["Loopback UI, private design persistence, worker progress and a single set-folder handoff. workspaces/export-worker.mjs invokes the bundle-owned creation entry once per piece; no Studio or exporter imports."]},
     {"id":"workspace-implementations","index":"7.2","label":"Individual workspaces","description":"Wing section design, full-aircraft display context and reproducible continuous Trace construction.","type":"component","source":{"file":"workspaces/wing/construct.mjs","declaration":"wingHandoff"},"notes":["Public loftPolygons constructs section envelopes. Explicit Trace curves and source parameters survive independently in each bundle. Candidate SAAMpath access remains available but unused here; normal bundle generation invokes 3.4."]},
-    {"id":"export","index":"8","label":"Export & check","description":"Studio-triggered machine export/checking of the current built path; bundle access only through its explicit contract.","type":"component","notes":["Target: translate the completed SAAMpath; explicit priming/travel/retraction/material-change motion belongs to 3. Current prepareMachinePath still adds motion and remains a migration finding.","Studio invokes Export; the current source player still decodes exported programs, so preview must be reconciled with the separate Export action."]},
+    {"id":"export","index":"8","label":"Export & check","description":"Translate saved neutral SAAMpath for the selected machine and check the exact program; Bundle access uses its explicit contract.","type":"component","notes":["Installation startup/priming, physical tools, machine-specific clearance and output limits belong here; neutral deposition and motion remain in 3. Export preparation never changes the saved neutral path.","Geometry supplies public frame mathematics under the owner-approved narrow contract. Studio reviews and delivers the same checked bytes."]},
     {"id":"export-router","index":"8.1","label":"exportAndInterpretProgram","description":"Select dialect; export and interpret exact bytes.","type":"component","source":{"file":"core/export/registry.mjs","declaration":"exportAndInterpretProgram"}},
     {"id":"export-prepare","index":"8.2","label":"Machine-specific Export preparation","description":"Adapt a copy of neutral SAAMpath for selected-machine startup, material tools, clearances and limits; preserve the saved neutral path.","type":"component","source":{"file":"core/export/prepare-path.mjs","declaration":"prepareExportPath"}},
     {"id":"export-griffin","index":"8.3","label":"griffin exporter / interpreter","description":"Existing machine output adapter.","type":"component","source":{"file":"core/export/griffin.mjs"}},
@@ -656,6 +660,7 @@
     {"id":"geometry-leaf-7c98ebb07786","index":"2.2.4.7.4","label":"prepareRepairWorkerResponse","description":"prepareRepairWorkerResponse in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"prepareRepairWorkerResponse"}},
     {"id":"geometry-leaf-d173c15cb237","index":"2.2.4.7.5","label":"runMeshRepairWorker","description":"runMeshRepairWorker in core/print/mesh-repair-worker.mjs.","type":"component","source":{"file":"core/print/mesh-repair-worker.mjs","declaration":"runMeshRepairWorker"}},
     {"id":"geometry-artifacts","index":"2.2.5","label":"Native artifacts and identity","description":"Native/display representations, geometry inspection and stable identity; no bundle persistence.","type":"component"},
+    {"id":"geometry-frames","index":"2.2.6","label":"Coordinate frames","description":"Public point/vector transformations, orthonormal direction pairs and rigid frames; no tool, machine or motion policy.","type":"component","source":{"file":"core/geom/frame.mjs"}},
     {"id":"geometry-module-e0f7e6b8074c","index":"2.2.5.1","label":"geometry","description":"Native/display representations, geometry inspection and stable identity; no bundle persistence. Source: core/print/geometry.mjs.","type":"component","source":{"file":"core/print/geometry.mjs"}},
     {"id":"geometry-leaf-27d06fef461d","index":"2.2.5.1.1","label":"Module initialization / exports","description":"Module context and initialization; callable declarations have separate leaves.","type":"component","source":{"file":"core/print/geometry.mjs"}},
     {"id":"geometry-leaf-af9c3c60207a","index":"2.2.5.1.2","label":"createGeometry","description":"createGeometry in core/print/geometry.mjs.","type":"component","source":{"file":"core/print/geometry.mjs","declaration":"createGeometry"}},
@@ -1016,6 +1021,16 @@
     {"id":"geometry-stage-2-2-2-1-28","index":"2.2.2.1.28","label":"Crossings and winding","description":"Crossings and winding and their private implementation stages.","type":"component"}
   ],
   "contracts": [
+    {"id":"geometry-toolpath-frames","from":"geometry-frames","to":"compose","label":"coordinate and frame results","direction":"Geometry supplies coordinate/frame results; this consumer calls the public operations in the opposite direction.","operations":["add","subtract","scale","dot","cross","length","unitDirection","rotateZ","rotatePointZ","validateDirectionPair","interpolateDirectionPair","mv","transpose","mm","identity","rotation","rigid","point","compose","invert","axisFrame","rodFrame","validateRigid"],"inputs":"Explicit points, vectors, direction pairs, angles, rotation centres, interpolation fractions and rigid transforms satisfying each operation's input contract.","outputs":"Transformed coordinates, composed/inverted transforms, validated directions or interpolated frames.","effects":"Pure computation over supplied values; no retained aliases, I/O, profile lookup or Bundle access.","failure":"Validation operations reject non-finite/non-orthonormal frames; normalization and interpolation reject degenerate directions. No machine feasibility is inferred.","excludes":"No machine capability, tool mapping, startup, collision or motion-feasibility policy; no direct access to Geometry's private kernel.","access":[{"from":"compose","to":"geometry-frames"}],"evidence":["core/geom/frame.mjs","core/path/pose.mjs"],"status":"Exact public coordinate operations within an existing Geometry consumer pair; no new root access."},
+    {"id":"geometry-studio-frames","from":"geometry-frames","to":"studio","label":"coordinate and frame results","direction":"Geometry supplies coordinate/frame results; this consumer calls the public operations in the opposite direction.","operations":["add","subtract","scale","dot","cross","length","unitDirection","rotateZ","rotatePointZ","validateDirectionPair","interpolateDirectionPair","mv","transpose","mm","identity","rotation","rigid","point","compose","invert","axisFrame","rodFrame","validateRigid"],"inputs":"Explicit points, vectors, direction pairs, angles, rotation centres, interpolation fractions and rigid transforms satisfying each operation's input contract.","outputs":"Transformed coordinates, composed/inverted transforms, validated directions or interpolated frames.","effects":"Pure computation over supplied values; no retained aliases, I/O, profile lookup or Bundle access.","failure":"Validation operations reject non-finite/non-orthonormal frames; normalization and interpolation reject degenerate directions. No machine feasibility is inferred.","excludes":"No machine capability, tool mapping, startup, collision or motion-feasibility policy; no direct access to Geometry's private kernel.","access":[{"from":"studio","to":"geometry-frames"}],"evidence":["core/geom/frame.mjs","core/machine/presentation.mjs"],"status":"Exact public coordinate operations within an existing Geometry consumer pair; no new root access."},
+    {"id":"toolpath-stroke-topology","from":"geometry-stroke-topology","to":"compose","label":"Footprint component and hole counts","direction":"Geometry supplies computed values; the consumer calls this public operation in the opposite direction.","operations":["strokeTopology"],"inputs":"2D centerlines, width and numeric precision scale in shared units.","outputs":"Footprint component and hole counts.","effects":"Local polygon offset computation.","failure":"Reject invalid centerlines, width or scale.","excludes":"No Bundle or Settings access, machine compatibility, extension feature defaults or deposition policy.","access":[{"from":"compose","to":"geometry-stroke-topology"}],"evidence":["core/geom/stroke-topology.mjs::strokeTopology"],"status":"Source-grounded public operation within existing root pair; schema/effect conformance remains independently reviewed."},
+    {"id":"extension-stroke-topology","from":"geometry-stroke-topology","to":"extension-run","label":"Footprint component and hole counts","direction":"Geometry supplies computed values; the consumer calls this public operation in the opposite direction.","operations":["strokeTopology"],"inputs":"2D centerlines, width and numeric precision scale in shared units.","outputs":"Footprint component and hole counts.","effects":"Local polygon offset computation.","failure":"Reject invalid centerlines, width or scale.","excludes":"No Bundle or Settings access, machine compatibility, extension feature defaults or deposition policy.","access":[{"from":"extension-run","to":"geometry-stroke-topology"}],"evidence":["core/geom/stroke-topology.mjs::strokeTopology"],"status":"Source-grounded public operation within existing root pair; schema/effect conformance remains independently reviewed."},
+    {"id":"extension-mapped-text-material","from":"geometry-mapped-text-material","to":"extension-run","label":"Mapped extrusion/union solid requests","direction":"Geometry supplies computed values; the consumer calls this public operation in the opposite direction.","operations":["mappedTextMaterial"],"inputs":"Normalized feature, target geometry, chord tolerance and mesh edge length.","outputs":"Mapped extrusion/union solid requests.","effects":"Local geometric computation.","failure":"Reject invalid outline, reference mapping or unresolved chord tolerance.","excludes":"No Bundle or Settings access, machine compatibility, extension feature defaults or deposition policy.","access":[{"from":"extension-run","to":"geometry-mapped-text-material"}],"evidence":["core/geom/mapped-text-material.mjs::mappedTextMaterial"],"status":"Source-grounded public operation within existing root pair; schema/effect conformance remains independently reviewed."},
+    {"id":"toolpath-mesh-sleeve-interval","from":"geometry-mesh-sleeve-interval","to":"compose","label":"Proposed connected sleeve fitting interval and section evidence","direction":"Geometry supplies computed values; the consumer calls this public operation in the opposite direction.","operations":["detectMeshSleeveInterval"],"inputs":"Mesh and explicit section/fit tolerances.","outputs":"Proposed connected sleeve fitting interval and section evidence.","effects":"Local section queries only.","failure":"Reject absent or unsupported connected sleeve geometry.","excludes":"No Bundle or Settings access, machine compatibility, extension feature defaults or deposition policy.","access":[{"from":"compose","to":"geometry-mesh-sleeve-interval"}],"evidence":["core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval"],"status":"Source-grounded public operation within existing root pair; schema/effect conformance remains independently reviewed."},
+    {"id":"extension-mesh-sleeve-interval","from":"geometry-mesh-sleeve-interval","to":"extension-run","label":"Proposed connected sleeve fitting interval and section evidence","direction":"Geometry supplies computed values; the consumer calls this public operation in the opposite direction.","operations":["detectMeshSleeveInterval"],"inputs":"Mesh and explicit section/fit tolerances.","outputs":"Proposed connected sleeve fitting interval and section evidence.","effects":"Local section queries only.","failure":"Reject absent or unsupported connected sleeve geometry.","excludes":"No Bundle or Settings access, machine compatibility, extension feature defaults or deposition policy.","access":[{"from":"extension-run","to":"geometry-mesh-sleeve-interval"}],"evidence":["core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval"],"status":"Source-grounded public operation within existing root pair; schema/effect conformance remains independently reviewed."},
+    {"id":"toolpath-contour-sleeve","from":"geometry-contour-sleeve","to":"compose","label":"Prepared contour family","direction":"Geometry supplies computed values; the consumer calls this public operation in the opposite direction.","operations":["prepareContourSleeve"],"inputs":"Explicit shell, base/start/end heights, pitch, first section height, offset, standoff, fit mode and tolerances.","outputs":"Prepared contour family, mappings, geometric bounds and query diagnostics.","effects":"Local computation and query caches; invokes supplied progress callback.","failure":"Reject invalid ranges, collapsed offsets or unsupported section topology.","excludes":"No Bundle or Settings access, machine compatibility, extension feature defaults or deposition policy.","access":[{"from":"compose","to":"geometry-contour-sleeve"}],"evidence":["core/geom/sleeve/contour-sleeve.mjs::prepareContourSleeve"],"status":"Source-grounded public operation within existing root pair; schema/effect conformance remains independently reviewed."},
+    {"id":"extension-contour-sleeve","from":"geometry-contour-sleeve","to":"extension-run","label":"Prepared contour family","direction":"Geometry supplies computed values; the consumer calls this public operation in the opposite direction.","operations":["prepareContourSleeve"],"inputs":"Explicit shell, base/start/end heights, pitch, first section height, offset, standoff, fit mode and tolerances.","outputs":"Prepared contour family, mappings, geometric bounds and query diagnostics.","effects":"Local computation and query caches; invokes supplied progress callback.","failure":"Reject invalid ranges, collapsed offsets or unsupported section topology.","excludes":"No Bundle or Settings access, machine compatibility, extension feature defaults or deposition policy.","access":[{"from":"extension-run","to":"geometry-contour-sleeve"}],"evidence":["core/geom/sleeve/contour-sleeve.mjs::prepareContourSleeve"],"status":"Source-grounded public operation within existing root pair; schema/effect conformance remains independently reviewed."},
+    {"id":"geometry-export-frames","from":"geometry-frames","to":"export","label":"coordinate and frame results","direction":"Geometry supplies geometric results; Export calls the named public operations in the opposite direction.","operations":["innerProduct","add","subtract","scale","dot","cross","length","unitDirection","rotateZ","rotatePointZ","validateDirectionPair","interpolateDirectionPair","mv","transpose","mm","identity","rotation","rigid","point","compose","invert","axisFrame","rodFrame","validateRigid"],"inputs":"Explicit points, vectors, direction pairs, angles, rotation centres, interpolation fractions and rigid transforms satisfying each operation's input contract.","outputs":"Transformed coordinates, composed/inverted transforms, validated directions or interpolated frames.","effects":"Pure computation over supplied values; no retained aliases, I/O, profile lookup or Bundle access.","failure":"Validation operations reject non-finite/non-orthonormal frames; normalization and interpolation reject degenerate directions. No machine feasibility is inferred.","excludes":"No machine capability, tool mapping, startup, collision or motion-feasibility policy; no direct access to Geometry's private kernel.","access":[{"from":"export","to":"geometry-frames"}],"evidence":["core/geom/frame.mjs","core/export/denso.mjs","core/export/denso-player.mjs","core/machine/denso-kinematics.mjs","core/machine/dobot-kinematics.mjs"],"status":"Owner-approved narrow connection; shared operations implemented and exact public-entry bindings recorded. Unknown effects remain visible."},
     {
       "id": "extension-planar-region-layers",
       "from": "extension-run",
@@ -1495,34 +1510,7 @@
         }
       ]
     },
-    {
-      "id": "extension-toolpath",
-      "from": "extension-run",
-      "to": "compose",
-      "label": "construction requests",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "constructAndCompose",
-        "prepareSliceRegionContext"
-      ],
-      "inputs": "Typed Inject/Trace/Slice construction requests and pinned process context.",
-      "outputs": "Operations or SAAMpath value and diagnostics.",
-      "effects": "No shared mutation.",
-      "failure": "Unsupported constructions are explicit.",
-      "excludes": "No export, bundle writes or confirmation.",
-      "access": [
-        {
-          "from": "extension-run",
-          "to": "compose"
-        }
-      ],
-      "evidence": [
-        "skills/advanced-vase-wall/scripts/assignment.mjs",
-        "skills/plastic-weld/scripts/work.mjs"
-      ],
-      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
-      "implementation": "Extensions supply construction requests to engine primitives; returned results do not reverse that initiating action."
-    },
+    {"id":"extension-toolpath","from":"extension-run","to":"compose","label":"construction requests","direction":"Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.","operations":["depositionAssignment","prepareSliceRegionContext"],"inputs":"Typed Inject/Trace/Slice construction requests and pinned process context.","outputs":"Operations or SAAMpath value and diagnostics.","effects":"No shared mutation.","failure":"Unsupported constructions are explicit.","excludes":"No export, bundle writes or confirmation.","access":[{"from":"extension-run","to":"compose"}],"evidence":["core/print/assignment-records.mjs::depositionAssignment","core/print/slice-region-context.mjs::prepareSliceRegionContext","skills/vase-wall/scripts/runtime.mjs","skills/plastic-weld/scripts/runtime.mjs"],"status":"Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.","implementation":"Extensions supply construction requests to engine primitives; returned results do not reverse that initiating action."},
     {
       "id": "recipe-path",
       "from": "build-evaluate",
@@ -1809,33 +1797,7 @@
       "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
       "implementation": "User design/save action drives private workspace state and one-way bundle handoff."
     },
-    {
-      "id": "workspace-toolpath",
-      "from": "compose",
-      "to": "workspace-implementations",
-      "label": "SAAMpath candidates",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "constructAndCompose"
-      ],
-      "inputs": "Explicit construction requests plus geometry/process context and requirements.",
-      "outputs": "Candidate operations/SAAMpath and diagnostics for evaluating the design strategy.",
-      "effects": "Private design iteration only.",
-      "failure": "Expose unsupported construction/process requirements.",
-      "excludes": "A candidate path is not an approved machine program; no confirmation or delivery authority.",
-      "access": [
-        {
-          "from": "workspace-implementations",
-          "to": "compose"
-        }
-      ],
-      "evidence": [
-        "workspaces/wing/construct.mjs",
-        "core/print/workspace.mjs"
-      ],
-      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
-      "implementation": "Wing currently returns authored curves and hands them off for later Trace generation; direct workspace candidate-SAAMpath evaluation remains a declared target."
-    },
+    {"id":"workspace-toolpath","from":"compose","to":"workspace-implementations","label":"recipe construction and identity","direction":"Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.","operations":["curveAssignment","recipeDefaults","workspaceConstructionIdentity"],"inputs":"Explicit authored curves, Trace recipe settings and geometry/deposition construction fields.","outputs":"Neutral recipe defaults and assignment records, plus the stable protected construction identity used at workspace handoff.","effects":"Constructs caller-owned recipe values; no machine selection or persisted bundle mutation.","failure":"Reject invalid construction inputs through the existing recipe operations.","excludes":"No machine program, confirmation or delivery authority; no direct candidate-SAAMpath evaluation is claimed.","access":[{"from":"workspace-implementations","to":"compose"}],"evidence":["workspaces/wing/handoff.mjs","core/print/curves.mjs::curveAssignment","core/print/plan.mjs::recipeDefaults","core/print/plan.mjs::workspaceConstructionIdentity"],"status":"Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.","implementation":"Wing constructs an explicit neutral Trace recipe and records its protected geometry/deposition identity before one-way bundle handoff."},
     {
       "id": "workspace-bundle",
       "from": "workspace-interface",
@@ -1864,33 +1826,7 @@
       "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
       "implementation": "Workspace owns explicit dimensions and constructs supplied components. Bundle stores them; machine selection is a later Settings operation."
     },
-    {
-      "id": "agent-context-onboard",
-      "from": "context-onboard",
-      "to": "agent",
-      "label": "maker-onboarding / maker_onboarding",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "maker-onboarding / maker_onboarding"
-      ],
-      "inputs": "Selected operation, source/skill ID or task identity.",
-      "outputs": "Requested context text and navigation references.",
-      "effects": "Returns values to the caller; state effects stay with the declared owner.",
-      "failure": "Propagate the operation error to its caller.",
-      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
-      "status": "Map-0 causal flow reviewed against source, 2026-10-01; context values return opposite the read call.",
-      "evidence": [
-        "core/agent/toolkit.mjs::onboarding",
-        "scripts/agent-toolkit.mjs",
-        "adapters/mcp/src/runtime.mjs"
-      ],
-      "access": [
-        {
-          "from": "agent",
-          "to": "context-onboard"
-        }
-      ]
-    },
+    {"id":"agent-context-onboard","from":"context-onboard","to":"agent","label":"starting manual context","direction":"Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.","operations":["onboardingSources"],"inputs":"Application root and explicit client/machine manual-filtering context.","outputs":"Starting guidance documents and selected local-extension navigation.","effects":"Returns values to the caller; state effects stay with the declared owner.","failure":"Propagate the operation error to its caller.","excludes":"This source reference is not an exhaustive code assignment or a conformance certificate.","status":"Map-0 causal flow reviewed against source, 2026-10-01; context values return opposite the read call.","evidence":["core/agent/layers.mjs::onboardingSources","core/agent/layers.mjs::ONBOARDING","adapters/mcp/src/runtime.mjs"],"access":[{"from":"agent","to":"context-onboard"}]},
     {
       "id": "agent-context-guidance",
       "from": "context-guidance",
@@ -2102,87 +2038,9 @@
         }
       ]
     },
-    {
-      "id": "context-onboard-reads-makers",
-      "from": "context-file-makers",
-      "to": "context-onboard",
-      "label": "read file/section",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "read file/section"
-      ],
-      "inputs": "Selected source ID and optional section.",
-      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
-      "effects": "Returns values to the caller; state effects stay with the declared owner.",
-      "failure": "Propagate the operation error to its caller.",
-      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
-      "status": "observed in source; manually traced",
-      "evidence": [
-        "core/agent/layers.mjs::ONBOARDING",
-        "core/agent/toolkit.mjs::onboarding",
-        "adapters/mcp/src/runtime.mjs::maker_onboarding"
-      ],
-      "access": [
-        {
-          "from": "context-onboard",
-          "to": "context-file-makers"
-        }
-      ]
-    },
-    {
-      "id": "context-onboard-reads-digest",
-      "from": "context-file-digest",
-      "to": "context-onboard",
-      "label": "read file/section",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "read file/section"
-      ],
-      "inputs": "Selected source ID and optional section.",
-      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
-      "effects": "Returns values to the caller; state effects stay with the declared owner.",
-      "failure": "Propagate the operation error to its caller.",
-      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
-      "status": "observed in source; manually traced",
-      "evidence": [
-        "core/agent/layers.mjs::ONBOARDING",
-        "core/agent/toolkit.mjs::onboarding",
-        "adapters/mcp/src/runtime.mjs::maker_onboarding"
-      ],
-      "access": [
-        {
-          "from": "context-onboard",
-          "to": "context-file-digest"
-        }
-      ]
-    },
-    {
-      "id": "context-onboard-reads-usage",
-      "from": "context-file-usage",
-      "to": "context-onboard",
-      "label": "read file/section",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "read file/section"
-      ],
-      "inputs": "Selected source ID and optional section.",
-      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
-      "effects": "Returns values to the caller; state effects stay with the declared owner.",
-      "failure": "Propagate the operation error to its caller.",
-      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
-      "status": "observed in source; manually traced",
-      "evidence": [
-        "core/agent/layers.mjs::ONBOARDING",
-        "core/agent/toolkit.mjs::onboarding",
-        "adapters/mcp/src/runtime.mjs::maker_onboarding"
-      ],
-      "access": [
-        {
-          "from": "context-onboard",
-          "to": "context-file-usage"
-        }
-      ]
-    },
+    {"id":"context-onboard-reads-makers","from":"context-file-makers","to":"context-onboard","label":"read file/section","direction":"Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.","operations":["read file/section"],"inputs":"Selected source ID and optional section.","outputs":"Actual Markdown; role/client/machine gates are applied by the existing reader.","effects":"Returns values to the caller; state effects stay with the declared owner.","failure":"Propagate the operation error to its caller.","excludes":"This source reference is not an exhaustive code assignment or a conformance certificate.","status":"observed in source; manually traced","evidence":["core/agent/layers.mjs::onboardingSources","core/agent/layers.mjs::ONBOARDING","adapters/mcp/src/runtime.mjs"],"access":[{"from":"context-onboard","to":"context-file-makers"}]},
+    {"id":"context-onboard-reads-digest","from":"context-file-digest","to":"context-onboard","label":"read file/section","direction":"Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.","operations":["read file/section"],"inputs":"Selected source ID and optional section.","outputs":"Actual Markdown; role/client/machine gates are applied by the existing reader.","effects":"Returns values to the caller; state effects stay with the declared owner.","failure":"Propagate the operation error to its caller.","excludes":"This source reference is not an exhaustive code assignment or a conformance certificate.","status":"observed in source; manually traced","evidence":["core/agent/layers.mjs::onboardingSources","core/agent/layers.mjs::ONBOARDING","adapters/mcp/src/runtime.mjs"],"access":[{"from":"context-onboard","to":"context-file-digest"}]},
+    {"id":"context-onboard-reads-usage","from":"context-file-usage","to":"context-onboard","label":"read file/section","direction":"Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.","operations":["read file/section"],"inputs":"Selected source ID and optional section.","outputs":"Actual Markdown; role/client/machine gates are applied by the existing reader.","effects":"Returns values to the caller; state effects stay with the declared owner.","failure":"Propagate the operation error to its caller.","excludes":"This source reference is not an exhaustive code assignment or a conformance certificate.","status":"observed in source; manually traced","evidence":["core/agent/layers.mjs::onboardingSources","core/agent/layers.mjs::ONBOARDING","adapters/mcp/src/runtime.mjs"],"access":[{"from":"context-onboard","to":"context-file-usage"}]},
     {
       "id": "context-tour-reads-makers",
       "from": "context-file-makers",

@@ -3,7 +3,7 @@ import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {loadMachine} from '../../core/machine/profile.mjs';
 import {densoGeometry,densoForward} from '../../core/machine/denso-kinematics.mjs';
-import {rigid} from '../../core/machine/rigid.mjs';
+import {rigid} from '../../core/geom/frame.mjs';
 import {interpretMachineStudy} from '../../core/export/machine-study.mjs';
 
 const euler=r=>[Math.atan2(r[2][1],r[2][2]),Math.asin(Math.max(-1,Math.min(1,-r[2][0]))),Math.atan2(r[1][0],r[0][0])].map(v=>v*180/Math.PI);

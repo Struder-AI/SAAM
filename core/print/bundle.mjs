@@ -26,7 +26,7 @@ const limitationsFor = (plan, machine) => {
   return limits;
 };
 
-export async function generatePreparedPath(plan,_machine,options){
+export async function generatePreparedPath(plan,options){
   await requireGenerationExtensions(plan);
   const [{compileRecipe},{rhino},{buildShell,translateShell},{generatePath},
     {modulationGeometrySources,prepareModulationFields},{booleanShell}]=await Promise.all([

@@ -18,53 +18,6 @@ async function save(file,value){await replaceFile(file,JSON.stringify(value,null
 function demo(id){if(!TOUR_DEMOS.some(d=>d.id===id))throw Error('Unknown tour example');return resolve(packages,id);}
 const validPath=name=>typeof name==='string'&&!name.includes('\\')&&!name.includes(':')&&!name.startsWith('/')&&name.split('/').every(p=>p&&p!=='.'&&p!=='..');
 export async function tourExample(directory){const marker=await optional(resolve(directory,'.tour-reference.json'));return marker?.version===TOUR_VERSION&&TOUR_DEMOS.some(d=>d.id===marker.id)?{id:marker.id,version:marker.version}:null;}
-export function referenceAdapter(live){
-  const bundleFingerprints=async(directory,options)=>{
-    const [{source,presentation},example]=await Promise.all([live.bundleFingerprints(directory,options),tourExample(directory)]);
-    return {source:example?`${source}:tour:${example.id}`:source,presentation};
-  };
-  return {
-    EXPORT_NAME:live.EXPORT_NAME,
-    atomicManifest:live.atomicManifest,
-    LIMITATIONS:live.LIMITATIONS,
-    adjustBundle:live.adjustBundle,
-    async approve(directory,...args){
-      if(await tourExample(directory))throw Error('Exit the tour before confirming a real print.');
-      return live.approve(directory,...args);
-    },
-    async bundleFingerprint(directory,options){return (await bundleFingerprints(directory,options)).source;},
-    bundleFingerprints,
-    changeMachine:live.changeMachine,
-    checkPathBundle:live.checkPathBundle,
-    prepareGeneration:live.prepareGeneration,
-    commitGeneration:live.commitGeneration,
-    exportReviewed:live.exportReviewed,
-    async deliver(directory,...args){
-      if(await tourExample(directory))throw Error('Exit the tour before confirming a real print.');
-      return live.deliver(directory,...args);
-    },
-    async generateBundle(directory,...args){
-      await tourExample(directory);
-      return live.generateBundle(directory,...args);
-    },
-    initBundle:live.initBundle,
-    async loadBundle(directory,options={}){
-      const example=await tourExample(directory),state=await live.loadBundle(directory,options);
-      return example?Object.assign(state,{tourExample:example,localPrintDirectory:directory}):state;
-    },
-    async loadBundleSnapshot(directory,options={}){
-      const result=await live.loadBundleSnapshot(directory,options),example=await tourExample(directory);
-      return example?{...result,state:Object.assign(result.state,{tourExample:example,localPrintDirectory:directory}),
-        fingerprint:`${result.fingerprint}:tour:${example.id}`}:result;
-    },
-    proposedPlan:live.proposedPlan,
-    rememberSetup:live.rememberSetup,
-    root:live.root,
-    updatePlan:live.updatePlan,
-    restoreRevision:live.restoreRevision,
-    withBundleInstance:live.withBundleInstance
-  };
-}
 export async function useExample(directory){try{await unlink(resolve(directory,'.tour-reference.json'));}catch(e){if(e.code!=='ENOENT')throw e;}}
 export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentRequests}={}){
   const library=resolve(libraryRoot),progress=resolve(library,'.tour-progress.json'),base=resolve(library,'tour');

@@ -461,7 +461,7 @@ async function prepareToolpath(state,{onProgress}={}){
       requireThat(!adapter.completionContract||path.completion?.contract===adapter.completionContract&&path.completion.inputHash===state.pathHash,'Saved SAAMpath completion does not match its inputs.');
       return {path,artifact:saved};
     }
-    const path=await generatePath(state.plan,state.machine,{onProgress});
+    const path=await generatePath(state.plan,{onProgress});
     requireThat(!adapter.completionContract||path.completion?.contract===adapter.completionContract&&path.completion.inputHash===state.pathHash,'Generated SAAMpath completion does not match its inputs.');
     const bytes=JSON.stringify(path),contentHash=hash(bytes),file=`paths/${contentHash}.json`;
     await save(resolve(state.dir,file),bytes);

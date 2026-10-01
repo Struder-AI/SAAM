@@ -1,5 +1,7 @@
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
-import {requireThat} from '../private/bundle/numeric.mjs';
+import {requireThat} from '../private/agent/numeric.mjs';
+import {requireThat as requireGeometry} from '../geom/tolerance.mjs';
+import {requireThat as requireToolpath} from '../private/toolpath/numeric.mjs';
 // Geometry intersections and booleans as tools: an agent reads sections and
 // tops of a print (or of geometry it is about to write) and combines solids
 // without writing a script.
@@ -55,7 +57,7 @@ export async function intersectGeometry(geometry,{sectionsAtZ=[],topsAtXY=[],sur
 export function intersectDraftFamilies(shell,drafts,{native,includeLoops=false}){
   if(!drafts.length)return [];
   const assignments=drafts.map((draft,i)=>sliceAssignment({id:`draft-${i}`,...draft}));
-  requireThat(assignments.every(a=>!a.construction&&a.part===null),'Draft families use ordinary slices of the queried geometry; select a part in the outer request.');
+  requireToolpath(assignments.every(a=>!a.construction&&a.part===null),'Draft families use ordinary slices of the queried geometry; select a part in the outer request.');
   validateSlices({version:1,assignments},{parts:[],lineWidthMm:.4,firstLayerMm:.2});
   const shells=[[null,shell,true]],processes=assignments.map(a=>({firstLayerMm:.2,layerMm:.2,lineWidthMm:.4,...a.process}));
   const volumes=new Map(assignments.map(a=>[a.id,a.within.map(v=>v.kind==='geometry'?queryShell(native,v.geometry):null)]));
@@ -76,7 +78,7 @@ export function intersectDraftFamilies(shell,drafts,{native,includeLoops=false})
 // A spline surface (optionally shifted by offsetMm, as a stacked slice) cut by
 // the part: the region of the surface inside it, in the surface's own (u,v).
 function surfaceSection(shell,{offsetMm=[0,0,0],...spec},includeLoops){
-  requireThat(Array.isArray(offsetMm)&&offsetMm.length===3&&offsetMm.every(Number.isFinite),'offsetMm is [x, y, z] in millimetres.');
+  requireGeometry(Array.isArray(offsetMm)&&offsetMm.length===3&&offsetMm.every(Number.isFinite),'offsetMm is [x, y, z] in millimetres.');
   const shifted={...spec,controlPoints:spec.controlPoints?.map(row=>row.map(([x,y,z,w])=>w===undefined?[x+offsetMm[0],y+offsetMm[1],z+offsetMm[2]]:[x+offsetMm[0],y+offsetMm[1],z+offsetMm[2],w]))};
   const P={...referencePatch(shifted),name:'surface'},loops=section(shell,patchSlice(P)).loops,areas=loops.map(loopArea);
   return {domainUv:[P.domainU,P.domainV],areaUv:round(areas.reduce((a,b)=>a+b,0)),islands:areas.filter(a=>a>0).length,holes:areas.filter(a=>a<0).length,

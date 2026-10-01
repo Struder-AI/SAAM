@@ -455,15 +455,16 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       if(req.method==='GET'&&url.pathname==='/api/state') {
         const condition=req.headers['if-none-match'];
         const workId=requests.printId(readDir,{optional:true}),allRecords=workId?await requests.query({printId:workId}):[],records=allRecords.filter(record=>!record.studioInstanceId||record.studioInstanceId===instanceId),guide=await tour.info({records});
-        const {state,fingerprint,presentationFingerprint}=await readStableBundle(bundle,readDir,{program:geometryOnly(guide)?false:'source'});
+        const [{state,fingerprint,presentationFingerprint},example]=await Promise.all([
+          readStableBundle(bundle,readDir,{program:geometryOnly(guide)?false:'source'}),tourExample(readDir)]);
         if(readDir!==dir)throw new Error('The print is being updated.');
-        const responseFingerprint=viewFingerprint(readId,fingerprint,guide),failure=generationFailure,cancelled=generationCancelled;
+        const responseFingerprint=viewFingerprint(readId,example?`${fingerprint}:tour:${example.id}`:fingerprint,guide),failure=generationFailure,cancelled=generationCancelled;
         const importRepair=await loadStudioImportRepair(readDir);
         if(readDir!==dir)throw new Error('The print is being updated.');
         const tag=stateTag(responseFingerprint,guide,failure,cancelled,records,importRepair);
         if(condition&&matchesStateTag(condition,tag)){res.setHeader('ETag',tag);res.writeHead(304);res.end();return;}
         const presentation=viewFingerprint(readId,presentationFingerprint,guide),name=await printName(readDir,state.plan);
-        const assembled=composeStudioState(state,{directory:readDir,printId:readId,workId,instanceId,guide,records,importRepair,
+        const assembled=composeStudioState(state,{directory:readDir,printId:readId,workId,instanceId,guide,example,records,importRepair,
           printName:name,fingerprint:responseFingerprint,presentationFingerprint:presentation,
           generationFailure:failure,generationCancelled:cancelled});
         if(state.checkedBytes){

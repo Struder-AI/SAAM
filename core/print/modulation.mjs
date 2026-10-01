@@ -24,7 +24,7 @@ export async function applyModulation(directory,request,{expectedRevision}={}) {
   const previous=await loadBundle(directory,{program:false});
   requireThat(expectedRevision===previous.revision,'This review is stale. Reload before changing modulation.');
   const modulations=editModulations(previous.plan.modulations,request);
-  const plan={...previous.plan,modulations},diagnostics=await diagnoseDepositionPlan(plan,previous.machine);
+  const plan={...previous.plan,modulations},diagnostics=await diagnoseDepositionPlan(plan);
   const state=await updatePlan(directory,plan,previous.revision),changed=state.revision!==previous.revision;
   return {state,edit:{action:request.action,id:request.id,changed,modifier:state.plan.modulations.modifiers.find(m=>m.id===request.id)??null,
     generationRequired:changed||!state.review.generation,confirmationInvalidated:changed,

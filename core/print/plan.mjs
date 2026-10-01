@@ -1,5 +1,4 @@
 import {requireThat as requireThat_toolpath} from '../private/toolpath/numeric.mjs';
-import {requireThat as requireThat_bundle} from '../private/bundle/numeric.mjs';
 import {ASSIGNMENT_RECORDS,GEOMETRY_RECORDS,extensionSettings,validateExtensionRecipe,extensionProducerIds,validateExtensionAssignment} from '../../skills/records.mjs';
 // Recipe (plan.json) for shell-based prints: geometry, placement, setup, shared
 // process settings, and the settings of each selected skill.
@@ -23,7 +22,6 @@ import {defaultModulations,validateModulations} from '../path/modulation.mjs';
 import {modulationGeometrySources} from '../path/modulation-field.mjs';
 import {assignmentPlan,depositionAssignments} from './assignment-process.mjs';
 import {materialProcess} from '../machine/filaments.mjs';
-import {validateRecipeSetup} from './recipe-setup.mjs';
 
 // Fixed release metadata, so regenerating a reviewed plan is byte-identical.
 import {VERSION} from './version.mjs';
@@ -35,10 +33,6 @@ export const canonical = value => JSON.stringify(value, function (_key, item) {
 });
 export const hash = value => createHash('sha256')
   .update(typeof value === 'string' || Buffer.isBuffer(value) || value instanceof Uint8Array ? value : canonical(value)).digest('hex');
-
-export function number(value, min, max, name) {
-  requireThat_bundle(typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max, `${name} must be between ${min} and ${max}.`);
-}
 
 export function defaults(machine=loadMachine()) {
   return {...recipeDefaults(),...settingsDefaults(machine)};
@@ -75,14 +69,14 @@ function freezeRecipe(value){
 export function compileRecipe(plan){
   const owned=ownedRecipes.get(plan);
   if(owned)return owned;
-  const identity=hash(plan);
-  if(compiledRecipes.has(identity))return compiledRecipes.get(identity);
-  const value={plan:structuredClone(plan),identity};
+  const key=JSON.stringify(plan);
+  if(compiledRecipes.has(key))return compiledRecipes.get(key);
+  const value={plan:structuredClone(plan)};
   validateRecipeValue(value.plan);
   freezeRecipe(value);
   // Eviction only affects reuse, never which recipes are accepted.
   if(compiledRecipes.size>=4)compiledRecipes.delete(compiledRecipes.keys().next().value);
-  compiledRecipes.set(identity,value);ownedRecipes.set(value.plan,value);return value;
+  compiledRecipes.set(key,value);ownedRecipes.set(value.plan,value);return value;
 }
 export function validatePlan(plan){compileRecipe(plan);return plan;}
 function validateRecipeValue(plan) {
@@ -107,7 +101,7 @@ const positiveProcessFields=['firstLayerMm','layerMm','lineWidthMm','maxFlowMm3S
 const nonnegativeProcessFields=['retractMm','liftMm','maxCombMm','minimumLayerSeconds','planarWallToleranceMm'];
 
 export function validatePlanFields(plan) {
-  requireThat_bundle(plan && typeof plan === 'object' && (depositionOnlyPlan(plan)||GEOMETRY_SHAPES.includes(plan.geometry?.shape)), `Author geometry (${GEOMETRY_SHAPES.join(', ')}) or a Trace/Inject recipe.`);
+  requireThat_toolpath(plan && typeof plan === 'object' && (depositionOnlyPlan(plan)||GEOMETRY_SHAPES.includes(plan.geometry?.shape)), `Author geometry (${GEOMETRY_SHAPES.join(', ')}) or a Trace/Inject recipe.`);
   // Validation is check-only: a plan carries every current field or it is
   // rejected. Supported older fields require explicit recipe migration and regeneration.
   const {skills,...base}=recipeDefaults();
@@ -117,22 +111,21 @@ export function validatePlanFields(plan) {
     ...(Object.hasOwn(plan,'skills')?{skills:Object.fromEntries(Object.entries(skills).filter(([id])=>Object.hasOwn(plan.skills??{},id)))}:{}),
     ...(plan.geometry?{geometry:geometryTemplate(plan.geometry.shape,plan.geometry)}:{}),...(Object.hasOwn(plan,'workspace')?{workspace:plan.workspace}:{})};
   if(plan.workspace){
-    requireThat_bundle(plan.workspace.schema==='saam-workspace-source/1'&&plan.workspace.source&&plan.workspace.requirements,'Invalid workspace construction source.');
-    requireThat_bundle(plan.workspace.constructionIdentity===workspaceConstructionIdentity(plan),'This edit changes the workspace construction requirements. Regenerate the section in its workspace, or explicitly detach the workspace source before changing its construction.');
+    requireThat_toolpath(plan.workspace.schema==='saam-workspace-source/1'&&plan.workspace.source&&plan.workspace.requirements,'Invalid workspace construction source.');
+    requireThat_toolpath(plan.workspace.constructionIdentity===workspaceConstructionIdentity(plan),'This edit changes the workspace construction requirements. Regenerate the section in its workspace, or explicitly detach the workspace source before changing its construction.');
   }
-  requireThat_bundle(!plan.composition||!Object.hasOwn(plan.composition,'batchLayers'),'composition.batchLayers is retired; explicitly migrate the recipe to ascending-height scheduling and regenerate.');
+  requireThat_toolpath(!plan.composition||!Object.hasOwn(plan.composition,'batchLayers'),'composition.batchLayers is retired; explicitly migrate the recipe to ascending-height scheduling and regenerate.');
   keys({...plan,setup:null},{...expected,setup:null});
-  validateRecipeSetup(plan);
-  requireThat_bundle(typeof plan.experimental.substrateAdaptation==='boolean','experimental.substrateAdaptation must be true or false.');
-  requireThat_bundle(plan.schema === expected.schema && plan.generatorVersion === VERSION, 'Unsupported plan or generator version.');
-  requireThat_bundle(Array.isArray(plan.composition.order) && plan.composition.order.every(id=>typeof id==='string') && Array.isArray(plan.composition.dependencies) && plan.composition.dependencies.every(e=>e && typeof e.before==='string' && typeof e.after==='string' && Object.keys(e).sort().join()==='after,before'), 'Invalid composition rules.');
-  requireThat_bundle(Array.isArray(plan.composition.filaments),'composition.filaments must be a list of part or assignment selections.');
+  requireThat_toolpath(typeof plan.experimental.substrateAdaptation==='boolean','experimental.substrateAdaptation must be true or false.');
+  requireThat_toolpath(plan.schema === expected.schema && plan.generatorVersion === VERSION, 'Unsupported plan or generator version.');
+  requireThat_toolpath(Array.isArray(plan.composition.order) && plan.composition.order.every(id=>typeof id==='string') && Array.isArray(plan.composition.dependencies) && plan.composition.dependencies.every(e=>e && typeof e.before==='string' && typeof e.after==='string' && Object.keys(e).sort().join()==='after,before'), 'Invalid composition rules.');
+  requireThat_toolpath(Array.isArray(plan.composition.filaments),'composition.filaments must be a list of part or assignment selections.');
   const routes=new Set();
   for(const route of plan.composition.filaments){
-    requireThat_bundle(route&&['filament,part','assignment,filament'].includes(Object.keys(route).sort().join())&&Number.isInteger(route.filament)&&route.filament>=0,'Filament routing needs {part,filament} or {assignment,filament}.');
+    requireThat_toolpath(route&&['filament,part','assignment,filament'].includes(Object.keys(route).sort().join())&&Number.isInteger(route.filament)&&route.filament>=0,'Filament routing needs {part,filament} or {assignment,filament}.');
     const key=Object.hasOwn(route,'part')?'part':'assignment',target=route[key];
-    requireThat_bundle(typeof target==='string'&&target.length>0||key==='part'&&target===null,'Invalid filament routing target.');
-    const identity=key+':'+target;requireThat_bundle(!routes.has(identity),'Duplicate filament routing target.');routes.add(identity);
+    requireThat_toolpath(typeof target==='string'&&target.length>0||key==='part'&&target===null,'Invalid filament routing target.');
+    const identity=key+':'+target;requireThat_toolpath(!routes.has(identity),'Duplicate filament routing target.');routes.add(identity);
     validatePlanProcess({...plan,process:materialProcess(plan,route.filament)});
   }
 
@@ -177,7 +170,10 @@ function authoredBounds(geometry){
   if(geometry.shape==='spline')return splineSolidBounds(validateSplineSolid(geometry));
   if(geometry.shape==='blob-field')validateBlobFieldRecord(geometry);
   else if(Object.hasOwn(GEOMETRY_RECORDS,geometry.shape))GEOMETRY_RECORDS[geometry.shape].validate(geometry);
-  else {keys(geometry,{shape:'mesh',vertices:[],triangles:[],source:null},'boolean operand');validateMeshSource(geometry);}
+  else {
+    requireThat(Object.keys(geometry).sort().join()==='shape,source,triangles,vertices','Boolean mesh operands need shape, source, triangles and vertices only.');
+    validateMeshSource(geometry);
+  }
   return makeMesh(geometry.vertices,geometry.triangles).bounds;
 }
 
@@ -189,7 +185,7 @@ export function validatePlanProcess(plan) {
   for(const key of positiveProcessFields)positive(process[key],key);
   for(const key of nonnegativeProcessFields)
     requireThat_toolpath(Number.isFinite(process[key])&&process[key]>=0,`${key} must be nonnegative and finite.`);
-  number(process.fanPercent, 0, 100, 'fanPercent');
+  requireThat_toolpath(Number.isFinite(process.fanPercent)&&process.fanPercent>=0&&process.fanPercent<=100,'fanPercent must be between 0 and 100.');
   if(process.primeLine!==null){
     const p=process.primeLine;
     requireThat_toolpath(p&&typeof p==='object'&&!Array.isArray(p),'Invalid primeLine.');
@@ -258,19 +254,19 @@ export function validatePlanSelections(plan) {
 
 export function validatePlanPlacement(plan) {
   const {placement}=plan;
-  requireThat_bundle(typeof plan.output==='string'&&plan.output.length>0,'Output identity must be nonempty.');
-  requireThat_bundle(Number.isFinite(placement.xMm)&&Number.isFinite(placement.yMm),'Placement must be finite.');
+  requireThat_toolpath(typeof plan.output==='string'&&plan.output.length>0,'Output identity must be nonempty.');
+  requireThat_toolpath(Number.isFinite(placement.xMm)&&Number.isFinite(placement.yMm),'Placement must be finite.');
   return plan;
 }
 
 // Reject misspelled or unused settings instead of silently ignoring them.
 function keys(actual, expected, path = 'plan') {
-  requireThat_bundle(actual && typeof actual === 'object' && !Array.isArray(actual), `${path} must be an object.`);
+  requireThat_toolpath(actual && typeof actual === 'object' && !Array.isArray(actual), `${path} must be an object.`);
   // Name the offending keys: a retired or misspelled field is otherwise invisible
   // to the agent or maker holding the recipe.
   const unexpected = Object.keys(actual).filter(key => !Object.hasOwn(expected, key)).sort();
   const missing = Object.keys(expected).filter(key => !Object.hasOwn(actual, key)).sort();
-  requireThat_bundle(!unexpected.length && !missing.length, `Unexpected or missing fields in ${path}: `
+  requireThat_toolpath(!unexpected.length && !missing.length, `Unexpected or missing fields in ${path}: `
     + [unexpected.length ? 'unexpected ' + unexpected.join(', ') : '', missing.length ? 'missing ' + missing.join(', ') : ''].filter(Boolean).join('; ') + '.');
   for (const key of Object.keys(expected)) {
     const value = expected[key];

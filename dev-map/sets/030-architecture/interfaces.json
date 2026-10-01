@@ -92,11 +92,11 @@
     },
     {
       "contract": "agent-context-onboard",
-      "target": "core/agent/toolkit.mjs::onboarding",
+      "target": "core/agent/layers.mjs::onboardingSources",
       "kinds": [
         "call"
       ],
-      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+      "evidence": "Actual Context provider used by MCP; CLI composition reads through separately bound contextPacket. Environment/maps stay Agent-owned."
     },
     {
       "contract": "agent-context-guidance",
@@ -711,6 +711,414 @@
         "call"
       ],
       "evidence": "Public typed preset Slice construction context; no private-engine bag or machine selection."
+    },
+    {
+      "contract": "extension-contour-sleeve",
+      "target": "core/geom/sleeve/contour-sleeve.mjs::prepareContourSleeve",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact public operation; runtime-supplied callable propagation remains an analysis limit, not certified by this binding."
+    },
+    {
+      "contract": "toolpath-contour-sleeve",
+      "target": "core/geom/sleeve/contour-sleeve.mjs::prepareContourSleeve",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact public operation; runtime-supplied callable propagation remains an analysis limit, not certified by this binding."
+    },
+    {
+      "contract": "extension-mesh-sleeve-interval",
+      "target": "core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact public operation; runtime-supplied callable propagation remains an analysis limit, not certified by this binding."
+    },
+    {
+      "contract": "toolpath-mesh-sleeve-interval",
+      "target": "core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact public operation; runtime-supplied callable propagation remains an analysis limit, not certified by this binding."
+    },
+    {
+      "contract": "extension-mapped-text-material",
+      "target": "core/geom/mapped-text-material.mjs::mappedTextMaterial",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact public operation; runtime-supplied callable propagation remains an analysis limit, not certified by this binding."
+    },
+    {
+      "contract": "extension-stroke-topology",
+      "target": "core/geom/stroke-topology.mjs::strokeTopology",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact public operation; runtime-supplied callable propagation remains an analysis limit, not certified by this binding."
+    },
+    {
+      "contract": "toolpath-stroke-topology",
+      "target": "core/geom/stroke-topology.mjs::strokeTopology",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact public operation; runtime-supplied callable propagation remains an analysis limit, not certified by this binding."
+    },
+    {
+      "contract": "extension-toolpath",
+      "target": "core/print/assignment-records.mjs::depositionAssignment",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Existing canonical Inject/Trace/Slice/extension assignment constructor; makers invoke extensions, builders edit their code."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/tolerance.mjs::add",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/tolerance.mjs::subtract",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/tolerance.mjs::scale",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/tolerance.mjs::dot",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/tolerance.mjs::cross",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/tolerance.mjs::length",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::rotateZ",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::rotatePointZ",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::validateDirectionPair",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::interpolateDirectionPair",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::mv",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::transpose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::mm",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::identity",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::rotation",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::rigid",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::validateRigid",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/tolerance.mjs::subtract",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/tolerance.mjs::scale",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/tolerance.mjs::dot",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/tolerance.mjs::cross",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/tolerance.mjs::length",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::rotateZ",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::rotatePointZ",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::mv",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::mm",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::rotation",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::rigid",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::point",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::compose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::invert",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::axisFrame",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::rodFrame",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::validateRigid",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-toolpath-frames",
+      "target": "core/geom/tolerance.mjs::dot",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-toolpath-frames",
+      "target": "core/geom/frame.mjs::unitDirection",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-toolpath-frames",
+      "target": "core/geom/frame.mjs::rotatePointZ",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-toolpath-frames",
+      "target": "core/geom/frame.mjs::validateDirectionPair",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-toolpath-frames",
+      "target": "core/geom/frame.mjs::interpolateDirectionPair",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::innerProduct",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "DENSO inverse-kinematics consumes public N-dimensional innerProduct; 3D dot is a distinct operation."
+    },
+    {
+      "contract": "workspace-toolpath",
+      "target": "core/print/curves.mjs::curveAssignment",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual named import and call in workspaces/wing/handoff.mjs; neutral recipe construction and protected construction identity only."
+    },
+    {
+      "contract": "workspace-toolpath",
+      "target": "core/print/plan.mjs::recipeDefaults",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual named import and call in workspaces/wing/handoff.mjs; neutral recipe construction and protected construction identity only."
+    },
+    {
+      "contract": "workspace-toolpath",
+      "target": "core/print/plan.mjs::workspaceConstructionIdentity",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual named import and call in workspaces/wing/handoff.mjs; neutral recipe construction and protected construction identity only."
     }
   ]
 }

@@ -71,7 +71,7 @@ export function sectionRoute(d,piece,span,{webs=true}={}){
   const skin=(a,b,side,count=24)=>{for(let j=0;j<count;j++){const x=a+(b-a)*j/count;push(x,edge(x,side));}};
   let previous=lo;
   for(const rod of webs?s.rods:[]){
-    const fade=Math.max(0,1-s.tip),cy=foil(d,rod.xMm,d.chordMm).center,rodX=rod.xMm;
+    const fade=Math.max(0,1-s.tip),cy=foil(d,rod.xMm-sweepOffsetMm(d,span),d.chordMm).center,rodX=rod.xMm;
     const r=(rod.diameterMm/2+d.clearanceMm+w/2)*fade,rx=r/Math.cos(d.sweepDeg*Math.PI/180),neck=w*.45*fade;
     if(!s.tip&&(rodX-neck<=lo||rodX+neck>=hi))throw Error('Rod lies outside its wing/control section.');
     const top=edge(rodX,1),bottom=edge(rodX,-1);
