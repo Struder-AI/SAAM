@@ -2,9 +2,8 @@
 
 Implementation-map intent: [DEVELOPER-CONTEXT.md](../DEVELOPER-CONTEXT.md);
 remaining work: [BR-052](../build_request.md#br-052--complete-the-dev-map-against-the-2026-09-21-intent).
-Target architecture and planned enforcement: [0.3.0](../plans/0.3.0.md).
-This guide owns commands, reads and authoring. Scanned maps derive code relationships;
-design maps describe proposed boundaries and never certify implementation.
+Target architecture/enforcement: [0.3.0](../plans/0.3.0.md). Scanned maps derive code relationships;
+design maps describe boundaries with explicit source previews, never certifying implementation.
 
 - `lib/`: source scanning, leaves (`leaves.mjs`), the tree (`tree.mjs`), the
   store, scoring, the solver and rendering.
@@ -154,13 +153,13 @@ read, a missing one reporting `sourceUnavailable`, not wrong line numbers.
 
 ## Authoring
 
-**Design sets**: `map.json` declares `mode: "design"`, `title`, `authoring: "manual"`; `architecture.json`
-owns stable node IDs, indexes, descriptions/types, actors, contracts and layout; empty/guidance nodes are valid.
-Contracts name endpoints, direction, operations, inputs/outputs, effects, failure and exclusions. Calls include
-declared responses; events may be separate. Nested endpoints lift without granting broader access.
-`build --set 030-architecture` draws the target; `030-deployment` draws deployment. `read INDEX|@design/ID|CONTRACT-ID`
-prints intent; `check --viewer` validates inputs, freshness and drawn coverage. `regenerate` rebuilds without scanning.
-No `solve`, `--code` or source evidence; inventory attachment and conformance enforcement remain planned.
+**Design sets**: `map.json` declares `mode: "design"`, `title`, `authoring: "manual"`; `architecture.json` owns
+stable IDs, indexes, descriptions/types, actors, contracts and layout. Nodes may reference `source: {file, heading?}`
+or `{file, declaration?}` (`optional: true` allows absent local files); terminal boxes preview source. `read INDEX|@design/ID|CONTRACT-ID`
+prints intent; `--source` adds referenced text. `build --set NAME` and `regenerate` capture sources without scanning;
+`check --viewer` checks freshness, boxes, wires and previews. Contracts retain status/evidence and exact endpoints,
+operations, inputs/outputs, effects, failure and exclusions; calls include responses. `overview: "response"` draws
+the response direction on map 0 only. No transitive access, solving or inferred ownership/conformance is granted.
 
 **Scanned trees**: `tree.json` owns `clusters` (`id,label,parent`), `leaves` (declaration → home), `repeats`
 (map → guests), optional `order`. Placement adds leaves beside links, drops gone leaves and dissolves
@@ -208,4 +207,4 @@ show scores; `score` prints the worst and best maps.
 
 ## The viewer
 
-`view/index.html` follows declarations across renumbering. Leaves open source/helpers; externals open connections; design wires open contracts.
+`view/index.html` follows declarations across renumbering. Leaves open source/helpers; externals open connections.

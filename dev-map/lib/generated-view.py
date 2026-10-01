@@ -469,8 +469,10 @@ def build_page(packet, ctx):
             if c.get("kind") == "concept":
                 note = textwrap.fill(c.get("description", ""), 31)
                 style = "emphasis" if c.get("stateful") else "recv" if c.get("type") == "actor" else "stage"
-                node = unit(c["index"], c["label"], note, "", style, path=c["path"])
-                node.show_foot = False
+                source = c.get("sourceSpan")
+                ref = f'{source["file"]}:{source["line"]}-{source["endLine"]}' if source else None
+                node = unit(c["index"], c["label"], note, ref or "", style, ref=ref, path=c["path"])
+                node.show_foot = bool(source)
                 if c.get("type") == "actor":
                     node.num = ""
                 continue
@@ -832,13 +834,13 @@ def value_text(value):
 def lists(packet, page, pages):
     """What the stored packet holds beside its boxes and wires, printed as data."""
     if packet.get("design"):
-        page.row("head", "Proposed architecture · implementation unchecked")
+        page.row("head", "Authored map · source references are not conformance evidence")
         for line in textwrap.wrap(packet.get("description", ""), 115):
             page.row("item", line)
         for note in packet.get("notes", []):
             for line in textwrap.wrap(note, 115):
                 page.row("item", line)
-        page.row("item", "Click any wire to inspect all of its proposed contracts. No wire grants transitive access.")
+        page.row("item", "Click a source box to preview its file; click a wire for its contract and evidence. No transitive access.")
         return
     # How this page came to be drawn: whether its wires are relationships rather than execution,
     # how many call sites are behind them, and where its grouping was authored. A reader who does
@@ -1196,7 +1198,7 @@ const visits=[],visitSession=Date.now()+'-'+Math.random();
 let visitAt=-1,showVersion=0,sourceVersion=0;
 let liveFreshness=null;
 function freshnessMessage(now=Date.now()){
-  if(DESIGN)return {warning:'PROPOSED · implementation unchecked',source:'Authored intent; no scanned implementation evidence'};
+  if(DESIGN)return {warning:'AUTHORED · conformance unchecked',source:'Source snapshot captured at build · check the design to verify freshness'};
   const status=liveFreshness,checked=status&&Date.parse(status.checkedAt);
   if(!status||!Number.isFinite(checked)||now<checked||now-checked>Math.min(status.validForMs||0,10000))
     return {warning:'Live freshness unavailable',source:'Snapshot source · live freshness unavailable'};
@@ -1478,9 +1480,9 @@ function openContracts(from,to){
   const contracts=(PAGES[cur]?.contracts??[]).filter(w=>w.from===from&&w.to===to).flatMap(w=>w.contracts);
   if(!contracts.length)return;
   closeCode();legendPane.classList.remove('on');codePane.classList.add('on');
-  codePane.innerHTML=`<div class="ch"><span class="x" onclick="dismissCode()">&times;</span><h3>${esc(from)} → ${esc(to)}</h3><p>Proposed contracts · implementation unchecked</p></div>`+
+  codePane.innerHTML=`<div class="ch"><span class="x" onclick="dismissCode()">&times;</span><h3>${esc(from)} → ${esc(to)}</h3><p>Authored interfaces · inspect status and source evidence below</p></div>`+
     contracts.map(c=>`<div style="padding:16px"><h3>${esc(c.id)} · ${esc(c.label)}</h3><p>${esc(c.fromIndex)} → ${esc(c.toIndex)}</p>`+
-      ['direction','operations','inputs','outputs','effects','failure','excludes'].map(k=>`<p><b>${esc(k)}</b><br>${esc(Array.isArray(c[k])?c[k].join('; '):c[k])}</p>`).join('')+'</div>').join('');
+      ['status','evidence','direction','operations','inputs','outputs','effects','failure','excludes'].filter(k=>c[k]!==undefined).map(k=>`<p><b>${esc(k)}</b><br>${esc(Array.isArray(c[k])?c[k].join('; '):c[k])}</p>`).join('')+'</div>').join('');
 }
 function pageCode(){const p=PAGES[cur];if(p&&p.r)openCode(p.r,p.destination==='code'?cur:null);}
 function copy(t){navigator.clipboard.writeText(t);}
@@ -1600,7 +1602,7 @@ def emit(out, model, pages, svgs):
                     f'{escape(p["t"].split(" ", 1)[-1])}</a>')
     heading = model.get("title", "SAAM — the generated map")
     legend = ("<p>Authored target architecture, not scanned implementation.</p>"
-              "<p>Boxes open submaps. Wires open every proposed contract, including exact nested endpoints. "
+              "<p>Boxes open submaps or referenced source. Wires open contracts and evidence, including exact nested endpoints. "
               "A call includes its declared response; guidance and event arrows state their direction separately. "
               "No transitive access is granted. Implementation conformance remains unchecked.</p>"
               if model.get("design") else legend_html())
@@ -1608,7 +1610,7 @@ def emit(out, model, pages, svgs):
 <style>{CSS}</style>
 <div id="side">
   <h1>{escape(heading)}</h1>
-  <div class="sub">{len(svgs)} graph pages · {len(pages) - len(svgs)} code destinations, stored {escape(model["generated"])}, drawn
+  <div class="sub">{len(svgs)} graph pages · {len(pages) - len(svgs)} source destinations, stored {escape(model["generated"])}, drawn
     {escape(model.get("built", "")[:16].replace("T", " "))} UTC.
     <span id="freshness-status">Live freshness unavailable; snapshot remains readable.</span>
     Redrawn by every <code>regenerate</code>; this page reloads itself.</div>
@@ -1674,7 +1676,7 @@ def build(model, out):
                    f'{len(p["components"])} components, {len(p["wires"])} wires')
             detail, ref = p["path"], f'{p["file"]}:{p["line"]}-{p["endLine"]}'
         if p.get("design"):
-            sub = f'proposed architecture · {len(p["components"])} boxes · {len(p["wires"])} interfaces · implementation unchecked'
+            sub = f'authored map · {len(p["components"])} boxes · {len(p["wires"])} interfaces · conformance unchecked'
         parent = None
         cut = index
         while "." in cut:

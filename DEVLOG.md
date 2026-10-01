@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-10-01 — Concrete access paths and clickable source previews
+
+- Replaced map 1's invented shared reader/content bins with a flat external-agent → actual onboarding/manual/skill/tour/failure call → context-file map, including direct entry-file reads. File boxes open the real source snapshot; tour guidance opens its selected section. Core guidance stays in 1 and extension manuals in 4; the shared reader reference does not assert duplicate code ownership.
+- Refined maps 3–8 around existing operations and files: engine construction/finalization, extension catalog/manuals, bundle persistence/patch/setup, Studio views/request/events/tour, build preparation and machine exporters/interpreters. Source-traced calls carry evidence and remain distinct from proposed integration interfaces. Export stays outside the toolpath engine and is invoked by Studio. Preserved all 24 top-map directed connections/layout and map 2's nodes/internal contracts; mixed functions and complete leaf assignment remain future work.
+- Added design source references (file, Markdown heading or unique JavaScript declaration), optional local files, source hashes, CLI --source and existing-viewer previews. Design checking now covers preview destinations/content as well as boxes/wires/freshness; overview response direction preserves the accepted guidance-delivery arrow while map 1 shows requests. This does not implement automatic inventory/ownership/conformance enforcement.
+- Built architecture (12 graph pages, 72 source destinations, 62 files) and deployment (8 graph pages); both freshness/coverage checks pass. Browser clicks opened MAKERS.md and the exact exportAndInterpretProgram declaration; generated JavaScript and design module parse, diff checks pass. No new tests, whole suite, product-runtime change or publication. Map guide 211 → 210 lines; intent 97 → 95.
+
 ## 2026-10-01 — Source-based maker-context grouping and submap assessment
 
 - Replaced map 1’s two abstract labels with one context reader and four source groups selected by actual access paths: entry/workflow/bundle tools, core construction references, machine guidance, Studio/tour participation. Inventoried CLI/MCP/embedded guidance, shared reuse, all 17 catalogued maker manuals and the 14 extension-owned manuals; retained source/section references and candidate delivery declarations in map notes. These are manually reviewed migration evidence, not scanner bindings.

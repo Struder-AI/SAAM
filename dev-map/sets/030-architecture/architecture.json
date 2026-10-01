@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "date": "2026-09-30",
-  "description": "0.3.0 target architecture. Map 0 accepted by the owner; submaps and detailed contracts are provisional. Arrows are calls including their declared response, except explicitly named guidance/data/event arrows. No transitive access. Only 5 exposes shared part state; each other component may exclusively own private state. No source compliance has been established. Extension resource access added by owner request: Thingi10K belongs in Extensions, with an explicit external-resource wire. Extensions are unsandboxed local code; contracts describe intended SAAM/reviewed-extension structure, not confinement of arbitrary scripts. Owner confirmed preservation of a simplified Studio\u2013agent channel, priority event batches and exclusive per-bundle editing; saved artifacts remain inspectable without regeneration dependencies. Specialized workspaces are external bundle producers with public engine access; handoff is one-way and does not grant confirmation authority.",
+  "description": "0.3.0 target architecture. Map 0 accepted by the owner; submaps and detailed contracts are provisional. Arrows are calls including their declared response, except explicitly named guidance/data/event arrows. No transitive access. Only 5 exposes shared part state; each other component may exclusively own private state. No source compliance has been established. Extension resource access added by owner request: Thingi10K belongs in Extensions, with an explicit external-resource wire. Extensions are unsandboxed local code; contracts describe intended SAAM/reviewed-extension structure, not confinement of arbitrary scripts. Owner confirmed preservation of a simplified Studio–agent channel, priority event batches and exclusive per-bundle editing; saved artifacts remain inspectable without regeneration dependencies. Specialized workspaces are external bundle producers with public engine access; handoff is one-way and does not grant confirmation authority.",
   "actors": {
     "user": {
       "label": "User",
@@ -25,45 +25,270 @@
       "id": "context",
       "index": "1",
       "label": "Maker context",
-      "description": "Guidance for the agent; numbered without pretending it is code.",
+      "description": "Actual maker-context access: agent calls and directly readable files. Click a file to preview it.",
       "type": "guidance",
       "notes": [
-        "Inventory reviewed 2026-10-01 against actual guidance readers, CLI/MCP entry points and the skill catalog. Source references below are migration evidence, not scanned ownership or enforced contracts.",
-        "Group by how content is retrieved: one context reader, shared starting content, selected construction references, selected machine references, and Studio/tour participation. Source passages have one home even when several commands request them. A prose hyperlink is navigation, not a runtime component call.",
-        "Keep the map 0 boundary: context is delivered only to the agent. Installed extension manuals and discovery metadata belong in 4, accessed through the existing agent–Extensions interface; no hidden 1 → 4 loader. Geometry implementation remains the separate map 2 task.",
-        "The current reader can also expose builder/developer/history documentation. That allowlist is not the ownership of Maker context: BUILDERS.md, DEVELOPER-CONTEXT.md, CONTRIBUTING*.md, DECISIONS.md, DEVLOG.md, skill BUILDER/DEVELOPER manuals and implementation sections retain their own purposes. Maker-relevant sections in mixed files are identified below.",
-        "Current system can author these nodes, notes and contracts. It cannot bind Markdown sections or scanned declarations to them, track source freshness for these notes, enforce parent contracts, or certify conformance. Add inventory/source bindings and explicit unassigned/split-required/forbidden/unknown states before code assignment."
+        "This flat map traces current maker-facing reads; it stops at the actual file. Shared reader helpers are folded into each access path, not invented as a new service.",
+        "The overview retains the guidance-delivery direction (1 → agent); this expanded map draws requests (agent → tool/file). Each is the same request/response interaction, not an additional permission.",
+        "Core-family read-skill selections are shown here; extension selections are shown in 4. Both currently use the same reader implementation. Source previews do not assign that whole implementation to both components. Builder/developer-only reads are outside this maker slice."
       ]
     },
     {
-      "id": "context-reader",
+      "id": "context-onboard",
       "index": "1.1",
-      "label": "Read maker context",
-      "description": "One reader selects startup, named references or task guidance; owns no part or Studio state.",
+      "label": "maker-onboarding / maker_onboarding",
+      "description": "Returns MAKERS, DIGEST and print tools.",
       "type": "component",
-      "notes": [
-        "Current CLI access: maker-onboarding [--machine], read-guidance PATH#HEADING [--machine|--all], read-skill ID#HEADING, start-tour returned participation context, and inspect-generation-failure guidance. Direct startup reads AGENTS.md (CLAUDE.md points to it); onboarding does not repeat it.",
-        "Current MCP equivalents: maker_onboarding, read_guidance, read_skill and list_skills; runtime instructions, tool descriptions and onboarding reminders also deliver prose. These are evidence of existing delivery paths, not a decision to retain web/relay sessions in 0.3.0.",
-        "Candidate reusable code: core/agent/manuals.mjs::readManual, readGuidance, loadGuidance, assembleGuidance, guidanceSection, guidanceLinks, repositoryLinks, headings and gate parsing; core/agent/toolkit.mjs::contextPacket, readSkill and the context-only part of onboarding; core/agent/layers.mjs::onboardingSources, gatedIndex, machineHint and printHint; scripts/skill-digest.mjs::updatedSkillIndex.",
-        "Split mixed responsibilities instead of moving entire files: onboarding also fetches Git and probes dependencies; start-tour launches Studio; inspectFailure loads bundle state; runtime.mjs combines tool declarations, context and operational handlers. Only content selection/assembly belongs here.",
-        "Reuse one document/section selection mechanism for all four content groups, preserving IDs, anchors, links and omitted-section explanations. Direct file reads and tool wrappers select the same sources; do not add one reader implementation per group.",
-        "Machine-gated content needs explicit capability facts from the caller or owned published guidance metadata. Current manuals.mjs::machineOpens imports loadMachine: that dependency needs classification; do not smuggle an engine/private machine-state call through this bin.",
-        "Inventory schemas and command help as guidance too: scripts/agent-toolkit.mjs help, core/print/cli.mjs usage, adapters/mcp/src/runtime.mjs instructions/tool descriptions, and adapters/mcp/src/deposition-schemas.mjs. Operational schema validation stays with the API owner; prose/schema publication must be bound to the same contract, not copied into an independent schema."
-      ]
+      "source": {
+        "file": "core/agent/toolkit.mjs",
+        "declaration": "onboarding"
+      }
     },
     {
-      "id": "context-start",
+      "id": "context-guidance",
       "index": "1.2",
-      "label": "Entry, workflow & bundle tools",
-      "description": "Shared starting sources; follow-up reads reuse their sections.",
+      "label": "read-guidance / read_guidance",
+      "description": "Reads a published file or #heading.",
+      "type": "component",
+      "source": {
+        "file": "core/agent/toolkit.mjs",
+        "declaration": "contextPacket"
+      }
+    },
+    {
+      "id": "context-skill",
+      "index": "1.3",
+      "label": "read-skill / read_skill",
+      "description": "Core selection: slice, trace or inject.",
+      "type": "component",
+      "source": {
+        "file": "core/agent/toolkit.mjs",
+        "declaration": "readSkill"
+      }
+    },
+    {
+      "id": "context-tour",
+      "index": "1.4",
+      "label": "start-tour: returned context",
+      "description": "Returns MAKERS and tour participation.",
+      "type": "component",
+      "source": {
+        "file": "core/agent/toolkit.mjs",
+        "declaration": "preview"
+      }
+    },
+    {
+      "id": "context-failure",
+      "index": "1.5",
+      "label": "inspect-generation-failure: guidance",
+      "description": "Returns delivery guidance and skill links.",
+      "type": "component",
+      "source": {
+        "file": "core/agent/toolkit.mjs",
+        "declaration": "inspectFailure"
+      }
+    },
+    {
+      "id": "context-file-agents",
+      "index": "1.6",
+      "label": "AGENTS.md",
+      "description": "Entry and role rules.",
       "type": "guidance",
-      "notes": [
-        "AGENTS.md and CLAUDE.md: desktop entry routing, maker boundary, escalation pointers, tour-first rule and instruction to read local preferences. .local/AGENTS.md is checkout-owned guidance, not a release default or a globally published manual.",
-        "MAKERS.md: geometry/toolpath choice, interaction flow, assumptions and last-used settings, working boundaries, Studio reuse and command access. maker-onboarding returns this; start-tour reuses it.",
-        "core/print/USAGE.md: shared operation index, recipe edits and revision conflicts, nozzle selection, STL import/units/repair, spacing, generation/advisories/export, remembered setup and CLI forms. It is read in onboarding and by section; inspect-generation-failure reuses #check-generate-and-deliver, not a second failure manual.",
-        "skills/DIGEST.md and skills/catalog.mjs: existing discovery source contains 17 maker manuals (3 core families, 6 feature skills, 8 composition guides), plus builder-only mesh-tools outside maker context. Target starting context keeps core discovery and how to query Extensions; the 14 non-primitive manuals and their live discovery entries belong in 4.",
-        "Migration corrections, not implemented here: remove web-agent/relay workflow instructions, reflect Studio-triggered export, remove outdated delivery/approval ceremony, and route extension discovery through 4. Retain current content as evidence until its consumers migrate."
-      ]
+      "source": {
+        "file": "AGENTS.md"
+      }
+    },
+    {
+      "id": "context-file-claude",
+      "index": "1.7",
+      "label": "CLAUDE.md",
+      "description": "Claude entry pointer.",
+      "type": "guidance",
+      "source": {
+        "file": "CLAUDE.md"
+      }
+    },
+    {
+      "id": "context-file-local",
+      "index": "1.8",
+      "label": ".local/AGENTS.md",
+      "description": "Checkout preferences.",
+      "type": "guidance",
+      "source": {
+        "file": ".local/AGENTS.md",
+        "optional": true
+      }
+    },
+    {
+      "id": "context-file-makers",
+      "index": "1.9",
+      "label": "MAKERS.md",
+      "description": "Maker workflow and assumptions.",
+      "type": "guidance",
+      "source": {
+        "file": "MAKERS.md"
+      }
+    },
+    {
+      "id": "context-file-digest",
+      "index": "1.10",
+      "label": "skills/DIGEST.md",
+      "description": "Skill and advanced-section index.",
+      "type": "guidance",
+      "source": {
+        "file": "skills/DIGEST.md"
+      }
+    },
+    {
+      "id": "context-file-usage",
+      "index": "1.11",
+      "label": "core/print/USAGE.md",
+      "description": "Shared recipe and bundle tools.",
+      "type": "guidance",
+      "source": {
+        "file": "core/print/USAGE.md"
+      }
+    },
+    {
+      "id": "context-file-geometry",
+      "index": "1.12",
+      "label": "GEOMETRY.md",
+      "description": "Geometry forms and queries.",
+      "type": "guidance",
+      "source": {
+        "file": "GEOMETRY.md"
+      }
+    },
+    {
+      "id": "context-file-glossary",
+      "index": "1.13",
+      "label": "GLOSSARY.md",
+      "description": "Shared terms.",
+      "type": "guidance",
+      "source": {
+        "file": "GLOSSARY.md"
+      }
+    },
+    {
+      "id": "context-file-slice",
+      "index": "1.14",
+      "label": "skills/slice/SKILL.md",
+      "description": "Slice instructions.",
+      "type": "guidance",
+      "source": {
+        "file": "skills/slice/SKILL.md"
+      }
+    },
+    {
+      "id": "context-file-trace",
+      "index": "1.15",
+      "label": "skills/trace/SKILL.md",
+      "description": "Trace instructions.",
+      "type": "guidance",
+      "source": {
+        "file": "skills/trace/SKILL.md"
+      }
+    },
+    {
+      "id": "context-file-inject",
+      "index": "1.16",
+      "label": "skills/inject/SKILL.md",
+      "description": "Inject instructions.",
+      "type": "guidance",
+      "source": {
+        "file": "skills/inject/SKILL.md"
+      }
+    },
+    {
+      "id": "context-file-toolkit",
+      "index": "1.17",
+      "label": "core/agent/README.md",
+      "description": "CLI operations and recovery.",
+      "type": "guidance",
+      "source": {
+        "file": "core/agent/README.md"
+      }
+    },
+    {
+      "id": "context-file-studio",
+      "index": "1.18",
+      "label": "studio/README.md",
+      "description": "Studio operation and coordination.",
+      "type": "guidance",
+      "source": {
+        "file": "studio/README.md"
+      }
+    },
+    {
+      "id": "context-file-tour",
+      "index": "1.19",
+      "label": "examples/prints/README.md#maker-agent-participation",
+      "description": "Tour participation.",
+      "type": "guidance",
+      "source": {
+        "file": "examples/prints/README.md",
+        "heading": "maker-agent-participation"
+      }
+    },
+    {
+      "id": "context-file-machines",
+      "index": "1.20",
+      "label": "machines/README.md",
+      "description": "Machine profile index.",
+      "type": "guidance",
+      "source": {
+        "file": "machines/README.md"
+      }
+    },
+    {
+      "id": "context-file-outputs",
+      "index": "1.21",
+      "label": "core/export/README.md",
+      "description": "Output support and advisory.",
+      "type": "guidance",
+      "source": {
+        "file": "core/export/README.md"
+      }
+    },
+    {
+      "id": "context-file-griffin",
+      "index": "1.22",
+      "label": "core/export/griffin.md",
+      "description": "S5 setup and output.",
+      "type": "guidance",
+      "source": {
+        "file": "core/export/griffin.md"
+      }
+    },
+    {
+      "id": "context-file-bambu",
+      "index": "1.23",
+      "label": "core/export/bambu.md",
+      "description": "Bambu setup and output.",
+      "type": "guidance",
+      "source": {
+        "file": "core/export/bambu.md"
+      }
+    },
+    {
+      "id": "context-file-dobot",
+      "index": "1.24",
+      "label": "core/export/dobot.md",
+      "description": "Dobot setup and output.",
+      "type": "guidance",
+      "source": {
+        "file": "core/export/dobot.md"
+      }
+    },
+    {
+      "id": "context-file-denso",
+      "index": "1.25",
+      "label": "core/export/denso.md",
+      "description": "DENSO setup and output.",
+      "type": "guidance",
+      "source": {
+        "file": "core/export/denso.md"
+      }
     },
     {
       "id": "geometry",
@@ -105,33 +330,43 @@
       "index": "3.1",
       "label": "Inject",
       "description": "Point deposition with explicit volumes.",
-      "type": "component"
+      "type": "component",
+      "source": {
+        "file": "core/path/injection.mjs",
+        "declaration": "pointInjectionOperation"
+      }
     },
     {
       "id": "trace",
       "index": "3.2",
       "label": "Trace",
       "description": "Curve deposition with explicit process profiles.",
-      "type": "component"
+      "type": "component",
+      "source": {
+        "file": "core/path/deposition.mjs",
+        "declaration": "depositCurves"
+      }
     },
     {
       "id": "slice",
       "index": "3.3",
       "label": "Slice",
       "description": "Region deposition through cutting surfaces and families.",
-      "type": "component"
+      "type": "component",
+      "source": {
+        "file": "core/print/slice-deposition.mjs",
+        "declaration": "finalizedSliceResults"
+      }
     },
     {
       "id": "compose",
       "index": "3.4",
       "label": "Compose & finalize",
-      "description": "Compose/finalize deposition into machine-independent SAAMpath; no export preparation or encoding.",
+      "description": "Composition and finalization return SAAMpath; export is later.",
       "type": "component",
-      "notes": [
-        "Keep ordering, finalized-material/contact data, modulation and authored motion/process actions here. Candidate sources span core/path/compose.mjs, planning.mjs, toolpath.mjs, modulation.mjs and core/print/finalize.mjs; source location alone does not assign ownership.",
-        "Export preparation, machine-axis/feed adaptation, startup/priming, material-change routines, encoding and exact-program interpretation belong in 8. core/print/workflow.mjs::createBundleWorkflow currently nests prepareGeneration, which calls generatePath then exportAndInterpretProgram: split that orchestration across the accepted boundaries.",
-        "core/export/prepare-path.mjs currently imports core/path/planning.mjs, prime.mjs, process-controls.mjs and pose.mjs. Map 0 has no 8 → 3 call: inventory those shared primitives and resolve ownership/call boundaries explicitly. Returning SAAMpath does not authorize calling private engine helpers."
-      ]
+      "source": {
+        "file": "core/path/compose.mjs"
+      }
     },
     {
       "id": "extensions",
@@ -140,28 +375,191 @@
       "description": "Guidance and scripts stored separately from bundles.",
       "type": "component",
       "notes": [
-        "Assessment: library/resolution and execution are useful boundaries. Keep resource retrieval explicit at map 0, but 4.3 need not become a generic resource broker: first inventory real provider clients such as skills/thingi10k/scripts/library.mjs. Group providers beneath execution if they do not share a substantive interface.",
-        "Use existing scripts where they compose public engines. Existing geometry/feature and deposition code that spans extension and engine responsibilities needs an explicit split; do not retain old implementations behind a renamed wrapper."
+        "Manual reads are concrete existing accesses; the generic execution/resolution contracts remain targets. Source references do not claim the current extension code already respects engine/bundle boundaries."
       ]
     },
     {
       "id": "extension-library",
       "index": "4.1",
-      "label": "Library & resolution",
-      "description": "Guidance, scripts, identities and preserved local edits.",
+      "label": "list_skills / read-skill",
+      "description": "Catalog discovery and selected extension manual.",
       "type": "component",
-      "notes": [
-        "Context inventory: the following 14 current maker manuals move with their extension, not into 1: skills/plastic-weld/SKILL.md, skills/heat-set-inserts/SKILL.md, skills/text/SKILL.md, skills/thingi10k/SKILL.md, skills/gridfinity/SKILL.md, skills/supports/SKILL.md, skills/line-network/SKILL.md, skills/bridging/SKILL.md, skills/draped-skin/SKILL.md, skills/wave-overhangs/SKILL.md, skills/vase-wall/SKILL.md, skills/advanced-vase-wall/SKILL.md, skills/thick-lip/SKILL.md, skills/pipe-cladding/SKILL.md.",
-        "Also retain extension-local references such as skills/heat-set-inserts/CATALOG.md and maker-facing dimensions in skills/gridfinity/DEVELOPER.md#dimensions. Builder/developer manuals, scripts and assets remain part of the extension package where present. The 3 primitive family manuals belong in 1.3; mesh-tools is builder-only.",
-        "Current catalog/digest and core/local-extension.mjs are usable migration evidence, not a complete extension library. The loader only imports one checkout-local .local/extension.mjs; dependency resolution, package exchange and preserved overrides are still to build."
-      ]
+      "source": {
+        "file": "core/agent/toolkit.mjs",
+        "declaration": "readSkill"
+      }
     },
     {
       "id": "extension-run",
       "index": "4.2",
-      "label": "Execute extension",
-      "description": "Ordinary local extension code; adopted contributions are reviewed.",
-      "type": "component"
+      "label": "Extension loading & invocation",
+      "description": "Existing local loader; general package execution still to implement.",
+      "type": "component",
+      "source": {
+        "file": "core/local-extension.mjs",
+        "declaration": "loadLocalExtension"
+      }
+    },
+    {
+      "id": "extension-resources",
+      "index": "4.3",
+      "label": "Thingi10K resource client",
+      "description": "Existing search/download/cache client.",
+      "type": "component",
+      "source": {
+        "file": "skills/thingi10k/scripts/library.mjs",
+        "declaration": "createThingi10KClient"
+      }
+    },
+    {
+      "id": "extension-catalog",
+      "index": "4.4",
+      "label": "skills/catalog.mjs",
+      "description": "Current IDs and discovery metadata.",
+      "type": "component",
+      "source": {
+        "file": "skills/catalog.mjs"
+      }
+    },
+    {
+      "id": "extension-manual-plastic-weld",
+      "index": "4.5",
+      "label": "plastic-weld/SKILL.md",
+      "description": "Read the actual extension manual.",
+      "type": "guidance",
+      "source": {
+        "file": "skills/plastic-weld/SKILL.md"
+      }
+    },
+    {
+      "id": "extension-manual-heat-set-inserts",
+      "index": "4.6",
+      "label": "heat-set-inserts/SKILL.md",
+      "description": "Read the actual extension manual.",
+      "type": "guidance",
+      "source": {
+        "file": "skills/heat-set-inserts/SKILL.md"
+      }
+    },
+    {
+      "id": "extension-manual-text",
+      "index": "4.7",
+      "label": "text/SKILL.md",
+      "description": "Read the actual extension manual.",
+      "type": "guidance",
+      "source": {
+        "file": "skills/text/SKILL.md"
+      }
+    },
+    {
+      "id": "extension-manual-thingi10k",
+      "index": "4.8",
+      "label": "thingi10k/SKILL.md",
+      "description": "Read the actual extension manual.",
+      "type": "guidance",
+      "source": {
+        "file": "skills/thingi10k/SKILL.md"
+      }
+    },
+    {
+      "id": "extension-manual-gridfinity",
+      "index": "4.9",
+      "label": "gridfinity/SKILL.md",
+      "description": "Read the actual extension manual.",
+      "type": "guidance",
+      "source": {
+        "file": "skills/gridfinity/SKILL.md"
+      }
+    },
+    {
+      "id": "extension-manual-supports",
+      "index": "4.10",
+      "label": "supports/SKILL.md",
+      "description": "Read the actual extension manual.",
+      "type": "guidance",
+      "source": {
+        "file": "skills/supports/SKILL.md"
+      }
+    },
+    {
+      "id": "extension-manual-line-network",
+      "index": "4.11",
+      "label": "line-network/SKILL.md",
+      "description": "Read the actual extension manual.",
+      "type": "guidance",
+      "source": {
+        "file": "skills/line-network/SKILL.md"
+      }
+    },
+    {
+      "id": "extension-manual-bridging",
+      "index": "4.12",
+      "label": "bridging/SKILL.md",
+      "description": "Read the actual extension manual.",
+      "type": "guidance",
+      "source": {
+        "file": "skills/bridging/SKILL.md"
+      }
+    },
+    {
+      "id": "extension-manual-draped-skin",
+      "index": "4.13",
+      "label": "draped-skin/SKILL.md",
+      "description": "Read the actual extension manual.",
+      "type": "guidance",
+      "source": {
+        "file": "skills/draped-skin/SKILL.md"
+      }
+    },
+    {
+      "id": "extension-manual-wave-overhangs",
+      "index": "4.14",
+      "label": "wave-overhangs/SKILL.md",
+      "description": "Read the actual extension manual.",
+      "type": "guidance",
+      "source": {
+        "file": "skills/wave-overhangs/SKILL.md"
+      }
+    },
+    {
+      "id": "extension-manual-vase-wall",
+      "index": "4.15",
+      "label": "vase-wall/SKILL.md",
+      "description": "Read the actual extension manual.",
+      "type": "guidance",
+      "source": {
+        "file": "skills/vase-wall/SKILL.md"
+      }
+    },
+    {
+      "id": "extension-manual-advanced-vase-wall",
+      "index": "4.16",
+      "label": "advanced-vase-wall/SKILL.md",
+      "description": "Read the actual extension manual.",
+      "type": "guidance",
+      "source": {
+        "file": "skills/advanced-vase-wall/SKILL.md"
+      }
+    },
+    {
+      "id": "extension-manual-thick-lip",
+      "index": "4.17",
+      "label": "thick-lip/SKILL.md",
+      "description": "Read the actual extension manual.",
+      "type": "guidance",
+      "source": {
+        "file": "skills/thick-lip/SKILL.md"
+      }
+    },
+    {
+      "id": "extension-manual-pipe-cladding",
+      "index": "4.18",
+      "label": "pipe-cladding/SKILL.md",
+      "description": "Read the actual extension manual.",
+      "type": "guidance",
+      "source": {
+        "file": "skills/pipe-cladding/SKILL.md"
+      }
     },
     {
       "id": "bundle",
@@ -171,31 +569,85 @@
       "type": "component",
       "stateful": true,
       "notes": [
-        "Assessment: the present edit → generation → review sequence is too coarse to assign ownership safely. Prefer one revision/lifecycle authority plus artifact storage and job/result handling, with narrow internal boundaries only where the inventory supports them; do not create three independently maintained notions of current/pending/valid.",
-        "Concrete migration seams: core/print/workflow.mjs mixes persistent commits, setup memory, generation, export/interpretation and approval/delivery. core/print/resolve-plan.mjs handles recipe resolution. Split only declarations that cross the accepted boundaries; retain proven persistence/validation algorithms.",
-        "The three Bundle → Studio contracts could share one revisioned snapshot/event interface. This is a proposal, not applied here; keep command authority and snapshot/event delivery explicit. Remembered setup needs a private owner and a declared source for the bundle snapshot."
+        "Previewed functions are current code, including known responsibilities that must be split. New export snapshot/record contracts remain proposed. Only leaf assignment will establish exclusive ownership."
       ]
     },
     {
       "id": "bundle-edit",
       "index": "5.1",
-      "label": "Edit & dependencies",
-      "description": "Geometry, recipe, assets and extension lock; atomic revisions.",
-      "type": "component"
+      "label": "adjustBundle / updatePlan",
+      "description": "Revision-checked recipe edits.",
+      "type": "component",
+      "source": {
+        "file": "core/print/workflow.mjs",
+        "declaration": "adjustBundle"
+      }
     },
     {
       "id": "bundle-build",
       "index": "5.2",
-      "label": "Generation & artifacts",
-      "description": "Snapshot a revision; commit only matching build results.",
-      "type": "component"
+      "label": "generateBundle / commitGeneration",
+      "description": "Prepare, dispatch and accept matching results.",
+      "type": "component",
+      "source": {
+        "file": "core/print/workflow.mjs",
+        "declaration": "generateBundle"
+      }
     },
     {
       "id": "bundle-review",
       "index": "5.3",
-      "label": "Review & export state",
-      "description": "Own the current review snapshot and export records; reject stale or pending-update exports.",
-      "type": "component"
+      "label": "Review & export records",
+      "description": "Current review record; new export pinning still required.",
+      "type": "component",
+      "source": {
+        "file": "core/print/workflow.mjs",
+        "declaration": "approvedReview"
+      }
+    },
+    {
+      "id": "bundle-load",
+      "index": "5.4",
+      "label": "loadBundle",
+      "description": "Read/validate saved bundle state.",
+      "type": "component",
+      "source": {
+        "file": "core/print/workflow.mjs",
+        "declaration": "loadBundle"
+      }
+    },
+    {
+      "id": "bundle-save",
+      "index": "5.5",
+      "label": "saveManifest",
+      "description": "Persist the bundle commit record.",
+      "type": "component",
+      "source": {
+        "file": "core/print/workflow.mjs",
+        "declaration": "saveManifest"
+      }
+    },
+    {
+      "id": "bundle-patch",
+      "index": "5.6",
+      "label": "resolvePlanPatch",
+      "description": "Merge and resolve authored recipe changes.",
+      "type": "component",
+      "source": {
+        "file": "core/print/resolve-plan.mjs",
+        "declaration": "resolvePlanPatch"
+      }
+    },
+    {
+      "id": "bundle-setup",
+      "index": "5.7",
+      "label": "rememberSetup",
+      "description": "Save per-machine private setup defaults.",
+      "type": "component",
+      "source": {
+        "file": "core/print/workflow.mjs",
+        "declaration": "rememberSetup"
+      }
     },
     {
       "id": "studio",
@@ -204,24 +656,103 @@
       "description": "Owns UI state exclusively; accesses part state through 5.",
       "type": "component",
       "notes": [
-        "Assessment: UI/private-state versus presentation is not yet a convincing implementation split: studio/app.mjs coordinates both. Preserve one UI controller and derive renderer/playback/agent-channel boundaries from actual consumers rather than dividing the same UI state between shallow modules.",
-        "Reusable seams include studio/viewer-renderer.mjs, material-view.mjs, toolpath-view.mjs, source-player.mjs, machine-session.mjs, agent-requests.mjs and studio-events.mjs. Server routes, subscriptions, tour and worker transport also need explicit homes; the three current boxes are provisional, not an exhaustive assignment.",
-        "Pre-export preview currently uses interpreted machine-program data. With Export only on the button, Studio must also present saved/generated SAAMpath before export. Inventory a SAAMpath-to-view conversion that reuses current renderers; do not generate a machine program secretly inside 3, 6 or 7 to preserve playback."
+        "Existing call/file boundaries are shown alongside target bundle/export contracts. The current source-player decodes exported programs; a SAAMpath preview path is still required before the Export action."
       ]
     },
     {
       "id": "studio-ui",
       "index": "6.1",
-      "label": "UI & private state",
-      "description": "Selection, camera, playback and interaction.",
-      "type": "component"
+      "label": "Studio UI controller",
+      "description": "Actions, current view and private interaction state.",
+      "type": "component",
+      "source": {
+        "file": "studio/app.mjs"
+      }
     },
     {
       "id": "studio-projection",
       "index": "6.2",
-      "label": "Bundle presentation",
-      "description": "Immutable views, subscriptions and render caches.",
-      "type": "component"
+      "label": "Viewer renderer",
+      "description": "Geometry, path and material scene presentation.",
+      "type": "component",
+      "source": {
+        "file": "studio/viewer-renderer.mjs",
+        "declaration": "createViewerRenderer"
+      }
+    },
+    {
+      "id": "studio-agent",
+      "index": "6.3",
+      "label": "Studio request/event endpoint",
+      "description": "Server routes and lifecycle; narrower extraction still required.",
+      "type": "component",
+      "source": {
+        "file": "studio/server.mjs",
+        "declaration": "createStudio"
+      }
+    },
+    {
+      "id": "studio-path-view",
+      "index": "6.4",
+      "label": "Toolpath view",
+      "description": "Moves, layers and draw buffers.",
+      "type": "component",
+      "source": {
+        "file": "studio/toolpath-view.mjs"
+      }
+    },
+    {
+      "id": "studio-geometry-view",
+      "index": "6.5",
+      "label": "Geometry view",
+      "description": "Mesh presentation and picking.",
+      "type": "component",
+      "source": {
+        "file": "studio/mesh-view.mjs"
+      }
+    },
+    {
+      "id": "studio-material-view",
+      "index": "6.6",
+      "label": "Material view",
+      "description": "Deposited material scene and rendering.",
+      "type": "component",
+      "source": {
+        "file": "studio/material-view.mjs"
+      }
+    },
+    {
+      "id": "studio-requests",
+      "index": "6.7",
+      "label": "Agent requests",
+      "description": "Request status and displayed-result receipts.",
+      "type": "component",
+      "source": {
+        "file": "studio/agent-requests.mjs",
+        "declaration": "createAgentRequests"
+      }
+    },
+    {
+      "id": "studio-events",
+      "index": "6.8",
+      "label": "Studio event queue",
+      "description": "Alert/held observations and delivery.",
+      "type": "component",
+      "source": {
+        "file": "studio/studio-events.mjs",
+        "declaration": "createStudioEvents"
+      }
+    },
+    {
+      "id": "studio-tour-state",
+      "index": "6.9",
+      "label": "Tour state",
+      "description": "Current lessons and request coordination.",
+      "type": "component",
+      "source": {
+        "file": "studio/tour.mjs",
+        "declaration": "createTour"
+      }
     },
     {
       "id": "build",
@@ -230,24 +761,41 @@
       "description": "Evaluate a pinned recipe and generate SAAMpath; no machine export.",
       "type": "component",
       "notes": [
-        "Assessment: recipe evaluation is a real boundary; Generate SAAMpath may be only a forwarding stage around 3.4. Inventory first, then fold it into the recipe job if it adds no independent policy. Keep 7 as the pinned-snapshot computation boundary while 5 owns acceptance/cancellation state.",
-        "Candidate seams: core/print/generate.mjs interleaves geometry preparation, skill-specific work and construction/composition; core/print/bundle.mjs::generatePreparedPath loads kernels and prepares fields. Existing generation workers load/commit bundles and return checked machine source; those duties cannot all be assigned to 7.",
-        "Jobs receive immutable inputs, report progress/cancellation through their explicit job contract and return geometry/SAAMpath. They never obtain general mutable bundle access or call Export."
+        "References show existing computation entry points. Bundle IO, worker acceptance and immediate export in workflow.prepareGeneration must be separated during implementation assignment; these are not claimed to be compliant already."
       ]
     },
     {
       "id": "build-evaluate",
       "index": "7.1",
-      "label": "Evaluate recipe",
-      "description": "Resolve extensions and geometry from a pinned snapshot.",
-      "type": "component"
+      "label": "generatePreparedPath",
+      "description": "Load geometry runtime and prepare modulation fields.",
+      "type": "component",
+      "source": {
+        "file": "core/print/bundle.mjs",
+        "declaration": "generatePreparedPath"
+      }
     },
     {
       "id": "build-path",
       "index": "7.2",
-      "label": "Generate SAAMpath",
-      "description": "Invoke construction families; compose finalized output.",
-      "type": "component"
+      "label": "generatePath",
+      "description": "Construction scheduling through finalized SAAMpath.",
+      "type": "component",
+      "source": {
+        "file": "core/print/generate.mjs",
+        "declaration": "generatePath"
+      }
+    },
+    {
+      "id": "build-fields",
+      "index": "7.3",
+      "label": "prepareModulationFields",
+      "description": "Prepare field inputs from geometry sources.",
+      "type": "component",
+      "source": {
+        "file": "core/print/modulation-fields.mjs",
+        "declaration": "prepareModulationFields"
+      }
     },
     {
       "id": "export",
@@ -256,65 +804,70 @@
       "description": "Studio-triggered machine export/checking of the current built path; bundle access only through its explicit contract.",
       "type": "component",
       "notes": [
-        "Assessment: preserve the strong existing exporter/interpreter pairs per output. Candidate lower bins are shared export preparation/checking plus Griffin, Bambu, Dobot and DENSO adapters, each keeping its encoder and decoder together. Do not create mirrored encode/decode trees with many cross-links.",
-        "Current code seams: core/export/registry.mjs routes output; prepare-path.mjs adapts neutral SAAMpath for the installation; dialect modules encode and interpret; travel-advisory.mjs and source-time.mjs provide output-derived information. Shared helpers and machine profiles need explicit ownership review rather than directory-based assignment.",
-        "Only 6 invokes export. Existing workflow generation/reopen paths call export or interpretation directly; inventory those migration conflicts and saved-artifact viewing needs before assigning code to 5/6/7/8. No new top-map permission is granted by these notes."
+        "Studio → export and export → bundle are target integration contracts. Internal router/dialect/preparation calls below are present in source. Dialect files retain export and interpretation together; supporting player modules remain to be assigned."
       ]
     },
     {
-      "id": "extension-resources",
-      "index": "4.3",
-      "label": "Resource access",
-      "description": "Conventional resource IO; no runtime permission broker.",
-      "type": "component"
+      "id": "export-router",
+      "index": "8.1",
+      "label": "exportAndInterpretProgram",
+      "description": "Select dialect; export and interpret exact bytes.",
+      "type": "component",
+      "source": {
+        "file": "core/export/registry.mjs",
+        "declaration": "exportAndInterpretProgram"
+      }
     },
     {
-      "id": "studio-agent",
-      "index": "6.3",
-      "label": "Agent channel",
-      "description": "Owned requests; alert events carry queued observations.",
-      "type": "component"
+      "id": "export-prepare",
+      "index": "8.2",
+      "label": "prepareMachinePath",
+      "description": "Installation startup, material changes and feed limits.",
+      "type": "component",
+      "source": {
+        "file": "core/export/prepare-path.mjs",
+        "declaration": "prepareMachinePath"
+      }
     },
     {
-      "id": "context-construction",
-      "index": "1.3",
-      "label": "Core construction references",
-      "description": "Explicit geometry/manual or Inject/Trace/Slice reads; never bundled wholesale into onboarding.",
-      "type": "guidance",
-      "notes": [
-        "GEOMETRY.md: spline patches and closure, blob fields, mesh, booleans, assembly, queries/surface regions, recipe writing and script construction. read-guidance geometry or PATH#HEADING loads the requested form; map 2 owns implementation decisions.",
-        "skills/inject/SKILL.md: point volume/flow, approach/hold, ordering, process inheritance and supported output limits. skills/trace/SKILL.md: XYZ/NURBS/UV/text curves, varying process profiles, repetition, ordered courses and declared contact. skills/slice/SKILL.md: assignments, regions/owners, presets, fill patterns, limits, modulation, script interfaces and surface families. read-skill selects only the requested family/heading.",
-        "GLOSSARY.md supplies shared maker terms on demand. Selected maker-facing explanations linked from core/path/README.md#whole-plan-travel-requirement and core/geom/README.md remain references; those complete implementation manuals do not all become maker content.",
-        "Known migration findings: GEOMETRY.md still names create_print/adjust_print/get_print where current tools use bundle/recipe names; Slice still dates joint adaptation/interlock to 0.3.0 although intent defers it to 0.4.0. Correct at the owning manual during migration, without treating stale prose as retained behavior."
-      ]
+      "id": "export-griffin",
+      "index": "8.3",
+      "label": "griffin exporter / interpreter",
+      "description": "Existing machine output adapter.",
+      "type": "component",
+      "source": {
+        "file": "core/export/griffin.mjs"
+      }
     },
     {
-      "id": "context-machines",
-      "index": "1.4",
-      "label": "Machine setup & limits",
-      "description": "Machine-selected maker sections and capability gates; dialect implementation stays in Export.",
-      "type": "guidance",
-      "notes": [
-        "machines/README.md and core/export/README.md: available profiles versus implemented outputs, supported actions, short-travel advisory, installation requirements and transfer responsibilities. Geometry/setup profile availability does not imply export support.",
-        "core/export/griffin.md#s5-setup-and-troubleshooting: S5 setup and transfer/troubleshooting. core/export/bambu.md#maker-setup, #choosing-the-spool, #making-an-h2d-dual-nozzle-print and #making-an-h2d-two-colour-print: nozzle/material/AMS mapping and maker workflows; H2D evidence does not certify X1 behavior.",
-        "core/export/dobot.md and core/export/denso.md: installation setup, executable output limits and transfer instructions. Split maker sections from detailed dialect/firmware contracts during ownership assignment; preserve the latter with 8.",
-        "read-guidance PATH#HEADING accesses these sources. --machine/machineId affects core-manual gates; current gatedIndex/machineHint and printHint select new sections after a machine change. Inputs must be explicit rather than reading shared part state from context code.",
-        "Builder-only machine implementation studies, calibration evidence/history and exporter tests are not starter context. SETUP.md is first-use installation guidance, with its owner in deployment; a link to it does not move installation operations into 1."
-      ]
+      "id": "export-bambu",
+      "index": "8.4",
+      "label": "bambu exporter / interpreter",
+      "description": "Existing machine output adapter.",
+      "type": "component",
+      "source": {
+        "file": "core/export/bambu.mjs"
+      }
     },
     {
-      "id": "context-studio",
-      "index": "1.5",
-      "label": "Studio & tour participation",
-      "description": "Task-selected operating instructions; live requests, tour state and observations remain in Studio.",
-      "type": "guidance",
-      "notes": [
-        "core/agent/README.md: command bundles, read order, individual reads, context layers, preview lifetime and work/recovery. Select maker-operating sections; implementation/verification and builder/developer instructions keep their owners.",
-        "studio/README.md#studio-agent-permissions, #opening-local-prints-in-studio, #carrying-a-maker-request and #studio-event-queue: launch/reuse, request/result/display acknowledgement, event delivery and cancellation. UI internals, worker protocols, rendering and kinematics are implementation guidance outside Maker context.",
-        "examples/prints/README.md#maker-agent-participation: current lesson scope, Studio-led start, request/listener handling, playback start layer, chat teaching and completion. start-tour returns this with MAKERS.md. Tour redesign is still open; current lesson text is preservation evidence, not frozen 0.3.0 pedagogy.",
-        "begin-studio-work and wait-for-studio-request return live bundle/request/tour facts through their owners; get_tour and Studio tour instruction strings are 6-owned live state/presentation. Failure guidance reuses 1.2; machine-change hints reuse 1.3/1.4. Context reader does not subscribe to Studio or read bundle state.",
-        "Additional embedded delivery surfaces: core/agent/toolkit.mjs::startPreview nextStep and inspectFailure nextStep; adapters/mcp/src/runtime.mjs instructions, onboarding reminders and summary nextStep. Consolidate repeated operating prose with these sources when migrating, preserving operation-specific errors/results in their owning components."
-      ]
+      "id": "export-dobot",
+      "index": "8.5",
+      "label": "dobot exporter / interpreter",
+      "description": "Existing machine output adapter.",
+      "type": "component",
+      "source": {
+        "file": "core/export/dobot.mjs"
+      }
+    },
+    {
+      "id": "export-denso",
+      "index": "8.6",
+      "label": "denso exporter / interpreter",
+      "description": "Existing machine output adapter.",
+      "type": "component",
+      "source": {
+        "file": "core/export/denso.mjs"
+      }
     }
   ],
   "contracts": [
@@ -347,36 +900,6 @@
       "effects": "Studio private UI state; part commands use studio-commands.",
       "failure": "Show errors without hiding the previous valid view.",
       "excludes": "Agent messages are not user confirmation."
-    },
-    {
-      "id": "maker-guidance",
-      "from": "context-reader",
-      "to": "agent",
-      "label": "entry / task context",
-      "direction": "Guidance provider \u00e2\u2020\u2019 reader.",
-      "operations": [
-        "read entry / maker-onboarding / task guidance"
-      ],
-      "inputs": "Desktop role and task selection; explicit machine capability facts when needed.",
-      "outputs": "Selected source text and IDs, startup workflow or task guidance with follow-up references.",
-      "effects": "Read/assemble published guidance only; no bundle, Studio or environment mutation.",
-      "failure": "Report unavailable sources or unsupported selections.",
-      "excludes": "No extension execution, live request/state reads, implicit approval or web-session machinery."
-    },
-    {
-      "id": "capability-guidance",
-      "from": "context-reader",
-      "to": "agent",
-      "label": "named core references",
-      "direction": "Guidance provider \u00e2\u2020\u2019 reader.",
-      "operations": [
-        "read-guidance / read-skill core family / core discovery"
-      ],
-      "inputs": "Core guidance ID and optional heading; role/explicit gate selection and machine capability facts.",
-      "outputs": "Selected core manual text, headings, omitted-section explanations and navigation references.",
-      "effects": "Read/assemble published guidance only.",
-      "failure": "Unknown core IDs or headings are explicit; extension lookup belongs to 4.",
-      "excludes": "No private source access, extension-library access or runtime permission granted by prose."
     },
     {
       "id": "agent-geometry",
@@ -455,7 +978,7 @@
     },
     {
       "id": "export-bundle",
-      "from": "export",
+      "from": "export-router",
       "to": "bundle-review",
       "label": "export snapshot / result",
       "direction": "Caller → provider; declared response included.",
@@ -515,18 +1038,23 @@
     },
     {
       "id": "studio-render",
-      "from": "studio-projection",
-      "to": "studio-ui",
+      "from": "studio-ui",
+      "to": "studio-projection",
       "label": "render view",
-      "direction": "Projection \u00e2\u2020\u2019 UI.",
+      "direction": "Caller → renderer; results/callbacks included.",
       "operations": [
-        "render"
+        "requestDraw / prepare views"
       ],
       "inputs": "Immutable view and diagnostics.",
       "outputs": "User-visible frame.",
       "effects": "Studio-private state only.",
       "failure": "Show errors with revision identity.",
-      "excludes": "Does not mutate bundle."
+      "excludes": "Does not mutate bundle.",
+      "evidence": [
+        "studio/app.mjs::createViewerRenderer",
+        "studio/app.mjs::requestDraw"
+      ],
+      "status": "observed in source; manually traced"
     },
     {
       "id": "bundle-revision",
@@ -771,7 +1299,7 @@
     {
       "id": "studio-export",
       "from": "studio-ui",
-      "to": "export",
+      "to": "export-router",
       "label": "Export button",
       "direction": "Caller → provider; declared response included.",
       "operations": [
@@ -788,7 +1316,7 @@
       "from": "extension-run",
       "to": "extension-resources",
       "label": "resource request",
-      "direction": "Caller \u2192 provider; declared response included.",
+      "direction": "Caller → provider; declared response included.",
       "operations": [
         "search / retrieve"
       ],
@@ -803,7 +1331,7 @@
       "from": "extension-resources",
       "to": "resources",
       "label": "search / download",
-      "direction": "Extensions \u2192 external resource provider; response included.",
+      "direction": "Extensions → external resource provider; response included.",
       "operations": [
         "search / retrieve"
       ],
@@ -818,7 +1346,7 @@
       "from": "agent",
       "to": "extension-run",
       "label": "run extension",
-      "direction": "Caller \u2192 provider; declared response included.",
+      "direction": "Caller → provider; declared response included.",
       "operations": [
         "run"
       ],
@@ -841,7 +1369,7 @@
       "effects": "Channel-private queue/request state; edits still use the bundle interface.",
       "failure": "Expose disconnected/failed work without inventing agent progress; explicit reads can recover pending requests.",
       "excludes": "No cross-agent ownership or direct mutation of Studio internals; diagnostic emission is a separate service interface.",
-      "direction": "Studio \u2192 owning agent: requests and alert-level event batches; subscription setup and correlated responses are included."
+      "direction": "Studio → owning agent: requests and alert-level event batches; subscription setup and correlated responses are included."
     },
     {
       "id": "studio-user-request",
@@ -856,7 +1384,7 @@
       "effects": "Studio-private coordination only.",
       "failure": "Show pending/disconnected status; preserve request identity.",
       "excludes": "No recipe mutation through event payloads.",
-      "direction": "Caller \u2192 provider; declared response included."
+      "direction": "Caller → provider; declared response included."
     },
     {
       "id": "studio-observations",
@@ -871,14 +1399,14 @@
       "effects": "Studio-private queue state only.",
       "failure": "Ignore stale identities; do not claim unseen output was displayed.",
       "excludes": "Held observations alone do not trigger a live alert.",
-      "direction": "Caller \u2192 provider; declared response included."
+      "direction": "Caller → provider; declared response included."
     },
     {
       "id": "user-workspace",
       "from": "user",
       "to": "workspace",
       "label": "design",
-      "direction": "Caller \u2192 provider; declared response included.",
+      "direction": "Caller → provider; declared response included.",
       "operations": [
         "edit design / export bundle"
       ],
@@ -893,7 +1421,7 @@
       "from": "workspace",
       "to": "geometry-api",
       "label": "geometry API",
-      "direction": "Caller \u2192 provider; declared response included.",
+      "direction": "Caller → provider; declared response included.",
       "operations": [
         "construct / transform / query"
       ],
@@ -908,7 +1436,7 @@
       "from": "workspace",
       "to": "compose",
       "label": "candidate paths",
-      "direction": "Caller \u2192 provider; declared response included.",
+      "direction": "Caller → provider; declared response included.",
       "operations": [
         "constructAndCompose"
       ],
@@ -923,7 +1451,7 @@
       "from": "workspace",
       "to": "bundle-edit",
       "label": "export bundle",
-      "direction": "Caller \u2192 provider; declared response included.",
+      "direction": "Caller → provider; declared response included.",
       "operations": [
         "createFromWorkspace"
       ],
@@ -934,64 +1462,1494 @@
       "excludes": "No live workspace/Studio synchronization, simultaneous editing, automatic confirmation, or transient path as a substitute for a recipe."
     },
     {
-      "id": "context-content-1",
-      "from": "context-reader",
-      "to": "context-start",
-      "label": "starting sources",
-      "direction": "Reader → owned content; selected source text is the response.",
+      "id": "agent-context-onboard",
+      "from": "agent",
+      "to": "context-onboard",
+      "label": "maker-onboarding / maker_onboarding",
+      "direction": "Caller → provider; response included.",
       "operations": [
-        "select document / heading"
+        "maker-onboarding / maker_onboarding"
       ],
-      "inputs": "Source ID, optional section and explicit selection context.",
-      "outputs": "Canonical source text, identity and section metadata; no duplicate copy for each calling tool.",
-      "effects": "Read-only guidance assembly.",
-      "failure": "Report missing document or section without silently substituting a summary.",
-      "excludes": "No live state, engine calls, extension discovery or workflow execution."
+      "inputs": "Selected operation, source/skill ID or task identity.",
+      "outputs": "Requested context text and navigation references.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::onboarding",
+        "scripts/agent-toolkit.mjs",
+        "adapters/mcp/src/runtime.mjs"
+      ],
+      "overview": "response"
     },
     {
-      "id": "context-content-2",
-      "from": "context-reader",
-      "to": "context-construction",
-      "label": "construction sources",
-      "direction": "Reader → owned content; selected source text is the response.",
+      "id": "agent-context-guidance",
+      "from": "agent",
+      "to": "context-guidance",
+      "label": "read-guidance / read_guidance",
+      "direction": "Caller → provider; response included.",
       "operations": [
-        "select document / heading"
+        "read-guidance / read_guidance"
       ],
-      "inputs": "Source ID, optional section and explicit selection context.",
-      "outputs": "Canonical source text, identity and section metadata; no duplicate copy for each calling tool.",
-      "effects": "Read-only guidance assembly.",
-      "failure": "Report missing document or section without silently substituting a summary.",
-      "excludes": "No live state, engine calls, extension discovery or workflow execution."
+      "inputs": "Selected operation, source/skill ID or task identity.",
+      "outputs": "Requested context text and navigation references.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::contextPacket",
+        "scripts/agent-toolkit.mjs",
+        "adapters/mcp/src/runtime.mjs"
+      ],
+      "overview": "response"
     },
     {
-      "id": "context-content-3",
-      "from": "context-reader",
-      "to": "context-machines",
-      "label": "machine sources",
-      "direction": "Reader → owned content; selected source text is the response.",
+      "id": "agent-context-skill",
+      "from": "agent",
+      "to": "context-skill",
+      "label": "read-skill / read_skill",
+      "direction": "Caller → provider; response included.",
       "operations": [
-        "select document / heading"
+        "read-skill / read_skill"
       ],
-      "inputs": "Source ID, optional section and explicit selection context.",
-      "outputs": "Canonical source text, identity and section metadata; no duplicate copy for each calling tool.",
-      "effects": "Read-only guidance assembly.",
-      "failure": "Report missing document or section without silently substituting a summary.",
-      "excludes": "No live state, engine calls, extension discovery or workflow execution."
+      "inputs": "Selected operation, source/skill ID or task identity.",
+      "outputs": "Requested context text and navigation references.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::readSkill",
+        "scripts/agent-toolkit.mjs",
+        "adapters/mcp/src/runtime.mjs"
+      ],
+      "overview": "response"
     },
     {
-      "id": "context-content-4",
-      "from": "context-reader",
-      "to": "context-studio",
-      "label": "participation sources",
-      "direction": "Reader → owned content; selected source text is the response.",
+      "id": "agent-context-tour",
+      "from": "agent",
+      "to": "context-tour",
+      "label": "start-tour: returned context",
+      "direction": "Caller → provider; response included.",
       "operations": [
-        "select document / heading"
+        "start-tour: returned context"
       ],
-      "inputs": "Source ID, optional section and explicit selection context.",
-      "outputs": "Canonical source text, identity and section metadata; no duplicate copy for each calling tool.",
-      "effects": "Read-only guidance assembly.",
-      "failure": "Report missing document or section without silently substituting a summary.",
-      "excludes": "No live state, engine calls, extension discovery or workflow execution."
+      "inputs": "Selected operation, source/skill ID or task identity.",
+      "outputs": "Requested context text and navigation references.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::preview",
+        "scripts/agent-toolkit.mjs",
+        "adapters/mcp/src/runtime.mjs"
+      ],
+      "overview": "response"
+    },
+    {
+      "id": "agent-context-failure",
+      "from": "agent",
+      "to": "context-failure",
+      "label": "inspect-generation-failure: guidance",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "inspect-generation-failure: guidance"
+      ],
+      "inputs": "Selected operation, source/skill ID or task identity.",
+      "outputs": "Requested context text and navigation references.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::inspectFailure",
+        "scripts/agent-toolkit.mjs",
+        "adapters/mcp/src/runtime.mjs"
+      ],
+      "overview": "response"
+    },
+    {
+      "id": "agent-file-agents",
+      "from": "agent",
+      "to": "context-file-agents",
+      "label": "read file",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file"
+      ],
+      "inputs": "Desktop entry or explicit file read.",
+      "outputs": "Exact file text.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "AGENTS.md",
+        "CLAUDE.md"
+      ],
+      "overview": "response"
+    },
+    {
+      "id": "agent-file-claude",
+      "from": "agent",
+      "to": "context-file-claude",
+      "label": "read file",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file"
+      ],
+      "inputs": "Desktop entry or explicit file read.",
+      "outputs": "Exact file text.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "AGENTS.md",
+        "CLAUDE.md"
+      ],
+      "overview": "response"
+    },
+    {
+      "id": "agent-file-local",
+      "from": "agent",
+      "to": "context-file-local",
+      "label": "read file",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file"
+      ],
+      "inputs": "Desktop entry or explicit file read.",
+      "outputs": "Exact file text.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "AGENTS.md",
+        "CLAUDE.md"
+      ],
+      "overview": "response"
+    },
+    {
+      "id": "claude-entry-link",
+      "from": "context-file-claude",
+      "to": "context-file-agents",
+      "label": "follow entry pointer",
+      "direction": "Document navigation link; no executable call inferred.",
+      "operations": [
+        "follow entry pointer"
+      ],
+      "inputs": "Instruction in CLAUDE.md.",
+      "outputs": "AGENTS.md is the entry source.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "CLAUDE.md"
+      ]
+    },
+    {
+      "id": "context-onboard-reads-makers",
+      "from": "context-onboard",
+      "to": "context-file-makers",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/layers.mjs::ONBOARDING",
+        "core/agent/toolkit.mjs::onboarding",
+        "adapters/mcp/src/runtime.mjs::maker_onboarding"
+      ]
+    },
+    {
+      "id": "context-onboard-reads-digest",
+      "from": "context-onboard",
+      "to": "context-file-digest",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/layers.mjs::ONBOARDING",
+        "core/agent/toolkit.mjs::onboarding",
+        "adapters/mcp/src/runtime.mjs::maker_onboarding"
+      ]
+    },
+    {
+      "id": "context-onboard-reads-usage",
+      "from": "context-onboard",
+      "to": "context-file-usage",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/layers.mjs::ONBOARDING",
+        "core/agent/toolkit.mjs::onboarding",
+        "adapters/mcp/src/runtime.mjs::maker_onboarding"
+      ]
+    },
+    {
+      "id": "context-tour-reads-makers",
+      "from": "context-tour",
+      "to": "context-file-makers",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::preview"
+      ]
+    },
+    {
+      "id": "context-tour-reads-tour",
+      "from": "context-tour",
+      "to": "context-file-tour",
+      "label": "read participation section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read participation section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::preview"
+      ]
+    },
+    {
+      "id": "context-failure-reads-usage",
+      "from": "context-failure",
+      "to": "context-file-usage",
+      "label": "read #check-generate-and-deliver",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read #check-generate-and-deliver"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::inspectFailure"
+      ]
+    },
+    {
+      "id": "context-skill-reads-slice",
+      "from": "context-skill",
+      "to": "context-file-slice",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::readSkill",
+        "skills/catalog.mjs"
+      ]
+    },
+    {
+      "id": "context-skill-reads-trace",
+      "from": "context-skill",
+      "to": "context-file-trace",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::readSkill",
+        "skills/catalog.mjs"
+      ]
+    },
+    {
+      "id": "context-skill-reads-inject",
+      "from": "context-skill",
+      "to": "context-file-inject",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::readSkill",
+        "skills/catalog.mjs"
+      ]
+    },
+    {
+      "id": "context-guidance-reads-agents",
+      "from": "context-guidance",
+      "to": "context-file-agents",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/manuals.mjs::readManual",
+        "core/agent/manuals.mjs::loadGuidance"
+      ]
+    },
+    {
+      "id": "context-guidance-reads-claude",
+      "from": "context-guidance",
+      "to": "context-file-claude",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/manuals.mjs::readManual",
+        "core/agent/manuals.mjs::loadGuidance"
+      ]
+    },
+    {
+      "id": "context-guidance-reads-makers",
+      "from": "context-guidance",
+      "to": "context-file-makers",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/manuals.mjs::readManual",
+        "core/agent/manuals.mjs::loadGuidance"
+      ]
+    },
+    {
+      "id": "context-guidance-reads-digest",
+      "from": "context-guidance",
+      "to": "context-file-digest",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/manuals.mjs::readManual",
+        "core/agent/manuals.mjs::loadGuidance"
+      ]
+    },
+    {
+      "id": "context-guidance-reads-usage",
+      "from": "context-guidance",
+      "to": "context-file-usage",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/manuals.mjs::readManual",
+        "core/agent/manuals.mjs::loadGuidance"
+      ]
+    },
+    {
+      "id": "context-guidance-reads-geometry",
+      "from": "context-guidance",
+      "to": "context-file-geometry",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/manuals.mjs::readManual",
+        "core/agent/manuals.mjs::loadGuidance"
+      ]
+    },
+    {
+      "id": "context-guidance-reads-glossary",
+      "from": "context-guidance",
+      "to": "context-file-glossary",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/manuals.mjs::readManual",
+        "core/agent/manuals.mjs::loadGuidance"
+      ]
+    },
+    {
+      "id": "context-guidance-reads-slice",
+      "from": "context-guidance",
+      "to": "context-file-slice",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/manuals.mjs::readManual",
+        "core/agent/manuals.mjs::loadGuidance"
+      ]
+    },
+    {
+      "id": "context-guidance-reads-trace",
+      "from": "context-guidance",
+      "to": "context-file-trace",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/manuals.mjs::readManual",
+        "core/agent/manuals.mjs::loadGuidance"
+      ]
+    },
+    {
+      "id": "context-guidance-reads-inject",
+      "from": "context-guidance",
+      "to": "context-file-inject",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/manuals.mjs::readManual",
+        "core/agent/manuals.mjs::loadGuidance"
+      ]
+    },
+    {
+      "id": "context-guidance-reads-toolkit",
+      "from": "context-guidance",
+      "to": "context-file-toolkit",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/manuals.mjs::readManual",
+        "core/agent/manuals.mjs::loadGuidance"
+      ]
+    },
+    {
+      "id": "context-guidance-reads-studio",
+      "from": "context-guidance",
+      "to": "context-file-studio",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/manuals.mjs::readManual",
+        "core/agent/manuals.mjs::loadGuidance"
+      ]
+    },
+    {
+      "id": "context-guidance-reads-tour",
+      "from": "context-guidance",
+      "to": "context-file-tour",
+      "label": "read participation section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read participation section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/manuals.mjs::readManual",
+        "core/agent/manuals.mjs::loadGuidance"
+      ]
+    },
+    {
+      "id": "context-guidance-reads-machines",
+      "from": "context-guidance",
+      "to": "context-file-machines",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/manuals.mjs::readManual",
+        "core/agent/manuals.mjs::loadGuidance"
+      ]
+    },
+    {
+      "id": "context-guidance-reads-outputs",
+      "from": "context-guidance",
+      "to": "context-file-outputs",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/manuals.mjs::readManual",
+        "core/agent/manuals.mjs::loadGuidance"
+      ]
+    },
+    {
+      "id": "context-guidance-reads-griffin",
+      "from": "context-guidance",
+      "to": "context-file-griffin",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/manuals.mjs::readManual",
+        "core/agent/manuals.mjs::loadGuidance"
+      ]
+    },
+    {
+      "id": "context-guidance-reads-bambu",
+      "from": "context-guidance",
+      "to": "context-file-bambu",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/manuals.mjs::readManual",
+        "core/agent/manuals.mjs::loadGuidance"
+      ]
+    },
+    {
+      "id": "context-guidance-reads-dobot",
+      "from": "context-guidance",
+      "to": "context-file-dobot",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/manuals.mjs::readManual",
+        "core/agent/manuals.mjs::loadGuidance"
+      ]
+    },
+    {
+      "id": "context-guidance-reads-denso",
+      "from": "context-guidance",
+      "to": "context-file-denso",
+      "label": "read file/section",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read file/section"
+      ],
+      "inputs": "Selected source ID and optional section.",
+      "outputs": "Actual Markdown; role/client/machine gates are applied by the existing reader.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/manuals.mjs::readManual",
+        "core/agent/manuals.mjs::loadGuidance"
+      ]
+    },
+    {
+      "id": "extension-catalog-read",
+      "from": "extension-library",
+      "to": "extension-catalog",
+      "label": "read catalog",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read catalog"
+      ],
+      "inputs": "Requested skill ID or discovery.",
+      "outputs": "Current catalog IDs and metadata.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::readSkill",
+        "adapters/mcp/src/runtime.mjs::skills"
+      ]
+    },
+    {
+      "id": "read-extension-plastic-weld",
+      "from": "extension-library",
+      "to": "extension-manual-plastic-weld",
+      "label": "read plastic-weld",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read plastic-weld"
+      ],
+      "inputs": "Selected catalog ID and optional heading.",
+      "outputs": "Actual skill manual.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::readSkill",
+        "skills/catalog.mjs"
+      ]
+    },
+    {
+      "id": "read-extension-heat-set-inserts",
+      "from": "extension-library",
+      "to": "extension-manual-heat-set-inserts",
+      "label": "read heat-set-inserts",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read heat-set-inserts"
+      ],
+      "inputs": "Selected catalog ID and optional heading.",
+      "outputs": "Actual skill manual.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::readSkill",
+        "skills/catalog.mjs"
+      ]
+    },
+    {
+      "id": "read-extension-text",
+      "from": "extension-library",
+      "to": "extension-manual-text",
+      "label": "read text",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read text"
+      ],
+      "inputs": "Selected catalog ID and optional heading.",
+      "outputs": "Actual skill manual.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::readSkill",
+        "skills/catalog.mjs"
+      ]
+    },
+    {
+      "id": "read-extension-thingi10k",
+      "from": "extension-library",
+      "to": "extension-manual-thingi10k",
+      "label": "read thingi10k",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read thingi10k"
+      ],
+      "inputs": "Selected catalog ID and optional heading.",
+      "outputs": "Actual skill manual.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::readSkill",
+        "skills/catalog.mjs"
+      ]
+    },
+    {
+      "id": "read-extension-gridfinity",
+      "from": "extension-library",
+      "to": "extension-manual-gridfinity",
+      "label": "read gridfinity",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read gridfinity"
+      ],
+      "inputs": "Selected catalog ID and optional heading.",
+      "outputs": "Actual skill manual.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::readSkill",
+        "skills/catalog.mjs"
+      ]
+    },
+    {
+      "id": "read-extension-supports",
+      "from": "extension-library",
+      "to": "extension-manual-supports",
+      "label": "read supports",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read supports"
+      ],
+      "inputs": "Selected catalog ID and optional heading.",
+      "outputs": "Actual skill manual.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::readSkill",
+        "skills/catalog.mjs"
+      ]
+    },
+    {
+      "id": "read-extension-line-network",
+      "from": "extension-library",
+      "to": "extension-manual-line-network",
+      "label": "read line-network",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read line-network"
+      ],
+      "inputs": "Selected catalog ID and optional heading.",
+      "outputs": "Actual skill manual.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::readSkill",
+        "skills/catalog.mjs"
+      ]
+    },
+    {
+      "id": "read-extension-bridging",
+      "from": "extension-library",
+      "to": "extension-manual-bridging",
+      "label": "read bridging",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read bridging"
+      ],
+      "inputs": "Selected catalog ID and optional heading.",
+      "outputs": "Actual skill manual.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::readSkill",
+        "skills/catalog.mjs"
+      ]
+    },
+    {
+      "id": "read-extension-draped-skin",
+      "from": "extension-library",
+      "to": "extension-manual-draped-skin",
+      "label": "read draped-skin",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read draped-skin"
+      ],
+      "inputs": "Selected catalog ID and optional heading.",
+      "outputs": "Actual skill manual.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::readSkill",
+        "skills/catalog.mjs"
+      ]
+    },
+    {
+      "id": "read-extension-wave-overhangs",
+      "from": "extension-library",
+      "to": "extension-manual-wave-overhangs",
+      "label": "read wave-overhangs",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read wave-overhangs"
+      ],
+      "inputs": "Selected catalog ID and optional heading.",
+      "outputs": "Actual skill manual.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::readSkill",
+        "skills/catalog.mjs"
+      ]
+    },
+    {
+      "id": "read-extension-vase-wall",
+      "from": "extension-library",
+      "to": "extension-manual-vase-wall",
+      "label": "read vase-wall",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read vase-wall"
+      ],
+      "inputs": "Selected catalog ID and optional heading.",
+      "outputs": "Actual skill manual.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::readSkill",
+        "skills/catalog.mjs"
+      ]
+    },
+    {
+      "id": "read-extension-advanced-vase-wall",
+      "from": "extension-library",
+      "to": "extension-manual-advanced-vase-wall",
+      "label": "read advanced-vase-wall",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read advanced-vase-wall"
+      ],
+      "inputs": "Selected catalog ID and optional heading.",
+      "outputs": "Actual skill manual.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::readSkill",
+        "skills/catalog.mjs"
+      ]
+    },
+    {
+      "id": "read-extension-thick-lip",
+      "from": "extension-library",
+      "to": "extension-manual-thick-lip",
+      "label": "read thick-lip",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read thick-lip"
+      ],
+      "inputs": "Selected catalog ID and optional heading.",
+      "outputs": "Actual skill manual.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::readSkill",
+        "skills/catalog.mjs"
+      ]
+    },
+    {
+      "id": "read-extension-pipe-cladding",
+      "from": "extension-library",
+      "to": "extension-manual-pipe-cladding",
+      "label": "read pipe-cladding",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read pipe-cladding"
+      ],
+      "inputs": "Selected catalog ID and optional heading.",
+      "outputs": "Actual skill manual.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/agent/toolkit.mjs::readSkill",
+        "skills/catalog.mjs"
+      ]
+    },
+    {
+      "id": "bundle-edit-load",
+      "from": "bundle-edit",
+      "to": "bundle-load",
+      "label": "load current revision",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "load current revision"
+      ],
+      "inputs": "Bundle directory and load options.",
+      "outputs": "Validated current state.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/print/workflow.mjs"
+      ]
+    },
+    {
+      "id": "bundle-build-load",
+      "from": "bundle-build",
+      "to": "bundle-load",
+      "label": "load current revision",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "load current revision"
+      ],
+      "inputs": "Bundle directory and load options.",
+      "outputs": "Validated current state.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/print/workflow.mjs"
+      ]
+    },
+    {
+      "id": "bundle-edit-patch",
+      "from": "bundle-edit",
+      "to": "bundle-patch",
+      "label": "apply recipe patch",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "apply recipe patch"
+      ],
+      "inputs": "Current plan and requested changes.",
+      "outputs": "Resolved candidate plan.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/print/workflow.mjs::applyPlanPatch",
+        "core/print/resolve-plan.mjs::resolvePlanPatch"
+      ]
+    },
+    {
+      "id": "bundle-edit-save",
+      "from": "bundle-edit",
+      "to": "bundle-save",
+      "label": "persist edited plan",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "persist edited plan"
+      ],
+      "inputs": "Validated plan, geometry and invalidated review.",
+      "outputs": "Committed manifest.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/print/workflow.mjs::persistPlanUpdate"
+      ]
+    },
+    {
+      "id": "bundle-build-save",
+      "from": "bundle-build",
+      "to": "bundle-save",
+      "label": "persist generated artifacts",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "persist generated artifacts"
+      ],
+      "inputs": "Matching generation result and review state.",
+      "outputs": "Committed manifest.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/print/workflow.mjs::persistGeneratedProgram"
+      ]
+    },
+    {
+      "id": "bundle-edit-setup",
+      "from": "bundle-edit",
+      "to": "bundle-setup",
+      "label": "remember changed setup",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "remember changed setup"
+      ],
+      "inputs": "Setup edit and bundle identity.",
+      "outputs": "Saved default for future prints.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/print/workflow.mjs::adjustBundle"
+      ]
+    },
+    {
+      "id": "bundle-setup-load",
+      "from": "bundle-setup",
+      "to": "bundle-load",
+      "label": "load setup",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "load setup"
+      ],
+      "inputs": "Bundle directory.",
+      "outputs": "Current machine setup.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/print/workflow.mjs::rememberSetup"
+      ]
+    },
+    {
+      "id": "viewer-studio-path-view",
+      "from": "studio-projection",
+      "to": "studio-path-view",
+      "label": "build path view",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "build path view"
+      ],
+      "inputs": "Current view inputs and options.",
+      "outputs": "Owned presentation buffers and draw operations.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "studio/viewer-renderer.mjs"
+      ]
+    },
+    {
+      "id": "viewer-studio-geometry-view",
+      "from": "studio-projection",
+      "to": "studio-geometry-view",
+      "label": "build geometry view",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "build geometry view"
+      ],
+      "inputs": "Current view inputs and options.",
+      "outputs": "Owned presentation buffers and draw operations.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "studio/viewer-renderer.mjs"
+      ]
+    },
+    {
+      "id": "viewer-studio-material-view",
+      "from": "studio-projection",
+      "to": "studio-material-view",
+      "label": "build material scene",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "build material scene"
+      ],
+      "inputs": "Current view inputs and options.",
+      "outputs": "Owned presentation buffers and draw operations.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "studio/viewer-renderer.mjs"
+      ]
+    },
+    {
+      "id": "channel-studio-requests",
+      "from": "studio-agent",
+      "to": "studio-requests",
+      "label": "query / update requests",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "query / update requests"
+      ],
+      "inputs": "Scoped Studio operation.",
+      "outputs": "Owned channel/tour state and result.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "studio/server.mjs::createStudio"
+      ]
+    },
+    {
+      "id": "channel-studio-events",
+      "from": "studio-agent",
+      "to": "studio-events",
+      "label": "record / drain events",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "record / drain events"
+      ],
+      "inputs": "Scoped Studio operation.",
+      "outputs": "Owned channel/tour state and result.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "studio/server.mjs::createStudio"
+      ]
+    },
+    {
+      "id": "channel-studio-tour-state",
+      "from": "studio-agent",
+      "to": "studio-tour-state",
+      "label": "read / advance tour",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "read / advance tour"
+      ],
+      "inputs": "Scoped Studio operation.",
+      "outputs": "Owned channel/tour state and result.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "studio/server.mjs::createStudio"
+      ]
+    },
+    {
+      "id": "tour-requests",
+      "from": "studio-tour-state",
+      "to": "studio-requests",
+      "label": "coordinate lesson requests",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "coordinate lesson requests"
+      ],
+      "inputs": "Current lesson and owner.",
+      "outputs": "Lesson request/result state.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "studio/tour.mjs::createTour"
+      ]
+    },
+    {
+      "id": "build-field-preparation",
+      "from": "build-evaluate",
+      "to": "build-fields",
+      "label": "prepare fields",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "prepare fields"
+      ],
+      "inputs": "Plan, machine and geometry field sources.",
+      "outputs": "Field record and preparation report.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/print/bundle.mjs::generatePreparedPath"
+      ]
+    },
+    {
+      "id": "router-griffin",
+      "from": "export-router",
+      "to": "export-griffin",
+      "label": "export / interpret",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "export / interpret"
+      ],
+      "inputs": "SAAMpath, plan, machine and release metadata.",
+      "outputs": "Exact machine bytes and interpreted program.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/export/registry.mjs"
+      ]
+    },
+    {
+      "id": "griffin-prepare",
+      "from": "export-griffin",
+      "to": "export-prepare",
+      "label": "prepareMachinePath",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "prepareMachinePath"
+      ],
+      "inputs": "Neutral SAAMpath and installation setup.",
+      "outputs": "Machine-adapted copy of the path.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/export/griffin.mjs"
+      ]
+    },
+    {
+      "id": "router-bambu",
+      "from": "export-router",
+      "to": "export-bambu",
+      "label": "export / interpret",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "export / interpret"
+      ],
+      "inputs": "SAAMpath, plan, machine and release metadata.",
+      "outputs": "Exact machine bytes and interpreted program.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/export/registry.mjs"
+      ]
+    },
+    {
+      "id": "bambu-prepare",
+      "from": "export-bambu",
+      "to": "export-prepare",
+      "label": "prepareMachinePath",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "prepareMachinePath"
+      ],
+      "inputs": "Neutral SAAMpath and installation setup.",
+      "outputs": "Machine-adapted copy of the path.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/export/bambu.mjs"
+      ]
+    },
+    {
+      "id": "router-dobot",
+      "from": "export-router",
+      "to": "export-dobot",
+      "label": "export / interpret",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "export / interpret"
+      ],
+      "inputs": "SAAMpath, plan, machine and release metadata.",
+      "outputs": "Exact machine bytes and interpreted program.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/export/registry.mjs"
+      ]
+    },
+    {
+      "id": "dobot-prepare",
+      "from": "export-dobot",
+      "to": "export-prepare",
+      "label": "prepareMachinePath",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "prepareMachinePath"
+      ],
+      "inputs": "Neutral SAAMpath and installation setup.",
+      "outputs": "Machine-adapted copy of the path.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/export/dobot.mjs"
+      ]
+    },
+    {
+      "id": "router-denso",
+      "from": "export-router",
+      "to": "export-denso",
+      "label": "export / interpret",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "export / interpret"
+      ],
+      "inputs": "SAAMpath, plan, machine and release metadata.",
+      "outputs": "Exact machine bytes and interpreted program.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/export/registry.mjs"
+      ]
+    },
+    {
+      "id": "denso-prepare",
+      "from": "export-denso",
+      "to": "export-prepare",
+      "label": "prepareMachinePath",
+      "direction": "Caller → provider; response included.",
+      "operations": [
+        "prepareMachinePath"
+      ],
+      "inputs": "Neutral SAAMpath and installation setup.",
+      "outputs": "Machine-adapted copy of the path.",
+      "effects": "Returns values to the caller; state effects stay with the declared owner.",
+      "failure": "Propagate the operation error to its caller.",
+      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
+      "status": "observed in source; manually traced",
+      "evidence": [
+        "core/export/denso.mjs"
+      ]
     }
   ],
   "layout": {
