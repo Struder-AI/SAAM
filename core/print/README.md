@@ -17,27 +17,18 @@ current plan revision. Source metadata does not confer a printing approval.
 
 ## Generation and review
 
-Implement the single human confirmation in [the maker interaction flow](../../MAKERS.md#maker-interaction-flow):
-settings and the exact toolpath together immediately before export. `core/print/workflow.mjs` owns
-initialization, verification, revision hashes, adjustment, approvals, generation,
-reopening and delivery. The shell adapter supplies
-recipe validation, geometry, generator, limitations and release metadata.
-Studio chooses the adapter by saved plan schema. There is no standalone settings
-confirmation. `approve({actor, revision})` writes the only approval record,
-`review.approvals.toolpath`, carrying the export hash and the generation-input hash it was
-given for; `toolpathApproved` is the one derived boolean. Any recorded change
-(plan, machine, upgrade or regeneration) empties `review.approvals`. Generation is available for inspection;
-production delivery still requires the exact current final confirmation.
+Studio's Export click confirms the displayed settings and exact checked toolpath.
+`exportReviewed` writes the captured bytes without consulting the current bundle
+or pending work. It writes no approval record. Opening a saved bundle checks its
+persisted artifacts before display.
 
-`review-state.mjs` projects that already-checked state into the small set of
-cross-interface review decisions: whether program currency was checked, whether
-the current program is production-ready, whether its exact toolpath is approved,
-and whether the next action is check, generate, review or deliver. Studio, the
-agent toolkit and MCP share this projection while retaining their own labels and
-response shapes. An output-skipping read reports currency and approval as
-unknown; the projection never infers approval from the saved manifest alone.
-Transient calculation, cancellation, request and presentation state remains with
-Studio and does not affect persisted validity.
+`core/print/workflow.mjs` owns initialization, validation, revisions, preparation,
+reopening and delivery. The shell adapter supplies recipe validation, geometry,
+generation, limitations and release metadata. Studio selects it by plan schema.
+Non-Studio callers retain `approve({actor, revision})` and `deliver`: the former
+records settings/toolpath approval; the latter requires that exact approval.
+`review-state.mjs` projects persisted currency and approval for these callers;
+Studio combines currency with transient work and presentation state.
 
 `generationHash` identifies plan, machine, geometry and the adapter's generation
 contract. A changed deposition/inspection contract makes saved programs and their
@@ -61,23 +52,22 @@ Generate and check machine commands from the complete plan for Studio review.
 The person confirms settings and toolpath together; delivery copies those exact bytes.
 Geometry, process, composition or machine changes invalidate the
 combined settings/toolpath confirmation. Development generation records
-`mode: development`, creates no human approvals and cannot satisfy delivery.
-Production generation can reuse a current checked
+`mode: development` and creates no human approvals. Outside Studio,
+production generation can reuse a current checked
 development export: it verifies current input identity, export bytes and
 saved check hashes, then records production mode without reslicing or changing
 the reviewed bytes. This transition does not approve settings or toolpath.
 Stale source falls back to generation. A plan changed during generation cannot
 receive the earlier candidate.
 
-`prepareGeneration` reuses computation for unchanged inputs and returns an opaque
-ticket with generation and revision identity. Checked bytes stay private;
-`commitGeneration` reloads those identities before saving them. Export failure
-retains the in-memory path for retry. Changed inputs require new preparation.
+`prepareGeneration` retains one promise for unchanged inputs and returns the
+checked result with generation and revision identity. `commitGeneration` checks
+those identities before saving. Failed preparation clears the promise for retry;
+changed inputs require new preparation.
 
 Geometry-only bundle reads and their change fingerprints omit export bytes.
 Fingerprint snapshots reuse content digests while file identity, size, modification
-and change times match; this is change detection, not approval evidence. Review,
-approval and delivery still check current bytes at their owning boundary.
+and change times match; this is change detection, not approval evidence. Saved-artifact reads check bytes; Studio delivery reuses its held result.
 Recipe adjustment returns the owning update result instead of loading it again;
 the update still checks a fresh revision before saving.
 
@@ -115,7 +105,8 @@ from mutation and evict cached values without changing acceptance.
 | New or edited plan/setup | Field validity, selected skill preconditions, machine compatibility and process choices. |
 | Skill construction | Preconditions that first become knowable from the actual section, offset, support region or operation dependency being constructed. |
 | Machine emission and interpretation | Validate the emitted command state and quantized motions once; those commands can differ from the producer's unrounded path. |
-| Approval, reopening and delivery | Check current revision and content identity, then reuse matching validity and interpreted output. Interpret new or changed external bytes; do not regenerate unchanged output. |
+| Reopening | Check saved artifacts and interpret machine commands; never regenerate unchanged output. |
+| Studio Export | Check manifest currency and pending edits; deliver the displayed result’s held bytes. |
 
 An exporter that already interprets its emitted body for package totals must
 return that result with the exact bytes through `exportAndInterpretProgram`.

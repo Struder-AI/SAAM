@@ -286,9 +286,9 @@ blocks. While a toolpath is still calculating, both stage tabs stay live: the
 geometry pane remains reachable (and crisp), the toolpath pane remains reachable
 whenever its faded preview can render, and **Next** returns to that faded pane
 without starting or cancelling the pending calculation. The tour keeps its own
-lesson wording on this button. A current export opens directly in the toolpath viewer. A development
-export can be viewed but cannot authorize delivery. A stale or edited program
-stays unavailable for approval. Failed opening retains the previous print.
+lesson navigation. A current export opens directly in the toolpath viewer.
+Export confirms the displayed result, including a checked development result.
+Queued edits and stale previews disable the button. Failed opening retains the previous print.
 
 An accessible viewport overlay with a spinner covers initial loading, reopening, changed
 bundle validation, toolpath/export generation and delivery. It remains visible
@@ -338,18 +338,14 @@ from another writer cancel obsolete calculation. View changes alone do not do so
 This control covers Studio workers; direct CLI/MCP generation and custom adapters
 do not yet share a cross-process cancellation owner.
 
-State and approval responses report `toolpathApproved` as the only approval state.
-`/api/approve` takes the reviewer and revision; an active tour rejects it and
-`/api/deliver` in favor of its combined confirm-and-export route. That route
-applies tour teaching and restoration policy around the same generation,
-approval and delivery operations used by ordinary Studio; it is not a second
-manufacturing lifecycle.
+Ordinary Studio and the tour use `POST /api/export` to capture the displayed result.
+Delivery writes those bytes without rechecking revisions, the manifest or pending
+work. No approval record, promotion, generation or interpretation runs at Export.
+Download links retain those bytes for retries, even after a later export.
 
-Review metadata has its own update path. Approval, delivery history and generation
-mode changes update controls after fresh validation without replacing unchanged
-geometry or motion. Input/export changes still reload the presentation. Generation
-identity other than mode remains part of the presentation fingerprint. This is
-change detection; approval and delivery retain their current-byte checks.
+Reopening checks saved artifacts. Metadata updates preserve unchanged geometry
+and motion; input/export changes reload the presentation. The pending-work
+projection drives both waiting indicators and Export availability.
 Background `set_tour_start_at` calls must include the `runId` and `lessonId` from
 their request scope or `get_tour`; the tour rejects a choice for an ended lesson.
 

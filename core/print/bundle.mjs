@@ -31,7 +31,7 @@ export async function generatePreparedPath(plan,machine,options){
   return generatePath(plan,machine,native,{...options,modulations:fields.record,modulationPreparation:fields.report});
 }
 
-export const {root, EXPORT_NAME, atomicManifest, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, bundleFingerprint, bundleFingerprints, migrateBundle, prepareGeneration, commitGeneration, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, applySettingsSnapshot}=createBundleWorkflow({
+export const {root, EXPORT_NAME, atomicManifest, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, bundleFingerprint, bundleFingerprints, migrateBundle, prepareGeneration, commitGeneration, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, exportReviewed, applySettingsSnapshot}=createBundleWorkflow({
   kind:'shell',defaults,geometryTemplate,createGeometry,
   generatePath:generatePreparedPath,generationContract:GENERATION_CONTRACT,
   version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode',

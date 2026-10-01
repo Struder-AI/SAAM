@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-01 — Export the displayed Studio result
+
+- Ordinary Studio and the tour export the snapshot attached to the displayed result. One control owns availability; the tour only changes its label. Queued edits share the waiting-indicator projection. Once clicked, Export writes the captured bytes without checking current revisions, the manifest or pending work, and without approval persistence, promotion, regeneration or interpretation. Later edits and downloads cannot change those bytes.
+- Replaced nested preparation promises and opaque preparation tickets with one retryable prepared result; removed duplicate delivery read/hash checks and tour marker restoration. Reopening still checks saved artifacts. CLI/MCP explicit approval operations remain available.
+- Verification: setup and twelve focused existing checks passed before the capture correction. Live scratch Studio and its isolated tour lesson delivered byte-identical development output without approval or promotion; the bundled tour start has an unrelated pitchMm recipe error. After correction, a scratch HTTP export delivered the original 4,155 bytes after another result was displayed, an edit queued and the manifest changed; the manifest remained untouched. Syntax/diff checks passed. No new tests, whole suite, commit or push. Legacy separate-approval route tests need revision.
+
 ## 2026-10-01 — First machine selection centers supplied geometry
 
 - Owner chose explicit Wing limits with printer/setup selection later; Wing owns relay removal. Settings now centers the saved geometry footprint in selected-tool bounds on first selection only when no placement was authored. It reads Bundle geometry metadata, without a Geometry query or new interface; centered workspace geometry also works unchanged.

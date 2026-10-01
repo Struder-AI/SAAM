@@ -39,6 +39,7 @@ export function referenceAdapter(live){
     checkPathBundle:live.checkPathBundle,
     prepareGeneration:live.prepareGeneration,
     commitGeneration:live.commitGeneration,
+    exportReviewed:live.exportReviewed,
     async deliver(directory,...args){
       if(await tourExample(directory))throw Error('Exit the tour before confirming a real print.');
       return live.deliver(directory,...args);
@@ -50,11 +51,11 @@ export function referenceAdapter(live){
     initBundle:live.initBundle,
     async loadBundle(directory,options={}){
       const example=await tourExample(directory),state=await live.loadBundle(directory,options);
-      return example?{...state,tourExample:example,localPrintDirectory:directory}:state;
+      return example?Object.assign(state,{tourExample:example,localPrintDirectory:directory}):state;
     },
     async loadBundleSnapshot(directory,options={}){
       const result=await live.loadBundleSnapshot(directory,options),example=await tourExample(directory);
-      return example?{...result,state:{...result.state,tourExample:example,localPrintDirectory:directory},
+      return example?{...result,state:Object.assign(result.state,{tourExample:example,localPrintDirectory:directory}),
         fingerprint:`${result.fingerprint}:tour:${example.id}`}:result;
     },
     proposedPlan:live.proposedPlan,
@@ -118,7 +119,7 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
     const gate=TOUR_STEPS[data.step]?.gate;
     const directory=(data.active||data.completed)&&data.selected?await confined(data.selected):null;
     const waiting=data.active&&[L.geometry,L.roof,L.settings].includes(data.step)&&directory&&(records??await requests.query({printId:requests.printId(directory)})).some(r=>
-      requestReceiptState(r,{now:now(),view:{printId:requests.printId(directory),ready:true,snapshot:data.viewWork}}).activity==='working');
+      ['queued','working'].includes(requestReceiptState(r,{now:now(),view:{printId:requests.printId(directory),ready:true,snapshot:data.viewWork}}).activity));
     return {...data,directory,canNext:!waiting&&(!gate||data.gates[data.step]===true),agentInstruction:tourAgentInstruction(data)};
   }
   async function enter(data,index){
@@ -153,12 +154,6 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
       for(const name of Object.values(data.copies)){
         const directory=await confined(name);await useExample(directory);await requests.cancelFor(directory);
       }
-    },
-    async restoreReference(directory){
-      const data=await read();if(!data.active)return;
-      const name=relative(base,resolve(directory)).split(sep).join('/');
-      const id=Object.entries(data.copies).find(([,copy])=>copy===name)?.[0];
-      if(id)await save(resolve(await confined(name),'.tour-reference.json'),{id,version:TOUR_VERSION});
     },
     async downloaded(exportHash){const data=await read();if(!data.active)throw Error('Start or resume the tour before exporting.');data.downloadedHash=exportHash;await save(progress,data);},
     async acknowledgeView(directory,seen,state){

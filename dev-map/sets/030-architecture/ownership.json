@@ -7668,9 +7668,6 @@
     "studio/app.mjs::applyViewerAnnotations": {
       "owner": "studio"
     },
-    "studio/app.mjs::approval": {
-      "owner": "studio"
-    },
     "studio/app.mjs::beginCanvasDrag": {
       "owner": "studio"
     },
@@ -8709,9 +8706,6 @@
     "studio/server.mjs::createStudio::agentWorking": {
       "owner": "studio"
     },
-    "studio/server.mjs::createStudio::approvePrint": {
-      "owner": "studio"
-    },
     "studio/server.mjs::createStudio::beginGeneration": {
       "owner": "studio"
     },
@@ -8722,9 +8716,6 @@
       "owner": "studio"
     },
     "studio/server.mjs::createStudio::currentPrint": {
-      "owner": "studio"
-    },
-    "studio/server.mjs::createStudio::deliverPrint": {
       "owner": "studio"
     },
     "studio/server.mjs::createStudio::discardPreparation": {
@@ -9196,9 +9187,6 @@
       "owner": "studio"
     },
     "studio/tour.mjs::createTour::requestStartLayer": {
-      "owner": "studio"
-    },
-    "studio/tour.mjs::createTour::restoreReference": {
       "owner": "studio"
     },
     "studio/tour.mjs::createTour::scope": {
@@ -10520,6 +10508,20 @@
     "core/machine/bundle-settings.mjs::recordExtensionDependency": {
       "owner": "settings",
       "reason": "Records supplied extension dependency configuration through Bundle snapshot interface without executing or preparing work."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::exportReviewed": {
+      "owner": "bundle",
+      "reason": "Deliver the captured checked bytes."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::writeDelivery": {
+      "owner": "bundle",
+      "reason": "Deliver the captured checked bytes."
+    },
+    "studio/agent-ui.mjs::createAgentUI::pending": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::exportPrint": {
+      "owner": "studio"
     }
   },
   "retiredAssignments": [
@@ -10666,7 +10668,11 @@
     "core/print/workflow.mjs::createBundleWorkflow::changeMachine",
     "core/print/workflow.mjs::createBundleWorkflow::rememberedSetup",
     "core/print/workflow.mjs::createBundleWorkflow::rememberSetup",
-    "core/print/workflow.mjs::setupFor"
+    "core/print/workflow.mjs::setupFor",
+    "studio/app.mjs::approval",
+    "studio/server.mjs::createStudio::approvePrint",
+    "studio/server.mjs::createStudio::deliverPrint",
+    "studio/tour.mjs::createTour::restoreReference"
   ],
   "scope": "map 0 only; no submap ownership constraints"
 }
