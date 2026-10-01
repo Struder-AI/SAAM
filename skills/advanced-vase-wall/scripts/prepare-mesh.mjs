@@ -30,7 +30,7 @@ export async function prepareMeshVase(source,options={}, {machine}){
   const initial={slices:defaultSlices()},existing=plan.slices.assignments.filter(a=>a.construction==='sleeve');
   requireThat(existing.length<=1,'Mesh vase preparation needs one selected sleeve assignment.');
   const wall=existing[0]??sleeveAssignment({id:'wall'}),body=plan.slices.assignments.filter(a=>a.construction!=='sleeve');
-  for(const [name,settings] of Object.entries(plan.skills))if(settings.enabled){
+  for(const [name,settings] of Object.entries(plan.skills??{}))if(settings.enabled){
     requireThat(false,
       `Mesh vase preparation cannot replace enabled ${name}. Disable it explicitly or configure the existing composition with normal adjustment tools.`);
   }

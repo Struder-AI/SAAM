@@ -974,7 +974,8 @@
       "stateful": true,
       "notes": [
         "Owns reusable profiles, process/material/installation defaults, remembered setup and settings resolution. Bundle stores selected snapshots; reusable changes never silently update existing bundles.",
-        "Agent settings commands in core/machine/bundle-settings.mjs read the current Bundle, resolve owned settings, and submit one expected-revision snapshot. Maker context accepts saved capabilities; profile lookup is explicit discovery."
+        "Agent settings commands in core/machine/bundle-settings.mjs read the current Bundle, resolve owned settings, and submit one expected-revision snapshot. Maker context accepts saved capabilities; profile lookup is explicit discovery.",
+        "Approved Extensions → Settings → Bundle records supplied dependency configuration only. Current named configurations live in plan.skills; geometry and construction references already encode their dependencies."
       ],
       "source": {
         "file": "core/machine/settings.mjs"
@@ -1001,7 +1002,12 @@
           "from": "user",
           "to": "agent"
         }
-      ]
+      ],
+      "evidence": [
+        "AGENTS.md"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "External intent enters the desktop conversation; clarification replies do not reverse the request arrow."
     },
     {
       "id": "user-studio",
@@ -1022,7 +1028,13 @@
           "from": "user",
           "to": "studio-ui"
         }
-      ]
+      ],
+      "evidence": [
+        "studio/app.mjs",
+        "studio/server.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "UI actions initiate work and exact confirmation; no agent confirmation authority."
     },
     {
       "id": "agent-geometry",
@@ -1043,7 +1055,13 @@
           "from": "agent",
           "to": "geometry-api"
         }
-      ]
+      ],
+      "evidence": [
+        "core/print/geometry-tools.mjs",
+        "core/print/import-stl.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Agent commands request construction/import; Geometry returns values for explicit acceptance."
     },
     {
       "id": "agent-toolpath",
@@ -1064,7 +1082,14 @@
           "from": "agent",
           "to": "compose"
         }
-      ]
+      ],
+      "evidence": [
+        "core/print/slice-edit.mjs",
+        "core/print/curves.mjs",
+        "core/print/injection.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Agent requests author construction values; current Bundle coordination is not a pure completed-result facade."
     },
     {
       "id": "agent-extensions",
@@ -1085,7 +1110,13 @@
           "from": "agent",
           "to": "extension-library"
         }
-      ]
+      ],
+      "evidence": [
+        "skills/catalog.mjs",
+        "core/agent/toolkit.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Discovery exists; separate replaceable/local extension installation remains proposed."
     },
     {
       "id": "agent-bundle",
@@ -1106,7 +1137,13 @@
           "from": "agent",
           "to": "bundle-edit"
         }
-      ]
+      ],
+      "evidence": [
+        "studio/server.mjs",
+        "core/agent/toolkit.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Active selection/read exist; exclusive edit ownership is separate unfinished work."
     },
     {
       "id": "studio-commands",
@@ -1121,13 +1158,19 @@
       "outputs": "Accepted revision/job or conflict.",
       "effects": "5 owns shared part state and grants edit ownership to only one Studio instance per bundle; an agent may own multiple instances.",
       "failure": "Reject stale revisions or writes without the active instance edit ownership; keep other viewers read-only.",
-      "excludes": "No direct engine or bundle-file access.",
+      "excludes": "No bundle-file access or undeclared engine calls; explicit STL import uses studio-import.",
       "access": [
         {
           "from": "studio-ui",
           "to": "bundle-edit"
         }
-      ]
+      ],
+      "evidence": [
+        "studio/server.mjs",
+        "core/print/import-stl.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Studio opens/edits/requests builds and commits prepared imports. Explicit studio-import is a separate approved Geometry interface."
     },
     {
       "id": "export-bundle",
@@ -1140,15 +1183,25 @@
       ],
       "inputs": "Bundle/owner identity and expected displayed revision; then checked program and matching snapshot identity.",
       "outputs": "Immutable current SAAMpath, geometry/dependency identity, machine/setup and output options; accepted export record or conflict.",
-      "effects": "5 supplies the current snapshot and accepts checked export records through the declared access; 8 cannot regenerate.",
+      "effects": "Bundle supplies saved inputs to Export during preparation and accepts checked results; unchanged preparation/check results are reused. Export never reconstructs geometry or deposition.",
       "failure": "Reject queued updates, stale revisions, unavailable paths and superseded results before releasing the export.",
-      "excludes": "No build request, regeneration, direct bundle-file access or separate user approval step.",
+      "excludes": "No hidden regeneration on confirmation/delivery, direct bundle-file access or separate user approval.",
       "access": [
+        {
+          "from": "bundle-review",
+          "to": "export-router"
+        },
         {
           "from": "export-router",
           "to": "bundle-review"
         }
-      ]
+      ],
+      "evidence": [
+        "core/print/workflow.mjs",
+        "core/export/registry.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Current preparation invokes Export from Bundle and supplies pinned plan/machine/path values. Invocation is legitimate; checked results are reused. Persisted SAAMpath and dependency/history work are being integrated separately."
     },
     {
       "id": "bundle-views",
@@ -1166,10 +1219,16 @@
       "excludes": "No shared mutable object references.",
       "access": [
         {
-          "from": "bundle-edit",
-          "to": "studio-projection"
+          "from": "studio-projection",
+          "to": "bundle-edit"
         }
-      ]
+      ],
+      "evidence": [
+        "studio/server.mjs",
+        "studio/state-response.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Studio calls loadBundle and projects its returned state; information flows from Bundle."
     },
     {
       "id": "generation-views",
@@ -1187,10 +1246,21 @@
       "excludes": "No UI access to worker internals.",
       "access": [
         {
+          "from": "studio-projection",
+          "to": "bundle-build"
+        },
+        {
           "from": "bundle-build",
           "to": "studio-projection"
         }
-      ]
+      ],
+      "evidence": [
+        "studio/server.mjs",
+        "studio/generation-worker.mjs",
+        "core/print/workflow.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Job status and progress enter Studio by reads, worker messages and callbacks."
     },
     {
       "id": "review-views",
@@ -1208,10 +1278,17 @@
       "excludes": "Preview does not count as confirmation.",
       "access": [
         {
-          "from": "bundle-review",
-          "to": "studio-projection"
+          "from": "studio-projection",
+          "to": "bundle-review"
         }
-      ]
+      ],
+      "evidence": [
+        "studio/server.mjs",
+        "studio/state-response.mjs",
+        "core/print/review-state.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Studio reads saved review identity and derives presentation; queued-update availability is Studio-private state."
     },
     {
       "id": "studio-render",
@@ -1285,13 +1362,13 @@
       "id": "build-job",
       "from": "build-evaluate",
       "to": "bundle-build",
-      "label": "geometry + SAAMpath",
+      "label": "deposition / hybrid results",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
-        "Prepare one geometry/deposition recipe proposal or execute the recipe to SAAMpath; Bundle owns revision checks and atomic acceptance."
+        "prepare deposition/hybrid recipe proposal or execute recipe to SAAMpath"
       ],
       "inputs": "Immutable bundle snapshot, pinned extensions/assets, machine/setup and cancellation signal.",
-      "outputs": "Geometry, SAAMpath and diagnostics returned by engine 3; bundle 5 accepts/stores them.",
+      "outputs": "Deposition/hybrid proposal or SAAMpath and diagnostics; Bundle accepts/stores the result.",
       "effects": "3 owns engine computation; 5 owns job acceptance and commits the returned result.",
       "failure": "Missing generation dependencies or failure/cancellation leave saved geometry and toolpath viewable; 5 preserves previous valid artifacts.",
       "excludes": "3 cannot write the bundle, confirm or deliver.",
@@ -1300,7 +1377,14 @@
           "from": "bundle-build",
           "to": "build-evaluate"
         }
-      ]
+      ],
+      "evidence": [
+        "core/print/bundle.mjs",
+        "core/print/extension-edits.mjs",
+        "core/print/extension-recipe.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Toolpath supplies deposition/hybrid results; geometry-only extension edits bypass it. Bundle still coordinates preparation."
     },
     {
       "id": "evaluate-geometry",
@@ -1321,7 +1405,13 @@
           "from": "build-evaluate",
           "to": "geometry-api"
         }
-      ]
+      ],
+      "evidence": [
+        "core/print/generate.mjs",
+        "core/geom/build.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Geometry values feed Toolpath; query/evaluation calls run in the opposite direction."
     },
     {
       "id": "evaluate-extensions",
@@ -1342,7 +1432,13 @@
           "from": "build-evaluate",
           "to": "extension-run"
         }
-      ]
+      ],
+      "evidence": [
+        "core/print/extension-recipe.mjs",
+        "skills/deposition.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Toolpath invokes deposition producers and combines hybrid assignments; extensions do not write Bundle."
     },
     {
       "id": "resolve-extension",
@@ -1369,7 +1465,7 @@
       "id": "extension-geometry",
       "from": "extension-run",
       "to": "geometry-api",
-      "label": "geometry API",
+      "label": "geometry requests / contributions",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "construct / import / transform / query",
@@ -1389,13 +1485,20 @@
           "from": "geometry-api",
           "to": "extension-run"
         }
-      ]
+      ],
+      "evidence": [
+        "core/geom/extension-edit.mjs",
+        "skills/gridfinity/scripts/edit.mjs",
+        "skills/heat-set-inserts/scripts/edit.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Extensions request Geometry operations and return geometry contributions to its facade. Bundle-owned dispatch remains a design topic, not permission for direct Extensions–Bundle access."
     },
     {
       "id": "extension-toolpath",
       "from": "extension-run",
       "to": "compose",
-      "label": "construction API",
+      "label": "construction requests",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "constructAndCompose"
@@ -1410,7 +1513,13 @@
           "from": "extension-run",
           "to": "compose"
         }
-      ]
+      ],
+      "evidence": [
+        "skills/advanced-vase-wall/scripts/assignment.mjs",
+        "skills/plastic-weld/scripts/work.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Extensions supply construction requests to engine primitives; returned results do not reverse that initiating action."
     },
     {
       "id": "recipe-path",
@@ -1515,7 +1624,13 @@
           "from": "slice",
           "to": "slice-geometry"
         }
-      ]
+      ],
+      "evidence": [
+        "core/print/slice-deposition.mjs",
+        "core/geom/slice.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Slice calls Geometry for sections; section values flow Geometry → Toolpath."
     },
     {
       "id": "public-kernel",
@@ -1563,7 +1678,7 @@
       "id": "studio-export",
       "from": "studio-ui",
       "to": "export-router",
-      "label": "Export button",
+      "label": "prepare / confirm / deliver",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "exportAndCheck"
@@ -1578,7 +1693,13 @@
           "from": "studio-ui",
           "to": "export-router"
         }
-      ]
+      ],
+      "evidence": [
+        "studio/server.mjs",
+        "core/export/registry.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Studio triggers preparation/confirmation/delivery; unchanged checked bytes are reused. Generation may invoke Export during preparation."
     },
     {
       "id": "extension-resource-request",
@@ -1620,7 +1741,12 @@
           "from": "extension-resources",
           "to": "resources"
         }
-      ]
+      ],
+      "evidence": [
+        "skills/thingi10k/scripts/library.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Provider search/download results flow into Extensions; fetch/read calls go outward. No upload authority."
     },
     {
       "id": "agent-run-extension",
@@ -1641,7 +1767,13 @@
           "from": "agent",
           "to": "extension-run"
         }
-      ]
+      ],
+      "evidence": [
+        "skills/gridfinity/scripts/cli.mjs",
+        "adapters/mcp/src/runtime.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Local command/adapter initiates selected extension work through engines. No arbitrary extension bundle access."
     },
     {
       "id": "studio-agent-events",
@@ -1661,8 +1793,19 @@
         {
           "from": "studio-agent",
           "to": "agent"
+        },
+        {
+          "from": "agent",
+          "to": "studio-agent"
         }
-      ]
+      ],
+      "evidence": [
+        "studio/studio-events.mjs",
+        "studio/agent-requests.mjs",
+        "core/agent/toolkit.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Notifications and queued observations flow to Agent; Agent polls, acknowledges and responds through channel methods."
     },
     {
       "id": "studio-user-request",
@@ -1725,7 +1868,13 @@
           "from": "user",
           "to": "workspace-interface"
         }
-      ]
+      ],
+      "evidence": [
+        "workspaces/wing/app.mjs",
+        "workspaces/server.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "User design/save action drives private workspace state and one-way bundle handoff."
     },
     {
       "id": "workspace-geometry",
@@ -1746,7 +1895,14 @@
           "from": "workspace-implementations",
           "to": "geometry-api"
         }
-      ]
+      ],
+      "evidence": [
+        "workspaces/wing/construct.mjs",
+        "core/geom/loft.mjs",
+        "core/geom/polygon-chords.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Workspace calls Geometry and consumes returned loft/chord results."
     },
     {
       "id": "workspace-toolpath",
@@ -1767,29 +1923,42 @@
           "from": "workspace-implementations",
           "to": "compose"
         }
-      ]
+      ],
+      "evidence": [
+        "workspaces/wing/construct.mjs",
+        "core/print/workspace.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Wing currently returns authored curves and hands them off for later Trace generation; direct workspace candidate-SAAMpath evaluation remains a declared target."
     },
     {
       "id": "workspace-bundle",
       "from": "workspace-interface",
       "to": "bundle-edit",
-      "label": "export bundle",
+      "label": "create bundles",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
         "workspacePrinter",
         "createFromWorkspace"
       ],
       "inputs": "Geometry, explicit reproducible Trace construction, process intent, source parameters and construction requirements; target printer identity.",
-      "outputs": "Supported printer dimensions; new unconfirmed bundle identities collected in one set folder with design.json and export.json.",
+      "outputs": "New unconfirmed bundle identities; current printer-dimension relay is under owner review.",
       "effects": "5 creates and owns shared part state; subsequent edits obey exclusive instance ownership.",
       "failure": "Reject incomplete handoffs, existing directories and unsupported requirements. Construction identity detects breaking edits; explicit source detachment permits independent editing.",
-      "excludes": "No live workspace/Studio synchronization, simultaneous editing, automatic confirmation, or transient path as a substitute for a recipe.",
+      "excludes": "No live workspace/Studio synchronization, simultaneous editing, automatic confirmation, or transient path as a substitute for a recipe. No direct Settings–Workspace wire is approved; workspacePrinter is a flagged relay, not an endorsed settings channel.",
       "access": [
         {
           "from": "workspace-interface",
           "to": "bundle-edit"
         }
-      ]
+      ],
+      "evidence": [
+        "workspaces/server.mjs",
+        "core/print/workspace.mjs",
+        "workspaces/export-worker.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Creation exists. workspacePrinter relays live profile limits for height/chord and remains unresolved. Explicit workspace dimensions versus printer-derived sizing requires owner decision; no Settings → Workspace permission. Handoff machine selection also needs consideration."
     },
     {
       "id": "agent-context-onboard",
@@ -1805,7 +1974,7 @@
       "effects": "Returns values to the caller; state effects stay with the declared owner.",
       "failure": "Propagate the operation error to its caller.",
       "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
-      "status": "observed in source; manually traced",
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; context values return opposite the read call.",
       "evidence": [
         "core/agent/toolkit.mjs::onboarding",
         "scripts/agent-toolkit.mjs",
@@ -1832,7 +2001,7 @@
       "effects": "Returns values to the caller; state effects stay with the declared owner.",
       "failure": "Propagate the operation error to its caller.",
       "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
-      "status": "observed in source; manually traced",
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; context values return opposite the read call.",
       "evidence": [
         "core/agent/toolkit.mjs::contextPacket",
         "scripts/agent-toolkit.mjs",
@@ -1859,7 +2028,7 @@
       "effects": "Returns values to the caller; state effects stay with the declared owner.",
       "failure": "Propagate the operation error to its caller.",
       "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
-      "status": "observed in source; manually traced",
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; context values return opposite the read call.",
       "evidence": [
         "core/agent/toolkit.mjs::readSkill",
         "scripts/agent-toolkit.mjs",
@@ -1886,7 +2055,7 @@
       "effects": "Returns values to the caller; state effects stay with the declared owner.",
       "failure": "Propagate the operation error to its caller.",
       "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
-      "status": "observed in source; manually traced",
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; context values return opposite the read call.",
       "evidence": [
         "core/agent/toolkit.mjs::preview",
         "scripts/agent-toolkit.mjs",
@@ -1913,7 +2082,7 @@
       "effects": "Returns values to the caller; state effects stay with the declared owner.",
       "failure": "Propagate the operation error to its caller.",
       "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
-      "status": "observed in source; manually traced",
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; context values return opposite the read call.",
       "evidence": [
         "core/agent/toolkit.mjs::inspectFailure",
         "scripts/agent-toolkit.mjs",
@@ -1940,7 +2109,7 @@
       "effects": "Returns values to the caller; state effects stay with the declared owner.",
       "failure": "Propagate the operation error to its caller.",
       "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
-      "status": "observed in source; manually traced",
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; context values return opposite the read call.",
       "evidence": [
         "AGENTS.md",
         "CLAUDE.md"
@@ -1966,7 +2135,7 @@
       "effects": "Returns values to the caller; state effects stay with the declared owner.",
       "failure": "Propagate the operation error to its caller.",
       "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
-      "status": "observed in source; manually traced",
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; context values return opposite the read call.",
       "evidence": [
         "AGENTS.md",
         "CLAUDE.md"
@@ -1992,7 +2161,7 @@
       "effects": "Returns values to the caller; state effects stay with the declared owner.",
       "failure": "Propagate the operation error to its caller.",
       "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
-      "status": "observed in source; manually traced",
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; context values return opposite the read call.",
       "evidence": [
         "AGENTS.md",
         "CLAUDE.md"
@@ -2771,17 +2940,18 @@
       "effects": "Returns values to the caller; state effects stay with the declared owner.",
       "failure": "Propagate the operation error to its caller.",
       "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
-      "status": "observed in source; manually traced",
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
       "evidence": [
-        "core/agent/toolkit.mjs::readSkill",
-        "adapters/mcp/src/runtime.mjs::skills"
+        "core/agent/toolkit.mjs",
+        "skills/catalog.mjs"
       ],
       "access": [
         {
           "from": "context-skill",
           "to": "extension-catalog"
         }
-      ]
+      ],
+      "implementation": "Maker context reads catalog metadata; data flow is Extensions → Context."
     },
     {
       "id": "read-extension-plastic-weld",
@@ -4276,7 +4446,7 @@
       "from": "build-evaluate",
       "to": "build-jobs",
       "label": "generation result",
-      "direction": "Causal job request.",
+      "direction": "Causal result flow from Toolpath to the requesting Bundle job; the invocation runs oppositely.",
       "access": [
         {
           "from": "build-jobs",
@@ -4290,13 +4460,19 @@
       "outputs": "Engine results accepted only for the current bundle revision.",
       "effects": "Private job lifecycle; bundle commits shared results.",
       "failure": "Cancellation/failure preserves last valid artifacts.",
-      "excludes": "No separate generation engine or export."
+      "excludes": "No separate generation engine or export.",
+      "evidence": [
+        "studio/generation-worker.mjs",
+        "core/print/bundle.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Generation workers request engine computation and accept results for a pinned job; result flow is Toolpath → Bundle."
     },
     {
       "id": "geometry-bundle",
       "from": "geometry-api",
       "to": "bundle-build",
-      "label": "saved geometry",
+      "label": "geometry results",
       "direction": "Geometry output populates the bundle; bundle requests the geometry value.",
       "access": [
         {
@@ -4313,7 +4489,14 @@
       "effects": "2 computes geometry-only proposals directly; 5 commits. Contributions containing deposition assignments are composed by 3 before one Bundle commit.",
       "failure": "Keep the previous valid bundle geometry.",
       "excludes": "No direct geometry-engine writes to bundle state.",
-      "authorship": "Owner original sketch: Geometry -> Bundle."
+      "authorship": "Owner original sketch: Geometry -> Bundle.",
+      "evidence": [
+        "core/print/extension-edits.mjs",
+        "core/geom/extension-edit.mjs",
+        "core/print/workflow.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Geometry returns authored/native values; Bundle stores them. Geometry-only extension contributions take this interface directly."
     },
     {
       "id": "bundle-agent-state",
@@ -4334,7 +4517,13 @@
           "from": "agent",
           "to": "bundle-load"
         }
-      ]
+      ],
+      "evidence": [
+        "core/agent/toolkit.mjs",
+        "adapters/mcp/src/runtime.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Agent reads the saved snapshot; no default/profile resolution on read."
     },
     {
       "id": "agent-settings",
@@ -4355,7 +4544,14 @@
           "from": "agent",
           "to": "settings"
         }
-      ]
+      ],
+      "evidence": [
+        "core/machine/bundle-settings.mjs",
+        "adapters/mcp/src/runtime.mjs",
+        "core/print/cli.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Agent settings-only commands call Settings selection/patch/remember operations. Mixed recipe edits still use the existing combined Bundle operation with settings resolution delegated to its owner."
     },
     {
       "id": "settings-bundle",
@@ -4366,11 +4562,12 @@
       "operations": [
         "selectSettings / settingsDefaults / resolveSettingsPatch",
         "saveSetup",
-        "loadBundle / applySettingsSnapshot"
+        "loadBundle / applySettingsSnapshot",
+        "record named extension configuration"
       ],
       "inputs": "Explicit selection or patch, immutable current Bundle snapshot, and expected revision.",
       "outputs": "Exact selected machine/settings snapshot; accepted Bundle state or stale-revision error.",
-      "effects": "9 owns reusable settings and resolution; 5 accepts supplied setup/process/output/placement and machine values, preserving other components. Bundle owns invalidation and history.",
+      "effects": "9 owns reusable settings and resolution; 5 accepts supplied setup/process/output/placement and machine values, preserving other components. Bundle owns invalidation and history. Named dependency configuration uses existing plan.skills; no duplicate dependency list or extension execution.",
       "failure": "Return an explicit error without changing the last valid state.",
       "excludes": "No silent updates of existing bundles when reusable presets change.",
       "access": [
@@ -4382,7 +4579,14 @@
           "from": "settings",
           "to": "bundle-edit"
         }
-      ]
+      ],
+      "evidence": [
+        "core/machine/settings.mjs",
+        "core/machine/bundle-settings.mjs",
+        "core/print/workflow.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Settings resolves reusable values and submits exact snapshot at expected revision. Bundle owns acceptance, invalidation and history; agreed integration entry is applySettingsSnapshot."
     },
     {
       "id": "settings-context",
@@ -4403,7 +4607,14 @@
           "from": "context-guidance",
           "to": "settings"
         }
-      ]
+      ],
+      "evidence": [
+        "core/agent/manuals.mjs",
+        "core/agent/layers.mjs",
+        "adapters/mcp/src/runtime.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Selected-bundle manuals use saved capabilities; machineId explicitly discovers a reusable profile before selection."
     },
     {
       "id": "stl-studio",
@@ -4424,7 +4635,13 @@
           "from": "studio-ui",
           "to": "stl-file"
         }
-      ]
+      ],
+      "evidence": [
+        "studio/app.mjs",
+        "studio/server.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Local file/drop initiates Studio import with units/progress/cancellation. Alternative separate byte/control wires were discussed; current route retained pending owner decision."
     },
     {
       "id": "studio-import",
@@ -4447,7 +4664,48 @@
           "to": "geometry-api"
         }
       ],
-      "authorship": "Owner approved direct Studio → Geometry import."
+      "authorship": "Owner approved direct Studio → Geometry import.",
+      "evidence": [
+        "studio/import-stl.mjs",
+        "core/geom/import-stl.mjs",
+        "core/print/import-stl.mjs"
+      ],
+      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
+      "implementation": "Studio invokes Geometry, then saves the completed import; no machine or recipe invented. Actual Studio import and HTTP state exercised."
+    },
+    {
+      "id": "extension-settings",
+      "from": "extensions",
+      "to": "settings",
+      "label": "dependency configuration",
+      "direction": "Causal flow: Extensions supplies existing dependency/configuration data to Settings; no extension work is requested or performed.",
+      "access": [
+        {
+          "from": "extensions",
+          "to": "settings"
+        },
+        {
+          "from": "settings",
+          "to": "extensions"
+        }
+      ],
+      "operations": [
+        "recordExtensionDependency",
+        "read named-configuration targets"
+      ],
+      "inputs": "Extension ID and supplied complete configuration, or explicit removal; expected Bundle revision.",
+      "outputs": "Settings snapshot containing the existing named plan.skills record, then accepted Bundle revision.",
+      "effects": "Data recording only. Settings passes supplied configuration to Bundle. Existing geometry/construction references remain authoritative; no second dependency inventory.",
+      "failure": "Reject stale revision or unsupported record target. Availability and complete recipe validity belong to the later consuming operation.",
+      "excludes": "No execution, generation, defaults, code hashing, installation lookup, work queue, package/version registry or generated-artifact relay.",
+      "authorship": "Owner approved Extensions → Settings → Bundle for recording dependencies only, 2026-10-01.",
+      "evidence": [
+        "skills/catalog.mjs",
+        "core/machine/bundle-settings.mjs",
+        "core/print/workflow.mjs"
+      ],
+      "status": "Implemented data recording; generation prerequisites remain in existing recipe references.",
+      "implementation": "supports/plastic-weld consume named plan.skills configuration. Geometry shapes and sleeve construction already identify their dependencies. Supplied configuration fields are retained; this is not version pinning."
     }
   ],
   "layout": {

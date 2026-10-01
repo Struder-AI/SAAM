@@ -22,14 +22,14 @@ export const GEOMETRY_RECORDS=Object.freeze({
 export const extensionSettings=()=>({'plastic-weld':structuredClone(PLASTIC_WELD_DEFAULTS),supports:structuredClone(SUPPORT_DEFAULTS)});
 
 export function validateExtensionRecipe(plan,machine){
-  validatePlasticWeld(plan,machine);
-  validateSupports(plan.skills.supports,assignmentPlan(plan,machine,{id:'supports'}).process);
+  if(plan.skills?.['plastic-weld']!==undefined)validatePlasticWeld(plan,machine);
+  if(plan.skills?.supports!==undefined)validateSupports(plan.skills.supports,assignmentPlan(plan,machine,{id:'supports'}).process);
   if(plan.geometry)validateHeatSetAssignments(plan);
 }
 
 export function extensionProducerIds(plan){
-  return [...(plan.skills.supports.enabled?['supports']:[]),
-    ...(plan.skills['plastic-weld'].enabled?plan.skills['plastic-weld'].sites.map(site=>'plastic-weld:'+site.id):[])];
+  return [...(plan.skills?.supports?.enabled?['supports']:[]),
+    ...(plan.skills?.['plastic-weld']?.enabled?plan.skills['plastic-weld'].sites.map(site=>'plastic-weld:'+site.id):[])];
 }
 
 export function validateExtensionAssignment(assignment,options){

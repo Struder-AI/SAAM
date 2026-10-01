@@ -106,7 +106,10 @@ export function validatePlanFields(plan,machine) {
   requireThat_bundle(plan && typeof plan === 'object' && (depositionOnlyPlan(plan)||GEOMETRY_SHAPES.includes(plan.geometry?.shape)), `Author geometry (${GEOMETRY_SHAPES.join(', ')}) or a Trace/Inject recipe.`);
   // Validation is check-only: a plan carries every current field or it is
   // rejected. Supported older fields require explicit recipe migration and regeneration.
-  const expected = { ...defaults(machine), ...(plan.geometry?{geometry:geometryTemplate(plan.geometry.shape,plan.geometry)}:{}),...(Object.hasOwn(plan,'workspace')?{workspace:plan.workspace}:{}) };
+  const {skills,...base}=defaults(machine);
+  const expected = {...base,
+    ...(Object.hasOwn(plan,'skills')?{skills:Object.fromEntries(Object.entries(skills).filter(([id])=>Object.hasOwn(plan.skills??{},id)))}:{}),
+    ...(plan.geometry?{geometry:geometryTemplate(plan.geometry.shape,plan.geometry)}:{}),...(Object.hasOwn(plan,'workspace')?{workspace:plan.workspace}:{})};
   if(plan.workspace){
     requireThat_bundle(plan.workspace.schema==='saam-workspace-source/1'&&plan.workspace.source&&plan.workspace.requirements,'Invalid workspace construction source.');
     requireThat_bundle(plan.workspace.constructionIdentity===workspaceConstructionIdentity(plan),'This edit changes the workspace construction requirements. Regenerate the section in its workspace, or explicitly detach the workspace source before changing its construction.');
@@ -137,7 +140,7 @@ export function workspaceConstructionIdentity(plan){
 
 export function validatePlanGeometry(plan,machine) {
   const {geometry,placement,setup}=plan;
-  if(!geometry)requireThat(Object.values(plan.skills).every(settings=>!settings.enabled),'Geometry-free deposition cannot enable geometry-dependent skills.');
+  if(!geometry)requireThat(Object.values(plan.skills??{}).every(settings=>!settings.enabled),'Geometry-free deposition cannot enable geometry-dependent skills.');
   if(!geometry)return plan;
   if(geometry.shape==='spline')validateSplineSolid(geometry);
   if(geometry.shape==='boolean')authoredBounds(geometry);

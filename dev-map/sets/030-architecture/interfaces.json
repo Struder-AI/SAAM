@@ -545,6 +545,30 @@
     "call"
    ],
    "evidence": "Agent calls settings-owned selection, settings edits and setup persistence."
+  },
+  {
+   "contract": "extension-settings",
+   "target": "core/machine/bundle-settings.mjs::recordExtensionDependency",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Pure recording of supplied named configuration into existing recipe state. No extension execution or extra dependency collection."
+  },
+  {
+   "contract": "agent-settings",
+   "target": "core/machine/bundle-settings.mjs::recordExtensionDependency",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Pure recording of supplied named configuration into existing recipe state. No extension execution or extra dependency collection."
+  },
+  {
+   "contract": "extension-settings",
+   "target": "skills/catalog.mjs::@module",
+   "kinds": [
+    "import"
+   ],
+   "evidence": "Static named-configuration target metadata only; no installation discovery or execution."
   }
  ]
 }

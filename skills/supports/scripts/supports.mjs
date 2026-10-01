@@ -67,7 +67,7 @@ export function treeSection(a,z,settings,placement={xMm:0,yMm:0}) {
 // Tree supports as one support-preset slice result: interface layers are the
 // preset's solid top of the merged branch sections.
 export function prepareSupportContexts({plan,machine,shells}) {
-  const settings=plan.skills.supports;
+  const settings=plan.skills?.supports;
   if(!settings?.enabled)return [];
   const assignment=sliceAssignment({id:'supports',preset:'support',filament:assignmentFilament(plan,{id:'supports'})});
   const selected=assignmentPlan(plan,machine,assignment),process=selected.process;
