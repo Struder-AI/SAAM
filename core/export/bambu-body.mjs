@@ -1,8 +1,9 @@
+import {requireThat} from '../private/export/numeric.mjs';
 import {exportMotion,validatePath} from './griffin.mjs';
 import {checkedFilamentPlan as filamentPlan} from '../machine/filaments.mjs';
 import {prelude} from './bambu-player.mjs';
 import {renderBambuChange} from './bambu-change.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
+
 import {sameNozzleMaterialChanges} from '../machine/rules.mjs';
 
 export function exportBambuBody(path,plan,machine){

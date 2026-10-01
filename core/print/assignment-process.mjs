@@ -1,5 +1,6 @@
+import {requireThat} from '../private/toolpath/numeric.mjs';
 import {filamentPlan} from '../machine/filaments.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
+
 
 const fields=['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','firstLayerSpeedMmS','fanPercent'];
 

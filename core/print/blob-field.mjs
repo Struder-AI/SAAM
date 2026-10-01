@@ -1,7 +1,8 @@
+import {requireThat} from '../private/bundle/numeric.mjs';
 import {compileBlobField} from '../geom/blob-field-compile.mjs';
 import {BLOB_FIELD_SCHEMA,BLOB_FIELD_THRESHOLD} from '../geom/blob-field.mjs';
 import {proposedPlan,initBundle,loadBundle,updatePlan} from './bundle.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
+
 
 const REQUEST_FIELDS=['points','threshold','edgeMm'];
 

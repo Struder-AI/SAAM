@@ -1,3 +1,4 @@
+import {hash} from '../private/geometry/hash.mjs';
 // Explicit mesh preparation. Accepted output returns to normal import and review.
 import {mkdir,writeFile,access,mkdtemp,rm,copyFile,rename} from 'node:fs/promises';
 import {createWriteStream,createReadStream} from 'node:fs';
@@ -9,7 +10,7 @@ import {makeMesh} from '../geom/mesh.mjs';
 import {decodeSTLFile} from '../geom/stl-file.mjs';
 import {repairMeshNative} from '../geom/mesh-native.mjs';
 import {triangleIndex,checkAdjacentContacts} from '../geom/mesh-spatial.mjs';
-import {hash} from './plan.mjs';
+
 import {isMainThread} from 'node:worker_threads';
 import {runRepairJob} from './mesh-repair-job.mjs';
 

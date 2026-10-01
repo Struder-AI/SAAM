@@ -1,9 +1,11 @@
+import {rotateZ,bedPoint} from '../private/export/frame.mjs';
+import {requireThat,distance} from '../private/export/numeric.mjs';
 // A deliberately bounded PacScript interpreter. Executes the delivered source,
 // including helper calls and actual T/EX/TIME/IO fields. Annotations supply only
 // process intent and labels, never playback coordinates or rotary motion.
-import {requireThat,distance} from '../geom/tolerance.mjs';
+
 import {validateDensoConfiguration} from '../machine/denso.mjs';
-import {rotateZ,bedPoint,validatePose,interpolateDirections} from '../path/pose.mjs';
+import {validatePose,interpolateDirections} from '../path/pose.mjs';
 export const DENSO_LIMITATIONS=[
   'RC8A is confirmed; mounting, calibration and rotary installation are stated setup assumptions, not measured facts.',
   'Cartesian linear T poses, @0 endpoints, relative EX and TIME are interpreted. IK, reach, singularities, joint and motion limits and collisions are deferred to commissioning/controller behavior.',

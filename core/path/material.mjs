@@ -1,8 +1,9 @@
+import {requireThat} from '../private/toolpath/numeric.mjs';
 // Local nominal material occupied by a completed operation. This is a height
 // field over a footprint, not a swept nozzle/head or reconstructed bead model.
 import {clipOpenPaths} from '../region/intersection.mjs';
 import {offsetRegion} from '../region/offset.mjs';
-import {TOLERANCE,requireThat} from '../geom/tolerance.mjs';
+import {TOLERANCE} from '../geom/tolerance.mjs';
 import {SegmentIndex} from '../region/region2d.mjs';
 
 export function materialRegion(loops,{heightAt,maxZ,sampleStepMm=0.5,index=null}) {

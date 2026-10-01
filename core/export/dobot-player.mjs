@@ -1,6 +1,7 @@
+import {requireThat,distance} from '../private/export/numeric.mjs';
 import {LuaRuntime,LuaTable,LuaSubsetError} from './dobot-lua-subset.mjs';
 import {checkMachinePath,validateSetup} from '../machine/rules.mjs';
-import {requireThat,distance} from '../geom/tolerance.mjs';
+
 
 export const DOBOT_LIMITATIONS=[
   'Experimental stroke-stop-start-unblended relay policy: relay stays on through consecutive deposition moves, and is off during travel and dwell. This differs from the legacy continuous-through-travel reference.',

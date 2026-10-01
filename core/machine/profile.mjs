@@ -1,5 +1,6 @@
+import {requireThat} from '../private/bundle/numeric.mjs';
 import { readFileSync } from 'node:fs';
-import { requireThat,distance } from '../geom/tolerance.mjs';
+import {distance} from '../geom/tolerance.mjs';
 
 export const MACHINE_IDS=['ultimaker-s5','ultimaker-2-extended','ultimaker-3','bambu-h2d','bambu-x1-carbon','dobot-mg400','denso-vs068a4-rc8a'];
 export function loadMachine(id='ultimaker-s5') {

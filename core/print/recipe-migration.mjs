@@ -1,9 +1,10 @@
+import {requireThat} from '../private/toolpath/numeric.mjs';
 import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
 import {frontAssignment} from '../../skills/wave-overhangs/scripts/prepare.mjs';
 import {rimAssignment} from '../../skills/thick-lip/scripts/prepare.mjs';
 import {bridgeAssignment} from '../../skills/bridging/scripts/prepare.mjs';
 import {depositionAssignment} from './assignment-records.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
+
 import {validateSleevePattern} from '../../skills/advanced-vase-wall/scripts/sleeve-pattern.mjs';
 
 // Retired cell layouts expand only during an explicitly requested migration.

@@ -1,10 +1,11 @@
+import {replaceFile} from '../../../core/private/extensions/file-write.mjs';
 // Thingi10K metadata and individual meshes share a pinned upstream snapshot.
 // Network access is confined to the mirror and its download CDN, never input URLs.
 import {readFile, stat} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
-import {replaceFile} from '../../../core/file-write.mjs';
+
 
 export const REVISION = '2d5d3b2f3cd3711028ad75b12788c13b25559ec6';
 const repository = 'https://huggingface.co/datasets/Thingi10K/Thingi10K';

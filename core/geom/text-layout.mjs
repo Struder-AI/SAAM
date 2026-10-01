@@ -1,5 +1,6 @@
+import {requireThat,distance} from '../private/extensions/numeric.mjs';
 // Shared flat text layout, before mapping its solid to a surface.
-import {requireThat,distance} from './tolerance.mjs';
+
 import {flattenBezier} from './text-outline.mjs';
 
 function baselineMapper(spec,toleranceMm){

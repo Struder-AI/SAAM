@@ -1,5 +1,6 @@
+import {dot,cross,invert} from '../core/private/studio/rigid.mjs';
 // Studio's primitive vocabulary. Model equations and joint policy stay with providers.
-import {dot,cross,point,invert} from '../core/machine/rigid.mjs';
+import {point} from '../core/private/studio/rigid.mjs';
 
 const roles=new Set(['structure','rail','link','carriage','joint','bed','tool']);
 const vector=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite);

@@ -38,7 +38,7 @@ shortens a requested wall.
 For an imported mesh, prepare a fitted sleeve before generation:
 
 ```sh
-node skills/vase-wall/scripts/prepare-mesh.mjs Prints/PART --options mesh-vase-options.json
+node skills/advanced-vase-wall/scripts/cli.mjs Prints/PART --options mesh-vase-options.json
 ```
 
 Example `mesh-vase-options.json`:

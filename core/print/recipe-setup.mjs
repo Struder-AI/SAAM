@@ -1,6 +1,7 @@
+import {requireThat} from '../private/bundle/numeric.mjs';
 // Recipe values are authored intent. Installed-device compatibility is checked
 // by export; selecting a machine supplies defaults but does not limit geometry.
-import {requireThat} from '../geom/tolerance.mjs';
+
 import {loadMachine,MACHINE_IDS} from '../machine/profile.mjs';
 const templates=MACHINE_IDS.map(id=>loadMachine(id).defaultSetup);
 const common=Object.keys(templates[0]);

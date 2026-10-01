@@ -1,3 +1,4 @@
+import {hash} from '../private/geometry/hash.mjs';
 // Native geometry for a shell print: the 3DM the maker's part is stored as.
 //
 // Spline shells require a different representation from an indexed mesh:
@@ -10,8 +11,8 @@ import rhino3dm from 'rhino3dm';
 import { patchFromSurface, evaluate } from '../geom/nurbs.mjs';
 import { makeShell, assertClosed } from '../geom/shell.mjs';
 import {buildShell,hasMesh} from '../geom/build.mjs';
-import { hash } from './plan.mjs';
-import { requireThat } from '../geom/tolerance.mjs';
+
+import {requireThat} from '../geom/tolerance.mjs';
 import { booleanDisplayMesh } from '../geom/boolean-display.mjs';
 
 // Display resolution of the proxy mesh: steps per knot span, per direction,

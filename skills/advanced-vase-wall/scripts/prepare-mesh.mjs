@@ -1,23 +1,20 @@
+import {requireThat} from '../../../core/private/extensions/numeric.mjs';
 // Author a normal editable vase recipe on an imported mesh. Geometry/source
 // bytes stay owned by the bundle; this helper authors common assignments.
-import {readFile} from 'node:fs/promises';
-import {resolve} from 'node:path';
-import {pathToFileURL} from 'node:url';
 import {isDeepStrictEqual} from 'node:util';
-import {loadBundle,adjustBundle} from '../../../core/print/bundle.mjs';
-import {defaults} from '../../../core/print/plan.mjs';
+import {defaultSlices} from '../../../core/print/slices.mjs';
 import {makeMesh} from '../../../core/geom/mesh.mjs';
-import {detectMeshSleeveInterval} from '../../../core/geom/mesh-sleeve.mjs';
-import {requireThat} from '../../../core/geom/tolerance.mjs';
-import {MESH_SLEEVE_SETTINGS} from '../../advanced-vase-wall/scripts/sleeve-reference.mjs';
-import {validateSleevePattern} from '../../advanced-vase-wall/scripts/sleeve-pattern.mjs';
-import {sleeveAssignment} from '../../advanced-vase-wall/scripts/assignment.mjs';
+import {detectMeshSleeveInterval} from './mesh-sleeve.mjs';
+
+import {MESH_SLEEVE_SETTINGS} from './sleeve-reference.mjs';
+import {validateSleevePattern} from './sleeve-pattern.mjs';
+import {sleeveAssignment} from './assignment.mjs';
 import {horizontalSlice,sliceFamily} from '../../../core/geom/slice.mjs';
 
 const keys=(value,allowed,label)=>requireThat(value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).every(k=>allowed.includes(k)),`Unknown or invalid ${label} options.`);
 const same=isDeepStrictEqual;
 
-export async function prepareMeshVase(directory,options={}, {expectedRevision}={}){
+export async function prepareMeshVase(source,options={}, {machine}){
   keys(options,['meshSleeve','pattern','baseHeightMm','endTransition','detect'],'mesh vase');
   if(Object.hasOwn(options,'detect'))keys(options.detect,['marginMm','toleranceMm','sampleCount','maxSecondaryAreaFraction','zMinMm','zMaxMm'],'sleeve detection');
   // Generation uses the shared fit's 0.1% extraction allowance. Detection may
@@ -26,12 +23,11 @@ export async function prepareMeshVase(directory,options={}, {expectedRevision}={
     &&options.detect.maxSecondaryAreaFraction>=0&&options.detect.maxSecondaryAreaFraction<=.001,
     'Mesh vase detection maxSecondaryAreaFraction must be between 0 and 0.001, matching the fitted sleeve extraction allowance; larger secondary features require another sleeve selection.');
   if(Object.hasOwn(options,'meshSleeve'))keys(options.meshSleeve,Object.keys(MESH_SLEEVE_SETTINGS),'meshSleeve');
-  const state=await loadBundle(directory,{program:false}),plan=state.plan;
-  if(expectedRevision!==undefined)requireThat(expectedRevision===state.revision,'This review is stale. Reload before preparing the mesh vase.');
+  const plan=structuredClone(source);
   requireThat(plan.geometry.shape==='mesh','Mesh vase preparation selects one mesh print. For assemblies, configure the selected component with the normal adjustment tools.');
   requireThat(!plan.composition.order.length&&!plan.composition.dependencies.length,
     'This print has explicit ordering. Configure its sleeve assignment through normal adjustment tools; mesh preparation does not replace ordering.');
-  const initial=defaults(state.machine),existing=plan.slices.assignments.filter(a=>a.construction==='sleeve');
+  const initial={slices:defaultSlices()},existing=plan.slices.assignments.filter(a=>a.construction==='sleeve');
   requireThat(existing.length<=1,'Mesh vase preparation needs one selected sleeve assignment.');
   const wall=existing[0]??sleeveAssignment({id:'wall'}),body=plan.slices.assignments.filter(a=>a.construction!=='sleeve');
   for(const [name,settings] of Object.entries(plan.skills))if(settings.enabled){
@@ -69,22 +65,9 @@ export async function prepareMeshVase(directory,options={}, {expectedRevision}={
   const settings=sleeveAssignment({...wall,zStartMm:baseHeight,zEndMm:end-low,endTransition,pathMode:'continuous',pattern,meshSleeve});
   // Slices own the base below the wall; a wall without a base leaves none.
   const slices={version:plan.slices.version,assignments:[...(baseHeight>0?(body.length?body:initial.slices.assignments):[]),settings]};
-  const updated=await adjustBundle(directory,{slices},{expectedRevision:state.revision});
-  return {directory:updated.dir,revision:updated.revision,geometryHash:updated.geometryHash,
-    toolpathApproved:updated.toolpathApproved,settings:updated.plan.slices.assignments.find(a=>a.id===wall.id),
+  return {assignments:slices.assignments,
     report:{detectedSleeve:detected,baseHeightMm:baseHeight,wallRangeMm:[start,end],
       bodyCourses:pattern?.repeats??null,boundaryCourses:pattern&&endTransition==='level'?2:0,authoredPoints,
       baseEnabled:baseHeight>0,sourceGeometryChanged:false,
       nextStep:'Review the recipe and use the normal check-path/Studio generation workflow; preparation creates no machine program or approval.'}};
-}
-
-if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){
-  const args=process.argv.slice(2),directory=args.shift();
-  requireThat(directory&&!directory.startsWith('--'),'Usage: node skills/vase-wall/scripts/prepare-mesh.mjs PRINT [--options options.json] [--expected-revision REVISION]');
-  let options={},expectedRevision;
-  while(args.length){
-    const flag=args.shift(),value=args.shift();requireThat(value&&['--options','--expected-revision'].includes(flag),'Expected --options FILE or --expected-revision REVISION.');
-    if(flag==='--options')options=JSON.parse(await readFile(resolve(value),'utf8'));else expectedRevision=value;
-  }
-  console.log(JSON.stringify(await prepareMeshVase(resolve(directory),options,{expectedRevision}),null,2));
 }

@@ -1,4 +1,5 @@
-import {distance,requireThat} from '../geom/tolerance.mjs';
+import {distance,requireThat} from '../private/toolpath/numeric.mjs';
+
 
 // Explicit centerlines stay independent. Closure is materialized so callers
 // can retain their supplied seam and direction through ordinary composition.

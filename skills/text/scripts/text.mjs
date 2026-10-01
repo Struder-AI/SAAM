@@ -1,4 +1,5 @@
-import {requireThat,distance,cross,normalize} from '../../../core/geom/tolerance.mjs';
+import {requireThat,distance,cross,normalize} from '../../../core/private/extensions/numeric.mjs';
+
 import {solidKernel,solidFromMesh,meshFromSolid,combineSolids,discardSolidKernel,KERNEL_TRIANGLE_CAPACITY} from '../../../core/geom/solid.mjs';
 import {textOutlines} from '../../../core/geom/text-outline.mjs';
 import {textLayout} from '../../../core/geom/text-layout.mjs';

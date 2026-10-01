@@ -1,4 +1,5 @@
-import {requireThat} from '../geom/tolerance.mjs';
+import {requireThat} from '../private/toolpath/numeric.mjs';
+
 
 // One optional control; neither bead width nor extrusion is inferred from a gap.
 // Which skills take it is catalog metadata (skills/catalog.mjs SPACING_SKILLS).

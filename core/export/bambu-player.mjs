@@ -1,7 +1,8 @@
+import {requireThat} from '../private/export/numeric.mjs';
 import {interpretMotion,interpretMotionChunk} from './griffin-player.mjs';
 import {gcodeLines} from './gcode-lines.mjs';
 import {toolBounds} from '../machine/rules.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
+
 import {checkedFilamentPlan as filamentPlan} from '../machine/filaments.mjs';
 import {startupRetracted,sameNozzleMaterialChanges} from '../machine/rules.mjs';
 import {CHANGE_BEGIN,renderBambuChange} from './bambu-change.mjs';

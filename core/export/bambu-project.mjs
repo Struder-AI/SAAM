@@ -1,5 +1,6 @@
+import {requireThat} from '../private/export/numeric.mjs';
 import fields from './bambu-project-fields.json' with {type:'json'};
-import {requireThat} from '../geom/tolerance.mjs';
+
 
 // Project preferences and resolved slice CONFIG have different schemas.
 // Keep the authored assignments consistent; a reference's saved automatic

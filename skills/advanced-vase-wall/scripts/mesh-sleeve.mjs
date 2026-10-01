@@ -1,12 +1,13 @@
+import {requireThat,distance} from '../../../core/private/extensions/numeric.mjs';
 // Smooth open sleeves estimated from validated closed mesh geometry.
 // This is a fit, not a mesh repair or replacement of printable source geometry.
-import {section,prepareSection,horizontalSlice} from './slice.mjs';
-import {contourPath} from './contour-path.mjs';
-import {basisFunctions,findSpan,evaluate} from './nurbs.mjs';
-import {leastSquares} from './least-squares.mjs';
-import {loopArea,pointInRegion} from '../region/region2d.mjs';
-import {union} from '../region/intersection.mjs';
-import {requireThat,distance} from './tolerance.mjs';
+import {section,prepareSection,horizontalSlice} from '../../../core/geom/slice.mjs';
+import {contourPath} from '../../../core/geom/contour-path.mjs';
+import {basisFunctions,findSpan,evaluate} from '../../../core/geom/nurbs.mjs';
+import {leastSquares} from '../../../core/geom/least-squares.mjs';
+import {loopArea,pointInRegion} from '../../../core/region/region2d.mjs';
+import {union} from '../../../core/region/intersection.mjs';
+
 
 const wrap=u=>((u%1)+1)%1;
 function basisRow(knots,count,u,periodicCount=count){

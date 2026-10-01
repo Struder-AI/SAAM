@@ -1,6 +1,7 @@
+import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 // Travel policies and stroke ordering for functional path planning.
 
-import { requireThat, distance, TOLERANCE } from '../geom/tolerance.mjs';
+import {TOLERANCE} from '../geom/tolerance.mjs';
 import {prepareCombCorners} from './comb.mjs';
 import {materialRegion} from './material.mjs';
 import {strokeRange} from './deposition.mjs';

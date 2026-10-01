@@ -1,4 +1,5 @@
-import {distance,requireThat} from '../geom/tolerance.mjs';
+import {distance,requireThat} from '../private/toolpath/numeric.mjs';
+
 import {strokeRange} from './deposition.mjs';
 import {validateModulationField,evaluateScalarField,fieldSampleStep,scalarFieldRange,scalarFieldInvariant,scalarFieldBreakpoints} from './modulation-field.mjs';
 import {interpolateDirections,validatePose,uprightPose} from './pose.mjs';

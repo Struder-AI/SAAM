@@ -1,4 +1,5 @@
-import {requireThat} from '../geom/tolerance.mjs';
+import {requireThat} from '../private/export/numeric.mjs';
+
 import {validatePose} from '../path/pose.mjs';
 export function validateDensoConfiguration(plan,{required=false}={}){
   const c=plan.setup.denso;requireThat(c,'Missing DENSO setup.');

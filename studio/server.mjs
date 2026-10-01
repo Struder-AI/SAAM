@@ -64,7 +64,9 @@ export async function noteSourceSkew(error){
 }
 export function reportedMessage(error){const note=skewNotes.get(error);return note?error.message+note:error.message;}
 // Explicit browser module allowlist; no generic repository/file serving.
-const playerModules=new Set(['studio/source-player.mjs','studio/source-worker.mjs','studio/move-store.mjs',
+const playerModules=new Set(['core/private/studio/numeric.mjs','core/private/studio/rigid.mjs','core/private/studio/frame.mjs',
+  'core/private/export/numeric.mjs','core/private/export/rigid.mjs','core/private/export/frame.mjs','core/private/toolpath/numeric.mjs',
+  'studio/source-player.mjs','studio/source-worker.mjs','studio/move-store.mjs',
   'studio/machine-session.mjs','studio/machine-view.mjs','core/export/source-time.mjs','core/export/machine-study.mjs',
   'core/machine/presentation.mjs','core/machine/rigid.mjs','core/machine/jog.mjs',
   'core/machine/dobot-kinematics.mjs','core/machine/denso-kinematics.mjs',

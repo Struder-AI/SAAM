@@ -3,8 +3,8 @@ import {resolve} from 'node:path';
 import {createSTLBundle} from './import-stl.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 
-// Acquisition returns an asset and provenance. Only this lifecycle caller
-// imports it into a print; failed imports keep the downloaded source available.
+// Agent command orchestration: acquire an asset, then request the geometry
+// import pipeline. The bundle receives the engine-authored geometry record.
 export async function importSTLResource(directory,acquire,options={}){
   loadMachine(options.machineId);
   if(!['auto','mm','inch'].includes(options.units??'auto'))throw Error('Use auto, mm or inch units.');

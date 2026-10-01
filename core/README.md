@@ -8,9 +8,8 @@ account, read with `node scripts/agent-toolkit.mjs read-map 0`.
 The [agent CLI toolkit](./agent/README.md) composes context reads, print preparation,
 Studio opening and request coordination around these existing owners.
 
-[File replacement](./file-write.mjs) supplies unique temporary files and bounded
-Windows sharing-conflict retries to print and Studio persistence. It preserves
-complete individual files; it is not a lock or a multi-file transaction.
+[Private utilities](./private/) give each consuming map-0 bucket its own arithmetic and file replacement.
+[Bundle file replacement](./file-write.mjs) preserves complete files with Windows sharing-conflict retries; it is not a lock or multi-file transaction.
 
 ## Current organization
 

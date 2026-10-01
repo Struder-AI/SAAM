@@ -1,3 +1,4 @@
+import {requireThat,normalize} from '../private/toolpath/numeric.mjs';
 // General slicing: exclusive spatial claims -> chart regions/strokes -> world
 // curves -> deposition. Default owners retain material outside explicit claims.
 // Competing positive claims fail before deposition; no course alternation.
@@ -12,7 +13,7 @@ import {materialContact} from '../region/material-contact.mjs';
 import { heightSlice, heightSliceNormal, referenceHeight, heightReferencePatch, heightReferenceBounds } from '../geom/height-slice.mjs';
 import { validateSplineSolid } from '../geom/spline-solid.mjs';
 import { geometrySelections } from '../geom/selections.mjs';
-import { TOLERANCE,requireThat,normalize } from '../geom/tolerance.mjs';
+import {TOLERANCE} from '../geom/tolerance.mjs';
 import { horizontalSlice, planeSlice, patchSlice, translateSlice, slicePoint, prepareSection, section, sliceFamily, sliceBoundaryEdges, sliceChartStep, patchMeanNormal } from '../geom/slice.mjs';
 import {patchLayerStrokes} from '../region/patch-strokes.mjs';
 import {surfaceGapCurves} from '../region/surface-curves.mjs';
@@ -273,7 +274,7 @@ function hullPoints(shell){
 function hullsSeparate(a,b){
   const ap=hullPoints(a),bp=hullPoints(b),axes=[[1,0,0],[0,1,0],[0,0,1]];
   // One additional separating direction between control-hull centroids handles
-  // tangent annulus/fin claims without quadratic face-normal × vertex work.
+  // tangent annulus/fin claims without quadratic face-normal Ã— vertex work.
   const center=points=>points.reduce((sum,p)=>sum.map((v,k)=>v+p[k]/points.length),[0,0,0]);
   const ac=center(ap),bc=center(bp),delta=bc.map((v,k)=>v-ac[k]),length=Math.hypot(...delta);
   if(length)axes.push(delta.map(v=>v/length));

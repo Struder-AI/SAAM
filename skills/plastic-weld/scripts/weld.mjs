@@ -1,4 +1,5 @@
-import {requireThat} from '../../../core/geom/tolerance.mjs';
+import {requireThat} from '../../../core/private/extensions/numeric.mjs';
+
 import {difference,union} from '../../../core/region/boolean.mjs';
 import {regionArea,pointSegmentDistance} from '../../../core/region/region2d.mjs';
 import {horizontalSlice,sliceFamily} from '../../../core/geom/slice.mjs';

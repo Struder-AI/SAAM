@@ -1,3 +1,4 @@
+import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 // Shared seeded fronts: constrained surface-distance propagation, chart
 // clipping, physical mapping and short in-domain connections. Original SAAM
 // implementation; research provenance: skills/wave-overhangs/BUILDER.md.
@@ -10,7 +11,7 @@ import {intersect,difference,clipOpenPaths,union} from './intersection.mjs';
 import {regionArea,pointSegmentDistance,pointInRegion} from './region2d.mjs';
 import {offsetRegion} from './offset.mjs';
 import {mapSliceStroke} from './layer-strokes.mjs';
-import {requireThat,distance} from '../geom/tolerance.mjs';
+
 
 // Front order is a region-to-chart-curves construction on any patch layer.
 // An authored seed can be supplied; otherwise the seed is the actual footprint

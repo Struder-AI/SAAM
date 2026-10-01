@@ -1,5 +1,6 @@
+import {requireThat} from '../../../core/private/extensions/numeric.mjs';
 import {createHash} from 'node:crypto';
-import {requireThat} from '../../../core/geom/tolerance.mjs';
+
 
 export const gridfinityTemplate=()=>({shape:'gridfinity',parameters:null,vertices:[],triangles:[],compiledHash:''});
 export function gridfinityDigest({compiledHash,...content}){

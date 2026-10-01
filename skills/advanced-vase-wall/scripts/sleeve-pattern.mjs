@@ -1,5 +1,6 @@
+import {distance,requireThat} from '../../../core/private/extensions/numeric.mjs';
 // Patterns use sleeve coordinates, never independent world XYZ.
-import {distance,requireThat} from '../../../core/geom/tolerance.mjs';
+
 import {maximumPathAngle} from '../../../core/path/deposition.mjs';
 import {patternCourses} from './sleeve-boundary-courses.mjs';
 import {sampleCurveIntervals} from '../../../core/path/curve-sampling.mjs';

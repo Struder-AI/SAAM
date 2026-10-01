@@ -1,4 +1,5 @@
-import {distance,requireThat} from '../../../core/geom/tolerance.mjs';
+import {distance,requireThat} from '../../../core/private/extensions/numeric.mjs';
+
 
 export function railAnchors(rails,overlapsMm) {
   return rails.map((rail,side)=>rail.map((p,i)=>{

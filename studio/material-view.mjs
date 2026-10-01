@@ -1,6 +1,7 @@
+import {subtract,scale,dot,cross,length,normalize} from '../core/private/studio/numeric.mjs';
 // Display-only material geometry, derived from interpreted moves. No slicing,
 // machine commands, approval data or reference part mesh is changed here.
-import {add,subtract,scale,dot,cross,length,normalize} from '../core/geom/tolerance.mjs';
+import {add} from '../core/geom/tolerance.mjs';
 import {createMachineLayer} from './machine-view.mjs';
 import {CURRENT_LAYER_GAP_MM,layerKey,toolpathStyle} from './toolpath-view.mjs';
 

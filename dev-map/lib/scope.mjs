@@ -4,7 +4,7 @@
 import {SKILL_IDS,GUIDANCE_IDS,EXTENSION_IDS} from '../../skills/catalog.mjs';
 import {mapSet} from './map-set.mjs';
 export const mappedRoots=['core','studio'];
-export const outsideRoots=['skills','adapters','scripts'];
+export const outsideRoots=['skills','adapters','scripts','workspaces'];
 // Scanned, but not mapped: code inside a mapped root that the map does not cover, each area an
 // outside caller under its port name like the roots above — never a region, a page or an index.
 // The agent CLI toolkit is agent tooling rather than core/Studio product code. The exporters are
@@ -34,7 +34,7 @@ export const outsideRootOf=path=>unmappedArea(path)?.port??path.split('/')[0];
 const skillScript=new RegExp(`^skills/(${[...SKILL_IDS,...GUIDANCE_IDS,...EXTENSION_IDS].join('|')})/scripts/[^/]+\\.mjs$`);
 const toolingScript=/^(?:adapters\/mcp\/src|core\/agent)\/[^/]+\.mjs$/;
 export const activeCallers=file=>
-  !!mapSet||file==='scripts/agent-toolkit.mjs'||toolingScript.test(file)||unmappedArea(file)?.port==='exporters'
+  !!mapSet||file==='scripts/agent-toolkit.mjs'||file.startsWith('workspaces/')||toolingScript.test(file)||unmappedArea(file)?.port==='exporters'
   ||skillScript.test(file)&&!/demo|example/.test(file.slice(file.lastIndexOf('/')+1));
 // A served path that is not the module path on disk: the import specifier cannot be resolved by
 // the file system alone, so the serving alias is stated here rather than guessed.

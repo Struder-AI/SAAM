@@ -1,3 +1,4 @@
+import {requireThat} from '../private/toolpath/numeric.mjs';
 import {buildShell,translateShell} from '../geom/build.mjs';
 import {ASSIGNMENT_RECORDS} from '../../skills/records.mjs';
 import {extensionDeposition,extensionResultDependencies,extensionSummary} from '../../skills/deposition.mjs';
@@ -13,7 +14,7 @@ import {planarPolicy} from '../path/builder.mjs';
 import {assignmentPlan,depositionAssignments} from './assignment-process.mjs';
 import {surveySurfaceDomain} from './surface-domains.mjs';
 import { validatePlan, VERSION } from './plan.mjs';
-import { requireThat } from '../geom/tolerance.mjs';
+
 import {finalizedSliceResults} from './slice-deposition.mjs';
 import {geometrySelections} from '../geom/selections.mjs';
 

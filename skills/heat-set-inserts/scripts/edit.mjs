@@ -1,4 +1,5 @@
-import {requireThat} from '../../../core/geom/tolerance.mjs';
+import {requireThat} from '../../../core/private/extensions/numeric.mjs';
+
 import {compileHeatSet} from './geometry.mjs';
 import {heatSetFeature,heatSetAssignmentId,legacyHeatSetAssignmentId} from './feature.mjs';
 import {heatSetSlices} from './slices.mjs';
@@ -41,5 +42,5 @@ export async function editHeatSet(source,request,{buildGeometry}){
   }
   plan.slices={...plan.slices,assignments:[...features.flatMap(f=>heatSetSlices(heatSetFeature(f),part,plan.process,
     {existingIds:existingByFeature.get(f.id)??new Set()})),...kept]};
-  return plan;
+  return {geometry:plan.geometry,assignments:plan.slices.assignments};
 }

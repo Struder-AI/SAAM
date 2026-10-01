@@ -1,5 +1,6 @@
+import {distance,requireThat} from '../private/export/numeric.mjs';
 // Shared browser/server decoder. This module never imports path generation.
-import {distance,requireThat} from '../geom/tolerance.mjs';
+
 import {gcodeLines} from './gcode-lines.mjs';
 import {toolBounds,startupRetracted} from '../machine/rules.mjs';
 import {plannedNozzleTemperatures,validateNozzleC} from '../path/process-controls.mjs';

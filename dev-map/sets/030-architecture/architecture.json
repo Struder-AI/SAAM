@@ -849,7 +849,7 @@
       "description": "Common interaction/handoff interface wrapping individual specialized design workspaces.",
       "type": "component",
       "notes": [
-        "Numbered by owner request. Existing external prototypes are not adopted or silently included in the code inventory."
+        "Wing implementation authorized from the latest TK-DEV investigation (217a6e0); only its standalone renderer is adopted. Domain construction is implemented against current public APIs. Full-aircraft display context produces no bundles."
       ]
     },
     {
@@ -857,14 +857,28 @@
       "index": "7.1",
       "label": "Workspace interaction interface",
       "description": "Consistent user interaction and one-way reproducible bundle handoff.",
-      "type": "component"
+      "type": "component",
+      "source": {
+        "file": "workspaces/server.mjs",
+        "declaration": "startWingWorkspace"
+      },
+      "notes": [
+        "Loopback UI, private design persistence, worker progress and a single set-folder handoff. workspaces/export-worker.mjs invokes the bundle-owned creation entry once per piece; no Studio or exporter imports."
+      ]
     },
     {
       "id": "workspace-implementations",
       "index": "7.2",
       "label": "Individual workspaces",
-      "description": "Specialized design logic and private UI state behind the common interface; implementations await adoption.",
-      "type": "component"
+      "description": "Wing section design, full-aircraft display context and reproducible continuous Trace construction.",
+      "type": "component",
+      "source": {
+        "file": "workspaces/wing/construct.mjs",
+        "declaration": "wingHandoff"
+      },
+      "notes": [
+        "Public loftPolygons constructs section envelopes. Explicit Trace curves and source parameters survive independently in each bundle. Candidate SAAMpath access remains available but unused here; normal bundle generation invokes 3.4."
+      ]
     },
     {
       "id": "export",
@@ -1256,7 +1270,7 @@
       "label": "geometry + SAAMpath",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
-        "build"
+        "Prepare one geometry/deposition recipe proposal or execute the recipe to SAAMpath; Bundle owns revision checks and atomic acceptance."
       ],
       "inputs": "Immutable bundle snapshot, pinned extensions/assets, machine/setup and cancellation signal.",
       "outputs": "Geometry, SAAMpath and diagnostics returned by engine 3; bundle 5 accepts/stores them.",
@@ -1298,7 +1312,7 @@
       "label": "extension construction values",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
-        "run"
+        "Prepare deposition inputs and extension recipe contributions; combine hybrid geometry/assignment edits in one proposal."
       ],
       "inputs": "Resolved extension identity, immutable inputs and engine capability object.",
       "outputs": "Geometry/recipe/construction values and provenance.",
@@ -1340,17 +1354,22 @@
       "label": "geometry API",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
-        "construct / import / transform / query"
+        "construct / import / transform / query",
+        "engine-invoked geometry/hybrid editor returns geometry and associated deposition contributions"
       ],
       "inputs": "Explicit values, declared assets and tolerance.",
       "outputs": "Geometry values and diagnostics.",
-      "effects": "Extension owns returned values.",
+      "effects": "Extension constructs values from supplied recipe inputs; Geometry accepts the contribution. No extension bundle read/write.",
       "failure": "Structured geometry diagnostics.",
       "excludes": "No Slice-only capability or raw kernel import.",
       "access": [
         {
           "from": "extension-run",
           "to": "geometry-api"
+        },
+        {
+          "from": "geometry-api",
+          "to": "extension-run"
         }
       ]
     },
@@ -1739,12 +1758,13 @@
       "label": "export bundle",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
+        "workspacePrinter",
         "createFromWorkspace"
       ],
-      "inputs": "Named geometry/regions, reproducible construction recipe, process intent, requirements versus editable defaults, regeneration parameters/assets and extension dependencies.",
-      "outputs": "New unconfirmed bundle identity and snapshot for ordinary Studio work.",
+      "inputs": "Geometry, explicit reproducible Trace construction, process intent, source parameters and construction requirements; target printer identity.",
+      "outputs": "Supported printer dimensions; new unconfirmed bundle identities collected in one set folder with design.json and export.json.",
       "effects": "5 creates and owns shared part state; subsequent edits obey exclusive instance ownership.",
-      "failure": "Reject an incomplete handoff and report unsupported requirements; later requirement-breaking edits must be visible.",
+      "failure": "Reject incomplete handoffs, existing directories and unsupported requirements. Construction identity detects breaking edits; explicit source detachment permits independent editing.",
       "excludes": "No live workspace/Studio synchronization, simultaneous editing, automatic confirmation, or transient path as a substitute for a recipe.",
       "access": [
         {

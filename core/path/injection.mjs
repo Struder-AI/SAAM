@@ -1,6 +1,7 @@
+import {requireThat} from '../private/toolpath/numeric.mjs';
 // Point-volume deposition owns no inferred footprint. Its explicit approach and
 // stationary material use the same strokes/composition as every other operation.
-import {requireThat} from '../geom/tolerance.mjs';
+
 
 export function validateInjectionPoint(record){
   requireThat(record&&Object.keys(record).sort().join()==='approachMm,flowMm3S,holdSeconds,point,volumeMm3','Injection point needs point, volumeMm3, flowMm3S, holdSeconds and approachMm.');

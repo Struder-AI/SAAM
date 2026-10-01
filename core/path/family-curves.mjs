@@ -1,4 +1,5 @@
-import {requireThat,dot,cross,normalize,distance} from '../geom/tolerance.mjs';
+import {requireThat,dot,cross,normalize,distance} from '../private/toolpath/numeric.mjs';
+
 import {sampleAuthoredCurve,referenceCurvePoint} from './authored-curves.mjs';
 import {sampleCurveIntervals} from './curve-sampling.mjs';
 import {spiralProfile,spiralHeight,spiralBeadCurve} from './curve-construction.mjs';

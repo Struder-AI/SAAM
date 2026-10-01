@@ -1,4 +1,5 @@
-import {requireThat} from '../../../core/geom/tolerance.mjs';
+import {requireThat} from '../../../core/private/extensions/numeric.mjs';
+
 import {joinSliceFamily} from '../../../core/print/slices.mjs';
 import {maximumPathAngle,strokeRange} from '../../../core/path/deposition.mjs';
 import {publishFinishedBoundary} from '../../../core/path/finished-surface.mjs';

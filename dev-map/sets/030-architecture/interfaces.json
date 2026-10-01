@@ -68,7 +68,7 @@
   },
   {
    "contract": "evaluate-geometry",
-   "target": "core/print/generate.mjs::buildShell",
+   "target": "core/geom/build.mjs::buildShell",
    "kinds": [
     "call"
    ],
@@ -76,7 +76,7 @@
   },
   {
    "contract": "evaluate-geometry",
-   "target": "core/print/generate.mjs::translateShell",
+   "target": "core/geom/build.mjs::translateShell",
    "kinds": [
     "call"
    ],
@@ -345,6 +345,86 @@
     "call"
    ],
    "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+  },
+  {
+   "contract": "workspace-geometry",
+   "target": "core/geom/loft.mjs::loftPolygons",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Implemented wing workspace boundary; exercised by actual folder creation and section generation. No export authority granted."
+  },
+  {
+   "contract": "workspace-bundle",
+   "target": "core/print/workspace.mjs::workspacePrinter",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Implemented wing workspace boundary; exercised by actual folder creation and section generation. No export authority granted."
+  },
+  {
+   "contract": "workspace-bundle",
+   "target": "core/print/workspace.mjs::createFromWorkspace",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Implemented wing workspace boundary; exercised by actual folder creation and section generation. No export authority granted."
+  },
+  {
+   "contract": "workspace-interaction",
+   "target": "workspaces/wing/construct.mjs::wingPreview",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Implemented wing workspace boundary; exercised by actual folder creation and section generation. No export authority granted."
+  },
+  {
+   "contract": "workspace-interaction",
+   "target": "workspaces/wing/construct.mjs::wingHandoff",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Implemented wing workspace boundary; exercised by actual folder creation and section generation. No export authority granted."
+  },
+  {
+   "contract": "workspace-interaction",
+   "target": "workspaces/wing/design.mjs::wingDesign",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Implemented wing workspace boundary; exercised by actual folder creation and section generation. No export authority granted."
+  },
+  {
+   "contract": "workspace-interaction",
+   "target": "workspaces/wing/design.mjs::wingSections",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Implemented wing workspace boundary; exercised by actual folder creation and section generation. No export authority granted."
+  },
+  {
+   "contract": "build-job",
+   "target": "core/print/extension-recipe.mjs::prepareExtensionRecipe",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Engine entry implemented for extension contributions; atomic acceptance stays in Bundle."
+  },
+  {
+   "contract": "evaluate-geometry",
+   "target": "core/geom/extension-edit.mjs::prepareExtensionGeometry",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Engine entry implemented for extension contributions; atomic acceptance stays in Bundle."
+  },
+  {
+   "contract": "geometry-bundle",
+   "target": "core/geom/import-stl.mjs::prepareImportedGeometry",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Engine entry implemented for extension contributions; atomic acceptance stays in Bundle."
   }
  ]
 }

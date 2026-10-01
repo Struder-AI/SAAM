@@ -1,7 +1,8 @@
+import {requireThat} from '../private/bundle/numeric.mjs';
 import {loadBundle,updatePlan} from './bundle.mjs';
 import {depositionAssignment} from './assignment-records.mjs';
 import {mergeRecord} from './resolve-plan.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
+
 import {diagnoseDepositionPlan} from './deposition-diagnostics.mjs';
 
 // One assignment editor; bulk adjust_recipe writes this same plan.slices list.
