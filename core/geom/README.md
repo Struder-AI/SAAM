@@ -140,6 +140,15 @@ Geometry outputs are ordinary values and evaluations of those values:
 | [constructSolids](solid-operations.mjs) | Heat-set, text and gridfinity submit construction/translation/Boolean requests; Geometry owns conversion, mapped-extrusion refinement and native disposal. Results are manufacturing meshes (null for empty material). Feature rules and editable records remain with extensions. |
 | [resolveGeometrySelections](build.mjs) | Resolves whole solids, components, material partitions and replacement volumes in an offset frame; owns runtime loading and reuses source builds within a batch. Async path generation requests these values; Toolpath retains assignment and ownership policy. |
 | [intersectPatches](surface-intersection.mjs) | Section boundaries retain corresponding parameters on both native surfaces. |
+| [extractLevelSet](level-set.mjs) | Sampled scalar fields yield bounded high-side region loops (default) or genuine `{points,closed}` contours (`output: 'curves'`). Roof reservations and chart predicates use regions; gyroid uses curves. |
+
+Level extraction keeps equality on the high side, ordered exit/entry pairing
+in ambiguous cells, sentinel crossing refinement, `1e-7` chart-coordinate
+endpoint matching and `TOLERANCE.point` cleanup. Only region output adds domain
+edges; curve output joins cell crossings directly and can end at the domain.
+Uniform high/low fields have no contours; their regions are the domain/empty.
+`levelSetCoverage` classifies samples without extraction. Sampling can miss
+features between points; field selection and deposition remain caller policy.
 
 Geodesic region offsets retain their C2/domain limits; piecewise roofs/sleeves
 keep explicit crease transitions. No trimmed-surface capability is introduced.

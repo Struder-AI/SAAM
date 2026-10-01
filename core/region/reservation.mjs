@@ -2,7 +2,8 @@ import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 // Spatial material ownership at the shared planar-region boundary. A roof's
 // sampled reserve is defined only over its actual footprint; extrapolated field
 // samples must never truncate another component or material outside that roof.
-import {difference,intersect,levelSetCoverage,levelSetRegion} from './boolean.mjs';
+import {difference,intersect} from './boolean.mjs';
+import {levelSetCoverage,extractLevelSet} from '../geom/level-set.mjs';
 import {regionArea,pointInRegion,pointSegmentDistance} from './region2d.mjs';
 import {requireThat,TOLERANCE} from '../geom/tolerance.mjs';
 import {sliceChartStep} from '../geom/slice.mjs';
@@ -70,7 +71,7 @@ export function clipReservedRegion(region,z,reserve){
   // Subtract only the material actually owned by the roof at this height. For
   // partial coverage, first intersect with the footprint to avoid exporting
   // the sampled/extrapolated field's rectangular boundary into other parts.
-  const blocked=coverage==='none'?footprint:difference(footprint,levelSetRegion(reserve.field,z));
+  const blocked=coverage==='none'?footprint:difference(footprint,extractLevelSet(reserve.field,z));
   return difference(region,blocked);
 }
 
@@ -95,7 +96,7 @@ export function clipAboveSurface(region,z,surface){
   const covered=intersect(region,footprint),coverage=levelSetCoverage(surface.field,level);
   if(coverage==='all')return [];
   if(coverage==='none')return covered;
-  return difference(covered,levelSetRegion(surface.field,level));
+  return difference(covered,extractLevelSet(surface.field,level));
 }
 
 // Resolve horizontal deposition above any published surface interface. Layers
