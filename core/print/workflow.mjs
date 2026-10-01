@@ -111,9 +111,7 @@ export function createBundleWorkflow(adapter) {
   let verifiedProgram;
   const pendingCheckedPrograms=createPendingCheckedProgramStore();
   let inputCache={};
-  // Private computation results outlive check -> generate, but not this owner.
-  // Tickets expose identity only: callers cannot mutate checked bytes/motion.
-  const preparedResults=new WeakMap();
+  // One preparation serves checking and saving unchanged inputs.
   let preparation;
   const programKey=(generationHash,exportHash)=>hash([generationHash,exportHash]);
 async function proposedPlan(machineId, { setupFile } = {}) {
@@ -439,7 +437,7 @@ async function rememberSetup(directory, { setupFile, source = 'User setup suppli
 // Feasibility inspection through the same generator, without persisted output
 // or approval. The approved generation/export step remains the delivery gate.
 async function checkPathBundle(directory, {onProgress} = {}) {
-  const candidate=await prepareGeneration(directory,{onProgress}),result=preparedResults.get(candidate);
+  const candidate=await prepareGeneration(directory,{onProgress}),result=candidate.result;
   return {mode:'development-check-only',revision:candidate.revision,
     ...structuredClone(result.summary),exportSummary:structuredClone(result.program.summary)};
 }
@@ -449,18 +447,15 @@ async function prepareGeneration(directory,{onProgress}={}){
   const key=hash([state.dir,state.generationHash]);
   if(preparation?.key!==key)preparation={key};
   const candidate=preparation;
-  if(!candidate.path){
+  if(!candidate.result)candidate.result=Promise.resolve().then(async()=>{
     onProgress?.({stage:'Preparing geometry'});
-    candidate.path=Promise.resolve().then(()=>generatePath(state.plan,state.machine,{onProgress})).catch(error=>{candidate.path=null;throw error;});
-  }else onProgress?.({stage:'Reusing prepared toolpath'});
-  if(!candidate.checked)candidate.checked=candidate.path.then(path=>{
+    const path=await generatePath(state.plan,state.machine,{onProgress});
     onProgress?.({stage:'Writing and checking machine commands'});
     try{return {summary:path.summary,...exportAndInterpretProgram(path,state.plan,state.machine,{generatorVersion:VERSION,buildDate:BUILD_DATE})};}
     catch(error){error.stage='export';throw error;}
-  }).catch(error=>{candidate.checked=null;throw error;});
-  const result=await candidate.checked;
-  const ticket=Object.freeze({directory:state.dir,revision:state.revision,generationHash:state.generationHash});
-  preparedResults.set(ticket,result);return ticket;
+  }).catch(error=>{candidate.result=null;throw error;});
+  const result=await candidate.result;
+  return {directory:state.dir,revision:state.revision,generationHash:state.generationHash,result};
 }
 
 // Chat-driven adjustment: the agent applies a patch, the plan is revalidated,
@@ -535,8 +530,7 @@ async function generateBundle(directory, { development = false, onProgress, befo
 }
 
 async function commitGeneration(directory,prepared,{development=false,onProgress,beforeCommit}={}){
-  const result=preparedResults.get(prepared);
-  requireThat(result,'Generation requires the owned preparation result.');
+  const {result}=prepared;
   const state=await loadBundle(directory,{program:false});
   requireThat(state.dir===prepared.directory&&state.generationHash===prepared.generationHash&&state.revision===prepared.revision,
     'The print changed during generation. Review the updated print.');
@@ -619,15 +613,22 @@ async function approve(directory, { actor, revision, program = true }) {
   };
 }
 
-// Delivery copies the bytes that were reviewed. It re-reads and re-hashes them
-// rather than regenerating, so nothing new can appear between review and file.
+// Export captures the displayed result; later edits do not change that snapshot.
+async function exportReviewed(state){
+  return writeDelivery(state,true);
+}
+
+// Non-Studio callers retain their explicit approval API.
 async function deliver(directory,{artifact=false}={}) {
   const state = await loadBundle(directory,{program:'source'});
   requireThat(state.toolpathApproved, 'Delivery requires approval of the exact current export.');
+  return writeDelivery(state,artifact);
+}
+
+async function writeDelivery(state,artifact){
   const bytes = state.checkedBytes;
   const destination = resolve(state.dir, `delivery/${state.exportName}`);
   await save(destination, bytes);
-  requireThat(hash(await readFile(destination)) === state.exportHash, 'Delivery bytes differ from reviewed export.');
   const attribution=originalSource(state.plan.geometry)?.attribution;
   if(attribution)await save(resolve(state.dir,'delivery/source-attribution.json'),{
     ...attribution,
@@ -649,5 +650,5 @@ async function changeMachine(directory,machineId,{expectedRevision,setupFile}={}
 }
 
 return {root,EXPORT_NAME,atomicManifest:true,proposedPlan,initBundle,loadBundle,loadBundleSnapshot,bundleFingerprint,bundleFingerprints,rememberSetup,
-  migrateBundle,prepareGeneration,commitGeneration,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,changeMachine};
+  migrateBundle,prepareGeneration,commitGeneration,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,exportReviewed,changeMachine};
 }

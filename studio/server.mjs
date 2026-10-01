@@ -136,11 +136,11 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   // Authenticated delivery issues a bounded, short-lived read-only capability.
   // Its HTTP attachment avoids browser-specific blob URL download handling.
   const downloadLinks=new Map();
-  const stageDownload=(file,name,bytes)=>{
+  const stageDownload=({name,bytes,exportHash})=>{
     const now=Date.now();for(const [key,value] of downloadLinks)if(value.expiresAt<=now)downloadLinks.delete(key);
     if(downloadLinks.size>=16)downloadLinks.delete(downloadLinks.keys().next().value);
-    const key=randomBytes(24).toString('hex'),exportHash=createHash('sha256').update(bytes).digest('hex'),expiresAt=now+10*60*1000;
-    downloadLinks.set(key,{file,name,exportHash,expiresAt});return {url:'/api/download/'+key,name,exportHash,expiresAt};
+    const key=randomBytes(24).toString('hex'),expiresAt=now+10*60*1000;
+    downloadLinks.set(key,{bytes,name,exportHash,expiresAt});return {url:'/api/download/'+key,name,exportHash,expiresAt};
   };
   const printIdFor=directory=>createHash('sha256').update(resolve(directory)).digest('hex');
   const printId=()=>printIdFor(dir);
@@ -149,6 +149,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   const attached=dir?tour.attachStudio(dir):Promise.resolve();
   let opened=attached.then(()=>dir&&resolveBundle(dir));opened.catch(()=>{});
   let queue=Promise.resolve();
+  const displayedResults=new Map();
   // Speculation never enters the HTTP mutation queue or the browser's busy
   // state. Keep one worker/candidate, replacing it when the reviewed plan changes.
   let preparation,generationFailure,generationCancelled,importProgress,importController,generationRun=null,closed=false;
@@ -304,19 +305,13 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         directory:finished.directory,generationHash:finished.generationHash,status:'idle',cancellable:false,progress:null}:null);
     }
   };
-  const approvePrint=async(current,{actor,revision},progress)=>{
-    const state=await current.approve(dir,{actor,revision,program:'source'});
-    const {history:_history,...review}=state.review,{source,presentation}=await current.bundleFingerprints(dir,{program:!geometryOnly(progress)});
-    note('approved',{revision:state.revision});
-    return {state,response:{revision:state.revision,review,toolpathApproved:state.toolpathApproved,
-      programAvailable:Boolean(state.program),programError:state.programError??null,exportHash:state.exportHash??null,
-      presentationFingerprint:viewFingerprint(printId(),presentation,progress),fingerprint:viewFingerprint(printId(),source,progress)}};
-  };
-  const deliverPrint=async(current,{requestedName,tour=false}={})=>{
-    const delivered=await current.deliver(dir,{artifact:true}),file=delivered.file??delivered,fallback=basename(file),name=requestedDownloadName(requestedName,await printName(dir),fallback);
-    const bytes=delivered.bytes??await readFile(file),exportHash=delivered.exportHash??createHash('sha256').update(bytes).digest('hex');
-    note('export-delivered',{tour,name,exportHash});
-    return {file,name,bytes,exportHash,contentType:fallback.endsWith('.3mf')?'application/vnd.ms-package.3dmanufacturing-3dmodel+xml':fallback.endsWith('.zip')?'application/zip':'text/plain'};
+  const exportPrint=async(current,state,data,progress)=>{
+    const name=requestedDownloadName(data.name,await printName(state.dir,state.plan),state.exportName);
+    const delivered=await current.exportReviewed(state);
+    const inTour=progress.active&&progress.directory===state.dir;
+    if(inTour)await tour.downloaded(delivered.exportHash);
+    note('export-delivered',{tour:inTour,name,exportHash:delivered.exportHash});
+    return {...delivered,name};
   };
   const openPrint=async input=>{
     const next=await printDirectory(input,resolveBundle),adapter=await resolveBundle(next);
@@ -342,8 +337,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         if(req.headers.origin&&req.headers.origin!==origin){send({error:'Invalid local session'},403);return;}
         const staged=downloadLinks.get(url.pathname.slice('/api/download/'.length));
         if(!staged||staged.expiresAt<=Date.now()){send({error:'Download link expired or unavailable. Export the reviewed file again.'},404);return;}
-        const bytes=await readFile(staged.file);
-        if(createHash('sha256').update(bytes).digest('hex')!==staged.exportHash)throw Error('The staged delivery changed. Export the reviewed file again.');
+        const {bytes}=staged;
         res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Length':bytes.length,
           'Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(staged.name)}`,'Referrer-Policy':'no-referrer'});
         res.end(bytes);return;
@@ -439,6 +433,12 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         const assembled=composeStudioState(state,{directory:readDir,printId:readId,workId,instanceId,guide,records,importRepair,
           printName:name,fingerprint:responseFingerprint,presentationFingerprint:presentation,
           generationFailure:failure,generationCancelled:cancelled,now:Date.now()});
+        if(state.checkedBytes){
+          const snapshot=`${readId}:${state.revision}:${state.exportHash}`;
+          const {dir,plan,revision,exportName,exportHash,checkedBytes}=state;
+          displayedResults.set(snapshot,{bundle,state:{dir,plan,revision,exportName,exportHash,checkedBytes}});
+          assembled.response.exportSnapshot=snapshot;
+        }
         res.setHeader('ETag',tag);
         send(assembled.response);
         // Speculate only on the tour's explicitly selected, confirmed part.
@@ -493,6 +493,12 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       if(url.pathname==='/api/cancel-calculation'){
         send(await cancelCalculation(data));return;
       }
+      if(url.pathname==='/api/export'){
+        const captured=displayedResults.get(data.exportSnapshot);
+        const delivered=await exportPrint(captured.bundle,captured.state,data,await tour.info());
+        if(data.downloadLink===true){send(stageDownload(delivered));return;}
+        res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(delivered.name)}`});res.end(delivered.bytes);return;
+      }
       const run=queue.then(async()=>{
         if(data.printId&&data.printId!==printId())throw new Error('The open print changed. Reload before continuing.');
         const current=await opened;
@@ -527,24 +533,6 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         if(url.pathname==='/api/agent-request'){
           send(await requests.begin({directory:dir,source:'studio',kind:'guidance',studioInstanceId:instanceId,instruction:'The person requests help with '+await printName(dir)+'. '+(progress.active&&progress.directory===dir?progress.agentInstruction??'Help with the current tour lesson.':'Ask what change they want.')}));return;
         }
-        if(url.pathname==='/api/tour-export'){
-          if(!progress.active||progress.directory!==dir)throw Error('Open this print in its tour to confirm and export.');
-          let state=await current.loadBundle(dir,{program:'source'});
-          if(data.revision!==state.revision||data.exportHash!==state.exportHash||!state.program||state.programError)throw Error('The print changed. Review the loaded toolpath before exporting.');
-          const shownHash=state.exportHash;
-          await useExample(dir);
-          try{
-            state=await current.loadBundle(dir,{program:'source'});
-            if(state.review.generation?.mode!=='production'){await generate(current,false,'tour-export');state=await current.loadBundle(dir,{program:'source'});}
-            if(state.exportHash!==shownHash)throw Error('The regenerated toolpath changed. Review it, then confirm export again.');
-            if(!state.toolpathApproved)state=(await approvePrint(current,{actor:'Local user — tour export',revision:state.revision},progress)).state;
-            const {file,name,bytes}=await deliverPrint(current,{requestedName:data.name,tour:true});
-            await tour.downloaded(state.exportHash);
-            if(data.downloadLink===true){send(stageDownload(file,name,bytes));return;}
-            res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(name)}`});res.end(bytes);return;
-          }finally{await tour.restoreReference(dir);}
-        }
-        if(progress.active&&progress.directory===dir&&['/api/deliver','/api/approve'].includes(url.pathname))throw Error('Use Confirm settings & export to approve and download the tour toolpath.');
         if(url.pathname==='/api/tour-playback'){
           if(!['play','pause','tick'].includes(data.event))throw Error('Unknown playback event');
           const played=await tour.playback(data.event);if(data.event!=='tick')note('tour-playback',{event:data.event,step:played.step});send(played);return;
@@ -563,7 +551,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
              active:result.data.active,completed:result.data.completed,canNext:result.data.canNext,agentInstruction:result.data.agentInstruction??null});
           if(result.directory&&result.data.active&&TOUR_STEPS[result.data.step].tab==='toolpath'){
             const adapter=await opened,state=await adapter.loadBundle(dir,{program:'source'});
-            if(!state.program||state.programError||state.review.generation?.mode!=='production')await generate(adapter,false,'tour-step');
+            if(!state.program||state.programError)await generate(adapter,false,'tour-step');
             if(result.data.step===L.playback&&!result.data.startAt)await tour.requestStartLayer();
           }
         }
@@ -587,18 +575,11 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           const changes=updated?.revision!==data.revision&&edit?.event==='plan-edited'?edit.changes??[]:[];
           note('plan-updated',{revision:data.revision??null,changes});
         }
-        else if(url.pathname==='/api/approve'){
-          const approved=await approvePrint(current,data,progress);send({ok:true,approval:approved.response});return;
-        }
         else if(url.pathname==='/api/generate'){
           if(data.generationHash&&(await current.loadBundle(dir,{program:false})).generationHash!==data.generationHash)throw Error('The print changed before generation. Review the updated print.');
           await generate(current,data.development===true);
         }
-        else if(url.pathname==='/api/deliver') {
-          const delivered=await deliverPrint(current,{requestedName:data.name});
-          if(data.downloadLink===true){send(stageDownload(delivered.file,delivered.name,delivered.bytes));return;}
-          res.writeHead(200,{'Content-Type':delivered.contentType,'Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(delivered.name)}`});res.end(delivered.bytes);return;
-        } else throw new Error('Unknown operation.');
+        else throw new Error('Unknown operation.');
         send({ok:true});
       });
       queue=run.catch(()=>{});await run;

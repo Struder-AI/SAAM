@@ -23,11 +23,12 @@ let generationTarget=null,progressPolling=false,acknowledging=false,importElapse
 import {TOUR_LESSONS as L} from './tour-catalog.mjs';
 import {createAgentUI} from './agent-ui.mjs';
 const agentUI=initializeAgentInterface();
-function initializeAgentInterface(){return createAgentUI({onActivity:active=>tourUI?.activity(active),onRequests:requests=>{
+function initializeAgentInterface(){return createAgentUI({onActivity:active=>tourUI?.activity(active),onWork:()=>{if(state)render();},onRequests:requests=>{
   if(!state?.work)return;
   state.work.requests=requests;
   if(needsTourToolpath(state))scheduleChange();
 },onPresentation:()=>{if(!busy)void acknowledgeDisplayedView().catch(error=>message(error.message,true));},getStage:()=>tab});}
+let stateUpdate=0,loadedUpdate=0;
 let state,stateTag=null,tab='geometry',selected=null,yaw=-0.78,tilt=0.62,zoom=1,playing=false,frame=0,busy=false,generating=false,fitBounds=null,seconds=0,lastFrame=0,polling=false,reconnecting=false;
 const canvas=$('#canvas');
 let drag=null,moved=false;
@@ -144,7 +145,7 @@ const message=(text,error=false)=>{$('#message').textContent=text;$('#message').
 const presentedState=()=>activePresentation?.presentedState??state;
 // A toolpath is being (re)generated and a faded preview is on offer, so the
 // geometry action should return to it rather than start a fresh calculation.
-const generationPending=()=>generating||agentUI.generating()||Boolean(activePresentation?.retained&&activePresentation.program);
+const generationPending=()=>generating||agentUI.pending()||reconnecting||stateUpdate!==loadedUpdate||Boolean(activePresentation?.retained&&activePresentation.program);
 // The toolpath pane never goes empty. Without a current program it shows a faded
 // placeholder — the previous toolpath when one is retained, otherwise the part
 // being sliced — through first generation, regeneration, reload and failure.
@@ -184,7 +185,7 @@ function activity(text='',fraction=null){
 async function working(text,task,{preview=true,stage=null}={}){
   if(busy)return;busy=true;stop();if(preview)agentUI.loading(stage);activity(text);if(state)render();$('#open-print').disabled=true;
   // Paint the indicator before local parsing/drawing can occupy the UI thread.
-  await painted();
+  if(preview)await painted();
   let failure;
   try{return await task();}catch(error){failure=error;throw error;}
   finally{busy=false;if(preview)agentUI.settled(failure||(tab==='toolpath'&&(state?.generationError||state?.programError)));activity();$('#open-print').disabled=false;if(state)render();}
@@ -489,9 +490,10 @@ function render() {
   }
   $('#skin-label').textContent=hasConstruction(state.plan,'cladding')?'Surface cladding':hasConstruction(state.plan,'fronts')?'Wave fronts':view().skinLabel;
   const reviewed=$('#reviewed-download'),controls=studioControls(state,{tab,busy,generating,pending:generationPending(),staleProgram:Boolean(activePresentation?.retained&&activePresentation.program),
-    tourActive:Boolean(tourUI?.active()),exported:exportedThisSession.has(exportKey()),currentExportKey:exportKey(),inspection:state.inspection,
+    exported:exportedThisSession.has(exportKey()),currentExportKey:exportKey(),inspection:state.inspection,
     machineView:cameras.mode==='machine',reviewedExportKey:reviewed?.dataset.exportKey});
   exportNameInput.disabled=controls.exportName.disabled;$('#export-name-row').hidden=controls.exportName.hidden;
+  $('#next').disabled=controls.next.disabled;$('#next').hidden=controls.next.hidden;
   $('#confirm').disabled=controls.confirm.disabled;$('#confirm').textContent=controls.confirm.label;$('#confirm').hidden=controls.confirm.hidden;
   $('#confirm').setAttribute('aria-disabled',controls.confirm['aria-disabled']);
   if(reviewed)reviewed.hidden=controls.reviewedDownload.hidden;
@@ -617,15 +619,9 @@ $('#fit-program').onclick=()=>{
   zoom=1;pan=[0,0];requestDraw();
 };
 $$('[data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
-async function approval(){
-  const response=await api('approve',{actor:'Local user',revision:state.revision});
-  const result=await response.json();
-  Object.assign(state,result.approval);
-  if(!result.approval.programAvailable){delete state.program;clearProgramView();}
-}
-async function download(route='deliver',data={}){
+async function download(){
   const name=$('#export-name').value.trim();if(!name)throw Error('Enter a print name before exporting.');
-  const key=exportKey(),response=await api(route,{...data,name,downloadLink:true});
+  const key=exportKey(),response=await api('export',{exportSnapshot:state.exportSnapshot,name,downloadLink:true});
   if(!response.ok){const error=await response.json();throw new Error(error.error??'Export failed.');}
   const attachment=await response.json();
   let a=$('#reviewed-download');
@@ -642,29 +638,27 @@ async function download(route='deliver',data={}){
   }
 }
 $('#export-name').oninput=event=>{if(!exportNameState)return;exportNameState.value=event.target.value;exportNameState.dirty=event.target.value!==exportNameState.suggested;};
-$('#confirm').onclick=async()=>{
-  if((busy&&!generating)||!state)return;message('');
-  if(tourUI?.active()&&tab!=='geometry'){
-    if(!state.program||state.programError||state.review.generation?.mode!=='production')return;
-    try{await working('Downloading your reviewed file…',async()=>{await download('tour-export',{revision:state.revision,exportHash:state.exportHash});await api('tour',{action:'finish'});await tourUI.load();render();},{preview:false});}
-    catch(e){message(e.message,true);await refresh(false);}return;
-  }
-  const validProgram=state.program&&!state.programError&&state.review.generation?.mode==='production';
-  // While a toolpath is still computing, Next just returns to its faded pane; it
-  // must not launch a second calculation or cancel the pending one.
-  if(!validProgram&&generationPending()){if(tab==='geometry')setTab('toolpath');return;}
+$('#next').onclick=async()=>{
+  if(!state||$('#next').disabled)return;message('');
+  if(state.program&&!state.programError||generationPending()){setTab('toolpath');return;}
   try{
-    await working(tab==='toolpath'?'Checking your toolpath…':'Preparing your toolpath…',async()=>{
-    if(tab==='geometry'){
-      if(validProgram){setTab('toolpath');await acknowledgeDisplayedView();}
-      else{activity('Calculating toolpath');generating=true;try{await api('generate',{development:false});tab='toolpath';await refresh();}finally{generating=false;}}
-    }
-    else if(!validProgram){activity('Calculating toolpath');generating=true;try{await api('generate',{development:false});tab='toolpath';await refresh();}finally{generating=false;}}
-    else {if(!state.toolpathApproved)await approval();await download();}
-    message('');
-    },{preview:tab==='geometry'||!validProgram,stage:'toolpath'});
+    await working('Preparing your toolpath…',async()=>{
+      generating=true;
+      try{await api('generate',{development:false});tab='toolpath';await refresh();}
+      finally{generating=false;}
+    },{stage:'toolpath'});
   }catch(e){message(e.message,true);}
 };
+$('#confirm').onclick=async()=>{
+  if(!state||$('#confirm').disabled)return;message('');
+  try{
+    await working('Downloading your reviewed file…',async()=>{
+      await download();
+      if(tourUI?.active()){await api('tour',{action:'finish'});await tourUI.load();render();}
+    },{preview:false});
+  }catch(e){message(e.message,true);}
+};
+
 async function openPrint(path){
   if(busy)return;
   saveView();
@@ -770,12 +764,12 @@ async function animate(now){
   if(seconds>=duration()){stop();requestDraw();return;}frame=requestAnimationFrame(animate);
 }
 async function poll(){
-  if(polling||busy)return;polling=true;
+  if(polling||busy)return;polling=true;const update=stateUpdate;
   try{
     const needsFullState=!state||reconnecting||needsTourToolpath(state);
     const options=!needsFullState&&stateTag?{headers:{'If-None-Match':stateTag}}:undefined;
     const response=await fetch('/api/state',options);
-    if(response.status===304){reconnecting=false;return;}
+    if(response.status===304){reconnecting=false;loadedUpdate=update;if(state)render();return;}
     if(response.status===204){reconnecting=false;return;} // Still no print open.
     if(!response.ok)throw new Error('Reconnecting to your print…');
     const nextTag=response.headers?.get?.('etag')??null,next=await response.json();if(movieController||busy)return;
@@ -789,7 +783,7 @@ async function poll(){
     else await working('Loading and checking the updated print…',refreshUpdatedPrint);
     // The chat opened the first print into an empty Studio: show it.
     if(firstPrint)relayPanel?.close();
-    reconnecting=false;
+    reconnecting=false;loadedUpdate=update;if(state)render();
   }catch(e){reconnecting=true;agentUI.settled(e);$('#confirm').disabled=true;message('Could not update the print: '+e.message+' Reconnecting…');}
   finally{polling=false;}
 }
@@ -823,6 +817,7 @@ function scheduleChange(){
 function studioUpdate(event){
   if(event.detail.kind==='progress'){applyProgress(event.detail.status);return;}
   const {kinds=[]}=event.detail;
+  if(kinds.includes('print')){stateUpdate++;if(state)render();}
   if(kinds.includes('print')||kinds.includes('tour')||kinds.includes('requests')&&state?.tour?.active)scheduleChange();
 }
 function studioVisible(){if(document.visibilityState==='visible')scheduleChange();}

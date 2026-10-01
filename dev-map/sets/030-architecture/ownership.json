@@ -7730,9 +7730,6 @@
     "studio/app.mjs::applyViewerAnnotations": {
       "owner": "studio"
     },
-    "studio/app.mjs::approval": {
-      "owner": "studio"
-    },
     "studio/app.mjs::beginCanvasDrag": {
       "owner": "studio"
     },
@@ -8774,9 +8771,6 @@
     "studio/server.mjs::createStudio::agentWorking": {
       "owner": "studio"
     },
-    "studio/server.mjs::createStudio::approvePrint": {
-      "owner": "studio"
-    },
     "studio/server.mjs::createStudio::beginGeneration": {
       "owner": "studio"
     },
@@ -8787,9 +8781,6 @@
       "owner": "studio"
     },
     "studio/server.mjs::createStudio::currentPrint": {
-      "owner": "studio"
-    },
-    "studio/server.mjs::createStudio::deliverPrint": {
       "owner": "studio"
     },
     "studio/server.mjs::createStudio::discardPreparation": {
@@ -9264,9 +9255,6 @@
       "owner": "studio"
     },
     "studio/tour.mjs::createTour::requestStartLayer": {
-      "owner": "studio"
-    },
-    "studio/tour.mjs::createTour::restoreReference": {
       "owner": "studio"
     },
     "studio/tour.mjs::createTour::scope": {
@@ -10430,6 +10418,20 @@
     "core/private/settings/numeric.mjs::requireThat": {
       "owner": "settings",
       "reason": "Private settings assertion helper."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::exportReviewed": {
+      "owner": "bundle",
+      "reason": "Deliver the captured checked bytes."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::writeDelivery": {
+      "owner": "bundle",
+      "reason": "Deliver the captured checked bytes."
+    },
+    "studio/agent-ui.mjs::createAgentUI::pending": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::exportPrint": {
+      "owner": "studio"
     }
   },
   "retiredAssignments": [
@@ -10555,7 +10557,11 @@
     "core/print/slice-deposition.mjs::constructDepositionWork::@default/operationDependencies",
     "core/print/extension-edits.mjs::applyExtensionEdit::plan.buildGeometry",
     "core/print/import-stl.mjs::geometryFromSTL",
-    "core/print/import-stl.mjs::inferSTLUnits"
+    "core/print/import-stl.mjs::inferSTLUnits",
+    "studio/app.mjs::approval",
+    "studio/server.mjs::createStudio::approvePrint",
+    "studio/server.mjs::createStudio::deliverPrint",
+    "studio/tour.mjs::createTour::restoreReference"
   ],
   "scope": "map 0 only; no submap ownership constraints"
 }
