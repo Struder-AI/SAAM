@@ -1,8 +1,9 @@
 // Exclusive material allocation. Shared positive claims are unsupported until
 // the shared-ownership contract is implemented; assignment order is not a fix.
-import {difference,intersect} from './boolean.mjs';
+import {difference,intersect} from './intersection.mjs';
 import {offsetRegion} from './offset.mjs';
-import {TOLERANCE,requireThat} from '../geom/tolerance.mjs';
+import {TOLERANCE} from '../geom/tolerance.mjs';
+import {requireThat} from '../private/toolpath/numeric.mjs';
 
 export function requireExclusiveClaims(a,b,{uncertain=false}={}){
   const name=o=>`${o.assignment?.id??o.id}${o.part!==undefined&&o.part!==null?` on ${o.part}`:''}`;

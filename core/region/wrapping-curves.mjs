@@ -2,7 +2,7 @@ import {requireThat,distance,normalize,cross,scale,add,dot,subtract} from '../pr
 // Physical cell fields on a periodic reference family. Samples carry the
 // evaluated geometry/metric; mapping, deposition and machine motion are downstream.
 import {prepareSurfaceOffset} from '../geom/surface-offset.mjs';
-import {evaluate} from '../geom/nurbs.mjs';
+import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {sampleSurfaceCurve} from '../region/normal-surface.mjs';
 import {findRoot} from '../geom/tolerance.mjs';
 import {lineSpacing,spacingFactor} from '../path/spacing.mjs';
@@ -27,7 +27,7 @@ export function surfaceCellField({shell,settings,process,chart,courses=null,star
     if(selectedChart.contactGeometry!=='final-deposited-beads')return {...actual,point:offset};
     // Preserve the declared fitted-vs-exact offset displacement, but anchor it
     // on the actual substrate and orient its normal component to that surface.
-    const original=evaluate(patch,s.surface.uvBounds[0][0]+u*(s.surface.uvBounds[0][1]-s.surface.uvBounds[0][0]),s.surface.uvBounds[1][0]+v*(s.surface.uvBounds[1][1]-s.surface.uvBounds[1][0]));
+    const original=evaluateSurface(patch,[s.surface.uvBounds[0][0]+u*(s.surface.uvBounds[0][1]-s.surface.uvBounds[0][0]),s.surface.uvBounds[1][0]+v*(s.surface.uvBounds[1][1]-s.surface.uvBounds[1][0])]);
     const displacement=subtract(offset,original.point),oldNormal=scale(original.normal,s.surface.normalSide),oldU=normalize(original.du),oldV=cross(oldNormal,oldU);
     const newU=normalize(subtract(actual.du,scale(actual.normal,dot(actual.du,actual.normal)))),newV=cross(actual.normal,newU);
     const transported=add(add(scale(newU,dot(displacement,oldU)),scale(newV,dot(displacement,oldV))),scale(actual.normal,dot(displacement,oldNormal)));

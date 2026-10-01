@@ -4,6 +4,8 @@ import {VERSION,BUILD_DATE} from './version.mjs';
 import {pathDependencies,PATH_CONTRACT,NEUTRAL_PATH_CONTRACT} from '../path/dependencies.mjs';
 import {resolvePlanPatch} from './resolve-plan.mjs';
 import {requireGenerationExtensions} from '../path/extension-dependencies.mjs';
+import {createHash} from 'node:crypto';
+import {readFile} from 'node:fs/promises';
 
 const defaults=async machine=>(await import('./plan.mjs')).defaults(machine);
 const createGeometry=async parameters=>(await import('./geometry.mjs')).createGeometry(parameters);
@@ -41,9 +43,22 @@ export async function generatePreparedPath(plan,options){
   return generatePath(plan,{...options,modulations:fields.record,modulationPreparation:fields.report});
 }
 
+export async function pathSource(plan){
+  const release=await readFile(new URL('../../release.json',import.meta.url),'utf8').then(JSON.parse)
+    .catch(error=>{if(error.code!=='ENOENT')throw error;return {version:PATH_CONTRACT};});
+  if(!release||typeof release.version!=='string'||!release.version)throw Error('Installed release record has no version.');
+  const version=release.version;
+  try {
+    const selected=await requireGenerationExtensions(plan);
+    const hash=createHash('sha256').update(JSON.stringify([version,PATH_CONTRACT,NEUTRAL_PATH_CONTRACT,
+      selected.map(({id,digest})=>[id,digest])])).digest('hex');
+    return {release:version,hash};
+  } catch(error){if(error.code!=='EXTENSION_MISSING')throw error;return {release:version,hash:null,missing:error};}
+}
+
 export const {root, EXPORT_NAME, atomicManifest, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, bundleFingerprint, bundleFingerprints, migrateBundle, prepareGeneration, commitGeneration, generateToolpath, restoreRevision, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, exportReviewed, applySettingsSnapshot}=createBundleWorkflow({
   kind:'shell',defaults,patchPlan,createGeometry,
-  generatePath:generatePreparedPath,pathDependencies,generationContract:PATH_CONTRACT,completionContract:NEUTRAL_PATH_CONTRACT,
+  generatePath:generatePreparedPath,pathDependencies,pathSource,generationContract:PATH_CONTRACT,completionContract:NEUTRAL_PATH_CONTRACT,
   version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode',
   limitations:limitationsFor
 });

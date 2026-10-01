@@ -203,11 +203,11 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     // generation is enough to defer speculation; explicit review still checks
     // its bytes and will regenerate if that stored result is damaged.
     if(state.program||state.outputAvailability||state.review?.generation?.generationHash===state.generationHash&&!state.programError)return {action:'discard'};
-    const key=readDir+':'+state.generationHash;
+    const key=readDir+':'+state.generationHash+':'+state.revision;
     return {action:session.currentKey===key?'reuse':'create',key};
   };
   const prepare=(state,readDir,{computationRequired=false}={})=>{
-    const key=readDir+':'+state.generationHash;
+    const key=readDir+':'+state.generationHash+':'+state.revision;
     const decision=computationRequired
       ?(closed||resolveBundle!==bundleFor?{action:'skip'}:{action:preparation?.key===key?'reuse':'create',key})
       :planPreparation(state,readDir,{closed,workerEnabled:resolveBundle===bundleFor,currentKey:preparation?.key});
@@ -277,7 +277,8 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       // A stopped worker needs restarting; a completed preparation diagnostic
       // is already useful and need not be recomputed on the first Continue.
       if(preparation?.status==='failed'&&(!preparation.worker||generationFailure?.directory===executionDir&&generationFailure.generationHash===generationHash))await discardPreparation();
-      const job=prepare({generationHash},executionDir,{computationRequired:true});
+      const executionState=(await readStableBundle(current,executionDir,{program:false})).state;
+      const job=prepare(executionState,executionDir,{computationRequired:true});
       if(!job)return null;
       if(job.status==='preparing')markCalculation();
       const checked=await job.generate(development,reservation);

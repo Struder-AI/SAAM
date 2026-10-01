@@ -1119,6 +1119,22 @@
         "call"
       ],
       "evidence": "Actual named import and call in workspaces/wing/handoff.mjs; neutral recipe construction and protected construction identity only."
+    },
+    {
+      "contract": "trace-geometry-curve-point",
+      "target": "core/geom/surface-curves.mjs::curvePoint",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Authored Trace curve sampling uses the existing normalized-domain Geometry operation, preserving the defining rational evaluator; caller homes are checked separately."
+    },
+    {
+      "contract": "build-job",
+      "target": "core/print/bundle.mjs::pathSource",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Bundle generation currency invokes Toolpath-owned digest of current recipe-selected source dependencies; cryptographic and resolver effects remain in the audit."
     }
   ]
 }

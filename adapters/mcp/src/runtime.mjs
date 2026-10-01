@@ -578,19 +578,22 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   },false);
   tool('generate_toolpath', 'Generate and check the declared export from the current geometry and complete settings, including during the tour. This is reviewable output, not approval.', { bundleId: bundleIdSchema }, async ({ bundleId },_session,instance) => {
     const { dir, bundle } = await locate(bundleId);
-    const state=await bundle.loadBundle(dir,{program:false}),jobId=randomUUID(),startedAt=Date.now();
-    const job=new PreparedGenerationJob({key:dir+':'+state.generationHash,directory:dir,generationHash:state.generationHash,
-      createWorker:cancellation=>new Worker(new URL('../../../studio/generation-worker.mjs',import.meta.url),{workerData:{directory:dir,generationHash:state.generationHash,progress:true,cancellation}})});
-    job.worker?.ref();
-    generations.set(jobId,{jobId,printId:bundleId,generationHash:state.generationHash,startedAt,job});
-    studioEvents.record('generation-started',{jobId,printId:bundleId,generationHash:state.generationHash,trigger:'agent'});
-    try{
-      const {checks}=await job.generate(false,instance);
-      studioEvents.record('generation-finished',{jobId,printId:bundleId,generationHash:state.generationHash,durationMs:Date.now()-startedAt});
-      return { ...summary(bundleId, await bundle.loadBundle(dir)), checks };
-    }catch(error){
-      studioEvents.record(error.code==='GENERATION_CANCELLED'?'generation-cancelled':'generation-failed',{jobId,printId:bundleId,generationHash:state.generationHash,error:error.message,stage:error.stage??'generation'});throw error;
-    }finally{generations.delete(jobId);await job.dispose();}
+    const checks=await bundle.generateBundle(dir,{dispatchComputation:async({directory,generationHash})=>{
+      const jobId=randomUUID(),startedAt=Date.now();
+      const job=new PreparedGenerationJob({key:directory+':'+generationHash,directory,generationHash,
+        createWorker:cancellation=>new Worker(new URL('../../../studio/generation-worker.mjs',import.meta.url),{workerData:{directory,generationHash,progress:true,cancellation}})});
+      job.worker?.ref();
+      generations.set(jobId,{jobId,printId:bundleId,generationHash,startedAt,job});
+      studioEvents.record('generation-started',{jobId,printId:bundleId,generationHash,trigger:'agent'});
+      try{
+        const result=await job.generate(false,instance);
+        studioEvents.record('generation-finished',{jobId,printId:bundleId,generationHash,durationMs:Date.now()-startedAt});
+        return result;
+      }catch(error){
+        studioEvents.record(error.code==='GENERATION_CANCELLED'?'generation-cancelled':'generation-failed',{jobId,printId:bundleId,generationHash,error:error.message,stage:error.stage??'generation'});throw error;
+      }finally{generations.delete(jobId);await job.dispose();}
+    }});
+    return { ...summary(bundleId, await bundle.loadBundle(dir)), checks };
   }, false);
   tool('deliver_toolpath', 'Copy the exact current human-reviewed export bytes into the bundle delivery folder. Fails without current toolpath approval. Does not run hardware.', { bundleId: bundleIdSchema }, async ({ bundleId }) => {
     const { dir, bundle } = await locate(bundleId);

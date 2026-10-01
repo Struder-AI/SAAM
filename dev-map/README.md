@@ -51,10 +51,10 @@ record is no node at any depth, so `.` joins its members,
 `createStudio::lifetime.onViewers`; a module-level table keeps its entry keys.
 
 A leaf includes enclosed declarations it alone reaches and private module
-helpers called only by that stage (`lib/helpers.mjs`). Exports, shared callers
-and escaping references prevent helper folding. Effects, dependencies, source
-and findings move to the owner; folding asserts ownership, not purity. No
-authored vocabulary list suppresses nodes. `new X()` reaches the class.
+helpers called only by that stage (`lib/helpers.mjs`). Design uses the current audit's same source-proved containment;
+authored nesting alone proves nothing. Exports, shared callers and escaping references prevent folding.
+Effects, dependencies, source and findings stay visible; folding asserts ownership, not purity.
+No authored vocabulary list suppresses nodes. `new X()` reaches the class.
 
 ## What each read carries
 
@@ -192,10 +192,10 @@ counted; `importAliases` name served paths that are not the path on disk.
 Scanned `check` fails for missing/stale stores or malformed facts; `--json` reports totals and orphan facts.
 `--viewer [ADDRESS]` checks drawing coverage against stored reads (`coverage.mjs`).
 Design `inventory --set NAME` gathers runtime declarations/modules; `audit` compares exact `ownership.json`
-assignments against map 0 connections, writing `view/audit.html` and `store/audit.json`; submaps are ignored.
-`audit-check` fails when that snapshot is missing/stale. The viewer's Boundary audit opens filtered crossings,
-code/source, bucket counts and scope exclusions. Missing connections, direction review and unknown are distinct;
-represented means a pair exists; `interfaces.json` target/kind bindings do not certify schema/effect compliance. This pass leaves receiver/holder propagation unresolved; no code is moved or auto-rehomed.
+assignments against map 0 and evidenced public operation boundaries, writing `view/audit.html` and `store/audit.json`.
+`audit-check` rejects missing/stale snapshots. Boundary audit preserves raw sites, root classifications, private access,
+direction review and unresolved ownership/effects; navigation boxes alone impose no API boundary. Exact `interfaces.json`
+bindings and public import routes constrain operation access, without certifying schema/effect compliance or granting transitive access.
 
 ## Scoring
 

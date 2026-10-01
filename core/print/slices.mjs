@@ -29,7 +29,7 @@ import { layerStrokes, mapSliceStrokes, sliceFrame, loopMaterial, fillMaterial }
 import { FILL_PATTERNS } from '../region/fill-patterns.mjs';
 import { offsetRegion } from '../region/offset.mjs';
 import { regionArea } from '../region/region2d.mjs';
-import { difference, intersect, union } from '../region/boolean.mjs';
+import { difference, intersect, union } from '../region/intersection.mjs';
 import {allocateChartClaims,positiveClaimRegion,requireExclusiveClaims} from '../region/ownership.mjs';
 import { clipReservedRegion, clipReservedSlice } from '../region/reservation.mjs';
 import {depositCurveCourses} from '../path/curve-courses.mjs';

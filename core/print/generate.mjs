@@ -18,7 +18,7 @@ import {plannedNozzleTemperatures} from '../path/process-controls.mjs';
 import {assignmentPlan,assignmentFilament,depositionAssignments} from './assignment-process.mjs';
 import {planarRegionLayers} from '../geom/planar-region-layers.mjs';
 import {prepareContourSleeve} from '../geom/sleeve/contour-sleeve.mjs';
-import {difference,union,intersect} from '../region/boolean.mjs';
+import {difference,union,intersect} from '../region/intersection.mjs';
 import {regionArea,pointSegmentDistance} from '../region/region2d.mjs';
 import {horizontalSlice,sliceFamily} from '../geom/slice.mjs';
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';

@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-01 — Update active bundles and simplify map navigation
+
+- Active edits/generation compare one saved source record with the installed release and selected extensions; stale output and confirmation invalidate through existing commits. Viewing/delivery use saved artifacts. MCP shares Bundle generation dispatch; Studio workers include revision. Actual local-runtime, missing-code, upgrade, same-byte, cancellation and stale-commit checks passed; no new tests or whole suite.
+- Removed the Boolean forwarding module and unused stroke-region implementation; curve/surface callers reuse public Geometry operations. Mixed files retain declaration-level responsibilities, with trivial Geometry assertions inline. Map tooling derives private containment, checks operation boundaries, flattens small navigation groups and distinguishes internal/boundary nodes; source previews and unknowns remain visible. Remaining private accesses and floating-node authorship are under review; no release or publication.
+
 ## 2026-10-01 — Share frames and remove hidden recipe dependencies
 
 - Owner-approved Geometry frame operations replace five duplicate modules; Toolpath retains authored poses and Export retains machine policy. Export consumes explicit neutral material changes and preserves authored temperatures. Plain/fitted vase generation no longer requires advanced-vase; recipe field validation no longer loads a default machine. Printer guidance takes the selected machine without loading Bundle.

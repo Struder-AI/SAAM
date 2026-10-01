@@ -10,7 +10,7 @@ import { defaults } from '../../core/print/plan.mjs';
 import { sliceAssignment } from '../../core/print/slices.mjs';
 import { layerStrokes } from '../../core/region/layer-strokes.mjs';
 import { SegmentIndex } from '../../core/region/region2d.mjs';
-import { intersect, difference, union } from '../../core/region/boolean.mjs';
+import { intersect, difference, union } from '../../core/region/intersection.mjs';
 
 const [input, destination = '.local/slicing-diagnostics'] = process.argv.slice(2);
 if (!input) throw new Error('Usage: node scripts/bench/diagnose-regions.mjs file.stl [output-directory]');

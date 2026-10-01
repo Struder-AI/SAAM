@@ -187,10 +187,6 @@
       "owner": "extensions",
       "reason": "Text feature implementation slated for extension ownership."
     },
-    "core/region/boolean.mjs": {
-      "owner": "geometry",
-      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
-    },
     "core/region/clipper.mjs": {
       "owner": "geometry",
       "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
@@ -252,10 +248,6 @@
       "reason": "Region-to-deposition construction belongs to Slice."
     },
     "core/region/seeded-fronts.mjs": {
-      "owner": "toolpath",
-      "reason": "Region-to-deposition construction belongs to Slice."
-    },
-    "core/region/stroke.mjs": {
       "owner": "toolpath",
       "reason": "Region-to-deposition construction belongs to Slice."
     },
@@ -5479,9 +5471,6 @@
     "core/print/workflow.mjs::save": {
       "owner": "bundle"
     },
-    "core/region/boolean.mjs::@module": {
-      "owner": "geometry-leaf-cac52e2d9995"
-    },
     "core/region/clipper.mjs::@module": {
       "owner": "geometry-leaf-4f48706aeb41"
     },
@@ -5856,12 +5845,6 @@
       "owner": "toolpath"
     },
     "core/region/seeded-fronts.mjs::sliverWidth::furthest": {
-      "owner": "toolpath"
-    },
-    "core/region/stroke.mjs::@module": {
-      "owner": "toolpath"
-    },
-    "core/region/stroke.mjs::strokeRegion": {
       "owner": "toolpath"
     },
     "core/region/surface-curves.mjs::@module": {
@@ -10614,6 +10597,30 @@
     "workspaces/wing/design.mjs::sweepOffsetMm": {
       "owner": "workspace",
       "reason": "Wing design sweep parameter to section-placement relation, private to this workspace."
+    },
+    "core/print/bundle.mjs::pathSource": {
+      "owner": "toolpath",
+      "reason": "Digests the existing generation contracts and recipe-selected implementation dependencies; Bundle receives source provenance without resolving extensions."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::generationSource": {
+      "owner": "bundle",
+      "reason": "Checks current supplied generation-source identity and invalidates/accepts saved review and generation state through Bundle revision ownership."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::staleGenerationSource": {
+      "owner": "bundle",
+      "reason": "Checks current supplied generation-source identity and invalidates/accepts saved review and generation state through Bundle revision ownership."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::sourceInvalidatedReview": {
+      "owner": "bundle",
+      "reason": "Checks current supplied generation-source identity and invalidates/accepts saved review and generation state through Bundle revision ownership."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::activeGenerationState": {
+      "owner": "bundle",
+      "reason": "Checks current supplied generation-source identity and invalidates/accepts saved review and generation state through Bundle revision ownership."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::requireGenerationSource": {
+      "owner": "bundle",
+      "reason": "Checks current supplied generation-source identity and invalidates/accepts saved review and generation state through Bundle revision ownership."
     }
   },
   "retiredAssignments": [
@@ -11189,7 +11196,10 @@
     "studio/viewer-renderer.mjs::createViewerRenderer::draw::<callable@76:88>",
     "studio/viewer-renderer.mjs::createViewerRenderer::draw::filter@103:119",
     "studio/viewer-renderer.mjs::createViewerRenderer::draw::filter@118:119",
-    "workspaces/wing/app.mjs::@handler/button.onclick"
+    "workspaces/wing/app.mjs::@handler/button.onclick",
+    "core/region/boolean.mjs::@module",
+    "core/region/stroke.mjs::@module",
+    "core/region/stroke.mjs::strokeRegion"
   ],
-  "scope": "map 0 only; no submap ownership constraints"
+  "scope": "Exact root responsibilities plus evidenced operation homes; unresolved submap containment remains explicit."
 }

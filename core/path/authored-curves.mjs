@@ -1,7 +1,7 @@
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {requireThat,distance,normalize,cross} from '../private/toolpath/numeric.mjs';
 
-import {evaluateCurve} from '../geom/nurbs.mjs';
+import {curvePoint} from '../geom/surface-curves.mjs';
 
 import {heightReferenceBounds} from '../geom/height-slice.mjs';
 import {transportCurveFrames} from './curve-frame.mjs';
@@ -55,10 +55,10 @@ function authoredSegment(lengths,distanceMm){
 export function sampleAuthoredCurve(curve,{references={},course=0,offset=[0,0,0],toleranceMm=.02,sampleStepMm=1}={}){
   const input=curve.uv??curve,dimension=curve.uv?2:3,native=input.nurbs?authoredNurbs(input.nurbs,dimension):null;
   const points=input.points,entry=curve.uv?referenceEntry(input.reference,references,course):null;
-  if(native&&curve.closed)requireThat(distance(evaluateCurve(native,native.domain[0]).point,evaluateCurve(native,native.domain[1]).point)<1e-7,'Closed NURBS must meet at their domain endpoints.');
+  if(native&&curve.closed)requireThat(distance(curvePoint(native,0),curvePoint(native,1))<1e-7,'Closed NURBS must meet at their domain endpoints.');
   const source=native?null:(curve.closed?[...points,points[0]]:points),lengths=[0];
   if(source)for(let i=1;i<source.length;i++)lengths.push(lengths.at(-1)+Math.hypot(...source[i].map((x,k)=>x-source[i-1][k])));
-  const local=t=>{if(native)return evaluateCurve(native,native.domain[0]+t*(native.domain[1]-native.domain[0])).point.slice(0,dimension);const d=t*lengths.at(-1),i=authoredSegment(lengths,d),f=(d-lengths[i-1])/(lengths[i]-lengths[i-1]);return source[i-1].map((v,k)=>v+(source[i][k]-v)*f);};
+  const local=t=>{if(native)return curvePoint(native,t).slice(0,dimension);const d=t*lengths.at(-1),i=authoredSegment(lengths,d),f=(d-lengths[i-1])/(lengths[i]-lengths[i-1]);return source[i-1].map((v,k)=>v+(source[i][k]-v)*f);};
   const at=t=>{const chart=local(t),e=entry?evaluateSurface(entry,chart,input.normalMm??0):{point:chart};requireThat(!entry||e.normal,'Curve reference has a singular tangent.');return {t,chart,...e,point:e.point.map((v,i)=>v+offset[i])};};
   const breaks=[0,1,...(native?[...native.knots].filter(k=>k>native.domain[0]&&k<native.domain[1]).map(k=>(k-native.domain[0])/(native.domain[1]-native.domain[0])):lengths.map(l=>l/lengths.at(-1))),...Object.values(curve.vary??{}).flatMap(v=>v.map(p=>p[0]))];
   const samples=sampleCurveIntervals({at,cuts:breaks,stepMm:curve.sampleStepMm??sampleStepMm,toleranceMm:curve.toleranceMm??toleranceMm,

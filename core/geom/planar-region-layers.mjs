@@ -4,7 +4,7 @@
 import {horizontalSlice,sliceFamily} from './slice.mjs';
 import {prepareSection,section} from '../region/section.mjs';
 import {offsetRegion} from '../region/offset.mjs';
-import {union,intersect} from '../region/boolean.mjs';
+import {union,intersect} from '../region/intersection.mjs';
 import {regionArea} from '../region/region2d.mjs';
 
 export function planarRegionLayers({baseZ=0,topZ,process,shells=[],clearanceMm=0,regionsAt}){

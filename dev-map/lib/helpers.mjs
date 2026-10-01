@@ -5,27 +5,44 @@ import {scopeTree} from './lexical-bindings.mjs';
 const functions=new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
 const kids=n=>Object.entries(n).flatMap(([k,v])=>['loc','start','end'].includes(k)?[]:Array.isArray(v)?v.filter(x=>x?.type):v?.type?[v]:[]);
 
-export function foldOwnedHelpers({graph,projection,asts,leafOf}) {
-  const candidates=new Set();
+// Reference evidence uses lexical binding identity, including nested callables.
+// Only direct invocation is nonescaping; a callback in a record remains blocked.
+export function privateCallableReferences({graph,asts,topLevel=false}) {
+  const result=new Map(),declarations=new Map(graph.declarations.filter(d=>d.anchor&&!d.ambiguousAnchor).map(d=>[`${d.file}:${d.start}`,d]));
   for(const [file,ast] of asts) {
-    const {binding}=scopeTree(ast),privateBindings=new Map(),blocked=new Set();
-    for(const statement of ast.body) {
-      if(statement.type==='FunctionDeclaration'&&binding(statement.id))privateBindings.set(binding(statement.id),{name:statement.id.name,id:statement.id});
-      if(statement.type==='VariableDeclaration'&&statement.kind==='const')for(const d of statement.declarations)
-        if(d.id.type==='Identifier'&&functions.has(d.init?.type)&&binding(d.id))privateBindings.set(binding(d.id),{name:d.id.name,id:d.id});
+    const {binding}=scopeTree(ast),bindings=new Map();
+    function collect(node,parent,depth=0,exported=false) {
+      const id=node.type==='FunctionDeclaration'?node.id:node.type==='VariableDeclarator'&&functions.has(node.init?.type)?node.id:null;
+      const declaration=declarations.get(`${file}:${node.start}`)??declarations.get(`${file}:${node.init?.start}`);
+      if(id?.type==='Identifier'&&binding(id)&&declaration&&(!topLevel||(node.type==='FunctionDeclaration'?parent?.type==='Program':depth===2&&parent?.kind==='const'))) {
+        bindings.set(binding(id),{path:declaration.anchor,id,exported,references:[],escapes:[]});
+      }
+      for(const child of kids(node))collect(child,node,depth+1,node.type==='ExportNamedDeclaration'||node.type==='ExportDefaultDeclaration'||exported&&node.type==='VariableDeclaration');
     }
+    collect(ast,null);
     (function walk(node,parent){
-      const candidate=node.type==='Identifier'?privateBindings.get(binding(node)):null;
+      const candidate=node.type==='Identifier'?bindings.get(binding(node)):null;
       if(candidate&&node!==candidate.id) {
-        // A noncomputed member/property key is not a reference to this binding.
         const key=parent?.type==='MemberExpression'&&parent.property===node&&!parent.computed
           ||parent?.type==='Property'&&parent.key===node&&!parent.computed&&!parent.shorthand;
-        if(!key&&!(parent?.type==='CallExpression'&&parent.callee===node))blocked.add(candidate.name);
+        if(!key) {
+          const site={file,line:node.loc.start.line,start:node.start,end:node.end};
+          candidate.references.push(site);
+          if(!(parent?.type==='CallExpression'&&parent.callee===node))candidate.escapes.push({...site,kind:parent?.type});
+        }
       }
       kids(node).forEach(child=>walk(child,node));
     })(ast,null);
-    for(const {name} of privateBindings.values())if(!blocked.has(name)&&leafOf.has(`${file}::${name}`))candidates.add(`${file}::${name}`);
+    for(const {id,...candidate} of bindings.values()) {
+      for(const field of ['references','escapes'])candidate[field]=[...new Map(candidate[field].map(r=>[r.start,r])).values()];
+      result.set(candidate.path,candidate);
+    }
   }
+  return result;
+}
+
+export function foldOwnedHelpers({graph,projection,asts,leafOf}) {
+  const candidates=new Set([...privateCallableReferences({graph,asts,topLevel:true})].filter(([path,c])=>!c.exported&&!c.escapes.length&&leafOf.has(path)).map(([path])=>path));
   const node=id=>projection.owner.get(id)?.path;
   const root=path=>leafOf.get(path);
   const arrivals=new Map();
