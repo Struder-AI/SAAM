@@ -10454,6 +10454,10 @@
     },
     "core/print/workflow.mjs::hashFile": {
       "owner": "bundle"
+    },
+    "core/print/extension-edits.mjs::prepareExtensionEdit": {
+      "owner": "bundle",
+      "reason": "Dispatches engine preparation and accepts one revisioned proposal; geometry-only results bypass Toolpath."
     }
   },
   "retiredAssignments": [

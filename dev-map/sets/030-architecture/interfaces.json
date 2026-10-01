@@ -465,6 +465,14 @@
     "call"
    ],
    "evidence": "Persist a completed import candidate; no engine dispatch."
+  },
+  {
+   "contract": "geometry-bundle",
+   "target": "core/geom/extension-edit.mjs::prepareExtensionGeometry",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Bundle directly requests Geometry contributions; Toolpath combines only deposition or hybrid assignment results."
   }
  ]
 }
