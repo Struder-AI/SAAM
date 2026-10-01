@@ -1197,7 +1197,7 @@
     },
     "core/geom/polygon-chords.mjs": {
       "owner": "geometry",
-      "reason": "Planar polygon query; geometry-owned computation."
+      "reason": "Wing workspace implementation and its explicitly owned public handoff/construction entry."
     }
   },
   "leaves": {
@@ -10277,6 +10277,9 @@
     "workspaces/wing/design.mjs::wingletThickness": {
       "owner": "workspace",
       "reason": "Wing workspace construction and interaction."
+    },
+    "core/print/workspace.mjs::createFromWorkspace::local": {
+      "owner": "bundle"
     }
   },
   "retiredAssignments": [

@@ -1,5 +1,7 @@
 // Public planar polygon query. Horizontal chords use a half-open vertex rule.
+import {requireThat} from './tolerance.mjs';
 export function polygonChords(points,y){
+  requireThat(Number.isFinite(y)&&Array.isArray(points)&&points.length>=3&&points.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)),'Polygon chords need finite XY vertices and a finite ordinate.');
   const crossings=[];
   for(let i=0;i<points.length;i++){
     const a=points[i],b=points[(i+1)%points.length];

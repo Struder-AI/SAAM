@@ -32,7 +32,7 @@ function sectionStations(d,piece){
 }
 
 export function continuousWingCurve(d,piece){
-  const height=piece.toMm-piece.fromMm,points=[],pitch=d.layerMm,speedStations=[];
+  const height=piece.toMm-piece.fromMm,points=[],pitch=d.layerMm;let skinSpeed=d.speedMmS;
   const sense=piece.integratedTip?-1:1,spanAt=z=>piece.integratedTip?piece.toMm-z:piece.fromMm+z;
   const append=p=>{const q=points.at(-1);if(!q||Math.hypot(...p.map((v,i)=>v-q[i]))>1e-8)points.push(p);};
   let z=pitch,baseCount;
@@ -49,8 +49,11 @@ export function continuousWingCurve(d,piece){
     }
     const layers=Math.round(wingletThickness(d)/pitch);
     for(let layer=1;layer<=layers;layer++){
-      for(const p of layer%2?raster:[...raster].reverse())append([...p,layer*pitch]);
-      if(layer===1){baseCount=points.length;speedStations.push({index:baseCount-1,speed:d.speedMmS});}
+      const row=layer%2?raster:[...raster].reverse();
+      // Ramp across the first chord of the next layer instead of extruding
+      // a vertical post at a stationary XY point.
+      for(const p of layer===1?row:row.slice(1))append([...p,layer*pitch]);
+      if(layer===1)baseCount=points.length;
     }
     z=layers*pitch;
     const first=sectionRoute(d,piece,spanAt(z));
@@ -67,7 +70,7 @@ export function continuousWingCurve(d,piece){
     for(let i=1;i<=a.length;i++){const p=a[i%a.length],q=a[i-1];distances.push(distances.at(-1)+Math.hypot(p[0]-q[0],p[1]-q[1]));}
     const length=distances.at(-1);
     const nextLength=b.reduce((sum,p,i)=>sum+Math.hypot(p[0]-b[(i+1)%b.length][0],p[1]-b[(i+1)%b.length][1]),0);
-    speedStations.push({index:points.length-1,speed:Math.min(d.speedMmS,nextLength/6)});
+    skinSpeed=Math.min(skinSpeed,nextLength/6);
     for(let i=1;i<=a.length;i++){
       const k=i%a.length,t=distances[i]/length;
       append([a[k][0]+(b[k][0]-a[k][0])*t,a[k][1]+(b[k][1]-a[k][1])*t,z+(next-z)*t]);
@@ -75,7 +78,6 @@ export function continuousWingCurve(d,piece){
     z=next;
   }
   const final=sectionRoute(d,piece,spanAt(height));
-  speedStations.push({index:points.length-1,speed:speedStations.at(-1).speed});
   // A final level circuit leaves a glueable section edge. It shares its
   // endpoint with the rising stroke; there is no inter-course travel.
   for(const p of [...final.slice(1),final[0]])append([...p,height]);
@@ -85,14 +87,10 @@ export function continuousWingCurve(d,piece){
     if(dz< -1e-8)throw Error('Wing path must rise monotonically.');
     lengthMm+=Math.hypot(xy,dz);maxRise=Math.max(maxRise,Math.atan2(dz,xy)*180/Math.PI);maxStep=Math.max(maxStep,Math.hypot(xy,dz));
   }
-  const mirrored=points.map(([x,y,z])=>[x,piece.hand*sense*y,z]),skin=mirrored.slice(baseCount-1),skinDistances=[0];
-  // Use Trace's exact source-chord parameterization, avoiding almost-coincident
-  // profile/vertex cuts caused by subtracting cumulative whole-path lengths.
-  for(let i=1;i<skin.length;i++)skinDistances.push(skinDistances.at(-1)+Math.hypot(...skin[i].map((v,k)=>v-skin[i-1][k])));
-  const speeds=speedStations.filter((s,i)=>!i||i===speedStations.length-1||s.speed!==speedStations[i-1].speed||s.speed!==speedStations[i+1].speed).map(s=>[skinDistances[s.index-baseCount+1]/skinDistances.at(-1),s.speed]);speeds.push([1,speeds.at(-1)[1]]);
+  const mirrored=points.map(([x,y,z])=>[x,piece.hand*sense*y,z]),skin=mirrored.slice(baseCount-1);
   const common={closed:false,role:'wing-continuous',beadWidthMm:d.beadWidthMm,heightMm:pitch,speedMmS:d.speedMmS};
   return {curves:[{...common,points:mirrored.slice(0,baseCount),courses:[0],speedMmS:Math.min(12,d.speedMmS)},
-    {...common,points:skin,courses:[1],vary:{speedMmS:speeds}}],
+    {...common,points:skin,courses:[1],speedMmS:skinSpeed}],
     report:{points:points.length,lengthMm,maxRiseDeg:maxRise,maxStepMm:maxStep,continuous:true,minimumTurnSeconds:6,bedFace:piece.integratedTip?'flat outer winglet face':'section joint',wingletThicknessMm:piece.integratedTip?wingletThickness(d):null}};
 }
 

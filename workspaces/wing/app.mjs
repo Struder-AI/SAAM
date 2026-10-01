@@ -55,6 +55,12 @@ function assembly(){
     for(let i=0;i<n;i++){const a=i*2*Math.PI/n,b=(i+1)*2*Math.PI/n;faces.push([[-end,rod.xMm+r*Math.cos(a),cy+r*Math.sin(a)],[end,rod.xMm+r*Math.cos(a),cy+r*Math.sin(a)],[end,rod.xMm+r*Math.cos(b),cy+r*Math.sin(b)],[-end,rod.xMm+r*Math.cos(b),cy+r*Math.sin(b)]]);}
     parts.push({group:'rods',color:'#51677a',faces,lines:[]});
   }
+  if(view.mode==='print'){
+    const points=parts.flatMap(p=>p.faces.flat()),low=[Infinity,Infinity],high=[-Infinity,-Infinity];
+    for(const p of points)for(let k=0;k<2;k++){low[k]=Math.min(low[k],p[k]-10);high[k]=Math.max(high[k],p[k]+10);}
+    const bed=[[low[0],low[1],-.2],[high[0],low[1],-.2],[high[0],high[1],-.2],[low[0],high[1],-.2]];
+    parts.push({group:'bed',color:'#d6dcd2',faces:[bed],lines:[[...bed,bed[0]]]});
+  }
   return parts;
 }
 function draw(){
@@ -64,6 +70,8 @@ function draw(){
   const center=min.map((v,i)=>(v+max[i])/2),extent=Math.max(...max.map((v,i)=>v-min[i])),scale=Math.min(width*.84,height*1.2)/extent*view.zoom,cy=Math.cos(view.yaw),sy=Math.sin(view.yaw),ct=Math.cos(view.tilt),st=Math.sin(view.tilt);
   const project=p=>{const [x,y,z]=p.map((v,i)=>v-center[i]),u=cy*x-sy*y,v=sy*x+cy*y;return [width/2+u*scale+view.pan[0],height/2+(ct*v-st*z)*scale+view.pan[1],st*v+ct*z];};
   renderer.draw(parts,project,width,height,devicePixelRatio,$('wire').checked);
+  const selected=view.preview.pieces.find(p=>p.id===view.selected);
+  $('view-note').textContent=view.mode==='print'?(selected.integratedTip?'Flat outer winglet face on the bed · Wing grows toward the root':'Section joint on the bed · Span upright'):'Drag to orbit · Shift-drag to pan · Scroll to zoom · Fuselage and tail are display context only';
   drawSection();
 }
 function drawSection(){

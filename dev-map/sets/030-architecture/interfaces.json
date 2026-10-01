@@ -425,6 +425,14 @@
     "call"
    ],
    "evidence": "Engine entry implemented for extension contributions; atomic acceptance stays in Bundle."
+  },
+  {
+   "contract": "workspace-geometry",
+   "target": "core/geom/polygon-chords.mjs::polygonChords",
+   "kinds": [
+    "call"
+   ],
+   "evidence": "Implemented wing workspace boundary; exercised by actual folder creation and section generation. No export authority granted."
   }
  ]
 }
