@@ -9,7 +9,7 @@ export async function changeMachine(directory,machineId,{expectedRevision,setupF
   const state=await loadBundle(directory,{program:false});
   requireThat(expectedRevision===undefined||expectedRevision===state.revision,'This review is stale. Reload before changing the printer.');
   const selection=await selectSettings(machineId,{setupFile});
-  const settings=resolveMachineSettings(state.plan,state.machine,selection);
+  const settings=resolveMachineSettings(state.plan,state.machine,selection,{boundsMm:state.geometry?.boundsMm});
   return applySettingsSnapshot(directory,{machine:selection.machine,settings},state.revision);
 }
 

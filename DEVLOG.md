@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-01 — First machine selection centers supplied geometry
+
+- Owner chose explicit Wing limits with printer/setup selection later; Wing owns relay removal. Settings now centers the saved geometry footprint in selected-tool bounds on first selection only when no placement was authored. It reads Bundle geometry metadata, without a Geometry query or new interface; centered workspace geometry also works unchanged.
+- Actual prepared partial-bundle handoff verified centered X/Y, unchanged geometry hash and preserved layer/bead/speed intent after S5 selection. Changed modules pass syntax checks. Refreshed map/viewer/audit: 2,933 assigned, zero missing/orphan, 92 forbidden, 167 direction reviews and 16,407 unknown effects; viewer current with no undrawn items. No added tests or suite run; conformance remains uncertified.
+
 ## 2026-10-01 — Dependency recording and root causal audit
 
 - Added owner-approved Extensions → Settings → Bundle for data-only dependency recording. recordExtensionDependency replaces/removes supplied supports/plastic-weld configuration in existing plan.skills, preserving supplied fields; metadata rejects unsupported named targets. Geometry/construction references already encode other dependencies. No duplicate list, mandatory identity, hash scan, installation lookup, extension execution or invented defaults.

@@ -71,10 +71,16 @@ export async function saveSetup(machine,setup,{setupFile,source='User setup supp
   return file;
 }
 
-export function resolveMachineSettings(previous,previousMachine,{machine,settings}){
+export function resolveMachineSettings(previous,previousMachine,{machine,settings},{boundsMm}={}){
+  const selectedTool=!previousMachine?previous.setup?.tool??settings.setup.tool:settings.setup.tool;
+  const tool=machine.tools.find(t=>t.index===selectedTool),plate=tool?.bounds??machine.bounds;
+  const placement=boundsMm&&machine.kinematics?.startsWith('cartesian')
+    ?{xMm:(plate.min[0]+plate.max[0]-boundsMm.min[0]-boundsMm.max[0])/2,
+      yMm:(plate.min[1]+plate.max[1]-boundsMm.min[1]-boundsMm.max[1])/2}
+    :settings.placement;
   if(!previousMachine)return {...settings,setup:{...settings.setup,...previous.setup},
     process:{...settings.process,...previous.process},output:previous.output??settings.output,
-    placement:previous.placement??settings.placement};
+    placement:previous.placement??placement};
   const process={...previous.process};
   for(const key of new Set([...Object.keys(previousMachine.defaultProcess??{}),...Object.keys(machine.defaultProcess??{})]))
     process[key]=settings.process[key];
