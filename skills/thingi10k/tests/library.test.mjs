@@ -7,7 +7,7 @@ import {createHash} from 'node:crypto';
 import {createThingi10KClient, csvRows, readRemote, REVISION} from '../scripts/library.mjs';
 import {importSTLResource} from '../../../core/print/import-resource.mjs';
 import {boxMesh} from '../../../core/tests/fixtures/mesh.mjs';
-import {loadBundle, generateBundle, approve, deliver, updatePlan} from '../../../core/print/bundle.mjs';
+import {loadBundle, generateBundle, approve, deliver, updatePlan, bundleInstance, withBundleInstance} from '../../../core/print/bundle.mjs';
 import {setSTLUnits} from '../../../core/print/import-stl.mjs';
 import {createMcpAdapter} from '../../../adapters/mcp/src/server.mjs';
 import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
@@ -144,15 +144,18 @@ test('MCP searches, imports and opens an unapproved print; attribution survives 
   const count=requests.length;
   const duplicate=await client.callTool({name:'import_thingi10k_bundle',arguments:{bundleId:'Bunny',fileId:'101',machineId:'ultimaker-s5'}});
   assert.equal(duplicate.isError,true);assert.equal(requests.length,count,'existing print is rejected before download');
-  await setSTLUnits(dir,'mm',{expectedRevision:state.revision});
-  state=await loadBundle(dir,{program:false});assert.deepEqual(state.plan.geometry.source.attribution,imported.attribution);
-  state.plan.process.minimumLayerSeconds=0;
-  await updatePlan(dir,state.plan,state.revision);
-  // Synthetic approvals apply only to this isolated fixture.
-  state=await loadBundle(dir,{program:false});
-  await generateBundle(dir);
-  state=await loadBundle(dir);
-  await approve(dir,{revision:state.revision,actor:'SYNTHETIC TEST ONLY'});
+  const reservation=await bundleInstance(dir);
+  await withBundleInstance(dir,reservation,async()=>{
+    await setSTLUnits(dir,'mm',{expectedRevision:state.revision});
+    state=await loadBundle(dir,{program:false});assert.deepEqual(state.plan.geometry.source.attribution,imported.attribution);
+    state.plan.process.minimumLayerSeconds=0;
+    await updatePlan(dir,state.plan,state.revision);
+    // Synthetic approvals apply only to this isolated fixture.
+    state=await loadBundle(dir,{program:false});
+    await generateBundle(dir);
+    state=await loadBundle(dir);
+    await approve(dir,{revision:state.revision,actor:'SYNTHETIC TEST ONLY'});
+  });
   const destination=await deliver(dir);
   assert.equal(createHash('sha256').update(await readFile(destination)).digest('hex'),state.exportHash);
   const attribution=JSON.parse(await readFile(resolve(dir,'delivery/source-attribution.json')));

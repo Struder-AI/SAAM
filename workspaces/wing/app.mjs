@@ -101,5 +101,5 @@ function jobDisplay(job){
   }
 }
 async function poll(){try{const job=await api('/api/job');jobDisplay(job);if(job&&!['complete','failed'].includes(job.stage))setTimeout(poll,1000);}catch(e){error(e.message);}}
-$('export').onclick=async()=>{try{error();$('export').disabled=true;jobDisplay(await api('/api/export',{design:view.design}));poll();}catch(e){error(e.message);$('export').disabled=false;}};
+$('export').onclick=async()=>{try{error();$('export').disabled=true;jobDisplay(await api('/api/wing/export',{design:view.design}));poll();}catch(e){error(e.message);$('export').disabled=false;}};
 try{const result=await api('/api/design');view.design=result.design;view.preview=result.preview;view.selected=result.preview.pieces[0].id;settings();pieces();draw();if(result.job){jobDisplay(result.job);poll();}}catch(e){error(e.message);}

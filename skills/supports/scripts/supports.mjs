@@ -10,7 +10,7 @@ import {offsetRegion} from '../../../core/region/offset.mjs';
 import {union,intersect} from '../../../core/region/intersection.mjs';
 import {regionArea} from '../../../core/region/region2d.mjs';
 
-import {assignmentPlan,assignmentFilament} from '../../../core/print/assignment-process.mjs';
+import {assignmentFilament} from '../../../core/print/assignment-process.mjs';
 
 export const SUPPORT_DEFAULTS={enabled:false,assignments:[],...SUPPORT_GAPS,treeChordMm:0.02};
 
@@ -67,11 +67,11 @@ export function treeSection(a,z,settings,placement={xMm:0,yMm:0}) {
 
 // Tree supports as one support-preset slice result: interface layers are the
 // preset's solid top of the merged branch sections.
-export function prepareSupportContexts({plan,machine,shells}) {
+export function prepareSupportContexts({plan,processForAssignment,shells}) {
   const settings=plan.skills?.supports;
   if(!settings?.enabled)return [];
   const assignment=sliceAssignment({id:'supports',preset:'support',filament:assignmentFilament(plan,{id:'supports'})});
-  const selected=assignmentPlan(plan,machine,assignment),process=selected.process;
+  const process=processForAssignment(assignment);
   const top=Math.max(...settings.assignments.map(a=>a.contactZMm-settings.topGapMm));
   const family=sliceFamily({base:horizontalSlice(0),pitchMm:process.layerMm,firstLayerMm:process.firstLayerMm},{min:[0,0,0],max:[0,0,top]});
   const obstacles=shells.map(shell=>({shell,part:prepareSection(shell,family.base)}));
@@ -90,7 +90,7 @@ export function prepareSupportContexts({plan,machine,shells}) {
   const lastLayer=a=>Math.floor((a.contactZMm-settings.topGapMm-process.firstLayerMm+1e-8)/process.layerMm);
   const shell={bounds:{min:[0,0,0],max:[0,0,top]}};
   return [{validateResult:result=>requireThat(result.operations.length>0,'Assigned tree support produced no strokes; enlarge its branches.'),spec:{id:'supports',layers,material:new Map(layers.map(layer=>[layer.index,layer.region])),settings:assignment,filament:assignment.filament,totalLayerCount:layers.length},
-    context:{process,machine,shell,startMm:0,endMm:top,report:{assignments:settings.assignments.map(a=>({id:a.id,reason:a.reason,
+    context:{process,shell,startMm:0,endMm:top,report:{assignments:settings.assignments.map(a=>({id:a.id,reason:a.reason,
       contactZMm:a.contactZMm,actualTopGapMm:a.contactZMm-(process.firstLayerMm+lastLayer(a)*process.layerMm)})),
     limitations:'Bed-rooted branches, explicit skeletons, planar contact heights; slice-plane clearance checks only. No automatic branch routing; physical performance unvalidated.'}},
     family:{...family,layers},familyId:'supports',owner:{id:'supports',kind:'support',part:null,assignment},

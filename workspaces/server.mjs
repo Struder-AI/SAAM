@@ -22,7 +22,7 @@ export async function startWingWorkspace({port=0,directory=resolve(process.env.S
       if(req.headers.origin&&req.headers.origin!==`http://${req.headers.host}`)return send(res,{error:'Cross-origin requests are not accepted.'},403);
       if(req.method==='GET'&&url.pathname==='/api/design')return send(res,{design:state.design,preview:wingPreview(state.design),job:state.job});
       if(req.method==='GET'&&url.pathname==='/api/job')return send(res,state.job);
-      if(req.method==='POST'&&['/api/design','/api/export'].includes(url.pathname)){
+      if(req.method==='POST'&&['/api/design','/api/wing/export'].includes(url.pathname)){
         const chunks=[];for await(const chunk of req)chunks.push(chunk);
         const request=JSON.parse(Buffer.concat(chunks).toString()),design=wingDesign(request.design),preview=wingPreview(design);
         if(url.pathname==='/api/design'){

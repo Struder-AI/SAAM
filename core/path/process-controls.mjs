@@ -8,10 +8,6 @@ export function validateTemperatureC(targetC){
 export const validateNozzleC=validateTemperatureC;
 export function plannedNozzleTemperatures(plan){
   const settings=[...Object.values(plan.skills??{}).filter(s=>s.enabled),
-    ...(plan.slices?.assignments??[])];
+    ...(plan.slices?.assignments??[]),...(plan.setup?.bambu?.filaments??[])];
   return new Set([plan.setup.nozzleC,...settings.map(s=>s.nozzleC).filter(Number.isFinite)]);
-}
-export function requireProcessControl(machine){
-  requireThat(machine.outputs?.some(o=>['griffin-gcode','bambu-gcode'].includes(o.id)),
-    'Stationary metered extrusion and operation temperature control require a supported filament-axis G-code output; relay robot outputs are not implemented.');
 }

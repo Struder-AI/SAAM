@@ -4,7 +4,7 @@ import {depositedBeadSegments} from '../../../core/path/deposited-curves.mjs';
 import {advancedVaseResult} from './advanced-vase.mjs';
 import {standardVaseResult} from '../../vase-wall/scripts/prepare.mjs';
 
-export function constructVaseWork({node,samePart,after,machine,onProgress,substrateAdaptation}){
+export function constructVaseWork({node,samePart,after,onProgress,substrateAdaptation}){
   const context=node.context??node.record.context,assignment=node.context?.assignment??node.record.spec.settings;
   const foundations=samePart.filter(item=>item.node.nominalRank<=context.startMm+1e-8);
   if(assignment.zStartMm>0){
@@ -13,7 +13,7 @@ export function constructVaseWork({node,samePart,after,machine,onProgress,substr
     requireThat(foundations.some(item=>item.result.operations.length),'A raised sleeve needs supporting deposition below its start.');
   }
   const foundationSegments=substrateAdaptation&&assignment.zStartMm>0?depositedBeadSegments(foundations.flatMap(item=>item.result.operations),{widthMm:context.process.lineWidthMm}):[];
-  return node.kind==='slice'?standardVaseResult(node.record,{foundationSegments,substrateAdaptation}):advancedVaseResult({...context,machine,after,onProgress,foundationSegments,substrateAdaptation});
+  return node.kind==='slice'?standardVaseResult(node.record,{foundationSegments,substrateAdaptation}):advancedVaseResult({...context,after,onProgress,foundationSegments,substrateAdaptation});
 }
 
 export function vaseDependencies(node,nodes){

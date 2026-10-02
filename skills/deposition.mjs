@@ -9,8 +9,8 @@ import {weldWork,weldDependencies,weldOperationDependencies,finishWeldResults} f
 import {requireExclusiveClaims} from '../core/region/ownership.mjs';
 import {TOLERANCE} from '../core/geom/tolerance.mjs';
 
-export function extensionDeposition({plan,machine,placed,componentShells,contexts,onProgress}){
-  const sites=placed?preparePlasticWeld({plan,machine,placed,componentShells}):[];
+export function extensionDeposition({plan,placed,componentShells,contexts,onProgress,processForAssignment}){
+  const sites=placed?preparePlasticWeld({plan,placed,componentShells,processForAssignment}):[];
   const sleeves=contexts.filter(({assignment})=>assignment.construction==='sleeve').map(context=>{
     const {assignment,shell}=context;
     return {...context,startMm:shell.bounds.min[2]+assignment.zStartMm,
@@ -20,14 +20,14 @@ export function extensionDeposition({plan,machine,placed,componentShells,context
   for(let i=0;i<sleeves.length;i++)for(let j=i+1;j<sleeves.length;j++)
     if(sleeves[i].assignment.part===sleeves[j].assignment.part&&Math.min(sleeves[i].endMm,sleeves[j].endMm)-Math.max(sleeves[i].startMm,sleeves[j].startMm)>TOLERANCE.point)
       requireExclusiveClaims(sleeves[i].assignment,sleeves[j].assignment);
-  const boundaries=sleeves.filter(context=>context.kind==='slice').map(context=>({...context,geometry:prepareContourSleeve({...context,machine,onProgress})}));
-  const trees=prepareSupportContexts({plan,machine,shells:componentShells?[...componentShells.values()]:placed?[placed]:[]});
+  const boundaries=sleeves.filter(context=>context.kind==='slice').map(context=>({...context,geometry:prepareContourSleeve({...context,onProgress})}));
+  const trees=prepareSupportContexts({plan,processForAssignment,shells:componentShells?[...componentShells.values()]:placed?[placed]:[]});
   return {
     bands:sleeves.map(s=>({part:s.assignment.part,startMm:s.startMm,endMm:s.endMm})),
     reserves:sites.map(site=>site.reservation),envelopes:sites.map(site=>site.reservation),
     constructions:sleeves.filter(context=>context.kind==='trace'),
-    additionalContexts:[...standardVaseContexts(boundaries,machine).map(record=>({...record,constructWork:constructVaseWork,providesSurface:true})),...trees],
-    work:weldWork(sites),workDependencies:(node,nodes)=>[...vaseDependencies(node,nodes),...weldDependencies(node,nodes)],
+    additionalContexts:[...standardVaseContexts(boundaries).map(record=>({...record,constructWork:constructVaseWork,providesSurface:true})),...trees],
+    work:weldWork(sites,processForAssignment),workDependencies:(node,nodes)=>[...vaseDependencies(node,nodes),...weldDependencies(node,nodes)],
     operationDependencies:operation=>weldOperationDependencies(sites,operation),
     finishResults:batch=>finishWeldResults(plan,sites,batch)
   };

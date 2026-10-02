@@ -1,7 +1,6 @@
 import {realpath,readFile} from 'node:fs/promises';
 import {resolve,basename,dirname,relative,isAbsolute,sep} from 'node:path';
 
-import {commitSTLImport} from '../core/print/import-stl.mjs';
 import {prepareSTLImport,releaseSTLImport} from '../core/geom/import-stl.mjs';
 
 
@@ -47,6 +46,7 @@ export async function importStudioSTL(library,bytes,{name,units,directory:destin
   try{for(let index=1;;index++){
     const directory=destination??resolve(actual,stem+(index===1?'':' '+index));
     try{
+      const {commitSTLImport}=await import('../core/print/import-stl.mjs');
       const {repaired}=await commitSTLImport(directory,candidate,{signal});
       return {directory,repaired,repairSummary:repaired?await loadStudioImportRepair(directory):null};
     }catch(error){if(destination||!error.importDestinationExists)throw error;}

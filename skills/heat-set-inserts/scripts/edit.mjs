@@ -1,11 +1,24 @@
-import {requireThat} from '../../../core/private/extensions/numeric.mjs';
-
 import {compileHeatSet} from './geometry.mjs';
 import {heatSetFeature,heatSetAssignmentId,legacyHeatSetAssignmentId} from './feature.mjs';
 import {heatSetSlices} from './slices.mjs';
-import {unwrapTextGeometry,rebuildTextGeometry} from '../../text/scripts/edit.mjs';
 
-export async function editHeatSet(source,request,{buildGeometry}){
+const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
+function unwrapTextGeometry(geometry){
+  const layers=[];let base=geometry;
+  while(base.shape==='text'&&base.base&&!base.standalone){layers.push(base);base=base.base;}
+  return {base,layers};
+}
+async function rebuildTextGeometry(base,layers,operations){
+  let rebuilt=base;
+  for(let i=layers.length-1;i>=0;i--){
+    const layer=layers[i];
+    requireThat(typeof operations.compileText==='function','Heat-set text needs the selected text extension compiler.');
+    rebuilt=await operations.compileText(rebuilt,layer.features,{...operations,toleranceMm:layer.toleranceMm,maxEdgeMm:layer.maxEdgeMm});
+  }
+  return rebuilt;
+}
+
+export async function editHeatSet(source,request,geometryOperations){
   requireThat(request&&Object.keys(request).every(k=>['feature','remove','part','toleranceMm'].includes(k)),'Unknown heat-set request field.');
   requireThat(Boolean(request.feature)!==Boolean(request.remove),'Supply one heat-set feature or remove id.');
   const plan=structuredClone(source),owner=request.part?plan.geometry.parts?.find(p=>p.id===request.part):plan;
@@ -24,8 +37,8 @@ export async function editHeatSet(source,request,{buildGeometry}){
     requireThat(next.insertId,'Choose an exact insertId from the heat-set manual size/profile table.');
     if(index>=0)features[index]=next;else features.push(next);
   }
-  const rebuilt=features.length?await compileHeatSet(base,features,{buildGeometry,toleranceMm:request.toleranceMm??old?.toleranceMm??0.01}):base;
-  owner.geometry=await rebuildTextGeometry(rebuilt,layers,{buildGeometry});
+  const rebuilt=features.length?await compileHeatSet(base,features,{...geometryOperations,toleranceMm:request.toleranceMm??old?.toleranceMm??0.01}):base;
+  owner.geometry=await rebuildTextGeometry(rebuilt,layers,geometryOperations);
   // Reinforcement is slice data: this part's heat-set owners are rewritten
   // ahead of every other slice assignment, so they claim their volumes first.
   const part=request.part??null;
@@ -40,7 +53,7 @@ export async function editHeatSet(source,request,{buildGeometry}){
     if(!owners.length){kept.push(assignment);continue;}
     const id=owners[0].id,ids=existingByFeature.get(id)??new Set();ids.add(assignment.id);existingByFeature.set(id,ids);
   }
-  plan.slices={...plan.slices,assignments:[...features.flatMap(f=>heatSetSlices(heatSetFeature(f),part,plan.process,
-    {existingIds:existingByFeature.get(f.id)??new Set()})),...kept]};
-  return {geometry:plan.geometry,assignments:plan.slices.assignments};
+  const assignmentRequests=[...features.flatMap(f=>heatSetSlices(heatSetFeature(f),part,plan.process,
+    {existingIds:existingByFeature.get(f.id)??new Set()})),...kept];
+  return {geometry:plan.geometry,assignmentRequests};
 }

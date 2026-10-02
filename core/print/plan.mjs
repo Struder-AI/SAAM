@@ -22,12 +22,12 @@ import {defaultSlices,validateSlices} from './slices.mjs';
 import {defaultModulations,validateModulations} from '../path/modulation.mjs';
 import {modulationGeometrySources} from '../path/modulation-field.mjs';
 import {assignmentPlan,depositionAssignments} from './assignment-process.mjs';
-import {filamentPlan} from '../machine/filaments.mjs';
+import {materialProcess} from '../machine/filaments.mjs';
 import {validateRecipeSetup} from './recipe-setup.mjs';
 
-export const VERSION = '0.1.0';
 // Fixed release metadata, so regenerating a reviewed plan is byte-identical.
-export const BUILD_DATE = '2026-09-08';
+import {VERSION} from './version.mjs';
+export {VERSION,BUILD_DATE} from './version.mjs';
 
 export const canonical = value => JSON.stringify(value, function (_key, item) {
   if (item && typeof item === 'object' && !Array.isArray(item)) return Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]]));
@@ -72,26 +72,26 @@ function freezeRecipe(value){
   }
   return value;
 }
-export function compileRecipe(plan,machine){
+export function compileRecipe(plan){
   const owned=ownedRecipes.get(plan);
-  if(owned?.machine===machine)return owned;
-  const identity=hash({plan,machine});
+  if(owned)return owned;
+  const identity=hash(plan);
   if(compiledRecipes.has(identity))return compiledRecipes.get(identity);
-  const value={plan:structuredClone(plan),machine:structuredClone(machine),identity};
-  validateRecipeValue(value.plan,value.machine);
+  const value={plan:structuredClone(plan),identity};
+  validateRecipeValue(value.plan);
   freezeRecipe(value);
   // Eviction only affects reuse, never which recipes are accepted.
   if(compiledRecipes.size>=4)compiledRecipes.delete(compiledRecipes.keys().next().value);
   compiledRecipes.set(identity,value);ownedRecipes.set(value.plan,value);return value;
 }
-export function validatePlan(plan,machine){compileRecipe(plan,machine);return plan;}
-function validateRecipeValue(plan,machine) {
-  const fields=validatePlanFields(plan,machine);
-  const geometry=validatePlanGeometry(fields,machine);
-  const process=validatePlanProcess(geometry,machine);
-  const auxiliary=validatePlanAuxiliary(process,machine);
-  const selections=validatePlanSelections(auxiliary,machine);
-  return validatePlanPlacement(selections,machine);
+export function validatePlan(plan){compileRecipe(plan);return plan;}
+function validateRecipeValue(plan) {
+  const fields=validatePlanFields(plan);
+  const geometry=validatePlanGeometry(fields);
+  const process=validatePlanProcess(geometry);
+  const auxiliary=validatePlanAuxiliary(process);
+  const selections=validatePlanSelections(auxiliary);
+  return validatePlanPlacement(selections);
 }
 
 // Authored forms (spline patches, meshes, assemblies of them) and the
@@ -102,22 +102,21 @@ export function depositionOnlyPlan(plan){
   return plan?.geometry===undefined&&plan.slices?.assignments?.length>0&&plan.slices.assignments.every(a=>['curves','inject'].includes(a.construction)||!a.construction&&a.surface?.kind==='terminal');
 }
 
-export function validatePlanFields(plan,machine) {
+export function validatePlanFields(plan) {
   requireThat_bundle(plan && typeof plan === 'object' && (depositionOnlyPlan(plan)||GEOMETRY_SHAPES.includes(plan.geometry?.shape)), `Author geometry (${GEOMETRY_SHAPES.join(', ')}) or a Trace/Inject recipe.`);
   // Validation is check-only: a plan carries every current field or it is
   // rejected. Supported older fields require explicit recipe migration and regeneration.
-  const {skills,...base}=defaults(machine);
+  const {skills,...base}=defaults();
   const expected = {...base,
     ...(Object.hasOwn(plan,'skills')?{skills:Object.fromEntries(Object.entries(skills).filter(([id])=>Object.hasOwn(plan.skills??{},id)))}:{}),
     ...(plan.geometry?{geometry:geometryTemplate(plan.geometry.shape,plan.geometry)}:{}),...(Object.hasOwn(plan,'workspace')?{workspace:plan.workspace}:{})};
   if(plan.workspace){
     requireThat_bundle(plan.workspace.schema==='saam-workspace-source/1'&&plan.workspace.source&&plan.workspace.requirements,'Invalid workspace construction source.');
     requireThat_bundle(plan.workspace.constructionIdentity===workspaceConstructionIdentity(plan),'This edit changes the workspace construction requirements. Regenerate the section in its workspace, or explicitly detach the workspace source before changing its construction.');
-    if(plan.workspace.requirements.axes===3)requireThat_bundle(machine.kinematics==='cartesian-fixed-vertical-nozzle','This workspace construction requires a fixed vertical nozzle and Cartesian XYZ motion.');
   }
   requireThat_bundle(!plan.composition||!Object.hasOwn(plan.composition,'batchLayers'),'composition.batchLayers is retired; explicitly migrate the recipe to ascending-height scheduling and regenerate.');
   keys({...plan,setup:null},{...expected,setup:null});
-  validateRecipeSetup(plan,machine);
+  validateRecipeSetup(plan);
   requireThat_bundle(typeof plan.experimental.substrateAdaptation==='boolean','experimental.substrateAdaptation must be true or false.');
   requireThat_bundle(plan.schema === expected.schema && plan.generatorVersion === VERSION, 'Unsupported plan or generator version.');
   requireThat_bundle(Array.isArray(plan.composition.order) && plan.composition.order.every(id=>typeof id==='string') && Array.isArray(plan.composition.dependencies) && plan.composition.dependencies.every(e=>e && typeof e.before==='string' && typeof e.after==='string' && Object.keys(e).sort().join()==='after,before'), 'Invalid composition rules.');
@@ -128,7 +127,7 @@ export function validatePlanFields(plan,machine) {
     const key=Object.hasOwn(route,'part')?'part':'assignment',target=route[key];
     requireThat_bundle(typeof target==='string'&&target.length>0||key==='part'&&target===null,'Invalid filament routing target.');
     const identity=key+':'+target;requireThat_bundle(!routes.has(identity),'Duplicate filament routing target.');routes.add(identity);
-    validateRecipeSetup(filamentPlan(plan,machine,route.filament),machine);
+    validatePlanProcess({...plan,process:materialProcess(plan,route.filament)});
   }
 
   return plan;
@@ -138,7 +137,7 @@ export function workspaceConstructionIdentity(plan){
   return hash({geometry:plan.geometry,slices:plan.slices,skills:plan.skills,modulations:plan.modulations,composition:plan.composition,experimental:plan.experimental,layerMm:plan.process.layerMm,firstLayerMm:plan.process.firstLayerMm,lineWidthMm:plan.process.lineWidthMm});
 }
 
-export function validatePlanGeometry(plan,machine) {
+export function validatePlanGeometry(plan) {
   const {geometry,placement,setup}=plan;
   if(!geometry)requireThat(Object.values(plan.skills??{}).every(settings=>!settings.enabled),'Geometry-free deposition cannot enable geometry-dependent skills.');
   if(!geometry)return plan;
@@ -185,6 +184,8 @@ export function validatePlanProcess(plan) {
     'planarSpeedMmS','skinSpeedMmS','firstLayerSpeedMmS','travelSpeedMmS','zSpeedMmS'])positive(process[key],key);
   for(const key of ['retractMm','liftMm','maxCombMm','minimumLayerSeconds'])
     requireThat_toolpath(Number.isFinite(process[key])&&process[key]>=0,`${key} must be nonnegative and finite.`);
+  requireThat_toolpath(Number.isFinite(process.planarWallToleranceMm)&&process.planarWallToleranceMm>=0,
+    'planarWallToleranceMm must be nonnegative and finite.');
   number(process.fanPercent, 0, 100, 'fanPercent');
   if(process.primeLine!==null){
     const p=process.primeLine;
@@ -203,12 +204,12 @@ export function validatePlanProcess(plan) {
   return plan;
 }
 
-export function validatePlanAuxiliary(plan,machine) {
-  validateExtensionRecipe(plan,machine);
+export function validatePlanAuxiliary(plan) {
+  validateExtensionRecipe(plan,assignment=>assignmentPlan(plan,assignment).process);
   return plan;
 }
 
-export function validatePlanSelections(plan,machine) {
+export function validatePlanSelections(plan) {
   const {geometry,placement,skills}=plan;
   const sliced=plan.slices.assignments.length>0;
   // A slice part is a geometry selection: a component or a prepared material
@@ -219,8 +220,8 @@ export function validatePlanSelections(plan,machine) {
   for(const id of extensionProducerIds(plan))producerIds.add(id);
   for(const route of plan.composition.filaments)requireThat_toolpath(Object.hasOwn(route,'part')?selections.has(route.part):producerIds.has(route.assignment),'Filament routing names an absent part or deposition assignment.');
   for(const assignment of depositionAssignments(plan)){
-    const selected=assignmentPlan(plan,machine,assignment);
-    validatePlanProcess(selected);validateRecipeSetup(selected,machine);
+    const selected=assignmentPlan(plan,assignment);
+    validatePlanProcess(selected);
 
   }
   validateModulations(plan.modulations,{assignmentIds:plan.slices.assignments.map(a=>a.id)});
@@ -237,11 +238,11 @@ export function validatePlanSelections(plan,machine) {
       requireThat_toolpath(part.geometry?.shape!=='assembly','Nested assemblies are not supported.');
       requireThat_toolpath([part.xMm,part.yMm,part.zMm].every(Number.isFinite),'Component placement must be finite XYZ.');
       const assigned=depositionAssignments(plan).find(a=>a.part===part.id);
-      const child=structuredClone(assignmentPlan(plan,machine,assigned??{part:part.id}));child.geometry=part.geometry;
+      const child=structuredClone(assignmentPlan(plan,assigned??{part:part.id}));child.geometry=part.geometry;
       child.placement={xMm:placement.xMm+part.xMm,yMm:placement.yMm+part.yMm};
       // Global assignment/process/dependency validation has already run. Only
       // this component's geometry and placement change in the local check.
-      validatePlanFields(child,machine);validatePlanGeometry(child,machine);validatePlanPlacement(child,machine);
+      validatePlanFields(child);validatePlanGeometry(child);validatePlanPlacement(child);
     }
   }
   requireThat_toolpath(sliced, 'Add a slice assignment.');
@@ -252,7 +253,7 @@ export function validatePlanSelections(plan,machine) {
   return plan;
 }
 
-export function validatePlanPlacement(plan,machine) {
+export function validatePlanPlacement(plan) {
   const {placement}=plan;
   requireThat_bundle(typeof plan.output==='string'&&plan.output.length>0,'Output identity must be nonempty.');
   requireThat_bundle(Number.isFinite(placement.xMm)&&Number.isFinite(placement.yMm),'Placement must be finite.');

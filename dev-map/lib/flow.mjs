@@ -11,28 +11,17 @@ import {extractGraph,sourceFiles} from './graph.mjs';
 import {projectGraph,select} from './projection.mjs';
 import {classify,functionAt,iterationMethods} from './shapes.mjs';
 import {importAliases,scanRoots} from './scope.mjs';
+import {scopeTree} from './lexical-bindings.mjs';
 
 const functions=new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
 const kids=n=>Object.entries(n).flatMap(([k,v])=>['loc','start','end'].includes(k)?[]:Array.isArray(v)?v.filter(x=>x?.type):v?.type?[v]:[]);
-// Every name a file binds anywhere: declarations, parameters, imports, catch clauses. A name it
-// never binds is a platform global (`Math`, `JSON`, `console`), which holds no mapped state.
-const boundNames=new WeakMap();
-function namesBoundIn(ast) {
-  if(boundNames.has(ast))return boundNames.get(ast);
-  const names=new Set();
-  const pattern=p=>{if(!p)return;if(p.type==='Identifier')names.add(p.name);else if(p.type==='ObjectPattern')p.properties.forEach(q=>pattern(q.value??q.argument));
-    else if(p.type==='ArrayPattern')p.elements.forEach(pattern);else if(p.type==='RestElement')pattern(p.argument);else if(p.type==='AssignmentPattern')pattern(p.left);};
-  (function walk(n){
-    if(n.type==='VariableDeclarator')pattern(n.id);
-    if(functions.has(n.type)||n.type==='ClassDeclaration'||n.type==='ClassExpression')pattern(n.id);
-    if(functions.has(n.type))n.params.forEach(pattern);
-    if(n.type==='CatchClause')pattern(n.param);
-    if(['ImportSpecifier','ImportDefaultSpecifier','ImportNamespaceSpecifier'].includes(n.type))pattern(n.local);
-    kids(n).forEach(walk);
-  })(ast);
-  boundNames.set(ast,names);return names;
+const fileBindings=new WeakMap();
+function fileBindingOf(ast){
+  if(!fileBindings.has(ast))fileBindings.set(ast,scopeTree(ast).binding);
+  return fileBindings.get(ast);
 }
 const writingStatics=new Set(['assign','defineProperty','defineProperties','setPrototypeOf']);
+const pureMathMethods=new Set(['abs','round']);
 // Methods of the built-in collections and strings that read their receiver and never write it.
 const readingMethods=new Set(['at','concat','entries','every','filter','find','findIndex','findLast','findLastIndex','flat','flatMap',
   'get','has','includes','indexOf','join','keys','lastIndexOf','map','slice','some','toSorted','toReversed','values','with',
@@ -94,53 +83,6 @@ const patternIds=(n,out=[])=>{
   return out;
 };
 const patternNames=n=>patternIds(n).map(id=>id.name);
-
-// Scopes inside the body being read, so def-use follows bindings rather than names: a name
-// redeclared in a nested block or callback is a second binding and carries nothing from the first.
-function scopeTree(fn) {
-  const scopeOf=new WeakMap(),blocks=new Set(['BlockStatement','ForStatement','ForOfStatement','ForInStatement','SwitchStatement','CatchClause','StaticBlock','ClassBody']);
-  let seq=0;
-  const make=(parent,kind)=>({parent,kind,names:new Map()});
-  const fnScope=s=>{while(s.kind!=='function')s=s.parent;return s;};
-  const declare=(s,name)=>{if(!s.names.has(name))s.names.set(name,{id:`b${++seq}`,name});return s.names.get(name);};
-  const hoistVars=(n,s)=>{
-    if(functions.has(n.type))return;
-    if(n.type==='VariableDeclaration'&&n.kind==='var')for(const d of n.declarations)for(const v of patternNames(d.id))declare(fnScope(s),v);
-    for(const c of kids(n))hoistVars(c,s);
-  };
-  function declarations(n,s) {
-    if(n.type==='FunctionDeclaration'&&n.id)declare(s,n.id.name);
-    if(n.type==='VariableDeclaration'&&n.kind!=='var')for(const d of n.declarations)for(const v of patternNames(d.id))declare(s,v);
-    if(n.type==='ClassDeclaration'&&n.id)declare(s,n.id.name);
-  }
-  function walk(n,s) {
-    if(functions.has(n.type)) {
-      const inner=make(s,'function');
-      for(const p of n.params)for(const v of patternNames(p))declare(inner,v);
-      if(n.id&&n.type!=='FunctionDeclaration')declare(inner,n.id.name);
-      scopeOf.set(n,inner);
-      for(const c of kids(n))hoistVars(c,inner);
-      for(const c of kids(n))walk(c,inner);
-      return;
-    }
-    let inner=s;
-    if(blocks.has(n.type)) {
-      inner=make(s,'block');
-      if(n.type==='CatchClause')for(const v of patternNames(n.param))declare(inner,v);
-      for(const c of kids(n))declarations(c,inner);
-      for(const c of [n.body?.body,n.consequent].find(Array.isArray)??[])declarations(c,inner);
-    }
-    scopeOf.set(n,inner);
-    for(const c of kids(n))walk(c,inner);
-  }
-  const root=make(null,'function');
-  for(const p of fn.params)for(const v of patternNames(p))declare(root,v);
-  scopeOf.set(fn,root);
-  for(const c of kids(fn))hoistVars(c,root);
-  for(const c of kids(fn))walk(c,root);
-  const find=(s,name)=>!s?null:s.names.get(name)??find(s.parent,name);
-  return {binding:node=>node?.type==='Identifier'?find(scopeOf.get(node)??root,node.name):null,parameter:name=>root.names.get(name)??null};
-}
 
 // Which test stands between the enclosing code and this child, in the test's own words.
 function optionalCallGate(n,text) {
@@ -472,6 +414,7 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
   const display=n=>synthetic.get(n)??src(text,n);
   const sourceSite=n=>({file:node.file,line:n.loc.start.line,column:n.loc.start.column+1,start:n.start,end:n.end});
   const ast=asts?.get(node.file)??parse(text,{ecmaVersion:'latest',sourceType:'module',locations:true});
+  const fileBinding=fileBindingOf(ast);
   const head=n=>({handle:n.handle,path:n.path,label:n.label,foot:foot(n),file:n.file,line:n.line,endLine:n.endLine,
     lines:n.endLine-n.line+1,kind:n.kind});
 
@@ -1353,18 +1296,22 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
         if(s.type==='CallExpression') {
           let receiver=s.callee.type==='MemberExpression'&&s.callee.object.type==='Identifier'?s.callee.object:null;
           // `Object.assign(target,…)` and its kin write their first argument, not `Object`.
-          if(receiver?.name==='Object'&&writingStatics.has(namedMember(s.callee))&&!namesBoundIn(ast).has('Object'))
+          if(receiver?.name==='Object'&&writingStatics.has(namedMember(s.callee))&&!fileBinding(receiver))
             receiver=s.arguments[0]?.type==='Identifier'?s.arguments[0]:receiver;
           if(receiver) {
             const collection=collectionOf(env.get(key(receiver))),operation=namedMember(s.callee),spec=collectionCallSpec(s,env);
-            // Whose object the call reaches, as for a member write: this body's own binding, a
-            // parameter, a binding from outside it, or a platform global the file never binds.
-            const bound=binding(receiver);
-            const ownership=collection?'local':ports.has(key(receiver))||bound&&parameter(receiver.name)===bound?'parameter'
-              :bound?'local':namesBoundIn(ast).has(receiver.name)?'outer':'global';
-            uncertain(spec?'nested-collection-effect':'nested-receiver-effect',s,{receiver:receiver.name,operation,
-              ownership,...(readingMethods.has(operation)?{reads:true}:{}),
-              ...(collection?{collection:collection.kind}:{}),...(!spec?{effectUnknown:true}:{})});
+            // These exact platform operations have no receiver state to transfer.
+            // Resolve the identifier at this site: a locally shadowed Math is not the platform.
+            if(!(receiver.name==='Math'&&!fileBinding(receiver)&&pureMathMethods.has(operation))){
+              // Whose object the call reaches, as for a member write: this body's own binding, a
+              // parameter, a binding from outside it, or a platform global this scope never binds.
+              const bound=binding(receiver);
+              const ownership=collection?'local':ports.has(key(receiver))||bound&&parameter(receiver.name)===bound?'parameter'
+                :bound?'local':fileBinding(receiver)?'outer':'global';
+              uncertain(spec?'nested-collection-effect':'nested-receiver-effect',s,{receiver:receiver.name,operation,
+                ownership,...(readingMethods.has(operation)?{reads:true}:{}),
+                ...(collection?{collection:collection.kind}:{}),...(!spec?{effectUnknown:true}:{})});
+            }
           }
         }
         for(const child of kids(s))footprint(child);

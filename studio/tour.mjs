@@ -5,7 +5,6 @@ import {resolve,dirname,relative,sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash,randomUUID} from 'node:crypto';
 import {TOUR_VERSION,TOUR_DECK_VERSION,TOUR_DEMOS,TOUR_STEPS,TOUR_LESSONS as L,tourAgentInstruction} from './tour-catalog.mjs';
-import {starterPlan} from '../examples/prints/starter/recipe.mjs';
 import {demos} from '../examples/prints/create.mjs';
 
 import {createAgentRequests,workSnapshot} from './agent-requests.mjs';
@@ -62,7 +61,8 @@ export function referenceAdapter(live){
     rememberSetup:live.rememberSetup,
     root:live.root,
     updatePlan:live.updatePlan,
-    restoreRevision:live.restoreRevision
+    restoreRevision:live.restoreRevision,
+    withBundleInstance:live.withBundleInstance
   };
 }
 export async function useExample(directory){try{await unlink(resolve(directory,'.tour-reference.json'));}catch(e){if(e.code!=='ENOENT')throw e;}}
@@ -87,9 +87,9 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
     const title=id==='starter'?'handle':id==='surface-drape'?'wavy-roof':id;
     let name=title,index=1,directory;
     for(;;){directory=resolve(base,name);try{await mkdir(directory);break;}catch(e){if(e.code!=='EEXIST')throw e;name=title+'-'+(++index);}}
-    const recipe=id==='starter'?{plan:starterPlan,machineId:'ultimaker-s5'}:demos[id];
+    const recipe=id==='starter'?{plan:async()=>(await import('../examples/prints/starter/recipe.mjs')).starterPlan(),machineId:'ultimaker-s5'}:demos[id];
     const {initBundle}=await import('../core/print/bundle.mjs');
-    await initBundle(directory,recipe.plan(),{machineId:recipe.machineId});
+    await initBundle(directory,await recipe.plan(),{machineId:recipe.machineId});
     await save(resolve(directory,'.tour-reference.json'),{id,version:TOUR_VERSION});data.copies[id]=name;return directory;
   }
   async function signature(data){

@@ -1,5 +1,5 @@
 import {requireThat,distance} from '../private/export/numeric.mjs';
-import {checkedMachinePath} from './prepare-path.mjs';
+import {prepareExportPath} from './prepare-path.mjs';
 // Bounded Dobot adapter, sharing SAAMpath, ZIP integrity and bundle lifecycle.
 // The adopted Lua runtime executes the actual delivered helper/entry/body files.
 // Cartesian command space only: this is not robot IK or a measured flow model.
@@ -13,7 +13,7 @@ export {motionProfile,DOBOT_LIMITATIONS} from './dobot-player.mjs';
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
 export function exportDobot(path,plan,machine,release={}){
-  path=checkedMachinePath(path,plan,machine);
+  path=prepareExportPath(path,plan,machine);
   const c=config(plan,machine);
   requireThat(equal(path.initialPosition,c.initialPositionMm),'Dobot initial position differs from the locked external start pose.');
   inside(transform(path.initialPosition,c),c);

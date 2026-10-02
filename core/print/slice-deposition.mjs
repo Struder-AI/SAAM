@@ -80,7 +80,7 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
   return declared.map(({defaults,...node})=>({...node,requires:[...new Set([...node.requires,...defaults.filter(key=>!dependsOn(key,node.key))])]}));
 }
 
-export function constructDepositionWork(node,completed,{plan,machine,onProgress,shells=[]}){
+export function constructDepositionWork(node,completed,{plan,onProgress,shells=[]}){
   const substrateAdaptation=plan.experimental.substrateAdaptation;
   const required=new Set();
   const collect=key=>{if(required.has(key))return;required.add(key);for(const prior of completed.get(key)?.node.requires??[])collect(prior);};
@@ -89,7 +89,7 @@ export function constructDepositionWork(node,completed,{plan,machine,onProgress,
   const prerequisiteIds=key=>{const prior=completed.get(key);return prior.result.operations.length?prior.result.operations.map(op=>op.id):prior.node.requires.flatMap(prerequisiteIds);};
   const after=[...new Set(node.requires.flatMap(prerequisiteIds))];
   let result;
-  if(node.construct)result=node.construct({node,predecessors,samePart,after,plan,machine,onProgress,substrateAdaptation});
+  if(node.construct)result=node.construct({node,predecessors,samePart,after,plan,onProgress,substrateAdaptation});
   else if(node.kind==='slice'&&node.record.reference?.kind==='terminal'){
     const record=node.record,sourceParts=samePart.filter(item=>item.node.sourceId===record.reference.source).map(item=>item.result),sourceResult=sourceParts.length?combineFinalizedResults({...sourceParts.at(-1),levelBoundary:sourceParts.find(r=>r.levelBoundary)?.levelBoundary},sourceParts):null;
     const sourceAssignment=plan.slices.assignments.find(assignment=>assignment.id===record.reference.source);
@@ -125,9 +125,9 @@ export function constructDepositionWork(node,completed,{plan,machine,onProgress,
     result=sliceContextResult(record,{layerIndex:node.index,contactSegments:contacts,contactFragments,predecessorReference,seedSegments,substrateAdaptation,requiredContact:node.first&&record.contact?.source!==null&&record.contact?.source!==undefined});
   }else if(node.kind==='trace'){
     const results=predecessors.map(item=>item.result);
-    result=curveAssignmentResult(node.context.assignment,{plan,machine,modelResults:results,
+    result=curveAssignmentResult(node.context.assignment,{plan,modelResults:results,
       references:depositionReferences(shells,results)});
-  }else if(node.kind==='inject')result=injectionResult(node.context.assignment,{plan,machine});
+  }else if(node.kind==='inject')result=injectionResult(node.context.assignment,{plan});
   else throw new Error(`Unsupported deposition construction ${node.kind}.`);
   const assignment=node.kind==='slice'?node.record.spec.settings:node.context.assignment;
   const motionIntent=assignment.toolPose?{kind:'derived-pose',alignToSliceNormal:assignment.toolPose.alignToSliceNormal}:null;
@@ -155,7 +155,7 @@ export function finalizedSliceResults(args){
       const raw=constructDepositionWork(node,completed,args),parts=raw.operations.map(sourceOperation=>{
         const operation=state.selections&&/^planar:[\d.e+-]+$/.test(sourceOperation.layerId)?{...sourceOperation,layerId:'planar:'+Number(Number(sourceOperation.layerId.slice(7)).toFixed(5))}:sourceOperation;
         const eligible=node.kind==='slice'&&['nearest','nearest-cells'].includes(operation.order)&&!operation.strokes.some(stroke=>matchingModulations(raw,stroke.role,args.plan.modulations,operation).length||stroke.motionIntent||stroke.poses);
-        const result=eligible||node.context?.assignment.sequence||node.context?.assignment.curves?.some(c=>c.contact)?{...raw,operations:[operation]}:finalizeDepositionResult({...raw,operations:[operation]},args.plan,args.machine);
+        const result=eligible||node.context?.assignment.sequence||node.context?.assignment.curves?.some(c=>c.contact)?{...raw,operations:[operation]}:finalizeDepositionResult({...raw,operations:[operation]},args.plan);
         return {result,eligible,operation:result.operations[0],done:false};
       });
       prepared.set(node.key,{node,raw,parts});
@@ -179,7 +179,7 @@ export function finalizedSliceResults(args){
     if(!layerIndices.has(layerId))layerIndices.set(layerId,layerIndices.size);
     const effective=state.selections?{...op,layerId,layer:layerIndices.get(layerId)}:op;
     const entered=planOperationEntry(state,effective,elapsed.get(op.layerId)??0);
-    const finalized=chosen.part.eligible?finalizeDepositionResult(chosen.part.result,args.plan,args.machine,{entryPosition:entered.state.position}):chosen.part.result;
+    const finalized=chosen.part.eligible?finalizeDepositionResult(chosen.part.result,args.plan,{entryPosition:entered.state.position}):chosen.part.result;
     const material=finalized.operations[0],finished={...material,after:[...new Set([...(material.after??[]),...(args.operationDependencies?.(material)??[])])]};
     const planned=planPreparedOperation(entered.state,state.selections?{...finished,layerId,layer:effective.layer}:finished,{deposited});
     state=planned.state;actions.add(entered.actions);actions.add(planned.actions);elapsed.set(op.layerId,planned.operationSeconds);layerIds.add(op.layerId);last=finished;

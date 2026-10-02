@@ -1,8 +1,8 @@
 import {dot,normalize,subtract,scale,distance,requireThat} from '../private/toolpath/numeric.mjs';
 // Derive optional Slice orientation output. Machine compatibility belongs to export.
 
-import {strokeRange} from '../path/deposition.mjs';
-import {validatePose,uprightPose} from '../path/pose.mjs';
+import {strokeRange} from './deposition.mjs';
+import {validatePose,uprightPose} from './pose.mjs';
 
 // A press is a metered, stationary-XY down-and-return action inside an
 // attachment layer. It is not a steep surface-following deposition curve.

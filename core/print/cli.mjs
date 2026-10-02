@@ -2,7 +2,7 @@ import {applyExtensionEdit} from './extension-edits.mjs';
 // Every command uses the same print bundle; Studio previews the checked export.
 import {readFile,access} from 'node:fs/promises';
 import {resolve} from 'node:path';
-import {root,initBundle,loadBundle,generateBundle,generateToolpath,restoreRevision,adjustBundle,deliver,checkPathBundle,migrateBundle} from './bundle.mjs';
+import {root,initBundle,loadBundle,generateBundle,generateToolpath,restoreRevision,adjustBundle,deliver,checkPathBundle,migrateBundle,bundleInstance,recoverBundleInstance} from './bundle.mjs';
 import {changeMachine,rememberSetup,adjustSettings} from '../machine/bundle-settings.mjs';
 import {SETTINGS_FIELDS} from '../machine/settings.mjs';
 import {createSTLBundle,setSTLUnits} from './import-stl.mjs';
@@ -44,6 +44,11 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(report(await generateToolpath(bundleDirectory())));
     } else if(command==='migrate') {
       console.log(JSON.stringify(await migrateBundle(bundleDirectory()),null,2));
+    } else if(command==='instance-status') {
+      const instance=await bundleInstance(bundleDirectory());
+      console.log(JSON.stringify(instance?{instanceId:instance.instanceId,ownerId:instance.ownerId,pid:instance.pid,startedAt:instance.startedAt}:null,null,2));
+    } else if(command==='recover-instance') {
+      console.log(JSON.stringify(await recoverBundleInstance(bundleDirectory()),null,2));
     } else if(command==='blob-field-create'||command==='blob-field-update') {
       if(!argument)throw new Error('Use blob-field-create|blob-field-update <print-directory> <blob-field-request.json> [machine-id | --revision <revision>].');
       const request=await readJson(resolve(argument));
@@ -114,6 +119,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.error('       cli.mjs init|migrate|demo|generate|check|deliver|remember-setup [print-directory] [plan.json]');
       console.error('       cli.mjs undo|redo <print-directory> --revision <revision>');
       console.error('       cli.mjs toolpath <print-directory> (save completed SAAMpath without export)');
+      console.error('       cli.mjs instance-status|recover-instance <print-directory>');
       console.error('       cli.mjs adjust <print-directory> <patch.json> [--revision <revision>]');
       console.error('       cli.mjs change-machine <print-directory> <machine-id> [--revision <revision>]');
       console.error('       cli.mjs text <print-directory> <text-request.json> [--revision <revision>]');

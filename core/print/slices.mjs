@@ -39,7 +39,6 @@ import {CONNECT_MOVE_MM} from '../path/planning.mjs';
 import { lineSpacing } from '../path/spacing.mjs';
 import { planarPolicy, surfacePolicy } from '../path/builder.mjs';
 import { publishFinishedBoundary } from '../path/finished-surface.mjs';
-import { planarWallTolerance } from '../machine/rules.mjs';
 
 export const SLICE_VERSION = 1;
 // The normal case: two loops, 20% fill, three solid layers top and bottom.
@@ -459,7 +458,7 @@ function sliceTravelPolicy(slice, region, worldRegion, maxZ, process) {
 // One owner's operations from its owned layers. spec: {id, settings, layers,
 // material?: Map(index -> sliced material) for solid masks (the layers' own
 // regions when absent), solidRegions?: Map(index -> loops) always filled
-// solid, filament}; context: {process, machine, shell, startMm, endMm, report}.
+// solid, filament}; context: {process, shell, startMm, endMm, report}.
 // A support preset's operations are sacrificial: support roles, the supports
 // phase and no finished boundary.
 // One evaluated region-course boundary for cut regions and reference families.
@@ -490,8 +489,8 @@ export function joinSliceFamily({id,family,process,filament=null,firstHeightMm,l
   return {curve,operations:operations.map(operation=>({...operation,layerIndex:0,layerCount:family.layers.length,stackDirection:family.direction??[0,0,1]}))};
 }
 
-export function sliceResult({ id, settings, layers, material = null, solidRegions = new Map(), filament = null,totalLayerCount=layers.length,contactSegments=[],otherFamilyContactSegments=[],seedSegments=[],contactFragments=[],predecessorReference=null,predecessorRegions=new Map(),substrateAdaptation=false,requiredContact=false }, { process, machine, shell, startMm, endMm,maxBeadHeightMm=Infinity,report: extra = {} }) {
-  const width = process.lineWidthMm, pitch = lineSpacing(width, settings), wallToleranceMm = planarWallTolerance(machine);
+export function sliceResult({ id, settings, layers, material = null, solidRegions = new Map(), filament = null,totalLayerCount=layers.length,contactSegments=[],otherFamilyContactSegments=[],seedSegments=[],contactFragments=[],predecessorReference=null,predecessorRegions=new Map(),substrateAdaptation=false,requiredContact=false }, { process, shell, startMm, endMm,maxBeadHeightMm=Infinity,report: extra = {} }) {
+  const width = process.lineWidthMm, pitch = lineSpacing(width, settings), wallToleranceMm = process.planarWallToleranceMm;
   const support = settings.preset === 'support', solidDensity = support ? SUPPORT_INTERFACE_DENSITY : 1;
   const masked = settings.fillDensity < 1 && (settings.solidTop > 0 || settings.solidBottom > 0 || solidRegions.size > 0);
   const maskLayers = material ? [...material].map(([index, region]) => ({ index, region })) : layers;
@@ -595,15 +594,15 @@ export function normalBandCourses(assignments){
   return new Map();
 }
 
-export function prepareSliceContexts({ plan, machine, shells, volumes, bands, reserves, envelopes = [],surfaceAssignments=[],referenceAssignments=[],terminalAssignments=[], onProgress }) {
+export function prepareSliceContexts({ plan, shells, volumes, bands, reserves, envelopes = [],surfaceAssignments=[],referenceAssignments=[],terminalAssignments=[], onProgress }) {
   const lowered=new Map(surfaceAssignments.map(input=>[input.assignment.id,{assignment:resolveSurfaceDomain(input),contact:input.assignment.contact,survey:input.survey}]));
   const assignments = depositionAssignments(plan,{expandParts:false}).flatMap(a=>lowered.has(a.id)?[{...lowered.get(a.id).assignment,filament:a.filament}]:!a.construction&&a.surface?.kind!=='terminal'&&a.stack?.direction!=='normal'?[a]:[]);
 
   if(!assignments.length&&!referenceAssignments.length&&!terminalAssignments.length)return {contexts:[]};
-  const processes = assignments.map(a => assignmentPlan(plan,machine,a).process);
+  const processes = assignments.map(a => assignmentPlan(plan,a).process);
   const materials=assignments.flatMap(a=>shells.filter(([part,,whole])=>a.part===null?whole:part===a.part).map(([part])=>{
     const selected={...a,part,filament:assignmentFilament(plan,{...a,part})};
-    return {id:a.id,part,filament:selected.filament,process:assignmentPlan(plan,machine,selected).process};
+    return {id:a.id,part,filament:selected.filament,process:assignmentPlan(plan,selected).process};
   }));
   const owners = sliceOwners(assignments, { shells, processes, materials, volumes, placement: plan.placement, selections: plan.geometry?geometrySelections(plan.geometry):new Map() });
   // Outward normal families meet their source solid at its surface. Inward
@@ -631,7 +630,7 @@ export function prepareSliceContexts({ plan, machine, shells, volumes, bands, re
       ...(owner.kind === 'support' ? { contactZMm: owner.contactZMm, actualTopGapMm: owner.contactZMm - Math.max(...layers.filter(l => l.region.length).map(l => l.slice.origin[2])) } : {}) };
     const resultId = familyId === owner.id ? owner.id : `${owner.id}:shared:${familyId}`;
     const maxBeadHeightMm=Infinity;
-    contexts.push({contact:assignment.contact?{...assignment.contact,predecessorReference:translateSlice(layers[0].slice,layers[0].direction.map(v=>-v*layers[0].translationMm))}:null,spec:{id:resultId,settings:assignment,layers,material,solidRegions,filament:assignment.filament,totalLayerCount:layers.length,predecessorRegions:new Map(layers.map(layer=>[layer.index,layers.find(previous=>previous.index===layer.index-1)?.region??[]]))},context:{process,machine,shell:owner.publicationShell??owner.shell,startMm:owner.startMm,endMm:owner.endMm,maxBeadHeightMm,report},family,owner,familyId,
+    contexts.push({contact:assignment.contact?{...assignment.contact,predecessorReference:translateSlice(layers[0].slice,layers[0].direction.map(v=>-v*layers[0].translationMm))}:null,spec:{id:resultId,settings:assignment,layers,material,solidRegions,filament:assignment.filament,totalLayerCount:layers.length,predecessorRegions:new Map(layers.map(layer=>[layer.index,layers.find(previous=>previous.index===layer.index-1)?.region??[]]))},context:{process,shell:owner.publicationShell??owner.shell,startMm:owner.startMm,endMm:owner.endMm,maxBeadHeightMm,report},family,owner,familyId,
       layerOrder:layers.map(layer=>({index:layer.index,rank:sliceRank(layer.slice,owner.shell.bounds)}))});
   }
   const normalOwnership=normalBandCourses(referenceAssignments);
@@ -641,7 +640,7 @@ export function prepareSliceContexts({ plan, machine, shells, volumes, bands, re
     contexts.push({spec:{id,settings:assignment,layers:[],filament:assignment.filament},
       reference:{selection:assignment.surface,source:assignment.contact?.source??null},
       regionField:{kind:'periodic-cells',settings:{...assignment,normalMm:assignment.stack.layerMm,firstLayerMm:assignment.stack.firstLayerMm,shells:Math.ceil((assignment.within[0].toMm-assignment.within[0].fromMm)/assignment.stack.layerMm),fromMm:assignment.within[0].fromMm,toMm:assignment.within[0].toMm,directions:assignment.fillOrder.directions,toleranceMm:assignment.fillOrder.toleranceMm,offsetTightness:assignment.fillOrder.offsetTightness},...(ownership?{courses:ownership.courses}:{})},
-      context:{shell,process,machine,maxBeadHeightMm:Infinity,
+      context:{shell,process,maxBeadHeightMm:Infinity,
         report:{owner:id,part:assignment.part,referenceFamily:'normal',...(ownership?{normalOwnership:{principal:ownership.principal,courseCount:ownership.courses.length,courses:ownership.courses}}:{})}},
       owner:{id,assignment,part:assignment.part,...(ownership?{ownershipGroup:'normal:'+ownership.principal}:{})},familyId:ownership?.principal??id,
       family:{constructTogether:!ownership,region:{kind:'normal-band',selection:assignment.surface,fromMm:assignment.within[0].fromMm,toMm:assignment.within[0].toMm},layers:[]},
@@ -650,7 +649,7 @@ export function prepareSliceContexts({ plan, machine, shells, volumes, bands, re
   for(const {assignment,shell,process} of terminalAssignments){
     const id=assignment.id;
     contexts.push({spec:{id,settings:assignment,layers:[],filament:assignment.filament},reference:{kind:'terminal',source:assignment.surface.assignment},
-      regionField:{kind:'boundary-offsets',settings:assignment},context:{shell,process,machine,report:{owner:id,part:assignment.part,referenceFamily:'terminal',steps:assignment.loops}},
+      regionField:{kind:'boundary-offsets',settings:assignment},context:{shell,process,report:{owner:id,part:assignment.part,referenceFamily:'terminal',steps:assignment.loops}},
       owner:{id,assignment,part:assignment.part},familyId:id,family:{layers:[]},
       layerOrder:assignment.loops.map((count,index)=>({index,rank:(shell?.bounds.max[2]??0)+(index+1)*process.layerMm}))});
   }

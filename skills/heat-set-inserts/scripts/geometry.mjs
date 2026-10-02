@@ -1,10 +1,10 @@
-import {requireThat} from '../../../core/private/extensions/numeric.mjs';
-import {constructSolids} from '../../../core/geom/solid-operations.mjs';
-import {topAt} from '../../../core/geom/query.mjs';
-
 import {heatSetFeature,dimensions,heatSetTemplate,heatSetDigest} from './feature.mjs';
 
-export async function compileHeatSet(base,features,{buildGeometry,toleranceMm=0.01}={}){
+const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
+
+export async function compileHeatSet(base,features,{buildGeometry,constructSolids,topAt,toleranceMm=0.01}={}){
+  requireThat([buildGeometry,constructSolids,topAt].every(value=>typeof value==='function'),
+    'Heat-set needs Geometry buildGeometry, constructSolids and topAt operations.');
   const normalized=features.map(heatSetFeature),shell=buildGeometry(base);
   requireThat(normalized.length>0,'Choose at least one heat-set feature.');
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0,'Invalid heat-set tolerance.');

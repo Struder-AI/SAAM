@@ -24,14 +24,14 @@ export function standardVaseResult(record,{foundationSegments=[],substrateAdapta
   return settings.meshSleeve?result:publishFinishedBoundary(result,{shell,boundary:'side',startMm:geometry.base,endMm:geometry.end-(settings.endTransition==='level'?0:process.layerMm),toleranceMm:settings.boundaryToleranceMm});
 }
 
-export function standardVaseContexts(boundaryAssignments,machine){
+export function standardVaseContexts(boundaryAssignments){
   const contexts=[];
   for(const {assignment,shell,process,geometry} of boundaryAssignments){
     requireThat(geometry,'A boundary family needs prepared geometry from its producer.');
     const id=assignment.id;
     const family={...geometry.family(),constructTogether:true};
     contexts.push({spec:{id,settings:assignment,layers:family.layers,filament:assignment.filament},
-      context:{shell,process,machine,geometry,startMm:geometry.base,endMm:geometry.end,
+      context:{shell,process,geometry,startMm:geometry.base,endMm:geometry.end,
         maxBeadHeightMm:Infinity,
         report:{owner:id,part:assignment.part,construction:'sleeve'}},
       owner:{id,assignment,part:assignment.part},familyId:id,family,

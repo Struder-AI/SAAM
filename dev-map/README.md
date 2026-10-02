@@ -2,8 +2,7 @@
 
 Implementation-map intent: [DEVELOPER-CONTEXT.md](../DEVELOPER-CONTEXT.md);
 remaining work: [BR-052](../build_request.md#br-052--complete-the-dev-map-against-the-2026-09-21-intent).
-Target architecture/enforcement: [0.3.0](../plans/0.3.0.md). Scanned maps derive code relationships;
-design maps describe boundaries with explicit source previews, never certifying implementation.
+Release sets: [0.3.0](../plans/0.3.0.md) uses `030-deployment`; [0.3.1](../plans/0.3.1.md) uses `030-architecture` (identifier retained). Toolkit defaults to the latter; this CLI defaults to original scanned `default`, so pass `--set`. Designs express contracts, not conformance.
 
 - `lib/`: source scanning, leaves (`leaves.mjs`), the tree (`tree.mjs`), the
   store, scoring, the solver and rendering.
@@ -14,11 +13,11 @@ design maps describe boundaries with explicit source previews, never certifying 
 ## Commands
 
 ```sh
-node scripts/agent-toolkit.mjs read-map ADDRESS [--code] [--details]
-node scripts/agent-toolkit.mjs regenerate [INDEX]
-node dev-map/cli.mjs check [--json] [--viewer [ADDRESS…]] | build | flow-evidence ADDRESS
-node dev-map/cli.mjs score [--json] | solve [--seed N]
-node dev-map/cli.mjs watch-freshness [--once]
+node scripts/agent-toolkit.mjs read-map ADDRESS --set NAME [--source|--code] [--details]
+node scripts/agent-toolkit.mjs regenerate [INDEX] --set NAME
+node dev-map/cli.mjs check --set NAME [--json] [--viewer [ADDRESS…]]
+node dev-map/cli.mjs score --set default [--json] | solve --set default [--seed N]
+node dev-map/cli.mjs watch-freshness --set default [--once]
 node dev-map/cli.mjs read ADDRESS [--code] [--details] --set NAME
 ```
 

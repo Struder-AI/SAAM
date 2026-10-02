@@ -35,7 +35,7 @@ function outerLoop(loops) {
   return loop;
 }
 
-export function prepareContourSleeve({shell,assignment,process,machine,zStartMm=null,zEndMm=null,onProgress}) {
+export function prepareContourSleeve({shell,assignment,process,zStartMm=null,zEndMm=null,onProgress}) {
   const settings=assignment;
   const width=process.lineWidthMm,pitch=process.layerMm,base=zStartMm??(shell.bounds.min[2]+settings.zStartMm);
   const firstHeight=Math.abs(base-shell.bounds.min[2])<1e-9?process.firstLayerMm:pitch;

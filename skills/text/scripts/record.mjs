@@ -1,6 +1,7 @@
-import {requireThat} from '../../../core/private/extensions/numeric.mjs';
 // Persisted text results are native meshes with their editable construction recipe.
 import {createHash} from 'node:crypto';
+
+const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
 
 // Every record carries its derived material partitions. standalone is present

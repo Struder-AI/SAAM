@@ -19,9 +19,7 @@ import { bundleFor } from '../../../studio/adapter-resolution.mjs';
 import {createTour} from '../../../studio/tour.mjs';
 import {createAgentRequests} from '../../../studio/agent-requests.mjs';
 import {createStudioEvents} from '../../../studio/studio-events.mjs';
-import { createSTLBundle,setSTLUnits } from '../../../core/print/import-stl.mjs';
-import {createThingi10KClient} from '../../../skills/thingi10k/scripts/library.mjs';
-import {importSTLResource} from '../../../core/print/import-resource.mjs';
+import {listExtensions,loadExtensionEntry,readExtension} from '../../../core/extensions/library.mjs';
 import {createBlobFieldBundle,updateBlobFieldBundle} from '../../../core/print/blob-field.mjs';
 import {applySlice} from '../../../core/print/slice-edit.mjs';
 import {applyModulation} from '../../../core/print/modulation.mjs';
@@ -123,7 +121,13 @@ export const instructions = 'Web agents are makers only; reading builder or deve
 // instance shows in its Connect panel ({status(), linkCode()}).
 export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoOpen = process.env.SAAM_NO_AUTO_OPEN !== '1',localExtension=installedExtension,thingi10kClient,relay } = {}) {
   const libraryRoot = resolve(printsRoot);
-  const meshLibrary=thingi10kClient??createThingi10KClient({cacheDirectory:resolve(libraryRoot,'.thingi10k')});
+  let resourceClient;
+  const getResourceClient=async()=>resourceClient??=loadExtensionEntry('thingi10k','resource-client')
+    .then(create=>create({cacheDirectory:resolve(libraryRoot,'.thingi10k')}));
+  const meshLibrary=thingi10kClient??{
+    search:async args=>(await getResourceClient()).search(args),
+    download:async(fileId,options)=>(await getResourceClient()).download(fileId,options)
+  };
   const ownerId=randomUUID();
   const studioEvents=createStudioEvents(),agentRequests=createAgentRequests(libraryRoot,{ownerId,events:studioEvents});
   const tour=createTour(libraryRoot,{ownerId,agentRequests});
@@ -131,7 +135,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   const generationStatus=()=>[...[...studioSessions.values()].map(({server:studio})=>studio.generationStatus()).filter(Boolean),
     ...[...imports.values()].map(({controller,...job})=>({...job,cancellable:!controller.signal.aborted,elapsedMs:Date.now()-job.startedAt,estimatedRemainingMs:null})),
     ...[...generations.values()].map(({job,...identity})=>({...identity,studioInstanceId:null,status:job.status,cancellable:job.cancellable,progress:job.progress,elapsedMs:Date.now()-identity.startedAt}))];
-  async function importing(bundleId,action){
+  async function importSTL(bundleId,dir,{source,units,machineId,setupFile:remembered}){
     const jobId=randomUUID(),controller=new AbortController(),startedAt=Date.now();
     imports.set(jobId,{jobId,printId:bundleId,studioInstanceId:null,status:'importing',startedAt,controller,progress:{stage:'import'}});
     studioEvents.record('import-started',{jobId,printId:bundleId});
@@ -139,18 +143,39 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       const before=imports.get(jobId);imports.set(jobId,{...before,progress:value});
       if(value.stage==='repair'&&before.progress.stage!=='repair')studioEvents.record('import-repair-started',{jobId,printId:bundleId,elapsedMs:Date.now()-startedAt});
     };
+    let downloaded,candidate,phase='acquire';
     try{
-      const result=await action({signal:controller.signal,progress});
-      studioEvents.record(result.imported===false?'import-failed':'import-completed',{jobId,printId:bundleId,...(result.error?{error:result.error}:{})});
-      return result;
-    }catch(error){studioEvents.record(controller.signal.aborted?'import-cancelled':'import-failed',{jobId,printId:bundleId,error:error.message});throw error;}
+      const sourcePath=source.kind==='local'?source.path:(downloaded=await meshLibrary.download(source.fileId,{signal:controller.signal,progress})).sourcePath;
+      controller.signal.throwIfAborted();
+      phase='geometry';
+      const {prepareSTLImport,releaseSTLImport}=await import('../../../core/geom/import-stl.mjs');
+      candidate=await prepareSTLImport(sourcePath,{units,attribution:downloaded?.attribution,signal:controller.signal,progress});
+      let committed;
+      try{
+        phase='bundle';
+        const {commitSTLImport}=await import('../../../core/print/import-stl.mjs');
+        committed=await commitSTLImport(dir,candidate,{machineId,setupFile:remembered,signal:controller.signal});
+        phase='cleanup';
+      }finally{await releaseSTLImport(candidate);}
+      studioEvents.record('import-completed',{jobId,printId:bundleId});
+      return downloaded?{...downloaded,...committed,imported:true,nextStep:'Show the imported geometry in Studio with its dimensions. Nothing is approved.'}:committed;
+    }catch(error){
+      if(downloaded&&!controller.signal.aborted&&(phase==='geometry'||phase==='bundle')){
+        const result={...downloaded,imported:false,error:error.message,
+          nextStep:'The downloaded original and attribution are retained at sourcePath and sourcePath + .json. Automatic repair could not accept this input; explain the reported failure and choose a corrected source or ask a builder to diagnose it.'};
+        studioEvents.record('import-failed',{jobId,printId:bundleId,error:error.message});return result;
+      }
+      studioEvents.record(controller.signal.aborted?'import-cancelled':'import-failed',{jobId,printId:bundleId,error:error.message});throw error;
+    }
     finally{imports.delete(jobId);}
   }
   // Every runtime-owned Studio instance starts here, showing dir (or no print
   // when dir is null) and the relay panel when this computer has a relay.
   async function startStudio(dir){
     const studio = createStudio(dir, { libraryRoot,agentOwnerId:ownerId,agentRequests,studioEvents,relay });
-    await new Promise((resolveListen, reject) => { studio.once('error', reject); studio.listen(0, '127.0.0.1', resolveListen); });
+    try{await studio.ready();}catch(error){await studio.shutdown().catch(()=>{});throw error;}
+    try{await new Promise((resolveListen, reject) => { studio.once('error', reject); studio.listen(0, '127.0.0.1', resolveListen); });}
+    catch(error){await studio.shutdown().catch(()=>{});throw error;}
     const session = { server: studio, url: `http://127.0.0.1:${studio.address().port}` },studioInstanceId=studio.agentSession().instanceId;
     studioSessions.set(studioInstanceId, session);
     studio.agentWorking(chat.working);
@@ -214,11 +239,16 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   }
   async function skills() {
     const found = [];
-    for (const id of [...SKILL_IDS,...GUIDANCE_IDS,...EXTENSION_IDS]) {
+    for (const id of [...SKILL_IDS,...GUIDANCE_IDS]) {
       try {
         const { text: manual } = await readGuidance(root, `skills/${id}/SKILL.md`);
         found.push({ ...skillMetadata(id, manual), manualTool: 'read_skill' });
       } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    }
+    for(const extension of await listExtensions({appRoot:root})){
+      const {text:manual}=await readGuidance(root,`extensions/${extension.id}/SKILL.md`);
+      found.push({...skillMetadata(extension.id,manual),layer:'extension',origin:extension.origin,
+        digest:extension.digest,manualTool:'read_skill'});
     }
     found.push(...await localExtension.skills?.()??[]);
     return found.sort((a, b) => a.id.localeCompare(b.id));
@@ -228,10 +258,31 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   const localOnlyTools=new Set(['import_stl_bundle']);
   function tool(name, description, shape, action, readOnly = true, openWorld = false) {
     const tracked=Boolean(shape.bundleId)&&!immediateTools.has(name);
+    const instanceScope=tracked&&!readOnly&&!['request_review','create_bundle','import_stl_bundle','import_thingi10k_bundle','remember_setup','deliver_toolpath'].includes(name);
     // The full strict schema makes unexpected top-level approval data an error
     // instead of letting Zod silently discard it.
-    const schema=z.object({...shape,...(tracked?{requestIds:z.array(z.string()).optional()}: {})}).strict();
-    operations.set(name,{name,description,schema,readOnly,openWorld,tracked,immediate:immediateTools.has(name),localOnly:localOnlyTools.has(name),action});
+    const schema=z.object({...shape,...(tracked?{requestIds:z.array(z.string()).optional()}: {}),...(instanceScope?{studioInstanceId:z.string().optional()}: {})}).strict();
+    operations.set(name,{name,description,schema,readOnly,openWorld,tracked,instanceScope,immediate:immediateTools.has(name),localOnly:localOnlyTools.has(name),action});
+  }
+  async function associatedStudio(bundleId,studioInstanceId,requestIds){
+    const dir=await directory(bundleId);
+    const requested=[];
+    for(const id of requestIds??[]){
+      const record=await agentRequests.get(id);
+      if(record?.studioInstanceId)requested.push(record.studioInstanceId);
+    }
+    if(studioInstanceId)requested.push(studioInstanceId);
+    const ids=[...new Set(requested)];
+    if(ids.length>1)throw Error('Edit requests name different Studio instances. Choose one before changing the print.');
+    if(!ids.length){
+      const matches=[...studioSessions.entries()].filter(([,session])=>session.server.currentPrint()===dir);
+      if(matches.length>1)throw Error('Specify studioInstanceId because multiple owned Studio instances display this print.');
+      if(matches.length===1)ids.push(matches[0][0]);
+    }
+    if(!ids.length)return null;
+    const session=studioSessions.get(ids[0]);
+    if(!session||session.server.currentPrint()!==dir)throw Error('That Studio instance is not owned by this agent or no longer displays this print.');
+    return {dir,server:session.server};
   }
   // Runs one operation to its result and throws its failure; the transport
   // decides how either reaches the agent.
@@ -244,7 +295,13 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       const touch=async()=>{for(const id of requestIds??[])await agentRequests.activity(id,{directory:await directory(input.bundleId)});};
       if(operation.tracked)await touch();
       let result;
-      try{result=await operation.action(input,session);}finally{if(operation.tracked)await touch();}
+      try{
+        if(operation.instanceScope){
+          const {studioInstanceId,...fields}=input;
+          const studio=await associatedStudio(fields.bundleId,studioInstanceId,requestIds);
+          result=studio?await studio.server.runBundleEdit(studio.dir,instance=>operation.action(fields,session,instance)):await operation.action(fields,session);
+        }else result=await operation.action(input,session);
+      }finally{if(operation.tracked)await touch();}
       if(result&&typeof result==='object'&&!Array.isArray(result)&&!['get_studio_events','wait_for_studio_request'].includes(name)){
         if(!operation.immediate){const pending=await agentRequests.query({status:'queued'});if(pending.length)result={...result,studioRequests:pending};}
         // Delivered events push at once; every tool result also carries whatever is still queued.
@@ -281,11 +338,12 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   tool('read_skill', 'Read a skill or guidance manual by ID, or one section as ID#heading whatever its gate. Sections gated to command access or to machine capabilities are listed in omitted; bundleId uses the saved printer snapshot; machineId selects a reusable profile before bundle selection. Links are repository paths for read_guidance.',
     { skillId: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}(#[^\s#]{1,200})?$/), machineId: machineIdSchema, bundleId:bundleIdSchema.optional() }, async ({ skillId: name, machineId,bundleId }) => {
     const [skillId, anchor] = name.split('#');
-    if (!SKILL_IDS.includes(skillId)&&!GUIDANCE_IDS.includes(skillId)&&!EXTENSION_IDS.includes(skillId)) {
+    const extension=await readExtension(skillId,{appRoot:root});
+    if (!SKILL_IDS.includes(skillId)&&!GUIDANCE_IDS.includes(skillId)&&!extension) {
       const local=await localExtension.readSkill?.(skillId);if(local)return local;
       throw new Error('Unknown skill or guidance manual ID. Use list_skills and its manual links.');
     }
-    const { text: manual, ...reference } = await readManual(root, `skills/${skillId}/SKILL.md${anchor ? '#' + anchor : ''}`, await manualContext({machineId,bundleId}));
+    const { text: manual, ...reference } = await readManual(root, `${extension?'extensions':'skills'}/${skillId}/SKILL.md${anchor ? '#' + anchor : ''}`, await manualContext({machineId,bundleId}));
     return { skillId, manual, ...reference };
   });
   tool('read_guidance', 'Read published repository Markdown by relative path, optionally with #heading for one section whatever its gate. Results list the headings with their gates and the gated sections omitted; bundleId uses the saved printer snapshot; machineId selects a reusable profile before bundle selection. Short IDs: makers, geometry, development, glossary, mcp, print-tools. This reader does not expose private files, source code or register capabilities.',
@@ -332,7 +390,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       if (!source.isFile()) throw new Error('STL source must be a regular file.');
       const dir = await directory(bundleId, { create: true });
       const remembered=await setupFile(machineId);
-      await importing(bundleId,options=>createSTLBundle(dir,sourcePath,{units,machineId,setupFile:remembered,...options}));
+      await importSTL(bundleId,dir,{source:{kind:'local',path:sourcePath},units,machineId,setupFile:remembered});
       return summary(bundleId, await (await bundles.shell()).loadBundle(dir));
     }, false);
   tool('search_thingi10k', 'Find meshes by descriptive keywords (such as bunny), numeric file ID or a Thingiverse thing URL. Reads the Thingi10K mirror index; returns per-file source and license links. Prefer making tailored geometry when attractive. Read the thingi10k skill manual.',
@@ -343,12 +401,13 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     async({bundleId,fileId,machineId,units})=>{
       const dir=await directory(bundleId,{create:true});
       const remembered=await setupFile(machineId);
-      const result=await importing(bundleId,options=>importSTLResource(dir,()=>meshLibrary.download(fileId,options),{machineId,units,setupFile:remembered,...options}));
+      const result=await importSTL(bundleId,dir,{source:{kind:'thingi10k',fileId},machineId,units,setupFile:remembered});
       return {...result,...(result.imported?summary(bundleId,await (await bundles.shell()).loadBundle(dir)):{bundleId})};
     },false,true);
   localExtension.registerMcp?.({tool,z,bundleIdSchema,objectSchema,idSchema,read,noApprovalFields});
   tool('set_stl_units','Correct an imported mesh to mm or inch units, rescaling its current geometry and preserving the original STL bytes and printing settings. Invalidates geometry/toolpath confirmations; show the corrected size for geometry review.',
     {bundleId:bundleIdSchema,units:z.enum(['mm','inch']),expectedRevision:z.string()},async({bundleId,units,expectedRevision})=>{
+      const {setSTLUnits}=await import('../../../core/print/import-stl.mjs');
       const dir=await directory(bundleId);return summary(bundleId,await setSTLUnits(dir,units,{expectedRevision}));
     },false);
   tool('blob_field', 'Create or rebuild a blob-field part: freely placed points, each with positionMm, reachMm and strength, whose smooth falloffs add up; material is where the sum exceeds the threshold (default 0.25, where a lone strength-1 point is a ball of radius reach/2), cut flat at Z = 0. Negative strength carves. Request {points, threshold?, edgeMm?}; GEOMETRY.md#blob-field describes it. Extracted to a mesh for shared slicing and Studio review.',
@@ -463,7 +522,8 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
         if(matches.length>1)throw Error('Specify studioInstanceId because multiple owned Studio instances display this print.');
         if(matches.length===1)studioInstanceId=matches[0].server.agentSession().instanceId;
       }
-      if(session&&session.server.currentPrint()!==dir)throw Error('That Studio instance is displaying another print.');
+      const editSession=studioInstanceId?studioSessions.get(studioInstanceId):null;
+      if(editSession&&editSession.server.currentPrint()!==dir)throw Error('That Studio instance is displaying another print.');
       if(requestId){if(record?.printId!==bundleId)throw Error('That request belongs to another print.');if(record.studioInstanceId&&record.studioInstanceId!==studioInstanceId)throw Error('That request belongs to another Studio instance.');return agentRequests.update(requestId,{status:'working'});}
       return agentRequests.begin({directory:dir,instruction,kind,studioInstanceId});
     },false);
@@ -533,7 +593,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     const session=studioSessions.get(studioInstanceId);if(!session)throw Error('That Studio instance is not owned by this agent.');
     const result=session.server.agentSession();await session.server.shutdown();return {...result,connected:false};
   },false);
-  tool('generate_toolpath', 'Generate and check the declared export from the current geometry and complete settings, including during the tour. This is reviewable output, not approval.', { bundleId: bundleIdSchema }, async ({ bundleId }) => {
+  tool('generate_toolpath', 'Generate and check the declared export from the current geometry and complete settings, including during the tour. This is reviewable output, not approval.', { bundleId: bundleIdSchema }, async ({ bundleId },_session,instance) => {
     const { dir, bundle } = await locate(bundleId);
     const state=await bundle.loadBundle(dir,{program:false}),jobId=randomUUID(),startedAt=Date.now();
     const job=new PreparedGenerationJob({key:dir+':'+state.generationHash,directory:dir,generationHash:state.generationHash,
@@ -542,7 +602,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     generations.set(jobId,{jobId,printId:bundleId,generationHash:state.generationHash,startedAt,job});
     studioEvents.record('generation-started',{jobId,printId:bundleId,generationHash:state.generationHash,trigger:'agent'});
     try{
-      const {checks}=await job.generate(false);
+      const {checks}=await job.generate(false,instance);
       studioEvents.record('generation-finished',{jobId,printId:bundleId,generationHash:state.generationHash,durationMs:Date.now()-startedAt});
       return { ...summary(bundleId, await bundle.loadBundle(dir)), checks };
     }catch(error){

@@ -20,7 +20,8 @@ function pathAction(input){
   else if(a.kind==='retract'||a.kind==='recover')requireThat(Number.isFinite(a.filamentMm)&&a.filamentMm>=0&&Number.isFinite(a.speedMmS)&&a.speedMmS>0,'Invalid filament action.');
   else if(a.kind==='extrude')requireThat(Number.isFinite(a.volumeMm3)&&a.volumeMm3>0&&Number.isFinite(a.flowMm3S)&&a.flowMm3S>0,'Invalid stationary deposition.');
   else if(a.kind==='temperature')requireThat(Number.isFinite(a.targetC)&&a.targetC>0,'Invalid nozzle temperature.');
-  else if(a.kind==='toolChange')requireThat(Number.isInteger(a.filament)&&a.filament>=0&&Number.isInteger(a.tool)&&a.tool>=0,'Invalid material selection.');
+  else if(a.kind==='toolChange')requireThat(Number.isInteger(a.filament)&&a.filament>=0&&!Object.hasOwn(a,'tool'),
+    'Neutral material selection needs a logical filament, not an installed tool.');
   else if(a.kind==='fan')requireThat(Number.isFinite(a.percent)&&a.percent>=0&&a.percent<=100,'Fan outside limits.');
   else if(a.kind==='dwell')requireThat(Number.isFinite(a.seconds)&&a.seconds>=0,'Dwell outside limits.');
   else throw Error('Unsupported SAAMpath action: '+a.kind);

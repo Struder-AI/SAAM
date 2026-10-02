@@ -4,7 +4,7 @@ import {requireThat} from '../private/bundle/numeric.mjs';
 
 const common=['tool','core','material','firmwareVersion','nozzleMm','filamentMm','nozzleC','bedC','buildVolumeC','startupVerified','materialGuid'];
 const allowed=new Set([...common,'filamentColor','ams','bambu','dobot','denso']);
-export function validateRecipeSetup(plan,machine){
+export function validateRecipeSetup(plan){
   const s=plan.setup;
   requireThat(s&&typeof s==='object'&&!Array.isArray(s)&&common.every(k=>Object.hasOwn(s,k))&&Object.keys(s).every(k=>allowed.has(k)),'Invalid recipe setup fields.');
   requireThat(Number.isSafeInteger(s.tool)&&s.tool>=0,'Tool must be a nonnegative integer.');
@@ -14,8 +14,7 @@ export function validateRecipeSetup(plan,machine){
   requireThat(typeof s.startupVerified==='boolean'&&(s.materialGuid===null||typeof s.materialGuid==='string'),'Invalid setup identity.');
   requireThat(s.filamentColor==null||/^#[0-9a-f]{6}$/i.test(s.filamentColor),'Filament color must be a six-digit hex color.');
   for(const name of ['bambu','dobot','denso'])if(s[name]!==undefined){
-    const template=machine.defaultSetup[name];
-    requireThat(s[name]&&typeof s[name]==='object'&&Object.keys(s[name]).sort().join()===Object.keys(template??{}).sort().join(),`Invalid ${name} configuration fields.`);
+    requireThat(s[name]&&typeof s[name]==='object'&&!Array.isArray(s[name]),`Invalid ${name} configuration fields.`);
   }
   return plan;
 }

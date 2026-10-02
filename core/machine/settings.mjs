@@ -39,6 +39,7 @@ export function settingsDefaults(machine){
     setup:structuredClone(machine.defaultSetup),
     process:{
       firstLayerMm:0.2,layerMm:0.2,lineWidthMm:0.4,
+      planarWallToleranceMm:machine.planarWallToleranceMm??0.01,
       planarSpeedMmS:20,skinSpeedMmS:10,firstLayerSpeedMmS:12,travelSpeedMmS:60,zSpeedMmS:5,
       retractMm:6.5,retractSpeedMmS:25,liftMm:1,maxCombMm:6,
       fanPercent:100,maxFlowMm3S:4,minimumLayerSeconds:6,

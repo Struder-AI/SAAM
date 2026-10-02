@@ -1,8 +1,10 @@
 // Bundle-owned immutable records and the single manifest commit boundary.
-import {readFile,open,rm,mkdir} from 'node:fs/promises';
+import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
 import {replaceFile} from '../file-write.mjs';
+import {requireBundleInstance} from './studio-ownership.mjs';
+import {withBundleWriteLock} from './bundle-lock.mjs';
 
 export const digest=value=>createHash('sha256').update(typeof value==='string'||value instanceof Uint8Array?value:JSON.stringify(value)).digest('hex');
 export async function storeRecord(dir,value){
@@ -35,18 +37,13 @@ export function revisionOf(document){
 // Fail closed on a competing/crashed writer. The lock records its process for
 // explicit recovery; never guess that a slow live writer has expired.
 export async function commitManifest(dir,document,expected){
-  await mkdir(dir,{recursive:true});
-  const lock=resolve(dir,'.bundle-write.lock');
-  let handle;
-  try{handle=await open(lock,'wx');}
-  catch(error){if(error.code==='EEXIST')throw Error('Bundle has an active or interrupted writer. Retry after it finishes; an abandoned .bundle-write.lock requires explicit recovery.');throw error;}
-  try{
-    await handle.writeFile(JSON.stringify({pid:process.pid,time:new Date().toISOString()}));
+  return withBundleWriteLock(dir,async()=>{
+    await requireBundleInstance(dir);
     let current=null;
     try{current=JSON.parse(await readFile(resolve(dir,'plan.json'),'utf8'));}catch(error){if(error.code!=='ENOENT')throw error;}
     if(expected===null?current!==null:!current||revisionOf(current)!==expected)throw Error('This revision is stale. Reload before changing the print.');
     const next={...document,bundle:{...document.bundle,revision:randomUUID()}};
     await replaceFile(resolve(dir,'plan.json'),JSON.stringify(next,null,2)+'\n');
     return next;
-  }finally{await handle.close();await rm(lock,{force:true});}
+  });
 }

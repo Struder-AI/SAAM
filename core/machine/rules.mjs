@@ -1,7 +1,7 @@
 import {requireThat,distance} from '../private/export/numeric.mjs';
 
 import {validateDensoConfiguration} from './denso.mjs';
-import {requireProcessControl,validateTemperatureC,validateNozzleC,plannedNozzleTemperatures} from '../path/process-controls.mjs';
+import {validateTemperatureC,validateNozzleC,plannedNozzleTemperatures} from '../path/process-controls.mjs';
 import {checkedFilamentPlan as filamentPlan} from './filaments.mjs';
 
 export const toolFor=(machine,index)=>{
@@ -92,6 +92,11 @@ export const startupRetracted=(machine,plan)=>plan.process.retractMm>0
 
 export const sameNozzleMaterialChanges=machine=>machine.outputs.some(o=>o.id==='bambu-gcode'&&o.constraints?.materialChangeMode==='single-nozzle-ams');
 
+export function requireProcessControl(machine){
+  requireThat(machine.outputs?.some(o=>['griffin-gcode','bambu-gcode'].includes(o.id)),
+    'Stationary metered extrusion and operation temperature control require a supported filament-axis G-code output; relay robot outputs are not implemented.');
+}
+
 export function requireMachine(machine,capabilities,skill) {
   for(const capability of capabilities) requireThat(machine.capabilities?.includes(capability),`${skill} requires machine capability ${capability}.`);
 }
@@ -109,7 +114,7 @@ export function checkMachinePath(path,plan,machine) {
       bounds=toolBounds(machine,selected.setup.tool);point(from);continue;
     }
     if(action.kind==='move'){
-      point(action.to);const length=distance(from,action.to),seconds=length/action.speedMmS;
+      point(action.to);const length=distance(from,action.to),seconds=action.durationSeconds??length/action.speedMmS;
       requireThat(seconds>0&&Number.isFinite(seconds)&&Number.isFinite(action.volumeMm3)&&action.volumeMm3>=0,'Invalid machine motion.');
       for(let i=0;i<3;i++)requireThat(Math.abs(action.to[i]-from[i])/seconds<=machine.maxFeedMmS['xyz'[i]]+1e-7,'Machine axis feed exceeded.');
       from=action.to;

@@ -10320,7 +10320,7 @@
     "studio/server.mjs::createStudio::exportPrint": {
       "owner": "studio"
     },
-    "core/export/prepare-path.mjs::checkedMachinePath": {
+    "core/export/prepare-path.mjs::prepareExportPath": {
       "owner": "export",
       "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
     },

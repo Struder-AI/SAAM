@@ -6,14 +6,15 @@ import {extensionDeposition,extensionResultDependencies,extensionSummary} from '
 // Ownership precedes construction; one dependency graph schedules shared courses
 // and their finalized-material consumers.
 
-import {completeMachinePath} from '../path/machine-path.mjs';
-import {PATH_CONTRACT} from '../path/dependencies.mjs';
+import {PATH_CONTRACT,NEUTRAL_PATH_CONTRACT,pathInputHash} from '../path/dependencies.mjs';
+import {saamPath} from '../path/saampath.mjs';
 export {pathDependencies} from '../path/dependencies.mjs';
 import {planFinishing} from '../path/toolpath.mjs';
 import {createPlanningState,planFan,planningPath,planningResult} from '../path/planning.mjs';
 import {planOperation,validateOperationBatch,prepareOperationDependencies} from '../path/compose.mjs';
 import {filamentSelection,assignedFilaments} from '../machine/filaments.mjs';
 import {planarPolicy} from '../path/builder.mjs';
+import {plannedNozzleTemperatures} from '../path/process-controls.mjs';
 import {assignmentPlan,depositionAssignments} from './assignment-process.mjs';
 import {surveySurfaceDomain} from './surface-domains.mjs';
 import { compileRecipe, VERSION } from './plan.mjs';
@@ -21,7 +22,7 @@ import { compileRecipe, VERSION } from './plan.mjs';
 import {finalizedSliceResults} from './slice-deposition.mjs';
 
 
-function primeLineResult(plan,machine){
+function primeLineResult(plan){
   const p=plan.process.primeLine;if(p===null)return null;
   const passes=p.passes??[p],region=[],strokes=[];
   let lengthMm=0,volumeMm3=0,maxZ=0,maxWidth=0;
@@ -41,8 +42,8 @@ function primeLineResult(plan,machine){
 
 // Toolpath chooses which geometry its assignments need; Geometry resolves and
 // places those requests, including within-volumes in their owner's frame.
-export async function preparePathGeometry(plan,machine) {
-  ({plan,machine}=compileRecipe(plan,machine));
+export async function preparePathGeometry(plan) {
+  plan=compileRecipe(plan).plan;
   if(!plan.geometry)return {placed:null,componentShells:null,shells:[],volumes:new Map()};
   const components=plan.geometry.shape==='assembly'?plan.geometry.parts.map(part=>part.id):[];
   const named=[...new Set(plan.slices.assignments.filter(a=>a.part!==undefined&&a.preset!=='support').map(a=>a.part).filter(p=>p!==null&&!components.includes(p)))];
@@ -62,18 +63,19 @@ export async function preparePathGeometry(plan,machine) {
 
 // Survey every selected skin before body ownership, then finalize each
 // supporting producer before constructing surface consumers.
-export function generateModelResults(plan,machine,{placed,componentShells,shells,volumes,planningState,emittedIds=[]},onProgress) {
+export function generateModelResults(plan,{placed,componentShells,shells,volumes,planningState,emittedIds=[]},onProgress) {
   const summary={generatorVersion:VERSION,shape:plan.geometry?.shape??null},results=[];
   const contexts=depositionAssignments(plan).filter(assignment=>assignment.construction||assignment.surface?.kind==='terminal'||assignment.stack?.direction==='normal'||assignment.within?.some(v=>v.kind==='surface-domain'&&v.loopsUv===null)).map(assignment=>{
-    const shell=shells.find(([part])=>part===(assignment.part??null))?.[1],selected=assignmentPlan(plan,machine,assignment);
+    const shell=shells.find(([part])=>part===(assignment.part??null))?.[1],selected=assignmentPlan(plan,assignment);
     if(ASSIGNMENT_RECORDS[assignment.construction]?.requiresComponent||!assignment.construction&&assignment.surface?.kind!=='terminal')requireThat(shell,'A surface family needs a selected component or the single solid.');
     return {assignment,shell,process:selected.process,maxBeadHeightMm:Infinity};
   });
-  const skins=contexts.filter(({assignment})=>assignment.within?.some(v=>v.kind==='surface-domain'&&v.loopsUv===null)).map(context=>({...context,survey:surveySurfaceDomain({...context,machine})}));
-  const extensions=extensionDeposition({plan,machine,placed,componentShells,contexts,onProgress});
+  const skins=contexts.filter(({assignment})=>assignment.within?.some(v=>v.kind==='surface-domain'&&v.loopsUv===null)).map(context=>({...context,survey:surveySurfaceDomain(context)}));
+  const extensions=extensionDeposition({plan,placed,componentShells,contexts,onProgress,
+    processForAssignment:assignment=>assignmentPlan(plan,assignment).process});
   const rims=contexts.filter(({assignment})=>assignment.surface?.kind==='terminal'),referenceAssignments=contexts.filter(({assignment})=>assignment.stack?.direction==='normal');
   const constructions=[...extensions.constructions,...contexts.filter(({assignment})=>['inject','curves'].includes(assignment.construction))];
-  const sliced=finalizedSliceResults({plan,machine,shells,volumes,...extensions,surfaceAssignments:skins,referenceAssignments,terminalAssignments:rims,constructions,onProgress,planningState,emittedIds});
+  const sliced=finalizedSliceResults({plan,shells,volumes,...extensions,surfaceAssignments:skins,referenceAssignments,terminalAssignments:rims,constructions,onProgress,planningState,emittedIds});
   results.push(...sliced.results);
   if(sliced.summary)summary.slices=sliced.summary;
   Object.assign(summary,extensionSummary(results));
@@ -86,7 +88,7 @@ export function generateModelResults(plan,machine,{placed,componentShells,shells
   return {results,summary,survey,shells,slicedSupports:sliced.supports,execution:sliced.execution};
 }
 
-export function addComplementaryResults(plan,machine,geometry,batch) {
+export function addComplementaryResults(plan,geometry,batch) {
   const supports=batch.slicedSupports??[],results=[...batch.results],summary={...batch.summary};
   if(supports.length)summary.supports=supports.map(r=>({id:r.id,...r.report}));
   const completed=[...supports,...applyResultDependencies(results,extensionResultDependencies(results,supports))];
@@ -176,17 +178,18 @@ export function depositionInspection(results){
   return {schema:GENERATION_CONTRACT,operations};
 }
 
-export async function generatePath(plan, machine, {onProgress,modulations,modulationPreparation=[]} = {}) {
-  const prepared=await preparePathGeometry(plan,machine);
+export async function generatePath(plan, {onProgress,modulations,modulationPreparation=[]} = {}) {
+  const prepared=await preparePathGeometry(plan);
   const evaluated=modulations?{...plan,modulations}:plan;
-  const assigned=[...new Set([plan.setup.bambu?.filament,...assignedFilaments(plan)].filter(v=>v!==undefined))];
-  const selections=assignedFilaments(plan).length?Object.fromEntries(assigned.map(i=>[i,filamentSelection(plan,machine,i)])):null;
+  const materialAssignments=assignedFilaments(plan),defaultFilament=plan.setup.bambu?.filament??materialAssignments[0]??null;
+  const assigned=[...new Set([defaultFilament,...materialAssignments].filter(v=>v!==null&&v!==undefined))];
+  const selections=materialAssignments.length?Object.fromEntries(assigned.map(i=>[i,filamentSelection(plan,i)])):null;
   const start=[plan.placement.xMm,plan.placement.yMm,(prepared.placed?.bounds.max[2]??0)+plan.process.liftMm];
   const started=planFan(createPlanningState({start,process:plan.process,generatorVersion:VERSION,
-    selection:selections?.[plan.setup.bambu.filament]??null,selections}),0);
+    selection:selections?.[defaultFilament]??null,selections}),0);
   const prime=primeLineResult(plan),startup=prime?planOperation(started.state,prime.operations[0]):planningResult(started.state);
-  const model=generateModelResults(evaluated,machine,{...prepared,planningState:startup.state,emittedIds:prime?prime.operations.map(op=>op.id):[]},onProgress);
-  const complemented=addComplementaryResults(evaluated,machine,prepared,model);
+  const model=generateModelResults(evaluated,{...prepared,planningState:startup.state,emittedIds:prime?prime.operations.map(op=>op.id):[]},onProgress);
+  const complemented=addComplementaryResults(evaluated,prepared,model);
   const primed=prime?{...complemented,results:[prime,...complemented.results],summary:{...complemented.summary,primeLine:prime.report}}:complemented;
   const {placed}=prepared,{results,survey}=primed,process=plan.process;
   const summary=summarizeGeneratedPath(placed,survey,primed.summary);
@@ -202,5 +205,8 @@ export async function generatePath(plan, machine, {onProgress,modulations,modula
   for(const [id,after] of prerequisites)for(const predecessor of after)requireThat(position.has(predecessor)&&position.get(predecessor)<position.get(id),'Final dependency was not scheduled before '+id+': '+predecessor);
   const finished=planFinishing(execution.state);
   const path=planningPath(finished.state,[started.actions,startup.actions,execution.actions,finished.actions],{...summary,composition:{...execution.summary,operationOrder:order}});
-  return completeMachinePath(path,plan,machine);
+  const authoredTemperatures=plannedNozzleTemperatures(plan);
+  for(const action of path.actions)if(action.kind==='temperature')
+    requireThat(authoredTemperatures.has(action.targetC),'Unplanned operation temperature.');
+  return saamPath({...path,completion:{contract:NEUTRAL_PATH_CONTRACT,inputHash:pathInputHash(plan)}});
 }

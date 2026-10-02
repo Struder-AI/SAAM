@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "date": "2026-09-30",
-  "description": "Desktop Codex/Claude Code deployment. SAAM works without a code; optional invite activation enables update service and official-alpha diagnostics. No diagnostics are collected before activation. Simple Connect-panel statement; no separate offline or speculative compatibility subsystem. Release & diagnostics service is a working name.",
+  "description": "0.3.0 desktop Codex/Claude Code installation, optional invite updates and live diagnostics: see plans/0.3.0.md. SAAM works without a code; no pre-activation diagnostics, offline backlog or speculative compatibility subsystem. Library/exchange nodes 5/7 remain context for actively continuing 0.3.1 and do not gate 0.3.0. Release & diagnostics service is a working name.",
   "actors": {
     "agent": {
       "label": "Desktop agent",

@@ -1,5 +1,6 @@
-import {requireThat} from '../../../core/private/extensions/numeric.mjs';
 import {createHash} from 'node:crypto';
+
+const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
 
 export const gridfinityTemplate=()=>({shape:'gridfinity',parameters:null,vertices:[],triangles:[],compiledHash:''});

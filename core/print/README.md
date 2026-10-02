@@ -57,12 +57,12 @@ branch. Immutable history records reference separately saved components and arti
 large geometry/path/program files are shared. Camera and playback remain Studio-private.
 CLI: `undo|redo <directory> --revision <revision>`; Studio exposes Undo/Redo.
 
-Every commit compares the expected content revision while holding a short writer
-lock, then atomically replaces `plan.json`. Interrupted writes leave the previous
-manifest and may leave harmless unreferenced records. A crashed writer can leave
-`.bundle-write.lock`; inspect its PID and remove it only after that writer has exited.
-No automatic timeout takes ownership from a slow process. Power-loss durability
-beyond the filesystem's atomic replacement guarantees is not claimed.
+### Bundle ownership
+
+Studio reserves a bundle when it opens it; a second Studio instance cannot open that bundle. `withBundleInstance` carries the reservation into writes and generation workers. Export copies the displayed checked bytes without another claim or current-state read.
+Claims, releases and manifest commits share `.bundle-write.lock`; commits compare revisions and atomically replace `plan.json`. Interrupted writes may leave unreferenced records.
+The reservation releases on switch or shutdown, never by timeout. `instance-status` and `recover-instance` in `core/print/cli.mjs` inspect and reclaim a dead Studio PID. An interrupted write lock needs separate PID inspection and explicit removal.
+Power-loss durability beyond atomic replacement is not claimed.
 
 `generateToolpath` saves the completed SAAMpath independently of export. CLI
 `toolpath <directory>` exposes it. `prepareGeneration` reuses that path or builds
@@ -70,8 +70,7 @@ one, then asks Export to encode/check the program. One prepared result
 binds the exact bytes to the captured revision; `commitGeneration` rejects stale
 completion, including an intervening edit undone back to the same content.
 Export failure retains the in-memory path. Saved paths survive restarts and history
-restoration. Checked exports retain existing interpretation reuse and production
-promotion; neither grants approval. Delivery copies the confirmed bytes.
+restoration. Checked exports reuse interpretation and production promotion without granting approval. Delivery copies the confirmed bytes.
 
 `loadBundleSnapshot` supplies Studio one persisted revision, artifact currency,
 history, review and checked program with source/presentation fingerprints.

@@ -7,9 +7,9 @@ import {contactCurveGaps} from '../../../core/path/contact-curves.mjs';
 import {prepareContourSleeve} from './contour-sleeve.mjs';
 import {mappedSleevePatternCurves} from './sleeve-pattern.mjs';
 
-export function advancedVaseResult({shell,assignment,process,machine,after=assignment.after,zStartMm=null,zEndMm=null,foundationSegments=[],maxBeadHeightMm=Infinity,substrateAdaptation=false,onProgress}){
+export function advancedVaseResult({shell,assignment,process,after=assignment.after,zStartMm=null,zEndMm=null,foundationSegments=[],maxBeadHeightMm=Infinity,substrateAdaptation=false,onProgress}){
   requireThat(assignment.pattern!==null,'Advanced vase requires an authored repeated pattern.');
-  const reference=prepareContourSleeve({shell,assignment,process,machine,zStartMm,zEndMm,onProgress});
+  const reference=prepareContourSleeve({shell,assignment,process,zStartMm,zEndMm,onProgress});
   const {base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm}=reference;
   const mapped=mappedSleevePatternCurves({settings:assignment,process,base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm,onProgress});
   const parts=[];

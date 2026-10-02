@@ -380,7 +380,7 @@
     },
     {
       "contract": "griffin-prepare",
-      "target": "core/export/prepare-path.mjs::checkedMachinePath",
+      "target": "core/export/prepare-path.mjs::prepareExportPath",
       "kinds": [
         "call"
       ],
@@ -388,7 +388,7 @@
     },
     {
       "contract": "bambu-prepare",
-      "target": "core/export/prepare-path.mjs::checkedMachinePath",
+      "target": "core/export/prepare-path.mjs::prepareExportPath",
       "kinds": [
         "call"
       ],
@@ -396,7 +396,7 @@
     },
     {
       "contract": "dobot-prepare",
-      "target": "core/export/prepare-path.mjs::checkedMachinePath",
+      "target": "core/export/prepare-path.mjs::prepareExportPath",
       "kinds": [
         "call"
       ],
@@ -404,7 +404,7 @@
     },
     {
       "contract": "denso-prepare",
-      "target": "core/export/prepare-path.mjs::checkedMachinePath",
+      "target": "core/export/prepare-path.mjs::prepareExportPath",
       "kinds": [
         "call"
       ],

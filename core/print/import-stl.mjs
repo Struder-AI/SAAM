@@ -3,7 +3,7 @@ import {initBundle,loadBundle,updatePlan} from './bundle.mjs';
 import {changeMachine} from '../machine/bundle-settings.mjs';
 import {readFile,mkdir,realpath,rm} from 'node:fs/promises';
 import {resolve,join,dirname,basename} from 'node:path';
-import {hash} from './plan.mjs';
+import {hash,recipeDefaults} from './plan.mjs';
 import {prepareSTLImport,releaseSTLImport} from '../geom/import-stl.mjs';
 export {inferSTLUnits} from '../geom/import-stl.mjs';
 
@@ -13,8 +13,10 @@ export async function commitSTLImport(directory,candidate,options={}){
   const parent=await realpath(dirname(resolve(directory))),target=join(parent,basename(resolve(directory)));
   try{await mkdir(target);}catch(error){if(error.code==='EEXIST')error.importDestinationExists=true;throw error;}
   try{
-    await initBundle(target,{schema:'saam-shell-plan/1',geometry:candidate.geometry},{machineId:null,
+    await initBundle(target,{...recipeDefaults(),geometry:candidate.geometry},{machineId:null,
       sourcePath:candidate.sourcePath,preparedGeometry:candidate.artifact,attachments:candidate.attachments});
+    options.signal?.throwIfAborted();
+    if(options.machineId)await changeMachine(target,options.machineId,{setupFile:options.setupFile});
     options.signal?.throwIfAborted();
     return {directory:target,repaired:candidate.repaired};
   }catch(error){
@@ -26,9 +28,7 @@ export async function commitSTLImport(directory,candidate,options={}){
 export async function createSTLBundle(directory,source,options={}){
   const candidate=await prepareSTLImport(source,options);
   try{
-    const result=await commitSTLImport(directory,candidate,options);
-    if(options.machineId)await changeMachine(result.directory,options.machineId,{setupFile:options.setupFile});
-    return result;
+    return await commitSTLImport(directory,candidate,options);
   }
   finally{await releaseSTLImport(candidate);}
 }

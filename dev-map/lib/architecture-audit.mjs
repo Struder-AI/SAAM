@@ -5,6 +5,8 @@ import {resolve} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {loadFlow,flowPacket} from './flow.mjs';
+import {pipelineOwnership} from './pipeline-ownership.mjs';
+import {resourceProvenance} from './resource-provenance.mjs';
 import {setFile} from './map-set.mjs';
 import {renderAudit} from './architecture-audit-view.mjs';
 const hash=text=>createHash('sha256').update(text).digest('hex');
@@ -34,7 +36,7 @@ export async function auditInputs(repo) {
 async function fingerprint(repo,files) {
   const names=[setFile('architecture.json'),setFile('ownership.json'),setFile('interfaces.json')];
   const toolkit=execFileSync('git',['ls-files','dev-map/lib'],{cwd:repo,encoding:'utf8'}).trim().split(/\r?\n/);
-  names.push(...toolkit,'dev-map/lib/architecture-audit.mjs','dev-map/lib/architecture-audit-view.mjs');
+  names.push(...toolkit,'dev-map/lib/architecture-audit.mjs','dev-map/lib/architecture-audit-view.mjs','dev-map/lib/lexical-bindings.mjs','dev-map/lib/pipeline-ownership.mjs','dev-map/lib/resource-provenance.mjs');
   const texts=await Promise.all([...new Set(names)].sort().map(async p=>[p,hash(await read(repo,p))]));
   const relevant=files.map(f=>f.analyze||f.unsupported||f.file.endsWith('.json')?f:{file:f.file,scope:f.scope,reason:f.reason});
   return hash(JSON.stringify([relevant,texts]));
@@ -51,6 +53,8 @@ export async function architectureAudit(repo,{inventoryOnly=false}={}) {
   console.error(`Scanning ${scanFiles.length} runtime modules; all other discovered code/assets remain in the scope ledger.`);
   const context=await loadFlow({repo,files:scanFiles,receiverCalls:false,onProgress:p=>console.error(JSON.stringify(p))});
   const {graph,projection,sources}=context;
+  const pipelineProofs=pipelineOwnership(context.asts);
+  const resources=resourceProvenance({graph,asts:context.asts});
   for(const file of files)if(sources.has(file.file))file.sha256=hash(sources.get(file.file));
   // Start unfurled: named declarations and module bodies have distinct ownership.
   // Anonymous bodies stay with their nearest declaration; findings remain visible.
@@ -139,8 +143,9 @@ export async function architectureAudit(repo,{inventoryOnly=false}={}) {
   buckets.push(...Object.entries(spec.actors).map(([id,n])=>({id,index:`external:${id}`,label:n.label})),{id:'outside-product',index:'outside-product',label:'Outside core architecture'});
   const bucketTotals=buckets.map(b=>({...b,leaves:leaves.filter(n=>within(n.owner,b.id)).length,
     forbidden:rows.filter(r=>r.status==='forbidden'&&(within(r.fromOwner,b.id)||within(r.toOwner,b.id))).length}));
-  const report={scope:'map 0 only; submap boundaries are not enforced',generated:new Date().toISOString(),fingerprint:await fingerprint(repo,files),totals,buckets,bucketTotals,leaves,orphan,files,rows,contracts:spec.contracts,bindings:allowed,
+  const report={scope:'map 0 only; submap boundaries are not enforced',generated:new Date().toISOString(),fingerprint:await fingerprint(repo,files),totals,buckets,bucketTotals,leaves,orphan,files,rows,contracts:spec.contracts,bindings:allowed,pipelineOwnership:pipelineProofs,resourceProvenance:resources,
     limits:[...graph.limits,'This audit uses lexical/import resolution and literal couplings. Whole-runtime receiver/holder propagation proved too expensive in the initial scan and is disabled here; unresolved targets remain unknown, not permitted.',
+      'Sequential ownership proofs cover only traced fresh values passed to direct synchronous same-module helpers. They do not clear unrelated unresolved graph calls or prove arbitrary JavaScript alias safety.',
       'Only map 0 is compared. Represented confirms an existing top-level connection, not allowed operations. Direction-review identifies a call/data direction needing inspection. Entry-bound confirms only a named target/kind. Schemas, effects, timing and functional equivalence are not certified.',
       'Ownership is a provisional authored assignment. No implementation files were moved. Anonymous bodies inherit their containing declaration; mixed leaves need review.',
       'Native/non-mjs code, assets, deployment, tests and development tools remain explicit in the scope ledger; they are not certified.'],sources:Object.fromEntries(sources)};

@@ -26,8 +26,12 @@ function explicitSleevePaths(pattern){
 }
 
 // Explicit migration only. Loading never changes a recipe or its meaning.
-export function migrateRecipeFields(plan){
+export function migrateRecipeFields(plan,machine){
   const changes=[];
+  const process=Object.hasOwn(plan.process,'planarWallToleranceMm')?plan.process:
+    {...plan.process,planarWallToleranceMm:machine?.planarWallToleranceMm??0.01};
+  if(process!==plan.process)changes.push({path:'process.planarWallToleranceMm',before:null,after:process.planarWallToleranceMm,
+    meaning:'Preserve the selected snapshot planar wall tolerance as an explicit authored Slice input.'});
   const retiredBatch=plan.composition&&Object.hasOwn(plan.composition,'batchLayers');
   const retainedComposition=retiredBatch?Object.fromEntries(Object.entries(plan.composition).filter(([key])=>key!=='batchLayers')):plan.composition;
   const composition={...retainedComposition,filaments:retainedComposition.filaments??[]};
@@ -55,5 +59,5 @@ export function migrateRecipeFields(plan){
     for(const key of new Set([...Object.keys(source),...Object.keys(canonical)]))if(JSON.stringify(source[key])!==JSON.stringify(canonical[key]))changes.push({path:`slices.assignments.${index}.${key}`,assignment:assignment.id,before:source[key]??null,after:canonical[key]??null,meaning:Object.hasOwn(source,key)?'Explicit shared-construction migration.':'Explicitly added current shared default.'});
     return canonical;
   });
-  return {plan:changes.length?{...plan,composition,experimental:plan.experimental??{substrateAdaptation:false},slices:{...plan.slices,assignments}}:plan,changes};
+  return {plan:changes.length?{...plan,process,composition,experimental:plan.experimental??{substrateAdaptation:false},slices:{...plan.slices,assignments}}:plan,changes};
 }

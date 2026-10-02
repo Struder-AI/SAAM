@@ -1,15 +1,14 @@
 import {evaluateSurface} from '../../../core/geom/surface-evaluation.mjs';
 import {rivetInjectionResult,rivetEnclosureLayers,validateRivetClearance} from './weld.mjs';
-import {assignmentPlan} from '../../../core/print/assignment-process.mjs';
 
 import {intersect} from '../../../core/region/boolean.mjs';
 import {regionArea} from '../../../core/region/region2d.mjs';
 
-export function weldWork(sites){
+export function weldWork(sites,processForAssignment){
   return sites.map((site,index)=>({
     key:'rivet:'+site.id,kind:'inject',construction:'rivet',sourceId:'plastic-weld',part:site.part,nominalRank:site.top,index,
     context:{site,siteCount:sites.length,assignment:site.assignment},requires:[],operationDependencies:false,
-    construct:({node,plan,machine,predecessors})=>rivetInjectionResult({plan:assignmentPlan(plan,machine,node.context.assignment),machine,
+    construct:({node,plan,predecessors})=>rivetInjectionResult({plan:{...plan,process:processForAssignment(node.context.assignment)},
       site,siteIndex:index,siteCount:sites.length,modelResults:predecessors.filter(item=>item.node.construction!=='rivet').map(item=>item.result)})
   }));
 }

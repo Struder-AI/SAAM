@@ -4,14 +4,12 @@
 
 Developers own core skills, core capabilities, Studio and shared interfaces;
 builders compose existing interfaces and author guidance. See [role boundaries](AGENTS.md#choose-your-role).
-Start with [shared terms](GLOSSARY.md), **dev maps** and this file; open component manuals as needed.
+Before planning or editing, **read the active release intents: [0.3.0 installation](plans/0.3.0.md) and [0.3.1 architecture](plans/0.3.1.md)**, then [shared terms](GLOSSARY.md), dev maps and this file. Keep these pointers current; open component manuals as needed.
 
 ### What the dev maps are for
 
-Implementation dev maps are a visual knowledge graph of core and Studio,
-generated from source; each graph is a **map**. Separately, [0.3.0](plans/0.3.0.md)
-introduces authored target-architecture sets; their proposed contracts are not
-scanned evidence. The glossary/rules below describe implementation maps.
+**Choose the release's map set explicitly:** `030-deployment` for 0.3.0 installation/service work; `030-architecture` for 0.3.1 product architecture (its existing identifier is retained). Toolkit developer onboarding/read-map default to `030-architecture`; pass `--set 030-deployment` for installation work. Onboarding returns both active intent documents.
+The original scanned set is `default`, selected only with `--set default` for implementation evidence. Its indexes/scope are not the target architecture. Lower-level `dev-map/cli.mjs` still defaults to that original set, so always pass `--set`. Authored design contracts and scanned evidence are distinct; the glossary/default-map rules below do not override release contracts.
 The goal is an order-of-magnitude faster review with greater confidence: the
 person and agent trace the same trustworthy path. For any code to edit, maps
 must show its location, interactions and every consequence of changing it,
@@ -157,19 +155,9 @@ for a compelling case:
    site. Owned state lives in an explicit record or behind an explicit
    stateful boundary; a callback chosen once is a `const` or a named function.
 2. No callee chosen by an expression: the call site would not name its callee.
-3. A stage does not mutate caller-owned state; it returns its result, so the
-   effect is on a link rather than invisible on the caller's map. The
-   exception is an explicit stateful controller (a UI controller, a session,
-   the tour) operating on state it owns.
+3. A sequential stage may mutate exclusively owned inputs and hand the result forward. Ownership transfers with the data: earlier stages/other consumers must not retain access to the same changing value. No hidden lookbacks to shared mutable sources; Bundle remains the explicit shared part-state authority. Private UI/session/job controllers own their state. Copies are needed only where ownership actually branches or a snapshot must be retained.
 
-A rewrite counts as a code-shape fix only when it preserves behaviour and,
-after regeneration, the map draws what was hidden. Anything the scanner cannot
-yet follow by syntax (`super`, destructuring, loop variables, nested-call
-arguments, `Promise.all`, instance receivers, passed callbacks) has a definite
-meaning, so teaching the scanner is cheaper and more trustworthy than touching
-ordinary code: generator work, never code churn. Reading a map does not by
-itself authorise a rewrite.
-
+A rewrite must preserve intended behavior and expose its actual interactions. Apply the [release's simplification rule](plans/0.3.1.md) before choosing scanner work: direct wiring and explicit operations should remove unnecessary indirection, retaining necessary lifecycle handling. Improve syntax resolution where the existing abstraction earns its place. Authorized architecture work includes these rewrites; an unrelated map read grants no extra scope.
 Also: give conceptual stages and callbacks code names, so clusters survive
 line edits; when code replaces an entity, rewire every consumer and remove the
 old one, with no compatibility wrapper or parallel path.
@@ -177,30 +165,21 @@ old one, with no compatibility wrapper or parallel path.
 ### Working the map
 
 ```sh
-node scripts/agent-toolkit.mjs read-map 0
-node scripts/agent-toolkit.mjs read-map core/path/compose.mjs::planComposition
-node scripts/agent-toolkit.mjs read-map 6.3.1 --code
-node scripts/agent-toolkit.mjs regenerate
-node dev-map/cli.mjs check
+node scripts/agent-toolkit.mjs developer-onboarding --set 030-deployment
+node scripts/agent-toolkit.mjs read-map 0 --set 030-architecture
+node dev-map/cli.mjs read agent-bundle --set 030-architecture
+node dev-map/cli.mjs audit --set 030-architecture
+node dev-map/cli.mjs audit-check --set 030-architecture
 ```
 
-Reads come from the stored map and never scan; `regenerate` scans, and a read
-whose inputs have moved says `stale` and names the index to regenerate. Use the
-index when talking about the current map and the node path
-(`file.mjs::name`) when something must keep pointing at it. **Text search for
-orientation is discouraged**: it finds names; the walk shows who calls and
-consumes what you are about to change. The authored inputs are the tree in
-`dev-map/tree.json`, annotations in `dev-map/facts.tsv`, and the scope. The
-[map guide](dev-map/README.md) owns the commands, read fields and authoring
-mechanics; [BR-052](build_request.md#br-052--complete-the-dev-map-against-the-2026-09-21-intent)
-holds what remains.
+Reads never scan. Design reads accept node/contract IDs and `--source` for explicit source references; scanned reads accept declarations and `--code`. Design `build`/`regenerate` redraws contracts, not implementation evidence; `audit` rescans and `audit-check` checks freshness. Scanned `regenerate` rescans its selected set. Never substitute one set's index for another's or infer compliance from a design rendering.
+Walk the selected map to understand interactions before editing. Use its index in discussion and stable declaration/contract identities in records. The [map guide](dev-map/README.md) owns commands/authoring; [BR-052](build_request.md#br-052--complete-the-dev-map-against-the-2026-09-21-intent) retains implementation-map follow-ups.
 
 ### What keeps its own owner
 
 Repository policy, setup, contribution procedures, decisions and historical
 evidence keep their owners. Skills, [client adapters](adapters/mcp/DEVELOP.md),
-[exporters](core/export/DEVELOP.md) and the [agent CLI toolkit](core/agent/README.md) are outside the mapped scope
-and keep their own references. [CONTRIBUTING-AGENTS.md](CONTRIBUTING-AGENTS.md)
+[exporters](core/export/DEVELOP.md) and the [agent CLI toolkit](core/agent/README.md) keep their references; their exclusion applies only to the original default map, not the release architecture audit. [CONTRIBUTING-AGENTS.md](CONTRIBUTING-AGENTS.md)
 owns checkpoint and publication rules; read it immediately before committing.
 Source is authoritative for implementation; software checks do not establish
 physical results. Run a check to settle a concrete uncertainty and reuse its
