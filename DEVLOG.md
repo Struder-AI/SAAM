@@ -7,7 +7,7 @@
 
 ## 2026-10-01 — Plan automatic client setup and Wing export size repair
 
-- Expanded [0.3.2 intent](plans/0.3.2.md) so SAAM installation owns supported per-user Codex/Claude integration and updates preserve it; client trust or restart still follows client rules. Assigned the Wing export size report with measurements from existing local sets (26.6 MiB plan; 171–394 MiB per set), source path and acceptance. Read current official client integration documentation and inspected Wing export code; no runtime change or new test. Intent 41 → 45 lines; log +4 lines.
+- Expanded [0.3.2 intent](plans/0.3.2.md) so fresh install and 0.3.1 → 0.3.2 update register both detected local Codex/Claude clients independently, with two eligible Studio buttons and retryable per-client setup; client trust or restart still follows client rules. Assigned the Wing export size report with measurements from existing local sets (26.6 MiB plan; 171–394 MiB per set), source path and acceptance. Read current official client integration documentation and inspected Wing export code; no runtime change or new test. Intent 41 → 45 lines; log +4 lines.
 
 ## 2026-10-01 — Assign installed-tour bugs to 0.3.2
 
