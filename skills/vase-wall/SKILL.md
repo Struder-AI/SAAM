@@ -8,11 +8,12 @@ description: A hollow vase or tube as one continuous rising spiral wall, with an
 Use for conventional vase printing: one continuous spiral wall, an open top,
 and an optional solid base. The input describes the vessel's exterior; the
 recipe leaves the interior hollow. No pattern or `meshSleeve` preparation is needed.
-For repeated loops, authored patterns or adjustable mesh conformance, choose
+For repeated orbital loops with configurable wall width and overlap, choose
 [advanced vase mode](../advanced-vase-wall/SKILL.md).
 
-Both manuals use the existing `skills.vase-wall` recipe and slicer. Their separate
-skill-digest entries guide selection; they do not introduce another recipe key.
+Standard vase mode uses the existing `skills.vase-wall` recipe and slicer in this
+checkout. The orbital skill uses its own deterministic path script and the
+installed SAAM 0.3.0 Slice/Trace adapter; read its compatibility requirements.
 
 ## Workflow
 

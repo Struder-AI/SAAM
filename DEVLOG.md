@@ -9572,3 +9572,34 @@ chat-first, temporary contextual Studio chooser are retained as well.
 
 Verification: 21 focused hole-support, heat-set geometry/MCP and workflow tests
 pass. No physical print validation or manufacturing approval is claimed.
+
+## 2026-10-01 — Replace fitted patterned walls with primary-path orbits
+
+At the user's request, retired advanced-vase-wall's fitted-sleeve/contact maker
+workflow and developer guidance. The inspected original-contour harmonic orbit
+is now the skill's workflow. Legacy runtime support remains for saved recipes;
+new orbital jobs perform no fit, tangency/contact solve, surface coverage test
+or corner repair. Width is constant by default; nominal overlap directly sets
+pitch = orbit diameter × (1 − overlap). Width profiles are optional at the pure
+module boundary. The Slice/Trace adapter exposes wall width, overlap, base layers,
+layer height, bead width, speed and sampling intervals and preserves geometry
+and printer setup in a separate bundle. Its explicit compatibility target is
+installed SAAM 0.3.0; this contributor checkout's older recipe framework is not
+migrated. Updated standard-vase selection guidance and generated digest.
+
+The original 125 mm Spiral_Vase_V2_Thinner_walls job used a 2 mm wall, 50% nominal
+overlap, 0.4 mm bead and three base layers on H2D right/white PLA/Textured PEI.
+Original-section primary construction took 2.50 s, orbit modulation 0.58 s and
+bundle creation 3.85 s. 621 wall courses / 1,972,479 points. Default generation
+heap exhausted; unchanged recipe passed production machine-program checks with
+a 16 GiB heap in 81.63 s. Studio inspection was accepted by the user; viewer
+reopening recovered an unresponsive tab. Estimate 316 min / 72.56 g. This is
+software and visual evidence, not physical print validation. Fitted failure had
+approximately 9.33 mm sampled residual and lost the original flutes.
+
+Two unit tests pass for overlap-controlled pitch, speed-independent geometry,
+monotonic Z and unchanged input. A short original-mesh fixture also verifies
+nondefault width/overlap/layer/speed, zero base layers, retained geometry/setup
+and production Slice/Trace generation. Digest refreshed; diff whitespace checked.
+Publication scope is this skill replacement and its guidance/evidence only;
+concurrent homepage and Studio changes remain outside this commit.
