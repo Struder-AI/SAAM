@@ -1,5 +1,9 @@
 # Development log
 
+## 2026-10-01 — Assign guided-tour service attachment to 0.3.2
+
+- Recorded the installed 0.3.1 tour report as a separate open bug in [0.3.2 intent](plans/0.3.2.md), with update, consented diagnostics, offline operation and lifecycle acceptance. Source inspection confirms the toolkit omits Studio's service argument while desktop startup supplies it and observes runtime events. Reviewed documentation diff and links; no runtime changes, reproduction or tests. Intent: 36 → 42 lines; log: +4 lines.
+
 ## 2026-10-01 — Plan both desktop initialization directions
 
 - Owner added Studio → Codex/Claude buttons and ordinary chat → installed SAAM startup to 0.3.2. Recorded the current separate-runtime ownership gap, proposed shared installed connection interface, session handoff/recovery, skill/CLI versus plugin/MCP/hooks choices, desktop launch limitations and practical acceptance. Both user flows are required; implementation mechanism remains for selection. No runtime or client configuration changed.
