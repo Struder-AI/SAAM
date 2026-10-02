@@ -1,0 +1,42 @@
+{
+  "schema": "saam-switch-cover/1",
+  "country": "US",
+  "familyId": "na-wallplate",
+  "installation": "flush",
+  "coverage": "standard",
+  "width": 115.88749999999999,
+  "height": 114.3,
+  "pitch": 46.0375,
+  "thickness": 3,
+  "cornerRadius": 4,
+  "rearPocketDepth": 1.2,
+  "rimWidth": 4,
+  "screwDiameter": 3.6,
+  "screwHeadDiameter": 6.5,
+  "countersinkDepth": 1,
+  "labelSize": 7,
+  "reliefDepth": 0.6,
+  "treatment": "two-color",
+  "plateColor": "#eee5d7",
+  "textColor": "#334d43",
+  "decorationPrompt": "",
+  "decoration": [],
+  "devices": [
+    {
+      "kind": "toggle",
+      "width": 10.31,
+      "height": 23.8,
+      "screwPitch": 60.325,
+      "label": "KITCHEN",
+      "labelPosition": "bottom"
+    },
+    {
+      "kind": "rocker",
+      "width": 33.274,
+      "height": 66.802,
+      "screwPitch": 96.825,
+      "label": "PORCH",
+      "labelPosition": "bottom"
+    }
+  ]
+}
