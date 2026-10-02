@@ -2,7 +2,7 @@
 
 Implementation-map intent: [DEVELOPER-CONTEXT.md](../DEVELOPER-CONTEXT.md);
 remaining work: [BR-052](../build_request.md#br-052--complete-the-dev-map-against-the-2026-09-21-intent).
-Release sets: [0.3.0](../plans/0.3.0.md) uses `030-deployment`; [0.3.1](../plans/0.3.1.md) uses `030-architecture` (identifier retained). Toolkit defaults to the latter; this CLI defaults to original scanned `default`, so pass `--set`. Designs express contracts, not conformance.
+Active [0.3.2](../plans/0.3.2.md) sets: `030-architecture` for product work (toolkit default), `030-deployment` for installation/service work. CLI defaults to scanned `default`; pass `--set`. Designs express contracts, not conformance.
 
 - `lib/`: source scanning, leaves (`leaves.mjs`), the tree (`tree.mjs`), the
   store, scoring, the solver and rendering.
@@ -167,7 +167,6 @@ empty/single-box clusters. Solving requires owner request; labels are authored.
 **Scanned named sets**, `--set NAME`: `sets/NAME/map.json` declares `title`, `scope` (exact generated leaves),
 optional `scanFiles`, and `authoring: "manual"` to disable solving. Selected leaves need homes; folded declarations
 cannot be selected independently. Unselected connections stay external, including normally counted callers.
-Example: `toolpath-pipeline`. Each set owns its store/viewer.
 
 **Layout**: scanned `tree.json.layout[mapId]` keys positions by cluster/leaf/external identity; design
 `architecture.json.layout[index]` uses drawn indexes. Positions: `{x,y,emphasis?}`; viewport: `[x,y,width,height]`;

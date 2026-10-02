@@ -1,5 +1,14 @@
 # Development log
 
+## 2026-10-01 — Remove obsolete developer maps
+
+- Owner requested retaining currently relevant maps. Verified live remote main `a779190` and development `7e52a8f`; all map definitions matched both. Retained 0.3.2 product/deployment sets, their viewers, common tooling and shared scanned inputs. Removed archived `dev-map-OLD`, the obsolete `toolpath-pipeline` set and generated default store/view: 1,781,779,463 bytes reclaimed. Updated map guidance and retired ignore entries; no push.
+- Checked removal scope, reparse points and final Windows paths, retained definitions, documentation references and diff whitespace. No tests, solver, rescan or physical trial. Changed map documentation plus this entry: 220 → 212 lines (unchanged log history excluded); `.gitignore` 52 → 50.
+
+## 2026-10-01 — Plan automatic client setup and Wing export size repair
+
+- Expanded [0.3.2 intent](plans/0.3.2.md) so SAAM installation owns supported per-user Codex/Claude integration and updates preserve it; client trust or restart still follows client rules. Assigned the Wing export size report with measurements from existing local sets (26.6 MiB plan; 171–394 MiB per set), source path and acceptance. Read current official client integration documentation and inspected Wing export code; no runtime change or new test. Intent 41 → 45 lines; log +4 lines.
+
 ## 2026-10-01 — Assign installed-tour bugs to 0.3.2
 
 - [0.3.2 intent](plans/0.3.2.md) records service attachment and visible-change/disabled-Next bugs with acceptance. Source confirms toolkit startup omits the service supplied by desktop startup. The tour task, received diagnostics and saved request/progress state confirm the displayed infill change was tracked as Studio guidance, which the lesson's edit-receipt gate rejects even after completion. Reviewed source, links and documentation diff; no runtime changes, service reproducer or tests. Initial assignment grew intent 36 → 42 lines and log +4; this consolidation reduces intent 42 → 41 with unchanged log length.
