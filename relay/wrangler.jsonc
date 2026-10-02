@@ -12,7 +12,7 @@
     // The release Studio offers as an update, as JSON:
     // {"version":"0.1.1","assets":{"win-x64":{"url":"https://…/SAAM-0.1.1-win-x64.zip","sha256":"…"}}}
     // Empty offers none. packaging/build.mjs prints each asset's entry.
-    "LATEST_RELEASE": "{\"version\":\"0.3.1\",\"assets\":{\"win-x64\":{\"url\":\"https://github.com/Struder-AI/SAAM/releases/download/v0.3.1/SAAM-0.3.1-win-x64.zip\",\"sha256\":\"162db7aaae9bd37a25ce2658dcf78fc268ceaea6460d626779e541fda4a885de\"},\"darwin-arm64\":{\"url\":\"https://github.com/Struder-AI/SAAM/releases/download/v0.3.1/SAAM-0.3.1-darwin-arm64.zip\",\"sha256\":\"c6238f1f3c18c96fff669d2578054b884721d01c9f1e12cf56d42bdce9b76aa4\"},\"darwin-x64\":{\"url\":\"https://github.com/Struder-AI/SAAM/releases/download/v0.3.1/SAAM-0.3.1-darwin-x64.zip\",\"sha256\":\"2929a5f97e979b90d8d754cd010ac3610acefe0b5bdabebc6225578328139f08\"}}}",
+    "LATEST_RELEASE": "{\"version\":\"0.3.2\",\"assets\":{\"win-x64\":{\"url\":\"https://github.com/Struder-AI/SAAM/releases/download/v0.3.2/SAAM-0.3.2-win-x64.zip\",\"sha256\":\"7d2d78e3e5a9e2e6ba0721359a95bd8c17282feed0b2e939b415903b8fe1208f\"},\"darwin-arm64\":{\"url\":\"https://github.com/Struder-AI/SAAM/releases/download/v0.3.2/SAAM-0.3.2-darwin-arm64.zip\",\"sha256\":\"2e2889b8ed818bb41b5afb886187f45160aada843c46eecaa7c0617235f1e982\"},\"darwin-x64\":{\"url\":\"https://github.com/Struder-AI/SAAM/releases/download/v0.3.2/SAAM-0.3.2-darwin-x64.zip\",\"sha256\":\"b209f116e3adbfc92a08f8afbc9560eadee79020c24c2ae39f7082e5d607dd70\"}}}",
     // Days received diagnostics are kept; "0" records nothing. Reading them,
     // and issuing invites, needs the OPERATOR_TOKEN secret (README.md#operating).
     "RECORD_DAYS": "30"

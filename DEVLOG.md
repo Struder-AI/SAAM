@@ -1,5 +1,36 @@
 # Development log
 
+## 2026-10-02 — Publish SAAM 0.3.2
+
+- Published v0.3.2 at source0246f70d2f22215f2537dc1be919c749ab3bdba5; exact
+  tag, seven public assets, ZIP/sidecar hashes and latest installation guide
+  verified. All three clean builds use checksum-verified official Node24.19.0.
+  Windows:43,834,405bytes,7d2d78e3e5a9e2e6ba0721359a95bd8c17282feed0b2e939b415903b8fe1208f;
+  arm64 Mac:47,715,601bytes,2e2889b8ed818bb41b5afb886187f45160aada843c46eecaa7c0617235f1e982;
+  Intel Mac:49,062,440bytes,b209f116e3adbfc92a08f8afbc9560eadee79020c24c2ae39f7082e5d607dd70.
+- Windows isolated published031→production032 installer preserved print,
+  credential, request history, local gridfinity/Wing and unknown additions.
+  Installed checked generation, one owner/resume/capture, imported Wing
+  preview/save/background two-bundle construction,51browser modules and bounded
+  native repair passed. Both absent-client registration files were verified.
+- Actual Codex Desktop launch/first Send attached the existing Studio; its new
+  chat discovered the global SAAM skill. Trial-only home/PATH overrides required
+  an explicit SAAM_DATA selection. User confirmed it looked good. Claude Code
+  launch did not open; owner directed publication for Codex testers and separate
+  Claude repair/0.3.3. The published guide and notes disclose this failure.
+  Temporary client registration was restored to baseline without conflicts.
+- Deployed the existing relay with all three published hashes, version
+  14a17a17-88dd-4b9c-8b05-ec937b848bea; authenticated offer matches. Installed
+  operation and workspace-design-updated receipts were acknowledged. Unchanged
+  published031 Studio Update downloaded/checksummed the public ZIP, exited and
+  automatically restarted032; all seeded hashes survived. Disposable harness
+  normalized only inherited SAAM_DATA after legacy startup; app code unchanged.
+- Native Mac acceptance follows release as agreed; Mac archives/runtime/modes
+  pass but have no optional native repair helper. No whole suite, new tests or
+  hardware qualification. Source/archive and scoped trial evidence remains in
+  .local/032-release. Release source and service record are on the development
+  branch; packaging/INSTALL.md matches the authoritative published guide.
+
 ## 2026-10-02 — SAAM application, chats and folders
 
 - One tray application owns persistent chats, Studios, requests, jobs and release
