@@ -1,6 +1,8 @@
 ---
 name: supports
 description: Tree branches at placed contacts; placement trades support against surface contact and removal access. Area supports under a footprint are slices with the support preset.
+metadata:
+  saam-kind: extension
 ---
 
 # Tree supports
@@ -8,7 +10,7 @@ description: Tree branches at placed contacts; placement trades support against 
 For maker work, read [MAKERS.md](../../MAKERS.md) and use the
 [shared print tools](../../core/print/USAGE.md). An area support under a broad,
 accessible flat underside is a [slice assignment with the support preset](../slice/SKILL.md#presets);
-this skill places explicit tree branches for local contacts. Enable
+this extension places explicit tree branches for local contacts. Enable
 `skills.supports.enabled` and supply `assignments` before generation. No
 hardware is run.
 

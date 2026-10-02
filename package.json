@@ -9,6 +9,7 @@
     "test": "node --test core/tests/*.test.mjs skills/*/tests/*.test.mjs",
     "test:stress": "node --test --test-concurrency=1 core/tests/stress/*.test.mjs",
     "studio": "node studio/server.mjs",
+    "workspace:wing": "node workspaces/server.mjs",
     "agent": "node scripts/agent-toolkit.mjs",
     "shell": "node core/print/cli.mjs",
     "mcp": "node adapters/mcp/src/server.mjs",
@@ -27,6 +28,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "acorn": "8.15.0"
+    "acorn": "8.15.0",
+    "fflate": "0.8.3"
   }
 }

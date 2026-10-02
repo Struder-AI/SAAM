@@ -1,10 +1,18 @@
 // Shell-specific adapter for the shared print lifecycle.
 import { createBundleWorkflow } from './workflow.mjs';
-import { defaults,validatePlan,geometryTemplate,VERSION,BUILD_DATE } from './plan.mjs';
-import { createGeometry,verifyGeometry,rhino } from './geometry.mjs';
-import { generatePath,buildShell,translateShell,GENERATION_CONTRACT } from './generate.mjs';
-import {modulationGeometrySources,prepareModulationFields} from './modulation-fields.mjs';
-import {booleanShell} from '../geom/boolean-solid.mjs';
+import {VERSION,BUILD_DATE} from './version.mjs';
+import {pathDependencies,PATH_CONTRACT,NEUTRAL_PATH_CONTRACT} from '../path/dependencies.mjs';
+import {resolvePlanPatch} from './resolve-plan.mjs';
+import {requireGenerationExtensions} from '../path/extension-dependencies.mjs';
+import {createHash} from 'node:crypto';
+import {readFile} from 'node:fs/promises';
+
+const defaults=async machine=>(await import('./plan.mjs')).defaults(machine);
+const createGeometry=async parameters=>(await import('./geometry.mjs')).createGeometry(parameters);
+async function patchPlan(previous,patch){
+  const {geometryTemplate}=await import('./plan.mjs');
+  return resolvePlanPatch(previous,patch,{geometryTemplate});
+}
 
 export const LIMITATIONS = [
   'Physical clearance is the operator’s responsibility; no collision model is implemented.',
@@ -20,18 +28,34 @@ const limitationsFor = (plan, machine) => {
   return limits;
 };
 
-export async function generatePreparedPath(plan,machine,options){
-  const native=await rhino(),sources=modulationGeometrySources(plan.modulations);
-  const material=geometry=>geometry.shape==='assembly'
-    ?booleanShell('union',geometry.parts.map(part=>translateShell(material(part.geometry),part.xMm,part.yMm,part.zMm)))
-    :geometry.shape==='boolean'?booleanShell(geometry.operation,geometry.operands.map(material)):buildShell(native,geometry);
-  const fields=await prepareModulationFields(plan.modulations,{solids:sources.map(source=>({key:source.key,geometry:material(source.geometry)}))});
-  return generatePath(plan,machine,native,{...options,modulations:fields.record,modulationPreparation:fields.report});
+export async function generatePreparedPath(plan,options){
+  await requireGenerationExtensions(plan);
+  const [{compileRecipe},{generatePath},{prepareModulationFields}]=await Promise.all([
+    import('./plan.mjs'),import('./generate.mjs'),import('./modulation-fields.mjs')]);
+  plan=compileRecipe(plan).plan;
+  const fields=await prepareModulationFields(plan.modulations);
+  return generatePath(plan,{...options,modulations:fields.record,modulationPreparation:fields.report});
 }
 
-export const {root, EXPORT_NAME, atomicManifest, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, bundleFingerprint, bundleFingerprints, rememberSetup, migrateBundle, prepareGeneration, commitGeneration, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, changeMachine}=createBundleWorkflow({
-  kind:'shell',defaults,validatePlan,geometryTemplate,createGeometry,verifyGeometry,
-  generatePath:generatePreparedPath,generationContract:GENERATION_CONTRACT,
-  version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode',machineFile:'machines/ultimaker-s5.json',
+export async function pathSource(plan){
+  const release=await readFile(new URL('../../release.json',import.meta.url),'utf8').then(JSON.parse)
+    .catch(error=>{if(error.code!=='ENOENT')throw error;return {version:PATH_CONTRACT};});
+  if(!release||typeof release.version!=='string'||!release.version)throw Error('Installed release record has no version.');
+  const version=release.version;
+  try {
+    const selected=await requireGenerationExtensions(plan);
+    const hash=createHash('sha256').update(JSON.stringify([version,PATH_CONTRACT,NEUTRAL_PATH_CONTRACT,
+      selected.map(({id,digest})=>[id,digest])])).digest('hex');
+    return {release:version,hash};
+  } catch(error){if(error.code!=='EXTENSION_MISSING')throw error;return {release:version,hash:null,missing:error};}
+}
+
+export const {root, EXPORT_NAME, atomicManifest, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, bundleFingerprint, bundleFingerprints, migrateBundle, prepareGeneration, commitGeneration, generateToolpath, restoreRevision, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, exportReviewed, applySettingsSnapshot}=createBundleWorkflow({
+  kind:'shell',defaults,patchPlan,createGeometry,
+  generatePath:generatePreparedPath,pathDependencies,pathSource,generationContract:PATH_CONTRACT,completionContract:NEUTRAL_PATH_CONTRACT,
+  version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode',
   limitations:limitationsFor
 });
+
+export {changeMachine,rememberSetup} from '../machine/bundle-settings.mjs';
+export {bundleInstance,claimBundleInstance,releaseBundleInstance,withBundleInstance,recoverBundleInstance} from './studio-ownership.mjs';

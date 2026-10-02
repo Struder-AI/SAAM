@@ -1,0 +1,1 @@
+{"schema":"saam-extension/1","id":"plastic-weld","dependencies":[],"entries":{"deposition-runtime":{"file":"scripts/runtime.mjs","export":"plasticWeldRuntime"},"record-runtime":{"file":"scripts/runtime.mjs","export":"plasticWeldRecordRuntime"}},"license":"Apache-2.0","provenance":"SAAM release"}

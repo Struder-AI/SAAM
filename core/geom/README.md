@@ -2,38 +2,37 @@
 
 ## Repair worker and native process boundary
 
-`core/print/mesh-repair-job.mjs` owns one Node worker per repair or repairing
-import (`importOrRepairSTLBundle`, mode `import`); each of these entries runs the
-job when called on the main thread and works inline inside the worker. The job
-settles only after terminating its worker, so a caller can safely remove the
-directory it was writing. Progress callback
-errors abort work; a geometry callback must acknowledge its matching message ID
-before the worker continues. Abort rejects pending acknowledgements. A worker exit
-without a result is an error, and a result received after caller cancellation does
-not become a success. `mesh-repair-worker.mjs` transfers repaired byte storage and
-closes its message port after result or failure.
+`core/print/mesh-repair-job.mjs` owns a worker per repair/import, running inline when already in that worker.
+It settles after worker termination, allowing scratch cleanup. Progress callback errors abort;
+geometry callbacks acknowledge matching message IDs before work continues. Abort rejects pending
+acknowledgements; missing results and results arriving after cancellation cannot become success.
+`mesh-repair-worker.mjs` transfers repaired bytes and closes its message port on completion or failure.
+The native executable uses files, stderr progress and stdout reports. [Native repair](./native/README.md)
+owns build instructions, limits and provenance, including geometry-owned C++, CMake, dependency hashes
+and licenses outside the JavaScript scanner. Keep those resources consistent with the wrapper protocol.
+[Regions](../region/README.md) documents offsets/intersections; [composition](../path/README.md) consumes them.
 
-The native adapter uses files and an explicit executable, with progress on stderr
-and a result report on stdout. [Native repair](./native/README.md) owns its build,
-algorithm limits and provenance. `mesh-repair.cpp`, CMake configuration, dependency
-hashes and license notices are geometry-owned resources despite being outside the
-JavaScript relationship extractor. Change them with the wrapper protocol in view.
+## Planar line/region clipping
 
-Geometry representations, query semantics, precision, spline sectioning and mesh
-repair. [Regions](../region/README.md) owns offsets, intersections and material
-regions; [composition](../path/README.md) consumes the resulting skill operations.
+[clipLineToRegion](curve-region.mjs) clips `origin + t * direction` through closed XY loops,
+retaining source parameters. Direction must be finite/nonzero; ordered `range` defaults to the
+whole line, with a singleton querying point membership. `fillRule` is `nonzero` (default) or `evenodd`.
+It returns ordered `spans: [[t0,t1],…]` and `contacts: [[t0,t1],…]`. Half-open spans retain crossing
+subdivisions. Contacts merge overlapping input-boundary points/collinear intervals; tangency adds no
+span and collinearity no winding crossing. Normalize cancelling/overlapping loops first when the
+combined material boundary is required. Repeating the closing vertex is optional.
+Wing uses even-odd spans; infill uses nonzero spans and its minimum stroke length. Travel uses spans
+and contacts against its existing expanded footprint, interpolates height in source parameters,
+and uses singleton queries for vertical moves. Deposition retains its top/bottom boundary asymmetry.
+This floating-point sweep adds no epsilon, snapping, spline clipping or exact-predicate guarantee.
+Travel's offset retains Clipper precision, but clipped endpoints no longer use its grid. General
+polyline clipping stays in [Clipper2](../region/intersection.mjs) for its topology/grid semantics.
 
 ## Geometry interoperability for skill authors
 
-Compiled heat-set and text geometry retains editable feature recipes. Local
-deposition around a feature is slice data, not geometry: heat-set inserts
-write slice assignments that own their volumes
-([slices.mjs](../../skills/heat-set-inserts/scripts/slices.mjs)); the
-[heat-set manual](../../skills/heat-set-inserts/SKILL.md) owns its constraints.
-
-Skills consume common geometry queries with explicit supported representations.
-The sections below define numerical assumptions, query semantics and the
-representation-specific work behind that boundary.
+Heat-set and text retain editable feature recipes. Heat-set [slice assignments](../../skills/heat-set-inserts/scripts/slices.mjs)
+own local deposition volumes; the [manual](../../skills/heat-set-inserts/SKILL.md) owns feature constraints.
+Skills share geometry queries with the explicit numerical and representation limits below.
 
 ### Shared numerical foundations
 
@@ -64,11 +63,8 @@ evaluations instead of repeatedly flattening and inverse-projecting geometry.
 
 ### Precision belongs to a quantity and an operation
 
-Choose the least expensive precision that preserves the intended process result.
-Name the quantity, units, construction stage and consumer before selecting a
-tolerance. More decimal places are not evidence of accuracy. A millimetre grid,
-a chord-error bound, a parameter increment and an extrusion-volume allowance
-are different contracts; do not replace them with one global epsilon.
+Choose precision by quantity, units, construction stage and consumer. More decimals do not establish
+accuracy; coordinate grids, chord error, parameter increments and volume allowances need separate budgets.
 
 | Dimension | Current examples | Developer guidance |
 |---|---|---|
@@ -80,76 +76,57 @@ are different contracts; do not replace them with one global epsilon.
 | Machine command quantization | S5/H2D XYZ and filament E currently five decimals; feed three decimals in mm/min; dwell integer milliseconds; Dobot ten decimals and RC8A eight | XYZ, filament length, volume, feed, time and pose need independent error budgets even when a formatter currently shares digits. Relative-E rounding can accumulate per move; absolute E has different accumulation. Reconcile final endpoints, length, volume and duration when removing or coalescing points. |
 | Display approximation | Studio bead tessellation, float buffers and distance-based detail | Display budgets are visual only. They must not alter the saved program, geometry identity, deposition volume or machine checks. Printed-looking colors and shading do not establish geometric accuracy. |
 
-Construction must respect the downstream representation. A short segment can
-cross a coordinate rounding boundary, so distance alone cannot establish that
-it will disappear at export. If a point is removed, preserve or recompute the
-following segment's start, volume integral, local gap/width and pose metadata;
-do not keep values calculated for the old endpoints. Simplify before generating
-dependent data where practical. Keep shape simplification distinct from removing
-numerical seams; `cleanPlanarLoop` currently uses the plane tolerance and is not
-a process-resolution simplifier.
-Quantize each output field once and reuse that value for text, flow calculations
-and modal state. Do not format coordinates repeatedly or parse freshly formatted
-commands just to recover numbers already held by the writer.
+Short segments can cross rounding boundaries; length alone cannot predict their disappearance.
+When removing points, preserve/recompute subsequent starts, volume integrals, gaps, widths and pose.
+Simplify before dependent data where practical. `cleanPlanarLoop` removes numerical seams using plane
+tolerance; it is not process-resolution simplification. Quantize each output field once and reuse it
+for text, flow and modal state instead of repeated formatting/parsing.
 
-For ordinary FFF, begin performance experiments with micrometre coordinate
-grids and hundredths-of-a-millimetre curve deviation, then establish the suitable
-budget from feature size, line width, layer height, material interfaces and the
-actual machine output. These are experiment starting points, not blanket changes
-to existing skill defaults or permission to erase narrow regions. A tighter
-predicate can be justified even when a coarser contour approximation is adequate.
-Do not pay for sub-process detail at every offset and emitted move without
-measuring its benefit.
+For ordinary FFF experiments, start with micrometre grids and hundredths-of-a-millimetre deviation,
+then measure against feature size, bead dimensions, material interfaces and actual output. These are
+not new defaults or permission to erase narrow regions; predicates may need tighter precision than contours.
+The [external inspection](../../DEVLOG.md#2026-09-11--external-precision-reference-inspection) separates these
+budgets but establishes neither effective user settings nor speed. Deviation limits can retain short segments.
 
-The [external precision reference inspection](../../DEVLOG.md#2026-09-11--external-precision-reference-inspection)
-illustrates distinct coordinate, segment-resolution, curve-deviation and
-extrusion-area budgets. Its dated values do not establish the user's effective
-settings or a speed guarantee. A deviation constraint can limit simplification
-even when short segments remain.
-
-During development, measure elapsed time, input/output point counts and geometric
-change together on the same recipe. Include translated/scaled geometry, sharp
-corners, small holes, thin walls, repeated operations and variable extrusion when
-those consumers are affected. Compare areas in mm² and distances in mm; use
-independent analytical or reference results rather than only equality to an old
-over-precise output. Fix a physical-invariant failure rather than loosening its
-assertion to accommodate an unexplained error. This is design/review guidance,
-not another runtime precision sweep, validation gate or approval stage.
-
-The [precision audit history](../../DEVLOG.md#br-040--dimension-aware-precision-audit-and-developer-guidance)
-records corrections and proposed follow-ups, including collapsed-segment volume
-and oriented motion. The [provenance audit](../../DEVLOG.md#2026-09-14--build-request-provenance-audit)
-distinguishes the completed audit from approval to implement all its findings.
-Current XYZ behavior is specified under [formats](../print/README.md#formats).
+Measure elapsed time, point counts and geometric change on the same recipe. Include affected translated/scaled
+geometry, corners, holes, thin walls, repeated operations and variable extrusion. Compare areas in mm² and
+distances in mm against independent references; fix physical-invariant failures rather than loosening checks.
+This is development guidance, not a runtime sweep or approval gate. The [precision history](../../DEVLOG.md#br-040--dimension-aware-precision-audit-and-developer-guidance)
+records corrections/follow-ups; the [provenance audit](../../DEVLOG.md#2026-09-14--build-request-provenance-audit)
+does not authorize every finding. [Formats](../print/README.md#formats) specifies current XYZ behavior.
 
 ### Geometry query boundary
 
-`core/geom/slice.mjs` sections every backend: `section(geometry, slice)` returns
-the solid's region on a slice (a plane with an orthonormal chart, the
-horizontal plane's being XY, or a spline patch in its (u,v)) as loops in that
-chart, and `sliceFamily` stacks one slice into layers.
-[slices.mjs](../print/slices.mjs) assigns each layer's region to owners by
-volume ([layer-region.mjs](../region/layer-region.mjs) sections volumes and
-solid masks). `core/geom/query.mjs` holds `topAt`, `sampleTopSurface` and
-`containsPoint`. All take closed untrimmed spline shells, validated indexed
-triangle meshes and booleans of them. Pattern skills use these queries;
-pattern code must not branch on triangle versus spline internals. Declare new
-capabilities here and provide a backend implementation or an explicit rejection.
-Both backends are supported under [D-021](../../DECISIONS.md#d-021--native-mesh-geometry).
-Mesh conversion is not required before SAAMpath generation.
+[section](../region/section.mjs) returns oriented loops on planes, patches or height charts, retaining Boolean topology, holes, disconnected components and nudge/edge diagnostics.
+[sliceFamily](slice.mjs) stacks cutting surfaces; [slices](../print/slices.mjs) owns material allocation.
+[query](query.mjs) supplies native-shell and mesh top/containment queries.
 
-| Representation | Role |
+| Operation | Current consumers and contract |
 |---|---|
-| Spline shell / triangle mesh | Part geometry behind common queries. [normalBandVolume](normal-band.mjs) also samples a closed chart-normal band into a validated mesh for claim queries; mixed deposition integration is unfinished. |
-| [Blob field](blob-field.mjs) | Points with reach and strength whose cubic B-spline falloffs sum; explicitly extracted to the shared manufacturing mesh backend for slicing and Studio. |
-| [Surface intersection](surface-intersection.mjs) | Curves where two NURBS patches meet, with both patches' parameters: boundary points first (each patch's edges against the other surface), then marching between them; interior loops seeded by Bezier subdivision; edges lying in the other surface are curves themselves. |
-| [Surface region](slice-region.mjs) | The part of a spline surface inside a solid (spline shell or triangle mesh) as loops in the surface's (u,v): intersection curves chained, oriented by the partner's outward normal and closed along the domain boundary. The basis of curved slices and trimmed patches. |
-| [Boolean solid](boolean-solid.mjs) | Operands of any backend behind the common queries: sections combined per layer with Clipper2, tops from operand crossings. [boolean-display.mjs](boolean-display.mjs) meshes it with Manifold for Studio and solid modifiers only. |
-| Closed regions with holes | Planar sections, offsets, solid masks and infill clipping. |
-| Surface height and normal | Accessible roof sampling for drape; faceted normals stay faceted. |
-| Skill operation result | Composable strokes, dependencies, layer references and travel policies. |
-| SAAMpath | Machine-independent XYZ motion, deposition and process actions. |
-| Output artifact | Machine-specific commands/packaging with a matching interpreter. |
+| [surfaceIsoCurve](surface-curves.mjs) | Shell closure, conforming tessellation and sleeve offsets use ordinary rational curves retaining knots, weights, native domain and source surface coordinates. |
+| [evaluateSurface / mappedSurface](surface-evaluation.mjs), [surfaceDerivatives](surface-derivatives.mjs) | Shared point/normal/derivative evaluation retains native units. Checked native differentials include second derivatives and reject out-of-domain, nonpositive-weight or singular-tangent samples. Affine selection retains native UV; sleeve phase is periodic arc length, height charts use world XY. |
+| [Curve sampling](curve-sampling.mjs) | `sampleCurveIntervals` refines physical chord/step bounds. `sampledPositiveIntervals` returns positive runs from ordered parameter/value samples, refining observed crossings to 1e-9 native units; touching zero-separated runs stay separate, unsampled crossings remain unknown. Callbacks evaluate geometry only. |
+| [constructSolids](solid-operations.mjs) | Heat-set, text and gridfinity submit construction/translation/Boolean requests; Geometry owns conversion, mapped-extrusion refinement and native disposal. Results are manufacturing meshes (null for empty material). Feature rules and editable records remain with extensions. |
+| [planarRegionLayers](planar-region-layers.mjs) | Given a height range, numeric process, authored `regionsAt(z)` polygons, optional shells and XY clearance, return merged planar Slice layers and family. Geometry checks shell intersections at the sampled layer heights and throws on a positive clearance overlap; it never invents source regions. |
+| [prepareContourSleeve](sleeve/contour-sleeve.mjs) | Given explicit section heights, pitch, standoff, offset, tolerances and fit mode, construct contour correspondence and a Slice family. Extensions choose those values; Geometry checks and maps the sections. |
+| [resolveGeometrySelections](build.mjs) | Resolves whole solids, components, material partitions and replacement volumes in an offset frame; owns runtime loading and reuses source builds within a batch. Async path generation requests these values; Toolpath retains assignment and ownership policy. |
+| [resolveMaterialGeometry](build.mjs) | Builds an ordered batch of authored geometry, sharing immutable source builds. Geometry loads the native runtime and recursively unions placed assembly components for material queries; ordinary construction/selections retain their assembly representation. Unsupported shapes, invalid shells/meshes and empty Boolean bounds retain construction errors. No recipe placement or Bundle mutation. |
+| [prepareSolidDistance / solidDistance](solid-distance.mjs) | Preparation builds material, tessellates at `toleranceMm`, admits the mesh and returns `{prepared,report:{toleranceMm,triangles,representation}}`, preserving tessellation errors and native Boolean disposal. Synchronous queries traverse every triangle without a radius limit; `signed` uses containment only above `1e-12` mm. Toolpath owns field composition, report keys, channels and sampling policy. |
+| [createBlobFieldEvaluator](blob-field.mjs) | Prepare finite weighted points or periodic bump lattices once for repeated scalar queries. Finite sources retain optional gradients and ordered accumulation; unrepresentable bucket coordinates use an ordered direct sum. Toolpath owns composition and sampling. |
+| [widenPlanarStrokes](stroke-topology.mjs) | Widens coplanar XYZ strokes in an explicit unit frame with round joins/caps, a fixed 0.001 mm grid and caller-supplied radius/arc tolerance. Returns closed XYZ loops; Toolpath retains bead count, pitch and width policy. |
+| [intersectPatches](surface-intersection.mjs) | Section boundaries retain corresponding parameters on both native surfaces. |
+| [extractLevelSet](level-set.mjs) | Sampled scalar fields yield bounded high-side region loops (default) or genuine `{points,closed}` contours (`output: 'curves'`). Roof reservations and chart predicates use regions; gyroid uses curves. |
+
+Level extraction retains high-side equality, ordered ambiguous-cell pairing, sentinel refinement,
+`1e-7` chart endpoint matching and `TOLERANCE.point` cleanup. Only regions add domain edges; curves
+can end there. Uniform high/low fields yield no curves and domain/empty regions. `levelSetCoverage`
+classifies without extraction. Sampling may miss detail; field/deposition choices remain caller policy.
+
+Geodesic region offsets retain their C2/domain limits; piecewise roofs/sleeves
+keep explicit crease transitions. No trimmed-surface capability is introduced.
+Native geometry and explicit manufacturing meshes remain authoritative; display
+approximations never replace them. Saved/native/display artifacts retain their
+existing geometry identity. Deposited-material contact remains in Toolpath.
 
 Native mesh assets use `geometry/model.mesh.json` with `saam-native-geometry/1`,
 millimeter indexed triangles, original source provenance and shape parameters.
@@ -294,11 +271,11 @@ seam (the search runs on three copies). `foldCuts(moved, source, closed)`
 returns the cut intervals for other callers. Crossings between distant parts stay.
 Reversals are found from 32 samples per knot span.
 
-`prepareSleeveContours` in `sleeve-frame.mjs` offsets horizontal native NURBS
+`prepareSleeveContours` in [sleeve-frame.mjs](sleeve/sleeve-frame.mjs) offsets horizontal native NURBS
 isocurves of periodic patches whose V chart reproduces actual Z. Crossings
 resolve before chord-controlled sampling and perimeter correspondence.
 `at(phase,zMm,depth)` follows one retained closed contour; split/collapse rejects.
-Vase mapping adds nominal half-bead depth, then applies unilateral mesh contact.
+The caller chooses centerline offset; optional fitted mesh contact is unilateral.
 
 ### Geometry contract
 
@@ -353,117 +330,12 @@ close raises rather than returning a part with a gap in it.
 
 ## Mesh sleeves
 
-`mesh-sleeve.mjs` exposes `fitMeshSleeve(mesh, options)` for an already validated
-triangle mesh. A **sleeve** here is the open side surface of a vase-like
-envelope, with its top and bottom caps excluded. It is independent of material
-coverage: fitting a solid, or the outer side of a hollow vessel, does not fill its
-interior or create another printed wall. The source geometry is unchanged.
-
-`detectMeshSleeveInterval(mesh, {marginMm, toleranceMm, sampleCount,
-maxSecondaryAreaFraction, zMinMm, zMaxMm})` is an **authoring-time proposal** for
-usable sleeve bounds. It scans 25 heights by default, retains valid end sections
-exactly, and proposes an inward cut only when an end section collapses. The first
-inward proposal and cap-bracket refinement use `marginMm` (default 0.4 mm; callers
-should derive it from their chosen bead width/layer pitch). Branches, significant
-islands and separated usable height intervals are rejected. This sampled scan
-does not certify every intermediate section; the fitter/source queries keep
-checking newly encountered heights. The returned `rangeMm` is absolute Z;
-`report` includes the source range, excluded bottom/top heights, margin, sample
-count, source section count and secondary-feature areas. Set the accepted range
-explicitly in the authored recipe and derive a complete course count for it.
-Never call this detector to silently shorten an already requested/generated
-path. A valid flat-ended cylinder therefore loses no height, whereas a mesh with
-collapsed extreme caps receives an explicit cap-exclusion proposal.
-
-The detector uses horizontal source sections over a selected `zMinMm`–`zMaxMm`
-interval. One dominant outer contour is required at each queried height. Small
-secondary islands may account for at most `maxSecondaryAreaFraction` of its area
-(default 0.001, or 0.1%); set zero to reject every secondary island. All source
-loops remain available. Reported maximum secondary area/count and pore area make
-that reference-envelope reduction explicit. A hole above that area fraction is
-a bore; at most one substantial bore is supported. A base may close the bore at
-lower heights. Multiple significant islands, branches or bores, and collapsed
-tips, fail with the height of the unsupported section. Choose a suitable sleeve
-interval or different geometry instead of treating those failures as mesh repair.
-This is section-based detection, not a global topological classification proof.
-
-The fit is an actual nonrational bicubic tensor-product B-spline, periodic around
-the perimeter and clamped in height. Source rings are sampled at a stable +X seam
-and normalized arc length. Uniform product-grid observations are fit in X and Y
-by separable least squares; the control net uses Greville abscissae to preserve
-Z exactly. `nurbs.mjs` owns the basis/evaluation algorithms. The bounded dense
-solver in `least-squares.mjs` implements Householder QR (Golub and Van Loan,
-*Matrix Computations*, 4th ed., §5.2), factors each sampling matrix once, and
-rejects rank-deficient inputs. This is an original implementation of that
-standard algorithm, not a vendored solver or a new geometry kernel. It avoids
-the squared condition number of normal equations. The test checks affine
-recovery and residual orthogonality independently of the fitted mesh.
-
-| Option | Meaning and default |
-|---|---|
-| `circumferentialControls`, `heightControls` | Independent fit resolution; defaults 12 and 6. Fewer controls smooth local texture; increasing them permits more detail in the underlying estimate. Both accept 4–64. |
-| `circumferentialSamples`, `heightSamples` | Uniform observation grid, defaults 96 and 25. At least twice as many circumferential samples as controls, and at least as many height samples as controls, are required. These are fit samples, not a certified mesh-error bound. |
-| `toleranceMm` | Bounded chord deviation for polyline sections of the fitted polynomial spline, default 0.02 mm. It is independent of fit residual and source-mesh detail. |
-
-The number of points in a complete fitted section follows from `toleranceMm` and
-the fitted second-derivative bound; there is no separate allowance on it, and
-`report.sectionSegments` gives the count actually used.
-
-The result contains `patch` (the existing shared NURBS patch representation),
-`pointAt(u,z)` (periodic U, actual millimetre Z), `sectionAt(z)` (a smooth outer
-reference loop), and `sourceSectionAt(z)` (original cut loops, selected `outer`,
-enclosed `holes`, significant `bores`, `secondaryOuters` and a contour query).
-`rangeMm` gives the fitted interval. Source and fitted sections each retain at
-most 64 cached heights. Newly constructed fitted polylines are normalized through
-shared Clipper2 to reject detected self-crossings, reversals and collapse.
-Every height uses the same uniform U grid. For this unit-weight periodic cubic,
-the maximum norm of its second-derivative control vectors bounds the XY second
-derivative at every height. A grid interval of length `h` has linear chord
-error at most `M*h*h/8`. `sectionSegments` and `sectionChordBoundMm` report this
-construction. Fixed parameter samples avoid vertex-selection changes between
-adjacent rings. The sampled topology checks remain construction checks, not a
-continuous surface-validity certificate or a bound on source-mesh fit error.
-
-`report` distinguishes sampled RMS/maximum **fit residual** from section chord
-tolerance, source classification and ignored reference details. The source query
-continues to check each newly requested height, so an unsupported feature between
-fit observations fails when encountered rather than silently becoming printable.
-Mesh conformance belongs after the regular pattern has been mapped onto this smooth
-reference: callers retain the original source query for directional contact.
-Do not stretch every pattern point between the smooth and detailed surfaces or
-interpret the sleeve as a filled material boundary.
-
-Focused regressions cover periodic position and tangent continuity, second
-derivative agreement, suppression of fine flutes, leaning envelopes, translated
-parts, hollow sleeves, preserved small pores/islands and explicit rejection of
-significant disconnected sections. Authoring regressions retain flat caps and
-exclude only collapsed poles, and reject separated height intervals. These establish the tested software scope,
-not physical support or machine clearance.
-
-### Prepared mesh contact
-
-`directional-contour.mjs` unfolds one-turn section contours into ordered polar
-profiles within the selected planar correspondence allowance. Larger folds
-reject, as does a source whose radial variation needs more angular room than the
-one turn an unfolded profile has. The fixed sample count per profile has a floor,
-not a ceiling: a contour whose sampling error exceeds the detail tolerance says so
-and can be sampled more finely. `prepared-radial-contact.mjs` uses 16,384 fixed
-samples per profile by default and
-interpolates their ordered correspondence across height. At sampled validation
-heights, the actual profile certificate is deducted before allocating the
-remaining detail tolerance to interpolation. This avoids an unnecessarily
-fixed five-percent interpolation budget. Height slabs are halved as long as Z can
-be halved, with no profile-count or mesh-distance-query budget; a slab that still
-misses its interpolation tolerance at one representable height is a step in the
-source that no mesh transition confirmed.
-
-Narrow horizontal ledges can use radial transitions checked against the original
-triangles through `mesh-distance.mjs` and the shared triangle hierarchy. Checks
-sample quarter and midpoint heights and adapt angular subdivisions. Their
-reported errors do not establish a global mesh Hausdorff bound or cover every
-unsampled height. Contact constrains path centers; the deposited bead may extend
-past the boundary by its half width. Neither the smooth reference nor its contact
-boundary is an additional deposited wall.
+Geometry owns [sleeve fitting, contour mapping and contact](sleeve/contour-sleeve.mjs);
+the [advanced-vase extension](../../skills/advanced-vase-wall/DEVELOPER.md) chooses
+the authored range, fit mode and Trace pattern.
+`prepareContourSleeve` receives that explicit range, spacing, offset, standoff,
+fit mode and tolerances; it returns a boundary family, continuous mapping and
+query report. Section topology, offset collapse and contact error fail there.
 
 ## Text and solid modifiers
 
@@ -513,17 +385,11 @@ word to fill the circle. Bezier arc length uses a subdivided chord table with
 continuous curve/tangent evaluation; it is approximate. Existing UV references
 and saved compiled meshes retain their semantics.
 
-[Target tessellation](./tessellate.mjs) samples supported closed spline shells,
-matches shared boundaries geometrically despite different parameterizations,
-and propagates mesh orientation. Its dyadic grid refines against sampled chord
-deviation and rejects unmatched seams or shared mesh-validation failures. The
-grid keeps doubling until that deviation meets the requested tolerance; there is
-no triangle budget, and a doubling that no longer lowers the deviation is
-reported as a tolerance this shell cannot reach. The
-1e-7 mm vertex welding grid is distinct from its 0.02 mm default approximation
-target. Manifold's JS mesh boundary stores float32 coordinates, so precision also
-depends on coordinate magnitude. Input solids must have positive material volume.
-No conversion is introduced into ordinary native spline slicing.
+[Target tessellation](./tessellate.mjs) samples supported closed spline shells, matches differently parameterized shared boundaries geometrically and propagates mesh orientation.
+Its dyadic grid doubles until sampled chord deviation meets tolerance, rejecting unmatched seams and mesh-validation failures.
+There is no triangle budget; refinement that no longer lowers deviation reports an unreachable tolerance.
+The 1e-7 mm welding grid differs from the 0.02 mm default approximation target. Manifold's float32 mesh boundary also makes precision depend on coordinate magnitude.
+Input solids require positive material volume. Ordinary native spline slicing introduces no conversion.
 
 The text result is a `shape: text` recipe inside the existing native mesh bundle:
 original base, editable features, quality controls, output vertices/triangles and

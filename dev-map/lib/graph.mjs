@@ -73,10 +73,14 @@ const mappedCode=isMapped;
 
 export async function extractGraph({repo,files,importAliases={},literalCouplings=false,receiverCalls=false,onProgress,readSource=file=>readFile(resolve(repo,file),'utf8')}) {
   const modules=new Map(), declarations=[], calls=[], assignments=[], relations=[], unresolved=[], declFn=new Map(),declarationPaths=new Map();
-  const nodeScope=new WeakMap(), nodeOwner=new WeakMap(), nodeDecl=new WeakMap(), parents=new WeakMap();
+  const nodeScope=new WeakMap(), nodeOwner=new WeakMap(), nodeDecl=new WeakMap(), parents=new WeakMap(),declScope=new Map();
   const parameterDefaultNames=new WeakMap(),listenerNames=new WeakMap();
   const scopes=[], bindings=[];
-  const scope=(parent,kind)=>{const s={parent,kind,bindings:new Map()};scopes.push(s);return s;};
+  const scope=(parent,kind,origin=null)=>{
+    const role=origin?.type??kind,ordinal=(parent?.scopeCounts.get(role)??0)+1;
+    parent?.scopeCounts.set(role,ordinal);
+    const s={parent,kind,role,ordinal,scopeCounts:new Map(),bindings:new Map()};scopes.push(s);return s;
+  };
   const lookup=(s,name)=>s?.bindings.get(name)??(s?.parent?lookup(s.parent,name):null);
   function bind(s,name,info={}) {
     if(s.bindings.has(name)) {const b=s.bindings.get(name);b.written=true;return b;}
@@ -94,9 +98,11 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
   }
   function location(m,n) {return {file:m.file,start:n.start,end:n.end,line:n.loc.start.line,column:n.loc.start.column+1,endLine:n.loc.end.line,text:m.text.slice(n.start,n.end)};}
   const declNode=new Map();
-  function declaration(m,n,path,kind,owner,anchor=true) {
+  function declaration(m,n,path,kind,owner,anchor=true,lexicalScope=null) {
     const d={id:`${m.file}:${n.start}:${kind}`,anchor:anchor?`${m.file}::${path.join('::')}`:null,name:path.at(-1),kind,parent:owner?.id??null,...location(m,n)};
-    declarations.push(d);declarationPaths.set(d.id,path);nodeDecl.set(n,d);declNode.set(d.id,n);return d;
+    declarations.push(d);declarationPaths.set(d.id,path);nodeDecl.set(n,d);declNode.set(d.id,n);
+    if(lexicalScope)declScope.set(d.id,lexicalScope);
+    return d;
   }
   const patternNames=n=>n.type==='Identifier'?[n.name]:n.type==='ObjectPattern'?n.properties.flatMap(p=>patternNames(p.value??p.argument))
     :n.type==='ArrayPattern'?n.elements.filter(Boolean).flatMap(patternNames):n.type==='RestElement'?patternNames(n.argument)
@@ -129,7 +135,7 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       let target=s;if(n.kind==='var')while(target.parent&&target.kind!=='function')target=target.parent;
       for(const v of n.declarations) {
         if(v.id.type==='Identifier') {
-          const next=[...path,v.id.name],d=declaration(m,v,next,'variable',owner);
+          const next=[...path,v.id.name],d=declaration(m,v,next,'variable',owner,true,target);
           const b=bind(target,v.id.name,{node:v,init:v.init,decl:d,module:m,constant:n.kind==='const'});
           nodeScope.set(v,s);nodeOwner.set(v,owner);parents.set(v,n);
           if(v.init) {if(functions.has(v.init.type))b.fn=v.init;visit(m,v.init,s,next,owner,v);}
@@ -152,7 +158,7 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
         parent.type==='AssignmentExpression'&&parent.right===n);
       const next=named?[...path,n.id.name]:inherited?path:listenerName?[...path,listenerName]
         :defaultName?[...path,`@default/${encodeURIComponent(defaultName)}`]:[...path,`<callback@${n.loc.start.line}:${n.loc.start.column+1}>`];
-      const d=inherited?nodeDecl.get(parent):declaration(m,n,next,listenerName?'handler':'function',owner,named||!!defaultName||!!listenerName);
+      const d=inherited?nodeDecl.get(parent):declaration(m,n,next,listenerName?'handler':'function',owner,named||!!defaultName||!!listenerName,s);
       if(!named&&!inherited&&returnedCallable(n,parent))d.generatedRole='returned-callable';
       if(defaultName)d.generatedRole='parameter-default';
       d.callable=true;nodeDecl.set(n,d);nodeOwner.set(n,d);declFn.set(d.id,n);m.functions.push(n);
@@ -169,20 +175,32 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
     }
     if(n.type==='ClassDeclaration'||n.type==='ClassExpression') {
       const next=n.id?[...path,n.id.name]:path;
-      const d=declaration(m,n,next,'class',owner,!!n.id);
+      const d=declaration(m,n,next,'class',owner,!!n.id,s);
       if(n.id)bind(s,n.id.name,{decl:d,module:m,classNode:n});
       const inner=scope(s,'class');inner.classNode=n;
       for(const child of children(n))if(child!==n.id)visit(m,child,inner,next,d,n);return;
     }
     if((n.type==='Property'||n.type==='MethodDefinition')&&!n.computed&&functions.has(n.value?.type)) {
-      const next=[...path,n.type==='MethodDefinition'?methodPath(n):String(n.key.name??n.key.value)];
-      declaration(m,n,next,'method',owner);visit(m,n.value,s,next,owner,n);return;
+      // A static nested record names its complete member path. Dropping its
+      // holders makes distinct entries such as text.validate and mesh.validate
+      // collide. Computed/spread holders still retain the conservative name.
+      const names=[String(n.key.name??n.key.value)];
+      let complete=true;
+      if(n.type==='Property')for(let object=parent;object?.type==='ObjectExpression';){
+        if(object.properties.some(p=>p.type==='SpreadElement'||p.computed)){complete=false;break;}
+        const holder=parents.get(object);
+        if(holder?.type!=='Property'||holder.value!==object)break;
+        if(holder.computed){complete=false;break;}
+        names.unshift(String(holder.key.name??holder.key.value));object=parents.get(holder);
+      }
+      const next=[...path,n.type==='MethodDefinition'?methodPath(n):complete?names.join('.'):String(n.key.name??n.key.value)];
+      declaration(m,n,next,'method',owner,true,s);visit(m,n.value,s,next,owner,n);return;
     }
     if(n.type==='AssignmentExpression'&&n.left.type==='MemberExpression'&&property(n.left)&&functions.has(n.right.type)) {
       // The handler's body is written inside the handler, so what that body declares is homed by
       // the handler, not by the module or the function the assignment happens to sit in.
       path=[...path,owner?property(n.left):handlerPath(handlerReceiver(n.left.object),property(n.left))];
-      declaration(m,n,path,'handler',owner);
+      declaration(m,n,path,'handler',owner,true,s);
     }
     // `addEventListener('x', …)` stores a callable the same way, and at module level it is named
     // the same way, so the listener is a handler declaration rather than a source position.
@@ -192,7 +210,7 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
         listenerNames.set(handler,handlerPath(receiver,event.value));
     }
     if((n.type==='BlockStatement'&&!functions.has(parent?.type))||n.type==='CatchClause'||['ForStatement','ForOfStatement','ForInStatement','SwitchStatement'].includes(n.type)) {
-      s=scope(s,'block');nodeScope.set(n,s);if(n.type==='CatchClause')pattern(n.param,s);
+      s=scope(s,'block',n);nodeScope.set(n,s);if(n.type==='CatchClause')pattern(n.param,s);
     }
     if(n.type==='ImportDeclaration')for(const spec of n.specifiers)bind(s,spec.local.name,{imported:spec.type==='ImportNamespaceSpecifier'?'*':spec.imported?.name??spec.imported?.value??'default',source:n.source.value,module:m,node:spec});
     if(n.type==='CallExpression'||n.type==='NewExpression')calls.push({node:n,module:m,owner,scope:s});
@@ -506,8 +524,11 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
   for(const a of assignments)if(a.node.type==='AssignmentExpression'&&a.node.left.type==='Identifier') {
     const b=lookup(a.scope,a.node.left.name);if(!b?.decl)continue;
     const produced=producer(a.node.right);
-    for(const p of produced??[])edge('state-write',p.to,b.decl.id,[...p.evidence,location(a.module,a.node)],{path:[p.id],meaning:'Call result written to binding; no lifetime or dominance proof.'});
-    if(!produced&&a.owner)edge('state-write',a.owner.id,b.decl.id,[location(a.module,a.node)]);
+    const writer=a.owner?.id??`${a.module.file}:<module>`;
+    // The caller assigns the returned value. The provider does not thereby
+    // access caller storage; captured bindings still have a separate write edge.
+    for(const p of produced??[])edge('return-value',p.to,writer,[...p.evidence,location(a.module,a.node)],{path:[p.id],result:b.name,meaning:'Call result assigned by caller; no payload, alias, lifetime or purity proof.'});
+    edge('state-write',writer,b.decl.id,[location(a.module,a.node)],{meaning:'Lexical assignment owner writes this binding; no lifetime or dominance proof.'});
   }
   for(const m of modules.values()) {
     function reads(n) {
@@ -1004,6 +1025,43 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
   for(const d of declarations)if(d.anchor&&d.callable&&d.kind==='method'&&parents.get(declFn.get(d.id))?.type==='Property')
     propertyAnchorCounts.set(d.anchor,(propertyAnchorCounts.get(d.anchor)??0)+1);
   for(const d of declarations)if(propertyAnchorCounts.get(d.anchor)>1)d.anchor+=`@${d.line}:${d.column}`;
+  // A path names a lexical binding, not just the spelling of its identifier.
+  // Qualify only genuine shadow collisions; unrelated edits must not turn an
+  // identity into a source-line address. A duplicate in the same scope remains
+  // ambiguous because these declarations do not prove separate bindings.
+  const collisions=new Map();
+  const originalAnchors=new Map(declarations.map(d=>[d.id,d.anchor]));
+  for(const d of declarations)if(d.anchor&&['variable','function','class'].includes(d.kind))
+    (collisions.get(d.anchor)??collisions.set(d.anchor,[]).get(d.anchor)).push(d);
+  const ancestor=(outer,inner)=>{for(let at=inner;at;at=at.parent)if(at===outer)return true;return false;};
+  const chain=s=>{const out=[];for(let at=s;at;at=at.parent)out.push(at);return out;};
+  for(const [anchor,group] of collisions)if(group.length>1){
+    const scoped=group.map(d=>({d,scope:declScope.get(d.id)}));
+    if(scoped.some(row=>!row.scope)||new Set(scoped.map(row=>row.scope)).size!==scoped.length)continue;
+    const outer=scoped.filter(row=>scoped.every(other=>ancestor(row.scope,other.scope)));
+    const canonical=outer.length===1?outer[0]:null;
+    const common=chain(scoped[0].scope).find(scope=>scoped.every(row=>ancestor(scope,row.scope)));
+    if(!common)continue;
+    const prefix=anchor.slice(0,anchor.lastIndexOf('::')),name=anchor.slice(anchor.lastIndexOf('::')+2);
+    for(const row of scoped){
+      if(row===canonical)continue;
+      const stop=canonical?.scope??common,route=[];
+      for(let at=row.scope;at&&at!==stop;at=at.parent)if(at.kind==='block')
+        route.unshift(`${at.role.replace(/Statement$/,'').toLowerCase()}-${at.ordinal}`);
+      if(!route.length)continue;
+      row.d.anchor=`${prefix}::@scope/${route.join('/')}::${name}`;
+      row.d.identity={kind:'lexical-scope',scope:route,base:anchor};
+    }
+  }
+  // A nested declaration belongs to the newly identified parent binding.
+  // Carry that structural prefix into its address without changing its site.
+  const byDeclarationId=new Map(declarations.map(d=>[d.id,d]));
+  const depth=d=>{let n=0;for(let at=d.parent;at;at=byDeclarationId.get(at)?.parent)n++;return n;};
+  for(const d of [...declarations].sort((a,b)=>depth(a)-depth(b))){
+    const parent=byDeclarationId.get(d.parent),before=originalAnchors.get(d.parent);
+    if(parent?.anchor&&before&&parent.anchor!==before&&d.anchor?.startsWith(`${before}::`))
+      d.anchor=`${parent.anchor}${d.anchor.slice(before.length)}`;
+  }
   const anchorCounts=new Map();for(const d of declarations)if(d.anchor)anchorCounts.set(d.anchor,(anchorCounts.get(d.anchor)??0)+1);
   for(const d of declarations)if(anchorCounts.get(d.anchor)>1)d.ambiguousAnchor=true;
   // Module-level code that runs at load: every top-level statement but an import, an export list

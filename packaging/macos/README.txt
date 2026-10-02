@@ -1,69 +1,31 @@
 SAAM for macOS
 ==============
 
-SAAM makes 3D-printed parts through conversation with your web chat
-(Claude or ChatGPT). This release installs for your macOS user only and
-needs no administrator password.
-
-This alpha build is not signed or notarized by SAAM. It is installed from
-Terminal with a script, which macOS runs without a Gatekeeper prompt. The
-bundled Node.js runtime is the official build from nodejs.org, which is
-notarized by the Node.js project. Your Mac's security settings are not
-changed.
-
+SAAM makes 3D-printed parts through a local desktop coding agent. This
+per-user alpha installer needs no administrator password.
 
 Install
 -------
-1. Double-click the download to extract it (Finder puts the folder next to
-   the download).
-2. Open Terminal (Applications > Utilities > Terminal).
-3. Type  bash  followed by a space, drag install.sh from the extracted
-   folder into the Terminal window, and press Return. The line looks like:
-     bash "/Users/you/Downloads/SAAM-0.1.0-darwin-arm64/install.sh"
-4. The installer unpacks SAAM into ~/Applications/SAAM, writes
-   ~/Applications/SAAM.app, and starts SAAM.
+1. Open the downloaded ZIP and its extracted folder.
+2. Double-click "Install SAAM.command". It adds SAAM.app in your home
+   Applications folder, a Desktop shortcut and the SAAM icon, then opens
+   Studio. Press Return to close the installer window.
 
-Quit SAAM before installing a new version: the installer refuses while
-SAAM is running. Installing replaces the installed version. To go back to
-an older version, install its download the same way; your prints are not
-affected.
+This build is unsigned. If macOS blocks it, use System Settings > Privacy &
+Security > Open Anyway only for a release from Struder-AI/SAAM. The installer
+does not change Mac security settings. Quit SAAM before replacing it.
 
+Studio offers an optional alpha invite on first launch. SAAM still makes,
+views and exports parts if you skip it. A valid invite enables official
+updates and live diagnostics. Later use Studio's Update button.
 
-Start and stop
---------------
-Open SAAM from your Applications folder (in Finder: Go > Home, then
-Applications > SAAM), Spotlight or the Dock: Studio opens in your browser
-and no window stays open. To stop SAAM, close the Studio tab or click Quit.
-Starting SAAM again while it runs just shows Studio. If SAAM does not
-start, double-click SAAM.command in ~/Applications/SAAM: a Terminal window
-shows its messages.
+Open SAAM from the Desktop or ~/Applications/SAAM.app. Closing the last
+Studio tab or choosing Quit stops it. If startup fails, run
+~/Applications/SAAM/SAAM.command to see messages in Terminal.
 
+Prints and settings remain in ~/Library/Application Support/SAAM, separate
+from the replaceable app. The desktop agent's local MCP connection uses the
+bundled Node runtime; see the agent installation instructions for its paths.
 
-Connect your chat (first time)
-------------------------------
-1. In Studio, click "Connect" at the top right.
-2. Copy the connector URL and add it as a custom connector in your chat app.
-3. When the chat asks for a code, click "Show code" in Studio and type the
-   code into the chat's approval page. A code is valid for two minutes;
-   click "New code" for another.
-Studio opens this panel by itself until a chat app is set up.
-The two lights on "Connect" show whether this computer is paired with the
-relay and whether a chat is connected. To add another chat app later, open
-the panel and click "Connect another chat app".
-
-
-Where your prints live
-----------------------
-Prints, the chat pairing and logs are kept in
-~/Library/Application Support/SAAM (prints in its Prints folder, logs in
-its logs folder), separate from the program. Installing, reinstalling and
-uninstalling never change them.
-
-
-Uninstall
----------
-In Terminal, run:
-  bash ~/Applications/SAAM/packaging/macos/uninstall.sh
-This removes ~/Applications/SAAM and SAAM.app and keeps
-~/Library/Application Support/SAAM.
-Delete that folder yourself if you no longer want your prints.
+To uninstall, run `bash ~/Applications/SAAM/packaging/macos/uninstall.sh`
+in Terminal. Your data folder remains until you choose to remove it.

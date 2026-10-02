@@ -1,12 +1,10 @@
-import {requireThat,distance} from '../geom/tolerance.mjs';
+import {requireThat,distance} from '../private/toolpath/numeric.mjs';
+
 import {curveLength} from '../path/curve-construction.mjs';
-import {authoredNurbs,validateCurveProfiles,validateLineTextSource,constructAuthoredCurves} from '../path/authored-curves.mjs';
+import {authoredNurbs,validateCurveProfiles,constructAuthoredCurves} from '../path/authored-curves.mjs';
 import {beadWidthRule} from '../path/parallel-curves.mjs';
 import {depositedCurveSegments,curveSupportsPoint} from '../path/deposited-curves.mjs';
 import {depositCurveCourses} from '../path/curve-courses.mjs';
-import {prepareContourSleeve} from '../geom/contour-sleeve.mjs';
-import {mappedSleevePatternCurves} from '../path/sleeve-pattern.mjs';
-import {contactCurveGaps} from '../path/contact-curves.mjs';
 import {assignmentPlan} from './assignment-process.mjs';
 import {finalizeDepositionResult,combineFinalizedResults} from './finalize.mjs';
 
@@ -33,11 +31,10 @@ export function validateCurveAssignment(a,{parts=null}={}) {
   requireThat(Array.isArray(a.curves)&&a.curves.length>0,'Curve assignment needs explicit centerlines.');
   for(const curve of a.curves){
     if(familyRepeat)requireThat(curve.uv?.reference?.kind==='slice'&&curve.uv.reference.assignment===a.repeat.family&&curve.uv.reference.index===undefined,'Family repeats need UV curves on that slice family without a fixed layer index.');
-    requireThat(curve&&Object.keys(curve).every(k=>['points','nurbs','uv','text','closed','role','beadWidthMm','heightMm','speedMmS','flowMultiplier','courses','vary','widthRule','sampleStepMm','toleranceMm','contact','depositionAction','segmentMetadata'].includes(k))&&typeof curve.closed==='boolean','Invalid authored curve.');
-    requireThat(['points','nurbs','uv','text'].filter(k=>curve[k]!==undefined).length===1,'Curve needs exactly one of points, nurbs, uv or text.');
+    requireThat(curve&&Object.keys(curve).every(k=>['points','nurbs','uv','closed','role','beadWidthMm','heightMm','speedMmS','flowMultiplier','courses','vary','widthRule','sampleStepMm','toleranceMm','contact','depositionAction','segmentMetadata'].includes(k))&&typeof curve.closed==='boolean','Invalid authored curve.');
+    requireThat(['points','nurbs','uv'].filter(k=>curve[k]!==undefined).length===1,'Curve needs exactly one of points, nurbs or uv.');
     const input=curve.uv??curve,dimensions=curve.uv?2:3;
-    if(curve.text){requireThat(curve.closed===false,'Text source closure is determined by its glyph strokes.');validateLineTextSource(curve.text);}
-    else if(input.nurbs)authoredNurbs(input.nurbs,dimensions);
+    if(input.nurbs)authoredNurbs(input.nurbs,dimensions);
     else requireThat(Array.isArray(input.points)&&input.points.length>=(curve.closed?3:2)&&input.points.every(p=>Array.isArray(p)&&p.length===dimensions&&p.every(Number.isFinite))&&input.points.some(p=>p.some((v,i)=>v!==input.points[0][i])),'Curve needs distinct finite points.');
     if(input.points)requireThat(input.points.every((p,i)=>!i||p.some((v,k)=>v!==input.points[i-1][k]))&&(!curve.closed||input.points[0].some((v,k)=>v!==input.points.at(-1)[k])),'Polyline points must not repeat consecutive vertices or the implicit closed endpoint.');
     if(curve.uv){
@@ -74,7 +71,7 @@ function requireCurveContact(curve,segments,heightMm,id){
   }
 }
 
-export function authoredCurveResult(assignment,{plan,process=plan.process,bounds=null,references={},modelResults=[],machine=null}) {
+export function authoredCurveResult(assignment,{plan,process=plan.process,bounds=null,references={},modelResults=[]}) {
   const family=assignment.repeat?.family?references[`slice:${assignment.repeat.family}`]:null;
   requireThat(!assignment.repeat?.family||family?.layers?.length,'Curve repeat needs an available named slice family.');
   const indices=family?(assignment.repeat.indices??family.layers.map(l=>l.index)):null;
@@ -100,13 +97,13 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,bounds
     });
     if(assignment.maxExcursionMm!==null){const heights=ready.flatMap(c=>c.points.map(p=>p[2]));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+1e-8,'Trace course exceeds its authored Z excursion limit.');}
     const spec={key:assignment.courseIds?.[course]??course,curves:ready,heightMm,speedMmS,layer:course,layerIndex:course,layerCount:count,rank:course,
-      regionId:assignment.id,travel:{kind:'auto'},...(assignment.sequence?{join:{mode:'ordered'}}:{})};
+      regionId:assignment.id,travel:{kind:'auto'},...(Object.hasOwn(assignment.process??{},'fanPercent')||course===1?{fanPercent:process.fanPercent}:{}),...(assignment.sequence?{join:{mode:'ordered'}}:{})};
     courses.push(spec);
     if(finalizeInside){const previous=(assignment.sequence?parts.at(-1)?.operations.map(o=>o.id):null)??assignment.after;
-      const raw=traceResult({...assignment,after:previous},{courses:[spec],process,bounds,report:{construction:'curves'}}),result=finalizeDepositionResult(raw,plan,machine);
+      const raw=traceResult({...assignment,after:previous},{courses:[spec],process,bounds,report:{construction:'curves'}}),result=finalizeDepositionResult(raw,plan);
       for(const op of result.operations)for(const stroke of op.strokes)requireCurveContact(stroke,supportSegments,heightMm,assignment.id);
       if(assignment.maxExcursionMm!==null){const heights=result.operations.flatMap(o=>o.strokes.flatMap(c=>c.points.map(p=>p[2])));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+1e-8,'Final Trace course exceeds its authored Z excursion limit.');}
-      parts.push(result);for(const op of result.operations)supportSegments.push(...depositedCurveSegments([{...op,strokes:op.strokes.filter(s=>!s.depositionAction)}],{widthMm:process.lineWidthMm,source:op.id}));
+      parts.push(result);for(const op of result.operations)for(const segment of depositedCurveSegments([{...op,strokes:op.strokes.filter(s=>!s.depositionAction)}],{widthMm:process.lineWidthMm,source:op.id}))supportSegments.push(segment);
     }
   }
   if(finalizeInside)return combineFinalizedResults({id:assignment.id,report:{construction:'curves',depositionFamily:'trace',courses:count}},parts);
@@ -116,11 +113,11 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,bounds
 // Authored and skill-mapped centerlines share bead calculation, joining,
 // travel packaging, bounds and aggregate measures. Extensions supply geometry
 // and course data; they do not assemble a separate deposition result.
-function traceResult(assignment,{courses,process,bounds=null,sequential=true,report={}}){
+export function traceResult(assignment,{courses,process,bounds=null,sequential=true,report={}}){
   const operations=depositCurveCourses({id:assignment.id,courses,process,after:assignment.after,filament:assignment.filament,sequential});
   let lengthMm=0,strokeCount=0,volumeMm3=0;
   for(const operation of operations)for(const stroke of operation.strokes){
-    const width=Math.max(stroke.beadWidthMm??process.lineWidthMm,...(stroke.segmentMetadata??[]).map(m=>m.beadWidthMm??0));
+    const width=(stroke.segmentMetadata??[]).reduce((width,m)=>Math.max(width,m.beadWidthMm??0),stroke.beadWidthMm??process.lineWidthMm);
     if(bounds)requireThat(stroke.points.every(p=>p.every((v,i)=>v>=(i===2?bounds.min[i]:bounds.min[i]+width/2)-1e-8&&v<=(i===2?bounds.max[i]:bounds.max[i]-width/2)+1e-8)),
       `Curve assignment ${assignment.id} exceeds selected tool bounds on course ${operation.layer}.`);
     const length=curveLength(stroke.points);lengthMm+=length;strokeCount++;
@@ -130,28 +127,12 @@ function traceResult(assignment,{courses,process,bounds=null,sequential=true,rep
   return {id:assignment.id,operations,report:{...report,depositionFamily:'trace',strokes:strokeCount,lengthMm,volumeMm3}};
 }
 
-// Sleeve tiling is a Trace geometry extension. Its authored cells and reference
-// morphing determine centerlines; shared Trace owns all deposition assembly.
-export function sleeveTraceResult({shell,assignment,process,machine,after=assignment.after,zStartMm=null,zEndMm=null,foundationSegments=[],maxBeadHeightMm=Infinity,substrateAdaptation=false,onProgress}){
-  requireThat(assignment.pattern!==null,'Sleeve Trace requires an authored repeated pattern.');
-  const reference=prepareContourSleeve({shell,assignment,process,machine,zStartMm,zEndMm,onProgress});
-  const {base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm}=reference;
-  const mapped=mappedSleevePatternCurves({settings:assignment,process,base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm,onProgress});
-  const courses=mapped.courses.map(({layerIdSuffix,...course})=>({...course,layerId:assignment.id+layerIdSuffix,
-    ...(substrateAdaptation&&foundationSegments.length?{curves:contactCurveGaps(course.curves,{segments:foundationSegments,maxHeightMm:maxBeadHeightMm})}:{})}));
-  const family={...reference.family(),name:`${assignment.id} sleeve`};
-  const result=traceResult({...assignment,after},{courses,process,report:{...mapped.report,...reference.report(),construction:'sleeve',part:assignment.part}});
-  const level=mapped.levelBoundary,strokes=result.operations.flatMap(o=>o.strokes);
-  return {...result,family,
-    ...(level?{levelBoundary:{zMm:level.zMm,widthMm:level.widthMm,strokes:strokes.slice(-level.tailCount)}}:{})};
-}
-
-// Construct one graph-selected trace from finalized predecessors. Bridges finalize
-// their internal sequence before subsequent attachment checks.
-export function curveAssignmentResult(assignment,{plan,machine,modelResults,bounds=null,references={}}) {
+// Construct a selected trace from finalized predecessors. Dependent courses
+// finalize their internal sequence before subsequent contact checks.
+export function curveAssignmentResult(assignment,{plan,modelResults,bounds=null,references={}}) {
   validateCurveAssignment(assignment);
-  const selected=assignmentPlan(plan,machine,assignment);
-  return authoredCurveResult(assignment,{plan,process:selected.process,references,modelResults,machine});
+  const selected=assignmentPlan(plan,assignment);
+  return authoredCurveResult(assignment,{plan,process:selected.process,references,modelResults});
 }
 
 // References carry evaluated data in placed world coordinates. A shared-owner

@@ -11,28 +11,20 @@ aside dl>div{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:
 
 #manual-position{border-top:1px solid var(--line);padding-top:16px}#manual-title{font-size:14px;margin:0 0 8px}.manual-axis{display:grid;grid-template-columns:1fr auto;gap:4px;margin:12px 0;font-size:12px}.manual-axis output{font-variant-numeric:tabular-nums;color:var(--muted)}.manual-axis input{grid-column:1/-1;width:100%;margin:0;accent-color:var(--orange)}#manual-status{font-size:11px;line-height:1.5;color:var(--muted)}#manual-status:empty{display:none}
 
-.header-actions{display:flex;gap:8px}#tour-panel{padding:18px;border:1px solid #d6d9e5;border-radius:10px;background:#f7f8fb;margin-bottom:20px}#tour-panel h2{font-size:21px;margin:8px 0 12px;line-height:1.2}#tour-panel p{font-size:13px;line-height:1.6}#tour-panel .eyebrow{font-size:10px;letter-spacing:.14em}#tour-panel .primary{padding:11px 16px}#tour-choices{display:grid;gap:8px;margin:16px 0}.tour-card{text-align:left;padding:11px 12px;background:#fff}.tour-card strong,.tour-card span{display:block}.tour-card span{font-size:11px;color:#596a64;margin-top:5px}.tour-actions{display:flex;justify-content:space-between;gap:8px;margin-top:16px}.tour-try{padding-left:12px;border-left:3px solid var(--orange)}#tour-copy{margin-top:16px}#tour-request{box-sizing:border-box;width:100%;min-height:100px;margin-top:12px}#tour-status:empty{display:none}#tour-status{color:#52675e}aside{overflow-y:auto}@media(max-width:760px){header{flex-wrap:wrap}.header-actions{margin-left:auto}#tour-panel{margin-top:8px}}
-.tour-highlight{outline:2px solid #6474b5;outline-offset:3px}#tour-exit{margin-top:16px}#print-setup{border-top:1px solid var(--line);margin:18px 0;padding-top:12px}#print-setup h2{font-size:15px}#print-setup-values{font-size:13px;font-weight:600}
- .tour-highlight{animation:lesson-flash 1.2s steps(2,end) infinite}@keyframes lesson-flash{0%,100%{outline-color:#6474b5}50%{outline-color:transparent}}
+.header-actions{display:flex;gap:8px}#tour-panel{padding:18px;border:1px solid #d6d9e5;border-radius:10px;background:#f7f8fb;margin-bottom:20px}#tour-panel h2{font-size:21px;margin:8px 0 12px;line-height:1.2}#tour-panel p{font-size:13px;line-height:1.6}#tour-panel .eyebrow{font-size:10px;letter-spacing:.14em}#tour-panel .primary{padding:11px 16px}.tour-actions{display:flex;justify-content:space-between;gap:8px;margin-top:16px}.tour-try{padding-left:12px;border-left:3px solid var(--orange)}#tour-status:empty{display:none}#tour-status{color:#52675e}aside{overflow-y:auto}@media(max-width:760px){header{flex-wrap:wrap}.header-actions{margin-left:auto}#tour-panel{margin-top:8px}}
+.tour-highlight{outline:3px solid #6474b5;outline-offset:3px;box-shadow:0 0 0 3px #d7dff0;animation:tour-attention 1.15s steps(2,end) infinite}
+@keyframes tour-attention{0%,100%{outline-color:#6474b5;box-shadow:0 0 0 3px #d7dff0}50%{outline-color:transparent;box-shadow:none}}
+#tour-exit{margin-top:16px}#print-setup{border-top:1px solid var(--line);margin:18px 0;padding-top:12px}#print-setup h2{font-size:15px}#print-setup-values{font-size:13px;font-weight:600}
 .brand-status{display:flex;align-items:center;gap:18px;min-width:120px}#agent-status{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:11px;max-width:140px}#agent-status[hidden]{display:none}.typing-dots{display:flex;gap:4px;flex:none}.typing-dots i{width:6px;height:6px;border-radius:50%;background:var(--orange);animation:agent-dot 1.2s ease-in-out infinite}.typing-dots i:nth-child(2){animation-delay:.16s}.typing-dots i:nth-child(3){animation-delay:.32s}@keyframes agent-dot{0%,65%,100%{opacity:.2}30%{opacity:1}}@media(max-width:950px){#agent-status-label{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden}}
-aside[data-tour-step="6"] #facts,aside[data-tour-step="6"] #guidance,aside[data-tour-step="7"] #facts,aside[data-tour-step="7"] #guidance,aside[data-tour-step="7"] #print-setup,aside[data-tour-step="7"] #more-settings,aside[data-tour-step="7"] #machine-info{display:none}aside[data-tour-step="7"] #confirm{opacity:1}
 .export-name{display:grid;gap:7px;margin:0 0 14px;font-size:11px;color:var(--muted)}.export-name input{width:100%;min-width:0;border:1px solid var(--line);border-radius:7px;background:#fff;padding:10px 11px;color:#1b2929;font:inherit}.export-name input:disabled{opacity:.55}
 
-/* Tour guidance uses the selected simple bold treatment throughout. */
-#tour-panel p{font-weight:750}#tour-panel .tour-try{border:0;padding:0}
+/* One quiet cue, with the current printer and material left visible at export. */
+#tour-panel .tour-try{margin-bottom:0}#tour-finish-view{width:100%;margin-top:10px}
 
 .typing-dots[hidden]{display:none}#agent-timeout{font-style:italic;white-space:nowrap}
 
-/* Shared work fade and independent tour attention cue. Clear immediately when ready. */
-#canvas.work-faded,#canvas.tour-faded,#canvas.stale-toolpath{opacity:.28}
-.tour-choice{position:relative}
-#import-stl.tour-choice{background:#f7f8fb;color:#33436d;border-color:#6474b5}
-#import-stl.tour-choice:disabled{opacity:1}
-#import-stl.tour-choice:hover{background:#e5e9f5}
-.tour-choice::after{position:absolute;color:#6474b5;font-size:58px;line-height:1;font-weight:800;pointer-events:none;text-shadow:0 1px 3px #fafbf7}
-#import-stl.tour-choice::after{content:'↑';top:calc(100% + 5px);left:50%;transform:translateX(-50%)}
-#tour-next.tour-choice::after{content:'↓';bottom:calc(100% + 5px);left:50%;transform:translateX(-50%)}
-.tour-actions:has(.tour-choice){margin-top:76px}
+/* Work opacity follows real preparation only. */
+#canvas.work-faded,#canvas.stale-toolpath{opacity:.28}
 
 /* Preparation stays in the viewport from generation through the first render. */
 .viewport{position:relative}
@@ -44,19 +36,18 @@ aside[data-tour-step="6"] #facts,aside[data-tour-step="6"] #guidance,aside[data-
 #activity-progress{grid-column:1/-1;width:100%;height:7px;accent-color:var(--teal)}
 #activity #activity-detail{grid-column:1/-1;font-size:11px;color:var(--muted);margin:0}
 
-/* Connect a chat through the relay: a header control and a small panel under it. */
-#relay-toggle{display:flex;align-items:center;gap:7px;white-space:nowrap}.relay-lights{display:flex;gap:4px}.relay-dot{width:8px;height:8px;border-radius:50%;flex:none;background:#c9cec6}.relay-dot[data-state=problem]{background:#c2877d}.relay-dot[data-state=on]{background:#4f9a5c;box-shadow:0 0 0 2px #4f9a5c33}
-#relay-panel{position:fixed;z-index:30;top:84px;right:34px;width:min(340px,calc(100vw - 32px));padding:20px;border:1px solid var(--line);border-radius:14px;background:#fafbf7;box-shadow:0 12px 40px #163c3029}.relay-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.relay-head h2{font-size:17px;margin:0;letter-spacing:-.3px}.relay-head button{font-size:11px;padding:5px 8px}
-#relay-panel p{font-size:12px;line-height:1.55;margin:0 0 12px}#relay-status{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:6px;font-size:12px;line-height:1.4;color:#1b2929}#relay-status li{display:flex;align-items:baseline;gap:8px}#relay-status .relay-dot{position:relative;top:-1px}#relay-chats{color:var(--muted)}#relay-another{font-size:11px;padding:6px 10px;margin-bottom:12px}#relay-setup[hidden],#relay-pair[hidden]{display:none}#relay-invite{flex:1;min-width:0;font:inherit;font-size:13px;letter-spacing:1px;border:1px solid var(--line);border-radius:7px;padding:8px 9px;background:#fff;color:#1b2929}#relay-pair .primary{flex:none;width:auto;padding:8px 16px}.relay-url{display:flex;gap:6px;margin-bottom:14px}#relay-url{flex:1;min-width:0;font:inherit;font-size:11px;border:1px solid var(--line);border-radius:7px;padding:8px 9px;background:#fff;color:#1b2929}.relay-url button{font-size:11px;padding:6px 10px}
-#relay-code-box{display:grid;justify-items:center;gap:4px;margin:0 0 14px;padding:14px 10px;border-radius:10px;background:var(--teal-soft)}#relay-code{font:650 30px/1.1 ui-monospace,Consolas,monospace;letter-spacing:3px;color:var(--teal)}#relay-expiry{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}#relay-code-box.expired #relay-code{opacity:.4;text-decoration:line-through}#relay-panel .primary{padding:11px}#relay-message{margin:10px 0 0!important;color:#a64437}#relay-message:empty{display:none}
-@media(max-width:700px){#relay-panel{top:auto;bottom:16px;right:16px}}
+/* Optional alpha updates and diagnostics, separate from local print work. */
+#service-toggle{display:grid;place-items:center;width:34px;padding:8px}#service-toggle[hidden]{display:none}#service-toggle::before{content:'';width:12px;height:12px;border-radius:50%;background:#858d8b;box-shadow:inset 0 0 0 1px #0002}#service-toggle.paired::before{background:#27853b}
+#service-panel{position:fixed;z-index:30;top:84px;right:34px;width:min(400px,calc(100vw - 32px));padding:20px;border:1px solid var(--line);border-radius:14px;background:#fafbf7;box-shadow:0 12px 40px #163c3029}.service-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.service-head h2{font-size:17px;margin:0;letter-spacing:-.3px}.service-head button{font-size:11px;padding:5px 8px}
+#service-panel p{font-size:12px;line-height:1.55;margin:0 0 12px}#service-status{font-weight:600;color:var(--teal)}#service-invite-row label{display:block;font-size:12px;margin-bottom:6px}.service-invite{display:flex;gap:6px;margin-bottom:12px}#service-invite{flex:1;min-width:0;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:7px;padding:8px 9px;background:#fff;color:#1b2929}.service-invite .primary{width:auto;padding:8px 16px}.service-actions{display:flex;gap:8px;justify-content:space-between}#service-message{margin:12px 0 0!important;color:#a64437}#service-message:empty{display:none}
+@media(max-width:700px){#service-panel{top:auto;bottom:16px;right:16px}}
 /* Quit ends the local app; after it the page says so and nothing else. */
-#relay-quit{color:#a64437}body>.stopped{max-width:32rem;margin:20vh auto;padding:0 16px;font-size:16px;line-height:1.5;color:#1b2929}
-/* The chat is working: a spinner card over the preview, beside the header dots. */
+#service-quit{color:#a64437}body>.stopped{max-width:32rem;margin:20vh auto;padding:0 16px;font-size:16px;line-height:1.5;color:#1b2929}
+/* The agent is working: a spinner card over the preview, beside the header dots. */
 #agent-working{position:absolute;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;gap:12px;padding:12px 18px;border-radius:12px;background:#fafbf7e6;color:#1b2929;font-size:13px;box-shadow:0 8px 30px #163c3022;pointer-events:none}#agent-working[hidden]{display:none}#agent-working .spinner{border-color:#1c696433;border-top-color:var(--teal)}
-/* A newer SAAM release announced by the relay: a pulsing button until clicked. */
-#relay-update{white-space:nowrap;border-color:var(--teal);color:var(--teal);font-weight:600}#relay-update.flash{animation:relay-update-pulse 1.6s ease-in-out infinite}
-@keyframes relay-update-pulse{0%,100%{box-shadow:0 0 0 0 var(--teal-soft);background:#fff}50%{box-shadow:0 0 0 6px var(--teal-soft);background:var(--teal-soft)}}
-@media(prefers-reduced-motion:reduce){#relay-update.flash{animation:none;background:var(--teal-soft)}}
+/* A newer trusted release remains visible until the person installs it. */
+#service-update{white-space:nowrap;border-color:var(--teal);color:var(--teal);font-weight:600}#service-update.flash{animation:service-update-pulse 1.6s ease-in-out infinite}
+@keyframes service-update-pulse{0%,100%{box-shadow:0 0 0 0 var(--teal-soft);background:#fff}50%{box-shadow:0 0 0 6px var(--teal-soft);background:var(--teal-soft)}}
+@media(prefers-reduced-motion:reduce){#service-update.flash{animation:none;background:var(--teal-soft)}}
 /* Printer choice for an STL imported while no print is open. */
 #machine-picker{width:min(420px,calc(100vw - 32px))}#machine-form{display:grid;gap:10px;margin-top:4px}#machine-form label{font-size:12px}#import-machine{width:100%;font-size:13px;padding:10px;border-radius:7px;background:#fff}#machine-message{margin:12px 0 0;color:#a64437}#machine-message:empty{display:none}

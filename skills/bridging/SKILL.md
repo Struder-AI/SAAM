@@ -1,8 +1,8 @@
 ---
 name: bridging
-description: Guidance for Trace spans between supporting rims, including attachment motions.
+description: Extension for Trace spans between supporting rims, including attachment motions.
 metadata:
-  saam-kind: guidance
+  saam-kind: extension
 ---
 
 # Bridging

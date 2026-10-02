@@ -5,16 +5,6 @@ Read the relevant operation contract below and the [geometry query boundary](../
 when changing its inputs. [Composition](../path/README.md) owns operation ordering
 and travel across those regions.
 
-## Deposition stroke footprints
-
-[strokeRegion](./stroke.mjs) sweeps 2D open or explicitly closed polylines by a
-positive bead width using the shared Clipper2 kernel, round joins and round caps.
-The returned nonzero-winding region unions crossings while preserving unfilled
-spaces. It is a nominal XY bead footprint, not a measured deposited surface or
-support guarantee. Level pattern rims use only final-course segments with positive
-extrusion; they never substitute a filled sleeve. Coordinate grid
-and arc-tolerance options remain separate, as for closed region offsets.
-
 ## Shared offset functions
 
 **Planar:** [offsetRegion](./offset.mjs) accepts closed 2D loops in mm
@@ -41,9 +31,8 @@ numbers/options or excessive range raise; genuine collapse returns `[]`.
 There is no per-point standoff sweep or arbitrary small-area pruning in the
 offset. Reference tests account for integer quantization. Skill authors
 must not import Clipper directly. General `intersect`/`difference`/`union` use
-the [Clipper2 tool](#shared-planar-intersections), re-exported from
-`core/region/boolean.mjs`. Both bundle adapters hash the shared kernel and exact
-WASM/JS dependency bytes; the public CLI/MCP and review workflow are unchanged.
+the [Clipper2 tool](#shared-planar-intersections) directly through
+`core/region/intersection.mjs`; there is no second Boolean import path.
 
 Surface cladding uses native 3D differential offsets through the
 shared surface/section functions. Those are distinct from closed planar polygon
@@ -113,7 +102,10 @@ Empty material is `[]`; boundary-only point/edge contact has no material area.
 region using the same Clipper2 kernel, precision and allocation lifetime. Gyroid
 infill needs this to retain curved strokes while splitting at holes and solid
 masks. Open paths preserve point sequence; they are not rotated or closed by the
-closed-loop canonicalizer. There is no XOR, contact-event API, UV surface adapter, mesh booleans,
+closed-loop canonicalizer. Parameter-preserving line spans and boundary contacts
+for wing, scanline and travel queries use the separate shared Geometry
+[line/region query](../geom/README.md#planar-lineregion-clipping); it explicitly
+preserves their parity, winding and boundary policies. There is no XOR, UV surface adapter, mesh booleans,
 NURBS intersections or backend-selection framework. Use Clipper2; consider CGAL
 only if tests show an unmet requirement.
 
@@ -132,11 +124,12 @@ allows sub-grid features to collapse; JS decoding cannot recover precision lost
 in the inputs. This is a precision-grid contract, not exact arithmetic or a
 guarantee about unsampled spline/mesh detail.
 
-Existing imports through [boolean.mjs](./boolean.mjs) alias this tool:
-slices, skin reservations and common construction assignments, including
-vase/cap transitions. Planar offsets and experimental surface-offset swept-band
+Slices, skin reservations and construction assignments import this tool directly,
+including vase/cap transitions. Planar offsets and surface-offset swept-band
 cleanup use this same kernel. Mesh/spline sectioning and sampled level sets
-retain their separate geometry-construction roles.
+retain their separate geometry-construction roles. Sampled fields use Geometry's
+[extractLevelSet](../geom/level-set.mjs): roof/reservation consumers request
+bounded regions, while gyroid clips genuine contours to its material mask.
 Slice fill's bead-coverage expansion uses the existing 0.001 mm `TOLERANCE.chord`
 arc target. This construction avoids artificial corner gaps without deleting
 material or changing deposition strokes; the
@@ -148,24 +141,15 @@ Verification scope, reference regeneration and provenance are in the
 
 ## Layer regions and several solids
 
-`core/region/` does the planar work: shared Clipper2 offsets for perimeters and
-coverage, scanline fill, and shared Clipper2 region boolean operations.
-See [shared offsets](#shared-offset-functions) for the construction boundary.
+[section](section.mjs) extracts planar and curved regions through one dispatch
+for native shells, meshes, chart prisms, assemblies and Boolean operands. Its
+loops retain the supporting chart: XY/plane coordinates are millimetres, native
+patch coordinates remain UV. Both use the same winding and Boolean topology;
+physical offsets retain the appropriate planar or surface metric.
 
-Booleans are how several solids are meant to combine: section each solid on its
-own and combine the layers, rather than building a boolean B-rep. A slicer only
-needs the result one layer at a time, so surface-surface intersection curves and
-tolerance-consistent shell stitching are never posed. The same operation
-reserves material under a top surface, by intersecting a section with the level
-set of the reserve height. The [shared planar intersection tool](#shared-planar-intersections)
-owns these combinations. Sectioning and sampled level-set extraction remain separate
-constructions; this is not a general curve/surface intersection engine.
-
-The region layer is implemented and tested. A `boolean` geometry
-([boolean-solid.mjs](../geom/boolean-solid.mjs)) is this construction as a
-recipe form: its section query combines every operand's section at the layer.
-Assemblies select separate components for fill instances and a roof for
-draping; an assembly is not a boolean union.
+Section each Boolean operand and combine its regions without building a B-rep.
+Supports, Slice, terminal-boundary queries and geometry tools use this operation.
+Material masks, fill patterns and actual deposited contact retain Toolpath policy.
 
 ## Material ownership and surface contact
 

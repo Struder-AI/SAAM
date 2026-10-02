@@ -1,9 +1,10 @@
+import {requireThat,distance,normalize,cross,scale,add,dot,subtract} from '../private/toolpath/numeric.mjs';
 // Physical cell fields on a periodic reference family. Samples carry the
 // evaluated geometry/metric; mapping, deposition and machine motion are downstream.
 import {prepareSurfaceOffset} from '../geom/surface-offset.mjs';
-import {evaluate} from '../geom/nurbs.mjs';
+import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {sampleSurfaceCurve} from '../region/normal-surface.mjs';
-import {requireThat,distance,normalize,cross,scale,add,dot,findRoot,subtract} from '../geom/tolerance.mjs';
+import {sampledPositiveIntervals} from '../geom/curve-sampling.mjs';
 import {lineSpacing,spacingFactor} from '../path/spacing.mjs';
 
 
@@ -26,7 +27,7 @@ export function surfaceCellField({shell,settings,process,chart,courses=null,star
     if(selectedChart.contactGeometry!=='final-deposited-beads')return {...actual,point:offset};
     // Preserve the declared fitted-vs-exact offset displacement, but anchor it
     // on the actual substrate and orient its normal component to that surface.
-    const original=evaluate(patch,s.surface.uvBounds[0][0]+u*(s.surface.uvBounds[0][1]-s.surface.uvBounds[0][0]),s.surface.uvBounds[1][0]+v*(s.surface.uvBounds[1][1]-s.surface.uvBounds[1][0]));
+    const original=evaluateSurface(patch,[s.surface.uvBounds[0][0]+u*(s.surface.uvBounds[0][1]-s.surface.uvBounds[0][0]),s.surface.uvBounds[1][0]+v*(s.surface.uvBounds[1][1]-s.surface.uvBounds[1][0])]);
     const displacement=subtract(offset,original.point),oldNormal=scale(original.normal,s.surface.normalSide),oldU=normalize(original.du),oldV=cross(oldNormal,oldU);
     const newU=normalize(subtract(actual.du,scale(actual.normal,dot(actual.du,actual.normal)))),newV=cross(actual.normal,newU);
     const transported=add(add(scale(newU,dot(displacement,oldU)),scale(newV,dot(displacement,oldV))),scale(actual.normal,dot(displacement,oldNormal)));
@@ -85,7 +86,6 @@ export function surfaceCellField({shell,settings,process,chart,courses=null,star
             const f=(arc-r.lengths[lo])/(r.lengths[hi]-r.lengths[lo]||1),u=r.samples[lo].u+(r.samples[hi].u-r.samples[lo].u)*f;
             return {u,width};
           };
-          let start=lengths[0]>threshold?v0:null;
           const run=(a,b)=>{
             if(b-a<1e-8)return;
             let samples=sampleSurfaceCurve(offsetChart(offset),t=>{const v=a+(b-a)*t;return [centerAt(v).u,v];},offsetField?0:offset,options);
@@ -95,12 +95,7 @@ export function surfaceCellField({shell,settings,process,chart,courses=null,star
             report.axialPasses++;
             if(a>v0+1e-7||b<v1-1e-7)report.partialAxialPasses++;else report.fullAxialPasses++;
           };
-          for(let j=1;j<vs.length;j++){
-            const active=lengths[j]>threshold,before=lengths[j-1]>threshold;
-            if(active!==before){const root=findRoot(v=>ring(v).length-threshold,vs[j-1],vs[j],lengths[j-1]-threshold,lengths[j]-threshold);
-              if(active)start=root;else{run(start,root);start=null;}}
-          }
-          if(start!==null)run(start,v1);
+          for(const [a,b] of sampledPositiveIntervals(v=>ring(v).length-threshold,vs,lengths.map(n=>n-threshold)))run(a,b);
         }
       }
     }else{

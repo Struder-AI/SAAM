@@ -1,9 +1,12 @@
-import {skinAssignment,frontAssignment} from './surface-constructions.mjs';
-import {rimAssignment} from './sleeve-constructions.mjs';
+import {requireThat} from '../private/toolpath/numeric.mjs';
+import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
+import {frontAssignment} from '../../skills/wave-overhangs/scripts/prepare.mjs';
+import {rimAssignment} from '../../skills/thick-lip/scripts/prepare.mjs';
 import {bridgeAssignment} from '../../skills/bridging/scripts/prepare.mjs';
-import {sliceAssignment} from './slices.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
-import {validateSleevePattern} from '../path/sleeve-pattern.mjs';
+import {depositionAssignment} from './assignment-records.mjs';
+
+import {advancedVaseRecordRuntime} from '../../skills/advanced-vase-wall/scripts/record.mjs';
+const {validateSleevePattern}=advancedVaseRecordRuntime();
 
 // Retired cell layouts expand only during an explicitly requested migration.
 function explicitSleevePaths(pattern){
@@ -24,8 +27,12 @@ function explicitSleevePaths(pattern){
 }
 
 // Explicit migration only. Loading never changes a recipe or its meaning.
-export function migrateRecipeFields(plan){
+export function migrateRecipeFields(plan,machine){
   const changes=[];
+  const process=Object.hasOwn(plan.process,'planarWallToleranceMm')?plan.process:
+    {...plan.process,planarWallToleranceMm:machine?.planarWallToleranceMm??0.01};
+  if(process!==plan.process)changes.push({path:'process.planarWallToleranceMm',before:null,after:process.planarWallToleranceMm,
+    meaning:'Preserve the selected snapshot planar wall tolerance as an explicit authored Slice input.'});
   const retiredBatch=plan.composition&&Object.hasOwn(plan.composition,'batchLayers');
   const retainedComposition=retiredBatch?Object.fromEntries(Object.entries(plan.composition).filter(([key])=>key!=='batchLayers')):plan.composition;
   const composition={...retainedComposition,filaments:retainedComposition.filaments??[]};
@@ -49,9 +56,9 @@ export function migrateRecipeFields(plan){
     }
     const {construction,...legacy}=source;
     requireThat(construction!=='cladding','Legacy cladding pose cannot be migrated automatically: author normal-band Slice with optional derived pose and field tilt, then review.');
-    const canonical=construction==='bridges'?bridgeAssignment({...legacy,process:{...legacy.process,firstLayerMm:legacy.process?.layerMm??plan.process.layerMm}}):construction==='skin'?skinAssignment({...legacy,process:{...legacy.process,planarSpeedMmS:plan.process.skinSpeedMmS,firstLayerSpeedMmS:plan.process.skinSpeedMmS}}):construction==='fronts'?frontAssignment(legacy):construction==='rim'?rimAssignment(legacy):sliceAssignment(source);
+    const canonical=construction==='bridges'?bridgeAssignment({...legacy,process:{...legacy.process,firstLayerMm:legacy.process?.layerMm??plan.process.layerMm}}):construction==='skin'?skinAssignment({...legacy,process:{...legacy.process,planarSpeedMmS:plan.process.skinSpeedMmS,firstLayerSpeedMmS:plan.process.skinSpeedMmS}}):construction==='fronts'?frontAssignment(legacy):construction==='rim'?rimAssignment(legacy):depositionAssignment(source);
     for(const key of new Set([...Object.keys(source),...Object.keys(canonical)]))if(JSON.stringify(source[key])!==JSON.stringify(canonical[key]))changes.push({path:`slices.assignments.${index}.${key}`,assignment:assignment.id,before:source[key]??null,after:canonical[key]??null,meaning:Object.hasOwn(source,key)?'Explicit shared-construction migration.':'Explicitly added current shared default.'});
     return canonical;
   });
-  return {plan:changes.length?{...plan,composition,experimental:plan.experimental??{substrateAdaptation:false},slices:{...plan.slices,assignments}}:plan,changes};
+  return {plan:changes.length?{...plan,process,composition,experimental:plan.experimental??{substrateAdaptation:false},slices:{...plan.slices,assignments}}:plan,changes};
 }

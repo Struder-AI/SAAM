@@ -1,12 +1,14 @@
+import {evaluateSurface} from '../geom/surface-evaluation.mjs';
+import {normalize,cross,dot,requireThat} from '../private/toolpath/numeric.mjs';
 // Native UV regions with physical surface offsets and projected-plane fill.
 // No affine UV-to-mm assumption or inverse surface mapping enters this stage.
 import {offsetSurfaceRegion} from './surface-offset.mjs';
 import {sectionPatch} from '../geom/section.mjs';
-import {patchMeanNormal,slicePoint,sliceChartStep} from '../geom/slice.mjs';
+import {patchMeanNormal,sliceChartStep} from '../geom/slice.mjs';
 import {sampledFieldStrokes} from './fill-patterns.mjs';
 import {frontLayerStrokes} from './seeded-fronts.mjs';
 import {clipOpenPaths,intersect,difference} from './intersection.mjs';
-import {normalize,cross,dot,requireThat} from '../geom/tolerance.mjs';
+
 import {lineSpacing} from '../path/spacing.mjs';
 
 export function patchOffset(slice,region,distanceMm,{sampleStepMm=.2}={}) {
@@ -53,7 +55,7 @@ export function patchLayerStrokes(slice,region,{widthMm,loops,fillDensity,fillPa
         const n=Math.max(2,Math.ceil((hi-lo)/steps[axis]));return Array.from({length:n+1},(_,i)=>lo+(hi-lo)*i/n);
       });
       const [xs,ys]=axes,values=xs.map(u=>Float64Array.from(ys,v=>{
-        const [x,y,z]=slicePoint(slice,[u,v]).map(n=>n*k);return Math.sin(x)*Math.cos(y)+Math.sin(y)*Math.cos(z)+Math.sin(z)*Math.cos(x);
+        const [x,y,z]=evaluateSurface(slice,[u,v]).point.map(n=>n*k);return Math.sin(x)*Math.cos(y)+Math.sin(y)*Math.cos(z)+Math.sin(z)*Math.cos(x);
       }));
       infill.push(...sampledFieldStrokes({xs,ys,values},sparseRegion).map((curve,lineIndex)=>({...curve,role:'infill',fillFamily:{spacingMm:pitch/fillDensity,lineIndex}})));
     }else{

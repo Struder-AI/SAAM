@@ -1,17 +1,20 @@
+import {rotatePointZ as bedPoint} from '../geom/frame.mjs';
+import {saamPath} from './saampath.mjs';
+import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 // Explicit path transitions. A stage owns its local work; its inputs are read-only.
 // Actions are append/replace-tail deltas, never the accumulated program. A merge
 // allocates a replacement action; earlier states and returned chunks stay intact.
-import {requireThat,distance,TOLERANCE} from '../geom/tolerance.mjs';
+import {TOLERANCE} from '../geom/tolerance.mjs';
 import {combRoute,combSegment} from './comb.mjs';
-import {uprightPose,validatePose,samePose,bedPoint} from './pose.mjs';
+import {uprightPose,validatePose,samePose} from './pose.mjs';
 
 export const MINIMUM_MOVE_MM=1e-4,NEARBY_MOVE_MM=1,CONNECT_MOVE_MM=2;
 
-export function createPlanningState({start,process,machine,generatorVersion,motion=null,motionBounds,retracted=false,selection=null,selections=null}) {
+export function createPlanningState({start,process,generatorVersion,motion=null,retracted=false,selection=null,selections=null}) {
   requireThat(Array.isArray(start)&&start.length===3&&start.every(Number.isFinite),'Path planning needs a 3D start position.');
-  return {start:[...start],position:[...start],process,machine,generatorVersion,motion:motion??{retreatMm:process.liftMm,transitionSeconds:1,rotaryCenterMm:[0,0,0]},initialPose:motion?.initialPose??null,selection,selections,defaultFilament:selection?.filament,toolRetractions:{},
+  return {start:[...start],position:[...start],process,generatorVersion,motion:motion??{retreatMm:process.liftMm,transitionSeconds:1,rotaryCenterMm:[0,0,0]},initialPose:motion?.initialPose??null,selection,selections,defaultFilament:selection?.filament,
     pose:motion?.initialPose?structuredClone(motion.initialPose):null,retracted,phase:'start',layer:0,layerSeconds:0,depositedMaxZ:0,
-    ...(motionBounds?{motionBounds}:{}),stats:{joined:0,connected:0,combed:0,hopped:0,travelMm:0,retractions:0,printMm:0}};
+    stats:{joined:0,connected:0,combed:0,hopped:0,travelMm:0,retractions:0,printMm:0}};
 }
 
 export function planningResult(state,actions={chunks:[]},decisions={}) {
@@ -26,7 +29,7 @@ export function planSelection(state,filament){
   // The action names material intent. Installed nozzle changes, clearance and
   // retraction debt are resolved by the selected output adapter.
   return appendAction({...state,selection:incoming,process:incoming.process,retracted:false,moveRun:null},
-    {kind:'toolChange',filament:incoming.filament,tool:incoming.tool,phase:state.phase,layer:state.layer,operation:state.operationId});
+    {kind:'toolChange',filament:incoming.filament,phase:state.phase,layer:state.layer,operation:state.operationId});
 }
 
 // Local emission storage for ONE planning stage, never shared planning state.
@@ -71,13 +74,12 @@ export function planMove(input,to,speed,volumeMm3=0,extra={}) {
     if(!pose||state.pose&&samePose(state.pose,pose))return planningResult(input);
   }
   let limited=speed;
-  if(volumeMm3>0)limited=Math.min(limited,state.process.maxFlowMm3S*length/volumeMm3);
   const dz=Math.abs(to[2]-state.position[2]);
   if(!pose&&dz>0)limited=Math.min(limited,state.process.zSpeedMmS*length/dz);
   const seconds=pose?(extra.durationSeconds??(length>0?length/limited:state.motion.transitionSeconds)):length/limited;
   requireThat(Number.isFinite(seconds)&&seconds>0,'Motion needs positive duration.');
-  const action={kind:'move',to:[...to],speedMmS:limited,volumeMm3,phase:state.phase,layer:state.layer,
-    ...(state.operationId?{operation:state.operationId}:{}),...extra,...(pose?{pose:structuredClone(pose),durationSeconds:seconds}:{})};
+  const action={...extra,kind:'move',to:[...to],speedMmS:limited,volumeMm3,phase:state.phase,layer:state.layer,
+    ...(state.operationId?{operation:state.operationId}:{}),...(pose?{pose:structuredClone(pose),durationSeconds:seconds}:{})};
   const run=state.moveRun;
   let emitted,shortenedMm=0;
   if(run&&state.lastAction===run.action&&mergeableMove(run,action)){
@@ -118,12 +120,13 @@ export function planNozzle(state,targetC) {
 }
 export function planExtrusion(state,volumeMm3,flowMm3S) {
   requireThat(!state.retracted&&Number.isFinite(volumeMm3)&&volumeMm3>0&&Number.isFinite(flowMm3S)&&flowMm3S>0,'Invalid stationary extrusion.');
-  const flow=Math.min(flowMm3S,state.process.maxFlowMm3S);
+  const flow=flowMm3S;
   return appendAction({...state,layerSeconds:state.layerSeconds+volumeMm3/flow,
     depositedMaxZ:Math.max(state.depositedMaxZ,state.position[2]),moveRun:null},
   {kind:'extrude',volumeMm3,flowMm3S:flow,phase:state.phase,layer:state.layer,operation:state.operationId});
 }
 export function planDwell(state,seconds) {
+  requireThat(Number.isFinite(seconds)&&seconds>=0,'Dwell outside limits.');
   return seconds>0?appendAction(state,{kind:'dwell',seconds,phase:state.phase,layer:state.layer}):planningResult(state);
 }
 
@@ -235,9 +238,9 @@ export function materializeActions(actionChunks) {
 }
 
 export function planningPath(state,actionChunks,summary={}) {
-  return {schema:'saampath/1',generatorVersion:state.generatorVersion,units:'mm',materialUnits:'mm3',initialPosition:state.start,
+  return saamPath({schema:'saampath/1',generatorVersion:state.generatorVersion,units:'mm',materialUnits:'mm3',initialPosition:state.start,
     ...(state.initialPose?{initialPose:structuredClone(state.initialPose),motionFrame:'part',rotaryCenterMm:state.motion.rotaryCenterMm}:{}),
-    actions:materializeActions(actionChunks),summary:{...summary,travel:{...state.stats}}};
+    actions:materializeActions(actionChunks),summary:{...summary,travel:{...state.stats}}});
 }
 
 function mergeableMove(run,next) {

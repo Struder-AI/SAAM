@@ -1,12 +1,12 @@
-import {exportMotion,validatePath} from './griffin.mjs';
+import {requireThat} from '../private/export/numeric.mjs';
+import {exportMotion} from './griffin.mjs';
 import {checkedFilamentPlan as filamentPlan} from '../machine/filaments.mjs';
 import {prelude} from './bambu-player.mjs';
 import {renderBambuChange} from './bambu-change.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
+
 import {sameNozzleMaterialChanges} from '../machine/rules.mjs';
 
 export function exportBambuBody(path,plan,machine){
-  validatePath(path);
   const travelCommand=machine.outputs.find(o=>o.id===plan.output).constraints.bodyTravelCommand;
   requireThat(travelCommand==='G1','Bambu body requires coordinated G1 travel.');
   let filament=plan.setup.bambu.filament,selected=filamentPlan(plan,machine,filament),position=[...path.initialPosition],start=[...position],fan=0,count=0;

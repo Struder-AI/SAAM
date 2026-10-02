@@ -1,0 +1,1 @@
+{"schema":"saam-extension/1","id":"gridfinity","dependencies":[{"id":"text"}],"entries":{"geometry-create":{"file":"scripts/create.mjs","export":"gridfinityPlan"},"geometry-edit":{"file":"scripts/edit.mjs","export":"editGridfinity"},"record-runtime":{"file":"scripts/record.mjs","export":"gridfinityRecordRuntime"}},"license":"Apache-2.0","provenance":"SAAM release"}

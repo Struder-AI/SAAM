@@ -1,19 +1,18 @@
+import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 // A producer's fields run before any consumer sees its supporting deposition.
 import {matchingModulations,finalizeModulatedResult} from '../path/modulation.mjs';
 import {depositedBeadFrames} from '../path/deposited-curves.mjs';
 import {republishDepositedBoundary} from '../path/finished-surface.mjs';
-import {filamentPlan} from '../machine/filaments.mjs';
-import {requireThat,distance} from '../geom/tolerance.mjs';
+import {materialProcess} from '../machine/filaments.mjs';
+
 import {validatePose} from '../path/pose.mjs';
-import {prepareDepositionMotion,prepareReferenceMotion} from '../machine/deposition-motion.mjs';
+import {prepareDepositionMotion,prepareReferenceMotion} from '../path/deposition-motion.mjs';
 import {resolveDepositionConnections} from '../path/deposition-connections.mjs';
 
-function finalizedOperation(operation,plan,machine,result){
-  const selected=operation.filament===undefined?plan:filamentPlan(plan,machine,operation.filament);
+function finalizedOperation(operation,plan,result){
+  const selected=operation.filament===undefined?plan:{...plan,process:materialProcess(plan,operation.filament)};
   let high=-Infinity;
   for(const stroke of operation.strokes){
-    if(stroke.stationaryExtrusion)requireThat(stroke.stationaryExtrusion.flowMm3S<=selected.process.maxFlowMm3S+1e-7,
-      `Modulated operation ${operation.id} exceeds the selected stationary extrusion flow limit.`);
     if(stroke.poses){
       requireThat(stroke.poses.length===stroke.points.length,`Modulated operation ${operation.id} has inconsistent pose samples.`);
       stroke.poses.forEach(validatePose);
@@ -27,8 +26,7 @@ function finalizedOperation(operation,plan,machine,result){
         requireThat(Number.isFinite(speed)&&speed>0&&length>0,`Modulated operation ${operation.id} has invalid speed or a zero-length deposition segment.`);
         const seconds=length/speed;
         const flow=volume/seconds;
-        requireThat(Number.isFinite(flow)&&flow<=selected.process.maxFlowMm3S+1e-7,
-          `Modulated operation ${operation.id} requests ${flow.toFixed(4)} mm³/s; selected material limit is ${selected.process.maxFlowMm3S} mm³/s. Reduce speed, width or flow modulation.`);
+        requireThat(Number.isFinite(flow)&&flow>=0,`Modulated operation ${operation.id} produced invalid deposition flow.`);
 
       }
     }
@@ -40,26 +38,26 @@ function finalizedOperation(operation,plan,machine,result){
     travelPolicy:{maxCombMm:0,canTravelDirect:()=>false,clearanceFor:()=>clearanceZ}};
 }
 
-export function finalizeDepositionResult(result,plan,machine,{entryPosition}={}){
+export function finalizeDepositionResult(result,plan,{entryPosition}={}){
   result={...result,operations:result.operations.map(op=>({...op,nominalRank:op.nominalRank??op.rank}))};
   // A nominal region cannot prove a join safe after its bead geometry changes.
   // Freeze every operation's order here; all deposited material, including joins,
   // must exist before modulation and before any supporting-surface publication.
   const excludedOperationIds=plan.modulations?.modifiers.length?result.operations.filter(op=>op.strokes.some(stroke=>
     matchingModulations(result,stroke.role,plan.modulations,op).some(m=>['displacement','width','flow'].includes(m.channel)))).map(op=>op.id):[];
-  if(result.operations.some(operation=>operation.strokes.some(stroke=>stroke.motionIntent)))result=prepareReferenceMotion(result,machine);
+  if(result.operations.some(operation=>operation.strokes.some(stroke=>stroke.motionIntent)))result=prepareReferenceMotion(result);
   result=resolveDepositionConnections(result,{excludedOperationIds,entryPosition});
-  result=prepareDepositionMotion(result,machine);
+  result=prepareDepositionMotion(result);
   if(result.report?.depositionConnections?.count)result=republishDepositedBoundary(result,{widthMm:plan.process.lineWidthMm});
   if(!plan.modulations?.modifiers.length||!result.operations.some(op=>op.strokes.some(stroke=>matchingModulations(result,stroke.role,plan.modulations,op).length)))return result;
   const prepared={...result,operations:result.operations.map(op=>{
-    const selected=op.filament===undefined?plan:filamentPlan(plan,machine,op.filament);
+    const selected=op.filament===undefined?plan:{...plan,process:materialProcess(plan,op.filament)};
     return {...op,strokes:op.strokes.map(stroke=>({...stroke,beadWidthMm:stroke.beadWidthMm??selected.process.lineWidthMm}))};
   })};
   const answer=finalizeModulatedResult(depositedBeadFrames(prepared),plan.modulations);
   if(!answer.report.changed)return result;
   const changed=new Set(answer.report.changedOperations);
-  const operations=answer.result.operations.map(op=>changed.has(op.id)?finalizedOperation(op,plan,machine,result):op);
+  const operations=answer.result.operations.map(op=>changed.has(op.id)?finalizedOperation(op,plan,result):op);
   const candidate={...answer.result,operations};
   const finalized=answer.report.materialChanged?republishDepositedBoundary(candidate,{widthMm:plan.process.lineWidthMm}):candidate;
   return {...finalized,report:{...result.report,modulation:answer.report}};

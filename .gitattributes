@@ -1,6 +1,9 @@
 # Installer scripts run on their own platform whatever checkout builds the package.
 packaging/macos/*.sh text eol=lf
+packaging/macos/*.command text eol=lf
 packaging/macos/README.txt text eol=lf
 packaging/windows/*.cmd text eol=crlf
 packaging/windows/*.ps1 text eol=crlf
 packaging/windows/*.vbs text eol=crlf
+# Airfoil integrity hashes cover canonical LF bytes on every platform.
+workspaces/wing/data/*.dat text eol=lf

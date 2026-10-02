@@ -1,5 +1,6 @@
-import {filamentPlan} from '../machine/filaments.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
+import {requireThat} from '../private/toolpath/numeric.mjs';
+import {materialProcess} from '../machine/filaments.mjs';
+
 
 const fields=['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','firstLayerSpeedMmS','fanPercent'];
 
@@ -11,11 +12,11 @@ export function validateAssignmentProcess(overrides) {
 
 // Material/nozzle selection establishes defaults; authored process values win.
 // Slicing stack overrides remain a later, explicit geometric pitch decision.
-export function assignmentPlan(plan,machine,assignment) {
+export function assignmentPlan(plan,assignment) {
   validateAssignmentProcess(assignment.process??null);
   const filament=assignmentFilament(plan,assignment);
-  const selected=filament===null?plan:filamentPlan(plan,machine,filament);
-  return assignment.process==null?selected:{...selected,process:{...selected.process,...assignment.process}};
+  const process=filament===null?plan.process:materialProcess(plan,filament);
+  return {...plan,process:assignment.process==null?process:{...process,...assignment.process}};
 }
 
 // A print owns selection. Producers supply identity, never their own routing rules.

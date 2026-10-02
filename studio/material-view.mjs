@@ -1,6 +1,6 @@
+import {subtract,scale,dot,cross,length,normalize} from '../core/private/studio/numeric.mjs';
 // Display-only material geometry, derived from interpreted moves. No slicing,
 // machine commands, approval data or reference part mesh is changed here.
-import {add,subtract,scale,dot,cross,length,normalize} from '../core/geom/tolerance.mjs';
 import {createMachineLayer} from './machine-view.mjs';
 import {CURRENT_LAYER_GAP_MM,layerKey,toolpathStyle} from './toolpath-view.mjs';
 
@@ -148,7 +148,10 @@ export function materialProjection(project,width,height,bounds){
   const mid=(low+high)/2,range=Math.max(10,high-low+10),matrix=new Float32Array(16);
   axes.forEach((a,i)=>matrix.set([2*a[0]/width,-2*a[1]/height,-2*a[2]/range,0],i*4));
   matrix.set([2*o[0]/width-1,1-2*o[1]/height,-2*(o[2]-mid)/range,1],12);
-  const light=normalize(axes.map(a=>a[2]-a[1]/Math.max(1,project.pixelsPerMm??1)*.4));
+  // Raking light from the viewer's upper left makes raised bead sides visible
+  // while completed square sections remain closed and solid-looking.
+  const scale=Math.max(1,project.pixelsPerMm??1);
+  const light=normalize(axes.map(a=>a[2]*.35-a[0]/scale-a[1]/scale*.55));
   return {matrix,light};
 }
 
@@ -172,7 +175,7 @@ export function createMaterialRenderer(documentApi=document){
       vec2 square=rounded/max(1e-6,max(abs(rounded.x),abs(rounded.y)));
       vec2 section=mix(square,rounded,detailed);
       gl_Position=projection*vec4(mix(a,b,vertex.x)+u*section.x+v*section.y,1.);
-      float diffuse=max(0.,dot(n,light));shade=mix(.75+.25*diffuse,.50+.50*diffuse,detailed);
+      float diffuse=max(0.,dot(n,light));shade=.38+.62*diffuse;
     }`;
   const fragment=`#version 300 es
     precision highp float;in float shade;uniform vec4 color;out vec4 result;

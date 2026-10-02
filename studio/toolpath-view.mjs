@@ -134,6 +134,59 @@ export function layerEndSeconds(view,index){
 export function stepLayerIndex(view,seconds,direction){
   return Math.max(0,Math.min(layerIndexAt(view,seconds)+direction,view.groups.length-1));
 }
+// Choose a deposited layer with visible contour structure for a first look at
+// an already generated path. Sharp turns in perimeter moves reveal authored
+// details without guessing from the source mesh or altering playback/export.
+export function representativeLayer(view,{feature='contour'}={}){
+  const groups=view.groups.filter(group=>{
+    for(let i=group.first;i<=group.last;i++)if(view.moves[i].extruding)return true;
+    return false;
+  });
+  if(!groups.length)return null;
+  if(feature==='infill'){
+    const candidates=[];
+    for(const group of groups){
+      const index=view.groups.indexOf(group),progress=index/Math.max(1,view.groups.length-1);
+      if(progress<.15||progress>.7)continue;
+      let first=null,length=0;
+      for(let i=group.first;i<=group.last;i++){
+        const move=view.moves[i];if(!move.extruding||!/infill/.test(move.operation??'')||/solid/.test(move.operation))continue;
+        first??=move;length+=Math.hypot(...move.to.map((v,k)=>v-move.from[k]));
+      }
+      if(first)candidates.push({move:first,length,index});
+    }
+    const peak=candidates.reduce((max,candidate)=>Math.max(max,candidate.length),0);
+    const chosen=candidates.filter(candidate=>candidate.length>=peak*.9).at(-1);
+    if(chosen)return {seconds:chosen.move.startSeconds,layer:chosen.move.layer,index:chosen.index,groups:view.groups.length,feature};
+  }
+  let best=null;const candidates=[];
+  for(const [index,group] of groups.entries()){
+    if(index===0||index===groups.length-1)continue;
+    const progress=index/(groups.length-1);
+    if(progress<.15||progress>.85)continue;
+    let corners=0,walls=0,previous=null,first=null;
+    for(let i=group.first;i<=group.last;i++){
+      const move=view.moves[i];
+      if(!move.extruding||!/walls|perimeter/.test(move.operation??move.role??'')){previous=null;continue;}
+      first??=move;walls++;
+      if(previous&&previous.operation===move.operation&&previous.to.every((v,k)=>Math.abs(v-move.from[k])<1e-6)){
+        const a=previous.to.map((v,k)=>v-previous.from[k]),b=move.to.map((v,k)=>v-move.from[k]);
+        const lengths=Math.hypot(...a)*Math.hypot(...b);
+        if(lengths&&a.reduce((sum,v,k)=>sum+v*b[k],0)/lengths<.94)corners++;
+      }
+      previous=move;
+    }
+    if(!first)continue;
+    const score=corners+Math.log1p(walls)+1-Math.abs(progress-.6);
+    const candidate={score,move:first,index:view.groups.indexOf(group)};
+    candidates.push(candidate);
+    if(!best||score>best.score)best=candidate;
+  }
+  const fallback=groups[Math.min(groups.length-1,Math.max(0,Math.round((groups.length-1)*.55)))];
+  const chosen=best?.score>=20?candidates.filter(candidate=>candidate.score>=best.score*.65).at(-1):null;
+  const move=chosen?.move??Array.from({length:fallback.last-fallback.first+1},(_,i)=>view.moves[fallback.first+i]).find(m=>m.extruding);
+  return move?{seconds:move.startSeconds,layer:move.layer,index:chosen?.index??view.groups.indexOf(fallback),groups:view.groups.length,feature:'contour'}:null;
+}
 function entries(view,group,reduced) {
   const memo=view.memo.group(group);
   if(!reduced)return memo.raw??=Array.from({length:group.last-group.first+1},(_,j)=>{

@@ -43,7 +43,7 @@ export function requestReceiptState(request,{now=Date.now(),closedOwners=new Map
 }
 
 export function hasUnpreparedEdit(requests=[],snapshot,{now=Date.now()}={}){
-  return requests.some(request=>requestReceiptState(request,{now}).activity==='working'
+  return requests.some(request=>['queued','working'].includes(requestReceiptState(request,{now}).activity)
     &&!request.presented&&request.target?.inputKey!==snapshot?.inputKey);
 }
 
@@ -57,7 +57,7 @@ export function summarizeWork(requests=[],{now=Date.now(),closedOwners=new Map()
   for(const request of requests){
     if(!edits(request)||view?.printId&&request.printId!==view.printId)continue;
     const state=requestReceiptState(request,context),time=Math.max(request.updatedAt,request.timedOut?request.expiresAt:0);
-    if(state.activity==='working'){working=true;if(request.target?.stage!=='toolpath')allToolpath=false;}
+    if(['queued','working'].includes(state.activity)){working=true;if(request.target?.stage!=='toolpath')allToolpath=false;}
     const delta=time-latestTime;
     if(!latest||Number.isNaN(delta)||delta>=0){latest=request;latestTime=time;status=state.activity;}
   }

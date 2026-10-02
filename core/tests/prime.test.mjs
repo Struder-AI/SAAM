@@ -1,21 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {loadMachine,startupPosition,startupRetracted} from '../machine/profile.mjs';
+import {loadMachine} from '../machine/profile.mjs';
+import {startupPosition,startupRetracted,toolBounds} from '../machine/rules.mjs';
 import {defaults} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {rhino} from '../print/geometry.mjs';
-import {createPlanningState,planningPath} from '../path/planning.mjs';
-import {planPriming} from '../path/prime.mjs';
+import {AdaptationMotion,machinePriming} from '../private/export/adaptation-motion.mjs';
+import {prepareExportPath} from '../export/prepare-path.mjs';
 import {exportGriffin,interpretGriffin} from '../export/griffin.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 
 test('S5 shell exports recover, sacrificial strokes, then the part on either nozzle',async()=>{
-  const native=await rhino();
   for(const tool of [0,1])for(const retractMm of [0,6.5]){
     const machine=loadMachine(),plan=defaults(machine);
     plan.setup.tool=tool;plan.process.retractMm=retractMm;plan.process.minimumLayerSeconds=0;
     plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:.6});
-    const path=generatePath(plan,machine,native);
+    const path=await generatePath(plan,machine);
     const program=interpretGriffin(exportGriffin(path,plan,machine,{generatorVersion:'test',buildDate:'2026-09-16'}),plan,machine);
     const depositing=program.moves.filter(m=>m.extruding),prime=depositing.filter(m=>m.phase==='prime');
     assert.equal(prime.length,3,'two passes and their depositing connector');
@@ -37,33 +36,34 @@ test('S5 shell exports recover, sacrificial strokes, then the part on either noz
 });
 
 function fixture(machine=loadMachine()){
-  const plan=defaults(machine),state=createPlanningState({start:startupPosition(machine,plan),process:plan.process,machine,generatorVersion:'test',retracted:startupRetracted(machine,plan)});
+  const plan=defaults(machine),motion=new AdaptationMotion({start:startupPosition(machine,plan),process:plan.process,retracted:startupRetracted(machine,plan)});
   const geometry={min:[140,100,0],max:[148,108,2]};
   const results=[{operations:[{strokes:[{points:[[140,100,.2],[148,108,.2]],beadAreaMm2:.08}]}]}];
-  return {state,geometry,results};
+  return {plan,machine,motion,bounds:toolBounds(machine,plan.setup.tool),geometry,results};
 }
 
 test('priming avoids generated support extents and finds space away from occupied bed edges',()=>{
   const f=fixture();
   f.geometry={min:[0,0,0],max:[325,220,2]};
   f.results[0].operations[0].strokes[0].points=[[0,0,.2],[329,220,.2]];
-  const primed=planPriming(f.state,f.geometry,f.results);
-  const deposition=planningPath(primed.state,[primed.actions]).actions.filter(a=>a.volumeMm3>0);
+  machinePriming(f.motion,f.machine,f.bounds,{min:[0,0,0],max:[329,220,2]});
+  const deposition=f.motion.actions.filter(a=>a.volumeMm3>0);
   assert.equal(deposition.length,3);
   assert.ok(deposition.every(a=>a.to[1]>224),'only the rear strip is available');
   assert.ok(deposition.every(a=>a.to[0]>=.2&&a.to[0]<=329.8&&a.to[1]<=239.8));
   const full=fixture();full.geometry={min:[0,0,0],max:[330,240,2]};
-  const unchanged=structuredClone(full.state);
-  assert.throws(()=>planPriming(full.state,full.geometry,full.results),/No room for machine priming strokes/);
-  assert.deepEqual(full.state,unchanged,'rejection leaves incoming planning state unchanged');
+  const unchanged=structuredClone(full.motion);
+  assert.throws(()=>machinePriming(full.motion,full.machine,full.bounds,full.geometry),/No room for machine priming strokes/);
+  assert.deepEqual(structuredClone(full.motion),unchanged,'rejection leaves incoming preparation state unchanged');
 });
 
 test('profiles without explicit priming and empty deposition preserve their paths',()=>{
   for(const id of ['ultimaker-s5','bambu-h2d']){
     const machine=loadMachine(id);delete machine.startup.primingStrokes;
-    const f=fixture(machine),primed=planPriming(f.state,f.geometry,f.results);
-    assert.equal(planningPath(primed.state,[primed.actions]).actions.length,0,'old snapshots and other machines retain their startup');
+    const f=fixture(machine);machinePriming(f.motion,machine,f.bounds,f.geometry);
+    assert.equal(f.motion.actions.length,0,'old snapshots and other machines retain their startup');
   }
-  const f=fixture(),primed=planPriming(f.state,f.geometry,[]);
-  assert.equal(planningPath(primed.state,[primed.actions]).actions.length,0,'priming cannot disguise an empty part');
+  const f=fixture(),start=startupPosition(f.machine,f.plan);
+  const prepared=prepareExportPath({schema:'saampath/1',initialPosition:start,actions:[],completion:{contract:'saam-neutral-motion/1',inputHash:'test'}},f.plan,f.machine);
+  assert.equal(prepared.actions.filter(a=>a.phase==='prime').length,0,'priming cannot disguise an empty part');
 });

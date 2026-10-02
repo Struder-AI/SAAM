@@ -3,7 +3,7 @@
 import {topAt,containsPoint} from './query.mjs';
 import {projectToPatch} from './field.mjs';
 import {normalize,requireThat,TOLERANCE} from './tolerance.mjs';
-import {levelSetRegion,SENTINEL} from '../region/boolean.mjs';
+import {extractLevelSet,SENTINEL} from './level-set.mjs';
 import {validateSplineSolid,clampedKnots,splineSolidBounds} from './spline-solid.mjs';
 
 // Use the same authored patch record as spline solids, without requiring it to
@@ -119,7 +119,7 @@ export function sampledChartRegion(bounds,stepMm,contains) {
     }
     return a;
   };
-  return levelSetRegion({xs,ys,values},0,{refine});
+  return extractLevelSet({xs,ys,values},0,{refine});
 }
 
 export function sectionHeightSlice(geometry,slice,{sampleStepMm=slice.sampleStepMm,fullCrossing=true}={}) {

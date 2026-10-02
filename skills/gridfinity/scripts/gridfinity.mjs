@@ -1,6 +1,6 @@
-import {solidKernel,meshFromSolid} from '../../../core/geom/solid.mjs';
-import {requireThat} from '../../../core/geom/tolerance.mjs';
 import {gridfinityDigest} from './record.mjs';
+
+const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
 // Dimensional sources and height conventions live in the skill manual.
 const COMMON={kind:'bin',xUnits:1,yUnits:1,toleranceMm:0.03};
@@ -51,31 +51,15 @@ function roundedRing(width,depth,radius,z,cx,cy,steps){
   return ring;
 }
 
-export async function compileGridfinity(input={}){
-  const p=gridfinityParameters(input),k=await solidKernel(),owned=[];
-  const keep=object=>(owned.push(object),object);
+export async function compileGridfinity(input={}, {constructSolids}={}){
+  requireThat(typeof constructSolids==='function','Gridfinity needs the Geometry constructSolids operation.');
+  const p=gridfinityParameters(input);
   const steps=Math.max(2,Math.ceil(Math.PI/(4*Math.acos(Math.max(-1,1-p.toleranceMm/4)))));
-  // All temporaries, including inputs to lazy booleans, survive until extraction.
-  const loft=(levels,cx,cy)=>{
-    const vertices=levels.flatMap(([z,w,d,r])=>roundedRing(w,d,r,z,cx,cy,steps)),n=4*(steps+1),triangles=[];
-    for(let layer=0;layer<levels.length-1;layer++)for(let j=0;j<n;j++){
-      const a=layer*n+j,b=layer*n+(j+1)%n,c=b+n,d=a+n;
-      triangles.push([a,b,c],[a,c,d]);
-    }
-    const bottom=vertices.length,top=bottom+1;
-    vertices.push([cx,cy,levels[0][0]],[cx,cy,levels.at(-1)[0]]);
-    for(let j=0;j<n;j++){
-      triangles.push([bottom,(j+1)%n,j]);
-      const offset=(levels.length-1)*n;
-      triangles.push([top,offset+j,offset+(j+1)%n]);
-    }
-    return keep(new k.Manifold(new k.Mesh({numProp:3,vertProperties:Float32Array.from(vertices.flat()),triVerts:Uint32Array.from(triangles.flat())})));
-  };
+  const loft=(levels,cx,cy)=>({operation:'loft',rings:levels.map(([z,w,d,r])=>roundedRing(w,d,r,z,cx,cy,steps)),centers:[[cx,cy,levels[0][0]],[cx,cy,levels.at(-1)[0]]]});
   const block=(w,d,r,z0,z1,cx,cy)=>loft([[z0,w,d,r],[z1,w,d,r]],cx,cy);
-  const union=solids=>keep(k.Manifold.union(solids));
-  const subtract=(a,b)=>keep(a.subtract(b));
+  const union=operands=>({operation:'union',operands});
+  const subtract=(a,b)=>({operation:'difference',operands:[a,b]});
   const w=42*p.xUnits-0.5,d=42*p.yUnits-0.5,cx=21*p.xUnits,cy=21*p.yUnits;
-  try{
     let solid;
     if(p.kind==='baseplate'){
       const floor=p.floorMm,top=floor+4.75;
@@ -116,7 +100,7 @@ export async function compileGridfinity(input={}){
         const dividers=[],insideW=w-2*inset,insideD=d-2*inset;
         const cellW=(insideW-(p.compartmentsX-1)*inset)/p.compartmentsX;
         const cellD=(insideD-(p.compartmentsY-1)*inset)/p.compartmentsY;
-        const cube=(size,position)=>keep(keep(k.Manifold.cube(size)).translate(position));
+        const cube=(size,offset)=>({operation:'translate',geometry:{operation:'box',size},offset});
         const dividerHeight=(p.stackingLip?shoulder:top+0.2)-floor;
         for(let i=1;i<p.compartmentsX;i++)dividers.push(cube([inset,d,dividerHeight],[0.25+inset+i*cellW+(i-1)*inset,0.25,floor]));
         for(let i=1;i<p.compartmentsY;i++)dividers.push(cube([w,inset,dividerHeight],[0.25,0.25+inset+i*cellD+(i-1)*inset,floor]));
@@ -126,13 +110,12 @@ export async function compileGridfinity(input={}){
       if(p.magnetHoles){
         const holes=[];
         for(let x=0;x<p.xUnits;x++)for(let y=0;y<p.yUnits;y++)for(const dx of [-13,13])for(const dy of [-13,13])
-          holes.push(keep(keep(k.Manifold.cylinder(2.5,3.25,3.25,4*steps)).translate([21+42*x+dx,21+42*y+dy,-0.1])));
+          holes.push({operation:'translate',geometry:{operation:'cylinder',heightMm:2.5,radiusMm:3.25,segments:4*steps},offset:[21+42*x+dx,21+42*y+dy,-0.1]});
         solid=subtract(solid,union(holes));
       }
     }
-    requireThat(solid.status()==='NoError'&&!solid.isEmpty()&&solid.volume()>0,'Gridfinity construction failed to produce a solid.');
-    const mesh=meshFromSolid(solid);
+    const [mesh]=await constructSolids([solid],{toleranceMm:p.toleranceMm});
+    requireThat(mesh,'Gridfinity construction failed to produce a solid.');
     const record={shape:'gridfinity',parameters:p,vertices:mesh.vertices,triangles:mesh.triangles};
     return {...record,compiledHash:gridfinityDigest(record)};
-  }finally{for(const object of owned.reverse())object.delete();}
 }

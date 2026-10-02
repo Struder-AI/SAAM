@@ -1,6 +1,7 @@
-import {requireThat,distance} from '../geom/tolerance.mjs';
+import {requireThat,distance} from '../private/export/numeric.mjs';
+
 import {validateDensoConfiguration} from './denso.mjs';
-import {requireProcessControl,validateNozzleC,plannedNozzleTemperatures} from '../path/process-controls.mjs';
+import {validateTemperatureC,authoredNozzleTargets} from '../private/export/temperature.mjs';
 import {checkedFilamentPlan as filamentPlan} from './filaments.mjs';
 
 export const toolFor=(machine,index)=>{
@@ -18,29 +19,26 @@ export function centeredPlacement(machine,index,{runMm,widthMm}){
   const b=toolBounds(machine,index);
   return {xMm:(b.min[0]+b.max[0])/2-runMm/2,yMm:(b.min[1]+b.max[1])/2-widthMm/2};
 }
-const range=(v,limits,name)=>requireThat(Number.isFinite(v)&&Array.isArray(limits)&&v>=limits[0]&&v<=limits[1],`${name} outside profile limits.`);
 // Read the approved default without changing saved machine snapshot identity.
 export const planarWallTolerance=machine=>machine?.planarWallToleranceMm===undefined?0.01:machine.planarWallToleranceMm;
 
 export function validateSetup(plan,machine,{required=false}={}) {
   requireThat(machine.schema==='saam-machine/1'&&machine.units==='mm','Unsupported machine schema or units.');
   requireThat(Number.isFinite(planarWallTolerance(machine))&&planarWallTolerance(machine)>=0,'Machine planar wall tolerance must be finite and nonnegative.');
-  const s=plan.setup,p=plan.process,t=toolFor(machine,s.tool),profile=machine.materials?.[s.material];
+  const s=plan.setup,p=plan.process;
+  const common=['tool','core','material','firmwareVersion','nozzleMm','filamentMm','nozzleC','bedC','buildVolumeC','startupVerified','materialGuid'];
+  const allowed=[...common,'filamentColor','ams','bambu','dobot','denso'];
+  requireThat(s&&typeof s==='object'&&!Array.isArray(s)&&common.every(k=>Object.hasOwn(s,k))&&Object.keys(s).every(k=>allowed.includes(k)),'Invalid export setup fields.');
+  requireThat(typeof s.material==='string'&&typeof s.firmwareVersion==='string','Material and firmware version must be text.');
+  requireThat(typeof s.startupVerified==='boolean','Startup verification must be a boolean.');
+  for(const name of ['bambu','dobot','denso'])if(s[name]!==undefined)
+    requireThat(s[name]&&typeof s[name]==='object'&&!Array.isArray(s[name]),`Invalid ${name} configuration fields.`);
+  const t=toolFor(machine,s.tool);
   if(machine.id==='denso-vs068a4-rc8a')validateDensoConfiguration(plan,{required});
   requireThat(machine.capabilities?.includes('xyz-extrusion'),'Machine does not support XYZ extrusion.');
   requireThat(t.cores?.includes(s.core)&&t.nozzleDiametersMm?.includes(s.nozzleMm),'Nozzle/core not supported by the selected tool.');
   requireThat(s.filamentMm===machine.filamentDiameterMm,'Filament diameter does not match the machine.');
-  requireThat(profile,'Material has no declared process profile.');
-  range(s.nozzleC,profile.nozzleC,'Material nozzle temperature');range(s.bedC,profile.bedC,'Material bed temperature');
-  range(s.nozzleC,machine.temperatureLimitsC.nozzle,'Machine nozzle temperature');range(s.bedC,machine.temperatureLimitsC.bed,'Machine bed temperature');
-  range(s.buildVolumeC,[0,machine.temperatureLimitsC.chamberMax??50],'Build-volume temperature');
-  const experimental=p.experimentalDeposition;
-  requireThat(!experimental||t.experimentalPlanar,'Selected tool has no experimental planar-deposition envelope.');
-  range(p.maxFlowMm3S,[0.1,experimental?(profile.experimentalMaxFlowMm3S??profile.maxFlowMm3S):profile.maxFlowMm3S],'Material flow');
-  range(p.retractMm,[0,profile.maxRetractMm],'Retraction');range(p.retractSpeedMmS,[1,machine.maxFeedMmS.e],'Retraction speed');
-  const layerLimits=experimental?t.experimentalPlanar.layerHeightMm:t.layerHeightMm;
-  range(p.firstLayerMm,layerLimits,'First layer');range(p.layerMm,layerLimits,'Layer height');
-  range(p.lineWidthMm,lineWidthLimits(plan,machine),'Line width');
+  for(const target of [s.nozzleC,s.bedC,s.buildVolumeC])validateTemperatureC(target);
   requireThat(machine.outputs.some(o=>o.id===plan.output),'Output is not declared by the machine.');
   const output=machine.outputs.find(o=>o.id===plan.output);
   if(output.constraints?.chamberC!==undefined)requireThat(s.buildVolumeC===output.constraints.chamberC,'This output profile requires no chamber heating (buildVolumeC: 0).');
@@ -54,11 +52,6 @@ export function validateSetup(plan,machine,{required=false}={}) {
     validateDobotConfiguration(plan,machine,{required});
     requireThat(p.retractMm===0&&p.fanPercent===0,'Dobot relay output cannot retract or control a fan; set retractMm and fanPercent to zero.');
   }
-}
-
-export function lineWidthLimits(plan,machine){
-  const tool=toolFor(machine,plan.setup.tool);
-  return plan.process.experimentalDeposition?tool.experimentalPlanar?.lineWidthMm:[plan.setup.nozzleMm*0.75,plan.setup.nozzleMm*2];
 }
 
 // Optional spool choice from the profile's declared feeder units. No request
@@ -93,7 +86,6 @@ export function validateDobotConfiguration(plan,machine,{required=false}={}){
   if(required){
     requireThat(missing.length===0,`Dobot installation is unconfigured; supply ${missing.join(', ')} before export.`);
     requireThat(plan.setup.nozzleC>0,'Supply the externally controlled Dobot nozzle temperature before export.');
-    requireThat(c.extrusionRateMm3S<=plan.process.maxFlowMm3S,'Dobot configured relay rate exceeds the locked material flow limit.');
   }
   return {configured:missing.length===0,missing};
 }
@@ -108,13 +100,19 @@ export const startupRetracted=(machine,plan)=>plan.process.retractMm>0
 
 export const sameNozzleMaterialChanges=machine=>machine.outputs.some(o=>o.id==='bambu-gcode'&&o.constraints?.materialChangeMode==='single-nozzle-ams');
 
+export function requireProcessControl(machine){
+  requireThat(machine.outputs?.some(o=>['griffin-gcode','bambu-gcode'].includes(o.id)),
+    'Stationary metered extrusion and operation temperature control require a supported filament-axis G-code output; relay robot outputs are not implemented.');
+}
+
 export function requireMachine(machine,capabilities,skill) {
   for(const capability of capabilities) requireThat(machine.capabilities?.includes(capability),`${skill} requires machine capability ${capability}.`);
 }
 
 // Validate SAAMpath independently of the chosen machine-program language.
 export function checkMachinePath(path,plan,machine) {
-  let selected=plan,bounds=toolBounds(machine,plan.setup.tool);const area=Math.PI*(plan.setup.filamentMm/2)**2;
+  const temperatures=authoredNozzleTargets(plan,path.completion?.authoredNozzleTemperatures);
+  let selected=plan,bounds=toolBounds(machine,plan.setup.tool);
   let from=path.initialPosition;
   const point=p=>requireThat(Array.isArray(p)&&p.length===3&&p.every((v,i)=>Number.isFinite(v)&&v>=bounds.min[i]-1e-7&&v<=bounds.max[i]+1e-7),'SAAMpath exceeds selected tool bounds.');
   point(from);
@@ -125,19 +123,18 @@ export function checkMachinePath(path,plan,machine) {
       bounds=toolBounds(machine,selected.setup.tool);point(from);continue;
     }
     if(action.kind==='move'){
-      point(action.to);const length=distance(from,action.to),seconds=length/action.speedMmS;
+      point(action.to);const length=distance(from,action.to),seconds=action.durationSeconds??length/action.speedMmS;
       requireThat(seconds>0&&Number.isFinite(seconds)&&Number.isFinite(action.volumeMm3)&&action.volumeMm3>=0,'Invalid machine motion.');
       for(let i=0;i<3;i++)requireThat(Math.abs(action.to[i]-from[i])/seconds<=machine.maxFeedMmS['xyz'[i]]+1e-7,'Machine axis feed exceeded.');
-      requireThat(action.volumeMm3/seconds<=selected.process.maxFlowMm3S+1e-7&&(machine.id==='dobot-mg400'||action.volumeMm3/area/seconds<=machine.maxFeedMmS.e+1e-7),'Machine/material extrusion feed exceeded.');
       from=action.to;
     } else if(action.kind==='extrude'){
       requireProcessControl(machine);point(from);
-      requireThat(Number.isFinite(action.volumeMm3)&&action.volumeMm3>0&&Number.isFinite(action.flowMm3S)&&action.flowMm3S>0&&action.flowMm3S<=selected.process.maxFlowMm3S&&action.flowMm3S/area<=machine.maxFeedMmS.e,'Invalid stationary extrusion or flow exceeded.');
+      requireThat(Number.isFinite(action.volumeMm3)&&action.volumeMm3>0&&Number.isFinite(action.flowMm3S)&&action.flowMm3S>0,'Invalid stationary extrusion.');
     } else if(action.kind==='temperature'){
-      requireProcessControl(machine);validateNozzleC(action.targetC,selected,machine);
-      requireThat(plannedNozzleTemperatures(selected).has(action.targetC),'Unplanned operation temperature.');
-    } else if(['retract','recover'].includes(action.kind))requireThat(action.speedMmS<=machine.maxFeedMmS.e&&(machine.id!=='dobot-mg400'||action.filamentMm===0),'Machine extruder feed exceeded or relay retraction unsupported.');
+      requireProcessControl(machine);validateTemperatureC(action.targetC);
+      requireThat(temperatures.has(action.targetC),'Unplanned operation temperature; supply the saved neutral SAAMpath target inventory.');
+    } else if(['retract','recover'].includes(action.kind)&&machine.id==='dobot-mg400')requireThat(action.filamentMm===0,'Relay retraction unsupported.');
     else if(action.kind==='fan'&&machine.id==='dobot-mg400')requireThat(action.percent===0,'Dobot output has no fan control.');
   }
-  return {machine:machine.id,tool:plan.setup.tool,bounds,checks:['tool-bounds','axis-feed','material-flow'],...(machine.id==='dobot-mg400'?{configuration:validateDobotConfiguration(plan,machine),coverage:'Proposed design envelope and commanded volume only; robot kinematics, measured extrusion and collision clearance are unchecked.'}:{})};
+  return {machine:machine.id,tool:plan.setup.tool,bounds,checks:['tool-bounds','axis-feed','finite-deposition'],...(machine.id==='dobot-mg400'?{configuration:validateDobotConfiguration(plan,machine),coverage:'Proposed design envelope and commanded volume only; robot kinematics, measured extrusion and collision clearance are unchecked.'}:{})};
 }

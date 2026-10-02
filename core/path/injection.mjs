@@ -1,6 +1,7 @@
+import {requireThat} from '../private/toolpath/numeric.mjs';
 // Point-volume deposition owns no inferred footprint. Its explicit approach and
 // stationary material use the same strokes/composition as every other operation.
-import {requireThat} from '../geom/tolerance.mjs';
+
 
 export function validateInjectionPoint(record){
   requireThat(record&&Object.keys(record).sort().join()==='approachMm,flowMm3S,holdSeconds,point,volumeMm3','Injection point needs point, volumeMm3, flowMm3S, holdSeconds and approachMm.');
@@ -10,9 +11,8 @@ export function validateInjectionPoint(record){
   return record;
 }
 
-export function pointInjectionOperation(record,{plan,machine,nozzleC=null,role='injection',...operation}){
+export function pointInjectionOperation(record,{plan,nozzleC=null,role='injection',...operation}){
   validateInjectionPoint(record);
-  requireThat(record.flowMm3S<=plan.process.maxFlowMm3S+1e-8,`Injection ${operation.id} exceeds the selected material flow limit (${plan.process.maxFlowMm3S} mm³/s).`);
   requireThat(nozzleC===null||Number.isFinite(nozzleC)&&nozzleC>0,'Injection temperature must be positive or null.');
   const point=[...record.point],approach=[point[0],point[1],point[2]+record.approachMm];
   const strokes=record.approachMm>0?[{points:[approach,point],closed:false,role:'injection-approach',

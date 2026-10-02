@@ -1,6 +1,6 @@
+import {applyExtensionEdit} from '../../../core/print/extension-edits.mjs';
 import {resolve} from 'node:path';
 import {initBundle,proposedPlan,generateBundle,loadBundle} from '../../../core/print/bundle.mjs';
-import {applyHeatSet} from '../../../core/print/heat-set.mjs';
 // A box is six flat patches, each a 2 × 2 net of shared corners (GEOMETRY.md).
 const splineBox=({runMm:x,widthMm:y,heightMm:z})=>{
   const face=(name,a,b,c,d)=>({name,degreeU:1,degreeV:1,controlPoints:[[a,b],[c,d]]});
@@ -16,8 +16,8 @@ plan.placement={xMm:80,yMm:80};
 
 Object.assign(plan.slices.assignments[0],{loops:2,fillDensity:0.15});
 await initBundle(directory,plan,{machineId:'ultimaker-s5'});
-await applyHeatSet(directory,{feature:{id:'metric',insertId:'spirol-29-m3-long',positionMm:[14,16,12]}});
-await applyHeatSet(directory,{feature:{id:'imperial',insertId:'spirol-19-4-40-short',positionMm:[40,16,12]}});
+await applyExtensionEdit(directory,'heat-set-inserts',{feature:{id:'metric',insertId:'spirol-29-m3-long',positionMm:[14,16,12]}});
+await applyExtensionEdit(directory,'heat-set-inserts',{feature:{id:'imperial',insertId:'spirol-19-4-40-short',positionMm:[40,16,12]}});
 const checks=await generateBundle(directory,{development:true});
 const state=await loadBundle(directory);
 console.log(JSON.stringify({directory,checks,toolpathApproved:state.toolpathApproved},null,2));

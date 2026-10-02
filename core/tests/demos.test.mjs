@@ -6,8 +6,8 @@ import {join} from 'node:path';
 import {createDemos} from '../../examples/prints/create.mjs';
 import {loadBundle} from '../print/bundle.mjs';
 import {surfaceDrapePlan} from '../../examples/prints/surface-drape/recipe.mjs';
-import {buildShell} from '../print/generate.mjs';
-import {rhino} from '../print/geometry.mjs';
+import {buildShell} from '../geom/build.mjs';
+import {rhino} from '../geom/runtime.mjs';
 import {sampleTopSurface} from '../geom/query.mjs';
 
 test('wavy roof valleys have a continuous downhill outlet within the skin slope limit',async()=>{

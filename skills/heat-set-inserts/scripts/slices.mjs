@@ -4,7 +4,6 @@
 // stop half a bead inside the fin (no fill overlap). Every owner is ordinary slice data
 // with a geometry volume in the part's own frame; the core slices them like
 // any other owner, and the part's default owner takes the rest.
-import {sliceAssignment} from '../../../core/print/slices.mjs';
 import {dimensions,heatSetAssignmentId,legacyHeatSetAssignmentId} from './feature.mjs';
 
 export const HEAT_SET_SLICE_PREFIX='heat-set-';
@@ -27,7 +26,7 @@ export function heatSetSlices(feature,part,{lineWidthMm},{existingIds=new Set()}
   const canonical=heatSetAssignmentId(feature,part),legacy=legacyHeatSetAssignmentId(feature);
   const retain=(current,prior)=>existingIds.has(current)?current:existingIds.has(prior)?prior:current;
   const name=retain(canonical,legacy);
-  const annulus=sliceAssignment({id:name,part,loops:6,...flat,within:[{kind:'geometry',geometry:prism(ring(floor),ring(top))}]});
+  const annulus={id:name,part,loops:6,...flat,within:[{kind:'geometry',geometry:prism(ring(floor),ring(top))}]};
   // A gusset's radial reach grows linearly from the floor to finLengthMm at
   // the face, its width tapering from twice the fin width at the annulus to
   // the fin width at the tip; a fin starts where it reaches one bead.
@@ -40,8 +39,8 @@ export function heatSetSlices(feature,part,{lineWidthMm},{existingIds=new Set()}
     const at=(r,t,z)=>[x+r*u[0]+t*v[0],y+r*u[1]+t*v[1],z];
     const face=(length,z)=>[at(radial,-root/2,z),at(radial+length,-tip(length)/2,z),at(radial+length,tip(length)/2,z),at(radial,root/2,z)];
     const across=((degrees+90)%360+540)%360-180;
-    return sliceAssignment({id:retain(`${canonical}--fin-${n}`,`${legacy}-fin-${n}`),part,loops:0,fillDensity:1,solidTop:0,solidBottom:0,fillOverlap:0,
-      rotateFill:false,fillAnglesDeg:[across],within:[{kind:'geometry',geometry:prism(face(w,start),face(feature.finLengthMm,top))}]});
+    return {id:retain(`${canonical}--fin-${n}`,`${legacy}-fin-${n}`),part,loops:0,fillDensity:1,solidTop:0,solidBottom:0,fillOverlap:0,
+      rotateFill:false,fillAnglesDeg:[across],within:[{kind:'geometry',geometry:prism(face(w,start),face(feature.finLengthMm,top))}]};
   });
   return [annulus,...fins];
 }

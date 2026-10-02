@@ -13,7 +13,7 @@ import { boxMesh } from './fixtures/mesh.mjs';
 import {createTour} from '../../studio/tour.mjs';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
-import {sleeveAssignment} from '../print/sleeve-constructions.mjs';
+import {depositionAssignment} from '../print/assignment-records.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 async function clientFor(t, printsRoot) {
@@ -392,7 +392,7 @@ test('MCP reopens shared nested names and rejects ancestor junctions and invalid
 test('MCP preserves the common sleeve recipe and configurable composition without a narrower transport schema', async t => {
   const { call, printsRoot } = await fixture(t), bundleId = 'Sleeve Plan';
   const plan = await smallPlan(call);
-  plan.slices.assignments.push(sleeveAssignment({id:'wall',zStartMm:0.6,endTransition:'level'}));
+  plan.slices.assignments.push(depositionAssignment({construction:'sleeve',id:'wall',zStartMm:0.6,endTransition:'level'}));
   const created = await call('create_bundle', { bundleId, kind: 'shell', machineId: 'ultimaker-s5', plan });
   assert.deepEqual(created.skills, ['slice']);
   const checked = await call('check_path', { bundleId });

@@ -5,17 +5,26 @@ import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {contextBudget} from '../core/agent/layers.mjs';
 import {root, onboarding, readSkill, readMaps, regenerateMap, contextPacket, preview, showPrint, beginWork, waitForRequests, readStudioEvents, cancelStudioCalculation, respondToRequest, recordRequestActivity, inspectFailure, developmentAreas} from '../core/agent/toolkit.mjs';
+import {createInstalledReleaseService} from '../packaging/release-service.mjs';
+
+const diagnosticFields=(value,keys)=>Object.fromEntries(keys.filter(key=>value&&Object.hasOwn(value,key)).map(key=>[key,value[key]]));
+const reportCommand=(services,activeAtStart,command,startedAt,status,result,error)=>{
+  if(!activeAtStart||!services?.status().activated)return;
+  services.recordOperation({kind:'operation',name:command,status,durationMs:Date.now()-startedAt,
+    result:diagnosticFields(result,['revision','geometryHash','generationHash','exportHash','status','jobId']),
+    ...(error?{error:error.message}:{})});
+};
 
 const string = {type: 'string'}, boolean = {type: 'boolean'}, many = {type: 'string', multiple: true};
 const schemas = {
   'maker-onboarding': {machine: string},
-  'builder-onboarding': {area: many},
-  'developer-onboarding': {area: many},
+  'builder-onboarding': {area: many, set: string},
+  'developer-onboarding': {area: many, set: string},
   'read-skill': {maker: boolean, builder: boolean, developer: boolean, machine: string, all: boolean},
   'read-guidance': {machine: string, all: boolean},
   'context-budget': {machine: many},
-  'read-map': {code: boolean, details: boolean},
-  'regenerate': {},
+  'read-map': {code: boolean, source: boolean, details: boolean, set: string},
+  'regenerate': {set: string},
   'start-tour': {library: string, 'start-at-layer': string, 'no-open': boolean,'agent-owner':string},
   'open-print': {library: string, 'no-open': boolean, studio: string, 'agent-owner': string},
   'create-preview': {library: string, recipe: string, stl: string, kind: string, machine: string, units: string, 'no-open': boolean, studio: string, 'agent-owner': string},
@@ -31,21 +40,21 @@ export const help = {
   commands: {
     'maker-onboarding [--machine ID]': 'Maker guidance, the index of skills and gated sections, and print tools, with script sections and the machine’s advanced sections; choose follow-up reads for the task.',
     'builder-onboarding [--area AREA]': 'Guidance/composition authoring, maker context and digest; --area adds consumed contracts or a named map. Core skills and shared implementation require developer.',
-    'developer-onboarding [--area AREA]': 'The glossary, developer orientation and map page 0; each --area adds a node’s map (index or declaration path) or an outside area’s references. Component manuals open as needed.',
-    'read-map INDEX|DECLARATION [--code] [--details]': 'Read one compact stored graph; terminal pages open source. --code returns the page’s source span (a cluster, its members’ spans); refused on 0. --details returns the full stored packet and scanner evidence. Reads never scan. range is [first,last] inclusive; nested locations inherit file. Empty lists are omitted.',
-    'regenerate [INDEX]': 'Scan the source and write the stored map. It always generates everything; an index is accepted and ignored.',
+    'developer-onboarding [--area AREA] [--set NAME]': 'Active release intents, glossary, orientation and selected map 0. Defaults to 030-architecture for 0.3.1; use 030-deployment for 0.3.0 installation work. --area adds a node/contract or component references.',
+    'read-map ADDRESS [--set NAME] [--source|--code] [--details]': 'Read without scanning. Defaults to 030-architecture; 030-deployment owns installation. Design addresses name nodes/contracts and --source opens explicit source references. Original scanned maps require --set default and use --code.',
+    'regenerate [INDEX] [--set NAME]': 'Refresh the selected set (default 030-architecture). Design sets redraw authored maps; audit/audit-check are separate. Scanned sets rescan implementation.',
     'read-skill ID[#HEADING] [--maker] [--builder] [--developer] [--machine ID] [--all]': 'Read only the selected skill roles; defaults to maker. The maker manual opens advanced sections for --machine, or every section with --all; #HEADING reads one section whatever its gate. Missing optional manuals are reported in unavailableRoles.',
     'read-guidance PATH#HEADING [--machine ID] [--all]': 'Read one published manual or section chosen for the task, with its headings and their gates.',
     'context-budget [--machine ID]': 'Bytes of each context layer per client (web, script) and machine, for onboarding and each skill manual.',
-    'start-tour [--start-at-layer 12] [--no-open] [--agent-owner ID]': 'Fresh tour copies, live Studio, browser dispatch and participation context. --agent-owner resumes the agent owner of an earlier launch on this new Studio.',
+    'start-tour [--start-at-layer N] [--no-open] [--agent-owner ID]': 'Fresh tour copies, live Studio, browser dispatch and participation context. --agent-owner resumes the agent owner of an earlier launch on this new Studio.',
     'open-print DIRECTORY [--no-open] [--studio URL] [--agent-owner ID]': 'Open saved geometry/toolpath and return current recipe/review state. With the live Studio URL and agentOwnerId from studio-ready it shows the print in that Studio and exits instead of launching another; --agent-owner alone launches a new Studio under that resumed owner.',
     'create-preview DIRECTORY [--recipe FILE | --stl FILE] [--machine ID] [--units auto|mm|inch] [--no-open] [--studio URL] [--agent-owner ID]': 'Create/import unapproved geometry, open Studio and report assumptions. With --studio and --agent-owner the new print is shown in that live Studio instead of a new one; --agent-owner alone launches a new Studio under that resumed owner.',
     'begin-studio-work [DIRECTORY] [--instruction TEXT | --request ID] [--kind edit|guidance] [--include-geometry]': 'Start/claim work first, then read recipe, revision, confirmations and tour instruction.',
     'wait-for-studio-request [--studio URL --agent-owner ID] [--claim] [--wait-ms 25000] [--after ID]': 'Bounded wait for Studio requests and delivered Studio events, optional claim, and next cursor. With the live Studio URL and agentOwnerId from studio-ready it reads the owning agent’s event queue and calculation progress across processes.',
     'read-studio-events --studio URL --agent-owner ID [--wait-ms 0] [--history]': 'Read and clear queued Studio events (what the person did) plus current toolpath calculation progress from a live owned Studio.',
     'cancel-studio-calculation --studio URL --agent-owner ID [--job-id ID | --generation-hash HASH]': 'Cancel the observed import or toolpath calculation. Follow Studio events until cancellation and cleanup settle.',
-    'respond-to-studio-request ID [--status working|completed|failed|waiting|cancelled] [--result-stage geometry|toolpath] [--message TEXT]': 'Record a prepared result or resolve the matching request through the shared coordination API.',
-    'record-request-activity ID': 'Record actual request-specific agent/tool activity without resuming work or changing its target. Never run as an idle heartbeat.',
+    'respond-to-studio-request ID [--status working|completed|failed|waiting|cancelled] [--result-stage geometry|toolpath] [--message TEXT] [--agent-owner ID] [--studio-instance ID]': 'Record a prepared result or resolve the matching request. Pass the owner and instance IDs from the live Studio when responding across processes.',
+    'record-request-activity ID [--agent-owner ID] [--studio-instance ID]': 'Record actual request-specific work with the live Studio owner and instance IDs. Never run as an idle heartbeat.',
     'inspect-generation-failure DIRECTORY [--request ID] [--include-geometry]': 'Saved errors/requests, checked state or invalid recipe, generation guidance and skill links.'
   },
   developmentAreas: Object.keys(developmentAreas),
@@ -60,7 +69,7 @@ export const help = {
     'Output is newline-delimited JSON: studio-ready for a live preview, then result; failures contain stage and partial results.']
 };
 
-function attachLiveControl(opened,input,write){
+function attachLiveControl(opened,input,write,services){
   if(!input?.on)return()=>{};
   const lines=createInterface({input,terminal:false});let queue=Promise.resolve();
   lines.on('line',line=>{
@@ -68,6 +77,7 @@ function attachLiveControl(opened,input,write){
     try{message=JSON.parse(line);}catch(error){write({ok:false,event:'agent-response',error:'Invalid live command JSON: '+error.message});return;}
     const {id,command}=message,base={requests:opened.agent.requests,studioInstanceId:opened.result.studio.instanceId};
     const run=async()=>{
+    const startedAt=Date.now(),activeAtStart=Boolean(services?.status().activated);
     try{
       let result;
       if(command==='begin-studio-work')result=await beginWork({...base,target:message.target??opened.result.directory,instruction:message.instruction,requestId:message.requestId,includeGeometry:Boolean(message.includeGeometry),kind:message.kind});
@@ -83,7 +93,8 @@ function attachLiveControl(opened,input,write){
       else if(command==='close-studio'){result=opened.agent.session();await opened.server.shutdown();}
       else throw Error('Unknown live Studio command.');
       write({ok:true,event:'agent-response',id,command,result});
-    }catch(error){write({ok:false,event:'agent-response',id,command,error:error.message});}
+      reportCommand(services,activeAtStart,command,startedAt,'completed',result);
+    }catch(error){write({ok:false,event:'agent-response',id,command,error:error.message});reportCommand(services,activeAtStart,command,startedAt,'failed',null,error);}
     };
     if(['cancel-studio-calculation','read-studio-events','close-studio'].includes(command))void run();
     else queue=queue.then(run).catch(error=>write({ok:false,event:'agent-response',error:error.message}));
@@ -93,7 +104,7 @@ function attachLiveControl(opened,input,write){
 
 export async function runCLI(args = process.argv.slice(2), {write = value => console.log(JSON.stringify(value)),input=process.stdin} = {}) {
   const [command, ...rest] = args;
-  let liveServer,stopPreparation;
+  let liveServer,stopPreparation,services,activeAtStart=false,startedAt=Date.now();
   try {
     if (!command || ['help', '--help', '-h'].includes(command)) {write({ok: true, ...help}); return;}
     if (!Object.hasOwn(schemas, command)) throw Error(`Unknown command: ${command}. Use --help.`);
@@ -102,32 +113,35 @@ export async function runCLI(args = process.argv.slice(2), {write = value => con
     const permitsTarget = needsTarget || ['begin-studio-work', 'regenerate'].includes(command);
     if (positionals.length > (permitsTarget ? 1 : 0) || needsTarget && !positionals.length) throw Error('Unexpected or missing positional argument. Use --help.');
     if (command === 'create-preview' && v.units && !v.stl) throw Error('--units applies only to --stl.');
+    try{services=await createInstalledReleaseService();}catch{/* Diagnostics never disable local commands. */}
+    activeAtStart=Boolean(services?.status().activated);startedAt=Date.now();
     const options = {command, target: positionals[0], library: v.library, recipe: v.recipe, stl: v.stl,
       kind: v.kind, machine: v.machine, units: v.units, noOpen: v['no-open'],
-      startAtLayer: v['start-at-layer'] === undefined ? 12 : Number(v['start-at-layer']),
+      startAtLayer: v['start-at-layer'] === undefined ? undefined : Number(v['start-at-layer']),
       instruction: v.instruction, requestId: v.request, includeGeometry: v['include-geometry'],studioInstanceId:v['studio-instance'],ownerId:v['agent-owner']};
     if(options.stl){
       const controller=new AbortController(),startedAt=Date.now();
       stopPreparation=()=>controller.abort(new DOMException('Import cancelled.','AbortError'));
       process.on('SIGINT',stopPreparation);process.on('SIGTERM',stopPreparation);
       options.signal=controller.signal;
-      options.onProgress=progress=>write({ok:true,event:'import-progress',command,elapsedMs:Date.now()-startedAt,progress});
+      options.onProgress=progress=>{write({ok:true,event:'import-progress',command,elapsedMs:Date.now()-startedAt,progress});if(services?.status().activated)services.recordStudioEvent({kind:'import-progress',...diagnosticFields(progress,['stage','phase','completed','total','percent','error'])});};
     }
     let result;
-    if (command.endsWith('-onboarding')) result = await onboarding({role: command.replace('-onboarding', ''), areas: v.area, machine: v.machine});
+    if (command.endsWith('-onboarding')) result = await onboarding({role: command.replace('-onboarding', ''), areas: v.area, machine: v.machine, set: v.set});
     else if (command === 'context-budget') result = await contextBudget(root, v.machine ? {machineIds: v.machine} : {});
     else if (command === 'read-skill') result = await readSkill(positionals[0], v);
     else if (command === 'read-guidance') result = await contextPacket([positionals[0]], {machineId: v.machine, all: v.all, headings: true});
     else if (command === 'read-map') result = {maps: await readMaps([positionals[0]], v)};
-    else if (command === 'regenerate') result = await regenerateMap(positionals[0]);
+    else if (command === 'regenerate') result = await regenerateMap(positionals[0], v);
     else if (['open-print', 'create-preview'].includes(command) && v.studio) result = await showPrint({...options, studio: v.studio});
     else if (['start-tour', 'open-print', 'create-preview'].includes(command)) {
       const opened = await preview({...options, onReady: write,onRequest:event=>write({ok:true,event:'studio-request',command,...event}),onEvents:event=>write({ok:true,event:'studio-events',command,...event})});
       result = opened.result; liveServer = opened.server;
-      attachLiveControl(opened,input,write);
+      services?.observeRuntime({observeEvents:observer=>opened.agent.events.observe(observer)});
+      attachLiveControl(opened,input,write,services);
       const stop = () => {void liveServer.shutdown();};
       process.on('SIGINT', stop); process.on('SIGTERM', stop);
-      liveServer.once('close', () => {process.off('SIGINT', stop); process.off('SIGTERM', stop);});
+      liveServer.once('close', () => {process.off('SIGINT', stop); process.off('SIGTERM', stop);services?.close();});
       liveServer.on('error', error => {write({ok: false, command, stage: 'studio-runtime', error: error.message}); process.exitCode = 1; stop();});
     } else if (command === 'begin-studio-work') result = await beginWork(options);
     else if (command === 'wait-for-studio-request') {
@@ -139,15 +153,17 @@ export async function runCLI(args = process.argv.slice(2), {write = value => con
       if (!Number.isInteger(waitMs) || waitMs < 0 || waitMs > 25000) throw Error('--wait-ms must be an integer from 0 to 25000.');
       result = await readStudioEvents({studio: v.studio, ownerId: v['agent-owner'], waitMs, history: v.history});
     } else if (command === 'cancel-studio-calculation') result = await cancelStudioCalculation({studio:v.studio,ownerId:v['agent-owner'],jobId:v['job-id'],generationHash:v['generation-hash']});
-    else if (command === 'respond-to-studio-request') result = await respondToRequest({library: v.library, requestId: positionals[0], status: v.status, message: v.message, resultStage: v['result-stage']});
-    else if(command==='record-request-activity')result=await recordRequestActivity({library:v.library,requestId:positionals[0]});
+    else if (command === 'respond-to-studio-request') result = await respondToRequest({library: v.library, requestId: positionals[0], status: v.status, message: v.message, resultStage: v['result-stage'],ownerId:v['agent-owner'],studioInstanceId:v['studio-instance']});
+    else if(command==='record-request-activity')result=await recordRequestActivity({library:v.library,requestId:positionals[0],ownerId:v['agent-owner'],studioInstanceId:v['studio-instance']});
     else result = await inspectFailure(options);
     write({ok: true, event: 'result', command, ...result});
+    reportCommand(services,activeAtStart,command,startedAt,'completed',result);
     return liveServer;
   } catch (error) {
     write({ok: false, command, stage: error.stage ?? 'command', error: error.message, partial: error.partial ?? null});
+    reportCommand(services,activeAtStart,command,startedAt,'failed',null,error);
     process.exitCode = 1;
-  }finally{if(stopPreparation){process.off('SIGINT',stopPreparation);process.off('SIGTERM',stopPreparation);}}
+  }finally{if(stopPreparation){process.off('SIGINT',stopPreparation);process.off('SIGTERM',stopPreparation);}if(!liveServer)services?.close();}
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await runCLI();

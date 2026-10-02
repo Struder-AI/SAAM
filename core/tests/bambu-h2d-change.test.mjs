@@ -2,8 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {h2dColourFixture} from './fixtures/bambu-h2d-colours.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {rhino} from '../print/geometry.mjs';
-import {checkMachinePath} from '../machine/profile.mjs';
+import {prepareExportPath} from '../export/prepare-path.mjs';
 import {exportProgram,interpretProgram} from '../export/registry.mjs';
 import {unpackZip,packZip} from '../export/zip.mjs';
 import {decodeSource} from '../../studio/source-player.mjs';
@@ -13,8 +12,9 @@ const release={generatorVersion:'test',buildDate:'2026-09-21'};
 test('H2D blue-orange-blue changes logical filament twice while retaining right 0.8 and checked layer heights',async()=>{
   const {plan,machine}=h2dColourFixture();
   plan.setup.bambu.filaments[1].process={retractMm:0.6};
-  const path=generatePath(plan,machine,await rhino());checkMachinePath(path,plan,machine);
-  assert.deepEqual(path.actions.filter(a=>a.kind==='toolChange').map(a=>[a.tool,a.filament]),[[1,1],[1,0]]);
+  const path=await generatePath(plan,machine),prepared=prepareExportPath(path,plan,machine);
+  assert.deepEqual(path.actions.filter(a=>a.kind==='toolChange').map(a=>a.filament),[1,0]);
+  assert.deepEqual(prepared.actions.filter(a=>a.kind==='toolChange').map(a=>[a.tool,a.filament]),[[1,1],[1,0]]);
   const bytes=exportProgram(path,plan,machine,release),program=interpretProgram(bytes,plan,machine),code=program.code;
   assert.deepEqual(program.filamentSequence,[0,1,0]);
   const source=decodeSource({program:code},plan,machine);
@@ -54,10 +54,10 @@ test('H2D blue-orange-blue changes logical filament twice while retaining right 
 });
 
 test('the requested 0.8/0.8 ALT changes only installed-nozzle declarations, not right-nozzle body or service commands',async()=>{
-  const {plan,machine}=h2dColourFixture(),r=await rhino();
-  const path=generatePath(plan,machine,r),normal=interpretProgram(exportProgram(path,plan,machine,release),plan,machine);
+  const {plan,machine}=h2dColourFixture();
+  const path=await generatePath(plan,machine),normal=interpretProgram(exportProgram(path,plan,machine,release),plan,machine);
   plan.setup.bambu.otherNozzleMm=0.8;
-  const alt=interpretProgram(exportProgram(generatePath(plan,machine,r),plan,machine,release),plan,machine);
+  const alt=interpretProgram(exportProgram(await generatePath(plan,machine),plan,machine,release),plan,machine);
   const executable=code=>code.slice(code.indexOf('; EXECUTABLE_BLOCK_START'));
   assert.equal(executable(alt.code),executable(normal.code));
   assert.deepEqual(alt.envelope.job.nozzleDiametersMm,[0.8,0.8]);
@@ -65,7 +65,7 @@ test('the requested 0.8/0.8 ALT changes only installed-nozzle declarations, not 
 });
 
 test('H2D automatic colour switching rejects external feed',async()=>{
-  const {plan,machine}=h2dColourFixture(),path=generatePath(plan,machine,await rhino());
+  const {plan,machine}=h2dColourFixture(),path=await generatePath(plan,machine);
   plan.setup.bambu.filaments[1].source={type:'external'};
   assert.throws(()=>exportProgram(path,plan,machine,release),/require AMS feeds/);
 });

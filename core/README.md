@@ -8,9 +8,8 @@ account, read with `node scripts/agent-toolkit.mjs read-map 0`.
 The [agent CLI toolkit](./agent/README.md) composes context reads, print preparation,
 Studio opening and request coordination around these existing owners.
 
-[File replacement](./file-write.mjs) supplies unique temporary files and bounded
-Windows sharing-conflict retries to print and Studio persistence. It preserves
-complete individual files; it is not a lock or a multi-file transaction.
+[Private utilities](./private/) give each consuming map-0 bucket its own arithmetic and file replacement.
+[Bundle file replacement](./file-write.mjs) preserves complete files with Windows sharing-conflict retries; it is not a lock or multi-file transaction.
 
 ## Current organization
 
@@ -80,7 +79,7 @@ These limits are deliberately kept. They are not work budgets.
 
 | Limit | Where | What it protects | Why it is real |
 |---|---|---|---|
-| Export-only machine limits: bounds, axis feed, layer height, bead width, flow, angle, temperature, retraction within the material profile | [machine profiles](../machines/README.md), [rules.mjs](./machine/rules.mjs), [profile.mjs](./machine/profile.mjs) | The machine and the material | Declared output/device envelopes; never a SAAMpath generation gate |
+| Export limits: 350 °C temperature ceiling, command bounds/feed and supported poses | [rules.mjs](./machine/rules.mjs), [export](./export/README.md) | Temperature safety and representable machine commands | No generic flow cap or material layer-height, bead-width or retraction ranges; specific firmware-template requirements belong to the exporter |
 | Geometric representation: closed valid solids, regular charts, flat named assembly components, supported Boolean operand semantics | [GEOMETRY](../GEOMETRY.md), [surfaces](./geom/README.md) | Interpretable geometry and feature intent | Text/material and heat-set reinforcement metadata cannot yet pass through Boolean operands; apply those features after the Boolean |
 | Index capacity: at most `0x7ffffffe` vertices and `0x3ffffffe` triangles, plus `Number.isSafeInteger` counts/indices | [mesh-capacity.mjs](./geom/mesh-capacity.mjs); cylinder, sleeve, tile and [modulation phase/lattice indices](./path/modulation-field.mjs) | Indexed arrays and exact integer stepping | An unrepresentable count or nonprogressing index, not one judged too large |
 | `KERNEL_TRIANGLE_CAPACITY`, the solid kernel's 32-bit address space | [solid.mjs](./geom/solid.mjs) | Manifold WASM, whose abort is unrecoverable | The largest count the kernel can hold, published by the kernel |

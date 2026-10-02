@@ -1,14 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {makeMesh,translateMesh} from '../geom/mesh.mjs';
-import {section,prepareSection,horizontalSlice} from '../geom/slice.mjs';
+import {horizontalSlice} from '../geom/slice.mjs';
+import {section,prepareSection} from '../region/section.mjs';
 import {regionArea} from '../region/region2d.mjs';
 import {boxMesh,ringMesh} from './fixtures/mesh.mjs';
 import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {rhino} from '../print/geometry.mjs';
-import {buildShell} from '../print/generate.mjs';
+import {rhino} from '../geom/runtime.mjs';
+import {buildShell} from '../geom/build.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 
 test('prepared sections exactly match direct cuts across heights, holes, islands and placement',async()=>{
@@ -45,10 +46,10 @@ test('mesh sections tolerate floating-point boundary roundoff symmetrically with
 });
 
 test('a floating final layer is deposited identically by mesh and spline slices',async()=>{
-  const machine=loadMachine(),native=await rhino(),lastLayers=[];
+  const machine=loadMachine(),lastLayers=[];
   for(const geometry of [boxMesh(8,8,6),splineBox({runMm:8,widthMm:8,heightMm:6})]){
     const plan=defaults(machine);plan.geometry=geometry;plan.process.minimumLayerSeconds=0;
-    const path=generatePath(plan,machine,native),deposition=path.actions.filter(a=>a.kind==='move'&&a.volumeMm3>0);
+    const path=await generatePath(plan,machine),deposition=path.actions.filter(a=>a.kind==='move'&&a.volumeMm3>0);
     lastLayers.push(Math.max(...deposition.map(a=>a.to[2])));
     assert.equal(path.summary.slices.layers,30);assert.equal(path.summary.slices.instances[0].skippedLayers,0);
   }

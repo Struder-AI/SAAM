@@ -1,7 +1,8 @@
+import {evaluateSurface} from './surface-evaluation.mjs';
 // Slices: surfaces that cut a solid and give its toolpath a reference. A slice
 // is a plain record with a 2D chart. section(geometry, slice) returns the
 // solid's region on it as loops in that chart (outer loops counterclockwise,
-// holes clockwise, seen from the slice normal), and slicePoint maps chart
+// holes clockwise, seen from the slice normal), and evaluateSurface maps chart
 // points back to XYZ.
 //
 //  plane  {origin, normal, xAxis, yAxis}: the orthonormal chart
@@ -10,7 +11,7 @@
 //         horizontal plane is the identity chart at height z: chart = XY.
 //  patch  {patch}: a NURBS patch; the chart is its (u,v), the curve offset's
 //         surface mode. Its region is where it lies inside the solid
-//         (surface-surface intersection, slice-region.mjs).
+//         (surface-surface intersection, ../region/section.mjs).
 //  height-field {reference, offsetMm, normalDepthMm}: native roof/spline
 //         evaluation in world XY; sampled topology with refined boundaries.
 //
@@ -18,15 +19,11 @@
 // direction, so every layer keeps the same chart and a chart point names the
 // same column of material in every layer. Neighbouring layers therefore
 // compare by 2D booleans alone.
-import { heightSlicePoint, heightSliceNormal, sectionHeightSlice, heightReferenceBounds,heightReferenceMetric,sampledChartRegion,referenceHeight } from './height-slice.mjs';
-import {chartPrismContains} from './chart-prism.mjs';
-import { sectionShell } from './shell.mjs';
-import { meshSectionIndex, sectionMeshIndex } from './mesh.mjs';
-import { surfaceRegion } from './slice-region.mjs';
+import { heightSlicePoint, heightReferenceBounds,heightReferenceMetric } from './height-slice.mjs';
 import { evaluate } from './nurbs.mjs';
 import {projectToPatch} from './field.mjs';
 import { regionArea } from '../region/region2d.mjs';
-import { union, intersect, difference } from '../region/intersection.mjs';
+import { intersect } from '../region/intersection.mjs';
 import { requireThat, add, scale, dot, cross, normalize } from './tolerance.mjs';
 
 const vector = v => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite);
@@ -91,22 +88,6 @@ export function translateSlice(slice, v) {
   return { ...slice, patch: { ...slice.patch, cp },translation:add(slice.translation??[0,0,0],v) };
 }
 
-export function slicePoint(slice, [a, b]) {
-  if (slice.kind === 'height-field') return heightSlicePoint(slice, [a, b]);
-  if (slice.kind === 'plane') return add(slice.origin, add(scale(slice.xAxis, a), scale(slice.yAxis, b)));
-  requireThat(slice.kind === 'patch', `Unsupported slice kind ${slice.kind}.`);
-  return evaluate(slice.patch, a, b, false).point;
-}
-
-export function sliceNormal(slice, [a, b]) {
-  if (slice.kind === 'height-field') return heightSliceNormal(slice, [a, b]);
-  if (slice.kind === 'plane') return [...slice.normal];
-  requireThat(slice.kind === 'patch', `Unsupported slice kind ${slice.kind}.`);
-  const { normal } = evaluate(slice.patch, a, b);
-  requireThat(normal, 'The patch slice has no normal at this chart point.');
-  return normal;
-}
-
 export function sliceChartStep(slice,stepMm){
   if(slice.kind!=='patch')return [stepMm,stepMm];
   const {domainU:[u0,u1],domainV:[v0,v1]}=slice.patch,speeds=[0,0];
@@ -116,92 +97,6 @@ export function sliceChartStep(slice,stepMm){
   }
   requireThat(speeds.every(v=>v>0),'Slice chart has a singular sampling metric.');
   return speeds.map(v=>stepMm/v);
-}
-
-// Search data for many sections of one geometry by slices sharing a chart
-// orientation (a plane family): every mesh leaf is indexed in the slice's
-// frame. The result is sectioned exactly like the geometry it came from.
-export function prepareSection(geometry, slice) {
-  if (slice.kind !== 'plane') return geometry;
-  if (geometry.kind === 'boolean') return { ...geometry, operands: geometry.operands.map(o => prepareSection(o, slice)) };
-  if (geometry.kind === 'assembly') return { ...geometry, components: geometry.components.map(c => prepareSection(c, slice)) };
-  if (geometry.kind === 'prepared-mesh') return prepareSection(geometry.mesh, slice);
-  if (geometry.kind !== 'triangle-mesh') return geometry;
-  return { kind: 'prepared-mesh', mesh: geometry, bounds: geometry.bounds, index: meshSectionIndex(geometry, frameAxes(slice)) };
-}
-
-// The region of a solid on a slice: {slice, loops, nudgedByMm, touchesEdge}.
-// Geometry is a spline shell, a triangle mesh, a boolean of solids or an
-// assembly (the union of its components), each possibly prepared. nudgedByMm
-// is the largest displacement a degenerate plane cut needed; touchesEdge says
-// the region reaches a patch slice's edge, where the slice stops inside the
-// solid instead of crossing it.
-export function section(geometry, slice, options = {}) {
-  requireThat(geometry?.bounds, 'Section needs a solid with bounds.');
-  const { loops, nudgedByMm } = sectionLoops(geometry, slice, options);
-  return { slice, loops, nudgedByMm, touchesEdge: touchesSliceEdge(slice, loops) };
-}
-
-function sectionLoops(geometry, slice, options) {
-  if(geometry.kind==='chart-prism'){
-    if(slice.kind==='height-field'&&slice.reference===geometry.reference.reference){
-      const offset=slice.offsetMm-geometry.reference.offsetMm;
-      return {loops:offset>geometry.fromMm+1e-8&&offset<=geometry.toMm+1e-8?geometry.loopsUv:[],nudgedByMm:0};
-    }
-    if(slice.kind==='patch'&&slice.referencePatch===geometry.reference.referencePatch){
-      const delta=(slice.translation??[0,0,0]).map((v,k)=>v-(geometry.reference.translation?.[k]??0)),offset=dot(delta,geometry.direction);
-      if(Math.hypot(...delta.map((v,k)=>v-offset*geometry.direction[k]))<1e-8)return {loops:offset>geometry.fromMm+1e-8&&offset<=geometry.toMm+1e-8?geometry.loopsUv:[],nudgedByMm:0};
-    }
-    let extent;
-    if(slice.kind==='patch')extent={min:[slice.patch.domainU[0],slice.patch.domainV[0]],max:[slice.patch.domainU[1],slice.patch.domainV[1]]};
-    else if(slice.kind==='plane'){
-      const corners=Array.from({length:8},(_,i)=>[0,1,2].map(k=>((i>>k)&1?geometry.bounds.max[k]:geometry.bounds.min[k])-slice.origin[k]));
-      const points=corners.map(p=>[dot(p,slice.xAxis),dot(p,slice.yAxis)]);extent={min:[0,1].map(k=>Math.min(...points.map(p=>p[k]))),max:[0,1].map(k=>Math.max(...points.map(p=>p[k])))};
-    }else extent={min:geometry.bounds.min.slice(0,2),max:geometry.bounds.max.slice(0,2)};
-    const loops=sampledChartRegion(extent,sliceChartStep(slice,options.sampleStepMm??.2),uv=>{
-      if(uv.some((v,k)=>v<extent.min[k]||v>extent.max[k]))return false;
-      if(slice.kind==='height-field'&&!referenceHeight(slice.reference,...uv))return false;
-      return chartPrismContains(geometry,slicePoint(slice,uv));
-    });
-    return {loops,nudgedByMm:0};
-  }
-  if (geometry.kind === 'boolean') return combine(geometry.operation, geometry.operands.map(o => sectionLoops(o, slice, options)));
-  if (geometry.kind === 'assembly') return combine('union', geometry.components.map(c => sectionLoops(c, slice, options)));
-  if (slice.kind === 'height-field') return sectionHeightSlice(geometry, slice, options);
-  if (slice.kind === 'patch') {
-    const solid = geometry.kind === 'prepared-mesh' ? geometry.mesh : geometry;
-    return { loops: surfaceRegion(slice.patch, solid, options), nudgedByMm: 0 };
-  }
-  requireThat(slice.kind === 'plane', `Unsupported slice kind ${slice.kind}.`);
-  if (geometry.kind === 'prepared-mesh') return sectionPreparedMesh(geometry, slice);
-  if (geometry.kind === 'triangle-mesh') return sectionPreparedMesh({ mesh: geometry, index: meshSectionIndex(geometry, frameAxes(slice), { search: false }) }, slice);
-  requireThat(Array.isArray(geometry.patches), 'Unsupported geometry backend.');
-  return sectionShell(geometry, slice, options);
-}
-
-// A mesh index cuts at frame height n·origin; its loops sit in the frame's
-// (x, y) and shift to the slice's chart origin.
-function sectionPreparedMesh({ mesh, index }, slice) {
-  const axes = frameAxes(slice);
-  if (!axes.every((axis, i) => axis.every((v, k) => v === index.axes[i][k])))
-    return sectionPreparedMesh({ mesh, index: meshSectionIndex(mesh, axes, { search: false }) }, slice);
-  const [x, y, n] = axes, o = slice.origin;
-  const cut = sectionMeshIndex(index, dot(n, o));
-  const ox = dot(x, o), oy = dot(y, o);
-  return { loops: ox === 0 && oy === 0 ? cut.loops : cut.loops.map(loop => loop.map(([a, b]) => [a - ox, b - oy])), nudgedByMm: cut.nudgedByMm };
-}
-
-const frameAxes = slice => [slice.xAxis, slice.yAxis, slice.normal];
-
-// Operands share the slice's chart, so a boolean of solids is the same boolean
-// of their regions. Difference subtracts every later operand from the first.
-function combine(operation, sections) {
-  const loops = sections.map(s => s.loops);
-  const result = operation === 'union' ? loops.reduce((a, b) => union(a, b), [])
-    : operation === 'difference' ? difference(loops[0], loops.slice(1).reduce((a, b) => union(a, b), []))
-    : loops.slice(1).reduce((a, b) => intersect(a, b), loops[0]);
-  const nudgedByMm = sections.reduce((n, s) => Math.abs(s.nudgedByMm ?? 0) > Math.abs(n) ? s.nudgedByMm : n, 0);
-  return { loops: result, nudgedByMm };
 }
 
 // Whether region loops reach the slice's own edge. A plane has none; a patch's

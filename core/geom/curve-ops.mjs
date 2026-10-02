@@ -21,9 +21,12 @@ function clampAt(curve,t){
   return {curve:{...curve,n,knots,cp},at:Math.min(knots.lastIndexOf(t)-p,n-1)};
 }
 
-// The clamped piece of a curve on [a, b].
+// The clamped piece of a curve on [a, b]. Knots are inserted only into the
+// controls supporting [a, b], so a short piece of a long curve costs little.
 export function extract(curve,a,b){
-  const left=clampAt(curve,a),right=clampAt(left.curve,b),{order}=curve,n=right.at-left.at+1;
+  const {n:count,order,knots:all,cp:controls}=curve,c0=findSpan(all,count,order,a)-(order-1),c1=findSpan(all,count,order,b);
+  const local={...curve,n:c1-c0+1,knots:all.slice(c0,c1+order+1),cp:controls.slice(c0*4,(c1+1)*4)};
+  const left=clampAt(local,a),right=clampAt(left.curve,b),n=right.at-left.at+1;
   const knots=Float64Array.from([...Array(order).fill(a),...right.curve.knots.filter(k=>k>a&&k<b),...Array(order).fill(b)]);
   requireThat(knots.length===n+order,'Curve trimming produced an inconsistent knot vector.');
   return {n,order,knots,cp:right.curve.cp.slice(left.at*4,(right.at+1)*4),domain:[a,b]};
@@ -68,7 +71,8 @@ export function bezierSpans(curve){
   const out=[];
   for(let i=curve.order-1;i<curve.n;i++){
     const a=curve.knots[i],b=curve.knots[i+1];
-    if(b>a)out.push({a,b,cp:extract(spanCurve(curve,i),a,b).cp});
+    // A degree-1 span is already in Bezier form: its two controls.
+    if(b>a)out.push({a,b,cp:curve.order===2?curve.cp.slice((i-1)*4,(i+1)*4):extract(spanCurve(curve,i),a,b).cp});
   }
   return out;
 }
@@ -216,7 +220,22 @@ export function curveCrossings(curves,tol,closed=curves.map(()=>false)){
   };
   const overlap=(x,y)=>x.min[0]<=y.max[0]+tol&&y.min[0]<=x.max[0]+tol&&x.min[1]<=y.max[1]+tol&&y.min[1]<=x.max[1]+tol;
   const halves=x=>{const m=(x.a+x.b)/2;if(!(m>x.a&&m<x.b))return null;const [l,r]=splitBezier(x.cp,.5);return [{a:x.a,b:m,cp:l,box:box(l)},{a:m,b:x.b,cp:r,box:box(r)}];};
+  // Two straight pieces (a polyline's spans) cross at most once, found
+  // directly: subdividing nearly collinear neighbours would descend to the
+  // tolerance along their whole length.
+  const straight=x=>x.cp.length===8&&x.cp[3]===x.cp[7];
+  const segment=(p,q)=>{
+    const a=planar(p.cp,0),b=planar(p.cp,1),c=planar(q.cp,0),d=planar(q.cp,1);
+    const r=[b[0]-a[0],b[1]-a[1]],e=[d[0]-c[0],d[1]-c[1]],w=[c[0]-a[0],c[1]-a[1]],den=r[0]*e[1]-r[1]*e[0];
+    if(den===0)return;
+    const u=(w[0]*e[1]-w[1]*e[0])/den,v=(w[0]*r[1]-w[1]*r[0])/den;
+    // Half-open, so a crossing through a shared vertex counts once.
+    const past=(f,x)=>f>1||f===1&&x.b<curves[x.ci].domain[1];
+    if(u<0||v<0||past(u,p)||past(v,q))return;
+    record(p,q,{s:p.a+u*(p.b-p.a),t:q.a+v*(q.b-q.a),residual:0,point:[a[0]+u*r[0],a[1]+u*r[1]]});
+  };
   const pair=(p,q)=>{
+    if(straight(p)&&straight(q))return segment(p,q);
     const hits=[];
     const visit=(x,y)=>{
       if(!overlap(x.box,y.box))return;

@@ -2,7 +2,7 @@
 name: plastic-weld
 description: Experimental. Rivets of molten plastic injected into blind shafts across layers, placed individually or staggered through a solid body.
 metadata:
-  saam-kind: hybrid
+  saam-kind: extension
 ---
 
 # Plastic weld / injected rivets
@@ -107,7 +107,7 @@ them. No override changes the machine profile or another skill's settings.
 ## Individual points and staggered heights
 
 Choose explicit points where the reinforcement is wanted. To distribute points,
-the authoring helper `staggeredWeldSites` in [weld.mjs](scripts/weld.mjs) returns
+the authoring helper `staggeredWeldSites` in [runtime.mjs](scripts/runtime.mjs) returns
 ordinary site records. For example:
 
 ```js

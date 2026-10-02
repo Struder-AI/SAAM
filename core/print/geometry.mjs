@@ -1,3 +1,4 @@
+import {hash} from '../private/geometry/hash.mjs';
 // Native geometry for a shell print: the 3DM the maker's part is stored as.
 //
 // Spline shells require a different representation from an indexed mesh:
@@ -6,12 +7,12 @@
 // the same check the slicer relies on. Reopening the file and rebuilding the
 // patches is what ties the reviewed geometry to the file on disk.
 
-import rhino3dm from 'rhino3dm';
+import {rhino} from '../geom/runtime.mjs';
 import { patchFromSurface, evaluate } from '../geom/nurbs.mjs';
 import { makeShell, assertClosed } from '../geom/shell.mjs';
-import { buildShell,hasMesh } from './generate.mjs';
-import { hash } from './plan.mjs';
-import { requireThat } from '../geom/tolerance.mjs';
+import {buildShell,hasMesh} from '../geom/build.mjs';
+
+import {requireThat} from '../geom/tolerance.mjs';
 import { booleanDisplayMesh } from '../geom/boolean-display.mjs';
 
 // Display resolution of the proxy mesh: steps per knot span, per direction,
@@ -20,9 +21,6 @@ import { booleanDisplayMesh } from '../geom/boolean-display.mjs';
 const PROXY_STEPS_PER_SPAN = 8, PROXY_STEPS_MAX = 64;
 const spans = (knots, order, count) => { let n = 0; for (let i = order - 1; i < count; i++) if (knots[i + 1] > knots[i]) n++; return n; };
 const proxySteps = (knots, order, count) => Math.min(PROXY_STEPS_MAX, PROXY_STEPS_PER_SPAN * spans(knots, order, count));
-
-let runtime;
-export const rhino = () => runtime ??= rhino3dm();
 
 // Control nets are compared through a rounded hash: 3DM stores doubles, and a
 // nanometre is nine orders below the tolerances the process works at.
@@ -71,7 +69,16 @@ export async function createGeometry(parameters) {
 // Reopen the stored file, rebuild the patches from it, and require the closed
 // shell they form to be the one the descriptor was written for. A file edited
 // outside SAAM fails here rather than being sliced as something else.
-export async function verifyGeometry(bytes, descriptor) {
+const verifiedGeometry=new Map();
+export async function verifyGeometry(bytes,descriptor){
+  const identity=hash({bytes:hash(bytes),descriptor});
+  if(verifiedGeometry.has(identity))return verifiedGeometry.get(identity);
+  await inspectGeometry(bytes,descriptor);
+  const evidence=Object.freeze({identity,checks:Object.freeze(['native-geometry-identity','native-geometry-round-trip'])});
+  if(verifiedGeometry.size>=4)verifiedGeometry.delete(verifiedGeometry.keys().next().value);
+  verifiedGeometry.set(identity,evidence);return evidence;
+}
+async function inspectGeometry(bytes, descriptor) {
   requireThat(hash(bytes) === descriptor.fileHash, 'Geometry file changed; reload the current geometry.');
   if(descriptor.nativeFile==='model.mesh.json') {
     const saved=JSON.parse(Buffer.from(bytes).toString('utf8'));

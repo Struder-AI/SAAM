@@ -148,6 +148,23 @@ class MapPage(Page):
                 self.fan[end] = self.fan.get(end, 0) + 1
         def route(edge):
             a, b = self.index[edge["src"]], self.index[edge["dst"]]
+            if getattr(self, "design", False):
+                paired = any(e["src"] == edge["dst"] and e["dst"] == edge["src"] for e in self.edges)
+                if abs(b.cy - a.cy) > abs(b.cx - a.cx):
+                    down = b.cy > a.cy
+                    offset = (35 if down else -35) if paired else 0
+                    sx, sy = a.cx + offset, a.y + a.h if down else a.y
+                    dx, dy = b.cx + offset, b.y if down else b.y + b.h
+                    bend = (dy - sy) * .45
+                    return ([(sx, sy), (sx, sy + bend), (dx, dy - bend), (dx, dy)],
+                            ((sx + dx) / 2 + (55 if down else -55) if paired else (sx + dx) / 2, (sy + dy) / 2))
+                right = b.cx > a.cx
+                offset = (20 if right else -20) if paired else 0
+                sx, sy = a.x + a.w if right else a.x, a.cy + offset
+                dx, dy = b.x if right else b.x + b.w, b.cy + offset
+                bend = (dx - sx) * .45
+                return ([(sx, sy), (sx + bend, sy), (dx - bend, dy), (dx, dy)],
+                        ((sx + dx) / 2, (sy + dy) / 2))
             if (a.id.startswith("external:") or b.id.startswith("external:")) and abs(b.cy - a.cy) > 100:
                 down = b.cy > a.cy
                 sx, sy = a.cx, a.y + a.h if down else a.y
@@ -367,6 +384,7 @@ def build_page(packet, ctx):
     page = MapPage(stale, key=packet["index"], title=meta["t"], subtitle=meta["s"])
     page.context_pages = pages
     page.authored = packet.get("layout", {})
+    page.design = packet.get("design", False)
     page.key_line = meta["k"] + ("  ·  " + meta["d"] if meta["d"] else "")
     if packet.get("stateful"):
         page.key_line += " · stateful boundary"
@@ -412,6 +430,8 @@ def build_page(packet, ctx):
             node.source_path, node.source_line = ref.rsplit(":", 1)[0], ref.rsplit(":", 1)[1].split("-")[0]
         node.go = address if address in pages else ""
         component = next((c for c in packet.get("components", []) if c.get("id", c["index"]) == index), None)
+        if page.design and component and "internal" in component:
+            node.boundary_role = "internal" if component["internal"] else "external"
         callers = references(component.get("callerReferences", [])) if component else []
         summary = component.get("callerSummary") if component else None
         if summary:
@@ -440,6 +460,8 @@ def build_page(packet, ctx):
         if pages.get(go, {}).get("destination") == "code":
             style = "code"
         node = page.n(nid, label, kind=style)
+        if page.design:
+            node.boundary_role = "external"
         node.go = go
         drawn.add(nid)
         return node
@@ -448,6 +470,16 @@ def build_page(packet, ctx):
         # The top map and each cluster draw leaves and clusters, and at the edge a boundary box
         # for each node on another map that a link crosses to.
         for c in packet["components"]:
+            if c.get("kind") == "concept":
+                note = textwrap.fill(c.get("description", ""), 31)
+                style = "emphasis" if c.get("stateful") else "recv" if c.get("type") == "actor" else "stage"
+                source = c.get("sourceSpan")
+                ref = f'{source["file"]}:{source["line"]}-{source["endLine"]}' if source else None
+                node = unit(c["index"], c["label"], note, ref or "", style, ref=ref, path=c["path"])
+                node.show_foot = bool(source)
+                if c.get("type") == "actor":
+                    node.num = ""
+                continue
             # A box whose code is in no single source file (a cluster, or externals from several
             # files) draws no line naming where it is: the list would outgrow the box.
             if c.get("kind") == "group":
@@ -805,6 +837,15 @@ def value_text(value):
 
 def lists(packet, page, pages):
     """What the stored packet holds beside its boxes and wires, printed as data."""
+    if packet.get("design"):
+        page.row("head", "Authored map · source references are not conformance evidence")
+        for line in textwrap.wrap(packet.get("description", ""), 115):
+            page.row("item", line)
+        for note in packet.get("notes", []):
+            for line in textwrap.wrap(note, 115):
+                page.row("item", line)
+        page.row("item", "Click a source box to preview its file; click a wire for its contract and evidence. No transitive access.")
+        return
     # How this page came to be drawn: whether its wires are relationships rather than execution,
     # how many call sites are behind them, and where its grouping was authored. A reader who does
     # not know which kind of drawing this is would read every arrow wrong. A code destination is
@@ -1106,6 +1147,41 @@ body.noside #side{display:none}
 #codepane details{margin:8px 14px;color:#475569}
 #codepane details summary{cursor:pointer;font-size:12px}
 #codepane details pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:8px 0}
+#codepane .interfaces{padding:16px;overflow-wrap:anywhere}
+#codepane .interface{border:1px solid #e2e8f0;border-radius:7px;padding:14px;margin-bottom:16px}
+#codepane .interface h3{margin:0 0 6px;font-size:15px}
+#codepane .interface-id{font:11px ui-monospace,Consolas,monospace;color:#64748b}
+#codepane .interface pre{padding:10px;margin:8px 0;background:#f8fafc;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
+#codepane .interface .entry{border-top:1px solid #e2e8f0;margin-top:14px;padding-top:8px}
+#codepane .interface h4{margin:8px 0;font:600 13px ui-monospace,Consolas,monospace}
+#codepane .interface details{margin:10px 0}
+#codepane .interface dt{font-size:11px;font-weight:650;color:#64748b;margin-top:14px}
+#codepane .interface dd{margin:4px 0;white-space:pre-wrap}
+#codepane .interface ul{margin:0;padding-left:20px}
+#codepane .endpoint{font:inherit;color:#0369a1;background:none;border:0;padding:0;cursor:pointer;text-align:left}
+#codepane .endpoint:hover{text-decoration:underline}
+#canvas.design .fm-edge,#canvas.design .fm-elab,.fm-wire-hit{cursor:pointer}
+#canvas.design .fm-node[data-boundary-role="internal"]>rect{stroke:#334155;stroke-dasharray:none;stroke-width:1.8}
+#canvas.design .fm-node[data-boundary-role="external"]>rect{stroke:#64748b;stroke-dasharray:7 4;stroke-width:1.8;fill:#f8fafc}
+.boundary-key{display:flex;gap:16px;align-items:center;font-size:12px;color:#475569}
+.boundary-key span:before{content:'';display:inline-block;width:24px;height:13px;border:2px solid #334155;border-radius:3px;margin-right:6px;vertical-align:middle}
+.boundary-key .external:before{border-color:#64748b;border-style:dashed;background:#f8fafc}
+#boundary-key{position:absolute;top:10px;right:14px;z-index:1;padding:6px 9px;background:#ffffffed;border-radius:4px;pointer-events:none}
+#canvas.contents{inset:45px 22px 20px;overflow:auto;transform:none!important;width:auto}
+.map-contents{max-width:820px;padding:12px 18px;background:#fff}
+.map-contents h2{font-size:18px}.map-contents h3{font-size:14px;margin-top:22px}
+.map-contents ul{padding:0;list-style:none}.map-contents li{margin:10px 0}
+.map-contents button{cursor:pointer;text-align:left;padding:8px 12px;background:#fff;border:1px solid #334155;border-radius:4px;font:inherit}
+.map-contents button.external{border-style:dashed;color:#475569}.map-contents small{display:block;margin:4px 0;color:#64748b}
+#canvas.design .fm-edge.wire-hot{stroke:#0284c7;stroke-width:3.4;opacity:1}
+#canvas.design .fm-elab.wire-hot{opacity:1}
+#canvas.wire-focus .fm-node:not(.wire-end){opacity:.14}
+#canvas.wire-focus .fm-node.wire-end{opacity:1}
+#canvas.wire-focus .fm-node.wire-end rect:first-of-type{stroke:#0284c7;stroke-width:3.4}
+#canvas.wire-focus .fm-edge:not(.wire-hot){opacity:.07}
+#canvas.wire-focus .fm-elab:not(.wire-hot),#canvas.wire-focus .fm-endtag:not(.wire-hot){opacity:.12}
+#canvas.authored .fm-elab:not(.hot):not(.wire-hot){pointer-events:none}
+.fm-wire-hit:focus{outline:none;stroke:#38bdf8;stroke-opacity:.3}
 
 #back:disabled{opacity:.4;cursor:default}
 
@@ -1161,6 +1237,7 @@ const visits=[],visitSession=Date.now()+'-'+Math.random();
 let visitAt=-1,showVersion=0,sourceVersion=0;
 let liveFreshness=null;
 function freshnessMessage(now=Date.now()){
+  if(DESIGN)return {warning:'AUTHORED · conformance unchecked',source:'Source snapshot captured at build · check the design to verify freshness'};
   const status=liveFreshness,checked=status&&Date.parse(status.checkedAt);
   if(!status||!Number.isFinite(checked)||now<checked||now-checked>Math.min(status.validForMs||0,10000))
     return {warning:'Live freshness unavailable',source:'Snapshot source · live freshness unavailable'};
@@ -1183,6 +1260,7 @@ function updateFreshness(){
 function freshnessAt(status){liveFreshness=status;updateFreshness();}
 function pollFreshness(){
   updateFreshness();
+  if(DESIGN)return;
   const script=document.createElement('script');script.src='freshness.js?'+Date.now();
   script.onload=script.onerror=()=>{script.remove();updateFreshness();};document.head.appendChild(script);
 }
@@ -1211,7 +1289,7 @@ function apply(){canvas.style.transform=`translate(${view.x}px,${view.y}px) scal
 function toggleMinimap(){const off=document.body.classList.toggle('nomini');
   try{localStorage.setItem('devmap-minimap',off?'off':'on');}catch(e){}}
 try{if(localStorage.getItem('devmap-minimap')==='off')document.body.classList.add('nomini');}catch(e){}
-function minimap(){const s=canvas.firstElementChild;
+function minimap(){const s=canvas.querySelector(':scope>svg');
   if(!s){mini.style.display='none';return;}
   const w=s.width.baseVal.value,h=s.height.baseVal.value;
   let body='';
@@ -1228,13 +1306,13 @@ mini.addEventListener('pointerdown',e=>{const s=mini.firstElementChild,d=canvas.
   const b=s.getBoundingClientRect(),w=d.width.baseVal.value,h=d.height.baseVal.value,
         k=Math.min(b.width/w,b.height/h);
   at((e.clientX-b.left-(b.width-w*k)/2)/k,(e.clientY-b.top-(b.height-h*k)/2)/k);});
-function fit(){const s=canvas.firstElementChild;if(!s)return;
+function fit(){const s=canvas.querySelector(':scope>svg');if(!s)return;
   const w=s.width.baseVal.value,h=s.height.baseVal.value,r=stage.getBoundingClientRect();
   /* Never zero or negative: a stage narrower than its own padding would otherwise fold the
      page inside out, and the drawing would be gone rather than small. */
   view.k=Math.max(0.02,Math.min(Math.min((r.width-48)/w,(r.height-48)/h),1));
   view.x=(r.width-w*view.k)/2;view.y=Math.max(18,(r.height-h*view.k)/2);apply();}
-function actual(){const s=canvas.firstElementChild;if(!s)return;const r=stage.getBoundingClientRect();
+function actual(){const s=canvas.querySelector(':scope>svg');if(!s)return;const r=stage.getBoundingClientRect();
   view.k=1;view.x=(r.width-s.width.baseVal.value)/2;view.y=18;apply();}
 function overview(){const bounds=PAGES[cur]?.focus;if(!bounds)return fit();
   const [x,y,w,h]=bounds,r=stage.getBoundingClientRect();
@@ -1243,7 +1321,7 @@ function overview(){const bounds=PAGES[cur]?.focus;if(!bounds)return fit();
 
 /* One page's drawing at a time, fetched as a script so the viewer opens from file:// with no
    server. The whole map inlined is an order of magnitude more bytes on every open. */
-function load(key,then){if(SVG[key]!==undefined)return then();
+function load(key,then){if(PAGES[key]?.destination==='contents'||SVG[key]!==undefined)return then();
   const s=document.createElement('script');s.src='svg/'+key+'.js?'+encodeURIComponent(BUILT);
   s.onload=()=>then();s.onerror=()=>{SVG[key]=null;then();};document.head.appendChild(s);}
 
@@ -1262,7 +1340,16 @@ function trail(key){const out=[];let k=key;
   return out.map((k,i)=>i===out.length-1?`<b>${esc(PAGES[k].t)}</b> — ${esc(PAGES[k].s)}`
     :`<span class="up" data-go="${k}">${esc(PAGES[k].t)}</span>`).join(' &rsaquo; ');}
 
+function contents(p){
+  const item=c=>`<li><button class="${c.internal?'':'external'}" data-go="${esc(c.index)}">${esc(c.index)} ${esc(c.label)}</button>`+
+    (c.description?`<small>${esc(c.description)}</small>`:'')+'</li>';
+  const groups=[['Internal operations',true],['External boundaries',false]].map(([label,inside])=>{
+    const rows=(p.components??[]).filter(c=>c.internal===inside);return rows.length?`<h3>${label}</h3><ul>${rows.map(item).join('')}</ul>`:'';}).join('');
+  const wires=(p.contracts??[]).map(w=>`<li><button data-a="${esc(w.from)}" data-b="${esc(w.to)}">${esc(p.componentLabels[w.from]??w.from)} → ${esc(p.componentLabels[w.to]??w.to)}</button></li>`).join('');
+  return `<section class="map-contents"><h2>${esc(p.t)}</h2>${groups}${wires?'<h3>Interfaces</h3><ul>'+wires+'</ul>':''}</section>`;
+}
 function show(key,push,restore){const p=PAGES[key];if(!p)return false;
+  if(p.aliasOf)return show(p.aliasOf,push);
   if(p.destination==='code'&&graphCur){openCode(p.r,key);return true;}
   const version=++showVersion;
   // Opening another map closes the code a leaf had open.
@@ -1270,8 +1357,12 @@ function show(key,push,restore){const p=PAGES[key];if(!p)return false;
   let drawing=restore?restore.graph:(p.destination==='code'&&graphCur?graphCur:key);
   while(PAGES[drawing]&&PAGES[drawing].destination==='code')drawing=PAGES[drawing].p;
   load(drawing,()=>{if(version!==showVersion)return;
-    canvas.innerHTML=SVG[drawing]||'';cur=drawing;graphCur=drawing;pinId=null;jumped=[];hot(null);
+    const listing=PAGES[drawing].destination==='contents';
+    canvas.classList.toggle('contents',listing);
+    canvas.innerHTML=listing?contents(PAGES[drawing]):SVG[drawing]||'';cur=drawing;graphCur=drawing;pinId=null;jumped=[];hot(null);highlightWire(null);
+    if(listing)zoomLbl.textContent='';
     canvas.classList.toggle('authored',!!PAGES[drawing].focus);
+    canvas.classList.toggle('design',DESIGN);
     document.getElementById('fit-all').hidden=!PAGES[drawing].focus;
     crumb.innerHTML=trail(drawing);showScore(PAGES[drawing].sc);
     const mapped=PAGES[drawing];
@@ -1320,18 +1411,38 @@ function walk(step){const from=pinId||hotId;if(!from)return;
   canvas.querySelectorAll('.at').forEach(el=>el.classList.remove('at'));
   const g=node(near[peerAt]);if(g)g.classList.add('at');
   centre(near[peerAt]);}
-stage.addEventListener('pointerover',e=>{if(pinId)return;
+function highlightWire(edge){
+  canvas.querySelectorAll('.wire-hot,.wire-end').forEach(w=>w.classList.remove('wire-hot','wire-end'));
+  canvas.classList.toggle('wire-focus',!!edge);
+  if(!edge)return;
+  const {a,b}=edge.dataset;
+  canvas.querySelectorAll(`[data-a="${CSS.escape(a)}"][data-b="${CSS.escape(b)}"]`)
+    .forEach(w=>w.classList.add('wire-hot'));
+  for(const id of [a,b])node(id)?.classList.add('wire-end');
+}
+stage.addEventListener('pointerover',e=>{
   const el=document.elementFromPoint(e.clientX,e.clientY),g=el&&el.closest('.fm-node');
-  hot(g?g.dataset.id:null);});
-stage.addEventListener('pointerleave',()=>{if(!pinId)hot(null);});
+  const edge=DESIGN&&el?.closest('.fm-edge,.fm-elab,.fm-wire-hit');
+  hot(edge?null:pinId??g?.dataset.id??null);
+  highlightWire(edge);});
+stage.addEventListener('pointerleave',()=>{highlightWire(null);hot(pinId);});
+stage.addEventListener('focusin',e=>{
+  const edge=e.target.closest('.fm-wire-hit');
+  if(edge){hot(null);highlightWire(edge);}
+});
+stage.addEventListener('focusout',e=>{if(e.target.closest('.fm-wire-hit')){highlightWire(null);hot(pinId);}});
+stage.addEventListener('keydown',e=>{
+  const edge=e.target.closest('.fm-wire-hit');
+  if(edge&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openContracts(edge.dataset.a,edge.dataset.b);}
+});
 
 /* -- pan / zoom ------------------------------------------------------------ */
-stage.addEventListener('wheel',e=>{if(e.target.closest('#codepane,#legendpane'))return;e.preventDefault();
+stage.addEventListener('wheel',e=>{if(e.target.closest('#codepane,#legendpane,.map-contents'))return;e.preventDefault();
   const r=stage.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top,
         nk=Math.min(8,Math.max(.02,view.k*Math.exp(-e.deltaY*.0015)));
   view.x=mx-(mx-view.x)*(nk/view.k);view.y=my-(my-view.y)*(nk/view.k);view.k=nk;apply();},
   {passive:false});
-stage.addEventListener('pointerdown',e=>{if(e.target.closest('#codepane,#legendpane'))return;down={x:e.clientX,y:e.clientY,vx:view.x,vy:view.y};
+stage.addEventListener('pointerdown',e=>{if(e.target.closest('#codepane,#legendpane,.map-contents')){moved=false;return;}down={x:e.clientX,y:e.clientY,vx:view.x,vy:view.y};
   moved=false;stage.setPointerCapture(e.pointerId);stage.classList.add('drag');});
 stage.addEventListener('pointermove',e=>{if(!down)return;
   const dx=e.clientX-down.x,dy=e.clientY-down.y;
@@ -1348,6 +1459,8 @@ stage.addEventListener('click',e=>{if(e.target.closest('#codepane,#legendpane')|
      to go and stand there. */
   const jump=el.closest('.fm-endtag[data-jump]');
   if(jump){standAt(jump.dataset.jump);return;}
+  const edge=el.closest('[data-a][data-b]');
+  if(edge&&DESIGN){openContracts(edge.dataset.a,edge.dataset.b);return;}
   const src=el.closest('.fm-src');
   if(src){const target=PAGES[src.dataset.key];
     if(target&&target.destination==='code')show(src.dataset.key);else openCode(src.dataset.ref);return;}
@@ -1435,6 +1548,30 @@ function openCode(ref,key){const cut=ref.lastIndexOf(':'),file=ref.slice(0,cut),
         `<div class="cb">${body}</div>`;
       codePane.classList.add('on');};
     paint();});}
+function openContracts(from,to){
+  const contracts=(PAGES[cur]?.contracts??[]).filter(w=>w.from===from&&w.to===to).flatMap(w=>w.contracts);
+  if(!contracts.length)return;
+  const name=index=>PAGES[index]?.t??PAGES[cur]?.componentLabels?.[index]??index;
+  const endpoint=index=>PAGES[index]?`<button class="endpoint" data-go="${esc(index)}">${esc(name(index))}</button>`:esc(name(index));
+  closeCode();legendPane.classList.remove('on');
+  const version=sourceVersion;
+  need(()=>{if(version!==sourceVersion)return;
+  const entry=e=>{
+    if(e.unavailable)return `<p class="note">${esc(e.target)} · ${esc(e.unavailable)}</p>`;
+    const source=SRC[e.file]?.split('\\n').slice(e.line-1,e.endLine).join('\\n');
+    return `<article class="entry"><h4>${esc(e.name)}</h4><pre>${esc(e.signature)}</pre>`+
+      (e.returns.length?`<div class="interface-id">Returns</div>`+e.returns.map(r=>`<pre>${esc(r)}</pre>`).join(''):'')+
+      `<details><summary>Implementation · ${esc(e.file)}:${e.line}–${e.endLine}</summary><pre>${esc(source??'Source unavailable in this build.')}</pre></details></article>`;
+  };
+  codePane.innerHTML=`<div class="ch"><button class="x" onclick="dismissCode()" aria-label="Close interfaces">&times;</button>`+
+    `<div class="num">${contracts.length===1?'Interface':`Interface set · ${contracts.length} interfaces`}</div>`+
+    `<h3>${esc(name(from))} → ${esc(name(to))}</h3></div>`+
+    '<div class="cb interfaces">'+contracts.map(c=>`<section class="interface"><h3>${esc(c.label)}</h3>`+
+      `<p>${endpoint(c.fromIndex)} → ${endpoint(c.toIndex)}</p>`+
+      ((c.code??[]).length?c.code.map(entry).join(''):'<p class="note">No code entry is bound to this wire.</p>')+
+      '</section>').join('')+'</div>';
+  codePane.classList.add('on');});
+}
 function pageCode(){const p=PAGES[cur];if(p&&p.r)openCode(p.r,p.destination==='code'?cur:null);}
 function copy(t){navigator.clipboard.writeText(t);}
 
@@ -1525,7 +1662,7 @@ def emit(out, model, pages, svgs):
     # the way it has to be broken in HTML.
     (out / "stamp.js").write_text(f'stampAt({json.dumps(model.get("built", ""))})', encoding="utf-8")
     page_data = json.dumps(pages).replace("</", "<\\/")
-    graph_pages = {key: p for key, p in pages.items() if p["destination"] != "code"}
+    graph_pages = {key: p for key, p in pages.items() if p["destination"] in ("graph", "contents")}
     rows, parents = [], {p["p"] for p in graph_pages.values()}
 
     def depth(key):
@@ -1551,11 +1688,19 @@ def emit(out, model, pages, svgs):
                     f' data-go="{escape(key, QUOTE)}" style="padding-left:{26 + 11 * depth(key)}px">'
                     f'{twisty}<span class="ix">{escape(key)}</span>'
                     f'{escape(p["t"].split(" ", 1)[-1])}</a>')
-    html = f"""<!doctype html><meta charset="utf-8"><title>SAAM generated map</title>
+    heading = model.get("title", "SAAM — the generated map")
+    boundary_key = '<div class="boundary-key"><span>Internal node</span><span class="external">External boundary node</span></div>'
+    legend = (boundary_key + "<p>Internal nodes belong to this displayed map. Dashed boundary nodes belong elsewhere and show connections across its edge.</p>"
+              "<p>Authored target architecture, with source evidence where available.</p>"
+              "<p>Boxes open submaps or referenced source. Wires open contracts and evidence, including exact nested endpoints. "
+              "Wire direction follows the stated contract flow. Separate access entries, where supplied, name permitted call/read directions. "
+              "No transitive access is granted. Implementation conformance remains unchecked.</p>"
+              if model.get("design") else legend_html())
+    html = f"""<!doctype html><meta charset="utf-8"><title>{escape(heading)}</title>
 <style>{CSS}</style>
 <div id="side">
-  <h1>SAAM — the generated map</h1>
-  <div class="sub">{len(svgs)} graph pages · {len(pages) - len(svgs)} code destinations, stored {escape(model["generated"])}, drawn
+  <h1>{escape(heading)}</h1>
+  <div class="sub">{len(svgs)} graph pages · {sum(p['destination']=='contents' for p in pages.values())} contents pages · {sum(p['destination']=='code' for p in pages.values())} source destinations, stored {escape(model["generated"])}, drawn
     {escape(model.get("built", "")[:16].replace("T", " "))} UTC.
     <span id="freshness-status">Live freshness unavailable; snapshot remains readable.</span>
     Redrawn by every <code>regenerate</code>; this page reloads itself.</div>
@@ -1572,18 +1717,20 @@ def emit(out, model, pages, svgs):
     <button onclick="toggleLegend()">Legend</button>
     <button onclick="const s=document.getElementById('score');s.hidden=!s.hidden;overview()">Score</button>
     <button onclick="pageCode()">Source</button>
+    {f'''<button onclick="location.href='audit.html#'+cur">Boundary audit · {model['audit']['totals'].get('forbidden', 0)} conflicts</button>''' if model.get('design') and model.get('auditAvailable') else ''}
     <button onclick="overview()">Fit</button><button id="fit-all" onclick="fit()" hidden>Fit all dependencies</button>
     <button onclick="actual()">100%</button>
     <button onclick="toggleMinimap()" title="show or hide the minimap">Minimap</button>
     <span id="zoom"></span>
   </div>
   <div id="stage"><div id="canvas"></div>
+    {f'<div id="boundary-key">{boundary_key}</div>' if model.get('design') else ''}
     <div id="codepane"></div>
     <div id="legendpane"><div class="lh">Legend<span class="x" onclick="toggleLegend()">&times;</span></div>
-      <div class="lb">{legend_html()}</div></div>
+      <div class="lb">{legend}</div></div>
     <div id="minimap"></div>
     <div id="pin"></div>
-    <div id="hint">scroll = zoom · drag = pan · click a box = its page · click a box foot = its
+    <div id="hint">{"click a wire = its interface set · " if model.get("design") else ""}scroll = zoom · drag = pan · click a box = its page · click a box foot = its
       source · hover = its wires · x pin focus · ] [ next/previous end · \ back to the box ·
       click a wire's end tag = stand at its other end · Back previous map · f fit · 0 actual ·
       u up · esc close</div>
@@ -1593,6 +1740,7 @@ def emit(out, model, pages, svgs):
 const PAGES={page_data};
 const BUILT={json.dumps(model.get("built", ""))};
 const SNAPSHOT_ID={json.dumps(model.get("snapshotId"))};
+const DESIGN={json.dumps(model.get("design", False))};
 {JS}
 </script>
 """
@@ -1619,15 +1767,18 @@ def build(model, out):
             sub = (f'{p["path"]} · {p["file"]}:{p["line"]}-{p["endLine"]} · {p["lines"]} lines · '
                    f'{len(p["components"])} components, {len(p["wires"])} wires')
             detail, ref = p["path"], f'{p["file"]}:{p["line"]}-{p["endLine"]}'
-        parent = None
-        cut = index
-        while "." in cut:
-            cut = cut.rsplit(".", 1)[0]
-            if cut in packets:
-                parent = cut
-                break
-        if parent is None and index != "0":
-            parent = "0"
+        if p.get("design"):
+            sub = f'authored map · {len(p["components"])} boxes · {len(p["wires"])} interfaces · conformance unchecked'
+        parent = p.get("parent")
+        if "parent" not in p:
+            cut = index
+            while "." in cut:
+                cut = cut.rsplit(".", 1)[0]
+                if cut in packets:
+                    parent = cut
+                    break
+            if parent is None and index != "0":
+                parent = "0"
         stale = model["stale"].get(index)
         destination = p.get("destination", "graph")
         source_span = p.get("sourceSpan")
@@ -1638,17 +1789,24 @@ def build(model, out):
         pages[index] = dict(t=title, s=sub, find=f'{index} {detail}'.strip(), d=detail, r=ref, k=kind, p=parent,
                             destination=destination,
                             x=(stale["regenerate"] if stale else ""))
+        if p.get("aliasOf"):
+            pages[index]["aliasOf"] = p["aliasOf"]
+        if destination == "contents":
+            pages[index]["components"] = p["components"]
         if p.get("foldedCode"):
             pages[index]["foldedCode"] = p["foldedCode"]
         pages[index]["externals"] = {c["index"]: c["externals"] for c in p.get("components", []) if c.get("kind") == "external"}
         pages[index]["externalConnections"] = {c["index"]: c.get("externalConnections", []) for c in p.get("components", []) if c.get("kind") == "external"}
+        if p.get("design"):
+            pages[index]["contracts"] = p["wires"]
+            pages[index]["componentLabels"] = {c["index"]: c["label"] for c in p["components"]}
         score = model.get("scores", {}).get(index)
         if score:
             pages[index]["sc"] = score
     ctx = dict(pages=pages, stale=model["stale"], dropped=[])
     svgs = {}
     for index in sorted(packets, key=at):
-        if pages[index]["destination"] != "code":
+        if pages[index]["destination"] == "graph":
             svgs[index] = build_page(packets[index], ctx).render()
     size, inline = emit(out, model, pages, svgs)
     kinds = {}

@@ -8,6 +8,11 @@ import {commandArgs,setFile,mapSet} from './lib/map-set.mjs';
 
 const usage='Use: node dev-map/cli.mjs [--set NAME] read ADDRESS [--code|--details] | build | regenerate [INDEX] | solve [--seed N] | flow-evidence ADDRESS | check [--json] | score [--json] | watch-freshness [--once] [--interval-ms 2000]';
 const [command='build',...args]=commandArgs;
+if(mapSet?.mode==='design') {
+  const {designCommand}=await import('./lib/design.mjs');
+  await designCommand(command,args,{repo:root});
+  process.exit(0);
+}
 if(!['read','build','check','regenerate','solve','flow-evidence','score','watch-freshness'].includes(command))throw Error(usage);
 if(command==='read') {
   const {values,positionals}=parseArgs({args,allowPositionals:true,options:{code:{type:'boolean'},details:{type:'boolean'}}});

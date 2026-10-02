@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 // Builds an installable SAAM ZIP for one platform: the tracked application
 // files, production dependencies, a pinned Node runtime, release.json and the
-// platform installer. Alpha builds are unsigned: the macOS installer runs from
+// platform installer. Alpha builds are unsigned: the macOS launcher opens
 // Terminal and the bundled Node is the official notarized build.
 //
 //   node packaging/build.mjs --platform win-x64 --version 0.1.0 --relay-url https://relay.example.com
 //   [--update-host https://github.com/Struder-AI/SAAM/releases/download] [--node-version v24.19.0 | --node <node binary for that platform>] [--out dist]
+//   [--review --review-file packaging/desktop.mjs --review-file packaging/release-service.mjs]
 // --update-host is the release folder this build accepts updates from (see
 // packaging/update.mjs); without it the build never offers an update.
 //
@@ -18,23 +19,26 @@
 // Explorer then tar.exe, than a stored app.tar.gz, at the same download size.
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
+import {existsSync} from 'node:fs';
 import {cp,mkdir,rm,writeFile,readFile,copyFile,mkdtemp,readdir,stat} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {resolve,dirname,join} from 'node:path';
+import {resolve,dirname,join,relative} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';
-import {packageNativeRepair} from './native-repair.mjs';
+import {zipSync} from 'fflate';
+import {executablePlatform,packageNativeRepair} from './native-repair.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const PLATFORMS={
   'win-x64':{os:'windows',archive:'zip',binary:'node.exe',installer:'Install SAAM.cmd',scripts:['install.ps1','common.ps1']},
-  'darwin-arm64':{os:'macos',archive:'tar.gz',binary:'bin/node',installer:'install.sh',scripts:['install.sh']},
-  'darwin-x64':{os:'macos',archive:'tar.gz',binary:'bin/node',installer:'install.sh',scripts:['install.sh']}
+  'darwin-arm64':{os:'macos',archive:'tar.gz',binary:'bin/node',installer:'Install SAAM.command',scripts:['install.sh']},
+  'darwin-x64':{os:'macos',archive:'tar.gz',binary:'bin/node',installer:'Install SAAM.command',scripts:['install.sh']}
 };
 // Tracked files a maker's installation does not need: development maps and
 // tooling, tests, the relay service and this packager.
 const EXCLUDED=[/^dev-map(-OLD)?\//,/^relay\//,/^tools\//,/^scripts\/bench\//,/^\.(claude|codex|github)\//,/^core\/tests\//,
-  /^skills\/[^/]+\/tests\//,/^[^/]+\.html$/,/^result\.json$/,/^packaging\/(build\.mjs|windows\/|macos\/)/];
+  /^skills\/[^/]+\/tests\//,/^[^/]+\.html$/,/^result\.json$/,/^plans\//,/^adapters\/mcp\/RELAY-PLAN\.md$/,
+  /^packaging\/(build\.mjs|README\.md|INSTALL\.md|windows\/|macos\/)/];
 
 // manifold-3d depends on these for its manifoldCAD tooling (glTF and 3MF export
 // with sharp's image processing, the esbuild bundler, source maps and its CLI).
@@ -68,6 +72,18 @@ async function measure(folder){
   return {files,bytes};
 }
 const describe=({files,bytes})=>`${files} files, ${(bytes/1e6).toFixed(1)} MB`;
+
+// Windows cannot set Unix executable bits on disk. Write them into the Mac ZIP
+// itself so Finder can launch Install SAAM.command immediately after extraction.
+async function writeMacZip(folder,zip){
+  const entries={};
+  for(const entry of await readdir(folder,{recursive:true,withFileTypes:true})){
+    const path=join(entry.parentPath,entry.name),name=relative(dirname(folder),path).replaceAll('\\','/');
+    const directory=entry.isDirectory(),mode=directory?0o40755:entry.name.endsWith('.command')?0o100755:0o100644;
+    entries[name+(directory?'/':'')]=[directory?new Uint8Array():await readFile(path),{os:3,attrs:(mode<<16)>>>0}];
+  }
+  await writeFile(zip,zipSync(entries));
+}
 
 // The installed package paths (package-lock keys) that MANIFOLD_EXTRAS names,
 // after checking that nothing outside the list needs them.
@@ -122,7 +138,8 @@ async function fetchNode(version,platform,into){
 
 async function main(){
   const {values}=parseArgs({options:{platform:{type:'string'},version:{type:'string'},'relay-url':{type:'string'},
-    'node-version':{type:'string',default:process.version},node:{type:'string'},out:{type:'string',default:'dist'},'update-host':{type:'string'},'mesh-repair':{type:'string'}}});
+    'node-version':{type:'string',default:process.version},node:{type:'string'},out:{type:'string',default:'dist'},'update-host':{type:'string'},'mesh-repair':{type:'string'},
+    review:{type:'boolean',default:false},'review-file':{type:'string',multiple:true}}});
   const platform=values.platform,target=PLATFORMS[platform];
   if(!target)throw Error(`Choose --platform: ${Object.keys(PLATFORMS).join(', ')}.`);
   if(!/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(values.version??''))throw Error('Give --version as major.minor.patch.');
@@ -131,13 +148,28 @@ async function main(){
   // The release folder updates come from, e.g. https://github.com/Struder-AI/SAAM/releases/download:
   // an installed SAAM accepts only <update host>/v<version>/SAAM-<version>-<platform>.zip.
   const updateHost=values['update-host']?(({origin,pathname})=>origin+pathname.replace(/\/+$/,''))(new URL(values['update-host'])):null;
-  if(updateHost&&!updateHost.startsWith('https://'))throw Error('The update host must be https.');
+  if(updateHost&&!updateHost.startsWith('https://')&&!(values.review&&/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(?:\/|$)/.test(updateHost)))
+    throw Error('The update host must be https (or loopback in a review build).');
+  const out=resolve(root,values.out),relativeOut=relative(root,out).replaceAll('\\','/');
+  if(!relativeOut||relativeOut==='..'||relativeOut.startsWith('../'))throw Error('The output directory must be inside the repository, not the repository root.');
+  const outputPrefix=relativeOut+'/';
+  const tracked=spawnSync('git',['ls-files','-z'],{cwd:root,encoding:'utf8'}).stdout.split('\0').filter(Boolean);
+  const untracked=spawnSync('git',['ls-files','-z','--others','--exclude-standard'],{cwd:root,encoding:'utf8'}).stdout.split('\0').filter(Boolean);
+  const selected=values['review-file']??[];
+  if(selected.length&&!values.review)throw Error('--review-file requires --review.');
+  const platformFile=file=>file.startsWith(`packaging/${target.os}/`);
+  for(const file of selected)if(!untracked.includes(file)||(EXCLUDED.some(pattern=>pattern.test(file))&&!platformFile(file)))
+    throw Error(`Review source must be an untracked application file: ${file}`);
+  const unpacked=untracked.filter(file=>!file.startsWith(outputPrefix)&&(!EXCLUDED.some(pattern=>pattern.test(file))||platformFile(file))&&!selected.includes(file));
+  if(unpacked.length)throw Error(`Untracked application files need explicit --review-file selections: ${unpacked.join(', ')}`);
+  const dirty=spawnSync('git',['status','--porcelain','--untracked-files=no'],{cwd:root,encoding:'utf8'}).stdout.trim();
+  if(dirty&&!values.review)throw Error('Release builds require a clean tracked snapshot. Use --review for an isolated candidate build.');
+  if(values.review)console.warn(`Review build from on-disk source; selected untracked files: ${selected.join(', ')||'(none)'}. Do not publish this artifact.`);
   // stage/app is the application; stage/<top> becomes the ZIP.
-  const top=`SAAM-${values.version}-${platform}`,out=resolve(root,values.out),app=resolve(out,'stage','app'),folder=resolve(out,'stage',top);
+  const top=`SAAM-${values.version}-${platform}`,app=resolve(out,'stage','app'),folder=resolve(out,'stage',top);
   await rm(resolve(out,'stage'),{recursive:true,force:true});await mkdir(app,{recursive:true});await mkdir(folder,{recursive:true});
 
-  const tracked=spawnSync('git',['ls-files','-z'],{cwd:root,encoding:'utf8'}).stdout.split('\0').filter(Boolean);
-  const files=tracked.filter(file=>!EXCLUDED.some(pattern=>pattern.test(file)));
+  const files=[...tracked,...selected].filter(file=>existsSync(resolve(root,file))&&!EXCLUDED.some(pattern=>pattern.test(file)));
   for(const file of files){await mkdir(dirname(resolve(app,file)),{recursive:true});await copyFile(resolve(root,file),resolve(app,file));}
   await cp(resolve(root,'packaging',target.os),resolve(app,'packaging',target.os),{recursive:true});
   console.log(`Copied ${files.length} tracked files.`);
@@ -153,11 +185,18 @@ async function main(){
   console.log(`node_modules: ${describe(installed)} installed, ${describe(await measure(modules))} kept.`);
 
   const runtime=resolve(app,'runtime');
-  if(values.node){await mkdir(runtime,{recursive:true});await copyFile(resolve(values.node),resolve(runtime,target.binary.split('/').pop()));
-    console.warn('Bundled the given node binary; it must be built for',platform+'.');}
+  if(values.node){
+    const binary=resolve(values.node),bytes=await readFile(binary);
+    if(executablePlatform(bytes)!==platform)throw Error(`The supplied Node binary does not target ${platform}.`);
+    const license=resolve(dirname(binary),'LICENSE');
+    if(!existsSync(license))throw Error('The supplied Node binary needs its adjacent LICENSE file.');
+    await mkdir(runtime,{recursive:true});
+    await copyFile(binary,resolve(runtime,target.binary.split('/').pop()));
+    await copyFile(license,resolve(runtime,'LICENSE'));
+  }
   else await fetchNode(values['node-version'],platform,runtime);
 
-  const release={version:values.version,relayUrl,platform,updateHost,node:values.node?'supplied':values['node-version'],nativeRepair,builtAt:new Date().toISOString()};
+  const release={version:values.version,relayUrl,platform,updateHost,node:values.node?'supplied':values['node-version'],nativeRepair,builtAt:new Date().toISOString(),...(values.review?{reviewBuild:true}:{})};
   const releaseJson=JSON.stringify(release,null,2)+'\n';
   await writeFile(resolve(app,'release.json'),releaseJson);
   console.log(`Application: ${describe(await measure(app))}.`);
@@ -171,11 +210,15 @@ async function main(){
   await writeFile(resolve(folder,'app','release.json'),releaseJson);
 
   const zip=resolve(out,`${top}.zip`);await rm(zip,{force:true});
-  run(TAR,['-a','-cf',zip,'-C',resolve(out,'stage'),top],{env:TAR_ENV});
+  if(target.os==='macos')await writeMacZip(folder,zip);
+  else run(TAR,['-a','-cf',zip,'-C',resolve(out,'stage'),top],{env:TAR_ENV});
+  const digest=sha256(await readFile(zip));
+  await writeFile(zip+'.sha256',`${digest}  ${top}.zip\n`);
+  await copyFile(resolve(root,'packaging','INSTALL.md'),resolve(out,'INSTALL.md'));
   console.log(`Built ${zip}: ${((await stat(zip)).size/1e6).toFixed(1)} MB (${JSON.stringify(release)}).`);
   // To offer this build as an update, host the ZIP under the update host and add
   // this entry to the relay's LATEST_RELEASE assets (see relay/wrangler.jsonc).
-  console.log('LATEST_RELEASE asset:',JSON.stringify({[platform]:{url:(updateHost??'https://<update host>')+`/v${values.version}/${top}.zip`,sha256:sha256(await readFile(zip))}}));
+  console.log('LATEST_RELEASE asset:',JSON.stringify({[platform]:{url:(updateHost??'https://<update host>')+`/v${values.version}/${top}.zip`,sha256:digest}}));
 }
 
 main().catch(error=>{console.error('Build failed:',error.message);process.exitCode=1;});

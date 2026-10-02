@@ -4,9 +4,8 @@ Adapter boundaries and integration tests. [The adapter manual](README.md)
 owns client configuration and tool usage; [the print lifecycle](../../core/print/README.md)
 owns manufacturing state.
 
-The [Cloudflare relay milestone plan](RELAY-PLAN.md) specifies future packaged
-deployment and active Studio-driven web-chat sessions. It is planning context,
-not an account of the current adapter's capabilities.
+The historical [relay milestone plan](RELAY-PLAN.md) is superseded by the
+[0.3.0 installation plan](../../plans/0.3.0.md).
 
 ## Local MCP access
 
@@ -15,8 +14,8 @@ Fixed profiles/skills follow [D-022](../../DECISIONS.md#d-022--defer-automatic-c
 the print-work queue and the Studio/request state. It outlives its sessions: one
 is active at a time, an ended session fails its unfinished requests and rejects
 late calls, and Studio stays for the next. [The MCP server](src/server.mjs) is one
-session per connection; stdio owns and closes its runtime. [The relay device](src/relay-device.mjs)
-serves chat sessions from [the relay](../../relay/README.md) the same way.
+session per connection; stdio owns and closes its runtime. Installed desktop
+clients connect locally using the bundled Node runtime.
 
 [The shared manual reader](../../core/agent/manuals.mjs), re-exported by
 [the adapter](src/manuals.mjs), accepts published repository Markdown paths and
@@ -48,16 +47,13 @@ sole live instance, so switching prints opens no second Studio;
 an instance never crosses adapter ownership, while print bundles remain shared.
 Tour start-layer writes require the run and lesson identities they were prepared
 for. See [coordination and its concurrency limits](../../studio/README.md#agent-request-coordination).
-Geometry and hybrid skill manuals identify themselves with `metadata.saam-kind: geometry` or
-`hybrid` in their frontmatter; toolpath skill manuals keep the default `toolpath` kind.
+[The catalog](../../skills/catalog.mjs) distinguishes the three primitives,
+extensions and guidance. Extension manuals use `metadata.saam-kind: extension`.
 
-`apply_text` delegates to [shared text preparation](../../core/print/text.mjs),
-including local font reading, stale-revision checks and geometry updates. The
-adapter does not own a separate text schema, boolean pipeline or approval route.
-
-`apply_heat_set` delegates to [shared insert preparation](../../core/print/heat-set.mjs)
-with the same revision and geometry lifecycle. The skill manual lists exact
-insert profiles; geometry and dimension validation stay at the shared owners.
+`apply_text`, `apply_heat_set` and `gridfinity` use the shared
+[extension edit lifecycle](../../core/print/extension-edits.mjs): scripts return
+recipe values; the caller checks revisions and commits through the bundle.
+Thingi10K returns downloaded assets to the shared resource importer.
 
 `core/tests/mcp.test.mjs` uses actual SDK clients and child processes, temporary
 bundles and synthetic approval fixtures outside the adapter protocol.

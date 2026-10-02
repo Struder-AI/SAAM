@@ -5,14 +5,12 @@ import facts from './fixtures/bambu-h2d-hardware-facts.json' with {type:'json'};
 import {dualNozzleVerificationFixture} from './fixtures/bambu-dual.mjs';
 import {h2dColourFixture} from './fixtures/bambu-h2d-colours.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {rhino} from '../print/geometry.mjs';
 import {exportProgram,interpretProgram} from '../export/registry.mjs';
 import {unpackZip} from '../export/zip.mjs';
 
 test('fresh H2D generation preserves physically accepted colour and dual executables and project metadata',async()=>{
-  const r=await rhino();
   for(const [make,record]of [[h2dColourFixture,facts.generatedSameNozzle],[dualNozzleVerificationFixture,facts.generatedDualNozzle]]){
-    const {plan,machine}=make(),path=generatePath(plan,machine,r);
+    const {plan,machine}=make(),path=await generatePath(plan,machine);
     const bytes=exportProgram(path,plan,machine,{generatorVersion:'test',buildDate:facts.date});
     const program=interpretProgram(bytes,plan,machine);
     const executable=program.code.slice(program.code.indexOf('; EXECUTABLE_BLOCK_START'));

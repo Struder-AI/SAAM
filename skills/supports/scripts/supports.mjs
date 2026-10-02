@@ -1,14 +1,9 @@
+const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 // Tree supports: explicitly placed branches ending at assigned contacts. No
 // overhang/angle area discovery. A standard support under a footprint is a
 // slice assignment with the support preset (core/print/slices.mjs); trees are
 // sliced by the same preset, their branch sections as the layer regions.
-import {horizontalSlice,sliceFamily,prepareSection,section} from '../../../core/geom/slice.mjs';
-import {sliceAssignment,SUPPORT_GAPS} from '../../../core/print/slices.mjs';
-import {offsetRegion} from '../../../core/region/offset.mjs';
-import {union,intersect} from '../../../core/region/intersection.mjs';
-import {regionArea} from '../../../core/region/region2d.mjs';
-import {requireThat} from '../../../core/geom/tolerance.mjs';
-import {assignmentPlan,assignmentFilament} from '../../../core/print/assignment-process.mjs';
+const SUPPORT_GAPS={topGapMm:0.2,xyGapMm:0.3};
 
 export const SUPPORT_DEFAULTS={enabled:false,assignments:[],...SUPPORT_GAPS,treeChordMm:0.02};
 
@@ -52,47 +47,34 @@ function circle(x,y,r,chord){
 export function treeSection(a,z,settings,placement={xMm:0,yMm:0}) {
   if(z>a.contactZMm-settings.topGapMm+1e-8)return [];
   const nodes=new Map(a.treeNodes.map(n=>[n.id,n]));
-  let region=[];
+  const regions=[];
   for(const n of a.treeNodes){
     const p=nodes.get(n.parent);
     if(!p||z<p.point[2]-1e-8||z>n.point[2]+1e-8)continue;
     const t=(z-p.point[2])/(n.point[2]-p.point[2]);
     const x=p.point[0]+t*(n.point[0]-p.point[0]),y=p.point[1]+t*(n.point[1]-p.point[1]),r=p.radiusMm+t*(n.radiusMm-p.radiusMm);
-    region=union(region,[circle(x+placement.xMm,y+placement.yMm,r,settings.treeChordMm)]);
+    regions.push([circle(x+placement.xMm,y+placement.yMm,r,settings.treeChordMm)]);
   }
-  return region;
+  return regions;
 }
 
 // Tree supports as one support-preset slice result: interface layers are the
 // preset's solid top of the merged branch sections.
-export function prepareSupportContexts({plan,machine,shells}) {
-  const settings=plan.skills.supports;
+export function prepareSupportContexts({plan,processForAssignment,shells},{Geometry,Toolpath}) {
+  const settings=plan.skills?.supports;
   if(!settings?.enabled)return [];
-  const assignment=sliceAssignment({id:'supports',preset:'support',filament:assignmentFilament(plan,{id:'supports'})});
-  const selected=assignmentPlan(plan,machine,assignment),process=selected.process;
+  const process=processForAssignment({id:'supports'});
   const top=Math.max(...settings.assignments.map(a=>a.contactZMm-settings.topGapMm));
-  const family=sliceFamily({base:horizontalSlice(0),pitchMm:process.layerMm,firstLayerMm:process.firstLayerMm},{min:[0,0,0],max:[0,0,top]});
-  const obstacles=shells.map(shell=>({shell,part:prepareSection(shell,family.base)}));
-  const layers=family.layers.map(layer=>{
-    const z=layer.slice.origin[2];
-    const region=settings.assignments.reduce((merged,a)=>union(merged,treeSection(a,z,settings,plan.placement)),[]);
-    // This checks only assigned material at slicing planes. It does not scan
-    // normals or create support areas, silently trim branches, or reroute them.
-    for(const {shell,part} of obstacles){
-      if(z<shell.bounds.min[2]-1e-8||z>shell.bounds.max[2]+1e-8||!region.length)continue;
-      const obstacle=offsetRegion(section(part,layer.slice).loops,settings.xyGapMm);
-      requireThat(regionArea(intersect(region,obstacle))<1e-8,`Tree support meets part clearance at Z ${z.toFixed(3)} mm; revise its branches.`);
-    }
-    return {...layer,region};
-  });
+  // Only authored branches are sectioned; Geometry checks the explicit
+  // clearance at these levels without discovering or rerouting supports.
+  const family=Geometry.planarRegionLayers({topZ:top,process,shells,clearanceMm:settings.xyGapMm,
+    regionsAt:z=>settings.assignments.flatMap(a=>treeSection(a,z,settings,plan.placement))});
   const lastLayer=a=>Math.floor((a.contactZMm-settings.topGapMm-process.firstLayerMm+1e-8)/process.layerMm);
-  const shell={bounds:{min:[0,0,0],max:[0,0,top]}};
-  return [{spec:{id:'supports',layers,material:new Map(layers.map(layer=>[layer.index,layer.region])),settings:assignment,filament:assignment.filament,totalLayerCount:layers.length},
-    context:{process,machine,shell,startMm:0,endMm:top,report:{assignments:settings.assignments.map(a=>({id:a.id,reason:a.reason,
+  return [Toolpath.prepareSliceRegionContext({plan,id:'supports',preset:'support',processForAssignment,family,endMm:top,
+    validateResult:result=>requireThat(result.operations.length>0,'Assigned tree support produced no strokes; enlarge its branches.'),
+    report:{assignments:settings.assignments.map(a=>({id:a.id,reason:a.reason,
       contactZMm:a.contactZMm,actualTopGapMm:a.contactZMm-(process.firstLayerMm+lastLayer(a)*process.layerMm)})),
-    limitations:'Bed-rooted branches, explicit skeletons, planar contact heights; slice-plane clearance checks only. No automatic branch routing; physical performance unvalidated.'}},
-    family:{...family,layers},familyId:'supports',owner:{id:'supports',kind:'support',part:null,assignment},
-    layerOrder:layers.map(layer=>({index:layer.index,rank:layer.slice.origin[2]}))}];
+    limitations:'Bed-rooted branches, explicit skeletons, planar contact heights; slice-plane clearance checks only. No automatic branch routing; physical performance unvalidated.'}})];
 }
 
 // Support layers print before every part operation reaching above them, even
@@ -111,3 +93,6 @@ export function supportDependencies(supports,modelResults) {
   }
   return dependencyChanges;
 }
+
+export function supportRuntime(engines){return {validateSupports,prepareSupportContexts:input=>prepareSupportContexts(input,engines),supportDependencies};}
+export const supportRecordRuntime=()=>({validateSupports});

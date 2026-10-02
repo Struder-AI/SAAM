@@ -4,13 +4,12 @@ import { readFileSync } from 'node:fs';
 import { exportGriffin, interpretGriffin } from '../export/griffin.mjs';
 import { defaults, VERSION, BUILD_DATE } from '../print/plan.mjs';
 import { generatePath } from '../print/generate.mjs';
-import { rhino } from '../print/geometry.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 
 const machine=JSON.parse(readFileSync('machines/ultimaker-s5.json','utf8'));
 const plan=defaults();
 plan.geometry=splineBox({runMm:10,widthMm:10,heightMm:2});plan.process.minimumLayerSeconds=0;
-const path=generatePath(plan,machine,await rhino());
+const path=await generatePath(plan,machine);
 const emit=(m=machine,p=path)=>exportGriffin(p,plan,m,{generatorVersion:VERSION,buildDate:BUILD_DATE});
 
 test('machine templates preserve the last working S5 envelope',()=>{
@@ -36,7 +35,7 @@ test('shared interpretation rejects cold extrusion, unsupported state, and inval
   const code=emit();
   assert.throws(()=>interpretGriffin(code.replace('M109 T1 S215','M109 T1 S0'),plan,machine),/planned temperature/);
   assert.throws(()=>interpretGriffin(code.replace('G92 E0','G92 X0 E0'),plan,machine),/Unsupported arguments/);
-  assert.throws(()=>emit(machine,{...path,initialPosition:[330,219,undefined]}),/initial position/);
+  assert.throws(()=>emit(machine,{...path,initialPosition:[330,219,undefined]}),/tool bounds/);
   const broken=structuredClone(machine);delete broken.outputs[0].program;
   assert.throws(()=>emit(broken),/no program templates/);
 });

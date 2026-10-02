@@ -1,0 +1,69 @@
+// Construct a proposed recipe value; the caller owns the revisioned bundle edit.
+import {readFile,stat} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {isAbsolute} from 'node:path';
+import {compileText} from './text.mjs';
+
+const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
+
+
+export function unwrapTextGeometry(geometry){
+  const layers=[];
+  let base=geometry;
+  while(base.shape==='text'&&base.base&&!base.standalone){layers.push(base);base=base.base;}
+  return {base,layers};
+}
+
+export async function rebuildTextGeometry(base,layers,geometryOperations){
+  let rebuilt=base;
+  for(let i=layers.length-1;i>=0;i--){
+    const layer=layers[i];
+    rebuilt=await compileText(rebuilt,layer.features,{...geometryOperations,toleranceMm:layer.toleranceMm,maxEdgeMm:layer.maxEdgeMm});
+  }
+  return rebuilt;
+}
+
+export async function editText(source,request,geometryOperations){
+  requireThat(request&&Object.keys(request).every(k=>['feature','remove','part','standalone','assignments','toleranceMm','maxEdgeMm'].includes(k)),'Unknown text request field.');
+  requireThat(Boolean(request.feature)!==Boolean(request.remove),'Supply one feature to add/update, or remove its id.');
+  const plan=structuredClone(source);
+  const owner=request.part?plan.geometry.parts?.find(p=>p.id===request.part):plan;
+  requireThat(owner,'Unknown text target part.');
+  const geometry=owner.geometry;
+  requireThat(geometry.shape!=='assembly','Select an assembly part with part before applying text.');
+  requireThat(request.standalone===undefined||typeof request.standalone==='boolean','standalone must be a boolean.');
+  requireThat(!request.standalone||!request.remove,'Cannot remove a feature while replacing the target with standalone text.');
+  const old=geometry.shape==='text'&&!request.standalone?geometry:null;
+  const standalone=request.standalone??old?.standalone??false;
+  // Standalone removes the substrate from material, not from the reference.
+  // Preserve a native/mesh top so callers never have to copy its control net.
+  const base=old?old.base:geometry.shape==='text'?(geometry.base??geometry):geometry;
+  const features=structuredClone(old?.features??[]);
+  if(request.remove){
+    const index=features.findIndex(f=>f.id===request.remove);requireThat(index>=0,'Text feature id not found.');features.splice(index,1);
+  }else{
+    const feature=structuredClone(request.feature),index=features.findIndex(f=>f.id===(feature.id??'text'));
+    // Updates merge feature settings; replace the complete reference/baseline.
+    if(feature.fontPath){
+      requireThat(isAbsolute(feature.fontPath),'Choose an absolute fontPath.');
+      const info=await stat(feature.fontPath);requireThat(info.isFile(),'Font must be a regular file.');
+      const bytes=await readFile(feature.fontPath);
+      feature.font={data:bytes.toString('base64'),sha256:createHash('sha256').update(bytes).digest('hex'),postscriptName:feature.postscriptName??null};
+      delete feature.fontPath;delete feature.postscriptName;
+    }
+    const next={...(index>=0?features[index]:{}),...feature};
+    if(index>=0)features[index]=next;else features.push(next);
+  }
+  if(!features.length){requireThat(base&&!standalone,'Removing the last standalone text feature would leave no geometry.');owner.geometry=base;}
+  else {
+    owner.geometry=await compileText(base,features,{...geometryOperations,standalone,toleranceMm:request.toleranceMm??old?.toleranceMm??0.02,maxEdgeMm:request.maxEdgeMm??old?.maxEdgeMm??1});
+  }
+  // A removed/changed feature may invalidate a material selector. Let the caller
+  // replace those assignments in the same validated edit, without an invalid
+  // intermediate bundle or silently deleting dependent printing operations.
+  if(request.assignments!==undefined){
+    requireThat(Array.isArray(request.assignments),'Text assignments must be the complete common slice assignment list.');
+    plan.slices={...plan.slices,assignments:structuredClone(request.assignments)};
+  }
+  return {geometry:plan.geometry,...(request.assignments===undefined?{}:{assignments:plan.slices.assignments})};
+}

@@ -1,4 +1,5 @@
-import {requireThat,distance,normalize,dot,cross} from '../geom/tolerance.mjs';
+import {requireThat,distance,normalize,dot,cross} from '../private/toolpath/numeric.mjs';
+
 
 // A rotation-minimizing frame for a spatial centerline. The least-parallel
 // coordinate axis supplies the automatic initial normal. Closed curves spread

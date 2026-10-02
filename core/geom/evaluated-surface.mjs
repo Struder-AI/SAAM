@@ -1,4 +1,5 @@
-import {slicePoint,sliceNormal} from './slice.mjs';
+import {evaluateSurface} from './surface-evaluation.mjs';
+
 import {cross,dot,requireThat,distance} from './tolerance.mjs';
 
 // Plain slice descriptors retain their native geometry. Numerical derivatives
@@ -7,10 +8,7 @@ export function evaluatedSurfaceDerivatives(surface,u,v,{normalMm=0,toleranceMm=
   const domains=[surface.domainU,surface.domainV],coordinates=[u,v];
   requireThat(surface.kind==='slice-chart'&&domains.every((d,k)=>coordinates[k]>=d[0]&&coordinates[k]<=d[1]),'Evaluated surface sample leaves its chart domain.');
   requireThat(surface.slice.kind==='plane'||surface.slice.kind==='height-field'&&surface.slice.reference.kind==='spline','A piecewise roof or sleeve chart requires explicit corner transitions before physical parallel buffering.');
-  const pointAt=(a,b)=>{
-    const point=slicePoint(surface.slice,[a,b]),normal=sliceNormal(surface.slice,[a,b]);
-    return point.map((p,k)=>p+normal[k]*normalMm);
-  };
+  const pointAt=(a,b)=>evaluateSurface(surface.slice,[a,b],normalMm).point;
   const point=pointAt(u,v);
   const stencil=(axis,h)=>{
     const x=coordinates[axis],domain=domains[axis],center=Math.max(domain[0]+h,Math.min(domain[1]-h,x));

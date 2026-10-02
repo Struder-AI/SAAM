@@ -1,8 +1,9 @@
+import {requireThat} from '../private/toolpath/numeric.mjs';
 // Local nominal material occupied by a completed operation. This is a height
 // field over a footprint, not a swept nozzle/head or reconstructed bead model.
-import {clipOpenPaths} from '../region/intersection.mjs';
+import {clipLineToRegion} from '../geom/curve-region.mjs';
 import {offsetRegion} from '../region/offset.mjs';
-import {TOLERANCE,requireThat} from '../geom/tolerance.mjs';
+import {TOLERANCE} from '../geom/tolerance.mjs';
 import {SegmentIndex} from '../region/region2d.mjs';
 
 export function materialRegion(loops,{heightAt,maxZ,sampleStepMm=0.5,index=null}) {
@@ -29,17 +30,17 @@ export function materialRegion(loops,{heightAt,maxZ,sampleStepMm=0.5,index=null}
       return !Number.isFinite(z)||z>from[2]+(to[2]-from[2])*t+TOLERANCE.plane;
     };
     if(length2<1e-18){
-      // A tiny clipping probe preserves point/vertical queries at boundaries.
-      const inside=!edges.length||clipOpenPaths([[[from[0]-TOLERANCE.plane,from[1]],[from[0]+TOLERANCE.plane,from[1]]]],footprint).length>0;
+      // A singleton parameter range queries the vertical move's XY location.
+      const clipped=edges.length?clipLineToRegion(from.slice(0,2),[1,0],footprint,{range:[0,0]}):null;
+      const inside=!clipped||clipped.spans.length>0||clipped.contacts.length>0;
       return inside&&(blocked(from[0],from[1],0)||blocked(to[0],to[1],1));
     }
-    const spans=edges.length?clipOpenPaths([[from.slice(0,2),to.slice(0,2)]],footprint):[[from,to]];
-    for(const span of spans){
-      const a=span[0],b=span.at(-1);
-      const steps=heightAt?Math.max(2,Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/sampleStepMm)):1;
+    const clipped=edges.length?clipLineToRegion(from.slice(0,2),[dx,dy],footprint,{range:[0,1]}):{spans:[[0,1]],contacts:[]};
+    // Closed material includes isolated tangent and collinear boundary contact.
+    for(const [a,b] of [...clipped.spans,...clipped.contacts]){
+      const steps=heightAt?Math.max(2,Math.ceil(Math.sqrt(length2)*(b-a)/sampleStepMm)):1;
       for(let i=0;i<=steps;i++){
-        const x=a[0]+(b[0]-a[0])*i/steps,y=a[1]+(b[1]-a[1])*i/steps;
-        const t=Math.max(0,Math.min(1,((x-from[0])*dx+(y-from[1])*dy)/length2));
+        const t=a+(b-a)*i/steps,x=from[0]+dx*t,y=from[1]+dy*t;
         if(blocked(x,y,t))return true;
       }
     }

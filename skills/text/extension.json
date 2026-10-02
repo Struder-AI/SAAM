@@ -1,0 +1,1 @@
+{"schema":"saam-extension/1","id":"text","dependencies":[],"entries":{"geometry-edit":{"file":"scripts/edit.mjs","export":"editText"},"geometry-compile":{"file":"scripts/text.mjs","export":"compileText"},"record-runtime":{"file":"scripts/record.mjs","export":"textRecordRuntime"}},"license":"Apache-2.0","provenance":"SAAM release"}

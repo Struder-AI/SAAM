@@ -1,93 +1,40 @@
-// One STL import entry for CLI and MCP: preserve source, assumed or explicit units,
-// remembered setup, native mesh verification and the normal print lifecycle.
-import { initBundle, proposedPlan, loadBundle, updatePlan } from './bundle.mjs';
+// Agent import commands coordinate Geometry and Bundle; persistence accepts completed artifacts.
+import {initBundle,loadBundle,updatePlan} from './bundle.mjs';
+import {changeMachine} from '../machine/bundle-settings.mjs';
 import {readFile,mkdir,realpath,rm} from 'node:fs/promises';
 import {resolve,join,dirname,basename} from 'node:path';
-import {isMainThread} from 'node:worker_threads';
-import { hash } from './plan.mjs';
-import { loadMachine, toolBounds, centeredPlacement } from '../machine/profile.mjs';
-import { decodeSTL,parseSTL,makeMesh } from '../geom/mesh.mjs';
-import {decodeSTLFile} from '../geom/stl-file.mjs';
-import {repairSTLFiles} from './repair-stl.mjs';
-import {runRepairJob} from './mesh-repair-job.mjs';
+import {createHash} from 'node:crypto';
+import {recipeDefaults} from './plan.mjs';
+import {prepareSTLImport,releaseSTLImport} from '../geom/import-stl.mjs';
+export {inferSTLUnits} from '../geom/import-stl.mjs';
 
-export function inferSTLUnits(mesh,bounds){
-  const size=[0,1,2].map(k=>{let min=Infinity,max=-Infinity;for(const p of mesh.vertices){min=Math.min(min,p[k]);max=Math.max(max,p[k]);}return max-min;});
-  const longest=Math.max(...size),fitsInches=size.every((v,k)=>v*25.4<=bounds.max[k]-bounds.min[k]-(k<2?5:0));
-  // Provisional D-030: prefer mm; only reinterpret a very small model when
-  // inches give a plausible size that still fits this printer.
-  return longest<10&&longest*25.4>=10&&fitsInches?'inch':'mm';
-}
-function geometryFromSTL(sourceHash,units,mesh,inferred=false){
-  const factor=units==='inch'?25.4:1;
-  const translationMm=[0,1,2].map(k=>-mesh.vertices.reduce((minimum,p)=>Math.min(minimum,p[k]*factor),Infinity));
-  return {shape:'mesh',vertices:mesh.vertices.map(p=>p.map((v,k)=>v*factor+translationMm[k])),triangles:mesh.triangles,source:{format:'stl',sha256:sourceHash,units,scale:1,unitsInferred:inferred,translationMm}};
-}
-export async function importSTLBundle(directory, sourceBytes, { units='auto', machineId, setupFile,signal,progress,attribution,repairReport } = {}) {
-  if(!['auto','mm','inch'].includes(units))throw Error('Use auto, mm or inch STL units.');
-  const machine = loadMachine(machineId);
-  const plan = await proposedPlan(machine.id, { setupFile });
-  const bounds = toolBounds(machine, plan.setup.tool);
-  const file=typeof sourceBytes==='string',mesh=file?await decodeSTLFile(sourceBytes,{units:'mm',signal,progress}):parseSTL(sourceBytes,{units:'mm'}),inferred=units==='auto';
-  if(file)makeMesh(mesh.vertices,mesh.triangles);
-  if(inferred)units=inferSTLUnits(mesh,bounds);
-  plan.geometry=geometryFromSTL(file?mesh.sha256:hash(sourceBytes),units,mesh,inferred);
-  if(attribution){
-    if(attribution.sha256!==(repairReport?.sourceSha256??plan.geometry.source.sha256)||repairReport&&repairReport.repairedSha256!==plan.geometry.source.sha256)throw Error('Mesh attribution does not match the downloaded source hash or verified repair.');
-    plan.geometry.source.attribution=structuredClone(attribution);
-    if(repairReport)plan.geometry.source.repair={sourceSha256:repairReport.sourceSha256,repairedSha256:repairReport.repairedSha256};
-  }
-  // Centre the imported mesh on the plate. Its vertices were translated to put
-  // the minimum XY at the origin, so the footprint size is the vertex span.
-  const footprint=[0,1].map(k=>{let mn=Infinity,mx=-Infinity;for(const p of plan.geometry.vertices){mn=Math.min(mn,p[k]);mx=Math.max(mx,p[k]);}return mx-mn;});
-  plan.placement = centeredPlacement(machine, plan.setup.tool, { runMm: footprint[0], widthMm: footprint[1] }) ?? { xMm: bounds.min[0] + 5, yMm: bounds.min[1] + 5 };
-  return initBundle(directory, plan, { machineId: machine.id, setupFile, ...(file?{sourcePath:resolve(sourceBytes)}:{sourceBytes}) });
-}
-
-// Malformed input, resource limits and setup failures keep their original
-// diagnostic. Only recognized geometric defects are candidates for repair.
-const repairable=error=>error.meshDiagnostic?.kind==='triangle-intersection'
-  ||/^(?:Degenerate mesh triangle\.|Duplicate mesh triangle\.|Invalid mesh triangle indices\.|Mesh must be closed, manifold and consistently wound;|Unused or nonmanifold mesh vertex\.|Nonmanifold mesh vertex\.)/.test(error.message);
-
-// All user-facing imports own a fresh destination. A stopped worker can leave
-// partial files, so cleanup belongs to this supervisor, after the job settles.
-export async function createSTLBundle(directory,source,options={}){
+export async function commitSTLImport(directory,candidate,options={}){
   options.signal?.throwIfAborted();
   await mkdir(dirname(resolve(directory)),{recursive:true});
   const parent=await realpath(dirname(resolve(directory))),target=join(parent,basename(resolve(directory)));
   try{await mkdir(target);}catch(error){if(error.code==='EEXIST')error.importDestinationExists=true;throw error;}
-  try{return {directory:target,...await importOrRepairSTLBundle(target,source,options)};}
-  catch(error){
+  try{
+    await initBundle(target,{...recipeDefaults(),geometry:candidate.geometry},{machineId:null,
+      sourcePath:candidate.sourcePath,preparedGeometry:candidate.artifact,attachments:candidate.attachments});
+    options.signal?.throwIfAborted();
+    if(options.machineId)await changeMachine(target,options.machineId,{setupFile:options.setupFile});
+    options.signal?.throwIfAborted();
+    return {directory:target,repaired:candidate.repaired};
+  }catch(error){
     try{if(await realpath(target)===target&&dirname(target)===parent)await rm(target,{recursive:true,force:true,maxRetries:3,retryDelay:100});}
     catch(cleanup){if(cleanup.code!=='ENOENT'){error.cleanupError=cleanup.message;error.message+=' Incomplete import cleanup failed: '+cleanup.message;}}
     throw error;
   }
 }
-
-// Import into a new bundle directory; on an eligible defect, repair into its
-// repair/ folder (original, repaired STL and report) and import the result.
-// The caller owns the directory and removes it if this rejects.
-// Progress stages: import, repair (with the repair step), import-repaired.
-export async function importOrRepairSTLBundle(directory,sourceBytes,options={}){
-  if(isMainThread)return runRepairJob('import',directory,sourceBytes,options);
-  const {progress,signal,...settings}=options;
-  const source=typeof sourceBytes==='string'?sourceBytes:Buffer.from(sourceBytes);
-  progress?.({stage:'import'});
-  try{await importSTLBundle(directory,source,{...settings,signal,progress:event=>progress?.({...event,stage:'import',step:event.stage})});return {repaired:false};}
-  catch(error){if(!repairable(error))throw error;}
-  let units=settings.units;
-  if(units===undefined||units==='auto'){
-    const machine=loadMachine(settings.machineId),plan=await proposedPlan(machine.id,{setupFile:settings.setupFile});
-    const mesh=typeof source==='string'?await decodeSTLFile(source,{units:'mm',signal,progress}):decodeSTL(source,{units:'mm'});
-    units=inferSTLUnits(mesh,toolBounds(machine,plan.setup.tool));
+export async function createSTLBundle(directory,source,options={}){
+  const candidate=await prepareSTLImport(source,options);
+  try{
+    return await commitSTLImport(directory,candidate,options);
   }
-  const repairDirectory=join(directory,'repair');
-  progress?.({stage:'repair'});
-  const repairReport=await repairSTLFiles(repairDirectory,source,{units,maxHoleEdges:0,maxHoleDiameterMm:0,signal,nativeReady:settings.nativeReady,nativeRun:settings.nativeRun,
-    progress:event=>progress?.({...event,stage:'repair',step:event.stage})});
-  progress?.({stage:'import-repaired'});
-  await importSTLBundle(directory,join(repairDirectory,'repaired.stl'),{...settings,repairReport,units:'mm',signal,progress:event=>progress?.({...event,stage:'import-repaired',step:event.stage})});
-  return {repaired:true};
+  finally{await releaseSTLImport(candidate);}
+}
+export async function importSTLBundle(directory,source,options={}){
+  return (await createSTLBundle(directory,source,{...options,repair:false})).directory;
 }
 
 export async function setSTLUnits(directory,units,{expectedRevision}={}){
@@ -95,7 +42,7 @@ export async function setSTLUnits(directory,units,{expectedRevision}={}){
   const state=await loadBundle(directory,{program:false}),original=state.plan.geometry;
   if(original.shape!=='mesh'||original.source?.format!=='stl')throw Error('This operation changes the units of an imported STL mesh.');
   const bytes=await readFile(resolve(directory,'geometry/source.stl'));
-  if(hash(bytes)!==original.source.sha256)throw Error('The retained STL source changed.');
+  if(createHash('sha256').update(bytes).digest('hex')!==original.source.sha256)throw Error('The retained STL source changed.');
   const factor=(units==='inch'?25.4:1)/(original.source.units==='inch'?25.4:1);
   const geometry={...original,vertices:original.vertices.map(p=>p.map(v=>v*factor)),source:{...original.source,units,unitsInferred:false}};
   if(original.source.translationMm)geometry.source.translationMm=original.source.translationMm.map(v=>v*factor);

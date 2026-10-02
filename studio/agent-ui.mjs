@@ -1,10 +1,10 @@
 import {summarizeWork,requestReceiptState} from './work-state.mjs';
 export {summarizeWork} from './work-state.mjs';
-export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentation=()=>{},getStage=()=>null}={}){
+export function createAgentUI({onActivity=()=>{},onWork=()=>{},onRequests=()=>{},onPresentation=()=>{},getStage=()=>null}={}){
   const indicator=document.getElementById('agent-status'),dots=indicator.querySelector('.typing-dots'),notice=document.getElementById('agent-timeout');
   // chat.working: the runtime says the chat is working, with or without a Studio request.
   const chat={working:false};
-  let running=false,refreshAgain=false,requests=[],view={},lastActivity,askedPresentation;const closedOwners=new Map(),retired=new Map();
+  let running=false,refreshAgain=false,requests=[],view={},lastActivity,lastWork=false,askedPresentation;const closedOwners=new Map(),retired=new Map();
   function merge(records,snapshot){
     const merged=new Map(requests.map(r=>[r.id,r]));let changed=false;
     for(const record of records){const previous=merged.get(record.id);
@@ -33,6 +33,7 @@ export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentatio
     indicator.hidden=!active&&!message;dots.hidden=!active;notice.hidden=!message;notice.textContent=message;
     indicator.setAttribute('aria-label',active?'Updating preview':message);
     if(active!==lastActivity){lastActivity=active;onActivity(active);}
+    if(summary.active!==lastWork){lastWork=summary.active;onWork(summary.active);}
     // The server decides whether a drawn view actually receipts a request, and
     // may decline. Ask again only when the displayed view or the records moved,
     // so a declined acknowledgement cannot become a standing retry.
@@ -74,6 +75,7 @@ export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentatio
   void refresh();setInterval(render,750);
   function present(work){if(!work)return;view={...view,printId:work.printId,snapshot:work.snapshot,ready:true,errorAt:null,awaitingConfirmation:work.awaitingConfirmation===true};render();}
   return {refresh,reflectFade,
+    pending(){return summarizeWork(requests,{closedOwners,view}).active;},
     generating(){return summarizeWork(requests,{closedOwners,view}).stage==='toolpath';},
     updated(records){merge(records);render();},
     loading(stage){view={...view,loading:true,loadingStage:stage??null,ready:false,errorAt:null};render();},

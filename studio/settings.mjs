@@ -1,5 +1,3 @@
-import {planarWallTolerance} from '../core/machine/rules.mjs';
-import {filamentPlan,assignedFilaments} from '../core/machine/filaments.mjs';
 // Human-readable review of the same locked recipe used by every adapter.
 const supportSkills=['supports'];
 export const skillName=name=>({'pipe-cladding':'Surface cladding','vase-wall':'Vase wall',supports:'Tree supports'}[name]??name);
@@ -156,7 +154,7 @@ function curveAssignmentRows(a){
     if(a.repeat)rows.push([a.id+' · Repetition',a.repeat.family?'Family '+a.repeat.family+' · '+(a.repeat.indices?.join(', ')??'all layers'):a.repeat.translation.join(', ')+' mm × '+a.repeat.count]);
     for(const [i,c] of a.curves.entries()){
       const label=a.id+' · Curve '+(i+1);
-      const source=c.text?'Text “'+c.text.text+'” · '+c.text.fontId:c.uv?'UV '+c.uv.reference.kind+' reference':c.nurbs?'NURBS degree '+c.nurbs.degree:c.points.length+' points';
+      const source=c.uv?'UV '+c.uv.reference.kind+' reference':c.nurbs?'NURBS degree '+c.nurbs.degree:c.points.length+' points';
       rows.push([label,(c.closed?'Closed':'Open')+' · '+source+' · '+(c.role??'trace')]);
       if(c.courses)rows.push([label+' courses',c.courses.map(n=>n+1).join(', ')]);
       for(const [key,title,unit] of [['beadWidthMm','Bead width',' mm'],['heightMm','Bead height',' mm'],['speedMmS','Speed',' mm/s'],['flowMultiplier','Flow multiplier','×']])
@@ -171,17 +169,23 @@ export function recipeRows(plan,machine){
   rows.push(['Experimental substrate adaptation',plan.experimental?.substrateAdaptation?'On · final deposited contact sets gap and volume; surface-following constructions may change placement':'Off · nominal reference geometry and bead rules']);
   if(plan.setup.bambu){
     rows.push(['Bambu startup',plan.setup.bambu.fast_start?'Fast — reuse calibration; skip optional scans and vibration tests':'Full — calibration follows startup controls / printer choices']);
-    const used=[...new Set([plan.setup.bambu.filament,...assignedFilaments(plan)].filter(i=>i!==undefined))];
+    const used=[...new Set([plan.setup.bambu.filament,
+      ...(plan.slices?.assignments??[]).map(a=>a.filament),
+      ...(plan.composition?.filaments??[]).map(route=>route.filament)].filter(i=>i!==undefined&&i!==null))];
     const change=machine.outputs.find(o=>o.id===plan.output)?.constraints;
     if(used.length>1&&change?.materialChangeMode==='single-nozzle-ams')rows.push(['AMS colour changes',`${change.materialChangeFlushMm3} mm³ purged into the rear chute per change, plus priming. No tower; service time/material are additional to part totals.`]);
     for(const id of used){
-      const selected=filamentPlan(plan,machine,id),s=selected.setup,p=selected.process,entry=plan.setup.bambu.filaments?.[id];
-      const source=entry?.source?.type==='external'?'External spool':entry?.source?.type==='ams-ht'?`Requested AMS HT ${entry.source.unit}`:s.ams?`Requested AMS ${s.ams.unit}, slot ${s.ams.slot}`:'Automatic material/colour matching';
-      rows.push([`Filament ${id+1}`,`${machine.tools.find(t=>t.index===s.tool).label} · ${s.nozzleMm} mm nozzle · ${s.material} ${entry?.colour??s.filamentColor??''} · ${s.nozzleC}°C · ${source}`],
-        [`Filament ${id+1} · Process`,`${p.lineWidthMm} mm bead · ${p.layerMm} mm layers · ${p.maxFlowMm3S} mm³/s maximum flow`]);
+      const entry=plan.setup.bambu.filaments?.[id],tool=entry?.tool??plan.setup.tool;
+      const nozzleMm=tool===plan.setup.tool?plan.setup.nozzleMm:plan.setup.bambu.otherNozzleMm;
+      const p={...plan.process,...entry?.process};
+      const ams=entry?.source?.type==='ams'?{unit:entry.source.unit,slot:entry.source.slot}:
+        entry?.source?.type==='external'?null:id===plan.setup.bambu.filament?plan.setup.ams:null;
+      const source=entry?.source?.type==='external'?'External spool':entry?.source?.type==='ams-ht'?`Requested AMS HT ${entry.source.unit}`:ams?`Requested AMS ${ams.unit}, slot ${ams.slot}`:'Automatic material/colour matching';
+      rows.push([`Filament ${id+1}`,`${machine.tools.find(t=>t.index===tool)?.label??`Tool ${tool}`} · ${nozzleMm} mm nozzle · ${plan.setup.material} ${entry?.colour??plan.setup.filamentColor??''} · ${entry?.nozzleC??plan.setup.nozzleC}°C · ${source}`],
+        [`Filament ${id+1} · Process`,`${p.lineWidthMm} mm bead · ${p.layerMm} mm layers`]);
     }
   }
-  rows.push(['Machine · Planar wall tolerance',planarWallTolerance(machine)+' mm'],...sliceRows(plan));
+  rows.push(['Process · Planar wall tolerance',plan.process.planarWallToleranceMm+' mm'],...sliceRows(plan));
   for(const m of plan.modulations?.modifiers??[])rows.push([m.id+' · Modulation',m.channel+' · '+m.field.kind+' field · amplitude '+m.amplitude+(m.channel==='displacement'?' mm':m.channel==='tilt'?'°':'')],
     [m.id+' · Applies to',(m.assignments?.join(', ')??'All assignments')+' · '+(m.roles?.join(', ')??'All stroke roles')],
     ...(m.direction?[[m.id+' · Direction',typeof m.direction==='string'?m.direction:m.direction.join(', ')+' in '+(m.frame??'world')+' coordinates']]:[]),

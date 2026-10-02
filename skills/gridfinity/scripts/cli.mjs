@@ -1,6 +1,6 @@
+import {applyExtensionEdit,createExtensionBundle} from '../../../core/print/extension-edits.mjs';
 import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
-import {createGridfinityBundle,updateGridfinityBundle} from './bundle.mjs';
 
 const args=process.argv.slice(2),[action,directory,file,...flags]=args;
 try{
@@ -12,7 +12,8 @@ try{
     options[key]=flags[i+1];
   }
   if(action==='create'&&(options.expectedRevision||options.part)||action==='update'&&options.machineId)throw new Error('Machine applies to create; revision and part apply to update.');
+  if(action==='update'&&!options.expectedRevision)throw Error('Gridfinity edits require expectedRevision from the current print.');
   const parameters=JSON.parse(await readFile(resolve(file),'utf8'));
-  const state=await (action==='create'?createGridfinityBundle:updateGridfinityBundle)(resolve(directory),parameters,options);
+  const state=await (action==='create'?createExtensionBundle:applyExtensionEdit)(resolve(directory),'gridfinity',parameters,options);
   console.log(JSON.stringify({print:state.dir,revision:state.revision,boundsMm:state.geometry.boundsMm,toolpathApproved:state.toolpathApproved},null,2));
 }catch(error){console.error(error.message);process.exitCode=1;}

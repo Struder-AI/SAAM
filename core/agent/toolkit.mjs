@@ -8,7 +8,8 @@ import {promisify} from 'node:util';
 import {randomUUID} from 'node:crypto';
 import {readManual} from './manuals.mjs';
 import {ONBOARDING} from './layers.mjs';
-import {SKILL_IDS,GUIDANCE_IDS,BUILDER_IDS} from '../../skills/catalog.mjs';
+import {SKILL_IDS, GUIDANCE_IDS, EXTENSION_IDS,BUILDER_IDS} from '../../skills/catalog.mjs';
+import {listExtensions,readExtension} from '../extensions/library.mjs';
 import {lifecycleReview} from '../print/review-state.mjs';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -38,7 +39,13 @@ const json = async path => JSON.parse(await readFile(path, 'utf8'));
 // Manuals as this command-line agent reads them: script sections included, advanced ones for
 // the named machine (see manuals.mjs#assembleGuidance).
 export async function contextPacket(ids, context = {}) {
-  return {documents: await Promise.all([...new Set(ids)].map(id => readManual(root, id, {client: 'script', ...context})))};
+  const documents=await Promise.all([...new Set(ids)].map(id => readManual(root, id, {client: 'script', ...context})));
+  if(ids.includes('skills/DIGEST.md')){
+    const local=(await listExtensions({appRoot:root})).filter(item=>item.origin==='local');
+    if(local.length)documents.push({guidanceId:'extensions',path:'extensions',
+      text:'User extensions selected ahead of release defaults: '+local.map(item=>item.id).join(', ')+'. Read each by ID with read-skill.'});
+  }
+  return {documents};
 }
 
 // What of main this checkout holds, for the one-line report a maker or builder gives at session
@@ -76,7 +83,8 @@ async function environmentStatus() {
 // `ID#heading` reads one section of the maker manual, whatever its gate.
 export async function readSkill(name, {maker = false, builder = false, developer = false, machine: machineId, all = false} = {}) {
   const [id, anchor] = name.split('#');
-  if (!SKILL_IDS.includes(id)&&!GUIDANCE_IDS.includes(id)&&!BUILDER_IDS.includes(id)) throw Error(`Unknown skill or guidance manual: ${id}. Known skills and guidance manuals: ${[...SKILL_IDS,...GUIDANCE_IDS].join(', ')}.`);
+  const extension=await readExtension(id,{appRoot:root});
+  if (!SKILL_IDS.includes(id)&&!GUIDANCE_IDS.includes(id)&&!extension&&!BUILDER_IDS.includes(id)) throw Error(`Unknown skill or guidance manual: ${id}. Use the catalog to find installed extensions.`);
   if (anchor && (builder || developer)) throw Error('A #heading reads the maker manual; drop --builder and --developer.');
   if(BUILDER_IDS.includes(id)&&maker)throw Error(`${id} is builder context; import and repair are handled by the ordinary maker lifecycle.`);
   const roles = {maker, builder:builder||BUILDER_IDS.includes(id), developer};
@@ -84,8 +92,8 @@ export async function readSkill(name, {maker = false, builder = false, developer
   const files = {maker: 'SKILL.md', builder: 'BUILDER.md', developer: 'DEVELOPER.md'};
   const ids = [], unavailableRoles = [];
   for (const role of Object.keys(roles).filter(role => roles[role])) {
-    const path = `skills/${id}/${files[role]}`;
-    try { await access(resolve(root, path)); }
+    const path = `${extension?'extensions':'skills'}/${id}/${files[role]}`;
+    try { if(extension){if(!extension.files.some(file=>file.path===files[role])){const error=new Error('Missing optional manual.');error.code='ENOENT';throw error;}}else await access(resolve(root, path)); }
     catch (error) {
       if (error.code !== 'ENOENT' || role === 'maker') throw error;
       unavailableRoles.push(role);
@@ -99,52 +107,46 @@ export async function readSkill(name, {maker = false, builder = false, developer
   return {skillId: id, roles: Object.keys(roles).filter(role => roles[role]), unavailableRoles, documents};
 }
 
-// One page of the stored map per key: an index, or the declaration path that index is for.
-// The read never scans. --code returns source; --details retains scanner evidence.
-export async function readMaps(keys, options = {}) {
-  const {readGenerated, readCode} = await import('../../dev-map/lib/store.mjs');
-  const {compactPage, detailedPage} = await import('../../dev-map/lib/agent-view.mjs');
-  // --details is the same page the map draws, with the stored evidence kept under it.
-  return Promise.all(keys.map(async key => {
-    const page = await (options.code ? readCode(key) : readGenerated(key));
-    return options.details ? detailedPage(page) : compactPage(page, options);
-  }));
+// Map-set selection belongs to each command. A separate CLI process keeps its
+// process-wide set configuration from leaking between reads of different sets.
+export const developerMapSet = '030-architecture';
+async function mapCommand(set, command, args = []) {
+  const {stdout} = await promisify(execFile)(process.execPath,
+    [resolve(root, 'dev-map/cli.mjs'), command, ...args, '--set', set], {cwd: root, maxBuffer: 32 * 1024 * 1024});
+  return {mapSet: set, ...JSON.parse(stdout)};
 }
 
-// Scanning is a choice, and this is the only command that makes it. With no index, or `0`, it
-// generates everything; an index is accepted and generates everything too, since any change can
-// move what nests where.
-export async function regenerateMap() {
-  const {generate} = await import('../../dev-map/lib/store.mjs');
-  const result = await generate();
-  // The person's viewer follows every regenerate, so it always shows the latest stored map.
-  const {drawView} = await import('../../dev-map/lib/generated-view.mjs');
-  return {...result, view: await drawView()};
+// Design addresses name nodes/contracts; scanned addresses name declarations.
+// Reads never scan. Select `default` explicitly for the original implementation map.
+export async function readMaps(keys, options = {}) {
+  return Promise.all(keys.map(key => mapCommand(options.set ?? developerMapSet, 'read',
+    [key, ...(options.code ? ['--code'] : []), ...(options.source ? ['--source'] : []), ...(options.details ? ['--details'] : [])])));
+}
+
+// Design regeneration redraws authored maps; its implementation audit is separate.
+export async function regenerateMap(index, {set = developerMapSet} = {}) {
+  return mapCommand(set, 'regenerate', index ? [index] : []);
 }
 
 // Three roles, three readings. A maker reads prose and no map. A builder reads prose — its own
 // manual, skill authoring and the component manual for the area — and may walk the map. A
 // developer reads shared terms, the orientation and map `0`; component manuals open as needed.
 // A maker's manuals open by client and machine; a builder's and developer's are read whole.
-export async function onboarding({role, areas = [], machine: machineId}) {
+export async function onboarding({role, areas = [], machine: machineId, set = developerMapSet}) {
   if (!['maker', 'builder', 'developer'].includes(role)) throw Error('Choose maker, builder or developer onboarding.');
   const outside = areas.filter(area => Object.hasOwn(outsideAreas, area));
   const targets = [...new Set(areas.filter(area => !Object.hasOwn(developmentAreas, area)))];
   const builderAreaIds = [...new Set(areas.flatMap(area => developmentAreas[area] ?? []))];
   const ids = role === 'maker' ? ONBOARDING
     : role === 'builder' ? ['BUILDERS.md', ...ONBOARDING, 'skills/AUTHORING.md', ...builderAreaIds]
-    : ['GLOSSARY.md', 'DEVELOPER-CONTEXT.md#orientation', ...new Set(outside.flatMap(area => outsideAreas[area]))];
+    : ['plans/0.3.0.md', 'plans/0.3.1.md', 'GLOSSARY.md', 'DEVELOPER-CONTEXT.md#orientation', ...new Set(outside.flatMap(area => outsideAreas[area]))];
   const mapKeys = role === 'maker' ? [] : [...(role === 'developer' ? ['0'] : []), ...targets];
-  if (mapKeys.length) {
-    const {readIndex, storeDir} = await import('../../dev-map/lib/store.mjs');
-    if (!await readIndex(storeDir(root))) await regenerateMap();
-  }
   const [context, environment, maps] = await Promise.all([contextPacket(ids, role === 'maker' ? {machineId} : {all: true}),
-    environmentStatus(), mapKeys.length ? readMaps(mapKeys) : []]);
-  return {role, environment, ...context, maps,
+    environmentStatus(), mapKeys.length ? readMaps(mapKeys, {set}) : []]);
+  return {role, environment, ...context, maps, ...(mapKeys.length ? {mapSet: set} : {}),
     nextStep: role === 'maker' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context and choose individual skill manuals when an edit needs them. The digest indexes gated sections; read one by name when its gate applies.'
       : role === 'builder' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context. Builders author guidance, recipe helpers, assets, examples and diagnostics using published APIs. Core skills and shared capability/contract changes require the developer role. The component manual for the area you consume owns its behaviour, contracts and limits; read the one for the code you touch. The dev maps own structure: walk them from 0, or from a node you name with --area, for what calls what, with read-map INDEX|DECLARATION and --code, and run regenerate [INDEX] after an edit. Skills and adapters keep their own authoring references.'
-      : 'Reuse the returned context. Walk the dev maps from the returned top map: every map numbers the leaves and clusters it homes under itself; a cluster opens as its map and a leaf as its code, and a repeat box names its node’s home. Read a node with read-map INDEX|DECLARATION, and its source with --code. After an edit run regenerate [INDEX] and read again. Indexes are for talking about a node, not for writing down; the declaration path is the durable name. Skills and adapters keep their own authoring references. The dev maps and DEVELOPER-CONTEXT.md are your orientation; open a component manual when the work calls for it, as when a change needs it rewritten.'};
+      : `Reuse the returned release intents and orientation. Continue in map set ${set}: pass --set ${set} to map commands. 0.3.0 deployment uses 030-deployment; 0.3.1 product architecture uses 030-architecture (the identifier is retained). Design maps express intended contracts, not proven implementation; use --source for their explicit source references. Use --set default only for the original scanned implementation map, with --code. Design regenerate redraws; audit and audit-check separately assess implementation and freshness. Open component manuals as needed.`};
 }
 
 function libraryPath(library) { return resolve(library ?? resolve(root, 'Prints')); }
@@ -160,7 +162,7 @@ export function printSummary(state, {includeGeometry = false, programChecked = t
   return {directory: state.dir, kind: state.kind, revision: state.revision, geometryHash:state.geometryHash,
     plan, planComplete: includeGeometry,
     geometry: {boundsMm: state.geometry?.boundsMm, nativeFile: state.geometry?.nativeFile},
-    machine: {id: state.machine.id, name: state.machine.name}, skills: state.skills,
+    machine: state.machine?{id: state.machine.id, name: state.machine.name}:null, skills: state.skills,
     toolpathApproved: lifecycle.toolpathApproved,
     generation: {record: state.review.generation, programChecked,
       current: lifecycle.current,
@@ -197,6 +199,7 @@ async function preparePrint({command, target, libraryRoot, recipe, stl, machine,
       const {createSTLBundle} = await import('../print/import-stl.mjs');
       const imported=importSTL?await importSTL({directory:prepared.directory,source:resolve(stl),machineId:machine,units})
         :await createSTLBundle(prepared.directory, resolve(stl), {...options, units,signal,progress:onProgress});
+      if(importSTL&&machine){const {changeMachine}=await import('../machine/bundle-settings.mjs');await changeMachine(prepared.directory,machine,{setupFile});}
       prepared.repaired=imported.repaired;
     } else {
       const adapter = await import('../print/bundle.mjs');
@@ -261,7 +264,7 @@ async function preparePreviewPrint(options,tour){
   try{
     const fresh=await tour.action('fresh');
     prepared={directory:fresh.directory,created:true};
-    await tour.setStartAt({layer:options.startAtLayer});
+    if(options.startAtLayer!==undefined)await tour.setStartAt({layer:options.startAtLayer});
     return {prepared};
   }catch(error){return {prepared,error};}
 }
@@ -309,10 +312,10 @@ async function closePreview(server,agentRequests,studioEvents){
 
 // The caller owns this live server. No detached process or global session registry.
 export async function preview({command, target, library, recipe, stl, kind = 'shell', machine,
-  units = 'auto', startAtLayer = 12, noOpen = false, ownerId: resumeOwner, onReady = () => {},onRequest=()=>{},onEvents=()=>{},signal,onProgress}) {
+  units = 'auto', startAtLayer, noOpen = false, ownerId: resumeOwner, onReady = () => {},onRequest=()=>{},onEvents=()=>{},signal,onProgress}) {
   if (!['start-tour', 'open-print', 'create-preview'].includes(command)) throw Error('Unknown preview command.');
   validatePreview({command, target, recipe, stl, kind, units});
-  if (!Number.isInteger(startAtLayer) || startAtLayer < 1) throw Error('Start layer must be a positive integer.');
+  if (startAtLayer!==undefined&&(!Number.isInteger(startAtLayer) || startAtLayer < 1)) throw Error('Start layer must be a positive integer.');
   if (command !== 'start-tour' && !target) throw Error('Supply a print directory.');
   // A relaunch may resume the agent owner it reports in studio-ready, so the
   // requests and events of the previous run stay visible to the same agent.
@@ -340,6 +343,7 @@ export async function preview({command, target, library, recipe, stl, kind = 'sh
     if (stl) partial.assumptions.units = initial.sourceUnits;
     stage = 'launch-studio';
     server = createStudio(prepared.directory, {libraryRoot,agentOwnerId:ownerId,agentRequests,closeAgentRequests:true,studioEvents});
+    await server.ready();
     const session=subscribePreview(server,agentRequests,studioEvents,{onRequest,onEvents});
     const studio=await listenPreview(server,prepared.directory,ownerId,session);
     partial.studio=studio;
@@ -486,7 +490,7 @@ export async function inspectFailure({target, library, requestId, includeGeometr
     } catch (readError) { result.recipeReadError = readError.message; }
   }
   result.context = await contextPacket(['core/print/USAGE.md#check-generate-and-deliver']);
-  result.skillReferences = [...new Set(skills ?? [])].filter(id => SKILL_IDS.includes(id)||GUIDANCE_IDS.includes(id))
+  result.skillReferences = [...new Set(skills ?? [])].filter(id => SKILL_IDS.includes(id)||GUIDANCE_IDS.includes(id)||EXTENSION_IDS.includes(id))
     .map(id => ({skillId: id, guidanceId: `skills/${id}/SKILL.md`, command: `read-skill ${id}`}));
   result.nextStep = 'Judge which skill limits and linked references explain this failure, then read the selected manuals individually before choosing a correction.';
   result.failureEvidence = 'Requests preserve Studio failure messages. CLI-only failures are not persisted; supply the original error alongside this report. Requests can describe earlier revisions.';

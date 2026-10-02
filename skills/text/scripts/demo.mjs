@@ -1,9 +1,9 @@
+import {applyExtensionEdit} from '../../../core/print/extension-edits.mjs';
 // Isolated, unapproved example through the public geometry preparation workflow.
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {defaults} from '../../../core/print/plan.mjs';
 import {initBundle,loadBundle} from '../../../core/print/bundle.mjs';
-import {applyText} from '../../../core/print/text.mjs';
 import {clampedKnots} from '../../../core/geom/spline-solid.mjs';
 import {splineTube} from '../../pipe-cladding/scripts/demo.mjs';
 // A box is six flat patches, each a 2 × 2 net of shared corners (GEOMETRY.md).
@@ -40,13 +40,13 @@ plan.geometry={shape:'assembly',parts:[
   {id:'curved-roof',xMm:0,yMm:20,zMm:0,geometry:splineBlock({runMm:24,widthMm:14,heightsMm:[[3,3,3,3],[3,7,7,3],[3,7,7,3],[3,3,3,3]]})},
   {id:'wrapped-pipe',xMm:43,yMm:31,zMm:0,geometry:splineTube({columns:24,heightMm:12,boreRadiusMm:8,radiusAt:()=>10.4})}
 ]};
-await initBundle(directory,plan);
-for(const part of ['raised','recessed'])await applyText(directory,{part,feature:{fontPath,text:'SAAM',sizeMm:7,positionMm:[4,4],mode:part==='raised'?'raised':'recessed',depthMm:0.8,
+await initBundle(directory,plan,{machineId:'ultimaker-s5'});
+for(const part of ['raised','recessed'])await applyExtensionEdit(directory,'text',{part,feature:{fontPath,text:'SAAM',sizeMm:7,positionMm:[4,4],mode:part==='raised'?'raised':'recessed',depthMm:0.8,
   reference:{kind:'plane',origin:[0,0,3],xAxis:[1,0,0],yAxis:[0,1,0]}}});
-await applyText(directory,{part:'curved-roof',feature:{fontPath,text:'CURVE',sizeMm:6,outlineOffsetMm:0.15,positionMm:[4,4],depthMm:0.8,
+await applyExtensionEdit(directory,'text',{part:'curved-roof',feature:{fontPath,text:'CURVE',sizeMm:6,outlineOffsetMm:0.15,positionMm:[4,4],depthMm:0.8,
   reference:{kind:'part',patch:'top',sizeMm:[24,14]}}});
 const radius=10.4;
-await applyText(directory,{part:'wrapped-pipe',feature:{fontPath,text:'WRAP',sizeMm:5,positionMm:[2,3],depthMm:0.8,
+await applyExtensionEdit(directory,'text',{part:'wrapped-pipe',feature:{fontPath,text:'WRAP',sizeMm:5,positionMm:[2,3],depthMm:0.8,
   reference:{kind:'spline',degreeU:2,degreeV:1,sizeMm:[Math.PI*radius/2,12],controlPoints:[
     [[radius,0,0],[radius,0,12]],[[radius,radius,0,Math.SQRT1_2],[radius,radius,12,Math.SQRT1_2]],[[0,radius,0],[0,radius,12]]
   ]}}});

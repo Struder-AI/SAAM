@@ -1,7 +1,8 @@
 import {realpath,readFile} from 'node:fs/promises';
 import {resolve,basename,dirname,relative,isAbsolute,sep} from 'node:path';
-import {fileURLToPath} from 'node:url';
-import {createSTLBundle} from '../core/print/import-stl.mjs';
+
+import {prepareSTLImport,releaseSTLImport} from '../core/geom/import-stl.mjs';
+
 
 export async function loadStudioImportRepair(directory){
   let report;
@@ -21,7 +22,7 @@ export async function loadStudioImportRepair(directory){
 const importStages={import:'Checking your STL',repair:'Repairing your STL','import-repaired':'Opening repaired geometry'};
 const repairSteps={'read-source':'Reading your STL',cleanup:'Cleaning mesh faces',orient:'Orienting mesh faces',patch:'Repairing mesh intersections',boundaries:'Checking mesh boundaries','native-validation':'Checking repaired topology','read-result':'Reading repaired geometry','measure-changes':'Measuring repaired geometry',validate:'Checking repaired geometry',complete:'Mesh repair complete'};
 
-export async function importStudioSTL(library,bytes,{name,units,machineId='ultimaker-s5',directory:destination,onProgress,signal}={}){
+export async function importStudioSTL(library,bytes,{name,units,directory:destination,onProgress,signal}={}){
   signal?.throwIfAborted();
   if(units!==undefined&&!['auto','mm','inch'].includes(units))throw Error('Use auto, mm or inch STL units.');
   if(typeof name!=='string'||!name.toLowerCase().endsWith('.stl'))throw Error('Choose an STL file.');
@@ -37,17 +38,17 @@ export async function importStudioSTL(library,bytes,{name,units,machineId='ultim
   }
   let stem=basename(name.replaceAll('\\','/')).slice(0,-4).replace(/[<>:"/\\|?*\x00-\x1f]/g,'-').replace(/[. ]+$/,'');
   if(!stem||/^(con|prn|aux|nul|com\d|lpt\d)(\.|$)/i.test(stem)||stem.startsWith('.'))stem='Imported model';
-  const defaultRoot=resolve(fileURLToPath(new URL('../Prints/',import.meta.url)));
-  const setupFile=root.toLowerCase()===defaultRoot.toLowerCase()?undefined:resolve(root,'.machine-setups',machineId+'.json');
   const progress=event=>{
     const stage=event.stage==='repair'&&repairSteps[event.step]||importStages[event.stage];
     onProgress?.({...event,phase:event.stage,stage:stage??event.step??event.stage});
   };
-  for(let index=1;;index++){
+  const candidate=await prepareSTLImport(bytes,{units,progress,signal});
+  try{for(let index=1;;index++){
     const directory=destination??resolve(actual,stem+(index===1?'':' '+index));
     try{
-      const {repaired}=await createSTLBundle(directory,bytes,{units,machineId,setupFile,progress,signal});
+      const {commitSTLImport}=await import('../core/print/import-stl.mjs');
+      const {repaired}=await commitSTLImport(directory,candidate,{signal});
       return {directory,repaired,repairSummary:repaired?await loadStudioImportRepair(directory):null};
     }catch(error){if(destination||!error.importDestinationExists)throw error;}
-  }
+  }}finally{await releaseSTLImport(candidate);}
 }

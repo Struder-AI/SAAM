@@ -2,7 +2,7 @@
 name: heat-set-inserts
 description: Bores for SPIROL Series 19/29 heat-set inserts, metric and imperial, with local wall loops and fins; insertion faces must be flat and face up.
 metadata:
-  saam-kind: hybrid
+  saam-kind: extension
 ---
 
 # Heat-set inserts

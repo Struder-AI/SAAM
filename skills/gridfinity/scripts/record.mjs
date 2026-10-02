@@ -1,5 +1,7 @@
 import {createHash} from 'node:crypto';
-import {requireThat} from '../../../core/geom/tolerance.mjs';
+
+const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
+
 
 export const gridfinityTemplate=()=>({shape:'gridfinity',parameters:null,vertices:[],triangles:[],compiledHash:''});
 export function gridfinityDigest({compiledHash,...content}){
@@ -10,3 +12,4 @@ export function validateGridfinityRecord(record){
   requireThat(Object.keys(record).sort().join()===Object.keys(gridfinityTemplate()).sort().join(),'Unexpected gridfinity geometry fields.');
   requireThat(record.parameters&&record.compiledHash===gridfinityDigest(record),'Gridfinity recipe or mesh changed. Rebuild with the gridfinity skill.');
 }
+export const gridfinityRecordRuntime=()=>({validate:validateGridfinityRecord});

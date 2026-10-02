@@ -70,7 +70,7 @@ These are operations; complete generation orchestrates them.
 | c2 | Extract a mesh | Mesh a field's threshold surface or tessellate spline geometry when a mesh consumer requires it. Preserve the source and approximation meaning. |
 | c3 | Slice geometry | Intersect geometry with a cutting surface and return its surface region/reference. Native spline and mesh backends may differ. |
 | c4 | Construct slice families | Translate a reference so its area-weighted mean normal gap matches the target layer height. Default direction comes from the entire reference surface. Local gaps vary with slope; report them and check full crossing. |
-| c5 | Resolve material ownership | Select disjoint regions and the unclaimed remainder. Competing overlapping claims are unsupported; touching boundaries use geometry tolerance. Joint adaptation and interlock integration are deferred to [0.3.0](plans/0.3.0.md). |
+| c5 | Resolve material ownership | Select disjoint regions and the unclaimed remainder. Competing overlapping claims are unsupported; touching boundaries use geometry tolerance. Joint adaptation and interlock integration are deferred to [0.4.0](plans/0.4.0.md). |
 | c6 | Evaluate owned slice regions | Evaluate spatial ownership on each cutting surface, lazily if useful. Neighboring slices identify solid top/bottom material; ownership seams do not create artificial solid tops. |
 | c7 | Boolean surface regions | Union, intersect or subtract areas on a common surface/chart. Polygon and NURBS boundaries require explicit representation support; unrelated UV charts cannot be compared directly. |
 | c8 | Clip paths | Keep portions of curves inside an allowed surface region, preserving open ends, holes and seams. |
@@ -111,7 +111,7 @@ composes them; techniques add no deposition family or alternate recipe format.
 | s5 | Mesh tools (builder diagnostics) | Diagnose/repair defects directly; makers use Studio's automatic, cancellable import workflow. |
 | s6 | Thingi10K (acquisition) | Find/import meshes with source and license attribution. |
 | s7 | gridfinity | gridfinity |
-| s8 | Supports | Sacrificial deposition under selected geometry. Some forms may use internal volumes; no authored solid is required. Preserve working behavior; redesign belongs to [0.3.0 intents](plans/0.3.0.md). |
+| s8 | Supports | Sacrificial deposition under selected geometry. Some forms may use internal volumes; no authored solid is required. Preserve working behavior; redesign belongs to [0.4.0 intents](plans/0.4.0.md). |
 | s9 | Trace | Deposit along authored or skill-generated XYZ/surface curves, including text, networks and bridges; advanced vase extends Trace with repeated tiles morphed through a reference sleeve. |
 | s10 | Inject | Meter material at authored or skill-generated points, with approach and hold. Rivets add hybrid cavity/enclosure planning. |
 

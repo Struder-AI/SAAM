@@ -1,12 +1,13 @@
 // Exclusive material allocation. Shared positive claims are unsupported until
 // the shared-ownership contract is implemented; assignment order is not a fix.
-import {difference,intersect} from './boolean.mjs';
+import {difference,intersect} from './intersection.mjs';
 import {offsetRegion} from './offset.mjs';
-import {TOLERANCE,requireThat} from '../geom/tolerance.mjs';
+import {TOLERANCE} from '../geom/tolerance.mjs';
+import {requireThat} from '../private/toolpath/numeric.mjs';
 
 export function requireExclusiveClaims(a,b,{uncertain=false}={}){
   const name=o=>`${o.assignment?.id??o.id}${o.part!==undefined&&o.part!==null?` on ${o.part}`:''}`;
-  requireThat(false,`Unsupported material overlap between assignments "${name(a)}" and "${name(b)}": ${uncertain?'cannot establish exclusive material claims for these intersecting volumes':'both claim positive material'}. Use disjoint regions or one assignment; shared ownership is deferred to 0.3.0.`);
+  requireThat(false,`Unsupported material overlap between assignments "${name(a)}" and "${name(b)}": ${uncertain?'cannot establish exclusive material claims for these intersecting volumes':'both claim positive material'}. Use disjoint regions or one assignment; shared ownership is deferred to 0.4.0.`);
 }
 // A shared edge, or at most one coincidence tolerance of polygon-rounding
 // noise, is not positive material. Fine offset precision avoids the ordinary

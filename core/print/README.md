@@ -1,130 +1,115 @@
 # Print lifecycle and persistence
 
-Plans, revision identity, validation ownership, generation, reopening and delivery.
-The [maker workflow](../../MAKERS.md#maker-interaction-flow) defines the human interaction;
-[composition](../path/README.md) and [export](../export/README.md) provide the
-operations and checked program used by this lifecycle.
+The [maker workflow](../../MAKERS.md#maker-interaction-flow) defines human interaction;
+[composition](../path/README.md) and [export](../export/README.md) own generation operations.
 
 ## Downloaded mesh attribution
 
-The [Thingi10K geometry skill](../../skills/thingi10k/SKILL.md) downloads a
-selected STL and calls the shared importer with hash-matched attribution.
-The importer retains that record in `geometry.source.attribution`, alongside
-the original source hash and bytes. Unit corrections and wrappers retaining
-the base geometry preserve it. Delivery writes `source-attribution.json`
-beside the exact reviewed machine program, including its source record and
-current plan revision. Source metadata does not confer a printing approval.
+The [Thingi10K skill](../../skills/thingi10k/SKILL.md) supplies hash-matched attribution
+to the importer, retained in `geometry.source.attribution` with source hash/bytes.
+Unit corrections and wrappers preserve it. Delivery writes `source-attribution.json`
+with the source record and current plan revision beside the reviewed program.
+Source metadata does not confer printing approval.
 
 ## Generation and review
 
-Implement the single human confirmation in [the maker interaction flow](../../MAKERS.md#maker-interaction-flow):
-settings and the exact toolpath together immediately before export. `core/print/workflow.mjs` owns
-initialization, verification, revision hashes, adjustment, approvals, generation,
-reopening, setup reuse and delivery. The shell adapter supplies
-recipe validation, geometry, generator, limitations and release metadata.
-Studio chooses the adapter by saved plan schema. There is no standalone settings
-confirmation. `approve({actor, revision})` writes the only approval record,
-`review.approvals.toolpath`, carrying the export hash and the generation-input hash it was
-given for; `toolpathApproved` is the one derived boolean. Any recorded change
-(plan, machine, upgrade or regeneration) empties `review.approvals`. Generation is available for inspection;
-production delivery still requires the exact current final confirmation.
+Studio's Export click confirms the displayed settings and exact checked toolpath.
+Studio waits for queued edits and rejects stale displayed snapshots; `exportReviewed`
+then writes the captured bytes unchanged. Opening a bundle checks artifacts before display.
 
-`review-state.mjs` projects that already-checked state into the small set of
-cross-interface review decisions: whether program currency was checked, whether
-the current program is production-ready, whether its exact toolpath is approved,
-and whether the next action is check, generate, review or deliver. Studio, the
-agent toolkit and MCP share this projection while retaining their own labels and
-response shapes. An output-skipping read reports currency and approval as
-unknown; the projection never infers approval from the saved manifest alone.
-Transient calculation, cancellation, request and presentation state remains with
-Studio and does not affect persisted validity.
+`core/print/workflow.mjs` owns initialization, validation, revisions, preparation,
+reopening and delivery. The shell adapter supplies recipe validation, geometry,
+generation, limitations and release metadata. Studio selects it by plan schema.
+Non-Studio callers retain `approve({actor, revision})` and `deliver`: the former
+records settings/toolpath approval; the latter requires that exact approval.
+`review-state.mjs` projects persisted currency and approval for these callers;
+Studio combines currency with transient work and presentation state.
 
-`generationHash` identifies plan, machine, geometry and the adapter's generation
-contract. A changed deposition/inspection contract makes saved programs and their
-approvals stale: regenerate and review again. Reading never rewrites the recipe.
-Legacy `planHash`/`previousPlanHash` fields normalize in memory; conflicting
-identities reject. An open view with an old revision token must refresh before edits.
+Bundle stores supplied components; creation, reopening and edits require integrity,
+not completeness. Missing geometry, recipe or machine stays missing. Slice needs
+source geometry; Trace/Inject may use authored curves/points without a solid.
+Operation boundaries report missing prerequisites. No machine is inferred at creation.
 
-The [text preparation entry](./text.mjs) compiles editable font/surface features
-into the same native mesh geometry used by Studio and slicing, then calls
-`updatePlan`. It retains the original target and exact font bytes in the geometry
-recipe. Reopening checks the saved result without rerunning its construction;
-text edits reconstruct from the retained source and invalidate geometry review.
+Geometry extensions return proposals through Geometry; only deposition or hybrid
+assignment contributions need Toolpath composition. Bundle accepts one revisioned
+edit. Saved geometry remains viewable without rerunning the extension.
+Saved records receive structural checks when opened; the selected extension copy
+validates technique semantics at edit and regeneration, after prerequisite resolution.
 
-The [mesh vase preparation tool](../../skills/advanced-vase-wall/SKILL.md#mesh-input-workflow)
-authors sleeve-fit, tile and base settings on an imported mesh through
-`adjustBundle`, using the expected revision. It preserves the source geometry
-and selected machine, and rejects conflicting composition instead of replacing
-it. The resulting recipe uses the same generation, review and delivery lifecycle.
+`prepareSliceRegionContext` accepts a supplied Geometry layer family, preset,
+recipe, process resolver and report. Toolpath resolves the assignment's filament
+and process and returns an ordinary Slice context; it does not infer regions.
 
-Generate the machine-declared export from the complete plan whenever it helps review,
-using transient motion objects. Check its actual commands before Studio plays
-that export for combined settings/toolpath confirmation. Delivery copies those reviewed bytes unchanged.
-Geometry, process, composition or machine changes invalidate the
-combined settings/toolpath confirmation. Development generation records
-`mode: development`, creates no human approvals and cannot satisfy delivery.
-Production generation can reuse a current checked
-development export: it verifies current input identity, export bytes and
-saved check hashes, then records production mode without reslicing or changing
-the reviewed bytes. This transition does not approve settings or toolpath.
-Stale source falls back to generation. A plan changed during generation cannot
-receive the earlier candidate.
+[Settings](../machine/settings.mjs) owns reusable profiles, defaults and remembered
+setup. Its [selection/recording API](../machine/bundle-settings.mjs) submits exact
+snapshots to Bundle with an expected revision; Bundle owns invalidation/history.
+`recordExtensionDependency` records supplied supports/plastic-weld configuration
+in existing `plan.skills`; absence means unselected. No defaults or execution occur.
+Geometry/construction references retain their own dependencies. Reusable changes
+never refresh existing bundles; manuals use saved capabilities.
 
-`prepareGeneration` owns the computation boundary and returns one checked,
-in-memory candidate with its `generationHash` and manifest revision.
-`commitGeneration` reloads the manifest, requires those identities to remain
-current, and persists that exact candidate. Callers do not recompute a production
-candidate after preparation.
+Geometry, completed SAAMpath and program have separate identities. Toolpath owns
+`pathDependencies`; unknown inputs conservatively invalidate the path. Known
+export-only setup fields, selected machine/output and disabled optional skills reuse it. Authored motion remains a path dependency. `generationHash` binds the complete
+recipe, machine, geometry and generation contract to the checked program.
+`state.artifacts` distinguishes current, retained stale and absent results.
+Edits retain artifacts and clear approvals; old bytes never become current by omission.
 
-Geometry-only bundle reads and their change fingerprints omit export bytes.
-Fingerprint snapshots reuse content digests while file identity, size, modification
-and change times match; this is change detection, not approval evidence. Review,
-approval and delivery still check current bytes at their owning boundary.
-Recipe adjustment returns the owning update result instead of loading it again;
-the update still checks a fresh revision before saving.
+`restoreRevision(directory,{direction,expectedRevision})` implements undo/redo
+for both agents and Studio. Restoration creates a fresh revision, retains the audit
+trail, clears approval and leaves delivered files alone. New edits clear the redo
+branch. Immutable history records reference separately saved components and artifacts;
+large geometry/path/program files are shared. Camera and playback remain Studio-private.
+CLI: `undo|redo <directory> --revision <revision>`; Studio exposes Undo/Redo.
 
-`bundleFingerprints` returns the `source` and `presentation` fingerprints from
-one snapshot pass (`bundleFingerprint` is its `source`); every Studio bundle
-adapter provides it. The `presentation` fingerprint separates scene/source identity from approval,
-delivery history and generation mode. Other generation claims and current export
-bytes remain part of source identity. Compact review updates still load validated
-state before updating controls. Generation accepts a `beforeCommit` callback for
+### Bundle ownership
+
+Studio reserves a bundle on open; a second instance cannot open it. `withBundleInstance` carries that reservation into writes and generation workers. Export uses the existing reservation.
+Claims, releases and manifest commits share `.bundle-write.lock`; commits compare revisions and atomically replace `plan.json`. Interrupted writes may leave unreferenced records.
+The reservation releases on switch or shutdown, never by timeout. `instance-status` and `recover-instance` in `core/print/cli.mjs` inspect and reclaim a dead Studio PID. An interrupted write lock needs separate PID inspection and explicit removal.
+Power-loss durability beyond atomic replacement is not claimed.
+
+`generateToolpath` saves SAAMpath; CLI `toolpath <directory>` exposes it.
+Active edits/generation compare its source stamp with the installed release
+and selected extensions. Changed or unstamped sources invalidate prior output and
+confirmation; unchanged sources retain output-only reuse. Viewing/delivery use saved
+artifacts without extension code. Changed loaded scripts require restarting SAAM.
+Preparation leaves the manifest unchanged; commit checks sources and revision.
+Saved paths survive restarts/history; delivery copies the confirmed checked bytes.
+
+`loadBundleSnapshot` supplies Studio one persisted revision, artifact currency,
+history, review and checked program with source/presentation fingerprints.
+`bundleFingerprints` exposes those fingerprints; `bundleFingerprint` exposes source.
+Presentation excludes approval, delivery history and mode; source includes them.
+Studio owns polling, pending requests and job progress separately; no subscription
+API or click-time Export gate is implied. Generation accepts `beforeCommit` for
 an owning worker to arbitrate cancellation before any output/check/review writes;
 once commit begins, cancellation must let the sequence finish.
 
-Generation performs the calculations specified by the plan. It does not add
-another planning stage. A plan must include the choices, settings and versions
-required for repeatable generation. A random seed is only appropriate for a
-future skill that deliberately randomizes a result, such as seam placement;
-there is no mandatory seed field or randomized skill in this foundation.
+Generation uses the plan's explicit choices, settings and versions for repeatability.
+There is no mandatory seed field; seeds belong only to skills that randomize results.
 
 ## Validate at the boundary that owns the data
 
-Validate new geometry when it is ingested or its content changes. Carry that
-result into settings, slicing and review. Saving an approval, changing infill,
-loading a viewer state or creating another skill operation must not repeat a
-full mesh topology/intersection pass on unchanged geometry. Reuse prepared
-section indexes and other derived geometry across the skills using that part.
-Public input boundaries still reject malformed new input; internal producers
-consume the already validated data rather than each acting as another importer.
+Validate geometry on ingestion or changed content; reuse identity-bound evidence
+and prepared queries across settings, slicing and review. Viewing baked geometry
+does not depend on rereading its archival STL. Import and source-consuming edits
+still check the source. Public raw inputs require admission; owned immutable
+recipes and SAAMpaths reuse it across internal calls.
 
-The same rule applies beyond meshes. Before adding a validator call, identify
-its owner, its exact inputs, what changed since the previous check and what
-new failure it can detect. If nothing relevant changed, reuse the result or
-remove the call. Do not scatter `validatePlan`, `validateSetup`, `validatePath`
-or equivalent whole-object passes through helper layers merely because they
-are available. Do not add a public skip-validation switch. Reuse must be bound
-to exact relevant content and validator identity, not a filename,
-mutable object identity or a caller's claim that data is trusted. Bound caches
-and prevent caller mutation from changing the recorded validity or shared data.
+Before adding a check, identify its owner, changed inputs and new failure it can
+detect. Otherwise reuse or remove it. Never add a public skip-validation switch.
+Bound reuse to relevant content and validator identity, protect shared results
+from mutation and evict cached values without changing acceptance.
 
 | Boundary | Work owned there |
 |---|---|
 | Geometry ingestion or changed geometry bytes | Topology, intersections, units, native/source identity; prepare reusable geometry queries. |
-| New or edited plan/setup | Field validity, selected skill preconditions, machine compatibility and process choices. |
+| Bundle creation/edit/open | Component integrity, references and expected revision; no completeness or machine-compatibility gate. |
 | Skill construction | Preconditions that first become knowable from the actual section, offset, support region or operation dependency being constructed. |
 | Machine emission and interpretation | Validate the emitted command state and quantized motions once; those commands can differ from the producer's unrounded path. |
-| Approval, reopening and delivery | Check current revision and content identity, then reuse matching validity and interpreted output. Interpret new or changed external bytes; do not regenerate unchanged output. |
+| Reopening | Check saved artifacts and interpret machine commands; never regenerate unchanged output. |
+| Studio Export | Deliver the displayed result’s held bytes; availability follows Studio's pending state. |
 
 An exporter that already interprets its emitted body for package totals must
 return that result with the exact bytes through `exportAndInterpretProgram`.
@@ -166,6 +151,8 @@ The shared workflow stores one directory per print:
 Prints/<name>/
   plan.json                         # atomic plan + bundle manifest
   geometry/<geometry-sha>.3dm       # or .mesh.json
+  paths/<path-sha>.json              # completed SAAMpath
+  history/<record-sha>.json          # immutable component/history records
   exports/<output>/<export-sha>-<name>
   delivery/part.gcode
 ```
@@ -190,22 +177,20 @@ are shared; the shell plan/geometry schemas are in [Formats](#formats) below:
 - `saam-machine/1`: millimeter bounds, nominal axis limits, tools, output options
   and the declared firmware startup contract. Output options carry program
   header, start and end templates; these are part of the locked machine snapshot.
-- `saampath/1`: transient motion objects during generation. Moves carry absolute XYZ millimeters,
+- `saampath/1`: saved completed machine-independent motion. Moves carry absolute XYZ millimeters,
   speed in mm/s and deposited volume in mm³. Retraction/recovery uses filament
   millimeters; fan and dwell actions are explicit. Phase/layer labels describe
-  the move without determining its geometry. New bundles do not serialize this
-  representation.
+  the move without determining its geometry.
 - `saam-review/1`: the manifest's exact-version final approval record, history,
   generation/export hashes and a small generation summary for display (never
   playback geometry). Its generation record owns `saam-checks/1` software
   checks and limitations.
 
-`loadBundle` reads the current manifest, referenced native geometry bytes and any imported
-STL source on each load. It checks the source digest and plan/geometry agreement.
-Within one adapter instance, unchanged native bytes plus geometry descriptor
-reuse geometry validity; unchanged plan plus machine content reuse plan validity.
-A cache miss runs the owning validation. Restarting the runtime clears these
-in-memory results. A filename or caller's claim of validity is insufficient.
+`loadBundle` checks native artifact identity and recipe/geometry agreement without
+regenerating or requiring complete settings. Consuming a saved path checks its
+content hash; reopening a saved program checks its exact bytes. Archival STL is
+checked by source-consuming operations, not by every view. These local records
+are integrity evidence, not authentication of files or human statements.
 
 The adapter also retains its latest checked interpretation, keyed by the
 plan/machine/geometry identity and actual export hash. Generation seeds

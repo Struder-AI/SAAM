@@ -1,8 +1,10 @@
+import {evaluateSurface} from '../geom/surface-evaluation.mjs';
+import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 // Shared seeded fronts: constrained surface-distance propagation, chart
 // clipping, physical mapping and short in-domain connections. Original SAAM
 // implementation; research provenance: skills/wave-overhangs/BUILDER.md.
 import {surfaceDerivatives} from '../geom/surface-derivatives.mjs';
-import {patchSlice,sliceChartStep,slicePoint} from '../geom/slice.mjs';
+import {patchSlice,sliceChartStep} from '../geom/slice.mjs';
 import {sampledChartRegion} from '../geom/height-slice.mjs';
 import {beadContactAlong} from '../path/deposited-curves.mjs';
 import {offsetSurfaceRegion} from './surface-offset.mjs';
@@ -10,7 +12,7 @@ import {intersect,difference,clipOpenPaths,union} from './intersection.mjs';
 import {regionArea,pointSegmentDistance,pointInRegion} from './region2d.mjs';
 import {offsetRegion} from './offset.mjs';
 import {mapSliceStroke} from './layer-strokes.mjs';
-import {requireThat,distance} from '../geom/tolerance.mjs';
+
 
 // Front order is a region-to-chart-curves construction on any patch layer.
 // An authored seed can be supplied; otherwise the seed is the actual footprint
@@ -22,7 +24,7 @@ export function frontLayerStrokes(layer,{seedUv=null,lineSpacingMm,propagationSt
   const bounds={min:[patch.domainU[0],patch.domainV[0]],max:[patch.domainU[1],patch.domainV[1]]};
   const seed=seedUv??sampledChartRegion(bounds,sliceChartStep(layer.slice,sampleStepMm),uv=>{
     if(!pointInRegion(uv,domain))return false;
-    return beadContactAlong(supportSegments,slicePoint(layer.slice,uv),layer.direction,{maxDistanceMm:layer.heightMm+toleranceMm})!==null;
+    return beadContactAlong(supportSegments,evaluateSurface(layer.slice,uv).point,layer.direction,{maxDistanceMm:layer.heightMm+toleranceMm})!==null;
   });
   requireThat(seed.length,`Front layer ${layer.index} has no supporting seed; supply an authored seed or preceding deposited material.`);
   const generated=seededSurfaceFronts(patch,domain,intersect(seed,domain),settings);

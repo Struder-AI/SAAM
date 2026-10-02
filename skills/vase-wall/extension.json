@@ -1,0 +1,1 @@
+{"schema":"saam-extension/1","id":"vase-wall","dependencies":[],"entries":{"deposition-runtime":{"file":"scripts/runtime.mjs","export":"vaseWallRuntime"},"record-runtime":{"file":"scripts/record.mjs","export":"vaseWallRecordRuntime"}},"license":"Apache-2.0","provenance":"SAAM release"}

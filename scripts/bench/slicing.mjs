@@ -6,16 +6,17 @@ import { fileURLToPath } from 'node:url';
 import { spawn, execFileSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import { createHash } from 'node:crypto';
-import rhino3dm from 'rhino3dm';
+import {rhino} from '../../core/geom/runtime.mjs';
 import { fixtures, fixtureGeometry, fixtureShell, disposeShell, meshAtTolerance, binarySTL, rhino6Bytes } from './fixtures.mjs';
 import { makeMesh, parseSTL } from '../../core/geom/mesh.mjs';
 import { topAt } from '../../core/geom/query.mjs';
-import { section, horizontalSlice, sliceFamily } from '../../core/geom/slice.mjs';
+import {horizontalSlice, sliceFamily } from '../../core/geom/slice.mjs';
+import {section} from '../../core/region/section.mjs';
 import { signedArea } from '../../core/geom/shell.mjs';
 import { generatePath } from '../../core/print/generate.mjs';
 import { defaults, VERSION, BUILD_DATE } from '../../core/print/plan.mjs';
 import { loadMachine } from '../../core/machine/profile.mjs';
-import { skinAssignment } from '../../core/print/surface-constructions.mjs';
+import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
 import { exportProgram, interpretProgram } from '../../core/export/registry.mjs';
 
 const args = process.argv.slice(2), arg = (name, fallback) => args.includes(name) ? args[args.indexOf(name) + 1] : fallback;
@@ -40,12 +41,12 @@ function roofPoints(name) {
   for (let i = 0; i < 16; i++) for (let j = 0; j < 16; j++) points.push([f.width * (0.2 + 0.6 * (i + 0.37) / 16), f.depth * (0.2 + 0.6 * (j + 0.61) / 16)]);
   return points;
 }
-function skillTrial(mode, geometry, rhino) {
+async function skillTrial(mode, geometry) {
   const base=defaults(machine),plan={...base,geometry,placement:{xMm:100,yMm:100},
     process:{...base.process,minimumLayerSeconds:0},slices:{...base.slices,assignments:base.slices.assignments.map(a=>
       mode==='planar'?a:{...a,fillDensity:1})}};
   if(mode==='draped')plan.slices.assignments.push(skinAssignment({id:'draped-skin'}));
-  const c=measure(()=>generatePath(plan,machine,rhino)),time={sliceMs:c.ms};
+  const start=performance.now(),c={value:await generatePath(plan,machine)},time={sliceMs:performance.now()-start};
   const e=measure(()=>exportProgram(c.value,plan,machine,{generatorVersion:VERSION,buildDate:BUILD_DATE}));time.exportMs=e.ms;
   const k=measure(()=>interpretProgram(e.value,plan,machine));time.interpretMs=k.ms;
   return {time,actions:c.value.actions.length,depositedMm3:c.value.actions.reduce((v,a)=>v+(a.volumeMm3??0),0),
@@ -55,7 +56,7 @@ function skillTrial(mode, geometry, rhino) {
 
 async function worker() {
   const config = json(arg('--worker')), result = { name: config.name, backend: config.backend, phases: {}, errors: [] };
-  const t = performance.now(), r = await rhino3dm(); result.rhinoStartupMs = performance.now() - t;
+  const t = performance.now(), r = await rhino(); result.rhinoStartupMs = performance.now() - t;
   const build = () => config.backend === 'spline' ? fixtureShell(r, config.name)
     : makeMesh(config.mesh.vertices, config.mesh.triangles);
   const first = measure(build), shell = first.value; result.firstPrepareMs = first.ms;
@@ -78,8 +79,8 @@ async function worker() {
     process.stderr.write(`${config.name} ${config.backend} ${mode}\n`);
     const attemptStarted = performance.now();
     try { const geometry=config.backend==='spline'?fixtureGeometry(config.name):{shape:'mesh',vertices:config.mesh.vertices,triangles:config.mesh.triangles};
-      const first = skillTrial(mode, geometry, r), samples = [];
-      for (let i = 0; i < trials; i++) samples.push(skillTrial(mode, geometry, r));
+      const first = await skillTrial(mode, geometry), samples = [];
+      for (let i = 0; i < trials; i++) samples.push(await skillTrial(mode, geometry));
       if (samples.some(s => s.pathHash !== first.pathHash || s.exportHash !== first.exportHash)) throw new Error('Nondeterministic path/export');
       result.phases[mode] = Object.fromEntries(Object.keys(first.time).map(k => [k, { firstMs: first.time[k], ...stats(samples.map(s => s.time[k])) }]));
       result[mode] = { ...samples.at(-1), time: undefined };
@@ -156,7 +157,7 @@ async function main() {
     sourceHashes, runtimeHash: sha(sourceHashes), trials, modes, targets, results: [], fixtures: [], errors: [],
     process: { ...defaults(machine).process, minimumLayerSeconds: 0 }, skillSettings: defaults(machine).skills, slices: defaults(machine).slices,
     timingBoundary: 'Shared generatePath including recipe validation and geometry preparation. Excludes bundle I/O, runtime hashing, native reopening, Studio, delivery and OS process launch. Export/interpretation reported separately. All workers serial; one first run plus warm repeats. No forced GC.' };
-  const r = await rhino3dm();
+  const r = await rhino();
   for (const name of names) {
     process.stderr.write(`Preparing ${name}\n`);
     const shell = fixtureShell(r, name), record = { name, parameters: fixtures[name], meshes: [] };

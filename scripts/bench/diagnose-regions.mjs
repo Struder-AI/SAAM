@@ -3,13 +3,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseSTL, makeMesh } from '../../core/geom/mesh.mjs';
-import { section, horizontalSlice, sliceFamily } from '../../core/geom/slice.mjs';
-import { translateShell } from '../../core/print/generate.mjs';
+import {horizontalSlice, sliceFamily } from '../../core/geom/slice.mjs';
+import {section} from '../../core/region/section.mjs';
+import {translateShell} from '../../core/geom/build.mjs';
 import { defaults } from '../../core/print/plan.mjs';
 import { sliceAssignment } from '../../core/print/slices.mjs';
 import { layerStrokes } from '../../core/region/layer-strokes.mjs';
 import { SegmentIndex } from '../../core/region/region2d.mjs';
-import { intersect, difference, union } from '../../core/region/boolean.mjs';
+import { intersect, difference, union } from '../../core/region/intersection.mjs';
 
 const [input, destination = '.local/slicing-diagnostics'] = process.argv.slice(2);
 if (!input) throw new Error('Usage: node scripts/bench/diagnose-regions.mjs file.stl [output-directory]');

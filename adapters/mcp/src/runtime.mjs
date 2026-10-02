@@ -1,36 +1,33 @@
+import {applyExtensionEdit,createExtensionBundle} from '../../../core/print/extension-edits.mjs';
 // The local SAAM runtime: every agent operation over the same bundle lifecycle
 // and Studio used by the CLI, and the Studio/request state they share. It knows
-// no transport; stdio MCP (server.mjs) and the relay register these operations.
+// no transport; the local stdio MCP adapter registers these operations.
 import { z } from 'zod';
-import { mkdir, readdir, readFile, lstat, realpath, stat } from 'node:fs/promises';
-import { resolve, dirname, relative, isAbsolute, sep } from 'node:path';
-import { homedir } from 'node:os';
+import { mkdir, readdir, lstat, realpath, stat } from 'node:fs/promises';
+import { resolve, dirname, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {openBrowser} from '../../../studio/browser.mjs';
 import {randomUUID} from 'node:crypto';
 import {Worker} from 'node:worker_threads';
 import {PreparedGenerationJob} from '../../../studio/prepared-generation-job.mjs';
+import {changeMachine,rememberSetup,adjustSettings,recordExtensionDependency} from '../../../core/machine/bundle-settings.mjs';
+import {SETTINGS_FIELDS} from '../../../core/machine/settings.mjs';
 import { MACHINE_IDS, loadMachine } from '../../../core/machine/profile.mjs';
 import { createStudio, listPrints } from '../../../studio/server.mjs';
 import { bundleFor } from '../../../studio/adapter-resolution.mjs';
-import {createTour} from '../../../studio/tour.mjs';
+import {createTour,tourExample} from '../../../studio/tour.mjs';
 import {createAgentRequests} from '../../../studio/agent-requests.mjs';
 import {createStudioEvents} from '../../../studio/studio-events.mjs';
-import { createSTLBundle,setSTLUnits } from '../../../core/print/import-stl.mjs';
-import {createThingi10KClient} from '../../../skills/thingi10k/scripts/library.mjs';
-import {importThingi10KBundle} from '../../../skills/thingi10k/scripts/import.mjs';
-import {createGridfinityBundle,updateGridfinityBundle} from '../../../skills/gridfinity/scripts/bundle.mjs';
-import {createBlobFieldBundle,updateBlobFieldBundle} from '../../../core/print/blob-field.mjs';
-import { applyText } from '../../../core/print/text.mjs';
+import {listExtensions,loadExtensionEntry,readExtension} from '../../../core/extensions/library.mjs';
+import {createBlobFieldBundle,updateBlobFieldBundle} from '../../../core/agent/blob-field.mjs';
 import {applySlice} from '../../../core/print/slice-edit.mjs';
 import {applyModulation} from '../../../core/print/modulation.mjs';
-import { applyHeatSet } from '../../../core/print/heat-set.mjs';
 import {intersectRequest,combineGeometry} from '../../../core/print/geometry-tools.mjs';
 import {loadLocalExtension} from '../../../core/local-extension.mjs';
 import {lifecycleReview} from '../../../core/print/review-state.mjs';
 import { readGuidance, readManual } from './manuals.mjs';
-import { onboardingSources, printHint } from '../../../core/agent/layers.mjs';
-import { SKILL_IDS, GUIDANCE_IDS, skillMetadata } from '../../../skills/catalog.mjs';
+import { onboardingSources, machineHint } from '../../../core/agent/layers.mjs';
+import { SKILL_IDS, GUIDANCE_IDS, EXTENSION_IDS, skillMetadata } from '../../../skills/catalog.mjs';
 import {slicePatchSchema,modulationPatchSchema,geometrySchema,patchSchema,draftFamilySchema} from './deposition-schemas.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -85,45 +82,33 @@ export function summary(bundleId, state) {
   const lifecycle=lifecycleReview(state,{programChecked});
   return {
     bundleId, kind: state.kind, revision: state.revision, geometryHash:state.geometryHash,
-    machineId: state.machine.id, output: state.plan.output, skills: state.skills,
+    machineId: state.machine?.id??null, output: state.plan.output, skills: state.skills,
     toolpathApproved: lifecycle.toolpathApproved,
     programChecked,
     generation: state.review.generation ? { mode: state.review.generation.mode, current: lifecycle.current } : null,
     programError: state.programError ?? null, exportHash: state.exportHash ?? null,
     shortTravel: state.program?.summary?.shortTravel ?? null,
     outputAvailability: state.outputAvailability, limitations: state.limitations,
-    nextStep: lifecycle.action==='check'?'Open Studio or check_bundle to check the current export.'
+    nextStep: !state.machine?'Supply the machine, material and recipe components needed for the requested operation.':lifecycle.action==='check'?'Open Studio or check_bundle to check the current export.'
       : lifecycle.action==='generate'?'Generate the toolpath from the complete settings.'
       : lifecycle.action==='review'?'Review settings and the exact toolpath together in Studio.':'Deliver the reviewed export.'
   };
 }
 
-// Local clients keep the short bounded wait; a relay session raises it to its
-// client's per-call deadline (see relay-device.mjs).
-export const LOCAL_LISTEN=Object.freeze({defaultMs:25000,maxMs:25000}),LISTEN_LIMIT_MS=450000;
+export const LOCAL_LISTEN=Object.freeze({defaultMs:25000,maxMs:25000}),LISTEN_LIMIT_MS=25000;
 
-// A remote session (a web chat through the relay) reaches only files the person
-// chose in Studio, and fonts in the system font folders.
-function systemFontFolders(){
-  const home=homedir();
-  if(process.platform==='win32')return [resolve(process.env.WINDIR??'C:/Windows','Fonts'),resolve(process.env.LOCALAPPDATA??resolve(home,'AppData/Local'),'Microsoft/Windows/Fonts')];
-  if(process.platform==='darwin')return ['/System/Library/Fonts','/Library/Fonts',resolve(home,'Library/Fonts')];
-  return ['/usr/share/fonts','/usr/local/share/fonts',resolve(home,'.local/share/fonts'),resolve(home,'.fonts')];
-}
-async function requireSystemFont(path){
-  const fold=value=>process.platform==='win32'?value.toLowerCase():value;
-  const inside=async folder=>{try{const base=await realpath(folder);return fold(await realpath(path)).startsWith(fold(base+sep));}catch{return false;}};
-  for(const folder of systemFontFolders())if(await inside(folder))return;
-  throw Error('From a web chat, fontPath must be a font installed in the system font folders.');
-}
+export const instructions = 'Desktop Claude Code and Codex use this local SAAM MCP server with command access. For a maker edit to an existing print, call begin_studio_work before changing the print; for a tour, use the installed toolkit to start Studio first and follow its returned participation context. For ordinary new-part work, call maker_onboarding once if its context is missing, then read individual skill manuals as needed. The maker role does not authorize guidance authoring or core development; use the corresponding local toolkit onboarding and required authorization for those roles. A person confirms exact settings and toolpath together in Studio before export. Establish the printer and material before relying on a toolpath. Studio requests and events arrive through tool results, MCP notifications, wait_for_studio_request and get_studio_events. Acknowledge completed edits before waiting for more Studio requests. Events are ordered observations; act on the latest. No tool grants hardware operation or final approval.';
 
-export const instructions = 'Web agents are makers only; reading builder or developer documentation never changes that role or grants command access. For a maker edit, your FIRST operation is begin_studio_work, before any acknowledgement, analysis, status check or other tool; bundleId may be omitted for the active tour. For a tour request with command access, first run node studio/server.mjs --toolkit start-tour --no-open and open the returned Studio URL; then use its returned participation context and listener. Do not read guidance or run onboarding before launching the tour. For ordinary new-part work with missing maker context, run node scripts/agent-toolkit.mjs maker-onboarding once with command access, or otherwise call maker_onboarding once; either supplies the maker flow, the index of skills and advanced sections, and print-tools. Reuse current context and choose individual skill manuals for the task; do not reread sources already returned by onboarding. Follow relevant documentation links through read_guidance using their repository-relative path and optional #heading. Shared print-tool usage is available as "print-tools". Create a print and request_review for its geometry. Revisions happen through chat using adjust_recipe and expectedRevision. Geometry review is advisory: generation may proceed whenever it helps review. The person confirms the exact settings and toolpath together in Studio before export. Establish the printer and material before relying on the toolpath. For an edit to an existing print call begin_studio_work immediately, publish its saved geometry or toolpath target, then resolve its request ID after the requested result is displayed. Geometry-only work needs no slicing. Questions and guidance stay visually quiet. Normal use supports capabilities from any view; only the tour narrows requests to its current lesson under the tour manual. Send edit acknowledgements and lesson guidance immediately in chat commentary BEFORE calling a listener. Never hold an edit reply in a final answer while waiting through later lessons. During tours let Studio lead the early lessons. Keep wait_for_studio_request active, perform start-layer preparation silently, and initiate chat teaching only at the designated infill lesson and completion. Respond normally to participant-requested edits. Use get_tour for the selected print and set_tour_start_at for an explicit infill layer. deliver_toolpath copies the reviewed bytes. No tool grants final settings/toolpath approval or runs hardware. Studio reports what the person does — lesson changes, opened prints, imports, exports, displayed results, failed or cancelled calculations — as studioEvents on tool results, in wait_for_studio_request returns and in notifications; read the queue any time with get_studio_events, which also reports import/repair and toolpath progress with elapsed time. Events are ordered observations, not simultaneous state: act on the latest.';
-
-// relay: on a computer paired with the SAAM relay, the provider every Studio
-// instance shows in its Connect panel ({status(), linkCode()}).
+// The optional service supplies Studio's release and diagnostics controls.
 export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoOpen = process.env.SAAM_NO_AUTO_OPEN !== '1',localExtension=installedExtension,thingi10kClient,relay } = {}) {
   const libraryRoot = resolve(printsRoot);
-  const meshLibrary=thingi10kClient??createThingi10KClient({cacheDirectory:resolve(libraryRoot,'.thingi10k')});
+  let resourceClient;
+  const getResourceClient=async()=>resourceClient??=loadExtensionEntry('thingi10k','resource-client')
+    .then(create=>create({cacheDirectory:resolve(libraryRoot,'.thingi10k')}));
+  const meshLibrary=thingi10kClient??{
+    search:async args=>(await getResourceClient()).search(args),
+    download:async(fileId,options)=>(await getResourceClient()).download(fileId,options)
+  };
   const ownerId=randomUUID();
   const studioEvents=createStudioEvents(),agentRequests=createAgentRequests(libraryRoot,{ownerId,events:studioEvents});
   const tour=createTour(libraryRoot,{ownerId,agentRequests});
@@ -131,7 +116,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   const generationStatus=()=>[...[...studioSessions.values()].map(({server:studio})=>studio.generationStatus()).filter(Boolean),
     ...[...imports.values()].map(({controller,...job})=>({...job,cancellable:!controller.signal.aborted,elapsedMs:Date.now()-job.startedAt,estimatedRemainingMs:null})),
     ...[...generations.values()].map(({job,...identity})=>({...identity,studioInstanceId:null,status:job.status,cancellable:job.cancellable,progress:job.progress,elapsedMs:Date.now()-identity.startedAt}))];
-  async function importing(bundleId,action){
+  async function importSTL(bundleId,dir,{source,units,machineId,setupFile:remembered}){
     const jobId=randomUUID(),controller=new AbortController(),startedAt=Date.now();
     imports.set(jobId,{jobId,printId:bundleId,studioInstanceId:null,status:'importing',startedAt,controller,progress:{stage:'import'}});
     studioEvents.record('import-started',{jobId,printId:bundleId});
@@ -139,21 +124,41 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       const before=imports.get(jobId);imports.set(jobId,{...before,progress:value});
       if(value.stage==='repair'&&before.progress.stage!=='repair')studioEvents.record('import-repair-started',{jobId,printId:bundleId,elapsedMs:Date.now()-startedAt});
     };
+    let downloaded,candidate,phase='acquire';
     try{
-      const result=await action({signal:controller.signal,progress});
-      studioEvents.record(result.imported===false?'import-failed':'import-completed',{jobId,printId:bundleId,...(result.error?{error:result.error}:{})});
-      return result;
-    }catch(error){studioEvents.record(controller.signal.aborted?'import-cancelled':'import-failed',{jobId,printId:bundleId,error:error.message});throw error;}
+      const sourcePath=source.kind==='local'?source.path:(downloaded=await meshLibrary.download(source.fileId,{signal:controller.signal,progress})).sourcePath;
+      controller.signal.throwIfAborted();
+      phase='geometry';
+      const {prepareSTLImport,releaseSTLImport}=await import('../../../core/geom/import-stl.mjs');
+      candidate=await prepareSTLImport(sourcePath,{units,attribution:downloaded?.attribution,signal:controller.signal,progress});
+      let committed;
+      try{
+        phase='bundle';
+        const {commitSTLImport}=await import('../../../core/print/import-stl.mjs');
+        committed=await commitSTLImport(dir,candidate,{machineId,setupFile:remembered,signal:controller.signal});
+        phase='cleanup';
+      }finally{await releaseSTLImport(candidate);}
+      studioEvents.record('import-completed',{jobId,printId:bundleId});
+      return downloaded?{...downloaded,...committed,imported:true,nextStep:'Show the imported geometry in Studio with its dimensions. Nothing is approved.'}:committed;
+    }catch(error){
+      if(downloaded&&!controller.signal.aborted&&(phase==='geometry'||phase==='bundle')){
+        const result={...downloaded,imported:false,error:error.message,
+          nextStep:'The downloaded original and attribution are retained at sourcePath and sourcePath + .json. Automatic repair could not accept this input; explain the reported failure and choose a corrected source or ask a builder to diagnose it.'};
+        studioEvents.record('import-failed',{jobId,printId:bundleId,error:error.message});return result;
+      }
+      studioEvents.record(controller.signal.aborted?'import-cancelled':'import-failed',{jobId,printId:bundleId,error:error.message});throw error;
+    }
     finally{imports.delete(jobId);}
   }
-  // Every runtime-owned Studio instance starts here, showing dir (or no print
-  // when dir is null) and the relay panel when this computer has a relay.
+  // Every runtime-owned Studio instance starts here, showing dir or no print.
   async function startStudio(dir){
-    const studio = createStudio(dir, { libraryRoot,localExtension,agentOwnerId:ownerId,agentRequests,studioEvents,relay });
-    await new Promise((resolveListen, reject) => { studio.once('error', reject); studio.listen(0, '127.0.0.1', resolveListen); });
+    const studio = createStudio(dir, { libraryRoot,agentOwnerId:ownerId,agentRequests,studioEvents,relay });
+    try{await studio.ready();}catch(error){await studio.shutdown().catch(()=>{});throw error;}
+    try{await new Promise((resolveListen, reject) => { studio.once('error', reject); studio.listen(0, '127.0.0.1', resolveListen); });}
+    catch(error){await studio.shutdown().catch(()=>{});throw error;}
     const session = { server: studio, url: `http://127.0.0.1:${studio.address().port}` },studioInstanceId=studio.agentSession().instanceId;
     studioSessions.set(studioInstanceId, session);
-    studio.agentWorking(chat.working);
+    studio.agentWorking(agent.working);
     studio.once('close',()=>{
       if(studioSessions.get(studioInstanceId)===session)studioSessions.delete(studioInstanceId);
       for(const [id,instance] of preferredStudioByPrint)if(instance===studioInstanceId)preferredStudioByPrint.delete(id);
@@ -206,10 +211,9 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     const {dir,bundle}=await locate(bundleId);
     return {dir,bundle,state:await bundle.loadBundle(dir,{program})};
   }
-  // A print's summary with one line naming the gated guidance its printer opens
-  // that `from` did not (layers.mjs#machineHint).
-  async function withMachineHint(bundleId,state,from){
-    const result=summary(bundleId,state),hint=await printHint(root,state,from);
+  // Settings select available guidance; only summary consumes the print state.
+  async function withMachineHint(bundleId,state,machine){
+    const result=summary(bundleId,state),hint=await machineHint(root,{to:machine});
     return hint?{...result,gatedGuidance:hint}:result;
   }
   async function skills() {
@@ -220,37 +224,77 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
         found.push({ ...skillMetadata(id, manual), manualTool: 'read_skill' });
       } catch (error) { if (error.code !== 'ENOENT') throw error; }
     }
+    for(const extension of await listExtensions({appRoot:root})){
+      const {text:manual}=await readGuidance(root,`extensions/${extension.id}/SKILL.md`);
+      found.push({...skillMetadata(extension.id,manual),layer:'extension',origin:extension.origin,
+        digest:extension.digest,manualTool:'read_skill'});
+    }
     found.push(...await localExtension.skills?.()??[]);
     return found.sort((a, b) => a.id.localeCompare(b.id));
   }
   const immediateTools=new Set(['begin_studio_work','respond_to_studio_request','wait_for_studio_request','get_studio_requests','get_studio_events','get_studio_sessions','cancel_studio_calculation','get_tour']);
-  // Operations that read a path the agent names on this computer.
-  const localOnlyTools=new Set(['import_stl_bundle']);
+  const operationObservers=new Set();
+  const diagnosticFields=(value,keys)=>Object.fromEntries(keys.filter(key=>value&&Object.hasOwn(value,key)).map(key=>[key,value[key]]));
+  const reportOperation=event=>{for(const observer of operationObservers)try{observer(event);}catch{/* Diagnostics never fail an operation. */}};
   function tool(name, description, shape, action, readOnly = true, openWorld = false) {
     const tracked=Boolean(shape.bundleId)&&!immediateTools.has(name);
+    const instanceScope=tracked&&!readOnly&&!['request_review','create_bundle','import_stl_bundle','import_thingi10k_bundle','remember_setup','deliver_toolpath'].includes(name);
     // The full strict schema makes unexpected top-level approval data an error
     // instead of letting Zod silently discard it.
-    const schema=z.object({...shape,...(tracked?{requestIds:z.array(z.string()).optional()}: {})}).strict();
-    operations.set(name,{name,description,schema,readOnly,openWorld,tracked,immediate:immediateTools.has(name),localOnly:localOnlyTools.has(name),action});
+    const schema=z.object({...shape,...(tracked?{requestIds:z.array(z.string()).optional()}: {}),...(instanceScope?{studioInstanceId:z.string().optional()}: {})}).strict();
+    operations.set(name,{name,description,schema,readOnly,openWorld,tracked,instanceScope,immediate:immediateTools.has(name),action});
+  }
+  async function associatedStudio(bundleId,studioInstanceId,requestIds){
+    const dir=await directory(bundleId);
+    const requested=[];
+    for(const id of requestIds??[]){
+      const record=await agentRequests.get(id);
+      if(record?.studioInstanceId)requested.push(record.studioInstanceId);
+    }
+    if(studioInstanceId)requested.push(studioInstanceId);
+    const ids=[...new Set(requested)];
+    if(ids.length>1)throw Error('Edit requests name different Studio instances. Choose one before changing the print.');
+    if(!ids.length){
+      const matches=[...studioSessions.entries()].filter(([,session])=>session.server.currentPrint()===dir);
+      if(matches.length>1)throw Error('Specify studioInstanceId because multiple owned Studio instances display this print.');
+      if(matches.length===1)ids.push(matches[0][0]);
+    }
+    if(!ids.length)return null;
+    const session=studioSessions.get(ids[0]);
+    if(!session||session.server.currentPrint()!==dir)throw Error('That Studio instance is not owned by this agent or no longer displays this print.');
+    return {dir,server:session.server};
   }
   // Runs one operation to its result and throws its failure; the transport
   // decides how either reaches the agent.
   // `session` carries per-session limits, such as how long this client may listen.
   function invoke(name,args={},session){
     const operation=operations.get(name);
-    if(!operation||operation.localOnly&&session?.remote)return Promise.reject(Error(`Unknown SAAM operation ${name}.`));
+    if(!operation)return Promise.reject(Error(`Unknown SAAM operation ${name}.`));
     const execute=async()=>{
-      const {requestIds,...input}=operation.schema.parse(args);
-      const touch=async()=>{for(const id of requestIds??[])await agentRequests.activity(id,{directory:await directory(input.bundleId)});};
-      if(operation.tracked)await touch();
-      let result;
-      try{result=await operation.action(input,session);}finally{if(operation.tracked)await touch();}
-      if(result&&typeof result==='object'&&!Array.isArray(result)&&!['get_studio_events','wait_for_studio_request'].includes(name)){
-        if(!operation.immediate){const pending=await agentRequests.query({status:'queued'});if(pending.length)result={...result,studioRequests:pending};}
-        // Delivered events push at once; every tool result also carries whatever is still queued.
-        const events=studioEvents.drain();if(events.length)result={...result,studioEvents:events};
-      }
-      return publicBundleIdentity(result);
+      const started=operationObservers.size?Date.now():null;
+      try{
+        const {requestIds,...input}=operation.schema.parse(args);
+        const touch=async()=>{for(const id of requestIds??[])await agentRequests.activity(id,{directory:await directory(input.bundleId)});};
+        if(operation.tracked)await touch();
+        let result;
+      try{
+        if(operation.instanceScope){
+          const {studioInstanceId,...fields}=input;
+          const studio=await associatedStudio(fields.bundleId,studioInstanceId,requestIds);
+          result=studio?await studio.server.runBundleEdit(studio.dir,instance=>operation.action(fields,session,instance)):await operation.action(fields,session);
+        }else result=await operation.action(input,session);
+      }finally{if(operation.tracked)await touch();}
+        if(started!==null)reportOperation({kind:'operation',name,status:'completed',durationMs:Date.now()-started,readOnly:operation.readOnly,
+          parameters:diagnosticFields(input,['bundleId','kind','machineId','units','action','expectedRevision','skillId']),
+          result:diagnosticFields(result,['revision','geometryHash','generationHash','exportHash','toolpathApproved','programChecked','imported','status'])});
+        if(result&&typeof result==='object'&&!Array.isArray(result)&&!['get_studio_events','wait_for_studio_request'].includes(name)){
+          if(!operation.immediate){const pending=await agentRequests.query({status:'queued'});if(pending.length)result={...result,studioRequests:pending};}
+          // Delivered events push at once; every tool result also carries whatever is still queued.
+          const events=studioEvents.drain();if(events.length)result={...result,studioEvents:events};
+        }
+        return publicBundleIdentity(result);
+      }catch(error){if(started!==null)reportOperation({kind:'operation',name,status:'failed',durationMs:Date.now()-started,
+        parameters:diagnosticFields(args,['bundleId','kind','machineId','units','action','expectedRevision','skillId']),error:error.message});throw error;}
     };
     if(operation.immediate)return execute();
     const run=work.tail.then(execute);
@@ -258,34 +302,36 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     return run;
   }
 
-  // The maker's starting context for a client without command access, as the
-  // toolkit's maker-onboarding gives it to one with, less its script sections. A web
-  // chat also gets how its connection works, which its client may not show from the
-  // server instructions.
-  const machineIdSchema=z.string().optional().describe('The print’s printer: adds the sections its capabilities open.');
-  tool('maker_onboarding','Start here: call this once per conversation, before any other SAAM tool. Returns how to work with SAAM: maker guidance, the index of every skill and advanced section, the shared print tools and, from a web chat, how this connection works. Reuse it for the whole conversation.',
-    {machineId:machineIdSchema}, async ({machineId}, session) => ({ role:'maker', ...(session?.guidance?{connection:session.guidance}:{}),
-      sources: await onboardingSources(root,{client:'web',machineId}),
-      nextStep: 'Web agents remain makers; builders author guidance and developers own core skills. Follow connection first when present. Reuse these sources for the whole conversation; do not reread them or call maker_onboarding again. Read skill manuals (read_skill) and linked references (read_guidance) when a task needs them, and a gated section by name when its gate applies or the person asks.' }));
+  // The desktop client has local command access, including script sections.
+  const machineIdSchema=z.string().optional().describe('Reusable printer profile for discovery before selecting a bundle. Use bundleId for saved capabilities.');
+  async function manualContext({bundleId,machineId}){
+    if(bundleId)return {client:'script',machine:(await read(bundleId,{program:false})).state.machine};
+    return {client:'script',machineId};
+  }
+  tool('maker_onboarding','Start here for maker work when context is missing. Returns maker guidance, the skill index and print tools, including local script sections. Reuse it for the conversation.',
+    {machineId:machineIdSchema,bundleId:bundleIdSchema.optional()}, async ({machineId,bundleId}) => ({ role:'maker',
+      sources: await onboardingSources(root,await manualContext({machineId,bundleId})),
+      nextStep: 'Reuse these sources for the conversation. Read skill manuals (read_skill) and linked references (read_guidance) when a task needs them. Authoring guidance uses builder onboarding in the local toolkit; core implementation requires explicit developer authorization.' }));
   tool('list_machines', 'List installed machine profiles and declared outputs. Catalog presence is not proof that a particular recipe is supported.', {}, async () => MACHINE_IDS.map(id => {
     const m = loadMachine(id);
     return { id, name: m.name, capabilities: m.capabilities, tools: m.tools, materials: m.materials,
       outputs: m.outputs.map(({ id, extension, flavor, implemented, experimental, constraints, reason }) => ({ id, extension, flavor, implemented: implemented !== false, experimental, constraints, reason })),
       defaultSetup: m.defaultSetup };
   }));
-  tool('list_skills', 'List toolpath, geometry, hybrid and guidance manuals. Guidance teaches compositions of existing skills, not additional deposition operations. Catalog membership does not establish recipe compatibility.', {}, skills);
-  tool('read_skill', 'Read a skill or guidance manual by ID, or one section as ID#heading whatever its gate. Sections gated to command access or to machine capabilities are listed in omitted; machineId opens the ones that printer meets. Links are repository paths for read_guidance.',
-    { skillId: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}(#[^\s#]{1,200})?$/), machineId: machineIdSchema }, async ({ skillId: name, machineId }) => {
+  tool('list_skills', 'List toolpath, geometry, hybrid, guidance and extension manuals. Extensions compose engine operations; catalog membership does not establish recipe compatibility.', {}, skills);
+  tool('read_skill', 'Read a skill or guidance manual by ID, or one section as ID#heading whatever its gate. Sections gated to command access or to machine capabilities are listed in omitted; bundleId uses the saved printer snapshot; machineId selects a reusable profile before bundle selection. Links are repository paths for read_guidance.',
+    { skillId: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}(#[^\s#]{1,200})?$/), machineId: machineIdSchema, bundleId:bundleIdSchema.optional() }, async ({ skillId: name, machineId,bundleId }) => {
     const [skillId, anchor] = name.split('#');
-    if (!SKILL_IDS.includes(skillId)&&!GUIDANCE_IDS.includes(skillId)) {
+    const extension=await readExtension(skillId,{appRoot:root});
+    if (!SKILL_IDS.includes(skillId)&&!GUIDANCE_IDS.includes(skillId)&&!extension) {
       const local=await localExtension.readSkill?.(skillId);if(local)return local;
       throw new Error('Unknown skill or guidance manual ID. Use list_skills and its manual links.');
     }
-    const { text: manual, ...reference } = await readManual(root, `skills/${skillId}/SKILL.md${anchor ? '#' + anchor : ''}`, { client: 'web', machineId });
+    const { text: manual, ...reference } = await readManual(root, `${extension?'extensions':'skills'}/${skillId}/SKILL.md${anchor ? '#' + anchor : ''}`, await manualContext({machineId,bundleId}));
     return { skillId, manual, ...reference };
   });
-  tool('read_guidance', 'Read published repository Markdown by relative path, optionally with #heading for one section whatever its gate. Results list the headings with their gates and the gated sections omitted; machineId opens the ones that printer meets. Short IDs: makers, geometry, development, glossary, mcp, print-tools. This reader does not expose private files, source code or register capabilities.',
-    { guidanceId: z.string().min(1), machineId: machineIdSchema }, async ({ guidanceId, machineId }) => readManual(root, guidanceId, { client: 'web', machineId, headings: true }));
+  tool('read_guidance', 'Read published repository Markdown by relative path, optionally with #heading for one section whatever its gate. Results list the headings with their gates and the gated sections omitted; bundleId uses the saved printer snapshot; machineId selects a reusable profile before bundle selection. Short IDs: makers, geometry, development, glossary, mcp, print-tools. This reader does not expose private files, source code or register capabilities.',
+    { guidanceId: z.string().min(1), machineId: machineIdSchema,bundleId:bundleIdSchema.optional() }, async ({ guidanceId, machineId,bundleId }) => readManual(root, guidanceId, {...await manualContext({machineId,bundleId}),headings:true}));
   tool('get_recipe_defaults', 'Get process, setup and common assignment defaults, including remembered setup. Supply geometry or standalone Trace/Inject assignments before create_bundle. Defaults never confer job approval.',
     { kind: kindSchema, machineId: z.string() }, async ({ kind, machineId }) => ({ kind, machineId,
       plan: await (await bundles[kind]()).proposedPlan(machineId, { setupFile: await setupFile(machineId) }) }));
@@ -314,10 +360,10 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     { bundleId: bundleIdSchema, kind: kindSchema, machineId: z.string(), plan: objectSchema }, async ({ bundleId, kind, machineId, plan }) => {
       noApprovalFields(plan);
       const machine = loadMachine(machineId), recipe = await recipes[kind]();
-      recipe.validatePlan(plan, machine);
+      recipe.validatePlan(plan);
       const dir = await directory(bundleId, { create: true }), bundle = await bundles[kind]();
       await bundle.initBundle(dir, plan, { machineId, setupFile: await setupFile(machineId) });
-      return withMachineHint(bundleId, await bundle.loadBundle(dir), null);
+      return withMachineHint(bundleId, await bundle.loadBundle(dir), machine);
     }, false);
   tool('import_stl_bundle', 'Import a local STL into a new named bundle. Default units auto chooses a reasonable mm/inch assumption from model size and printer bounds, without interrupting the person; honor explicit units when supplied. Preserves source bytes and hash and reuses remembered setup. Show geometry dimensions; units can be corrected with set_stl_units.',
     { bundleId: bundleIdSchema, sourcePath: z.string().min(1), units: z.enum(['auto','mm', 'inch']).default('auto'), machineId: z.string() },
@@ -328,7 +374,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       if (!source.isFile()) throw new Error('STL source must be a regular file.');
       const dir = await directory(bundleId, { create: true });
       const remembered=await setupFile(machineId);
-      await importing(bundleId,options=>createSTLBundle(dir,sourcePath,{units,machineId,setupFile:remembered,...options}));
+      await importSTL(bundleId,dir,{source:{kind:'local',path:sourcePath},units,machineId,setupFile:remembered});
       return summary(bundleId, await (await bundles.shell()).loadBundle(dir));
     }, false);
   tool('search_thingi10k', 'Find meshes by descriptive keywords (such as bunny), numeric file ID or a Thingiverse thing URL. Reads the Thingi10K mirror index; returns per-file source and license links. Prefer making tailored geometry when attractive. Read the thingi10k skill manual.',
@@ -339,12 +385,13 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     async({bundleId,fileId,machineId,units})=>{
       const dir=await directory(bundleId,{create:true});
       const remembered=await setupFile(machineId);
-      const result=await importing(bundleId,options=>importThingi10KBundle(meshLibrary,dir,fileId,{machineId,units,setupFile:remembered,...options}));
+      const result=await importSTL(bundleId,dir,{source:{kind:'thingi10k',fileId},machineId,units,setupFile:remembered});
       return {...result,...(result.imported?summary(bundleId,await (await bundles.shell()).loadBundle(dir)):{bundleId})};
     },false,true);
   localExtension.registerMcp?.({tool,z,bundleIdSchema,objectSchema,idSchema,read,noApprovalFields});
   tool('set_stl_units','Correct an imported mesh to mm or inch units, rescaling its current geometry and preserving the original STL bytes and printing settings. Invalidates geometry/toolpath confirmations; show the corrected size for geometry review.',
     {bundleId:bundleIdSchema,units:z.enum(['mm','inch']),expectedRevision:z.string()},async({bundleId,units,expectedRevision})=>{
+      const {setSTLUnits}=await import('../../../core/print/import-stl.mjs');
       const dir=await directory(bundleId);return summary(bundleId,await setSTLUnits(dir,units,{expectedRevision}));
     },false);
   tool('blob_field', 'Create or rebuild a blob-field part: freely placed points, each with positionMm, reachMm and strength, whose smooth falloffs add up; material is where the sum exceeds the threshold (default 0.25, where a lone strength-1 point is a ball of radius reach/2), cut flat at Z = 0. Negative strength carves. Request {points, threshold?, edgeMm?}; GEOMETRY.md#blob-field describes it. Extracted to a mesh for shared slicing and Studio review.',
@@ -370,27 +417,27 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
         if(!machineId||expectedRevision!==undefined||part!==undefined)throw new Error('Creation requires machineId; revision and part apply to updates.');
         loadMachine(machineId);
         const dir=await directory(bundleId,{create:true});
-        return summary(bundleId,await createGridfinityBundle(dir,parameters,{machineId,setupFile:await setupFile(machineId)}));
+        return summary(bundleId,await createExtensionBundle(dir,'gridfinity',parameters,{machineId,setupFile:await setupFile(machineId)}));
       }
       if(machineId!==undefined)throw new Error('Use the existing print machine for updates.');
       const {dir,state}=await read(bundleId,{program:false});
       if(state.kind!=='shell')throw new Error('Select a shared shell/mesh print.');
-      return summary(bundleId,await updateGridfinityBundle(dir,parameters,{expectedRevision,part}));
+      if(!expectedRevision)throw Error('Gridfinity edits require expectedRevision from the current print.');
+      return summary(bundleId,await applyExtensionEdit(dir,'gridfinity',parameters,{expectedRevision,part}));
     },false);
   tool('apply_text', 'Add, edit or remove raised/recessed text using a local font and a part or independent spline reference. Read text for request fields; assignments can replace the common plan.slices list atomically with geometry. Rebuilds actual geometry and invalidates approvals; use request_review afterward.',
     {bundleId:bundleIdSchema,expectedRevision:z.string().min(1),request:objectSchema},async({bundleId,expectedRevision,request},session)=>{
       noApprovalFields(request);
-      if(session?.remote&&request.feature?.fontPath!==undefined)await requireSystemFont(String(request.feature.fontPath));
       const {dir,state}=await read(bundleId,{program:false});
       if(state.kind!=='shell')throw new Error('Text modifies shared shell/mesh prints.');
-      return summary(bundleId,await applyText(dir,request,{expectedRevision}));
+      return summary(bundleId,await applyExtensionEdit(dir,'text',request,{expectedRevision}));
     },false);
   tool('apply_heat_set', 'Add, edit or remove a heat-set insert hole; its reinforcement (a six-loop annulus and connecting fins) is written as slice assignments ahead of the others. Select the exact insertId from the heat-set-inserts manual size/profile table; read its request and geometry limits. Rebuilds geometry and invalidates affected approvals; use request_review afterward.',
     {bundleId:bundleIdSchema,expectedRevision:z.string().min(1),request:objectSchema},async({bundleId,expectedRevision,request})=>{
       noApprovalFields(request);
       const {dir,state}=await read(bundleId,{program:false});
       if(state.kind!=='shell')throw new Error('Heat-set inserts modify shared shell/mesh prints.');
-      return summary(bundleId,await applyHeatSet(dir,request,{expectedRevision}));
+      return summary(bundleId,await applyExtensionEdit(dir,'heat-set-inserts',request,{expectedRevision}));
     },false);
   tool('intersect_geometry', 'Query saved or draft geometry before placement: horizontal sections, vertical top crossings, spline surface cuts, or draft slice families. Families report layer counts, ownership, full-crossing findings and sampled local thickness; no recipe is saved. includeLoops adds chart/world points. Geometry findings are not machine/export approval.',
     {bundleId:bundleIdSchema.optional(),request:z.object({geometry:geometrySchema.optional(),part:z.string().optional(),sectionsAtZ:z.array(z.number()).optional(),topsAtXY:z.array(z.tuple([z.number(),z.number()])).optional(),surfaces:z.array(patchSchema.omit({name:true}).extend({offsetMm:z.tuple([z.number(),z.number(),z.number()]).optional()})).optional(),families:z.array(draftFamilySchema).describe('Ordinary assignment patches; default first/pitch 0.2mm and width0.4mm, override stack/process explicitly. Geometry belongs to outer request; part null inside drafts.').optional(),includeLoops:z.boolean().optional()}).strict()},async({bundleId,request})=>
@@ -420,7 +467,9 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     { bundleId: bundleIdSchema, expectedRevision: z.string().min(1), patch: z.object({experimental:z.object({substrateAdaptation:z.boolean().describe('Experimental deposited-substrate adaptation; default false.').optional()}).strict().optional()}).passthrough() }, async ({ bundleId, expectedRevision, patch }) => {
       noApprovalFields(patch);
       const { dir, bundle, state } = await read(bundleId,{program:false});
-      const next = await bundle.adjustBundle(dir, patch, { expectedRevision, setupFile: await setupFile(state.machine.id) });
+      const options={expectedRevision,setupFile:state.machine?await setupFile(state.machine.id):undefined};
+      const next=Object.keys(patch).every(key=>SETTINGS_FIELDS.includes(key))
+        ?await adjustSettings(dir,patch,options):await bundle.adjustBundle(dir,patch,options);
       return summary(bundleId, next);
     }, false);
   tool('check_bundle', 'Validate saved native geometry, recipe and any exact generated export using the shared bundle checks. Does not generate or approve.', { bundleId: bundleIdSchema }, async ({ bundleId }) => {
@@ -432,9 +481,13 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     const { dir, bundle } = await locate(bundleId);
     return { bundleId, ...await bundle.checkPathBundle(dir), physicalValidation: 'not performed' };
   });
+  tool('record_extension_dependency','Record supplied named extension configuration in the existing recipe skills record. No defaults, installation lookup or execution. Later operations validate what they consume. Null removes the named record.',
+    {bundleId:bundleIdSchema,extensionId:idSchema,configuration:objectSchema.nullable(),expectedRevision:z.string()},
+    async({bundleId,extensionId,configuration,expectedRevision})=>summary(bundleId,
+      await recordExtensionDependency(await directory(bundleId),extensionId,configuration,{expectedRevision})),false);
   tool('remember_setup', 'Remember this saved print setup for later prints on the same machine, shared with CLI initialization. This saves setup defaults, never job approvals.', { bundleId: bundleIdSchema }, async ({ bundleId }) => {
     const { dir, bundle, state } = await read(bundleId,{program:false});
-    await bundle.rememberSetup(dir, { setupFile: await setupFile(state.machine.id) });
+    await rememberSetup(dir, { setupFile: await setupFile(state.machine.id) });
     return { bundleId, machineId: state.machine.id, remembered: true, approvalsChanged: false };
   }, false);
   tool('get_approval_status', 'Read the fresh hash-bound final settings/toolpath approval from the saved bundle. Caller-provided approvals are never accepted.', { bundleId: bundleIdSchema }, async ({ bundleId }) => summary(bundleId, (await read(bundleId)).state));
@@ -452,7 +505,8 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
         if(matches.length>1)throw Error('Specify studioInstanceId because multiple owned Studio instances display this print.');
         if(matches.length===1)studioInstanceId=matches[0].server.agentSession().instanceId;
       }
-      if(session&&session.server.currentPrint()!==dir)throw Error('That Studio instance is displaying another print.');
+      const editSession=studioInstanceId?studioSessions.get(studioInstanceId):null;
+      if(editSession&&editSession.server.currentPrint()!==dir)throw Error('That Studio instance is displaying another print.');
       if(requestId){if(record?.printId!==bundleId)throw Error('That request belongs to another print.');if(record.studioInstanceId&&record.studioInstanceId!==studioInstanceId)throw Error('That request belongs to another Studio instance.');return agentRequests.update(requestId,{status:'working'});}
       return agentRequests.begin({directory:dir,instruction,kind,studioInstanceId});
     },false);
@@ -493,14 +547,14 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
         await new Promise(resolve=>setTimeout(resolve,500));
       }
     });
-  tool('set_tour_start_at','Choose an infill layer after the first layer for the identified tour lesson. Use the runId and lessonId from the guidance request scope or get_tour; discard work when that lesson has ended.',
+  tool('set_tour_start_at','Choose a deposited layer after the first for the identified tour lesson. Use the runId and lessonId from the guidance request scope or get_tour; discard work when that lesson has ended.',
     {startAt:z.object({layer:z.number().int().min(1)}).strict(),runId:z.string(),lessonId:z.string()},async({startAt,...scope})=>tour.setStartAt(startAt,scope),false);
   tool('change_machine','Change a print to a supported printer using its remembered or default setup. Invalidates final settings/toolpath confirmation and validates compatibility before saving.',
     {bundleId:bundleIdSchema,machineId:z.string(),expectedRevision:z.string()},async({bundleId,machineId,expectedRevision})=>{
-      const {dir,bundle,state:before}=await read(bundleId,{program:false});if(!bundle.changeMachine)throw Error('This adapter cannot change its printer.');
-      return withMachineHint(bundleId,await bundle.changeMachine(dir,machineId,{expectedRevision,setupFile:await setupFile(machineId)}),before.machine.id);
+      const {dir,bundle}=await locate(bundleId);if(!bundle.changeMachine)throw Error('This adapter cannot change its printer.');
+      return withMachineHint(bundleId,await changeMachine(dir,machineId,{expectedRevision,setupFile:await setupFile(machineId)}),machineId);
     },false);
-  tool('request_review', 'Serve this bundle through an exclusively owned SAAM Studio instance. Reuse is the default: the instance already showing this print, else the sole live instance, is rebound to it in the same browser tab. With several live instances supply studioInstanceId to choose the one to rebind; otherwise an unshown print opens another. Use newInstance only when the person asks for another Studio, or for a compelling reason you tell them. Optional startAt selects the tour infill layer. No approval or generation is performed.', { bundleId: bundleIdSchema,studioInstanceId:z.string().optional(),newInstance:z.boolean().default(false),startAt:z.object({layer:z.number().int().min(1)}).strict().optional(),...localExtension.reviewSchema?.(z) }, async ({ bundleId,studioInstanceId,newInstance,startAt,...viewOptions }) => {
+  tool('request_review', 'Serve this bundle through an exclusively owned SAAM Studio instance. Reuse is the default: the instance already showing this print, else the sole live instance, is rebound to it in the same browser tab. With several live instances supply studioInstanceId to choose the one to rebind; otherwise an unshown print opens another. Use newInstance only when the person asks for another Studio, or for a compelling reason you tell them. Optional startAt selects a deposited tour layer. No approval or generation is performed.', { bundleId: bundleIdSchema,studioInstanceId:z.string().optional(),newInstance:z.boolean().default(false),startAt:z.object({layer:z.number().int().min(1)}).strict().optional(),...localExtension.reviewSchema?.(z) }, async ({ bundleId,studioInstanceId,newInstance,startAt,...viewOptions }) => {
     if(studioInstanceId&&newInstance)throw Error('Choose an existing studioInstanceId or request a new instance, not both.');
     const { dir, state } = await read(bundleId);
     const viewPath=await localExtension.reviewPath?.({dir,...viewOptions})??'';
@@ -522,86 +576,52 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     const session=studioSessions.get(studioInstanceId);if(!session)throw Error('That Studio instance is not owned by this agent.');
     const result=session.server.agentSession();await session.server.shutdown();return {...result,connected:false};
   },false);
-  tool('generate_toolpath', 'Generate and check the declared export from the current geometry and complete settings, including during the tour. This is reviewable output, not approval.', { bundleId: bundleIdSchema }, async ({ bundleId }) => {
+  tool('generate_toolpath', 'Generate and check the declared export from the current geometry and complete settings, including during the tour. This is reviewable output, not approval.', { bundleId: bundleIdSchema }, async ({ bundleId },_session,instance) => {
     const { dir, bundle } = await locate(bundleId);
-    const state=await bundle.loadBundle(dir,{program:false}),jobId=randomUUID(),startedAt=Date.now();
-    const job=new PreparedGenerationJob({key:dir+':'+state.generationHash,directory:dir,generationHash:state.generationHash,
-      createWorker:cancellation=>new Worker(new URL('../../../studio/generation-worker.mjs',import.meta.url),{workerData:{directory:dir,generationHash:state.generationHash,progress:true,cancellation}})});
-    job.worker?.ref();
-    generations.set(jobId,{jobId,printId:bundleId,generationHash:state.generationHash,startedAt,job});
-    studioEvents.record('generation-started',{jobId,printId:bundleId,generationHash:state.generationHash,trigger:'agent'});
-    try{
-      const {checks}=await job.generate(false);
-      studioEvents.record('generation-finished',{jobId,printId:bundleId,generationHash:state.generationHash,durationMs:Date.now()-startedAt});
-      return { ...summary(bundleId, await bundle.loadBundle(dir)), checks };
-    }catch(error){
-      studioEvents.record(error.code==='GENERATION_CANCELLED'?'generation-cancelled':'generation-failed',{jobId,printId:bundleId,generationHash:state.generationHash,error:error.message,stage:error.stage??'generation'});throw error;
-    }finally{generations.delete(jobId);await job.dispose();}
+    const checks=await bundle.generateBundle(dir,{dispatchComputation:async({directory,generationHash})=>{
+      const jobId=randomUUID(),startedAt=Date.now();
+      const job=new PreparedGenerationJob({key:directory+':'+generationHash,directory,generationHash,
+        createWorker:cancellation=>new Worker(new URL('../../../studio/generation-worker.mjs',import.meta.url),{workerData:{directory,generationHash,progress:true,cancellation}})});
+      job.worker?.ref();
+      generations.set(jobId,{jobId,printId:bundleId,generationHash,startedAt,job});
+      studioEvents.record('generation-started',{jobId,printId:bundleId,generationHash,trigger:'agent'});
+      try{
+        const result=await job.generate(false,instance);
+        studioEvents.record('generation-finished',{jobId,printId:bundleId,generationHash,durationMs:Date.now()-startedAt});
+        return result;
+      }catch(error){
+        studioEvents.record(error.code==='GENERATION_CANCELLED'?'generation-cancelled':'generation-failed',{jobId,printId:bundleId,generationHash,error:error.message,stage:error.stage??'generation'});throw error;
+      }finally{generations.delete(jobId);await job.dispose();}
+    }});
+    return { ...summary(bundleId, await bundle.loadBundle(dir)), checks };
   }, false);
   tool('deliver_toolpath', 'Copy the exact current human-reviewed export bytes into the bundle delivery folder. Fails without current toolpath approval. Does not run hardware.', { bundleId: bundleIdSchema }, async ({ bundleId }) => {
     const { dir, bundle } = await locate(bundleId);
+    if(await tourExample(dir))throw Error('Exit the tour before confirming a real print.');
     const file = await bundle.deliver(dir), state = await bundle.loadBundle(dir);
     return { ...summary(bundleId, state), file, exportHash: state.exportHash };
   }, false);
   // The runtime outlives its sessions: Studio instances, jobs and bundles stay
-  // while chats come and go. One session is active at a time; an ended
+  // while desktop agent connections come and go. One session is active at a time; an ended
   // session's late calls are rejected rather than run for its successor.
   const runtime={closing:null,session:null};
   // listen: how long this session's client may hold a wait (default and ceiling).
-  // remote: a web chat through the relay; it neither sees nor runs local-only operations.
-  // The chat is working from any call other than the listener, and from a
+  // The agent is working from any call other than the listener, and from a
   // listener that returned something to act on, until it listens again or
   // WORKING_MS pass without a call. Studio shows it as its waiting indicators.
   const WORKING_MS=5*60_000;
-  const chat={working:false,timer:null};
-  function chatWorking(session){
+  const agent={working:false,timer:null};
+  function agentWorking(session){
     const activity=session?.activity;
     return Boolean(activity&&!session.ending&&!activity.listening&&activity.lastCall&&Date.now()-activity.lastCall<WORKING_MS);
   }
   function publishWorking(){
-    const working=chatWorking(runtime.session);
-    clearTimeout(chat.timer);
-    if(working){chat.timer=setTimeout(publishWorking,runtime.session.activity.lastCall+WORKING_MS-Date.now()+50);chat.timer.unref?.();}
-    if(working===chat.working)return;
-    chat.working=working;
+    const working=agentWorking(runtime.session);
+    clearTimeout(agent.timer);
+    if(working){agent.timer=setTimeout(publishWorking,runtime.session.activity.lastCall+WORKING_MS-Date.now()+50);agent.timer.unref?.();}
+    if(working===agent.working)return;
+    agent.working=working;
     for(const {server:studio} of studioSessions.values())studio.agentWorking?.(working);
-    for(const listener of statusListeners)listener();
-  }
-  // What the chat's SAAM panel shows: one light, done, working or error, a line
-  // saying why and the Studio address. It only shows: Studio requests and
-  // events reach the model through the listener. The relay reports an offline
-  // computer and the panel its own lost connection.
-  const statusListeners=new Set();
-  async function chatStatus(){
-    const requests=await agentRequests.query(),clip=text=>String(text??'').replace(/\s+/g,' ').trim().slice(0,120);
-    const queued=requests.filter(r=>r.status==='queued'),working=requests.find(r=>r.status==='working');
-    const calculating=generationStatus().find(g=>['preparing','generating','importing'].includes(g.status));
-    // Only this session's failures: an earlier chat's are not this one's error.
-    const since=runtime.session?.started??Infinity;
-    const latest=requests.filter(r=>!r.connectionClosed&&r.updatedAt>=since).reduce((a,b)=>!a||b.updatedAt>a.updatedAt?b:a,null);
-    // studio: the loopback address of the newest live Studio, carrying no secret.
-    const shown={studio:[...studioSessions.values()].filter(({server:studio})=>studio.listening).at(-1)?.url??null};
-    const light=(state,text)=>({state,text,...shown});
-    if(working)return light('working','Working on: '+clip(working.instruction));
-    if(queued.length)return light('working',queued.length>1?`${queued.length} Studio requests waiting for the chat`:'Studio request waiting for the chat');
-    if(calculating)return light('working',calculating.status==='importing'?'Importing geometry':'Calculating the toolpath');
-    if(chat.working)return light('working','Working');
-    if(latest?.status==='failed')return light('error','Failed: '+clip(latest.message||latest.instruction));
-    if(requests.some(r=>r.status==='waiting'))return light('done','Waiting for you in Studio');
-    return light('done','Done');
-  }
-  // listener() runs on anything that may change the status; read chatStatus().
-  function subscribeStatus(listener){
-    const stops=[agentRequests.subscribe(()=>listener()),studioEvents.observe(()=>listener())];
-    statusListeners.add(listener);
-    return ()=>{statusListeners.delete(listener);for(const stop of stops)stop();};
-  }
-  // A web chat's client may show neither the server instructions nor a tool
-  // description's "start here", so until it onboards the adapter adds this to
-  // every result (see onboardingReminder).
-  const ONBOARDING_REMINDER='You have not called maker_onboarding in this SAAM session. Unless you already have its context in this conversation, call it now, before continuing: it explains how SAAM works and how this connection to the person’s computer works.';
-  function noteOnboarding(session,name,args){
-    if(name==='maker_onboarding'||name==='read_guidance'&&['makers','MAKERS.md'].includes(args?.guidanceId))session.onboarded=true;
   }
   function observed(session,name,pending){
     const activity=session.activity,listener=name==='wait_for_studio_request';
@@ -612,16 +632,14 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       return result;
     }).finally(()=>{if(listener)activity.listening--;publishWorking();});
   }
-  // guidance: how this session's client reaches SAAM, returned by maker_onboarding.
-  function beginSession({listen=LOCAL_LISTEN,remote=false,guidance=null}={}){
+  function beginSession({listen=LOCAL_LISTEN}={}){
     if(runtime.closing)throw Error('The SAAM runtime is closing.');
     if(runtime.session)throw Error('A SAAM session is already active. End it before starting another.');
     if(!(listen.defaultMs<=listen.maxMs&&listen.maxMs<=LISTEN_LIMIT_MS))throw Error('Invalid listener limits.');
-    const session={id:randomUUID(),started:Date.now(),ending:null,listen,remote,guidance,onboarded:false,activity:{listening:0,lastCall:0}};runtime.session=session;
+    const session={id:randomUUID(),ending:null,listen,activity:{listening:0,lastCall:0}};runtime.session=session;
     return {id:session.id,
-      operations:[...operations.values()].filter(operation=>!(remote&&operation.localOnly)).map(({action,...definition})=>definition),
-      invoke:(name,args)=>session.ending?Promise.reject(Error('This SAAM session has ended. Start a new session; saved prints remain available.')):(noteOnboarding(session,name,args),observed(session,name,invoke(name,args,session))),
-      onboardingReminder:()=>session.remote&&!session.onboarded?ONBOARDING_REMINDER:null,
+      operations:[...operations.values()].map(({action,...definition})=>definition),
+      invoke:(name,args)=>session.ending?Promise.reject(Error('This SAAM session has ended. Start a new session; saved prints remain available.')):observed(session,name,invoke(name,args,session)),
       end:()=>endSession(session)};
   }
   function endSession(session){return session.ending??=Promise.resolve().then(async()=>{
@@ -640,10 +658,9 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     await agentRequests.disconnect();
     await Promise.all([...studioSessions.values()].map(({server:studio})=>studio.shutdown()));
     studioEvents.close();
+    operationObservers.clear();
     studioSessions.clear();preferredStudioByPrint.clear();
   });}
-  // A Studio instance with no print, opened when a relay computer starts so the
-  // person can connect a chat. As the sole live instance, request_review reuses it.
   // Shows SAAM Studio: the newest live instance, else a new one with no print.
   // A tab opens only when nobody is viewing it.
   async function openStudio(){
@@ -656,12 +673,11 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     operations:[...operations.values()].map(({action,...definition})=>definition),
     beginSession,
     queuedRequests:async()=>publicBundleIdentity(await agentRequests.query({status:'queued'})),
-    chatStatus,
-    subscribeStatus,
     subscribeRequests:listener=>agentRequests.subscribe(listener),
     subscribeEvents:listener=>studioEvents.subscribe(events=>listener(publicBundleIdentity(events))),
     // Every Studio event as it is recorded, without draining the agent's queue.
     observeEvents:observer=>studioEvents.observe(events=>observer(publicBundleIdentity(events))),
+    observeOperations:observer=>{operationObservers.add(observer);return()=>operationObservers.delete(observer);},
     openStudio,
     close
   };

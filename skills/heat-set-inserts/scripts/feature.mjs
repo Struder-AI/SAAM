@@ -1,5 +1,7 @@
 import {createHash} from 'node:crypto';
-import {requireThat} from '../../../core/geom/tolerance.mjs';
+
+const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
+
 import {INSERT_CATALOG} from './catalog.mjs';
 
 export const HEAT_SET_DEFAULTS={id:'insert',insertId:'spirol-29-m3-long',positionMm:[15,15,12],depthMm:null,diameterAdjustmentMm:0,finCount:6,finLengthMm:4,finWidthMm:0.8,finAngleDeg:0};
@@ -58,3 +60,4 @@ export function validateHeatSetAssignments(plan){
     used.add(assignment.id);
   }
 }
+export const heatSetRecordRuntime=()=>({validate:validateHeatSetRecord,validateAssignments:validateHeatSetAssignments});

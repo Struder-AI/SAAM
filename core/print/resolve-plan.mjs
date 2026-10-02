@@ -1,4 +1,6 @@
-import {requireThat} from '../geom/tolerance.mjs';
+import {requireThat} from '../private/bundle/numeric.mjs';
+import {SETTINGS_FIELDS,resolveSettingsPatch} from '../machine/settings.mjs';
+
 
 const record=value=>value&&typeof value==='object'&&!Array.isArray(value);
 
@@ -6,7 +8,7 @@ export function mergeRecord(previous,changes,{geometryTemplate,key}={}){
   requireThat(record(changes),'Adjustment must be an object.');
   const target={...previous};
   for(const [field,value] of Object.entries(changes)){
-    requireThat(Object.hasOwn(target,field),`Unknown setting: ${field}`);
+    if(!Object.hasOwn(target,field)){target[field]=structuredClone(value);continue;}
     const current=target[field];
     if(key==='geometry'&&field==='shape'&&typeof value==='string'&&value!==previous.shape){
       const template=geometryTemplate(value,changes);
@@ -25,31 +27,13 @@ export function mergeRecord(previous,changes,{geometryTemplate,key}={}){
 }
 
 export function resolvePlanPatch(previous,patch,{geometryTemplate}){
-  const {geometry,...settings}=patch;
-  let plan=mergeRecord(previous,settings,{geometryTemplate});
+  const {geometry,...fields}=patch;
+  const settings=Object.fromEntries(Object.entries(fields).filter(([key])=>SETTINGS_FIELDS.includes(key)));
+  const recipe=Object.fromEntries(Object.entries(fields).filter(([key])=>!SETTINGS_FIELDS.includes(key)));
+  let plan={...mergeRecord(previous,recipe,{geometryTemplate}),...resolveSettingsPatch(previous,settings)};
   if(Object.hasOwn(patch,'geometry')){
     if(geometry===null){const {geometry:removed,...withoutGeometry}=plan;plan=withoutGeometry;}
     else plan={...plan,geometry:previous.geometry?mergeRecord(previous.geometry,geometry,{geometryTemplate,key:'geometry'}):structuredClone(geometry)};
   }
-  if(patch.setup?.firmwareVersion!==undefined
-    &&patch.setup.firmwareVersion!==previous.setup.firmwareVersion
-    &&patch.setup.startupVerified===undefined)
-    plan={...plan,setup:{...plan.setup,startupVerified:false}};
   return plan;
-}
-
-export function resolveInitialPlan(machine,{defaults,rememberedSetup,fit}){
-  const plan=defaults(machine);
-  if(rememberedSetup)plan.setup={...plan.setup,...rememberedSetup,
-    materialGuid:rememberedSetup.materialGuid||plan.setup.materialGuid};
-  return fit(plan,machine);
-}
-
-export function resolveMachinePlan(previous,previousMachine,machine,{defaults,rememberedSetup,fit}){
-  const proposal=resolveInitialPlan(machine,{defaults,rememberedSetup,fit});
-  const process={...previous.process};
-  for(const key of new Set([...Object.keys(previousMachine.defaultProcess??{}),...Object.keys(machine.defaultProcess??{})]))
-    process[key]=proposal.process[key];
-  const plan={...structuredClone(previous),setup:proposal.setup,output:proposal.output,process};
-  return fit(plan,machine);
 }

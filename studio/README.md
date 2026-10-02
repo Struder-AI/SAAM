@@ -39,23 +39,12 @@ Use `--no-open` when the client opens the returned URL through its browser
 integration. The original direct launch syntax remains supported.
 
 Run from the repository root, quote a print path containing spaces, and keep
-`node studio/server.mjs` literal. The bare command starts a new [guided tour](../examples/prints/README.md)
-at lesson one, with geometry from the two bundled recipes and new automatically
-saved local copies. Toolpaths are generated when the tour needs them.
-The header's **Tour** button opens a fresh tour directly at the handle geometry
-lesson when no tour is active; no welcome pane precedes the part view. While a
-tour is active, it toggles lesson guidance. Completion has a separate
-congratulations panel. Exit or cancellation ends the tour run. Starting again
-creates a new run at lesson one; there is no Resume control or resume action.
-Earlier example copies remain saved as ordinary prints. Teaching requests carry
-run and lesson-visit identities; leaving a lesson cancels its pending teaching,
-and returning creates a new request. Cancelling an individual edit does not end
-the tour. Brief browser disconnects retain the run during Studio's existing
-30-minute grace period. Shutdown of the owning Studio ends the run and cancels
-pending work; reopening its saved print does not restore a tour. Closing an
-observer or a Studio that owned an earlier run leaves another instance's current
-run alone. This cleanup runs after accepted work drains; forced process death
-and cross-process atomic transitions remain unresolved with the file-based store.
+`node studio/server.mjs` literal. The bare command starts a new
+[guided tour](../examples/prints/README.md) with one saved fin-block copy.
+The header's **Tour** button starts a fresh tour when none is active and toggles
+guidance during one. Reopening the saved copy after a browser or Studio restart
+resumes its lesson with new request authority. Exit keeps the copy as an ordinary
+print; a new tour creates a new copy.
 Use the client's managed terminal/background session so it can
 retain the process handle. The human-facing `npm run studio` alias still works,
 but the shared permission targets the direct command. Shell wrappers, different
@@ -185,13 +174,12 @@ deadline to open the first viewer, for either CLI or MCP launches. Once opened,
 Studio closes 30 minutes after its last viewer disconnects, allowing task switches,
 browser suspension and refreshes to reconnect. Each reconnection cancels the
 pending shutdown; the next final disconnect starts a fresh 30-minute grace period.
-Connected viewers have no idle deadline. An accepted bundle write finishes before shutdown
-completes. Saved bundles are retained and can be opened in a fresh instance later.
+Connected viewers have no idle deadline. Accepted writes finish before shutdown; saved bundles reopen in a fresh instance.
 The CLI process exits when its work drains. In MCP, only that Studio listener and
 session are released; the adapter and its other viewers stay available. Repeated
 review requests within the same adapter can use that print's still-open session.
-Independent agent ownership uses separate stdio adapters. Distinct instances do not lock a shared bundle against edits
-from another process, so concurrent agent work should use separate bundles.
+Independent agents own separate Studio instances. A bundle opens in one instance at a time;
+switching prints or closing Studio releases it. See [Bundle ownership](../core/print/README.md#bundle-ownership).
 
 ### Historical toolpath inspection
 
@@ -249,14 +237,12 @@ Selecting another bundle updates this Studio server's active print, including
 other tabs attached to that server. The client sends the current print identity
 with mutations, so an old tab cannot approve, generate or deliver the new print.
 
-Opening does not regenerate current stored files. Selecting a saved print
-confirms its current geometry before entering a valid stored toolpath; the tour
-selection also confirms geometry. It stays in geometry view through the optional
-STL introduction. Step 4 starts speculative preparation of the selected part while
-geometry remains visible; earlier lessons omit program data and do not start
-workers. Continuing commits the candidate for the exact current plan and loads
-playback. The import control is highlighted but disabled for the active tour;
-normal Studio enables it after completion or exit.
+Opening does not regenerate current stored files. The tour begins with geometry
+only, then generates a checked toolpath when its playback lesson opens. Import
+STL is available after completion or exit.
+An ordinary bundle with a current saved SAAMpath and no checked machine program
+opens that neutral path in the line viewer. It is labeled as a saved SAAMpath;
+Export remains unavailable until a machine file is generated and checked.
 Reopening the same selected print retains its matching preparation candidate.
 The first continuation after a completed preparation diagnostic reports it without
 repeating it; an explicit retry can start preparation again. Crashed workers
@@ -286,9 +272,9 @@ blocks. While a toolpath is still calculating, both stage tabs stay live: the
 geometry pane remains reachable (and crisp), the toolpath pane remains reachable
 whenever its faded preview can render, and **Next** returns to that faded pane
 without starting or cancelling the pending calculation. The tour keeps its own
-lesson wording on this button. A current export opens directly in the toolpath viewer. A development
-export can be viewed but cannot authorize delivery. A stale or edited program
-stays unavailable for approval. Failed opening retains the previous print.
+lesson navigation. A current export opens directly in the toolpath viewer.
+Export confirms the displayed result, including a checked development result.
+Queued edits and stale previews disable the button. Failed opening retains the previous print.
 
 An accessible viewport overlay with a spinner covers initial loading, reopening, changed
 bundle validation, toolpath/export generation and delivery. It remains visible
@@ -308,8 +294,8 @@ binds progress to the current print and plan.
 
 The live request store belongs to one agent and may serve several explicitly
 identified Studio instances. A Studio instance has exactly one agent owner and
-cannot be adopted by another agent; print bundles remain shareable and another
-agent may open the same bundle in its own Studio. Only the owning agent's store
+cannot be adopted by another agent; each bundle opens in one Studio instance
+at a time. Only the owning agent's store
 hears its Studio instances: a listener without an owner ID never receives or
 claims Studio-bound requests live, and reads them only as explicit diagnostic
 history. The [Studio event queue](#studio-event-queue) carries the rest of what
@@ -338,20 +324,16 @@ from another writer cancel obsolete calculation. View changes alone do not do so
 This control covers Studio workers; direct CLI/MCP generation and custom adapters
 do not yet share a cross-process cancellation owner.
 
-State and approval responses report `toolpathApproved` as the only approval state.
-`/api/approve` takes the reviewer and revision; an active tour rejects it and
-`/api/deliver` in favor of its combined confirm-and-export route. That route
-applies tour teaching and restoration policy around the same generation,
-approval and delivery operations used by ordinary Studio; it is not a second
-manufacturing lifecycle.
+Ordinary Studio and the tour use `POST /api/export` to capture the displayed result.
+Delivery writes those bytes without rechecking revisions, the manifest or pending
+work. No approval record, promotion, generation or interpretation runs at Export.
+Download links retain those bytes for retries, even after a later export.
 
-Review metadata has its own update path. Approval, delivery history and generation
-mode changes update controls after fresh validation without replacing unchanged
-geometry or motion. Input/export changes still reload the presentation. Generation
-identity other than mode remains part of the presentation fingerprint. This is
-change detection; approval and delivery retain their current-byte checks.
-Background `set_tour_start_at` calls must include the `runId` and `lessonId` from
-their request scope or `get_tour`; the tour rejects a choice for an ended lesson.
+Reopening checks saved artifacts. Metadata updates preserve unchanged geometry
+and motion; input/export changes reload the presentation. The pending-work
+projection drives both waiting indicators and Export availability.
+Studio chooses the tour's first deposited layer. An explicit `set_tour_start_at`
+override needs the current `runId` and `lessonId`; ended lessons reject it.
 
 The three animated dots immediately right of the logo and the dimmed viewport
 are **Updating preview**, throughout ordinary Studio and the tour. They represent
@@ -387,15 +369,9 @@ launched Studio sees persisted failures by polling. An ended chat turn is not
 always a transport close, and a killed process may provide no callback. Browser
 timeout rendering continues from cached request expiry even if polling fails.
 
-Next blinks after the displayed geometry edit in the first lesson. The optional
-roof lesson starts with an enabled, unhighlighted Next; active work disables it
-with the dots and fade, and a displayed geometry change enables its completion
-cue. These cues apply only to those two edit lessons. The STL introduction points
-to the disabled Import STL control and the orange **Continue with this part**.
-Both initially blink; the first pointer hover over Import STL retires its cue so
-only Continue keeps blinking. The playback
-lesson stops highlighting Play and unlocks Next on its first use; Pause does not
-restart the cue.
+The tour blinks the current control, including with reduced-motion settings. Next unlocks after the
+geometry edit appears, after Play starts, and after the requested printing change
+appears. Active work holds Next. Playback remains free to pause and scrub.
 Generation switches to the rendered replacement only after its checked source is
 loaded; the previous toolpath remains faded while work is active, and the part
 geometry stands in for it at the same opacity when none is retained.
@@ -404,9 +380,7 @@ The maker agent calls MCP begin_studio_work as early as practical for an edit; a
 chat acknowledgement may come first. The claim it records is what later mutations
 and result reports check. It may omit printId for the
 active tour or sole open Studio; with several instances it supplies the returned
-`studioInstanceId`; omission rejects when several owned instances display the
-same print. `request_review` can deliberately open another instance for a shared
-bundle with `newInstance`. CLI preview/tour agents receive `studio-request` events on the
+`studioInstanceId`. CLI preview/tour agents receive `studio-request` events on the
 managed command stream and send begin/respond/activity control messages back on
 that stream. Separate CLI commands and bounded waits remain recovery options.
 Studio-created guidance requests stay visually quiet, including when claimed. The agent claims
@@ -464,14 +438,10 @@ visible result before resolving it. Generation errors remain available in the
 current state until inputs change or generation succeeds; speculative preparation
 alone does not alert the maker agent.
 
-GET /api/agent-requests remains responsive during generation. Studio tour events
-queue contextual toolpath/process guidance, playback start-layer selection and congratulations
-after downloading. Completion displays a finished tour panel with congratulations
-and an **Exit tour** button that dismisses it without erasing completion,
-and a direction to talk to the agent about the next project. The chat message
-also offers help with difficulties printing the downloaded file and asks what
-to make next, as ordinary chat text without a question-box tool. Send it before
-another listener or bookkeeping call. The client updates completion directly
+GET /api/agent-requests remains responsive during generation. Tour events queue
+contextual printing guidance and one
+completion message. Completion records whether the checked file downloaded or
+the participant finished by viewing. The client updates completion directly
 without reloading the full source and material scene. POST /api/view-ready acknowledges the exact rendered revision
 and export; saving or generating alone does not unlock edit lessons. The settings
 lesson opens on a participant-requested agent edit whose result is the displayed

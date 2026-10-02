@@ -1,12 +1,13 @@
+import {requireThat} from '../private/export/numeric.mjs';
 import {exportGriffin,interpretGriffin} from './griffin.mjs';
 import {exportBambu,interpretBambu,exportAndInterpretBambu} from './bambu.mjs';
 import {exportDobot,interpretDobot} from './dobot.mjs';
 import {exportDenso,interpretDenso} from './denso.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
+
 import {withTravelAdvisory} from './travel-advisory.mjs';
 const adapters={
   'denso-pacscript':{export:exportDenso,interpret:interpretDenso},
-  'griffin-gcode':{export:exportGriffin,interpret:(bytes,plan,machine)=>interpretGriffin(Buffer.isBuffer(bytes)?bytes.toString('utf8'):bytes,plan,machine)},
+  'griffin-gcode':{export:exportGriffin,interpret:(bytes,plan,machine,options)=>interpretGriffin(Buffer.isBuffer(bytes)?bytes.toString('utf8'):bytes,plan,machine,options)},
   'bambu-gcode':{export:exportBambu,interpret:interpretBambu,exportAndInterpret:exportAndInterpretBambu},
   'dobot-lua':{export:exportDobot,interpret:interpretDobot}
 };
@@ -19,7 +20,7 @@ export function outputAdapter(plan,machine){
 export const exportProgram=(path,plan,machine,release)=>{
   return outputAdapter(plan,machine).export(path,plan,machine,release);
 };
-export const interpretProgram=(code,plan,machine)=>withTravelAdvisory(outputAdapter(plan,machine).interpret(code,plan,machine));
+export const interpretProgram=(code,plan,machine,options={})=>withTravelAdvisory(outputAdapter(plan,machine).interpret(code,plan,machine,options));
 
 // One shared lifecycle entry point: adapters that need interpretation while
 // exporting may carry that exact result forward. Others interpret once here.
@@ -30,5 +31,5 @@ export function exportAndInterpretProgram(path,plan,machine,release){
     return {...result,program:withTravelAdvisory(result.program)};
   }
   const bytes=adapter.export(path,plan,machine,release);
-  return {bytes,program:withTravelAdvisory(adapter.interpret(bytes,plan,machine))};
+  return {bytes,program:withTravelAdvisory(adapter.interpret(bytes,plan,machine,{authoredNozzleTemperatures:path.completion?.authoredNozzleTemperatures}))};
 }

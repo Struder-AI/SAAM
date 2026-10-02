@@ -6,6 +6,7 @@
 // ops that let several solids be combined at slice time rather than as breps.
 
 import { TOLERANCE, requireThat, distance2 } from '../geom/tolerance.mjs';
+import {clipLineToRegion} from '../geom/curve-region.mjs';
 
 export const loopArea = loop => {
   let sum = 0;
@@ -216,23 +217,12 @@ export function* sampleScanlineRows(frame,spacingMm){
   if(!Number.isFinite(min))return;
   const toWorld = p => [originMm[0] + p[0] * cos - p[1] * sin, originMm[1] + p[0] * sin + p[1] * cos];
   for (let y = Math.ceil(min / spacingMm) * spacingMm; y <= max; y += spacingMm) {
-    const crossings = [];
-    for (const loop of rotated)
-      for (let i = 0, j = loop.length - 1; i < loop.length; j = i++) {
-        const [x0, y0] = loop[j], [x1, y1] = loop[i];
-        if ((y0 > y) === (y1 > y)) continue;
-        crossings.push({ x: x0 + (x1 - x0) * (y - y0) / (y1 - y0), winding: y1 > y0 ? 1 : -1 });
-      }
-    crossings.sort((a, b) => a.x - b.x);
-    let winding = 0;
     const current = [];
-    for (let i = 0; i < crossings.length - 1; i++) {
-      winding += crossings[i].winding;
-      if (winding === 0) continue;
-      const length = crossings[i + 1].x - crossings[i].x;
+    for (const [left,right] of clipLineToRegion([0,y],[1,0],rotated,{fillRule:'nonzero'}).spans) {
+      const length = right-left;
       if (length <= TOLERANCE.point) continue;
-      current.push({left:crossings[i].x,right:crossings[i+1].x,
-        row:{scanY:y,from:toWorld([crossings[i].x,y]),to:toWorld([crossings[i+1].x,y]),lengthMm:length}});
+      current.push({left,right,
+        row:{scanY:y,from:toWorld([left,y]),to:toWorld([right,y]),lengthMm:length}});
     }
     yield current;
   }

@@ -4,8 +4,9 @@
 import { readFile, access } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { gatedSections, readManual, machineOpens } from './manuals.mjs';
-import { SKILL_IDS, GUIDANCE_IDS } from '../../skills/catalog.mjs';
+import { SKILL_IDS, GUIDANCE_IDS, EXTENSION_IDS } from '../../skills/catalog.mjs';
 import { MACHINE_IDS } from '../machine/profile.mjs';
+import {listExtensions} from '../extensions/library.mjs';
 import {z} from 'zod';
 
 // The maker's starting context, for both clients: the index (the digest) and the maker flow and
@@ -17,37 +18,35 @@ export const ONBOARDING = ['MAKERS.md', 'skills/DIGEST.md', 'core/print/USAGE.md
 const skillManual = id => `skills/${id}/SKILL.md`;
 
 export async function onboardingSources(root, context) {
-  return Promise.all(ONBOARDING.map(async id => {
+  const documents=await Promise.all(ONBOARDING.map(async id => {
     const { guidanceId, path, text } = await readManual(root, id, context);
     return { guidanceId, path, text };
   }));
+  const local=(await listExtensions({appRoot:root})).filter(item=>item.origin==='local');
+  if(local.length)documents.push({guidanceId:'extensions',path:'extensions',
+    text:'User extensions selected ahead of release defaults: '+local.map(item=>item.id).join(', ')+'. Read each by ID with read_skill.'});
+  return documents;
 }
 
 // A skill section is named `ID#heading` (read_skill takes it); any other `PATH#heading`.
 export const sectionName = guidanceId => guidanceId.replace(/^skills\/([^/]+)\/SKILL\.md#/, '$1#');
 
 // Every gated section of the maker manuals and skill manuals, in catalog order.
-export async function gatedIndex(root, ids = [...MAKER_MANUALS, ...[...SKILL_IDS,...GUIDANCE_IDS].map(skillManual)]) {
+export async function gatedIndex(root, ids = [...MAKER_MANUALS, ...[...SKILL_IDS,...GUIDANCE_IDS,...EXTENSION_IDS].map(skillManual)]) {
   const lists = await Promise.all(ids.map(async path => gatedSections(await readFile(resolve(root, path), 'utf8'), path)));
   return lists.flat();
 }
 export const indexLine = section => `- ${section.title}: ${section.gate}; ${sectionName(section.guidanceId)}`;
 
-// One line naming the sections a machine opens that the previous one (none for a new print) did
-// not, among the maker manuals and the print's skills; null when there are none.
-export async function machineHint(root, { from, to, skills = [] }) {
+// Capabilities select available guidance independently of any print recipe.
+export async function machineHint(root, { from = null, to }) {
+  if(!to)return null;
   const opensNow = machineOpens(to), opensBefore = machineOpens(from);
-  const manuals=[...new Set([...skills.filter(id=>SKILL_IDS.includes(id)||GUIDANCE_IDS.includes(id)),...(skills.includes('slice')?GUIDANCE_IDS:[])])];
-  const sections = (await gatedIndex(root, [...MAKER_MANUALS, ...manuals.map(skillManual)]))
+  const sections = (await gatedIndex(root))
     .filter(section => section.requires.some(opensNow) && !section.requires.some(opensBefore));
   return sections.length ? `This printer opens ${sections.map(section => `"${section.title}" (${sectionName(section.guidanceId)})`)
     .join(', ')}: read ${sections.length > 1 ? 'them' : 'it'} by name when the print uses ${sections.length > 1 ? 'them' : 'it'}.` : null;
 }
-
-// The hint for a print state: its toolpath skills and the geometry skill that made its shape.
-const geometrySkills = { text: 'text', gridfinity: 'gridfinity', 'heat-set': 'heat-set-inserts' };
-export const printHint = (root, state, from) => machineHint(root, { from, to: state.machine.id,
-  skills: [...state.skills ?? [], geometrySkills[state.plan?.geometry?.shape]].filter(Boolean) });
 
 // Bytes of each layer per client and machine. Layers are cumulative reads, so each is the
 // difference between the read that opens it and the one before.
@@ -66,7 +65,7 @@ export async function contextBudget(root, { machineIds = MACHINE_IDS } = {}) {
   let tools = 0,toolSchemas=0;const operations={},toolDefinitions=[];
   try {
     const runtime = createLocalRuntime({ printsRoot, autoOpen: false });
-    for (const operation of runtime.beginSession({remote:true}).operations){
+    for (const operation of runtime.beginSession().operations){
       // Match the installed MCP SDK's tools/list conversion and registration
       // envelope, including draft-7 input semantics and task support metadata.
       const inputSchema=z.toJSONSchema(operation.schema,{target:'draft-7',io:'input'});
@@ -87,7 +86,7 @@ export async function contextBudget(root, { machineIds = MACHINE_IDS } = {}) {
     if (extra) advanced[machineId] = extra;
   }
   const skills = {};
-  for (const [id, path] of [['GEOMETRY.md', 'GEOMETRY.md'], ...[...SKILL_IDS,...GUIDANCE_IDS].map(id => [id, skillManual(id)])]) {
+  for (const [id, path] of [['GEOMETRY.md', 'GEOMETRY.md'], ...[...SKILL_IDS,...GUIDANCE_IDS,...EXTENSION_IDS].map(id => [id, skillManual(id)])]) {
     const operateSkill = await read(path, { client: 'web' });
     const row = { operate: operateSkill, script: await read(path, { client: 'script' }) - operateSkill,
       all: await read(path, { all: true, client: 'script' }) };

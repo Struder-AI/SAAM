@@ -1,3 +1,4 @@
+import {curvePoint} from './surface-curves.mjs';
 // Explicit spline-to-mesh conversion for solid modifiers; ordinary slicing stays native.
 import {evaluate} from './nurbs.mjs';
 import {makeMesh} from './mesh.mjs';
@@ -5,11 +6,11 @@ import {requireThat,distance} from './tolerance.mjs';
 
 function closest(curve,p){
   let best=0,score=Infinity;
-  for(let i=0;i<=32;i++){const d=distance(curve(i/32),p);if(d<score){best=i/32;score=d;}}
+  for(let i=0;i<=32;i++){const d=distance(curvePoint(curve,i/32),p);if(d<score){best=i/32;score=d;}}
   let lo=Math.max(0,best-1/32),hi=Math.min(1,best+1/32);
-  for(let i=0;i<45;i++){const a=lo+(hi-lo)/3,b=hi-(hi-lo)/3;if(distance(curve(a),p)<distance(curve(b),p))hi=b;else lo=a;}
+  for(let i=0;i<45;i++){const a=lo+(hi-lo)/3,b=hi-(hi-lo)/3;if(distance(curvePoint(curve,a),p)<distance(curvePoint(curve,b),p))hi=b;else lo=a;}
   const t=(lo+hi)/2;
-  return distance(curve(best),p)<distance(curve(t),p)?best:t;
+  return distance(curvePoint(curve,best),p)<distance(curvePoint(curve,t),p)?best:t;
 }
 
 export function tessellateShell(shell,{toleranceMm=0.02}={}){
@@ -36,16 +37,16 @@ function sampleSharedBoundaries(edges,count){
   const curves=new Map(),paired=new Set();
   for(const edge of edges){
     if(paired.has(edge))continue;
-    const points=Array.from({length:count+1},(_,i)=>edge.curve(i/count));
+    const points=Array.from({length:count+1},(_,i)=>curvePoint(edge.curve,i/count));
     curves.set(edge,{points,parameters:points.map((_,i)=>i/count)});paired.add(edge);
     if(edge.degenerate)continue;
     const partner=edges.find(other=>other!==edge&&!paired.has(other)&&!other.degenerate&&
-      [0,0.25,0.5,0.75,1].every(t=>distance(other.curve(closest(other.curve,edge.curve(t))),edge.curve(t))<1e-5));
+      [0,0.25,0.5,0.75,1].every(t=>distance(curvePoint(other.curve,closest(other.curve,curvePoint(edge.curve,t))),curvePoint(edge.curve,t))<1e-5));
     requireThat(partner,'Could not match spline boundaries for text tessellation.');
     // Both ends of a closed curve are one point, so a point just past the start
     // decides whether the partner runs the same way.
-    const closed=distance(partner.curve(0),partner.curve(1))<1e-7;
-    const forward=closed?closest(partner.curve,edge.curve(0.1))<0.5:distance(points[0],partner.curve(0))<distance(points.at(-1),partner.curve(0));
+    const closed=distance(curvePoint(partner.curve,0),curvePoint(partner.curve,1))<1e-7;
+    const forward=closed?closest(partner.curve,curvePoint(edge.curve,0.1))<0.5:distance(points[0],curvePoint(partner.curve,0))<distance(points.at(-1),curvePoint(partner.curve,0));
     const ordered=forward?points:[...points].reverse(),parameters=ordered.map(p=>closest(partner.curve,p));
     if(closed){parameters[0]=0;parameters[count]=1;}
     curves.set(partner,{points:ordered,parameters});paired.add(partner);

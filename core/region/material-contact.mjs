@@ -4,7 +4,8 @@
 import {beadContactAlong,depositedBeadSegments} from '../path/deposited-curves.mjs';
 import {prepareSliceRay,sliceRayIntersections} from '../geom/slice.mjs';
 import {pointInRegion,pointSegmentDistance} from './region2d.mjs';
-import {dot,requireThat} from '../geom/tolerance.mjs';
+import {dot} from '../geom/frame.mjs';
+import {requireThat} from '../private/toolpath/numeric.mjs';
 
 export function materialContact(curves,{id='slice',layer,bounds,support,contactFragments=[],predecessorReference=null,maxNormalGapMm=Infinity,substrateAdaptation=false,required=false}){
   const direction=layer.direction??layer.slice.normal??[0,0,1];

@@ -1,0 +1,1 @@
+{"schema":"saam-extension/1","id":"heat-set-inserts","dependencies":[{"id":"text"}],"entries":{"geometry-edit":{"file":"scripts/edit.mjs","export":"editHeatSet"},"record-runtime":{"file":"scripts/feature.mjs","export":"heatSetRecordRuntime"}},"license":"Apache-2.0","provenance":"SAAM release"}

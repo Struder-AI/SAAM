@@ -1,17 +1,32 @@
 // Thingi10K metadata and individual meshes share a pinned upstream snapshot.
 // Network access is confined to the mirror and its download CDN, never input URLs.
-import {readFile, stat} from 'node:fs/promises';
-import {resolve} from 'node:path';
-import {fileURLToPath} from 'node:url';
-import {createHash} from 'node:crypto';
-import {replaceFile} from '../../../core/file-write.mjs';
+import {mkdir,readFile,rename,rm,stat,writeFile} from 'node:fs/promises';
+import {dirname,resolve} from 'node:path';
+import {homedir} from 'node:os';
+import {createHash,randomUUID} from 'node:crypto';
+
 
 export const REVISION = '2d5d3b2f3cd3711028ad75b12788c13b25559ec6';
 const repository = 'https://huggingface.co/datasets/Thingi10K/Thingi10K';
 const base = `${repository}/resolve/${REVISION}/`;
-const defaultCache = fileURLToPath(new URL('../../../.local/thingi10k/', import.meta.url));
+const defaultCache = resolve(process.env.SAAM_DATA??resolve(homedir(),'.saam'),'.thingi10k');
 const maxMeshBytes = 64 * 1024 * 1024;
 const idPattern = /^[1-9][0-9]{0,11}$/;
+
+async function replaceFile(file,bytes){
+  await mkdir(dirname(file),{recursive:true});
+  const temporary=file+'.'+randomUUID()+'.tmp';
+  try{
+    await writeFile(temporary,bytes);
+    for(let attempt=0;;attempt++){
+      try{await rename(temporary,file);return;}
+      catch(error){
+        if(process.platform!=='win32'||!['EPERM','EACCES','EBUSY'].includes(error.code)||attempt>=6)throw error;
+        await new Promise(done=>setTimeout(done,5*2**attempt));
+      }
+    }
+  }finally{await rm(temporary,{force:true}).catch(()=>{});}
+}
 
 // CSV quoted commas, escaped quotes and embedded newlines occur in model names.
 export function csvRows(text) {

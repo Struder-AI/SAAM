@@ -192,7 +192,7 @@ def _attrs(n):
     data = {"id": n.id, "kind": n.kind, "num": n.num or "",
             "label": " ".join(n.lines), "note": " · ".join(n.note_lines),
             "anchor": n.anchor or "", "ref": n.anchor_ref or "",
-            "explodes": n.explodes or "",
+            "explodes": n.explodes or "", "boundary-role": getattr(n, "boundary_role", ""),
             # The page this box opens, where a page holds boxes that are themselves pages.
             "go": getattr(n, "go", "") or "",
             "co": " · ".join(n.co)}
@@ -761,6 +761,12 @@ class Page:
                     d += " C" + " ".join(f"{x:.1f},{y:.1f}" for x, y in pts[i:i + 3])
             # The endpoints ride on the path so the viewer can thicken every wire touching
             # a hovered box -- what a box connects to is the question the drawing is for.
+            if getattr(self, "design", False):
+                label = f'Open interface: {self._tag(e["src"])} → {self._tag(e["dst"])} · {e["label"]}'
+                o.append(f'<path class="fm-wire-hit"{_ends(e)} d="{d}" '
+                         f'fill="none" stroke="transparent" stroke-width="14" '
+                         f'vector-effect="non-scaling-stroke" pointer-events="stroke" '
+                         f'tabindex="0" role="button" aria-label="{escape(label, {chr(34): "&quot;"})}"/>')
             o.append(f'<path class="fm-edge{" long" if broken else ""}"{_ends(e)} d="{d}" '
                      f'fill="none" stroke="{st["stroke"]}" '
                      f'stroke-width="{st["sw"]}"{dash}{wrap} '

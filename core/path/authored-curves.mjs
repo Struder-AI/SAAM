@@ -1,15 +1,16 @@
-import {requireThat,distance,normalize,cross} from '../geom/tolerance.mjs';
-import {evaluateCurve,evaluate} from '../geom/nurbs.mjs';
-import {slicePoint,sliceNormal} from '../geom/slice.mjs';
+import {evaluateSurface} from '../geom/surface-evaluation.mjs';
+import {requireThat,distance,normalize,cross} from '../private/toolpath/numeric.mjs';
+
+import {curvePoint} from '../geom/surface-curves.mjs';
+
 import {heightReferenceBounds} from '../geom/height-slice.mjs';
 import {transportCurveFrames} from './curve-frame.mjs';
 import {strokeRange} from './deposition.mjs';
-import {sampleCurveIntervals} from './curve-sampling.mjs';
+import {sampleCurveIntervals} from '../geom/curve-sampling.mjs';
 import {beadWidthRule,parallelBeadCurves} from './parallel-curves.mjs';
 import {strokeSurfaceRegion} from '../region/surface-offset.mjs';
-import {loadFont,fontEntry} from '../text/catalog.mjs';
-import {lineText} from '../text/compile.mjs';
-import {unit,dot,interpolateDirections} from './pose.mjs';
+import {interpolatePose} from './pose.mjs';
+import {unitDirection as unit,dot} from '../geom/frame.mjs';
 import {piecewiseChart,piecewiseChartFrame,mapPiecewiseChartPath,splitPiecewiseChartPath} from '../geom/piecewise-chart.mjs';
 
 const vec=(p,n)=>Array.isArray(p)&&p.length===n&&p.every(Number.isFinite);
@@ -40,47 +41,36 @@ function referenceEntry(reference,references,course){
   const found=references?.[key];requireThat(found,`Curve reference ${key} is unavailable.`);
   if(reference.kind==='slice'){
     const index=reference.index??course,layer=found.layers?.find(l=>l.index===index);
-    requireThat(layer,`Curve reference ${key} has no layer ${index}.`);return {slice:layer.slice};
+    requireThat(layer,`Curve reference ${key} has no layer ${index}.`);return layer.slice;
   }
-  return found;
+  return found.patch??{kind:'sleeve-chart',layers:found.layers,domainU:[0,1],domainV:[0,found.layers.length-1]};
 }
-export function referenceCurvePoint(entry,p,normalMm=0){
-  if(entry.slice){const point=slicePoint(entry.slice,p),normal=sliceNormal(entry.slice,p);return {point:point.map((v,i)=>v+normalMm*normal[i]),normal};}
-  if(entry.patch){const e=evaluate(entry.patch,p[0],p[1]);return {...e,point:e.point.map((v,i)=>v+normalMm*e.normal[i])};}
-  requireThat(entry.layers?.length>=2,'A sleeve reference needs at least two boundary layers.');
-  requireThat(p[1]>=-1e-9&&p[1]<=entry.layers.length-1+1e-9,'Sleeve curve lies outside the along-coordinate domain.');
-  const v=Math.max(0,Math.min(entry.layers.length-1,p[1])),a=Math.min(entry.layers.length-2,Math.floor(v)),f=v-a;
-  const ring=(layer,u)=>{const loop=layer.curves[0].points;requireThat(layer.curves.length===1&&layer.curves[0].closed,'Sleeve layers require one closed boundary loop.');const pts=[...loop,loop[0]],lengths=[0];for(let i=1;i<pts.length;i++)lengths.push(lengths.at(-1)+distance(pts[i-1],pts[i]));const d=((u%1)+1)%1*lengths.at(-1);let i=1;while(i<lengths.length-1&&lengths[i]<d)i++;const t=(d-lengths[i-1])/(lengths[i]-lengths[i-1]);return pts[i-1].map((x,k)=>x+(pts[i][k]-x)*t);};
-  const lo=ring(entry.layers[a],p[0]),hi=ring(entry.layers[a+1],p[0]),along=ring(entry.layers[a],p[0]+1e-5),normal=normalize(cross(along.map((v,i)=>v-lo[i]),hi.map((v,i)=>v-lo[i])));
-  return {point:lo.map((x,i)=>x+(hi[i]-x)*f+normalMm*normal[i]),normal};
-}
-
 // Native t is normalized over the active knot domain; polylines use cumulative
 // source chord length. Refinement retains profile knots and native knot spans.
+function authoredSegment(lengths,distanceMm){
+  let lo=1,hi=lengths.length-1;
+  while(lo<hi){const mid=Math.floor((lo+hi)/2);if(lengths[mid]<distanceMm)lo=mid+1;else hi=mid;}
+  return lo;
+}
 export function sampleAuthoredCurve(curve,{references={},course=0,offset=[0,0,0],toleranceMm=.02,sampleStepMm=1}={}){
   const input=curve.uv??curve,dimension=curve.uv?2:3,native=input.nurbs?authoredNurbs(input.nurbs,dimension):null;
   const points=input.points,entry=curve.uv?referenceEntry(input.reference,references,course):null;
-  if(native&&curve.closed)requireThat(distance(evaluateCurve(native,native.domain[0]).point,evaluateCurve(native,native.domain[1]).point)<1e-7,'Closed NURBS must meet at their domain endpoints.');
+  if(native&&curve.closed)requireThat(distance(curvePoint(native,0),curvePoint(native,1))<1e-7,'Closed NURBS must meet at their domain endpoints.');
   const source=native?null:(curve.closed?[...points,points[0]]:points),lengths=[0];
   if(source)for(let i=1;i<source.length;i++)lengths.push(lengths.at(-1)+Math.hypot(...source[i].map((x,k)=>x-source[i-1][k])));
-  const local=t=>{if(native)return evaluateCurve(native,native.domain[0]+t*(native.domain[1]-native.domain[0])).point.slice(0,dimension);let i=1,d=t*lengths.at(-1);while(i<lengths.length-1&&lengths[i]<d)i++;const f=(d-lengths[i-1])/(lengths[i]-lengths[i-1]);return source[i-1].map((v,k)=>v+(source[i][k]-v)*f);};
-  const at=t=>{const chart=local(t),e=entry?referenceCurvePoint(entry,chart,input.normalMm??0):{point:chart};return {t,chart,...e,point:e.point.map((v,i)=>v+offset[i])};};
+  const local=t=>{if(native)return curvePoint(native,t).slice(0,dimension);const d=t*lengths.at(-1),i=authoredSegment(lengths,d),f=(d-lengths[i-1])/(lengths[i]-lengths[i-1]);return source[i-1].map((v,k)=>v+(source[i][k]-v)*f);};
+  const at=t=>{const chart=local(t),e=entry?evaluateSurface(entry,chart,input.normalMm??0):{point:chart};requireThat(!entry||e.normal,'Curve reference has a singular tangent.');return {t,chart,...e,point:e.point.map((v,i)=>v+offset[i])};};
   const breaks=[0,1,...(native?[...native.knots].filter(k=>k>native.domain[0]&&k<native.domain[1]).map(k=>(k-native.domain[0])/(native.domain[1]-native.domain[0])):lengths.map(l=>l/lengths.at(-1))),...Object.values(curve.vary??{}).flatMap(v=>v.map(p=>p[0]))];
   const samples=sampleCurveIntervals({at,cuts:breaks,stepMm:curve.sampleStepMm??sampleStepMm,toleranceMm:curve.toleranceMm??toleranceMm,
     chartSteps:curve.uv?.reference.kind==='sleeve'?[.125,.25]:[]});
   const {nurbs,uv,vary,courses,widthRule,toleranceMm:tol,sampleStepMm:maxStep,...properties}=curve;
   const result={...properties,role:curve.role??'curve',closed:false,points:samples.map(s=>s.point),curveParameters:samples.map(s=>s.t)};
   if(curve.segmentMetadata)result.segmentMetadata=samples.slice(1).map((sample,i)=>{
-    const d=(sample.t+samples[i].t)/2*lengths.at(-1);let segment=1;
-    while(segment<lengths.length-1&&lengths[segment]<d)segment++;
+    const d=(sample.t+samples[i].t)/2*lengths.at(-1),segment=authoredSegment(lengths,d);
     return {...curve.segmentMetadata[segment-1]};
   });
   if(samples[0].normal){result.frameSamples=samples.map(s=>{
-    const n=s.normal,h=1e-6,chart=[...s.chart];chart[0]+=h;
-    let tangent;if(entry.patch)tangent=evaluate(entry.patch,s.chart[0],s.chart[1]).du;
-    else if(entry.slice?.kind==='plane')tangent=entry.slice.xAxis;
-    else if(entry.slice?.kind==='patch')tangent=evaluate(entry.slice.patch,s.chart[0],s.chart[1]).du;
-    else {let e;try{e=referenceCurvePoint(entry,chart,input.normalMm??0);}catch{chart[0]=s.chart[0]-h;e=referenceCurvePoint(entry,chart,input.normalMm??0);}tangent=e.point.map((v,i)=>(v-(s.point[i]-offset[i]))/(chart[0]-s.chart[0]));}
+    const n=s.normal,tangent=s.du;
     const u=normalize(tangent.map((v,i)=>v-dot(tangent,n)*n[i]));return {point:[...s.chart,input.normalMm??0],u,v:cross(n,u),normal:n};
   });result.segmentMetadata=samples.slice(1).map((s,i)=>({...result.segmentMetadata?.[i],surfaceNormal:samples[i].normal}));}
   return applyCurveProfiles(result,curve);
@@ -107,7 +97,7 @@ export function applyCurveProfiles(input,curve){
   for(const key of ['normals','chartPoints','referenceAlong'])if(source[key])result[key]=positions.map(({segment:i,fraction:t})=>{
     const value=mix(source[key][i],source[key][i+1],t);return key==='normals'?unit(value):value;
   });
-  if(source.poses)result.poses=positions.map(({segment:i,fraction:t})=>({...interpolateDirections(source.poses[i],source.poses[i+1],t),rotaryDeg:source.poses[i].rotaryDeg+t*(source.poses[i+1].rotaryDeg-source.poses[i].rotaryDeg)}));
+  if(source.poses)result.poses=positions.map(({segment:i,fraction:t})=>interpolatePose(source.poses[i],source.poses[i+1],t));
   if(source.frameSamples)result.frameSamples=positions.map(({segment:i,fraction:t})=>{
     const a=source.frameSamples[i],b=source.frameSamples[i+1],normal=unit(mix(a.normal,b.normal,t)),v=unit(cross(normal,unit(mix(a.u,b.u,t))));
     return {point:mix(a.point,b.point,t),u:unit(cross(v,normal)),v,normal};
@@ -150,32 +140,13 @@ function samplePiecewiseCurve(source,chart,path,{offset=[0,0,0],toleranceMm=.02,
 // Parallel geometry precedes process profiles. Each offset point carries the
 // closest source segment's authored parameter, so NURBS t does not become arc
 // length when a wide stroke is lowered to several beads.
-export function validateLineTextSource(text){
-  requireThat(text&&Object.keys(text).every(k=>['fontId','text','heightMm','beadRangeMm','origin','weight','stemRatio','letterSpacingMm','align','chain','spacingFactor','onInfeasible'].includes(k)),'Unknown line-text source field.');
-  fontEntry(text.fontId);
-  requireThat(typeof text.text==='string'&&text.text.length&&Number.isFinite(text.heightMm)&&text.heightMm>0&&vec(text.origin,3),'Line text needs content, positive height and XYZ origin.');
-  beadWidthRule({widthMm:text.heightMm*.08,beadRangeMm:text.beadRangeMm,spacingFactor:text.spacingFactor??1});
-  requireThat(text.weight===undefined||['light','regular','bold'].includes(text.weight),'Unknown line-text weight.');
-  requireThat(text.stemRatio===undefined||Number.isFinite(text.stemRatio)&&text.stemRatio>0,'Text stemRatio must be positive.');
-  requireThat(text.letterSpacingMm===undefined||Number.isFinite(text.letterSpacingMm),'Text spacing must be finite.');
-  requireThat(text.align===undefined||['left','center','right'].includes(text.align),'Unknown text alignment.');
-  requireThat(text.chain===undefined||typeof text.chain==='boolean','Text chain must be boolean.');
-  requireThat(text.onInfeasible===undefined||['reduce','error'].includes(text.onInfeasible),'Text infeasibility mode must be reduce or error.');
-}
-
 export function constructAuthoredCurves(curve,options={}){
-  if(curve.text){
-    validateLineTextSource(curve.text);const {fontId,origin,...request}=curve.text;
-    const compiled=lineText({...request,font:loadFont(fontId),layers:1,firstLayerMm:0});
-    const {text,closed,...properties}=curve;
-    return compiled.assignment.curves.flatMap(glyph=>constructAuthoredCurves({...properties,...glyph,points:glyph.points.map(p=>p.map((v,i)=>v+origin[i]))},options));
-  }
   let offsetChart=null,offsetDescriptor=null;
   if(curve.uv?.normalMm){
     const entry=referenceEntry(curve.uv.reference,options.references,options.course??0);
-    if(entry.layers||entry.slice?.reference?.kind==='roof'){
-      const bounds=entry.slice?heightReferenceBounds(entry.slice.reference):null;
-      offsetDescriptor=entry.layers?{kind:'sleeve-chart',layers:entry.layers,domainU:[0,1],domainV:[0,entry.layers.length-1]}:{kind:'slice-chart',slice:entry.slice,domainU:[bounds.min[0],bounds.max[0]],domainV:[bounds.min[1],bounds.max[1]]};
+    if(entry.layers||entry.reference?.kind==='roof'){
+      const bounds=entry.kind==='height-field'?heightReferenceBounds(entry.reference):null;
+      offsetDescriptor=entry.layers?{kind:'sleeve-chart',layers:entry.layers,domainU:[0,1],domainV:[0,entry.layers.length-1]}:{kind:'slice-chart',slice:entry,domainU:[bounds.min[0],bounds.max[0]],domainV:[bounds.min[1],bounds.max[1]]};
       offsetChart=piecewiseChart(offsetDescriptor,{normalMm:curve.uv.normalMm,toleranceMm:(curve.toleranceMm??options.toleranceMm??.02)/4});
       offsetDescriptor={...offsetDescriptor,atlas:offsetChart};
     }
@@ -187,10 +158,10 @@ export function constructAuthoredCurves(curve,options={}){
   let paths=[];
   if(curve.uv){
     const entry=referenceEntry(curve.uv.reference,options.references,options.course??0);
-    const heightBounds=entry.slice?.kind==='height-field'?heightReferenceBounds(entry.slice.reference):null;
-    const patch=offsetDescriptor??entry.patch??entry.slice?.patch??(heightBounds?{kind:'slice-chart',slice:entry.slice,domainU:[heightBounds.min[0],heightBounds.max[0]],domainV:[heightBounds.min[1],heightBounds.max[1]]}:entry.layers?{kind:'sleeve-chart',layers:entry.layers,domainU:[0,1],domainV:[0,entry.layers.length-1]}:null);
-    if(entry.slice?.kind==='plane'){
-      const plane=entry.slice;
+    const heightBounds=entry.kind==='height-field'?heightReferenceBounds(entry.reference):null;
+    const patch=offsetDescriptor??(entry.cp?entry:entry.patch)??(heightBounds?{kind:'slice-chart',slice:entry,domainU:[heightBounds.min[0],heightBounds.max[0]],domainV:[heightBounds.min[1],heightBounds.max[1]]}:entry.layers?entry:null);
+    if(entry.kind==='plane'){
+      const plane=entry;
       paths=parallelBeadCurves({...source,curveParameters:undefined},curve.widthRule).map(c=>{
         const mapped=sampleAuthoredCurve({...plain,uv:undefined,points:c.points,closed:c.closed},{...options,offset:[0,0,0]});
         return {...mapped,frameSamples:mapped.points.map(p=>{const d=p.map((x,k)=>x-plane.origin[k]-(options.offset?.[k]??0));return {point:[dot(d,plane.xAxis),dot(d,plane.yAxis),curve.uv.normalMm??0],u:plane.xAxis,v:plane.yAxis,normal:plane.normal};})};

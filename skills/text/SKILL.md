@@ -2,12 +2,12 @@
 name: text
 description: Raised or recessed lettering on a part, or standalone text, from an outline font; flat, along a spline, or bent onto a surface.
 metadata:
-  saam-kind: geometry
+  saam-kind: extension
 ---
 
 # Text geometry
 
-Use this geometry skill for lettering, labels, stamps and text inserts. It
+Use this extension for lettering, labels, stamps and text inserts. It
 creates material geometry; choose toolpath skills afterward. Text changes
 invalidate geometry and settings/toolpath confirmations, and the person reviews
 the resulting solid in Studio as usual.

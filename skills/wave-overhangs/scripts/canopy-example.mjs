@@ -1,6 +1,6 @@
 import {pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
-import {frontAssignment} from '../../../core/print/surface-constructions.mjs';
+import {frontAssignment} from './prepare.mjs';
 import {defaults} from '../../../core/print/plan.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
 import {referencePatch} from '../../../core/geom/reference-surface.mjs';
@@ -47,7 +47,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).hr
   if(!process.argv[2])throw new Error('Provide a new print directory for this development example.');
   const {initBundle,generateBundle,loadBundle}=await import('../../../core/print/bundle.mjs');
   const dir=resolve(process.argv[2]),plan=canopyExamplePlan(loadMachine(),p=>console.log(JSON.stringify(p)));
-  await initBundle(dir,plan);
+  await initBundle(dir,plan,{machineId:'ultimaker-s5'});
   const result=await generateBundle(dir,{development:true}),state=await loadBundle(dir);
   console.log(JSON.stringify({directory:dir,mode:result.mode,waves:state.pathSummary.slices.instances.filter(r=>r.fillOrder).map(r=>({id:r.id,...r.fillOrder}))},null,2));
 }

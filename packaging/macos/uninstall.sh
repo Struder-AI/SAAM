@@ -1,7 +1,7 @@
 #!/bin/bash
 # Uninstalls SAAM for this macOS user: removes ~/Applications/SAAM and
-# ~/Applications/SAAM.app. Prints, the
-# chat pairing and logs in ~/Library/Application Support/SAAM are kept.
+# ~/Applications/SAAM.app and its desktop shortcut. Prints, the
+# settings and logs in ~/Library/Application Support/SAAM are kept.
 # Run it from Terminal:
 #
 #   bash ~/Applications/SAAM/packaging/macos/uninstall.sh [--yes]
@@ -23,22 +23,26 @@ saam_running() {
 }
 
 main() {
-  local target answer
+  local target answer shortcut
   target="$HOME/Applications/SAAM"
+  shortcut="$HOME/Desktop/SAAM.app"
   [ -d "$target" ] || fail "SAAM is not installed in $target."
   if saam_running; then fail 'SAAM is running. Click Quit in SAAM Studio, then uninstall again.'; fi
   if [ "${1:-}" != '--yes' ]; then
-    echo "This removes SAAM from $target and $target.app."
+    echo "This removes SAAM from $target, $target.app and its desktop shortcut."
     echo "Your prints and settings in $(data_folder) are kept."
     read -r -p 'Type y and press Return to uninstall: ' answer
     case "$answer" in [Yy]*) ;; *) echo 'Nothing was removed.'; exit 0 ;; esac
   fi
   # This script runs from the folder it removes; leave it first.
   cd "$HOME"
+  if [ -L "$shortcut" ] && [ "$(readlink "$shortcut")" = "$target.app" ]; then
+    rm "$shortcut" || echo "Could not remove the desktop shortcut at $shortcut."
+  fi
   rm -rf "$target" "$target.app"
   echo
   echo 'SAAM is uninstalled.'
-  echo "Your prints remain in $(data_folder)/Prints; the chat pairing and logs are in $(data_folder)."
+  echo "Your prints remain in $(data_folder)/Prints; settings and logs are in $(data_folder)."
   echo 'Delete that folder yourself if you no longer want them. Installing SAAM again picks them up.'
 }
 

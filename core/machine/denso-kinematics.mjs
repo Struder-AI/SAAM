@@ -1,4 +1,4 @@
-import {add,sub,scale,dot,cross,norm,mv,mm,transpose,identity,rotation,rigid,validateRigid} from './rigid.mjs';
+import {add,subtract as sub,scale,innerProduct as dot,cross,length as norm,mv,mm,transpose,identity,rotation,rigid,validateRigid} from '../geom/frame.mjs';
 
 // Nominal VS-068A4 standard-flange centerlines from DENSO's VS-068 drawing:
 // https://www.denso-wave.com/fsys/en/robot/product/five-six/vs068-087/en_VS-068-W.pdf

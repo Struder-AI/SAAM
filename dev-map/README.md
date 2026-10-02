@@ -1,10 +1,8 @@
 # Dev maps
 
-Intent, scope, terms and the reading rules are owned by
-[DEVELOPER-CONTEXT.md](../DEVELOPER-CONTEXT.md), what remains by
-[BR-052](../build_request.md#br-052--complete-the-dev-map-against-the-2026-09-21-intent). This guide owns the commands, the addresses, what each
-read carries and authoring mechanics. Generation derives leaves, links, gates
-and source locations; authored grouping or the solver arranges them.
+Implementation-map intent: [DEVELOPER-CONTEXT.md](../DEVELOPER-CONTEXT.md);
+remaining work: [BR-052](../build_request.md#br-052--complete-the-dev-map-against-the-2026-09-21-intent).
+Release sets: [0.3.0](../plans/0.3.0.md) uses `030-deployment`; [0.3.1](../plans/0.3.1.md) uses `030-architecture` (identifier retained). Toolkit defaults to the latter; this CLI defaults to original scanned `default`, so pass `--set`. Designs express contracts, not conformance.
 
 - `lib/`: source scanning, leaves (`leaves.mjs`), the tree (`tree.mjs`), the
   store, scoring, the solver and rendering.
@@ -15,11 +13,11 @@ and source locations; authored grouping or the solver arranges them.
 ## Commands
 
 ```sh
-node scripts/agent-toolkit.mjs read-map ADDRESS [--code] [--details]
-node scripts/agent-toolkit.mjs regenerate [INDEX]
-node dev-map/cli.mjs check [--json] [--viewer [ADDRESS…]] | build | flow-evidence ADDRESS
-node dev-map/cli.mjs score [--json] | solve [--seed N]
-node dev-map/cli.mjs watch-freshness [--once]
+node scripts/agent-toolkit.mjs read-map ADDRESS --set NAME [--source|--code] [--details]
+node scripts/agent-toolkit.mjs regenerate [INDEX] --set NAME
+node dev-map/cli.mjs check --set NAME [--json] [--viewer [ADDRESS…]]
+node dev-map/cli.mjs score --set default [--json] | solve --set default [--seed N]
+node dev-map/cli.mjs watch-freshness --set default [--once]
 node dev-map/cli.mjs read ADDRESS [--code] [--details] --set NAME
 ```
 
@@ -53,10 +51,10 @@ record is no node at any depth, so `.` joins its members,
 `createStudio::lifetime.onViewers`; a module-level table keeps its entry keys.
 
 A leaf includes enclosed declarations it alone reaches and private module
-helpers called only by that stage (`lib/helpers.mjs`). Exports, shared callers
-and escaping references prevent helper folding. Effects, dependencies, source
-and findings move to the owner; folding asserts ownership, not purity. No
-authored vocabulary list suppresses nodes. `new X()` reaches the class.
+helpers called only by that stage (`lib/helpers.mjs`). Design uses the current audit's same source-proved containment;
+authored nesting alone proves nothing. Exports, shared callers and escaping references prevent folding.
+Effects, dependencies, source and findings stay visible; folding asserts ownership, not purity.
+No authored vocabulary list suppresses nodes. `new X()` reaches the class.
 
 ## What each read carries
 
@@ -154,26 +152,28 @@ read, a missing one reporting `sourceUnavailable`, not wrong line numbers.
 
 ## Authoring
 
-**Trees**, `tree.json`: `clusters` (`id`, `label`, `parent`), `leaves`
-(declaration → home), `repeats` (map → guests), optional `order` (map → node ids).
-The default solver arranges these only on request. Default placement puts new
-leaves beside their links, drops gone leaves, and dissolves empty/single-box
-clusters. Labels are authored; the solver cannot invent them.
+**Design sets**: `map.json` declares `mode: "design"`, `title`, `authoring: "manual"`; `architecture.json` owns
+stable IDs, indexes, actors, contracts and layout. Nodes reference `source: {file, heading?}` or `{file, declaration?}`;
+`optional: true` allows absent local files. Terminal boxes preview source; `read INDEX|@design/ID|CONTRACT-ID --source`
+adds it to agent reads. `build --set NAME` captures sources; `check --viewer` checks freshness, boxes, wires and previews.
+Contract arrows carry information/actions; `access: [{from,to}]` separately records calls/reads, without transitive permission.
+`implementationLinks: [nodeId]` adds observed calls beneath selected roots using exact ownership homes; map 0 retains authored contracts.
+Scoped `source.declaration` identities open nested helpers/methods. External links lift to their nearest shared-parent boundary.
 
-**Named sets**, `--set NAME` on any command: `sets/NAME/map.json` declares
-`title`, `scope` (exact generated leaf paths), optional `scanFiles` (scan boundary)
-and `authoring: "manual"` to disable solving. Select leaves after scanning;
-folded declarations cannot be selected separately. Every selected leaf needs
-an authored home. Unselected scanned connections remain externals, including
-callers the default map only counts. Each set has its own store and viewer.
-`toolpath-pipeline` is the manually authored example. Both sets use one viewer.
-Optional `tree.json.layout[mapId]` supplies `positions` keyed by cluster id,
-leaf path or external declaration path, each `{x,y,emphasis?}`; unpositioned boxes stay
-below. Optional `viewport: [x,y,width,height]` sets initial focus and `captions`
-adds `{x,y,text}` annotations. `build` applies position edits without scanning.
-Omitting layout keeps automatic placement. Fit frames the overview; Fit all includes
-every dependency. `map.json.externalLabels` keeps individual externals distinct;
-`externalGroups: [{id,label,prefixes}]` groups boundaries, retaining every member and link.
+**Scanned trees**: `tree.json` owns `clusters` (`id,label,parent`), `leaves` (declaration → home), `repeats`
+(map → guests), optional `order`. Placement adds leaves beside links, drops gone leaves and dissolves
+empty/single-box clusters. Solving requires owner request; labels are authored.
+
+**Scanned named sets**, `--set NAME`: `sets/NAME/map.json` declares `title`, `scope` (exact generated leaves),
+optional `scanFiles`, and `authoring: "manual"` to disable solving. Selected leaves need homes; folded declarations
+cannot be selected independently. Unselected connections stay external, including normally counted callers.
+Example: `toolpath-pipeline`. Each set owns its store/viewer.
+
+**Layout**: scanned `tree.json.layout[mapId]` keys positions by cluster/leaf/external identity; design
+`architecture.json.layout[index]` uses drawn indexes. Positions: `{x,y,emphasis?}`; viewport: `[x,y,width,height]`;
+captions: `{x,y,text}`. Unpositioned boxes stay below; absent layout uses automatic placement. `build` needs no scan.
+Fit frames the overview; Fit all includes dependencies. Scanned `externalLabels` names externals;
+`externalGroups` (`id,label,prefixes`) groups them, preserving every declaration/connection.
 
 **Facts**, `facts.tsv`: tab-separated `declaration kind fact source date`, for
 what the code cannot state. `kind` is `measurement`, `vendor` or `decision`
@@ -189,23 +189,20 @@ counted; `importAliases` name served paths that are not the path on disk.
 
 ## Checking
 
-`check` exits non-zero when the store is missing or stale, or a fact row is
-malformed. It reports leaves, clusters, links, the `linked`, `unresolved`,
-`outside` and `platform` totals and orphan facts; `--json` the same as data.
-`--viewer` adds coverage: map by map, whether the built drawing carries what
-the read presents, naming the fields nothing stands for. It only reports and
-is opt-in, reading a view `build` drew; an address scopes it, `coverage.mjs`
-states how each item is matched.
+Scanned `check` fails for missing/stale stores or malformed facts; `--json` reports totals and orphan facts.
+`--viewer [ADDRESS]` checks drawing coverage against stored reads (`coverage.mjs`).
+Design `inventory --set NAME` gathers runtime declarations/modules; `audit` compares exact `ownership.json`
+assignments against map 0 and evidenced public operation boundaries, writing `view/audit.html` and `store/audit.json`.
+`audit-check` rejects missing/stale snapshots. Boundary audit preserves raw sites, root classifications, private access,
+direction review and unresolved ownership/effects; navigation boxes alone impose no API boundary. Exact `interfaces.json`
+bindings and public import routes constrain operation access, without certifying schema/effect compliance or granting transitive access.
 
 ## Scoring
 
-`score` reports size, boundary, hub, island, backflow and balance penalties;
-`lib/score.mjs` owns their weights. Solver energy weights map scores by nested
+`score` reports size, boundary, hub, island, backflow and balance penalties (`lib/score.mjs`). Solver energy weights scores by nested
 leaf count. Crossing is reported, not scored. The viewer and `view/scores.html`
 show scores; `score` prints the worst and best maps.
 
 ## The viewer
 
-`view/index.html` draws the stored maps in place, following declarations
-across renumbering; its index lists the top map and clusters.
-A leaf opens its source and helpers; an external opens members and connections.
+`view/index.html` follows declarations across renumbering. Leaves open source/helpers; externals open connections.

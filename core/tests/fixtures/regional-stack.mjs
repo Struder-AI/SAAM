@@ -5,8 +5,8 @@
 // for height-field slices.)
 import {defaults} from '../../print/plan.mjs';
 import {sliceAssignment} from '../../print/slices.mjs';
-import {sleeveAssignment} from '../../print/sleeve-constructions.mjs';
-import {skinAssignment} from '../../print/surface-constructions.mjs';
+import {depositionAssignment} from '../../print/assignment-records.mjs';
+import {skinAssignment} from '../../../skills/draped-skin/scripts/prepare.mjs';
 import {syntheticDobotSetup} from './dobot.mjs';
 import {splineBox,splineBlock} from './spline-shapes.mjs';
 
@@ -39,7 +39,7 @@ export function regionalStackPlan(machine,backend='mesh') {
     sliceAssignment({id:'cap',part:'roof',fillDensity:1,within:slab(1.2,1.6)}),
     sliceAssignment({id:'roof-body',part:'roof',solidTop:1,solidBottom:1}),
     sliceAssignment({id:'upper',part:'upper',fillDensity:1}),
-    sleeveAssignment({id:'wall',part:'roof',zStartMm:.4,zEndMm:1.2,endTransition:'level'}),
+    depositionAssignment({construction:'sleeve',id:'wall',part:'roof',zStartMm:.4,zEndMm:1.2,endTransition:'level'}),
     skinAssignment({id:'roof-finish',part:'roof',layers:2,pitchMm:.2,surveyStepMm:.2,sampleStepMm:.2})
   ];
   return plan;

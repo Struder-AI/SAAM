@@ -1,7 +1,8 @@
+import {requireThat} from '../private/bundle/numeric.mjs';
 import {loadBundle,updatePlan} from './bundle.mjs';
-import {sliceAssignment} from './slices.mjs';
+import {depositionAssignment} from './assignment-records.mjs';
 import {mergeRecord} from './resolve-plan.mjs';
-import {requireThat} from '../geom/tolerance.mjs';
+
 import {diagnoseDepositionPlan} from './deposition-diagnostics.mjs';
 
 // One assignment editor; bulk adjust_recipe writes this same plan.slices list.
@@ -16,7 +17,7 @@ export function editSliceAssignments(slices,{action,id,assignment,before}) {
   if(action==='remove')return {...slices,assignments:entries};
   const current=slices.assignments[index];
   const next=action==='add'||assignment.construction!==undefined&&assignment.construction!==current.construction
-    ?sliceAssignment({...assignment,id}):mergeRecord(current,assignment);
+    ?depositionAssignment({...assignment,id}):mergeRecord(current,assignment);
   const destination=before===undefined?(action==='add'?entries.length:index):before===null?entries.length:entries.findIndex(item=>item.id===before);
   requireThat(destination>=0,'before must name another slice assignment or be null to append.');
   return {...slices,assignments:[...entries.slice(0,destination),next,...entries.slice(destination)]};
@@ -26,7 +27,7 @@ export async function applySlice(directory,request,{expectedRevision}={}) {
   const previous=await loadBundle(directory,{program:false});
   requireThat(expectedRevision===previous.revision,'This review is stale. Reload before changing slices.');
   const slices=editSliceAssignments(previous.plan.slices,request);
-  const plan={...previous.plan,slices},diagnostics=await diagnoseDepositionPlan(plan,previous.machine);
+  const plan={...previous.plan,slices},diagnostics=await diagnoseDepositionPlan(plan);
   const state=await updatePlan(directory,plan,previous.revision);
   const changed=state.revision!==previous.revision;
   return {state,edit:{action:request.action,id:request.id,changed,assignment:state.plan.slices.assignments.find(a=>a.id===request.id)??null,

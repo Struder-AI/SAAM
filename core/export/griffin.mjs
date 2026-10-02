@@ -1,7 +1,6 @@
-import {prepareMachinePath} from './prepare-path.mjs';
-import { distance, requireThat } from '../geom/tolerance.mjs';
-import {plannedNozzleTemperatures} from '../path/process-controls.mjs';
-const number = (v,min,max,name) => requireThat(Number.isFinite(v) && v>=min && v<=max, `${name} outside limits.`);
+import {distance,requireThat} from '../private/export/numeric.mjs';
+import {prepareExportPath} from './prepare-path.mjs';
+
 // One G4 carries at most this many milliseconds; it is what the firmware reads
 // from a single command, not a limit on how long a path may pause.
 import {DWELL_COMMAND_MS} from './griffin-player.mjs';
@@ -9,7 +8,7 @@ export {interpretGriffin,interpretMotion,interpretMotionChunk} from './griffin-p
 
 const fmt=(n,d=5)=>Number(n.toFixed(d)).toString();
 export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
-  path=prepareMachinePath(path,plan,machine);
+  path=prepareExportPath(path,plan,machine);
   const motionLines=exportMotion(path,plan);
   requireThat(machine.outputs.some(o=>o.id===plan.output && o.flavor==='Griffin'),'Machine does not declare Griffin export.');
   const s=plan.setup, area=Math.PI*(s.filamentMm/2)**2, tool=s.tool;
@@ -46,7 +45,6 @@ export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
 
 // The same volumetric SAAMpath actions and rounding rules feed every dialect.
 export function exportMotion(path,plan,{extrusionMode='absolute',travelCommand='G0'}={}) {
-  validatePath(path);
   requireThat(['absolute','relative'].includes(extrusionMode),'Unsupported extrusion mode.');
   requireThat(['G0','G1'].includes(travelCommand),'Unsupported travel command.');
   const relativeE=extrusionMode==='relative';
@@ -72,6 +70,7 @@ export function exportMotion(path,plan,{extrusionMode='absolute',travelCommand='
   };
   for(const a of path.actions) {
     if((a.operation??'')!==operation){operation=a.operation??'';requireThat(!/[\r\n]/.test(operation),'Invalid operation label.');lines.push(`;SAAM_OPERATION:${operation}`);}
+    requireThat(!/[\r\n]/.test(a.phase),'Invalid phase label.');
     const nextTag=`${a.phase}:${a.layer}`;
     if(tag!==nextTag){lines.push(`;SAAM_PHASE:${a.phase}`,`;LAYER:${a.layer}`);tag=nextTag;}
     if(a.kind==='move') {
@@ -88,9 +87,7 @@ export function exportMotion(path,plan,{extrusionMode='absolute',travelCommand='
         if(relativeE){if(!(nextE>0))nextE=Number(ownMm.toFixed(5));residualE=filamentMm-nextE;}
         const length=distance(writtenPosition,target),de=relativeE?nextE:nextE-writtenE;
         requireThat(length>0, 'A deposition move collapsed at export precision.');
-        // Quantized E and XYZ must still obey the locked flow limit, including
-        // very short section segments. Check the actual written command.
-        const speed=Math.min(a.speedMmS,de>0?plan.process.maxFlowMm3S*length/(de*area):a.speedMmS);
+        const speed=a.speedMmS;
         const feed=Math.floor(speed*60*1000)/1000;
         requireThat(feed>0,'Deposition feed collapsed at export precision.');
         motion('G1',target,nextE,feed);
@@ -104,12 +101,11 @@ export function exportMotion(path,plan,{extrusionMode='absolute',travelCommand='
       const nextE=Number((relativeE?filamentMm:e).toFixed(5));
       const de=relativeE?nextE:nextE-writtenE;
       requireThat(de>0,'Stationary extrusion collapsed at export precision.');
-      const feed=Math.floor(Math.min(a.flowMm3S,plan.process.maxFlowMm3S)/area*60*1000)/1000;
+      const feed=Math.floor(a.flowMm3S/area*60*1000)/1000;
       requireThat(feed>0,'Stationary extrusion feed collapsed at export precision.');
       motion('G1',null,nextE,feed);
       if(!relativeE)writtenE=nextE;
     } else if(a.kind==='temperature') {
-      requireThat(plannedNozzleTemperatures(plan).has(a.targetC),'Unplanned operation temperature.');
       lines.push(`M400`,`M109 S${fmt(a.targetC)}`);
     } else if(a.kind==='retract'||a.kind==='recover') {
       const filamentMm=(a.kind==='retract'?-1:1)*a.filamentMm;
@@ -127,20 +123,4 @@ export function exportMotion(path,plan,{extrusionMode='absolute',travelCommand='
     else throw new Error(`Unsupported SAAMpath action: ${a.kind}`);
   }
   return lines;
-}
-
-export function validatePath(path) {
-  const point=p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite);
-  requireThat(path?.schema==='saampath/1'&&point(path.initialPosition)&&Array.isArray(path.actions), 'Invalid SAAMpath or initial position.');
-  for(const a of path.actions) {
-    requireThat(typeof a.phase==='string'&&!/[\r\n]/.test(a.phase)&&Number.isFinite(a.layer),'Invalid SAAMpath context.');
-    if(a.kind==='move') requireThat(point(a.to)&&Number.isFinite(a.speedMmS)&&a.speedMmS>0&&Number.isFinite(a.volumeMm3)&&a.volumeMm3>=0, 'Invalid SAAMpath move.');
-    else if(a.kind==='retract'||a.kind==='recover') requireThat(Number.isFinite(a.filamentMm)&&a.filamentMm>=0&&Number.isFinite(a.speedMmS)&&a.speedMmS>0, 'Invalid filament action.');
-    else if(a.kind==='extrude')requireThat(Number.isFinite(a.volumeMm3)&&a.volumeMm3>0&&Number.isFinite(a.flowMm3S)&&a.flowMm3S>0,'Invalid stationary deposition.');
-    else if(a.kind==='temperature')requireThat(Number.isFinite(a.targetC)&&a.targetC>0,'Invalid nozzle temperature.');
-    else if(a.kind==='toolChange')requireThat(Number.isInteger(a.filament)&&a.filament>=0&&Number.isInteger(a.tool)&&a.tool>=0,'Invalid material selection.');
-    else if(a.kind==='fan') number(a.percent,0,100,'Fan');
-    else if(a.kind==='dwell') requireThat(Number.isFinite(a.seconds)&&a.seconds>=0,'Dwell outside limits.');
-    else throw new Error('Unsupported SAAMpath action: '+a.kind);
-  }
 }

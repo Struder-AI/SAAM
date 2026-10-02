@@ -1,45 +1,36 @@
 ---
 name: advanced-vase-wall
-description: Guidance for explicit repeated Trace paths mapped onto a fitted sleeve.
+description: Extension that fits a sleeve, repeats authored patterns and calls Trace.
 metadata:
-  saam-kind: guidance
+  saam-kind: extension
 ---
 
 # Advanced vase mode
 
-Use for authored repeating patterns and fitted mesh sleeves. For a conventional
-continuous spiral, choose [standard vase mode](../vase-wall/SKILL.md).
-Sleeve assignments lower plain spirals to Slice and patterns to Trace with a
-sleeve fitting/morphing extension. This is guidance, not another deposition skill.
+Use for authored repeating patterns. This package depends on
+[standard vase](../vase-wall/SKILL.md) for sleeve preparation and shared wall
+constraints; its [script](scripts/runtime.mjs) maps patterns and calls Trace.
+The mesh helper below can also prepare a plain fitted wall, which subsequently
+generates through standard vase without this package.
 
-Use for an open single-wall vessel or tube. The selected solid or closed sleeve
-is a reference envelope; vase-wall deposits the wall and leaves the interior and
-roof open. A modeled bore is unnecessary. A base is a separate slice assignment.
-A looping tile can resemble a gyroid; it is a self-crossing toolpath, not an
-implicit gyroid solid. The pattern may leave openings between deposited strokes.
+The envelope supplies no material; only pattern strokes deposit. A looping
+pattern can resemble a gyroid while remaining a self-crossing toolpath with gaps.
 
-**Terms.** A **sleeve** is a reference surface periodic in one direction and
-open in the other. A **tile** means the explicit authored paths being repeated;
-it is not another input representation. A **course** is one repetition of those
-paths. `pattern` always has `{paths, advance, repeats}`.
+A **tile** is the explicit authored paths; a **course** is one repetition.
+See [standard vase](../vase-wall/SKILL.md#input-geometry-normally-a-solid) for sleeve geometry.
 
 ## Workflow
 
-Use the [shared print tools](../../core/print/USAGE.md) for import, recipe changes, generation, Studio review
-and delivery. Add a sleeve assignment; keep an ordinary assignment for a base.
-For a base, set a positive `zStartMm` aligned to the process layer grid. Set
-`zEndMm` explicitly when the upper geometry is unsuitable; generation never
-shortens a requested wall.
+Use the [shared print tools](../../core/print/USAGE.md). A sleeve assignment with
+`pattern` selects this extension; a null pattern selects standard spiral Slice.
+Keep an ordinary Slice assignment for a base and align positive `zStartMm` to
+the process layer grid. Set `zEndMm` when the upper geometry is unsuitable;
+generation never shortens a requested wall.
 
 ### Mesh input workflow
 
-For an imported mesh, prepare a fitted sleeve before generation:
-
-```sh
-node skills/vase-wall/scripts/prepare-mesh.mjs Prints/PART --options mesh-vase-options.json
-```
-
-Example `mesh-vase-options.json`:
+For an imported mesh, [call this extension](../../core/print/USAGE.md#calling-an-extension)
+with a preparation request before generation:
 
 ```json
 {
@@ -55,28 +46,19 @@ Example `mesh-vase-options.json`:
 
 Author the complete paths and repetition count explicitly. Omitting `pattern`
 preserves an existing pattern, or selects a plain spiral on a new wall.
-The helper derives a base from the process settings unless `baseHeightMm` is
-specified.
+The helper derives a base unless `baseHeightMm` is specified.
 
-The preparation command detects one dominant outer sleeve, chooses an explicit
-usable height interval, preserves the source mesh, and writes a normal recipe
-revision. `--expected-revision REV` protects a caller's revision. Preparation
-does not generate a program or grant approval. Existing path/repeat choices are
-retained unless explicitly replaced; conflicting assignments
-must be changed through the ordinary recipe tools.
+Preparation proposes one usable sleeve interval and updates the recipe without
+changing the source mesh or generating a program. Change conflicting assignments
+through ordinary recipe tools.
 
-Use sleeve `zStartMm`/`zEndMm` for a same-part stack: the wall's band
-(ordinary slices own the base and cap), with other assignments for later work.
-The [shared lifecycle](../../core/print/README.md) carries geometry, operation dependencies, machine
-checks, Studio review and the exact delivered machine bytes.
+For stacks, sleeve bounds claim the wall band; ordinary slices own the base/cap.
+Use the [shared lifecycle](../../core/print/README.md) for generation and review.
 
 ## Input geometry: normally a solid
 
-The normal input is a validated closed mesh or an untrimmed closed spline shell
-with one outer section throughout the selected interval. One bore is allowed.
-Concave sections are supported while every requested inward or outward contour
-remains one closed loop. Multiple islands, split/collapsed contours, arbitrary
-trimmed CAD faces and open uncapped mesh surfaces are unsupported.
+[Standard vase's input requirements](../vase-wall/SKILL.md#input-geometry-normally-a-solid)
+apply. For outside contact, every outward contour must also remain one closed loop.
 
 ### Settings
 
@@ -114,9 +96,8 @@ Author `pattern: {paths, advance, repeats}`. Each path has `points` as
 These coordinates are not world XYZ. `advance: [turns, riseMm]` translates
 successive repeats. The explicit paths are the tile; there is no separate
 cell-layout, tilt or loop-preset input. Bake those geometric choices into the
-points. [loop-path.mjs](../vase-wall/scripts/loop-path.mjs) is an example
-geometry helper returning explicit points, used by the
-[irregular demo](../vase-wall/scripts/irregular-demo.mjs).
+points. [loop-path.mjs](scripts/loop-path.mjs) returns explicit points for the
+[irregular demo](scripts/irregular-demo.mjs).
 
 The mapper queries actual sleeve sections at sampled Z and maps normalized
 perimeter phase onto them. A smaller perimeter narrows phase intervals;
@@ -175,18 +156,9 @@ continuous robot motion or calibrated variable flow. The user reports advanced
 vase walls demonstrated in physical prints (2026-09-24); software generation,
 review and export do not approve hardware.
 
-### Quality and generation cost
+### Script interface
 
-Choose fit control counts for the smooth envelope, `fidelity` for the strength of
-one-sided contact, and `detailToleranceMm` for its sampled detail allowance.
-The helper defaults to fidelity 1 and detail tolerance 0.05 mm; these can be much
-more expensive or reject folds that a looser allowance accepts. Fidelity 0
-isolates smooth mapping cost; a middle fidelity with a coarser explicit detail
-tolerance is a useful preview choice. Final path chord tolerance remains separate.
-
-Use Studio's generation progress and reports before changing quality settings.
-Changing a tolerance changes the numerical allowance and the point count that
-follows from it. Nothing permits silently trimming a wall.
-Reuse current checked output through the shared lifecycle instead of generating
-duplicate jobs. [Prepared contact](../../core/geom/README.md#prepared-mesh-contact)
-owns the numerical limits; [the devlog](../../DEVLOG.md) holds measured examples.
+`advancedVaseResult({shell, assignment, process, ...})` returns operations,
+the reference family, optional terminal boundary and a report without file writes.
+The caller supplies finalized foundation strands; Trace resolves whole-pattern
+crossings, joins and taper before ordinary composition and export.
