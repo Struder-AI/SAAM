@@ -43,7 +43,7 @@ export async function commitManifest(dir,document,expected){
     try{current=JSON.parse(await readFile(resolve(dir,'plan.json'),'utf8'));}catch(error){if(error.code!=='ENOENT')throw error;}
     if(expected===null?current!==null:!current||revisionOf(current)!==expected)throw Error('This revision is stale. Reload before changing the print.');
     const next={...document,bundle:{...document.bundle,revision:randomUUID()}};
-    await replaceFile(resolve(dir,'plan.json'),JSON.stringify(next,null,2)+'\n');
+    await replaceFile(resolve(dir,'plan.json'),JSON.stringify(next)+'\n');
     return next;
   });
 }

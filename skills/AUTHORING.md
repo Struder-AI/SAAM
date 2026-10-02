@@ -1,46 +1,43 @@
 # Skill and extension authoring
 
-Core skills expose developer-owned capabilities. Builders write guidance,
-recipe helpers, assets and examples against published interfaces; web agents
-remain makers. Geometry skills change geometry, toolpath skills deposit, and
-hybrid skills do both. A core change needs the developer role wherever its file
-lives. Read [builder orientation](../BUILDERS.md) and the consumed contracts.
+Builders compose published interfaces into guidance, recipes, assets or
+workspaces; web agents remain makers. Core/shared changes require the developer
+role. Read [builder orientation](../BUILDERS.md) and the consumed contracts.
 
-`SKILL.md` owns maker operations, settings, limits and recovery. Put builder
-guidance in `BUILDER.md` and core implementation notes in `DEVELOPER.md` only
-when needed. Mark command sections `<!-- layer: script -->` and machine sections
-`<!-- requires: capability -->`; unmarked text must work for web agents.
-See [context layers](../core/agent/README.md#context-layers). Keep each fact at
-one owner; maps own the account of core and Studio implementation.
+`SKILL.md` owns maker operations, settings, limits and recovery; optional
+`BUILDER.md`/`DEVELOPER.md` own author guidance. Mark commands `<!-- layer: script -->`
+and machine sections `<!-- requires: capability -->`; unmarked text must work
+for web agents. [Context layers](../core/agent/README.md#context-layers) explains
+selection. Maps own implementation; keep each fact at one owner.
 
-Manual frontmatter uses `metadata.saam-kind: geometry`, `hybrid` or `guidance`
-where appropriate. Its one-line description helps the agent choose the skill;
-start unvalidated techniques with “Experimental.” Keyword descriptions are
-only the keyword. The release [catalog](catalog.mjs) orders built-in discovery;
-`node scripts/skill-digest.mjs` refreshes its digest after description, catalog
-or gate changes. The MCP list also reads installed extension manifests.
+Manual frontmatter uses `metadata.saam-kind: geometry`, `hybrid` or `guidance`.
+Descriptions guide selection; prefix unvalidated techniques with “Experimental.”
+Keyword descriptions contain only that keyword. [catalog.mjs](catalog.mjs) orders built-ins;
+refresh with `node scripts/skill-digest.mjs` after description/catalog/gate edits.
 
-An extension folder contains `extension.json` and `SKILL.md`, plus any scripts,
-assets and optional author manuals it uses. The manifest declares
-`schema: "saam-extension/1"`, a lowercase hyphenated `id`, `dependencies`,
-`entries`, `license` and `provenance`. Each dependency names an `id`; missing
-copies and cycles stop execution. Entries map names such as `geometry-edit`,
-`geometry-create`, `deposition-edit`, `deposition-runtime`, `record-runtime` or `resource-client`
-to an `.mjs` function. A runtime factory receives named public Geometry and
-Toolpath operations and returns the technique's composition functions. Import
-validates and saves files without running scripts.
+An extension contains `extension.json`, `SKILL.md`, scripts and assets. Its
+manifest declares `schema: "saam-extension/1"`, a lowercase hyphenated `id`,
+`dependencies`, `entries`, `license` and `provenance`. Missing dependencies and
+cycles stop execution. Entries name `.mjs` functions for geometry, deposition,
+record or resource operations. Runtime factories receive named public Geometry
+and Toolpath operations; private core imports are not a portable interface.
+
+Workspace extensions declare `kind: "workspace"`, `workspace: {"ui":"ui"}`
+and a `workspace-runtime` entry. That factory receives `Geometry.loftPolygons`,
+`Geometry.clipLineToRegion`, `Toolpath.recipeDefaults` and
+`Toolpath.curveAssignment`; it returns `defaults`, `normalize`, `preview`, `pieces`,
+`construct` and optional `resources`. `construct(design, pieceId)`
+returns `{plan, source, requirements, report}`. The [host](../workspaces/server.mjs)
+serves UI, saves normalized designs and manages workers; preview is explicit.
+Core attaches protected identity and persists self-contained bundles. Extensions
+own domain validation, construction and UI, without bundle/lifetime authority.
 
 `node scripts/extensions.mjs list|resolve ID...|checkout ID|export ID FILE|import FILE`
-manages extensions. `checkout` copies a release extension into the user data
-folder (`SAAM_DATA/extensions` when set); builders edit that copy. User copies
-win over release defaults and are retained when SAAM updates. `export` writes
-a portable JSON package containing the manifest, guidance, scripts, assets and
-per-file hashes. `import` refuses to replace a changed local copy. Share the
-package explicitly; promotion into a release requires review.
+manages the shared library. `checkout` creates an editable user copy, under
+`SAAM_DATA/extensions` when set; it overrides release defaults and survives updates.
+`export` packages manifest, manuals, scripts, assets and hashes; import validates
+without executing code or replacing changed copies. Share explicitly; release
+promotion needs review. MCP discovery also reads installed manifests.
 
-Keep external resource use in the manual and return assets with available
-identity, provenance and license metadata. The caller saves imported assets in
-the bundle. Extensions are ordinary local code and carry no technical sandbox
-or automatic I/O permission. Use [standard parameter policy](../MAKERS.md#standard-parameter-policy)
-for settings, and [verification guidance](../BUILDERS.md#avoid-check-spirals)
-for changes.
+Document resource identity, provenance and license; callers save assets. Extensions have no technical sandbox or automatic I/O permission.
+Follow [parameter policy](../MAKERS.md#standard-parameter-policy) and [verification guidance](../BUILDERS.md#avoid-check-spirals).

@@ -39,8 +39,8 @@ export const TAB_GRACE_MS=3_000;
 export function stopWithoutTabs(observeEvents,onNoTabs,graceMs=TAB_GRACE_MS){
   const tabs=new Map(),watch={seen:false,timer:null};
   return observeEvents(event=>{
-    if(event.kind!=='viewer-opened'&&event.kind!=='viewer-closed')return;
-    tabs.set(event.studioInstanceId,event.viewers);
+    if(!['viewer-opened','viewer-closed','workspace-viewer-opened','workspace-viewer-closed'].includes(event.kind))return;
+    tabs.set(event.workspaceInstanceId??event.studioInstanceId,event.viewers);
     const open=[...tabs.values()].reduce((sum,count)=>sum+count,0);
     watch.seen||=open>0;clearTimeout(watch.timer);
     if(watch.seen&&!open)watch.timer=setTimeout(onNoTabs,graceMs);

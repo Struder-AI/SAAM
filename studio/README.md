@@ -41,10 +41,9 @@ integration. The original direct launch syntax remains supported.
 Run from the repository root, quote a print path containing spaces, and keep
 `node studio/server.mjs` literal. The bare command starts a new
 [guided tour](../examples/prints/README.md) with one saved fin-block copy.
-The header's **Tour** button starts a fresh tour when none is active and toggles
-guidance during one. Reopening the saved copy after a browser or Studio restart
-resumes its lesson with new request authority. Exit keeps the copy as an ordinary
-print; a new tour creates a new copy.
+The header's **Website reference** opens [the SAAM website](https://struder.com/saam/) in a new tab.
+**Tour** starts a fresh tour or toggles active guidance. Reopening a saved copy
+resumes its lesson with new request authority. Exit keeps it as an ordinary print; a new tour creates a new copy.
 Use the client's managed terminal/background session so it can
 retain the process handle. The human-facing `npm run studio` alias still works,
 but the shared permission targets the direct command. Shell wrappers, different

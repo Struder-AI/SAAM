@@ -65,7 +65,7 @@ async function livePreview(){
   if(view.liveBusy||!view.livePending||!view.dragging)return;
   view.liveBusy=true;view.livePending=false;
   const draft=view.draft,session=view.liveSession;
-  try{const result=await api('/api/wing/preview','POST',{design:draft});if(view.dragging&&session===view.liveSession)showPreview(result);}
+  try{const result=await api('/api/preview','POST',{design:draft});if(view.dragging&&session===view.liveSession)showPreview(result);}
   catch(e){if(view.dragging&&session===view.liveSession){view.invalid=true;error(e.message);actions();}}
   finally{view.liveBusy=false;if(view.livePending&&view.dragging)setTimeout(livePreview,0);}
 }
@@ -76,7 +76,7 @@ async function update(design){
   while(view.saveQueued){
     view.saveQueued=false;const candidate=view.draft;
     try{
-      const result=await api('/api/design','POST',{design:candidate});
+      const result=await withPreview(await api('/api/design','POST',{design:candidate}));
       if(candidate!==view.draft||view.dragging||view.saveQueued)continue;
       view.dirty=false;showPreview(result);view.draft=result.design;settings();
     }catch(e){if(candidate===view.draft&&!view.dragging&&!view.saveQueued){view.invalid=true;error(e.message);}}
@@ -176,5 +176,13 @@ function jobDisplay(job){
   }
 }
 async function poll(){try{const job=await api('/api/job','GET');jobDisplay(job);if(job&&!['complete','failed'].includes(job.stage))setTimeout(poll,1000);}catch(e){error(e.message);}}
-$('export').onclick=async()=>{try{error();$('export').disabled=true;jobDisplay(await api('/api/wing/export','POST',{design:view.design}));poll();}catch(e){error(e.message);actions();}};
-try{const [result,airfoils]=await Promise.all([api('/api/design','GET'),api('/api/airfoils','GET')]);view.design=result.design;view.draft=result.design;view.airfoils=airfoils;view.preview=result.preview;view.selected=result.preview.pieces[0].id;settings();pieces();draw();actions();if(result.job){jobDisplay(result.job);poll();}}catch(e){error(e.message);}
+$('export').onclick=async()=>{try{error();$('export').disabled=true;jobDisplay(await api('/api/bundles','POST',{design:view.design}));poll();}catch(e){error(e.message);actions();}};
+try{const [result,airfoils]=await Promise.all([api('/api/design','GET').then(withPreview),api('/api/resources','GET')]);view.design=result.design;view.draft=result.design;view.airfoils=airfoils;view.preview=result.preview;view.selected=result.preview.pieces[0].id;settings();pieces();draw();actions();if(result.job){jobDisplay(result.job);poll();}}catch(e){error(e.message);}
+
+window.addEventListener('saam-workspace-event',async ({detail})=>{
+  if(detail.kind==='workspace-design-updated'&&detail.source==='agent'){
+    try{const state=await withPreview(await api('/api/design'));showPreview(state);view.draft=state.design;view.dirty=false;settings();}catch(e){error(e.message);}
+  }
+});
+
+async function withPreview(state){return {...state,...await api('/api/preview','POST',{design:state.design,interactive:false})};}

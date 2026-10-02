@@ -17,14 +17,22 @@ const STARTING = ['MAKERS.md', 'core/print/USAGE.md'];
 export const ONBOARDING = ['MAKERS.md', 'skills/DIGEST.md', 'core/print/USAGE.md'];
 const skillManual = id => `skills/${id}/SKILL.md`;
 
+// Selected workspaces are discoverable whether bundled or imported; skill
+// extensions already in the digest only need a note for local overrides.
+export async function extensionDiscovery(root,{readTool,openTool}){
+  const selected=(await listExtensions({appRoot:root})).filter(item=>item.origin==='local'||item.manifest.kind==='workspace');
+  if(!selected.length)return null;
+  return {guidanceId:'extensions',path:'extensions',
+    text:'Selected extensions: '+selected.map(item=>item.id+' ('+(item.manifest.kind==='workspace'?'workspace':'skill')+', '+item.origin+')').join(', ')+'. Read each manual by ID with '+readTool+'. Open a workspace by extension ID with '+openTool+'; its new bundles return to Studio for review.'};
+}
+
 export async function onboardingSources(root, context) {
   const documents=await Promise.all(ONBOARDING.map(async id => {
     const { guidanceId, path, text } = await readManual(root, id, context);
     return { guidanceId, path, text };
   }));
-  const local=(await listExtensions({appRoot:root})).filter(item=>item.origin==='local');
-  if(local.length)documents.push({guidanceId:'extensions',path:'extensions',
-    text:'User extensions selected ahead of release defaults: '+local.map(item=>item.id).join(', ')+'. Read each by ID with read_skill.'});
+  const discovery=await extensionDiscovery(root,{readTool:'read_skill',openTool:'open_workspace'});
+  if(discovery)documents.push(discovery);
   return documents;
 }
 

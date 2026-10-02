@@ -1,6 +1,6 @@
 // The stored map. AST scanning and link resolution happen only during explicit generation.
-// Reads use stored relationships, enumerate/hash inputs for freshness, and return source at code
-// destinations. Each retained file record keeps the hash of the source that produced its pages.
+// CLI reads return stored relationships and source locations, with input freshness.
+// Each retained file record keeps source snapshots for the human viewer.
 import {readFile,writeFile,mkdir,rm,readdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {resolve} from 'node:path';
@@ -14,6 +14,8 @@ import {scanRoots,outsideRootOf,isMapped,activeCallers} from './scope.mjs';
 import {attachPortReferences} from './port-references.mjs';
 import {TOP,treeFile,readTreeFile,placeTree,treeAccess,drawMap,numberTree,linkSet,treeFileOf,renumber,markRepeats} from './tree.mjs';
 import {destinationFor} from './destination.mjs';
+import {sourceLocations} from './source-locations.mjs';
+import {presentationPage} from './presentation.mjs';
 import {classifyFindings,effects,mapFindings,missingCounts,writtenBinding} from './findings.mjs';
 export {destinationFor} from './destination.mjs';
 
@@ -533,74 +535,31 @@ export async function matchingSource(file,{repo=repoRoot,held,record,readSource=
 }
 
 // Every read hashes the source behind what it returns and says so in data when they differ.
-export async function readGenerated(target,{repo=repoRoot,code=false,readSource=file=>readFile(resolve(repo,file),'utf8'),files}={}) {
+export async function readGenerated(target,{repo=repoRoot,readSource=file=>readFile(resolve(repo,file),'utf8'),files}={}) {
   const dir=storeDir(repo),held=await readIndex(dir);
-  if(!held)return {generated:true,stale:{regenerate:'0'}};
+  if(!held)throw Error(`No stored map at ${dir}. Run node dev-map/cli.mjs regenerate --set ${setName}.`);
   const key=String(target).replaceAll('\\','/').replace(/\/$/,'');
   const at=/^\d+(\.\d+)*$/.test(key)?key:held.byPath[key];
   if(at===undefined)throw Error(`No node ${key}. Read 0 for the top map.`);
   const page=at==='0'?held.root:held.groupPages?.[at]??await nodePage(dir,held,at);
   if(!page)throw Error(`No node ${at}. Read 0 for the top map.`);
   const stale=await storedFreshness(held,{repo,readSource,files});
-  const described={...page,destination:destinationFor(page),...(stale?{stale}:{})};
-  if(code||described.destination==='code')return withSources(
-    {...described,...await codeFor(page,held,dir),destination:'code'},file=>matchingSource(file,{repo,held,readSource}));
-  return described;
+  if(destinationFor(page)==='code')throw Error('Source leaf '+target+' is not a map. Use normal file tools at the source ranges shown on its containing map.');
+  const described=presentationPage({...page,destination:destinationFor(page)});
+  const components=await Promise.all((described.components??[]).map(async component=>{
+    const target=held.nodes[component.index]?await nodePage(dir,held,component.index):null;
+    const sources=sourceLocations(target??component);
+    const {file,line,endLine,lines,leaf,...box}=component;
+    return {...box,...(target?{destination:destinationFor(target)==='code'?'source':'graph'}:{}),
+      ...(sources.length?{sources}:{})};
+  }));
+  return {...described,components,...(stale?{stale}:{})};
 }
 
 async function nodePage(dir,held,at) {
   const node=held.nodes[at];if(!node)return null;
   const record=await json(resolve(dir,'files',held.records[node.file]));
   return record.pages[at]??null;
-}
-
-// The root cannot return the entire codebase. Every other scope returns exactly its contained
-// code: source spans for a cluster, or its own declaration.
-async function codeFor(page,held,dir) {
-  if(page.kind==='root')
-    throw Error(`Page ${page.index} is the top map; --code takes a cluster or leaf. Read 0 without --code.`);
-  if(page.kind==='group') {
-    const spans=[];
-    for(const path of page.codeTargets??[]) {
-      const target=await nodePage(dir,held,held.byPath[path]);
-      if(!target)throw Error(`Cluster ${page.index} refers to missing code ${path}; regenerate 0.`);
-      spans.push({file:target.file,line:target.line,endLine:target.endLine});
-      spans.push(...target.foldedCode??[]);
-    }
-    const merged=[];
-    for(const span of spans.sort((a,b)=>order(a.file,b.file)||a.line-b.line||a.endLine-b.endLine)) {
-      const last=merged.at(-1);
-      if(last?.file===span.file&&span.line<=last.endLine)last.endLine=Math.max(last.endLine,span.endLine);
-      else merged.push({...span});
-    }
-    return {generated:true,index:page.index,path:page.path,kind:page.kind,code:true,
-      spans:merged.map(s=>({...s,lines:s.endLine-s.line+1}))};
-  }
-  return {generated:true,index:page.index,path:page.path,file:page.file,line:page.line,endLine:page.endLine,lines:page.lines,code:true,
-    ...(page.foldedCode?.length?{spans:[{file:page.file,line:page.line,endLine:page.endLine},...page.foldedCode]}:{})};
-}
-
-export async function readCode(target,{repo=repoRoot,readSource=file=>readFile(resolve(repo,file),'utf8'),files}={}) {
-  return readGenerated(target,{repo,code:true,readSource,files});
-}
-
-async function withSources(head,selectSource) {
-  if(head.spans) {
-    const texts=new Map(),sources=[];
-    for(const span of head.spans) {
-      if(!texts.has(span.file))texts.set(span.file,await selectSource(span.file));
-      const {text,...provenance}=texts.get(span.file);
-      if(text===null){sources.push({...span,...provenance});continue;}
-      const source=text.split('\n').slice(span.line-1,span.endLine).map((line,i)=>`${span.line+i}\t${line}`).join('\n');
-      sources.push({...span,...provenance,source});
-    }
-    const {spans,...scope}=head;
-    return {...scope,sources};
-  }
-  const {text,...provenance}=await selectSource(head.file);
-  if(text===null)return {...head,...provenance};
-  const lines=text.split('\n').slice(head.line-1,head.endLine).map((line,i)=>`${head.line+i}\t${line}`);
-  return {...head,...provenance,source:lines.join('\n')};
 }
 
 // ---- status ------------------------------------------------------------------------------

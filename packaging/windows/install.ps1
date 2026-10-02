@@ -51,6 +51,7 @@ if (-not (Test-Path -LiteralPath $releaseFile) -or -not (Test-Path -LiteralPath 
 $tar = Join-Path $env:SystemRoot 'System32\tar.exe'
 if (-not (Test-Path -LiteralPath $tar)) { Stop-WithMessage "This Windows has no $tar, which SAAM's installer needs (Windows 10 version 1803 or later)." }
 $version = [string](Get-Content -LiteralPath $releaseFile -Raw -Encoding UTF8 | ConvertFrom-Json).version
+if ($version -notmatch '^\d{1,6}\.\d{1,6}\.\d{1,6}$') { Stop-WithMessage 'The release has no valid version. Nothing was changed.' }
 
 if ($updating) {
   Write-Step "Updating to SAAM $version from $archive; waiting for SAAM (process $WaitPid) to exit."
@@ -66,16 +67,28 @@ Assert-SaamStopped 'run "Install SAAM.cmd"'
 # Unpack into a staging folder next to the installation first, so a failed
 # unpack leaves any installed SAAM as it was.
 $programs = Split-Path -Parent $SaamRoot
-$staging = Join-Path $programs 'SAAM.installing'
-Remove-Folder $staging
+$transaction = [guid]::NewGuid().ToString('N')
+$staging = Join-Path $programs ('SAAM.installing-' + $transaction)
+$backup = Join-Path $programs ('SAAM.previous-' + $transaction)
 New-Item -ItemType Directory -Path $staging -Force | Out-Null
 Write-Host 'Unpacking SAAM...'
 & $tar -xf $archive -C $staging
 $tarExit = $LASTEXITCODE
-if ($tarExit -ne 0 -or -not (Test-Path -LiteralPath (Join-Path $staging 'runtime\node.exe')) -or
-    -not (Test-Path -LiteralPath (Join-Path $staging 'packaging\windows\SAAM.ico'))) {
+if ($tarExit -ne 0) {
   Remove-Folder $staging
   Stop-WithMessage "Unpacking SAAM failed (tar exit code $tarExit). Nothing was changed."
+}
+try {
+  foreach ($name in @('runtime\node.exe', 'release.json', 'packaging\launch.mjs', 'packaging\windows\SAAM.ico', 'packaging\windows\SAAM.vbs', 'packaging\windows\SAAM.cmd')) {
+    if (-not (Test-Path -LiteralPath (Join-Path $staging $name) -PathType Leaf)) { throw "The candidate has no $name." }
+  }
+  $candidate = Get-Content -LiteralPath (Join-Path $staging 'release.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+  if ($candidate.version -ne $version) { throw 'The candidate version does not match the release.' }
+  & (Join-Path $staging 'runtime\node.exe') --version | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw 'The candidate Node runtime cannot run.' }
+} catch {
+  Remove-Folder $staging
+  Stop-WithMessage "Verifying SAAM failed ($($_.Exception.Message)). Nothing was changed."
 }
 # The launchers are written fresh rather than unpacked, so they never carry a
 # download mark and Windows does not warn at every start.
@@ -85,11 +98,18 @@ foreach ($name in @('SAAM.vbs', 'SAAM.cmd')) {
 }
 
 try {
-  Remove-Folder $SaamRoot
+  if (Test-Path -LiteralPath $SaamRoot) { Rename-Item -LiteralPath $SaamRoot -NewName (Split-Path -Leaf $backup) }
   Rename-Item -LiteralPath $staging -NewName (Split-Path -Leaf $SaamRoot)
 } catch {
-  Stop-WithMessage "Could not replace the earlier SAAM in $SaamRoot ($($_.Exception.Message)). Close any window or program using that folder, then run `"Install SAAM.cmd`" again."
+  $replacementError = $_.Exception.Message
+  if (Test-Path -LiteralPath $backup) {
+    try { Rename-Item -LiteralPath $backup -NewName (Split-Path -Leaf $SaamRoot) }
+    catch { Stop-WithMessage "Replacement failed ($replacementError); restoring also failed ($($_.Exception.Message)). Your earlier SAAM is preserved at $backup. Close programs using these folders before restoring it to $SaamRoot." }
+  }
+  Remove-Folder $staging
+  Stop-WithMessage "Could not replace SAAM ($replacementError). The earlier installation is unchanged or restored. Close programs using $SaamRoot and try again."
 }
+try { Remove-Folder $backup } catch { Write-Step "SAAM was replaced; the earlier installation remains at $backup ($($_.Exception.Message))." }
 
 # An update refreshes only the shortcuts the person still has; it adds the
 # console shortcut for someone who keeps the Start Menu one.
@@ -126,7 +146,7 @@ if (-not $NoLaunch) {
   if ($isolated) {
     Start-Process -FilePath (Join-Path $SaamRoot 'runtime\node.exe') -ArgumentList (Join-Path $SaamRoot 'packaging\launch.mjs') -WorkingDirectory $env:USERPROFILE -WindowStyle Hidden
   } else {
-    Start-Process -FilePath $wscript -ArgumentList $launcher -WorkingDirectory $env:USERPROFILE
+    Start-Process -FilePath $wscript -ArgumentList $launcher -WorkingDirectory $env:USERPROFILE -WindowStyle Hidden
   }
   Write-Log 'Started SAAM.'
 }

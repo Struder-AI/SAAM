@@ -133,7 +133,7 @@ export function validatePlanFields(plan) {
 }
 
 export function workspaceConstructionIdentity(plan){
-  return hash({geometry:plan.geometry,slices:plan.slices,skills:plan.skills,modulations:plan.modulations,composition:plan.composition,experimental:plan.experimental,layerMm:plan.process.layerMm,firstLayerMm:plan.process.firstLayerMm,lineWidthMm:plan.process.lineWidthMm});
+  return hash({geometry:plan.geometry,slices:plan.slices,skills:plan.skills,modulations:plan.modulations,composition:plan.composition,experimental:plan.experimental,layerMm:plan.process?.layerMm,firstLayerMm:plan.process?.firstLayerMm,lineWidthMm:plan.process?.lineWidthMm});
 }
 
 export function validatePlanGeometry(plan) {

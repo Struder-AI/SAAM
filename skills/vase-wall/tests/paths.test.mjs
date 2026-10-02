@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {generatePath} from '../../../core/print/generate.mjs';
+import {contextualActions} from '../../../core/path/action-context.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
 import {loopDemoPlan} from '../../advanced-vase-wall/scripts/loop-demo.mjs';
 
-const wall=path=>path.actions.filter(a=>a.role==='vase-wall'||a.role==='segmented-path');
+const wall=path=>[...contextualActions(path)].filter(({context})=>context.role==='vase-wall'||context.role==='segmented-path').map(({action})=>action);
 
 test('wide inward and outward loops map continuously across wavy mesh triangle seams',async()=>{
   const plan=loopDemoPlan({courses:36,loopsPerTurn:20,samplesPerLoop:64,
@@ -17,5 +18,5 @@ test('wide inward and outward loops map continuously across wavy mesh triangle s
   const radii=moves.map(m=>Math.hypot(m.to[0]-125,m.to[1]-105));
   assert.ok(Math.min(...radii)<11,'pattern extends inward from the wavy guide');
   assert.ok(Math.max(...radii)>16,'pattern extends outward from the wavy guide');
-  assert.ok(path.actions.slice(path.actions.indexOf(moves[0]),path.actions.indexOf(moves.at(-1))+1).every(a=>a.kind==='move'&&a.volumeMm3>0));
+  assert.ok(path.actions.slice(path.actions.indexOf(moves[0]),path.actions.indexOf(moves.at(-1))+1).every(a=>a.kind==='context'||a.kind==='move'&&a.volumeMm3>0));
 });

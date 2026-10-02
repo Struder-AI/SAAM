@@ -7,9 +7,9 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {randomUUID} from 'node:crypto';
 import {readManual} from './manuals.mjs';
-import {ONBOARDING} from './layers.mjs';
+import {ONBOARDING,extensionDiscovery} from './layers.mjs';
 import {SKILL_IDS, GUIDANCE_IDS, EXTENSION_IDS,BUILDER_IDS} from '../../skills/catalog.mjs';
-import {listExtensions,readExtension} from '../extensions/library.mjs';
+import {readExtension} from '../extensions/library.mjs';
 import {lifecycleReview} from '../print/review-state.mjs';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -41,9 +41,8 @@ const json = async path => JSON.parse(await readFile(path, 'utf8'));
 export async function contextPacket(ids, context = {}) {
   const documents=await Promise.all([...new Set(ids)].map(id => readManual(root, id, {client: 'script', ...context})));
   if(ids.includes('skills/DIGEST.md')){
-    const local=(await listExtensions({appRoot:root})).filter(item=>item.origin==='local');
-    if(local.length)documents.push({guidanceId:'extensions',path:'extensions',
-      text:'User extensions selected ahead of release defaults: '+local.map(item=>item.id).join(', ')+'. Read each by ID with read-skill.'});
+    const discovery=await extensionDiscovery(root,{readTool:'read-skill',openTool:'open-workspace'});
+    if(discovery)documents.push(discovery);
   }
   return {documents};
 }
@@ -120,7 +119,7 @@ async function mapCommand(set, command, args = []) {
 // Reads never scan. Select `default` explicitly for the original implementation map.
 export async function readMaps(keys, options = {}) {
   return Promise.all(keys.map(key => mapCommand(options.set ?? developerMapSet, 'read',
-    [key, ...(options.code ? ['--code'] : []), ...(options.source ? ['--source'] : []), ...(options.details ? ['--details'] : [])])));
+    [key])));
 }
 
 // Design regeneration redraws authored maps; its implementation audit is separate.
@@ -130,7 +129,7 @@ export async function regenerateMap(index, {set = developerMapSet} = {}) {
 
 // Three roles, three readings. A maker reads prose and no map. A builder reads prose — its own
 // manual, skill authoring and the component manual for the area — and may walk the map. A
-// developer reads shared terms, the orientation and map `0`; component manuals open as needed.
+// developer reads shared terms, the full developer context and map `0`; component manuals open as needed.
 // A maker's manuals open by client and machine; a builder's and developer's are read whole.
 export async function onboarding({role, areas = [], machine: machineId, set = developerMapSet}) {
   if (!['maker', 'builder', 'developer'].includes(role)) throw Error('Choose maker, builder or developer onboarding.');
@@ -139,14 +138,14 @@ export async function onboarding({role, areas = [], machine: machineId, set = de
   const builderAreaIds = [...new Set(areas.flatMap(area => developmentAreas[area] ?? []))];
   const ids = role === 'maker' ? ONBOARDING
     : role === 'builder' ? ['BUILDERS.md', ...ONBOARDING, 'skills/AUTHORING.md', ...builderAreaIds]
-    : ['plans/0.3.2.md', 'plans/0.3.1.md', 'GLOSSARY.md', 'DEVELOPER-CONTEXT.md#orientation', ...new Set(outside.flatMap(area => outsideAreas[area]))];
+    : ['GLOSSARY.md', 'DEVELOPER-CONTEXT.md', ...new Set(outside.flatMap(area => outsideAreas[area]))];
   const mapKeys = role === 'maker' ? [] : [...(role === 'developer' ? ['0'] : []), ...targets];
   const [context, environment, maps] = await Promise.all([contextPacket(ids, role === 'maker' ? {machineId} : {all: true}),
     environmentStatus(), mapKeys.length ? readMaps(mapKeys, {set}) : []]);
   return {role, environment, ...context, maps, ...(mapKeys.length ? {mapSet: set} : {}),
     nextStep: role === 'maker' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context and choose individual skill manuals when an edit needs them. The digest indexes gated sections; read one by name when its gate applies.'
-      : role === 'builder' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context. Builders author guidance, recipe helpers, assets, examples and diagnostics using published APIs. Core skills and shared capability/contract changes require the developer role. The component manual for the area you consume owns its behaviour, contracts and limits; read the one for the code you touch. The dev maps own structure: walk them from 0, or from a node you name with --area, for what calls what, with read-map INDEX|DECLARATION and --code, and run regenerate [INDEX] after an edit. Skills and adapters keep their own authoring references.'
-      : `Focus next work on plans/0.3.2.md; plans/0.3.1.md retains inherited contracts. Reuse this orientation. Continue in map set ${set}: pass --set ${set} to map commands. 0.3.2 retains 030-architecture for product work and 030-deployment for installation/service work, including installed-release selection. Design maps express intent, not proven implementation; use --source for references. The original scanned implementation map requires --set default and --code. Design regenerate redraws; audit and audit-check assess implementation and freshness. Open component manuals as needed.`};
+      : role === 'builder' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context. Builders author guidance, recipe helpers, assets, examples and diagnostics using published APIs. Core skills and shared capability/contract changes require the developer role. The component manual for the area you consume owns its behaviour, contracts and limits; read the one for the code you touch. The dev maps own structure: walk them from 0, or from a node you name with --area, for what calls what, with read-map ADDRESS. Maps give source ranges for direct file reads; run regenerate [INDEX] after an edit. Skills and adapters keep their own authoring references.'
+      : `Focus next work on plans/0.3.2.md; plans/0.3.1.md retains inherited contracts. Reuse this developer context. Continue in map set ${set}: pass --set ${set} to map commands. 0.3.2 retains 030-architecture for product work and 030-deployment for installation/service work, including installed-release selection. Map reads return visible relationships and source locations, never code. Read files at those ranges only for implementation internals; leaf addresses are not map reads. Link/contract addresses return complete interfaces. Design maps express intent, not proven implementation; the original scanned map requires --set default. Design regenerate redraws; audit and audit-check assess implementation and freshness. Open component manuals as needed.`};
 }
 
 function libraryPath(library) { return resolve(library ?? resolve(root, 'Prints')); }
@@ -308,6 +307,37 @@ function previewListener(libraryRoot,studio,ownerId){
 async function closePreview(server,agentRequests,studioEvents){
   if(server)await server.shutdown();
   else {agentRequests.close();studioEvents.close();}
+}
+
+export async function listWorkspaces(){
+  const host=await import('../../workspaces/server.mjs');
+  return {workspaces:await host.listWorkspaces({appRoot:root})};
+}
+
+// The managed command session owns this host and its background jobs, just as
+// preview owns a Studio. The installed runtime uses the same workspace host.
+export async function openWorkspace({target,library,directory,noOpen=false,port=0,onReady=()=>{},onEvents=()=>{},onEvent=()=>{}}){
+  const {startWorkspace}=await import('../../workspaces/server.mjs');
+  const {createStudioEvents}=await import('../../studio/studio-events.mjs');
+  const events=createStudioEvents(),workspaceInstanceId=randomUUID(),stopObserving=events.observe(onEvent);
+  let workspace;
+  try{
+    workspace=await startWorkspace({extensionId:target,port,appRoot:root,
+      ...(directory||library?{directory:directory?resolve(directory):resolve(library,target+'-workspace')}:{}),
+      onEvent:event=>{const {kind,...detail}=event;events.record(kind,{...detail,workspaceInstanceId,extensionId:target});}});
+    const stopEvents=events.subscribe(batch=>onEvents({workspaceInstanceId,events:batch}));
+    workspace.server.once('close',()=>{stopEvents();stopObserving();events.close();});
+    const result={command:'open-workspace',workspaceInstanceId,extension:workspace.extension,url:workspace.url,
+      directory:workspace.directory,browserOpenRequested:false,
+      listener:{mode:'live',event:'workspace-events',control:'Send newline-delimited JSON commands on this managed session: get-workspace, update-workspace with design, preview-workspace with design, create-workspace-bundles with optional design, read-workspace-events, close-workspace.'}};
+    onReady({ok:true,event:'workspace-ready',...result,
+      nextStep:'Open url with the client browser integration. Keep this managed session alive for design controls and bundle-creation progress.'});
+    if(!noOpen&&process.env.SAAM_NO_AUTO_OPEN!=='1'){
+      const {openBrowser}=await import('../../studio/browser.mjs');
+      result.browserOpenRequested=await openBrowser(workspace.url);
+    }
+    return {result,server:workspace.server,workspace,agent:{events}};
+  }catch(error){if(workspace)await workspace.shutdown().catch(()=>{});stopObserving();events.close();throw error;}
 }
 
 // The caller owns this live server. No detached process or global session registry.

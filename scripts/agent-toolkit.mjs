@@ -4,7 +4,7 @@ import {createInterface} from 'node:readline';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {contextBudget} from '../core/agent/layers.mjs';
-import {root, onboarding, readSkill, readMaps, regenerateMap, contextPacket, preview, showPrint, beginWork, waitForRequests, readStudioEvents, cancelStudioCalculation, respondToRequest, recordRequestActivity, inspectFailure, developmentAreas} from '../core/agent/toolkit.mjs';
+import {root, onboarding, readSkill, readMaps, regenerateMap, contextPacket, preview, showPrint, listWorkspaces, openWorkspace, beginWork, waitForRequests, readStudioEvents, cancelStudioCalculation, respondToRequest, recordRequestActivity, inspectFailure, developmentAreas} from '../core/agent/toolkit.mjs';
 import {createInstalledReleaseService} from '../packaging/release-service.mjs';
 
 const diagnosticFields=(value,keys)=>Object.fromEntries(keys.filter(key=>value&&Object.hasOwn(value,key)).map(key=>[key,value[key]]));
@@ -23,9 +23,11 @@ const schemas = {
   'read-skill': {maker: boolean, builder: boolean, developer: boolean, machine: string, all: boolean},
   'read-guidance': {machine: string, all: boolean},
   'context-budget': {machine: many},
-  'read-map': {code: boolean, source: boolean, details: boolean, set: string},
+  'read-map': {set: string},
   'regenerate': {set: string},
   'start-tour': {library: string, 'start-at-layer': string, 'no-open': boolean,'agent-owner':string},
+  'list-workspaces': {},
+  'open-workspace': {library:string,directory:string,port:string,'no-open':boolean},
   'open-print': {library: string, 'no-open': boolean, studio: string, 'agent-owner': string},
   'create-preview': {library: string, recipe: string, stl: string, kind: string, machine: string, units: string, 'no-open': boolean, studio: string, 'agent-owner': string},
   'begin-studio-work': {library: string, instruction: string, request: string, kind: string, 'include-geometry': boolean,'studio-instance':string,'agent-owner':string},
@@ -40,13 +42,15 @@ export const help = {
   commands: {
     'maker-onboarding [--machine ID]': 'Maker guidance, the index of skills and gated sections, and print tools, with script sections and the machine’s advanced sections; choose follow-up reads for the task.',
     'builder-onboarding [--area AREA]': 'Guidance/composition authoring, maker context and digest; --area adds consumed contracts or a named map. Core skills and shared implementation require developer.',
-    'developer-onboarding [--area AREA] [--set NAME]': '0.3.2 intent, inherited 0.3.1 contracts, glossary, orientation and map 0. Defaults to 030-architecture; use 030-deployment for installation/service fixes. --area adds a node/contract or component references.',
-    'read-map ADDRESS [--set NAME] [--source|--code] [--details]': 'Read without scanning. Defaults to 030-architecture; 030-deployment owns installation. Design addresses name nodes/contracts and --source opens explicit source references. Original scanned maps require --set default and use --code.',
+    'developer-onboarding [--area AREA] [--set NAME]': 'Glossary, full developer context (including release pointers) and map 0. Defaults to 030-architecture; use 030-deployment for installation/service fixes. --area adds a node/contract or component references.',
+    'read-map ADDRESS [--set NAME]': 'Read a stored map with visible relationships and exact source locations, or a complete link/contract interface. Leaf locations are read with normal file tools; leaf addresses are not maps. Reads never return code or scan. Defaults to 030-architecture; use 030-deployment for installation, default for scanned implementation.',
     'regenerate [INDEX] [--set NAME]': 'Refresh the selected set (default 030-architecture). Design sets redraw authored maps; audit/audit-check are separate. Scanned sets rescan implementation.',
     'read-skill ID[#HEADING] [--maker] [--builder] [--developer] [--machine ID] [--all]': 'Read only the selected skill roles; defaults to maker. The maker manual opens advanced sections for --machine, or every section with --all; #HEADING reads one section whatever its gate. Missing optional manuals are reported in unavailableRoles.',
     'read-guidance PATH#HEADING [--machine ID] [--all]': 'Read one published manual or section chosen for the task, with its headings and their gates.',
     'context-budget [--machine ID]': 'Bytes of each context layer per client (web, script) and machine, for onboarding and each skill manual.',
     'start-tour [--start-at-layer N] [--no-open] [--agent-owner ID]': 'Fresh tour copies, live Studio, browser dispatch and participation context. --agent-owner resumes the agent owner of an earlier launch on this new Studio.',
+    'list-workspaces': 'Discover selected workspace extensions, their identity and manuals.',
+    'open-workspace ID [--library DIRECTORY | --directory DIRECTORY] [--port N] [--no-open]': 'Open a workspace extension and retain the managed session for design controls, background bundle creation and events. New bundles require ordinary Studio review.',
     'open-print DIRECTORY [--no-open] [--studio URL] [--agent-owner ID]': 'Open saved geometry/toolpath and return current recipe/review state. With the live Studio URL and agentOwnerId from studio-ready it shows the print in that Studio and exits instead of launching another; --agent-owner alone launches a new Studio under that resumed owner.',
     'create-preview DIRECTORY [--recipe FILE | --stl FILE] [--machine ID] [--units auto|mm|inch] [--no-open] [--studio URL] [--agent-owner ID]': 'Create/import unapproved geometry, open Studio and report assumptions. With --studio and --agent-owner the new print is shown in that live Studio instead of a new one; --agent-owner alone launches a new Studio under that resumed owner.',
     'begin-studio-work [DIRECTORY] [--instruction TEXT | --request ID] [--kind edit|guidance] [--include-geometry]': 'Start/claim work first, then read recipe, revision, confirmations and tour instruction.',
@@ -102,6 +106,35 @@ function attachLiveControl(opened,input,write,services){
   opened.server.once('close',()=>lines.close());return()=>lines.close();
 }
 
+function attachWorkspaceControl(opened,input,write,services){
+  if(!input?.on)return()=>{};
+  const lines=createInterface({input,terminal:false});let queue=Promise.resolve();
+  lines.on('line',line=>{
+    let message;
+    try{message=JSON.parse(line);if(!message||typeof message!=='object'||Array.isArray(message))throw Error('Expected a command object.');}catch(error){write({ok:false,event:'agent-response',error:'Invalid live command JSON: '+error.message});return;}
+    const {id,command}=message;
+    const run=async()=>{
+      const startedAt=Date.now(),activeAtStart=Boolean(services?.status().activated);
+      try{
+        const workspace=opened.workspace;
+        let result;
+        if(command==='get-workspace')result=await workspace.inspect();
+        else if(command==='update-workspace')result=await workspace.updateDesign(message.design);
+        else if(command==='preview-workspace')result=await workspace.preview(message.design,{interactive:Boolean(message.interactive)});
+        else if(command==='create-workspace-bundles')result={job:await workspace.createBundles(message.design)};
+        else if(command==='read-workspace-events')result={events:opened.agent.events.drain()};
+        else if(command==='close-workspace'){await workspace.shutdown();result={closed:true};}
+        else throw Error('Unknown live workspace command.');
+        write({ok:true,event:'agent-response',id,command,workspaceInstanceId:opened.result.workspaceInstanceId,result});
+        reportCommand(services,activeAtStart,command,startedAt,'completed',result);
+      }catch(error){write({ok:false,event:'agent-response',id,command,error:error.message});reportCommand(services,activeAtStart,command,startedAt,'failed',null,error);}
+    };
+    if(['get-workspace','read-workspace-events','close-workspace'].includes(command))void run();
+    else queue=queue.then(run).catch(error=>write({ok:false,event:'agent-response',error:error.message}));
+  });
+  opened.server.once('close',()=>lines.close());return()=>lines.close();
+}
+
 export async function runCLI(args = process.argv.slice(2), {write = value => console.log(JSON.stringify(value)),input=process.stdin} = {}) {
   const [command, ...rest] = args;
   let liveServer,stopPreparation,services,activeAtStart=false,startedAt=Date.now();
@@ -109,7 +142,7 @@ export async function runCLI(args = process.argv.slice(2), {write = value => con
     if (!command || ['help', '--help', '-h'].includes(command)) {write({ok: true, ...help}); return;}
     if (!Object.hasOwn(schemas, command)) throw Error(`Unknown command: ${command}. Use --help.`);
     const {values: v, positionals} = parseArgs({args: rest, options: schemas[command], allowPositionals: true, strict: true});
-    const needsTarget = ['read-skill', 'read-guidance', 'read-map', 'open-print', 'create-preview', 'inspect-generation-failure', 'respond-to-studio-request','record-request-activity'].includes(command);
+    const needsTarget = ['read-skill', 'read-guidance', 'read-map', 'open-print', 'open-workspace', 'create-preview', 'inspect-generation-failure', 'respond-to-studio-request','record-request-activity'].includes(command);
     const permitsTarget = needsTarget || ['begin-studio-work', 'regenerate'].includes(command);
     if (positionals.length > (permitsTarget ? 1 : 0) || needsTarget && !positionals.length) throw Error('Unexpected or missing positional argument. Use --help.');
     if (command === 'create-preview' && v.units && !v.stl) throw Error('--units applies only to --stl.');
@@ -133,6 +166,19 @@ export async function runCLI(args = process.argv.slice(2), {write = value => con
     else if (command === 'read-guidance') result = await contextPacket([positionals[0]], {machineId: v.machine, all: v.all, headings: true});
     else if (command === 'read-map') result = {maps: await readMaps([positionals[0]], v)};
     else if (command === 'regenerate') result = await regenerateMap(positionals[0], v);
+    else if(command==='list-workspaces')result=await listWorkspaces();
+    else if(command==='open-workspace'){
+      const port=v.port===undefined?0:Number(v.port);
+      if(!Number.isInteger(port)||port<0||port>65535)throw Error('--port must be an integer from 0 to 65535.');
+      if(v.directory&&v.library)throw Error('Choose --directory or --library.');
+      const opened=await openWorkspace({...options,directory:v.directory,port,onReady:write,onEvent:event=>services?.recordStudioEvent(event),onEvents:event=>write({ok:true,event:'workspace-events',command,...event})});
+      result=opened.result;liveServer=opened.server;
+      attachWorkspaceControl(opened,input,write,services);
+      const stop=()=>{void opened.workspace.shutdown();};
+      process.on('SIGINT',stop);process.on('SIGTERM',stop);
+      liveServer.once('close',()=>{process.off('SIGINT',stop);process.off('SIGTERM',stop);services?.close();});
+      liveServer.on('error',error=>{write({ok:false,command,stage:'workspace-runtime',error:error.message});process.exitCode=1;stop();});
+    }
     else if (['open-print', 'create-preview'].includes(command) && v.studio) result = await showPrint({...options, studio: v.studio});
     else if (['start-tour', 'open-print', 'create-preview'].includes(command)) {
       const opened = await preview({...options, onReady: write,onRequest:event=>write({ok:true,event:'studio-request',command,...event}),onEvents:event=>write({ok:true,event:'studio-events',command,...event})});

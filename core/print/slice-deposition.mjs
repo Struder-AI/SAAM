@@ -6,7 +6,7 @@ import {finalizeDepositionResult,combineFinalizedResults} from './finalize.mjs';
 import {injectionResult} from './injection.mjs';
 import {curveAssignmentResult,depositionReferences} from './curves.mjs';
 import {assignmentFamily} from './slice-settings.mjs';
-import {publishFinishedBoundary,consumeFinishedSurface,republishDepositedBoundary} from '../path/finished-surface.mjs';
+import {publishFinishedBoundary,republishDepositedBoundary} from '../path/finished-surface.mjs';
 import {depositedBeadSegments} from '../path/deposited-curves.mjs';
 import {translateSlice} from '../geom/slice.mjs';
 
@@ -16,15 +16,10 @@ import {ActionAccumulator,planLayerCooling} from '../path/planning.mjs';
 
 function combineCourses(record,courses){
   if(!courses.length)return {id:record.spec.id,report:record.context.report,operations:[],family:{...record.family,layers:[]}};
-  if(courses.length===1&&record.regionField?.kind!=='boundary-offsets')return courses[0];
+  if(courses.length===1)return courses[0];
   const report={...courses[0].report,...record.context.report};
-  if(record.regionField?.kind==='boundary-offsets')report.topMm=courses.reduce((top,result)=>result.operations.reduce((top,operation)=>operation.strokes.reduce((top,stroke)=>stroke.points.reduce((top,p)=>Math.max(top,p[2]),top),top),top),-Infinity);
-  for(const key of ['layers','skippedLayers','areaMm2','loops','fillRows','solidAreaMm2','uncoveredContactSamples','substrateContactQueries'])report[key]=courses.reduce((sum,r)=>sum+(r.report[key]??0),0);
-  if(record.regionField?.courses){
-    report.shells=courses.length;
-    for(const key of ['points','partialAxialPasses','fullAxialPasses','axialPasses'])report[key]=courses.reduce((sum,r)=>sum+(r.report[key]??0),0);
-    report.minBeadWidthMm=Math.min(...courses.map(r=>r.report.minBeadWidthMm));report.maxBeadWidthMm=Math.max(...courses.map(r=>r.report.maxBeadWidthMm));
-  }
+  report.topMm=courses.reduce((top,result)=>result.operations.reduce((top,operation)=>operation.strokes.reduce((top,stroke)=>stroke.points.reduce((top,p)=>Math.max(top,p[2]),top),top),top),-Infinity);
+  for(const key of ['layers','skippedLayers','areaMm2','loops','fillRows','solidAreaMm2','areaChart2','solidAreaChart2','uncoveredContactSamples','substrateContactQueries'])report[key]=courses.reduce((sum,r)=>sum+(r.report[key]??0),0);
   const contacts=courses.filter(r=>r.report.contactSamples);
   if(contacts.length){report.contactSamples=contacts.reduce((n,r)=>n+r.report.contactSamples,0);report.minContactGapMm=Math.min(...contacts.map(r=>r.report.minContactGapMm));report.maxContactGapMm=Math.max(...contacts.map(r=>r.report.maxContactGapMm));}
   const layers=courses.flatMap(r=>r.family.layers);
@@ -35,7 +30,7 @@ function combineCourses(record,courses){
 // Expand construction and recipe constraints once to exact work-node keys.
 export function prepareDepositionWork(contexts,constructions=[],work=[],dependencies=()=>[]){
   const nodes=contexts.flatMap(record=>{
-    const units=record.spec.settings.join||record.family.constructTogether?[{index:null,rank:record.layerOrder[0]?.rank??0}]:record.layerOrder;
+    const units=record.family.constructTogether?[{index:null,rank:record.layerOrder[0]?.rank??0}]:record.layerOrder;
     return units.map((unit,i)=>({key:`slice:${record.spec.id}:${unit.index}`,kind:'slice',construction:record.spec.settings.construction??'slice',sourceId:record.owner.assignment.id,part:record.owner.part,
       construct:record.constructWork,providesSurface:record.providesSurface,nominalRank:unit.rank,ownershipRank:unit.ownershipRank??unit.rank,index:unit.index,record,first:i===0,requires:i?[`slice:${record.spec.id}:${units[i-1].index}`]:[]}));
   }).concat(constructions.map(context=>({key:`${context.assignment.construction}:${context.assignment.id}`,kind:context.kind??assignmentFamily(context.assignment),construction:context.assignment.construction,
@@ -90,23 +85,7 @@ export function constructDepositionWork(node,completed,{plan,onProgress,shells=[
   const after=[...new Set(node.requires.flatMap(prerequisiteIds))];
   let result;
   if(node.construct)result=node.construct({node,predecessors,samePart,after,plan,onProgress,substrateAdaptation});
-  else if(node.kind==='slice'&&node.record.reference?.kind==='terminal'){
-    const record=node.record,sourceParts=samePart.filter(item=>item.node.sourceId===record.reference.source).map(item=>item.result),sourceResult=sourceParts.length?combineFinalizedResults({...sourceParts.at(-1),levelBoundary:sourceParts.find(r=>r.levelBoundary)?.levelBoundary},sourceParts):null;
-    const sourceAssignment=plan.slices.assignments.find(assignment=>assignment.id===record.reference.source);
-    const predecessorResults=samePart.filter(item=>item.node.sourceId===node.sourceId).map(item=>item.result);
-    result=sliceContextResult(record,{layerIndex:node.index,sourceResult,sourceAssignment,predecessorResults,substrateAdaptation});
-  }else if(node.kind==='slice'&&node.record.reference){
-    const record=node.record,sources=samePart.filter(item=>(record.reference.source===null||item.node.sourceId===record.reference.source)&&(!record.owner.ownershipGroup||item.node.record?.owner.ownershipGroup!==record.owner.ownershipGroup)).map(item=>item.result);
-    requireThat(sources.length,`Reference family ${node.sourceId}: source names an absent producer or a different part.`);
-    const shared=record.owner.ownershipGroup?samePart.filter(item=>item.node.record?.owner.ownershipGroup===record.owner.ownershipGroup):[];
-    const previous=shared.at(-1),ownPrevious=shared.filter(item=>item.node.sourceId===node.sourceId).at(-1);
-    const course=record.regionField?.courses?.find(course=>course.index===node.index);
-    const reference=consumeFinishedSurface({shell:record.context.shell,selection:record.reference.selection,results:sources,substrateAdaptation});
-    result=sliceContextResult(record,{layerIndex:node.index,reference,
-      layoutReference:course?consumeFinishedSurface({shell:record.context.shell,selection:record.reference.selection,results:sources,substrateAdaptation:false}):reference,
-      substrateAdaptation,requiredContact:substrateAdaptation&&!!previous,fieldState:ownPrevious?.result.fieldState,
-      contactSegments:substrateAdaptation&&previous?depositedBeadSegments(previous.result.operations,{widthMm:previous.node.record.context.process.lineWidthMm}):[]});
-  }else if(node.kind==='slice'){
+  else if(node.kind==='slice'){
     const record=node.record,layer=record.spec.layers.find(layer=>layer.index===node.index)??record.spec.layers[0];
     const own=samePart.filter(item=>item.node.kind==='slice'&&item.node.record.familyId===record.familyId&&item.node.index===node.index-1);
     const contacts=substrateAdaptation?own.filter(item=>item.result.report.modulation?.materialChanged).flatMap(item=>depositedBeadSegments(item.result.operations,{widthMm:item.node.record.context.process.lineWidthMm})):[];
@@ -121,8 +100,8 @@ export function constructDepositionWork(node,completed,{plan,onProgress,shells=[
       widthMm:item.node.kind==='slice'?item.node.record.context.process.lineWidthMm:(item.node.context.process??plan.process).lineWidthMm}));
     const seedSegments=record.spec.settings.fillOrder?.kind==='fronts'?samePart.filter(item=>item.node.sourceId!==node.sourceId||item.node.index===node.index-1).flatMap(item=>depositedBeadSegments(item.result.operations)):[];
     const predecessorReference=substrateAdaptation&&node.first&&record.contact?record.contact.predecessorReference:
-      contactFragments.length?translateSlice(layer.slice,(layer.direction??layer.slice.normal).map(v=>-v*layer.translationMm)):null;
-    result=sliceContextResult(record,{layerIndex:node.index,contactSegments:contacts,contactFragments,predecessorReference,seedSegments,substrateAdaptation,requiredContact:node.first&&record.contact?.source!==null&&record.contact?.source!==undefined});
+      contactFragments.length&&layer.slice?translateSlice(layer.slice,(layer.direction??layer.slice.normal).map(v=>-v*layer.translationMm)):null;
+    result=sliceContextResult(record,{layerIndex:node.index,priorResults:samePart.map(item=>item.result),contactSegments:contacts,contactFragments,predecessorReference,seedSegments,substrateAdaptation,requiredContact:node.first&&record.contact?.source!==null&&record.contact?.source!==undefined});
   }else if(node.kind==='trace'){
     const results=predecessors.map(item=>item.result);
     result=curveAssignmentResult(node.context.assignment,{plan,modelResults:results,

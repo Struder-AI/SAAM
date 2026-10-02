@@ -40,10 +40,9 @@ saam_running() {
 # ~/Applications/SAAM.app: starts SAAM in the background without a window and
 # exits. Written here, on this Mac, so it carries no download quarantine.
 write_app() {
-  local target="$1" version="$2" bundle="$HOME/Applications/SAAM.app"
-  rm -rf "$bundle"
+  local target="$1" version="$2" bundle="$3" source="$4"
   mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
-  cp "$target/packaging/macos/SAAM.icns" "$bundle/Contents/Resources/SAAM.icns"
+  cp "$source/packaging/macos/SAAM.icns" "$bundle/Contents/Resources/SAAM.icns"
   cat > "$bundle/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -92,7 +91,7 @@ write_desktop_shortcut() {
 }
 
 main() {
-  local here source archive version target staging launcher wait_pid='' waited
+  local here source archive version target staging launcher wait_pid='' waited applications bundle staged_bundle backup backup_bundle
   case "${1:-}" in
     --wait-pid) wait_pid="${2:-}"; [[ "$wait_pid" =~ ^[0-9]+$ ]] || fail 'Give --wait-pid a process id.' ;;
     '') ;;
@@ -105,7 +104,8 @@ main() {
   fi
   here="$(cd "$(dirname "$0")" && pwd)"
   target="$HOME/Applications/SAAM"
-  staging="$HOME/Applications/.SAAM-installing"
+  applications="$HOME/Applications"
+  bundle="$target.app"
   [ "$here" != "$target/packaging/macos" ] || fail 'Run install.sh from the extracted release folder, not from the installed SAAM.'
   # The release folder's install.sh sits next to app/; the copy inside the
   # package's app folder sits in app/packaging/macos.
@@ -116,6 +116,7 @@ main() {
   archive="$(cd "$source/.." && pwd)/app.tar"
   [ -f "$archive" ] || fail 'The release folder has no app.tar. Extract the whole download again.'
   version="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$source/release.json" | head -n 1)"
+  [[ "$version" =~ ^[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}$ ]] || fail 'The release has no valid version. Nothing was changed.'
 
   # Work from outside the folder being replaced (SAAM may have started us from there).
   cd "$HOME"
@@ -133,19 +134,24 @@ main() {
 
   # Unpack into a staging folder next to the installation first, so a failed
   # unpack leaves any installed SAAM as it was.
-  mkdir -p "$HOME/Applications"
-  rm -rf "$staging"
-  mkdir "$staging"
+  mkdir -p "$applications"
+  staging="$(mktemp -d "$applications/.SAAM-installing.XXXXXX")"
+  staged_bundle="$staging/SAAM.app"
+  backup="$staging.previous"
+  backup_bundle="$staging.previous.app"
   echo 'Unpacking SAAM...'
-  tar -xf "$archive" -C "$staging" && [ -f "$staging/runtime/node" ] \
+  tar -xf "$archive" -C "$staging" \
     || { rm -rf "$staging"; fail 'Unpacking SAAM failed. Nothing was changed.'; }
+  for required in runtime/node release.json packaging/launch.mjs packaging/macos/SAAM.icns packaging/macos/install.sh; do
+    [ -f "$staging/$required" ] || { rm -rf "$staging"; fail "The candidate has no $required. Nothing was changed."; }
+  done
   # A release built on Windows carries no executable bits.
   chmod +x "$staging/runtime/node" "$staging"/packaging/macos/*.sh
-  rm -rf "$target"
-  mv "$staging" "$target"
+  "$staging/runtime/node" -e 'const fs=require("fs");if(JSON.parse(fs.readFileSync(process.argv[1],"utf8")).version!==process.argv[2])process.exit(1)' "$staging/release.json" "$version" \
+    || { rm -rf "$staging"; fail 'Candidate runtime or release verification failed. Nothing was changed.'; }
 
   # For troubleshooting: starts SAAM in a Terminal window that shows its messages.
-  launcher="$target/SAAM.command"
+  launcher="$staging/SAAM.command"
   cat > "$launcher" <<LAUNCHER
 #!/bin/bash
 # Starts SAAM $version in a Terminal window, for troubleshooting: SAAM.app starts
@@ -162,7 +168,32 @@ fi
 exit "\$status"
 LAUNCHER
   chmod +x "$launcher"
-  write_app "$target" "$version"
+  write_app "$target" "$version" "$staged_bundle" "$staging"
+  # Both program files and Finder launcher are prepared before moving either
+  # installed path. Preserve each predecessor until both replacements succeed.
+  local moved_target=0 moved_bundle=0 installed_target=0 installed_bundle=0
+  rollback() {
+    local status=${1:-$?}
+    trap - ERR HUP INT TERM
+    if [ "$status" -ne 0 ]; then
+      [ "$installed_bundle" -eq 0 ] || rm -rf "$bundle" || say "Could not remove candidate launcher at $bundle."
+      [ "$installed_target" -eq 0 ] || rm -rf "$target" || say "Could not remove candidate SAAM at $target."
+      if [ "$moved_target" -eq 1 ]; then { [ ! -e "$target" ] && mv "$backup" "$target"; } || say "Earlier SAAM remains recoverable at $backup."; fi
+      if [ "$moved_bundle" -eq 1 ]; then { [ ! -e "$bundle" ] && mv "$backup_bundle" "$bundle"; } || say "Earlier launcher remains recoverable at $backup_bundle."; fi
+      say 'SAAM replacement failed; the earlier installation was restored or its recovery path is shown above.'
+    fi
+    exit "$status"
+  }
+  trap rollback ERR
+  trap 'rollback 1' HUP INT TERM
+  if [ -e "$target" ]; then mv "$target" "$backup"; moved_target=1; fi
+  if [ -e "$bundle" ]; then mv "$bundle" "$backup_bundle"; moved_bundle=1; fi
+  # Move the prepared app bundle out before activating the program folder.
+  mv "$staged_bundle" "$bundle"; installed_bundle=1
+  mv "$staging" "$target"; installed_target=1
+  trap - ERR HUP INT TERM
+  if [ -n "$update_log" ]; then trap 'log "Update failed at install.sh line $LINENO."' ERR; fi
+  rm -rf "$backup" "$backup_bundle" || say "SAAM is installed; an earlier copy remains at $backup or $backup_bundle."
   # Updates keep the shortcut if present, without recreating one the person removed.
   if [ -z "$wait_pid" ]; then write_desktop_shortcut "$target.app" "$HOME/Desktop/SAAM.app"; fi
 

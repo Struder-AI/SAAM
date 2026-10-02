@@ -112,7 +112,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   const ownerId=randomUUID();
   const studioEvents=createStudioEvents(),agentRequests=createAgentRequests(libraryRoot,{ownerId,events:studioEvents});
   const tour=createTour(libraryRoot,{ownerId,agentRequests});
-  const studioSessions = new Map(),preferredStudioByPrint=new Map(),imports=new Map(),generations=new Map();
+  const studioSessions = new Map(),workspaceSessions=new Map(),preferredStudioByPrint=new Map(),imports=new Map(),generations=new Map();
   const generationStatus=()=>[...[...studioSessions.values()].map(({server:studio})=>studio.generationStatus()).filter(Boolean),
     ...[...imports.values()].map(({controller,...job})=>({...job,cancellable:!controller.signal.aborted,elapsedMs:Date.now()-job.startedAt,estimatedRemainingMs:null})),
     ...[...generations.values()].map(({job,...identity})=>({...identity,studioInstanceId:null,status:job.status,cancellable:job.cancellable,progress:job.progress,elapsedMs:Date.now()-identity.startedAt}))];
@@ -168,7 +168,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   // One print-work queue per runtime: mutations run in order; immediate tools bypass it.
   const work={tail:Promise.resolve()},operations=new Map();
 
-  async function directory(bundleId, { create = false } = {}) {
+  async function directory(bundleId, { create = false, exclusive = create } = {}) {
     bundleIdSchema.parse(bundleId);
     if (create) await mkdir(libraryRoot, { recursive: true });
     const base = await realpath(libraryRoot), dir = resolve(base, bundleId);
@@ -185,7 +185,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     }
     try {
       await rejectLinks(dir);
-      if (create) throw new Error('Print already exists. Choose a new bundleId or reopen it.');
+      if (exclusive) throw new Error('Print already exists. Choose a new bundleId or reopen it.');
     } catch (error) { if (error.code !== 'ENOENT' || !create) throw error; }
     return dir;
   }
@@ -226,13 +226,13 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     }
     for(const extension of await listExtensions({appRoot:root})){
       const {text:manual}=await readGuidance(root,`extensions/${extension.id}/SKILL.md`);
-      found.push({...skillMetadata(extension.id,manual),layer:'extension',origin:extension.origin,
+      found.push({...skillMetadata(extension.id,manual),...(extension.manifest.kind==='workspace'?{kind:'workspace'}:{}),layer:'extension',origin:extension.origin,
         digest:extension.digest,manualTool:'read_skill'});
     }
     found.push(...await localExtension.skills?.()??[]);
     return found.sort((a, b) => a.id.localeCompare(b.id));
   }
-  const immediateTools=new Set(['begin_studio_work','respond_to_studio_request','wait_for_studio_request','get_studio_requests','get_studio_events','get_studio_sessions','cancel_studio_calculation','get_tour']);
+  const immediateTools=new Set(['begin_studio_work','respond_to_studio_request','wait_for_studio_request','get_studio_requests','get_studio_events','get_studio_sessions','cancel_studio_calculation','get_tour','get_workspace']);
   const operationObservers=new Set();
   const diagnosticFields=(value,keys)=>Object.fromEntries(keys.filter(key=>value&&Object.hasOwn(value,key)).map(key=>[key,value[key]]));
   const reportOperation=event=>{for(const observer of operationObservers)try{observer(event);}catch{/* Diagnostics never fail an operation. */}};
@@ -285,8 +285,8 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
         }else result=await operation.action(input,session);
       }finally{if(operation.tracked)await touch();}
         if(started!==null)reportOperation({kind:'operation',name,status:'completed',durationMs:Date.now()-started,readOnly:operation.readOnly,
-          parameters:diagnosticFields(input,['bundleId','kind','machineId','units','action','expectedRevision','skillId']),
-          result:diagnosticFields(result,['revision','geometryHash','generationHash','exportHash','toolpathApproved','programChecked','imported','status'])});
+          parameters:diagnosticFields(input,['bundleId','kind','machineId','units','action','expectedRevision','skillId','extensionId','workspaceInstanceId']),
+          result:diagnosticFields(result,['revision','geometryHash','generationHash','exportHash','toolpathApproved','programChecked','imported','status','workspaceInstanceId','jobId'])});
         if(result&&typeof result==='object'&&!Array.isArray(result)&&!['get_studio_events','wait_for_studio_request'].includes(name)){
           if(!operation.immediate){const pending=await agentRequests.query({status:'queued'});if(pending.length)result={...result,studioRequests:pending};}
           // Delivered events push at once; every tool result also carries whatever is still queued.
@@ -294,7 +294,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
         }
         return publicBundleIdentity(result);
       }catch(error){if(started!==null)reportOperation({kind:'operation',name,status:'failed',durationMs:Date.now()-started,
-        parameters:diagnosticFields(args,['bundleId','kind','machineId','units','action','expectedRevision','skillId']),error:error.message});throw error;}
+        parameters:diagnosticFields(args,['bundleId','kind','machineId','units','action','expectedRevision','skillId','extensionId','workspaceInstanceId']),error:error.message});throw error;}
     };
     if(operation.immediate)return execute();
     const run=work.tail.then(execute);
@@ -318,7 +318,35 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       outputs: m.outputs.map(({ id, extension, flavor, implemented, experimental, constraints, reason }) => ({ id, extension, flavor, implemented: implemented !== false, experimental, constraints, reason })),
       defaultSetup: m.defaultSetup };
   }));
-  tool('list_skills', 'List toolpath, geometry, hybrid, guidance and extension manuals. Extensions compose engine operations; catalog membership does not establish recipe compatibility.', {}, skills);
+  tool('list_skills', 'List core skills, guidance and skill/workspace extension manuals. Catalog membership does not establish recipe compatibility.', {}, skills);
+  tool('list_workspaces','Discover selected workspace extensions and their manuals. Workspace designs create new, unapproved print bundles for ordinary Studio review.',{},async()=>{
+    const {listWorkspaces}=await import('../../../workspaces/server.mjs');
+    return {workspaces:await listWorkspaces({appRoot:root})};
+  });
+  tool('open_workspace','Open a workspace extension in this application. Reuses its live instance; its saved design and created bundles stay in the configured print library.',
+    {extensionId:idSchema},openWorkspace,false);
+  const workspaceIdSchema=z.string().min(1).describe('workspaceInstanceId returned by open_workspace.');
+  function workspaceSession(workspaceInstanceId){
+    const session=workspaceSessions.get(workspaceInstanceId);
+    if(!session)throw Error('Choose a live workspace instance owned by this application.');
+    return session;
+  }
+  tool('get_workspace','Read the current saved workspace design and bundle-creation job. Preview is a separate operation.',
+    {workspaceInstanceId:workspaceIdSchema},async({workspaceInstanceId})=>({workspaceInstanceId,...await workspaceSession(workspaceInstanceId).inspect()}));
+  tool('preview_workspace','Preview the supplied design, or current saved design, without saving or constructing bundles.',
+    {workspaceInstanceId:workspaceIdSchema,design:objectSchema.optional(),interactive:z.boolean().optional()},async({workspaceInstanceId,design,interactive=false})=>({workspaceInstanceId,...await workspaceSession(workspaceInstanceId).preview(design,{interactive})}));
+  tool('close_workspace','Close one owned workspace instance and its background worker, releasing the saved design for reopening. Other workspace and Studio instances remain available.',
+    {workspaceInstanceId:workspaceIdSchema},async({workspaceInstanceId})=>{
+      await workspaceSession(workspaceInstanceId).shutdown();
+      return {workspaceInstanceId,closed:true};
+    },false);
+  tool('update_workspace','Save a complete workspace design atomically and return its normalized state. Construction remains unapproved until reviewed in Studio.',
+    {workspaceInstanceId:workspaceIdSchema,design:objectSchema},async({workspaceInstanceId,design})=>({workspaceInstanceId,...await workspaceSession(workspaceInstanceId).updateDesign(design)}),false);
+  tool('create_workspace_bundles','Start background creation of a fresh bundle set from the supplied design, or the current saved design. Read get_workspace for progress; review each resulting bundle in Studio.',
+    {workspaceInstanceId:workspaceIdSchema,design:objectSchema.optional()},async({workspaceInstanceId,design})=>{
+      const workspace=workspaceSession(workspaceInstanceId);
+      return {workspaceInstanceId,job:await workspace.createBundles(design)};
+    },false);
   tool('read_skill', 'Read a skill or guidance manual by ID, or one section as ID#heading whatever its gate. Sections gated to command access or to machine capabilities are listed in omitted; bundleId uses the saved printer snapshot; machineId selects a reusable profile before bundle selection. Links are repository paths for read_guidance.',
     { skillId: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}(#[^\s#]{1,200})?$/), machineId: machineIdSchema, bundleId:bundleIdSchema.optional() }, async ({ skillId: name, machineId,bundleId }) => {
     const [skillId, anchor] = name.split('#');
@@ -657,9 +685,10 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     await work.tail;
     await agentRequests.disconnect();
     await Promise.all([...studioSessions.values()].map(({server:studio})=>studio.shutdown()));
+    await Promise.all([...workspaceSessions.values()].map(workspace=>workspace.shutdown()));
     studioEvents.close();
     operationObservers.clear();
-    studioSessions.clear();preferredStudioByPrint.clear();
+    studioSessions.clear();workspaceSessions.clear();preferredStudioByPrint.clear();
   });}
   // Shows SAAM Studio: the newest live instance, else a new one with no print.
   // A tab opens only when nobody is viewing it.
@@ -668,6 +697,24 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     const session=[...studioSessions.values()].filter(({server:studio})=>studio.listening).at(-1)??await startStudio(null);
     const browserOpenRequested=autoOpen&&!session.server.viewerCount()?await openBrowser(session.url):false;
     return {studioInstanceId:session.server.agentSession().instanceId,url:session.url,browserOpenRequested};
+  }
+  async function openWorkspace({extensionId}={}){
+    if(runtime.closing)throw Error('The SAAM runtime is closing.');
+    idSchema.parse(extensionId);
+    let session=[...workspaceSessions.values()].find(workspace=>workspace.extension.id===extensionId&&workspace.server.listening);
+    if(!session){
+      const workspaceInstanceId=randomUUID(),dir=await directory(`${extensionId}-workspace`,{create:true,exclusive:false});
+      const {startWorkspace}=await import('../../../workspaces/server.mjs');
+      session=await startWorkspace({extensionId,directory:dir,appRoot:root,onEvent:event=>{
+        const {kind,...detail}=event;
+        studioEvents.record(kind,{...detail,workspaceInstanceId,extensionId});
+      }});
+      session.workspaceInstanceId=workspaceInstanceId;
+      workspaceSessions.set(workspaceInstanceId,session);
+      session.server.once('close',()=>{if(workspaceSessions.get(workspaceInstanceId)===session)workspaceSessions.delete(workspaceInstanceId);});
+    }
+    const browserOpenRequested=autoOpen&&!session.server.viewerCount?.()?await openBrowser(session.url):false;
+    return {workspaceInstanceId:session.workspaceInstanceId,url:session.url,directory:session.directory,extension:session.extension,browserOpenRequested};
   }
   return {
     operations:[...operations.values()].map(({action,...definition})=>definition),
@@ -679,6 +726,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     observeEvents:observer=>studioEvents.observe(events=>observer(publicBundleIdentity(events))),
     observeOperations:observer=>{operationObservers.add(observer);return()=>operationObservers.delete(observer);},
     openStudio,
+    openWorkspace,
     close
   };
 }

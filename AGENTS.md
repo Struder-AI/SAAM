@@ -31,8 +31,7 @@ makers: they operate published tools and cannot escalate into source development
 
 Onboarding returns the role's whole starting context. Don't read those files
 before or after it, and don't rerun it for each request. Without command access,
-read [MAKERS.md](MAKERS.md), [BUILDERS.md](BUILDERS.md) or
-[DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md#orientation) directly, once.
+read [MAKERS.md](MAKERS.md), [BUILDERS.md](BUILDERS.md) or the full [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md) directly, once.
 
 ### Tours
 

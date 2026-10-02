@@ -16,7 +16,8 @@ export function requiredExtensionIds(plan){
   const ids=new Set();
   geometryIds(plan.geometry,ids);
   for(const assignment of plan.slices?.assignments??[])
-    if(assignment.construction==='sleeve')ids.add(assignment.pattern===null?'vase-wall':'advanced-vase-wall');
+    if(assignment.join)ids.add('vase-wall');
+    else if(assignment.construction==='sleeve')ids.add(assignment.pattern===null?'vase-wall':'advanced-vase-wall');
   for(const [id,settings] of Object.entries(plan.skills??{}))
     if(settings?.enabled)ids.add(id);
   return [...ids].sort();

@@ -37,8 +37,8 @@ There is no separate wave producer or extra approval stage.
 The common scheduler obeys dependencies and ownership, not array order alone.
 Adjacent fronts alternate and join with a short curve on the reference inside
 the region. Its length is limited to max(bead width, wave spacing) plus tolerance.
-Generation rejects separate passes: branch restarts are not implemented. Holes
-can split propagation, so a valid mask does not guarantee one continuous pass.
+Fronts may split into separate passes with shared travel. Inspect their starts
+and lateral attachment; a valid mask does not guarantee one continuous pass.
 
 | Preset option | Default | Meaning |
 |---|---:|---|

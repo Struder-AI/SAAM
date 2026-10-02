@@ -1,10 +1,9 @@
 // Authored architecture is an intention, never evidence of implementation compliance.
 // Reuse the map viewer, keeping contracts and conceptual nodes out of scanned leaves.
-import {readFile,writeFile,realpath} from 'node:fs/promises';
+import {readFile,writeFile,realpath,mkdir} from 'node:fs/promises';
 import {resolve,relative,isAbsolute} from 'node:path';
 import {createHash} from 'node:crypto';
 import {parse} from 'acorn';
-import {guidanceSection} from '../../core/agent/manuals.mjs';
 import {mapSet,setFile,setName} from './map-set.mjs';
 import {interfaceCode} from './interface-code.mjs';
 import {extractGraph} from './graph.mjs';
@@ -35,6 +34,7 @@ async function sourceReferences(repo,nodes) {
     if(s.heading&&s.declaration)throw Error(`Choose a heading or declaration on ${n.id}`);
     if(s.heading) {
       if(!s.file.endsWith('.md'))throw Error(`Heading requires Markdown: ${n.id}`);
+      const {guidanceSection}=await import('../../core/agent/manuals.mjs');
       const section=guidanceSection(text,s.heading);start=text.indexOf(section);end=start+section.length;
     }
     if(s.declaration) {
@@ -91,7 +91,22 @@ function flattenNavigation(nodes,protectedNodes,inertModules=[]) {
   }
 }
 
+// Reads and viewer builds consume the same explicitly regenerated snapshot.
 export async function designModel({repo}) {
+  try {
+    const model=JSON.parse(await readFile(resolve(repo,setFile('store/design.json')),'utf8'));
+    const changed=await Promise.all(Object.entries(model.inputs).map(async([file,hash])=>{
+      const text=await readFile(resolve(repo,file),'utf8').catch(error=>{if(error.code==='ENOENT')return '';throw error;});
+      return createHash('sha256').update(text).digest('hex')===hash?null:file;
+    }));
+    model.changedInputs=changed.filter(Boolean);
+    if(model.changedInputs.length)model.stale=Object.fromEntries(model.pages.map(p=>[p.index,{inputs:model.changedInputs,regenerate:model.regenerate}]));
+    return model;
+  }
+  catch(error) {if(error.code==='ENOENT')throw Error('No stored design. Run node dev-map/cli.mjs regenerate --set '+setName);throw error;}
+}
+
+async function generateDesign({repo}) {
   const text=await readFile(resolve(repo,setFile('architecture.json')),'utf8');
   const spec=JSON.parse(text),nodes=new Map(),indexes=new Map();
   for(const n of spec.nodes) {
@@ -129,7 +144,10 @@ export async function designModel({repo}) {
   };
   const endpoint=id=>nodes.get(id)?.index??`external:${id}`;
   const bindingText=await readFile(resolve(repo,setFile('interfaces.json')),'utf8').catch(e=>{if(e.code==='ENOENT')return '{"bindings":[]}';throw e;});
-  const ownershipText=await readFile(resolve(repo,setFile('ownership.json')),'utf8');
+  const ownershipText=await readFile(resolve(repo,setFile('ownership.json')),'utf8').catch(error=>{
+    if(error.code==='ENOENT'&&!spec.implementationLinks?.length)return '{"leaves":{}}';
+    throw error;
+  });
   const report=JSON.parse(await readFile(resolve(repo,setFile('store/audit.json')),'utf8').catch(e=>{if(e.code==='ENOENT')return 'null';throw e;}));
   const audit=await auditStatus(repo),containment=audit.state==='current'?report?.containment??null:null;
   const foldedNodes=new Map(),protectedNodes=new Set(spec.contracts.flatMap(c=>[c.from,c.to,...(c.access??[]).flatMap(a=>[a.from,a.to])]));
@@ -199,7 +217,7 @@ export async function designModel({repo}) {
       internal:children.some(child=>child.index===index),
       ...(spans.has(n.id)?{sourceSpan:spans.get(n.id)}:{}),
       ...(n.index!==p.index&&n.parent!==p.index&&nodes.has(n.id)?{home:n.parent}:{} )}));
-    const wires=[...links.values()].map(w=>({...w,label:w.contracts.length===1?w.contracts[0].label:`${w.contracts.length} contracts`}));
+    const wires=[...links.values()].map(w=>({...w,address:'@link/'+p.index+'/'+encodeURIComponent(w.from)+'/'+encodeURIComponent(w.to),label:w.contracts.length===1?w.contracts[0].label:`${w.contracts.length} contracts`}));
     const originalChildren=spec.nodes.filter(n=>n.index.includes('.')?n.index.slice(0,n.index.lastIndexOf('.'))===p.index:p.index==='0');
     const sameChildren=originalChildren.length===children.length&&originalChildren.every(n=>children.some(c=>c.index===n.index));
     const heldLayout=sameChildren?spec.layout?.[p.index]:null;
@@ -219,8 +237,10 @@ export async function designModel({repo}) {
   const generatorFiles=['design.mjs','design-implementation.mjs','semantic-containment.mjs','helpers.mjs','lexical-bindings.mjs','interface-code.mjs','graph.mjs','map-set.mjs','generated-view.mjs','generated-view.py','leveled.py','svg.py','flow.py','viewer.py','../../core/agent/manuals.mjs'];
   const generator=await Promise.all(generatorFiles.map(file=>readFile(resolve(repo,'dev-map/lib',file),'utf8')));
   const snapshotId=createHash('sha256').update(text+bindingText+observed.ownershipText+JSON.stringify(mapSet)+generator.join('\n')+JSON.stringify(sourceInfo)+JSON.stringify(containment)+JSON.stringify(audit&&{generated:audit.generated,totals:audit.totals})).digest('hex');
-  return {design:true,auditAvailable:!!report,audit,title:mapSet.title,generated:spec.date,snapshotId,pages,sources,sourceInfo,stale:{},
-    changed:[],changedInputs:[],scores:{},regenerate:`node dev-map/cli.mjs build --set ${setName}`};
+  const inputFiles=[...new Set([setFile('architecture.json'),setFile('interfaces.json'),setFile('ownership.json'),setFile('map.json'),setFile('store/audit.json'),...generatorFiles.map(file=>relative(repo,resolve(repo,'dev-map/lib',file)).replaceAll('\\','/')),...Object.keys(sources)])];
+  const inputs=Object.fromEntries(await Promise.all(inputFiles.map(async file=>[file,createHash('sha256').update(await readFile(resolve(repo,file),'utf8').catch(error=>{if(error.code==='ENOENT')return '';throw error;})).digest('hex')])));
+  return {inputs,design:true,auditAvailable:!!report,audit,title:mapSet.title,generated:spec.date,snapshotId,pages,sources,sourceInfo,stale:{},
+    changed:[],changedInputs:[],scores:{},regenerate:`node dev-map/cli.mjs regenerate --set ${setName}`};
 }
 
 export async function designCommand(command,args,{repo}) {
@@ -232,18 +252,11 @@ export async function designCommand(command,args,{repo}) {
     if(command==='audit-check'&&result.state!=='current')throw Error('Architecture audit missing or stale; run audit.');
     return;
   }
-  const model=await designModel({repo});
-  if(command==='read') {
-    if(args.includes('--code'))throw Error('A design has no scanned code. Use --source for an explicit source reference.');
-    const address=args.find(a=>!a.startsWith('--'))??'0';
-    const contract=model.pages.flatMap(p=>p.wires.flatMap(w=>w.contracts)).find(c=>c.id===address);
-    const page=model.pages.find(p=>p.index===address||p.path===address);
-    if(!contract&&!page)throw Error(`No design node or contract ${address}`);
-    const result=contract??page;
-    if(args.includes('--source')) {
-      if(!page?.sourceSpan)throw Error(`No source reference on ${address}`);
-      const s=page.sourceSpan;console.log(JSON.stringify({...result,source:model.sources[s.file].split('\n').slice(s.line-1,s.endLine).join('\n')},null,2));
-    } else console.log(JSON.stringify(result,null,2));return;
+  const refresh=command==='regenerate';
+  const model=refresh?await generateDesign({repo}):await designModel({repo});
+  if(refresh) {
+    await mkdir(resolve(repo,setFile('store')),{recursive:true});
+    await writeFile(resolve(repo,setFile('store/design.json')),JSON.stringify(model));
   }
   if(command==='build'||command==='regenerate') {
     const {buildGeneratedView}=await import('./generated-view.mjs');
@@ -253,7 +266,7 @@ export async function designCommand(command,args,{repo}) {
   }
   if(command==='check') {
     const built=JSON.parse(await readFile(resolve(repo,setFile('view/design-stamp.json')),'utf8').catch(e=>{if(e.code==='ENOENT')return '{}';throw e;}));
-    const current=built.snapshotId===model.snapshotId;
+    const current=built.snapshotId===model.snapshotId&&!model.changedInputs.length;
     const missing=[];
     if(args.includes('--viewer')&&current) {
       const html=await readFile(resolve(repo,setFile('view/index.html')),'utf8');
@@ -281,5 +294,5 @@ export async function designCommand(command,args,{repo}) {
     if(!current)throw Error('Build this design set to refresh the viewer.');
     return;
   }
-  throw Error('Design sets support read [INDEX|@design/ID|CONTRACT-ID], build, regenerate, check, inventory, audit and audit-check. Solving requires a scanned set.');
+  throw Error('Design commands support build, regenerate, check, inventory, audit and audit-check. Solving requires a scanned set.');
 }

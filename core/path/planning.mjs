@@ -78,15 +78,15 @@ export function planMove(input,to,speed,volumeMm3=0,extra={}) {
   if(!pose&&dz>0)limited=Math.min(limited,state.process.zSpeedMmS*length/dz);
   const seconds=pose?(extra.durationSeconds??(length>0?length/limited:state.motion.transitionSeconds)):length/limited;
   requireThat(Number.isFinite(seconds)&&seconds>0,'Motion needs positive duration.');
-  const action={...extra,kind:'move',to:[...to],speedMmS:limited,volumeMm3,phase:state.phase,layer:state.layer,
-    ...(state.operationId?{operation:state.operationId}:{}),...(pose?{pose:structuredClone(pose),durationSeconds:seconds}:{})};
+  const {durationSeconds:requestedDuration,...properties}=extra;
+  const action={...properties,kind:'move',to:[...to],speedMmS:pose&&length>0&&requestedDuration!==undefined?length/seconds:limited,volumeMm3,phase:state.phase,layer:state.layer,
+    ...(state.operationId?{operation:state.operationId}:{}),...(pose?{pose:structuredClone(pose),...(length===0?{durationSeconds:seconds}:{})}:{})};
   const run=state.moveRun;
   let emitted,shortenedMm=0;
   if(run&&state.lastAction===run.action&&mergeableMove(run,action)){
     const previousLength=distance(run.from,run.action.to),combinedLength=distance(run.from,to);
     const duration=(run.action.durationSeconds??previousLength/run.action.speedMmS)+seconds;
-    const replacement={...run.action,to:action.to,volumeMm3:run.action.volumeMm3+volumeMm3,speedMmS:combinedLength/duration,
-      ...(pose?{durationSeconds:duration}:{})};
+    const replacement={...run.action,to:action.to,volumeMm3:run.action.volumeMm3+volumeMm3,speedMmS:combinedLength/duration};
     shortenedMm=previousLength+length-combinedLength;
     state.moveRun={...run,action:replacement};state.lastAction=replacement;state.lastNonFan=replacement;
     emitted={replaceLast:replacement,append:[]};

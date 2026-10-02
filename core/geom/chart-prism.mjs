@@ -22,6 +22,7 @@ export function chartPrism(reference,{loopsUv,direction,fromMm,toMm}){
 }
 
 export function chartPrismContains(prism,point){
+  if(point.some((v,k)=>v<prism.bounds.min[k]-1e-8||v>prism.bounds.max[k]+1e-8))return false;
   if(prism.reference.kind==='height-field'){
     const uv=point.slice(0,2);
     if(!pointInRegion(uv,prism.loopsUv))return false;

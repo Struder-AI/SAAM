@@ -51,6 +51,10 @@ export async function installUpdate({version,url,sha256},{platform,updateHost,da
   const child=windows
     ?spawn('conhost.exe',['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-File',installer,'-WaitPid',String(process.pid)],{detached:true,stdio:'ignore',windowsHide:true})
     :spawn('bash',[installer,'--wait-pid',String(process.pid)],{detached:true,stdio:'ignore'});
+  await new Promise((started,failed)=>{
+    child.once('spawn',started);
+    child.once('error',error=>failed(Error(`Could not start the SAAM ${version} installer: ${error.message}. The current SAAM remains open.`,{cause:error})));
+  });
   child.unref();
   log(`Installer for SAAM ${version} started; SAAM closes now and opens again when it finishes.`);
   return {updating:true,version};

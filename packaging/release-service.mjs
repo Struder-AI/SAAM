@@ -55,7 +55,7 @@ function diagnostic(value,depth=0){
 }
 const errorMessage=error=>String(error?.message??error);
 const studioEvent=event=>{
-  const keys=['kind','seq','at','delivery','studioInstanceId','printId','jobId','generationHash','exportHash','stage','phase','elapsedMs','durationMs','error','cancelled'];
+  const keys=['kind','seq','at','delivery','studioInstanceId','workspaceInstanceId','extensionId','extensionDigest','printId','jobId','generationHash','exportHash','stage','phase','elapsedMs','durationMs','error','cancelled'];
   return Object.fromEntries(keys.filter(key=>Object.hasOwn(event,key)).map(key=>[key,event[key]]));
 };
 function serviceOrigin(value){

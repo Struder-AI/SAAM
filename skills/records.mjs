@@ -15,7 +15,7 @@ export const ASSIGNMENT_RECORDS=Object.freeze({
     requireThat(typeof assignment.id==='string'&&/^[a-z][a-z0-9-]*$/.test(assignment.id),'Invalid sleeve assignment id.');
     requireThat(assignment.part===null||parts?.includes(assignment.part),'Sleeve names an unknown part.');
   },requiresComponent:true,
-    family:assignment=>assignment.pattern===null?'slice':'trace'}
+    family:()=> 'trace'}
 });
 
 const textTemplate=(record={})=>({shape:'text',base:null,features:[],toleranceMm:0.02,maxEdgeMm:1,

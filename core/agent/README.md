@@ -23,7 +23,7 @@ node scripts/agent-toolkit.mjs builder-onboarding --area skills
 node scripts/agent-toolkit.mjs developer-onboarding --area core/geom
 node scripts/agent-toolkit.mjs read-skill text --maker --builder --machine ultimaker-s5
 node scripts/agent-toolkit.mjs read-map 0
-node scripts/agent-toolkit.mjs read-map core/path/compose.mjs::planComposition --code
+node scripts/agent-toolkit.mjs read-map 2.1 --set 030-architecture
 node scripts/agent-toolkit.mjs regenerate 6
 node scripts/agent-toolkit.mjs read-guidance MAKERS.md#standard-parameter-policy
 ```
@@ -49,10 +49,10 @@ the OS browser when a client opens the returned URL itself or a test is headless
 |---|---|---|
 | `maker-onboarding [--machine ID]` | Read MAKERS, the skill digest (the index) and print tools as a [script client](#context-layers), with the machine's advanced sections; inspect Node and dependency entry-point availability; fetch `main` for `environment.sync`, the checkout's one-line sync report. | Assembled text and paths, environment observations, and an instruction to choose further reads. |
 | `builder-onboarding [--area AREA]` | Read BUILDERS, the maker manuals whole, skill authoring and the digest; add the named area's component manual, or, for a node index or declaration path, that map; inspect entry-point availability and sync. | The same context format, with builder sources and an instruction to read the component manual for what is changed and walk the map for its structure. |
-| `developer-onboarding [--area AREA] [--set NAME]` | Read 0.3.2 intent, retained 0.3.1 contracts, glossary, developer orientation and selected map `0`; add a named node’s map or outside area’s references; inspect entry-point availability and sync. Open component manuals as needed. | Shared terminology, orientation, maps and navigation instructions. |
+| `developer-onboarding [--area AREA] [--set NAME]` | Read glossary, the full developer context and selected visible map `0`; add a named node’s map or outside area’s references; inspect entry-point availability and sync. Open component manuals as needed. | Shared terminology, developer rules, maps and navigation instructions. |
 | `read-skill ID[#HEADING] [--maker] [--builder] [--developer] [--machine ID] [--all]` | Read the selected role manuals for one cataloged skill; default to maker, assembled as a script client. | Text, paths, `omitted` gated sections, selected `roles`, and `unavailableRoles` for absent optional manuals. |
 | `context-budget [--machine ID]` | Assemble every layer for both clients and each machine. | Bytes per layer and client, and per on-demand manual. |
-| `read-map INDEX|DECLARATION [--code] [--details]` | Read one compact stored page: `0` for the top map, `N.…` or a declaration path for a cluster's map or a leaf's code block. | `maps`: that graph or terminal source. `range` is `[first,last]` inclusive; nested locations inherit `file`; empty arrays are omitted. `--code` returns source and edit-safety metadata; only `0` is refused. `--details` returns the full stored packet and scanner evidence. Reads never scan. |
+| `read-map ADDRESS [--set NAME]` | Use the [single CLI read contract](../../dev-map/README.md#commands), shared with onboarding. | `maps`: visible relationships and exact source locations, or complete link/contract interfaces. Read leaf ranges with normal file tools; leaf addresses are not maps. No code bodies or read-mode flags; no scan. |
 | `regenerate [INDEX]` | Scan the source and write the stored map. | Always generates everything; an index is accepted. The only command that scans. |
 | `read-guidance PATH#HEADING [--machine ID] [--all]` | Read one published manual or section chosen by the agent. | The same individual-read format, with headings and their gates. |
 | `start-tour` | Create fresh copies of both examples through the tour API; select lesson one and playback start layer; read geometry; start an exclusively owned Studio; emit its URL/instance ID; request browser opening; read participation guidance, tour state and `sync`. | A live bidirectional Studio session, initial recipe summary, MAKERS and tour-participation context, plus event-stream and recovery-listener details. |
@@ -75,7 +75,7 @@ the OS browser when a client opens the returned URL itself or a test is headless
 | New custom part | Run `maker-onboarding` only if maker context is missing. | Choose individual skill reads from the supplied digest, load missing task-specific references, then prepare and open the first reasonable geometry. |
 | Existing Studio print | Run `begin-studio-work` early to claim the request, with the target or existing request ID; you can acknowledge the person first. | Use the returned recipe/revision; load only missing maker/skill context, edit, bind the result, present it and resolve the request. |
 | Guidance, recipe helpers, assets, examples or diagnostics using published interfaces | Run `builder-onboarding` once when context is missing; add a known `--area`. | Read consumed contracts and missing guidance. Inspect maps when useful; reading implementation does not authorize changing it. |
-| Core skills, core, Studio or shared interfaces | With developer authorization, run `developer-onboarding` once when context is missing. | Walk from `0` with `read-map INDEX|DECLARATION`, read source with `--code`, and regenerate after edits. |
+| Core skills, core, Studio or shared interfaces | With developer authorization, run `developer-onboarding` once when context is missing. | Walk maps from `0` for interactions; read files at supplied ranges for internals, then regenerate after edits. |
 
 Developers are maps-native and open prose manuals when the work calls for it; a
 builder gets a map only for a named node (`--area skills` loads none), and makers

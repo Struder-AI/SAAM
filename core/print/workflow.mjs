@@ -332,7 +332,7 @@ async function describeBundle({dir,plan,machine,geometry,geometryArtifact,geomet
     exportName: exportName(plan,machine), limitations: limitationsFor(plan, machine),
     outputAvailability:machine.outputs.find(o=>o.id===plan.output)?.implemented===false?`Machine-file export for ${machine.name} is not available yet; geometry and settings can be reviewed.`:null,
     skills: [...new Set((plan.slices?.assignments??[]).map(assignment=>assignment.construction==='sleeve'
-      ?assignment.pattern===null?'slice':'trace':ordinaryAssignmentFamily(assignment))),
+      ?'trace':ordinaryAssignmentFamily(assignment))),
       ...Object.entries(plan.skills??{}).filter(([,settings])=>settings?.enabled).map(([name])=>name)]
   };
   state.toolpathApproved = false;

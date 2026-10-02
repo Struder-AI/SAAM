@@ -31,9 +31,7 @@ does not force physical slots. Earlier failed formats showed why screen mapping
 and valid executable commands alone are insufficient evidence. The accepted
 generated project and executable are now both protected by regression hashes.
 The [development log](../../DEVLOG.md#2026-09-21--generated-h2d-dual-20-passes-closing-dual-nozzle-exporter-work)
-owns that investigation and the exact delivered-file evidence. Remaining X1 and
-installation checks are tracked in
-[BR-055](../../build_request.md#br-055--extend-bambu-hardware-acceptance-beyond-the-verified-h2d-installation).
+owns that investigation and the exact delivered-file evidence.
 
 ## Maker setup
 

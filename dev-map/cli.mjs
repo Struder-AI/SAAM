@@ -1,27 +1,26 @@
 #!/usr/bin/env node
 // Building, auditing and checking the generated map. Agents read it with
-// `node scripts/agent-toolkit.mjs read-map INDEX|DECLARATION [--code]`, or `read --set NAME`.
+// `node scripts/agent-toolkit.mjs read-map ADDRESS`, or `read --set NAME`.
 import {resolve} from 'node:path';
 import {parseArgs} from 'node:util';
 import {repoRoot as root} from './lib/store.mjs';
 import {commandArgs,setFile,mapSet} from './lib/map-set.mjs';
 
-const usage='Use: node dev-map/cli.mjs [--set NAME] read ADDRESS [--code|--details] | build | regenerate [INDEX] | solve [--seed N] | flow-evidence ADDRESS | check [--json] | score [--json] | watch-freshness [--once] [--interval-ms 2000]';
+const usage='Use: node dev-map/cli.mjs [--set NAME] read ADDRESS | build | regenerate [INDEX] | solve [--seed N] | flow-evidence ADDRESS | check [--json] | score [--json] | watch-freshness [--once] [--interval-ms 2000]';
 const [command='build',...args]=commandArgs;
+if(command==='read') {
+  const {positionals}=parseArgs({args,allowPositionals:true,options:{}});
+  if(positionals.length>1)throw Error('Read one map or contract address.');
+  const {readMap}=await import('./lib/read.mjs');
+  console.log(JSON.stringify(await readMap(positionals[0]??'0',{repo:root}),null,1));
+  process.exit(0);
+}
 if(mapSet?.mode==='design') {
   const {designCommand}=await import('./lib/design.mjs');
   await designCommand(command,args,{repo:root});
   process.exit(0);
 }
-if(!['read','build','check','regenerate','solve','flow-evidence','score','watch-freshness'].includes(command))throw Error(usage);
-if(command==='read') {
-  const {values,positionals}=parseArgs({args,allowPositionals:true,options:{code:{type:'boolean'},details:{type:'boolean'}}});
-  const {readGenerated}=await import('./lib/store.mjs');
-  const {presentationPage}=await import('./lib/presentation.mjs');
-  const page=await readGenerated(positionals[0]??'0',{repo:root,code:values.code});
-  console.log(JSON.stringify(values.details||values.code?page:presentationPage(page),null,1));
-  process.exit(0);
-}
+if(!['build','check','regenerate','solve','flow-evidence','score','watch-freshness'].includes(command))throw Error(usage);
 
 // The cluster solver (lib/solve.mjs): anneal the stored tree toward the lowest energy,
 // write it to tree.json, then regenerate so the maps and the viewer show it.

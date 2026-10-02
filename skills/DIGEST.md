@@ -12,7 +12,7 @@ person asks: `read_skill ID#heading`, otherwise `read_guidance`.
 
 | Skill | Use |
 |---|---|
-| [slice](slice/SKILL.md) | Construct deposition over 3D regions using slices and slice families: loops, fill, translated or normal stacks, boundary references and joined courses. |
+| [slice](slice/SKILL.md) | Deposit loops and fill in owned regions over reference surface families. |
 | [trace](trace/SKILL.md) | Deposit along explicit XYZ, NURBS or surface UV curves with varying bead and process. |
 | [inject](inject/SKILL.md) | Deposit at points, authored directly or supplied by skills, with explicit volume, flow, vertical approach and hold. |
 
@@ -29,7 +29,7 @@ Recipes and techniques using Slice, Trace and Inject; no additional deposition f
 | Skill | Use |
 |---|---|
 | [advanced-vase-wall](advanced-vase-wall/SKILL.md) | Extension that fits a sleeve, repeats authored patterns and calls Trace. |
-| [vase-wall](vase-wall/SKILL.md) | Extension for a continuous Slice spiral wall and optional solid base. |
+| [vase-wall](vase-wall/SKILL.md) | Extension for a continuous Trace spiral wall and optional solid base. |
 | [bridging](bridging/SKILL.md) | Extension for Trace spans between supporting rims, including attachment motions. |
 | [draped-skin](draped-skin/SKILL.md) | Extension for roof-following Slice courses and their contact with prior material. |
 | [wave-overhangs](wave-overhangs/SKILL.md) | Extension for experimental seeded-front fill on ordinary Slice families. |
@@ -43,6 +43,12 @@ Recipes and techniques using Slice, Trace and Inject; no additional deposition f
 | [gridfinity](gridfinity/SKILL.md) | gridfinity |
 | [supports](supports/SKILL.md) | Tree branches at placed contacts; placement trades support against surface contact and removal access. Area supports under a footprint are slices with the support preset. |
 | [hole-supports](hole-supports/SKILL.md) | Experimental support options for a detected bed-facing circular counterbore under a smaller through bore. |
+
+## Workspace extensions
+
+| Skill | Use |
+|---|---|
+| [wing](wing/SKILL.md) | Experimental interactive wing design workspace with source-backed airfoils and self-contained print bundles. |
 
 ## Advanced sections
 

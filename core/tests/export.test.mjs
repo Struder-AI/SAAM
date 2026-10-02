@@ -41,9 +41,9 @@ test('shared interpretation rejects cold extrusion, unsupported state, and inval
 });
 
 test('a pause longer than one G4 command is written as commands that sum to it',()=>{
-  const at=path.actions.findIndex(a=>a.kind==='move')+1,neighbour=path.actions[at];
+  const at=path.actions.findIndex(a=>a.kind==='move')+1;
   const paused=seconds=>({...path,actions:[...path.actions.slice(0,at),
-    {kind:'dwell',seconds,phase:neighbour.phase,layer:neighbour.layer},...path.actions.slice(at)]});
+    {kind:'dwell',seconds},...path.actions.slice(at)]});
   const waits=code=>code.split('\n').map(l=>l.trim()).filter(l=>l.startsWith('G4 '));
   assert.deepEqual(waits(emit(machine,paused(12))),['G4 P12000'],'a pause within one command is written unchanged');
   const long=emit(machine,paused(150));

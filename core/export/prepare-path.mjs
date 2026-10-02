@@ -2,6 +2,7 @@ import {requireThat,distance} from '../private/export/numeric.mjs';
 import {AdaptationMotion,machinePriming} from '../private/export/adaptation-motion.mjs';
 import {validateSetup,checkMachinePath,toolBounds,startupPosition,startupRetracted,sameNozzleMaterialChanges} from '../machine/rules.mjs';
 import {checkedFilamentPlan} from '../machine/filaments.mjs';
+import {contextualActions} from '../path/action-context.mjs';
 
 export const PREPARED_PATH_CONTRACT='saam-export-prepared/1';
 const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/1';
@@ -12,6 +13,10 @@ const selection=(plan,machine,index)=>{
   const selected=checkedFilamentPlan(plan,machine,index);
   return {plan:selected,filament:index,tool:selected.setup.tool,process:selected.process,bounds:toolBounds(machine,selected.setup.tool)};
 };
+function hasPrime(path){
+  for(const {context} of contextualActions(path))if(context.phase==='prime')return true;
+  return false;
+}
 function depositionBounds(path,plan){
   const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];let from=path.initialPosition;
   for(const action of path.actions){
@@ -53,12 +58,15 @@ export function prepareExportPath(path,plan,machine){
   const deposited=depositionBounds(path,plan),model=path.summary?.boundsMm;
   const geometryBounds=model&&deposited?{min:model.min.map((v,i)=>Math.min(v,deposited.min[i])),
     max:model.max.map((v,i)=>Math.max(v,deposited.max[i]))}:model??deposited;
-  if(path.actions.some(a=>a.volumeMm3>0)&&!path.actions.some(a=>a.phase==='prime'))
+  if(path.actions.some(a=>a.volumeMm3>0)&&!hasPrime(path))
     machinePriming(motion,machine,bounds,geometryBounds);
   motion.phase='start';motion.layer=0;motion.operationId=null;
   motion.travel(path.initialPosition,oriented?path.initialPose??null:null);
   const debts=new Map([[selected.tool,0]]);let neutralFrom=path.initialPosition,relocating=false;
-  for(const original of path.actions){
+  // Context is resolved only at the selected-machine boundary. These actions
+  // are private prepared machine motion, never a persisted neutral SAAMpath.
+  for(const {action:physical,context} of contextualActions(path)){
+    const original={...context,...physical};
     motion.context(original);
     if(original.kind==='toolChange'){
       requireThat(!Object.hasOwn(original,'tool'),

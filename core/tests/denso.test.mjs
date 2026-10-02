@@ -1,4 +1,5 @@
 import {createPlanningState,planningPath,planMove} from '../path/planning.mjs';
+import {contextualActions} from '../path/action-context.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,readFile} from 'node:fs/promises';
@@ -73,7 +74,8 @@ test('oriented motion preserves pose-only actions and unsupported outputs reject
   const rotated=planMove(initial,[10,0,1],10,0,{pose:{...uprightPose(),rotaryDeg:720},durationSeconds:2});
   const raised=planMove(rotated.state,[10,0,2],10,.08,{pose:{...uprightPose(),rotaryDeg:720}});
   const path={...planningPath(raised.state,[rotated.actions,raised.actions]),completion:{contract:'saam-neutral-motion/1'}};
-  assert.equal(path.actions.length,2);assert.equal(path.actions[0].pose.rotaryDeg,720);
+  const actions=[...contextualActions(path)].map(({action})=>action);
+  assert.equal(actions.length,2);assert.equal(actions[0].pose.rotaryDeg,720);
   const s5=loadMachine(),unsupported=defaults(s5);
   assert.throws(()=>exportProgram(path,unsupported,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),/cannot represent non-upright orientation or rotary motion/);
   assert.throws(()=>exportAndInterpretProgram(path,unsupported,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),/cannot represent non-upright orientation or rotary motion/);

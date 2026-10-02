@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "date": "2026-10-01",
-  "description": "0.3.1 causal architecture (existing set identifier retained): see plans/0.3.1.md. Arrows carry named information/actions; contracts separately list permitted calls/reads, possibly opposite. Engine 3 makes neutral SAAMpath, 5 owns shared part state, 6 invokes Export 8, and 7 wraps specialized workspaces. Submaps/assignments are provisional; no conformance certificate.",
+  "date": "2026-10-02",
+  "description": "0.3.1 causal architecture (existing set identifier retained): see plans/0.3.1.md. Arrows carry named information/actions; contracts separately list permitted calls/reads, possibly opposite. Engine 3 makes neutral SAAMpath, 5 owns shared part state, 6 invokes Export 8, and 7 hosts workspace extensions owned by 4. Submaps/assignments are provisional; no conformance certificate.",
   "actors": {
     "user": {
       "label": "User",
@@ -21,6 +21,15 @@
     }
   },
   "nodes": [
+    {"id":"geometry-offset-chart","index":"2.1.1.8","label":"Ambient offset charts","description":"References displaced by exact or fitted normal geometry.","type":"component","source":{"file":"core/geom/offset-chart.mjs"}},
+    {"id":"geometry-offset-chart-0","index":"2.1.1.8.1","label":"@module","description":"Ambient offset chart geometry.","type":"component","source":{"file":"core/geom/offset-chart.mjs"}},
+    {"id":"geometry-offset-chart-1","index":"2.1.1.8.2","label":"offsetSurfaceChart","description":"Ambient offset chart geometry.","type":"component","source":{"file":"core/geom/offset-chart.mjs","declaration":"offsetSurfaceChart"}},
+    {"id":"geometry-offset-chart-2","index":"2.1.1.8.3","label":"at","description":"Ambient offset chart geometry.","type":"component","source":{"file":"core/geom/offset-chart.mjs","declaration":"offsetSurfaceChart::at"}},
+    {"id":"geometry-offset-chart-3","index":"2.1.1.8.4","label":"offsetChart","description":"Ambient offset chart geometry.","type":"component","source":{"file":"core/geom/offset-chart.mjs","declaration":"offsetSurfaceChart::offsetChart"}},
+    {"id":"geometry-offset-chart-4","index":"2.1.1.8.5","label":"at","description":"Ambient offset chart geometry.","type":"component","source":{"file":"core/geom/offset-chart.mjs","declaration":"offsetSurfaceChart::offsetChart::at"}},
+    {"id":"geometry-offset-chart-5","index":"2.1.1.8.6","label":"offsetPoint","description":"Ambient offset chart geometry.","type":"component","source":{"file":"core/geom/offset-chart.mjs","declaration":"offsetSurfaceChart::offsetPoint"}},
+    {"id":"slice-references","index":"3.3.1","label":"Owned reference families","description":"Resolve reference geometry to course regions; common Slice constructs deposition.","type":"component","source":{"file":"core/print/slice-families.mjs"}},
+    {"id":"slice-metric-fill","index":"3.3.2","label":"Physical chart cells","description":"One course physical fill layout shared by chart and stack choices.","type":"component","source":{"file":"core/region/metric-fill.mjs"}},
     {"id":"geometry-stroke-topology","index":"2.1.4.10","label":"Stroke footprint topology","description":"Widen supplied centerlines and query footprint components and holes; no font or bead-planning policy.","type":"component","source":{"file":"core/geom/stroke-topology.mjs","declaration":"strokeTopology"}},
     {"id":"geometry-mapped-text-material","index":"2.2.1.8","label":"Mapped outline material","description":"Map normalized text outlines into solid construction requests; extension controls feature selection and Boolean composition order.","type":"component","source":{"file":"core/geom/mapped-text-material.mjs","declaration":"mappedTextMaterial"}},
     {"id":"geometry-mesh-sleeve-interval","index":"2.2.3.6","label":"Mesh sleeve interval","description":"Classify mesh sections and propose a geometric fitting interval; the caller authors the selected recipe bounds.","type":"component","source":{"file":"core/geom/sleeve/mesh-sleeve.mjs","declaration":"detectMeshSleeveInterval"}},
@@ -64,7 +73,7 @@
     {"id":"path-finalize","index":"3.6","label":"Finalize deposition","description":"Apply fields, check motion/process and publish final material for consumers.","type":"component","source":{"file":"core/print/finalize.mjs"}},
     {"id":"path-motion","index":"3.7","label":"Path motion & representation","description":"Shared SAAMpath records, process/motion planning and deposited-material representation.","type":"component","source":{"file":"core/path/planning.mjs"}},
     {"id":"build-evaluate","index":"3.8","label":"Prepare recipe inputs","description":"Evaluate pinned geometry/extension inputs and hand construction requests to the Toolpath engine composition stage.","type":"component","source":{"file":"core/print/bundle.mjs","declaration":"generatePreparedPath"}},
-    {"id":"extensions","index":"4","label":"Extensions","description":"Extension definitions and scripts, separate from bundles; maker guidance belongs to 1.","type":"component","notes":["Manual reads are concrete existing accesses; the generic execution/resolution contracts remain targets. Source references do not claim the current extension code already respects engine/bundle boundaries."]},
+    {"id":"extensions","index":"4","label":"Extensions","description":"Extension definitions, domain construction and packaged UI, separate from bundles; maker guidance belongs to 1.","type":"component","notes":["The existing extension library owns dependency resolution, local overrides and portable packages; workspace content uses the same library. Source references identify ownership, not conformance certification."]},
     {"id":"extension-library","index":"4.1","label":"Extension library / authoring","description":"Installed extension definitions and builder-authorized edits; maker manuals are owned by 1.","type":"component","source":{"file":"core/extensions/library.mjs"}},
     {"id":"extension-run","index":"4.2","label":"Extension loading & invocation","description":"Existing local loader; general package execution still to implement.","type":"component","source":{"file":"core/local-extension.mjs","declaration":"loadLocalExtension"}},
     {"id":"extension-resources","index":"4.3","label":"Thingi10K resource client","description":"Existing search/download/cache client.","type":"component","source":{"file":"skills/thingi10k/scripts/library.mjs","declaration":"createThingi10KClient"}},
@@ -104,9 +113,9 @@
     {"id":"studio-events","index":"6.8","label":"Studio event queue","description":"Alert/held observations and delivery.","type":"component","source":{"file":"studio/studio-events.mjs","declaration":"createStudioEvents"}},
     {"id":"studio-tour-state","index":"6.9","label":"Tour state","description":"Current lessons and request coordination.","type":"component","source":{"file":"studio/tour.mjs","declaration":"createTour"}},
     {"id":"studio-state","index":"6.10","label":"Studio private state","description":"View/session/readiness/playback/UI state; shared part state is accessed through bundle commands.","type":"component","source":{"file":"studio/studio-state.mjs"}},
-    {"id":"workspace","index":"7","label":"Specialized workspaces","description":"Common interaction/handoff interface wrapping individual specialized design workspaces.","type":"component","notes":["Wing implementation authorized from the latest TK-DEV investigation (217a6e0); only its standalone renderer is adopted. Domain construction is implemented against current public APIs. Full-aircraft display context produces no bundles."]},
-    {"id":"workspace-interface","index":"7.1","label":"Workspace interaction interface","description":"Consistent user interaction and one-way reproducible bundle handoff.","type":"component","source":{"file":"workspaces/server.mjs","declaration":"startWingWorkspace"},"notes":["Loopback UI, private design persistence, worker progress and a single set-folder handoff. workspaces/export-worker.mjs invokes the bundle-owned creation entry once per piece; no Studio or exporter imports."]},
-    {"id":"workspace-implementations","index":"7.2","label":"Individual workspaces","description":"Wing section design, full-aircraft display context and reproducible continuous Trace construction.","type":"component","source":{"file":"workspaces/wing/construct.mjs","declaration":"wingHandoff"},"notes":["Public loftPolygons constructs section envelopes. Explicit Trace curves and source parameters survive independently in each bundle. Candidate SAAMpath access remains available but unused here; normal bundle generation invokes 3.4."]},
+    {"id":"workspace","index":"7","label":"Workspace host","description":"Generic interaction, private design storage, worker jobs and one-way bundle handoff for selected extensions.","type":"component","notes":["Workspace design, construction and UI belong to Extensions (4). The installed runtime manages hosted instances alongside Studio; this component introduces no separate application lifecycle owner."]},
+    {"id":"workspace-interface","index":"7.1","label":"Host workspace interaction","description":"Load selected workspace UI, read saved snapshots, save domain-normalized designs, explicitly preview and hand off self-contained bundles.","type":"component","source":{"file":"workspaces/server.mjs","declaration":"startWorkspace"},"notes":["Read/save does not invoke preview; normalization retains extension-owned domain validation. Generic loopback interaction and atomic design persistence feed worker construction; core attaches protected identity and calls Bundle once per piece."]},
+    {"id":"workspace-implementations","index":"4.5","label":"Wing workspace extension","description":"Portable Wing design, section construction, full-aircraft display context and packaged UI.","type":"component","source":{"file":"skills/wing/workspace.mjs","declaration":"createWingWorkspace"},"notes":["Domain construction receives public Geometry and Toolpath operations through workspace-runtime. Explicit geometry and Trace recipes remain independent in created bundles; full-aircraft display context creates no bundles."]},
     {"id":"export","index":"8","label":"Export & check","description":"Translate saved neutral SAAMpath for the selected machine and check the exact program; Bundle access uses its explicit contract.","type":"component","notes":["Installation startup/priming, physical tools, machine-specific clearance and output limits belong here; neutral deposition and motion remain in 3. Export preparation never changes the saved neutral path.","Geometry supplies public frame mathematics under the owner-approved narrow contract. Studio reviews and delivers the same checked bytes."]},
     {"id":"export-router","index":"8.1","label":"exportAndInterpretProgram","description":"Select dialect; export and interpret exact bytes.","type":"component","source":{"file":"core/export/registry.mjs","declaration":"exportAndInterpretProgram"}},
     {"id":"export-prepare","index":"8.2","label":"Machine-specific Export preparation","description":"Adapt a copy of neutral SAAMpath for selected-machine startup, material tools, clearances and limits; preserve the saved neutral path.","type":"component","source":{"file":"core/export/prepare-path.mjs","declaration":"prepareExportPath"}},
@@ -1019,9 +1028,11 @@
     {"id":"geometry-material-resolution","index":"2.2.1.1.9","label":"Resolve material geometry","description":"Construct an ordered batch of authored material definitions, including placed recursive assemblies, with shared Geometry runtime and identity cache.","type":"component","source":{"file":"core/geom/build.mjs","declaration":"resolveMaterialGeometry"}},
     {"id":"geometry-prepare-solid-distance","index":"2.1.7","label":"Prepare solid distance","description":"Resolve and tessellate authored material at explicit tolerance, returning prepared manufacturing mesh and representation diagnostics for synchronous distance queries.","type":"component","source":{"file":"core/geom/solid-distance.mjs","declaration":"prepareSolidDistance"}},
     {"id":"geometry-solid-distance","index":"2.1.8","label":"Solid distance","description":"Exact exhaustive triangle-distance evaluation over the supplied prepared mesh, optionally signed by containment; no modulation channel or transfer policy.","type":"component","source":{"file":"core/geom/solid-distance.mjs","declaration":"solidDistance"}},
-    {"id":"geometry-widen-strokes","index":"2.1.4.11","label":"Widen planar strokes","description":"Round-joined/capped widening of coplanar XYZ centerlines in a supplied unit frame, owning the fixed millimetre rounding grid and native contour construction.","type":"component","source":{"file":"core/geom/stroke-topology.mjs","declaration":"widenPlanarStrokes"}}
+    {"id":"geometry-widen-strokes","index":"2.1.4.11","label":"Widen planar strokes","description":"Round-joined/capped widening of coplanar XYZ centerlines in a supplied unit frame, owning the fixed millimetre rounding grid and native contour construction.","type":"component","source":{"file":"core/geom/stroke-topology.mjs","declaration":"widenPlanarStrokes"}},
+    {"id":"extension-workspace-runtime","index":"4.6","label":"Workspace runtime loading","description":"Load workspace-runtime from the resolved extension library and supply named public engine operations.","type":"component","source":{"file":"core/extensions/workspaces.mjs","declaration":"loadWorkspaceRuntime"}}
   ],
   "contracts": [
+    {"id":"slice-offset-chart","direction":"Slice requests geometry construction; Geometry returns the evaluated chart or chart curves.","from":"geometry-offset-chart-1","to":"slice","label":"Ambient offset reference","operations":["offsetSurfaceChart"],"inputs":"Evaluated chart, depth, selected native geometry and tightness.","outputs":"Evaluated offset chart with source metric and normal frame.","effects":"Private fitted geometry and numerical caches; no recipe or caller mutation.","failure":"Missing/singular selected geometry rejects.","excludes":"No process, course, fill, deposition or scheduler policy.","access":[{"from":"slice","to":"geometry-offset-chart-1"}],"evidence":["core/geom/offset-chart.mjs::offsetSurfaceChart","core/print/slice-families.mjs::resolveSliceFamily"],"status":"Source responsibility reviewed for authorized 0.3.2 consolidation; no conformance claim."},
     {"id":"trace-geometry-curve-point","from":"geometry-leaf-2ac18ceb597d","to":"trace","label":"rational curve point","direction":"Geometry returns an ordinary rational-curve point; Trace invokes the operation through the explicit access direction.","operations":["curvePoint"],"inputs":"An ordinary rational curve with its native active domain and a normalized domain fraction.","outputs":"The evaluated point in the curve coordinate dimension.","effects":"Numerical evaluation over supplied curve values; no retained state or machine/profile access.","failure":"Retains existing rational-curve evaluator behavior and representational preconditions; no independent regularity guarantee is added.","excludes":"No bead width, course selection, process policy or access to the private NURBS kernel.","access":[{"from":"trace","to":"geometry-leaf-2ac18ceb597d"}],"evidence":["core/geom/surface-curves.mjs::curvePoint","core/path/authored-curves.mjs::sampleAuthoredCurve"],"status":"Reviewed public operation within the existing Geometry–Toolpath root pair; exact caller operation placement may remain unresolved."},
     {"id":"geometry-toolpath-frames","from":"geometry-frames","to":"compose","label":"coordinate and frame results","direction":"Geometry supplies coordinate/frame results; this consumer calls the public operations in the opposite direction.","operations":["add","subtract","scale","dot","cross","length","unitDirection","rotateZ","rotatePointZ","validateDirectionPair","interpolateDirectionPair","mv","transpose","mm","identity","rotation","rigid","point","compose","invert","axisFrame","rodFrame","validateRigid"],"inputs":"Explicit points, vectors, direction pairs, angles, rotation centres, interpolation fractions and rigid transforms satisfying each operation's input contract.","outputs":"Transformed coordinates, composed/inverted transforms, validated directions or interpolated frames.","effects":"Pure computation over supplied values; no retained aliases, I/O, profile lookup or Bundle access.","failure":"Validation operations reject non-finite/non-orthonormal frames; normalization and interpolation reject degenerate directions. No machine feasibility is inferred.","excludes":"No machine capability, tool mapping, startup, collision or motion-feasibility policy; no direct access to Geometry's private kernel.","access":[{"from":"compose","to":"geometry-frames"}],"evidence":["core/geom/frame.mjs","core/path/pose.mjs"],"status":"Exact public coordinate operations within an existing Geometry consumer pair; no new root access."},
     {"id":"geometry-studio-frames","from":"geometry-frames","to":"studio","label":"coordinate and frame results","direction":"Geometry supplies coordinate/frame results; this consumer calls the public operations in the opposite direction.","operations":["add","subtract","scale","dot","cross","length","unitDirection","rotateZ","rotatePointZ","validateDirectionPair","interpolateDirectionPair","mv","transpose","mm","identity","rotation","rigid","point","compose","invert","axisFrame","rodFrame","validateRigid"],"inputs":"Explicit points, vectors, direction pairs, angles, rotation centres, interpolation fractions and rigid transforms satisfying each operation's input contract.","outputs":"Transformed coordinates, composed/inverted transforms, validated directions or interpolated frames.","effects":"Pure computation over supplied values; no retained aliases, I/O, profile lookup or Bundle access.","failure":"Validation operations reject non-finite/non-orthonormal frames; normalization and interpolation reject degenerate directions. No machine feasibility is inferred.","excludes":"No machine capability, tool mapping, startup, collision or motion-feasibility policy; no direct access to Geometry's private kernel.","access":[{"from":"studio","to":"geometry-frames"}],"evidence":["core/geom/frame.mjs","core/machine/presentation.mjs"],"status":"Exact public coordinate operations within an existing Geometry consumer pair; no new root access."},
@@ -1174,11 +1185,12 @@
     {
       "id": "agent-extensions",
       "from": "agent",
-      "to": "extension-library",
+      "to": "extensions",
       "label": "discover / author",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
-        "list / create / override"
+        "list / create / override",
+        "listWorkspaces"
       ],
       "inputs": "Extension identity or builder-authorized definition edits.",
       "outputs": "Extension definitions and identity; maker guidance is read through 1.",
@@ -1188,15 +1200,16 @@
       "access": [
         {
           "from": "agent",
-          "to": "extension-library"
+          "to": "extensions"
         }
       ],
       "evidence": [
         "skills/catalog.mjs",
-        "core/agent/toolkit.mjs"
+        "core/agent/toolkit.mjs",
+        "core/extensions/workspaces.mjs::listWorkspaces"
       ],
       "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
-      "implementation": "Discovery exists; separate replaceable/local extension installation remains proposed."
+      "implementation": "Existing library provides release/local package discovery, override and exchange; workspace discovery filters the same manifests."
     },
     {
       "id": "agent-bundle",
@@ -1714,13 +1727,13 @@
         }
       ],
       "evidence": [
-        "workspaces/wing/app.mjs",
+        "skills/wing/ui/app.mjs",
         "workspaces/server.mjs"
       ],
       "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
       "implementation": "User design/save action drives private workspace state and one-way bundle handoff."
     },
-    {"id":"workspace-toolpath","from":"compose","to":"workspace-implementations","label":"recipe construction and identity","direction":"Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.","operations":["curveAssignment","recipeDefaults","workspaceConstructionIdentity"],"inputs":"Explicit authored curves, Trace recipe settings and geometry/deposition construction fields.","outputs":"Neutral recipe defaults and assignment records, plus the stable protected construction identity used at workspace handoff.","effects":"Constructs caller-owned recipe values; no machine selection or persisted bundle mutation.","failure":"Reject invalid construction inputs through the existing recipe operations.","excludes":"No machine program, confirmation or delivery authority; no direct candidate-SAAMpath evaluation is claimed.","access":[{"from":"workspace-implementations","to":"compose"}],"evidence":["workspaces/wing/handoff.mjs","core/print/curves.mjs::curveAssignment","core/print/plan.mjs::recipeDefaults","core/print/plan.mjs::workspaceConstructionIdentity"],"status":"Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.","implementation":"Wing constructs an explicit neutral Trace recipe and records its protected geometry/deposition identity before one-way bundle handoff."},
+    {"id":"workspace-toolpath","from":"compose","to":"workspace-implementations","label":"recipe construction operations","direction":"Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.","operations":["curveAssignment","recipeDefaults"],"inputs":"Explicit authored curves, Trace recipe settings and geometry/deposition construction fields.","outputs":"Neutral defaults and assignment records composed into extension-owned recipe values.","effects":"Constructs caller-owned recipe values; no machine selection or persisted bundle mutation.","failure":"Reject invalid construction inputs through the existing recipe operations.","excludes":"No machine program, confirmation or delivery authority; no direct candidate-SAAMpath evaluation is claimed.","access":[{"from":"workspace-implementations","to":"compose"}],"evidence":["skills/wing/handoff.mjs","core/extensions/workspaces.mjs::loadWorkspaceRuntime","core/print/curves.mjs::curveAssignment","core/print/plan.mjs::recipeDefaults"],"status":"Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.","implementation":"The selected factory receives public recipe operations. Protected construction identity is attached by the host after construction."},
     {
       "id": "workspace-bundle",
       "from": "workspace-interface",
@@ -1730,7 +1743,7 @@
       "operations": [
         "initBundle"
       ],
-      "inputs": "Prepared geometry, explicit reproducible Trace recipe, process intent, source parameters and construction requirements.",
+      "inputs": "Extension-authored geometry and reproducible recipe, with host-attached source metadata, requirements and protected construction identity.",
       "outputs": "New unconfirmed bundle identities with no selected machine.",
       "effects": "Bundle persists supplied components; subsequent edits use expected revisions.",
       "failure": "Reject existing directories, invalid component identity and references.",
@@ -1742,12 +1755,12 @@
         }
       ],
       "evidence": [
-        "workspaces/wing/handoff.mjs",
-        "workspaces/export-worker.mjs",
-        "core/print/workflow.mjs"
+        "workspaces/export-worker.mjs::createWorkspaceBundles",
+        "core/print/bundle.mjs::initBundle",
+        "core/print/workflow.mjs::createBundleWorkflow::initBundle"
       ],
       "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
-      "implementation": "Workspace owns explicit dimensions and constructs supplied components. Bundle stores them; machine selection is a later Settings operation."
+      "implementation": "Generic host validates construction values and persists one self-contained unconfirmed bundle per piece; later edits and source detachment remain Bundle-owned."
     },
     {"id":"agent-context-onboard","from":"context-onboard","to":"agent","label":"starting manual context","direction":"Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.","operations":["onboardingSources"],"inputs":"Application root and explicit client/machine manual-filtering context.","outputs":"Starting guidance documents and selected local-extension navigation.","effects":"Returns values to the caller; state effects stay with the declared owner.","failure":"Propagate the operation error to its caller.","excludes":"This source reference is not an exhaustive code assignment or a conformance certificate.","status":"Map-0 causal flow reviewed against source, 2026-10-01; context values return opposite the read call.","evidence":["core/agent/layers.mjs::onboardingSources","core/agent/layers.mjs::ONBOARDING","adapters/mcp/src/runtime.mjs"],"access":[{"from":"agent","to":"context-onboard"}]},
     {
@@ -3992,7 +4005,7 @@
       "id": "workspace-interaction",
       "from": "workspace-interface",
       "to": "workspace-implementations",
-      "label": "design interaction",
+      "label": "workspace runtime operations",
       "direction": "Causal input from common interaction interface to specialized implementation.",
       "access": [
         {
@@ -4001,13 +4014,26 @@
         }
       ],
       "operations": [
-        "open / edit / evaluate / prepare handoff"
+        "workspace-runtime",
+        "normalize",
+        "preview",
+        "pieces",
+        "construct",
+        "resources"
       ],
-      "inputs": "Workspace identity and explicit design inputs.",
-      "outputs": "Design view, candidate geometry/path and reproducible handoff values.",
-      "effects": "Workspace-private state only.",
-      "failure": "Present unsupported requirements or evaluation errors.",
-      "excludes": "No live shared bundle mutation or export confirmation."
+      "inputs": "Resolved extension identity, design choices and piece identity.",
+      "outputs": "Domain-validated normalized design; explicit preview, pieces, resource responses and {plan, source, requirements, report}.",
+      "effects": "Extension owns domain validation/construction. Host reads snapshots and saves normalized designs independently of explicit preview; it owns storage, UI serving and workers.",
+      "failure": "Reject an invalid factory contract or failed design/construction operation.",
+      "excludes": "No extension bundle mutation, protected identity authority, confirmation or application lifecycle ownership.",
+      "evidence": [
+        "core/extensions/workspaces.mjs::loadWorkspaceRuntime",
+        "skills/wing/workspace.mjs::createWingWorkspace",
+        "workspaces/server.mjs::startWorkspace",
+        "workspaces/export-worker.mjs::createWorkspaceBundles",
+        "skills/wing/construct.mjs::validateWingDesign"
+      ],
+      "implementation": "Host invokes a factory resolved through the existing extension library; no Wing import or hardwired route."
     },
     {
       "id": "bundle-generation-job",
@@ -4543,10 +4569,11 @@
         }
       ],
       "evidence": [
-        "core/geom/loft.mjs::loftPolygons"
+        "core/geom/loft.mjs::loftPolygons",
+        "core/extensions/workspaces.mjs::loadWorkspaceRuntime"
       ],
       "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
-      "implementation": "Workspace calls Geometry and consumes returned loft/chord results."
+      "implementation": "Workspace extension consumes named public Geometry operations supplied by the loader."
     },
     {
       "id": "workspace-geometry-4818ed95b4ca",
@@ -4569,10 +4596,11 @@
         }
       ],
       "evidence": [
-        "core/geom/curve-region.mjs::clipLineToRegion"
+        "core/geom/curve-region.mjs::clipLineToRegion",
+        "core/extensions/workspaces.mjs::loadWorkspaceRuntime"
       ],
       "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
-      "implementation": "Workspace calls Geometry and consumes returned loft/chord results."
+      "implementation": "Workspace extension consumes named public Geometry operations supplied by the loader."
     },
     {
       "id": "geometry-bundle",
@@ -5046,7 +5074,7 @@
       ]
     },
     {"id":"slice-checked-surface-derivatives","from":"geometry-leaf-fec793136ddc","to":"slice","label":"checked native differential samples","direction":"Geometry supplies the named result; the consumer calls the exact operation.","operations":["surfaceDerivatives"],"inputs":"Native homogeneous spline patch, native u/v parameters and optional finite normalMm.","outputs":"Point, du/dv, duu/duv/dvv, unit normal and uvOf; derivatives retain native parameter units.","effects":"Local numerical work; no persistence or caller policy lookup.","failure":"Reject out-of-domain samples, nonpositive weight, singular base tangents or offset focal collapse.","excludes":"No relaxed validation, deposition residual tolerance choice or generic numerical-kernel access.","access":[{"from":"slice","to":"geometry-leaf-fec793136ddc"}],"evidence":["core/geom/surface-derivatives.mjs::surfaceDerivatives","core/region/seeded-fronts.mjs::seededSurfaceFronts::roundingResiduals","core/region/seeded-fronts.mjs::seededSurfaceFronts::resolvedResiduals"],"status":"Exact operation and responsibility reviewed against source for 0.3.1; not conformance certification."},
-    {"id":"slice-positive-intervals","from":"geometry-positive-intervals","to":"slice","label":"positive geometric query intervals","direction":"Geometry supplies the named result; the consumer calls the exact operation.","operations":["sampledPositiveIntervals"],"inputs":"Caller-supplied scalar geometric query, ordered parameter samples and optional precomputed values.","outputs":"Ordered positive [start,end] parameter intervals, retaining exact-zero splits and original endpoints.","effects":"Invokes only the supplied scalar query while refining observed crossings; caller retains its query state.","failure":"Existing bracketed root prerequisites and 1e-9 parameter convergence apply.","excludes":"No unseen-crossing guarantee, interval merging, bead threshold/count policy or generic solver entry.","access":[{"from":"slice","to":"geometry-positive-intervals"}],"evidence":["core/geom/curve-sampling.mjs::sampledPositiveIntervals","core/region/wrapping-curves.mjs::surfaceCellField"],"status":"Exact operation and responsibility reviewed against source for 0.3.1; not conformance certification."},
+    {"id":"slice-positive-intervals","from":"geometry-positive-intervals","to":"slice","label":"positive geometric query intervals","direction":"Geometry supplies the named result; the consumer calls the exact operation.","operations":["sampledPositiveIntervals"],"inputs":"Caller-supplied scalar geometric query, ordered parameter samples and optional precomputed values.","outputs":"Ordered positive [start,end] parameter intervals, retaining exact-zero splits and original endpoints.","effects":"Invokes only the supplied scalar query while refining observed crossings; caller retains its query state.","failure":"Existing bracketed root prerequisites and 1e-9 parameter convergence apply.","excludes":"No unseen-crossing guarantee, interval merging, bead threshold/count policy or generic solver entry.","access":[{"from":"slice","to":"geometry-positive-intervals"}],"evidence":["core/geom/curve-sampling.mjs::sampledPositiveIntervals","core/region/metric-fill.mjs::metricFillStrokes"],"status":"Exact operation and responsibility reviewed against source for 0.3.1; not conformance certification."},
     {"id":"agent-material-resolution","from":"geometry-material-resolution","to":"agent","label":"resolved material definitions","direction":"Geometry supplies the named result; the consumer calls the exact operation.","operations":["resolveMaterialGeometry"],"inputs":"Ordered authored geometry definitions with placement and recursive assembly/Boolean operands.","outputs":"Corresponding material shells in input order.","effects":"Geometry owns runtime initialization and private per-batch identity reuse.","failure":"Unsupported/malformed geometry reports the original construction error.","excludes":"No recipe assignment, Bundle writes or caller-owned native construction.","access":[{"from":"agent","to":"geometry-material-resolution"}],"evidence":["core/geom/build.mjs::resolveMaterialGeometry","core/print/geometry-tools.mjs::intersectGeometry"],"status":"Exact operation and responsibility reviewed against source for 0.3.1; not conformance certification."},
     {"id":"slice-material-resolution","from":"geometry-material-resolution","to":"slice","label":"resolved draft material volumes","direction":"Geometry supplies the named result; the consumer calls the exact operation.","operations":["resolveMaterialGeometry"],"inputs":"Ordered authored geometry definitions for explicit draft within-volumes.","outputs":"Corresponding material shells in input order.","effects":"Geometry owns runtime initialization and private per-batch identity reuse.","failure":"Unsupported/malformed geometry reports the original construction error.","excludes":"No assignment/process policy or Bundle mutation.","access":[{"from":"slice","to":"geometry-material-resolution"}],"evidence":["core/geom/build.mjs::resolveMaterialGeometry","core/print/geometry-tools.mjs::intersectDraftFamilies"],"status":"Exact operation and responsibility reviewed against source for 0.3.1; not conformance certification."},
     {"id":"fields-prepare-solid-distance","from":"geometry-prepare-solid-distance","to":"path-fields","label":"prepared solid-distance geometry","direction":"Geometry supplies the named result; the consumer calls the exact operation.","operations":["prepareSolidDistance"],"inputs":"Authored geometry plus explicit tessellation toleranceMm.","outputs":"Prepared triangle mesh and {toleranceMm,triangles,representation} report.","effects":"Geometry owns material construction, tessellation, mesh conversion and native disposal.","failure":"Existing unsupported geometry/tessellation failures propagate.","excludes":"No modifier keys, channel/transfer composition or Toolpath process state.","access":[{"from":"path-fields","to":"geometry-prepare-solid-distance"}],"evidence":["core/geom/solid-distance.mjs::prepareSolidDistance","core/print/modulation-fields.mjs::prepareModulationFields::prepare"],"status":"Exact operation and responsibility reviewed against source for 0.3.1; not conformance certification."},
@@ -5074,7 +5102,97 @@
     {"id":"geometry-blob-compiled-identity","from":"geometry-leaf-20854f6cbcc9","to":"geometry-leaf-3bb7558566a2","label":"blobFieldDigest","operations":["blobFieldDigest"],"direction":"Provider supplies the named operation result; consumer explicitly invokes it.","inputs":"Completed field, extraction and mesh record.","outputs":"Stable compiled representation digest.","effects":"Geometry canonicalizes and hashes its record through node:crypto; resource observations remain explicit.","failure":"Preserve operation prerequisites and original errors; no fabricated result.","excludes":"No transitive private access, caller state reads or additional operation permission.","access":[{"from":"geometry-leaf-3bb7558566a2","to":"geometry-leaf-20854f6cbcc9"}],"evidence":["core/geom/blob-field-record.mjs::blobFieldDigest","core/geom/blob-field-compile.mjs::compileBlobField"]},
     {"id":"geometry-blob-record-native-value","from":"geometry-leaf-3326c32b9cbd","to":"geometry-leaf-0f67bda51184","label":"validateBlobField","operations":["validateBlobField"],"direction":"Provider supplies the named operation result; consumer explicitly invokes it.","inputs":"Persisted field native value.","outputs":"Validated field value.","effects":"Geometry verifies the source field before validating persisted extraction, mesh and compiled identity.","failure":"Preserve operation prerequisites and original errors; no fabricated result.","excludes":"No transitive private access, caller state reads or additional operation permission.","access":[{"from":"geometry-leaf-0f67bda51184","to":"geometry-leaf-3326c32b9cbd"}],"evidence":["core/geom/blob-field.mjs::validateBlobField","core/geom/blob-field-record.mjs::validateBlobFieldRecord"]},
     {"id":"geometry-blob-record-extraction","from":"geometry-leaf-90be44ad727f","to":"geometry-leaf-0f67bda51184","label":"Blob record extraction","operations":["validateBlobFieldExtraction"],"direction":"Provider supplies validation/identity to Geometry record checking.","inputs":"Explicit persisted blob field record/extraction values.","outputs":"Validation completion or canonical compiled digest.","effects":"Geometry validates its own representation; digest uses node:crypto with raw external observations retained.","failure":"Existing schema, extraction and identity mismatch errors propagate.","excludes":"No Bundle reads, caller policy or transitive private access.","access":[{"from":"geometry-leaf-0f67bda51184","to":"geometry-leaf-90be44ad727f"}],"evidence":["core/geom/blob-field-record.mjs::validateBlobFieldRecord","core/geom/blob-field-record.mjs::validateBlobFieldExtraction"]},
-    {"id":"geometry-blob-record-identity","from":"geometry-leaf-20854f6cbcc9","to":"geometry-leaf-0f67bda51184","label":"Blob record identity","operations":["blobFieldDigest"],"direction":"Provider supplies validation/identity to Geometry record checking.","inputs":"Explicit persisted blob field record/extraction values.","outputs":"Validation completion or canonical compiled digest.","effects":"Geometry validates its own representation; digest uses node:crypto with raw external observations retained.","failure":"Existing schema, extraction and identity mismatch errors propagate.","excludes":"No Bundle reads, caller policy or transitive private access.","access":[{"from":"geometry-leaf-0f67bda51184","to":"geometry-leaf-20854f6cbcc9"}],"evidence":["core/geom/blob-field-record.mjs::validateBlobFieldRecord","core/geom/blob-field-record.mjs::blobFieldDigest"]}
+    {"id":"geometry-blob-record-identity","from":"geometry-leaf-20854f6cbcc9","to":"geometry-leaf-0f67bda51184","label":"Blob record identity","operations":["blobFieldDigest"],"direction":"Provider supplies validation/identity to Geometry record checking.","inputs":"Explicit persisted blob field record/extraction values.","outputs":"Validation completion or canonical compiled digest.","effects":"Geometry validates its own representation; digest uses node:crypto with raw external observations retained.","failure":"Existing schema, extraction and identity mismatch errors propagate.","excludes":"No Bundle reads, caller policy or transitive private access.","access":[{"from":"geometry-leaf-0f67bda51184","to":"geometry-leaf-20854f6cbcc9"}],"evidence":["core/geom/blob-field-record.mjs::validateBlobFieldRecord","core/geom/blob-field-record.mjs::blobFieldDigest"]},
+    {
+      "id": "workspace-runtime-loading",
+      "from": "extensions",
+      "to": "workspace-interface",
+      "label": "resolved workspace runtime",
+      "direction": "Causal flow: resolved definition passes from extension loader to host; permitted calls are listed in access.",
+      "access": [
+        {
+          "from": "workspace-interface",
+          "to": "extensions"
+        }
+      ],
+      "operations": [
+        "listWorkspaces",
+        "loadWorkspaceRuntime",
+        "requireWorkspaceCurrent",
+        "workspacePieces",
+        "readExtension",
+        "relativeExtensionFile"
+      ],
+      "inputs": "Explicit selected workspace ID and existing library resolution options.",
+      "outputs": "Validated definition, extension identity and selected manifest/UI directory.",
+      "effects": "Existing dependency resolution and module loading; local override and digest rules remain library-owned.",
+      "failure": "Missing extension/dependency, invalid kind, UI path or factory contract stops startup.",
+      "excludes": "No separate registry, migration framework or application lifecycle owner.",
+      "evidence": [
+        "core/extensions/workspaces.mjs",
+        "core/extensions/library.mjs",
+        "workspaces/server.mjs::startWorkspace",
+        "workspaces/export-worker.mjs::createWorkspaceBundles"
+      ]
+    },
+    {
+      "id": "workspace-construction-identity",
+      "from": "compose",
+      "to": "workspace-interface",
+      "label": "protected construction identity",
+      "direction": "Causal flow: stable recipe identity passes from Toolpath operation to host.",
+      "access": [
+        {
+          "from": "workspace-interface",
+          "to": "compose"
+        }
+      ],
+      "operations": [
+        "workspaceConstructionIdentity"
+      ],
+      "inputs": "Complete extension-authored geometry/deposition recipe.",
+      "outputs": "Stable construction fingerprint attached by the host to workspace source requirements.",
+      "effects": "Caller-owned metadata only; no extension access or machine selection.",
+      "failure": "Existing recipe identity rules reject invalid construction.",
+      "excludes": "No confirmation, generation or delivery authority.",
+      "evidence": [
+        "workspaces/export-worker.mjs::createWorkspaceBundles",
+        "core/print/plan.mjs::workspaceConstructionIdentity"
+      ]
+    },
+    {
+      "id": "agent-workspace",
+      "from": "agent",
+      "to": "workspace-interface",
+      "label": "workspace operations",
+      "direction": "Causal flow: agent requests selected workspace operations through the existing runtime or managed command session.",
+      "access": [
+        {
+          "from": "agent",
+          "to": "workspace-interface"
+        }
+      ],
+      "operations": [
+        "open",
+        "inspect",
+        "preview_workspace / preview-workspace",
+        "updateDesign",
+        "createBundles",
+        "close_workspace / close-workspace"
+      ],
+      "inputs": "Explicit extension or live workspace instance identity, design choices and optional bundle creation request.",
+      "outputs": "Workspace instance URL/identity and saved design/job snapshots; previews are returned only by the explicit preview operation.",
+      "effects": "Existing runtime associates and closes hosted instances; generic host reads saved snapshots and saves normalized designs without invoking preview, and owns worker jobs.",
+      "failure": "Invalid selection, changed extension, conflicting live design, failed save or construction returns an explicit error.",
+      "excludes": "No new application lifecycle owner, automatic confirmation, delivery or live workspace/bundle synchronization.",
+      "evidence": [
+        "adapters/mcp/src/runtime.mjs::createLocalRuntime::openWorkspace",
+        "core/agent/toolkit.mjs::openWorkspace",
+        "workspaces/server.mjs::startWorkspace",
+        "adapters/mcp/src/runtime.mjs::createLocalRuntime",
+        "scripts/agent-toolkit.mjs::attachWorkspaceControl"
+      ]
+    }
   ],
   "layout": {
     "0": {

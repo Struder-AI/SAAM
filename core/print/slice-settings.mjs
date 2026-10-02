@@ -12,5 +12,5 @@ export function ordinarySliceAssignment({id,part=null,preset=null,...overrides})
 // Canonical family drives both generation routing and pre-generation discovery.
 export function assignmentFamily(assignment){
   if(assignment.construction==='inject')return 'inject';
-  return assignment.construction==='curves'?'trace':'slice';
+  return assignment.construction==='curves'||assignment.join?'trace':'slice';
 }

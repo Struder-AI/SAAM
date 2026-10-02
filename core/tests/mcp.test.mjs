@@ -147,13 +147,13 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   assert.ok((await call('list_skills')).some(skill => skill.id === 'slice'));
   assert.ok((await call('list_skills')).some(skill => skill.id === 'supports'));
   assert.equal((await call('read_skill',{skillId:'pipe-cladding'})).skillId,'pipe-cladding');
-  assert.ok((await call('list_skills')).some(skill => skill.id === 'mesh-tools' && skill.kind === 'geometry'));
-  assert.ok((await call('list_skills')).some(skill => skill.id === 'text' && skill.kind === 'geometry'));
+  assert.ok(!(await call('list_skills')).some(skill => skill.id === 'mesh-tools'), 'mesh construction belongs to Geometry, not a maker skill');
+  assert.ok((await call('list_skills')).some(skill => skill.id === 'text' && skill.kind === 'extension'));
   assert.equal((await call('read_skill', {skillId:'supports'})).skillId,'supports');
   const guidance = await call('read_guidance', { guidanceId: 'makers' });
   assert.equal(guidance.path, 'MAKERS.md');
   assert.match(guidance.text, /\]\(skills\/DIGEST\.md\)/, 'links are repository paths');
-  assert.ok(guidance.omitted.some(section => section.gate === 'command access'), 'a web read omits script sections');
+  assert.match(guidance.text, /^## With command access$/m, 'desktop MCP includes command-access guidance');
   const digest = await call('read_guidance', { guidanceId: 'skills/DIGEST.md' });
   assert.equal(digest.path, 'skills/DIGEST.md');
   assert.equal((await call('read_guidance', { guidanceId: 'print-tools' })).path, 'core/print/USAGE.md');
@@ -180,7 +180,8 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   const plan = await smallPlan(call);
   await call('create_bundle', { bundleId: 'forged', kind: 'shell', machineId: 'ultimaker-s5', plan: { ...plan, approvals: {} } }, /not an agent-editable/);
   let state = await call('create_bundle', { bundleId: 'first', kind: 'shell', machineId: 'ultimaker-s5', plan });
-  assert.equal(state.toolpathApproved, false);
+  assert.equal(state.programChecked,false);
+  assert.equal(state.toolpathApproved,null,'creation has no checked machine program');
   const compact = await call('get_bundle', { bundleId: 'first' });
   assert.equal(compact.planComplete, false);
   assert.equal(compact.geometry.omitted, true);
@@ -266,7 +267,9 @@ for (const machineId of ['ultimaker-s5', 'bambu-h2d', 'dobot-mg400']) {
     assert.match(page, /SAAM Studio/);
     assert.equal((await fetch(opened.url + '/api/state').then(response => response.json())).plan.schema, 'saam-shell-plan/1');
     assert.equal((await call('request_review', { bundleId })).url, opened.url);
-    assert.equal((await call('get_approval_status', { bundleId })).toolpathApproved, false);
+    const unchecked=await call('get_approval_status', { bundleId });
+    assert.equal(unchecked.programChecked,false);
+    assert.equal(unchecked.toolpathApproved,null,'unchecked output has no asserted approval status');
     const generated = await call('generate_toolpath', { bundleId });
     assert.equal(generated.checks.result, 'pass');
     assert.equal(generated.checks.mode, 'production');

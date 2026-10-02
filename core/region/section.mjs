@@ -15,7 +15,7 @@ import { evaluate } from '../geom/nurbs.mjs';
 import { intersectPatches } from '../geom/surface-intersection.mjs';
 import { containsPoint } from '../geom/query.mjs';
 import { union, intersect, difference } from './intersection.mjs';
-import { requireThat, dot } from '../geom/tolerance.mjs';
+import { requireThat, dot, TOLERANCE } from '../geom/tolerance.mjs';
 
 const OFF_SURFACE_MM = 1e-4;
 
@@ -188,6 +188,11 @@ export function section(geometry, slice, options = {}) {
 }
 
 function sectionLoops(geometry, slice, options) {
+  if(slice.kind==='plane'){
+    const low=slice.normal.reduce((sum,n,k)=>sum+n*((n>=0?geometry.bounds.min[k]:geometry.bounds.max[k])-slice.origin[k]),0);
+    const high=slice.normal.reduce((sum,n,k)=>sum+n*((n>=0?geometry.bounds.max[k]:geometry.bounds.min[k])-slice.origin[k]),0);
+    if(low>TOLERANCE.plane||high<-TOLERANCE.plane)return {loops:[],nudgedByMm:0};
+  }
   if(geometry.kind==='chart-prism'){
     if(slice.kind==='height-field'&&slice.reference===geometry.reference.reference){
       const offset=slice.offsetMm-geometry.reference.offsetMm;

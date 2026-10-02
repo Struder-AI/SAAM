@@ -1,5 +1,107 @@
 # Development log
 
+## 2026-10-02 — Studio website reference
+
+- Implemented: header Website reference opens https://struder.com/saam/ in a new tab, with existing button styling, hover and keyboard focus; header actions can wrap. No JavaScript or server route added.
+- Verified link attributes and styling in source; scoped diff whitespace check passed. Browser interaction/layout, tests, release and hardware checks were not run. The web reader could not access the destination. Studio README shortened by one line.
+- Local checkpoint includes concurrent checkout changes under standing authorization; it does not certify those contributions.
+
+## 2026-10-02 — Workspace extensions
+
+- Status: verified for source runtime, managed CLI and imported-workspace browser handoff. Ordinary extension selection/exchange feeds one generic host. Wing's hardwired server/worker imports and private core imports are gone; npm workspace:wing selects the same host. Component 7 owns hosting; Extensions owns domain/UI code.
+- Read, normalize/save, preview, construct and close are separate operations. Read/save/build does not depend on rendering. Wing normalization retains station/rod-fit checks. Core attaches source/digest/requirements/identity; Bundle persists unapproved parts. The existing runtime owns instances/events/shutdown, and CLI retains its managed session. No second dependency/version registry, migration system or application owner.
+- Independent Trace study and Wing packages imported into profiles with empty bundled roots, opened in the browser and completed Save/Create handoffs. Trace saved at 42 mm without dummy geometry; its prior 35 mm bundle loaded/generated with its source extension removed. Repeated Wing saves preserved prior bundle bytes. Imported flap-enabled Wing produced eight bundles including left-02-flap/right-02-flap; default flaps remain enabled. The earlier two-piece preview deliberately disabled them.
+- Source runtime/CLI trials covered discovery, preview without saving, failed normalization preserving state, reuse/reconnect, viewer observations, close and worker/lock cleanup. Browser rendering/flap controls were inspected. Sixteen module syntax checks and digest freshness passed; map redraw/check had 1,010 pages, current viewer, no undrawn items and 24 resolving bindings. That establishes source/view validity, not conformance certification. Scoped artifacts/progress remain in .local/workspace-trials and .local/workspace-*-progress.md.
+- No new tests, whole suite, commit, release/installation or hardware run. Full application lifecycle redesign and installed-release acceptance remain outside this change. Authoring/plan lines: 112 → 111; Wing README 7 → SKILL 13 (six frontmatter lines). The source flap demo remains open; other verification hosts closed.
+
+## 2026-10-02 — 0.3.2 worker handoff and pause
+
+- BR-057 implemented: context changes replace repeated neutral labels; move time uses effective speed except in-place pose motion. Worker verified exact S5/X1/DENSO archives and Studio projections, plus H2D/Dobot representation parity. Current X1 fixture: 186,220 → 147,459 bytes; historical 954-move baseline is absent (fixture has 948). Lead replay passed comparisons but could not overwrite the local evidence file. Browser playback and the unrelated Dobot startup-count assertion remain unverified/unresolved respectively.
+- Wing manifests use ordinary compact JSON: actual export set 291,279,612 → 120,339,726 bytes (58.69% smaller). Lead independently compared all 16 parsed manifests; worker verified identical native assets, 1,748,294 Trace points, two representative checked generations and prior-edit preservation. Atomic design save precedes memory publication; HTTP failure/concurrent-save/restart evidence passed. New sets still add about 120 MB each; no prior sets are deleted. The 64 KB `/api/plan` limit has no located caller and is not an established user-visible Wing defect.
+- Update waits for installer spawn/error; Windows/macOS replacement stages and verifies a candidate, preserving/restoring the predecessor. Worker verified Windows fixtures, stubbed spawn events and extracted Bash rollback; lead reviewed source and syntax. Native Mac acceptance and full installed usability remain unverified. Launcher readiness and connection/lifecycle consolidation were excluded.
+- MCP discovery/unchecked-approval assertions aligned with current contracts. Actual SDK discovery case passes; S5 review reaches `BUNDLE_INSTANCE_BUSY` in its outside-reservation synthetic approval fixture. Later review/delivery assertions, other machine variants and remaining unchecked-mutation expectations are unverified; no ownership bypass was added.
+- Owner stopped map-read acceptance as already checked; that assignment made no file changes. External website maintenance belongs to its owner, and its handoff is premature/deferred. All three workers used this shared checkout; no worktree merge, commit, push, release, hardware run, new test or whole suite. Lifecycle/instance/ownership discussion and further work are paused at the owner's request; detailed scoped evidence remains in `.local/agent-progress` and `.local/032-wing-storage-handoff.md`.
+
+## 2026-10-01 — Slice generalization and twisted-box rim trial
+
+- Authorization: owner requested actual Slice consolidation for 0.3.2, then a twisted box with the previous bundle's 10 mm wave rim. Session: “Clarify slice generalization gap”, Codex chat `01a0fad5-ec00-7f92-bbf4-9a3379fadf9f`.
+- Slice now shares owned-region/reference-family construction, course variation, loops/fill, mapping, contact, modulation/finalization and publication. Normal offset/cell geometry supplies common courses rather than parallel deposition lifecycles. Sleeve-generated standard/legacy spiral curves run through Trace in the vase extension.
+- Prior practical nominal/adapted body, skin, lip, cladding, brim and Trace/spiral flows ran; the existing vase test file passed. No new tests, whole suite, release or hardware run. This entry records bounded workflow evidence, not general geometry or architecture conformance.
+- Trial bundle: `Prints/twisted-box-wave-032`, copied from the installed twisted-box design: 60 mm square, 70 mm tall, 45° twist, 2 mm walls/floor, H2D left 0.4 mm nozzle and PLA. Corrected the old assignment-ID-as-operation dependency. Rebuilt the rim outline by physical surface offsets so lateral fronts finish against the same geometry that generated the boundary.
+- The trial exposed needless far-away surface-prism intersections. Shared Geometry now rejects separated plane/solid bounds and out-of-bounds prism membership, and certifies affine projected spline nets for direct inversion; other projections retain the existing Newton solver.
+- Final checked program: 55,441 moves, about 221 minutes of printing motion, 33 fronts in five passes, one short lifted-travel advisory in `wave-lip:18:fill`. Retained 125 numerical boundary residuals total about 0.0116 mm² in projected area; they are not reported as deposited material. Current geometry, SAAMpath and machine program were displayed in Studio; no human confirmation/export or physical qualification.
+
+## 2026-10-01 — Owner triage of build requests
+
+- Owner directed removal of BR-054, BR-049, BR-052, BR-059, BR-051, BR-055, BR-045 and BR-058 in the current triage conversation; chat title/ID unavailable. Retained BR-044 (deferred), BR-057 (assigned to 0.3.2), and BR-053/BR-050 pending a fresh Studio lifecycle/ownership discussion. No implementation or qualification claims are added by removing a request. Historical request provenance follows; Git retains the full superseded text.
+- Redirected retired-request links and removed stale active-backlog claims. General Geometry/Trace consolidation, current map intent and component capability/qualification limits retain their existing owners. Documentation-only change; no tests or hardware run.
+
+### BR-059 — Retired request
+
+- Disposition: Owner retired this separate request; its work belongs to general Geometry/Trace consolidation.
+- Contributor: `remettub`, inferred from the checkout's contributor branch and account; attribution unconfirmed.
+- Authorization: human requested — the loose spline, on-surface and surface offsets ("we need them if we don't"), then the rulings in [D-041](DECISIONS.md#d-041--offsets-resolve-collisions-ribbons-displace-without-a-surface) and "Yes migrate vase wall". Scope is core geometry, its consumers and vase-wall.
+- Session: Claude Code desktop, 2026-09-28; exact chat title and ID unavailable.
+- Source: current conversation, 2026-09-28.
+
+### BR-058 — Retired request
+
+- Disposition: Owner removed this request as complete or not applicable; the desktop release supersedes the cloud-chat relay roadmap.
+- Contributor: `remettub`, inferred from the checkout's contributor branch and account; attribution unconfirmed.
+- Authorization: human requested — "Yup RELAY-PLAN.md is the one. We are going to get started on that now," after the agent noted that stage 1 is core work needing the developer role. Scope is the [relay plan](adapters/mcp/RELAY-PLAN.md) roadmap under [D-037](DECISIONS.md#d-037--cloudflare-relay-and-studio-driven-chat-sessions); production deployment, beta publication and hardware operation are not separately authorized.
+- Session: Claude Code desktop, 2026-09-25; exact chat title and ID unavailable.
+- Source: current conversation, 2026-09-25.
+
+### BR-055 — Retired request
+
+- Disposition: Owner removed this request as complete or not applicable; recorded physical evidence remains at its component owner.
+- Contributor: current user; earlier attribution to `remettub` was inferred and remains unconfirmed.
+- Authorization: user requested startup/nozzle/plate/AMS synchronization and support for any supported feed combination and machine (2026-09-21). The earlier AMS investigation originated in Claude Code session `1a69160c-5d8b-4d89-898f-cfcd81550fdb`; current session title/ID unavailable.
+
+### BR-054 — Retired request
+
+- Disposition: Owner closed this request: brim is already a generalized Slice capability.
+- Contributor: `remettub`, inferred from the checkout's contributor branch and account; attribution unconfirmed.
+- Authorization: human requested — after a physical bed-adhesion failure, asked for a brim on the current print and then: "you may want to escalate to builder and write the first draft of a bed adhesion skill, currently very small, only with one entry - brims." Scope covers the brim entry; a raft, a detached skirt and a removal gap are proposals, not authorized here.
+- Session: Claude Code session `1a69160c-5d8b-4d89-898f-cfcd81550fdb`; exact chat title unavailable.
+- Source: current conversation, 2026-09-19: "It didn't adhere to the print bed, can you give it a good solid brim to start out, maybe 8 layers on the outside before getting to the part, with full flow or maybe even a little more", clarified as "Just do the first layer and then vase on top of that".
+
+### BR-052 — Retired request
+
+- Disposition: Owner retired this outdated checklist: current map work is substantially farther along.
+- Contributor: Project owner (remettub), attribution from the 2026-09-21 review session.
+- Authorization: human requested — apply the reviewed Grasshopper-style code-and-map standard throughout core and Studio, eliminating unresolved and uncertain relationships through scanner improvements, sensible authored relationships or clearer code shapes; shortening diagnostic lists is not completion. On 2026-09-21 the owner settled the intent recorded in [D-038](DECISIONS.md#d-038--dev-map-intent-functional-tree-complete-leaf-context-findings-kept-code-shape-rules) and approved the remaining generator items listed in the handoff.
+- Session: Origin: Codex task `01a0ba56-7b17-71e3-9219-4972a0bc5bfd`. Follow-up: the 2026-09-21 dev-map review session (title unavailable).
+- Source: Origin: "Let's apply this to the whole core/studio codebase now" and "don't stop the team until the whole core/studio codebase is mapped". Follow-up: the owner's point-by-point approvals recorded in [D-038](DECISIONS.md#d-038--dev-map-intent-functional-tree-complete-leaf-context-findings-kept-code-shape-rules).
+
+### BR-051 — Retired request
+
+- Disposition: Owner removed this request as complete or not applicable; this disposition does not add output support to any profile.
+- Contributor: Current requester; account attribution unconfirmed.
+- Authorization: human requested — add Bambu X1 Carbon and Ultimaker 2/3 profiles, keep materials changeable, then correct the 2-series model to Ultimaker 2 Extended.
+- Session: Current Codex task; exact title and stable task ID unavailable in supplied conversation.
+- Source: 2026-09-16 messages: "We need to add a bambu x1 carbon profile", "We can change materials, though, right? That's just the default, right?", "We also need a profile for the ultimaker 2 and 3 (same?)", and "actually it says 'ultimaker 2 extended'". [Implemented definitions and verification](DEVLOG.md#2026-09-16--x1-carbon-ultimaker-2-extended-and-ultimaker-3-profile-definitions).
+
+### BR-049 — Retired request
+
+- Disposition: Owner removed the short-travel generator request from the backlog.
+- Contributor: Current requester; account attribution unconfirmed. 2026-09-18 continuation by `remettub` as developer.
+- Authorization: human requested — add an advisory for all Studio toolpaths and improve the responsible skills/functions “at some point”; on 2026-09-18, “fix ALL skills / toolpath generation so they are robust and the travel advisory essentially never triggers”, and have the agent always mention a finding.
+- Session: Codex task `01a0a650-b120-7bd3-a9c7-93fbede5003b` (advisory); Claude Code session 2026-09-18 (generator work).
+- Source: 2026-09-15 and 2026-09-18 requests above; [implementation record](DEVLOG.md#2026-09-18--nearby-strokes-connect-by-deposition-the-short-travel-advisory-reports-only-bad-paths).
+
+### BR-045 — Retired request
+
+- Disposition: Owner removed this request as complete or not applicable; this disposition does not change the current continuity contract.
+- Contributor: `remettub`, explicitly identified in the originating conversation as the contributor on this machine.
+- Authorization: human requested — generalize wave overhangs to curved bivariate spline slices, support holes as in the exemplar, and use unbroken continuous passes per layer. No exception allowing branch restarts or arbitrary extruded retracing has been approved.
+- Session: “Add wave overhang spline skill” (`01a0a191-8027-7f13-bf42-7b88316cc5ed`).
+- Source: current conversation, 2026-09-14: “Must always use unbroken continuous passes per layer in this type of geometry”; “If the exemplar supports holes, we can too”; supplied [Janis Andersons short](https://www.youtube.com/shorts/RxPW5A4__X4), and clarified that SAAM introduced the glue jogs without an established exemplar.
+
+## 2026-10-01 — Assign BR-057 and review repeated intent gaps
+
+- Owner assigned the still-open September 24 SAAMpath BR-057 to 0.3.2 and accepted Astra reliability fixes 1–3 and 5. An older, different BR-057 was closed September 21 despite the written no-reuse rule; current path code still repeats context labels. Added exact small map-read, single-interface query, installed/source use paths and complexity criteria to 0.3.2; the owner subsequently confirmed the installed default, user-local builder scope and developer role/local checkout for shipped guidance. Developer onboarding measured 231,960 bytes; map 0 was 186,514 bytes, of which wires were 182,094.
+- Three owner-requested agents (two 6.1 Sol, one Astra) reviewed recent history and source. They traced the compact scanned-map read being bypassed by authored-design reads, tour acceptance checking a synthetic edit rather than its Studio request, and Slice consolidation retaining an injected construction path. Their evidence is under .local/0.3.2. The original instructions were explicit; narrow proxy checks did not prove the user-visible outcome. This was read-only investigation, not implementation or a runtime verification of those bugs. No new tests, suite or publication.
 ## 2026-10-01 — Remove obsolete developer maps
 
 - Owner requested retaining currently relevant maps. Verified live remote main `a779190` and development `7e52a8f`; all map definitions matched both. Retained 0.3.2 product/deployment sets, their viewers, common tooling and shared scanned inputs. Removed archived `dev-map-OLD`, the obsolete `toolpath-pipeline` set and generated default store/view: 1,781,779,463 bytes reclaimed. Updated map guidance and retired ignore entries; no push.
@@ -7,7 +109,7 @@
 
 ## 2026-10-01 — Plan automatic client setup and Wing export size repair
 
-- Expanded [0.3.2 intent](plans/0.3.2.md) so fresh install and 0.3.1 → 0.3.2 update register both detected local Codex/Claude clients independently, with two eligible Studio buttons and retryable per-client setup; client trust or restart still follows client rules. Assigned the Wing export size report with measurements from existing local sets (26.6 MiB plan; 171–394 MiB per set), source path and acceptance. Read current official client integration documentation and inspected Wing export code; no runtime change or new test. Intent 41 → 45 lines; log +4 lines.
+- Expanded [0.3.2 intent](plans/0.3.2.md) so fresh install and 0.3.1 → 0.3.2 update register both detected local Codex/Claude clients independently, with two eligible Studio buttons and retryable per-client setup; client trust or restart still follows client rules. Owner clarified bug fixes are primary while selected value work may enter after triage. Later, the owner accepted Astra review fixes 1–3 and 5; map-read and complexity direction were specified separately. Assigned the Wing export size report with measurements from existing local sets (26.6 MiB plan; 171–394 MiB per set), source path and acceptance. Read current official client integration documentation and inspected Wing export code; no runtime change or new test. Intent 41 → 45 lines; log +4 lines.
 
 ## 2026-10-01 — Assign installed-tour bugs to 0.3.2
 
@@ -3960,7 +4062,7 @@
   `project_settings.config` `curr_bed_type: Textured PEI Plate` are byte-identical
   across this export, the earlier SAAM package and a real Bambu Studio H2D slice.
   `curr_bed_type` is hardcoded in the exporter, so no other plate can be
-  expressed; recorded as [BR-055](build_request.md#br-055--express-plate-choice-and-close-the-ams-package-gap).
+  expressed; recorded as [BR-055](DEVLOG.md#br-055--retired-request).
 - **AMS tray.** The print carried `setup.ams: null`, so `feederSelector` wrote
   selector 0 and the program asked for the first tray. The screen's colour match
   and the program's selector disagreed for the first time here, and the tray that
@@ -4062,7 +4164,7 @@
   through 44.55 mm, matching the derivation in the manual; 3,111 mm of path at a
   measured 0.652 x 0.2 mm bead and 18 mm/s, about 2,030 mm² of bed contact. Both
   the X1 Carbon and H2D bundles check `pass`.
-- The flange requirement is recorded as [BR-054](build_request.md#br-054--a-brim-producer-that-does-not-need-a-modeled-flange).
+- The flange requirement is recorded as [BR-054](DEVLOG.md#br-054--retired-request).
 
 ## 2026-09-19 — Developer-map scanner and architecture integration
 
@@ -5874,7 +5976,7 @@ All three explicitly declare unavailable output, and the shared lifecycle now
 reports the output reason before path generation. H2D firmware routines are not
 reused on X1; S5 startup is not reused on UM3; UM2 Extended's volumetric UltiGCode
 is not treated as filament-length Griffin. No startup position was invented.
-The remaining output work is [BR-051](build_request.md#br-051--complete-output-for-the-three-new-printer-profiles).
+The remaining output work is [BR-051](DEVLOG.md#br-051--retired-request).
 
 Verification: all 9 tests in `printer-profiles.test.mjs` and
 `interoperability.test.mjs` passed, plus the focused MCP SDK catalog/persistence

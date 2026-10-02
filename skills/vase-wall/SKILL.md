@@ -1,14 +1,14 @@
 ---
 name: vase-wall
-description: Extension for a continuous Slice spiral wall and optional solid base.
+description: Extension for a continuous Trace spiral wall and optional solid base.
 metadata:
   saam-kind: extension
 ---
 
 # Standard vase mode
 
-[This extension](scripts/runtime.mjs) joins Slice courses into one continuous
-spiral wall with an open top, hollow interior and optional solid base. It needs
+[This extension](scripts/runtime.mjs) generates a continuous spiral curve on
+reference sleeve geometry and deposits it with Trace with an open top, hollow interior and optional solid base. It needs
 no advanced-vase package, including when `meshSleeve` supplies a fit.
 [Advanced vase](../advanced-vase-wall/SKILL.md) adds repeated patterns through Trace.
 

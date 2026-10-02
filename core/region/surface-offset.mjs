@@ -42,7 +42,7 @@ export function prepareSurfaceOffset(patch, loopsUv, deltaMm, {
   requireThat(Number.isFinite(deltaMm), 'Surface offset distance must be finite.');
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0&&Number.isFinite(maxStepMm)&&maxStepMm>0,
     'Surface offset toleranceMm and maxStepMm must be positive and finite.');
-  requireThat((patch?.cp||['slice-chart','sleeve-chart'].includes(patch?.kind)) && patch.domainU && patch.domainV, 'Surface offset requires a native patch or evaluated chart.');
+  requireThat((patch?.cp||['slice-chart','sleeve-chart','surface-chart'].includes(patch?.kind)) && patch.domainU && patch.domainV, 'Surface offset requires a native patch or evaluated chart.');
   const piecewise=patch.kind==='sleeve-chart'||patch.kind==='slice-chart'&&patch.slice?.reference?.kind==='roof';
   const atlas=patch.atlas??(piecewise?piecewiseChart(patch,{toleranceMm:toleranceMm/4,normalMm}):null);
   if(atlas)patch={...patch,atlas};

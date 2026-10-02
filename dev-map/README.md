@@ -1,7 +1,6 @@
 # Dev maps
 
-Implementation-map intent: [DEVELOPER-CONTEXT.md](../DEVELOPER-CONTEXT.md);
-remaining work: [BR-052](../build_request.md#br-052--complete-the-dev-map-against-the-2026-09-21-intent).
+Implementation-map intent: [DEVELOPER-CONTEXT.md](../DEVELOPER-CONTEXT.md).
 Active [0.3.2](../plans/0.3.2.md) sets: `030-architecture` for product work (toolkit default), `030-deployment` for installation/service work. CLI defaults to scanned `default`; pass `--set`. Designs express contracts, not conformance.
 
 - `lib/`: source scanning, leaves (`leaves.mjs`), the tree (`tree.mjs`), the
@@ -10,27 +9,61 @@ Active [0.3.2](../plans/0.3.2.md) sets: `030-architecture` for product work (too
 - `sets/NAME/map.json`, `tree.json`, `facts.tsv`: independent named sets.
 - `store/`, `view/`: generated snapshots and the viewer; git-ignored.
 
+## Dev map glossary
+
+This guide owns map terminology; some tool fields retain older names. Scanned maps describe declarations and functional groups, never a file tree. Design sets separately author responsibilities and contracts.
+
+| Term | Meaning |
+|---|---|
+| Dev maps / map | The system of graphs, viewer and tools / one graph. |
+| Node / home | An indexed leaf or cluster / its sole parent map, which numbers and draws it as a child. |
+| Leaf / code block | A generated scoped declaration with owned helpers folded in / its source view in the human viewer. CLI maps supply source ranges; see [containment](#addresses). |
+| Inner / outer | A declaration inside another's body / its containing declaration. External access prevents folding. |
+| Cluster / top map | A group whose map draws members and links / `0`, the root without a parent box. An unlabeled solver group reads `[needs label]`. |
+| Nesting | The functional tree of maps, from `0` through clusters to leaves; scanned sets own it in `tree.json`. |
+| Box / repeat | A drawing of a node / a guest drawing away from its home, retaining its index and naming its home. |
+| Port / stub | The junction of a link and box, an argument or result slot / an unreached port showing a literal or why the value could not be traced. |
+| Boundary box / edge | A node on another map that a link crosses to / the map's boundary and external boxes. |
+| External | Active outside declarations, DOM events or module load linked to leaves. `0` draws all; clusters draw those linked to nested nodes. Indistinguishable externals with the same connections and directions share a box, so children may distinguish what parents group. |
+| Link / wire | A generated call, data flow or indirect relationship; maps draw one counted link per box pair. See [stored fields](#stored-analysis-and-viewer-fields). |
+| Gate / state link | The condition under which a call runs / a read or write of owned state, shown beside the leaf's code in the viewer. |
+| Operator / state | A non-call choice, loop, update, collection or member call / bindings and fields owned by an outer function or class and accessed by inner declarations or members. |
+| Carried value | A loop-updated variable: `initial` and `next` in, `current` and `final` out; an operator's ports, not nodes. |
+| Finding | A scanner limitation: [missing or uncertain](#findings). |
+| Annotation | A sourced, dated statement the code cannot establish; see [facts](#authoring). |
+| Outside / platform | Scanned but unmapped code / a call target not scanned. Outside callers are active when making a part or operating Studio. |
+| Node path | A durable declaration or `@cluster/ID` identity independent of indexes. |
+| Score / energy | A map's squared penalties / the solver's weighted sum across maps; see [scoring](#scoring). |
+| Authored inputs | Tree, labels, optional page positions, annotations and scope. Scanned leaves and links are generated. |
+
+## Scope
+
+The original scanned `default` maps core and Studio product code, excluding `core/agent` and machine dialect exporters under `core/export`, which are scanned outside callers. Output routing, travel advisory and playback timing remain mapped. Skills, adapters and scripts are also outside. Active callers include catalogued skill scripts, MCP, the toolkit and CLI, and exporters; inactive tests, demos, benchmarks and audits are counted, never drawn. Scope crossings in both directions appear as externals at every level.
+
+`lib/scope.mjs` owns these defaults. Named sets select leaves while retaining outside connections; design maps and release audits have their own scope. See [authoring](#authoring).
+
 ## Commands
 
 ```sh
-node scripts/agent-toolkit.mjs read-map ADDRESS --set NAME [--source|--code] [--details]
+node scripts/agent-toolkit.mjs read-map ADDRESS --set NAME
 node scripts/agent-toolkit.mjs regenerate [INDEX] --set NAME
 node dev-map/cli.mjs check --set NAME [--json] [--viewer [ADDRESS…]]
 node dev-map/cli.mjs score --set default [--json] | solve --set default [--seed N]
 node dev-map/cli.mjs watch-freshness --set default [--once]
-node dev-map/cli.mjs read ADDRESS [--code] [--details] --set NAME
+node dev-map/cli.mjs read ADDRESS --set NAME
 ```
 
-An ADDRESS is a node's index or its durable path: a declaration
-(`core/path/compose.mjs::planComposition`, which reads its leaf when it is
-folded into one) or a cluster (`@cluster/ID`), never a file or directory.
-`read-map` returns one node's read and never scans: a cluster's map or a
-leaf's code block; `--code` returns a leaf's source span or the spans of every
-leaf in a cluster (`0 --code` is refused), `--details` the read with its evidence:
-expressions, traces, byte offsets. Reads are compact JSON: `range` is
-`[first,last]` inclusive, nested locations inherit `file`, empty arrays omitted.
+Design addresses are indexes, `@design/ID`, contract IDs or visible `@link/PAGE/FROM/TO` addresses. Every CLI entry, including onboarding, uses `lib/read.mjs`: maps return all visible boxes/links and leaf `sources` (`file`, inclusive `range`); link/contract reads return complete interfaces with source references. Stop map navigation at the containing map: leaf addresses are rejected as not maps. Read the supplied file ranges with normal file tools only for internals; interactions belong on the parent map. CLI reads never return code or offer `--source`, `--code` or `--details`.
 
-`regenerate` scans the selected set and redraws its viewer. Default generation
+**Replacement contract:** changing a reader or integration must preserve that behavior on the actual direct CLI, toolkit and onboarding routes, including every visible relationship, exact source ranges, full contract semantics and stale warnings. Do not bypass this boundary with a raw snapshot or alternate serializer. The human viewer retains its code previews. `regenerate` captures relationships/source evidence; `build` redraws the snapshot. Missing stores fail explicitly; stale stores remain readable.
+
+Scanned map addresses are cluster indexes or durable `@cluster/ID` paths, never
+files, directories or leaf declarations. Declaration identities remain in the viewer.
+Scanned sets use the same CLI read contract. Leaf references include folded helper
+spans; parent maps retain boundary links and findings. Raw scanner evidence stays
+in the stored analysis and viewer; it is not a second CLI read mode. Reads never scan.
+
+Scanned `regenerate` rescans its set and redraws the viewer; design `regenerate` captures relationships and redraws, with implementation scanning owned by `audit`. Default generation
 places new leaves in the existing tree; manual sets require explicit homes. `solve` anneals the tree, writes `tree.json` and
 regenerates. It runs only when the owner asks; an agent may ask for one, never
 start one. `flow-evidence` re-derives one node from source, to audit the generator;
@@ -56,14 +89,11 @@ authored nesting alone proves nothing. Exports, shared callers and escaping refe
 Effects, dependencies, source and findings stay visible; folding asserts ownership, not purity.
 No authored vocabulary list suppresses nodes. `new X()` reaches the class.
 
-## What each read carries
+## Stored analysis and viewer fields
 
-Field names predate the [glossary](../DEVELOPER-CONTEXT.md#dev-map-glossary): `destination`
-is the view (`graph` for a map, `code` for a code block), `components` are the
-boxes, `wires` the links, `couplings` the indirect links, a `group` a cluster,
-and `uncertainty` and `unresolved` rows the [findings](#findings).
+`destination` names the view; `components` are boxes, `wires` links and `couplings` indirect links ([glossary](#dev-map-glossary)). The following fields describe scanned snapshots and the human viewer, not extra CLI read modes.
 
-Every read: `index`, `kind`, `destination`, `stale` when its inputs moved,
+Stored node fields: `index`, `kind`, `destination`, `stale` when its inputs moved,
 `facts` when a fact row names it, `home` on a repeat and `alsoOn` on the home.
 
 - **Top map** (`0`) and **cluster**: `components`, the leaves and clusters it
@@ -118,11 +148,13 @@ analysis limit.
 ## Findings
 
 `uncertainty` rows name a `kind`, `unresolved` rows a `rule`; each row names
-its `file`, and a leaf's read carries all of them. A map carries only the
+its `file`. Stored analysis and the viewer retain every finding. A map carries only the
 **missing** ones (`lib/findings.mjs`), each tagged `missing: code` (red: code
 outside every leaf) or `missing: link` (orange: a relationship between leaves
 no link draws): a leaf box carries its rows, a cluster box the count of each
 class nested in it as `findings`.
+
+Absence of a link is no evidence of absence, especially at unscanned or dynamic boundaries. Never invent a link to hide a finding. Most findings need analysis/generator work; code-shape restrictions are owned by [developer context](../DEVELOPER-CONTEXT.md#code-shape).
 
 | Kind or rule | Class | Not drawn |
 |---|---|---|
@@ -132,8 +164,8 @@ class nested in it as `findings`.
 | `collection-escape`, `collection-capture`, `record-escape` | link | contents after they leave the leaf |
 | `closure-capture` whose closure is a leaf of its own | link | state two leaves share |
 
-**Uncertain**, a precise aspect of what a leaf or link already draws, in the
-leaf's read only: `argument-origin`, `return-origin`, `return-field-origin`,
+**Uncertain**, a precise aspect of what a leaf or link already draws, in stored
+leaf analysis and the viewer only: `argument-origin`, `return-origin`, `return-field-origin`,
 `return-field-override`, `choice-control`, `iteration-control`,
 `iteration-backedge-control`, `iteration-source`, `iteration-input`,
 `update-input`, `collection-input`, `callback-execution`, `loop-exception-path`,
@@ -154,15 +186,15 @@ read, a missing one reporting `sourceUnavailable`, not wrong line numbers.
 
 **Design sets**: `map.json` declares `mode: "design"`, `title`, `authoring: "manual"`; `architecture.json` owns
 stable IDs, indexes, actors, contracts and layout. Nodes reference `source: {file, heading?}` or `{file, declaration?}`;
-`optional: true` allows absent local files. Terminal boxes preview source; `read INDEX|@design/ID|CONTRACT-ID --source`
-adds it to agent reads. `build --set NAME` captures sources; `check --viewer` checks freshness, boxes, wires and previews.
+`optional: true` allows absent local files. Terminal boxes preview source in the viewer; CLI reads return locations. `build --set NAME` captures sources; `check --viewer` checks freshness, boxes, wires and previews.
 Contract arrows carry information/actions; `access: [{from,to}]` separately records calls/reads, without transitive permission.
 `implementationLinks: [nodeId]` adds observed calls beneath selected roots using exact ownership homes; map 0 retains authored contracts.
 Scoped `source.declaration` identities open nested helpers/methods. External links lift to their nearest shared-parent boundary.
 
 **Scanned trees**: `tree.json` owns `clusters` (`id,label,parent`), `leaves` (declaration → home), `repeats`
 (map → guests), optional `order`. Placement adds leaves beside links, drops gone leaves and dissolves
-empty/single-box clusters. Solving requires owner request; labels are authored.
+empty/single-box clusters; it never re-solves. No map draws a single box; clusters home at least one node.
+Repeats keep links on their maps. Size and depth have no cap; scoring judges them. Solving requires owner request; labels are authored.
 
 **Scanned named sets**, `--set NAME`: `sets/NAME/map.json` declares `title`, `scope` (exact generated leaves),
 optional `scanFiles`, and `authoring: "manual"` to disable solving. Selected leaves need homes; folded declarations
@@ -199,7 +231,8 @@ bindings and public import routes constrain operation access, without certifying
 ## Scoring
 
 `score` reports size, boundary, hub, island, backflow and balance penalties (`lib/score.mjs`). Solver energy weights scores by nested
-leaf count. Crossing is reported, not scored. The viewer and `view/scores.html`
+leaf count: each map's score sums squared penalties; energy sums map scores weighted by 1 + log₂ of nested leaves, per leaf. A hub has far more wires than the map's mean.
+Crossing is reported, not scored. The viewer and `view/scores.html`
 show scores; `score` prints the worst and best maps.
 
 ## The viewer

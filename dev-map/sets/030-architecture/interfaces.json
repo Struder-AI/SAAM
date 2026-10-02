@@ -195,38 +195,6 @@
       "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
     },
     {
-      "contract": "workspace-interaction",
-      "target": "workspaces/wing/construct.mjs::wingPreview",
-      "kinds": [
-        "call"
-      ],
-      "evidence": "Implemented wing workspace boundary; exercised by actual folder creation and section generation. No export authority granted."
-    },
-    {
-      "contract": "workspace-interaction",
-      "target": "workspaces/wing/construct.mjs::wingHandoff",
-      "kinds": [
-        "call"
-      ],
-      "evidence": "Implemented wing workspace boundary; exercised by actual folder creation and section generation. No export authority granted."
-    },
-    {
-      "contract": "workspace-interaction",
-      "target": "workspaces/wing/design.mjs::wingDesign",
-      "kinds": [
-        "call"
-      ],
-      "evidence": "Implemented wing workspace boundary; exercised by actual folder creation and section generation. No export authority granted."
-    },
-    {
-      "contract": "workspace-interaction",
-      "target": "workspaces/wing/design.mjs::wingSections",
-      "kinds": [
-        "call"
-      ],
-      "evidence": "Implemented wing workspace boundary; exercised by actual folder creation and section generation. No export authority granted."
-    },
-    {
       "contract": "build-job",
       "target": "core/print/extension-recipe.mjs::prepareExtensionRecipe",
       "kinds": [
@@ -440,7 +408,7 @@
       "kinds": [
         "call"
       ],
-      "evidence": "Workspace export supplies its prepared geometry and recipe to Bundle creation; no printer lookup."
+      "evidence": "Named public entry for workspace extension or core host; source ownership only, behavior and dynamic effects are not certified."
     },
     {
       "contract": "evaluate-geometry",
@@ -544,7 +512,7 @@
       "kinds": [
         "call"
       ],
-      "evidence": "Implemented wing workspace boundary; exercised by actual folder creation and section generation. No export authority granted."
+      "evidence": "Named public entry for workspace extension or core host; source ownership only, behavior and dynamic effects are not certified."
     },
     {
       "contract": "workspace-geometry-4818ed95b4ca",
@@ -552,7 +520,7 @@
       "kinds": [
         "call"
       ],
-      "evidence": "Implemented wing workspace boundary; exercised by actual folder creation and section generation. No export authority granted."
+      "evidence": "Named public entry for workspace extension or core host; source ownership only, behavior and dynamic effects are not certified."
     },
     {
       "contract": "geometry-bundle",
@@ -1102,7 +1070,7 @@
       "kinds": [
         "call"
       ],
-      "evidence": "Actual named import and call in workspaces/wing/handoff.mjs; neutral recipe construction and protected construction identity only."
+      "evidence": "Named public entry for workspace extension or core host; source ownership only, behavior and dynamic effects are not certified."
     },
     {
       "contract": "workspace-toolpath",
@@ -1110,15 +1078,7 @@
       "kinds": [
         "call"
       ],
-      "evidence": "Actual named import and call in workspaces/wing/handoff.mjs; neutral recipe construction and protected construction identity only."
-    },
-    {
-      "contract": "workspace-toolpath",
-      "target": "core/print/plan.mjs::workspaceConstructionIdentity",
-      "kinds": [
-        "call"
-      ],
-      "evidence": "Actual named import and call in workspaces/wing/handoff.mjs; neutral recipe construction and protected construction identity only."
+      "evidence": "Named public entry for workspace extension or core host; source ownership only, behavior and dynamic effects are not certified."
     },
     {
       "contract": "trace-geometry-curve-point",
@@ -1155,7 +1115,7 @@
         "call"
       ],
       "callers": [
-        "core/region/wrapping-curves.mjs::surfaceCellField"
+        "core/region/metric-fill.mjs::metricFillStrokes"
       ],
       "evidence": "Exact reviewed consumer calls; source effects and unresolved callable/alias observations remain visible."
     },
@@ -1578,6 +1538,193 @@
         "core/agent/blob-field.mjs::createBlobFieldBundle"
       ],
       "evidence": "Relocated authoring command explicitly selects Settings before submitting supplied geometry/settings to Bundle."
+    },
+    {
+      "contract": "extension-toolpath",
+      "target": "core/print/slices.mjs::prepareSliceBoundaryFamily",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Vase extension generates reference curves and invokes the same Trace operation; no injected Slice producer."
+    },
+    {
+      "contract": "extension-toolpath",
+      "target": "core/print/curves.mjs::traceResult",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Vase extension generates reference curves and invokes the same Trace operation; no injected Slice producer."
+    },
+    {
+      "contract": "extension-toolpath",
+      "target": "core/path/family-curves.mjs::spiralFamilyCurve",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Vase extension generates reference curves and invokes the same Trace operation; no injected Slice producer."
+    },
+    {
+      "contract": "slice-offset-chart",
+      "target": "core/geom/offset-chart.mjs::offsetSurfaceChart",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/print/slice-families.mjs::resolveSliceFamily"
+      ],
+      "evidence": "Geometry resolves an ambient offset reference independently of Slice fill and stack lifecycle."
+    },
+    {
+      "contract": "workspace-runtime-loading",
+      "target": "core/extensions/workspaces.mjs::loadWorkspaceRuntime",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Generic host loads its selected workspace through the existing extension library."
+    },
+    {
+      "contract": "workspace-construction-identity",
+      "target": "core/print/plan.mjs::workspaceConstructionIdentity",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Generic core export worker attaches protected identity after extension construction."
+    },
+    {
+      "contract": "workspace-interaction",
+      "target": "skills/wing/construct.mjs::validateWingDesign",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual factory normalize operation validates domain sections/routes independently of preview. This binding does not prove domain behavior."
+    },
+    {
+      "contract": "workspace-interaction",
+      "target": "skills/wing/construct.mjs::wingPreview",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual operations returned by createWingWorkspace; runtime lookup/returned callbacks retain dynamic effects and are not conformance certification."
+    },
+    {
+      "contract": "workspace-interaction",
+      "target": "skills/wing/workspace.mjs::createWingWorkspace::pieces",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual operations returned by createWingWorkspace; runtime lookup/returned callbacks retain dynamic effects and are not conformance certification."
+    },
+    {
+      "contract": "workspace-interaction",
+      "target": "skills/wing/workspace.mjs::createWingWorkspace::construct",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual operations returned by createWingWorkspace; runtime lookup/returned callbacks retain dynamic effects and are not conformance certification."
+    },
+    {
+      "contract": "workspace-interaction",
+      "target": "skills/wing/airfoils.mjs::airfoilCatalog",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual operations returned by createWingWorkspace; runtime lookup/returned callbacks retain dynamic effects and are not conformance certification."
+    },
+    {
+      "contract": "workspace-runtime-loading",
+      "target": "core/extensions/workspaces.mjs::listWorkspaces",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual generic host/library operation; shared resolution and package inventory remain library-owned."
+    },
+    {
+      "contract": "workspace-runtime-loading",
+      "target": "core/extensions/workspaces.mjs::requireWorkspaceCurrent",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual generic host/library operation; shared resolution and package inventory remain library-owned."
+    },
+    {
+      "contract": "workspace-runtime-loading",
+      "target": "core/extensions/workspaces.mjs::workspacePieces",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual generic host/library operation; shared resolution and package inventory remain library-owned."
+    },
+    {
+      "contract": "workspace-runtime-loading",
+      "target": "core/extensions/library.mjs::readExtension",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual generic host/library operation; shared resolution and package inventory remain library-owned."
+    },
+    {
+      "contract": "workspace-runtime-loading",
+      "target": "core/extensions/library.mjs::relativeExtensionFile",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual generic host/library operation; shared resolution and package inventory remain library-owned."
+    },
+    {
+      "contract": "agent-workspace",
+      "target": "workspaces/server.mjs::startWorkspace",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual runtime/managed-session workspace entry; callback effects and runtime association remain explicitly bounded."
+    },
+    {
+      "contract": "agent-extensions",
+      "target": "core/extensions/workspaces.mjs::listWorkspaces",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual runtime/managed-session workspace entry; callback effects and runtime association remain explicitly bounded."
+    },
+    {
+      "contract": "agent-workspace",
+      "target": "workspaces/server.mjs::startWorkspace::inspect",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual runtime/managed-session workspace entry; callback effects and runtime association remain explicitly bounded."
+    },
+    {
+      "contract": "agent-workspace",
+      "target": "workspaces/server.mjs::startWorkspace::preview",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual runtime/managed-session workspace entry; callback effects and runtime association remain explicitly bounded."
+    },
+    {
+      "contract": "agent-workspace",
+      "target": "workspaces/server.mjs::startWorkspace::updateDesign",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual runtime/managed-session workspace entry; callback effects and runtime association remain explicitly bounded."
+    },
+    {
+      "contract": "agent-workspace",
+      "target": "workspaces/server.mjs::startWorkspace::createBundles",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual runtime/managed-session workspace entry; callback effects and runtime association remain explicitly bounded."
+    },
+    {
+      "contract": "agent-workspace",
+      "target": "workspaces/server.mjs::startWorkspace::shutdown",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual runtime/managed-session workspace entry; callback effects and runtime association remain explicitly bounded."
     }
   ]
 }

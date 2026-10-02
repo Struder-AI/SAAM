@@ -24,11 +24,13 @@ export function extensionRoots({appRoot=applicationRoot,dataRoot}={}){
   return {bundled:resolve(appRoot,'skills'),local:resolve(data,'extensions')};
 }
 
-function relativeFile(name){
+export function relativeExtensionFile(name){
   if(typeof name!=='string'||!name||name.includes('\\')||name.startsWith('/')||name.split('/').some(part=>!part||part==='.'||part==='..')
     ||/[\x00-\x1f:*?"<>|]/.test(name))throw Error(`Invalid extension file path: ${name}.`);
   return name;
 }
+
+const relativeFile=relativeExtensionFile;
 
 function manifestValue(raw,id){
   if(!raw||raw.schema!==MANIFEST_SCHEMA||raw.id!==id||!ID.test(id))throw Error(`Invalid extension manifest for ${id}.`);
@@ -48,6 +50,13 @@ function manifestValue(raw,id){
     relativeFile(entry.file);
     if(!entry.file.endsWith('.mjs'))throw Error(`Entry ${name} in ${id} must name an .mjs file.`);
   }
+  const kind=raw.kind??'skill';
+  if(!['skill','workspace'].includes(kind))throw Error(`Invalid extension kind: ${kind}.`);
+  if(kind==='workspace'){
+    if(!entries['workspace-runtime'])throw Error(`Workspace ${id} needs a workspace-runtime entry.`);
+    if(!raw.workspace||Object.keys(raw.workspace).join()!=='ui')throw Error(`Workspace ${id} needs a UI directory.`);
+    relativeFile(raw.workspace.ui);
+  }else if(raw.workspace||entries['workspace-runtime'])throw Error(`Extension ${id} must declare kind workspace.`);
   if(raw.license!==undefined&&raw.license!==null&&typeof raw.license!=='string')throw Error(`Invalid license in ${id}.`);
   if(raw.provenance!==undefined&&raw.provenance!==null&&typeof raw.provenance!=='string')throw Error(`Invalid provenance in ${id}.`);
   return {...raw,dependencies,entries};
@@ -73,6 +82,7 @@ async function extensionAt(directory,id){
   if(!names.includes('SKILL.md'))throw Error(`Extension ${id} has no SKILL.md guidance.`);
   for(const entry of Object.values(manifest.entries))if(!names.includes(entry.file))
     throw Error(`Extension ${id} entry ${entry.file} is absent.`);
+  if(manifest.kind==='workspace'&&!names.includes(manifest.workspace.ui+'/index.html'))throw Error(`Workspace ${id} has no UI index.html.`);
   const files=await Promise.all(names.map(async path=>({path,bytes:await readFile(resolve(directory,path))})));
   const digest=sha256(canonical(files.map(({path,bytes})=>({path,sha256:sha256(bytes)}))));
   return {id,directory,manifest,digest,files};
@@ -119,11 +129,12 @@ export async function resolveExtensions(ids,options={}){
 }
 
 export async function loadExtensionEntry(id,name,options={}){
-  const selected=(await resolveExtensions([id],options)).at(-1),entry=selected.manifest.entries[name];
+  const resolved=await resolveExtensions([id],options),selected=resolved.at(-1),entry=selected.manifest.entries[name];
   if(!entry)throw Error(`Extension ${id} has no ${name} entry.`);
-  const loaded=loadedDigests.get(selected.directory);
-  if(loaded&&loaded!==selected.digest)
-    throw Error(`Extension ${id} changed while SAAM is running. Restart SAAM to use its new scripts.`);
+  for(const item of resolved){
+    const loaded=loadedDigests.get(item.directory);
+    if(loaded&&loaded!==item.digest)throw Error(`Extension ${item.id} changed while SAAM is running. Restart SAAM to use its new scripts.`);
+  }
   const module=await import(pathToFileURL(resolve(selected.directory,entry.file)).href);
   if(typeof module[entry.export]!=='function')throw Error(`Extension ${id} entry ${entry.file} does not export ${entry.export}.`);
   loadedDigests.set(selected.directory,selected.digest);
@@ -181,6 +192,7 @@ export async function importExtension(packageFile,options={}){
     ||canonical(manifestValue(JSON.parse(files.find(file=>file.path==='extension.json').bytes.toString('utf8')),id))!==canonical(manifest))
     throw Error(`Extension ${id} package manifest or guidance is missing.`);
   for(const entry of Object.values(manifest.entries))if(!names.has(entry.file))throw Error(`Extension ${id} entry ${entry.file} is absent.`);
+  if(manifest.kind==='workspace'&&!names.has(manifest.workspace.ui+'/index.html'))throw Error(`Workspace ${id} has no UI index.html.`);
   const digest=sha256(canonical(files.map(({path,bytes})=>({path,sha256:sha256(bytes)}))));
   if(digest!==document.digest)throw Error(`Extension ${id} package digest changed.`);
   const installed=await installFiles(id,files,options);

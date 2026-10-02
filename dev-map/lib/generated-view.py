@@ -1549,7 +1549,8 @@ function openCode(ref,key){const cut=ref.lastIndexOf(':'),file=ref.slice(0,cut),
       codePane.classList.add('on');};
     paint();});}
 function openContracts(from,to){
-  const contracts=(PAGES[cur]?.contracts??[]).filter(w=>w.from===from&&w.to===to).flatMap(w=>w.contracts);
+  const links=(PAGES[cur]?.contracts??[]).filter(w=>w.from===from&&w.to===to);
+  const contracts=links.flatMap(w=>w.contracts);
   if(!contracts.length)return;
   const name=index=>PAGES[index]?.t??PAGES[cur]?.componentLabels?.[index]??index;
   const endpoint=index=>PAGES[index]?`<button class="endpoint" data-go="${esc(index)}">${esc(name(index))}</button>`:esc(name(index));
@@ -1565,8 +1566,8 @@ function openContracts(from,to){
   };
   codePane.innerHTML=`<div class="ch"><button class="x" onclick="dismissCode()" aria-label="Close interfaces">&times;</button>`+
     `<div class="num">${contracts.length===1?'Interface':`Interface set · ${contracts.length} interfaces`}</div>`+
-    `<h3>${esc(name(from))} → ${esc(name(to))}</h3></div>`+
-    '<div class="cb interfaces">'+contracts.map(c=>`<section class="interface"><h3>${esc(c.label)}</h3>`+
+    `<h3>${esc(name(from))} → ${esc(name(to))}</h3><div class="interface-id">${esc(links[0].address)}</div></div>`+
+    '<div class="cb interfaces">'+contracts.map(c=>`<section class="interface"><h3>${esc(c.label)}</h3><div class="interface-id">${esc(c.id)}</div>`+
       `<p>${endpoint(c.fromIndex)} → ${endpoint(c.toIndex)}</p>`+
       ((c.code??[]).length?c.code.map(entry).join(''):'<p class="note">No code entry is bound to this wire.</p>')+
       '</section>').join('')+'</div>';

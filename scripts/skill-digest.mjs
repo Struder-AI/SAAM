@@ -46,7 +46,7 @@ export async function updatedSkillIndex(repoRoot) {
     if (!known.has(token.split('>=')[0])) throw new Error(`${section.guidanceId}: no machine declares the capability ${token}.`);
   const advanced = gated.filter(section => section.layer === 'advanced');
   const index = advanced.length ? `\n\n## Advanced sections\n\n${advanced.map(indexLine).join('\n')}` : '';
-  const block = `${start}\n\n## Core toolpath skills\n\n${table('toolpath')}\n\n## Guidance manuals\n\nRecipes and techniques using Slice, Trace and Inject; no additional deposition families.\n\n${table('guidance')}\n\n## Extensions\n\n${table('extension')}${index}\n\n${end}`;
+  const block = `${start}\n\n## Core toolpath skills\n\n${table('toolpath')}\n\n## Guidance manuals\n\nRecipes and techniques using Slice, Trace and Inject; no additional deposition families.\n\n${table('guidance')}\n\n## Extensions\n\n${table('extension')}\n\n## Workspace extensions\n\n${table('workspace')}${index}\n\n${end}`;
   const current = await readFile(resolve(skillsRoot, 'DIGEST.md'), 'utf8');
   if (current.split(start).length !== 2 || current.split(end).length !== 2 || current.indexOf(end) < current.indexOf(start)) {
     throw new Error('skills/DIGEST.md needs exactly one ordered pair of generated skill digest markers.');

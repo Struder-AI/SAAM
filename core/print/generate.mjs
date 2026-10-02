@@ -23,7 +23,7 @@ import {regionArea,pointSegmentDistance} from '../region/region2d.mjs';
 import {horizontalSlice,sliceFamily} from '../geom/slice.mjs';
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {pointInjectionOperation} from '../path/injection.mjs';
-import {joinSliceFamily} from './slices.mjs';
+import {spiralFamilyCurve} from '../path/family-curves.mjs';
 import {maximumPathAngle,strokeRange} from '../path/deposition.mjs';
 import {publishFinishedBoundary} from '../path/finished-surface.mjs';
 import {sampleCurveIntervals} from '../geom/curve-sampling.mjs';
@@ -31,15 +31,15 @@ import {traceResult} from './curves.mjs';
 import {contactCurveGaps} from '../path/contact-curves.mjs';
 import {depositedBeadSegments} from '../path/deposited-curves.mjs';
 import {prepareSliceRegionContext} from './slice-region-context.mjs';
-import {surveySurfaceDomain} from './surface-domains.mjs';
+import {prepareSliceBoundaryFamily} from './slices.mjs';
 import { compileRecipe, VERSION } from './plan.mjs';
 
 import {finalizedSliceResults} from './slice-deposition.mjs';
 
 const extensionEngines={
   Geometry:{planarRegionLayers,prepareContourSleeve,sampleCurveIntervals,difference,union,intersect,regionArea,pointSegmentDistance,horizontalSlice,sliceFamily,evaluateSurface},
-  Toolpath:{prepareSliceRegionContext,pointInjectionOperation,assignmentFilament,
-    joinSliceFamily,maximumPathAngle,strokeRange,publishFinishedBoundary,traceResult,contactCurveGaps,depositedBeadSegments}
+  Toolpath:{prepareSliceRegionContext,prepareSliceBoundaryFamily,pointInjectionOperation,assignmentFilament,
+    spiralFamilyCurve,maximumPathAngle,strokeRange,publishFinishedBoundary,traceResult,contactCurveGaps,depositedBeadSegments}
 };
 
 
@@ -86,27 +86,24 @@ export async function preparePathGeometry(plan) {
 // supporting producer before constructing surface consumers.
 export async function generateModelResults(plan,{placed,componentShells,shells,volumes,planningState,emittedIds=[]},onProgress) {
   const summary={generatorVersion:VERSION,shape:plan.geometry?.shape??null},results=[];
-  const contexts=depositionAssignments(plan).filter(assignment=>assignment.construction||assignment.surface?.kind==='terminal'||assignment.stack?.direction==='normal'||assignment.within?.some(v=>v.kind==='surface-domain'&&v.loopsUv===null)).map(assignment=>{
+  const contexts=depositionAssignments(plan).filter(assignment=>assignment.construction||assignment.join).map(assignment=>{
     const shell=shells.find(([part])=>part===(assignment.part??null))?.[1],selected=assignmentPlan(plan,assignment);
-    if(ASSIGNMENT_RECORDS[assignment.construction]?.requiresComponent||!assignment.construction&&assignment.surface?.kind!=='terminal')requireThat(shell,'A surface family needs a selected component or the single solid.');
+    if(ASSIGNMENT_RECORDS[assignment.construction]?.requiresComponent)requireThat(shell,'A surface family needs selected geometry.');
     return {assignment,shell,process:selected.process,maxBeadHeightMm:Infinity};
   });
-  const skins=contexts.filter(({assignment})=>assignment.within?.some(v=>v.kind==='surface-domain'&&v.loopsUv===null)).map(context=>({...context,survey:surveySurfaceDomain(context)}));
-  const extensions=await extensionDeposition({plan,placed,componentShells,contexts,onProgress,engines:extensionEngines,
+  const extensions=await extensionDeposition({plan,placed,componentShells,shells,volumes,contexts,onProgress,engines:extensionEngines,
     processForAssignment:assignment=>assignmentPlan(plan,assignment).process});
-  const rims=contexts.filter(({assignment})=>assignment.surface?.kind==='terminal'),referenceAssignments=contexts.filter(({assignment})=>assignment.stack?.direction==='normal');
   const constructions=[...extensions.constructions,...contexts.filter(({assignment})=>['inject','curves'].includes(assignment.construction))];
-  const sliced=finalizedSliceResults({plan,shells,volumes,...extensions,surfaceAssignments:skins,referenceAssignments,terminalAssignments:rims,constructions,onProgress,planningState,emittedIds});
+  const sliced=finalizedSliceResults({plan,shells,volumes,...extensions,constructions,onProgress,planningState,emittedIds});
   results.push(...sliced.results);
   if(sliced.summary)summary.slices=sliced.summary;
   Object.assign(summary,extensionSummary(results));
   const families=Object.fromEntries(['roof','terminal','normal'].map(kind=>[kind,results.filter(r=>r.report.referenceFamily===kind).map(r=>({id:r.id,...r.report}))]).filter(([,items])=>items.length));
   if(Object.keys(families).length)summary.referenceFamilies=families;
+  if(families.roof){const roofs=families.roof;summary.surfaceDomain={maxSlopeDeg:Math.min(...roofs.map(r=>r.limitDeg)),surfaceMaxSlopeDeg:Math.max(...roofs.map(r=>r.maxSlopeDeg)),excludedAreaPercent:Math.max(...roofs.map(r=>r.excludedFraction))*100};}
   const curves=results.filter(result=>result.report.construction==='curves');
   if(curves.length)summary.curves=curves.map(result=>({id:result.id,...result.report}));
-  const survey=skins[0]?.survey??null;
-  if(skins.length)summary.surfaceDomain={maxSlopeDeg:Math.max(...skins.map(s=>s.survey.limitDeg)),surfaceMaxSlopeDeg:Math.max(...skins.map(s=>s.survey.maxSlopeDeg)),excludedAreaPercent:Math.max(...skins.map(s=>s.survey.steepFraction))*100};
-  return {results,summary,survey,shells,slicedSupports:sliced.supports,execution:sliced.execution};
+  return {results,summary,survey:null,shells,slicedSupports:sliced.supports,execution:sliced.execution};
 }
 
 export async function addComplementaryResults(plan,geometry,batch) {
