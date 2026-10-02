@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {once} from 'node:events';
 import {createTour,tourExample} from '../../studio/tour.mjs';
 import {createStudio} from '../../studio/server.mjs';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
@@ -14,8 +13,8 @@ async function fixture(t){
   const tour=createTour(root),{directory,data}=await tour.action('fresh');
   return {root,tour,directory,runId:data.runId};
 }
-async function viewer(t,root,directory,disconnectMs=100){
-  const server=createStudio(directory,{libraryRoot:root,disconnectMs});
+async function viewer(t,root,directory){
+  const server=createStudio(directory,{libraryRoot:root});
   t.after(()=>server.shutdown());await new Promise(done=>server.listen(0,'127.0.0.1',done));
   const url='http://127.0.0.1:'+server.address().port;
   const html=await(await fetch(url)).text(),token=/name="saam-token" content="([^"]+)"/.exec(html)[1];
@@ -31,12 +30,12 @@ async function viewer(t,root,directory,disconnectMs=100){
 }
 
 test('tour survives a browser reconnect and resumes after Studio releases its instance',async t=>{
-  const {root,tour,directory,runId}=await fixture(t),v=await viewer(t,root,directory,150);
+  const {root,tour,directory,runId}=await fixture(t),v=await viewer(t,root,directory);
   const requests=createAgentRequests(root),pending=await requests.begin({directory,instruction:'SYNTHETIC pending tour edit'});
   const stopFirst=await v.connect();stopFirst();
   const stopSecond=await v.connect();
   assert.equal((await tour.info()).runId,runId);assert.equal((await tour.info()).active,true);
-  const closed=once(v.server,'close');stopSecond();await closed;await v.server.shutdown();
+  stopSecond();await v.server.shutdown();
   assert.equal((await tour.info()).active,true);assert.equal((await tour.info()).runId,runId);
   assert.equal((await requests.get(pending.id)).status,'cancelled');assert.equal((await tourExample(directory)).id,'starter');
   const reopened=await viewer(t,root,directory);assert.equal(reopened.state.tour.active,true,'opening the saved print resumes the tour');

@@ -1,48 +1,49 @@
 #!/bin/bash
-# Uninstalls SAAM for this macOS user: removes ~/Applications/SAAM and
+# Uninstalls SAAM for this macOS user: removes ~/SAAM/app and
 # ~/Applications/SAAM.app and its desktop shortcut. Prints, the
-# settings and logs in ~/Library/Application Support/SAAM are kept.
+# settings and logs in ~/SAAM are kept.
 # Run it from Terminal:
 #
-#   bash ~/Applications/SAAM/packaging/macos/uninstall.sh [--yes]
+#   bash ~/SAAM/app/packaging/macos/uninstall.sh [--yes]
 set -euo pipefail
 
 fail() { printf '\n%s\n' "$1" >&2; exit 1; }
 
-data_folder() { printf '%s' "${SAAM_DATA:-$HOME/Library/Application Support/SAAM}"; }
+data_folder() { printf '%s' "${SAAM_DATA:-$HOME/SAAM}"; }
 
 # Same check as install.sh: a live instance record, or node running from the installation.
 saam_running() {
   local record pid
-  record="$(data_folder)/instance.json"
+  record="$(data_folder)/state/instance.json"
   if [ -f "$record" ]; then
     pid="$(sed -n 's/.*"pid"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$record" | head -n 1)"
     if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && ps -p "$pid" -o comm= | grep -q node; then return 0; fi
   fi
-  pgrep -f "$HOME/Applications/SAAM/runtime/node" >/dev/null 2>&1
+  pgrep -f "$(data_folder)/app/runtime/node" >/dev/null 2>&1
 }
 
 main() {
-  local target answer shortcut
-  target="$HOME/Applications/SAAM"
+  local target answer shortcut bundle
+  target="$(data_folder)/app"
+  bundle="$HOME/Applications/SAAM.app"
   shortcut="$HOME/Desktop/SAAM.app"
   [ -d "$target" ] || fail "SAAM is not installed in $target."
-  if saam_running; then fail 'SAAM is running. Click Quit in SAAM Studio, then uninstall again.'; fi
+  if saam_running; then fail 'SAAM is running. Choose Quit from the tray menu, then uninstall again.'; fi
   if [ "${1:-}" != '--yes' ]; then
-    echo "This removes SAAM from $target, $target.app and its desktop shortcut."
+    echo "This removes SAAM from $target, $bundle and its desktop shortcut."
     echo "Your prints and settings in $(data_folder) are kept."
     read -r -p 'Type y and press Return to uninstall: ' answer
     case "$answer" in [Yy]*) ;; *) echo 'Nothing was removed.'; exit 0 ;; esac
   fi
   # This script runs from the folder it removes; leave it first.
   cd "$HOME"
-  if [ -L "$shortcut" ] && [ "$(readlink "$shortcut")" = "$target.app" ]; then
+  if [ -L "$shortcut" ] && [ "$(readlink "$shortcut")" = "$bundle" ]; then
     rm "$shortcut" || echo "Could not remove the desktop shortcut at $shortcut."
   fi
-  rm -rf "$target" "$target.app"
+  rm -rf "$target" "$bundle"
   echo
   echo 'SAAM is uninstalled.'
-  echo "Your prints remain in $(data_folder)/Prints; settings and logs are in $(data_folder)."
+  echo "Your prints remain in $(data_folder)/Prints; settings and logs are in $(data_folder)/state."
   echo 'Delete that folder yourself if you no longer want them. Installing SAAM again picks them up.'
 }
 

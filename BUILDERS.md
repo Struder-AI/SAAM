@@ -311,7 +311,7 @@ approvals remain with the person. Report software and physical results separatel
 For an explicitly developmental preview, `node core/print/cli.mjs demo
 Prints/development/my-part` creates or reopens a shell bundle and generates
 without human approvals; an existing recipe can be initialized first. Development
-output cannot authorize delivery, and MCP does not expose this mode. It still
+output cannot authorize delivery. It still
 needs explicit robot command settings; for a new provisional part use the
 reusable setup instructions for
 [DENSO](skills/pipe-cladding/SKILL.md#contact-and-pose) or
@@ -339,7 +339,7 @@ retains superseded source. No separate documentation closeout gate is needed.
 | Test design and coverage selection | [Test reference](core/tests/README.md) |
 | Core/Studio behaviour, contracts and limits | The [component manuals](#implementation-reference); skill callers may read them independently |
 | Core/Studio structure — what exists and what calls what | The generated map: `read-map 0`, then the declarations the change touches |
-| Adapter implementation | [MCP development](adapters/mcp/DEVELOP.md) |
+| Application commands and chat attachment | [Application](core/application/README.md) |
 | Print operations and skill tools | [Print tools](core/print/USAGE.md) and relevant [skill manuals](skills/DIGEST.md) |
 | Skill authorship and catalog maintenance | [Skill development](skills/AUTHORING.md) |
 | Map commands, page fields, the scan scope and external facts | [Map guide](dev-map/README.md) and the [map contract](#maps-and-local-documentation) |
@@ -386,7 +386,7 @@ guidance is needed when developing or exercising the maker-facing workflow.
 | Using shared print commands or changing their task guidance | [Print tools](core/print/USAGE.md) |
 | Machine capabilities, emission or interpretation | [Machine interfaces and program output](core/export/README.md), [machine presentation models](core/machine/README.md) and [machine files](machines/README.md); `read-map core/export` and `read-map core/machine` for structure |
 | Studio interaction, lifetime or rendering | [Studio](studio/README.md), [kinematics](studio/KINEMATICS.md) and [rendering](studio/RENDERING.md); `read-map studio` for structure |
-| Chat-client connection or adapter tools | [MCP](adapters/mcp/README.md) and its [implementation notes](adapters/mcp/DEVELOP.md) |
+| Chat-client commands and attachment | [Application](core/application/README.md) |
 | Performance measurement | [Slicing benchmarks](scripts/bench/README.md) and [region kernel verification](scripts/bench/region-reference.md) |
 | Maker-facing behavior or end-to-end use | [MAKERS](MAKERS.md) and [development testing](#testing-through-the-use-context) |
 | Documentation | [Ownership and maintenance](#documentation-maintenance) |

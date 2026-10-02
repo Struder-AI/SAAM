@@ -72,10 +72,10 @@ mesh-repair tools. A replacement retains attribution and records its changes.
 ```sh
 node skills/thingi10k/scripts/cli.mjs search "bunny"
 node skills/thingi10k/scripts/cli.mjs import Prints/bunny 293137 ultimaker-s5
-node scripts/agent-toolkit.mjs open-print Prints/bunny
+saam call request_review --bundle-id bunny
 ```
 
-The CLI caches in ignored `.local/thingi10k/`, MCP in `.thingi10k/` in its Prints
+The CLI caches in ignored `.local/thingi10k/`, the app in `.thingi10k/` in its Prints
 root: indexes and complete downloads, named by file ID and SHA-256 with an
 attribution JSON beside each. The person may remove the cache when idle; prints
 keep their own source.

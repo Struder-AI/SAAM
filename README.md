@@ -46,8 +46,8 @@ describe what each machine's export and playback cover, including the scope of
 reported physical observations. Software checks do not establish physical print
 success.
 
-The [MCP adapter](adapters/mcp/README.md) connects compatible chat clients to the
-same local workflow. Its manual covers available tools and local stdio connections.
+The [SAAM application](core/application/README.md) owns Studio and jobs. Desktop
+chats use its installed `saam` command.
 
 ## Get started
 
@@ -61,15 +61,13 @@ remains separate.
 Ask your agent to **open the SAAM tour**, or launch Studio after setup:
 
 ```sh
-node studio/server.mjs
+node scripts/saam.mjs start-tour
 ```
 
-The [guided tour](examples/prints/README.md) takes you through a wavy roof,
-Nudge Cup, and DENSO cladding in the same viewer used for your parts.
-Their geometry, settings and toolpath previews are ready to explore. Studio saves
-your copies automatically in ignored `Prints/tour/`, remembers your place, and
-keeps chat edits inside the guide. Finish the tour to choose an example for your
-own print or explore freely. Exploring a demo grants no printing approvals.
+The [guided tour](examples/prints/README.md) uses one editable fin block in the
+same Studio used for your parts. Your copy and lesson survive restarts in the
+SAAM home. Explore geometry, playback, chat edits, setup and export; software
+examples grant no physical qualification or printing approval.
 
 ## Reading and contributing
 

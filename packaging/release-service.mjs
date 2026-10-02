@@ -4,28 +4,27 @@ import {readFile,writeFile,rename,mkdir} from 'node:fs/promises';
 import {watch} from 'node:fs';
 import {dirname,resolve} from 'node:path';
 import {randomBytes} from 'node:crypto';
-import {homedir} from 'node:os';
+import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {releaseUrl} from './update.mjs';
 
 const appRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-export function dataFolder(){
-  if(process.env.SAAM_DATA)return resolve(process.env.SAAM_DATA);
-  if(process.platform==='win32')return resolve(process.env.LOCALAPPDATA??resolve(homedir(),'AppData/Local'),'SAAM');
-  if(process.platform==='darwin')return resolve(homedir(),'Library/Application Support/SAAM');
-  return resolve(process.env.XDG_DATA_HOME??resolve(homedir(),'.local/share'),'saam');
-}
+export {saamHome as dataFolder} from '../core/application/home.mjs';
+import {saamHome as dataFolder,homePaths} from '../core/application/home.mjs';
 // release.json is written by the packager. Its relayUrl field currently names
 // the optional release service for existing package manifests.
 export async function releaseConfiguration(){
   const saved=JSON.parse(await readFile(resolve(appRoot,'release.json'),'utf8').catch(()=>'{}'));
-  return {version:saved.version??'development',serviceUrl:process.env.SAAM_RELEASE_SERVICE_URL??saved.serviceUrl??process.env.SAAM_RELAY_URL??saved.relayUrl,
+  const revision=spawnSync('git',['rev-parse','--short','HEAD'],{cwd:appRoot,encoding:'utf8',windowsHide:true});
+  const changes=spawnSync('git',['status','--porcelain'],{cwd:appRoot,encoding:'utf8',windowsHide:true});
+  const development='development ('+(revision.status===0?revision.stdout.trim():'unknown')+(changes.stdout?.trim()?', dirty':'')+')';
+  return {version:saved.version??development,serviceUrl:process.env.SAAM_RELEASE_SERVICE_URL??saved.serviceUrl??process.env.SAAM_RELAY_URL??saved.relayUrl??'https://saam-relay.remettub.workers.dev',
     platform:saved.platform??null,updateHost:saved.updateHost??null};
 }
 export async function createInstalledReleaseService(options={}){
   const config=await releaseConfiguration();
   if(!config.serviceUrl)return null;
-  return createReleaseService({...config,statePath:resolve(dataFolder(),'release-service.json'),watchState:true,...options});
+  return createReleaseService({...config,statePath:resolve(homePaths().state,'release-service.json'),watchState:true,...options});
 }
 
 const VERSION=/^\d{1,6}\.\d{1,6}\.\d{1,6}$/;
@@ -81,9 +80,9 @@ async function request(fetchImpl,url,path,{secret,body}={}){
 }
 
 // Async because remembered activation and first-run dismissal are read once.
-export async function createReleaseService({serviceUrl,statePath,version='development',platform=null,updateHost=null,update=null,quit=null,fetchImpl=fetch,watchState=false}={}){
+export async function createReleaseService({serviceUrl,statePath,version='development',platform=null,updateHost=null,update=null,quit=null,fetchImpl=fetch,watchState=false,instanceId=null}={}){
   if(!statePath)throw Error('Release service state needs an installation data path.');
-  const url=serviceOrigin(serviceUrl),file=resolve(statePath);
+  const url=serviceOrigin(serviceUrl),file=resolve(statePath),diagnostics={lastReceipt:null,lastOperationReceipt:null,lastFailure:null,pending:new Set()};
   let stored={},stateProblem=null;
   try{stored=JSON.parse(await readFile(file,'utf8'));}
   catch(error){if(error.code!=='ENOENT')stateProblem='Saved service connection could not be read. Enter an invite again.';}
@@ -94,7 +93,7 @@ export async function createReleaseService({serviceUrl,statePath,version='develo
     const pending=saveQueue.then(()=>{if(!currentOnly||state===next)return save(file,value);});saveQueue=pending.catch(()=>{});return pending;
   };
   const status=()=>({available:Boolean(url),activated:Boolean(state.device),firstRunPrompt:Boolean(url&&!state.firstRunDismissed&&!state.device),
-    version,update:offer?{version:offer.version}:null,updateStatus,problem,canQuit:Boolean(quit)});
+    version,update:offer?{version:offer.version}:null,updateStatus,problem,canQuit:Boolean(quit),diagnostics:{lastReceipt:diagnostics.lastReceipt,lastOperationReceipt:diagnostics.lastOperationReceipt,lastFailure:diagnostics.lastFailure}});
   const rejectDevice=async(error,device)=>{
     if(error.status!==401||state.device!==device)return;
     stopObserving();state={firstRunDismissed:true,device:null};offer=null;updateStatus=null;
@@ -105,8 +104,16 @@ export async function createReleaseService({serviceUrl,statePath,version='develo
   const emit=(event,about={})=>{
     if(closed||!url||!state.device)return;
     const device=state.device;
-    const body={event:diagnostic(event),about:diagnostic({version,platform,...about})};
-    void request(fetchImpl,url,'/device/events',{secret:device.secret,body}).catch(error=>rejectDevice(error,device));
+    const body={event:diagnostic(event),about:diagnostic({version,platform,instanceId,...about})};
+    const sent=request(fetchImpl,url,'/device/events',{secret:device.secret,body}).then(receipt=>{
+      if(receipt.received===true){
+        const acknowledged={received:true,at:new Date().toISOString(),instanceId,kind:event.kind,source:about.source??null,...(event.name?{operation:event.name}:{})};
+        diagnostics.lastReceipt=acknowledged;diagnostics.lastFailure=null;
+        if(event.kind==='operation')diagnostics.lastOperationReceipt=acknowledged;
+      }
+      return receipt;
+    }).catch(error=>{diagnostics.lastFailure={at:new Date().toISOString(),kind:event.kind,error:scrubText(errorMessage(error))};return rejectDevice(error,device);});
+    diagnostics.pending.add(sent);void sent.finally(()=>diagnostics.pending.delete(sent));return sent;
   };
   const subscribe=()=>{
     if(!runtime||!state.device||unobserve.length)return;
@@ -149,6 +156,7 @@ export async function createReleaseService({serviceUrl,statePath,version='develo
   };
   return {
     status,
+    async flushDiagnostics(){await Promise.all([...diagnostics.pending]);return diagnostics.lastReceipt;},
     async activate(invite){
       if(!url)throw Error('This installation names no release service. SAAM still works locally.');
       const entered=String(invite??'').trim();if(!entered)throw Error('Enter an alpha invite code.');
@@ -161,13 +169,13 @@ export async function createReleaseService({serviceUrl,statePath,version='develo
     },
     async dismissFirstRun(){const next={...state,firstRunDismissed:true};await persist(next);state=next;return status();},
     checkUpdate,
-    async update(){
+    async update(options={}){
       await checkUpdate();
       if(!offer)throw Error('No newer trusted SAAM release is available for this installation.');
       const selected=offer;emit({kind:'update-started',version:selected.version});
-      try{return await update(selected);}catch(error){emit({kind:'update-failed',version:selected.version,error:errorMessage(error)});throw error;}
+      try{return await update(selected,options);}catch(error){emit({kind:'update-failed',version:selected.version,error:errorMessage(error)});throw error;}
     },
-    quit:()=>{if(!quit)throw Error('This SAAM stops from its terminal.');return quit();},
+    quit:(options={})=>{if(!quit)throw Error('This SAAM stops from its terminal.');return quit(options);},
     observeRuntime(next){stopObserving();runtime=next;subscribe();},
     recordOperation:event=>emit(event,{source:'agent-operation'}),
     recordStudioEvent:event=>emit(studioEvent(event),{source:'studio'}),

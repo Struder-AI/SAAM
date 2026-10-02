@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "Exact source responsibility refreshed after portable extension/runtime and numerical relocations. Mixed files retain separate declaration owners; unknown effects remain unresolved. Not conformance approval.",
+  "status": "Application sources refreshed 2026-10-02 using targeted current declaration inventory. Runtime root and createChat scopes are distinguished; removed adapter/toolkit routes are retained only as retired history. Mixed owners and unresolved effects remain explicit. Not conformance approval.",
   "policy": "Exact declaration/module ownership; Geometry owners are source-linked leaf IDs. Anonymous bodies inherit their nearest stable declaration. File location does not define architectural ownership.",
   "files": {
     "core/geom/blob-field.mjs": {
@@ -737,23 +737,7 @@
     },
     "core/agent/toolkit.mjs": {
       "owner": "agent",
-      "reason": "Desktop tool adapter; context readers and developer-only functions receive explicit overrides."
-    },
-    "adapters/mcp/src/runtime.mjs": {
-      "owner": "agent",
-      "reason": "Adapter operation dispatch, progress/diagnostic observers and agent-session association; private transport state remains visible."
-    },
-    "adapters/mcp/src/server.mjs": {
-      "owner": "agent",
-      "reason": "External desktop tool interface/transport and tool argument schemas."
-    },
-    "adapters/mcp/src/deposition-schemas.mjs": {
-      "owner": "agent",
-      "reason": "External desktop tool interface/transport and tool argument schemas."
-    },
-    "adapters/mcp/src/manuals.mjs": {
-      "owner": "context",
-      "reason": "Published guidance transport adapter."
+      "reason": "Source role/context orchestration; context readers and developer map operations retain declaration-level mixed owners."
     },
     "scripts/agent-toolkit.mjs": {
       "owner": "agent",
@@ -1370,139 +1354,49 @@
     "workspaces/client.mjs": {
       "owner": "workspace",
       "reason": "Generic workspace host state, explicit preview, worker jobs, persistence and one-way handoff."
+    },
+    "core/application/runtime.mjs": {
+      "owner": "agent",
+      "reason": "Application operation dispatch, stable chats, one Studio per bundle, workspaces/jobs and diagnostics observation. Anonymous operation registrations are file/nearest stable createChat evidence, not invented callable names."
+    },
+    "core/application/deposition-schemas.mjs": {
+      "owner": "agent",
+      "reason": "Application command input schemas; no transport adapter."
+    },
+    "core/application/home.mjs": {
+      "owner": "agent",
+      "reason": "Application home: app, Prints, extensions and state; disposable SAAM_DATA override is for isolated trials."
+    },
+    "core/application/control.mjs": {
+      "owner": "agent",
+      "reason": "Local command discovery, singleton startup coordination and application control requests; command completion owns no application lifetime."
+    },
+    "scripts/saam.mjs": {
+      "owner": "agent",
+      "reason": "Desktop command parsing, schema-driven flags, explicit fallback chat identity and bounded request/event waits through one application."
+    },
+    "packaging/application.mjs": {
+      "owner": "agent",
+      "reason": "Application startup/readiness, local control, tray and single release-service attachment; explicit Quit/Update owns shutdown."
+    },
+    "packaging/launch.mjs": {
+      "owner": "agent",
+      "reason": "Process entry into the one ready application; icon/source launches reuse existing control."
+    },
+    "packaging/client-setup.mjs": {
+      "owner": "agent",
+      "reason": "Installed command PATH and scoped client skills/settings; writes home startup guidance and preserves unrelated configuration."
+    },
+    "packaging/tray.mjs": {
+      "owner": "agent",
+      "reason": "OS tray/menu-bar host; explicit Open, Update and Quit commands reach application control."
+    },
+    "core/application/README.md": {
+      "owner": "context",
+      "reason": "Canonical maker-facing application command, attachment, home and lifetime guidance."
     }
   },
   "leaves": {
-    "adapters/mcp/src/deposition-schemas.mjs::@module": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/deposition-schemas.mjs::objectPatch": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/manuals.mjs::@module": {
-      "owner": "context"
-    },
-    "adapters/mcp/src/runtime.mjs::@module": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::bundles::shell": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime": {
-      "owner": "agent",
-      "reason": "Existing application/tool adapter and instance association; anonymous preview_workspace/close_workspace callbacks inherit this nearest stable declaration, invoking the host explicit preview/shutdown contracts."
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::beginSession": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::beginSession::end": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::beginSession::invoke": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::close": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::directory": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::endSession": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::generationStatus": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::invoke": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::invoke::execute": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::invoke::execute::touch": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::locate": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::observed": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::observeEvents": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::openStudio": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::publishWorking": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::queuedRequests": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::read": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::setupFile": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::setupFile::samePath": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::skills": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::startStudio": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::subscribeEvents": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::subscribeRequests": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::tool": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::withMachineHint": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::noApprovalFields": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::publicBundleIdentity": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::recipes::shell": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::rejectLinks": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::summary": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/server.mjs::@module": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/server.mjs::close": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/server.mjs::createMcpAdapter": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/server.mjs::createMcpAdapter::close": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/server.mjs::createMcpAdapter::notifyRequests": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/server.mjs::createMcpAdapter::onclose": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/server.mjs::createMcpAdapter::oninitialized": {
-      "owner": "agent"
-    },
     "core/agent/layers.mjs::@module": {
       "owner": "context"
     },
@@ -1588,15 +1482,6 @@
     "core/agent/toolkit.mjs::@module": {
       "owner": "agent"
     },
-    "core/agent/toolkit.mjs::beginWork": {
-      "owner": "agent"
-    },
-    "core/agent/toolkit.mjs::cancelStudioCalculation": {
-      "owner": "agent"
-    },
-    "core/agent/toolkit.mjs::closePreview": {
-      "owner": "agent"
-    },
     "core/agent/toolkit.mjs::contextPacket": {
       "owner": "context",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
@@ -1604,87 +1489,24 @@
     "core/agent/toolkit.mjs::environmentStatus": {
       "owner": "agent"
     },
-    "core/agent/toolkit.mjs::inspectFailure": {
-      "owner": "agent"
-    },
     "core/agent/toolkit.mjs::json": {
-      "owner": "agent"
-    },
-    "core/agent/toolkit.mjs::libraryPath": {
-      "owner": "agent"
-    },
-    "core/agent/toolkit.mjs::listenPreview": {
       "owner": "agent"
     },
     "core/agent/toolkit.mjs::onboarding": {
       "owner": "agent",
       "reason": "CLI orchestration selects role reads and composes Context results, environment diagnostics and developer maps; contextPacket/onboardingSources own manual assembly."
     },
-    "core/agent/toolkit.mjs::pollStudio": {
-      "owner": "agent"
-    },
-    "core/agent/toolkit.mjs::preparePreviewPrint": {
-      "owner": "agent"
-    },
-    "core/agent/toolkit.mjs::preparePrint": {
-      "owner": "agent"
-    },
-    "core/agent/toolkit.mjs::preview": {
-      "owner": "agent"
-    },
-    "core/agent/toolkit.mjs::preview::@default/onEvents": {
-      "owner": "agent"
-    },
-    "core/agent/toolkit.mjs::preview::@default/onReady": {
-      "owner": "agent"
-    },
-    "core/agent/toolkit.mjs::preview::@default/onRequest": {
-      "owner": "agent"
-    },
-    "core/agent/toolkit.mjs::previewListener": {
-      "owner": "agent"
-    },
-    "core/agent/toolkit.mjs::printSummary": {
-      "owner": "agent"
-    },
     "core/agent/toolkit.mjs::readMaps": {
       "owner": "outside-product",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
-    "core/agent/toolkit.mjs::readPreviewPrint": {
-      "owner": "agent"
-    },
-    "core/agent/toolkit.mjs::readPrint": {
-      "owner": "agent"
     },
     "core/agent/toolkit.mjs::readSkill": {
       "owner": "context",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
-    "core/agent/toolkit.mjs::readStudioEvents": {
-      "owner": "agent"
-    },
-    "core/agent/toolkit.mjs::recordRequestActivity": {
-      "owner": "agent"
-    },
     "core/agent/toolkit.mjs::regenerateMap": {
       "owner": "outside-product",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
-    "core/agent/toolkit.mjs::relativePrint": {
-      "owner": "agent"
-    },
-    "core/agent/toolkit.mjs::respondToRequest": {
-      "owner": "agent"
-    },
-    "core/agent/toolkit.mjs::reuseGuidance": {
-      "owner": "agent"
-    },
-    "core/agent/toolkit.mjs::showPrint": {
-      "owner": "agent"
-    },
-    "core/agent/toolkit.mjs::subscribePreview": {
-      "owner": "agent"
     },
     "core/agent/toolkit.mjs::syncStatus": {
       "owner": "outside-product",
@@ -1693,15 +1515,6 @@
     "core/agent/toolkit.mjs::syncStatus::git": {
       "owner": "outside-product",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
-    "core/agent/toolkit.mjs::ToolkitError": {
-      "owner": "agent"
-    },
-    "core/agent/toolkit.mjs::validatePreview": {
-      "owner": "agent"
-    },
-    "core/agent/toolkit.mjs::waitForRequests": {
-      "owner": "agent"
     },
     "core/export/bambu-body.mjs::@module": {
       "owner": "export"
@@ -5921,25 +5734,10 @@
     "scripts/agent-toolkit.mjs::@module": {
       "owner": "agent"
     },
-    "scripts/agent-toolkit.mjs::attachLiveControl": {
-      "owner": "agent"
-    },
     "scripts/agent-toolkit.mjs::runCLI": {
       "owner": "agent"
     },
     "scripts/agent-toolkit.mjs::runCLI::@default/write": {
-      "owner": "agent"
-    },
-    "scripts/agent-toolkit.mjs::runCLI::onProgress": {
-      "owner": "agent"
-    },
-    "scripts/agent-toolkit.mjs::runCLI::opened.onEvents": {
-      "owner": "agent"
-    },
-    "scripts/agent-toolkit.mjs::runCLI::opened.onRequest": {
-      "owner": "agent"
-    },
-    "scripts/agent-toolkit.mjs::runCLI::stop": {
       "owner": "agent"
     },
     "skills/advanced-vase-wall/scripts/loop-path.mjs::@module": {
@@ -8647,10 +8445,6 @@
       "owner": "bundle",
       "reason": "Revisioned acceptance of supplied settings; owns shared snapshot and review commit, never resolves reusable presets."
     },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::manualContext": {
-      "owner": "agent",
-      "reason": "Agent passes a saved Bundle machine snapshot into Maker context, or explicitly requests reusable profile discovery."
-    },
     "core/machine/bundle-settings.mjs::recordExtensionDependency": {
       "owner": "settings",
       "reason": "Records supplied extension dependency configuration through Bundle snapshot interface without executing or preparing work."
@@ -8992,36 +8786,6 @@
     "studio/server.mjs::createStudio::runBundleEdit": {
       "owner": "studio",
       "reason": "Private instance lifecycle and typed edits through Bundle ownership."
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::agentWorking": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::associatedStudio": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::diagnosticFields": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::getResourceClient": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::importSTL": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::importSTL::progress": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::meshLibrary.download": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::meshLibrary.search": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::observeOperations": {
-      "owner": "agent"
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::reportOperation": {
-      "owner": "agent"
     },
     "core/agent/toolkit.mjs::mapCommand": {
       "owner": "agent",
@@ -9511,15 +9275,6 @@
     "core/region/roof-region.mjs::surveyRoofRegion::skinnable": {
       "owner": "toolpath",
       "reason": "Roof deposition suitability predicate retained inside Toolpath survey."
-    },
-    "scripts/agent-toolkit.mjs::diagnosticFields": {
-      "owner": "agent"
-    },
-    "scripts/agent-toolkit.mjs::reportCommand": {
-      "owner": "agent"
-    },
-    "scripts/agent-toolkit.mjs::runCLI::observeEvents": {
-      "owner": "agent"
     },
     "skills/advanced-vase-wall/scripts/prepare-mesh.mjs::requireThat": {
       "owner": "extensions"
@@ -10383,22 +10138,6 @@
     "core/region/layer-strokes.mjs::layerStrokes::offset": {
       "owner": "toolpath"
     },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::workspaceSession": {
-      "owner": "agent",
-      "reason": "Workspace operation dispatch and instance association through the existing application runtime; host and extension state remain behind their contracts."
-    },
-    "adapters/mcp/src/runtime.mjs::createLocalRuntime::openWorkspace": {
-      "owner": "agent",
-      "reason": "Workspace operation dispatch and instance association through the existing application runtime; host and extension state remain behind their contracts."
-    },
-    "core/agent/toolkit.mjs::listWorkspaces": {
-      "owner": "agent",
-      "reason": "Workspace operation dispatch and instance association through the existing application runtime; host and extension state remain behind their contracts."
-    },
-    "core/agent/toolkit.mjs::openWorkspace": {
-      "owner": "agent",
-      "reason": "Workspace operation dispatch and instance association through the existing application runtime; host and extension state remain behind their contracts."
-    },
     "core/extensions/library.mjs::relativeExtensionFile": {
       "owner": "extensions",
       "reason": "Public package-relative path validation shared by extension import and generic workspace UI serving."
@@ -10855,9 +10594,240 @@
       "owner": "extensions",
       "reason": "Workspace extension content, domain validation or factory loading through the existing library."
     },
-    "scripts/agent-toolkit.mjs::attachWorkspaceControl": {
+    "core/application/deposition-schemas.mjs::@module": {
+      "owner": "agent"
+    },
+    "core/application/deposition-schemas.mjs::objectPatch": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::@module": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime": {
       "owner": "agent",
-      "reason": "Managed-session workspace controls, including explicit preview-workspace and close-workspace, invoke the generic host without owning domain or Bundle state."
+      "reason": "Existing application operation owner and instance association; anonymous preview_workspace/close_workspace callbacks inherit this nearest stable declaration, invoking the host explicit preview/shutdown contracts."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::beginSession": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::sessionInvoke": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::close": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::directory": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::generationStatus": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::invoke": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::invoke::execute": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::invoke::execute::touch": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::locate": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::observeEvents": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::openStudio": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::read": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::setupFile": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::skills": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::startStudio": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::tool": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::withMachineHint": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::noApprovalFields": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::publicBundleIdentity": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::rejectLinks": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::summary": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::manualContext": {
+      "owner": "agent",
+      "reason": "Agent passes a saved Bundle machine snapshot into Maker context, or explicitly requests reusable profile discovery."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::associatedStudio": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::diagnosticFields": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::getResourceClient": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::importSTL": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::importSTL::progress": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::meshLibrary.download": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::meshLibrary.search": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::observeOperations": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::reportOperation": {
+      "owner": "agent"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::workspaceSession": {
+      "owner": "agent",
+      "reason": "Workspace operation dispatch and instance association through the existing application runtime; host and extension state remain behind their contracts."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::openWorkspace": {
+      "owner": "agent",
+      "reason": "Workspace operation dispatch and instance association through the existing application runtime; host and extension state remain behind their contracts."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::libraryRoot": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::resourceClient": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::meshLibrary": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::app": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::chats": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::allStudios": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::workspaceSessions": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::imports": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::generations": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::work": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::operationObservers": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::eventObservers": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::activeOperations": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::transferringStudios": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::observeEvent": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::lobby": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::connectedChats": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::attachChat": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::connectChat": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::assertStudioIdle": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::cancelOldRequests": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::attachments": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::transferStudio": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::captureBundle": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::detachStudio": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::jobs": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::runningJobs": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::studios": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::chatIds": {
+      "owner": "agent",
+      "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     }
   },
   "retiredAssignments": [
@@ -11464,7 +11434,101 @@
     "core/region/wrapping-curves.mjs::surfaceCellField::uvAt",
     "core/print/terminal-boundary.mjs::boundaryOffsetField",
     "core/region/wrapping-curves.mjs::surfaceCellField::@scope/block-1/for-1/block-1::ring",
-    "skills/vase-wall/scripts/runtime.mjs::vaseWallRuntime::standardVaseContexts"
+    "skills/vase-wall/scripts/runtime.mjs::vaseWallRuntime::standardVaseContexts",
+    "adapters/mcp/src/server.mjs::@module",
+    "adapters/mcp/src/manuals.mjs::@module",
+    "adapters/mcp/src/deposition-schemas.mjs::@module",
+    "adapters/mcp/src/deposition-schemas.mjs::objectPatch",
+    "adapters/mcp/src/runtime.mjs::@module",
+    "adapters/mcp/src/runtime.mjs::bundles::shell",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::beginSession",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::beginSession::end",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::beginSession::invoke",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::close",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::directory",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::endSession",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::generationStatus",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::invoke",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::invoke::execute",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::invoke::execute::touch",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::locate",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::observed",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::observeEvents",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::openStudio",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::publishWorking",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::queuedRequests",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::read",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::setupFile",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::setupFile::samePath",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::skills",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::startStudio",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::subscribeEvents",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::subscribeRequests",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::tool",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::withMachineHint",
+    "adapters/mcp/src/runtime.mjs::noApprovalFields",
+    "adapters/mcp/src/runtime.mjs::publicBundleIdentity",
+    "adapters/mcp/src/runtime.mjs::recipes::shell",
+    "adapters/mcp/src/runtime.mjs::rejectLinks",
+    "adapters/mcp/src/runtime.mjs::summary",
+    "adapters/mcp/src/server.mjs::close",
+    "adapters/mcp/src/server.mjs::createMcpAdapter",
+    "adapters/mcp/src/server.mjs::createMcpAdapter::close",
+    "adapters/mcp/src/server.mjs::createMcpAdapter::notifyRequests",
+    "adapters/mcp/src/server.mjs::createMcpAdapter::onclose",
+    "adapters/mcp/src/server.mjs::createMcpAdapter::oninitialized",
+    "core/agent/toolkit.mjs::beginWork",
+    "core/agent/toolkit.mjs::cancelStudioCalculation",
+    "core/agent/toolkit.mjs::closePreview",
+    "core/agent/toolkit.mjs::inspectFailure",
+    "core/agent/toolkit.mjs::libraryPath",
+    "core/agent/toolkit.mjs::listenPreview",
+    "core/agent/toolkit.mjs::pollStudio",
+    "core/agent/toolkit.mjs::preparePreviewPrint",
+    "core/agent/toolkit.mjs::preparePrint",
+    "core/agent/toolkit.mjs::preview",
+    "core/agent/toolkit.mjs::preview::@default/onEvents",
+    "core/agent/toolkit.mjs::preview::@default/onReady",
+    "core/agent/toolkit.mjs::preview::@default/onRequest",
+    "core/agent/toolkit.mjs::previewListener",
+    "core/agent/toolkit.mjs::printSummary",
+    "core/agent/toolkit.mjs::readPreviewPrint",
+    "core/agent/toolkit.mjs::readPrint",
+    "core/agent/toolkit.mjs::readStudioEvents",
+    "core/agent/toolkit.mjs::recordRequestActivity",
+    "core/agent/toolkit.mjs::relativePrint",
+    "core/agent/toolkit.mjs::respondToRequest",
+    "core/agent/toolkit.mjs::reuseGuidance",
+    "core/agent/toolkit.mjs::showPrint",
+    "core/agent/toolkit.mjs::subscribePreview",
+    "core/agent/toolkit.mjs::ToolkitError",
+    "core/agent/toolkit.mjs::validatePreview",
+    "core/agent/toolkit.mjs::waitForRequests",
+    "scripts/agent-toolkit.mjs::attachLiveControl",
+    "scripts/agent-toolkit.mjs::runCLI::onProgress",
+    "scripts/agent-toolkit.mjs::runCLI::opened.onEvents",
+    "scripts/agent-toolkit.mjs::runCLI::opened.onRequest",
+    "scripts/agent-toolkit.mjs::runCLI::stop",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::manualContext",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::agentWorking",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::associatedStudio",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::diagnosticFields",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::getResourceClient",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::importSTL",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::importSTL::progress",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::meshLibrary.download",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::meshLibrary.search",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::observeOperations",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::reportOperation",
+    "scripts/agent-toolkit.mjs::diagnosticFields",
+    "scripts/agent-toolkit.mjs::reportCommand",
+    "scripts/agent-toolkit.mjs::runCLI::observeEvents",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::workspaceSession",
+    "adapters/mcp/src/runtime.mjs::createLocalRuntime::openWorkspace",
+    "core/agent/toolkit.mjs::listWorkspaces",
+    "core/agent/toolkit.mjs::openWorkspace",
+    "scripts/agent-toolkit.mjs::attachWorkspaceControl"
   ],
   "scope": "Exact root responsibilities plus evidenced operation homes; unresolved submap containment remains explicit."
 }

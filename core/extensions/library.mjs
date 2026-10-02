@@ -1,3 +1,4 @@
+import {saamHome} from '../application/home.mjs';
 // Extension exchange and resolution. Release defaults are replaceable; the
 // user's copies live beside prints and survive installation updates.
 import {createHash,randomUUID} from 'node:crypto';
@@ -17,10 +18,7 @@ const canonical=value=>JSON.stringify(value,(_key,item)=>item&&typeof item==='ob
   ?Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])):item);
 
 export function extensionRoots({appRoot=applicationRoot,dataRoot}={}){
-  const data=dataRoot??(process.env.SAAM_DATA?resolve(process.env.SAAM_DATA)
-    :process.platform==='win32'?resolve(process.env.LOCALAPPDATA??resolve(homedir(),'AppData/Local'),'SAAM')
-    :process.platform==='darwin'?resolve(homedir(),'Library/Application Support/SAAM')
-    :resolve(process.env.XDG_DATA_HOME??resolve(homedir(),'.local/share'),'saam'));
+  const data=dataRoot??saamHome();
   return {bundled:resolve(appRoot,'skills'),local:resolve(data,'extensions')};
 }
 

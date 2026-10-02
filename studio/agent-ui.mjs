@@ -4,7 +4,7 @@ export function createAgentUI({onActivity=()=>{},onWork=()=>{},onRequests=()=>{}
   const indicator=document.getElementById('agent-status'),dots=indicator.querySelector('.typing-dots'),notice=document.getElementById('agent-timeout');
   // chat.working: the runtime says the chat is working, with or without a Studio request.
   const chat={working:false};
-  let running=false,refreshAgain=false,requests=[],view={},lastActivity,lastWork=false,askedPresentation;const closedOwners=new Map(),retired=new Map();
+  let running=false,refreshAgain=false,requests=[],view={},lastActivity,lastWork=false,askedPresentation;const retired=new Map();
   function merge(records,snapshot){
     const merged=new Map(requests.map(r=>[r.id,r]));let changed=false;
     for(const record of records){const previous=merged.get(record.id);
@@ -18,7 +18,7 @@ export function createAgentUI({onActivity=()=>{},onWork=()=>{},onRequests=()=>{}
     }
     if(changed){requests=[...merged.values()];onRequests(requests);}
   }
-  function fadeActive(summary=summarizeWork(requests,{closedOwners,view})){
+  function fadeActive(summary=summarizeWork(requests,{view})){
     const {active,stage}=summary;
     // The pane being regenerated dims; an unrelated stage stays crisp. A toolpath
     // (re)generation therefore leaves the geometry pane sharp while it runs, so
@@ -27,7 +27,7 @@ export function createAgentUI({onActivity=()=>{},onWork=()=>{},onRequests=()=>{}
   }
   function reflectFade(summary){document.getElementById('canvas').classList.toggle('work-faded',fadeActive(summary));}
   function render(){
-    const summary=summarizeWork(requests,{closedOwners,view}),{message}=summary,active=summary.active||chat.working;
+    const summary=summarizeWork(requests,{view}),{message}=summary,active=summary.active||chat.working;
     reflectFade(summary);
     document.getElementById('agent-working').hidden=!chat.working;
     indicator.hidden=!active&&!message;dots.hidden=!active;notice.hidden=!message;notice.textContent=message;
@@ -44,12 +44,6 @@ export function createAgentUI({onActivity=()=>{},onWork=()=>{},onRequests=()=>{}
     else if(!asking)askedPresentation=null;
   }
   addEventListener('saam-agent-activity',event=>{chat.working=Boolean(event.detail.working);render();});
-  addEventListener('saam-agent-connection-closed',event=>{
-    // A closed session marks only the work it left; a later session of the same owner is live.
-    closedOwners.set(event.detail.ownerId,event.detail.closedAt??Date.now());
-    if(event.detail.requests)merge(event.detail.requests);
-    render();
-  });
   async function refresh(){
     if(running){refreshAgain=true;return running;}
     running=(async()=>{do{
@@ -60,11 +54,8 @@ export function createAgentUI({onActivity=()=>{},onWork=()=>{},onRequests=()=>{}
     }while(refreshAgain);})();
     try{await running;}finally{running=false;}
   }
-  // Record changes arrive as pushes, like the revision read: the local timer
-  // only re-evaluates expiry and the lost-contact message, while a reopened
-  // viewer stream, the page becoming visible and a slow heartbeat recover a
-  // push that was missed. Reading every render turned an idle page into a
-  // continuous request poll.
+  // Pushes drive request updates. Reopened streams, visibility and a slow
+  // heartbeat recover updates missed while transport was unavailable.
   let fallback=setInterval(()=>{void refresh();},15_000);
   addEventListener('saam-studio-update',event=>{if(event.detail.kind==='state'&&event.detail.kinds.includes('requests'))void refresh();});
   addEventListener('saam-viewer-connection',event=>{
@@ -72,11 +63,11 @@ export function createAgentUI({onActivity=()=>{},onWork=()=>{},onRequests=()=>{}
     else if(!fallback)fallback=setInterval(()=>{void refresh();},15_000);
   });
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void refresh();});
-  void refresh();setInterval(render,750);
+  void refresh();
   function present(work){if(!work)return;view={...view,printId:work.printId,snapshot:work.snapshot,ready:true,errorAt:null,awaitingConfirmation:work.awaitingConfirmation===true};render();}
   return {refresh,reflectFade,
-    pending(){return summarizeWork(requests,{closedOwners,view}).active;},
-    generating(){return summarizeWork(requests,{closedOwners,view}).stage==='toolpath';},
+    pending(){return summarizeWork(requests,{view}).active;},
+    generating(){return summarizeWork(requests,{view}).stage==='toolpath';},
     updated(records){merge(records);render();},
     loading(stage){view={...view,loading:true,loadingStage:stage??null,ready:false,errorAt:null};render();},
     received(work){

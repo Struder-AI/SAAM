@@ -1,8 +1,8 @@
-import {GEOMETRY_SHAPES} from '../../../core/print/plan.mjs';
+import {GEOMETRY_SHAPES} from '../print/plan.mjs';
 // Discoverable patch schemas. Named records let the existing SDK emit local
 // references instead of repeated shapes; recipe validators still own completeness.
 import {z} from 'zod';
-import {FILL_PATTERNS} from '../../../core/region/fill-patterns.mjs';
+import {FILL_PATTERNS} from '../region/fill-patterns.mjs';
 const number=z.number().finite(),positive=number.positive(),names=z.array(z.string()),xyz=z.tuple([number,number,number]).meta({id:'saam.xyz'}),uv=z.tuple([number,number]).meta({id:'saam.uv'});
 const weighted=z.union([xyz,z.tuple([number,number,number,positive])]).meta({id:'saam.weightedPoint'});
 export const patchSchema=z.object({name:z.string(),degreeU:z.number().int().min(1),degreeV:z.number().int().min(1),controlPoints:z.array(z.array(weighted)),knotsU:z.array(number).nullable().optional(),knotsV:z.array(number).nullable().optional()}).describe('Named NURBS patch; control-net rows along U, points along V; optional full knot vectors.').meta({id:'saam.patch'});

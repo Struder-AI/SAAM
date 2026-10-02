@@ -9,7 +9,7 @@ is relative to `Prints/` (`Prints/my-part` is `"my-part"`).
 | Create from a recipe; import an STL | `get_recipe_defaults`, `create_bundle`; `import_stl_bundle`, `set_stl_units` |
 | Geometry tools ([GEOMETRY](../../GEOMETRY.md)) | `blob_field`, `combine_geometry`, `intersect_geometry` |
 | Show in Studio; read state | `request_review`; `list_bundles`, `get_bundle`, `check_bundle` |
-| Adjust recipe/assignments; change printer | `adjust_recipe`, `slice`, `modulate`; `change_machine` |
+| Adjust recipe/assignments; undo/redo; change printer | `adjust_recipe`, `slice`, `modulate`; `restore_revision`; `change_machine` |
 | Generate for review; deliver the confirmed export | `generate_toolpath`; `deliver_toolpath` |
 | Path feasibility, when needed; save setup as the machine's default | `check_path`; `remember_setup` |
 
@@ -92,45 +92,23 @@ first; each [machine contract](../export/README.md) owns its own setup questions
 <!-- layer: script -->
 ## Command line
 
-Run from the repository root with a directory under `Prints/`; quote paths with
-spaces. Each command is the tool of the same name through `node core/print/cli.mjs`:
+Use the installed [application command](../application/README.md) from any chat.
+A bundle ID is relative to the SAAM home's `Prints/`. Read operation schemas with
+`saam help OP`; pass structured input with `--input FILE` or `--stdin`, or use
+named flags (PowerShell 5.1 does not reliably pass quoted JSON arguments).
 
-```sh
-init Prints/my-part plan.json --machine ultimaker-s5   # geometry or standalone Trace/Inject
-import-stl Prints/my-part source.stl auto ultimaker-s5
-blob-field-create Prints/my-part request.json ultimaker-s5   # blob-field-update … --revision REV
-combine|intersect|adjust Prints/my-part request.json --revision REV   # intersect takes no revision
-change-machine Prints/my-part MACHINE --revision REV
-stl-units Prints/my-part mm|inch
-check|check-path|generate|deliver|remember-setup Prints/my-part
+```powershell
+saam call get_recipe_defaults --machine-id ultimaker-s5
+saam call create_bundle --input recipe-request.json
+saam call import_stl_bundle --input import-request.json
+saam call begin_studio_work --bundle-id my-part --instruction "Change the infill"
+saam call adjust_recipe --input edit-request.json
+saam call request_review --bundle-id my-part
+saam wait
 ```
 
-`node studio/server.mjs --toolkit open-print Prints/my-part` shows a print, and
-`create-preview Prints/my-part --recipe plan.json` (or `--stl source.stl`) creates
-one and opens Studio on it ([agent toolkit](../agent/README.md)). In a script,
-`await proposedPlan(machineId)` from [bundle.mjs](bundle.mjs) returns geometry-free recipe defaults.
-
-### Calling an extension
-
-Makers call installed extensions to change prints; builders change extension
-code. A script at the repository root can use the existing print operation below.
-Supply `directory`, `extensionId`, `request`, the fresh `expectedRevision`, and
-`work` from `begin-studio-work` in your current agent session. For an open print,
-that request must carry your `studio-ready` owner and instance; never adopt
-another agent's identity from the reservation. An unopened print needs no claim.
-
-```js
-import {bundleInstance, withBundleInstance} from './core/print/bundle.mjs';
-import {applyExtensionEdit} from './core/print/extension-edits.mjs';
-const reservation = await bundleInstance(directory);
-if (reservation && (reservation.ownerId !== work.request.ownerId ||
-    reservation.instanceId !== work.request.studioInstanceId))
-  throw Error('Use your current Studio instance and agent work request.');
-const call = () => applyExtensionEdit(directory, extensionId, request, {expectedRevision});
-const result = reservation ? await withBundleInstance(directory, reservation, call) : await call();
-console.log(JSON.stringify({revision: result.revision, report: result.extensionReport}));
-```
-
-The selected local copy takes precedence. Read the returned report, then follow
-normal generation and Studio review. Discovery-only calls leave the revision
-unchanged. `Edit` here means changing the print, never the extension's source.
+Carry the fresh revision and request identity returned by `begin_studio_work`.
+For installed extensions use their named operation from `saam help`, carrying the
+request and current expected revision; its discovery-only actions leave the
+revision unchanged. Read the report and follow normal generation and review.
+Builders change extension source; makers change the print through this operation.

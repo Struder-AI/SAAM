@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // Builds an installable SAAM ZIP for one platform: the tracked application
 // files, production dependencies, a pinned Node runtime, release.json and the
-// platform installer. Alpha builds are unsigned: the macOS launcher opens
-// Terminal and the bundled Node is the official notarized build.
+// platform installer. Alpha builds are unsigned: the macOS launcher uses
+// its menu-bar application and bundled Node is the official notarized build.
 //
 //   node packaging/build.mjs --platform win-x64 --version 0.1.0 --relay-url https://relay.example.com
 //   [--update-host https://github.com/Struder-AI/SAAM/releases/download] [--node-version v24.19.0 | --node <node binary for that platform>] [--out dist]
-//   [--review --review-file packaging/desktop.mjs --review-file packaging/release-service.mjs]
+//   [--review --review-file packaging/application.mjs --review-file packaging/release-service.mjs]
 // --update-host is the release folder this build accepts updates from (see
 // packaging/update.mjs); without it the build never offers an update.
 //
@@ -37,7 +37,7 @@ const PLATFORMS={
 // Tracked files a maker's installation does not need: development maps and
 // tooling, tests, the relay service and this packager.
 const EXCLUDED=[/^dev-map(-OLD)?\//,/^relay\//,/^tools\//,/^scripts\/bench\//,/^\.(claude|codex|github)\//,/^core\/tests\//,
-  /^skills\/[^/]+\/tests\//,/^[^/]+\.html$/,/^result\.json$/,/^plans\//,/^adapters\/mcp\/RELAY-PLAN\.md$/,
+  /^skills\/[^/]+\/tests\//,/^[^/]+\.html$/,/^result\.json$/,/^plans\//,/^adapters\/mcp\//,
   /^packaging\/(build\.mjs|README\.md|INSTALL\.md|windows\/|macos\/)/];
 
 // manifold-3d depends on these for its manifoldCAD tooling (glTF and 3MF export

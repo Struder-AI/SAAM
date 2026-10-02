@@ -7,12 +7,12 @@ import {readExtension} from '../extensions/library.mjs';
 
 const rootManuals = new Set(['AGENTS.md', 'README.md', 'MAKERS.md', 'GEOMETRY.md', 'BUILDERS.md', 'DEVELOPER-CONTEXT.md',
   'CONTRIBUTING.md', 'CONTRIBUTING-AGENTS.md', 'SETUP.md', 'GLOSSARY.md', 'DECISIONS.md', 'DEVLOG.md', 'build_request.md', 'CLAUDE.md', 'examples/prints/README.md', 'TECHNICAL-OVERVIEW.md']);
-const documentRoots = new Set(['core', 'skills', 'extensions', 'studio', 'machines', 'adapters', 'scripts', 'dev-map', 'plans']);
+const documentRoots = new Set(['core', 'skills', 'extensions', 'studio', 'machines', 'packaging', 'scripts', 'dev-map', 'plans']);
 const excluded = new Set(['prints', 'node_modules', 'dist', 'build']);
 const aliases = {
   overview: 'TECHNICAL-OVERVIEW.md', makers: 'MAKERS.md', geometry: 'GEOMETRY.md', builders: 'BUILDERS.md', development: 'BUILDERS.md',
   'developer-context': 'DEVELOPER-CONTEXT.md', glossary: 'GLOSSARY.md',
-  mcp: 'adapters/mcp/README.md', 'print-tools': 'core/print/USAGE.md'
+  application: 'core/application/README.md', 'print-tools': 'core/print/USAGE.md'
 };
 export const guidanceIds = Object.keys(aliases);
 

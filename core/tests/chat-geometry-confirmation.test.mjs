@@ -3,9 +3,6 @@ import assert from 'node:assert/strict';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {Client} from '@modelcontextprotocol/sdk/client/index.js';
-import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
-import {createMcpAdapter} from '../../adapters/mcp/src/server.mjs';
 import {initBundle,loadBundle,generateBundle,approve,deliver} from '../print/bundle.mjs';
 import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
@@ -28,16 +25,4 @@ test('generation needs no geometry approval and only final toolpath approval ena
   await assert.rejects(deliver(directory),/requires approval/);
   state=await approve(directory,{actor:'SYNTHETIC TEST',revision:state.revision});
   assert.equal(state.toolpathApproved,true);assert.deepEqual(Object.keys(state.review.approvals),['toolpath']);assert.ok(await deliver(directory));
-});
-
-test('MCP omits geometry confirmation and generates review output directly',async t=>{
-  const {root,directory}=await fixture(t),adapter=createMcpAdapter({printsRoot:root,autoOpen:false});
-  const [clientTransport,serverTransport]=InMemoryTransport.createLinkedPair(),client=new Client({name:'synthetic-final-confirmation',version:'1'});
-  await adapter.server.connect(serverTransport);await client.connect(clientTransport);
-  try{
-    const names=(await client.listTools()).tools.map(tool=>tool.name);assert.ok(!names.includes('confirm_geometry'));
-    const response=await client.callTool({name:'generate_toolpath',arguments:{bundleId:'part'}});
-    assert.equal(response.isError,undefined,response.content.map(item=>item.text).join('\n'));
-    const state=await loadBundle(directory);assert.ok(state.program);assert.equal(state.toolpathApproved,false);
-  }finally{await client.close();await adapter.close();}
 });

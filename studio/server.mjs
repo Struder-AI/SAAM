@@ -14,14 +14,15 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes, createHash } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
 import {PreparedGenerationJob} from './prepared-generation-job.mjs';
-import {claimBundleInstance,releaseBundleInstance,withBundleInstance} from '../core/print/studio-ownership.mjs';
-import { viewerLifetime, DEFAULT_DISCONNECT_MS } from './lifetime.mjs';
+import {claimBundleInstance,releaseBundleInstance,reassignBundleInstance,withBundleInstance} from '../core/print/studio-ownership.mjs';
+import { viewerLifetime } from './lifetime.mjs';
+import {homePaths} from '../core/application/home.mjs';
 
 
 const here=dirname(fileURLToPath(import.meta.url));
 export const root=resolve(here,'..');
 // This process keeps one module graph for its lifetime, while generation
-// workers, the CLI and MCP load whatever is on disk at the moment they run.
+// workers and command processes load whatever is on disk when they run.
 // Source edited after startup is therefore a real explanation for a rejected
 // recipe or a failed generation that the print itself cannot produce. Scanned
 // only once something has already failed, so the working path pays nothing.
@@ -102,28 +103,38 @@ export async function listPrints(libraryRoot,resolveBundle=bundleFor) {
 }
 // Studio opened without a print serves the
 // page, the library and the tour; everything that reads a print answers this.
+async function serviceInput(request){
+  const chunks=[],size={bytes:0};
+  for await(const chunk of request){size.bytes+=chunk.length;if(size.bytes>4000)throw Error('Request too large.');chunks.push(chunk);}
+  return JSON.parse(Buffer.concat(chunks).toString()||'{}');
+}
 const noPrint=()=>Object.assign(Error('No print is open. Open a saved print, import an STL, start the tour, or ask your agent to make a part.'),{code:'NO_PRINT'});
-const printFreeRoutes=new Set(['/api/open','/api/tour','/api/view-performance','/api/import-stl','/api/cancel-calculation']);
+const printFreeRoutes=new Set(['/api/open','/api/tour','/api/view-performance','/api/import-stl','/api/cancel-calculation','/api/chat/start','/api/chat/detach','/api/chat/retry']);
 // A local development launcher may explicitly supply a scratch adapter resolver.
 // This is a function supplied by code, never a module path supplied by a print or HTTP request.
 // A null directory opens Studio with no print; the person or agent opens one later.
-export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libraryRoot=resolve(root,'Prints'),resolveBundle=bundleFor,agentOwnerId,agentRequests,closeAgentRequests=false,studioEvents,relay}={}) {
+export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBundle=bundleFor,agentOwnerId,agentRequests,studioEvents,relay,application,requestFolder,chatName,chatClient}={}) {
   const instanceId=randomBytes(16).toString('hex');
-  const sessionOwnerId=agentOwnerId??agentRequests?.ownerId??`studio:${instanceId}`;
-  if(agentRequests?.ownerId&&agentRequests.ownerId!==sessionOwnerId)throw Error('A Studio instance belongs to exactly one agent owner.');
-  const requests=agentRequests??createAgentRequests(libraryRoot,{ownerId:sessionOwnerId}),ownsRequests=!agentRequests;
-  const tour=createTour(libraryRoot,{ownerId:sessionOwnerId,studioId:instanceId,agentRequests:requests});
+  const initialOwnerId=agentOwnerId??agentRequests?.ownerId??`studio:${instanceId}`;
+  if(agentRequests?.ownerId&&agentRequests.ownerId!==initialOwnerId)throw Error('The request store belongs to another chat.');
+  const initialRequests=agentRequests??createAgentRequests(libraryRoot,{ownerId:initialOwnerId,folder:requestFolder});
+  const initialEvents=studioEvents??createStudioEvents();
+  const ownedRequests=new Set(agentRequests?[]:[initialRequests]),ownedEvents=new Set(studioEvents?[]:[initialEvents]);
+  const chat={current:{ownerId:initialOwnerId,requests:initialRequests,events:initialEvents,
+    tour:createTour(libraryRoot,{ownerId:initialOwnerId,studioId:instanceId,agentRequests:initialRequests}),
+    attached:initialOwnerId.startsWith('studio:')?null:Object.freeze({ownerId:initialOwnerId,name:chatName??initialOwnerId,client:chatClient??null})},
+    waitingClient:null,stopRequestFeed:null};
   const geometryOnly=guide=>guide.active&&guide.directory===dir&&guide.step<L.playback;
   const viewFingerprint=(id,fingerprint,guide)=>id+fingerprint+(geometryOnly(guide)?':geometry':':program');
   let dir=directory?resolve(directory):null;
   const token=randomBytes(24).toString('hex'),viewPerformance=[];
   // Whether the owning agent is working; its runtime pushes changes here.
   const agentActivity={working:false};
-  const workIdFor=directory=>directory?requests.printId(directory,{optional:true}):null;
+  const workIdFor=directory=>directory?chat.current.requests.printId(directory,{optional:true}):null;
   // Studio observations for the owning agent: person-driven actions, worker
   // outcomes and displayed results, tagged with this instance and its print.
-  const events=studioEvents??createStudioEvents(),ownsEvents=!studioEvents,closingPolls=new AbortController(),queuedNoted=new Set();
-  const note=(kind,detail={})=>events.record(kind,{studioInstanceId:instanceId,printId:workIdFor(dir),directory:dir,...detail});
+  const queuedNoted=new Set();
+  const note=(kind,detail={})=>chat.current.events.record(kind,{studioInstanceId:instanceId,printId:workIdFor(dir),directory:dir,...detail});
   // Authenticated delivery issues a bounded, short-lived read-only capability.
   // Its HTTP attachment avoids browser-specific blob URL download handling.
   const downloadLinks=new Map();
@@ -136,14 +147,20 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   const printIdFor=directory=>createHash('sha256').update(resolve(directory)).digest('hex');
   const printId=()=>printIdFor(dir);
   let queue=Promise.resolve();
+  const operations={active:0};
+  function queueOperation(action){
+    operations.active++;
+    const run=queue.then(action).finally(()=>{operations.active--;});
+    queue=run.catch(()=>{});return run;
+  }
   let editTail=Promise.resolve(),reservation=null,reservedDirectory=null,switching=false;
   // Association reserves this bundle before the instance becomes usable.
   // A Studio without a print remains unreserved until it opens one.
   let opened=dir?(async()=>{
     const selected=dir,adapter=await resolveBundle(selected);
     await readStableBundle(adapter,selected,{program:false});
-    const claim=await claimBundleInstance(selected,{instanceId,ownerId:sessionOwnerId});
-    try{await tour.attachStudio(selected);}
+    const claim=await claimBundleInstance(selected,{instanceId,ownerId:chat.current.ownerId});
+    try{await chat.current.tour.attachStudio(selected);}
     catch(error){await releaseBundleInstance(selected,claim);throw error;}
     reservation=claim;reservedDirectory=selected;return adapter;
   })():Promise.resolve(null);
@@ -232,12 +249,12 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       elapsedMs:run?Date.now()-run.startedAt:null,progress:progress?{...progress,percent}:null};
   };
   const activePreparationStatus=()=>{const status=preparationStatus();return status.requested||['preparing','generating','importing'].includes(status.status)?status:null;};
-  const generationStatus=()=>{const status=activePreparationStatus();return status?{...status,printId:status.directory?requests.printId(status.directory,{optional:true}):null}:null;};
+  const generationStatus=()=>{const status=activePreparationStatus();return status?{...status,printId:status.directory?chat.current.requests.printId(status.directory,{optional:true}):null}:null;};
   const publishProgress=(status=activePreparationStatus())=>lifetime.notify('studio-update',{kind:'progress',status});
   const runImport=async(source,{name,units,directory,signal}={})=>{
     signal?.throwIfAborted();
     if(closed)throw Error('Studio is closing. Reopen it before importing.');
-    if((await tour.info()).active)throw Error('Import STL is available after you finish or exit the tour.');
+    if((await chat.current.tour.info()).active)throw Error('Import STL is available after you finish or exit the tour.');
     await discardPreparation();
     signal?.throwIfAborted();
     importController=new AbortController();
@@ -302,7 +319,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       await noteSourceSkew(error);
       const reported=reportedMessage(error);
       generationFailure={directory:generationDir,generationHash:state.generationHash,message:reported,stage:error.stage??'generation'};
-      try{const record=await requests.begin({directory:generationDir,source:'studio',studioInstanceId:instanceId,
+      try{const record=await chat.current.requests.begin({directory:generationDir,source:'studio',studioInstanceId:instanceId,
         key:'generation-failure:'+generationDir+':'+state.generationHash+':'+reported,
         instruction:(error.stage==='export'?'SAAMpath construction succeeded; machine export failed. Inspect the selected exporter and its representation requirements. Error: ':'Toolpath generation failed for this print. Inspect the current recipe and deposition inputs. Error: ')+reported+
           '\nDiagnose the cause before regenerating. Do not blindly retry unchanged inputs or relax quality limits to hide the failure. Explain material process changes to the maker, then verify the current result is displayed in Studio. Resolve this request after recovery, or report the concrete blocker.'});
@@ -325,7 +342,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     const name=requestedDownloadName(data.name,await printName(state.dir,state.plan),state.exportName);
     const delivered=await current.exportReviewed(state);
     const inTour=progress.active&&progress.directory===state.dir;
-    if(inTour)await tour.downloaded(delivered.exportHash);
+    if(inTour)await chat.current.tour.downloaded(delivered.exportHash);
     note('export-delivered',{tour:inTour,name,exportHash:delivered.exportHash});
     return {...delivered,name};
   };
@@ -334,7 +351,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     const next=await printDirectory(input,resolveBundle),adapter=await resolveBundle(next);
     await readStableBundle(adapter,next,{program:false});
     if(next!==dir){
-      const claim=await claimBundleInstance(next,{instanceId,ownerId:sessionOwnerId});
+      const claim=await claimBundleInstance(next,{instanceId,ownerId:chat.current.ownerId});
       switching=true;
       try{await releaseInstance();discardPreparation();dir=next;reservation=claim;reservedDirectory=next;opened=Promise.resolve(adapter);}
       catch(error){await releaseBundleInstance(next,claim);throw error;}
@@ -374,7 +391,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         const html=(await readFile(resolve(here,'index.html'),'utf8')).replace('__CSRF__',token).replace('__SERVICE__',relay?'on':'');
         res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end(html);return;
       }
-      if(req.method==='GET'&&['/work-state.mjs','/agent-ui.mjs','/tour-ui.mjs','/tour-catalog.mjs','/viewer-session.mjs','/view-performance.mjs','/refresh-plan.mjs','/viewer-renderer.mjs','/studio-state.mjs','/studio-controls.mjs','/neutral-path.mjs','/service-panel.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/machine-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
+      if(req.method==='GET'&&['/work-state.mjs','/agent-ui.mjs','/chat-ui.mjs','/tour-ui.mjs','/tour-catalog.mjs','/viewer-session.mjs','/view-performance.mjs','/refresh-plan.mjs','/viewer-renderer.mjs','/studio-state.mjs','/studio-controls.mjs','/neutral-path.mjs','/service-panel.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/machine-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
         res.writeHead(200,{'Content-Type':url.pathname.endsWith('.css')?'text/css':'text/javascript'});res.end(await readFile(resolve(here,url.pathname.slice(1))));return;
       }
       if(req.method==='GET'&&url.pathname==='/struder-logo.png'){
@@ -400,34 +417,25 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         }
         if(action==='dismiss'){try{send(await relay.dismissFirstRun());}catch(error){send({error:error.message},500);}return;}
         if(action==='check-update'){try{await relay.checkUpdate();send(relay.status());}catch(error){send({error:error.message},502);}return;}
-        // Update or quit at an idle boundary: never under a running calculation.
-        if(['update','quit'].includes(action)&&['preparing','generating'].includes(generationStatus()?.status)){send({error:`Wait for the toolpath calculation to finish, then ${action}.`},409);return;}
-        if(action==='update'){try{send(await relay.update());}catch(error){send({error:'SAAM could not update: '+error.message},502);}return;}
-        if(action==='quit'){try{send(await relay.quit());}catch(error){send({error:error.message},400);}return;}
+        if(action==='update'){try{send(await relay.update(await serviceInput(req)));}catch(error){send({error:'SAAM could not update: '+error.message},502);}return;}
+        if(action==='quit'){try{send(await relay.quit(await serviceInput(req)));}catch(error){send({error:error.message},400);}return;}
         return;
       }
-      if(req.method==='GET'&&url.pathname==='/api/tour'){send(await tour.info());return;}
+      if(req.method==='GET'&&url.pathname==='/api/chat'){
+        const clients=application?await application.clientStatus():{clients:[]};
+        send({instanceId,attachment:server.attachment(),waitingClient:chat.waitingClient,...clients});return;
+      }
+      if(req.method==='GET'&&url.pathname==='/api/tour'){send(await chat.current.tour.info());return;}
       if(req.method==='GET'&&url.pathname==='/api/view-performance'){send({reports:viewPerformance});return;}
       if(req.method==='GET'&&url.pathname==='/api/agent-requests'){
-        const workId=workIdFor(dir),records=workId?await requests.query({printId:workId}):[];
+        const workId=workIdFor(dir),records=workId?await chat.current.requests.query({printId:workId}):[];
         send({requests:records.filter(record=>!record.studioInstanceId||record.studioInstanceId===instanceId)});return;
-      }
-      if(req.method==='GET'&&url.pathname==='/api/agent-events'){
-        // The owning agent's queue, readable across processes. A bounded wait
-        // ends on a delivered event; held events wait for this read.
-        if(url.searchParams.get('owner')!==sessionOwnerId||(req.headers.origin&&req.headers.origin!==origin)){send({error:'Invalid agent owner'},403);return;}
-        const waitMs=Math.min(25000,Math.max(0,Number(url.searchParams.get('wait'))||0)),instance=url.searchParams.get('instance'),after=(url.searchParams.get('after')??'').split(',').filter(Boolean);
-        const pendingRequests=async()=>(await requests.query({status:'queued'})).filter(record=>(!instance||record.studioInstanceId===instance)&&!after.includes(record.id));
-        let queued=await pendingRequests();
-        if(waitMs>0&&!queued.length&&!events.pendingDelivery()){await events.wait({waitMs,signal:closingPolls.signal});queued=await pendingRequests();}
-        send({ownerId:sessionOwnerId,studioInstanceId:instanceId,requests:queued,events:events.drain(),generation:[generationStatus()].filter(Boolean),
-          ...(url.searchParams.has('history')?{recent:events.history()}:{})});return;
       }
       if(req.method==='GET'&&url.pathname==='/api/preparation'){
         send(preparationStatus());return;
       }
       if(req.method==='GET'&&url.pathname==='/api/prints'){
-        const p=await tour.info(),prints=p.active
+        const p=await chat.current.tour.info(),prints=p.active
           ?(await Promise.all(Object.values(p.copies).map(name=>listPrints(resolve(libraryRoot,'tour',name),resolveBundle)))).flat()
           :await listPrints(libraryRoot,resolveBundle);
         send({prints});return;
@@ -455,7 +463,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       }
       if(req.method==='GET'&&url.pathname==='/api/state') {
         const condition=req.headers['if-none-match'];
-        const workId=requests.printId(readDir,{optional:true}),allRecords=workId?await requests.query({printId:workId}):[],records=allRecords.filter(record=>!record.studioInstanceId||record.studioInstanceId===instanceId),guide=await tour.info({records});
+        const workId=chat.current.requests.printId(readDir,{optional:true}),allRecords=workId?await chat.current.requests.query({printId:workId}):[],records=allRecords.filter(record=>!record.studioInstanceId||record.studioInstanceId===instanceId),guide=await chat.current.tour.info({records});
         const [{state,fingerprint,presentationFingerprint},example]=await Promise.all([
           readStableBundle(bundle,readDir,{program:geometryOnly(guide)?false:'source'}),tourExample(readDir)]);
         if(readDir!==dir)throw new Error('The print is being updated.');
@@ -494,27 +502,25 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         res.end();return;
       }
       if(req.method!=='POST'||!url.pathname.startsWith('/api/')){send({error:'Not found'},404);return;}
-      if(url.pathname==='/api/agent-open'||url.pathname==='/api/agent-cancel-calculation'||url.pathname==='/api/agent-import-stl'){
-        // The owning agent shows another print in this instance from any process,
-        // so switching prints needs no second Studio.
-        const chunks=[];let size=0;
-        for await(const chunk of req){size+=chunk.length;if(size>64_000)throw Error('Request too large.');chunks.push(chunk);}
-        const data=JSON.parse(Buffer.concat(chunks).toString()||'{}');
-        if(data.owner!==sessionOwnerId||(req.headers.origin&&req.headers.origin!==origin)){send({error:'Invalid agent owner'},403);return;}
-        if(url.pathname==='/api/agent-cancel-calculation'){send(await cancelCalculation({...data,reason:'agent'}));return;}
-        if(url.pathname==='/api/agent-import-stl'){
-          const controller=new AbortController(),disconnect=()=>{if(!res.writableEnded)controller.abort(Object.assign(Error('Import cancelled because its requesting agent disconnected.'),{name:'AbortError'}));};
-          res.once('close',disconnect);
-          try{send(await server.importSTL(data,{signal:controller.signal}));}finally{res.off('close',disconnect);}return;
-        }
-        await server.openPrint(data.path);send(server.agentSession());return;
-      }
       if(req.headers.origin!==origin||req.headers['x-saam-token']!==token){send({error:'Invalid local session'},403);return;}
       // A print, once open, stays open, so this check cannot go stale in the queue.
       if(!dir&&!printFreeRoutes.has(url.pathname))throw noPrint();
       const importing=url.pathname==='/api/import-stl',chunks=[];let size=0;
       for await(const chunk of req){size+=chunk.length;if(size>(importing?64*1024*1024:64_000))throw Error('Request too large.');chunks.push(chunk);}
       const body=Buffer.concat(chunks),data=importing?Object.fromEntries(url.searchParams):JSON.parse(body.toString()||'{}');
+      if(url.pathname.startsWith('/api/chat/')){
+        if(!application)throw Error('Chat launch is available through the SAAM application.');
+        if(url.pathname==='/api/chat/start'){
+          if(!['codex','claude'].includes(data.client))throw Error('Choose Codex or Claude Code.');
+          const launched=await application.startClient(instanceId,data.client);
+          if(!server.attachment())chat.waitingClient=data.client;
+          lifetime.notify('studio-update',{kind:'state',kinds:['chat'],instanceId});
+          send({attachment:server.attachment(),waitingClient:chat.waitingClient,...launched});return;
+        }
+        if(url.pathname==='/api/chat/detach'){await application.detach(instanceId);send({attachment:server.attachment(),waitingClient:chat.waitingClient});return;}
+        if(url.pathname==='/api/chat/retry'){send(await application.retryClients());return;}
+        send({error:'Not found'},404);return;
+      }
       // Browser-measured view bursts, kept in memory for an agent to read.
       if(url.pathname==='/api/view-performance'){viewPerformance.push({receivedAt:new Date().toISOString(),...data});viewPerformance.splice(0,viewPerformance.length-20);send({ok:true});return;}
       if(url.pathname==='/api/cancel-generation'){
@@ -525,7 +531,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         send(await cancelCalculation(data));return;
       }
       if(url.pathname==='/api/export'){
-        const run=queue.then(async()=>{
+        const run=queueOperation(async()=>{
           const captured=displayedResults.get(data.exportSnapshot);
           if(!captured||captured.state.dir!==dir||captured.bundle!==await opened)
             throw Error('The displayed program changed. Reload before exporting.');
@@ -538,17 +544,17 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           const currentBytes=await readFile(resolve(dir,live.review.generation.file));
           if(createHash('sha256').update(currentBytes).digest('hex')!==captured.state.exportHash)
             throw Error('The displayed program changed. Reload before exporting.');
-          return exportPrint(captured.bundle,captured.state,data,await tour.info());
+          return exportPrint(captured.bundle,captured.state,data,await chat.current.tour.info());
         });
         queue=run.catch(()=>{});
         const delivered=await run;
         if(data.downloadLink===true){send(stageDownload(delivered));return;}
         res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(delivered.name)}`});res.end(delivered.bytes);return;
       }
-      const run=queue.then(async()=>{
+      const run=queueOperation(async()=>{
         if(data.printId&&data.printId!==printId())throw new Error('The open print changed. Reload before continuing.');
         const current=await opened;
-        const progress=await tour.info();
+        const progress=await chat.current.tour.info();
         if(importing){
           await runImport(body,{name:data.name,units:data.units});
           send({ok:true});return;
@@ -559,33 +565,33 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           if(!['geometry','toolpath'].includes(stage))throw Error('Unknown displayed stage.');
           const state=(await readStableBundle(current,dir,{program:stage==='geometry'?false:'source'})).state;
           if(data.revision===state.revision&&(stage==='geometry'||state.program&&!state.programError&&data.exportHash===state.exportHash)){
-            presentedRequests=await requests.presented(dir,{...workSnapshot(state),stage,studioInstanceId:instanceId});
+            presentedRequests=await chat.current.requests.presented(dir,{...workSnapshot(state),stage,studioInstanceId:instanceId});
             note('view-presented',{stage,revision:state.revision,exportHash:stage==='toolpath'?state.exportHash??null:null,presentedRequestIds:presentedRequests.map(record=>record.id)});
             for(const record of presentedRequests)note('request-presented',{requestId:record.id,requestKind:record.kind,stage});
             const advisory=state.program?.summary?.shortTravel;
-            if(stage==='toolpath'&&advisory?.count&&requests.printId(dir,{optional:true}))
-              await requests.begin({directory:dir,source:'studio',kind:'advisory',studioInstanceId:instanceId,
+            if(stage==='toolpath'&&advisory?.count&&chat.current.requests.printId(dir,{optional:true}))
+              await chat.current.requests.begin({directory:dir,source:'studio',kind:'advisory',studioInstanceId:instanceId,
                 key:`short-travel:${dir}:${state.exportHash}`,
                 evidence:{exportHash:state.exportHash,generationHash:state.generationHash,skills:state.skills,shortTravel:advisory},
                 instruction:`Toolpath quality advisory for export ${state.exportHash}: ${advisory.message}\n`+
                   `Affected recipe skills: ${(state.skills??[]).join(', ')}. This notification preserves source locations and operation counts in evidence.shortTravel. `+
                   'Mention this finding to the person in your next reply, then acknowledge this advisory as completed and continue the current user task; no repair or new approval is required.'});
           }
-          send({...await tour.acknowledgeView(dir,data,state),presentedRequests});return;
+          send({...await chat.current.tour.acknowledgeView(dir,data,state),presentedRequests});return;
         }
         if(url.pathname==='/api/agent-request'){
-          send(await requests.begin({directory:dir,source:'studio',kind:'guidance',studioInstanceId:instanceId,instruction:'The person requests help with '+await printName(dir)+'. '+(progress.active&&progress.directory===dir?progress.agentInstruction??'Help with the current tour lesson.':'Ask what change they want.')}));return;
+          send(await chat.current.requests.begin({directory:dir,source:'studio',kind:'guidance',studioInstanceId:instanceId,instruction:'The person requests help with '+await printName(dir)+'. '+(progress.active&&progress.directory===dir?progress.agentInstruction??'Help with the current tour lesson.':'Ask what change they want.')}));return;
         }
         if(url.pathname==='/api/tour-playback'){
           if(!['play','pause','tick'].includes(data.event))throw Error('Unknown playback event');
-          const played=await tour.playback(data.event);if(data.event!=='tick')note('tour-playback',{event:data.event,step:played.step});send(played);return;
+          const played=await chat.current.tour.playback(data.event);if(data.event!=='tick')note('tour-playback',{event:data.event,step:played.step});send(played);return;
         }
         if(url.pathname==='/api/tour'){
           // Enter playback only from the geometry that was actually displayed.
           if(data.action==='step'&&progress.step===L.geometry&&data.step===L.playback)
             await validateGeometrySelection(current,data);
           const ending=['exit','cancel','finish','finish-view'].includes(data.action);
-          const result=await tour.action(data.action,data.step);
+          const result=await chat.current.tour.action(data.action,data.step);
           if(ending&&dir)await useExample(dir);
           if(!ending&&result.directory&&resolve(result.directory)!==dir)await openPrint(result.directory);
           const lesson=TOUR_STEPS[result.data.step];
@@ -629,31 +635,83 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       queue=run.catch(()=>{});await run;
     } catch(error){if(!res.headersSent){await noteSourceSkew(error);send({error:reportedMessage(error),code:error.code},400);}else res.end();}
   });
-  // Local adapters reopen through the same serialized and validated operation
+  // The application reopens through the same serialized and validated operation
   // as the picker, including when the person changed this viewer's print.
   server.openPrint=input=>{
-    const run=queue.then(async()=>{const before=dir;await openPrint(input);if(dir!==before)lifetime.notify('studio-update',{kind:'state',kinds:['print']});});
+    const run=queueOperation(async()=>{const before=dir;await openPrint(input);if(dir!==before)lifetime.notify('studio-update',{kind:'state',kinds:['print']});});
     queue=run.catch(()=>{});return run;
   };
   server.importSTL=({directory,source,units},{signal}={})=>{
-    const run=queue.then(()=>{
+    const run=queueOperation(()=>{
       if(typeof directory!=='string'||typeof source!=='string')throw Error('Import needs a destination and local STL path.');
       return runImport(resolve(source),{name:basename(source),directory,units,signal});
     });
     queue=run.catch(()=>{});return run;
   };
-  server.setStartAt=startAt=>tour.setStartAt(startAt);
+  server.startTour=()=>queueOperation(async()=>{
+    const result=await chat.current.tour.action('fresh');
+    if(result.directory)await openPrint(result.directory);
+    note('tour-started',{step:result.data.step,runId:result.data.runId,lessonId:result.data.lessonId});
+    lifetime.notify('studio-update',{kind:'state',kinds:['print','tour']});return result.data;
+  });
+  server.setStartAt=startAt=>chat.current.tour.setStartAt(startAt);
   server.currentPrint=()=>dir;
-  const lifetime=viewerLifetime(server,{disconnectMs,onViewers:count=>note(count?'viewer-opened':'viewer-closed',{viewers:count}),onClosing:()=>{
-    closed=true;closingPolls.abort();importController?.abort(Object.assign(Error('Import cancelled because Studio closed.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));
+  const lifetime=viewerLifetime(server,{onViewers:count=>note(count?'viewer-opened':'viewer-closed',{viewers:count}),onClosing:()=>{
+    closed=true;importController?.abort(Object.assign(Error('Import cancelled because Studio closed.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));
   },
-    onShutdown:async()=>{try{importController?.abort(Object.assign(Error('Import cancelled because Studio closed.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));await opened.catch(()=>{});await queue;await releaseInstance();await tour.closeStudio();}finally{tour.close();if(ownsRequests||closeAgentRequests)requests.close();if(ownsEvents)events.close();}}});
-  const stopRequestFeed=requests.subscribe(record=>{
+    onShutdown:async()=>{try{importController?.abort(Object.assign(Error('Import cancelled because Studio closed.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));await opened.catch(()=>{});await queue;await releaseInstance();await chat.current.tour.closeStudio();}finally{chat.current.tour.close();for(const store of ownedRequests)store.close();for(const store of ownedEvents)store.close();}}});
+  function observeRequest(record){
     if(record.source==='studio'&&record.status==='queued'&&record.studioInstanceId===instanceId&&!queuedNoted.has(record.id)){
       queuedNoted.add(record.id);note('request-queued',{requestId:record.id,requestKind:record.kind,instruction:record.instruction,scope:record.scope??null,printId:record.printId});
     }
     if((!record.studioInstanceId||record.studioInstanceId===instanceId)&&record.printId===workIdFor(dir))lifetime.notify('studio-update',{kind:'state',kinds:['requests'],instanceId});
-  });
+  }
+  chat.stopRequestFeed=chat.current.requests.subscribe(observeRequest);
+  function replaceAttachment(next){
+    const run=editTail.then(async()=>{
+      await opened;
+      if(closed)throw Error('Studio is closing.');
+      if(server.attachmentBusy())throw Error('Wait for the current Studio operation to finish before re-pairing.');
+      const previous=chat.current;
+      if(previous.requests.folder!==next.requests.folder)throw Error('Chat request stores must use the same application state folder.');
+      if(reservation)reservation=await reassignBundleInstance(reservedDirectory,reservation,next.ownerId);
+      try{await previous.requests.reassignStudio(instanceId,next.ownerId);}
+      catch(error){
+        if(reservation)reservation=await reassignBundleInstance(reservedDirectory,reservation,previous.ownerId);
+        await next.requests.reassignStudio(instanceId,previous.ownerId);
+        throw error;
+      }
+      chat.stopRequestFeed();previous.tour.close();
+      const detail={studioInstanceId:instanceId,printId:workIdFor(dir),directory:dir,previousOwnerId:previous.ownerId,ownerId:next.ownerId,attachment:next.attached};
+      const kind=next.attached?(previous.attached?'chat-captured':'chat-attached'):'chat-detached';
+      previous.events.record(kind,detail);
+      chat.current=next;chat.waitingClient=null;agentActivity.working=false;
+      if(previous.events!==next.events)next.events.record(kind,detail);
+      chat.stopRequestFeed=next.requests.subscribe(observeRequest);
+      lifetime.notify('studio-update',{kind:'state',kinds:['chat','requests'],instanceId});
+      lifetime.notify('agent-activity',agentActivity);
+      return server.attachment();
+    });
+    editTail=run.catch(()=>{});return run;
+  }
+  server.attachChat=({ownerId,agentRequests,studioEvents,name,client})=>{
+    if(typeof ownerId!=='string'||!ownerId||agentRequests?.ownerId!==ownerId||!studioEvents)throw Error('Chat attachment requires its identity, request store and event queue.');
+    const next={ownerId,requests:agentRequests,events:studioEvents,
+      tour:createTour(libraryRoot,{ownerId,studioId:instanceId,agentRequests}),
+      attached:Object.freeze({ownerId,name:name??ownerId,client:client??null})};
+    return replaceAttachment(next);
+  };
+  server.detachChat=({ownerId=`studio:${instanceId}`,agentRequests,studioEvents}={})=>{
+    const requests=agentRequests??createAgentRequests(libraryRoot,{ownerId,folder:requestFolder??chat.current.requests.folder});
+    const events=studioEvents??createStudioEvents();
+    if(requests.ownerId!==ownerId)throw Error('The detached request store belongs to another chat.');
+    if(!agentRequests)ownedRequests.add(requests);if(!studioEvents)ownedEvents.add(events);
+    const next={ownerId,requests,events,tour:createTour(libraryRoot,{ownerId,studioId:instanceId,agentRequests:requests}),attached:null};
+    return replaceAttachment(next);
+  };
+  server.attachment=()=>chat.current.attached;
+  server.waitingClient=()=>chat.waitingClient;
+  server.attachmentBusy=()=>operations.active>0||Boolean(importProgress)||['preparing','generating'].includes(generationStatus()?.status);
   let checkingGeneration=false;
   const stopWatching=watchStudioChanges(libraryRoot,kinds=>{
     const external=kinds.filter(kind=>kind!=='requests');
@@ -666,39 +724,13 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       }).catch(()=>{/* A partial external write will be rechecked at commit. */}).finally(()=>{checkingGeneration=false;});
     }
   });
-  server.once('close',()=>{closed=true;stopWatching();stopRequestFeed();discardPreparation();void releaseInstance().catch(error=>note('instance-release-failed',{error:error.message}));});
+  server.once('close',()=>{closed=true;stopWatching();chat.stopRequestFeed();discardPreparation();void releaseInstance().catch(error=>note('instance-release-failed',{error:error.message}));});
   server.shutdown=lifetime.shutdown;server.viewerCount=lifetime.viewers;
   server.agentWorking=working=>{agentActivity.working=Boolean(working);lifetime.notify('agent-activity',agentActivity);};
-  server.studioEvents=events;server.generationStatus=generationStatus;
+  Object.defineProperty(server,'studioEvents',{get(){return chat.current.events;}});server.generationStatus=generationStatus;
   server.cancelCalculation=cancelCalculation;
   server.runBundleEdit=runBundleEdit;
   server.ready=()=>opened;
-  server.agentSession=()=>({instanceId,ownerId:sessionOwnerId,printId:workIdFor(dir),directory:dir,connected:!closed});
-  server.agentDisconnected=async ownerId=>lifetime.notify('agent-connection-closed',{ownerId,closedAt:Date.now(),requests:await requests.query()});
+  server.agentSession=()=>({instanceId,ownerId:chat.current.ownerId,printId:workIdFor(dir),directory:dir,connected:!closed,attachment:server.attachment(),waitingClient:chat.waitingClient});
   return server;
-}
-if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)&&process.argv[2]==='--toolkit') {
-  const command=process.argv[3];
-  if(!['start-tour','open-print','create-preview'].includes(command)) {
-    console.error('Use --toolkit start-tour, open-print or create-preview. Other toolkit commands use scripts/agent-toolkit.mjs.');
-    process.exitCode=1;
-  } else {
-    // Keep the existing permission-scoped launcher and managed server lifetime.
-    // Do not await dynamic import here: the toolkit lazily imports this module.
-    import('../scripts/agent-toolkit.mjs').then(({runCLI})=>runCLI(process.argv.slice(3))).catch(error=>{console.error(error.message);process.exitCode=1;});
-  }
-} else if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
-  const args=process.argv.slice(2),startIndex=args.indexOf('--start-at-layer');
-  const startAt=startIndex<0?null:{layer:Number(args[startIndex+1])};if(startIndex>=0)args.splice(startIndex,2);
-  const [requested]=args;
-  const guide=createTour(resolve(root,'Prints'));
-  const dir=requested?resolve(requested):(await guide.action('fresh')).directory;
-  if(startAt)await guide.setStartAt(startAt);
-  const bundle=await bundleFor(dir);
-  await readStableBundle(bundle,dir,{program:false});
-  const server=createStudio(dir),port=Number(process.env.SAAM_STUDIO_PORT??0);
-  try{await server.ready();}catch(error){await server.shutdown().catch(()=>{});throw error;}
-  server.listen(port,'127.0.0.1',()=>console.log(`SAAM Studio: http://127.0.0.1:${server.address().port}\nPrint: ${dir}\nNo deadline to open. Closes ${DEFAULT_DISCONNECT_MS/60000} minutes after the last viewer disconnects.`));
-  for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>void server.shutdown());
-  server.on('error',e=>{console.error(e.message);process.exitCode=1;});
 }

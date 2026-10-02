@@ -37,7 +37,7 @@ aside dl>div{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:
 #activity #activity-detail{grid-column:1/-1;font-size:11px;color:var(--muted);margin:0}
 
 /* Optional alpha updates and diagnostics, separate from local print work. */
-#service-toggle{display:grid;place-items:center;width:34px;padding:8px}#service-toggle[hidden]{display:none}#service-toggle::before{content:'';width:12px;height:12px;border-radius:50%;background:#858d8b;box-shadow:inset 0 0 0 1px #0002}#service-toggle.paired::before{background:#27853b}
+#service-toggle{display:flex;align-items:center;gap:7px;white-space:nowrap}.connection-light{display:block;width:10px;height:10px;border-radius:50%;background:#858d8b;box-shadow:inset 0 0 0 1px #0002}.connection-light.paired{background:#27853b}.connection-light.waiting{background:var(--orange)}.connection-light.attention{background:#c68412}
 #service-panel{position:fixed;z-index:30;top:84px;right:34px;width:min(400px,calc(100vw - 32px));padding:20px;border:1px solid var(--line);border-radius:14px;background:#fafbf7;box-shadow:0 12px 40px #163c3029}.service-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.service-head h2{font-size:17px;margin:0;letter-spacing:-.3px}.service-head button{font-size:11px;padding:5px 8px}
 #service-panel p{font-size:12px;line-height:1.55;margin:0 0 12px}#service-status{font-weight:600;color:var(--teal)}#service-invite-row label{display:block;font-size:12px;margin-bottom:6px}.service-invite{display:flex;gap:6px;margin-bottom:12px}#service-invite{flex:1;min-width:0;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:7px;padding:8px 9px;background:#fff;color:#1b2929}.service-invite .primary{width:auto;padding:8px 16px}.service-actions{display:flex;gap:8px;justify-content:space-between}#service-message{margin:12px 0 0!important;color:#a64437}#service-message:empty{display:none}
 @media(max-width:700px){#service-panel{top:auto;bottom:16px;right:16px}}
@@ -51,3 +51,7 @@ aside dl>div{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:
 @media(prefers-reduced-motion:reduce){#service-update.flash{animation:none;background:var(--teal-soft)}}
 /* Printer choice for an STL imported while no print is open. */
 #machine-picker{width:min(420px,calc(100vw - 32px))}#machine-form{display:grid;gap:10px;margin-top:4px}#machine-form label{font-size:12px}#import-machine{width:100%;font-size:13px;padding:10px;border-radius:7px;background:#fff}#machine-message{margin:12px 0 0;color:#a64437}#machine-message:empty{display:none}
+
+#chat-panel{padding-bottom:16px;margin-bottom:16px;border-bottom:1px solid var(--line)}#service-panel h3{font-size:13px;margin:0 0 9px}#chat-panel p{margin-bottom:9px}.chat-pairing{display:flex;align-items:center;gap:8px;flex-wrap:wrap}#chat-clients{margin-top:8px!important;color:var(--muted)}#chat-clients:empty,#chat-message:empty{display:none}#chat-message{color:#a64437}#service-consent{font-size:12px;margin:12px 0}#service-consent summary{cursor:pointer;color:var(--teal)}#service-consent p{margin-top:8px}#service-panel{max-height:calc(100vh - 110px);overflow:auto}
+
+#service-panel h3{display:flex;align-items:center;gap:7px}#chat-panel .chat-pairing:has(button:not([hidden])){margin-bottom:8px}#chat-panel .chat-pairing:has(button[hidden]){display:none}

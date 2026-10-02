@@ -39,6 +39,18 @@ export async function releaseBundleInstance(directory,record){
   },{wait:true});
 }
 
+// Re-pairing changes the chat, never the Studio's reservation or revision.
+export async function reassignBundleInstance(directory,record,ownerId){
+  if(typeof ownerId!=='string'||!ownerId)throw Error('Choose an agent owner for this Studio.');
+  return withBundleWriteLock(directory,async()=>{
+    const current=await bundleInstance(directory);
+    if(!same(current,record))throw conflict(current);
+    const assigned={...current,ownerId};
+    await replaceFile(instanceFile(directory),JSON.stringify(assigned)+'\n');
+    return assigned;
+  },{wait:true});
+}
+
 export function withBundleInstance(directory,record,action){
   if(!record?.token)throw Error('A Studio write needs its Bundle instance reservation.');
   return instanceContext.run({directory:resolve(directory),record},action);

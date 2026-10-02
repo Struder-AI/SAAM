@@ -9,9 +9,7 @@ import {importSTLResource} from '../../../core/print/import-resource.mjs';
 import {boxMesh} from '../../../core/tests/fixtures/mesh.mjs';
 import {loadBundle, generateBundle, approve, deliver, updatePlan, bundleInstance, withBundleInstance} from '../../../core/print/bundle.mjs';
 import {setSTLUnits} from '../../../core/print/import-stl.mjs';
-import {createMcpAdapter} from '../../../adapters/mcp/src/server.mjs';
-import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
-import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import {createLocalRuntime} from '../../../core/application/runtime.mjs';
 
 // Synthetic data deliberately gives a file a different license from its thing.
 const context = 'Thing ID,Date,Category,Sub-category,Name,Author,License\r\n'
@@ -115,22 +113,13 @@ test('failed mesh import retains exact download, attribution and mandatory chat 
   await assert.rejects(access(resolve(directory,'plan.json')),/ENOENT/);
 });
 
-test('MCP searches, imports and opens an unapproved print; attribution survives correction and delivery',async t=>{
+test('application import preserves attribution through correction and delivery',async t=>{
   const {client:library,root,requests}=await fixture(t);
   const printsRoot=resolve(root,'prints');
-  const adapter=createMcpAdapter({printsRoot,autoOpen:false,localExtension:{},thingi10kClient:library});
-  const client=new Client({name:'synthetic-thingi10k',version:'1'});
-  const [ct,st]=InMemoryTransport.createLinkedPair();
-  await adapter.server.connect(st); await client.connect(ct);
-  t.after(async()=>{await client.close();await adapter.close();});
-  const call=async(name,args)=>{
-    const result=await client.callTool({name,arguments:args});
-    assert.ok(!result.isError,JSON.stringify(result));return JSON.parse(result.content[0].text);
-  };
-  const tools=(await client.listTools()).tools;
-  assert.equal(tools.find(tool=>tool.name==='import_thingi10k_bundle').annotations.openWorldHint,true);
-  assert.ok((await call('list_skills',{})).some(skill=>skill.id==='thingi10k'&&skill.layer==='extension'&&skill.kind==='extension'));
-  const manual=await call('read_skill',{skillId:'thingi10k'}); assert.ok(manual);
+  const runtime=createLocalRuntime({printsRoot,stateRoot:resolve(root,'state'),autoOpen:false,localExtension:{},thingi10kClient:library});
+  const session=runtime.beginSession({id:'synthetic-thingi10k'});
+  t.after(()=>runtime.close());
+  const call=async(name,args)=>session.invoke(name,args);
   const results=await call('search_thingi10k',{query:'bunny'});
   const imported=await call('import_thingi10k_bundle',{bundleId:'Bunny',fileId:results.results[0].fileId,machineId:'ultimaker-s5'});
   assert.equal(imported.imported,true);assert.equal(imported.toolpathApproved,null);
@@ -142,8 +131,8 @@ test('MCP searches, imports and opens an unapproved print; attribution survives 
   assert.deepEqual(state.plan.geometry.source.attribution,imported.attribution);
   const review=await call('request_review',{bundleId:'Bunny'}); assert.ok(JSON.stringify(review).includes('http://'));
   const count=requests.length;
-  const duplicate=await client.callTool({name:'import_thingi10k_bundle',arguments:{bundleId:'Bunny',fileId:'101',machineId:'ultimaker-s5'}});
-  assert.equal(duplicate.isError,true);assert.equal(requests.length,count,'existing print is rejected before download');
+  await assert.rejects(call('import_thingi10k_bundle',{bundleId:'Bunny',fileId:'101',machineId:'ultimaker-s5'}));
+  assert.equal(requests.length,count,'existing print is rejected before download');
   const reservation=await bundleInstance(dir);
   await withBundleInstance(dir,reservation,async()=>{
     await setSTLUnits(dir,'mm',{expectedRevision:state.revision});

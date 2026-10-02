@@ -67,18 +67,17 @@ export async function contextBudget(root, { machineIds = MACHINE_IDS } = {}) {
     return total;
   };
   const index = await read('skills/DIGEST.md', {});
-  const { instructions, createLocalRuntime } = await import('../../adapters/mcp/src/runtime.mjs');
+  const { instructions, createLocalRuntime } = await import('../application/runtime.mjs');
   const { mkdtemp, rm } = await import('node:fs/promises'), { tmpdir } = await import('node:os');
   const printsRoot = await mkdtemp(resolve(tmpdir(), 'saam-context-budget-'));
   let tools = 0,toolSchemas=0;const operations={},toolDefinitions=[];
   try {
-    const runtime = createLocalRuntime({ printsRoot, autoOpen: false });
+    const runtime = createLocalRuntime({ printsRoot, stateRoot:resolve(printsRoot,'.state'), autoOpen: false });
     for (const operation of runtime.beginSession().operations){
-      // Match the installed MCP SDK's tools/list conversion and registration
-      // envelope, including draft-7 input semantics and task support metadata.
+      // Measure the complete application operation catalog, including its schemas.
       const inputSchema=z.toJSONSchema(operation.schema,{target:'draft-7',io:'input'});
       const definition={name:operation.name,description:operation.description,inputSchema,
-        annotations:{readOnlyHint:operation.readOnly,destructiveHint:false,openWorldHint:operation.openWorld},execution:{taskSupport:'forbidden'}};
+        readOnly:operation.readOnly,openWorld:operation.openWorld};
       const description=size(operation.description),schema=size(JSON.stringify(inputSchema));
       operations[operation.name]={description,schema,total:size(JSON.stringify(definition))};
       toolDefinitions.push(definition);tools+=description;toolSchemas+=schema;
@@ -112,9 +111,9 @@ export async function contextBudget(root, { machineIds = MACHINE_IDS } = {}) {
   const firstUseBytes=web.onboardingJson+size(instructions)+serializedToolsBytes;
   return {
     unit: 'bytes of assembled UTF-8 text; onboardingJson is the serialized onboarding sources',
-    clients: { web: { ...web, indexPlusOperate: index + operate, mcpInstructions: size(instructions), toolDescriptions: tools,toolSchemas,
+    clients: { web: { ...web, indexPlusOperate: index + operate, applicationInstructions: size(instructions), toolDescriptions: tools,toolSchemas,
       serializedToolsBytes,firstUseBytes,firstSliceUseBytes:firstUseBytes+skills.slice.operate,
-      measurement:'MCP SDK tools/list envelope (draft-7 input schemas), instructions and onboarding; excludes connection-specific guidance and optional UI metadata.',
+      measurement:'Application operation catalog (draft-7 input schemas), instructions and onboarding; excludes chat-specific guidance.',
       sliceAndModulateBytes:operations.slice.total+operations.modulate.total,
       target:{bytes:15000,mode:'soft; no capability omission'},operations },
       script: { ...scriptClient, indexPlusOperatePlusScript: index + operate + script } },

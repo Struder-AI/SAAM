@@ -1,5 +1,51 @@
 # Development log
 
+## 2026-10-02 — SAAM application, chats and folders
+
+- One tray application owns persistent chats, Studios, requests, jobs and release
+  service in C:/SAAM or ~/SAAM. Commands start/discover its OS listener; readiness
+  publishes after runtime and native tray initialization. Browser/chat closure
+  and idle time never expire work or stop it. Quit/update warn on active jobs.
+- Replaced MCP/SDK/plugin and standalone toolkit, desktop and workspace launches
+  with saam; source toolkit retains developer context/maps. Home migration and
+  transactional installers preserve prints, extensions, requests and credentials.
+  Both clients receive global skill/permissions even if absent. Connect refreshes
+  registration; repair_client_setup lets agents handle repair. Older Claude can
+  connect chat-first; only Studio launch requires2.1.285. Codex minimum unknown.
+- Explicit idle-only capture preserves the Studio/reservation, cancels the old
+  chat's pending requests and rejects later writes. Initial provisional requests
+  survive attachment; session identity resumes windows. Undo/redo is available
+  through restore_revision. Connect groups client/service state and two lights;
+  browser history buttons, Detach and Retry controls are removed.
+- Practical actual source command trials in a disposable home: Windows tray
+  ready; duplicate launch same PID; Studio-first queued request+token preserved;
+  capture same Studio/token, old request cancelled and old write rejected;
+  resume1window; active generation blocks capture, Quit warns, explicit cancel
+  completes. Browser rendered compact Connect and local geometry. Existing
+  studio-lifetime file6/6 and review-state file2/2 passed; syntax checks passed.
+- User approved actual relay trial after auto-review initially blocked external
+  transmission. Copied local gridfinity executed; actual instance
+  6711d0ab016cadeeb1dea73521f3074a received acknowledged operation gridfinity at
+  2026-10-02T21:42:26.771Z. Diagnostics retain latest event/operation receipts.
+- Installer/profile worker trials used disposable homes: migration preservation,
+  candidate rejection, WinPS5.1 shims and both absent-client registrations passed.
+  These are not native Mac, second-user Windows or live031 update acceptance.
+  Fresh desktop client first-Send/discovery, personal tour and installed workspace
+  job trials remain open. No new tests or whole-suite run; no release here yet.
+- Guidance consolidation (22 changed/new Markdown/text files, excluding this
+  evidence entry):2869→1527 lines. Source/map details and receipts are in
+  .local/application-032-handoff.md and worker progress; not conformance approval.
+- Actual browser tour: 20%→70% infill generated10,340moves; the matching request
+  was working when its path drew and Next enabled, then normal Next advanced to
+  lesson4. Persisted view-presented/request-presented events name that request;
+  lesson advance later cancelled it. Play/Pause and layer17→18 stepping worked
+  on the compact-context path. This closes the reported tour gate reproduction,
+  not a personal full tour or universal phase-colour qualification.
+- Release scope confirmed by the owner in SAAM 0.3.2 release orchestrator
+  (01a0fe8b-b441-7483-b426-b87850a8fa6c): publish all three packages; native Mac
+  testing follows release, with no Mac available; second Windows-user trial is
+  out of scope. Original application chat is sole publication lead.
+
 ## 2026-10-02 — Studio website reference
 
 - Implemented: header Website reference opens https://struder.com/saam/ in a new tab, with existing button styling, hover and keyboard focus; header actions can wrap. No JavaScript or server route added.

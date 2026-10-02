@@ -1,215 +1,54 @@
 #!/usr/bin/env node
+// Source guidance and map operations. Making runs through the SAAM application.
 import {parseArgs} from 'node:util';
-import {createInterface} from 'node:readline';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {contextBudget} from '../core/agent/layers.mjs';
-import {root, onboarding, readSkill, readMaps, regenerateMap, contextPacket, preview, showPrint, listWorkspaces, openWorkspace, beginWork, waitForRequests, readStudioEvents, cancelStudioCalculation, respondToRequest, recordRequestActivity, inspectFailure, developmentAreas} from '../core/agent/toolkit.mjs';
-import {createInstalledReleaseService} from '../packaging/release-service.mjs';
+import {root, onboarding, readSkill, readMaps, regenerateMap, contextPacket, developmentAreas} from '../core/agent/toolkit.mjs';
 
-const diagnosticFields=(value,keys)=>Object.fromEntries(keys.filter(key=>value&&Object.hasOwn(value,key)).map(key=>[key,value[key]]));
-const reportCommand=(services,activeAtStart,command,startedAt,status,result,error)=>{
-  if(!activeAtStart||!services?.status().activated)return;
-  services.recordOperation({kind:'operation',name:command,status,durationMs:Date.now()-startedAt,
-    result:diagnosticFields(result,['revision','geometryHash','generationHash','exportHash','status','jobId']),
-    ...(error?{error:error.message}:{})});
+const string={type:'string'}, boolean={type:'boolean'}, many={type:'string',multiple:true};
+const schemas={
+  'maker-onboarding':{machine:string},
+  'builder-onboarding':{area:many,set:string},
+  'developer-onboarding':{area:many,set:string},
+  'read-skill':{maker:boolean,builder:boolean,developer:boolean,machine:string,all:boolean},
+  'read-guidance':{machine:string,all:boolean},
+  'context-budget':{machine:many},
+  'read-map':{set:string},
+  regenerate:{set:string}
 };
+export const help={commands:{
+  'maker-onboarding [--machine ID]':'Read maker context for source guidance work. Installed making uses saam call maker_onboarding.',
+  'builder-onboarding [--area AREA] [--set NAME]':'Read builder guidance and consumed component contracts.',
+  'developer-onboarding [--area AREA] [--set NAME]':'Read glossary, developer context and map 0. Defaults to 030-architecture.',
+  'read-skill ID[#HEADING] [--maker] [--builder] [--developer] [--machine ID] [--all]':'Read selected manual roles or one complete heading.',
+  'read-guidance PATH#HEADING [--machine ID] [--all]':'Read a published manual or section with its headings and gates.',
+  'read-map ADDRESS [--set NAME]':'Return visible map relationships and exact source ranges, or a complete link/contract. Never returns code or scans; read leaf files normally.',
+  'regenerate [INDEX] [--set NAME]':'Refresh the chosen map set. Design sets redraw; scanned sets rescan.',
+  'context-budget [--machine ID]':'Measure assembled context and the application operation catalog.'
+},developmentAreas:Object.keys(developmentAreas),notes:[
+  'Making, Studio, tours, requests and workspace jobs use saam; see core/application/README.md.',
+  'Map default: 030-architecture; installation: 030-deployment; scanned implementation: default. Indexes belong to their set.',
+  '--area may repeat. Map indexes can change; record stable declaration/contract identities.'
+]};
 
-const string = {type: 'string'}, boolean = {type: 'boolean'}, many = {type: 'string', multiple: true};
-const schemas = {
-  'maker-onboarding': {machine: string},
-  'builder-onboarding': {area: many, set: string},
-  'developer-onboarding': {area: many, set: string},
-  'read-skill': {maker: boolean, builder: boolean, developer: boolean, machine: string, all: boolean},
-  'read-guidance': {machine: string, all: boolean},
-  'context-budget': {machine: many},
-  'read-map': {set: string},
-  'regenerate': {set: string},
-  'start-tour': {library: string, 'start-at-layer': string, 'no-open': boolean,'agent-owner':string},
-  'list-workspaces': {},
-  'open-workspace': {library:string,directory:string,port:string,'no-open':boolean},
-  'open-print': {library: string, 'no-open': boolean, studio: string, 'agent-owner': string},
-  'create-preview': {library: string, recipe: string, stl: string, kind: string, machine: string, units: string, 'no-open': boolean, studio: string, 'agent-owner': string},
-  'begin-studio-work': {library: string, instruction: string, request: string, kind: string, 'include-geometry': boolean,'studio-instance':string,'agent-owner':string},
-  'wait-for-studio-request': {library: string, after: many, 'wait-ms': string, claim: boolean,'studio-instance':string,'agent-owner':string,studio:string},
-  'read-studio-events': {studio: string, 'agent-owner': string, 'wait-ms': string, history: boolean},
-  'cancel-studio-calculation': {studio: string, 'agent-owner': string, 'job-id': string, 'generation-hash': string},
-  'respond-to-studio-request': {library: string, status: string, message: string, 'result-stage': string,'studio-instance':string,'agent-owner':string},
-  'record-request-activity': {library:string,'studio-instance':string,'agent-owner':string},
-  'inspect-generation-failure': {library: string, request: string, 'include-geometry': boolean}
-};
-export const help = {
-  commands: {
-    'maker-onboarding [--machine ID]': 'Maker guidance, the index of skills and gated sections, and print tools, with script sections and the machine’s advanced sections; choose follow-up reads for the task.',
-    'builder-onboarding [--area AREA]': 'Guidance/composition authoring, maker context and digest; --area adds consumed contracts or a named map. Core skills and shared implementation require developer.',
-    'developer-onboarding [--area AREA] [--set NAME]': 'Glossary, full developer context (including release pointers) and map 0. Defaults to 030-architecture; use 030-deployment for installation/service fixes. --area adds a node/contract or component references.',
-    'read-map ADDRESS [--set NAME]': 'Read a stored map with visible relationships and exact source locations, or a complete link/contract interface. Leaf locations are read with normal file tools; leaf addresses are not maps. Reads never return code or scan. Defaults to 030-architecture; use 030-deployment for installation, default for scanned implementation.',
-    'regenerate [INDEX] [--set NAME]': 'Refresh the selected set (default 030-architecture). Design sets redraw authored maps; audit/audit-check are separate. Scanned sets rescan implementation.',
-    'read-skill ID[#HEADING] [--maker] [--builder] [--developer] [--machine ID] [--all]': 'Read only the selected skill roles; defaults to maker. The maker manual opens advanced sections for --machine, or every section with --all; #HEADING reads one section whatever its gate. Missing optional manuals are reported in unavailableRoles.',
-    'read-guidance PATH#HEADING [--machine ID] [--all]': 'Read one published manual or section chosen for the task, with its headings and their gates.',
-    'context-budget [--machine ID]': 'Bytes of each context layer per client (web, script) and machine, for onboarding and each skill manual.',
-    'start-tour [--start-at-layer N] [--no-open] [--agent-owner ID]': 'Fresh tour copies, live Studio, browser dispatch and participation context. --agent-owner resumes the agent owner of an earlier launch on this new Studio.',
-    'list-workspaces': 'Discover selected workspace extensions, their identity and manuals.',
-    'open-workspace ID [--library DIRECTORY | --directory DIRECTORY] [--port N] [--no-open]': 'Open a workspace extension and retain the managed session for design controls, background bundle creation and events. New bundles require ordinary Studio review.',
-    'open-print DIRECTORY [--no-open] [--studio URL] [--agent-owner ID]': 'Open saved geometry/toolpath and return current recipe/review state. With the live Studio URL and agentOwnerId from studio-ready it shows the print in that Studio and exits instead of launching another; --agent-owner alone launches a new Studio under that resumed owner.',
-    'create-preview DIRECTORY [--recipe FILE | --stl FILE] [--machine ID] [--units auto|mm|inch] [--no-open] [--studio URL] [--agent-owner ID]': 'Create/import unapproved geometry, open Studio and report assumptions. With --studio and --agent-owner the new print is shown in that live Studio instead of a new one; --agent-owner alone launches a new Studio under that resumed owner.',
-    'begin-studio-work [DIRECTORY] [--instruction TEXT | --request ID] [--kind edit|guidance] [--include-geometry]': 'Start/claim work first, then read recipe, revision, confirmations and tour instruction.',
-    'wait-for-studio-request [--studio URL --agent-owner ID] [--claim] [--wait-ms 25000] [--after ID]': 'Bounded wait for Studio requests and delivered Studio events, optional claim, and next cursor. With the live Studio URL and agentOwnerId from studio-ready it reads the owning agent’s event queue and calculation progress across processes.',
-    'read-studio-events --studio URL --agent-owner ID [--wait-ms 0] [--history]': 'Read and clear queued Studio events (what the person did) plus current toolpath calculation progress from a live owned Studio.',
-    'cancel-studio-calculation --studio URL --agent-owner ID [--job-id ID | --generation-hash HASH]': 'Cancel the observed import or toolpath calculation. Follow Studio events until cancellation and cleanup settle.',
-    'respond-to-studio-request ID [--status working|completed|failed|waiting|cancelled] [--result-stage geometry|toolpath] [--message TEXT] [--agent-owner ID] [--studio-instance ID]': 'Record a prepared result or resolve the matching request. Pass the owner and instance IDs from the live Studio when responding across processes.',
-    'record-request-activity ID [--agent-owner ID] [--studio-instance ID]': 'Record actual request-specific work with the live Studio owner and instance IDs. Never run as an idle heartbeat.',
-    'inspect-generation-failure DIRECTORY [--request ID] [--include-geometry]': 'Saved errors/requests, checked state or invalid recipe, generation guidance and skill links.'
-  },
-  developmentAreas: Object.keys(developmentAreas),
-  notes: ['--area takes a node index or declaration path (read-map 0 reads the top map), or one of the areas above.',
-    'Map indexes are regenerated and may change. Use just the index when talking about the current map; write the declaration path when something must keep pointing at it.',
-    '--library DIRECTORY selects a print/request library (default: this checkout’s Prints).',
-    'Relaunching a Studio with --agent-owner ID, the agentOwnerId from an earlier studio-ready line, resumes that owner so its in-flight requests stay visible. The relaunch always gets a new Studio instance.',
-    '--area and --after may repeat where accepted. Skill manuals are individual follow-up reads.',
-    'Studio commands stay in the managed command session. Read studio-ready before waiting for completion.',
-    'Reuse your live Studio and browser tab by default: later open-print/create-preview calls pass --studio URL --agent-owner ID. Launch another instance only when the person asks, or for a compelling reason you tell them.',
-    'For the shared launcher permission use node studio/server.mjs --toolkit start-tour|open-print|create-preview ...',
-    'Output is newline-delimited JSON: studio-ready for a live preview, then result; failures contain stage and partial results.']
-};
-
-function attachLiveControl(opened,input,write,services){
-  if(!input?.on)return()=>{};
-  const lines=createInterface({input,terminal:false});let queue=Promise.resolve();
-  lines.on('line',line=>{
-    let message;
-    try{message=JSON.parse(line);}catch(error){write({ok:false,event:'agent-response',error:'Invalid live command JSON: '+error.message});return;}
-    const {id,command}=message,base={requests:opened.agent.requests,studioInstanceId:opened.result.studio.instanceId};
-    const run=async()=>{
-    const startedAt=Date.now(),activeAtStart=Boolean(services?.status().activated);
-    try{
-      let result;
-      if(command==='begin-studio-work')result=await beginWork({...base,target:message.target??opened.result.directory,instruction:message.instruction,requestId:message.requestId,includeGeometry:Boolean(message.includeGeometry),kind:message.kind});
-      else if(command==='respond-to-studio-request')result=await respondToRequest({...base,requestId:message.requestId,status:message.status,message:message.message,resultStage:message.resultStage});
-      else if(command==='record-request-activity')result=await recordRequestActivity({...base,requestId:message.requestId,target:message.target});
-      else if(command==='read-studio-events')result=await readStudioEvents({events:opened.agent.events,server:opened.server,history:Boolean(message.history)});
-      else if(command==='cancel-studio-calculation')result=await cancelStudioCalculation({server:opened.server,jobId:message.jobId,generationHash:message.generationHash});
-      else if(command==='wait-for-studio-request')result=await waitForRequests({...base,server:opened.server,after:message.after??[],waitMs:message.waitMs??25000,claim:Boolean(message.claim)});
-      else if(command==='open-print'||command==='create-preview')result=await showPrint({...message,command,library:opened.result.listener.library,
-        importSTL:options=>opened.server.importSTL(options),
-        open:async directory=>{await opened.server.openPrint(directory);opened.result.directory=opened.result.studio.directory=opened.agent.session().directory;return opened.result.studio;}});
-      else if(command==='get-studio-session')result=opened.agent.session();
-      else if(command==='close-studio'){result=opened.agent.session();await opened.server.shutdown();}
-      else throw Error('Unknown live Studio command.');
-      write({ok:true,event:'agent-response',id,command,result});
-      reportCommand(services,activeAtStart,command,startedAt,'completed',result);
-    }catch(error){write({ok:false,event:'agent-response',id,command,error:error.message});reportCommand(services,activeAtStart,command,startedAt,'failed',null,error);}
-    };
-    if(['cancel-studio-calculation','read-studio-events','close-studio'].includes(command))void run();
-    else queue=queue.then(run).catch(error=>write({ok:false,event:'agent-response',error:error.message}));
-  });
-  opened.server.once('close',()=>lines.close());return()=>lines.close();
+export async function runCLI(args=process.argv.slice(2),{write=value=>console.log(JSON.stringify(value))}={}){
+  const [command,...rest]=args;
+  try{
+    if(!command||['help','--help','-h'].includes(command)){write({ok:true,...help});return;}
+    if(!Object.hasOwn(schemas,command))throw Error(`Unknown source toolkit command: ${command}. Making uses saam. Use --help.`);
+    const {values:v,positionals}=parseArgs({args:rest,options:schemas[command],allowPositionals:true,strict:true});
+    const targetRequired=['read-skill','read-guidance','read-map'].includes(command);
+    const targetAllowed=targetRequired||command==='regenerate';
+    if(positionals.length>(targetAllowed?1:0)||targetRequired&&!positionals.length)throw Error('Unexpected or missing positional argument. Use --help.');
+    const output={};
+    if(command.endsWith('-onboarding'))output.result=await onboarding({role:command.replace('-onboarding',''),areas:v.area,machine:v.machine,set:v.set});
+    else if(command==='context-budget')output.result=await contextBudget(root,v.machine?{machineIds:v.machine}:{});
+    else if(command==='read-skill')output.result=await readSkill(positionals[0],v);
+    else if(command==='read-guidance')output.result=await contextPacket([positionals[0]],{machineId:v.machine,all:v.all,headings:true});
+    else if(command==='read-map')output.result={maps:await readMaps([positionals[0]],v)};
+    else if(command==='regenerate')output.result=await regenerateMap(positionals[0],v);
+    write({ok:true,event:'result',command,...output.result});
+  }catch(error){write({ok:false,command,stage:'command',error:error.message});process.exitCode=1;}
 }
-
-function attachWorkspaceControl(opened,input,write,services){
-  if(!input?.on)return()=>{};
-  const lines=createInterface({input,terminal:false});let queue=Promise.resolve();
-  lines.on('line',line=>{
-    let message;
-    try{message=JSON.parse(line);if(!message||typeof message!=='object'||Array.isArray(message))throw Error('Expected a command object.');}catch(error){write({ok:false,event:'agent-response',error:'Invalid live command JSON: '+error.message});return;}
-    const {id,command}=message;
-    const run=async()=>{
-      const startedAt=Date.now(),activeAtStart=Boolean(services?.status().activated);
-      try{
-        const workspace=opened.workspace;
-        let result;
-        if(command==='get-workspace')result=await workspace.inspect();
-        else if(command==='update-workspace')result=await workspace.updateDesign(message.design);
-        else if(command==='preview-workspace')result=await workspace.preview(message.design,{interactive:Boolean(message.interactive)});
-        else if(command==='create-workspace-bundles')result={job:await workspace.createBundles(message.design)};
-        else if(command==='read-workspace-events')result={events:opened.agent.events.drain()};
-        else if(command==='close-workspace'){await workspace.shutdown();result={closed:true};}
-        else throw Error('Unknown live workspace command.');
-        write({ok:true,event:'agent-response',id,command,workspaceInstanceId:opened.result.workspaceInstanceId,result});
-        reportCommand(services,activeAtStart,command,startedAt,'completed',result);
-      }catch(error){write({ok:false,event:'agent-response',id,command,error:error.message});reportCommand(services,activeAtStart,command,startedAt,'failed',null,error);}
-    };
-    if(['get-workspace','read-workspace-events','close-workspace'].includes(command))void run();
-    else queue=queue.then(run).catch(error=>write({ok:false,event:'agent-response',error:error.message}));
-  });
-  opened.server.once('close',()=>lines.close());return()=>lines.close();
-}
-
-export async function runCLI(args = process.argv.slice(2), {write = value => console.log(JSON.stringify(value)),input=process.stdin} = {}) {
-  const [command, ...rest] = args;
-  let liveServer,stopPreparation,services,activeAtStart=false,startedAt=Date.now();
-  try {
-    if (!command || ['help', '--help', '-h'].includes(command)) {write({ok: true, ...help}); return;}
-    if (!Object.hasOwn(schemas, command)) throw Error(`Unknown command: ${command}. Use --help.`);
-    const {values: v, positionals} = parseArgs({args: rest, options: schemas[command], allowPositionals: true, strict: true});
-    const needsTarget = ['read-skill', 'read-guidance', 'read-map', 'open-print', 'open-workspace', 'create-preview', 'inspect-generation-failure', 'respond-to-studio-request','record-request-activity'].includes(command);
-    const permitsTarget = needsTarget || ['begin-studio-work', 'regenerate'].includes(command);
-    if (positionals.length > (permitsTarget ? 1 : 0) || needsTarget && !positionals.length) throw Error('Unexpected or missing positional argument. Use --help.');
-    if (command === 'create-preview' && v.units && !v.stl) throw Error('--units applies only to --stl.');
-    try{services=await createInstalledReleaseService();}catch{/* Diagnostics never disable local commands. */}
-    activeAtStart=Boolean(services?.status().activated);startedAt=Date.now();
-    const options = {command, target: positionals[0], library: v.library, recipe: v.recipe, stl: v.stl,
-      kind: v.kind, machine: v.machine, units: v.units, noOpen: v['no-open'],
-      startAtLayer: v['start-at-layer'] === undefined ? undefined : Number(v['start-at-layer']),
-      instruction: v.instruction, requestId: v.request, includeGeometry: v['include-geometry'],studioInstanceId:v['studio-instance'],ownerId:v['agent-owner']};
-    if(options.stl){
-      const controller=new AbortController(),startedAt=Date.now();
-      stopPreparation=()=>controller.abort(new DOMException('Import cancelled.','AbortError'));
-      process.on('SIGINT',stopPreparation);process.on('SIGTERM',stopPreparation);
-      options.signal=controller.signal;
-      options.onProgress=progress=>{write({ok:true,event:'import-progress',command,elapsedMs:Date.now()-startedAt,progress});if(services?.status().activated)services.recordStudioEvent({kind:'import-progress',...diagnosticFields(progress,['stage','phase','completed','total','percent','error'])});};
-    }
-    let result;
-    if (command.endsWith('-onboarding')) result = await onboarding({role: command.replace('-onboarding', ''), areas: v.area, machine: v.machine, set: v.set});
-    else if (command === 'context-budget') result = await contextBudget(root, v.machine ? {machineIds: v.machine} : {});
-    else if (command === 'read-skill') result = await readSkill(positionals[0], v);
-    else if (command === 'read-guidance') result = await contextPacket([positionals[0]], {machineId: v.machine, all: v.all, headings: true});
-    else if (command === 'read-map') result = {maps: await readMaps([positionals[0]], v)};
-    else if (command === 'regenerate') result = await regenerateMap(positionals[0], v);
-    else if(command==='list-workspaces')result=await listWorkspaces();
-    else if(command==='open-workspace'){
-      const port=v.port===undefined?0:Number(v.port);
-      if(!Number.isInteger(port)||port<0||port>65535)throw Error('--port must be an integer from 0 to 65535.');
-      if(v.directory&&v.library)throw Error('Choose --directory or --library.');
-      const opened=await openWorkspace({...options,directory:v.directory,port,onReady:write,onEvent:event=>services?.recordStudioEvent(event),onEvents:event=>write({ok:true,event:'workspace-events',command,...event})});
-      result=opened.result;liveServer=opened.server;
-      attachWorkspaceControl(opened,input,write,services);
-      const stop=()=>{void opened.workspace.shutdown();};
-      process.on('SIGINT',stop);process.on('SIGTERM',stop);
-      liveServer.once('close',()=>{process.off('SIGINT',stop);process.off('SIGTERM',stop);services?.close();});
-      liveServer.on('error',error=>{write({ok:false,command,stage:'workspace-runtime',error:error.message});process.exitCode=1;stop();});
-    }
-    else if (['open-print', 'create-preview'].includes(command) && v.studio) result = await showPrint({...options, studio: v.studio});
-    else if (['start-tour', 'open-print', 'create-preview'].includes(command)) {
-      const opened = await preview({...options, onReady: write,onRequest:event=>write({ok:true,event:'studio-request',command,...event}),onEvents:event=>write({ok:true,event:'studio-events',command,...event})});
-      result = opened.result; liveServer = opened.server;
-      services?.observeRuntime({observeEvents:observer=>opened.agent.events.observe(observer)});
-      attachLiveControl(opened,input,write,services);
-      const stop = () => {void liveServer.shutdown();};
-      process.on('SIGINT', stop); process.on('SIGTERM', stop);
-      liveServer.once('close', () => {process.off('SIGINT', stop); process.off('SIGTERM', stop);services?.close();});
-      liveServer.on('error', error => {write({ok: false, command, stage: 'studio-runtime', error: error.message}); process.exitCode = 1; stop();});
-    } else if (command === 'begin-studio-work') result = await beginWork(options);
-    else if (command === 'wait-for-studio-request') {
-      const waitMs = v['wait-ms'] === undefined ? 25000 : Number(v['wait-ms']);
-      if (!Number.isInteger(waitMs) || waitMs < 0 || waitMs > 25000) throw Error('--wait-ms must be an integer from 0 to 25000.');
-      result = await waitForRequests({library: v.library, after: v.after, claim: v.claim, waitMs,studioInstanceId:v['studio-instance'],ownerId:v['agent-owner'],studio:v.studio});
-    } else if (command === 'read-studio-events') {
-      const waitMs = v['wait-ms'] === undefined ? 0 : Number(v['wait-ms']);
-      if (!Number.isInteger(waitMs) || waitMs < 0 || waitMs > 25000) throw Error('--wait-ms must be an integer from 0 to 25000.');
-      result = await readStudioEvents({studio: v.studio, ownerId: v['agent-owner'], waitMs, history: v.history});
-    } else if (command === 'cancel-studio-calculation') result = await cancelStudioCalculation({studio:v.studio,ownerId:v['agent-owner'],jobId:v['job-id'],generationHash:v['generation-hash']});
-    else if (command === 'respond-to-studio-request') result = await respondToRequest({library: v.library, requestId: positionals[0], status: v.status, message: v.message, resultStage: v['result-stage'],ownerId:v['agent-owner'],studioInstanceId:v['studio-instance']});
-    else if(command==='record-request-activity')result=await recordRequestActivity({library:v.library,requestId:positionals[0],ownerId:v['agent-owner'],studioInstanceId:v['studio-instance']});
-    else result = await inspectFailure(options);
-    write({ok: true, event: 'result', command, ...result});
-    reportCommand(services,activeAtStart,command,startedAt,'completed',result);
-    return liveServer;
-  } catch (error) {
-    write({ok: false, command, stage: error.stage ?? 'command', error: error.message, partial: error.partial ?? null});
-    reportCommand(services,activeAtStart,command,startedAt,'failed',null,error);
-    process.exitCode = 1;
-  }finally{if(stopPreparation){process.off('SIGINT',stopPreparation);process.off('SIGTERM',stopPreparation);}if(!liveServer)services?.close();}
-}
-
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await runCLI();
+if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url))await runCLI();

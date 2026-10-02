@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {once,EventEmitter} from 'node:events';
+import {once} from 'node:events';
 import {setTimeout as delay} from 'node:timers/promises';
 import {readFile} from 'node:fs/promises';
 import {runInNewContext} from 'node:vm';
@@ -11,7 +11,7 @@ import {viewerLifetime} from '../../studio/lifetime.mjs';
 
 // No geometry creation, interpretation or slicing: only sockets and timers.
 async function fixture(t,options={}){
-  const server=createStudio('missing-synthetic-lifetime-bundle',{disconnectMs:60,...options});
+  const server=createStudio('missing-synthetic-lifetime-bundle',options);
   t.after(()=>server.shutdown());
   server.listen(0,'127.0.0.1');await once(server,'listening');
   const url=`http://127.0.0.1:${server.address().port}`;
@@ -44,28 +44,6 @@ test('ordinary requests and rejected viewer connections leave Studio ready for a
   t.mock.timers.tick(24*60*60*1000);await(await fetch(url)).text();
   assert.equal(server.listening,true);
   await connect();assert.equal(server.listening,true);
-});
-
-test('default disconnect grace survives task switching for 30 minutes and resets on reconnect',async t=>{
-  t.mock.timers.enable({apis:['setTimeout']});
-  const server=http.createServer(),lifetime=viewerLifetime(server);t.after(()=>lifetime.shutdown());
-  server.listen(0,'127.0.0.1');await once(server,'listening');
-  const viewer=()=>{const res=new EventEmitter();res.writeHead=()=>{};res.write=()=>{};res.end=()=>res.emit('close');lifetime.attach(res);return res;};
-  const first=viewer();first.end();t.mock.timers.tick(29*60*1000);assert.equal(server.listening,true);
-  const second=viewer();t.mock.timers.tick(60*60*1000);assert.equal(server.listening,true,'connected viewers have no idle deadline');
-  second.end();t.mock.timers.tick(30*60*1000-1);assert.equal(server.listening,true);
-  const closed=once(server,'close');t.mock.timers.tick(1);await closed;assert.equal(server.listening,false);
-});
-
-test('last viewer closes only its instance; live background viewers need no polling',async t=>{
-  const a=await fixture(t),b=await fixture(t);
-  const closeA1=await a.connect(),closeA2=await a.connect(),closeB=await b.connect();
-  await delay(180);
-  assert.ok(a.server.listening&&b.server.listening,'background viewers keep both instances alive');
-  closeA1();await delay(100);assert.ok(a.server.listening,'second tab still owns instance');
-  const closed=once(a.server,'close');closeA2();await closed;
-  assert.ok(b.server.listening,'another agent instance stays alive');
-  closeB();
 });
 
 test('owner shutdown closes live viewer connections and is idempotent',async t=>{
@@ -104,12 +82,10 @@ test('page lifecycle opens independently, closes on pagehide and reconnects on h
     addEventListener:(name,handler)=>{events[name]=handler;}
   });
   assert.equal(streams.length,1);assert.equal(streams[0].url,'/api/viewer?token=test-token');
-  streams[0].events['agent-connection-closed']({data:JSON.stringify({ownerId:'test-owner'})});
-  assert.equal(dispatched[0].type,'saam-agent-connection-closed');assert.equal(dispatched[0].detail.ownerId,'test-owner');
   // Every open establishes connected delivery and triggers one recovery check.
-  streams[0].events.open();assert.equal(dispatched.length,2);
+  streams[0].events.open();assert.equal(dispatched.length,1);
   streams[0].events.error();streams[0].events.open();
-  assert.deepEqual(dispatched.slice(1).map(event=>[event.type,event.detail.open]),
+  assert.deepEqual(dispatched.map(event=>[event.type,event.detail.open]),
     [['saam-viewer-connection',true],['saam-viewer-connection',false],['saam-viewer-connection',true]]);
   events.pagehide();assert.equal(streams[0].closed,true);
   events.pageshow({persisted:true});assert.equal(streams.length,2);

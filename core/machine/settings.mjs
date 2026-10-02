@@ -1,14 +1,13 @@
 // Reusable machine/material/installation settings. Consumers keep selected
 // snapshots; reading a bundle never consults this store.
 import {readFile} from 'node:fs/promises';
-import {fileURLToPath} from 'node:url';
 import {resolve} from 'node:path';
 import {loadMachine} from './profile.mjs';
 import {requireThat} from '../private/settings/numeric.mjs';
 import {replaceFile} from '../private/settings/file-write.mjs';
+import {homePaths} from '../application/home.mjs';
 
-const root=fileURLToPath(new URL('../../',import.meta.url));
-const setupFor=machine=>resolve(root,`.local/machine-setups/${machine.id}.json`);
+const setupFor=machine=>resolve(homePaths().state,'machine-setups',machine.id+'.json');
 export const SETTINGS_FIELDS=Object.freeze(['setup','process','output','placement']);
 
 function mergeSettings(previous,changes){

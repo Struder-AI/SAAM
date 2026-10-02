@@ -96,7 +96,7 @@
       "kinds": [
         "call"
       ],
-      "evidence": "Actual Context provider used by MCP; CLI composition reads through separately bound contextPacket. Environment/maps stay Agent-owned."
+      "evidence": "Actual Context provider used by the application; CLI composition reads through separately bound contextPacket. Environment/maps stay Agent-owned."
     },
     {
       "contract": "agent-context-guidance",
@@ -1181,7 +1181,7 @@
         "call"
       ],
       "callers": [
-        "adapters/mcp/src/runtime.mjs::createLocalRuntime::importSTL",
+        "core/application/runtime.mjs::createLocalRuntime::createChat::importSTL",
         "core/print/import-stl.mjs::createSTLBundle"
       ],
       "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
@@ -1193,7 +1193,7 @@
         "call"
       ],
       "callers": [
-        "adapters/mcp/src/runtime.mjs::createLocalRuntime::importSTL",
+        "core/application/runtime.mjs::createLocalRuntime::createChat::importSTL",
         "core/print/import-stl.mjs::createSTLBundle"
       ],
       "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
@@ -1216,7 +1216,7 @@
         "call"
       ],
       "callers": [
-        "adapters/mcp/src/runtime.mjs::@module"
+        "core/application/runtime.mjs::@module"
       ],
       "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
     },
@@ -1271,8 +1271,7 @@
         "call"
       ],
       "callers": [
-        "core/agent/toolkit.mjs::preview",
-        "adapters/mcp/src/runtime.mjs::createLocalRuntime"
+        "core/application/runtime.mjs::createLocalRuntime::createChat"
       ],
       "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
     },
@@ -1283,13 +1282,7 @@
         "call"
       ],
       "callers": [
-        "core/agent/toolkit.mjs::preview",
-        "core/agent/toolkit.mjs::beginWork",
-        "core/agent/toolkit.mjs::waitForRequests",
-        "core/agent/toolkit.mjs::respondToRequest",
-        "core/agent/toolkit.mjs::recordRequestActivity",
-        "core/agent/toolkit.mjs::inspectFailure",
-        "adapters/mcp/src/runtime.mjs::createLocalRuntime"
+        "core/application/runtime.mjs::createLocalRuntime::createChat"
       ],
       "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
     },
@@ -1300,9 +1293,7 @@
         "call"
       ],
       "callers": [
-        "core/agent/toolkit.mjs::preview",
-        "core/agent/toolkit.mjs::beginWork",
-        "adapters/mcp/src/runtime.mjs::createLocalRuntime"
+        "core/application/runtime.mjs::createLocalRuntime::createChat"
       ],
       "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
     },
@@ -1313,8 +1304,7 @@
         "call"
       ],
       "callers": [
-        "core/agent/toolkit.mjs::preview",
-        "adapters/mcp/src/runtime.mjs::createLocalRuntime::startStudio"
+        "core/application/runtime.mjs::createLocalRuntime::createChat::startStudio"
       ],
       "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
     },
@@ -1725,6 +1715,38 @@
         "call"
       ],
       "evidence": "Actual runtime/managed-session workspace entry; callback effects and runtime association remain explicitly bounded."
+    },
+    {
+      "contract": "agent-context-guidance",
+      "target": "core/agent/manuals.mjs::readManual",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Application anonymous operation registration uses the published manual provider; runtime file evidence identifies the operation without inventing a callback declaration. This does not certify all operation effects."
+    },
+    {
+      "contract": "agent-context-skill",
+      "target": "core/agent/manuals.mjs::readManual",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Application anonymous operation registration uses the published manual provider; runtime file evidence identifies the operation without inventing a callback declaration. This does not certify all operation effects."
+    },
+    {
+      "contract": "agent-context-tour",
+      "target": "core/agent/manuals.mjs::readManual",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Application anonymous operation registration uses the published manual provider; runtime file evidence identifies the operation without inventing a callback declaration. This does not certify all operation effects."
+    },
+    {
+      "contract": "agent-context-failure",
+      "target": "core/agent/manuals.mjs::readManual",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Application anonymous operation registration uses the published manual provider; runtime file evidence identifies the operation without inventing a callback declaration. This does not certify all operation effects."
     }
   ]
 }

@@ -16,7 +16,7 @@ export async function checkSetup({log=console.log}={}) {
   const manifest=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
   await stage('dependency entry points',async()=>{
     for(const name of Object.keys(manifest.dependencies)){
-      const entry=import.meta.resolve(name==='@modelcontextprotocol/sdk'?'@modelcontextprotocol/sdk/server/index.js':name);
+      const entry=import.meta.resolve(name);
       await access(fileURLToPath(entry));
     }
   });

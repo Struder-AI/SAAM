@@ -1,8 +1,8 @@
 # Guided tour
 
 Ask your agent to open the SAAM tour. With command access it starts
-`node studio/server.mjs --toolkit start-tour --no-open`, opens the returned
-Studio URL and keeps that session alive. Studio gives the first task.
+`saam start-tour` and opens the returned Studio URL. Studio gives the first task;
+the application retains its windows and work between commands.
 
 The tour uses one saved copy of the fin block. Follow **Next** and **Back**
 through five lessons:
@@ -45,15 +45,14 @@ Claims are scoped to the tour run and lesson. A lesson left behind
 or a Studio instance that closes cancels its outstanding requests; a reopened
 instance gives the resumed lesson fresh request authority.
 
-Keep the managed Studio session and its `wait-for-studio-request` listener
-active between lessons. Use the `studio-ready` URL and owner ID; with the CLI:
+Use the [application wait](../../core/application/README.md) between lessons:
 
 ```sh
-node scripts/agent-toolkit.mjs wait-for-studio-request --studio URL --agent-owner ID --claim
+saam wait
 ```
 
-Read a returned running command session to its JSON result. Handle the current
-print and lesson only. If the participant requests unrelated work, offer
+Repeat bounded waits; retain the returned chat ID when needed. Handle the current
+print and lesson. If the participant requests unrelated work, offer
 **Exit tour** so you can do that work without silently changing this part.
 On completion, state once whether the file downloaded or the tour ended by
 viewing, then offer help with printing or another part.

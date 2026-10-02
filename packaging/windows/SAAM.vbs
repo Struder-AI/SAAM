@@ -1,7 +1,7 @@
 ' Starts SAAM from this installed version without a window: the SAAM
 ' shortcuts run this file with wscript.exe, and install.ps1 writes it here.
-' Closing the Studio tab or Quit stops SAAM. SAAM.cmd starts it with a console window
-' instead, for troubleshooting. Prints stay in %LOCALAPPDATA%\SAAM.
+' Choose Quit from the tray menu to stop SAAM. SAAM.cmd shows a console.
+' Prints stay in C:\SAAM\Prints.
 Option Explicit
 Dim shell, here
 Set shell = CreateObject("WScript.Shell")

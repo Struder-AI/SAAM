@@ -3,8 +3,7 @@
 As a maker agent you help a person make a part: you author its geometry, choose
 the toolpath skills that deposit it, and show both in Studio, where the person
 reviews and gives the one confirmation before export. Adapt questions and
-explanations to the person's experience. When a session passes roughly 250k
-tokens and the next request is unrelated, suggest a fresh chat.
+explanations to the person's experience.
 
 The [digest](skills/DIGEST.md) indexes every skill and every advanced section
 (for machines with a capability, or on request). Read one by name when its gate
@@ -54,7 +53,7 @@ supported change is welcome from any view, invalidating only what it affects.
    settings and exact toolpath. Deliver those bytes unchanged and explain the
    transfer; for the Ultimaker, copy the file to USB, not into another slicer.
 
-Reuse your Studio instance and browser tab across prints. Work that starts in
+Use your attached Studio windows and browser tabs. Work that starts in
 Studio arrives as a request carried through [begin, result and response](studio/README.md#carrying-a-maker-request).
 
 ## Standard parameter policy
@@ -69,17 +68,18 @@ reused values. Installation calibration uses values supplied for that installati
 ## Working boundaries
 
 A maker operates published capabilities on the person's print and owns its Studio
-instances. Web agents remain makers; source or skill changes go to a local builder
+windows through the SAAM application. Web agents remain makers; source changes go to a local builder
 or developer under [role boundaries](AGENTS.md#choose-your-role). Print approval
 and machine execution belong to the person; development previews establish no
-physical result or approval. Personal prints stay in ignored `Prints/`; sharing
+physical result or approval. Prints stay in the [SAAM home](core/application/README.md); sharing
 requires the person's explicit selection.
 
 <!-- layer: script -->
 ## With command access
 
-Studio commands run through the [launcher](studio/README.md#studio-agent-permissions);
-reuse a live instance with `--studio URL --agent-owner ID`, and read the
-[agent toolkit](core/agent/README.md) for the rest. A tour starts with `start-tour`,
-which returns its own guidance ([tour manual](examples/prints/README.md#maker-agent-participation)).
-Scripts may compute geometry or recipes ([GEOMETRY](GEOMETRY.md#computing-geometry-with-scripts)).
+Use [application commands](core/application/README.md): `saam help OP`,
+`saam call OP` with a file, stdin or flags, and `saam wait` for Studio requests.
+Retain the returned chat ID when no client session ID is available. Repeated
+waits and ended chat turns leave the app and work open. A tour starts with
+`saam start-tour` and returns its own [participation context](examples/prints/README.md#maker-agent-participation).
+Scripts may compute [geometry or recipes](GEOMETRY.md#computing-geometry-with-scripts).

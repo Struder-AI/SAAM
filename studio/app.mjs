@@ -1,3 +1,4 @@
+import {initializeChatUI} from './chat-ui.mjs';
 import {invert,point} from '../core/geom/frame.mjs';
 import {createTourUI,needsTourToolpath} from './tour-ui.mjs';
 import { advancePlayback, exportMovie } from './playback.mjs';
@@ -14,8 +15,8 @@ import {viewerConnected} from './viewer-session.mjs';
 import {createServicePanel} from './service-panel.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const token=$('meta[name="saam-token"]').content;
-if($('meta[name="saam-service"]').content==='on')createServicePanel({token});
-const NO_PRINT='No print is open. Open a saved print, import an STL, start the tour, or ask your agent to make a part.';
+createServicePanel({token,available:$('meta[name="saam-service"]').content==='on'});
+const NO_PRINT='Open a print, import STL or ask your agent to make a part.';
 const exportedThisSession=new Set();
 const exportKey=()=>state?.printId+':'+state?.exportHash;
 let tourUI;
@@ -347,7 +348,7 @@ async function loadAndAdoptStudioState(follow=false,reopen=false,fetchedState=nu
     pathMoves:scenes.pathMoves,materialMoves:scenes.materialMoves,decode:decodeInWorker,decodeNeutral:loadNeutralPath,
     // Serializable metadata is bound before the proxy-backed cached move store is adopted.
     bind:bindCachedProgram});
-  state=adopted.state;stateTag=fetchedTag;
+  state=adopted.state;stateTag=fetchedTag;chatUI.reflect();
   return {adopted,loaded,previous,presentationChanged,follow};
 }
 async function presentStudioState({adopted,loaded,previous,presentationChanged,follow}) {
@@ -450,14 +451,13 @@ function selectStudioPresentation(state,tab,{facts,settings}){
   if(inspection)return {stage:'DEVELOPMENT INSPECTION',title:inspection.title,guidance:inspection.description,
     facts:inspection.facts,settings:inspection.settings,reviewNote:inspection.note};
   const title=state.tourExample?state.printName+(tab==='toolpath'?' · toolpath':''):{geometry:'Your geometry',toolpath:'Your toolpath'}[tab];
-  const guidance={geometry:'Check the shape and dimensions.',toolpath:'Inspect the full toolpath before exporting.'}[tab];
+  const guidance={geometry:'Check the shape and dimensions.',toolpath:'Review the path and printing settings.'}[tab];
   const reviewNote=state.outputAvailability??(tab==='toolpath'?(state.generationError??state.programError??state.neutralPathError??(!state.program
     ?'Generate the toolpath to review it with all printing settings.'
-    :state.program.notice??state.program.envelope?.notice??'Review the settings and full toolpath together before exporting.')):'');
+    :state.program.notice??state.program.envelope?.notice??'')):'');
   return {stage:null,title,guidance,facts:facts(),settings:settings(),reviewNote};
 }
 function render() {
-  for(const direction of ['undo','redo'])$('#'+direction).disabled=busy||generating||generationPending()||tourUI?.active()||!state.history?.[direction==='undo'?'canUndo':'canRedo'];
   const presentation=selectStudioPresentation(state,tab,{facts:()=>view().facts(state,tab),
     settings:()=>[...view().facts(state,'plan'),...machineSettings(state,view().settings(state)),...recipeRows(state.plan,state.machine)]});
   $('#repair-review').hidden=tab!=='geometry'||!state.importRepair;
@@ -629,10 +629,6 @@ $('#fit-program').onclick=()=>{
   zoom=1;pan=[0,0];requestDraw();
 };
 $$('[data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
-for(const direction of ['undo','redo'])$('#'+direction).onclick=async()=>{
-  try{await working('Restoring print…',async()=>{await api('history',{direction,revision:state.revision});await refresh();});}
-  catch(error){$('#message').textContent=error.message;}
-};
 async function download(){
   const name=$('#export-name').value.trim();if(!name)throw Error('Enter a print name before exporting.');
   const key=exportKey(),response=await api('export',{exportSnapshot:state.exportSnapshot,name,downloadLink:true});
@@ -854,12 +850,13 @@ function connectStudioSession(){
 // tour, or the agent opens one through request_review.
 function showNoPrint(error){
   $('#kind-label').textContent='SAAM STUDIO';$('#view-title').textContent='No print open';
-  $('#guidance').textContent=error.message;message('');
+  $('#guidance').textContent=NO_PRINT;message('');
 }
 function reportOpening(error){
   if(error.code==='NO_PRINT')showNoPrint(error);
   else message(error.message,true);
 }
+const chatUI=initializeChatUI({getBundleId:()=>state?.work?.printId??null});
 function initializeStudio(){
   tourUI=createStudioTour();
   working('Opening Studio…',loadStudio).catch(reportOpening);

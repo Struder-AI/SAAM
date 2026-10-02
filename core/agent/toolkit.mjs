@@ -1,23 +1,21 @@
-// Small compositions of the owning manual, print and Studio APIs.
-// Heavy geometry/Studio imports stay behind the commands that need them.
+// Source context assembly and map reads; making belongs to the application.
+// No Studio, chat, live-work or release-service lifetime is created here.
 import {readFile, access} from 'node:fs/promises';
-import {resolve, dirname, relative, isAbsolute} from 'node:path';
+import {resolve, dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
-import {randomUUID} from 'node:crypto';
 import {readManual} from './manuals.mjs';
 import {ONBOARDING,extensionDiscovery} from './layers.mjs';
 import {SKILL_IDS, GUIDANCE_IDS, EXTENSION_IDS,BUILDER_IDS} from '../../skills/catalog.mjs';
 import {readExtension} from '../extensions/library.mjs';
-import {lifecycleReview} from '../print/review-state.mjs';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-// Areas outside the map: skills, adapters, setup, the tests and this toolkit are not mapped, so
+// Areas outside the map: skills, application, setup, the tests and this toolkit are not mapped, so
 // they have their own guidance. An `--area` value that names no manual area is a map target: a
 // node's index or declaration path.
 export const outsideAreas = {
-  mcp: ['adapters/mcp/DEVELOP.md', 'adapters/mcp/README.md'],
+  application: ['core/application/README.md'],
   skills: ['skills/AUTHORING.md'], setup: ['SETUP.md'],
   'core/agent': ['core/agent/README.md']
 };
@@ -41,7 +39,7 @@ const json = async path => JSON.parse(await readFile(path, 'utf8'));
 export async function contextPacket(ids, context = {}) {
   const documents=await Promise.all([...new Set(ids)].map(id => readManual(root, id, {client: 'script', ...context})));
   if(ids.includes('skills/DIGEST.md')){
-    const discovery=await extensionDiscovery(root,{readTool:'read-skill',openTool:'open-workspace'});
+    const discovery=await extensionDiscovery(root,{readTool:'read-skill',openTool:'saam call open_workspace'});
     if(discovery)documents.push(discovery);
   }
   return {documents};
@@ -70,8 +68,7 @@ async function environmentStatus() {
   const missingDependencies = [];
   for (const name of Object.keys(manifest.dependencies)) {
     try {
-      await access(fileURLToPath(import.meta.resolve(name === '@modelcontextprotocol/sdk'
-        ? '@modelcontextprotocol/sdk/server/index.js' : name)));
+      await access(fileURLToPath(import.meta.resolve(name)));
     } catch { missingDependencies.push(name); }
   }
   return {node: process.version, nodeSupported: Number(process.versions.node.split('.')[0]) >= 22,
@@ -144,385 +141,6 @@ export async function onboarding({role, areas = [], machine: machineId, set = de
     environmentStatus(), mapKeys.length ? readMaps(mapKeys, {set}) : []]);
   return {role, environment, ...context, maps, ...(mapKeys.length ? {mapSet: set} : {}),
     nextStep: role === 'maker' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context and choose individual skill manuals when an edit needs them. The digest indexes gated sections; read one by name when its gate applies.'
-      : role === 'builder' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context. Builders author guidance, recipe helpers, assets, examples and diagnostics using published APIs. Core skills and shared capability/contract changes require the developer role. The component manual for the area you consume owns its behaviour, contracts and limits; read the one for the code you touch. The dev maps own structure: walk them from 0, or from a node you name with --area, for what calls what, with read-map ADDRESS. Maps give source ranges for direct file reads; run regenerate [INDEX] after an edit. Skills and adapters keep their own authoring references.'
+      : role === 'builder' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context. Builders author guidance, recipe helpers, assets, examples and diagnostics using published APIs. Core skills and shared capability/contract changes require the developer role. The component manual for the area you consume owns its behaviour, contracts and limits; read the one for the code you touch. The dev maps own structure: walk them from 0, or from a node you name with --area, for what calls what, with read-map ADDRESS. Maps give source ranges for direct file reads; run regenerate [INDEX] after an edit. Skills keep their own authoring references.'
       : `Focus next work on plans/0.3.2.md; plans/0.3.1.md retains inherited contracts. Reuse this developer context. Continue in map set ${set}: pass --set ${set} to map commands. 0.3.2 retains 030-architecture for product work and 030-deployment for installation/service work, including installed-release selection. Map reads return visible relationships and source locations, never code. Read files at those ranges only for implementation internals; leaf addresses are not map reads. Link/contract addresses return complete interfaces. Design maps express intent, not proven implementation; the original scanned map requires --set default. Design regenerate redraws; audit and audit-check assess implementation and freshness. Open component manuals as needed.`};
-}
-
-function libraryPath(library) { return resolve(library ?? resolve(root, 'Prints')); }
-function relativePrint(library, directory) {
-  const id = relative(library, directory).replaceAll('\\', '/');
-  if (!id || id === '..' || id.startsWith('../') || isAbsolute(id)) throw Error('Choose a print inside the selected --library directory.');
-  return id;
-}
-export function printSummary(state, {includeGeometry = false, programChecked = true} = {}) {
-  const plan = structuredClone(state.plan);
-  if (!includeGeometry) delete plan.geometry;
-  const lifecycle=lifecycleReview(state,{programChecked});
-  return {directory: state.dir, kind: state.kind, revision: state.revision, geometryHash:state.geometryHash,
-    plan, planComplete: includeGeometry,
-    geometry: {boundsMm: state.geometry?.boundsMm, nativeFile: state.geometry?.nativeFile},
-    machine: state.machine?{id: state.machine.id, name: state.machine.name}:null, skills: state.skills,
-    toolpathApproved: lifecycle.toolpathApproved,
-    generation: {record: state.review.generation, programChecked,
-      current: lifecycle.current,
-      programError: state.programError ?? null, summary: state.program?.summary ?? null},
-    outputAvailability: state.outputAvailability ?? null,
-    machineConfiguration: state.machineConfiguration ?? null, limitations: state.limitations};
-}
-async function readPrint(directory, options = {}) {
-  const {bundleFor,readStableBundle} = await import('../../studio/adapter-resolution.mjs');
-  const bundle = await bundleFor(directory);
-  const {state} = await readStableBundle(bundle, directory, {program: options.programChecked === false ? false : 'source'});
-  return printSummary(state, options);
-}
-
-export class ToolkitError extends Error {
-  constructor(stage, error, partial) {
-    super(error.message, {cause: error}); this.stage = stage; this.partial = partial;
-  }
-}
-
-// Resolve or create the print a preview command names; shared by a fresh launch
-// and a switch of the print shown in an already-owned Studio.
-async function preparePrint({command, target, libraryRoot, recipe, stl, machine, units,signal,onProgress,importSTL}) {
-  const prepared={};
-  try {
-  if (command === 'create-preview') {
-    prepared.directory = resolve(target);
-    relativePrint(libraryRoot, prepared.directory);
-    // Custom libraries also isolate remembered machine defaults, as MCP does.
-    const setupFile = libraryRoot === resolve(root, 'Prints') ? undefined
-      : resolve(libraryRoot, '.machine-setups', `${machine ?? 'ultimaker-s5'}.json`);
-    const options = {machineId: machine, setupFile};
-    if (stl) {
-      const {createSTLBundle} = await import('../print/import-stl.mjs');
-      const imported=importSTL?await importSTL({directory:prepared.directory,source:resolve(stl),machineId:machine,units})
-        :await createSTLBundle(prepared.directory, resolve(stl), {...options, units,signal,progress:onProgress});
-      if(importSTL&&machine){const {changeMachine}=await import('../machine/bundle-settings.mjs');await changeMachine(prepared.directory,machine,{setupFile});}
-      prepared.repaired=imported.repaired;
-    } else {
-      const adapter = await import('../print/bundle.mjs');
-      await adapter.initBundle(prepared.directory, recipe ? await json(resolve(recipe)) : undefined, options);
-    }
-    prepared.created = true;
-    prepared.assumptions = {recipe: recipe ? resolve(recipe) : null, sourceSTL: stl ? resolve(stl) : null,
-      setup: recipe ? 'Supplied recipe' : 'Compatible remembered setup, otherwise machine defaults'};
-  } else {
-    const {printDirectory} = await import('../../studio/server.mjs');
-    prepared.directory = await printDirectory(resolve(target));
-  }
-  return {prepared};
-  } catch(error) {return {prepared,error};}
-}
-function validatePreview({command, target, recipe, stl, kind, units}) {
-  if (kind !== 'shell') throw Error('Only shell/mesh prints are supported.');
-  if (recipe && stl) throw Error('Choose either --recipe or --stl.');
-  if (command === 'create-preview' && !recipe && !stl) throw Error('Creation requires --recipe with authored geometry or --stl.');
-  if (!['auto', 'mm', 'inch'].includes(units)) throw Error('Units must be auto, mm or inch.');
-  if (command !== 'start-tour' && !target) throw Error('Supply a print directory.');
-}
-const reuseGuidance = studio => ({default: 'Reuse this Studio and its browser tab to show another print; launch another instance only when the person asks, or for a compelling reason you state to them.',
-  command: `node scripts/agent-toolkit.mjs open-print|create-preview DIRECTORY --studio ${studio.url} --agent-owner ${studio.agentOwnerId}`,
-  live: 'This managed session also accepts {"command":"open-print"|"create-preview","target":DIRECTORY} on stdin.'});
-
-// Show another print in an already-owned Studio: `open` is the live server's
-// serialized openPrint, or absent to reach the Studio URL from another process.
-export async function showPrint({command, target, library, recipe, stl, kind = 'shell', machine, units = 'auto', studio, ownerId, open,signal,onProgress,importSTL}) {
-  if (!['open-print', 'create-preview'].includes(command)) throw Error('Only open-print and create-preview reuse a Studio.');
-  validatePreview({command, target, recipe, stl, kind, units});
-  if (!open && !studio) throw Error('Supply the Studio URL from studio-ready.');
-  if (!open && !ownerId) throw Error('Supply the agent owner ID (agentOwnerId from studio-ready) with --agent-owner.');
-  let partial = {command};
-  let stage = 'prepare';
-  try {
-    const studioImport=importSTL??(studio?async options=>{
-      const response=await fetch(new URL('/api/agent-import-stl',studio),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner:ownerId,...options}),signal});
-      const body=await response.json();if(!response.ok)throw Error(body.error??'Studio refused to import the STL.');return body;
-    }:undefined);
-    const preparation=await preparePrint({command, target, libraryRoot: libraryPath(library), recipe, stl, machine, units,signal,onProgress,importSTL:studioImport});
-    partial={...partial,...preparation.prepared};
-    if(preparation.error)throw preparation.error;
-    stage = 'open-in-studio';
-    if (open) partial.studio = {...await open(partial.directory), reused: true};
-    else {
-      const response = await fetch(new URL('/api/agent-open', studio), {method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({owner: ownerId, path: partial.directory})}), body = await response.json();
-      if (!response.ok) throw Error(body.error ?? 'Studio refused to open the print.');
-      partial.studio = {url: new URL(studio).origin, instanceId: body.instanceId, agentOwnerId: body.ownerId, directory: body.directory, reused: true};
-    }
-    stage = 'context';
-    if (stl) partial.assumptions.units = (await readPrint(partial.directory, {includeGeometry: true, programChecked: false})).plan.geometry.source;
-    partial.print = await readPrint(partial.directory);
-    return partial;
-  } catch (error) {throw new ToolkitError(stage, error, partial);}
-}
-
-async function preparePreviewPrint(options,tour){
-  if(options.command!=='start-tour')return preparePrint(options);
-  let prepared={};
-  try{
-    const fresh=await tour.action('fresh');
-    prepared={directory:fresh.directory,created:true};
-    if(options.startAtLayer!==undefined)await tour.setStartAt({layer:options.startAtLayer});
-    return {prepared};
-  }catch(error){return {prepared,error};}
-}
-
-async function readPreviewPrint(directory){
-  const {bundleFor}=await import('../../studio/adapter-resolution.mjs');
-  // First-screen startup needs geometry, never slicing or program interpretation.
-  const initial=await (await bundleFor(directory)).loadBundle(directory,{program:false});
-  return {print:printSummary(initial,{programChecked:false}),sourceUnits:initial.plan.geometry?.source??null};
-}
-
-function subscribePreview(server,agentRequests,studioEvents,{onRequest,onEvents}){
-  const session=server.agentSession();
-  const stopRequests=agentRequests.subscribe(request=>{
-    if(request.source==='studio'&&request.studioInstanceId===session.instanceId)onRequest({studio:server.agentSession(),request});
-  });
-  server.once('close',stopRequests);
-  const stopEvents=studioEvents.subscribe(events=>onEvents({studio:server.agentSession(),events}));
-  server.once('close',()=>{stopEvents();studioEvents.close();});
-  return session;
-}
-
-async function listenPreview(server,directory,ownerId,session){
-  await new Promise((done,reject)=>{
-    const failed=error=>reject(error);
-    server.once('error',failed);
-    server.listen(0,'127.0.0.1',()=>{server.off('error',failed);done();});
-  });
-  return {url:`http://127.0.0.1:${server.address().port}`,pid:process.pid,
-    directory,instanceId:session.instanceId,agentOwnerId:ownerId,browserOpenRequested:false};
-}
-
-function previewListener(libraryRoot,studio,ownerId){
-  return {mode:'live',event:'studio-request',events:'studio-events',studioInstanceId:studio.instanceId,agentOwnerId:ownerId,
-    control:'Send newline-delimited JSON commands to this managed session stdin: read-studio-events reads progress/events; wait-for-studio-request waits; cancel-studio-calculation cancels the observed jobId (import) or generationHash (toolpath).',
-    command:'wait-for-studio-request',library:libraryRoot,after:[],claim:true,waitMs:25000,
-    fallback:{command:'wait-for-studio-request',studio:studio.url,agentOwner:ownerId,library:libraryRoot,after:[],claim:true,waitMs:25000,
-      read:{command:'read-studio-events',studio:studio.url,agentOwner:ownerId}}};
-}
-
-async function closePreview(server,agentRequests,studioEvents){
-  if(server)await server.shutdown();
-  else {agentRequests.close();studioEvents.close();}
-}
-
-export async function listWorkspaces(){
-  const host=await import('../../workspaces/server.mjs');
-  return {workspaces:await host.listWorkspaces({appRoot:root})};
-}
-
-// The managed command session owns this host and its background jobs, just as
-// preview owns a Studio. The installed runtime uses the same workspace host.
-export async function openWorkspace({target,library,directory,noOpen=false,port=0,onReady=()=>{},onEvents=()=>{},onEvent=()=>{}}){
-  const {startWorkspace}=await import('../../workspaces/server.mjs');
-  const {createStudioEvents}=await import('../../studio/studio-events.mjs');
-  const events=createStudioEvents(),workspaceInstanceId=randomUUID(),stopObserving=events.observe(onEvent);
-  let workspace;
-  try{
-    workspace=await startWorkspace({extensionId:target,port,appRoot:root,
-      ...(directory||library?{directory:directory?resolve(directory):resolve(library,target+'-workspace')}:{}),
-      onEvent:event=>{const {kind,...detail}=event;events.record(kind,{...detail,workspaceInstanceId,extensionId:target});}});
-    const stopEvents=events.subscribe(batch=>onEvents({workspaceInstanceId,events:batch}));
-    workspace.server.once('close',()=>{stopEvents();stopObserving();events.close();});
-    const result={command:'open-workspace',workspaceInstanceId,extension:workspace.extension,url:workspace.url,
-      directory:workspace.directory,browserOpenRequested:false,
-      listener:{mode:'live',event:'workspace-events',control:'Send newline-delimited JSON commands on this managed session: get-workspace, update-workspace with design, preview-workspace with design, create-workspace-bundles with optional design, read-workspace-events, close-workspace.'}};
-    onReady({ok:true,event:'workspace-ready',...result,
-      nextStep:'Open url with the client browser integration. Keep this managed session alive for design controls and bundle-creation progress.'});
-    if(!noOpen&&process.env.SAAM_NO_AUTO_OPEN!=='1'){
-      const {openBrowser}=await import('../../studio/browser.mjs');
-      result.browserOpenRequested=await openBrowser(workspace.url);
-    }
-    return {result,server:workspace.server,workspace,agent:{events}};
-  }catch(error){if(workspace)await workspace.shutdown().catch(()=>{});stopObserving();events.close();throw error;}
-}
-
-// The caller owns this live server. No detached process or global session registry.
-export async function preview({command, target, library, recipe, stl, kind = 'shell', machine,
-  units = 'auto', startAtLayer, noOpen = false, ownerId: resumeOwner, onReady = () => {},onRequest=()=>{},onEvents=()=>{},signal,onProgress}) {
-  if (!['start-tour', 'open-print', 'create-preview'].includes(command)) throw Error('Unknown preview command.');
-  validatePreview({command, target, recipe, stl, kind, units});
-  if (startAtLayer!==undefined&&(!Number.isInteger(startAtLayer) || startAtLayer < 1)) throw Error('Start layer must be a positive integer.');
-  if (command !== 'start-tour' && !target) throw Error('Supply a print directory.');
-  // A relaunch may resume the agent owner it reports in studio-ready, so the
-  // requests and events of the previous run stay visible to the same agent.
-  // It always mints a fresh instance; it never attaches to a running server.
-  if(resumeOwner!==undefined&&!/^[A-Za-z0-9_-]{8,200}$/.test(resumeOwner))
-    throw Error('--agent-owner must be the agentOwnerId reported by an earlier studio-ready line.');
-  const libraryRoot = libraryPath(library),ownerId=resumeOwner??randomUUID();
-  let partial={command};
-  const {createAgentRequests}=await import('../../studio/agent-requests.mjs');
-  const {createStudioEvents}=await import('../../studio/studio-events.mjs');
-  const studioEvents=createStudioEvents();
-  const agentRequests=createAgentRequests(libraryRoot,{ownerId,events:studioEvents});
-  let stage = 'prepare', server;
-  try {
-    const {createStudio} = await import('../../studio/server.mjs');
-    const {createTour} = await import('../../studio/tour.mjs');
-    const tour = createTour(libraryRoot,{ownerId,agentRequests});
-    const preparation=await preparePreviewPrint({command,target,libraryRoot,recipe,stl,machine,units,startAtLayer,signal,onProgress},tour);
-    const prepared=preparation.prepared;
-    partial={...partial,...prepared};
-    if(preparation.error)throw preparation.error;
-    stage = 'read-print';
-    const initial=await readPreviewPrint(prepared.directory);
-    partial.print=initial.print;
-    if (stl) partial.assumptions.units = initial.sourceUnits;
-    stage = 'launch-studio';
-    server = createStudio(prepared.directory, {libraryRoot,agentOwnerId:ownerId,agentRequests,closeAgentRequests:true,studioEvents});
-    await server.ready();
-    const session=subscribePreview(server,agentRequests,studioEvents,{onRequest,onEvents});
-    const studio=await listenPreview(server,prepared.directory,ownerId,session);
-    partial.studio=studio;
-    partial.reuse = reuseGuidance(studio);
-    onReady({event: 'studio-ready', command, studio: {...partial.studio},
-      nextStep: 'Open studio.url now with the client browser integration. Keep this managed command session alive; consume the result context after the viewer is open.'});
-    stage = 'open-browser';
-    if (!noOpen && process.env.SAAM_NO_AUTO_OPEN !== '1') {
-      const {openBrowser} = await import('../../studio/browser.mjs');
-      partial.studio.browserOpenRequested = await openBrowser(partial.studio.url);
-    }
-    stage = 'context';
-    partial.listener=previewListener(libraryRoot,studio,ownerId);
-    if (command === 'start-tour') {
-      partial.tour = await tour.info();
-      [partial.context, partial.sync] = await Promise.all([
-        contextPacket(['MAKERS.md', 'examples/prints/README.md#maker-agent-participation']), syncStatus()]);
-      partial.nextStep = 'Include sync.summary as one line in your first chat message. Use the returned participation context directly; no maker-onboarding or repeated manual reads are needed. Keep the returned listener active, let Studio lead lesson one, and choose individual skill reads when an edit needs them.';
-    } else {
-      partial.print = await readPrint(partial.directory);
-    }
-    return {result: partial, server,agent:{requests:agentRequests,events:studioEvents,ownerId,session:server.agentSession}};
-  } catch (error) {
-    await closePreview(server,agentRequests,studioEvents);
-    if (partial.studio) partial.studio.closed = true;
-    throw new ToolkitError(stage, error, partial);
-  }
-}
-
-export async function beginWork({target, library, instruction, requestId, includeGeometry = false, kind = 'edit',requests:providedRequests,studioInstanceId,ownerId}) {
-  const libraryRoot = libraryPath(library);
-  const {createAgentRequests} = await import('../../studio/agent-requests.mjs');
-  const requests = providedRequests??createAgentRequests(libraryRoot,{ownerId});
-  let directory = target ? resolve(target) : null, record;
-  if (requestId) {
-    const existing = await requests.get(requestId);
-    if (!existing) throw Error('Unknown Studio request.');
-    if(studioInstanceId&&existing.studioInstanceId&&existing.studioInstanceId!==studioInstanceId)throw Error('That request belongs to another Studio instance.');
-    if (directory && relativePrint(libraryRoot, directory) !== existing.printId) throw Error('That request belongs to another print.');
-    if (!['queued', 'working', 'waiting', 'failed'].includes(existing.status)) throw Error('That request is no longer pending.');
-    directory = resolve(libraryRoot, existing.printId);
-    relativePrint(libraryRoot, directory);
-    record = await requests.update(requestId, {status: 'working'});
-  } else {
-    if (!directory) {
-      // Read only target identity before turning the indicator on.
-      const progress = await json(resolve(libraryRoot, '.tour-progress.json'));
-      if (!progress.active || !progress.selected) throw Error('No active tour print; supply its directory.');
-      directory = resolve(libraryRoot, 'tour', progress.selected);
-    }
-    relativePrint(libraryRoot, directory);
-    record = await requests.begin({directory, instruction, kind,studioInstanceId});
-  }
-  const partial = {request: record};
-  try {
-    partial.print = await readPrint(directory, {includeGeometry, programChecked:false});
-    const {createTour} = await import('../../studio/tour.mjs');
-    const tour = await createTour(libraryRoot,{ownerId,agentRequests:requests}).info();
-    partial.tour = tour.directory === directory ? tour : null;
-    return partial;
-  } catch (error) {
-    partial.request = await requests.update(record.id, {status: 'failed', message: error.message});
-    throw new ToolkitError('read-work-context', error, partial);
-  }
-}
-
-// A live Studio URL serves the owning agent's event queue across processes; the
-// JSON journal alone carries neither Studio events nor calculation progress.
-async function pollStudio({studio,ownerId,waitMs=0,instance,after=[],history=false}){
-  if(!studio)throw Error('Supply the Studio URL from studio-ready.');
-  if(!ownerId)throw Error('Supply the agent owner ID (agentOwnerId from studio-ready) with --agent-owner.');
-  const params=new URLSearchParams({owner:ownerId,wait:String(Math.min(25000,Math.max(0,waitMs)))});
-  if(instance)params.set('instance',instance);if(after.length)params.set('after',after.join(','));if(history)params.set('history','1');
-  const response=await fetch(new URL('/api/agent-events?'+params,studio)),body=await response.json();
-  if(!response.ok)throw Error(body.error??'Studio refused the event read.');
-  return body;
-}
-export async function waitForRequests({library, after = [], waitMs = 25000, claim = false,requests:providedRequests,studioInstanceId,ownerId,studio,server}) {
-  const {createAgentRequests} = await import('../../studio/agent-requests.mjs');
-  let result;
-  if(studio&&!providedRequests){
-    const polled=await pollStudio({studio,ownerId,waitMs,instance:studioInstanceId,after});
-    const store=createAgentRequests(libraryPath(library),{ownerId});
-    result={requests:await store.selectQueued(polled.requests,{after,claim,studioInstanceId}),events:polled.events,generation:polled.generation};
-  } else {
-    result = await (providedRequests??createAgentRequests(libraryPath(library),{ownerId})).wait({after, waitMs, claim,studioInstanceId});
-    if(server)result.generation=[server.generationStatus()].filter(Boolean);
-  }
-  return {...result, after: [...new Set([...after, ...result.requests.map(request => request.id)])]};
-}
-
-export async function readStudioEvents({studio,ownerId,waitMs=0,history=false,events,server}){
-  if(events)return {events:events.drain(),generation:server?[server.generationStatus()].filter(Boolean):[],...(history?{recent:events.history()}:{})};
-  const polled=await pollStudio({studio,ownerId,waitMs,history});
-  return {events:polled.events,generation:polled.generation,...(history?{recent:polled.recent}:{})};
-}
-
-export async function cancelStudioCalculation({studio,ownerId,jobId,generationHash,server}){
-  if(!jobId&&!generationHash)throw Error('Supply the observed import jobId or toolpath generationHash.');
-  if(server)return server.cancelCalculation({jobId,generationHash,reason:'agent'});
-  if(!studio||!ownerId)throw Error('Supply --studio and --agent-owner from studio-ready.');
-  const response=await fetch(new URL('/api/agent-cancel-calculation',studio),{
-    method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({owner:ownerId,jobId,generationHash})});
-  const body=await response.json();
-  if(!response.ok)throw Error(body.error??'Studio refused cancellation.');
-  return body;
-}
-
-export async function respondToRequest({library, requestId, status = 'completed', message = '', resultStage,requests:providedRequests,studioInstanceId,ownerId}) {
-  if (!['working', 'completed', 'failed', 'cancelled', 'waiting'].includes(status)) throw Error('Choose working, completed, failed, cancelled or waiting.');
-  if (resultStage && !['geometry', 'toolpath'].includes(resultStage)) throw Error('Choose geometry or toolpath for the result stage.');
-  const {createAgentRequests} = await import('../../studio/agent-requests.mjs');
-  const requests=providedRequests??createAgentRequests(libraryPath(library),{ownerId}),record=await requests.get(requestId);
-  if(studioInstanceId&&record.studioInstanceId&&record.studioInstanceId!==studioInstanceId)throw Error('That request belongs to another Studio instance.');
-  return requests.update(requestId, {status, message, resultStage});
-}
-
-export async function recordRequestActivity({library,requestId,target,requests:providedRequests,studioInstanceId,ownerId}){
-  const {createAgentRequests}=await import('../../studio/agent-requests.mjs');
-  const requests=providedRequests??createAgentRequests(libraryPath(library),{ownerId}),record=await requests.get(requestId);
-  if(studioInstanceId&&record.studioInstanceId&&record.studioInstanceId!==studioInstanceId)throw Error('That request belongs to another Studio instance.');
-  return requests.activity(requestId,{directory:target&&resolve(target)});
-}
-
-export async function inspectFailure({target, library, requestId, includeGeometry = false}) {
-  const directory = resolve(target), libraryRoot = libraryPath(library);
-  const {createAgentRequests} = await import('../../studio/agent-requests.mjs');
-  const store=createAgentRequests(libraryRoot);
-  const requests = (requestId?[await store.get(requestId)]:await store.list({printId:store.printId(directory)})).filter(record =>
-    resolve(libraryRoot, record.printId) === directory && (!requestId || record.id === requestId));
-  if (requestId && !requests.length) throw Error('That request does not belong to this print.');
-  const result = {directory, requests};
-  let skills;
-  try {result.print = await readPrint(directory, {includeGeometry}); skills = result.print.skills;}
-  catch (error) {
-    // Preserve the validation failure and inspect the recipe even when it cannot load.
-    result.validationError = error.message;
-    try {
-      const document=await json(resolve(directory,'plan.json')),{bundle:_bundle,...plan}=document;
-      skills = Object.keys(plan.skills ?? {});
-      result.unvalidatedRecipe = {...plan};
-      if (!includeGeometry) delete result.unvalidatedRecipe.geometry;
-      result.planComplete = includeGeometry;
-    } catch (readError) { result.recipeReadError = readError.message; }
-  }
-  result.context = await contextPacket(['core/print/USAGE.md#check-generate-and-deliver']);
-  result.skillReferences = [...new Set(skills ?? [])].filter(id => SKILL_IDS.includes(id)||GUIDANCE_IDS.includes(id)||EXTENSION_IDS.includes(id))
-    .map(id => ({skillId: id, guidanceId: `skills/${id}/SKILL.md`, command: `read-skill ${id}`}));
-  result.nextStep = 'Judge which skill limits and linked references explain this failure, then read the selected manuals individually before choosing a correction.';
-  result.failureEvidence = 'Requests preserve Studio failure messages. CLI-only failures are not persisted; supply the original error alongside this report. Requests can describe earlier revisions.';
-  return result;
 }

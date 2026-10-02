@@ -116,13 +116,12 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
       if(!data.active||await confined(data.selected)!==resolve(directory)||seen.revision!==state.revision)return describe(data);
       if(data.step===L.settings){
         if(seen.stage!=='toolpath'||!state.program||state.programError||!seen.exportHash||seen.exportHash!==state.exportHash)return describe(data);
-        const shown={...workSnapshot(state),stage:'toolpath'},baseline=data.editLesson;
-        // The lesson opens on a change the participant asked their agent for,
-        // displayed as the current toolpath. Automatic Studio work and requests
-        // that predate the lesson do not count. The record is read from the
-        // print's whole history, because a Studio restart mints a new agent
-        // owner and would otherwise hide the very edit that was made.
-        const requested=(await requests.list({printId:baseline.printId,anyOwner:true})).some(r=>r.source==='agent'&&r.kind!=='guidance'
+        const shown={...workSnapshot(state),stage:'toolpath',studioInstanceId:studioId},baseline=data.editLesson;
+        // A current lesson request or a new agent edit must publish the changed
+        // inputs actually drawn. Old lessons and automatic generation cannot
+        // supply that request target. History survives a change of chat owner.
+        const requested=(await requests.list({printId:baseline.printId,anyOwner:true})).some(r=>
+          (r.source==='agent'&&r.kind==='edit'||r.source==='studio'&&r.scope?.runId===data.runId&&r.scope?.lessonId===data.lessonId)
           &&!baseline.priorRequestIds.includes(r.id)&&['working','waiting','completed'].includes(r.status)
           &&r.baseline?.inputKey!==shown.inputKey&&requestReceiptState({...r,presented:false},{view:{ready:true,snapshot:shown}}).receipt);
         if(!requested)return describe(data);

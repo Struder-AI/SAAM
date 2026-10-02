@@ -1,8 +1,5 @@
-# Installs SAAM for the current Windows user, without administrator rights.
-# It unpacks the package's app.tar into %LOCALAPPDATA%\Programs\SAAM
-# (replacing an earlier installation), creates the SAAM shortcuts and starts
-# SAAM. The data folder, which holds the prints, is never touched: to go back
-# to an older version, install its ZIP the same way.
+# Installs into C:\SAAM\app, preserving Prints, extensions and state.
+# Legacy data and program additions migrate before transactional replacement.
 #
 # The package's app folder holds only release.json and these scripts; the
 # application is <package>\app.tar. Two ways in, both from this file's place
@@ -22,13 +19,16 @@ if ($isolated) {
   if (-not $resolved.StartsWith($temporary, [StringComparison]::OrdinalIgnoreCase)) {
     Stop-WithMessage 'SAAM_INSTALL_TEST_ROOT must be under the temporary folder.'
   }
-  $SaamRoot = $resolved
+  $SaamHome = $resolved
+  $SaamRoot = Join-Path $SaamHome 'app'
+  $LegacyData = Join-Path $SaamHome 'legacy-data'
+  $LegacyApp = Join-Path $SaamHome 'legacy-app'
 }
 $NoShortcuts = $isolated
 
 $updating = $WaitPid -gt 0
 if ($updating) {
-  $logs = Join-Path (Get-SaamDataFolder) 'logs'
+  $logs = Join-Path $SaamHome 'state\logs'
   New-Item -ItemType Directory -Path $logs -Force | Out-Null
   $UpdateLog = Join-Path $logs 'update.log'
 }
@@ -64,6 +64,18 @@ Write-Step "Installing SAAM $version for $env:USERNAME into $SaamRoot."
 # The SAAM being updated has exited, so this refuses only another running SAAM.
 Assert-SaamStopped 'run "Install SAAM.cmd"'
 
+try {
+  New-Item -ItemType Directory -Path $SaamHome -Force | Out-Null
+  $probe = Join-Path $SaamHome ('write-check-' + [guid]::NewGuid().ToString('N'))
+  Set-Content -LiteralPath $probe -Value 'SAAM' -Encoding ASCII
+  Remove-Item -LiteralPath $probe -Force
+  if (-not $isolated) {
+    # The home is shared by this machine's Windows users, not a per-user root.
+    & (Join-Path $env:SystemRoot 'System32\icacls.exe') $SaamHome /grant '*S-1-5-32-545:(OI)(CI)M' | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot grant the Windows Users group write access. Have the owner grant Modify on C:\SAAM, then retry.' }
+  }
+} catch { Stop-WithMessage "Cannot prepare the SAAM home ($($_.Exception.Message)). The earlier installation is unchanged." }
+
 # Unpack into a staging folder next to the installation first, so a failed
 # unpack leaves any installed SAAM as it was.
 $programs = Split-Path -Parent $SaamRoot
@@ -79,7 +91,7 @@ if ($tarExit -ne 0) {
   Stop-WithMessage "Unpacking SAAM failed (tar exit code $tarExit). Nothing was changed."
 }
 try {
-  foreach ($name in @('runtime\node.exe', 'release.json', 'packaging\launch.mjs', 'packaging\windows\SAAM.ico', 'packaging\windows\SAAM.vbs', 'packaging\windows\SAAM.cmd')) {
+  foreach ($name in @('runtime\node.exe', 'release.json', 'packaging\launch.mjs', 'scripts\saam.mjs', 'packaging\migrate-home.mjs', 'packaging\client-setup.mjs', 'packaging\windows\SAAM.ico', 'packaging\windows\SAAM.vbs', 'packaging\windows\SAAM.cmd', 'packaging\windows\saam-command.cmd')) {
     if (-not (Test-Path -LiteralPath (Join-Path $staging $name) -PathType Leaf)) { throw "The candidate has no $name." }
   }
   $candidate = Get-Content -LiteralPath (Join-Path $staging 'release.json') -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -94,7 +106,17 @@ try {
 # download mark and Windows does not warn at every start.
 foreach ($name in @('SAAM.vbs', 'SAAM.cmd')) {
   $lines = Get-Content -LiteralPath (Join-Path $staging "packaging\windows\$name")
-  Set-Content -LiteralPath (Join-Path $staging $name) -Value $lines -Encoding ASCII
+  $installedName = $name
+  if ($name -eq 'SAAM.cmd') { $installedName = 'SAAM-console.cmd' }
+  Set-Content -LiteralPath (Join-Path $staging $installedName) -Value $lines -Encoding ASCII
+}
+Copy-Item -LiteralPath (Join-Path $staging 'packaging\windows\saam-command.cmd') -Destination (Join-Path $staging 'saam.cmd')
+try {
+  & (Join-Path $staging 'runtime\node.exe') (Join-Path $staging 'packaging\migrate-home.mjs') $SaamHome $LegacyData $LegacyApp
+  if ($LASTEXITCODE -ne 0) { throw 'Legacy data migration did not complete.' }
+} catch {
+  Remove-Folder $staging
+  Stop-WithMessage "Migration failed ($($_.Exception.Message)). The earlier installation and legacy source data are preserved."
 }
 
 try {
@@ -110,6 +132,27 @@ try {
   Stop-WithMessage "Could not replace SAAM ($replacementError). The earlier installation is unchanged or restored. Close programs using $SaamRoot and try again."
 }
 try { Remove-Folder $backup } catch { Write-Step "SAAM was replaced; the earlier installation remains at $backup ($($_.Exception.Message))." }
+foreach ($legacy in @($LegacyData, $LegacyApp)) {
+  if (Test-Path -LiteralPath $legacy) {
+    $resolvedLegacy = [IO.Path]::GetFullPath($legacy).TrimEnd('\')
+    if ($resolvedLegacy -ne [IO.Path]::GetFullPath($LegacyData).TrimEnd('\') -and $resolvedLegacy -ne [IO.Path]::GetFullPath($LegacyApp).TrimEnd('\')) { Stop-WithMessage 'Unexpected legacy path; migration cleanup stopped.' }
+    $archive = Join-Path $SaamHome ('state\migration\' + (Split-Path -Leaf (Split-Path -Parent $legacy)) + '-' + (Split-Path -Leaf $legacy) + '-' + $transaction)
+    New-Item -ItemType Directory -Path (Split-Path -Parent $archive) -Force | Out-Null
+    try { Move-Item -LiteralPath $legacy -Destination $archive }
+    catch { Write-Step "SAAM is installed; preserved earlier files remain at $legacy ($($_.Exception.Message))." }
+  }
+}
+if (-not $isolated) {
+  try {
+    $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+    if (($userPath -split ';') -notcontains $SaamRoot) { [Environment]::SetEnvironmentVariable('Path', ($SaamRoot + ';' + $userPath).TrimEnd(';'), 'User') }
+  } catch { Write-Step "SAAM is installed; ask the agent to repair PATH registration ($($_.Exception.Message))." }
+  $env:Path = $SaamRoot + ';' + $env:Path
+}
+$clientArgs = @((Join-Path $SaamRoot 'packaging\client-setup.mjs'), $SaamHome)
+if ($isolated) { $clientArgs += '--no-register' }
+& (Join-Path $SaamRoot 'runtime\node.exe') @clientArgs
+if ($LASTEXITCODE -ne 0) { Write-Step 'SAAM is installed; ask the agent to repair client registration.' }
 
 # An update refreshes only the shortcuts the person still has; it adds the
 # console shortcut for someone who keeps the Start Menu one.
@@ -121,17 +164,17 @@ function Set-Shortcut([string]$Path, [string]$Target, [string]$Arguments, [strin
   $link = $shell.CreateShortcut($Path)
   $link.TargetPath = $Target
   $link.Arguments = $Arguments
-  $link.WorkingDirectory = $env:USERPROFILE
+  $link.WorkingDirectory = $SaamHome
   $link.Description = $Description
   if ($Target -eq $wscript) { $link.IconLocation = (Join-Path $SaamRoot 'packaging\windows\SAAM.ico') + ',0' }
   $link.Save()
 }
-# The SAAM shortcuts start it without a window; Quit in SAAM Studio stops it.
+# The SAAM shortcuts start the persistent tray application.
 $wscript = Join-Path $env:SystemRoot 'System32\wscript.exe'
 $launcher = "`"$(Join-Path $SaamRoot 'SAAM.vbs')`""
 Set-Shortcut $StartMenuLink $wscript $launcher "SAAM $version"
 Set-Shortcut $DesktopLink $wscript $launcher "SAAM $version"
-if ($keepConsole) { Set-Shortcut $ConsoleLink (Join-Path $SaamRoot 'SAAM.cmd') '' "SAAM $version with a console window, for troubleshooting" $true }
+if ($keepConsole) { Set-Shortcut $ConsoleLink (Join-Path $SaamRoot 'SAAM-console.cmd') '' "SAAM $version with a console window, for troubleshooting" $true }
 $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $uninstaller = Join-Path $SaamRoot 'packaging\windows\uninstall.ps1'
 Set-Shortcut $UninstallLink $powershell "-NoProfile -ExecutionPolicy Bypass -File `"$uninstaller`"" 'Uninstall SAAM (your prints are kept)'
@@ -139,7 +182,7 @@ Set-Shortcut $UninstallLink $powershell "-NoProfile -ExecutionPolicy Bypass -Fil
 
 Write-Host ''
 Write-Step "SAAM $version is installed."
-if (-not $NoShortcuts) { Write-Host "Start it any time from the SAAM shortcut on the Start Menu or Desktop; stop it by closing the Studio tab or with Quit." }
+if (-not $NoShortcuts) { Write-Host 'Start from the SAAM icon; choose Quit from its tray menu to stop. New chats see saam after restarting the client.' }
 Write-Host "Your prints and settings stay in $(Get-SaamDataFolder)."
 if (-not $NoLaunch) {
   Write-Host 'Starting SAAM now. Studio opens in your browser; an alpha invite is optional.'

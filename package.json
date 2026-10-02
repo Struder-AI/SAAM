@@ -8,12 +8,10 @@
     "setup:check": "node scripts/setup-check.mjs",
     "test": "node --test core/tests/*.test.mjs skills/*/tests/*.test.mjs",
     "test:stress": "node --test --test-concurrency=1 core/tests/stress/*.test.mjs",
-    "studio": "node studio/server.mjs",
-    "workspace:wing": "node workspaces/server.mjs wing",
-    "workspace": "node workspaces/server.mjs",
+    "studio": "node packaging/launch.mjs",
     "agent": "node scripts/agent-toolkit.mjs",
     "shell": "node core/print/cli.mjs",
-    "mcp": "node adapters/mcp/src/server.mjs",
+    "saam": "node scripts/saam.mjs",
     "setup:mesh": "node scripts/build-mesh-repair.mjs"
   },
   "engines": {
@@ -21,7 +19,6 @@
   },
   "license": "Apache-2.0",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.30.0",
     "clipper2-wasm": "0.4.0",
     "fontkit": "2.0.4",
     "manifold-3d": "3.5.3",

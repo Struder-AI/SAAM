@@ -5,8 +5,7 @@ interfaces. This page retains shared boundary contracts and supported
 exceptions; the generated [dev map](../dev-map/README.md) owns the structural
 account, read with `node scripts/agent-toolkit.mjs read-map 0`.
 
-The [agent CLI toolkit](./agent/README.md) composes context reads, print preparation,
-Studio opening and request coordination around these existing owners.
+The [application](./application/README.md) owns chats, Studio and jobs; the [source toolkit](./agent/README.md) reads guidance and maps.
 
 [Private utilities](./private/) give each consuming map-0 bucket its own arithmetic and file replacement.
 [Bundle file replacement](./file-write.mjs) preserves complete files with Windows sharing-conflict retries; it is not a lock or multi-file transaction.
@@ -19,7 +18,6 @@ entry points; shared interfaces and the exceptions below remain caller context.
 
 [Skill manuals](../skills/DIGEST.md) own tools and limits;
 the [overview](../TECHNICAL-OVERVIEW.md) defines Inject, Trace and Slice.
-[Client adapters](../adapters/mcp/DEVELOP.md) use the shared lifecycle.
 
 The [machine presentation boundary](../studio/KINEMATICS.md) lets the
 kinematic-model and Studio tasks work independently. Models supply resolved
@@ -43,7 +41,7 @@ Machine profiles and output adapters own machine behavior. Skills consume the
 shared geometry and result interfaces, with explicit capabilities and limits.
 Upstream numerical-library features become SAAM capabilities only through its
 supported interface. Exercise affected combinations through the public
-CLI/MCP/Studio workflow as well as their component tests.
+application/Studio workflow as well as their component tests.
 
 Composing skills on one part requires explicit material ownership, operation
 order and transitions without duplicate deposition. Report the unsupported

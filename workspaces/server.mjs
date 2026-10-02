@@ -1,22 +1,20 @@
 import {createServer} from 'node:http';
 import {readFile,mkdir,open,rm} from 'node:fs/promises';
 import {resolve,join,extname} from 'node:path';
-import {fileURLToPath} from 'node:url';
 import {Worker} from 'node:worker_threads';
 import {randomUUID} from 'node:crypto';
-import {parseArgs} from 'node:util';
 import {replaceFile} from '../core/file-write.mjs';
-import {loadWorkspaceRuntime,requireWorkspaceCurrent,workspacePieces,listWorkspaces} from '../core/extensions/workspaces.mjs';
+import {loadWorkspaceRuntime,requireWorkspaceCurrent,workspacePieces} from '../core/extensions/workspaces.mjs';
 import {relativeExtensionFile} from '../core/extensions/library.mjs';
-export {listWorkspaces};
 
 const contentTypes={'.html':'text/html','.css':'text/css','.mjs':'text/javascript','.js':'text/javascript','.json':'application/json','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.woff2':'font/woff2'};
 
 // One host for bundled and locally imported workspaces. Domain code stays in extensions.
 export async function startWorkspace({extensionId,port=0,directory,appRoot,dataRoot,onEvent=()=>{}}={}){
+  if(typeof directory!=='string'||!directory.trim())throw Error('The SAAM application must supply a workspace directory.');
   if(!Number.isInteger(port)||port<0||port>65535)throw Error('Workspace port must be an integer from 0 to 65535.');
   const options={appRoot,dataRoot},{definition,selected,extension}=await loadWorkspaceRuntime(extensionId,options);
-  directory=resolve(directory??join(dataRoot?join(dataRoot,'Prints'):process.env.SAAM_DATA??'Prints',extensionId+'-workspace'));
+  directory=resolve(directory);
   await mkdir(directory,{recursive:true});
   const lockPath=join(directory,'.workspace.lock');
   const lock=await open(lockPath,'wx').catch(error=>{
@@ -147,17 +145,5 @@ export async function startWorkspace({extensionId,port=0,directory,appRoot,dataR
     return {server,url,directory,extension,inspect,preview,updateDesign,createBundles,shutdown};
   }catch(error){
     closed=true;server?.close();await lock.close();await rm(lockPath,{force:true});throw error;
-  }
-}
-
-if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
-  const {values,positionals}=parseArgs({options:{port:{type:'string'},directory:{type:'string'},list:{type:'boolean'},'no-open':{type:'boolean'}},allowPositionals:true});
-  if(values.list){console.log(JSON.stringify(await listWorkspaces()));}
-  else{
-    if(positionals.length!==1)throw Error('Usage: node workspaces/server.mjs EXTENSION [--directory DIR] [--port N] | --list');
-    const workspace=await startWorkspace({extensionId:positionals[0],port:Number(values.port??0),directory:values.directory});
-    console.log(JSON.stringify({event:'workspace-ready',workspace:positionals[0],extension:workspace.extension,url:workspace.url,directory:workspace.directory}));
-    if(!values['no-open']){const {openBrowser}=await import('../studio/browser.mjs');await openBrowser(workspace.url);}
-    const stop=()=>void workspace.shutdown();process.on('SIGINT',stop);process.on('SIGTERM',stop);
   }
 }
