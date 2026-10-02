@@ -1,4 +1,4 @@
-import {add,norm} from '../private/export/rigid.mjs';
+import {add,length as norm} from '../geom/frame.mjs';
 // Nominal MG400 centerline model derived from Dobot-Arm/MG400_ROS URDF.
 // Units mm/degrees; base frame is that URDF's base_link, not a calibrated user frame.
 // q2/q3 are absolute upper/forearm Y rotations because the parallelograms cancel

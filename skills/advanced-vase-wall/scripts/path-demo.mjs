@@ -3,7 +3,7 @@ import {resolve} from 'node:path';
 import {defaults} from '../../../core/print/plan.mjs';
 import {initBundle,generateBundle} from '../../../core/print/bundle.mjs';
 import {splineTube} from '../../pipe-cladding/scripts/demo.mjs';
-import {sleeveAssignment} from './assignment.mjs';
+import {depositionAssignment} from '../../../core/print/assignment-records.mjs';
 const mode=process.argv[3]??'continuous';
 if(!['continuous','segmented'].includes(mode))throw new Error('Choose continuous or segmented.');
 const plan=defaults();
@@ -11,7 +11,7 @@ plan.geometry=splineTube({columns:32,heightMm:10.5,boreRadiusMm:12,radiusAt:()=>
 for(const settings of Object.values(plan.skills))settings.enabled=false;
 plan.placement={xMm:125,yMm:105};
 const points=Array.from({length:33},(_,i)=>{const u=i/32;return [u,.2*u+(i%4===2?.06:0)];});
-plan.slices.assignments=[sleeveAssignment({id:'wall',endTransition:'spiral',pathMode:mode,pattern:{advance:[mode==='continuous'?1:1.0625,.2],repeats:50,paths:[{points,beadHeightMm:.2}]}})];
+plan.slices.assignments=[depositionAssignment({construction:'sleeve',id:'wall',endTransition:'spiral',pathMode:mode,pattern:{advance:[mode==='continuous'?1:1.0625,.2],repeats:50,paths:[{points,beadHeightMm:.2}]}})];
 const directory=resolve(process.argv[2]??`Prints/development/${mode}-sleeve-zigzag`);
 await initBundle(directory,plan,{machineId:'ultimaker-s5'});const checked=await generateBundle(directory,{development:true});
 console.log(JSON.stringify({directory,mode,moves:checked.moves,estimatedMinutes:checked.estimatedMinutes,

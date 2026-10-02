@@ -97,21 +97,23 @@ does not authorize every finding. [Formats](../print/README.md#formats) specifie
 
 ### Geometry query boundary
 
-[section](../region/section.mjs) returns a solid's oriented loops on a plane,
-patch or height chart, with nudge/edge diagnostics. Planar and curved sections
-share Boolean topology, holes and disconnected components. [sliceFamily](slice.mjs)
-stacks cutting surfaces; [slices](../print/slices.mjs) owns material allocation.
-[query](query.mjs) supplies top/containment queries on native shells and meshes.
-
-Geometry outputs are ordinary values and evaluations of those values:
+[section](../region/section.mjs) returns oriented loops on planes, patches or height charts, retaining Boolean topology, holes, disconnected components and nudge/edge diagnostics.
+[sliceFamily](slice.mjs) stacks cutting surfaces; [slices](../print/slices.mjs) owns material allocation.
+[query](query.mjs) supplies native-shell and mesh top/containment queries.
 
 | Operation | Current consumers and contract |
 |---|---|
 | [surfaceIsoCurve](surface-curves.mjs) | Shell closure, conforming tessellation and sleeve offsets use ordinary rational curves retaining knots, weights, native domain and source surface coordinates. |
-| [evaluateSurface / mappedSurface](surface-evaluation.mjs) | Trace, text, Slice mapping and surface deposition share point/normal/derivative evaluation. Affine selection retains native UV and derivative units; sleeve phase is periodic arc length, height charts use world XY. |
-| [sampleCurveIntervals](curve-sampling.mjs) | Trace, sleeve contours and surface deposition share physical chord/step refinement while retaining source parameters and explicit breaks. |
+| [evaluateSurface / mappedSurface](surface-evaluation.mjs), [surfaceDerivatives](surface-derivatives.mjs) | Shared point/normal/derivative evaluation retains native units. Checked native differentials include second derivatives and reject out-of-domain, nonpositive-weight or singular-tangent samples. Affine selection retains native UV; sleeve phase is periodic arc length, height charts use world XY. |
+| [Curve sampling](curve-sampling.mjs) | `sampleCurveIntervals` refines physical chord/step bounds. `sampledPositiveIntervals` returns positive runs from ordered parameter/value samples, refining observed crossings to 1e-9 native units; touching zero-separated runs stay separate, unsampled crossings remain unknown. Callbacks evaluate geometry only. |
 | [constructSolids](solid-operations.mjs) | Heat-set, text and gridfinity submit construction/translation/Boolean requests; Geometry owns conversion, mapped-extrusion refinement and native disposal. Results are manufacturing meshes (null for empty material). Feature rules and editable records remain with extensions. |
+| [planarRegionLayers](planar-region-layers.mjs) | Given a height range, numeric process, authored `regionsAt(z)` polygons, optional shells and XY clearance, return merged planar Slice layers and family. Geometry checks shell intersections at the sampled layer heights and throws on a positive clearance overlap; it never invents source regions. |
+| [prepareContourSleeve](sleeve/contour-sleeve.mjs) | Given explicit section heights, pitch, standoff, offset, tolerances and fit mode, construct contour correspondence and a Slice family. Extensions choose those values; Geometry checks and maps the sections. |
 | [resolveGeometrySelections](build.mjs) | Resolves whole solids, components, material partitions and replacement volumes in an offset frame; owns runtime loading and reuses source builds within a batch. Async path generation requests these values; Toolpath retains assignment and ownership policy. |
+| [resolveMaterialGeometry](build.mjs) | Builds an ordered batch of authored geometry, sharing immutable source builds. Geometry loads the native runtime and recursively unions placed assembly components for material queries; ordinary construction/selections retain their assembly representation. Unsupported shapes, invalid shells/meshes and empty Boolean bounds retain construction errors. No recipe placement or Bundle mutation. |
+| [prepareSolidDistance / solidDistance](solid-distance.mjs) | Preparation builds material, tessellates at `toleranceMm`, admits the mesh and returns `{prepared,report:{toleranceMm,triangles,representation}}`, preserving tessellation errors and native Boolean disposal. Synchronous queries traverse every triangle without a radius limit; `signed` uses containment only above `1e-12` mm. Toolpath owns field composition, report keys, channels and sampling policy. |
+| [createBlobFieldEvaluator](blob-field.mjs) | Prepare finite weighted points or periodic bump lattices once for repeated scalar queries. Finite sources retain optional gradients and ordered accumulation; unrepresentable bucket coordinates use an ordered direct sum. Toolpath owns composition and sampling. |
+| [widenPlanarStrokes](stroke-topology.mjs) | Widens coplanar XYZ strokes in an explicit unit frame with round joins/caps, a fixed 0.001 mm grid and caller-supplied radius/arc tolerance. Returns closed XYZ loops; Toolpath retains bead count, pitch and width policy. |
 | [intersectPatches](surface-intersection.mjs) | Section boundaries retain corresponding parameters on both native surfaces. |
 | [extractLevelSet](level-set.mjs) | Sampled scalar fields yield bounded high-side region loops (default) or genuine `{points,closed}` contours (`output: 'curves'`). Roof reservations and chart predicates use regions; gyroid uses curves. |
 
@@ -269,11 +271,11 @@ seam (the search runs on three copies). `foldCuts(moved, source, closed)`
 returns the cut intervals for other callers. Crossings between distant parts stay.
 Reversals are found from 32 samples per knot span.
 
-`prepareSleeveContours` in `sleeve-frame.mjs` offsets horizontal native NURBS
+`prepareSleeveContours` in [sleeve-frame.mjs](sleeve/sleeve-frame.mjs) offsets horizontal native NURBS
 isocurves of periodic patches whose V chart reproduces actual Z. Crossings
 resolve before chord-controlled sampling and perimeter correspondence.
 `at(phase,zMm,depth)` follows one retained closed contour; split/collapse rejects.
-Vase mapping adds nominal half-bead depth, then applies unilateral mesh contact.
+The caller chooses centerline offset; optional fitted mesh contact is unilateral.
 
 ### Geometry contract
 
@@ -328,8 +330,12 @@ close raises rather than returning a part with a gap in it.
 
 ## Mesh sleeves
 
-Sleeve fitting, mapping and contact belong to the
-[advanced-vase extension](../../skills/advanced-vase-wall/DEVELOPER.md).
+Geometry owns [sleeve fitting, contour mapping and contact](sleeve/contour-sleeve.mjs);
+the [advanced-vase extension](../../skills/advanced-vase-wall/DEVELOPER.md) chooses
+the authored range, fit mode and Trace pattern.
+`prepareContourSleeve` receives that explicit range, spacing, offset, standoff,
+fit mode and tolerances; it returns a boundary family, continuous mapping and
+query report. Section topology, offset collapse and contact error fail there.
 
 ## Text and solid modifiers
 
@@ -379,17 +385,11 @@ word to fill the circle. Bezier arc length uses a subdivided chord table with
 continuous curve/tangent evaluation; it is approximate. Existing UV references
 and saved compiled meshes retain their semantics.
 
-[Target tessellation](./tessellate.mjs) samples supported closed spline shells,
-matches shared boundaries geometrically despite different parameterizations,
-and propagates mesh orientation. Its dyadic grid refines against sampled chord
-deviation and rejects unmatched seams or shared mesh-validation failures. The
-grid keeps doubling until that deviation meets the requested tolerance; there is
-no triangle budget, and a doubling that no longer lowers the deviation is
-reported as a tolerance this shell cannot reach. The
-1e-7 mm vertex welding grid is distinct from its 0.02 mm default approximation
-target. Manifold's JS mesh boundary stores float32 coordinates, so precision also
-depends on coordinate magnitude. Input solids must have positive material volume.
-No conversion is introduced into ordinary native spline slicing.
+[Target tessellation](./tessellate.mjs) samples supported closed spline shells, matches differently parameterized shared boundaries geometrically and propagates mesh orientation.
+Its dyadic grid doubles until sampled chord deviation meets tolerance, rejecting unmatched seams and mesh-validation failures.
+There is no triangle budget; refinement that no longer lowers deviation reports an unreachable tolerance.
+The 1e-7 mm welding grid differs from the 0.02 mm default approximation target. Manifold's float32 mesh boundary also makes precision depend on coordinate magnitude.
+Input solids require positive material volume. Ordinary native spline slicing introduces no conversion.
 
 The text result is a `shape: text` recipe inside the existing native mesh bundle:
 original base, editable features, quality controls, output vertices/triangles and

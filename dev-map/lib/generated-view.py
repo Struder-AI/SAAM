@@ -430,6 +430,8 @@ def build_page(packet, ctx):
             node.source_path, node.source_line = ref.rsplit(":", 1)[0], ref.rsplit(":", 1)[1].split("-")[0]
         node.go = address if address in pages else ""
         component = next((c for c in packet.get("components", []) if c.get("id", c["index"]) == index), None)
+        if page.design and component and "internal" in component:
+            node.boundary_role = "internal" if component["internal"] else "external"
         callers = references(component.get("callerReferences", [])) if component else []
         summary = component.get("callerSummary") if component else None
         if summary:
@@ -458,6 +460,8 @@ def build_page(packet, ctx):
         if pages.get(go, {}).get("destination") == "code":
             style = "code"
         node = page.n(nid, label, kind=style)
+        if page.design:
+            node.boundary_role = "external"
         node.go = go
         drawn.add(nid)
         return node
@@ -1157,6 +1161,18 @@ body.noside #side{display:none}
 #codepane .endpoint{font:inherit;color:#0369a1;background:none;border:0;padding:0;cursor:pointer;text-align:left}
 #codepane .endpoint:hover{text-decoration:underline}
 #canvas.design .fm-edge,#canvas.design .fm-elab,.fm-wire-hit{cursor:pointer}
+#canvas.design .fm-node[data-boundary-role="internal"]>rect{stroke:#334155;stroke-dasharray:none;stroke-width:1.8}
+#canvas.design .fm-node[data-boundary-role="external"]>rect{stroke:#64748b;stroke-dasharray:7 4;stroke-width:1.8;fill:#f8fafc}
+.boundary-key{display:flex;gap:16px;align-items:center;font-size:12px;color:#475569}
+.boundary-key span:before{content:'';display:inline-block;width:24px;height:13px;border:2px solid #334155;border-radius:3px;margin-right:6px;vertical-align:middle}
+.boundary-key .external:before{border-color:#64748b;border-style:dashed;background:#f8fafc}
+#boundary-key{position:absolute;top:10px;right:14px;z-index:1;padding:6px 9px;background:#ffffffed;border-radius:4px;pointer-events:none}
+#canvas.contents{inset:45px 22px 20px;overflow:auto;transform:none!important;width:auto}
+.map-contents{max-width:820px;padding:12px 18px;background:#fff}
+.map-contents h2{font-size:18px}.map-contents h3{font-size:14px;margin-top:22px}
+.map-contents ul{padding:0;list-style:none}.map-contents li{margin:10px 0}
+.map-contents button{cursor:pointer;text-align:left;padding:8px 12px;background:#fff;border:1px solid #334155;border-radius:4px;font:inherit}
+.map-contents button.external{border-style:dashed;color:#475569}.map-contents small{display:block;margin:4px 0;color:#64748b}
 #canvas.design .fm-edge.wire-hot{stroke:#0284c7;stroke-width:3.4;opacity:1}
 #canvas.design .fm-elab.wire-hot{opacity:1}
 #canvas.wire-focus .fm-node:not(.wire-end){opacity:.14}
@@ -1273,7 +1289,7 @@ function apply(){canvas.style.transform=`translate(${view.x}px,${view.y}px) scal
 function toggleMinimap(){const off=document.body.classList.toggle('nomini');
   try{localStorage.setItem('devmap-minimap',off?'off':'on');}catch(e){}}
 try{if(localStorage.getItem('devmap-minimap')==='off')document.body.classList.add('nomini');}catch(e){}
-function minimap(){const s=canvas.firstElementChild;
+function minimap(){const s=canvas.querySelector(':scope>svg');
   if(!s){mini.style.display='none';return;}
   const w=s.width.baseVal.value,h=s.height.baseVal.value;
   let body='';
@@ -1290,13 +1306,13 @@ mini.addEventListener('pointerdown',e=>{const s=mini.firstElementChild,d=canvas.
   const b=s.getBoundingClientRect(),w=d.width.baseVal.value,h=d.height.baseVal.value,
         k=Math.min(b.width/w,b.height/h);
   at((e.clientX-b.left-(b.width-w*k)/2)/k,(e.clientY-b.top-(b.height-h*k)/2)/k);});
-function fit(){const s=canvas.firstElementChild;if(!s)return;
+function fit(){const s=canvas.querySelector(':scope>svg');if(!s)return;
   const w=s.width.baseVal.value,h=s.height.baseVal.value,r=stage.getBoundingClientRect();
   /* Never zero or negative: a stage narrower than its own padding would otherwise fold the
      page inside out, and the drawing would be gone rather than small. */
   view.k=Math.max(0.02,Math.min(Math.min((r.width-48)/w,(r.height-48)/h),1));
   view.x=(r.width-w*view.k)/2;view.y=Math.max(18,(r.height-h*view.k)/2);apply();}
-function actual(){const s=canvas.firstElementChild;if(!s)return;const r=stage.getBoundingClientRect();
+function actual(){const s=canvas.querySelector(':scope>svg');if(!s)return;const r=stage.getBoundingClientRect();
   view.k=1;view.x=(r.width-s.width.baseVal.value)/2;view.y=18;apply();}
 function overview(){const bounds=PAGES[cur]?.focus;if(!bounds)return fit();
   const [x,y,w,h]=bounds,r=stage.getBoundingClientRect();
@@ -1305,7 +1321,7 @@ function overview(){const bounds=PAGES[cur]?.focus;if(!bounds)return fit();
 
 /* One page's drawing at a time, fetched as a script so the viewer opens from file:// with no
    server. The whole map inlined is an order of magnitude more bytes on every open. */
-function load(key,then){if(SVG[key]!==undefined)return then();
+function load(key,then){if(PAGES[key]?.destination==='contents'||SVG[key]!==undefined)return then();
   const s=document.createElement('script');s.src='svg/'+key+'.js?'+encodeURIComponent(BUILT);
   s.onload=()=>then();s.onerror=()=>{SVG[key]=null;then();};document.head.appendChild(s);}
 
@@ -1324,7 +1340,16 @@ function trail(key){const out=[];let k=key;
   return out.map((k,i)=>i===out.length-1?`<b>${esc(PAGES[k].t)}</b> — ${esc(PAGES[k].s)}`
     :`<span class="up" data-go="${k}">${esc(PAGES[k].t)}</span>`).join(' &rsaquo; ');}
 
+function contents(p){
+  const item=c=>`<li><button class="${c.internal?'':'external'}" data-go="${esc(c.index)}">${esc(c.index)} ${esc(c.label)}</button>`+
+    (c.description?`<small>${esc(c.description)}</small>`:'')+'</li>';
+  const groups=[['Internal operations',true],['External boundaries',false]].map(([label,inside])=>{
+    const rows=(p.components??[]).filter(c=>c.internal===inside);return rows.length?`<h3>${label}</h3><ul>${rows.map(item).join('')}</ul>`:'';}).join('');
+  const wires=(p.contracts??[]).map(w=>`<li><button data-a="${esc(w.from)}" data-b="${esc(w.to)}">${esc(p.componentLabels[w.from]??w.from)} → ${esc(p.componentLabels[w.to]??w.to)}</button></li>`).join('');
+  return `<section class="map-contents"><h2>${esc(p.t)}</h2>${groups}${wires?'<h3>Interfaces</h3><ul>'+wires+'</ul>':''}</section>`;
+}
 function show(key,push,restore){const p=PAGES[key];if(!p)return false;
+  if(p.aliasOf)return show(p.aliasOf,push);
   if(p.destination==='code'&&graphCur){openCode(p.r,key);return true;}
   const version=++showVersion;
   // Opening another map closes the code a leaf had open.
@@ -1332,7 +1357,10 @@ function show(key,push,restore){const p=PAGES[key];if(!p)return false;
   let drawing=restore?restore.graph:(p.destination==='code'&&graphCur?graphCur:key);
   while(PAGES[drawing]&&PAGES[drawing].destination==='code')drawing=PAGES[drawing].p;
   load(drawing,()=>{if(version!==showVersion)return;
-    canvas.innerHTML=SVG[drawing]||'';cur=drawing;graphCur=drawing;pinId=null;jumped=[];hot(null);highlightWire(null);
+    const listing=PAGES[drawing].destination==='contents';
+    canvas.classList.toggle('contents',listing);
+    canvas.innerHTML=listing?contents(PAGES[drawing]):SVG[drawing]||'';cur=drawing;graphCur=drawing;pinId=null;jumped=[];hot(null);highlightWire(null);
+    if(listing)zoomLbl.textContent='';
     canvas.classList.toggle('authored',!!PAGES[drawing].focus);
     canvas.classList.toggle('design',DESIGN);
     document.getElementById('fit-all').hidden=!PAGES[drawing].focus;
@@ -1409,12 +1437,12 @@ stage.addEventListener('keydown',e=>{
 });
 
 /* -- pan / zoom ------------------------------------------------------------ */
-stage.addEventListener('wheel',e=>{if(e.target.closest('#codepane,#legendpane'))return;e.preventDefault();
+stage.addEventListener('wheel',e=>{if(e.target.closest('#codepane,#legendpane,.map-contents'))return;e.preventDefault();
   const r=stage.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top,
         nk=Math.min(8,Math.max(.02,view.k*Math.exp(-e.deltaY*.0015)));
   view.x=mx-(mx-view.x)*(nk/view.k);view.y=my-(my-view.y)*(nk/view.k);view.k=nk;apply();},
   {passive:false});
-stage.addEventListener('pointerdown',e=>{if(e.target.closest('#codepane,#legendpane'))return;down={x:e.clientX,y:e.clientY,vx:view.x,vy:view.y};
+stage.addEventListener('pointerdown',e=>{if(e.target.closest('#codepane,#legendpane,.map-contents')){moved=false;return;}down={x:e.clientX,y:e.clientY,vx:view.x,vy:view.y};
   moved=false;stage.setPointerCapture(e.pointerId);stage.classList.add('drag');});
 stage.addEventListener('pointermove',e=>{if(!down)return;
   const dx=e.clientX-down.x,dy=e.clientY-down.y;
@@ -1634,7 +1662,7 @@ def emit(out, model, pages, svgs):
     # the way it has to be broken in HTML.
     (out / "stamp.js").write_text(f'stampAt({json.dumps(model.get("built", ""))})', encoding="utf-8")
     page_data = json.dumps(pages).replace("</", "<\\/")
-    graph_pages = {key: p for key, p in pages.items() if p["destination"] != "code"}
+    graph_pages = {key: p for key, p in pages.items() if p["destination"] in ("graph", "contents")}
     rows, parents = [], {p["p"] for p in graph_pages.values()}
 
     def depth(key):
@@ -1661,7 +1689,9 @@ def emit(out, model, pages, svgs):
                     f'{twisty}<span class="ix">{escape(key)}</span>'
                     f'{escape(p["t"].split(" ", 1)[-1])}</a>')
     heading = model.get("title", "SAAM — the generated map")
-    legend = ("<p>Authored target architecture, not scanned implementation.</p>"
+    boundary_key = '<div class="boundary-key"><span>Internal node</span><span class="external">External boundary node</span></div>'
+    legend = (boundary_key + "<p>Internal nodes belong to this displayed map. Dashed boundary nodes belong elsewhere and show connections across its edge.</p>"
+              "<p>Authored target architecture, with source evidence where available.</p>"
               "<p>Boxes open submaps or referenced source. Wires open contracts and evidence, including exact nested endpoints. "
               "Wire direction follows the stated contract flow. Separate access entries, where supplied, name permitted call/read directions. "
               "No transitive access is granted. Implementation conformance remains unchecked.</p>"
@@ -1670,7 +1700,7 @@ def emit(out, model, pages, svgs):
 <style>{CSS}</style>
 <div id="side">
   <h1>{escape(heading)}</h1>
-  <div class="sub">{len(svgs)} graph pages · {len(pages) - len(svgs)} source destinations, stored {escape(model["generated"])}, drawn
+  <div class="sub">{len(svgs)} graph pages · {sum(p['destination']=='contents' for p in pages.values())} contents pages · {sum(p['destination']=='code' for p in pages.values())} source destinations, stored {escape(model["generated"])}, drawn
     {escape(model.get("built", "")[:16].replace("T", " "))} UTC.
     <span id="freshness-status">Live freshness unavailable; snapshot remains readable.</span>
     Redrawn by every <code>regenerate</code>; this page reloads itself.</div>
@@ -1694,6 +1724,7 @@ def emit(out, model, pages, svgs):
     <span id="zoom"></span>
   </div>
   <div id="stage"><div id="canvas"></div>
+    {f'<div id="boundary-key">{boundary_key}</div>' if model.get('design') else ''}
     <div id="codepane"></div>
     <div id="legendpane"><div class="lh">Legend<span class="x" onclick="toggleLegend()">&times;</span></div>
       <div class="lb">{legend}</div></div>
@@ -1738,15 +1769,16 @@ def build(model, out):
             detail, ref = p["path"], f'{p["file"]}:{p["line"]}-{p["endLine"]}'
         if p.get("design"):
             sub = f'authored map · {len(p["components"])} boxes · {len(p["wires"])} interfaces · conformance unchecked'
-        parent = None
-        cut = index
-        while "." in cut:
-            cut = cut.rsplit(".", 1)[0]
-            if cut in packets:
-                parent = cut
-                break
-        if parent is None and index != "0":
-            parent = "0"
+        parent = p.get("parent")
+        if "parent" not in p:
+            cut = index
+            while "." in cut:
+                cut = cut.rsplit(".", 1)[0]
+                if cut in packets:
+                    parent = cut
+                    break
+            if parent is None and index != "0":
+                parent = "0"
         stale = model["stale"].get(index)
         destination = p.get("destination", "graph")
         source_span = p.get("sourceSpan")
@@ -1757,6 +1789,10 @@ def build(model, out):
         pages[index] = dict(t=title, s=sub, find=f'{index} {detail}'.strip(), d=detail, r=ref, k=kind, p=parent,
                             destination=destination,
                             x=(stale["regenerate"] if stale else ""))
+        if p.get("aliasOf"):
+            pages[index]["aliasOf"] = p["aliasOf"]
+        if destination == "contents":
+            pages[index]["components"] = p["components"]
         if p.get("foldedCode"):
             pages[index]["foldedCode"] = p["foldedCode"]
         pages[index]["externals"] = {c["index"]: c["externals"] for c in p.get("components", []) if c.get("kind") == "external"}
@@ -1770,7 +1806,7 @@ def build(model, out):
     ctx = dict(pages=pages, stale=model["stale"], dropped=[])
     svgs = {}
     for index in sorted(packets, key=at):
-        if pages[index]["destination"] != "code":
+        if pages[index]["destination"] == "graph":
             svgs[index] = build_page(packets[index], ctx).render()
     size, inline = emit(out, model, pages, svgs)
     kinds = {}

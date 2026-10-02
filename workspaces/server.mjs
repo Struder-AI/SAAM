@@ -6,6 +6,7 @@ import {Worker} from 'node:worker_threads';
 import {randomUUID} from 'node:crypto';
 import {wingDesign,wingDefaults} from './wing/design.mjs';
 import {wingPreview} from './wing/construct.mjs';
+import {airfoilCatalog} from './wing/airfoils.mjs';
 
 const root=fileURLToPath(new URL('.',import.meta.url));
 const files=new Set(['index.html','app.mjs','style.css','renderer.mjs']);
@@ -20,11 +21,13 @@ export async function startWingWorkspace({port=0,directory=resolve(process.env.S
     try{
       const url=new URL(req.url,'http://127.0.0.1');
       if(req.headers.origin&&req.headers.origin!==`http://${req.headers.host}`)return send(res,{error:'Cross-origin requests are not accepted.'},403);
+      if(req.method==='GET'&&url.pathname==='/api/airfoils')return send(res,airfoilCatalog());
       if(req.method==='GET'&&url.pathname==='/api/design')return send(res,{design:state.design,preview:wingPreview(state.design),job:state.job});
       if(req.method==='GET'&&url.pathname==='/api/job')return send(res,state.job);
-      if(req.method==='POST'&&['/api/design','/api/wing/export'].includes(url.pathname)){
+      if(req.method==='POST'&&['/api/design','/api/wing/preview','/api/wing/export'].includes(url.pathname)){
         const chunks=[];for await(const chunk of req)chunks.push(chunk);
-        const request=JSON.parse(Buffer.concat(chunks).toString()),design=wingDesign(request.design),preview=wingPreview(design);
+        const request=JSON.parse(Buffer.concat(chunks).toString()),design=wingDesign(request.design),preview=wingPreview(design,{interactive:url.pathname==='/api/wing/preview'});
+        if(url.pathname==='/api/wing/preview')return send(res,{design,preview});
         if(url.pathname==='/api/design'){
           state.design=design;await writeFile(saved,JSON.stringify(design,null,2));return send(res,{design,preview});
         }

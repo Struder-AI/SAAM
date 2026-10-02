@@ -1,21 +1,21 @@
-import {invert} from '../core/private/studio/rigid.mjs';
+import {invert,point} from '../core/geom/frame.mjs';
 import {createTourUI,needsTourToolpath} from './tour-ui.mjs';
 import { advancePlayback, exportMovie } from './playback.mjs';
-import { createLayerFade, layerEndSeconds, stepLayerIndex, TOOLPATH_COLORS } from './toolpath-view.mjs';
+import { createLayerFade, layerEndSeconds, layerIndexAt, representativeLayer, stepLayerIndex, TOOLPATH_COLORS } from './toolpath-view.mjs';
 import {hasConstruction,sliceSummary,recipeRows,robotRows,materialGrams,nextExportName,injectionPoints,depositionFamilyRows} from './settings.mjs';
 import {sourceSession,machineCameras} from './studio/machine-session.mjs';
 import {machineFitBounds,boundsCorners,machinePalette} from './machine-view.mjs';
-import {point} from '../core/private/studio/rigid.mjs';
 import {createViewerRenderer} from './viewer-renderer.mjs';
 import {planRefreshNavigation} from './refresh-plan.mjs';
 import {prepareStudioState,withoutPreviewMaterial} from './studio-state.mjs';
 import {studioControls} from './studio-controls.mjs';
+import {loadNeutralPath} from './neutral-path.mjs';
 import {viewerConnected} from './viewer-session.mjs';
-import {createRelayPanel} from './relay-panel.mjs';
+import {createServicePanel} from './service-panel.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const token=$('meta[name="saam-token"]').content;
-const relayPanel=$('meta[name="saam-relay"]').content==='on'?createRelayPanel({token}):null;
-const NO_PRINT='No print is open. Open a saved print, import an STL, start the tour, or ask your chat to make a part.';
+if($('meta[name="saam-service"]').content==='on')createServicePanel({token});
+const NO_PRINT='No print is open. Open a saved print, import an STL, start the tour, or ask your agent to make a part.';
 const exportedThisSession=new Set();
 const exportKey=()=>state?.printId+':'+state?.exportHash;
 let tourUI;
@@ -123,7 +123,7 @@ function restoreView(){
     if(saved.exportHash===state.exportHash){
       if(Number.isFinite(saved.seconds))seconds=Math.max(0,Math.min(duration(),saved.seconds));
       if(saved.fitBounds?.min?.length===3&&saved.fitBounds?.max?.length===3&&[...saved.fitBounds.min,...saved.fitBounds.max].every(Number.isFinite))fitBounds=saved.fitBounds;
-      if(['geometry','toolpath'].includes(saved.tab)&&(saved.tab!=='toolpath'||state.program))tab=saved.tab;
+      if(['geometry','toolpath'].includes(saved.tab)&&(saved.tab!=='toolpath'||state.program||state.neutralProgram))tab=saved.tab;
       if(machineSession?.scene)useCamera(cameras.restore(saved.machineCameras));
     }
     $('#fit-program').textContent=fitBounds?.allMoves?'Fit part':'Fit all moves';
@@ -216,7 +216,7 @@ const views={
         if(!g)return [['Source',shape],...slices.map(a=>[a.id,sliceSummary(a)]),['Markers','Authored locations; no occupied material shape is inferred']];
         const bounds=state.geometry.boundsMm;
         const rows=[['Shape',shape],['Footprint',round2(bounds.max[0]-bounds.min[0])+' × '+round2(bounds.max[1]-bounds.min[1])+' mm'],['Height',round2(bounds.max[2]-bounds.min[2])+' mm']];
-        if(g.shape==='mesh'&&g.source?.format==='stl')rows.push(['STL units',g.source.units+(g.source.unitsInferred?' · assumed':'')+' · change in chat']);
+        if(g.shape==='mesh'&&g.source?.format==='stl')rows.push(['STL units',g.source.units+(g.source.unitsInferred?' · assumed':'')+' · ask your agent to change']);
         if(g.shape==='spline')rows.push(['Patches',g.patches.map(p=>p.name+' '+p.controlPoints.length+' × '+p.controlPoints[0].length).join(' · ')]);
         const textRows=(geometry,prefix='')=>{if(geometry.shape==='text')for(const feature of geometry.features)rows.push([prefix+feature.id,(feature.mode==='raised'?'Raised':'Recessed')+' “'+feature.text+'” · '+feature.depthMm+' mm']);};
         const blobFieldRows=(geometry,prefix='')=>{if(geometry.shape==='blob-field')rows.push([prefix+'Points',String(geometry.field.points.length)],[prefix+'Surface sampling',geometry.extraction.edgeMm+' mm · finer features may be missed'],[prefix+'Material threshold',String(geometry.field.threshold)]);};
@@ -277,7 +277,7 @@ function partBounds() {
     if(waveBoundsMoves!==shown.program.moves){
       waveBoundsMoves=shown.program.moves;waveDisplayBounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
       for(const move of waveBoundsMoves)if(move.extruding&&move.phase!=='prime')for(const p of [move.from,move.to])for(let i=0;i<3;i++){
-        const v=p[i]-(i===0?shown.plan.placement.xMm:i===1?shown.plan.placement.yMm:0);
+        const v=p[i]-(i===0?shown.plan.placement?.xMm??0:i===1?shown.plan.placement?.yMm??0:0);
         waveDisplayBounds.min[i]=Math.min(waveDisplayBounds.min[i],v);waveDisplayBounds.max[i]=Math.max(waveDisplayBounds.max[i],v);
       }
     }
@@ -287,7 +287,7 @@ function partBounds() {
 }
 
 async function api(route,data) {
-  const target=(route==='generate'||route==='tour'&&data?.action!=='finish'&&(data?.step??state?.tour?.step)>=L.playback)
+  const target=(route==='generate'||route==='tour'&&!['finish','finish-view'].includes(data?.action)&&(data?.step??state?.tour?.step)>=L.playback)
     ?{printId:state?.printId,generationHash:route==='generate'?data?.generationHash:null}:null;
   if(target)generationTarget=target;
   try{
@@ -344,7 +344,7 @@ async function loadAndAdoptStudioState(follow=false,reopen=false,fetchedState=nu
   if(presentationChanged)clearManual();
   const scenes=viewer.sceneState();
   const adopted=await prepareStudioState(fetched,{previous,follow,presentation:activePresentation,
-    pathMoves:scenes.pathMoves,materialMoves:scenes.materialMoves,decode:decodeInWorker,
+    pathMoves:scenes.pathMoves,materialMoves:scenes.materialMoves,decode:decodeInWorker,decodeNeutral:loadNeutralPath,
     // Serializable metadata is bound before the proxy-backed cached move store is adopted.
     bind:bindCachedProgram});
   state=adopted.state;stateTag=fetchedTag;
@@ -352,7 +352,8 @@ async function loadAndAdoptStudioState(follow=false,reopen=false,fetchedState=nu
 }
 async function presentStudioState({adopted,loaded,previous,presentationChanged,follow}) {
   // Metadata can change while the exact same source/move buffers are reused.
-  $('#kind-label').textContent=(state.review.generation?.mode==='development'?'Development preview · ':'')+(state.machine?.name??'No printer selected');
+  $('#kind-label').textContent=state.neutralProgram?'Saved SAAMpath · '+(state.machine?.name??'No printer selected')
+    :(state.review.generation?.mode==='development'?'Development preview · ':'')+(state.machine?.name??'No printer selected');
   document.title='SAAM Studio · '+state.printName;
   $('#open-print').title='Open print: '+state.printName;
   // Geometry keys off the previously loaded state's version (null on a print
@@ -392,7 +393,9 @@ async function applyProgramPresentation(decision,next){
   if(decision.effects.program==='clear')clearProgramView();
   let publication=null;
   if(decision.effects.buildPath||decision.effects.buildMaterial){
-    publication=await viewer.publishProgram({moves:next.program.moves,plan:next.plan,geometry:next.geometry,previewMaterial:next.program.previewMaterial,
+    const visible=next.program??next.neutralProgram;
+    if(visible.neutral)viewer.clearProgram();
+    publication=await viewer.publishProgram({moves:visible.moves,plan:next.plan,geometry:next.geometry,previewMaterial:visible.previewMaterial,
       buildPath:decision.effects.buildPath,buildMaterial:decision.effects.buildMaterial,onProgress:progress=>activity('Preparing material view…',progress)});}
   const state=publication?.previewMaterialConsumed?withoutPreviewMaterial(next):next;
   activePresentation={...decision.model,
@@ -428,7 +431,8 @@ async function decodeInWorker(snapshot){
   machineSession?.dispose();requestingPose=null;
   machineSession=sourceSession(new Worker('/studio/source-worker.mjs',{type:'module'}));
   return machineSession.load({printId:snapshot.printId,revision:snapshot.revision,exportHash:snapshot.exportHash,
-    plan:snapshot.plan,machine:snapshot.machine,inspection:snapshot.pathSummary?.inspection,program:{sources:snapshot.program.sources}});
+    plan:snapshot.plan,machine:snapshot.machine,inspection:snapshot.pathSummary?.inspection,
+    authoredNozzleTemperatures:snapshot.authoredNozzleTemperatures,program:{sources:snapshot.program.sources}});
 }
 function bindCachedProgram(snapshot){return machineSession?.bind(snapshot);}
 function table(entries) {
@@ -437,13 +441,17 @@ function table(entries) {
   return dl;
 }
 function selectStudioPresentation(state,tab,{facts,settings}){
-  if(!state.machine||!state.plan.slices||!state.plan.process)return {stage:null,title:'Your geometry',guidance:'Ask the agent to add printing settings and a toolpath recipe.',facts:views.shell.facts(state,'geometry'),settings:[],reviewNote:state.outputAvailability??''};
+  if(tab==='toolpath'&&state.neutralProgram)return {stage:'SAVED SAAMPATH',title:'Your toolpath',
+    guidance:'Inspect the saved, machine-independent path.',facts:[['Moves',String(state.neutralProgram.summary.moves)],
+      ['Deposited volume',round2(state.neutralProgram.summary.volumeMm3)+' mm³']],settings:[],
+    reviewNote:[state.programError,state.neutralProgram.notice].filter(Boolean).join(' ')};
+  if(!state.machine||!state.plan.slices||!state.plan.process)return {stage:null,title:'Your geometry',guidance:'Ask the agent to add printing settings and a toolpath recipe.',facts:views.shell.facts(state,'geometry'),settings:[],reviewNote:state.neutralPathError??state.outputAvailability??''};
   const inspection=state.inspection;
   if(inspection)return {stage:'DEVELOPMENT INSPECTION',title:inspection.title,guidance:inspection.description,
     facts:inspection.facts,settings:inspection.settings,reviewNote:inspection.note};
   const title=state.tourExample?state.printName+(tab==='toolpath'?' · toolpath':''):{geometry:'Your geometry',toolpath:'Your toolpath'}[tab];
   const guidance={geometry:'Check the shape and dimensions.',toolpath:'Inspect the full toolpath before exporting.'}[tab];
-  const reviewNote=state.outputAvailability??(tab==='toolpath'?(state.generationError??state.programError??(!state.program
+  const reviewNote=state.outputAvailability??(tab==='toolpath'?(state.generationError??state.programError??state.neutralPathError??(!state.program
     ?'Generate the toolpath to review it with all printing settings.'
     :state.program.notice??state.program.envelope?.notice??'Review the settings and full toolpath together before exporting.')):'');
   return {stage:null,title,guidance,facts:facts(),settings:settings(),reviewNote};
@@ -591,11 +599,11 @@ canvas.addEventListener('wheel',e=>{e.preventDefault();viewer.noteMotion('zoom')
 canvas.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;if(e.shiftKey){pan[0]+=e.key==='ArrowLeft'?-20:e.key==='ArrowRight'?20:0;pan[1]+=e.key==='ArrowUp'?-20:e.key==='ArrowDown'?20:0;}else{if(e.key==='ArrowLeft')yaw-=.1;else if(e.key==='ArrowRight')yaw+=.1;else if(e.key==='ArrowUp')tilt-=.1;else tilt+=.1;}e.preventDefault();viewer.noteMotion(e.shiftKey?'pan':'orbit');requestDraw();};
 new ResizeObserver(requestDraw).observe(canvas);
 $$('[data-view]').forEach(b=>b.onclick=()=>{const mode=b.dataset.view;if(mode==='iso'){yaw=-.78;tilt=.62;}if(mode==='side'){yaw=0;tilt=0;}if(mode==='top'){yaw=0;tilt=Math.PI/2;}requestDraw();});
-function worldToDisplay(p,pose=machineSample()?.pose){const plan=(presentedState()??state).plan,q=$('#follow-plate').checked&&pose?point(invert(pose.part),p):p;return [q[0]-plan.placement.xMm,q[1]-plan.placement.yMm,q[2]];}
+function worldToDisplay(p,pose=machineSample()?.pose){const plan=(presentedState()??state).plan,q=$('#follow-plate').checked&&pose?point(invert(pose.part),p):p;return [q[0]-(plan.placement?.xMm??0),q[1]-(plan.placement?.yMm??0),q[2]];}
 function fitMachine(){return machineSession?.scene?machineFitBounds(machineSession.scene,machineSample()?.pose,p=>worldToDisplay(p)):null;}
 function fitDisplayedPart(bounds=partBounds()){
   const pose=machineSample()?.pose;if(!pose||$('#follow-plate').checked)return null;
-  const {xMm,yMm}=(presentedState()??state).plan.placement,points=boundsCorners(bounds).map(p=>worldToDisplay(point(pose.part,[p[0]+xMm,p[1]+yMm,p[2]]),pose));
+  const {xMm,yMm}=(presentedState()??state).plan.placement??{xMm:0,yMm:0},points=boundsCorners(bounds).map(p=>worldToDisplay(point(pose.part,[p[0]+xMm,p[1]+yMm,p[2]]),pose));
   return {min:[0,1,2].map(i=>Math.min(...points.map(p=>p[i]))),max:[0,1,2].map(i=>Math.max(...points.map(p=>p[i])))};
 }
 $('#machine-view').onchange=()=>{
@@ -612,7 +620,7 @@ $('#fit-program').onclick=()=>{
     fitBounds={min:[part.min[0],part.min[1],0],max:[part.max[0],part.max[1],0]};
     const shown=presentedState()??state;
     for(const move of shown.program.moves)for(const p of [move.from,move.to])for(let i=0;i<3;i++){
-      const v=p[i]-(i===0?shown.plan.placement.xMm:i===1?shown.plan.placement.yMm:0);
+      const v=p[i]-(i===0?shown.plan.placement?.xMm??0:i===1?shown.plan.placement?.yMm??0:0);
       fitBounds.min[i]=Math.min(fitBounds.min[i],v);fitBounds.max[i]=Math.max(fitBounds.max[i],v);
     }
     fitBounds=fitDisplayedPart(fitBounds)??fitBounds;fitBounds.allMoves=true;
@@ -691,13 +699,12 @@ $('#stl-file').onchange=async()=>{
   if(file.size>64*1024*1024){message('Choose an STL file up to 64 MiB.',true);return;}
   try{await working('Importing your STL…',async()=>{
     const query=new URLSearchParams({name:file.name,...(state?{printId:state.printId}:{})});
-    const target={printId:state?.printId??null,generationHash:null},firstPrint=!state;generationTarget=target;
+    const target={printId:state?.printId??null,generationHash:null};generationTarget=target;
     let response;
     try{response=await fetch('/api/import-stl?'+query,{method:'POST',headers:{'X-SAAM-Token':token,'Content-Type':'application/octet-stream'},body:file});}
     finally{if(generationTarget===target){generationTarget=null;$('#cancel-generation').hidden=true;}}
     if(!response.ok){const result=await response.json();throw Object.assign(Error(result.error),{code:result.code});}
     await tourUI.load();await refresh(false,true);message('');
-    if(firstPrint)relayPanel?.close();
   });}catch(error){message(error.message,error.code!=='IMPORT_CANCELLED');await tourUI.load();if(state)await refresh(false,true);}
 };
 $('#open-path').onsubmit=event=>{event.preventDefault();openPrint($('#print-path').value.trim());};
@@ -746,7 +753,7 @@ $('#export-movie').onclick=async()=>{
     $('#cancel-movie').hidden=true;$('#movie-progress').hidden=true;render();
   }
 };
-$('#play').onclick=()=>{if(busy||!state?.program||state.programError)return;clearManual();if(playing){stop();requestDraw();return;}if(seconds>=duration()){seconds=0;layerFade.reset();}playing=true;void tourUI?.playback('play');lastFrame=0;$('#play').textContent='Pause';frame=requestAnimationFrame(animate);};
+$('#play').onclick=()=>{if(busy||!(state?.program&&!state.programError||state?.neutralProgram))return;clearManual();if(playing){stop();requestDraw();return;}if(seconds>=duration()){seconds=0;layerFade.reset();}playing=true;void tourUI?.playback('play');lastFrame=0;$('#play').textContent='Pause';frame=requestAnimationFrame(animate);};
 async function animate(now){
   if(!playing)return;
   const epoch=playbackEpoch,next=lastFrame?advancePlayback(seconds,now-lastFrame,Number($('#playback-speed').value),duration()):seconds;
@@ -771,25 +778,25 @@ async function poll(){
     if(state?.instanceId&&next.instanceId!==state.instanceId){window.location.reload();return;}
     if(reconnecting)message('');
     const refreshUpdatedPrint=()=>refresh(true,false,next,nextTag);
-    const metadataOnly=Boolean(state&&!needsFullState&&next.presentationFingerprint===state.presentationFingerprint),firstPrint=!state;
+    const metadataOnly=Boolean(state&&!needsFullState&&next.presentationFingerprint===state.presentationFingerprint);
     if(metadataOnly)await refreshUpdatedPrint();
     else await working('Loading and checking the updated print…',refreshUpdatedPrint);
-    // The chat opened the first print into an empty Studio: show it.
-    if(firstPrint)relayPanel?.close();
     reconnecting=false;loadedUpdate=update;if(state)render();
   }catch(e){reconnecting=true;agentUI.settled(e);$('#confirm').disabled=true;message('Could not update the print: '+e.message+' Reconnecting…');}
   finally{polling=false;}
 }
-function seekTourLayer(startAt){
-  if(!Number.isInteger(startAt?.layer)||startAt.layer<1)throw Error('Your agent must choose an infill layer for this tour.');
-  let move,first;for(const candidate of state.program?.moves??[])if(candidate.extruding){
-    first??=candidate;
-    if(candidate.layer===startAt.layer&&(startAt.fallback||/infill/.test(candidate.operation??'')&&!/solid|walls/.test(candidate.operation??''))){move=candidate;break;}
-  }
-  if(!move&&startAt.fallback)move=first;
-  if(!move)throw Error('That layer has no sparse infill. Ask your agent to choose another startAt layer.');
-  stop();seconds=move.startSeconds;$('#scrub').value=seconds;layerFade.reset();requestDraw();
-  return {layer:move.layer};
+function seekTourLayer(startAt,feature='contour'){
+  const pathView=viewer.sceneState().pathView;
+  if(!pathView)throw Error('The toolpath is still loading.');
+  const selected=startAt?(()=>{
+    if(!Number.isInteger(startAt.layer)||startAt.layer<1)throw Error('Choose a deposited layer after the first.');
+    const move=pathView.moves.find(candidate=>candidate.extruding&&candidate.layer===startAt.layer);
+    if(!move)throw Error('That deposited layer is not in this toolpath.');
+    return {seconds:move.startSeconds,layer:move.layer,index:layerIndexAt(pathView,move.startSeconds)};
+  })():representativeLayer(pathView,{feature});
+  if(!selected)throw Error('This toolpath has no deposited layers to show.');
+  stop();seconds=selected.seconds;$('#scrub').value=seconds;layerFade.reset();requestDraw();
+  return selected;
 }
 function createStudioTour(){
   return createTourUI({post:api,refresh,working,setTab,isBusy:()=>busy,state:()=>state,seek:seekTourLayer});
@@ -843,12 +850,11 @@ function connectStudioSession(){
   window.addEventListener('pagehide',disposeStudioSession);
   window.addEventListener('pageshow',restoreStudioSession);
 }
-// Studio opened with no print (a relay computer at launch) waits for one: the
-// person opens a print or the tour, or the chat opens one through request_review.
+// Studio opened with no print waits for one: the person opens a print or the
+// tour, or the agent opens one through request_review.
 function showNoPrint(error){
   $('#kind-label').textContent='SAAM STUDIO';$('#view-title').textContent='No print open';
   $('#guidance').textContent=error.message;message('');
-  relayPanel?.openIfNeeded();
 }
 function reportOpening(error){
   if(error.code==='NO_PRINT')showNoPrint(error);

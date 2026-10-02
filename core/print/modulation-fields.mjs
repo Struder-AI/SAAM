@@ -1,21 +1,14 @@
-import {requireThat} from '../private/toolpath/numeric.mjs';
-// Expensive native-solid preparation stays at the async print boundary. The
-// synchronous field evaluator consumes only the returned immutable mesh data.
-import {tessellateSolid} from '../geom/boolean-display.mjs';
-import {makeMesh} from '../geom/mesh.mjs';
+import {prepareSolidDistance} from '../geom/solid-distance.mjs';
+import {prepareScalarField} from '../path/modulation-field.mjs';
 
-export {modulationGeometrySources} from '../path/modulation-field.mjs';
-
-export async function prepareModulationFields(record,{solids=[]}={}){
+export async function prepareModulationFields(record){
   const report=[];
   const prepare=async(field,key)=>{
+    if(field.kind==='blob'||field.kind==='bumps')return prepareScalarField(field);
     if(field.kind==='solid-distance'){
-      const source=solids.find(s=>s.key===key);
-      requireThat(source,`Missing evaluated modulation solid ${key}.`);
-      const tessellation=await tessellateSolid(source.geometry,{toleranceMm:field.toleranceMm});
-      const mesh=tessellation.kind==='triangle-mesh'?tessellation:makeMesh(tessellation.vertices,tessellation.triangles);
-      report.push({key,toleranceMm:field.toleranceMm,triangles:mesh.triangles.length,representation:'tessellated solid distance; negative inside'});
-      return {...field,prepared:mesh};
+      const {prepared,report:geometryReport}=await prepareSolidDistance(field.geometry,{toleranceMm:field.toleranceMm});
+      report.push({key,...geometryReport});
+      return {...field,prepared};
     }
     if(field.sources)return {...field,sources:await Promise.all(field.sources.map((source,i)=>prepare(source,`${key}.sources.${i}`)))};
     if(field.source)return {...field,source:await prepare(field.source,`${key}.source`)};

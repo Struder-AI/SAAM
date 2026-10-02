@@ -1,5 +1,4 @@
-import {rotation,mm,mv} from '../private/export/rigid.mjs';
-import {bedPoint,rotateZ,interpolateDirections} from '../private/export/frame.mjs';
+import {rotation,mm,mv,rotatePointZ as bedPoint,rotateZ,interpolateDirectionPair} from '../geom/frame.mjs';
 // One command-time evaluator for source playback and machine presentation.
 
 export function frameAtTime(moves, seconds) {
@@ -24,16 +23,17 @@ export function frameAtTime(moves, seconds) {
     result.rotaryDeg=move.rotaryFromDeg+(move.rotaryToDeg-move.rotaryFromDeg)*fraction;
     const center=move.rotaryCenterMm,from=bedPoint(move.from,move.rotaryFromDeg,center),to=bedPoint(move.to,move.rotaryToDeg,center);
     result.point=bedPoint(from.map((v,i)=>v+(to[i]-v)*fraction),result.rotaryDeg,center,true);
-    const dirs=interpolateDirections({toolAxis:rotateZ(move.toolAxisFrom,move.rotaryFromDeg),toolUp:rotateZ(move.toolUpFrom,move.rotaryFromDeg)},
-      {toolAxis:rotateZ(move.toolAxisTo,move.rotaryToDeg),toolUp:rotateZ(move.toolUpTo,move.rotaryToDeg)},fraction);
-    result.toolAxis=rotateZ(dirs.toolAxis,-result.rotaryDeg);
-    result.toolUp=rotateZ(dirs.toolUp,-result.rotaryDeg);
+    const [axis,up]=interpolateDirectionPair([rotateZ(move.toolAxisFrom,move.rotaryFromDeg),rotateZ(move.toolUpFrom,move.rotaryFromDeg)],
+      [rotateZ(move.toolAxisTo,move.rotaryToDeg),rotateZ(move.toolUpTo,move.rotaryToDeg)],fraction);
+    result.toolAxis=rotateZ(axis,-result.rotaryDeg);
+    result.toolUp=rotateZ(up,-result.rotaryDeg);
   }
   if(move.controllerFrom)result.controllerPoint=move.controllerFrom.map((v,i)=>v+(move.controllerTo[i]-v)*fraction);
   if(move.anglesFrom){
     const a=move.anglesFrom.map((v,i)=>(v+(move.anglesTo[i]-v)*fraction)*Math.PI/180);
     result.rotation=mm(rotation([0,0,1],a[2]),mm(rotation([0,1,0],a[1]),rotation([1,0,0],a[0])));
     result.toolAxis=mv(result.rotation,[0,0,-1]);result.toolUp=mv(result.rotation,[0,1,0]);
-  }else if(move.toolAxisFrom&&!Number.isFinite(move.rotaryFromDeg))Object.assign(result,interpolateDirections({toolAxis:move.toolAxisFrom,toolUp:move.toolUpFrom},{toolAxis:move.toolAxisTo,toolUp:move.toolUpTo},fraction));
+  }else if(move.toolAxisFrom&&!Number.isFinite(move.rotaryFromDeg))
+    [result.toolAxis,result.toolUp]=interpolateDirectionPair([move.toolAxisFrom,move.toolUpFrom],[move.toolAxisTo,move.toolUpTo],fraction);
   return result;
 }

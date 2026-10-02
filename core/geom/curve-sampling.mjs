@@ -1,4 +1,4 @@
-import {distance,requireThat} from './tolerance.mjs';
+import {distance,requireThat,findRoot} from './tolerance.mjs';
 
 
 // Numerical curve refinement shared by native, mapped and family curves.
@@ -21,4 +21,20 @@ export function sampleCurveIntervals({at,cuts=[0,1],stepMm,toleranceMm,chartStep
     }
   }
   return samples;
+}
+
+// Positive intervals evidenced by an ordered parameter survey. Refinement
+// locates observed sign changes; it does not discover unsampled crossings.
+export function sampledPositiveIntervals(at,parameters,values=parameters.map(at)){
+  const intervals=[];
+  let start=values[0]>0?parameters[0]:null;
+  for(let j=1;j<parameters.length;j++){
+    const active=values[j]>0,before=values[j-1]>0;
+    if(active!==before){
+      const root=findRoot(at,parameters[j-1],parameters[j],values[j-1],values[j]);
+      if(active)start=root;else{intervals.push([start,root]);start=null;}
+    }
+  }
+  if(start!==null)intervals.push([start,parameters.at(-1)]);
+  return intervals;
 }

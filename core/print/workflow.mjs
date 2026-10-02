@@ -223,7 +223,10 @@ async function prepareLegacyMigration(dir,document,planText){
   const source=originalSource(document.geometry);
   if(source){const sourceBytes=await readFile(resolve(dir,'geometry/source.stl'));inputs.set('geometry/source.stl',sourceBytes);requireThat(hash(sourceBytes)===source.sha256,'Imported STL source changed; repair it before migration.');}
   const programStatus=!review.generation?'none':review.generation.generationHash===preflight.identity.generationHash?'current':'stale';
-  if(programStatus==='current')interpretProgram(programBytes,document,machine);
+  if(programStatus==='current'){
+    const path=review.path?await readPathArtifact(dir,review.path):null;
+    interpretProgram(programBytes,document,machine,{authoredNozzleTemperatures:path?.completion?.authoredNozzleTemperatures});
+  }
   return {state,manifest,artifacts,planText,inputs,programStatus};
 }
 
@@ -356,6 +359,8 @@ async function restoreBundleProgram(input,program,allSources,previousProgram) {
       const exportHash=hash(code),key=programKey(generationHash,exportHash);observedExportHash=exportHash;
       requireThat(exportHash === review.generation.exportHash,
         'Generated files changed; regenerate and review again.');
+      const path=review.path?await readPathArtifact(dir,review.path):null;
+      const authoredNozzleTemperatures=path?.completion?.authoredNozzleTemperatures;
       if(cachedProgram?.key!==key||(program!=='source'&&!cachedProgram.program)) {
         // Reopen the saved machine program. Interpretation checks the actual
         // commands; reopening never invokes a slicing skill or exporter. Source
@@ -363,9 +368,10 @@ async function restoreBundleProgram(input,program,allSources,previousProgram) {
         // hash above matches. Full-motion and cold callers still interpret.
         const source=program==='source'?pendingCheckedPrograms.take(key):null;
         if(source)cachedProgram={key,...source,bytes:code,program:null};
-        else cachedProgram=programCacheEntry(key,interpretProgram(code, plan, machine),code);
+        else cachedProgram=programCacheEntry(key,interpretProgram(code, plan, machine,{authoredNozzleTemperatures}),code);
       }
       state.program = structuredClone(program==='source'?cachedProgram.metadata:cachedProgram.program);
+      state.authoredNozzleTemperatures=authoredNozzleTemperatures;
       state.limitations=[...new Set([...state.limitations,...(state.program.limitations??[])])];
       state.pathSummary = structuredClone(review.generation.summary??{});
       state.exportHash = exportHash;
@@ -428,38 +434,76 @@ async function checkPathBundle(directory, {onProgress} = {}) {
 }
 
 async function prepareGeneration(directory,{onProgress}={}){
-  const state=await loadBundle(directory,{program:false});
+  const state=await loadBundle(directory,{program:false}),source=await generationSource(state.plan);
   requireThat(state.machine,'Supply a machine, material and toolpath recipe before generation.');
-  const key=hash([state.dir,state.generationHash]);
+  const key=hash([state.dir,state.generationHash,source.release,source.hash??state.review.path?.source?.hash]);
   if(preparation?.key!==key)preparation={key};
   const candidate=preparation;
   if(!candidate.result)candidate.result=Promise.resolve().then(async()=>{
     onProgress?.({stage:'Preparing geometry'});
-    const {path,artifact}=await prepareToolpath(state,{onProgress});
+    const {path,artifact}=await prepareToolpath(state,{onProgress,source});
     onProgress?.({stage:'Writing and checking machine commands'});
     try{return {pathArtifact:artifact,summary:path.summary,...exportAndInterpretProgram(path,state.plan,state.machine,{generatorVersion:VERSION,buildDate:BUILD_DATE})};}
     catch(error){error.stage='export';throw error;}
   }).catch(error=>{candidate.result=null;throw error;});
   const result=await candidate.result;
-  return {directory:state.dir,revision:state.revision,generationHash:state.generationHash,result};
+  return {directory:state.dir,revision:state.revision,generationHash:state.generationHash,source:{release:source.release,hash:source.hash},result};
 }
 
-async function prepareToolpath(state,{onProgress}={}){
-  const key=hash([state.dir,state.pathHash]);
+// Generation-source currency is checked only when working on a print. Saved
+// viewing and delivery do not load extensions or reinterpret source versions.
+async function generationSource(plan){
+  return adapter.pathSource?adapter.pathSource(plan):{release:null,hash:null};
+}
+
+function staleGenerationSource(state,source){
+  const saved=state.review.path?.source;
+  return Boolean((state.review.path||state.review.generation)
+    &&(source.release!==null&&saved?.release!==source.release||source.hash!==null&&saved?.hash!==source.hash));
+}
+
+function sourceInvalidatedReview(review){
+  return {...review,path:null,generation:null,approvals:{},history:[...review.history,
+    {event:'generation-invalidated',reason:'generation-source-changed',time:new Date().toISOString()}]};
+}
+
+async function activeGenerationState(directory){
+  let state=await loadBundle(directory,{program:false});
+  const source=await generationSource(state.plan);
+  if(staleGenerationSource(state,source)){
+    await commitState(state,{review:sourceInvalidatedReview(state.review)},{edit:true});
+    state=await loadBundle(directory,{program:false});
+  }
+  return {state,source};
+}
+
+async function requireGenerationSource(state,expected){
+  if(!adapter.pathSource)return;
+  const source=await generationSource(state.plan);
+  if(source.release===expected?.release&&source.hash===expected?.hash)return;
+  if(state.review.path||state.review.generation||Object.keys(state.review.approvals).length)
+    await commitState(state,{review:sourceInvalidatedReview(state.review)},{edit:true});
+  if(source.missing)throw source.missing;
+  throw Error('Generation source changed during calculation. Generate again using the current scripts.');
+}
+
+async function prepareToolpath(state,{onProgress,source}={}){
+  const key=hash([state.dir,state.pathHash,source.release,source.hash??state.review.path?.source?.hash]);
   if(pathPreparation?.key===key){onProgress?.({stage:'Reusing neutral SAAMpath'});return pathPreparation.result;}
   const result=(async()=>{
     const saved=state.review.path;
-    if(saved?.inputHash===state.pathHash){
+    if(saved?.inputHash===state.pathHash&&!staleGenerationSource(state,source)){
       const path=await readPathArtifact(state.dir,saved);
       onProgress?.({stage:'Reusing saved SAAMpath'});
       requireThat(!adapter.completionContract||path.completion?.contract===adapter.completionContract&&path.completion.inputHash===state.pathHash,'Saved SAAMpath completion does not match its inputs.');
       return {path,artifact:saved};
     }
-    const path=await generatePath(state.plan,state.machine,{onProgress});
+    if(source.missing)throw source.missing;
+    const path=await generatePath(state.plan,{onProgress});
     requireThat(!adapter.completionContract||path.completion?.contract===adapter.completionContract&&path.completion.inputHash===state.pathHash,'Generated SAAMpath completion does not match its inputs.');
     const bytes=JSON.stringify(path),contentHash=hash(bytes),file=`paths/${contentHash}.json`;
     await save(resolve(state.dir,file),bytes);
-    return {path,artifact:{inputHash:state.pathHash,hash:contentHash,file}};
+    return {path,artifact:{inputHash:state.pathHash,hash:contentHash,file,...(source.hash!==null?{source:{release:source.release,hash:source.hash}}:{})}};
   })();
   pathPreparation={key,result};
   try{return await result;}catch(error){if(pathPreparation?.result===result)pathPreparation=null;throw error;}
@@ -474,11 +518,13 @@ async function readPathArtifact(dir,artifact){
 
 // Authored SAAMpath can be saved before choosing a machine-program output.
 async function generateToolpath(directory,{onProgress,beforeCommit}={}){
-  const state=await loadBundle(directory,{program:false});
-  const {artifact}=await prepareToolpath(state,{onProgress});
+  const {state,source}=await activeGenerationState(directory);
+  const {artifact}=await prepareToolpath(state,{onProgress,source});
   await beforeCommit?.();
   await readPathArtifact(state.dir,artifact);
-  await commitState(state,{review:{...state.review,path:artifact}});
+  await requireGenerationSource(state,source);
+  const review=canonical(artifact)===canonical(state.review.path)?state.review:{...state.review,generation:null,approvals:{}};
+  await commitState(state,{review:{...review,path:artifact}});
   return loadBundle(directory,{program:false});
 }
 
@@ -499,11 +545,12 @@ async function updatePlan(directory, plan, revision) {
   const state = await loadBundle(directory, { program: false });
   requireThat(revision === state.revision, 'This view is stale. Reload before changing the print.');
   const change = validatePlanUpdate(state, plan);
-  if (!change.changed) return state;
+  const source=await generationSource(change.plan),sourceChanged=staleGenerationSource(state,source);
+  if (!change.changed&&!sourceChanged) return state;
 
   // Build before committing anything; plan.json remains the edit commit point.
   const geometry = change.geometryChanged&&change.plan.geometry ? await createGeometry(change.plan.geometry) : null;
-  const review = editedPlanReview(state.review, state.generationHash, change.geometryChanged, planChanges(state.plan, change.plan));
+  const review = editedPlanReview(sourceChanged?sourceInvalidatedReview(state.review):state.review, state.generationHash, change.geometryChanged, planChanges(state.plan, change.plan));
   await persistPlanUpdate(state,change.plan,geometry,review);
   return loadBundle(directory);
 }
@@ -525,11 +572,13 @@ async function persistPlanUpdate(state,plan,geometry,review) {
 // may be inspected freely; development output is recorded as a preview and can
 // never satisfy the final reviewed-export delivery gate.
 async function generateBundle(directory, { development = false, onProgress, beforeCommit, dispatchComputation } = {}) {
-  const state = await loadBundle(directory, { program: false });
+  const {state,source} = await activeGenerationState(directory);
   const current=await currentGenerationCandidate(directory,state);
   if(current){
+    await requireGenerationSource(state,source);
     if(development||current.checks.mode==='production')return current.checks;
     await beforeCommit?.();
+    await requireGenerationSource(state,source);
     const confirmed=await currentGenerationCandidate(directory,state);
     requireThat(confirmed&&confirmed.checks.mode==='development'
       &&confirmed.current.generationHash===current.current.generationHash
@@ -539,15 +588,14 @@ async function generateBundle(directory, { development = false, onProgress, befo
     return promoteReviewedGeneration(state.dir,confirmed);
   }
   if(dispatchComputation){
-    let localChecks;
-    const runLocally=async()=>localChecks=await generateBundle(directory,{development,onProgress,beforeCommit});
-    const computed=await dispatchComputation({directory,state,development,onProgress,beforeCommit,runLocally});
-    if(computed===localChecks&&localChecks)return localChecks;
-    const checks=computed?.checks,source=consumeCheckedProgram(computed?.checkedProgram,
-      checks?.generationHash,checks?.exportHash);
-    requireThat(checks&&source,'The generation worker returned unchecked machine source.');
-    pendingCheckedPrograms.retain(programKey(checks.generationHash,checks.exportHash),source);
-    return checks;
+    const computed=await dispatchComputation({directory:state.dir,generationHash:state.generationHash});
+    if(computed!==null){
+      const checks=computed?.checks,source=consumeCheckedProgram(computed?.checkedProgram,
+        checks?.generationHash,checks?.exportHash);
+      requireThat(checks&&source,'The generation worker returned unchecked machine source.');
+      pendingCheckedPrograms.retain(programKey(checks.generationHash,checks.exportHash),source);
+      return checks;
+    }
   }
   const prepared=await prepareGeneration(directory,{onProgress});
   return commitGeneration(directory,prepared,{development,onProgress,beforeCommit});
@@ -559,6 +607,7 @@ async function commitGeneration(directory,prepared,{development=false,onProgress
   requireThat(state.dir===prepared.directory&&state.generationHash===prepared.generationHash&&state.revision===prepared.revision,
     'The print changed during generation. Review the updated print.');
   await beforeCommit?.();
+  await requireGenerationSource(state,prepared.source);
   onProgress?.({stage:'Saving your toolpath'});
   const checks=generationChecks(state,result,development);
   const committed=await persistGeneratedProgram(state,result,checks);
@@ -671,10 +720,12 @@ async function applySettingsSnapshot(directory,selection,expectedRevision) {
     &&settings&&typeof settings==='object'&&!Array.isArray(settings)
     &&Object.keys(settings).every(k=>['setup','process','output','placement','skills'].includes(k)),'Invalid selected settings snapshot.');
   const plan={...state.plan,...settings};
-  if(canonical(machine)===canonical(state.machine)&&canonical(plan)===canonical(state.plan))return state;
+  const source=await generationSource(plan),sourceChanged=staleGenerationSource(state,source);
+  if(canonical(machine)===canonical(state.machine)&&canonical(plan)===canonical(state.plan)&&!sourceChanged)return state;
+  const previousReview=sourceChanged?sourceInvalidatedReview(state.review):state.review;
   const review=canonical(machine)===canonical(state.machine)
-    ?editedPlanReview(state.review,state.generationHash,false,planChanges(state.plan,plan))
-    :machineChangedReview(state.review,state.machine?.id??null,machine?.id??null);
+    ?editedPlanReview(previousReview,state.generationHash,false,planChanges(state.plan,plan))
+    :machineChangedReview(previousReview,state.machine?.id??null,machine?.id??null);
   await commitState(state,{plan,machine,review},{edit:true});
   return loadBundle(directory,{program:false});
 }

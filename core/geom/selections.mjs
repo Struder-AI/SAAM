@@ -15,5 +15,3 @@ export function geometrySelections(geometry){
   else append(null,geometry);
   return result;
 }
-
-export const selectionsOverlap=(a,b)=>a.owner===b.owner&&(a.material===null||b.material===null||a.material===b.material);

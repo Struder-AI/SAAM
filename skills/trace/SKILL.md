@@ -1,6 +1,6 @@
 ---
 name: trace
-description: Deposit along curves, authored directly or supplied by skills: XYZ, NURBS, surface UV paths and line text, with varying bead and process.
+description: Deposit along explicit XYZ, NURBS or surface UV curves with varying bead and process.
 ---
 
 # Trace
@@ -14,9 +14,9 @@ Use the existing `slice` editing tool, or the same bulk recipe edit, to add a
 Supply `id`, `curves`, and common `part`, `filament`, `process`, `after` settings as needed; [print nozzle rules](../../core/print/USAGE.md#nozzle-selection) apply.
 
 Each curve has `closed` and exactly one source: XYZ `points`; `nurbs` with degree,
-knots, controlPoints and optional weights; `uv` with a named slice/sleeve/patch
-reference and UV points or NURBS; or `text` with fontId, text, heightMm,
-beadRangeMm and origin. Line text becomes actual glyph curves, not solid geometry.
+knots, controlPoints and optional weights; or `uv` with a named slice/sleeve/patch
+reference and UV points or NURBS. The [line-text](../line-text/SKILL.md)
+extension compiles lettering into explicit XYZ curves.
 
 Scalar beadWidthMm, heightMm, speedMmS and flowMultiplier override process
 defaults. `vary` provides increasing normalized-parameter `[t,value]` samples

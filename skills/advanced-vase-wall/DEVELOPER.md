@@ -1,6 +1,6 @@
 # Advanced vase: sleeve fitting and contact
 
-[mesh-sleeve.mjs](scripts/mesh-sleeve.mjs) exposes `fitMeshSleeve(mesh, options)` for an already validated
+[Geometry's mesh-sleeve.mjs](../../core/geom/sleeve/mesh-sleeve.mjs) exposes `fitMeshSleeve(mesh, options)` for an already validated
 triangle mesh. A **sleeve** here is the open side surface of a vase-like
 envelope, with its top and bottom caps excluded. It is independent of material
 coverage: fitting a solid, or the outer side of a hollow vessel, does not fill its
@@ -48,7 +48,7 @@ recovery and residual orthogonality independently of the fitted mesh.
 
 | Option | Meaning and default |
 |---|---|
-| `circumferentialControls`, `heightControls` | Independent fit resolution; defaults 12 and 6. Fewer controls smooth local texture; increasing them permits more detail in the underlying estimate. Both accept 4–64. |
+| `circumferentialControls`, `heightControls` | Independent fit resolution, defaults 12 and 6; each needs at least 4 controls. More controls permit finer detail. |
 | `circumferentialSamples`, `heightSamples` | Uniform observation grid, defaults 96 and 25. At least twice as many circumferential samples as controls, and at least as many height samples as controls, are required. These are fit samples, not a certified mesh-error bound. |
 | `toleranceMm` | Bounded chord deviation for polyline sections of the fitted polynomial spline, default 0.02 mm. It is independent of fit residual and source-mesh detail. |
 
@@ -89,12 +89,12 @@ not physical support or machine clearance.
 
 ### Prepared mesh contact
 
-[directional-contour.mjs](scripts/directional-contour.mjs) unfolds one-turn section contours into ordered polar
+[Geometry's directional-contour.mjs](../../core/geom/sleeve/directional-contour.mjs) unfolds one-turn section contours into ordered polar
 profiles within the selected planar correspondence allowance. Larger folds
 reject, as does a source whose radial variation needs more angular room than the
 one turn an unfolded profile has. The fixed sample count per profile has a floor,
 not a ceiling: a contour whose sampling error exceeds the detail tolerance says so
-and can be sampled more finely. [prepared-radial-contact.mjs](scripts/prepared-radial-contact.mjs) uses 16,384 fixed
+and can be sampled more finely. [prepared-radial-contact.mjs](../../core/geom/sleeve/prepared-radial-contact.mjs) uses 16,384 fixed
 samples per profile by default and
 interpolates their ordered correspondence across height. At sampled validation
 heights, the actual profile certificate is deducted before allocating the

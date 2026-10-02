@@ -1,38 +1,24 @@
 {
-  // One Worker and one shared Durable Object relay chat MCP sessions to paired
-  // local SAAM runtimes. See README.md and adapters/mcp/RELAY-PLAN.md.
+  // Optional alpha activation, release lookup and live diagnostics.
   "name": "saam-relay",
   "main": "src/worker.mjs",
   "compatibility_date": "2026-09-01",
-  // Needed for OAuth Client ID Metadata Document fetches (SSRF protection).
-  "compatibility_flags": ["global_fetch_strictly_public"],
-  // Workers Logs: request outcomes, exceptions and the relay's own warnings,
+  // Workers Logs: request outcomes, exceptions and service warnings,
   // viewable in the dashboard or live with `npx wrangler tail`.
   "observability": { "enabled": true },
   "vars": {
-    // The public origin chat clients reach; the MCP resource is PUBLIC_URL/mcp.
-    // Local development overrides it: wrangler dev --var PUBLIC_URL:http://localhost:8787
-    "PUBLIC_URL": "https://saam-relay.remettub.workers.dev",
-    // Computers that may pair at all: a backstop behind invites (README.md#pairing).
+    // Maximum activated installations, a backstop behind invites.
     "MAX_PAIRED_DEVICES": "150",
-    // Where chat apps may send a sign-in: space-separated origins, plus
-    // "loopback" for an app on the person's own computer. Adding an origin and
-    // redeploying leaves existing connections as they are.
-    "CHAT_REDIRECTS": "https://claude.ai https://claude.com https://chatgpt.com",
     // The release Studio offers as an update, as JSON:
     // {"version":"0.1.1","assets":{"win-x64":{"url":"https://…/SAAM-0.1.1-win-x64.zip","sha256":"…"}}}
     // Empty offers none. packaging/build.mjs prints each asset's entry.
-    "LATEST_RELEASE": "{\"version\":\"0.2.1\",\"assets\":{\"win-x64\":{\"url\":\"https://github.com/Struder-AI/SAAM/releases/download/v0.2.1/SAAM-0.2.1-win-x64.zip\",\"sha256\":\"2821db5a4c278db176b100abd05e155de5b8e81692e6acd42e7edcf3877922bd\"},\"darwin-arm64\":{\"url\":\"https://github.com/Struder-AI/SAAM/releases/download/v0.2.1/SAAM-0.2.1-darwin-arm64.zip\",\"sha256\":\"a31529729eeb61f24d6c0082fc60af817e793a7e972812139c1bf5ea91075d3e\"},\"darwin-x64\":{\"url\":\"https://github.com/Struder-AI/SAAM/releases/download/v0.2.1/SAAM-0.2.1-darwin-x64.zip\",\"sha256\":\"644166d094b726020f24782de75ab4baedf70736724864330a72ea66d816f63e\"}}}",
-    // Days the alpha records (D-039) are kept; "0" records nothing. Reading them,
+    "LATEST_RELEASE": "{\"version\":\"0.3.1\",\"assets\":{\"win-x64\":{\"url\":\"https://github.com/Struder-AI/SAAM/releases/download/v0.3.1/SAAM-0.3.1-win-x64.zip\",\"sha256\":\"162db7aaae9bd37a25ce2658dcf78fc268ceaea6460d626779e541fda4a885de\"},\"darwin-arm64\":{\"url\":\"https://github.com/Struder-AI/SAAM/releases/download/v0.3.1/SAAM-0.3.1-darwin-arm64.zip\",\"sha256\":\"c6238f1f3c18c96fff669d2578054b884721d01c9f1e12cf56d42bdce9b76aa4\"},\"darwin-x64\":{\"url\":\"https://github.com/Struder-AI/SAAM/releases/download/v0.3.1/SAAM-0.3.1-darwin-x64.zip\",\"sha256\":\"2929a5f97e979b90d8d754cd010ac3610acefe0b5bdabebc6225578328139f08\"}}}",
+    // Days received diagnostics are kept; "0" records nothing. Reading them,
     // and issuing invites, needs the OPERATOR_TOKEN secret (README.md#operating).
     "RECORD_DAYS": "30"
   },
   "durable_objects": {
     "bindings": [{ "name": "RELAY", "class_name": "RelayObject" }]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RelayObject"] }],
-  "kv_namespaces": [
-    // Created with `wrangler kv namespace create OAUTH_KV`; another account creates its own.
-    { "binding": "OAUTH_KV", "id": "324f3d91a05d4afa9ad4b39da4774920" }
-  ]
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RelayObject"] }]
 }

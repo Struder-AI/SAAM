@@ -13,7 +13,7 @@ import {topAt} from '../geom/query.mjs';
 import {horizontalSlice} from '../geom/slice.mjs';
 import {section} from '../region/section.mjs';
 import {regionArea} from '../region/region2d.mjs';
-import {createBlobFieldBundle,updateBlobFieldBundle,compileRequest} from '../print/blob-field.mjs';
+import {createBlobFieldBundle,updateBlobFieldBundle,compileRequest} from '../agent/blob-field.mjs';
 import {loadBundle,generateBundle,approve,deliver} from '../print/bundle.mjs';
 import {createGeometry,verifyGeometry} from '../print/geometry.mjs';
 

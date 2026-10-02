@@ -27,3 +27,4 @@ export function validateTextRecord(record){
   }
   requireThat(record.compiledHash===textDigest(record),'Text recipe or mesh changed. Rebuild with the text skill (apply_text / shell text).');
 }
+export const textRecordRuntime=()=>({validate:validateTextRecord});

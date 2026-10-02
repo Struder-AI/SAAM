@@ -27,7 +27,7 @@ export async function applySlice(directory,request,{expectedRevision}={}) {
   const previous=await loadBundle(directory,{program:false});
   requireThat(expectedRevision===previous.revision,'This review is stale. Reload before changing slices.');
   const slices=editSliceAssignments(previous.plan.slices,request);
-  const plan={...previous.plan,slices},diagnostics=await diagnoseDepositionPlan(plan,previous.machine);
+  const plan={...previous.plan,slices},diagnostics=await diagnoseDepositionPlan(plan);
   const state=await updatePlan(directory,plan,previous.revision);
   const changed=state.revision!==previous.revision;
   return {state,edit:{action:request.action,id:request.id,changed,assignment:state.plan.slices.assignments.find(a=>a.id===request.id)??null,

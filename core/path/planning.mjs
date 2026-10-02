@@ -1,3 +1,4 @@
+import {rotatePointZ as bedPoint} from '../geom/frame.mjs';
 import {saamPath} from './saampath.mjs';
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 // Explicit path transitions. A stage owns its local work; its inputs are read-only.
@@ -5,7 +6,7 @@ import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 // allocates a replacement action; earlier states and returned chunks stay intact.
 import {TOLERANCE} from '../geom/tolerance.mjs';
 import {combRoute,combSegment} from './comb.mjs';
-import {uprightPose,validatePose,samePose,bedPoint} from './pose.mjs';
+import {uprightPose,validatePose,samePose} from './pose.mjs';
 
 export const MINIMUM_MOVE_MM=1e-4,NEARBY_MOVE_MM=1,CONNECT_MOVE_MM=2;
 

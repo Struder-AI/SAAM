@@ -1,7 +1,7 @@
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {requireThat,distance,normalize,cross} from '../private/toolpath/numeric.mjs';
 
-import {evaluateCurve} from '../geom/nurbs.mjs';
+import {curvePoint} from '../geom/surface-curves.mjs';
 
 import {heightReferenceBounds} from '../geom/height-slice.mjs';
 import {transportCurveFrames} from './curve-frame.mjs';
@@ -9,9 +9,8 @@ import {strokeRange} from './deposition.mjs';
 import {sampleCurveIntervals} from '../geom/curve-sampling.mjs';
 import {beadWidthRule,parallelBeadCurves} from './parallel-curves.mjs';
 import {strokeSurfaceRegion} from '../region/surface-offset.mjs';
-import {loadFont,fontEntry} from '../text/catalog.mjs';
-import {lineText} from '../text/compile.mjs';
-import {unit,dot,interpolateDirections} from './pose.mjs';
+import {interpolatePose} from './pose.mjs';
+import {unitDirection as unit,dot} from '../geom/frame.mjs';
 import {piecewiseChart,piecewiseChartFrame,mapPiecewiseChartPath,splitPiecewiseChartPath} from '../geom/piecewise-chart.mjs';
 
 const vec=(p,n)=>Array.isArray(p)&&p.length===n&&p.every(Number.isFinite);
@@ -56,10 +55,10 @@ function authoredSegment(lengths,distanceMm){
 export function sampleAuthoredCurve(curve,{references={},course=0,offset=[0,0,0],toleranceMm=.02,sampleStepMm=1}={}){
   const input=curve.uv??curve,dimension=curve.uv?2:3,native=input.nurbs?authoredNurbs(input.nurbs,dimension):null;
   const points=input.points,entry=curve.uv?referenceEntry(input.reference,references,course):null;
-  if(native&&curve.closed)requireThat(distance(evaluateCurve(native,native.domain[0]).point,evaluateCurve(native,native.domain[1]).point)<1e-7,'Closed NURBS must meet at their domain endpoints.');
+  if(native&&curve.closed)requireThat(distance(curvePoint(native,0),curvePoint(native,1))<1e-7,'Closed NURBS must meet at their domain endpoints.');
   const source=native?null:(curve.closed?[...points,points[0]]:points),lengths=[0];
   if(source)for(let i=1;i<source.length;i++)lengths.push(lengths.at(-1)+Math.hypot(...source[i].map((x,k)=>x-source[i-1][k])));
-  const local=t=>{if(native)return evaluateCurve(native,native.domain[0]+t*(native.domain[1]-native.domain[0])).point.slice(0,dimension);const d=t*lengths.at(-1),i=authoredSegment(lengths,d),f=(d-lengths[i-1])/(lengths[i]-lengths[i-1]);return source[i-1].map((v,k)=>v+(source[i][k]-v)*f);};
+  const local=t=>{if(native)return curvePoint(native,t).slice(0,dimension);const d=t*lengths.at(-1),i=authoredSegment(lengths,d),f=(d-lengths[i-1])/(lengths[i]-lengths[i-1]);return source[i-1].map((v,k)=>v+(source[i][k]-v)*f);};
   const at=t=>{const chart=local(t),e=entry?evaluateSurface(entry,chart,input.normalMm??0):{point:chart};requireThat(!entry||e.normal,'Curve reference has a singular tangent.');return {t,chart,...e,point:e.point.map((v,i)=>v+offset[i])};};
   const breaks=[0,1,...(native?[...native.knots].filter(k=>k>native.domain[0]&&k<native.domain[1]).map(k=>(k-native.domain[0])/(native.domain[1]-native.domain[0])):lengths.map(l=>l/lengths.at(-1))),...Object.values(curve.vary??{}).flatMap(v=>v.map(p=>p[0]))];
   const samples=sampleCurveIntervals({at,cuts:breaks,stepMm:curve.sampleStepMm??sampleStepMm,toleranceMm:curve.toleranceMm??toleranceMm,
@@ -98,7 +97,7 @@ export function applyCurveProfiles(input,curve){
   for(const key of ['normals','chartPoints','referenceAlong'])if(source[key])result[key]=positions.map(({segment:i,fraction:t})=>{
     const value=mix(source[key][i],source[key][i+1],t);return key==='normals'?unit(value):value;
   });
-  if(source.poses)result.poses=positions.map(({segment:i,fraction:t})=>({...interpolateDirections(source.poses[i],source.poses[i+1],t),rotaryDeg:source.poses[i].rotaryDeg+t*(source.poses[i+1].rotaryDeg-source.poses[i].rotaryDeg)}));
+  if(source.poses)result.poses=positions.map(({segment:i,fraction:t})=>interpolatePose(source.poses[i],source.poses[i+1],t));
   if(source.frameSamples)result.frameSamples=positions.map(({segment:i,fraction:t})=>{
     const a=source.frameSamples[i],b=source.frameSamples[i+1],normal=unit(mix(a.normal,b.normal,t)),v=unit(cross(normal,unit(mix(a.u,b.u,t))));
     return {point:mix(a.point,b.point,t),u:unit(cross(v,normal)),v,normal};
@@ -141,26 +140,7 @@ function samplePiecewiseCurve(source,chart,path,{offset=[0,0,0],toleranceMm=.02,
 // Parallel geometry precedes process profiles. Each offset point carries the
 // closest source segment's authored parameter, so NURBS t does not become arc
 // length when a wide stroke is lowered to several beads.
-export function validateLineTextSource(text){
-  requireThat(text&&Object.keys(text).every(k=>['fontId','text','heightMm','beadRangeMm','origin','weight','stemRatio','letterSpacingMm','align','chain','spacingFactor','onInfeasible'].includes(k)),'Unknown line-text source field.');
-  fontEntry(text.fontId);
-  requireThat(typeof text.text==='string'&&text.text.length&&Number.isFinite(text.heightMm)&&text.heightMm>0&&vec(text.origin,3),'Line text needs content, positive height and XYZ origin.');
-  beadWidthRule({widthMm:text.heightMm*.08,beadRangeMm:text.beadRangeMm,spacingFactor:text.spacingFactor??1});
-  requireThat(text.weight===undefined||['light','regular','bold'].includes(text.weight),'Unknown line-text weight.');
-  requireThat(text.stemRatio===undefined||Number.isFinite(text.stemRatio)&&text.stemRatio>0,'Text stemRatio must be positive.');
-  requireThat(text.letterSpacingMm===undefined||Number.isFinite(text.letterSpacingMm),'Text spacing must be finite.');
-  requireThat(text.align===undefined||['left','center','right'].includes(text.align),'Unknown text alignment.');
-  requireThat(text.chain===undefined||typeof text.chain==='boolean','Text chain must be boolean.');
-  requireThat(text.onInfeasible===undefined||['reduce','error'].includes(text.onInfeasible),'Text infeasibility mode must be reduce or error.');
-}
-
 export function constructAuthoredCurves(curve,options={}){
-  if(curve.text){
-    validateLineTextSource(curve.text);const {fontId,origin,...request}=curve.text;
-    const compiled=lineText({...request,font:loadFont(fontId),layers:1,firstLayerMm:0});
-    const {text,closed,...properties}=curve;
-    return compiled.assignment.curves.flatMap(glyph=>constructAuthoredCurves({...properties,...glyph,points:glyph.points.map(p=>p.map((v,i)=>v+origin[i]))},options));
-  }
   let offsetChart=null,offsetDescriptor=null;
   if(curve.uv?.normalMm){
     const entry=referenceEntry(curve.uv.reference,options.references,options.course??0);

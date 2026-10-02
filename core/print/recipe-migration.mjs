@@ -5,7 +5,8 @@ import {rimAssignment} from '../../skills/thick-lip/scripts/prepare.mjs';
 import {bridgeAssignment} from '../../skills/bridging/scripts/prepare.mjs';
 import {depositionAssignment} from './assignment-records.mjs';
 
-import {validateSleevePattern} from '../../skills/advanced-vase-wall/scripts/sleeve-pattern.mjs';
+import {advancedVaseRecordRuntime} from '../../skills/advanced-vase-wall/scripts/record.mjs';
+const {validateSleevePattern}=advancedVaseRecordRuntime();
 
 // Retired cell layouts expand only during an explicitly requested migration.
 function explicitSleevePaths(pattern){

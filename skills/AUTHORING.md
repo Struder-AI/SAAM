@@ -24,10 +24,11 @@ An extension folder contains `extension.json` and `SKILL.md`, plus any scripts,
 assets and optional author manuals it uses. The manifest declares
 `schema: "saam-extension/1"`, a lowercase hyphenated `id`, `dependencies`,
 `entries`, `license` and `provenance`. Each dependency names an `id`; missing
-copies and cycles stop execution. Each entry maps a name such as `geometry-edit`,
-`geometry-create`, `deposition-edit` or `resource-client` to an `.mjs` file and
-exported function. Importing a package validates and saves its files without
-running scripts.
+copies and cycles stop execution. Entries map names such as `geometry-edit`,
+`geometry-create`, `deposition-edit`, `deposition-runtime`, `record-runtime` or `resource-client`
+to an `.mjs` function. A runtime factory receives named public Geometry and
+Toolpath operations and returns the technique's composition functions. Import
+validates and saves files without running scripts.
 
 `node scripts/extensions.mjs list|resolve ID...|checkout ID|export ID FILE|import FILE`
 manages extensions. `checkout` copies a release extension into the user data

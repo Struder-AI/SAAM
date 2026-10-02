@@ -2,19 +2,26 @@ import {loftPolygons} from '../../core/geom/loft.mjs';
 import {clipLineToRegion} from '../../core/geom/curve-region.mjs';
 import {wingDesign,wingSections,wingStation,sectionRoute,foil,wingletThickness} from './design.mjs';
 import {aircraftContext} from './aircraft.mjs';
+import {airfoilProfile} from './airfoils.mjs';
 
-export function wingEnvelope(d,piece,span){
-  const s=wingStation(d,piece,span),points=[],n=60;
+export function wingEnvelope(d,piece,span,{samples=60}={}){
+  const s=wingStation(d,piece,span),points=[],n=samples;
   const plate=piece.integratedTip&&span>=piece.toMm-wingletThickness(d)-1e-8;
+  // The integrated endplate has a connected, filled bed face even when a
+  // highly cambered airfoil's lower surface arches above its leading/trailing edges.
+  const bedLower=plate?Math.min(...Array.from({length:n+1},(_,i)=>{
+    const x=s.lo+(s.hi-s.lo)*i/n,f=foil(d,x-s.shift,s.chord);
+    return f.center-Math.max(d.beadWidthMm*.55,f.half);
+  })):null;
   for(const side of [1,-1])for(let i=0;i<=n;i++){
     const u=side===1?i/n:1-i/n,x=s.lo+(s.hi-s.lo)*(.003+.994*u),f=foil(d,x-s.shift,s.chord);
     if(plate&&side===1){
-      const left=s.lo+(s.hi-s.lo)*.003,right=s.hi-(s.hi-s.lo)*.003,front=s.chord*.2025,back=s.chord*.7525;
-      const at=u<.2?[left+(front-left)*u/.2,foil(d,left,s.chord).center+d.wingletHeightMm*u/.2]
-        :u>.8?[back+(right-back)*(u-.8)/.2,d.wingletHeightMm*(1-(u-.8)/.2)+foil(d,right,s.chord).center*(u-.8)/.2]
+      const left=s.lo+(s.hi-s.lo)*.003,right=s.hi-(s.hi-s.lo)*.003,front=s.shift+s.chord*.2025,back=s.shift+s.chord*.7525;
+      const at=u<.2?[left+(front-left)*u/.2,foil(d,left-s.shift,s.chord).center+d.wingletHeightMm*u/.2]
+        :u>.8?[back+(right-back)*(u-.8)/.2,d.wingletHeightMm*(1-(u-.8)/.2)+foil(d,right-s.shift,s.chord).center*(u-.8)/.2]
         :[front+(back-front)*(u-.2)/.6,d.wingletHeightMm];
       points.push(at);
-    }else points.push([x,f.center+side*Math.max(d.beadWidthMm*.55,f.half)]);
+    }else points.push([x,plate?bedLower:f.center+side*Math.max(d.beadWidthMm*.55,f.half)]);
   }
   return points;
 }
@@ -25,8 +32,8 @@ export async function pieceGeometry(d,piece){
   return loftPolygons(stations.map(span=>({z:piece.integratedTip?piece.toMm-span:span-piece.fromMm,points:wingEnvelope(d,piece,span).map(([x,y])=>[x,piece.hand*sense*y])})));
 }
 
-function sectionStations(d,piece){
-  const height=piece.toMm-piece.fromMm,count=Math.max(1,Math.ceil(height/5)),stations=Array.from({length:count+1},(_,i)=>piece.fromMm+height*i/count);
+function sectionStations(d,piece,stepMm=5){
+  const height=piece.toMm-piece.fromMm,count=Math.max(1,Math.ceil(height/stepMm)),stations=Array.from({length:count+1},(_,i)=>piece.fromMm+height*i/count);
   if(piece.integratedTip){const inner=piece.toMm-wingletThickness(d);stations.push(inner,inner-.01);}
   return [...new Set(stations)].sort((a,b)=>a-b);
 }
@@ -99,14 +106,19 @@ export async function wingHandoff(input,pieceId){
   if(!piece)throw Error('Unknown wing section: '+pieceId);
   const geometry=await pieceGeometry(d,piece),{curves,report}=continuousWingCurve(d,piece);
   const process={firstLayerMm:d.layerMm,layerMm:d.layerMm,lineWidthMm:d.beadWidthMm,planarSpeedMmS:d.speedMmS};
-  return {id:piece.id,geometry,curves,trace:{repeat:{count:2,translation:[0,0,0]},sequence:true,courseIds:['base','skin']},process,source:{kind:'wing',version:2,design:d,piece,rods:layout.rods,rodEndMm:d.spanMm/2-wingletThickness(d)-4},
-    requirements:{orientation:piece.integratedTip?'flat-winglet-face-down':'span-up',continuousExtrusion:true,axes:3,assembly:'glue',geometryRole:'reference envelope; Trace curves define the hollow skin, rod webs and filled winglet'},report};
+  const {id,url,sha256}=airfoilProfile(d.airfoil);
+  return {id:piece.id,geometry,curves,trace:{repeat:{count:2,translation:[0,0,0]},sequence:true,courseIds:['base','skin']},process,source:{kind:'wing',version:3,design:d,piece,rods:layout.rods,rodEndMm:d.spanMm/2-wingletThickness(d)-4,airfoil:{id,url,sha256}},
+    requirements:{orientation:piece.integratedTip?'flat-winglet-face-down':'span-up',continuousExtrusion:true,axes:3,assembly:d.sweepDeg?'glue; separate straight rods for each swept half-wing; root joint strength unqualified':'glue',geometryRole:'reference envelope; Trace curves define the hollow skin, rod webs and filled winglet'},report};
 }
 
-export function wingPreview(input){
+export function wingPreview(input,{interactive=false}={}){
   const d=wingDesign(input),layout=wingSections(d);
   const pieces=layout.pieces.map(piece=>{
-    const sections=sectionStations(d,piece).map(span=>({span,points:wingEnvelope(d,piece,span)}));
+    // Validate the same stations in both modes; only the transient viewer mesh
+    // becomes lighter while a slider is moving. Saved/exported geometry is full.
+    for(const span of sectionStations(d,piece))sectionRoute(d,piece,span);
+    const sections=sectionStations(d,piece,interactive?15:5)
+      .map(span=>({span,points:wingEnvelope(d,piece,span,{samples:interactive?30:60})}));
     return {...piece,sections,route:sectionRoute(d,piece,(piece.fromMm+piece.toMm)/2)};
   });
   return {...layout,pieces,rodEndMm:d.spanMm/2-wingletThickness(d)-4,rods:layout.rods.map(r=>({...r,centerMm:foil(d,r.xMm,d.chordMm).center})),context:aircraftContext(d)};

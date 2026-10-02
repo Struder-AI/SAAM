@@ -1,7 +1,7 @@
 import {requireThat,distance} from '../private/export/numeric.mjs';
 
 import {validateDensoConfiguration} from './denso.mjs';
-import {validateTemperatureC,validateNozzleC,plannedNozzleTemperatures} from '../path/process-controls.mjs';
+import {validateTemperatureC,authoredNozzleTargets} from '../private/export/temperature.mjs';
 import {checkedFilamentPlan as filamentPlan} from './filaments.mjs';
 
 export const toolFor=(machine,index)=>{
@@ -25,7 +25,15 @@ export const planarWallTolerance=machine=>machine?.planarWallToleranceMm===undef
 export function validateSetup(plan,machine,{required=false}={}) {
   requireThat(machine.schema==='saam-machine/1'&&machine.units==='mm','Unsupported machine schema or units.');
   requireThat(Number.isFinite(planarWallTolerance(machine))&&planarWallTolerance(machine)>=0,'Machine planar wall tolerance must be finite and nonnegative.');
-  const s=plan.setup,p=plan.process,t=toolFor(machine,s.tool);
+  const s=plan.setup,p=plan.process;
+  const common=['tool','core','material','firmwareVersion','nozzleMm','filamentMm','nozzleC','bedC','buildVolumeC','startupVerified','materialGuid'];
+  const allowed=[...common,'filamentColor','ams','bambu','dobot','denso'];
+  requireThat(s&&typeof s==='object'&&!Array.isArray(s)&&common.every(k=>Object.hasOwn(s,k))&&Object.keys(s).every(k=>allowed.includes(k)),'Invalid export setup fields.');
+  requireThat(typeof s.material==='string'&&typeof s.firmwareVersion==='string','Material and firmware version must be text.');
+  requireThat(typeof s.startupVerified==='boolean','Startup verification must be a boolean.');
+  for(const name of ['bambu','dobot','denso'])if(s[name]!==undefined)
+    requireThat(s[name]&&typeof s[name]==='object'&&!Array.isArray(s[name]),`Invalid ${name} configuration fields.`);
+  const t=toolFor(machine,s.tool);
   if(machine.id==='denso-vs068a4-rc8a')validateDensoConfiguration(plan,{required});
   requireThat(machine.capabilities?.includes('xyz-extrusion'),'Machine does not support XYZ extrusion.');
   requireThat(t.cores?.includes(s.core)&&t.nozzleDiametersMm?.includes(s.nozzleMm),'Nozzle/core not supported by the selected tool.');
@@ -103,6 +111,7 @@ export function requireMachine(machine,capabilities,skill) {
 
 // Validate SAAMpath independently of the chosen machine-program language.
 export function checkMachinePath(path,plan,machine) {
+  const temperatures=authoredNozzleTargets(plan,path.completion?.authoredNozzleTemperatures);
   let selected=plan,bounds=toolBounds(machine,plan.setup.tool);
   let from=path.initialPosition;
   const point=p=>requireThat(Array.isArray(p)&&p.length===3&&p.every((v,i)=>Number.isFinite(v)&&v>=bounds.min[i]-1e-7&&v<=bounds.max[i]+1e-7),'SAAMpath exceeds selected tool bounds.');
@@ -122,8 +131,8 @@ export function checkMachinePath(path,plan,machine) {
       requireProcessControl(machine);point(from);
       requireThat(Number.isFinite(action.volumeMm3)&&action.volumeMm3>0&&Number.isFinite(action.flowMm3S)&&action.flowMm3S>0,'Invalid stationary extrusion.');
     } else if(action.kind==='temperature'){
-      requireProcessControl(machine);validateNozzleC(action.targetC,selected,machine);
-      requireThat(plannedNozzleTemperatures(selected).has(action.targetC),'Unplanned operation temperature.');
+      requireProcessControl(machine);validateTemperatureC(action.targetC);
+      requireThat(temperatures.has(action.targetC),'Unplanned operation temperature; supply the saved neutral SAAMpath target inventory.');
     } else if(['retract','recover'].includes(action.kind)&&machine.id==='dobot-mg400')requireThat(action.filamentMm===0,'Relay retraction unsupported.');
     else if(action.kind==='fan'&&machine.id==='dobot-mg400')requireThat(action.percent===0,'Dobot output has no fan control.');
   }

@@ -9,6 +9,7 @@ import {mapSet,setFile,setName} from './map-set.mjs';
 import {interfaceCode} from './interface-code.mjs';
 import {extractGraph} from './graph.mjs';
 import {implementationLinks} from './design-implementation.mjs';
+import {auditStatus} from './architecture-audit.mjs';
 
 // Explicit source references are previews, not implementation ownership or inferred calls.
 async function sourceReferences(repo,nodes) {
@@ -61,6 +62,35 @@ async function sourceReferences(repo,nodes) {
   return {sources,spans,sourceInfo};
 }
 
+// Presentation only: authored IDs, ownership and contract endpoints stay intact.
+// Small navigation groups add a click without enough internal structure to draw.
+function flattenNavigation(nodes,protectedNodes,inertModules=[]) {
+  const children=p=>[...nodes.values()].filter(n=>!n.collapsed&&n.parent===p.index);
+  const inline=p=>{
+    const held=children(p);p.contents=held.map(n=>n.index);
+    for(const n of held)n.parent=p.parent;
+    if(!protectedNodes.has(p.id))p.collapsed=true;
+  };
+  for(const id of inertModules)if(nodes.has(id)&&!protectedNodes.has(id))inline(nodes.get(id));
+  let changed=true;
+  while(changed) {
+    changed=false;
+    for(const p of [...nodes.values()].sort((a,b)=>b.index.split('.').length-a.index.split('.').length)) {
+      if(p.collapsed||p.parent==='0')continue;
+      const count=children(p).length;
+      if(!count&&!p.source&&!protectedNodes.has(p.id)){p.collapsed=true;changed=true;continue;}
+      if(count&&count<6){inline(p);changed=true;}
+    }
+  }
+  // Fixed responsibilities cannot disappear. Expand their smallest grouping
+  // first; roots with only a few actual operations use a contents list.
+  for(const root of nodes.values())if(root.parent==='0')while(children(root).length<6) {
+    const groups=children(root).filter(n=>children(n).length).sort((a,b)=>children(a).length-children(b).length);
+    if(!groups.length)break;
+    inline(groups[0]);
+  }
+}
+
 export async function designModel({repo}) {
   const text=await readFile(resolve(repo,setFile('architecture.json')),'utf8');
   const spec=JSON.parse(text),nodes=new Map(),indexes=new Map();
@@ -92,27 +122,57 @@ export async function designModel({repo}) {
       if(typeof c[field]!=='string'||!c[field].trim())throw Error(`Missing ${field} on ${c.id}`);
     if(!Array.isArray(c.operations)||!c.operations.length||c.operations.some(x=>typeof x!=='string'))throw Error(`Missing operations: ${c.id}`);
   }
-  const ancestor=(child,parent)=>parent==='0'||child===parent||child.startsWith(parent+'.');
+  const ancestor=(child,parent)=>{
+    if(parent==='0')return true;
+    for(let at=child;at&&at!=='0';at=indexes.get(at)?.parent)if(at===parent)return true;
+    return false;
+  };
   const endpoint=id=>nodes.get(id)?.index??`external:${id}`;
   const bindingText=await readFile(resolve(repo,setFile('interfaces.json')),'utf8').catch(e=>{if(e.code==='ENOENT')return '{"bindings":[]}';throw e;});
-  const observed=await implementationLinks(repo,spec,nodes);
+  const ownershipText=await readFile(resolve(repo,setFile('ownership.json')),'utf8');
+  const report=JSON.parse(await readFile(resolve(repo,setFile('store/audit.json')),'utf8').catch(e=>{if(e.code==='ENOENT')return 'null';throw e;}));
+  const audit=await auditStatus(repo),containment=audit.state==='current'?report?.containment??null:null;
+  const foldedNodes=new Map(),protectedNodes=new Set(spec.contracts.flatMap(c=>[c.from,c.to,...(c.access??[]).flatMap(a=>[a.from,a.to])]));
+  if(containment)for(const fold of containment.folds) {
+    const helper=[...nodes.values()].find(n=>n.source&&`${n.source.file}::${n.source.declaration}`===fold.declaration);
+    const owner=nodes.get(containment.owners[fold.declaration]);
+    if(!helper||!owner||helper.id===owner.id||protectedNodes.has(helper.id)||containment.protected.includes(fold.declaration)
+      ||[...nodes.values()].some(n=>n.parent===helper.index)
+      ||Object.entries(containment.owners).some(([path,id])=>id===helper.id&&containment.homes[path]!==containment.homes[fold.declaration]))continue;
+    foldedNodes.set(helper.id,{...helper,into:owner.id,declaration:fold.declaration});
+    nodes.delete(helper.id);indexes.delete(helper.index);
+  }
+  const observed=await implementationLinks(repo,spec,nodes,{containment,ownershipText});
+  // Keep actual semantic owners visible even when they have no resolved caller;
+  // flattening must not hide a disconnected operation that needs investigation.
+  const semanticOwners=containment?Object.values(containment.owners):Object.values(JSON.parse(ownershipText).leaves).map(n=>n.owner);
+  const observedEndpoints=new Set(observed.contracts.flatMap(c=>[c.from,c.to]));
+  const inertModules=(containment?.navigation?.candidates??[]).map(n=>n.node).filter(id=>!protectedNodes.has(id)&&!observedEndpoints.has(id));
+  flattenNavigation(nodes,new Set([...protectedNodes,...semanticOwners.filter(id=>!inertModules.includes(id)),...observedEndpoints]),inertModules);
   const bindings=[...(JSON.parse(bindingText).bindings??[]),...observed.bindings];
   const references=new Map(nodes);
+  for(const [id,n] of foldedNodes)references.set(id,n);
   for(const b of bindings)references.set(b.target,{id:b.target,source:{file:b.target.split('::')[0]}});
   const {sources,spans,sourceInfo}=await sourceReferences(repo,references);
   const entries=await interfaceCode(repo,bindings,sources);
   const pages=[];
   for(const p of [{index:'0',label:mapSet.title,description:spec.description},...nodes.values()]) {
-    const children=[...nodes.values()].filter(n=>n.parent===p.index);
+    const children=p.collapsed?[]:[...nodes.values()].filter(n=>!n.collapsed&&n.parent===p.index);
+    const parentOf=n=>{let at=n.parent;while(indexes.get(at)?.collapsed)at=indexes.get(at).parent;return at;};
+    if(p.collapsed) {
+      pages.push({index:p.index,path:`@design/${p.id}`,kind:'group',label:p.label,description:p.description,design:true,leaves:0,parent:parentOf(p),
+        destination:spans.has(p.id)?'code':'alias',...(spans.has(p.id)?{sourceSpan:spans.get(p.id)}:{aliasOf:parentOf(p)}),components:[],wires:[],ports:[],notes:p.notes??[]});
+      continue;
+    }
     const visible=new Map(children.map(n=>[n.index,n]));
     const inside=id=>nodes.has(id)&&ancestor(nodes.get(id).index,p.index);
     const lift=id=>{
       if(!inside(id)) {
         const at=nodes.get(id)?.index;
         if(!at)return endpoint(id);
-        const parts=at.split('.'),here=p.index.split('.');let common=0;
-        while(common<parts.length&&parts[common]===here[common])common++;
-        return parts.slice(0,common+1).join('.');
+        let lifted=at;
+        while(indexes.get(lifted)?.parent&&indexes.get(lifted).parent!=='0'&&!ancestor(p.index,indexes.get(lifted).parent))lifted=indexes.get(lifted).parent;
+        return lifted;
       }
       return children.find(n=>ancestor(nodes.get(id).index,n.index))?.index??p.index;
     };
@@ -131,27 +191,35 @@ export async function designModel({repo}) {
       wire.contracts.push({...c,code:bindings.filter(b=>b.contract===c.id).map(b=>entries.get(b.target)),fromIndex:endpoint(c.from),toIndex:endpoint(c.to),...(c.access?{access:c.access.map(a=>({...a,fromIndex:endpoint(a.from),toIndex:endpoint(a.to)}))}:{}),status:c.status??'proposed; implementation unchecked'});
       wire.count++;wire.kinds.contract++;links.set(key,wire);
     }
-    // Unbound terminal concepts retain their intent page; bound terminals preview source.
-    if(!children.length&&p.index!=='0')visible.set(p.index,p);
+    // A retained semantic owner can expose its former children as a source list
+    // while those children are drawn alongside it at their promoted home.
+    if(!children.length&&!spans.has(p.id))for(const index of p.contents??[])if(indexes.has(index))visible.set(index,indexes.get(index));
     const components=[...visible].map(([index,n])=>({index,label:n.label,path:`@design/${n.id}`,
       kind:'concept',type:n.type,description:n.description,stateful:!!n.stateful,
+      internal:children.some(child=>child.index===index),
       ...(spans.has(n.id)?{sourceSpan:spans.get(n.id)}:{}),
       ...(n.index!==p.index&&n.parent!==p.index&&nodes.has(n.id)?{home:n.parent}:{} )}));
     const wires=[...links.values()].map(w=>({...w,label:w.contracts.length===1?w.contracts[0].label:`${w.contracts.length} contracts`}));
-    const layout=spec.layout?.[p.index];
+    const originalChildren=spec.nodes.filter(n=>n.index.includes('.')?n.index.slice(0,n.index.lastIndexOf('.'))===p.index:p.index==='0');
+    const sameChildren=originalChildren.length===children.length&&originalChildren.every(n=>children.some(c=>c.index===n.index));
+    const heldLayout=sameChildren?spec.layout?.[p.index]:null;
+    const layout=heldLayout?{...heldLayout,positions:Object.fromEntries(Object.entries(heldLayout.positions??{}).filter(([index])=>![...foldedNodes.values()].some(n=>n.index===index)))}:null;
     if(layout)for(const [index,point] of Object.entries(layout.positions??{})) {
       if(!visible.has(index)||![point.x,point.y].every(v=>Number.isFinite(v)&&v>=0))throw Error(`Invalid layout position ${p.index}: ${index}`);
     }
+    const folded=[...foldedNodes.values()].filter(n=>n.into===p.id).map(n=>({path:n.declaration,...spans.get(n.id)}));
+    const provisional=containment?.provisional.filter(r=>r.owner===p.id)??[];
+    const containmentNotes=p.index==='0'?[containment?`${containment.folds.length} private containment folds proved; remaining authored nesting is provisional.`:'Semantic containment evidence is missing or stale; authored nesting is provisional.']:
+      provisional.length?['Authored grouping remains provisional; see declaration evidence in the implementation audit.']:[];
     pages.push({index:p.index,path:p.index==='0'?'0':`@design/${p.id}`,kind:p.index==='0'?'root':'group',
-      label:p.label,description:p.description,design:true,stateful:!!p.stateful,destination:spans.has(p.id)&&!children.length?'code':'graph',leaves:0,
+      label:p.label,description:p.description,design:true,parent:p.parent??null,stateful:!!p.stateful,destination:spans.has(p.id)&&!children.length?'code':p.index!=='0'&&children.length<6?'contents':'graph',leaves:0,
       ...(spans.has(p.id)?{sourceSpan:spans.get(p.id)}:{}),
-      components,wires,ports:[],...(layout?{layout}:{}),notes:p.notes??[]});
+      components,wires,ports:[],...(folded.length?{foldedCode:folded}:{}),...(layout?{layout}:{}),notes:[...(p.notes??[]),...containmentNotes]});
   }
-  const generatorFiles=['design.mjs','design-implementation.mjs','interface-code.mjs','graph.mjs','map-set.mjs','generated-view.mjs','generated-view.py','leveled.py','svg.py','flow.py','viewer.py','../../core/agent/manuals.mjs'];
+  const generatorFiles=['design.mjs','design-implementation.mjs','semantic-containment.mjs','helpers.mjs','lexical-bindings.mjs','interface-code.mjs','graph.mjs','map-set.mjs','generated-view.mjs','generated-view.py','leveled.py','svg.py','flow.py','viewer.py','../../core/agent/manuals.mjs'];
   const generator=await Promise.all(generatorFiles.map(file=>readFile(resolve(repo,'dev-map/lib',file),'utf8')));
-  const audit=JSON.parse(await readFile(resolve(repo,setFile('view/audit-status.json')),'utf8').catch(e=>{if(e.code==='ENOENT')return 'null';throw e;}));
-  const snapshotId=createHash('sha256').update(text+bindingText+observed.ownershipText+JSON.stringify(mapSet)+generator.join('\n')+JSON.stringify(sourceInfo)+JSON.stringify(audit&&{generated:audit.generated,totals:audit.totals})).digest('hex');
-  return {design:true,auditAvailable:!!audit,audit,title:mapSet.title,generated:spec.date,snapshotId,pages,sources,sourceInfo,stale:{},
+  const snapshotId=createHash('sha256').update(text+bindingText+observed.ownershipText+JSON.stringify(mapSet)+generator.join('\n')+JSON.stringify(sourceInfo)+JSON.stringify(containment)+JSON.stringify(audit&&{generated:audit.generated,totals:audit.totals})).digest('hex');
+  return {design:true,auditAvailable:!!report,audit,title:mapSet.title,generated:spec.date,snapshotId,pages,sources,sourceInfo,stale:{},
     changed:[],changedInputs:[],scores:{},regenerate:`node dev-map/cli.mjs build --set ${setName}`};
 }
 
@@ -198,7 +266,7 @@ export async function designCommand(command,args,{repo}) {
         if(pages[page.index]?.destination!==page.destination)missing.push(`${page.index}: destination`);
         if(span&&(pages[page.index]?.r!==`${span.file}:${span.line}-${span.endLine}`||sources[span.file]!==model.sources[span.file]))
           missing.push(`${page.index}: source preview`);
-        if(page.destination==='code')continue;
+        if(page.destination!=='graph')continue;
         const script=await readFile(resolve(repo,setFile(`view/svg/${page.index}.js`)),'utf8');
         const [,svg]=JSON.parse(`[${script.slice(6,-1)}]`);
         for(const c of page.components)if(!svg.includes(`data-id="${c.index}"`))missing.push(`${page.index}: box ${c.index}`);
@@ -206,7 +274,7 @@ export async function designCommand(command,args,{repo}) {
         if(JSON.stringify(pages[page.index]?.contracts)!==JSON.stringify(page.wires))missing.push(`${page.index}: interface code`);
       }
     }
-    console.log(JSON.stringify({mode:'design',valid:true,pages:model.pages.length,viewer:current?'current':'missing or stale',...(args.includes('--viewer')?{undrawn:missing}:{}),implementation:model.auditAvailable?'partial map 0 audit available; run audit-check for freshness':'unchecked; no audit snapshot'}));
+    console.log(JSON.stringify({mode:'design',valid:true,pages:model.pages.length,viewer:current?'current':'missing or stale',...(args.includes('--viewer')?{undrawn:missing}:{}),implementation:model.auditAvailable?'partial root and operation boundary audit available; run audit-check for freshness':'unchecked; no audit snapshot'}));
     if(missing.length)throw Error('Design viewer is missing boxes, wires or source previews.');
     if(!current)process.exitCode=1;
     // cli dispatch must preserve a failing check.

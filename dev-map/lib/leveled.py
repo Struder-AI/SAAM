@@ -192,7 +192,7 @@ def _attrs(n):
     data = {"id": n.id, "kind": n.kind, "num": n.num or "",
             "label": " ".join(n.lines), "note": " · ".join(n.note_lines),
             "anchor": n.anchor or "", "ref": n.anchor_ref or "",
-            "explodes": n.explodes or "",
+            "explodes": n.explodes or "", "boundary-role": getattr(n, "boundary_role", ""),
             # The page this box opens, where a page holds boxes that are themselves pages.
             "go": getattr(n, "go", "") or "",
             "co": " · ".join(n.co)}

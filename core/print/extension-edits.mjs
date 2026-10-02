@@ -6,6 +6,8 @@ import {selectSettings} from '../machine/settings.mjs';
 
 import {prepareExtensionRecipe} from './extension-recipe.mjs';
 import {prepareExtensionGeometry} from '../geom/extension-edit.mjs';
+import {assignmentPlan} from './assignment-process.mjs';
+import {validateSelectedExtensionRecipe} from '../../skills/records.mjs';
 
 async function prepareExtensionEdit(source,extension,request,options){
   const geometryContribution=await prepareExtensionGeometry(source,extension,request,options);
@@ -16,7 +18,8 @@ async function prepareExtensionEdit(source,extension,request,options){
 export async function applyExtensionEdit(directory,extension,request,{expectedRevision,...options}={}){
   const state=await loadBundle(directory,{program:false});
   requireThat(expectedRevision===undefined||expectedRevision===state.revision,'This review is stale. Reload before changing the print.');
-  const {plan,report}=await prepareExtensionEdit(state.plan,extension,request,{...options,machine:state.machine});
+  const {plan,report}=await prepareExtensionEdit(state.plan,extension,request,options);
+  await validateSelectedExtensionRecipe(plan,assignment=>assignmentPlan(plan,assignment).process);
   const updated=await updatePlan(directory,plan,state.revision);
   return report?{...updated,extensionReport:report}:updated;
 }
@@ -26,6 +29,7 @@ export async function createExtensionBundle(directory,extension,request,options=
   const selection=options.machineId?await selectSettings(options.machineId,options):null;
   const source=selection?{...defaults(selection.machine),...selection.settings}:{schema:'saam-shell-plan/1'};
   const {plan}=await prepareExtensionEdit(source,extension,request,{...options,create:true});
+  await validateSelectedExtensionRecipe(plan,assignment=>assignmentPlan(plan,assignment).process);
   await initBundle(directory,{...plan,bundle:{machine:selection?.machine??null}},{...options,machineId:undefined});
   return loadBundle(directory,{program:false});
 }

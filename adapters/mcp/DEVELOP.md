@@ -4,9 +4,8 @@ Adapter boundaries and integration tests. [The adapter manual](README.md)
 owns client configuration and tool usage; [the print lifecycle](../../core/print/README.md)
 owns manufacturing state.
 
-The [Cloudflare relay milestone plan](RELAY-PLAN.md) specifies future packaged
-deployment and active Studio-driven web-chat sessions. It is planning context,
-not an account of the current adapter's capabilities.
+The historical [relay milestone plan](RELAY-PLAN.md) is superseded by the
+[0.3.0 installation plan](../../plans/0.3.0.md).
 
 ## Local MCP access
 
@@ -15,8 +14,8 @@ Fixed profiles/skills follow [D-022](../../DECISIONS.md#d-022--defer-automatic-c
 the print-work queue and the Studio/request state. It outlives its sessions: one
 is active at a time, an ended session fails its unfinished requests and rejects
 late calls, and Studio stays for the next. [The MCP server](src/server.mjs) is one
-session per connection; stdio owns and closes its runtime. [The relay device](src/relay-device.mjs)
-serves chat sessions from [the relay](../../relay/README.md) the same way.
+session per connection; stdio owns and closes its runtime. Installed desktop
+clients connect locally using the bundled Node runtime.
 
 [The shared manual reader](../../core/agent/manuals.mjs), re-exported by
 [the adapter](src/manuals.mjs), accepts published repository Markdown paths and

@@ -1,1 +1,1 @@
-{"schema":"saam-extension/1","id":"supports","dependencies":[],"entries":{},"license":"Apache-2.0","provenance":"SAAM release"}
+{"schema":"saam-extension/1","id":"supports","dependencies":[],"entries":{"deposition-runtime":{"file":"scripts/supports.mjs","export":"supportRuntime"},"record-runtime":{"file":"scripts/supports.mjs","export":"supportRecordRuntime"}},"license":"Apache-2.0","provenance":"SAAM release"}

@@ -106,7 +106,7 @@ export async function resolveExtensions(ids,options={}){
   async function visit(id){
     if(visiting.includes(id))throw Error(`Extension dependency cycle: ${[...visiting,id].join(' -> ')}.`);
     const entry=await readExtension(id,options);
-    if(!entry)throw Error(`Required extension ${id} is missing. Import it before regeneration.`);
+    if(!entry)throw Object.assign(Error(`Required extension ${id} is missing. Import it before regeneration.`),{code:'EXTENSION_MISSING'});
     if(done.has(id))return;
     visiting.push(id);
     for(const dependency of [...entry.manifest.dependencies].sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0))

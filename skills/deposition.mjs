@@ -1,40 +1,47 @@
-// Release-bundled extension compositions. These return engine inputs and
-// finalized-result constraints; the build owns execution and the bundle.
-import {prepareContourSleeve} from './advanced-vase-wall/scripts/contour-sleeve.mjs';
-import {constructVaseWork,vaseDependencies} from './advanced-vase-wall/scripts/work.mjs';
-import {standardVaseContexts} from './vase-wall/scripts/prepare.mjs';
-import {prepareSupportContexts,supportDependencies} from './supports/scripts/supports.mjs';
-import {preparePlasticWeld} from './plastic-weld/scripts/weld.mjs';
-import {weldWork,weldDependencies,weldOperationDependencies,finishWeldResults} from './plastic-weld/scripts/work.mjs';
+// Extension compositions return engine inputs and finalized-result constraints.
+// The build owns execution and the bundle.
+import {loadExtensionEntry} from '../core/extensions/library.mjs';
 import {requireExclusiveClaims} from '../core/region/ownership.mjs';
 import {TOLERANCE} from '../core/geom/tolerance.mjs';
 
-export function extensionDeposition({plan,placed,componentShells,contexts,onProgress,processForAssignment}){
-  const sites=placed?preparePlasticWeld({plan,placed,componentShells,processForAssignment}):[];
+export async function extensionDeposition({plan,placed,componentShells,contexts,onProgress,processForAssignment,engines}){
+  const support=plan.skills?.supports?.enabled?await (await loadExtensionEntry('supports','deposition-runtime'))(engines):null;
+  const weld=plan.skills?.['plastic-weld']?.enabled?await (await loadExtensionEntry('plastic-weld','deposition-runtime'))(engines):null;
+  const sites=placed&&weld?weld.preparePlasticWeld({plan,placed,componentShells,processForAssignment}):[];
+  const hasSleeve=contexts.some(({assignment})=>assignment.construction==='sleeve');
+  const vase=hasSleeve?await (await loadExtensionEntry('vase-wall','deposition-runtime'))(engines):null;
+  const advanced=contexts.some(({assignment})=>assignment.construction==='sleeve'&&assignment.pattern!==null)?await (await loadExtensionEntry('advanced-vase-wall','deposition-runtime'))(engines,vase):null;
+  const vaseWork=vase?args=>{
+    const foundationSegments=vase.vaseFoundationSegments(args),{node,after,onProgress,substrateAdaptation}=args;
+    return node.kind==='slice'?vase.standardVaseResult(node.record,{foundationSegments,substrateAdaptation})
+      :advanced.advancedVaseResult({...node.context,after,onProgress,foundationSegments,substrateAdaptation});
+  }:null;
   const sleeves=contexts.filter(({assignment})=>assignment.construction==='sleeve').map(context=>{
     const {assignment,shell}=context;
     return {...context,startMm:shell.bounds.min[2]+assignment.zStartMm,
       endMm:assignment.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+assignment.zEndMm,
-      construct:constructVaseWork,providesSurface:true,kind:assignment.pattern===null?'slice':'trace'};
+      construct:vaseWork,providesSurface:true,kind:assignment.pattern===null?'slice':'trace'};
   });
   for(let i=0;i<sleeves.length;i++)for(let j=i+1;j<sleeves.length;j++)
     if(sleeves[i].assignment.part===sleeves[j].assignment.part&&Math.min(sleeves[i].endMm,sleeves[j].endMm)-Math.max(sleeves[i].startMm,sleeves[j].startMm)>TOLERANCE.point)
       requireExclusiveClaims(sleeves[i].assignment,sleeves[j].assignment);
-  const boundaries=sleeves.filter(context=>context.kind==='slice').map(context=>({...context,geometry:prepareContourSleeve({...context,onProgress})}));
-  const trees=prepareSupportContexts({plan,processForAssignment,shells:componentShells?[...componentShells.values()]:placed?[placed]:[]});
+  const boundaries=sleeves.filter(context=>context.kind==='slice').map(context=>({...context,geometry:vase.prepareSleeveGeometry({...context,onProgress})}));
+  const trees=support?support.prepareSupportContexts({plan,processForAssignment,shells:componentShells?[...componentShells.values()]:placed?[placed]:[]}):[];
   return {
     bands:sleeves.map(s=>({part:s.assignment.part,startMm:s.startMm,endMm:s.endMm})),
     reserves:sites.map(site=>site.reservation),envelopes:sites.map(site=>site.reservation),
     constructions:sleeves.filter(context=>context.kind==='trace'),
-    additionalContexts:[...standardVaseContexts(boundaries).map(record=>({...record,constructWork:constructVaseWork,providesSurface:true})),...trees],
-    work:weldWork(sites,processForAssignment),workDependencies:(node,nodes)=>[...vaseDependencies(node,nodes),...weldDependencies(node,nodes)],
-    operationDependencies:operation=>weldOperationDependencies(sites,operation),
-    finishResults:batch=>finishWeldResults(plan,sites,batch)
+    additionalContexts:[...(vase?.standardVaseContexts(boundaries)??[]).map(record=>({...record,constructWork:vaseWork,providesSurface:true})),...trees],
+    work:weld?.weldWork(sites,processForAssignment)??[],workDependencies:(node,nodes)=>[...(vase?.vaseDependencies(node,nodes)??[]),...(weld?.weldDependencies(node,nodes)??[])],
+    operationDependencies:operation=>weld?.weldOperationDependencies(sites,operation)??[],
+    finishResults:batch=>weld?weld.finishWeldResults(plan,sites,batch):batch.results
   };
 }
 
-export function extensionResultDependencies(results,supports){
-  return supportDependencies(supports,results);
+export async function extensionResultDependencies(results,supports,engines){
+  if(!supports.length)return [];
+  const runtime=await (await loadExtensionEntry('supports','deposition-runtime'))(engines);
+  return runtime.supportDependencies(supports,results);
 }
 
 export function extensionSummary(results){

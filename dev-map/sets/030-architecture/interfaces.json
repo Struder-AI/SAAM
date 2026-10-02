@@ -92,11 +92,11 @@
     },
     {
       "contract": "agent-context-onboard",
-      "target": "core/agent/toolkit.mjs::onboarding",
+      "target": "core/agent/layers.mjs::onboardingSources",
       "kinds": [
         "call"
       ],
-      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+      "evidence": "Actual Context provider used by MCP; CLI composition reads through separately bound contextPacket. Environment/maps stay Agent-owned."
     },
     {
       "contract": "agent-context-guidance",
@@ -687,6 +687,897 @@
       "kinds": [
         "call"
       ]
+    },
+    {
+      "contract": "extension-planar-region-layers",
+      "target": "core/geom/planar-region-layers.mjs::planarRegionLayers",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public Geometry region-layer entry; synchronous callback effects remain visible."
+    },
+    {
+      "contract": "slice-planar-region-layers",
+      "target": "core/geom/planar-region-layers.mjs::planarRegionLayers",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public Geometry region-layer entry; synchronous callback effects remain visible."
+    },
+    {
+      "contract": "extension-toolpath",
+      "target": "core/print/slice-region-context.mjs::prepareSliceRegionContext",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public typed preset Slice construction context; no private-engine bag or machine selection."
+    },
+    {
+      "contract": "extension-contour-sleeve",
+      "target": "core/geom/sleeve/contour-sleeve.mjs::prepareContourSleeve",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact public operation; runtime-supplied callable propagation remains an analysis limit, not certified by this binding."
+    },
+    {
+      "contract": "toolpath-contour-sleeve",
+      "target": "core/geom/sleeve/contour-sleeve.mjs::prepareContourSleeve",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact public operation; runtime-supplied callable propagation remains an analysis limit, not certified by this binding."
+    },
+    {
+      "contract": "extension-mesh-sleeve-interval",
+      "target": "core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact public operation; runtime-supplied callable propagation remains an analysis limit, not certified by this binding."
+    },
+    {
+      "contract": "toolpath-mesh-sleeve-interval",
+      "target": "core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact public operation; runtime-supplied callable propagation remains an analysis limit, not certified by this binding."
+    },
+    {
+      "contract": "extension-mapped-text-material",
+      "target": "core/geom/mapped-text-material.mjs::mappedTextMaterial",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact public operation; runtime-supplied callable propagation remains an analysis limit, not certified by this binding."
+    },
+    {
+      "contract": "extension-stroke-topology",
+      "target": "core/geom/stroke-topology.mjs::strokeTopology",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact public operation; runtime-supplied callable propagation remains an analysis limit, not certified by this binding."
+    },
+    {
+      "contract": "toolpath-stroke-topology",
+      "target": "core/geom/stroke-topology.mjs::strokeTopology",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact public operation; runtime-supplied callable propagation remains an analysis limit, not certified by this binding."
+    },
+    {
+      "contract": "extension-toolpath",
+      "target": "core/print/assignment-records.mjs::depositionAssignment",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Existing canonical Inject/Trace/Slice/extension assignment constructor; makers invoke extensions, builders edit their code."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/tolerance.mjs::add",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/tolerance.mjs::subtract",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/tolerance.mjs::scale",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/tolerance.mjs::dot",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/tolerance.mjs::cross",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/tolerance.mjs::length",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::rotateZ",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::rotatePointZ",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::validateDirectionPair",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::interpolateDirectionPair",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::mv",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::transpose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::mm",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::identity",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::rotation",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::rigid",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::validateRigid",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/tolerance.mjs::subtract",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/tolerance.mjs::scale",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/tolerance.mjs::dot",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/tolerance.mjs::cross",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/tolerance.mjs::length",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::rotateZ",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::rotatePointZ",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::mv",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::mm",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::rotation",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::rigid",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::point",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::compose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::invert",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::axisFrame",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::rodFrame",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-studio-frames",
+      "target": "core/geom/frame.mjs::validateRigid",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-toolpath-frames",
+      "target": "core/geom/tolerance.mjs::dot",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs named re-export; scanner resolves the declared function in tolerance.mjs. This binding does not grant direct kernel imports."
+    },
+    {
+      "contract": "geometry-toolpath-frames",
+      "target": "core/geom/frame.mjs::unitDirection",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-toolpath-frames",
+      "target": "core/geom/frame.mjs::rotatePointZ",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-toolpath-frames",
+      "target": "core/geom/frame.mjs::validateDirectionPair",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-toolpath-frames",
+      "target": "core/geom/frame.mjs::interpolateDirectionPair",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public frame.mjs operation over explicit values; tool/machine conventions remain at the caller."
+    },
+    {
+      "contract": "geometry-export-frames",
+      "target": "core/geom/frame.mjs::innerProduct",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "DENSO inverse-kinematics consumes public N-dimensional innerProduct; 3D dot is a distinct operation."
+    },
+    {
+      "contract": "workspace-toolpath",
+      "target": "core/print/curves.mjs::curveAssignment",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual named import and call in workspaces/wing/handoff.mjs; neutral recipe construction and protected construction identity only."
+    },
+    {
+      "contract": "workspace-toolpath",
+      "target": "core/print/plan.mjs::recipeDefaults",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual named import and call in workspaces/wing/handoff.mjs; neutral recipe construction and protected construction identity only."
+    },
+    {
+      "contract": "workspace-toolpath",
+      "target": "core/print/plan.mjs::workspaceConstructionIdentity",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Actual named import and call in workspaces/wing/handoff.mjs; neutral recipe construction and protected construction identity only."
+    },
+    {
+      "contract": "trace-geometry-curve-point",
+      "target": "core/geom/surface-curves.mjs::curvePoint",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Authored Trace curve sampling uses the existing normalized-domain Geometry operation, preserving the defining rational evaluator; caller homes are checked separately."
+    },
+    {
+      "contract": "build-job",
+      "target": "core/print/bundle.mjs::pathSource",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Bundle generation currency invokes Toolpath-owned digest of current recipe-selected source dependencies; cryptographic and resolver effects remain in the audit."
+    },
+    {
+      "contract": "slice-checked-surface-derivatives",
+      "target": "core/geom/surface-derivatives.mjs::surfaceDerivatives",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/region/seeded-fronts.mjs::seededSurfaceFronts::roundingResiduals",
+        "core/region/seeded-fronts.mjs::seededSurfaceFronts::resolvedResiduals"
+      ],
+      "evidence": "Exact reviewed consumer calls; source effects and unresolved callable/alias observations remain visible."
+    },
+    {
+      "contract": "slice-positive-intervals",
+      "target": "core/geom/curve-sampling.mjs::sampledPositiveIntervals",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/region/wrapping-curves.mjs::surfaceCellField"
+      ],
+      "evidence": "Exact reviewed consumer calls; source effects and unresolved callable/alias observations remain visible."
+    },
+    {
+      "contract": "agent-material-resolution",
+      "target": "core/geom/build.mjs::resolveMaterialGeometry",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/print/geometry-tools.mjs::intersectGeometry"
+      ],
+      "evidence": "Exact reviewed consumer calls; source effects and unresolved callable/alias observations remain visible."
+    },
+    {
+      "contract": "slice-material-resolution",
+      "target": "core/geom/build.mjs::resolveMaterialGeometry",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/print/geometry-tools.mjs::intersectDraftFamilies"
+      ],
+      "evidence": "Exact reviewed consumer calls; source effects and unresolved callable/alias observations remain visible."
+    },
+    {
+      "contract": "fields-prepare-solid-distance",
+      "target": "core/geom/solid-distance.mjs::prepareSolidDistance",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/print/modulation-fields.mjs::prepareModulationFields::prepare"
+      ],
+      "evidence": "Exact reviewed consumer calls; source effects and unresolved callable/alias observations remain visible."
+    },
+    {
+      "contract": "fields-solid-distance",
+      "target": "core/geom/solid-distance.mjs::solidDistance",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/path/modulation-field.mjs::evaluateScalarField"
+      ],
+      "evidence": "Exact reviewed consumer calls; source effects and unresolved callable/alias observations remain visible."
+    },
+    {
+      "contract": "trace-widen-planar-strokes",
+      "target": "core/geom/stroke-topology.mjs::widenPlanarStrokes",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/path/parallel-curves.mjs::parallelBeadGroup"
+      ],
+      "evidence": "Exact reviewed consumer calls; source effects and unresolved callable/alias observations remain visible."
+    },
+    {
+      "contract": "agent-geometry",
+      "target": "core/geom/import-stl.mjs::prepareSTLImport",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "adapters/mcp/src/runtime.mjs::createLocalRuntime::importSTL",
+        "core/print/import-stl.mjs::createSTLBundle"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "agent-geometry",
+      "target": "core/geom/import-stl.mjs::releaseSTLImport",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "adapters/mcp/src/runtime.mjs::createLocalRuntime::importSTL",
+        "core/print/import-stl.mjs::createSTLBundle"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "agent-geometry",
+      "target": "core/print/repair-stl.mjs::repairSTLFiles",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/print/cli.mjs::run"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "agent-run-extension",
+      "target": "core/local-extension.mjs::loadLocalExtension",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "adapters/mcp/src/runtime.mjs::@module"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "channel-studio-requests",
+      "target": "studio/agent-requests.mjs::createAgentRequests",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "studio/server.mjs::createStudio"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "channel-studio-events",
+      "target": "studio/studio-events.mjs::createStudioEvents",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "studio/server.mjs::createStudio"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "channel-studio-tour-state",
+      "target": "studio/tour.mjs::createTour",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "studio/server.mjs::createStudio"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "tour-requests",
+      "target": "studio/agent-requests.mjs::createAgentRequests",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "studio/tour.mjs::createTour"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "agent-studio-events-lifecycle",
+      "target": "studio/studio-events.mjs::createStudioEvents",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/agent/toolkit.mjs::preview",
+        "adapters/mcp/src/runtime.mjs::createLocalRuntime"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "agent-studio-requests-lifecycle",
+      "target": "studio/agent-requests.mjs::createAgentRequests",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/agent/toolkit.mjs::preview",
+        "core/agent/toolkit.mjs::beginWork",
+        "core/agent/toolkit.mjs::waitForRequests",
+        "core/agent/toolkit.mjs::respondToRequest",
+        "core/agent/toolkit.mjs::recordRequestActivity",
+        "core/agent/toolkit.mjs::inspectFailure",
+        "adapters/mcp/src/runtime.mjs::createLocalRuntime"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "agent-studio-tour-lifecycle",
+      "target": "studio/tour.mjs::createTour",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/agent/toolkit.mjs::preview",
+        "core/agent/toolkit.mjs::beginWork",
+        "adapters/mcp/src/runtime.mjs::createLocalRuntime"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "agent-studio-server-lifecycle",
+      "target": "studio/server.mjs::createStudio",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/agent/toolkit.mjs::preview",
+        "adapters/mcp/src/runtime.mjs::createLocalRuntime::startStudio"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "geometry-import-cleanup",
+      "target": "core/geom/import-stl.mjs::releaseSTLImport",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/import-stl.mjs::prepareSTLImport"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "geometry-mapped-text-reference",
+      "target": "core/geom/reference-surface.mjs::referenceSurface",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/mapped-text-material.mjs::mappedTextMaterial"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "geometry-normal-band-region",
+      "target": "core/geom/surface-region.mjs::surfaceRegion",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/normal-band.mjs::normalBandVolume"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "geometry-reference-mapped-surface",
+      "target": "core/geom/surface-evaluation.mjs::mappedSurface",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/reference-surface.mjs::referenceSurface"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "geometry-sleeve-interval-section",
+      "target": "core/region/section.mjs::prepareSection",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "geometry-constructed-geometry-verification",
+      "target": "core/print/geometry.mjs::verifyGeometry",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/print/geometry.mjs::createGeometry"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "agent-thingi-resource-client",
+      "target": "skills/thingi10k/scripts/library.mjs::createThingi10KClient",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "skills/thingi10k/scripts/cli.mjs::@module"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "fields-blob-evaluator",
+      "target": "core/geom/blob-field.mjs::createBlobFieldEvaluator",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/path/modulation-field.mjs::prepareScalarField",
+        "core/path/modulation-field.mjs::validateModulationField"
+      ],
+      "evidence": "Exact prepared field construction and validation calls; returned closure effects and aliases remain observed."
+    },
+    {
+      "contract": "fields-validate-blob",
+      "target": "core/geom/blob-field.mjs::validateBlobField",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/path/modulation-field.mjs::validateModulationField"
+      ],
+      "evidence": "Reviewed exact operation and caller; resource and value-flow observations remain visible."
+    },
+    {
+      "contract": "agent-compile-blob",
+      "target": "core/geom/blob-field-compile.mjs::compileBlobField",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/agent/blob-field.mjs::compileRequest"
+      ],
+      "evidence": "Reviewed exact operation and caller; resource and value-flow observations remain visible."
+    },
+    {
+      "contract": "geometry-distance-material",
+      "target": "core/geom/build.mjs::resolveMaterialGeometry",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/solid-distance.mjs::prepareSolidDistance"
+      ],
+      "evidence": "Reviewed exact operation and caller; resource and value-flow observations remain visible."
+    },
+    {
+      "contract": "geometry-evaluator-validation",
+      "target": "core/geom/blob-field.mjs::validateBlobField",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/blob-field.mjs::createBlobFieldEvaluator"
+      ],
+      "evidence": "Reviewed exact operation and caller; resource and value-flow observations remain visible."
+    },
+    {
+      "contract": "geometry-blob-compilation-evaluator",
+      "target": "core/geom/blob-field.mjs::createBlobFieldEvaluator",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/blob-field-compile.mjs::compileBlobField"
+      ],
+      "evidence": "Reviewed exact operation and caller; resource and value-flow observations remain visible."
+    },
+    {
+      "contract": "settings-bundle-patch",
+      "target": "core/machine/settings.mjs::resolveSettingsPatch",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/print/resolve-plan.mjs::resolvePlanPatch"
+      ],
+      "evidence": "Reviewed exact operation and caller; resource and value-flow observations remain visible."
+    },
+    {
+      "contract": "geometry-blob-extraction-schema",
+      "target": "core/geom/blob-field-record.mjs::validateBlobFieldExtraction",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/blob-field-compile.mjs::compileBlobField"
+      ],
+      "evidence": "Reviewed exact operation and caller; resource and value-flow observations remain visible."
+    },
+    {
+      "contract": "geometry-blob-compiled-identity",
+      "target": "core/geom/blob-field-record.mjs::blobFieldDigest",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/blob-field-compile.mjs::compileBlobField"
+      ],
+      "evidence": "Reviewed exact operation and caller; resource and value-flow observations remain visible."
+    },
+    {
+      "contract": "geometry-blob-record-native-value",
+      "target": "core/geom/blob-field.mjs::validateBlobField",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/blob-field-record.mjs::validateBlobFieldRecord"
+      ],
+      "evidence": "Reviewed exact operation and caller; resource and value-flow observations remain visible."
+    },
+    {
+      "contract": "geometry-blob-record-extraction",
+      "target": "core/geom/blob-field-record.mjs::validateBlobFieldExtraction",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/blob-field-record.mjs::validateBlobFieldRecord"
+      ],
+      "evidence": "Exact internal record-validation composition; effects remain observable."
+    },
+    {
+      "contract": "geometry-blob-record-identity",
+      "target": "core/geom/blob-field-record.mjs::blobFieldDigest",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/geom/blob-field-record.mjs::validateBlobFieldRecord"
+      ],
+      "evidence": "Exact internal record-validation composition; effects remain observable."
+    },
+    {
+      "contract": "agent-settings",
+      "target": "core/machine/settings.mjs::selectSettings",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/agent/blob-field.mjs::createBlobFieldBundle"
+      ],
+      "evidence": "Relocated authoring command explicitly selects Settings before submitting supplied geometry/settings to Bundle."
     }
   ]
 }

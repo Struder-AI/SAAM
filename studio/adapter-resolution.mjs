@@ -1,6 +1,5 @@
 import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
-import {referenceAdapter} from './tour.mjs';
 
 const bundles={
   'saam-machine-study/1':()=>import('./machine-study.mjs'),
@@ -16,7 +15,7 @@ export async function bundleFor(directory) {
   const plan=JSON.parse(await readFile(resolve(directory,'plan.json'),'utf8'));
   const load=bundles[plan.schema];
   if(!load)throw new Error(`This print uses ${plan.schema??'an unknown plan format'}, which Studio cannot review.`);
-  const adapter=await load();return plan.schema==='saam-shell-plan/1'?referenceAdapter(adapter):adapter;
+  return load();
 }
 
 // Production print manifests commit atomically and refer only to immutable

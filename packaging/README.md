@@ -1,76 +1,17 @@
 # Packaging SAAM
 
-Builds the installable Windows and macOS ZIPs described in the
-[relay plan](../adapters/mcp/RELAY-PLAN.md#local-execution-and-packaging). The
-[relay](../relay/README.md) must be deployed first: every build names its relay.
+[INSTALL.md](INSTALL.md) is the agent-facing guide published at the stable [latest-release URL](https://github.com/Struder-AI/SAAM/releases/latest/download/INSTALL.md). It owns installation paths and desktop-agent setup. Prints and service credentials stay outside the replaceable application; an invite is optional for local making.
 
-```sh
-node packaging/build.mjs --platform win-x64 --version 0.1.0 --relay-url https://relay.example.com
-node packaging/build.mjs --platform darwin-arm64 --version 0.1.0 --relay-url https://relay.example.com
-```
+Ship **all three platforms**: `win-x64`, `darwin-arm64` (Apple Silicon), and `darwin-x64` (Intel Mac). A previous release or handoff may be incomplete; compare the builder platform list and release assets. Omit a platform only on the owner's explicit decision.
 
-`--platform` is `win-x64`, `darwin-arm64` or `darwin-x64`. The build downloads
-the official Node release (`--node-version`, default the building Node) and
-checks it against the release's SHASUMS256; `--node PATH` bundles a given binary
-instead. Output is `dist/SAAM-<version>-<platform>.zip`.
-A current `build/mesh-repair` helper is included only when its executable matches
-the target. `--mesh-repair DIRECTORY` supplies another target's helper and build
-manifest; wrong architecture, changed hashes or stale wrapper sources reject it.
-`release.json.nativeRepair` records availability. Without that optional backend,
-imports still validate and perform exact cleanup, but cannot repair intersections.
+Build each from one clean committed snapshot: `node packaging/build.mjs --platform PLATFORM --version VERSION --relay-url https://saam-relay.remettub.workers.dev --update-host https://github.com/Struder-AI/SAAM/releases/download --out dist/PLATFORM`. The builder downloads and verifies official Node, or takes a platform-checked `--node PATH` with adjacent LICENSE. Supply the verified Windows repair helper through `--mesh-repair DIR`; Mac helper availability is separate. Record source SHA, platform, ZIP size/hash and runtime provenance.
 
-The application is the tracked files except development maps, tooling, tests
-and the relay service; production dependencies (`npm ci --omit=dev
---ignore-scripts`) less those only manifold-3d's CAD tooling uses, listed in
-[build.mjs](build.mjs); the Node runtime and its licence; and `release.json`.
-The ZIP holds it as one `app.tar`, which the installer from [windows/](windows/)
-or [macos/](macos/) unpacks straight into the installation, and `app/` with only
-`release.json` and the installer scripts, where updates run them.
+Local candidates may use `--review` with explicit `--review-file` entries; their manifest is marked `reviewBuild:true`. Published builds require a clean tracked snapshot. Each ZIP contains `app.tar`, installer and update scripts; installation replaces only the app, creates its icon and refuses to replace a running instance. Alpha packages are unsigned; archive checks do not establish native Mac execution.
 
-- [launch.mjs](launch.mjs) is the installed entry point. Prints, the pairing
-  credential and logs live in a per-user data folder (Windows
-  `%LOCALAPPDATA%\SAAM`, macOS `~/Library/Application Support/SAAM`, override
-  with `SAAM_DATA`), outside the application, so install, update, rollback and
-  uninstall never touch them. One SAAM runs per user, without a window
-  (`SAAM.vbs`, `SAAM.app`); launching again shows Studio; closing its last tab or Quit stops it.
-- Installers are per-user and need no administrator rights. Installing refuses
-  while SAAM is running, so an update never replaces code under a running
-  generation. To roll back, install the older ZIP.
-- A computer whose SAAM speaks another device-relay protocol than the relay is
-  refused with an update message shown in Studio.
+## Publishing
 
-Alpha builds are unsigned. Double-click `Install SAAM.command` on macOS or
-`Install SAAM.cmd` on Windows; the platform README covers security prompts.
-Mac ZIPs set Unix executable permissions even when built on Windows (`fflate`,
-build-only). The launcher runs the same `install.sh` used by automatic updates.
-
-## Releasing an update
-
-Releases are GitHub Releases on the public Struder-AI/SAAM repository, so SAAM
-downloads them without a login. Builds pass
-`--update-host https://github.com/Struder-AI/SAAM/releases/download`, and an
-installed SAAM accepts only `<update host>/v<version>/SAAM-<version>-<platform>.zip`
-for a plain `major.minor.patch` version, with the checksum the relay names.
-
-A release follows only a push the maintainer asked for, when the pushed work
-warrants one; ask when that is unclear. The build copies tracked files as they
-are on disk, so it runs in a detached worktree of the pushed commit, never in a
-checkout other sessions edit.
-
-1. Choose a version above every one built so far (`dist/`), including unpublished
-   builds and the installed `release.json`.
-2. In that worktree, build `win-x64`, `darwin-arm64` and `darwin-x64` with it,
-   the deployed relay's `--relay-url`, that `--update-host` and `--out` the
-   checkout's `dist`. Each build prints its `LATEST_RELEASE` asset entry.
-3. Add a DEVLOG entry (version, sizes, sha256s), commit and push.
-4. Publish with the [GitHub CLI](https://cli.github.com) signed in to an account
-   that can write the repository: `gh release create v<version>
-   dist/SAAM-<version>-*.zip -R Struder-AI/SAAM --target <pushed commit>`.
-5. Set `LATEST_RELEASE` in [the relay configuration](../relay/wrangler.jsonc) to
-   `{"version":…,"assets":{…}}`, merging the printed entries, and
-   [deploy the relay](../relay/README.md#deploy). Devices reconnect and Studio
-   offers the update. Commit and push the configuration.
-
-Builds before 0.1.5 cannot update themselves: their updater starts the
-installer without a console, so Windows PowerShell exits without running it
-and SAAM just quits. Install those from the ZIP.
+1. Fetch and integrate the intended remote history. Push release work to **`origin/codex/remettub-dev-branch`**, even when the current task uses another worktree branch; use an explicit destination and preserve existing commits. Do not substitute the task branch or `main`.
+2. Verify all three ZIPs, sidecars, embedded manifests/runtime architectures, installer permissions and archived source bytes. Run isolated Windows installation, checked generation, Studio/Wing and native-repair checks. Keep the owner's agreed Mac acceptance timing explicit; never replace the user's installation as a packaging test.
+3. With the owner's release authorization, create `vVERSION` at the exact application source SHA in [SAAM Releases](https://github.com/Struder-AI/SAAM/releases). Upload three ZIPs, their three `.zip.sha256` files, and `INSTALL.md` naming all three platforms. A separately corrected installation guide need not rebuild unchanged application archives; record that distinction.
+4. Verify uploaded sizes/hashes, publish as latest, then verify all public download URLs, checksum sidecars, tag SHA and the stable installation-guide URL. Only after these succeed, set **all three** entries in `relay/wrangler.jsonc`'s `LATEST_RELEASE` and deploy the existing service.
+5. Verify an authenticated `/device/release` response matches the published version, URLs and hashes without printing credentials. Check the Update/restart path in an isolated installation, or the user's installation when authorized, preserving its data folder. Commit and push offer/configuration and guide corrections to the same intended branch. Report native-platform validation limits; a local ZIP or draft is not a published update.

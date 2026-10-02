@@ -1,4 +1,4 @@
-import {point} from '../core/private/studio/rigid.mjs';
+import {point} from '../core/geom/frame.mjs';
 import {frameAtTime,displayPoint} from './playback.mjs';
 import {createProjection} from './camera.mjs';
 import {buildToolpathView,toolpathFrame,toolpathPresentation,toolpathStyle,layerKey,remainingLayerMs,layerIndexAt,TOOLPATH_COLORS} from './toolpath-view.mjs';
@@ -74,7 +74,7 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
     ctx.setTransform(ratio,0,0,ratio,0,0);ctx.globalAlpha=1;ctx.save();ctx.translate(width/2,height/2);ctx.scale(width/Math.SQRT2,height/Math.SQRT2);
     const background=ctx.createRadialGradient(0,0,0,0,0,1);background.addColorStop(0,'#f8faf1');background.addColorStop(1,'#eaf0e0');ctx.fillStyle=background;ctx.fillRect(-1,-1,2,2);ctx.restore();
     const project=createProjection(tab==='toolpath'&&camera.fitBounds?camera.fitBounds:bounds,width,height,camera.yaw,camera.tilt,camera.zoom,camera.pan,tab==='toolpath'&&cameraMode==='machine');
-    const referenceProject=tab==='toolpath'&&machineState?.pose&&!settings.followPlate?p=>{const {xMm,yMm}=shown.plan.placement,q=point(machineState.pose.part,[p[0]+xMm,p[1]+yMm,p[2]]);return project([q[0]-xMm,q[1]-yMm,q[2]]);}:project;
+    const referenceProject=tab==='toolpath'&&machineState?.pose&&!settings.followPlate?p=>{const {xMm,yMm}=shown.plan.placement??{xMm:0,yMm:0},q=point(machineState.pose.part,[p[0]+xMm,p[1]+yMm,p[2]]);return project([q[0]-xMm,q[1]-yMm,q[2]]);}:project;
     const strokeScale={lineWidthMm:shown.plan.process?.lineWidthMm,pixelsPerMm:project.pixelsPerMm,previousLayerOpacity:settings.previousLayerOpacity};
     for(let x=bounds.min[0]-10;x<=bounds.max[0]+10;x+=5)segment(referenceProject([x,bounds.min[1]-10,0]),referenceProject([x,bounds.max[1]+10,0]),'#dbe1d4',.6);
     for(let y=bounds.min[1]-10;y<=bounds.max[1]+10;y+=5)segment(referenceProject([bounds.min[0]-10,y,0]),referenceProject([bounds.max[0]+10,y,0]),'#dbe1d4',.6);
@@ -91,12 +91,12 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
       ctx.fillStyle='#8f451e';ctx.font='12px Segoe UI';ctx.fillText(record.id+' · '+record.volumeMm3+' mm³',p[0]+10,p[1]-8);
       if(!geometryScene)annotations.selectionText='Authored injection locations and approach; no occupied volume is inferred';
     }
-    if(tab==='toolpath'&&shown.program&&pathView){const moves=shown.program.moves,at=frameAtTime(moves,position),count=at.completed,placement=shown.plan.placement,showTravel=settings.showTravel;
+    if(tab==='toolpath'&&shown.program&&pathView){const moves=shown.program.moves,at=frameAtTime(moves,position),count=at.completed,placement=shown.plan.placement??{xMm:0,yMm:0},showTravel=settings.showTravel;
       annotations.layerText='Layer '+(layerIndexAt(pathView,position)+1)+'/'+pathView.groups.length;
-      if(Number.isInteger(at.tool))annotations.layerText+=' · '+(shown.machine.tools.find(t=>t.index===at.tool)?.label??`Tool ${at.tool}`)+' · '+at.nozzleMm+' mm';
-      const center=shown.plan.setup.denso?.rotaryCenterMm??[0,0,0],angle=at.rotaryDeg??0,machine=machineState?.pose,follow=settings.followPlate;
-      const local=p=>{const q=machine?(follow?p:point(machine.part,p)):displayPoint(p,angle,center,!shown.plan.setup.denso||follow);return [q[0]-placement.xMm,q[1]-placement.yMm,q[2]];};
-      if(shown.plan.setup.denso&&!machine?.hasBed){const radius=Math.max(bounds.max[0]-bounds.min[0],bounds.max[1]-bounds.min[1])*.65;let prior=null;
+      if(Number.isInteger(at.tool))annotations.layerText+=' · '+(shown.machine?.tools?.find(t=>t.index===at.tool)?.label??`Tool ${at.tool}`)+' · '+at.nozzleMm+' mm';
+      const center=shown.plan.setup?.denso?.rotaryCenterMm??[0,0,0],angle=at.rotaryDeg??0,machine=machineState?.pose,follow=settings.followPlate;
+      const local=p=>{const q=machine?(follow?p:point(machine.part,p)):displayPoint(p,angle,center,!shown.plan.setup?.denso||follow);return [q[0]-placement.xMm,q[1]-placement.yMm,q[2]];};
+      if(shown.plan.setup?.denso&&!machine?.hasBed){const radius=Math.max(bounds.max[0]-bounds.min[0],bounds.max[1]-bounds.min[1])*.65;let prior=null;
         for(let i=0;i<=80;i++){const a=i*Math.PI/40,q=project(local([center[0]+radius*Math.cos(a),center[1]+radius*Math.sin(a),center[2]]));if(prior)segment(prior,q,'#718d91',1);prior=q;}
         segment(project(local(center)),project(local([center[0]+radius,center[1],center[2]])),'#507b89',2);}
       const solid=!!materialScene&&!!materialRenderer;if(solid)motionQuality??=createMotionQuality();quality=updateUI&&solid?pinnedQuality??(moving?motionQuality.level:0):0;

@@ -13,6 +13,7 @@ __pycache__/
 /dev-map-OLD/audit/
 /dev-map-OLD/view/
 dist/
+dist-review/
 build/
 *.tsbuildinfo
 /scripts/bench/obj/
@@ -36,6 +37,7 @@ Thumbs.db
 # personal print bundles and architecture viewer
 /[Pp]rints/
 /.local/
+/relay/.local/
 
 # Tour recipes are source; generated preview/export bundles stay local.
 /examples/prints/*/prepared/

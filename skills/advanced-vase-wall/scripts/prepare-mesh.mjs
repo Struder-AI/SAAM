@@ -1,20 +1,18 @@
-import {requireThat} from '../../../core/private/extensions/numeric.mjs';
 // Author a normal editable vase recipe on an imported mesh. Geometry/source
 // bytes stay owned by the bundle; this helper authors common assignments.
 import {isDeepStrictEqual} from 'node:util';
-import {defaultSlices} from '../../../core/print/slices.mjs';
-import {makeMesh} from '../../../core/geom/mesh.mjs';
-import {detectMeshSleeveInterval} from './mesh-sleeve.mjs';
+import {advancedVaseRecordRuntime} from './record.mjs';
 
-import {MESH_SLEEVE_SETTINGS} from './sleeve-reference.mjs';
-import {validateSleevePattern} from './sleeve-pattern.mjs';
-import {sleeveAssignment} from './assignment.mjs';
-import {horizontalSlice,sliceFamily} from '../../../core/geom/slice.mjs';
+const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
+const {validateSleevePattern}=advancedVaseRecordRuntime();
+const MESH_SLEEVE_SETTINGS={fidelity:1,contactSide:'inside',circumferentialControls:12,heightControls:6,detailToleranceMm:.05};
 
 const keys=(value,allowed,label)=>requireThat(value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).every(k=>allowed.includes(k)),`Unknown or invalid ${label} options.`);
 const same=isDeepStrictEqual;
 
-export async function prepareMeshVase(source,options={}, {machine}){
+export async function prepareMeshVase(source,options={}, {Geometry,Toolpath}){
+  const {makeMesh,detectMeshSleeveInterval,horizontalSlice,sliceFamily}=Geometry;
+  const {defaultSlices,depositionAssignment}=Toolpath;
   keys(options,['meshSleeve','pattern','baseHeightMm','endTransition','detect'],'mesh vase');
   if(Object.hasOwn(options,'detect'))keys(options.detect,['marginMm','toleranceMm','sampleCount','maxSecondaryAreaFraction','zMinMm','zMaxMm'],'sleeve detection');
   // Generation uses the shared fit's 0.1% extraction allowance. Detection may
@@ -29,7 +27,7 @@ export async function prepareMeshVase(source,options={}, {machine}){
     'This print has explicit ordering. Configure its sleeve assignment through normal adjustment tools; mesh preparation does not replace ordering.');
   const initial={slices:defaultSlices()},existing=plan.slices.assignments.filter(a=>a.construction==='sleeve');
   requireThat(existing.length<=1,'Mesh vase preparation needs one selected sleeve assignment.');
-  const wall=existing[0]??sleeveAssignment({id:'wall'}),body=plan.slices.assignments.filter(a=>a.construction!=='sleeve');
+  const wall=existing[0]??depositionAssignment({construction:'sleeve',id:'wall'}),body=plan.slices.assignments.filter(a=>a.construction!=='sleeve');
   for(const [name,settings] of Object.entries(plan.skills??{}))if(settings.enabled){
     requireThat(false,
       `Mesh vase preparation cannot replace enabled ${name}. Disable it explicitly or configure the existing composition with normal adjustment tools.`);
@@ -62,7 +60,7 @@ export async function prepareMeshVase(source,options={}, {machine}){
     authoredPoints=expanded.paths.reduce((n,p)=>n+p.points.length,0)*(pattern.repeats+(endTransition==='level'?2:0));
     requireThat(Number.isSafeInteger(authoredPoints),'The authored pattern point count exceeds the safe integer range.');
   }
-  const settings=sleeveAssignment({...wall,zStartMm:baseHeight,zEndMm:end-low,endTransition,pathMode:'continuous',pattern,meshSleeve});
+  const settings=depositionAssignment({...wall,zStartMm:baseHeight,zEndMm:end-low,endTransition,pathMode:'continuous',pattern,meshSleeve});
   // Slices own the base below the wall; a wall without a base leaves none.
   const slices={version:plan.slices.version,assignments:[...(baseHeight>0?(body.length?body:initial.slices.assignments):[]),settings]};
   return {assignments:slices.assignments,

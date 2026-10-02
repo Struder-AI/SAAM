@@ -1,16 +1,17 @@
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
-import {requireThat} from '../private/bundle/numeric.mjs';
+import {requireThat} from '../private/agent/numeric.mjs';
+import {requireThat as requireGeometry} from '../geom/tolerance.mjs';
+import {requireThat as requireToolpath} from '../private/toolpath/numeric.mjs';
 // Geometry intersections and booleans as tools: an agent reads sections and
 // tops of a print (or of geometry it is about to write) and combines solids
 // without writing a script.
 import {loadBundle,updatePlan} from './bundle.mjs';
-import {rhino} from '../geom/runtime.mjs';
-import {buildShell,translateShell} from '../geom/build.mjs';
+import {resolveMaterialGeometry} from '../geom/build.mjs';
 import {topAt} from '../geom/query.mjs';
 import {horizontalSlice,patchSlice} from '../geom/slice.mjs';
 import {section} from '../region/section.mjs';
 import {sliceAssignment,validateSlices,sliceOwners,ownedLayers} from './slices.mjs';
-import {booleanShell,BOOLEAN_OPERATIONS,BOOLEAN_OPERAND_SHAPES} from '../geom/boolean-solid.mjs';
+import {BOOLEAN_OPERATIONS,BOOLEAN_OPERAND_SHAPES} from '../geom/boolean-solid.mjs';
 import {loopArea} from '../region/region2d.mjs';
 import {referencePatch} from '../geom/reference-surface.mjs';
 import {evaluate} from '../geom/nurbs.mjs';
@@ -18,12 +19,6 @@ import {evaluate} from '../geom/nurbs.mjs';
 
 const round=v=>Math.round(v*1e4)/1e4;
 const INTERSECT_FIELDS=['geometry','part','sectionsAtZ','topsAtXY','surfaces','families','includeLoops'];
-
-// An assembly is queried as the union of its placed components.
-function queryShell(r,geometry){
-  if(geometry.shape!=='assembly')return buildShell(r,geometry);
-  return booleanShell('union',geometry.parts.map(part=>translateShell(buildShell(r,part.geometry),part.xMm,part.yMm,part.zMm)));
-}
 
 // Horizontal planes give section loops (outer loops counterclockwise, holes
 // clockwise); vertical lines give the highest surface crossing. Coordinates are
@@ -34,7 +29,7 @@ export async function intersectGeometry(geometry,{sectionsAtZ=[],topsAtXY=[],sur
   requireThat(Array.isArray(surfaces),'surfaces lists spline surfaces to intersect.');
   requireThat(Array.isArray(families),'families lists draft ordinary slice assignment patches.');
   requireThat(sectionsAtZ.length+topsAtXY.length+surfaces.length+families.length>0,'Ask for at least one section height, top point, surface or draft family.');
-  const native=await rhino(),shell=queryShell(native,geometry);
+  const [shell]=await resolveMaterialGeometry([geometry]);
   const sections=sectionsAtZ.map(z=>{
     const {loops,nudgedByMm}=section(shell,horizontalSlice(z)),areas=loops.map(loopArea);
     return {zMm:z,areaMm2:round(areas.reduce((a,b)=>a+b,0)),islands:areas.filter(a=>a>0).length,holes:areas.filter(a=>a<0).length,
@@ -48,17 +43,19 @@ export async function intersectGeometry(geometry,{sectionsAtZ=[],topsAtXY=[],sur
     return top?{xyMm:[x,y],zMm:round(top.zMm),normal:top.normal.map(round),slopeDeg:round(top.slopeDeg),surface:top.patch}:{xyMm:[x,y],zMm:null};
   });
   const surfaceRegions=surfaces.map(spec=>surfaceSection(shell,spec,includeLoops));
-  const familyFindings=intersectDraftFamilies(shell,families,{native,includeLoops});
+  const familyFindings=await intersectDraftFamilies(shell,families,{includeLoops});
   return {boundsMm:{min:shell.bounds.min.map(round),max:shell.bounds.max.map(round)},sections,tops,surfaces:surfaceRegions,families:familyFindings};
 }
 
-export function intersectDraftFamilies(shell,drafts,{native,includeLoops=false}){
+export async function intersectDraftFamilies(shell,drafts,{includeLoops=false}={}){
   if(!drafts.length)return [];
   const assignments=drafts.map((draft,i)=>sliceAssignment({id:`draft-${i}`,...draft}));
-  requireThat(assignments.every(a=>!a.construction&&a.part===null),'Draft families use ordinary slices of the queried geometry; select a part in the outer request.');
+  requireToolpath(assignments.every(a=>!a.construction&&a.part===null),'Draft families use ordinary slices of the queried geometry; select a part in the outer request.');
   validateSlices({version:1,assignments},{parts:[],lineWidthMm:.4,firstLayerMm:.2});
   const shells=[[null,shell,true]],processes=assignments.map(a=>({firstLayerMm:.2,layerMm:.2,lineWidthMm:.4,...a.process}));
-  const volumes=new Map(assignments.map(a=>[a.id,a.within.map(v=>v.kind==='geometry'?queryShell(native,v.geometry):null)]));
+  const geometries=assignments.flatMap(a=>a.within.filter(v=>v.kind==='geometry').map(v=>v.geometry));
+  const materials=await resolveMaterialGeometry(geometries),byGeometry=new Map(geometries.map((geometry,i)=>[geometry,materials[i]]));
+  const volumes=new Map(assignments.map(a=>[a.id,a.within.map(v=>v.kind==='geometry'?byGeometry.get(v.geometry):null)]));
   const owners=sliceOwners(assignments,{shells,processes,volumes});
   return ownedLayers(owners,{shells}).map(({owner,family,layers,leader})=>({
     id:owner.assignment.id,owner:owner.id,principal:leader??owner.id,direction:family.direction,layerCount:layers.length,targetGapMm:family.pitchMm,translationStepMm:family.translationStepMm,gapMetric:family.gapMetric,
@@ -76,7 +73,7 @@ export function intersectDraftFamilies(shell,drafts,{native,includeLoops=false})
 // A spline surface (optionally shifted by offsetMm, as a stacked slice) cut by
 // the part: the region of the surface inside it, in the surface's own (u,v).
 function surfaceSection(shell,{offsetMm=[0,0,0],...spec},includeLoops){
-  requireThat(Array.isArray(offsetMm)&&offsetMm.length===3&&offsetMm.every(Number.isFinite),'offsetMm is [x, y, z] in millimetres.');
+  requireGeometry(Array.isArray(offsetMm)&&offsetMm.length===3&&offsetMm.every(Number.isFinite),'offsetMm is [x, y, z] in millimetres.');
   const shifted={...spec,controlPoints:spec.controlPoints?.map(row=>row.map(([x,y,z,w])=>w===undefined?[x+offsetMm[0],y+offsetMm[1],z+offsetMm[2]]:[x+offsetMm[0],y+offsetMm[1],z+offsetMm[2],w]))};
   const P={...referencePatch(shifted),name:'surface'},loops=section(shell,patchSlice(P)).loops,areas=loops.map(loopArea);
   return {domainUv:[P.domainU,P.domainV],areaUv:round(areas.reduce((a,b)=>a+b,0)),islands:areas.filter(a=>a>0).length,holes:areas.filter(a=>a<0).length,

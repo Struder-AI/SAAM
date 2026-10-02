@@ -5,16 +5,6 @@ Read the relevant operation contract below and the [geometry query boundary](../
 when changing its inputs. [Composition](../path/README.md) owns operation ordering
 and travel across those regions.
 
-## Deposition stroke footprints
-
-[strokeRegion](./stroke.mjs) sweeps 2D open or explicitly closed polylines by a
-positive bead width using the shared Clipper2 kernel, round joins and round caps.
-The returned nonzero-winding region unions crossings while preserving unfilled
-spaces. It is a nominal XY bead footprint, not a measured deposited surface or
-support guarantee. Level pattern rims use only final-course segments with positive
-extrusion; they never substitute a filled sleeve. Coordinate grid
-and arc-tolerance options remain separate, as for closed region offsets.
-
 ## Shared offset functions
 
 **Planar:** [offsetRegion](./offset.mjs) accepts closed 2D loops in mm
@@ -41,9 +31,8 @@ numbers/options or excessive range raise; genuine collapse returns `[]`.
 There is no per-point standoff sweep or arbitrary small-area pruning in the
 offset. Reference tests account for integer quantization. Skill authors
 must not import Clipper directly. General `intersect`/`difference`/`union` use
-the [Clipper2 tool](#shared-planar-intersections), re-exported from
-`core/region/boolean.mjs`. Both bundle adapters hash the shared kernel and exact
-WASM/JS dependency bytes; the public CLI/MCP and review workflow are unchanged.
+the [Clipper2 tool](#shared-planar-intersections) directly through
+`core/region/intersection.mjs`; there is no second Boolean import path.
 
 Surface cladding uses native 3D differential offsets through the
 shared surface/section functions. Those are distinct from closed planar polygon
@@ -135,9 +124,8 @@ allows sub-grid features to collapse; JS decoding cannot recover precision lost
 in the inputs. This is a precision-grid contract, not exact arithmetic or a
 guarantee about unsampled spline/mesh detail.
 
-Existing imports through [boolean.mjs](./boolean.mjs) alias this tool:
-slices, skin reservations and common construction assignments, including
-vase/cap transitions. Planar offsets and experimental surface-offset swept-band
+Slices, skin reservations and construction assignments import this tool directly,
+including vase/cap transitions. Planar offsets and surface-offset swept-band
 cleanup use this same kernel. Mesh/spline sectioning and sampled level sets
 retain their separate geometry-construction roles. Sampled fields use Geometry's
 [extractLevelSet](../geom/level-set.mjs): roof/reservation consumers request

@@ -29,7 +29,7 @@ import { layerStrokes, mapSliceStrokes, sliceFrame, loopMaterial, fillMaterial }
 import { FILL_PATTERNS } from '../region/fill-patterns.mjs';
 import { offsetRegion } from '../region/offset.mjs';
 import { regionArea } from '../region/region2d.mjs';
-import { difference, intersect, union } from '../region/boolean.mjs';
+import { difference, intersect, union } from '../region/intersection.mjs';
 import {allocateChartClaims,positiveClaimRegion,requireExclusiveClaims} from '../region/ownership.mjs';
 import { clipReservedRegion, clipReservedSlice } from '../region/reservation.mjs';
 import {depositCurveCourses} from '../path/curve-courses.mjs';
@@ -484,7 +484,8 @@ export function joinSliceFamily({id,family,process,filament=null,firstHeightMm,l
   const curve=spiralFamilyCurve({family,firstHeightMm,widthMm:process.lineWidthMm,speedMmS,levelEnd,sampleStepMm,toleranceMm,minimumTurnSeconds,role});
   const {profile,...centerline}=curve;
   const curves=foundationSegments.length?contactCurveGaps([centerline],{segments:foundationSegments,maxHeightMm:maxBeadHeightMm}):[centerline];
-  const top=Math.max(...curve.points.map(point=>point[2]));
+  let top=-Infinity;
+  for(const point of curve.points)top=Math.max(top,point[2]);
   const operations=depositCurveCourses({id,courses:[{...course,rank:course.rank??top,curves,travel:course.travel??{kind:'clearance',direct:false,clearanceZ:top+process.liftMm}}],process,filament});
   return {curve,operations:operations.map(operation=>({...operation,layerIndex:0,layerCount:family.layers.length,stackDirection:family.direction??[0,0,1]}))};
 }

@@ -2,10 +2,11 @@ import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 // Spatial material ownership at the shared planar-region boundary. A roof's
 // sampled reserve is defined only over its actual footprint; extrapolated field
 // samples must never truncate another component or material outside that roof.
-import {difference,intersect} from './boolean.mjs';
+import {difference,intersect} from './intersection.mjs';
 import {levelSetCoverage,extractLevelSet} from '../geom/level-set.mjs';
 import {regionArea,pointInRegion,pointSegmentDistance} from './region2d.mjs';
-import {requireThat,TOLERANCE} from '../geom/tolerance.mjs';
+import {TOLERANCE} from '../geom/tolerance.mjs';
+import {requireThat} from '../private/toolpath/numeric.mjs';
 import {sliceChartStep} from '../geom/slice.mjs';
 import {sampledChartRegion} from '../geom/height-slice.mjs';
 
@@ -31,7 +32,7 @@ function insideOrBoundary(point,region) {
 
 function reservationFieldHeight({xs,ys,values},[x,y]) {
   const interval=(axis,value)=>{
-    requireThat(value>=axis[0]-TOLERANCE.point&&value<=axis.at(-1)+TOLERANCE.point,'Reservation footprint extends beyond its sampled field.');
+    if(!(value>=axis[0]-TOLERANCE.point&&value<=axis.at(-1)+TOLERANCE.point))throw Error('Reservation footprint extends beyond its sampled field.');
     let low=0,high=axis.length-1;
     while(high-low>1){const mid=Math.floor((low+high)/2);if(axis[mid]<=value)low=mid;else high=mid;}
     return [low,Math.max(0,Math.min(1,(value-axis[low])/(axis[low+1]-axis[low])))];
@@ -42,7 +43,7 @@ function reservationFieldHeight({xs,ys,values},[x,y]) {
 
 export function reservationFootprint(reserve){
   const footprint=reserve?.footprint??reserve?.skinRegion;
-  requireThat(Array.isArray(footprint),'A spatial reservation needs an explicit footprint.');
+  if(!Array.isArray(footprint))throw Error('A spatial reservation needs an explicit footprint.');
   return footprint;
 }
 
@@ -59,7 +60,7 @@ function boundsOverlap(left,right){
 }
 
 export function clipReservedRegion(region,z,reserve){
-  requireThat(Number.isFinite(z),'Reservation layer height must be finite.');
+  if(!Number.isFinite(z))throw Error('Reservation layer height must be finite.');
   if(!reserve||!region.length)return region;
   const footprint=reservationFootprint(reserve);
   if(!boundsOverlap(region,footprint))return region;
@@ -84,12 +85,12 @@ function surfaceHeight(surface,x,y){
 // A lower interface owns its footprint. Unknown support outside it must not be
 // treated as a zero-height plane or silently discarded from the requested part.
 export function clipAboveSurface(region,z,surface){
-  requireThat(Number.isFinite(z)&&typeof surface?.topAt==='function'&&surface.field,'A lower surface needs a sampled field and native topAt query.');
+  if(!(Number.isFinite(z)&&typeof surface?.topAt==='function'&&surface.field))throw Error('A lower surface needs a sampled field and native topAt query.');
   const footprint=reservationFootprint(surface);
   const uncovered=difference(region,footprint);
   let perimeter=0;
   for(const loop of region)for(let i=0;i<loop.length;i++)perimeter+=Math.hypot(loop[i][0]-loop[(i+1)%loop.length][0],loop[i][1]-loop[(i+1)%loop.length][1]);
-  requireThat(Math.abs(regionArea(uncovered))<=TOLERANCE.point*Math.max(1,perimeter),'Lower surface does not cover the consumer region; choose a covering deposited interface.');
+  if(!(Math.abs(regionArea(uncovered))<=TOLERANCE.point*Math.max(1,perimeter)))throw Error('Lower surface does not cover the consumer region; choose a covering deposited interface.');
   // Material must have a positive gap. At an exactly touching layer, floating
   // surface arithmetic must not create a near-zero sheet/offset contour.
   const level=z-TOLERANCE.point;

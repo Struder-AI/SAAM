@@ -8,8 +8,9 @@ metadata:
 # Line network
 
 Use a `construction: "curves"` assignment in `plan.slices.assignments` for sparse
-frames, trusses and line text. Each supplied centerline receives one bead. This
-record is ordinary Trace input, not a separate skill. Geometry is optional.
+frames and trusses. Each supplied centerline receives one bead. The
+[line-text](../line-text/SKILL.md) extension creates lettering centerlines.
+This record is ordinary Trace input, not a separate skill. Geometry is optional.
 
 Each assignment has `id`, `construction`, `filament: null`, `after: []`,
 `repeat: null` and `curves`. Each curve has `closed` and finite XYZ `points`;

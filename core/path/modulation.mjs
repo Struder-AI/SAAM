@@ -1,8 +1,8 @@
 import {distance,requireThat} from '../private/toolpath/numeric.mjs';
 
 import {strokeRange} from './deposition.mjs';
-import {validateModulationField,evaluateScalarField,fieldSampleStep,scalarFieldRange,scalarFieldInvariant,scalarFieldBreakpoints} from './modulation-field.mjs';
-import {interpolateDirections,validatePose,uprightPose} from './pose.mjs';
+import {validateModulationField,prepareScalarField,evaluateScalarField,fieldSampleStep,scalarFieldRange,scalarFieldInvariant,scalarFieldBreakpoints} from './modulation-field.mjs';
+import {interpolatePose,validatePose,uprightPose} from './pose.mjs';
 import {transportCurveFrames} from './curve-frame.mjs';
 
 const positive=n=>Number.isFinite(n)&&n>0;
@@ -87,7 +87,7 @@ function rotatedVector(vector,axis,angle){
 
 function evaluateModulatedPoint(a,b,t,modifiers,directions,context={}) {
   const source=mix(a,b,t),point=[...source];let flow=1,width=1,speed=1;
-  let pose=context.poses?{...interpolateDirections(context.poses[0],context.poses[1],t),rotaryDeg:context.poses[0].rotaryDeg+t*(context.poses[1].rotaryDeg-context.poses[0].rotaryDeg)}:null;
+  let pose=context.poses?interpolatePose(context.poses[0],context.poses[1],t):null;
   for(const m of modifiers){
     const kind=m.frame??'world';
     const frame=kind==='slice'?sampledFrame(context.frames,t):kind==='curve'?sampledFrame(context.curveFrames,t):null;
@@ -175,6 +175,7 @@ export function validateFillModulation(stroke,modifiers,{layerIndex}={}){
 export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}) {
   modifiers=modifiers.filter(m=>m.amplitude!==0);
   if(!modifiers.length||stroke.volumesMm3?.every(volume=>volume===0))return {stroke,changed:false,maxExcursionMm:0};
+  modifiers=modifiers.map(m=>({...m,field:prepareScalarField(m.field)}));
   if(stroke.stationaryExtrusion){
     requireThat(stroke.points.length===1&&modifiers.every(m=>m.channel==='flow'&&(m.frame??'world')==='world'),'Stationary extrusion supports world-space flow modulation; geometric, speed, width, tilt and curve/chart channels need a moving path.');
     const factor=modifiers.reduce((value,m)=>{
@@ -212,7 +213,7 @@ export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}
     for(let j=1;j<samples.length;j++){
       const left=samples[j-1],right=samples[j],mid=evaluateModulatedPoint(points[i],points[i+1],(left.t+right.t)/2,modifiers,directions?[directions[i],directions[i+1]]:null,context);
       const excursion=Math.max(distance(left.point,left.source),distance(right.point,right.source),distance(mid.point,mid.source));
-      const poseChanged=modifiers.some(m=>m.channel==='tilt')&&[left,mid,right].some(s=>s.pose&&distance(s.pose.toolAxis,(sourcePoses?interpolateDirections(...context.poses,s.t):uprightPose()).toolAxis)>1e-12);
+      const poseChanged=modifiers.some(m=>m.channel==='tilt')&&[left,mid,right].some(s=>s.pose&&distance(s.pose.toolAxis,(sourcePoses?interpolatePose(...context.poses,s.t):uprightPose()).toolAxis)>1e-12);
       maxExcursionMm=Math.max(maxExcursionMm,excursion);changed ||= excursion>0||mid.flow!==1||mid.width!==1||mid.speed!==1||poseChanged;
       append(right);volumes.push(volume/length*distance(left.point,right.point)*mid.flow*mid.width);
       const speedMmS=(stroke.segmentMetadata?.[i]?.speedMmS??stroke.speedMmS)*mid.speed;

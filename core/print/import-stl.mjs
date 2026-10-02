@@ -3,7 +3,8 @@ import {initBundle,loadBundle,updatePlan} from './bundle.mjs';
 import {changeMachine} from '../machine/bundle-settings.mjs';
 import {readFile,mkdir,realpath,rm} from 'node:fs/promises';
 import {resolve,join,dirname,basename} from 'node:path';
-import {hash,recipeDefaults} from './plan.mjs';
+import {createHash} from 'node:crypto';
+import {recipeDefaults} from './plan.mjs';
 import {prepareSTLImport,releaseSTLImport} from '../geom/import-stl.mjs';
 export {inferSTLUnits} from '../geom/import-stl.mjs';
 
@@ -41,7 +42,7 @@ export async function setSTLUnits(directory,units,{expectedRevision}={}){
   const state=await loadBundle(directory,{program:false}),original=state.plan.geometry;
   if(original.shape!=='mesh'||original.source?.format!=='stl')throw Error('This operation changes the units of an imported STL mesh.');
   const bytes=await readFile(resolve(directory,'geometry/source.stl'));
-  if(hash(bytes)!==original.source.sha256)throw Error('The retained STL source changed.');
+  if(createHash('sha256').update(bytes).digest('hex')!==original.source.sha256)throw Error('The retained STL source changed.');
   const factor=(units==='inch'?25.4:1)/(original.source.units==='inch'?25.4:1);
   const geometry={...original,vertices:original.vertices.map(p=>p.map(v=>v*factor)),source:{...original.source,units,unitsInferred:false}};
   if(original.source.translationMm)geometry.source.translationMm=original.source.translationMm.map(v=>v*factor);

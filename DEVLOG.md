@@ -1,5 +1,47 @@
 # Development log
 
+## 2026-10-01 — Publish 0.3.1
+
+- Published Windows x64, Apple Silicon and Intel Mac archives from `0562544`; all public URLs, hashes and the release tag verified. Windows isolated installation, generation, Studio/Wing and native repair passed; Mac runtime architecture, archives and permissions passed, with native acceptance after release. Deployed and authenticated the matching three-platform update offer. Release work is pushed to `codex/remettub-dev-branch`; publishing guidance now records the complete matrix, branch and publication-before-offer order.
+
+## 2026-10-01 — Consolidate remaining Geometry operations
+
+- Geometry now owns planar stroke widening, sampled positive intervals and finite/periodic blob accumulation. Toolpath keeps printing policy; Agent owns blob authoring commands, supplying geometry through Bundle's ordinary API. Removed private-kernel crossings and two unused helpers. Preparation precedes sampling; unrepresentable blob buckets use ordered direct evaluation without size caps.
+- Exact comparisons covered 216 widened curves, 40 topology queries, 36 interval surveys, three complete wrapping outputs and 19,200 blob samples. Extreme coordinates, 150,000 points, raw/prepared generation and actual Studio worker serialization passed. Inert module previews become source navigation only with conservative AST/effect evidence; no new tests, suite batch or publication.
+
+## 2026-10-01 — Consolidate material construction and solid distance
+
+- Geometry owns batched material construction and solid-distance preparation/query. Removed Agent's assembly builder and generation's recursive material/key bridge; Toolpath retains composition and sampling. Ordinary assemblies, native lifetime, tessellation, reports, errors and the `1e-12` sign threshold stay intact.
+- Isolated-worktree trials against `7bad131` matched eight geometry forms, 160 signed/unsigned samples, ten composed samples, placement, draft families, four errors and two complete generated paths. Existing `boolean-solid.test.mjs`: four pass; its recipe-prerequisite failure also reproduces on the baseline. No new tests, suite batch, solver or publication; root owns map integration and package rebuilding.
+
+## 2026-10-01 — Update active bundles and simplify map navigation
+
+- Active edits/generation compare one saved source record with the installed release and selected extensions; stale output and confirmation invalidate through existing commits. Viewing/delivery use saved artifacts. MCP shares Bundle generation dispatch; Studio workers include revision. Actual local-runtime, missing-code, upgrade, same-byte, cancellation and stale-commit checks passed; no new tests or whole suite.
+- Removed the Boolean forwarding module and unused stroke-region implementation; curve/surface callers reuse public Geometry operations. Mixed files retain declaration-level responsibilities, with trivial Geometry assertions inline. Map tooling derives private containment, checks operation boundaries, flattens small navigation groups and distinguishes internal/boundary nodes; source previews and unknowns remain visible. Remaining private accesses and floating-node authorship are under review; no release or publication.
+
+## 2026-10-01 — Share frames and remove hidden recipe dependencies
+
+- Owner-approved Geometry frame operations replace five duplicate modules; Toolpath retains authored poses and Export retains machine policy. Export consumes explicit neutral material changes and preserves authored temperatures. Plain/fitted vase generation no longer requires advanced-vase; recipe field validation no longer loads a default machine. Printer guidance takes the selected machine without loading Bundle.
+- Focused Bambu, Griffin and DENSO checks passed; old/new prepared actions matched three material configurations. Independent local-extension removal and MCP creation/machine-change smokes passed. Two MCP assertions retain stale maker-catalog/unchecked-approval expectations; no product workaround or test rewrite. No new tests, suite batch, solver or push. Map and Studio integration remain underway.
+- Integrated Studio/Wing; corrected swept rod camber and LF airfoil hashes (three matching span stations, six Git/archive profiles). HTTP linking passed 49 modules/99 edges; removed the last obsolete kinematics import. Removed the 47-line tour adapter, 20-line setup validator and unused machine arguments from neutral generation and extension proposals. Invalid installation fields produce identical neutral paths but fail Export; invalid authored temperatures fail before geometry. Recipe caching no longer hashes values or returns unused identity; persisted construction hashes are unchanged.
+## 2026-10-01 — Studio, tour and Wing review
+
+- The tour follows one edited part through playback, a visible infill change, printer/material review and exact export or viewing-only completion. Removed the second-part detour, speculative GET-state generation and its unused response wrapper. Next follows the displayed-result gate instead of waiting for chat; action cues blink even with reduced motion, as requested. Playback chooses an informative deposited layer, with stronger material shading and less transparent completed layers. CLI request replies retain owner/instance authority.
+- Wing adds sourced airfoil choices, quarter-chord sweep, camera presets, staged controls and live slider previews; dihedral/twist remain a construction proposal. Packaging validates the supplied Node architecture and license before a final integrated build. Saved-path, missing-extension and service-reconnection browser trials passed; Wing bundle/checked-program smokes and the existing tour lifecycle check passed. Fixed a missing browser module that had replaced checked material with flat saved-path lines; the rune preview now retains visible relief. No whole suite, new tests, release build, publication or physical qualification. Changed guidance totals 11,949 → 11,873 lines, including this entry and the Wing proposal.
+
+## 2026-10-01 — Checkpoint 0.3.1 consolidation
+
+- Integrated neutral Toolpath/Export separation, exact checked-program delivery, one-instance ownership and selected local extension runtimes. Geometry owns shared sleeve numerics; portable hole supports and single-bead line text use existing print calls. Removed duplicate vase validation, superseded scripts, dummy weld runtime setup and recursive Bundle→Studio→Bundle generation dispatch. No new maker editor tool or protocol remains.
+- In this managed worktree, focused generation-control checks passed 7/7; practical checks covered local extension overrides, Studio ownership, unchanged discovery revision, text/support generation, neutral reuse and exact export. Earlier native-worker/service/Wing evidence remains in the owning handoffs. No new tests, whole suite, solver, push or physical qualification.
+- Outstanding: plain-vase's advanced-vase dependency, Geometry–Export frame ownership, integrated retained behavior and packaging. The prior audit (647 files, 94 unassigned, 31 forbidden, 16,216 unknown) is stale; ownership corrections and successful examples do not certify boundaries. Documentation consolidation continues with the Studio/release task; this is a checkpoint, not a release.
+
+## 2026-10-01 — 0.3.0 desktop installation tester release
+
+- Desktop Claude Code and Codex install from the published installation guide, configure local stdio tools and leave a SAAM icon. Studio runs locally without activation; an optional first-run invite enables releases and live diagnostics. Removed chat relay, OAuth, remote dispatch and web-only onboarding. Application replacement preserves the separate data folder.
+- Windows x64 and Apple Silicon tester cut. A disposable Windows installation updated through its in-app button and restarted with activation and data/local-edit markers preserved. A genuine bundle and remembered setup opened afterward; their survival through an update was not separately tested. First-run skip, invalid invite, activation, diagnostic gating and local MCP onboarding were checked. Mac archive integrity, launcher permissions and arm64 runtime were checked; actual Mac installation/launch/update await tester use. No full suite; architecture work continues in 0.3.1.
+- Windows release and matching service were published with explicit approval. Assets include ZIPs, SHA-256 sidecars and standalone INSTALL.md; review packages and local state are excluded. The updated standalone guide is authoritative; embedded package guidance predates the Mac availability correction.
+- Windows ZIP: 44,836,241 bytes; SHA-256 `455bb7e7917e78e4951eac3ddf7a070f54c17366e2389b8b4d2516173524241f`, source `bfb26cc`. Apple Silicon ZIP: 50,148,149 bytes; SHA-256 `e8cc0feba64201e13843be88bbcb10a95bc1fa85fb7a6e0920783ee008e224b1`, source `4502dfa`. Both use official checksum-verified Node v24.19.0 and production HTTPS endpoints.
+
 ## 2026-10-01 — Complete Geometry operation submaps
 
 - Integrated reviewed selection/placement, line clipping and sampled-field extraction checkpoints. Authored 17 operation groups with 711 exact declaration homes and five native resource leaves; process policy belongs to Toolpath. Scoped helper/method previews and observed submap call wires preserve authored map-0 contracts; native/dynamic behavior remains explicitly unscanned.

@@ -1,6 +1,6 @@
 import {requireThat} from '../private/export/numeric.mjs';
 
-import {validatePose} from '../path/pose.mjs';
+import {validateDirectionPair} from '../geom/frame.mjs';
 export function validateDensoConfiguration(plan,{required=false}={}){
   const c=plan.setup.denso;requireThat(c,'Missing DENSO setup.');
   for(const key of ['toolFrame','workFrame','armGroup','figure','extrusionOutput'])
@@ -10,7 +10,8 @@ export function validateDensoConfiguration(plan,{required=false}={}){
   for(const key of ['rotaryCenterMm','workOffsetMm','initialPositionMm'])requireThat(Array.isArray(c[key])&&c[key].length===3&&c[key].every(Number.isFinite),'Invalid DENSO '+key+'.');
   for(const key of ['workYawDeg','rotaryZeroDeg'])requireThat(Number.isFinite(c[key]),'Invalid DENSO frame/rotary offset.');
   for(const key of ['retreatMm','transitionSeconds'])requireThat(Number.isFinite(c[key])&&c[key]>0,'Invalid DENSO transition setting.');
-  validatePose(c.initialPose);
+  requireThat(c.initialPose&&Number.isFinite(c.initialPose.rotaryDeg),'DENSO initial pose needs a finite rotary angle.');
+  validateDirectionPair(c.initialPose.toolAxis,c.initialPose.toolUp);
   requireThat(c.extrusionRateMm3S===null||(Number.isFinite(c.extrusionRateMm3S)&&c.extrusionRateMm3S>0),'Invalid relay rate.');
   requireThat(c.configurationSource===null||(typeof c.configurationSource==='string'&&c.configurationSource.trim()),'Configuration needs a source.');
   requireThat(typeof c.mounting==='string'&&c.mounting.length>0&&c.temperatureControl==='external-preheated','DENSO requires mounting basis and external temperature control.');

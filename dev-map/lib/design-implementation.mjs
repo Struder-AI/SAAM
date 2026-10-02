@@ -6,19 +6,20 @@ import {createHash} from 'node:crypto';
 import {extractGraph} from './graph.mjs';
 import {setFile} from './map-set.mjs';
 
-export async function implementationLinks(repo,spec,nodes){
+export async function implementationLinks(repo,spec,nodes,{containment=null,ownershipText:heldText}={}){
   if(!spec.implementationLinks?.length)return {contracts:[],bindings:[],ownershipText:''};
   const roots=spec.implementationLinks.map(id=>nodes.get(id)?.index);
   if(roots.some(index=>!index))throw Error('Unknown implementation-link root.');
   const inside=id=>roots.some(root=>nodes.get(id)?.index===root||nodes.get(id)?.index.startsWith(root+'.'));
-  const ownershipText=await readFile(resolve(repo,setFile('ownership.json')),'utf8');
+  const ownershipText=heldText??await readFile(resolve(repo,setFile('ownership.json')),'utf8');
   const owners=JSON.parse(ownershipText).leaves;
   const files=[...new Set(Object.entries(owners).filter(([,v])=>inside(v.owner)).map(([path])=>path.split('::')[0]))];
   const graph=await extractGraph({repo,files}),declarations=new Map(graph.declarations.map(d=>[d.id,d]));
+  const projected=path=>({path:containment?.homes[path]??path,id:containment?.owners[path]??owners[path].owner});
   function home(id){
     let d=declarations.get(id);
-    while(d){if(owners[d.anchor])return {path:d.anchor,id:owners[d.anchor].owner};d=declarations.get(d.parent);}
-    if(id?.endsWith(':<module>')){const path=id.slice(0,-9)+'::@module';if(owners[path])return {path,id:owners[path].owner};}
+    while(d){if(owners[d.anchor])return projected(d.anchor);d=declarations.get(d.parent);}
+    if(id?.endsWith(':<module>')){const path=id.slice(0,-9)+'::@module';if(owners[path])return projected(path);}
     return null;
   }
   const pairs=new Map();

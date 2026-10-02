@@ -63,11 +63,11 @@ export async function noteSourceSkew(error){
 }
 export function reportedMessage(error){const note=skewNotes.get(error);return note?error.message+note:error.message;}
 // Explicit browser module allowlist; no generic repository/file serving.
-const playerModules=new Set(['core/private/studio/numeric.mjs','core/private/studio/rigid.mjs','core/private/studio/frame.mjs',
-  'core/private/export/numeric.mjs','core/private/export/rigid.mjs','core/private/export/frame.mjs','core/private/toolpath/numeric.mjs',
+const playerModules=new Set(['core/private/studio/numeric.mjs','core/geom/frame.mjs',
+  'core/private/export/numeric.mjs','core/private/export/temperature.mjs','core/private/toolpath/numeric.mjs',
   'studio/source-player.mjs','studio/source-worker.mjs','studio/move-store.mjs',
   'studio/machine-session.mjs','studio/machine-view.mjs','core/export/source-time.mjs','core/export/machine-study.mjs',
-  'core/machine/presentation.mjs','core/machine/rigid.mjs','core/machine/jog.mjs',
+  'core/machine/presentation.mjs','core/machine/jog.mjs',
   'core/machine/dobot-kinematics.mjs','core/machine/denso-kinematics.mjs',
   'core/print/review-state.mjs',
   'core/export/denso-player.mjs','core/machine/denso.mjs','core/path/pose.mjs',
@@ -100,13 +100,10 @@ export async function listPrints(libraryRoot,resolveBundle=bundleFor) {
   }
   await walk(resolve(libraryRoot),0);return prints.sort((a,b)=>b.modified.localeCompare(a.modified));
 }
-// Studio opened without a print (a relay computer's launch instance) serves the
+// Studio opened without a print serves the
 // page, the library and the tour; everything that reads a print answers this.
-const noPrint=()=>Object.assign(Error('No print is open. Open a saved print, import an STL, start the tour, or ask your chat to make a part.'),{code:'NO_PRINT'});
+const noPrint=()=>Object.assign(Error('No print is open. Open a saved print, import an STL, start the tour, or ask your agent to make a part.'),{code:'NO_PRINT'});
 const printFreeRoutes=new Set(['/api/open','/api/tour','/api/view-performance','/api/import-stl','/api/cancel-calculation']);
-// Studio's view of a relay link, when this computer is paired with one: status()
-// and linkCode() come from relay-device.mjs. The connector URL is the relay's /mcp.
-const relayView=status=>({...status,connectorUrl:new URL('/mcp',status.relayUrl).href});
 // A local development launcher may explicitly supply a scratch adapter resolver.
 // This is a function supplied by code, never a module path supplied by a print or HTTP request.
 // A null directory opens Studio with no print; the person or agent opens one later.
@@ -120,7 +117,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   const viewFingerprint=(id,fingerprint,guide)=>id+fingerprint+(geometryOnly(guide)?':geometry':':program');
   let dir=directory?resolve(directory):null;
   const token=randomBytes(24).toString('hex'),viewPerformance=[];
-  // Whether the owning chat is working; its runtime pushes changes here.
+  // Whether the owning agent is working; its runtime pushes changes here.
   const agentActivity={working:false};
   const workIdFor=directory=>directory?requests.printId(directory,{optional:true}):null;
   // Studio observations for the owning agent: person-driven actions, worker
@@ -206,11 +203,11 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     // generation is enough to defer speculation; explicit review still checks
     // its bytes and will regenerate if that stored result is damaged.
     if(state.program||state.outputAvailability||state.review?.generation?.generationHash===state.generationHash&&!state.programError)return {action:'discard'};
-    const key=readDir+':'+state.generationHash;
+    const key=readDir+':'+state.generationHash+':'+state.revision;
     return {action:session.currentKey===key?'reuse':'create',key};
   };
   const prepare=(state,readDir,{computationRequired=false}={})=>{
-    const key=readDir+':'+state.generationHash;
+    const key=readDir+':'+state.generationHash+':'+state.revision;
     const decision=computationRequired
       ?(closed||resolveBundle!==bundleFor?{action:'skip'}:{action:preparation?.key===key?'reuse':'create',key})
       :planPreparation(state,readDir,{closed,workerEnabled:resolveBundle===bundleFor,currentKey:preparation?.key});
@@ -276,13 +273,13 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     const {directory:generationDir,state}=snapshot;
     let calculated=false;
     const markCalculation=()=>{if(!calculated){calculated=true;beginGeneration(snapshot,development,trigger);}};
-    async function dispatchComputation(execution){
-      const {directory:executionDir,state:executionState}=execution;
+    async function dispatchComputation({directory:executionDir,generationHash}){
       // A stopped worker needs restarting; a completed preparation diagnostic
       // is already useful and need not be recomputed on the first Continue.
-      if(preparation?.status==='failed'&&(!preparation.worker||generationFailure?.directory===executionDir&&generationFailure.generationHash===executionState.generationHash))await discardPreparation();
+      if(preparation?.status==='failed'&&(!preparation.worker||generationFailure?.directory===executionDir&&generationFailure.generationHash===generationHash))await discardPreparation();
+      const executionState=(await readStableBundle(current,executionDir,{program:false})).state;
       const job=prepare(executionState,executionDir,{computationRequired:true});
-      if(!job)return execution.runLocally();
+      if(!job)return null;
       if(job.status==='preparing')markCalculation();
       const checked=await job.generate(development,reservation);
       if(preparation===job)preparation=null;
@@ -296,8 +293,6 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   const publishGeneration=async(outcome,development,trigger)=>{
     generationFailure=null;
     if(outcome.calculated)note('generation-finished',{generationHash:outcome.generationHash,development,trigger,durationMs:Date.now()-generationRun.startedAt});
-    const guide=await tour.info();
-    if(guide.active&&guide.directory===outcome.directory&&guide.step===L.playback&&!guide.startAt)await tour.requestStartLayer();
   };
   const publishGenerationFailure=async(error,snapshot,trigger)=>{
       const {directory:generationDir,state}=snapshot;
@@ -376,10 +371,10 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         return;
       }
       if(req.method==='GET'&&url.pathname==='/') {
-        const html=(await readFile(resolve(here,'index.html'),'utf8')).replace('__CSRF__',token).replace('__RELAY__',relay?'on':'');
+        const html=(await readFile(resolve(here,'index.html'),'utf8')).replace('__CSRF__',token).replace('__SERVICE__',relay?'on':'');
         res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end(html);return;
       }
-      if(req.method==='GET'&&['/work-state.mjs','/agent-ui.mjs','/tour-ui.mjs','/tour-catalog.mjs','/viewer-session.mjs','/view-performance.mjs','/refresh-plan.mjs','/viewer-renderer.mjs','/studio-state.mjs','/studio-controls.mjs','/relay-panel.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/machine-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
+      if(req.method==='GET'&&['/work-state.mjs','/agent-ui.mjs','/tour-ui.mjs','/tour-catalog.mjs','/viewer-session.mjs','/view-performance.mjs','/refresh-plan.mjs','/viewer-renderer.mjs','/studio-state.mjs','/studio-controls.mjs','/neutral-path.mjs','/service-panel.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/machine-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
         res.writeHead(200,{'Content-Type':url.pathname.endsWith('.css')?'text/css':'text/javascript'});res.end(await readFile(resolve(here,url.pathname.slice(1))));return;
       }
       if(req.method==='GET'&&url.pathname==='/struder-logo.png'){
@@ -388,27 +383,27 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       if(req.method==='GET'&&playerModules.has(url.pathname.slice(1))){
         res.writeHead(200,{'Content-Type':'text/javascript'});res.end(await readFile(resolve(root,url.pathname.slice(1))));return;
       }
-      if(url.pathname==='/api/relay'||url.pathname==='/api/relay/link-code'||url.pathname==='/api/relay/pair'||url.pathname==='/api/relay/update'||url.pathname==='/api/relay/quit'){
-        // An invite pairs this computer, link codes pair a chat with it, and an
-        // update replaces SAAM: the same session token and origin checks as
-        // Studio's other routes guard them. Absent without a relay.
-        const reading=req.method==='GET'&&url.pathname==='/api/relay',issuing=req.method==='POST'&&url.pathname==='/api/relay/link-code',pairing=req.method==='POST'&&url.pathname==='/api/relay/pair',updating=req.method==='POST'&&url.pathname==='/api/relay/update',quitting=req.method==='POST'&&url.pathname==='/api/relay/quit';
-        if(!relay||!reading&&!issuing&&!pairing&&!updating&&!quitting){send({error:'Not found'},404);return;}
+      if(url.pathname==='/api/service'||url.pathname.startsWith('/api/service/')){
+        // The optional release service never gates local making or viewing.
+        // Mutations use the same local token and origin checks as Studio edits.
+        const reading=req.method==='GET'&&url.pathname==='/api/service';
+        const action=req.method==='POST'?url.pathname.slice('/api/service/'.length):null;
+        if(!relay||!reading&&!['activate','dismiss','check-update','update','quit'].includes(action)){send({error:'Not found'},404);return;}
         if(req.headers['x-saam-token']!==token||(reading?req.headers.origin&&req.headers.origin!==origin:req.headers.origin!==origin)){send({error:'Invalid local session'},403);return;}
-        if(reading){send(relayView(relay.status()));return;}
-        if(pairing){
+        if(reading){send(relay.status());return;}
+        if(action==='activate'){
           const chunks=[];let size=0;
           for await(const chunk of req){size+=chunk.length;if(size>4_000)throw Error('Request too large.');chunks.push(chunk);}
           const {invite}=JSON.parse(Buffer.concat(chunks).toString()||'{}');
-          try{send(await relay.pair(String(invite??'')));}catch(error){send({error:error.message},400);}
+          try{send(await relay.activate(String(invite??'')));}catch(error){send({error:error.message},400);}
           return;
         }
+        if(action==='dismiss'){try{send(await relay.dismissFirstRun());}catch(error){send({error:error.message},500);}return;}
+        if(action==='check-update'){try{await relay.checkUpdate();send(relay.status());}catch(error){send({error:error.message},502);}return;}
         // Update or quit at an idle boundary: never under a running calculation.
-        if((updating||quitting)&&['preparing','generating'].includes(generationStatus()?.status)){send({error:`Wait for the toolpath calculation to finish, then ${updating?'update':'quit'}.`},409);return;}
-        if(updating){try{send(await relay.update());}catch(error){send({error:'SAAM could not update: '+error.message},502);}return;}
-        if(quitting){try{send(await relay.quit());}catch(error){send({error:error.message},400);}return;}
-        try{const {code,expiresAt}=await relay.linkCode();send({code,expiresAt});}
-        catch(error){send({error:'The relay could not issue a code: '+error.message},502);}
+        if(['update','quit'].includes(action)&&['preparing','generating'].includes(generationStatus()?.status)){send({error:`Wait for the toolpath calculation to finish, then ${action}.`},409);return;}
+        if(action==='update'){try{send(await relay.update());}catch(error){send({error:'SAAM could not update: '+error.message},502);}return;}
+        if(action==='quit'){try{send(await relay.quit());}catch(error){send({error:error.message},400);}return;}
         return;
       }
       if(req.method==='GET'&&url.pathname==='/api/tour'){send(await tour.info());return;}
@@ -445,32 +440,42 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       }
       const readDir=dir,readId=dir&&printId();
       const bundle=await opened;
+      if(req.method==='GET'&&url.pathname==='/api/neutral-path'){
+        const {state}=await readStableBundle(bundle,readDir,{program:false});
+        const artifact=state.review?.path;
+        if(readDir!==dir||url.searchParams.get('printId')!==readId||url.searchParams.get('revision')!==String(state.revision)
+          ||state.artifacts.path!=='current'||!artifact||url.searchParams.get('pathHash')!==artifact.hash)
+          throw Error('The saved SAAMpath changed. Reload before viewing.');
+        if(!/^[a-f0-9]{64}$/.test(artifact.hash)||artifact.file!==`paths/${artifact.hash}.json`)
+          throw Error('Invalid saved SAAMpath reference.');
+        const bytes=await readFile(resolve(readDir,artifact.file));
+        if(createHash('sha256').update(bytes).digest('hex')!==artifact.hash)
+          throw Error('Saved SAAMpath changed; regenerate it.');
+        res.writeHead(200,{'Content-Type':'application/json','Content-Length':bytes.length});res.end(bytes);return;
+      }
       if(req.method==='GET'&&url.pathname==='/api/state') {
         const condition=req.headers['if-none-match'];
         const workId=requests.printId(readDir,{optional:true}),allRecords=workId?await requests.query({printId:workId}):[],records=allRecords.filter(record=>!record.studioInstanceId||record.studioInstanceId===instanceId),guide=await tour.info({records});
-        const {state,fingerprint,presentationFingerprint}=await readStableBundle(bundle,readDir,{program:geometryOnly(guide)?false:'source'});
+        const [{state,fingerprint,presentationFingerprint},example]=await Promise.all([
+          readStableBundle(bundle,readDir,{program:geometryOnly(guide)?false:'source'}),tourExample(readDir)]);
         if(readDir!==dir)throw new Error('The print is being updated.');
-        const responseFingerprint=viewFingerprint(readId,fingerprint,guide),failure=generationFailure,cancelled=generationCancelled;
+        const responseFingerprint=viewFingerprint(readId,example?`${fingerprint}:tour:${example.id}`:fingerprint,guide),failure=generationFailure,cancelled=generationCancelled;
         const importRepair=await loadStudioImportRepair(readDir);
         if(readDir!==dir)throw new Error('The print is being updated.');
         const tag=stateTag(responseFingerprint,guide,failure,cancelled,records,importRepair);
         if(condition&&matchesStateTag(condition,tag)){res.setHeader('ETag',tag);res.writeHead(304);res.end();return;}
         const presentation=viewFingerprint(readId,presentationFingerprint,guide),name=await printName(readDir,state.plan);
-        const assembled=composeStudioState(state,{directory:readDir,printId:readId,workId,instanceId,guide,records,importRepair,
+        const assembled=composeStudioState(state,{directory:readDir,printId:readId,workId,instanceId,guide,example,records,importRepair,
           printName:name,fingerprint:responseFingerprint,presentationFingerprint:presentation,
-          generationFailure:failure,generationCancelled:cancelled,now:Date.now()});
+          generationFailure:failure,generationCancelled:cancelled});
         if(state.checkedBytes){
           const snapshot=`${readId}:${state.revision}:${state.exportHash}`;
           const {dir,plan,revision,exportName,exportHash,checkedBytes}=state;
           displayedResults.set(snapshot,{bundle,state:{dir,plan,revision,exportName,exportHash,checkedBytes}});
-          assembled.response.exportSnapshot=snapshot;
+          assembled.exportSnapshot=snapshot;
         }
         res.setHeader('ETag',tag);
-        send(assembled.response);
-        // Speculate only on the tour's explicitly selected, confirmed part.
-        // Ordinary edits use explicit generation; starting a second worker here
-        // competes with the agent and may slice inputs it is still changing.
-        if(assembled.preparation)prepare(assembled.preparation.state,assembled.preparation.directory);
+        send(assembled);
         return;
       }
       if(req.method==='GET'&&url.pathname==='/api/sources'){
@@ -520,8 +525,23 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         send(await cancelCalculation(data));return;
       }
       if(url.pathname==='/api/export'){
-        const captured=displayedResults.get(data.exportSnapshot);
-        const delivered=await exportPrint(captured.bundle,captured.state,data,await tour.info());
+        const run=queue.then(async()=>{
+          const captured=displayedResults.get(data.exportSnapshot);
+          if(!captured||captured.state.dir!==dir||captured.bundle!==await opened)
+            throw Error('The displayed program changed. Reload before exporting.');
+          const live=(await readStableBundle(captured.bundle,dir,{program:false})).state;
+          if(live.revision!==captured.state.revision||
+            live.review.generation?.exportHash!==captured.state.exportHash||
+            live.review.generation?.generationHash!==live.generationHash||
+            live.review.generation?.mode!=='production')
+            throw Error('The displayed program changed. Reload before exporting.');
+          const currentBytes=await readFile(resolve(dir,live.review.generation.file));
+          if(createHash('sha256').update(currentBytes).digest('hex')!==captured.state.exportHash)
+            throw Error('The displayed program changed. Reload before exporting.');
+          return exportPrint(captured.bundle,captured.state,data,await tour.info());
+        });
+        queue=run.catch(()=>{});
+        const delivered=await run;
         if(data.downloadLink===true){send(stageDownload(delivered));return;}
         res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(delivered.name)}`});res.end(delivered.bytes);return;
       }
@@ -561,22 +581,20 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           const played=await tour.playback(data.event);if(data.event!=='tick')note('tour-playback',{event:data.event,step:played.step});send(played);return;
         }
         if(url.pathname==='/api/tour'){
-          // This button explicitly selects the displayed part without turning
-          // navigation into a separate approval stage.
-          if(data.action==='step'&&progress.step===L.import&&data.step===L.playback)
+          // Enter playback only from the geometry that was actually displayed.
+          if(data.action==='step'&&progress.step===L.geometry&&data.step===L.playback)
             await validateGeometrySelection(current,data);
-          const ending=['exit','cancel','finish'].includes(data.action);
+          const ending=['exit','cancel','finish','finish-view'].includes(data.action);
           const result=await tour.action(data.action,data.step);
           if(ending&&dir)await useExample(dir);
           if(!ending&&result.directory&&resolve(result.directory)!==dir)await openPrint(result.directory);
           const lesson=TOUR_STEPS[result.data.step];
-          note(data.action==='fresh'?'tour-started':data.action==='step'?'tour-lesson':data.action==='finish'?'tour-finished':'tour-exited',
+          note(data.action==='fresh'?'tour-started':data.action==='step'?'tour-lesson':ending&&data.action!=='exit'&&data.action!=='cancel'?'tour-finished':'tour-exited',
             {action:data.action,step:result.data.step,lesson:lesson?{title:lesson.title,tab:lesson.tab,gate:lesson.gate??null}:null,runId:result.data.runId,lessonId:result.data.lessonId,
              active:result.data.active,completed:result.data.completed,canNext:result.data.canNext,agentInstruction:result.data.agentInstruction??null});
           if(result.directory&&result.data.active&&TOUR_STEPS[result.data.step].tab==='toolpath'){
             const adapter=await opened,state=(await readStableBundle(adapter,dir,{program:'source'})).state;
             if(!state.program||state.programError)await runBundleEdit(dir,()=>generate(adapter,false,'tour-step'));
-            if(result.data.step===L.playback&&!result.data.startAt)await tour.requestStartLayer();
           }
         }
         else if(url.pathname==='/api/use-example'){
@@ -585,13 +603,10 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           await useExample(dir);note('example-adopted',{});
         }
         else if(url.pathname==='/api/open'){
+          if(progress.active)throw Error('Exit the tour to open another print.');
           const selected=await printDirectory(data.path,resolveBundle);
-          if(progress.active)await tour.select(selected);
           await openPrint(selected);
-          const adapter=await opened,state=(await readStableBundle(adapter,dir,{program:progress.active?false:'source'})).state;
-          // Geometry stays visible in the STL lesson while a worker prepares its
-          // selected part. Continuing commits this exact candidate.
-          if(progress.active)prepare(state,dir);
+          const adapter=await opened,state=(await readStableBundle(adapter,dir,{program:'source'})).state;
           note('print-opened',{name:await printName(dir,state.plan),tour:progress.active,revision:state.revision});
         }
         else if(url.pathname==='/api/history'){

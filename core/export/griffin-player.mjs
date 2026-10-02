@@ -3,8 +3,12 @@ import {distance,requireThat} from '../private/export/numeric.mjs';
 
 import {gcodeLines} from './gcode-lines.mjs';
 import {toolBounds,startupRetracted} from '../machine/rules.mjs';
-import {plannedNozzleTemperatures,validateNozzleC,validateTemperatureC} from '../path/process-controls.mjs';
+import {validateTemperatureC,authoredNozzleTargets} from '../private/export/temperature.mjs';
 const number=(v,min,max,name)=>requireThat(Number.isFinite(v)&&v>=min&&v<=max,`${name} outside limits.`);
+const temperatureWaitError=(nozzle,context,stationary=false)=>
+  nozzle>0&&!context.authoredTargetsSupplied&&!context.temperatures.has(nozzle)
+    ?'The saved neutral SAAMpath target inventory is required to check this operation temperature.'
+    :`${stationary?'Stationary extrusion':'Extrusion'} without the planned temperature waits.`;
 export const DWELL_COMMAND_MS=60000;
 
 // A strict interpreter for the exported subset. Geometry is reconstructed from
@@ -16,8 +20,8 @@ export const interpretGriffin=(text,plan,machine,options={})=>interpretGcode(tex
 export const interpretMotion=(text,plan,machine,{extrusionMode='absolute',...options}={})=>interpretGcode(text,plan,machine,true,extrusionMode,options);
 // A checked dialect may interleave its own firmware service blocks with motion.
 // It supplies their validated handoff state, never unchecked G-code annotations.
-export function interpretMotionChunk(text,plan,machine,{position,debt=0,fan=0,startupRecoveryPending=false},moves=[]){
-  const initial=initializeGcodeInterpretation(plan,machine,true,'relative');
+export function interpretMotionChunk(text,plan,machine,{position,debt=0,fan=0,startupRecoveryPending=false,authoredNozzleTemperatures},moves=[]){
+  const initial=initializeGcodeInterpretation(plan,machine,true,'relative',authoredNozzleTemperatures);
   requireThat(Array.isArray(position)&&position.length===3&&position.every((v,i)=>Number.isFinite(v)&&v>=initial.context.bounds.min[i]&&v<=initial.context.bounds.max[i]),'Invalid motion handoff position.');
   requireThat(Number.isFinite(debt)&&debt>=0,'Invalid motion handoff retraction.');
   initial.state={...initial.state,pos:[...position],debt,fan,startupRecoveryPending};
@@ -25,8 +29,8 @@ export function interpretMotionChunk(text,plan,machine,{position,debt=0,fan=0,st
   requireThat(s.metric&&s.absolute===true&&s.absE===false&&s.hot&&s.bedReady&&s.nozzle===plan.setup.nozzleC&&s.bed===plan.setup.bedC,'Invalid motion segment handoff state.');
   return {...gcodeProgram(s,interpreted.source,initial.context,moves,interpreted.events),state:s};
 }
-function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute',{moves=[]}={}) {
-  const initial=initializeGcodeInterpretation(plan,machine,bodyOnly,extrusionMode);
+function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute',{moves=[],authoredNozzleTemperatures}={}) {
+  const initial=initializeGcodeInterpretation(plan,machine,bodyOnly,extrusionMode,authoredNozzleTemperatures);
   const interpreted=interpretGcodeLines(text,initial,moves);
   const checkedState=validateGcodeCompletion(interpreted.state,interpreted.source,initial.context);
   return gcodeProgram(checkedState,interpreted.source,initial.context,interpreted.moves,interpreted.events);
@@ -48,16 +52,15 @@ function interpretGcodeLines(text,initial,moves) {
   return {state,source,moves,events};
 }
 
-function initializeGcodeInterpretation(plan,machine,bodyOnly,extrusionMode) {
+function initializeGcodeInterpretation(plan,machine,bodyOnly,extrusionMode,authoredNozzleTemperatures) {
   const bounds=toolBounds(machine,plan.setup.tool);
   requireThat(['absolute','relative'].includes(extrusionMode),'Unsupported extrusion mode.');
   const s=plan.setup, area=Math.PI*(s.filamentMm/2)**2;
-  const temperatures=plannedNozzleTemperatures(plan);
-  for(const target of temperatures)validateNozzleC(target,plan,machine);
+  const temperatures=authoredNozzleTargets(plan,authoredNozzleTemperatures);
   const startupZ=machine.startup.zAfterStartupMm;
   requireThat(Number.isFinite(startupZ), 'Machine startup Z is required.');
   return {
-    context:{plan,machine,bodyOnly,extrusionMode,bounds,s,area,temperatures},
+    context:{plan,machine,bodyOnly,extrusionMode,bounds,s,area,temperatures,authoredTargetsSupplied:authoredNozzleTemperatures!==undefined},
     source:{header:{},inHeader:false,endedHeader:bodyOnly,phase:'startup',layer:-1,operation:''},
     state:{pos:[...machine.tools[s.tool].startupXY,startupZ],e:0,feed:0,absolute:null,absE:null,metric:false,
       tool:bodyOnly?s.tool:null,nozzle:0,bed:0,hot:false,bedReady:false,fan:0,debt:0,startupRecoveryPending:startupRetracted(machine,plan),
@@ -146,7 +149,7 @@ function applyGcodeCommand(previousState,record,context,source) {
         const duration=length/feed;
         for(let i=0;i<3;i++)requireThat(Math.abs(next[i]-pos[i])/duration<=machine.maxFeedMmS['xyz'[i]]+0.002,`Axis speed exceeds limit at line ${line}.`);
         requireThat(de>=-1e-8,'Moving retractions are outside this demo subset.');
-        if(de>1e-8){requireThat(hot&&bedReady&&temperatures.has(nozzle)&&bed===s.bedC,'Extrusion without the planned temperature waits.');requireThat(debt<1e-4,'Extrusion while retracted.');}
+        if(de>1e-8){requireThat(hot&&bedReady&&temperatures.has(nozzle)&&bed===s.bedC,temperatureWaitError(nozzle,context));requireThat(debt<1e-4,'Extrusion while retracted.');}
         const v=Math.max(0,de)*area;
         moves.push({line,from:[...pos],to:next,extruding:de>1e-8,volumeMm3:v,speedMmS:feed,phase,layer,operation,fan,startSeconds:time,durationSeconds:duration});
         if(de>1e-8)extrusionMoves++;
@@ -159,7 +162,7 @@ function applyGcodeCommand(previousState,record,context,source) {
         else if(debt>0){requireThat(de<=debt+1e-4,'Unexpected stationary extrusion.');debt=Math.max(0,debt-de);if(debt<1e-4)debt=0;}
         else if(startupRecoveryPending){requireThat(de<=plan.process.retractMm+1e-4,'Unexpected stationary extrusion.');startupRecovery=true;startupRecoveryPending=false;}
         else {
-          requireThat(hot&&bedReady&&temperatures.has(nozzle)&&bed===s.bedC,'Stationary extrusion without planned temperature waits.');
+          requireThat(hot&&bedReady&&temperatures.has(nozzle)&&bed===s.bedC,temperatureWaitError(nozzle,context,true));
           const seconds=de/feed,v=de*area;
           moves.push({line,from:[...pos],to:[...pos],extruding:true,volumeMm3:v,speedMmS:0,phase,layer,operation,fan,startSeconds:time,durationSeconds:seconds});
           events.push({line,kind:'injection',positionMm:[...pos],volumeMm3:v,nozzleC:nozzle,phase,layer,operation,startSeconds:time,seconds});

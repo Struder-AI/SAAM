@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {x1ColourFixture} from './fixtures/bambu-x1-colours.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {checkMachinePath} from '../machine/rules.mjs';
+import {prepareExportPath} from '../export/prepare-path.mjs';
 import {exportProgram,interpretProgram} from '../export/registry.mjs';
 import {unpackZip,packZip} from '../export/zip.mjs';
 import {decodeSource} from '../../studio/source-player.mjs';
@@ -13,8 +13,9 @@ test('X1 white-grey-black makes exactly two same-nozzle AMS changes, with checke
   const {plan,machine}=x1ColourFixture();
   plan.setup.bambu.filaments[1].process={retractMm:0.6};
   plan.setup.bambu.filaments[2].process={retractMm:1};
-  const path=await generatePath(plan,machine);checkMachinePath(path,plan,machine);
-  assert.deepEqual(path.actions.filter(a=>a.kind==='toolChange').map(a=>[a.tool,a.filament]),[[0,1],[0,2]]);
+  const path=await generatePath(plan,machine),prepared=prepareExportPath(path,plan,machine);
+  assert.deepEqual(path.actions.filter(a=>a.kind==='toolChange').map(a=>a.filament),[1,2]);
+  assert.deepEqual(prepared.actions.filter(a=>a.kind==='toolChange').map(a=>[a.tool,a.filament]),[[0,1],[0,2]]);
   const bytes=exportProgram(path,plan,machine,release),program=interpretProgram(bytes,plan,machine);
   assert.deepEqual(program.filamentSequence,[0,1,2]);
   const code=program.code,source=decodeSource({program:code},plan,machine);
@@ -42,12 +43,12 @@ test('X1 white-grey-black makes exactly two same-nozzle AMS changes, with checke
   }
 });
 
-test('X1 automatic changes reject external feed and insufficient lift',async()=>{
+test('X1 automatic changes reject external feed and missing clearance contract',async()=>{
   const {plan,machine}=x1ColourFixture(),path=await generatePath(plan,machine);
   plan.setup.bambu.filaments[1].source={type:'external'};
   assert.throws(()=>exportProgram(path,plan,machine,release),/require AMS feeds/);
   plan.setup.bambu.filaments[1].source={type:'auto'};
-  const i=path.actions.findIndex(a=>a.kind==='toolChange');
-  for(let j=i-1;j>=0;j--)if(path.actions[j].kind==='move'){path.actions[j].to[2]=0.6;break;}
-  assert.throws(()=>exportProgram(path,plan,machine,release),/clearance/);
+  const unsupported=structuredClone(machine);
+  unsupported.outputs.find(o=>o.id===plan.output).constraints.toolChangeLiftMm=0;
+  assert.throws(()=>exportProgram(path,plan,unsupported,release),/clearance contract/);
 });

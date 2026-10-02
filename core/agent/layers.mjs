@@ -38,21 +38,15 @@ export async function gatedIndex(root, ids = [...MAKER_MANUALS, ...[...SKILL_IDS
 }
 export const indexLine = section => `- ${section.title}: ${section.gate}; ${sectionName(section.guidanceId)}`;
 
-// One line naming the sections a machine opens that the previous one (none for a new print) did
-// not, among the maker manuals and the print's skills; null when there are none.
-export async function machineHint(root, { from, to, skills = [] }) {
+// Capabilities select available guidance independently of any print recipe.
+export async function machineHint(root, { from = null, to }) {
+  if(!to)return null;
   const opensNow = machineOpens(to), opensBefore = machineOpens(from);
-  const manuals=[...new Set([...skills.filter(id=>SKILL_IDS.includes(id)||GUIDANCE_IDS.includes(id)||EXTENSION_IDS.includes(id)),...(skills.includes('slice')?[...GUIDANCE_IDS,...EXTENSION_IDS]:[])])];
-  const sections = (await gatedIndex(root, [...MAKER_MANUALS, ...manuals.map(skillManual)]))
+  const sections = (await gatedIndex(root))
     .filter(section => section.requires.some(opensNow) && !section.requires.some(opensBefore));
   return sections.length ? `This printer opens ${sections.map(section => `"${section.title}" (${sectionName(section.guidanceId)})`)
     .join(', ')}: read ${sections.length > 1 ? 'them' : 'it'} by name when the print uses ${sections.length > 1 ? 'them' : 'it'}.` : null;
 }
-
-// The hint for a print state: its toolpath skills and the geometry skill that made its shape.
-const geometrySkills = { text: 'text', gridfinity: 'gridfinity', 'heat-set': 'heat-set-inserts' };
-export const printHint = (root, state, from) => machineHint(root, { from, to: state.machine,
-  skills: [...state.skills ?? [], geometrySkills[state.plan?.geometry?.shape]].filter(Boolean) });
 
 // Bytes of each layer per client and machine. Layers are cumulative reads, so each is the
 // difference between the read that opens it and the one before.
@@ -71,7 +65,7 @@ export async function contextBudget(root, { machineIds = MACHINE_IDS } = {}) {
   let tools = 0,toolSchemas=0;const operations={},toolDefinitions=[];
   try {
     const runtime = createLocalRuntime({ printsRoot, autoOpen: false });
-    for (const operation of runtime.beginSession({remote:true}).operations){
+    for (const operation of runtime.beginSession().operations){
       // Match the installed MCP SDK's tools/list conversion and registration
       // envelope, including draft-7 input semantics and task support metadata.
       const inputSchema=z.toJSONSchema(operation.schema,{target:'draft-7',io:'input'});

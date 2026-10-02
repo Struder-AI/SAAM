@@ -49,7 +49,7 @@ try{
   // A fresh benchmark process has no earlier geometry-ingestion result. Keep
   // this cold cost separate from generation after geometry is already loaded.
   await stage('geometry-and-plan',()=>planning.validatePlan(plan,machine));
-  const toolpath=await stage('generate',()=>{generationStart=performance.now();return generation.generatePreparedPath(plan,machine,{onProgress});});
+  const toolpath=await stage('generate',()=>{generationStart=performance.now();return generation.generatePreparedPath(plan,{onProgress});});
   const {bytes,program}=await stage('export-and-interpret',()=>exports.exportAndInterpretProgram(toolpath,plan,machine,
     {generatorVersion:planning.VERSION,buildDate:planning.BUILD_DATE}));
   report.afterLoadMs=report.stagesMs.generate+report.stagesMs['export-and-interpret'];

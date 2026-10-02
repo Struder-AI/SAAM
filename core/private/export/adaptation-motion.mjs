@@ -1,5 +1,5 @@
 import {distance,requireThat} from './numeric.mjs';
-import {bedPoint} from './frame.mjs';
+import {rotatePointZ as bedPoint} from '../../geom/frame.mjs';
 
 // Motion needed only to enter a selected installation and service its material
 // changes. The authored deposition/travel actions are retained by Export.
@@ -31,9 +31,10 @@ export class AdaptationMotion {
   travel(target,targetPose=null){
     if(targetPose&&this.pose){
       this.retract();
-      const retreat=this.position.map((v,i)=>v-this.pose.toolAxis[i]*this.motion.retreatMm);
+      const currentPose=this.pose;
+      const retreat=this.position.map((v,i)=>v-currentPose.toolAxis[i]*this.motion.retreatMm);
       this.move(retreat,this.process.travelSpeedMmS,0,{travel:'tool-retreat'});
-      const room=bedPoint(this.position,this.pose.rotaryDeg,this.motion.rotaryCenterMm);
+      const room=bedPoint(this.position,currentPose.rotaryDeg,this.motion.rotaryCenterMm);
       const held=bedPoint(room,targetPose.rotaryDeg,this.motion.rotaryCenterMm,true);
       this.move(held,this.process.travelSpeedMmS,0,{pose:targetPose,durationSeconds:this.motion.transitionSeconds,travel:'reorient'});
       const approach=target.map((v,i)=>v-targetPose.toolAxis[i]*this.motion.retreatMm);

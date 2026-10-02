@@ -181,7 +181,19 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       for(const child of children(n))if(child!==n.id)visit(m,child,inner,next,d,n);return;
     }
     if((n.type==='Property'||n.type==='MethodDefinition')&&!n.computed&&functions.has(n.value?.type)) {
-      const next=[...path,n.type==='MethodDefinition'?methodPath(n):String(n.key.name??n.key.value)];
+      // A static nested record names its complete member path. Dropping its
+      // holders makes distinct entries such as text.validate and mesh.validate
+      // collide. Computed/spread holders still retain the conservative name.
+      const names=[String(n.key.name??n.key.value)];
+      let complete=true;
+      if(n.type==='Property')for(let object=parent;object?.type==='ObjectExpression';){
+        if(object.properties.some(p=>p.type==='SpreadElement'||p.computed)){complete=false;break;}
+        const holder=parents.get(object);
+        if(holder?.type!=='Property'||holder.value!==object)break;
+        if(holder.computed){complete=false;break;}
+        names.unshift(String(holder.key.name??holder.key.value));object=parents.get(holder);
+      }
+      const next=[...path,n.type==='MethodDefinition'?methodPath(n):complete?names.join('.'):String(n.key.name??n.key.value)];
       declaration(m,n,next,'method',owner,true,s);visit(m,n.value,s,next,owner,n);return;
     }
     if(n.type==='AssignmentExpression'&&n.left.type==='MemberExpression'&&property(n.left)&&functions.has(n.right.type)) {
@@ -512,8 +524,11 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
   for(const a of assignments)if(a.node.type==='AssignmentExpression'&&a.node.left.type==='Identifier') {
     const b=lookup(a.scope,a.node.left.name);if(!b?.decl)continue;
     const produced=producer(a.node.right);
-    for(const p of produced??[])edge('state-write',p.to,b.decl.id,[...p.evidence,location(a.module,a.node)],{path:[p.id],meaning:'Call result written to binding; no lifetime or dominance proof.'});
-    if(!produced&&a.owner)edge('state-write',a.owner.id,b.decl.id,[location(a.module,a.node)]);
+    const writer=a.owner?.id??`${a.module.file}:<module>`;
+    // The caller assigns the returned value. The provider does not thereby
+    // access caller storage; captured bindings still have a separate write edge.
+    for(const p of produced??[])edge('return-value',p.to,writer,[...p.evidence,location(a.module,a.node)],{path:[p.id],result:b.name,meaning:'Call result assigned by caller; no payload, alias, lifetime or purity proof.'});
+    edge('state-write',writer,b.decl.id,[location(a.module,a.node)],{meaning:'Lexical assignment owner writes this binding; no lifetime or dominance proof.'});
   }
   for(const m of modules.values()) {
     function reads(n) {
