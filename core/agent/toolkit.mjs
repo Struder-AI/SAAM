@@ -139,14 +139,14 @@ export async function onboarding({role, areas = [], machine: machineId, set = de
   const builderAreaIds = [...new Set(areas.flatMap(area => developmentAreas[area] ?? []))];
   const ids = role === 'maker' ? ONBOARDING
     : role === 'builder' ? ['BUILDERS.md', ...ONBOARDING, 'skills/AUTHORING.md', ...builderAreaIds]
-    : ['plans/0.3.0.md', 'plans/0.3.1.md', 'GLOSSARY.md', 'DEVELOPER-CONTEXT.md#orientation', ...new Set(outside.flatMap(area => outsideAreas[area]))];
+    : ['plans/0.3.2.md', 'plans/0.3.1.md', 'GLOSSARY.md', 'DEVELOPER-CONTEXT.md#orientation', ...new Set(outside.flatMap(area => outsideAreas[area]))];
   const mapKeys = role === 'maker' ? [] : [...(role === 'developer' ? ['0'] : []), ...targets];
   const [context, environment, maps] = await Promise.all([contextPacket(ids, role === 'maker' ? {machineId} : {all: true}),
     environmentStatus(), mapKeys.length ? readMaps(mapKeys, {set}) : []]);
   return {role, environment, ...context, maps, ...(mapKeys.length ? {mapSet: set} : {}),
     nextStep: role === 'maker' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context and choose individual skill manuals when an edit needs them. The digest indexes gated sections; read one by name when its gate applies.'
       : role === 'builder' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context. Builders author guidance, recipe helpers, assets, examples and diagnostics using published APIs. Core skills and shared capability/contract changes require the developer role. The component manual for the area you consume owns its behaviour, contracts and limits; read the one for the code you touch. The dev maps own structure: walk them from 0, or from a node you name with --area, for what calls what, with read-map INDEX|DECLARATION and --code, and run regenerate [INDEX] after an edit. Skills and adapters keep their own authoring references.'
-      : `Reuse the returned release intents and orientation. Continue in map set ${set}: pass --set ${set} to map commands. 0.3.0 deployment uses 030-deployment; 0.3.1 product architecture uses 030-architecture (the identifier is retained). Design maps express intended contracts, not proven implementation; use --source for their explicit source references. Use --set default only for the original scanned implementation map, with --code. Design regenerate redraws; audit and audit-check separately assess implementation and freshness. Open component manuals as needed.`};
+      : `Focus next work on plans/0.3.2.md; plans/0.3.1.md retains inherited contracts. Reuse this orientation. Continue in map set ${set}: pass --set ${set} to map commands. 0.3.2 retains 030-architecture for product work and 030-deployment for installation/service work, including installed-release selection. Design maps express intent, not proven implementation; use --source for references. The original scanned implementation map requires --set default and --code. Design regenerate redraws; audit and audit-check assess implementation and freshness. Open component manuals as needed.`};
 }
 
 function libraryPath(library) { return resolve(library ?? resolve(root, 'Prints')); }

@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-01 — Synchronize shared checkout and open 0.3.2 intent
+
+- Preserved the old checkout in `a12a7d4`, then merged the released development branch and current main. Of 123 changed paths, 58 matched release and 50 matched its ancestry; reviewed the remaining 15 as superseded pre-release work. The resolved tree exactly matched `7e52a8f` before these planning edits. No push or installed-app changes.
+- 0.3.2 now owns unfinished approved 0.3.1 intent and the first new bug: agents must select the installed release for ordinary maker work. Updated developer onboarding/help, archived stale coordination/acceptance text and retained 0.3.1 contracts. Desktop conversation launch is recorded as a proposal with official client limitations; neither launcher nor selection fix is implemented.
+- Syntax, actual guidance assembly/order, CLI help, local links and diff checks passed. No new tests, full suite, map rescan or physical trial. Changed guidance plus this log entry: 575 → 569 lines relative to the synchronized baseline (unchanged log history excluded).
+
 ## 2026-10-01 — Publish 0.3.1
 
 - Published Windows x64, Apple Silicon and Intel Mac archives from `0562544`; all public URLs, hashes and the release tag verified. Windows isolated installation, generation, Studio/Wing and native repair passed; Mac runtime architecture, archives and permissions passed, with native acceptance after release. Deployed and authenticated the matching three-platform update offer. Release work is pushed to `codex/remettub-dev-branch`; publishing guidance now records the complete matrix, branch and publication-before-offer order.

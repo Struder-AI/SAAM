@@ -2,19 +2,14 @@
 
 ## Orientation
 
-Developers own core skills, core capabilities, Studio and shared interfaces;
-builders compose existing interfaces and author guidance. See [role boundaries](AGENTS.md#choose-your-role).
-Before planning or editing, **read the active release intents: [0.3.0 installation](plans/0.3.0.md) and [0.3.1 architecture](plans/0.3.1.md)**, then [shared terms](GLOSSARY.md), dev maps and this file. Keep these pointers current; open component manuals as needed.
+Developers own core skills, core capabilities, Studio and shared interfaces; builders compose existing interfaces ([role boundaries](AGENTS.md#choose-your-role)).
+Before planning or editing, **read [0.3.2 intent and unfinished work](plans/0.3.2.md)**, then [0.3.1's retained contracts](plans/0.3.1.md), [shared terms](GLOSSARY.md) and this orientation. [Packaging](packaging/README.md) owns current installation/publication; [0.3.0](plans/0.3.0.md) is historical installation intent. Verify the checkout includes the released source and current publishing branch before deriving backlog from old notes; [DEVLOG](DEVLOG.md) records release evidence. Keep these pointers current.
 
 ### What the dev maps are for
 
-**Choose the release's map set explicitly:** `030-deployment` for 0.3.0 installation/service work; `030-architecture` for 0.3.1 product architecture (its existing identifier is retained). Toolkit developer onboarding/read-map default to `030-architecture`; pass `--set 030-deployment` for installation work. Onboarding returns both active intent documents.
+**0.3.2 retains the existing map identifiers:** `030-architecture` for product work (toolkit default), `030-deployment` for installation/service work. Onboarding returns 0.3.2 first and 0.3.1's contracts; select `--set 030-deployment` for the installed-release launch fix.
 The original scanned set is `default`, selected only with `--set default` for implementation evidence. Its indexes/scope are not the target architecture. Lower-level `dev-map/cli.mjs` still defaults to that original set, so always pass `--set`. Authored design contracts and scanned evidence are distinct; the glossary/default-map rules below do not override release contracts.
-The goal is an order-of-magnitude faster review with greater confidence: the
-person and agent trace the same trustworthy path. For any code to edit, maps
-must show its location, interactions and every consequence of changing it,
-without a separate trace or hidden context: exactly everything, nothing more.
-Map compatibility warrants code changes within [Code shape](#code-shape).
+Maps should make review an order of magnitude faster while showing the person and agent the same trustworthy path: each edited operation, interaction and consequence, without hidden context. Map compatibility warrants changes within [Code shape](#code-shape).
 
 ### Dev map glossary
 
@@ -177,17 +172,9 @@ Walk the selected map to understand interactions before editing. Use its index i
 
 ### What keeps its own owner
 
-Repository policy, setup, contribution procedures, decisions and historical
-evidence keep their owners. Skills, [client adapters](adapters/mcp/DEVELOP.md),
-[exporters](core/export/DEVELOP.md) and the [agent CLI toolkit](core/agent/README.md) keep their references; their exclusion applies only to the original default map, not the release architecture audit. [CONTRIBUTING-AGENTS.md](CONTRIBUTING-AGENTS.md)
-owns checkpoint and publication rules; read it immediately before committing.
-Source is authoritative for implementation; software checks do not establish
-physical results. Run a check to settle a concrete uncertainty and reuse its
-result until its inputs change; commits and task completion add no test gate.
-Work from older repositories or conversations is reference only, and the
-[September 12 withdrawal](DECISIONS.md#d-029--withdraw-september-12-contributions-and-vet-readmission)
-names work that must not be restored wholesale.
+Policy, setup, decisions and evidence keep their owners, as do skills, [adapters](adapters/mcp/DEVELOP.md), [exporters](core/export/DEVELOP.md) and the [toolkit](core/agent/README.md). Their exclusion applies only to the original default map, not the release audit. Read [checkpoint/publication rules](CONTRIBUTING-AGENTS.md) immediately before committing.
+Source establishes implementation, not physical results. Check concrete uncertainties and reuse evidence until its inputs change; completion adds no test gate. Older work is reference only; honor the [September 12 withdrawal](DECISIONS.md#d-029--withdraw-september-12-contributions-and-vet-readmission).
 
 ## Status note
 
-As of 9/17/2026 and likely until 10/1/2026, we are not yet at the development stage where we care about backwards compatibility with print bundles. Back compat should not be a design priority or significant consideration in any new code, and any cumbersome back compat extras that are noticed should be flagged for removal.
+Avoid speculative backwards-compatibility machinery. The accepted [active-work upgrade policy](plans/0.3.1.md#retained-behavior-and-extensions) governs saved bundles; preserve passive viewing and invalidate stale reconstruction/output when work resumes.
