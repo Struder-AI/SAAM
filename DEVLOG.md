@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-01 — Plan both desktop initialization directions
+
+- Owner added Studio → Codex/Claude buttons and ordinary chat → installed SAAM startup to 0.3.2. Recorded the current separate-runtime ownership gap, proposed shared installed connection interface, session handoff/recovery, skill/CLI versus plugin/MCP/hooks choices, desktop launch limitations and practical acceptance. Both user flows are required; implementation mechanism remains for selection. No runtime or client configuration changed.
+- Verified official client skill/hook/launch documentation, local control and ownership code, guidance assembly, local links and diff whitespace. No tests or desktop prototype run. Consolidated duplicate adapter setup into the installation guide: changed guidance plus this entry 372 → 365 lines (unchanged log history excluded).
+
 ## 2026-10-01 — Synchronize shared checkout and open 0.3.2 intent
 
 - Preserved the old checkout in `a12a7d4`, then merged the released development branch and current main. Of 123 changed paths, 58 matched release and 50 matched its ancestry; reviewed the remaining 15 as superseded pre-release work. The resolved tree exactly matched `7e52a8f` before these planning edits. No push or installed-app changes.

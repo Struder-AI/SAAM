@@ -7,7 +7,7 @@ Before planning or editing, **read [0.3.2 intent and unfinished work](plans/0.3.
 
 ### What the dev maps are for
 
-**0.3.2 retains the existing map identifiers:** `030-architecture` for product work (toolkit default), `030-deployment` for installation/service work. Onboarding returns 0.3.2 first and 0.3.1's contracts; select `--set 030-deployment` for the installed-release launch fix.
+**0.3.2 retains the existing map identifiers:** `030-architecture` for product work (toolkit default), `030-deployment` for installation/service work. Onboarding returns 0.3.2 first and 0.3.1's contracts; select `--set 030-deployment` for [both startup directions and installed-release selection](plans/0.3.2.md#installed-release-and-two-startup-directions).
 The original scanned set is `default`, selected only with `--set default` for implementation evidence. Its indexes/scope are not the target architecture. Lower-level `dev-map/cli.mjs` still defaults to that original set, so always pass `--set`. Authored design contracts and scanned evidence are distinct; the glossary/default-map rules below do not override release contracts.
 Maps should make review an order of magnitude faster while showing the person and agent the same trustworthy path: each edited operation, interaction and consequence, without hidden context. Map compatibility warrants changes within [Code shape](#code-shape).
 

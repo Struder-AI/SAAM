@@ -5,32 +5,9 @@ and SAAM Studio. It has no compiler, private review bridge, model calls, or
 hardware connection. Machine outputs and skill compatibility remain governed
 by the shared plan, generation and interpreter checks.
 
-Install the root dependencies with `npm ci` using Node.js 22+, then launch:
+For ordinary maker work, configure the **installed release's bundled Node and MCP server**, with its user-data Prints root, using the [installation guide](../../packaging/INSTALL.md). That guide owns platform paths and client configuration; source-checkout setup is a separate developer workflow. Current MCP startup creates its own runtime; attachment to an already-open app-owned Studio is proposed in [0.3.2 initialization](../../plans/0.3.2.md#installed-release-and-two-startup-directions), not implemented yet.
 
-```sh
-node adapters/mcp/src/server.mjs
-```
-
-For an MCP desktop client, add this entry to that client's local configuration,
-substituting the actual absolute repository path:
-
-```json
-{
-  "mcpServers": {
-    "saam": {
-      "command": "node",
-      "args": ["C:/CodeProjects/SAAM/adapters/mcp/src/server.mjs"],
-      "env": { "SAAM_PRINTS_ROOT": "C:/CodeProjects/SAAM/Prints" }
-    }
-  }
-}
-```
-
-No client settings are installed automatically. All protocol output uses stdout;
-launch errors use stderr. The repository is resolved relative to the adapter,
-so the client's working directory does not matter. Direct `node` launch avoids
-npm's script banner on the protocol stream. SDK and schema packages are pinned
-in the root lockfile.
+For explicit source development, install root dependencies with `npm ci` on Node.js 22+, then run `node adapters/mcp/src/server.mjs`. A development MCP entry uses that checkout's absolute server path, Node command and an explicit `SAAM_PRINTS_ROOT`; it must not replace the ordinary installed-release entry accidentally. No client settings are installed automatically by this adapter. Protocol output uses stdout and errors use stderr. Resolution is relative to the adapter, independent of client cwd; direct Node avoids npm banners. SDK/schema packages remain pinned in the root lockfile.
 
 `SAAM_PRINTS_ROOT` defaults to the repository's ignored `Prints/` directory.
 Every call selects a persistent `bundleId` relative to that root. Up to three
