@@ -6,18 +6,28 @@ import {loadMachine} from '../../../core/machine/profile.mjs';
 import {generatePath} from '../../../core/print/generate.mjs';
 import {rhino} from '../../../core/print/geometry.mjs';
 import {exportProgram, interpretProgram} from '../../../core/export/registry.mjs';
+import {commandedWidthMm, printedWidthMm, WIDTH_SPREAD_PER_LAYER} from '../scripts/spread.mjs';
 
 const panel = buildPanel({lines: DEMO_LINES, trimBottomMm: DEMO_TRIM_BOTTOM_MM});
 const near = (a, b, tol = 1e-6) => assert.ok(Math.abs(a - b) <= tol, `${a} != ${b}`);
 const points = strokes => strokes.flatMap(s => s.points);
 
-test('the border is whole beads: 2 mm as four 0.5 mm loops and a 1 mm ring as two, 5 mm inside', () => {
+test('the border and the ring are each one bead: a 2 mm bead at the edge and a 1 mm bead 5 mm inside it', () => {
   const loops = panel.background.borders, {widthMm: w, heightMm: h} = panel;
-  assert.equal(loops.length, 6);
-  const insets = loops.map(l => l.points[0][0]);
-  assert.deepEqual(insets.map(x => +x.toFixed(6)), [0.25, 0.75, 1.25, 1.75, 7.25, 7.75], 'bead centerlines: 2 mm from the edge, then a ring 5 mm inside it');
+  assert.equal(loops.length, 2, 'one loop for the border, one for the ring, nothing doubled');
+  assert.deepEqual(loops.map(l => l.widthMm), [2, 1]);
+  assert.deepEqual(loops.map(l => l.points[0][0]), [1, 7.5], 'bead centerlines: the border centered 1 mm in (its 2 mm band), the ring centered in its 7 to 8 mm band');
   assert.ok(loops.every(l => l.closed && l.points[2][0] === w - l.points[0][0] && l.points[2][1] === h - l.points[0][1]));
   assert.deepEqual(panel.insetRingMm, [7, 8]);
+});
+
+test('commanding a width less the measured spread prints the width wanted, and the correction is small at a thin layer', () => {
+  near(WIDTH_SPREAD_PER_LAYER, 0.565, 1e-9);
+  assert.equal(commandedWidthMm(2, 0.2), 1.887);
+  assert.equal(printedWidthMm(commandedWidthMm(2.86, 0.6), 0.6), 2.86, 'the two are inverses');
+  // The ladder's own points: a wall commanded at 1 mm on a 0.5 mm layer printed 1.2 mm; 2 mm on 1 mm printed 2.6 mm.
+  assert.ok(Math.abs(printedWidthMm(1, 0.5) - 1.2) < 0.1 && Math.abs(printedWidthMm(2, 1) - 2.6) < 0.05);
+  assert.throws(() => commandedWidthMm(0.1, 0.6), /spread alone is wider/);
 });
 
 test('infill is 25% at 45 and -45 degrees: 2 mm spacing, kept inside the border and out of the ring band', () => {
@@ -48,7 +58,8 @@ test('the lettering keeps its own fonts and weights and sits inside the inner ri
   assert.deepEqual(lines.map(l => l.text), ['Individual', 'Toolpath', 'Control']);
   assert.deepEqual(lines.map(l => l.fontId), ['ems-invite', 'ems-tech', 'hershey-sans-1']);
   assert.ok(lines[2].plan.strokeWidthMm > lines[0].plan.strokeWidthMm, 'Control is bold, heavier than the script');
-  assert.ok(lines.every(l => l.plan.beadWidthMm >= 0.3 - 1e-9 && l.plan.beadWidthMm <= 0.8 + 1e-9), 'beads stay within a 0.4 mm nozzle\'s range');
+  assert.ok(lines.every(l => l.plan.parallelCount === 1), 'every letter is one bead wide, nothing side by side');
+  assert.deepEqual(lines.map(l => l.plan.beadWidthMm.toFixed(2)), ['1.76', '1.44', '2.86'], 'each line one bead as wide as its stroke');
   const inner = 8 + panel.text.options.clearanceMm;
   for (const line of lines) {
     const w = line.plan.beadWidthMm;
@@ -102,12 +113,12 @@ test('the panel is a plan for two 0.4 mm nozzles: background on the left, letter
   const before = path.actions.slice(0, at).filter(part), after = path.actions.slice(at).filter(part);
   assert.ok(before.every(m => m.region === 'background') && after.every(m => m.region === 'lettering'));
   assert.deepEqual([...new Set(before.map(m => +m.to[2].toFixed(6)))], [0.2, 0.4]);
-  assert.deepEqual([...new Set(after.map(m => +m.to[2].toFixed(6)))], [0.7, 1, 1.3], 'text starts on top of the 0.4 mm background, in 0.3 mm layers');
-  // The lettering region deposits each line's own bead width x 0.3 mm layer x its stroke length,
+  assert.deepEqual([...new Set(after.map(m => +m.to[2].toFixed(6)))], [1, 1.6, 2.2], 'text starts on top of the 0.4 mm background, in 0.6 mm layers');
+  // The lettering region deposits each line's own commanded bead width x 0.6 mm layer x its stroke length,
   // on each of its 3 courses, summed across all three lines (they share the region's one job).
   const length = s => s.points.slice(1).concat(s.closed ? [s.points[0]] : []).reduce((sum, p, i) => sum + Math.hypot(p[0] - s.points[i][0], p[1] - s.points[i][1]), 0);
   const lettering = plan.composition.regions.find(r => r.id === 'lettering').skills['line-network'];
-  const expected = lettering.networks.reduce((sum, net) => sum + 3 * 0.3 * net.process.lineWidthMm * net.strokes.reduce((s, stroke) => s + length(stroke), 0), 0);
+  const expected = lettering.networks.reduce((sum, net) => sum + 3 * 0.6 * net.process.lineWidthMm * net.strokes.reduce((s, stroke) => s + length(stroke), 0), 0);
   const got = after.reduce((sum, m) => sum + m.volumeMm3, 0);
   assert.ok(got > 0 && Math.abs(got / expected - 1) < 1e-6, `${got} != ${expected}`);
   const bytes = exportProgram(path, plan, machine, {generatorVersion: 'test', buildDate: '2026-09-29'});

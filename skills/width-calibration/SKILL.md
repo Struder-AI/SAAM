@@ -100,3 +100,20 @@ As people bring new printers, filaments and nozzles, their readings are meant to
 into a record of commanded and actual width for each setup, so calibration improves over
 time. No collection route or shared record exists yet; today a reading set is analyzed on
 the spot and kept only in the conversation.
+
+## First measurements (2026-10-02)
+
+H2D, left 0.4 mm nozzle, PLA at 215 C, flow limited to 4 mm3/s, walls at the default 1:2 layer-to-width ratio, one
+caliper reading per wall:
+
+| Commanded (mm) | 0.5 | 1 | 1.5 | 2 | 2.5 | 3 | 3.5 |
+|---|---|---|---|---|---|---|---|
+| Measured width (mm) | 0.65 | 1.20 | 1.91 | 2.60 | 3.33 | 3.95 | 4.39 |
+| Measured height (mm), in wall order as given | 2.93 | 2.80 | 3.17 | 3.12 | 2.13 | 2.57 | 1.55 |
+
+All seven walls printed and stood; the widest held together. Every wall was wider than commanded, by 0.4 to 0.66 of
+its layer height (mean 0.565), and neither SAAM model predicted that: the rectangle model was off by 0.58 mm on
+average and the rounded-bead model by 0.36 mm. Wall heights against the commanded 3, 3, 3, 3, 2.5, 3 and 1.75 mm were
+98, 93, 106, 104, 85, 86 and 89 percent: the thin walls were close, the three widest were 11 to 15 percent short.
+Readings are single and the heights are assumed to be in wall order; treat both as indicative. The
+[line-text correction](../line-text/scripts/spread.mjs) is built on them.

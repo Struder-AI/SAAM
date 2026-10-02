@@ -1,5 +1,31 @@
 # Development log
 
+## 2026-10-02 — First measured bead widths, a width correction, and the demo rebuilt as single beads
+
+- Source: user printed the widened ladder and measured it ("0.65, 1.2, 1.91, 2.6, 3.33, 3.95, 4.39"; heights "2.93, 2.8,
+  3.17, 3.12, 2.13, 2.57, 1.55"). Then: "lets apply a simple correction for width for now. im sure different filaments
+  from different producers will have different spreading factors, and that's too much work at the moment. I just want to
+  get this demo printed... Make sure each letter and each outline are all one extruded toolpath, no doubling up."
+- Result: all seven walls (commanded 0.5 to 3.5 mm) printed and held; each measured 1.2 to 1.33 times its commanded width,
+  an excess of 0.4 to 0.66 (mean 0.565) of the layer height, linear from 0.5 to 3.5 mm with no breakdown. Neither width
+  model predicted it (rectangle off by 0.58 mm on average, rounded bead by 0.36 mm). Walls of 2.5 mm and wider came out 11 to
+  15 percent shorter than their commanded height; thin walls were within 7 percent. One reading per wall, so no spread; the
+  heights were assumed to be in wall order. This is the first physical width data in the project.
+- Correction: `skills/line-text/scripts/spread.mjs`, one constant (0.565 x layer height) and its inverse. The ladder's layer
+  height was always half the width, so the data cannot separate "30 percent of the width" from "0.565 of the layer height";
+  the layer-height reading was chosen because it asks for less correction at a thin layer, where nothing was measured.
+  Not filament-specific work: other filaments and conditions will differ, deliberately left for later.
+- Demo rebuilt (`skills/line-text/scripts/panel.mjs`): the border is one 2 mm bead and the ring one 1 mm bead (were four and
+  two 0.5 mm loops); the lettering is one bead per stroke (was 3, 2 and 4 side by side) at printed widths 1.76, 1.44 and
+  2.86 mm, commanded 1.42, 1.10 and 2.52 mm; the infill bead stays 0.5 mm printed. Text layer height 0.6 mm (was 0.3): the
+  ladder measured at layer = half the width, and a 2.9 mm ribbon on 0.3 mm is far outside that. A check over the compiled
+  strokes found no stretch where beads run side by side or retrace. Experimental deposition is on; flow stays at the
+  ladder's 4 mm3/s so the correction applies. Generated: 28 minutes, 4,612 mm3 (1,846 left nozzle, 2,766 right), text
+  speeds 2.6 to 6.1 mm/s. Panel tests 7/7.
+- Side effect handled: generating the demo overwrites the machine's remembered setup with its two colours (machine-scoped,
+  `.local/machine-setups`); reset from the plain ladder bundle with `cli.mjs remember-setup`.
+- Not done: no print yet; spread on other filaments; no stored record of readings (BR-059 item 7).
+
 ## 2026-10-02 — Widened the H2D's experimental bead-width/layer-height ceiling on physical evidence, and printed a wider width-calibration ladder to test it
 
 - Source: user challenged the 2 mm experimental bead-width ceiling with physical evidence: "we printed 2.5mm

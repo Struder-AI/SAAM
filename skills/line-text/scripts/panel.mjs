@@ -5,15 +5,18 @@ import {loadFont} from './catalog.mjs';
 import {lineText} from './compile.mjs';
 import {layoutText} from './layout.mjs';
 import {encodePng, rasterize} from './raster.mjs';
+import {commandedWidthMm} from './spread.mjs';
 
-// A flat panel made of two parts printed by different nozzles, each in its own colour: a background of a solid
-// border, a thin inset ring and sparse crossed infill on the first nozzle, and thick lettering on top of it from a
-// second. This builds every part's centerline strokes and draws a true-scale preview. On a Bambu H2D with two
-// equal nozzles the plan exports as a two-colour job; mixed nozzle diameters are not supported yet (BR-058).
+// A flat panel made of two parts printed by different nozzles, each in its own colour: a background of one
+// fat border bead, one ring bead inset from it and sparse crossed infill on the first nozzle, and lettering on
+// top of it from a second. Every outline and every letter stroke is one bead, never beads side by side. This
+// builds every part's centerline strokes and draws a true-scale preview of the *printed* widths; the widths
+// commanded are smaller by the measured spread (spread.mjs). On a Bambu H2D with two equal nozzles the plan
+// exports as a two-colour job; mixed nozzle diameters are not supported yet (BR-058).
 
 export const PANEL_DEFAULTS = Object.freeze({
   background: {beadMm: 0.5, layerMm: 0.2, layers: 2, density: 0.25, anglesDeg: [45, -45], borderMm: 2, ringInsetMm: 5, ringMm: 1, nozzleMm: 0.4},
-  text: {nozzleMm: 0.4, layerMm: 0.3, layers: 3, beadRangeMm: [0.3, 0.8], clearanceMm: 4, lineGapMm: 8}
+  text: {nozzleMm: 0.4, layerMm: 0.6, layers: 3, beadRangeMm: [0.3, 3.5], clearanceMm: 4, lineGapMm: 8}
 });
 
 // The filament colours the two nozzles are declared with: the preview's border blue and lettering orange.
@@ -22,12 +25,9 @@ export const PANEL_COLORS = Object.freeze({background: '#34689E', text: '#C4541E
 const rectLoop = ([x0, y0, x1, y1]) => ({closed: true, points: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]});
 const inset = (w, h, d) => [d, d, w - d, h - d];
 
-// A rectangular band as whole beads: loops on the bead centerlines, starting `fromMm` in from the edge.
-function bandLoops(w, h, fromMm, thicknessMm, beadMm) {
-  const count = Math.round(thicknessMm / beadMm);
-  requireThat(count >= 1 && Math.abs(count * beadMm - thicknessMm) < 1e-9, `A ${thicknessMm} mm band is not a whole number of ${beadMm} mm beads.`);
-  return Array.from({length: count}, (_, k) => rectLoop(inset(w, h, fromMm + beadMm / 2 + k * beadMm)));
-}
+// One bead around the panel: a closed loop on the centerline of a band `thicknessMm` wide, `fromMm` in from the edge.
+// `widthMm` is the printed width of that bead, so a 2 mm border is one 2 mm bead.
+const bandLoop = (w, h, fromMm, thicknessMm) => ({...rectLoop(inset(w, h, fromMm + thicknessMm / 2)), widthMm: thicknessMm});
 
 // The parameter interval where the line p0 + t d lies inside a box [xa, ya, xb, yb], or null.
 function within(p0, d, [xa, ya, xb, yb]) {
@@ -80,7 +80,7 @@ export function buildPanel({lines, widthMm, heightMm, trimBottomMm = 0, backgrou
   requireThat(w >= blockW + 2 * keepClear - 1e-9 && fullH >= blockH + 2 * keepClear - 1e-9, `The ${w} x ${fullH} mm panel is too small for the lettering inside its inner ring.`);
 
   const region = inset(w, h, bg.borderMm - bg.beadMm / 2), band = {outer: inset(w, h, ringOuter), inner: inset(w, h, ringInner)};
-  const borders = [...bandLoops(w, h, 0, bg.borderMm, bg.beadMm), ...bandLoops(w, h, ringOuter, bg.ringMm, bg.beadMm)];
+  const borders = [bandLoop(w, h, 0, bg.borderMm), bandLoop(w, h, ringOuter, bg.ringMm)];
   const spacingMm = bg.beadMm / bg.density;
   const infill = bg.anglesDeg.map(angleDeg => hatch(w, h, {angleDeg, spacingMm, region, band}));
 
@@ -97,21 +97,23 @@ export function buildPanel({lines, widthMm, heightMm, trimBottomMm = 0, backgrou
   return {widthMm: w, heightMm: h, background: {options: bg, borders, infill, spacingMm}, text: {options: tx, lines: lettering}, insetRingMm: [ringOuter, ringInner]};
 }
 
-// The panel's two line-network jobs: the background (borders on every course, the two infill angles on
-// alternate courses) and the lettering, starting where the background ends. Each lettering line keeps its
-// own bead width (from its font/size), sharing the text job's one layer height throughout.
+// The panel's two line-network jobs. The background: the border and the ring, each one bead on every course, and
+// the two infill angles on alternate courses. The lettering, starting where the background ends: each line one
+// bead wide as its font and size ask. Every width here is the width it should print at; the width commanded is
+// that less the measured spread at the job's layer height, set per network so each prints at its own width.
 function panelNetworks(panel) {
   const {background: bg, text: tx} = panel, b = bg.options, x = tx.options;
-  const background = {layers: b.layers, networks: [{
-    id: 'background', process: {firstLayerMm: b.layerMm, layerMm: b.layerMm, lineWidthMm: b.beadMm},
-    strokes: [
-      ...bg.borders.map(s => ({closed: s.closed, points: s.points})),
-      ...bg.infill.flatMap((layer, i) => layer.map(s => ({closed: false, points: s.points, layers: [i]})))
-    ]
-  }]};
+  const net = (id, printedMm, layerMm, strokes, first = layerMm) => ({
+    id, process: {firstLayerMm: first, layerMm, lineWidthMm: commandedWidthMm(printedMm, layerMm)}, strokes});
+  const pts = s => s.points.map(p => [+p[0].toFixed(4), +p[1].toFixed(4)]);
+  const background = {layers: b.layers, networks: [
+    net('border', b.borderMm, b.layerMm, [{closed: true, points: bg.borders[0].points}]),
+    net('ring', b.ringMm, b.layerMm, [{closed: true, points: bg.borders[1].points}]),
+    net('infill', b.beadMm, b.layerMm, bg.infill.flatMap((layer, i) => layer.map(s => ({closed: false, points: s.points, layers: [i]}))))
+  ]};
   const lettering = {layers: x.layers, networks: tx.lines.map((line, i) => ({
-    id: `text-${i + 1}`, process: {lineWidthMm: +line.plan.beadWidthMm.toFixed(4)},
-    strokes: line.strokes.map(s => ({closed: s.closed, points: s.points.map(p => [+p[0].toFixed(4), +p[1].toFixed(4)])}))
+    id: `text-${i + 1}`, process: {lineWidthMm: commandedWidthMm(line.plan.beadWidthMm, x.layerMm)},
+    strokes: line.strokes.map(s => ({closed: s.closed, points: pts(s)}))
   }))};
   return {background, lettering};
 }
@@ -136,7 +138,7 @@ export function panelPatch(panel, {bedMm = [350, 320], backgroundTool = 0, textT
         {id: 'GFA00', colour: colors.background, tool: backgroundTool, source: {type: 'auto'}},
         {id: 'GFA00', colour: colors.text, tool: textTool, source: {type: 'auto'}, process: {firstLayerMm: tx.options.layerMm, layerMm: tx.options.layerMm}}
       ]}},
-    process: {minimumLayerSeconds: 0},
+    process: {minimumLayerSeconds: 0, experimentalDeposition: true},
     placement: {xMm: Math.round(bedMm[0] / 2 - panel.widthMm / 2), yMm: Math.round(bedMm[1] / 2 - panel.heightMm / 2)},
     geometry: {shape: 'assembly', parts: [panelPart('background', panel), panelPart('lettering', panel)]},
     composition: {regions: [
@@ -160,7 +162,7 @@ export function renderPanel(panel, {pxPerMm = 8, marginPx = 28} = {}) {
     {color: COLORS.edge, shapes: [{closed: true, widthPx: 1.5, points: [[0, 0], [w, 0], [w, h], [0, h]].map(toPx)}]},
     {color: COLORS.infillA, shapes: draw(bg.infill[0], bg.options.beadMm)},
     {color: COLORS.infillB, shapes: draw(bg.infill[1], bg.options.beadMm)},
-    {color: COLORS.border, shapes: draw(bg.borders, bg.options.beadMm)},
+    {color: COLORS.border, shapes: bg.borders.flatMap(loop => draw([loop], loop.widthMm))},
     ...tx.lines.map(line => ({color: COLORS.text, shapes: draw(line.strokes, line.plan.beadWidthMm)}))
   ];
   const label = (str, x, y, cap, color) => {
@@ -170,8 +172,8 @@ export function renderPanel(panel, {pxPerMm = 8, marginPx = 28} = {}) {
   const swatch = (color, x, y) => ({color, shapes: [{closed: false, widthPx: 8, points: [[x, y - 5], [x + 26, y - 5]]}]});
   const left = bg.options, right = tx.options;
   groups.push(
-    swatch(COLORS.border, marginPx, 22), label(`Left nozzle ${left.nozzleMm} mm: ${left.layers} layers of ${left.layerMm} mm, ${Math.round(left.density * 100)}% infill at ${left.anglesDeg.join(' and ')} deg, ${left.borderMm} mm border, ${left.ringMm} mm ring inset ${left.ringInsetMm} mm`, marginPx + 34, 22, 11, COLORS.label),
-    swatch(COLORS.text, marginPx, 46), label(`Right nozzle ${right.nozzleMm} mm: ${right.layers} layers of ${right.layerMm} mm on top`, marginPx + 34, 46, 11, COLORS.label));
+    swatch(COLORS.border, marginPx, 22), label(`Left nozzle ${left.nozzleMm} mm: ${left.layers} layers of ${left.layerMm} mm, ${Math.round(left.density * 100)}% infill at ${left.anglesDeg.join(' and ')} deg, one ${left.borderMm} mm border bead, one ${left.ringMm} mm ring bead inset ${left.ringInsetMm} mm`, marginPx + 34, 22, 11, COLORS.label),
+    swatch(COLORS.text, marginPx, 46), label(`Right nozzle ${right.nozzleMm} mm: ${right.layers} layers of ${right.layerMm} mm on top, one bead per stroke`, marginPx + 34, 46, 11, COLORS.label));
   const rgb = rasterize({widthPx, heightPx, groups, background: COLORS.bed});
   return {png: encodePng(widthPx, heightPx, rgb), widthPx, heightPx, pxPerMm: s};
 }
@@ -190,6 +192,6 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   if (patchOut) writeFileSync(patchOut, JSON.stringify(panelPatch(panel), null, 2) + '\n');
   writeFileSync(out, image.png);
   console.log(JSON.stringify({png: out, panelMm: [panel.widthMm, panel.heightMm], image: {widthPx: image.widthPx, heightPx: image.heightPx},
-    background: {borderLoops: panel.background.borders.length, infillLinesPerLayer: panel.background.infill.map(l => l.length), infillSpacingMm: panel.background.spacingMm},
-    lines: panel.text.lines.map(l => ({text: l.text, font: l.fontId, construction: `${l.plan.parallelCount} x ${l.plan.beadWidthMm.toFixed(2)} mm`, strokeMm: l.plan.strokeWidthMm, warnings: l.plan.warnings})), insetRingMm: panel.insetRingMm}, null, 2));
+    background: {borderLoops: panel.background.borders.length, widthsMm: panel.background.borders.map(l => l.widthMm), infillLinesPerLayer: panel.background.infill.map(l => l.length), infillSpacingMm: panel.background.spacingMm},
+    lines: panel.text.lines.map(l => ({text: l.text, font: l.fontId, construction: `${l.plan.parallelCount} x ${l.plan.beadWidthMm.toFixed(2)} mm printed`, commandedMm: commandedWidthMm(l.plan.beadWidthMm, panel.text.options.layerMm), strokeMm: l.plan.strokeWidthMm, warnings: l.plan.warnings})), insetRingMm: panel.insetRingMm}, null, 2));
 }

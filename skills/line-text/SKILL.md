@@ -195,3 +195,19 @@ node core/print/cli.mjs generate Prints/development/two-color-demo
 On the H2D this exports as one two-colour job with a nozzle change; the panel is centered on the bed, clear of the purge
 pad. Nothing has been printed yet: the first print must be supervised
 ([the output contract](../../maps/reference/bambu.md#nozzle-changes-and-mixed-nozzle-diameters)).
+
+## Printed width is wider than commanded width
+
+A bead prints wider than the width it is commanded at: it is squashed and spreads sideways. The
+[width-calibration](../width-calibration/SKILL.md) ladder printed on an H2D (0.4 mm nozzle, PLA 215 C, flow
+limited to 4 mm3/s) measured 0.65 to 4.39 mm for walls commanded at 0.5 to 3.5 mm: the excess was about 0.565 of the layer
+height at every wall. [spread.mjs](scripts/spread.mjs) applies that as a single correction: the plan and
+the preview use the width a stroke should *print* at, and `commandedWidthMm(printed, layer)` gives the width
+to command. It is a first approximation from one reading per wall, and it depends on the filament, temperature,
+speed and flow, none of which has been measured beyond that one print. The ladder's layer height was always half
+the commanded width, so it cannot say whether spread follows the layer height or the width; this takes the layer
+height, which is the safer guess for a thin layer. A flat ribbon (a 2.9 mm bead on a 0.6 mm layer) is outside what was
+measured.
+
+The demo panel ([panel.mjs](scripts/panel.mjs)) uses single beads everywhere: the border and the ring are each one
+bead, and every letter stroke is one bead sized to its font and weight, with the lettering on 0.6 mm layers.
