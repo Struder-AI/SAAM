@@ -18,15 +18,18 @@ courses tall at the nominal process width and layer height, run from the first w
 last, and sit on the wall ends' own footprint, so the piece is **no wider or longer than
 its walls**: the outer walls are its sides, and nothing extends past them. The default
 ladder is 0.25, 0.5, 1, 1.5, 2 and 2.5 mm commanded widths; the walls that print on the H2D
-(0.5 to 2 mm) make a 46.25 × 20 mm piece using about 0.4 g of PLA. The walls are not
-labeled; they run in increasing width. The faces of neighboring walls are at least 12.75 mm
-apart.
+(0.5 to 2.5 mm) make a 61.5 × 20 mm piece using about 0.4 g of PLA. `--widths` adds wider
+walls (for example `--widths 0.25,0.5,1,1.5,2,2.5,3,3.5`, printed 2026-10-02 to find where a
+0.4 mm bead actually stops holding its shape, past the 2.5 mm a prior demo printed
+successfully). The walls are not labeled; they run in increasing width. The faces of
+neighboring walls are at least 12.75 mm apart.
 
 Each wall prints on **its own layer grid**. A wider bead wants a taller layer, so a
 wall's layer height is a fixed ratio of its commanded width, by default 1:2
-(`--ratio 0.5`): 0.125 mm layers for 0.25 mm, up to 1.25 mm for 2.5 mm. That ratio is
+(`--ratio 0.5`): 0.125 mm layers for 0.25 mm, up to 1.75 mm for 3.5 mm. That ratio is
 a starting point to test, not an established optimum. A wall is as many whole courses
-as fit under 3 mm, so the 2.5 mm wall stands 2.5 mm. Courses print by ascending height,
+as fit under 3 mm, so a wall whose layer height exceeds 1.5 mm stands only one course tall
+(for example the 3.5 mm wall, at 1.75 mm). Courses print by ascending height,
 and where several share a height the finest goes first: the thinnest wall is built up
 several times before the thickest gets its one course. See
 [per-network layer grids](../line-network/SKILL.md#networks-on-their-own-layer-grids).
@@ -47,11 +50,13 @@ in Studio through the [shared print tools](../../core/print/USAGE.md); nothing i
 approved.
 
 **Walls the limits refuse are left out, with the reason.** The width limits are 0.3 to
-0.8 mm in ordinary deposition and 0.3 to 2 mm in experimental big-bead deposition, and
-the layer limit is 0.3 or 1 mm. On the H2D the 0.25 and 2.5 mm walls are refused, and
-the 1 to 2 mm walls need experimental deposition, which the command turns on when any
-wall needs it. Testing outside the operating limits needs an explicit test-only override
-that does not exist yet.
+0.8 mm in ordinary deposition and (on the H2D, since 2026-10-02) 0.3 to 4 mm in experimental
+big-bead deposition, with layer height to 2 mm; this experimental ceiling is a widened,
+still-unvalidated test envelope, not a measured limit — raised on the strength of a single
+prior physical result (a 2.5 mm line printed for a demo) and a request to find out how much
+further it actually goes, not from any new measurement. On the H2D only the 0.25 mm wall is
+refused (below the 0.3 mm floor); walls from 1 mm up need experimental deposition, which the
+command turns on when any wall needs it.
 
 The default flow limit (4 mm3/s) keeps the wide walls slow, which is deliberate:
 under-extrusion would otherwise shrink the beads being measured. The ladder takes about

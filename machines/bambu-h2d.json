@@ -2,7 +2,7 @@
   "schema": "saam-machine/1",
   "id": "bambu-h2d",
   "name": "Bambu Lab H2D",
-  "revision": 23,
+  "revision": 24,
   "units": "mm",
   "planarWallToleranceMm": 0.01,
   "ams": {
@@ -88,11 +88,11 @@
       "experimentalPlanar": {
         "layerHeightMm": [
           0.08,
-          1
+          2
         ],
         "lineWidthMm": [
           0.3,
-          2
+          4
         ]
       },
       "physicalExtruder": 1
@@ -133,11 +133,11 @@
       "experimentalPlanar": {
         "layerHeightMm": [
           0.08,
-          1
+          2
         ],
         "lineWidthMm": [
           0.3,
-          2
+          4
         ]
       },
       "physicalExtruder": 0

@@ -97,7 +97,7 @@ test('a network override is validated against the machine limits as if the whole
   assert.doesNotThrow(bad({layerMm:.25,firstLayerMm:.25,lineWidthMm:.5}));
   assert.throws(bad({lineWidthMm:1.5}),/./,'a 1.5 mm bead is beyond the ordinary width limit');
   assert.doesNotThrow(bad({lineWidthMm:1.5,layerMm:.75,firstLayerMm:.75},{},true));
-  assert.throws(bad({lineWidthMm:2.5,layerMm:1,firstLayerMm:1},{},true),/./,'2.5 mm exceeds the experimental width limit');
+  assert.throws(bad({lineWidthMm:4.5,layerMm:1,firstLayerMm:1},{},true),/./,'4.5 mm exceeds the experimental width limit');
   assert.throws(bad({retractMm:3}),/Unknown or network-owned process override/,'only the five region-overridable keys');
   assert.throws(bad({}),/process overrides must be/,'an empty override is not omitted');
   assert.throws(bad({layerMm:.2},{layers:0}),/course count/);

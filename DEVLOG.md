@@ -1,5 +1,36 @@
 # Development log
 
+## 2026-10-02 — Widened the H2D's experimental bead-width/layer-height ceiling on physical evidence, and printed a wider width-calibration ladder to test it
+
+- Source: user challenged the 2 mm experimental bead-width ceiling with physical evidence: "we printed 2.5mm
+  lines for the makerfaire demo. If you go higher and printe slower and let the bead spread out, I think you can
+  go wider." Then: "so yes if that means experimental deposition mode so be it.. we dont think we can get
+  different nozzle sizes working.. so both will be 0.4. lets do the test wall print tomorrow and measure the
+  results. Regenerate that so I can download the code for the bambu printer."
+- The 2 mm ceiling (`machines/bambu-h2d.json` `experimentalPlanar.lineWidthMm`) was never a measured or
+  manufacturer limit; it was this project's own conservative guess, set 2026-09-19 while building the width
+  ladder, which was *designed* to test a 2.5 mm wall and then had that wall excluded for exceeding the ceiling
+  that same guess had just set. No physical print had tested any of it.
+- Widened `bambu-h2d`'s `experimentalPlanar` for both nozzles: `lineWidthMm` 2 to 4 mm, `layerHeightMm` 1 to 2 mm
+  (revision 24), framed explicitly as an untested envelope to probe with tomorrow's print, not a new validated
+  limit. `skills/width-calibration/scripts/ladder.mjs` needed no change; it already reads the machine's own
+  declared limits.
+- Regenerated `Prints/development/width-ladder` with walls at 0.25, 0.5, 1, 1.5, 2, 2.5, 3 and 3.5 mm (two new
+  widths past the known-good 2.5 mm, to bracket where it actually stops holding shape), both nozzles 0.4 mm. The
+  bundle had drifted onto a legacy schema from unrelated concurrent work and needed reinitializing; its
+  `setup.bambu` also inherited the two-colour demo's remembered filament/colour setup from `rememberSetup`
+  (machine-scoped, not print-scoped), which a plain calibration print has no use for — patched back to one
+  filament, `otherNozzleMm: 0.4` (required even for a single-nozzle job; the H2D always has a nozzle installed on
+  each side).
+- Updated the two tests whose expectations were specific numbers tied to the old 2 mm ceiling
+  (`skills/width-calibration/tests/ladder.test.mjs`, `core/tests/line-network.test.mjs`): which walls are skipped,
+  the frame/total volumes, and the "exceeds the experimental limit" probe value. `skills/width-calibration/SKILL.md`
+  corrected to match. Full suite: 282/304 passing; the 22 remaining failures are the same pre-existing Studio/MCP/
+  WASM flake as before, unrelated to this.
+- Not done: the actual print and measurement (tomorrow); nothing above is validated by anything but the one
+  Makerfaire data point recalled from memory, not measured. The width-calibration skill still has no shared
+  record to store these readings in once they exist (BR-059, remaining item 7).
+
 ## 2026-09-30 — Workspace definitions, repository boundaries and policy review
 
 - Source: current user requested workspace policy after a conversation with Evan,
@@ -9573,6 +9604,67 @@ chat-first, temporary contextual Studio chooser are retained as well.
 Verification: 21 focused hole-support, heat-set geometry/MCP and workflow tests
 pass. No physical print validation or manufacturing approval is claimed.
 
+
+## 2026-09-30 — Publish the unlisted SAAM homepage
+
+Published the requested prototype at `https://struder.com/saam/` using the existing
+public Struder Sites project, version 3 (website commit
+`92ca256584bdfe0c3c54960c4df75d5b43b14b9b`). Added only prototype assets and a
+scoped Worker route to the website source; main page and navigation are unchanged.
+Added `noindex, nofollow`. Website build and compiled route/redirect checks passed;
+verified the custom-domain page and public copy-instruction buttons in the browser.
+SAAM repository changes remain uncommitted. Homepage usage counts and photo-upload
+infrastructure remain unimplemented as documented in homepage/README.md.
+
+
+## 2026-09-30 — Revise the SAAM homepage layout
+
+At the user's request, placed the tabs immediately below the new headline,
+added default Welcome as tab 1 with the introduction, and changed tutorial,
+extension and workspace cards to horizontal rows stacked vertically. “Ever”
+is orange in the requested “The most versatile & powerful 3D slicer ever” title.
+Website build and local browser layout/search checks passed. Published existing
+Struder Site version 4, website source `092502a814cf40ae9914464e7531b064efe4a2c8`.
+Main-page links and unlisted/noindex status remain unchanged.
+
+
+## 2026-09-30 — SAAM link title
+
+Changed the homepage HTML title, Open Graph title and Twitter title to the
+requested “SAAM - Powerful AI Slicer”. Compiled output verified; published
+Struder Site version 5, source `7e4fecbddf1b628ba776d3e4a3233d9de7cea58c`.
+
+
+## 2026-09-30 — Desktop-agent introduction and Works with logos
+
+Replaced the Welcome introduction with requested Codex/Claude Code desktop-agent
+messaging and conversational G-code editing. Added labeled official product-page
+marks linked to each product. Extended the explicit local Studio asset routes for
+those two files. Website build, homepage integration test and local browser image
+loading/layout checks passed. Published Struder Site version 6, source
+`db90fa3c03038a647f3b88af409b429a4b5e0600`. Asset provenance is in homepage/README.md.
+
+## 2026-10-01 — SAAM homepage release reconciliation
+
+Applied the supplied 0.3.1 webmaster request except the owner-retained headline.
+Shortened all five tabs, replaced browser setup with desktop release installation
+and separate contributor setup, explained optional diagnostic consent, pinned
+manual links to v0.3.0, and reconciled 13 extensions plus core/builder/guidance
+records from the exact release source. Added unfinished Wing scope/status page.
+Preserved horizontal cards, filters, logos, title and unlisted/noindex behavior.
+No main-page/navigation changes. Build, manual paths, search/type/popularity/reset,
+copy payloads and tab/deep links checked. Source tour startup failed with a
+pitchMm recipe error; page labels that and distinguishes source from packaged
+acceptance. Installer, remaining lessons and 0.3.1 portability not independently
+accepted; homepage/VERIFICATION.md records limits.
+
+Published Struder Sites version 7, website source
+43b1c4e42fca728b39554405787f9dc96cbe6169, deployment succeeded. Bundled Sites
+workflow disappeared after source opening; secure stdin/process-memory Git
+credential fallback pushed only homepage files and packaged the successful build
+for native save/deploy. No credentials persisted. SAAM contributor changes remain
+uncommitted.
+
 ## 2026-10-01 — Replace fitted patterned walls with primary-path orbits
 
 At the user's request, retired advanced-vase-wall's fitted-sleeve/contact maker
@@ -9603,6 +9695,27 @@ nondefault width/overlap/layer/speed, zero base layers, retained geometry/setup
 and production Slice/Trace generation. Digest refreshed; diff whitespace checked.
 Publication scope is this skill replacement and its guidance/evidence only;
 concurrent homepage and Studio changes remain outside this commit.
+
+### Midplane preview-first workflow test
+
+At the user's request, added preview-orbit-bundle.mjs and preview mode in the same
+adapter: one original section at the part's middle Z, one planar orbital Trace
+course, no base/other courses, same selected parameters. Maker guidance now shows
+this real workbench preview before full generation, including requests to go
+ahead, unless explicitly waived. No SVG substitute. Preview is a parameter-review
+artifact, not a printable whole-part export.
+
+Tested original vase at Z62.5 with 2 mm wall / 10% overlap (1.44 mm pitch): 3,893
+points, one course, all Z values equal62.5, unchanged source geometry. Checked
+preview generation took 2.06 s and is shown in Top view in the existing Studio.
+Full 10% job had already started before this steering; it passed unchanged
+production checks in 76.96 s, estimated 183.1 min versus 316 min at 50% overlap.
+The two orbit unit tests remain passing. Preview-first follow-up is installed
+locally and remains uncommitted pending the requested workflow test.
+
+### 2026-10-01 — Local orbital turn-compensation experiment
+
+Added optional signed orbit direction and center-distance/frame-turn phase compensation to the harmonic wall script. Width stays fixed; no mesh contact or fitting solver. Three focused tests pass, including both orbit signs and straight-path equivalence within floating-point tolerance. Created and checked separate mid-Z 62.5 mm Workbench previews for CW and CCW at 2 mm width / 10% overlap; orbit generation ~4 ms each. Added explicit “toolpath confirmation step” announcement and requested inspection wording to skill/developer guidance; installed locally. Visual density acceptance remains with the user. These follow-up changes are not yet committed or pushed.
 
 ### 2026-10-01 — Orbital wall compensation and confirmation workflow
 

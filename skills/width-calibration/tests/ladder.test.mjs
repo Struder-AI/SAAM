@@ -47,11 +47,11 @@ test('the printed footprint is no wider or longer than the test walls', () => {
 
 test('the machine limits decide which walls can be commanded, and why the others cannot', () => {
   const h2d = buildLadder({machineId: 'bambu-h2d'});
-  assert.deepEqual(h2d.skipped.map(w => w.widthMm), [0.25, 2.5]);
+  assert.deepEqual(h2d.skipped.map(w => w.widthMm), [0.25], 'only the 0.25 mm wall is below the width floor; 2.5 mm now fits the widened experimental ceiling');
   assert.match(h2d.skipped[0].reason, /width|widthMm|line width/i);
-  assert.equal(h2d.experimental, true, 'the 1 to 2 mm walls need experimental deposition');
-  assert.deepEqual(h2d.lineNetwork.networks.map(n => n.id), ['frame', 'wall-0p5', 'wall-1', 'wall-1p5', 'wall-2']);
-  assert.deepEqual(h2d.extentMm, [46.25, 20], 'the rails span only the four walls that print');
+  assert.equal(h2d.experimental, true, 'the 1 to 2.5 mm walls need experimental deposition');
+  assert.deepEqual(h2d.lineNetwork.networks.map(n => n.id), ['frame', 'wall-0p5', 'wall-1', 'wall-1p5', 'wall-2', 'wall-2p5']);
+  assert.deepEqual(h2d.extentMm, [61.5, 20], 'the rails span only the five walls that print');
   assert.equal(h2d.lineNetwork.layers, 12);
   // Only the 0.5 mm wall is allowed on the S5, and one wall has nothing to tie to.
   assert.throws(() => buildLadder({machineId: 'ultimaker-s5'}), /needs at least two walls/);
@@ -70,7 +70,7 @@ test('caliper readings are compared with both models and fitted', () => {
   // A bead that really is rounded: every reading is the rounded prediction, three per wall with small scatter.
   const readings = Object.fromEntries(walls.filter(w => w.feasible).map(w => [String(w.widthMm), [w.roundedMm - 0.01, w.roundedMm, w.roundedMm + 0.01]]));
   const result = analyzeMeasurements(walls, readings);
-  assert.equal(result.rows.length, 4);
+  assert.equal(result.rows.length, 5);
   assert.ok(result.meanAbsoluteErrorMm.roundedModel < 0.005 && result.meanAbsoluteErrorMm.rectangleModel > 0.1, 'the rounded model explains rounded readings and the rectangle does not');
   near(result.meanExcessOverLayer, ROUNDED_EXCESS, 0.005);
   near(result.fit.slope, 1 + ROUNDED_EXCESS / 2, 0.01); // layer is half the width, so a rounded bead measures 10.7% over at every width
@@ -92,8 +92,8 @@ test('the ladder patch validates, generates, and prints fine courses before the 
   const path = generatePath(plan, machine, await rhino()), moves = path.actions.filter(a => a.kind === 'move' && a.volumeMm3 > 0);
   const volume = region => moves.filter(m => m.region === region).reduce((s, m) => s + m.volumeMm3, 0);
   for (const w of built.walls.filter(x => x.feasible)) near(volume(w.id), 20 * w.widthMm * w.layerMm * w.courses, 1e-6);
-  near(volume('frame'), 2 * 45 * 0.4 * 0.2 * 2, 1e-6);
-  near(moves.reduce((s, m) => s + m.volumeMm3, 0), 314.4, 1e-6);
+  near(volume('frame'), 2 * 60 * 0.4 * 0.2 * 2, 1e-6);
+  near(moves.reduce((s, m) => s + m.volumeMm3, 0), 444.2, 1e-6);
   // Courses that share a height print finest first, so the thickest wall's course goes on last.
   const at = (region, z) => moves.findIndex(m => m.region === region && Math.abs(m.to[2] - z) < 1e-9);
   assert.ok(at('wall-0p5', 0.5) < at('wall-1', 0.5), 'the finer wall first where courses share a height');
