@@ -1,5 +1,9 @@
 # Development log
 
+## 2026-10-01 — Publish 0.3.1
+
+- Published Windows x64, Apple Silicon and Intel Mac archives from `0562544`; all public URLs, hashes and the release tag verified. Windows isolated installation, generation, Studio/Wing and native repair passed; Mac runtime architecture, archives and permissions passed, with native acceptance after release. Deployed and authenticated the matching three-platform update offer. Release work is pushed to `codex/remettub-dev-branch`; publishing guidance now records the complete matrix, branch and publication-before-offer order.
+
 ## 2026-10-01 — Consolidate remaining Geometry operations
 
 - Geometry now owns planar stroke widening, sampled positive intervals and finite/periodic blob accumulation. Toolpath keeps printing policy; Agent owns blob authoring commands, supplying geometry through Bundle's ordinary API. Removed private-kernel crossings and two unused helpers. Preparation precedes sampling; unrepresentable blob buckets use ordered direct evaluation without size caps.
