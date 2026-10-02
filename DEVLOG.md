@@ -1,8 +1,8 @@
 # Development log
 
-## 2026-10-01 — Assign guided-tour service attachment to 0.3.2
+## 2026-10-01 — Assign installed-tour bugs to 0.3.2
 
-- Recorded the installed 0.3.1 tour report as a separate open bug in [0.3.2 intent](plans/0.3.2.md), with update, consented diagnostics, offline operation and lifecycle acceptance. Source inspection confirms the toolkit omits Studio's service argument while desktop startup supplies it and observes runtime events. Reviewed documentation diff and links; no runtime changes, reproduction or tests. Intent: 36 → 42 lines; log: +4 lines.
+- [0.3.2 intent](plans/0.3.2.md) records service attachment and visible-change/disabled-Next bugs with acceptance. Source confirms toolkit startup omits the service supplied by desktop startup. The tour task, received diagnostics and saved request/progress state confirm the displayed infill change was tracked as Studio guidance, which the lesson's edit-receipt gate rejects even after completion. Reviewed source, links and documentation diff; no runtime changes, service reproducer or tests. Initial assignment grew intent 36 → 42 lines and log +4; this consolidation reduces intent 42 → 41 with unchanged log length.
 
 ## 2026-10-01 — Plan both desktop initialization directions
 
