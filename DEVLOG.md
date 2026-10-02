@@ -9603,3 +9603,9 @@ nondefault width/overlap/layer/speed, zero base layers, retained geometry/setup
 and production Slice/Trace generation. Digest refreshed; diff whitespace checked.
 Publication scope is this skill replacement and its guidance/evidence only;
 concurrent homepage and Studio changes remain outside this commit.
+
+### 2026-10-01 — Orbital wall compensation and confirmation workflow
+
+Made signed center-distance/frame-turn compensation the default for patterned walls, retaining an explicit disable option and clockwise/counterclockwise orbit selection. Added a real mid-Z single-course Workbench preview with the same parameters as the full job, explicit “toolpath confirmation step” inspection wording, and the prompt to accept the preview before full generation. Documented recovery of an already approved export when browser download fails.
+
+Three focused orbit tests pass, including both direction signs and straight-path equivalence with compensation disabled. The original fluted vase was visually accepted at 2 mm width, 20% overlap and CCW orbit. Its full 621-course path plus three solid base layers passed SAAM 0.3.0 production machine checks in 72.84 seconds; Studio reported 196 minutes / 44.81 g. Export was confirmed and its 31,443,963-byte 3MF archive verified intact with Metadata/plate_1.gcode. This is generation and inspection evidence, not physical print validation. Installed the updated guidance/scripts locally; publication scope is the generic skill and this record.

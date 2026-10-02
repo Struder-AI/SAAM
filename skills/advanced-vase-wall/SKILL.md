@@ -21,6 +21,34 @@ requirement. Texture, crossings and distortion at sharp corners are accepted.
 People can add fillets to their model when they want gentler corner behavior.
 This method has been inspected in Studio, not physically validated in a print.
 
+## Preview the parameters first
+
+### Toolpath confirmation step
+
+Before presenting the mid-height one-circuit Workbench preview, announce **toolpath confirmation step** and say: **please inspect this one layer and let me know if the density of the wall toolpath is what you are looking for**. Explain that this is a parameter preview, then prompt: **If you are happy with the toolpath preview, let me know and I will generate the full toolpath for your part.** Wait for the user’s acceptance before generating the complete part.
+
+
+For every new parameter selection or change, show one complete circuit at the
+part's middle Z before generating the full-part toolpath. This is also the first
+step when the person asks to go ahead with the full toolpath. Use a real Trace
+preview in SAAM Studio/workbench, not an SVG or substitute drawing. Let the person
+inspect how the orbital loops follow their actual geometry and respond before
+proceeding to the whole part, unless they explicitly waive this preview.
+
+```sh
+node skills/advanced-vase-wall/scripts/preview-orbit-bundle.mjs SAAM_ROOT SOURCE_BUNDLE PREVIEW_BUNDLE options.json
+```
+
+The preview cuts exactly one original contour at `(minZ + maxZ) / 2`, applies the
+same selected width, overlap, bead width, speed and sampling parameters, and
+creates one planar Trace course. It includes no base layers and no other wall
+courses. Preserve the original mesh as context. Generate the small preview
+through the normal lifecycle, open it with `request_review`, and select Top view
+for inspection. This is a parameter-review artifact at the middle of the model,
+not a printable whole-part job; do not deliver it as the final print file.
+Preview acceptance is separate from the final settings/toolpath confirmation.
+After acceptance, use the full adapter below with the identical options.
+
 ## Generate an editable print
 
 The Slice/Trace adapter requires SAAM 0.3.0's installed APIs. This checkout's
@@ -40,7 +68,9 @@ Example `options.json`:
 {
   "wallWidthMm": 2,
   "overlap": 0.5,
-  "baseLayers": 3
+  "baseLayers": 3,
+  "orbitDirection": 1,
+  "turnCompensation": true
 }
 ```
 
@@ -56,6 +86,8 @@ Studio confirmation before delivery.
 |---|---|
 | `wallWidthMm` | 2 mm total nominal deposited wall excursion, including bead width. Must exceed bead width. |
 | `overlap` | 0.5. Fraction of orbit diameter removed from forward pitch; accepts 0 inclusive to 1 exclusive. Higher overlap produces slower progress and more crossings. |
+| `orbitDirection` | +1 counterclockwise orbit; -1 clockwise orbit. Primary contour travel stays counterclockwise. Preview both when choosing which texture faces outward. |
+| `turnCompensation` | true. Compensate orbital phase using orbit-center travel and signed tangent-frame turning; false keeps uncompensated phase. |
 | `baseLayers` | 3 solid base layers; 0 omits the base. |
 | `layerMm` | Source process layer height; rise per primary circuit. |
 | `beadWidthMm` | Source process line width; independent of wall excursion. |
@@ -79,9 +111,16 @@ For primary position `P(s)`, XY unit tangent `T`, and left/inward XY normal `N`:
 ```
 A = (wallWidthMm − beadWidthMm) / 2
 pitch = 2 A (1 − overlap)
-dθ = 2π ds / pitch
+C = P + A N
+dθ = orbitDirection × 2π distance(Cnext, Cprevious) / pitch − dψ
 orbital position = P + A sin(θ) T + A (1 − cos(θ)) N
 ```
+
+Here `dψ` is the wrapped signed XY tangent-frame angle change. This local
+linear-time correction applies to either orbit direction without changing width.
+With compensation disabled, `dθ = orbitDirection × 2π ds / pitch`.
+It requires no contact solver and does not guarantee uniform overlap at arbitrary
+corners. The user inspected both directions on the original fluted vase.
 
 The input primary spiral runs counterclockwise and already includes half-bead
 standoff. Orbital displacement stays in XY; Z follows the primary spiral.
@@ -128,5 +167,12 @@ node --test skills/advanced-vase-wall/tests/orbit.test.mjs
 ```
 
 The tests check overlap-controlled pitch, speed-independent geometry, rising Z
-and preservation of the input guide. The inspected original vase provides full
+preservation of the input guide, and signed frame-turn compensation in both orbit directions. The inspected original vase provides full
 Slice/Trace generation evidence; it does not establish physical print quality.
+
+
+If Studio confirms export but the browser download does not arrive, use its
+“Download reviewed file” link. If necessary, locate the exact approved export
+artifact in the bundle and provide a direct local file link with a readable
+filename. Do not regenerate, alter settings, or bypass final confirmation to
+recover a browser download. Verify the archive is intact and contains G-code.

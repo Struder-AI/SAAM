@@ -13,3 +13,14 @@ test('same orbit at different head speeds; original guide and rising Z retained'
   assert.equal(b.report.durationSeconds,2*a.report.durationSeconds);
   assert.equal(a.points.at(-1)[2],1);
 });
+test('turn compensation accounts for frame rotation in both orbit directions',()=>{
+  const path=Array.from({length:1001},(_,i)=>{const t=i/1000*2*Math.PI;return [20*Math.cos(t),20*Math.sin(t),2];});
+  for(const orbitDirection of [1,-1]){
+    const r=orbitPrimaryPath(path,{overlap:.1,orbitDirection,turnCompensation:true});
+    assert.ok(Math.abs(r.report.phaseRadians+r.report.frameTurnRadians-orbitDirection*2*Math.PI*r.report.centerLengthMm/r.report.settings.pitchMm)<1e-8);
+    assert.ok(r.points.every(p=>p.every(Number.isFinite)&&p[2]===2));
+  }
+  const straight=[[0,0,2],[10,0,2]];
+  const a=orbitPrimaryPath(straight,{turnCompensation:false}).points,b=orbitPrimaryPath(straight,{turnCompensation:true}).points;
+  assert.ok(a.every((p,i)=>p.every((v,k)=>Math.abs(v-b[i][k])<1e-10)));
+});

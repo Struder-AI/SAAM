@@ -4,8 +4,9 @@ import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {orbitPrimaryPath} from './orbit.mjs';
 export async function buildOrbitBundle(root,sourceDir,targetDir,options={}){
-const allowed=['wallWidthMm','overlap','baseLayers','layerMm','beadWidthMm','speedMmS','stepMm','primaryStepMm'];
+const allowed=['wallWidthMm','overlap','baseLayers','layerMm','beadWidthMm','speedMmS','stepMm','primaryStepMm','preview','orbitDirection','turnCompensation'];
 if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(k=>!allowed.includes(k)))throw Error('Unknown orbital wall options.');
+const preview=options.preview??false;if(typeof preview!=='boolean')throw Error('preview must be boolean.');
 const mod=p=>import(pathToFileURL(resolve(root,p)));
 const [{createSectionQuery},{contourPath},{signedArea},{curveAssignment},{initBundle},{ordinarySliceAssignment}]=await Promise.all(['core/geom/query.mjs','core/geom/contour-path.mjs','core/geom/shell.mjs','core/print/curves.mjs','core/print/bundle.mjs','core/print/slice-settings.mjs'].map(mod));
 const started=performance.now(),manifest=JSON.parse(await readFile(resolve(sourceDir,'plan.json'),'utf8'));
@@ -18,33 +19,34 @@ const baseHeightMm=baseLayers?plan.process.firstLayerMm+(baseLayers-1)*layerMm:0
 plan.process.layerMm=layerMm;plan.process.lineWidthMm=beadWidthMm;plan.process.planarSpeedMmS=speedMmS;
 const bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
 for(const p of mesh.vertices)for(let k=0;k<3;k++){bounds.min[k]=Math.min(bounds.min[k],p[k]);bounds.max[k]=Math.max(bounds.max[k],p[k]);}
-const query=createSectionQuery({...mesh,kind:'triangle-mesh',bounds}),start=bounds.min[2]+baseHeightMm+(baseLayers?layerMm:plan.process.firstLayerMm),end=bounds.max[2],rise=layerMm;
-if(end<=start)throw Error('Base and first wall bead exceed mesh height.');
-const sections=[];let anchor=null;const turns=(end-start)/rise,totalCourses=Math.ceil(turns);
+const query=createSectionQuery({...mesh,kind:'triangle-mesh',bounds}),start=preview?(bounds.min[2]+bounds.max[2])/2:bounds.min[2]+baseHeightMm+(baseLayers?layerMm:plan.process.firstLayerMm),end=preview?start:bounds.max[2],rise=layerMm;
+if(!preview&&end<=start)throw Error('Base and first wall bead exceed mesh height.');
+const sections=[];let anchor=null;const turns=preview?1:(end-start)/rise,totalCourses=Math.ceil(turns);
 for(let i=0;i<=totalCourses;i++){
+  if(preview&&i){sections.push(sections[0]);continue;}
   const z=Math.min(end,start+i*rise),outers=query(z).loops.filter(l=>signedArea(l)>0);if(outers.length!==1)throw Error(`Primary spiral requires one outer contour at ${z}; found ${outers.length}.`);const outer=outers[0];
   const path=contourPath(outer,anchor);anchor??=path.seam;sections.push({z,path});
 }
 const primary=[];for(let c=0;c<totalCourses;c++){
-  const a=sections[c],b=sections[c+1],fraction=(b.z-a.z)/rise,n=Math.ceil(Math.max(a.path.length,b.path.length)*fraction/primaryStepMm);
+  const a=sections[c],b=sections[c+1],fraction=preview?1:(b.z-a.z)/rise,n=Math.ceil(Math.max(a.path.length,b.path.length)*fraction/primaryStepMm);
   for(let j=c?1:0;j<=n;j++){
     const f=j/n,u=c+fraction*f,pa=a.path.at(u),pb=b.path.at(u),p=pa.map((v,k)=>v+f*(pb[k]-v));
     const d=1e-5,aa=a.path.at(u-d),bb=a.path.at(u+d),dx=bb[0]-aa[0],dy=bb[1]-aa[1],h=Math.hypot(dx,dy);
     primary.push([p[0]-beadWidthMm/2*dy/h,p[1]+beadWidthMm/2*dx/h,a.z+f*(b.z-a.z)]);
   }
 }
-const primaryDone=performance.now(),r=orbitPrimaryPath(primary,{wallWidthMm,beadWidthMm,overlap,speedMmS,stepMm}),patternDone=performance.now();
+const primaryDone=performance.now(),r=orbitPrimaryPath(primary,{wallWidthMm,beadWidthMm,overlap,speedMmS,stepMm,orbitDirection:options.orbitDirection??1,turnCompensation:options.turnCompensation??true}),patternDone=performance.now();
 const courses=[];let points=[r.points[0]],course=0;
 for(let i=1;i<r.points.length;i++){
   const p=r.points[i];if(course<totalCourses-1&&p[2]>=start+(course+1)*rise){points.push(p);courses.push(points);points=[p];course++;}else points.push(p);
 }
 if(points.length>1)courses.push(points);
 const body=ordinarySliceAssignment({id:'body',loops:2,fillDensity:1,solidTop:0,solidBottom:baseLayers,within:[{kind:'slab',fromMm:0,toMm:baseHeightMm}]});
-plan.slices.assignments=[...(baseLayers?[body]:[]),curveAssignment({id:'orbit',sequence:true,repeat:{count:courses.length,translation:[0,0,0]},curves:courses.map((points,i)=>({points,closed:false,courses:[i],beadWidthMm,heightMm:i===0&&baseLayers===0?plan.process.firstLayerMm:layerMm,speedMmS,sampleStepMm:.4,toleranceMm:.02,role:'vase-wall'}))})];
+plan.slices.assignments=[...(!preview&&baseLayers?[body]:[]),curveAssignment({id:'orbit',sequence:true,repeat:{count:courses.length,translation:[0,0,0]},curves:courses.map((points,i)=>({points,closed:false,courses:[i],beadWidthMm,heightMm:!preview&&i===0&&baseLayers===0?plan.process.firstLayerMm:layerMm,speedMmS,sampleStepMm:.4,toleranceMm:.02,role:'vase-wall'}))})];
 plan.modulations={version:1,modifiers:[]};plan.composition={order:[],dependencies:[],filaments:plan.composition.filaments.filter(f=>!f.assignment||f.assignment==='body')};plan.experimental.substrateAdaptation=false;
 await initBundle(targetDir,plan,{machineId:bundle.machine.id,sourcePath:resolve(sourceDir,'geometry/source.stl')});
 await mkdir(resolve(targetDir,'authoring'),{recursive:true});
-const report={wallWidthMm,beadWidthMm,overlap,baseLayers,layerMm,stepMm,primaryStepMm,primarySections:sections.length,primaryPoints:primary.length,wallCourses:courses.length,sourceBundle:sourceDir,sourceHash:mesh.source?.sha256,rangeMm:[start,end],timingsSeconds:{readAndPrimary:(primaryDone-started)/1000,orbit:(patternDone-primaryDone)/1000,bundle:(performance.now()-patternDone)/1000},...r.report};
+const report={previewOnly:preview,purpose:preview?'Midplane parameter review; not a printable whole-part job.':'Whole-part toolpath',wallWidthMm,beadWidthMm,overlap,baseLayers,layerMm,stepMm,primaryStepMm,primarySections:preview?1:sections.length,primaryPoints:primary.length,wallCourses:courses.length,sourceBundle:sourceDir,sourceHash:mesh.source?.sha256,rangeMm:[start,end],timingsSeconds:{readAndPrimary:(primaryDone-started)/1000,orbit:(patternDone-primaryDone)/1000,bundle:(performance.now()-patternDone)/1000},...r.report};
 await writeFile(resolve(targetDir,'authoring/orbit.json'),JSON.stringify(report,null,2));return report;
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){
