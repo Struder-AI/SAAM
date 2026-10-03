@@ -17,13 +17,12 @@ Eligible unmodified Slice strokes use their actual scheduled entry for ordering
 and connectors before publication. Trace, Inject and modified paths stay constrained.
 No later composer changes published material or independently reschedules it.
 
-`planOperationEntry` applies context/selection/startup; `planPreparedOperation`
-emits strokes/ending. Stages return state and action deltas; `planningPath`
-assembles them and admission stores semantic labels only in `context` changes.
-The first context resets labels; null clears an optional label. `contextualActions`
-streams physical actions with current labels, also reading saved per-action labels.
-Moves carry effective speed; only zero-length pose changes retain duration.
-Gap diagnostics stay on moves as physical samples. Export adds installation priming.
+`planOperationEntry` applies context, selection and the operation's resolved `process`;
+`planPreparedOperation` emits strokes/ending/cooling and restores material defaults.
+Retraction debt retains its amount and speed across process changes. Zero `liftMm`
+removes extra lift; travel still reaches deposited/target height. Zero `retractMm`
+prevents new withdrawal. `planningPath` assembles deltas; `contextualActions` streams
+labels (reset first, null clears), physical moves, effective speeds and gap samples.
 
 Slice can emit derived poses: `toolPose:{}` stays upright along print Z;
 `{alignToSliceNormal:true}` follows its normal. The `tilt` field channel modulates

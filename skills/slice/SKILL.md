@@ -5,9 +5,8 @@ description: Deposit loops and fill in owned regions over reference surface fami
 
 # Slice
 
-Slice owns a material region, resolves a reference family and deposits loops and
-fill on each course. [Trace](../trace/SKILL.md) deposits curves; [Inject](../inject/SKILL.md)
-deposits at points. Skills supply geometry and settings to these operations.
+Slice deposits loops and fill on courses through an owned material region.
+[Trace](../trace/SKILL.md) deposits curves; [Inject](../inject/SKILL.md) deposits at points.
 Use the shared [print tools](../../core/print/USAGE.md) and [maker workflow](../../MAKERS.md).
 
 `plan.slices` is `{version:1,assignments:[...]}`. `slice` and bulk `adjust_recipe`
@@ -23,7 +22,7 @@ Assignments carry the normal fields; optional fields below may be omitted.
 | Field | Default | Meaning |
 |---|---|---|
 | `id`, `part` | Required name, `null` part | Unique lowercase name; selected component/material part, or every component. |
-| `filament`, `process` | `null` | Logical filament and overrides for first/regular height, width, first/regular speed and fan. |
+| `filament`, `process` | `null` | Logical filament; overrides for height, width, speed, fan, `liftMm` and `retractMm` (zero disables extra hop/retraction for this assignment). |
 | `preset` | `null` | `brim` or `support` settings and auxiliary region. |
 | `loops` | `2` | Nonnegative loop count; an array varies the count by course. |
 | `fillDensity`, `fillPattern` | `0.2`, `rectilinear` | Zero leaves loops; one fills solid; otherwise sparse fill. |

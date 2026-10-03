@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 
-export const PATH_CONTRACT='saam-deposition/12';
+export const PATH_CONTRACT='saam-deposition/13';
 export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/1';
 // Only authored deposition inputs affect the saved path. Output and installed
 // machine settings are checked while preparing the selected machine program.
