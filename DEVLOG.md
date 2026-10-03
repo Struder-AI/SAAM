@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-10-03 — Schedule general 3D Booleans for 0.4.0
+
+- Owner accepted general solid Booleans and authoritative spatial ownership for [0.4.0](plans/0.4.0.md), following L01 review. Replaced the obsolete uncommitted Boolean intent; retained unrelated geodesic offsets and the unresolved CGAL-removal direction. Existing native-section CSG and Manifold construction Booleans are real capabilities; neither currently supplies the general ownership/emptiness/contact contract needed here.
+- Developer assessment in .local/reviews/040-boolean-assessment.md compares established mesh, exact-arrangement and native curved-solid approaches with primary literature/library documentation. Separate predicate correctness, constructed-coordinate precision, topology and approximation to the authored shape. Prefer one Geometry-owned contract and reuse of spatial preparation; no selected backend, new dependency or implementation.
+- Planned acceptance covers containment, empty results, touching/coplanar boundaries, thin overlaps, curved/mixed claims, remainders/reservations, repeated operations, Windows/macOS integration and measured time/peak memory. Repeated slice probes should no longer establish ownership; actual layer extraction/cache lifetime is a separate L01 concern. Updated the local audit with this scheduling decision.
+- Documentation only: reviewed intent, assessment links and whitespace; no tests, benchmarks, installation, push or release. Plan shortened by one line while adding the scheduled item.
+
 ## 2026-10-03 — Integrate approved 0.3.3 application and Studio changes
 
 - Blob-field extraction and native preparation run in a computation worker; bundle queues preserve dependent writes while unrelated chats remain responsive. Actual brain/control, cancellation, Quit, capture and assembly probes passed. Large-record commit/snapshot bookkeeping still causes roughly 2–2.5 s main-thread pauses; worker isolation does not resolve every large-value cost.
