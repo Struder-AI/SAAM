@@ -7,6 +7,7 @@ import {generatePath} from '../../../core/print/generate.mjs';
 import {rhino} from '../../../core/print/geometry.mjs';
 import {exportProgram, interpretProgram} from '../../../core/export/registry.mjs';
 import {commandedWidthMm, printedWidthMm, WIDTH_SPREAD_PER_LAYER} from '../scripts/spread.mjs';
+import {beadSection} from '../../../studio/material-view.mjs';
 
 const panel = buildPanel({lines: DEMO_LINES, trimBottomMm: DEMO_TRIM_BOTTOM_MM});
 const near = (a, b, tol = 1e-6) => assert.ok(Math.abs(a - b) <= tol, `${a} != ${b}`);
@@ -146,4 +147,25 @@ test('the background builds thin before fat: a thin outline on the first course,
   assert.deepEqual(onFirst.map(n => n.id), ['infill'], 'only the thin network has strokes on the first course');
   const outlines = networks.find(n => n.id === 'infill').strokes.filter(s => s.closed);
   assert.equal(outlines.length, 2, 'a thin outline of the border and of the ring');
+});
+
+test('Studio draws each bead at its own commanded width and layer height, not the plan default', async () => {
+  const machine = loadMachine('bambu-h2d'), plan = applyPatch(machine, panelPatch(panel));
+  validatePlan(plan, machine);
+  const bytes = exportProgram(generatePath(plan, machine, await rhino()), plan, machine, {generatorVersion: 'test', buildDate: '2026-10-02'});
+  const program = interpretProgram(bytes, plan, machine);
+  const regions = Object.fromEntries(plan.composition.regions.map(r => [r.id, r.skills['line-network'].networks]));
+  const widthOf = id => [...regions.background, ...regions.lettering].find(n => n.id === id).process.lineWidthMm;
+  const section = operation => {
+    const move = program.moves.find(m => m.extruding && m.operation === operation);
+    assert.ok(move, `no deposition for ${operation}`);
+    return beadSection(move, plan, {});
+  };
+  // Width and height come out as commanded: the border is a flat 1.887 mm ribbon, the text a 0.6 mm tall bead.
+  for (const [operation, id, layer] of [['line-network:border:1', 'border', 0.2], ['line-network:ring:1', 'ring', 0.2], ['line-network:infill:1', 'infill', 0.2],
+    ['line-network:text-1:0', 'text-1', 0.6], ['line-network:text-2:0', 'text-2', 0.6], ['line-network:text-3:0', 'text-3', 0.6]]) {
+    const s = section(operation);
+    near(s.width, widthOf(id), 1e-4); near(s.height, layer, 1e-4);
+  }
+  assert.ok(section('line-network:border:1').width > 4 * section('line-network:infill:1').width * 0.9 && section('line-network:text-3:0').width > 2.4, 'fat beads are drawn fat');
 });

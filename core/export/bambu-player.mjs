@@ -23,7 +23,23 @@ export function interpretBody(body,plan,machine,options={}){
   return program;
 }
 
+// The width a line-network operation was commanded at, from the network it belongs to (a standalone selection or
+// one a composition region carries). Operation ids are `line-network:<network>:<course>`. A network without its own
+// process has no width of its own, so this returns null and the caller falls back to the region or plan width.
+export function networkLineWidthMm(plan,operation){
+  const match=/^line-network:([a-z][a-z0-9-]*):\d+$/.exec(operation??'');
+  if(!match)return null;
+  const groups=[plan.skills['line-network'],...(plan.composition?.regions??[]).map(r=>r.skills?.['line-network'])];
+  for(const group of groups){
+    const network=group?.networks?.find(n=>n.id===match[1]);
+    if(network)return network.process?.lineWidthMm??null;
+  }
+  return null;
+}
+
 export function interpretMultiBody(body,plan,machine,{moves=[]}={}){
+  const networkWidth=new Map();
+  const commandedWidth=operation=>{if(!networkWidth.has(operation))networkWidth.set(operation,networkLineWidthMm(plan,operation));return networkWidth.get(operation);};
   const initial=plan.setup.bambu.filament,debt={},sequence=[initial],usedTools=new Map([[plan.setup.tool,initial]]),usage=new Map(),events=[];
   let filament=initial,position=[...machine.tools[plan.setup.tool].startupXY,machine.startup.zAfterStartupMm],fan=0,time=0,volume=0,extrusions=0,count=0,cursor=0,lineOffset=0,maxDepositedZ=0;
   while(cursor<body.length){
@@ -34,7 +50,7 @@ export function interpretMultiBody(body,plan,machine,{moves=[]}={}){
     const sink={get length(){return length;},push(move){
       const region=selected.composition.regions.find(r=>move.operation?.startsWith(r.id+':'));
       const tagged={...move,line:move.line+lineOffset,startSeconds:move.startSeconds+time,tool:selected.setup.tool,filament,
-        nozzleMm:selected.setup.nozzleMm,lineWidthMm:region?.process?.lineWidthMm??selected.process.lineWidthMm,filamentColor:selected.setup.filamentColor};
+        nozzleMm:selected.setup.nozzleMm,lineWidthMm:commandedWidth(move.operation)??region?.process?.lineWidthMm??selected.process.lineWidthMm,filamentColor:selected.setup.filamentColor};
       moves.push(tagged);length++;
       if(move.extruding)maxDepositedZ=Math.max(maxDepositedZ,...[move.from[2],move.to[2]]);
     }};

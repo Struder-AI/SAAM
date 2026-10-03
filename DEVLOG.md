@@ -35,6 +35,15 @@
   if the fat border is moved first. Regenerated: 28 minutes, 4,406 mm3, right nozzle after the left finishes. This does
   not make the fat beads physically safe; it removes the order the user saw. Whether to give the border a taller layer
   is open.
+- Studio showed every bead as thin. Cause: the Bambu interpreter tags each move with a line width taken from the region
+  process or the plan default (0.4 mm), and the material view then sizes the bead as volume over that width, so a
+  1.4 to 2.5 mm commanded bead drew as a 0.4 mm wide, very tall tube. Line-network operations are named
+  `line-network:<network>:<course>` and never matched a region id, so their own width was never found.
+  `networkLineWidthMm` in `core/export/bambu-player.mjs` now reads the commanded width from the network (standalone or in a
+  region) and tags the move with it, so the view gets width as commanded and height as the layer. Test `Studio draws each
+  bead at its own commanded width and layer height` fails without it. The preview shows commanded widths, not the
+  spread-corrected printed ones. Not checked: the single-nozzle path does not tag moves, so a standalone line-network job
+  such as the ladder is still drawn from the plan's width and layer height.
 - Side effect handled: generating the demo overwrites the machine's remembered setup with its two colours (machine-scoped,
   `.local/machine-setups`); reset from the plain ladder bundle with `cli.mjs remember-setup`.
 - Not done: no print yet; spread on other filaments; no stored record of readings (BR-059 item 7).
