@@ -2,7 +2,7 @@
 
 ## Orientation
 
-Developers own core skills, core capabilities, Studio and shared interfaces; builders compose existing interfaces ([role boundaries](AGENTS.md#choose-your-role)). Read [0.3.2 intent](plans/0.3.2.md) and [retained contracts](plans/0.3.1.md) for the work you undertake. Onboarding supplies shared terms, this whole document and visible map `0`.
+Developers own core skills, core capabilities, Studio and shared interfaces; builders compose existing interfaces ([role boundaries](AGENTS.md#choose-your-role)). Read [0.3.3 intent](plans/0.3.3.md), [0.3.2 scope/evidence](plans/0.3.2.md) and [retained contracts](plans/0.3.1.md) for the work you undertake. Onboarding supplies shared terms, this whole document and visible map `0`.
 
 ### Working with dev maps
 
