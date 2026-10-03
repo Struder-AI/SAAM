@@ -19,10 +19,11 @@ PETG, ABS, ASA, PC and TPU entries remain setup-review material profiles.
 | [Ultimaker 2 Extended](./ultimaker-2-extended.json) | Original single 0.4 mm nozzle, 2.85 mm filament; 305 mm height | PLA / ABS | UltiGCode, with volumetric extrusion and firmware-owned material/startup settings |
 | [Ultimaker 3](./ultimaker-3.json) | One selected AA 0.4 core, 2.85 mm filament; 200 mm height | PLA / ABS | UM3-specific Griffin startup and shutdown |
 
-PLA is a default. Material selection does not retune temperature, cooling,
-retraction or flow. SAAM preserves authored flow and dimensions; it applies no
-material-range gates. Export rejects temperatures above 350 °C. A particular
-firmware template can still require a material, GUID or temperature branch.
+Profile layer-height ranges (S5 AA 0.4: 0.06–0.3 mm) are suggestions for standard
+printing, not physical or export limits. Author thicker single-pass Trace beads
+with independent height, width and speed; their physical result needs a trial.
+Material selection does not retune process settings or impose material-range gates.
+Export retains its 350 °C ceiling and firmware-specific material/GUID requirements.
 
 These are the original **2 Extended** and standard **3**, not the 2+, Extended+,
 2+ Connect, 3 Extended or S3. UM3 hardware has two nozzles, but SAAM plans select
@@ -47,8 +48,7 @@ startup contract. The locked plan selects the installed tool and material.
 Exporting introduces no new process choices. Physical clearance is delegated
 to the operator; no general 15° clearance rating is claimed.
 
-Standard S5 startup is assumed; firmware version is optional metadata.
-Physical printing remains unvalidated.
+Standard S5 startup is assumed; firmware is optional. Physical printing remains unvalidated.
 
 [denso-vs068a4-rc8a.json](./denso-vs068a4-rc8a.json) describes the six-axis VS-068A4 with
 RC8A and an external rotary for the [pipe demo](../skills/pipe-cladding/SKILL.md).
@@ -58,5 +58,3 @@ robot reach limits; production kinematic validation, motion limits and collision
 remain deferred. Its nominal presentation model does not establish RC8A branch parity.
 See the [RC8A contract](../core/export/denso.md#denso-rc8a-output-contract) for calibration,
 rotary assumptions, relay behavior and unverified vendor execution.
-
-See [GLOSSARY.md](../GLOSSARY.md) and [build requests](../build_request.md).

@@ -1,5 +1,9 @@
 # Development log
 
+## 2026-10-02 — Clarify standard-printing layer-height suggestions
+
+- User requested single-pass cursive relief above 0.3 mm on an S5 and correction of guidance presenting that value as a limit. Machine guidance now calls profile height ranges standard-printing suggestions and distinguishes authored Trace height, width and speed. Existing export rules already impose no material layer-height range; no implementation change. Manual shortened 62 to 60 lines. Installed 0.3.2 generated and checked hello-cursive-s5: one continuous 0.5 mm-high, 0.9 mm-wide Trace at 8 mm/s over a 1.2 mm panel; no short-travel findings. Reviewed rules and documentation diff; no software tests or physical trial run.
+
 ## 2026-10-02 — Record mesh import investigation and owner decisions
 
 - Owner accepted mesh import diagnostics for [0.3.3](plans/0.3.3.md); repair redesign is provisional and requires further consideration, with no implementation approval. Documentation only; no production changes. Verified intent status, links and whitespace; intent shortened 26 to 25 lines. Follow-up checked saved blob-field evidence and source only; no tests or runtime trials. Standing checkpoints include concurrent work without declaring it complete or approved.
