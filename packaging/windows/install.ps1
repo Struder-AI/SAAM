@@ -7,8 +7,78 @@
 #   "Install SAAM.cmd" in the extracted release folder (a person installing), or
 #   powershell -NoProfile -ExecutionPolicy Bypass -File <this file> -WaitPid <pid>
 # when a running SAAM updates itself: it waits for that SAAM to exit, installs
-# without prompts, logs to <data>\logs\update.log and starts the new SAAM.
-param([int]$WaitPid = 0, [switch]$NoLaunch)
+# logs to <data>\logs\update.log and starts the new SAAM. Only a home permission
+# failure requests native authorization; the rest runs as the original user.
+param([int]$WaitPid = 0, [switch]$NoLaunch, [switch]$PrepareHomeOnly,
+  [string]$PreparationHome, [string]$PreparationReceipt)
+
+# The only elevated entry point. It never loads per-user paths or installs files.
+function Get-PreparationHome([string]$Path) {
+  if ($Path -notmatch '^[A-Za-z]:[\\/]') { throw 'The SAAM home must be an absolute local path.' }
+  $full = [IO.Path]::GetFullPath($Path).TrimEnd('\')
+  if ($full.StartsWith('\\') -or $full -eq [IO.Path]::GetPathRoot($full).TrimEnd('\')) { throw 'The SAAM home cannot be a network path or filesystem root.' }
+  foreach ($system in @($env:SystemRoot, $env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:ProgramData)) {
+    if ($system -and ($full -ieq $system.TrimEnd('\') -or $full.StartsWith($system.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase))) { throw 'The SAAM home cannot be inside a system folder.' }
+  }
+  if ($full -ieq $env:USERPROFILE -or $full -ieq (Split-Path -Parent $env:USERPROFILE) -or (Split-Path -Parent $full) -ieq (Split-Path -Parent $env:USERPROFILE)) { throw 'Use a SAAM directory inside the user profile, not the entire profile or Users folder.' }
+  $ancestor = $full
+  while ($ancestor) {
+    if (Test-Path -LiteralPath $ancestor) {
+      $item = Get-Item -LiteralPath $ancestor -Force -ErrorAction Stop
+      if (-not $item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'The SAAM home and its ancestors must be ordinary directories.' }
+    }
+    $ancestor = Split-Path -Parent $ancestor
+  }
+  return $full
+}
+
+function Prepare-Home([string]$Directory, [bool]$Shared) {
+  New-Item -ItemType Directory -Path $Directory -Force -ErrorAction Stop | Out-Null
+  $probe = Join-Path $Directory ('write-check-' + [guid]::NewGuid().ToString('N'))
+  try { Set-Content -LiteralPath $probe -Value 'SAAM' -Encoding ASCII -ErrorAction Stop }
+  finally { if (Test-Path -LiteralPath $probe) { Remove-Item -LiteralPath $probe -Force -ErrorAction Stop } }
+  if ($Shared) {
+    $sid = New-Object Security.Principal.SecurityIdentifier('S-1-5-32-545')
+    $acl = Get-Acl -LiteralPath $Directory -ErrorAction Stop
+    $required = [Security.AccessControl.FileSystemRights]::Modify
+    $inherited = [Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
+    $existing = $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier]) | Where-Object {
+      $_.IdentityReference -eq $sid -and $_.AccessControlType -eq 'Allow' -and
+      ($_.FileSystemRights -band $required) -eq $required -and ($_.InheritanceFlags -band $inherited) -eq $inherited
+    }
+    if (-not $existing) {
+      $rule = New-Object Security.AccessControl.FileSystemAccessRule($sid, $required, $inherited, 'None', 'Allow')
+      $acl.AddAccessRule($rule)
+      Set-Acl -LiteralPath $Directory -AclObject $acl -ErrorAction Stop
+    }
+  }
+}
+
+function Test-AccessDenied($ErrorRecord) {
+  $exception = $ErrorRecord.Exception
+  while ($exception) {
+    if ($exception -is [UnauthorizedAccessException] -or $exception -is [Security.SecurityException] -or ($exception.HResult -band 65535) -eq 5) { return $true }
+    $exception = $exception.InnerException
+  }
+  return $false
+}
+
+if ($PrepareHomeOnly) {
+  $ErrorActionPreference = 'Stop'
+  try {
+    $prepared = Get-PreparationHome $PreparationHome
+    # A receipt is an existing original-user temporary file, never an arbitrary output.
+    $receipt = Get-Item -LiteralPath $PreparationReceipt -Force
+    if ($receipt.PSIsContainer -or ($receipt.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $receipt.Length -ne 0 -or $receipt.Name -notmatch '^saam-home-[a-f0-9]{32}\.txt$') { throw 'Invalid home preparation receipt.' }
+    Set-Content -LiteralPath $PreparationReceipt -Value 'helper-started' -Encoding ASCII
+    Prepare-Home $prepared $true
+    Add-Content -LiteralPath $PreparationReceipt -Value 'complete' -Encoding ASCII
+    exit 0
+  } catch {
+    Write-Error -ErrorAction Continue "Home preparation failed: $($_.Exception.Message)"
+    exit 1
+  }
+}
 
 . (Join-Path $PSScriptRoot 'common.ps1')
 $isolated = [bool]$env:SAAM_INSTALL_TEST_ROOT
@@ -27,15 +97,50 @@ if ($isolated) {
 $NoShortcuts = $isolated
 
 $updating = $WaitPid -gt 0
-if ($updating) {
-  $logs = Join-Path $SaamHome 'state\logs'
-  New-Item -ItemType Directory -Path $logs -Force | Out-Null
-  $UpdateLog = Join-Path $logs 'update.log'
-}
 # Nothing else reaches an update's log, so an unexpected failure is written there too.
 trap { Write-Log "Update failed: $($_.Exception.Message)"; break }
 
 function Write-Step([string]$Message) { Write-Log $Message; Write-Host $Message }
+
+function Ensure-Home {
+  try { $script:SaamHome = Get-PreparationHome $SaamHome; Prepare-Home $SaamHome (-not $isolated); return }
+  catch { if (-not (Test-AccessDenied $_)) { throw } }
+  if ($isolated) { throw 'The isolated home is not writable; native authorization is disabled for temporary trials.' }
+  $receipt = Join-Path ([IO.Path]::GetTempPath()) ('saam-home-' + [guid]::NewGuid().ToString('N') + '.txt')
+  New-Item -ItemType File -Path $receipt -ErrorAction Stop | Out-Null
+  $helper = $null
+  try {
+    $quotedScript = $PSCommandPath.Replace("'", "''")
+    $quotedHome = $SaamHome.Replace("'", "''")
+    $quotedReceipt = $receipt.Replace("'", "''")
+    $command = "& '$quotedScript' -PrepareHomeOnly -PreparationHome '$quotedHome' -PreparationReceipt '$quotedReceipt'"
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
+    Write-Step 'Home authorization: requested Windows UAC for home preparation only. This does not confirm that a prompt appeared.'
+    try {
+      $helper = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') -Verb RunAs -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encoded) -PassThru -WindowStyle Hidden -ErrorAction Stop
+    } catch {
+      $exception = $_.Exception
+      while ($exception.InnerException) { $exception = $exception.InnerException }
+      if ($exception -is [ComponentModel.Win32Exception] -and $exception.NativeErrorCode -eq 1223) { Write-Step 'Home authorization: cancelled or denied by Windows; no helper started.' }
+      elseif (Test-AccessDenied $_) { Write-Step 'Home authorization: denied; no helper started.' }
+      else { Write-Step "Home authorization: failed to start helper ($($exception.Message))." }
+      throw
+    }
+    Write-Step 'Home authorization: helper started.'
+    $helper.WaitForExit()
+    $helper.Refresh()
+    if ($helper.ExitCode -ne 0 -or (Get-Content -LiteralPath $receipt) -notcontains 'complete') { throw 'Authorized home preparation did not complete.' }
+    Prepare-Home $SaamHome $true
+    Write-Step 'Home authorization: complete; original-user access verified.'
+  } catch { if ($helper) { Write-Step "Home authorization: failed or incomplete ($($_.Exception.Message))." }; throw }
+  finally { Remove-Item -LiteralPath $receipt -Force -ErrorAction SilentlyContinue }
+}
+
+# An elevated whole installer cannot safely choose the original desktop identity.
+$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+  Stop-WithMessage 'Launch the installer normally, without Run as administrator. It requests UAC itself only if home preparation needs it; your client registration must use your normal account.'
+}
 
 # Work from outside the folder being replaced (SAAM may have started us from there).
 Set-Location -LiteralPath $env:TEMP
@@ -52,6 +157,22 @@ $tar = Join-Path $env:SystemRoot 'System32\tar.exe'
 if (-not (Test-Path -LiteralPath $tar)) { Stop-WithMessage "This Windows has no $tar, which SAAM's installer needs (Windows 10 version 1803 or later)." }
 $version = [string](Get-Content -LiteralPath $releaseFile -Raw -Encoding UTF8 | ConvertFrom-Json).version
 if ($version -notmatch '^\d{1,6}\.\d{1,6}\.\d{1,6}$') { Stop-WithMessage 'The release has no valid version. Nothing was changed.' }
+$requiredFiles = @('runtime/node.exe', 'release.json', 'packaging/launch.mjs', 'scripts/saam.mjs', 'packaging/migrate-home.mjs', 'packaging/client-setup.mjs', 'packaging/windows/SAAM.ico', 'packaging/windows/SAAM.vbs', 'packaging/windows/SAAM.cmd', 'packaging/windows/saam-command.cmd')
+# Validate the release payload before even requesting home authorization.
+$entries = @(& $tar -tf $archive)
+if ($LASTEXITCODE -ne 0) { Stop-WithMessage 'The release archive cannot be read. Nothing was changed.' }
+$normalized = @($entries | ForEach-Object { $_ -replace '^\./', '' })
+foreach ($entry in $normalized) {
+  if ($entry -match '(^[\\/]|:|(^|[\\/])\.\.([\\/]|$))') { Stop-WithMessage 'The release archive contains an unsafe path. Nothing was changed.' }
+}
+foreach ($required in $requiredFiles) {
+  if ($normalized -notcontains $required) { Stop-WithMessage "The release archive has no $required. Nothing was changed." }
+}
+$manifestEntry = if ($entries -contains './release.json') { './release.json' } else { 'release.json' }
+$manifest = & $tar -xOf $archive $manifestEntry
+if ($LASTEXITCODE -ne 0) { Stop-WithMessage 'The archived release metadata cannot be read. Nothing was changed.' }
+try { if (($manifest -join "`n" | ConvertFrom-Json).version -ne $version) { throw 'Release versions disagree.' } }
+catch { Stop-WithMessage "The release archive is invalid ($($_.Exception.Message)). Nothing was changed." }
 
 if ($updating) {
   Write-Step "Updating to SAAM $version from $archive; waiting for SAAM (process $WaitPid) to exit."
@@ -64,17 +185,13 @@ Write-Step "Installing SAAM $version for $env:USERNAME into $SaamRoot."
 # The SAAM being updated has exited, so this refuses only another running SAAM.
 Assert-SaamStopped 'run "Install SAAM.cmd"'
 
-try {
-  New-Item -ItemType Directory -Path $SaamHome -Force | Out-Null
-  $probe = Join-Path $SaamHome ('write-check-' + [guid]::NewGuid().ToString('N'))
-  Set-Content -LiteralPath $probe -Value 'SAAM' -Encoding ASCII
-  Remove-Item -LiteralPath $probe -Force
-  if (-not $isolated) {
-    # The home is shared by this machine's Windows users, not a per-user root.
-    & (Join-Path $env:SystemRoot 'System32\icacls.exe') $SaamHome /grant '*S-1-5-32-545:(OI)(CI)M' | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw 'Cannot grant the Windows Users group write access. Have the owner grant Modify on C:\SAAM, then retry.' }
-  }
-} catch { Stop-WithMessage "Cannot prepare the SAAM home ($($_.Exception.Message)). The earlier installation is unchanged." }
+try { Ensure-Home }
+catch { Stop-WithMessage "Cannot prepare the SAAM home ($($_.Exception.Message)). The earlier installation is unchanged." }
+if ($updating) {
+  $logs = Join-Path $SaamHome 'state\logs'
+  New-Item -ItemType Directory -Path $logs -Force | Out-Null
+  $UpdateLog = Join-Path $logs 'update.log'
+}
 
 # Unpack into a staging folder next to the installation first, so a failed
 # unpack leaves any installed SAAM as it was.
@@ -91,7 +208,7 @@ if ($tarExit -ne 0) {
   Stop-WithMessage "Unpacking SAAM failed (tar exit code $tarExit). Nothing was changed."
 }
 try {
-  foreach ($name in @('runtime\node.exe', 'release.json', 'packaging\launch.mjs', 'scripts\saam.mjs', 'packaging\migrate-home.mjs', 'packaging\client-setup.mjs', 'packaging\windows\SAAM.ico', 'packaging\windows\SAAM.vbs', 'packaging\windows\SAAM.cmd', 'packaging\windows\saam-command.cmd')) {
+  foreach ($name in $requiredFiles) {
     if (-not (Test-Path -LiteralPath (Join-Path $staging $name) -PathType Leaf)) { throw "The candidate has no $name." }
   }
   $candidate = Get-Content -LiteralPath (Join-Path $staging 'release.json') -Raw -Encoding UTF8 | ConvertFrom-Json

@@ -1,4 +1,5 @@
 import {requireThat} from '../private/bundle/numeric.mjs';
+import {requireEditRevision} from './edit-identity.mjs';
 import {loadBundle,updatePlan} from './bundle.mjs';
 import {mergeRecord} from './resolve-plan.mjs';
 
@@ -20,12 +21,12 @@ export function editModulations(record,{action,id,modifier}) {
   return {...record,modifiers:action==='add'?[...record.modifiers,next]:record.modifiers.map((item,i)=>i===index?next:item)};
 }
 
-export async function applyModulation(directory,request,{expectedRevision}={}) {
+export async function applyModulation(directory,request,{expectedRevision,expectedEditRevision}={}) {
   const previous=await loadBundle(directory,{program:false});
-  requireThat(expectedRevision===previous.revision,'This review is stale. Reload before changing modulation.');
+  requireEditRevision(previous,{expectedRevision,expectedEditRevision});
   const modulations=editModulations(previous.plan.modulations,request);
   const plan={...previous.plan,modulations},diagnostics=await diagnoseDepositionPlan(plan);
-  const state=await updatePlan(directory,plan,previous.revision),changed=state.revision!==previous.revision;
+  const state=await updatePlan(directory,plan,previous.revision,{expectedEditRevision}),changed=state.revision!==previous.revision;
   return {state,edit:{action:request.action,id:request.id,changed,modifier:state.plan.modulations.modifiers.find(m=>m.id===request.id)??null,
     generationRequired:changed||!state.review.generation,confirmationInvalidated:changed,
     diagnostics,deferredChecks:['exact exported program interpretation','physical acceptance']}};

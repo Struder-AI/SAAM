@@ -1,9 +1,7 @@
-import {summarizeWork,requestReceiptState} from './work-state.mjs';
+import {summarizeWork,requestReceiptState,inspectionReceipt,inspectionFailure} from './work-state.mjs';
 export {summarizeWork} from './work-state.mjs';
 export function createAgentUI({onActivity=()=>{},onWork=()=>{},onRequests=()=>{},onPresentation=()=>{},getStage=()=>null}={}){
   const indicator=document.getElementById('agent-status'),dots=indicator.querySelector('.typing-dots'),notice=document.getElementById('agent-timeout');
-  // chat.working: the runtime says the chat is working, with or without a Studio request.
-  const chat={working:false};
   let running=false,refreshAgain=false,requests=[],view={},lastActivity,lastWork=false,askedPresentation;const retired=new Map();
   function merge(records,snapshot){
     const merged=new Map(requests.map(r=>[r.id,r]));let changed=false;
@@ -18,18 +16,9 @@ export function createAgentUI({onActivity=()=>{},onWork=()=>{},onRequests=()=>{}
     }
     if(changed){requests=[...merged.values()];onRequests(requests);}
   }
-  function fadeActive(summary=summarizeWork(requests,{view})){
-    const {active,stage}=summary;
-    // The pane being regenerated dims; an unrelated stage stays crisp. A toolpath
-    // (re)generation therefore leaves the geometry pane sharp while it runs, so
-    // the person can step back to the shape without losing the faded preview.
-    return active&&(stage!=='toolpath'||getStage()!=='geometry');
-  }
-  function reflectFade(summary){document.getElementById('canvas').classList.toggle('work-faded',fadeActive(summary));}
   function render(){
-    const summary=summarizeWork(requests,{view}),{message}=summary,active=summary.active||chat.working;
-    reflectFade(summary);
-    document.getElementById('agent-working').hidden=!chat.working;
+    const summary=summarizeWork(requests,{view}),{message}=summary,active=summary.active;
+    document.getElementById('agent-working').hidden=!summary.active;
     indicator.hidden=!active&&!message;dots.hidden=!active;notice.hidden=!message;notice.textContent=message;
     indicator.setAttribute('aria-label',active?'Updating preview':message);
     if(active!==lastActivity){lastActivity=active;onActivity(active);}
@@ -37,13 +26,13 @@ export function createAgentUI({onActivity=()=>{},onWork=()=>{},onRequests=()=>{}
     // The server decides whether a drawn view actually receipts a request, and
     // may decline. Ask again only when the displayed view or the records moved,
     // so a declined acknowledgement cannot become a standing retry.
-    const receipting=requests.filter(r=>!r.presented&&['working','completed'].includes(r.status)&&requestReceiptState(r,{view}).receipt);
-    const asking=view.ready&&!view.loading&&receipting.length
+    const failed=requests.find(r=>inspectionFailure(r,view));
+    const receipting=requests.filter(r=>inspectionReceipt(r,view)||!r.presented&&['working','completed'].includes(r.status)&&requestReceiptState(r,{view}).receipt);
+    const asking=failed?JSON.stringify([failed.id,failed.updatedAt,view.errorAt]):view.ready&&!view.loading&&receipting.length
       ?JSON.stringify([view.printId,view.snapshot,receipting.map(r=>r.id+':'+r.updatedAt)]):null;
-    if(asking&&asking!==askedPresentation){askedPresentation=asking;onPresentation();}
+    if(asking&&asking!==askedPresentation){askedPresentation=asking;onPresentation(failed?{renderError:view.error,revision:failed.inspectionTarget.revision}:undefined);}
     else if(!asking)askedPresentation=null;
   }
-  addEventListener('saam-agent-activity',event=>{chat.working=Boolean(event.detail.working);render();});
   async function refresh(){
     if(running){refreshAgain=true;return running;}
     running=(async()=>{do{
@@ -65,9 +54,7 @@ export function createAgentUI({onActivity=()=>{},onWork=()=>{},onRequests=()=>{}
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void refresh();});
   void refresh();
   function present(work){if(!work)return;view={...view,printId:work.printId,snapshot:work.snapshot,ready:true,errorAt:null,awaitingConfirmation:work.awaitingConfirmation===true};render();}
-  return {refresh,reflectFade,
-    pending(){return summarizeWork(requests,{view}).active;},
-    generating(){return summarizeWork(requests,{view}).stage==='toolpath';},
+  return {refresh,
     updated(records){merge(records);render();},
     loading(stage){view={...view,loading:true,loadingStage:stage??null,ready:false,errorAt:null};render();},
     received(work){
@@ -81,6 +68,6 @@ export function createAgentUI({onActivity=()=>{},onWork=()=>{},onRequests=()=>{}
       if(!receipt.receipt)return false;
       present({...state.work,snapshot:{...state.work.snapshot,stage},awaitingConfirmation:receipt.awaitingConfirmation});return true;
     },
-    settled(error){view={...view,loading:false,...(error?{ready:false,errorAt:Date.now()}: {})};render();}
+    settled(error){view={...view,loading:false,...(error?{ready:false,errorAt:Date.now(),error:error.message??String(error),errorStage:getStage()}: {})};render();}
   };
 }

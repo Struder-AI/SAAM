@@ -1,10 +1,12 @@
 import {createHash} from 'node:crypto';
+import {resolveSpatialPlan} from '../print/spatial-inputs.mjs';
 
 export const PATH_CONTRACT='saam-deposition/13';
 export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/1';
 // Only authored deposition inputs affect the saved path. Output and installed
 // machine settings are checked while preparing the selected machine program.
 export function pathDependencies(plan){
+  plan=resolveSpatialPlan(plan);
   const {output,setup,...authored}=plan;
   const materialIntent={nozzleC:setup?.nozzleC,
     defaultFilament:setup?.bambu?.filament??null,

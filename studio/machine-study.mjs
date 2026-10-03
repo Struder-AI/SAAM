@@ -27,12 +27,15 @@ export async function loadBundle(dir,{program=true,allSources=false}={}){
   const sources=source===undefined?[]:[{name,sha256:exportHash}];
   const vertices=Array.from({length:8},(_,i)=>[0,1,2].map(j=>bounds[(i>>j)&1?'max':'min'][j]));
   const geometry={geometryVersion:revision,boundsMm:bounds,vertices,faces:[],labels:[],edges:[],roof:null};
-  const state={kind:'wedge',plan,machine,revision,generationHash:revision,exportHash,geometry,pathSummary:{planarLayers:0},
+  const geometryHash=hash(JSON.stringify(bounds));
+  const state={kind:'wedge',plan,machine,revision,generationHash:revision,exportHash,geometry,geometryHash,geometryInputHash:geometryHash,pathSummary:{planarLayers:0},
     toolpathApproved:false,outputAvailability:'Simulation only; machine output is unavailable.',
-    review:{generation:{mode:'development'},approvals:{}},
+    review:{generation:{mode:'development',generationHash:revision,exportHash},approvals:{}},
     inspection:{title:machine.name,description:'Nominal mechanism study · inspect source motion and machine geometry.',
       facts:[['Machine',machine.name],...(decoded?[['Motion',decoded.seconds+' seconds']]:[]),['Source','Authored mechanism study']],settings:[['Model',machine.kinematicModel?.basis??'Nominal profile']],
       note:'Simulation only. No print approvals, machine delivery or hardware execution.'}};
+  if(decoded)state.completedOutput={id:hash(JSON.stringify([revision,exportHash])),current:true,plan,machine,geometry,geometryHash,geometryInputHash:geometryHash,
+    generationHash:revision,exportHash,review:state.review,exportName:name,limitations:[]};
   if(program)state.program=structuredClone(program==='source'?{sources,summary:decoded.summary,notice:decoded.notice}:{...decoded,sources});
   if(allSources)state.sources={[name]:source};return state;
 }

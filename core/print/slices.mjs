@@ -46,7 +46,7 @@ export const SLICE_VERSION = 1;
 // its top layers an interface of rows at SUPPORT_INTERFACE_DENSITY.
 export const SUPPORT_INTERFACE_DENSITY = 0.8;
 export const SUPPORT_GAPS = Object.freeze({ topGapMm: 0.2, xyGapMm: 0.3 });
-const OPTIONAL_FIELDS=['courses','loopInsetMm','roles'];
+const OPTIONAL_FIELDS=['courses','loopInsetMm','roles','connectNearby'];
 const FIELDS = ['id', 'part', 'preset', 'filament', 'process', ...Object.keys(SLICE_DEFAULTS), 'within', 'surface', 'stack','join','fillOrder','dependencies','description','contact','toolPose'];
 
 export {ordinarySliceAssignment as sliceAssignment} from './slice-settings.mjs';
@@ -87,6 +87,7 @@ export function validateSlices(slices, { parts, lineWidthMm, firstLayerMm, valid
     requireThat(FILL_PATTERNS.includes(a.fillPattern), `Slice ${a.id} fillPattern must be one of ${FILL_PATTERNS.join(', ')}.`);
     requireThat(Array.isArray(a.fillAnglesDeg) && a.fillAnglesDeg.length > 0 && a.fillAnglesDeg.every(Number.isFinite), `Slice ${a.id} has invalid fill angles.`);
     requireThat(typeof a.rotateFill === 'boolean', `Slice ${a.id} rotateFill must be true or false.`);
+    requireThat(a.connectNearby===undefined||typeof a.connectNearby==='boolean',`Slice ${a.id} connectNearby must be boolean.`);
     for (const key of ['solidTop', 'solidBottom']) requireThat(Number.isSafeInteger(a[key]) && a[key] >= 0, `Slice ${a.id} ${key} must be a nonnegative safe integer.`);
     requireThat(Number.isFinite(a.fillOverlap) && a.fillOverlap>=0 && Number.isFinite(a.sampleStepMm) && a.sampleStepMm>0, `Slice ${a.id} fillOverlap must be nonnegative and sampleStepMm positive.`);
     lineSpacing(lineWidthMm, a);
@@ -108,7 +109,7 @@ export function validateSlices(slices, { parts, lineWidthMm, firstLayerMm, valid
     requireThat(a.loopInsetMm===undefined||Number.isFinite(a.loopInsetMm),'Loop inset must be finite.');
     requireThat(a.roles===undefined||a.roles&&typeof a.roles==='object'&&!Array.isArray(a.roles)&&Object.keys(a.roles).every(key=>['perimeter','perimeter-inner','infill','fill'].includes(key)&&typeof a.roles[key]==='string'&&a.roles[key].length),'Slice roles map stroke groups to named roles.');
     if(a.courses!==undefined){
-      requireThat(Array.isArray(a.courses)&&a.courses.length>0&&a.courses.every(course=>course&&Object.keys(course).every(key=>[...Object.keys(SLICE_DEFAULTS),'loopInsetMm','roles'].includes(key))),'Course variations contain Slice settings.');
+      requireThat(Array.isArray(a.courses)&&a.courses.length>0&&a.courses.every(course=>course&&Object.keys(course).every(key=>[...Object.keys(SLICE_DEFAULTS),'loopInsetMm','roles','connectNearby'].includes(key))),'Course variations contain Slice settings.');
       for(const course of a.courses){const {courses,...settings}=a;validateSlices({version:SLICE_VERSION,assignments:[{...settings,...course}]},{parts,lineWidthMm,firstLayerMm});}
     }
     requireThat(a.join===null||Object.keys(a.join).sort().join()==='levelEnd,mode'&&a.join.mode==='spiral'&&typeof a.join.levelEnd==='boolean'&&a.loops===1&&a.fillDensity===0&&a.solidTop===0&&a.solidBottom===0,`Slice ${a.id}: spiral join requires {mode:'spiral',levelEnd:boolean}, one loop and no fill/solid caps.`);

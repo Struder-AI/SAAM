@@ -41,7 +41,8 @@ Recipes and techniques using Slice, Trace and Inject; no additional deposition f
 | [line-text](line-text/SKILL.md) | Make printable single-line lettering as explicit Trace centerlines. |
 | [thingi10k](thingi10k/SKILL.md) | Find meshes by keyword or Thingiverse link and download STLs from the Thingi10K mirror. Always link the file's license. |
 | [gridfinity](gridfinity/SKILL.md) | gridfinity |
-| [supports](supports/SKILL.md) | Tree branches at placed contacts; placement trades support against surface contact and removal access. Area supports under a footprint are slices with the support preset. |
+| [standard-support](standard-support/SKILL.md) | Experimental selected underside patches closed to the bed, with an adhesion base and parallel infill-only Slice; support choices remain authored. |
+| [supports](supports/SKILL.md) | Experimental tree branches at authored contacts; selected curved underside support uses standard-support. |
 | [hole-supports](hole-supports/SKILL.md) | Experimental support options for a detected bed-facing circular counterbore under a smaller through bore. |
 
 ## Workspace extensions

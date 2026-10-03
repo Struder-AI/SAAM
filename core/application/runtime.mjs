@@ -11,6 +11,7 @@ import {openBrowser} from '../../studio/browser.mjs';
 import {randomUUID} from 'node:crypto';
 import {Worker} from 'node:worker_threads';
 import {PreparedGenerationJob} from '../../studio/prepared-generation-job.mjs';
+import {runPortableBundleJob} from './portable-bundle-job.mjs';
 import {changeMachine,rememberSetup,adjustSettings,recordExtensionDependency} from '../machine/bundle-settings.mjs';
 import {SETTINGS_FIELDS} from '../machine/settings.mjs';
 import { MACHINE_IDS, loadMachine } from '../machine/profile.mjs';
@@ -46,6 +47,7 @@ const bundleIdSchema = z.string().min(1).refine(id => {
 // so the tool surface stays stable.
 const kindSchema = z.enum(['shell']).default('shell');
 const objectSchema = z.record(z.string(), z.unknown());
+const editIdentitySchema={expectedRevision:z.string().min(1).optional(),expectedEditRevision:z.string().min(1).optional()};
 async function bundleModule(){return import('../print/bundle.mjs');}
 async function recipeModule(){return import('../print/plan.mjs');}
 
@@ -78,7 +80,7 @@ export function summary(bundleId, state) {
   const programChecked=state.programChecked!==false;
   const lifecycle=lifecycleReview(state,{programChecked});
   return {
-    bundleId, kind: state.kind, revision: state.revision, geometryHash:state.geometryHash,
+    bundleId, kind: state.kind, revision: state.revision, editRevision:state.editRevision, geometryHash:state.geometryHash,
     machineId: state.machine?.id??null, output: state.plan.output, skills: state.skills,
     toolpathApproved: lifecycle.toolpathApproved,
     programChecked,
@@ -94,7 +96,7 @@ export function summary(bundleId, state) {
 
 export const LOCAL_LISTEN=Object.freeze({defaultMs:25000,maxMs:25000}),LISTEN_LIMIT_MS=25000;
 
-export const instructions = 'Use saam help for operations and saam help OP for complete input schemas. Call saam call OP with --input FILE, --stdin or named flags. For existing Studio work call begin_studio_work before editing. Start tours with saam start-tour. Use maker_onboarding once per chat and read individual manuals as needed. A person confirms exact settings and toolpath together in Studio before export. Commands and waits do not own application lifetime. Repeat saam wait between Studio requests; Codex background completion wakeup is unverified. Return chatId with --chat-id if the command environment has no session ID. No operation grants hardware operation or final approval.';
+export const instructions = 'Use saam help for operations and saam help OP for complete input schemas. Call saam call OP with --input FILE, --stdin or named flags. Result-changing work establishes Studio context automatically. Hand back once with respond_to_studio_request using workRequest.id, including when a new user message interrupts work. Start tours with saam start-tour. Use maker_onboarding once per chat and read individual manuals as needed. A person confirms exact settings and toolpath together in Studio before export. Commands and waits do not own application lifetime. Repeat saam wait between Studio requests; Codex background completion wakeup is unverified. Return chatId with --chat-id if the command environment has no session ID. No operation grants hardware operation or final approval.';
 
 // The optional service supplies Studio's release and diagnostics controls.
 export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen = process.env.SAAM_NO_AUTO_OPEN !== '1',localExtension=installedExtension,thingi10kClient,relay,application={},stateRoot=homePaths().state } = {}) {
@@ -106,17 +108,28 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
     search:async args=>(await getResourceClient()).search(args),
     download:async(fileId,options)=>(await getResourceClient()).download(fileId,options)
   };
-  const app={closing:null},chats=new Map(),allStudios=new Map(),workspaceSessions=new Map(),imports=new Map(),generations=new Map();
-  const work={tail:Promise.resolve()},operationObservers=new Set(),eventObservers=new Set(),activeOperations=new Map(),transferringStudios=new Set();
+  const app={closing:null},chats=new Map(),allStudios=new Map(),workspaceSessions=new Map(),imports=new Map(),generations=new Map(),calculations=new Map();
+  const work={tails:new Map(),pending:new Set()},operationObservers=new Set(),eventObservers=new Set(),activeOperations=new Map(),transferringStudios=new Set();
   function observeEvent(event){for(const observer of eventObservers)try{observer(publicBundleIdentity(event));}catch{/* Diagnostics never fail work. */}}
   function createChat(ownerId,{name=ownerId,client=null}={}){
   const studioEvents=createStudioEvents(),agentRequests=createAgentRequests(libraryRoot,{ownerId,events:studioEvents,folder:resolve(stateRoot,'.studio-requests')});
   studioEvents.observe(observeEvent);
   const tour=createTour(libraryRoot,{ownerId,agentRequests});
   const studioSessions=new Map(),preferredStudioByPrint=new Map(),activity={calls:0};
-  const generationStatus=()=>[...[...studioSessions.values()].map(({server:studio})=>studio.generationStatus()).filter(Boolean),
-    ...[...imports.values()].filter(job=>job.ownerId===ownerId).map(({controller,...job})=>({...job,cancellable:!controller.signal.aborted,elapsedMs:Date.now()-job.startedAt,estimatedRemainingMs:null})),
+  const generationStatus=()=>[...[...calculations.values()].filter(job=>job.ownerId===ownerId).map(({controller,...job})=>({...job,cancellable:job.status!=='committing'&&!controller.signal.aborted,elapsedMs:Date.now()-job.startedAt,estimatedRemainingMs:null})),...[...studioSessions.values()].map(({server:studio})=>studio.generationStatus()).filter(Boolean),
+    ...[...imports.values()].filter(job=>job.ownerId===ownerId).map(({controller,...job})=>({...job,cancellable:job.status!=='committing'&&!controller.signal.aborted,elapsedMs:Date.now()-job.startedAt,estimatedRemainingMs:null})),
     ...[...generations.values()].filter(job=>job.ownerId===ownerId).map(({job,...identity})=>({...identity,studioInstanceId:null,status:job.status,cancellable:job.cancellable,progress:job.progress,elapsedMs:Date.now()-identity.startedAt}))];
+  async function calculateGeometry(bundleId,action){
+    const jobId=randomUUID(),controller=new AbortController();
+    const job={ownerId,jobId,printId:bundleId,studioInstanceId:null,status:'constructing',startedAt:Date.now(),controller,progress:{stage:'Extracting geometry'}};
+    calculations.set(jobId,job);studioEvents.record('geometry-started',{jobId,printId:bundleId});
+    const beforeCommit=()=>{controller.signal.throwIfAborted();job.status='committing';job.progress={stage:'Saving geometry'};};
+    try{
+      const result=await action({signal:controller.signal,beforeCommit});
+      studioEvents.record('geometry-completed',{jobId,printId:bundleId});return result;
+    }catch(error){studioEvents.record(controller.signal.aborted?'geometry-cancelled':'geometry-failed',{jobId,printId:bundleId,error:error.message});throw error;}
+    finally{calculations.delete(jobId);}
+  }
   async function importSTL(bundleId,dir,{source,units,machineId,setupFile:remembered}){
     const jobId=randomUUID(),controller=new AbortController(),startedAt=Date.now();
     imports.set(jobId,{ownerId,jobId,printId:bundleId,studioInstanceId:null,status:'importing',startedAt,controller,progress:{stage:'import'}});
@@ -151,6 +164,21 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
     }
     finally{imports.delete(jobId);}
   }
+  async function exchangeBundle(operation,bundleId,dir,packageFile){
+    const jobId=randomUUID(),controller=new AbortController(),kind='bundle-'+operation,eventKind=operation==='share'?'bundle-share':'import';
+    const job={ownerId,jobId,printId:bundleId,studioInstanceId:null,kind,status:operation==='share'?'sharing':'importing',startedAt:Date.now(),controller,progress:{stage:'Preparing portable bundle'}};
+    imports.set(jobId,job);studioEvents.record(eventKind+'-started',{jobId,printId:bundleId,operation:'bundle-'+operation});
+    try{
+      const result=await runPortableBundleJob(operation,dir,packageFile,{appRoot:root,signal:controller.signal,
+        progress:value=>{job.progress=value;},beforeCommit:()=>{
+          controller.signal.throwIfAborted();job.status='committing';job.progress={stage:operation==='share'?'Publishing portable ZIP':'Publishing imported bundle'};
+        }});
+      studioEvents.record(eventKind+'-completed',{jobId,printId:bundleId,operation:'bundle-'+operation});return {...result,bundleId};
+    }catch(error){
+      studioEvents.record(eventKind+(controller.signal.aborted?'-cancelled':'-failed'),{jobId,printId:bundleId,error:error.message,operation:'bundle-'+operation,
+        ...(error.installedExtensions?{installedExtensions:error.installedExtensions}:{})});throw error;
+    }finally{imports.delete(jobId);}
+  }
   // Every runtime-owned Studio instance starts here, showing dir or no print.
   async function startStudio(dir){
     if(app.closing)throw Error('The SAAM application is quitting.');
@@ -158,9 +186,15 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
     try{await studio.ready();}catch(error){await studio.shutdown().catch(()=>{});throw error;}
     try{await new Promise((resolveListen, reject) => { studio.once('error', reject); studio.listen(0, '127.0.0.1', resolveListen); });}
     catch(error){await studio.shutdown().catch(()=>{});throw error;}
+    studio.interruptWork=async()=>{
+      const selected=studio.currentPrint();if(!selected)return;
+      const requests=(await agentRequests.query({printId:agentRequests.printId(selected)})).filter(r=>r.workActive&&(!r.studioInstanceId||r.studioInstanceId===studio.agentSession().instanceId));
+      const ids=[...new Set(requests.map(r=>r.episodeId??r.id))];
+      await Promise.all(ids.map(id=>handBackRequest(id,{status:'waiting',message:'The person requested help in Studio.'})));
+    };
     const session = { server: studio, url: `http://127.0.0.1:${studio.address().port}` },studioInstanceId=studio.agentSession().instanceId;
     session.ownerId=ownerId;allStudios.set(studioInstanceId,session);studioSessions.set(studioInstanceId, session);
-    studio.agentWorking(activity.calls>0);
+
     studio.once('close',()=>{
       allStudios.delete(studioInstanceId);
       for(const chat of chats.values())chat.releaseStudio(studioInstanceId);
@@ -168,7 +202,7 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
     });
     return session;
   }
-  // One print-work queue per runtime: mutations run in order; immediate tools bypass it.
+  // Bundle/workspace queues preserve dependent command order; immediate tools bypass them.
   const operations=new Map();
 
   async function directory(bundleId, { create = false, exclusive = create } = {}) {
@@ -210,6 +244,13 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
     const {dir,bundle}=await locate(bundleId);
     return {dir,bundle,state:await bundle.loadBundle(dir,{program})};
   }
+  async function applyExtension(bundleId,extensionId,request,options={},kindError='Extensions modify shared shell/mesh prints.'){
+    noApprovalFields(request);
+    const {dir,state}=await read(bundleId,{program:false});
+    if(state.kind!=='shell')throw new Error(kindError);
+    const updated=await applyExtensionEdit(dir,extensionId,request,options);
+    return {...summary(bundleId,updated),...(updated.extensionReport?{extensionReport:updated.extensionReport}:{})};
+  }
   // Settings select available guidance; only summary consumes the print state.
   async function withMachineHint(bundleId,state,machine){
     const result=summary(bundleId,state),hint=await machineHint(root,{to:machine});
@@ -236,11 +277,12 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
   const reportOperation=event=>{for(const observer of operationObservers)try{observer(event);}catch{/* Diagnostics never fail an operation. */}};
   function tool(name, description, shape, action, readOnly = true, openWorld = false) {
     const tracked=Boolean(shape.bundleId)&&!immediateTools.has(name);
-    const instanceScope=tracked&&!readOnly&&!['request_review','create_bundle','import_stl_bundle','import_thingi10k_bundle','remember_setup','deliver_toolpath'].includes(name);
+    const resultChanging=tracked&&!readOnly&&!['request_review','remember_setup','deliver_toolpath'].includes(name);
+    const instanceScope=tracked&&!readOnly&&!['request_review','create_bundle','import_bundle','import_stl_bundle','import_thingi10k_bundle','remember_setup','deliver_toolpath'].includes(name);
     // The full strict schema makes unexpected top-level approval data an error
     // instead of letting Zod silently discard it.
     const schema=z.object({...shape,...(tracked?{requestIds:z.array(z.string()).optional()}: {}),...(instanceScope?{studioInstanceId:z.string().optional()}: {})}).strict();
-    operations.set(name,{name,description,schema,readOnly,openWorld,tracked,instanceScope,immediate:immediateTools.has(name),action});
+    operations.set(name,{name,description,schema,readOnly,openWorld,tracked,instanceScope,resultChanging,immediate:immediateTools.has(name),action});
   }
   async function associatedStudio(bundleId,studioInstanceId,requestIds){
     const dir=await directory(bundleId);
@@ -264,17 +306,34 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
     if(!session||session.server.currentPrint()!==dir)throw Error('That Studio instance is not owned by this agent or no longer displays this print.');
     return {dir,server:session.server};
   }
+  async function handBackRequest(requestId,response){
+      if(response.status==='working')return agentRequests.update(requestId,response);
+
+      const underway=[...activeOperations.values()].filter(op=>op.ownerId===ownerId&&op.requestIds?.includes(requestId)).map(op=>op.settled);
+      const pending=await agentRequests.startHandback(requestId,response);
+      if(!pending)return agentRequests.update(requestId,response);
+      if(!pending.handbackPending)return pending;
+      const running=[...new Set([...underway,...[...activeOperations.values()].filter(op=>op.ownerId===ownerId&&op.requestIds?.includes(requestId)).map(op=>op.settled)])];
+      const completed=await Promise.all(running),last=completed.at(-1);
+      if(last?.error)response={...response,status:response.status==='cancelled'?'cancelled':'failed',message:last.error.message};
+      const handed=[];for(const id of pending.handbackIds??[requestId])handed.push(await agentRequests.finishHandback(id,response,last?last.snapshot:pending.lastSaved));
+      return handed.find(r=>r.id===requestId)??handed[0];
+  }
   // Runs one operation to its result and throws its failure; the transport
   // decides how either reaches the agent.
   // `session` carries per-session limits, such as how long this client may listen.
   function invoke(name,args={},session){
     const operation=operations.get(name);
     if(!operation)return Promise.reject(Error(`Unknown SAAM operation ${name}.`));
+    const parsed=operation.schema.safeParse(args);
     const execute=async()=>{
       if(app.closing)throw Error('The SAAM application is quitting.');
       const started=operationObservers.size?Date.now():null;
       try{
-        const {requestIds,...input}=operation.schema.parse(args);
+        if(!parsed.success)throw parsed.error;
+        const {requestIds,...input}=parsed.data;
+        if(operation.schema.shape.expectedEditRevision&&input.action!=='create'&&!input.expectedEditRevision&&!input.expectedRevision)
+          throw Error('Supply expectedEditRevision from the current recipe, or a strict legacy expectedRevision.');
         if(input.bundleId&&!operation.readOnly&&name!=='capture_bundle'){
           const existing=[...allStudios.values()].find(session=>session.server.currentPrint()===resolve(libraryRoot,input.bundleId));
           if(existing&&transferringStudios.has(existing.server.agentSession().instanceId))throw Error('This Studio is transferring to another chat. Retry after the capture finishes.');
@@ -283,7 +342,15 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
         const touch=async()=>{for(const id of requestIds??[])await agentRequests.activity(id,{directory:await directory(input.bundleId)});};
         if(input.studioInstanceId&&!studioSessions.has(input.studioInstanceId))throw Error('That Studio is no longer attached to this chat.');
         const callId=randomUUID();
-        if(!operation.readOnly&&name!=='capture_bundle')activeOperations.set(callId,{ownerId,name,bundleId:input.bundleId??null,studioInstanceId:input.studioInstanceId??null});
+        let settleWork;
+        const settled=new Promise(resolve=>{settleWork=resolve;});
+        let workRecords=[],workError;
+        if(operation.resultChanging){
+          const dir=await directory(input.bundleId,{create:true,exclusive:false});
+          const matches=[...studioSessions.values()].filter(s=>s.server.currentPrint()===dir);
+          workRecords=await agentRequests.startWork({directory:dir,requestIds,studioInstanceId:input.studioInstanceId??(matches.length===1?matches[0].server.agentSession().instanceId:undefined),instruction:'Working on '+name+'.'});
+        }
+        if(!operation.readOnly&&name!=='capture_bundle')activeOperations.set(callId,{ownerId,name,bundleId:input.bundleId??null,studioInstanceId:input.studioInstanceId??null,settled,requestIds:workRecords.map(r=>r.id)});
         const call={result:null};
       try{
         if(operation.tracked)await touch();
@@ -292,7 +359,25 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
           const studio=await associatedStudio(fields.bundleId,studioInstanceId,requestIds);
           call.result=studio?await studio.server.runBundleEdit(studio.dir,instance=>operation.action(fields,session,instance)):await operation.action(fields,session);
         }else call.result=await operation.action(input,session);
-      }finally{activeOperations.delete(callId);if(operation.tracked)await touch();}
+      }catch(error){workError=error;throw error;}
+      finally{
+        const originalError=workError;
+        let saved=workRecords[0]?.lastSaved??null,bookkeepingError;
+        try{
+          if(workRecords.length)saved=await agentRequests.snapshot(resolve(libraryRoot,input.bundleId));
+          for(const record of workRecords)await agentRequests.savedWork(record.id,saved);
+          if(operation.tracked)await touch();
+        }catch(error){bookkeepingError=error;workError??=error;}
+        finally{
+          if(workError&&workRecords.length)workError.workRequest={id:workRecords[0].episodeId??workRecords[0].id,
+            ...(bookkeepingError?{bookkeepingError:bookkeepingError.message}:{}),
+            reminder:'This operation failed; the work episode remains active for repair. Hand back once with respond_to_studio_request when the sequence stops.'};
+          settleWork({snapshot:saved,error:workError});
+          activeOperations.delete(callId);
+        }
+        if(bookkeepingError&&!originalError)throw bookkeepingError;
+      }
+        if(workRecords.length&&call.result&&typeof call.result==='object')call.result={...call.result,workRequest:{id:workRecords[0].episodeId??workRecords[0].id,requestIds:workRecords.map(r=>r.id),reminder:'Keep working across intermediate saves. When intent is achieved, a decision is needed, or a new user message interrupts you, call respond_to_studio_request once with this id and completed or waiting status.'}};
         const result=call.result;
         if(started!==null)reportOperation({kind:'operation',name,status:'completed',durationMs:Date.now()-started,readOnly:operation.readOnly,
           parameters:diagnosticFields(input,['bundleId','kind','machineId','units','action','expectedRevision','skillId','extensionId','workspaceInstanceId']),
@@ -309,9 +394,15 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
     if(['begin_studio_work','respond_to_studio_request'].includes(name)){
       const run=attachments.tail.then(execute);attachments.tail=run.catch(()=>{});return run;
     }
-    if(operation.immediate)return execute();
-    const run=work.tail.then(execute);
-    work.tail=run.then(()=>undefined,()=>undefined);
+    if(!parsed.success||operation.immediate)return execute();
+    // Commands for one bundle remain ordered; unrelated chats and bundles do
+    // not wait for its worker. Operations without a bundle keep one own queue.
+    const target=parsed.data.bundleId?resolve(libraryRoot,parsed.data.bundleId):parsed.data.workspaceInstanceId?'workspace:'+parsed.data.workspaceInstanceId:libraryRoot;
+    const key=process.platform==='win32'?target.toLowerCase():target;
+    const tail=work.tails.get(key)??Promise.resolve(),run=tail.then(execute);
+    const settled=run.then(()=>undefined,()=>undefined);
+    work.tails.set(key,settled);work.pending.add(settled);
+    void settled.then(()=>{work.pending.delete(settled);if(work.tails.get(key)===settled)work.tails.delete(key);});
     return run;
   }
 
@@ -335,7 +426,7 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
   }));
   tool('list_skills', 'List core skills, guidance and skill/workspace extension manuals. Catalog membership does not establish recipe compatibility.', {}, skills);
   tool('list_workspaces','Discover selected workspace extensions and their manuals. Workspace designs create new, unapproved print bundles for ordinary Studio review.',{},async()=>{
-    const {listWorkspaces}=await import('../../workspaces/server.mjs');
+    const {listWorkspaces}=await import('../extensions/workspaces.mjs');
     return {workspaces:await listWorkspaces({appRoot:root})};
   });
   tool('open_workspace','Open a workspace extension in this application. Reuses its live instance; its saved design and created bundles stay in the configured print library.',
@@ -408,6 +499,16 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
       await bundle.initBundle(dir, plan, { machineId, setupFile: await setupFile(machineId) });
       return withMachineHint(bundleId, await bundle.loadBundle(dir), machine);
     }, false);
+  tool('share_bundle','Package current editable bundle inputs and selected extensions into a new portable ZIP. Toolpaths, programs, approvals and history are excluded; recipient imports, edits and regenerates. Existing package files are never overwritten.',
+    {bundleId:bundleIdSchema,packageFile:z.string()},async({bundleId,packageFile})=>{
+      if(!isAbsolute(packageFile)||!/\.zip$/i.test(packageFile))throw Error('Choose an absolute path for a new .zip package.');
+      return exchangeBundle('share',bundleId,await directory(bundleId),packageFile);
+    },true,true);
+  tool('import_bundle','Import a portable editable ZIP into a new bundle. Validates inputs and selected extensions without executing imported scripts. Never overwrites an existing bundle or changed local extension. Open/request_review using the returned bundleId; regenerate before export.',
+    {bundleId:bundleIdSchema,packageFile:z.string()},async({bundleId,packageFile})=>{
+      if(!isAbsolute(packageFile)||!/\.zip$/i.test(packageFile))throw Error('Choose an absolute path to a .zip package.');
+      return exchangeBundle('import',bundleId,await directory(bundleId,{create:true}),packageFile);
+    },false,true);
   tool('import_stl_bundle', 'Import a local STL into a new named bundle. Default units auto chooses a reasonable mm/inch assumption from model size and printer bounds, without interrupting the person; honor explicit units when supplied. Preserves source bytes and hash and reuses remembered setup. Show geometry dimensions; units can be corrected with set_stl_units.',
     { bundleId: bundleIdSchema, sourcePath: z.string().min(1), units: z.enum(['auto','mm', 'inch']).default('auto'), machineId: z.string() },
     async ({ bundleId, sourcePath, units, machineId }) => {
@@ -433,84 +534,80 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
     },false,true);
   localExtension.registerOperations?.({tool,z,bundleIdSchema,objectSchema,idSchema,read,noApprovalFields});
   tool('set_stl_units','Correct an imported mesh to mm or inch units, rescaling its current geometry and preserving the original STL bytes and printing settings. Invalidates geometry/toolpath confirmations; show the corrected size for geometry review.',
-    {bundleId:bundleIdSchema,units:z.enum(['mm','inch']),expectedRevision:z.string()},async({bundleId,units,expectedRevision})=>{
+    {bundleId:bundleIdSchema,units:z.enum(['mm','inch']),...editIdentitySchema},async({bundleId,units,expectedRevision,expectedEditRevision})=>{
       const {setSTLUnits}=await import('../print/import-stl.mjs');
-      const dir=await directory(bundleId);return summary(bundleId,await setSTLUnits(dir,units,{expectedRevision}));
+      const dir=await directory(bundleId);return summary(bundleId,await setSTLUnits(dir,units,{expectedRevision,expectedEditRevision}));
     },false);
   tool('blob_field', 'Create or rebuild a blob-field part: freely placed points, each with positionMm, reachMm and strength, whose smooth falloffs add up; material is where the sum exceeds the threshold (default 0.25, where a lone strength-1 point is a ball of radius reach/2), cut flat at Z = 0. Negative strength carves. Request {points, threshold?, edgeMm?}; GEOMETRY.md#blob-field describes it. Extracted to a mesh for shared slicing and Studio review.',
-    {bundleId:bundleIdSchema,action:z.enum(['create','update']),request:objectSchema,machineId:z.string().optional(),expectedRevision:z.string().optional(),part:idSchema.optional()},
-    async({bundleId,action,request,machineId,expectedRevision,part})=>{
+    {bundleId:bundleIdSchema,action:z.enum(['create','update']),request:objectSchema,machineId:z.string().optional(),...editIdentitySchema,part:idSchema.optional()},
+    async({bundleId,action,request,machineId,expectedRevision,expectedEditRevision,part})=>{
       noApprovalFields(request);
       if(action==='create'){
-        if(!machineId||expectedRevision!==undefined||part!==undefined)throw new Error('Creation requires machineId; revision and part apply to updates.');
+        if(!machineId||expectedRevision!==undefined||expectedEditRevision!==undefined||part!==undefined)throw new Error('Creation requires machineId; revision and part apply to updates.');
         loadMachine(machineId);
         const dir=await directory(bundleId,{create:true});
-        return summary(bundleId,await createBlobFieldBundle(dir,request,{machineId,setupFile:await setupFile(machineId)}));
+        const remembered=await setupFile(machineId);
+        return summary(bundleId,await calculateGeometry(bundleId,options=>createBlobFieldBundle(dir,request,{machineId,setupFile:remembered,...options})));
       }
       if(machineId!==undefined)throw new Error('Use the existing print machine for updates.');
       const {dir,state}=await read(bundleId,{program:false});
       if(state.kind!=='shell')throw new Error('Select a shared shell/mesh print.');
-      return summary(bundleId,await updateBlobFieldBundle(dir,request,{expectedRevision,part}));
+      return summary(bundleId,await calculateGeometry(bundleId,options=>updateBlobFieldBundle(dir,request,{expectedRevision,expectedEditRevision,part,...options})));
     },false);
   tool('gridfinity', 'gridfinity',
-    {bundleId:bundleIdSchema,action:z.enum(['create','update']),parameters:objectSchema,machineId:z.string().optional(),expectedRevision:z.string().optional(),part:idSchema.optional()},
-    async({bundleId,action,parameters,machineId,expectedRevision,part})=>{
+    {bundleId:bundleIdSchema,action:z.enum(['create','update']),parameters:objectSchema,machineId:z.string().optional(),...editIdentitySchema,part:idSchema.optional()},
+    async({bundleId,action,parameters,machineId,expectedRevision,expectedEditRevision,part})=>{
       noApprovalFields(parameters);
       if(action==='create'){
-        if(!machineId||expectedRevision!==undefined||part!==undefined)throw new Error('Creation requires machineId; revision and part apply to updates.');
+        if(!machineId||expectedRevision!==undefined||expectedEditRevision!==undefined||part!==undefined)throw new Error('Creation requires machineId; revision and part apply to updates.');
         loadMachine(machineId);
         const dir=await directory(bundleId,{create:true});
         return summary(bundleId,await createExtensionBundle(dir,'gridfinity',parameters,{machineId,setupFile:await setupFile(machineId)}));
       }
       if(machineId!==undefined)throw new Error('Use the existing print machine for updates.');
-      const {dir,state}=await read(bundleId,{program:false});
-      if(state.kind!=='shell')throw new Error('Select a shared shell/mesh print.');
-      if(!expectedRevision)throw Error('Gridfinity edits require expectedRevision from the current print.');
-      return summary(bundleId,await applyExtensionEdit(dir,'gridfinity',parameters,{expectedRevision,part}));
+      if(!expectedRevision&&!expectedEditRevision)throw Error('Gridfinity edits require expectedRevision from the current print.');
+      return applyExtension(bundleId,'gridfinity',parameters,{expectedRevision,expectedEditRevision,part},'Select a shared shell/mesh print.');
     },false);
+  tool('apply_extension','Apply an installed extension to the current recipe. Read its manual for request fields. Geometry and deposition assignments commit together; return the saved revision and construction report.',
+    {bundleId:bundleIdSchema,extensionId:z.string().regex(/^[a-z][a-z0-9-]*$/),...editIdentitySchema,request:objectSchema,part:idSchema.optional()},
+    async({bundleId,extensionId,expectedRevision,expectedEditRevision,request,part})=>applyExtension(bundleId,extensionId,request,{expectedRevision,expectedEditRevision,part}),false);
   tool('apply_text', 'Add, edit or remove raised/recessed text using a local font and a part or independent spline reference. Read text for request fields; assignments can replace the common plan.slices list atomically with geometry. Rebuilds actual geometry and invalidates approvals; use request_review afterward.',
-    {bundleId:bundleIdSchema,expectedRevision:z.string().min(1),request:objectSchema},async({bundleId,expectedRevision,request},session)=>{
-      noApprovalFields(request);
-      const {dir,state}=await read(bundleId,{program:false});
-      if(state.kind!=='shell')throw new Error('Text modifies shared shell/mesh prints.');
-      return summary(bundleId,await applyExtensionEdit(dir,'text',request,{expectedRevision}));
+    {bundleId:bundleIdSchema,...editIdentitySchema,request:objectSchema},async({bundleId,expectedRevision,expectedEditRevision,request},session)=>{
+      return applyExtension(bundleId,'text',request,{expectedRevision,expectedEditRevision},'Text modifies shared shell/mesh prints.');
     },false);
   tool('apply_heat_set', 'Add, edit or remove a heat-set insert hole; its reinforcement (a six-loop annulus and connecting fins) is written as slice assignments ahead of the others. Select the exact insertId from the heat-set-inserts manual size/profile table; read its request and geometry limits. Rebuilds geometry and invalidates affected approvals; use request_review afterward.',
-    {bundleId:bundleIdSchema,expectedRevision:z.string().min(1),request:objectSchema},async({bundleId,expectedRevision,request})=>{
-      noApprovalFields(request);
-      const {dir,state}=await read(bundleId,{program:false});
-      if(state.kind!=='shell')throw new Error('Heat-set inserts modify shared shell/mesh prints.');
-      return summary(bundleId,await applyExtensionEdit(dir,'heat-set-inserts',request,{expectedRevision}));
+    {bundleId:bundleIdSchema,...editIdentitySchema,request:objectSchema},async({bundleId,expectedRevision,expectedEditRevision,request})=>{
+      return applyExtension(bundleId,'heat-set-inserts',request,{expectedRevision,expectedEditRevision},'Heat-set inserts modify shared shell/mesh prints.');
     },false);
   tool('intersect_geometry', 'Query saved or draft geometry before placement: horizontal sections, vertical top crossings, spline surface cuts, or draft slice families. Families report layer counts, ownership, full-crossing findings and sampled local thickness; no recipe is saved. includeLoops adds chart/world points. Geometry findings are not machine/export approval.',
     {bundleId:bundleIdSchema.optional(),request:z.object({geometry:geometrySchema.optional(),part:z.string().optional(),sectionsAtZ:z.array(z.number()).optional(),topsAtXY:z.array(z.tuple([z.number(),z.number()])).optional(),surfaces:z.array(patchSchema.omit({name:true}).extend({offsetMm:z.tuple([z.number(),z.number(),z.number()]).optional()})).optional(),families:z.array(draftFamilySchema).describe('Ordinary assignment patches; default first/pitch 0.2mm and width0.4mm, override stack/process explicitly. Geometry belongs to outer request; part null inside drafts.').optional(),includeLoops:z.boolean().optional()}).strict()},async({bundleId,request})=>
       intersectRequest(bundleId===undefined?null:(await read(bundleId,{program:false})).dir,request));
   tool('combine_geometry', 'Combine a print’s geometry (or one part) with a new operand: request {operation: union|difference|intersection, operand, part?}. The result is a boolean solid; repeating an operation appends to it, and a difference subtracts every later operand. Operands are spline, mesh, blob-field or boolean geometry in the same coordinates. Spline operands stay native: each layer combines their exact sections. Invalidates approvals; use request_review afterward. GEOMETRY.md#booleans.',
-    {bundleId:bundleIdSchema,expectedRevision:z.string().min(1),request:objectSchema},async({bundleId,expectedRevision,request})=>{
+    {bundleId:bundleIdSchema,...editIdentitySchema,request:objectSchema},async({bundleId,expectedRevision,expectedEditRevision,request})=>{
       noApprovalFields(request);
       const {dir,state}=await read(bundleId,{program:false});
       if(state.kind!=='shell')throw new Error('Booleans combine shared shell/mesh prints.');
-      return summary(bundleId,await combineGeometry(dir,request,{expectedRevision}));
+      return summary(bundleId,await combineGeometry(dir,request,{expectedRevision,expectedEditRevision}));
     },false);
   tool('slice', 'Add, edit or remove one general deposition assignment in plan.slices. Shared recipe validation; add fills defaults, edit merges objects and replaces arrays. before controls ownership order. Returns saved settings and immediate deposition diagnostics; blocked findings leave valid intermediate recipes editable. No export or confirmation is created.',
-    {bundleId:bundleIdSchema,expectedRevision:z.string().min(1),action:z.enum(['add','edit','remove']),id:z.string().regex(/^[a-z][a-z0-9-]*$/),assignment:slicePatchSchema.optional(),before:z.string().nullable().describe('Existing assignment id to insert before; null appends; omitted retains edit position or appends an add.').optional()},
-    async({bundleId,expectedRevision,...request})=>{
+    {bundleId:bundleIdSchema,...editIdentitySchema,action:z.enum(['add','edit','remove']),id:z.string().regex(/^[a-z][a-z0-9-]*$/),assignment:slicePatchSchema.optional(),before:z.string().nullable().describe('Existing assignment id to insert before; null appends; omitted retains edit position or appends an add.').optional()},
+    async({bundleId,expectedRevision,expectedEditRevision,...request})=>{
       noApprovalFields(request.assignment);
-      const {dir}=await locate(bundleId),result=await applySlice(dir,request,{expectedRevision});
+      const {dir}=await locate(bundleId),result=await applySlice(dir,request,{expectedRevision,expectedEditRevision});
       return {...summary(bundleId,result.state),edit:result.edit};
     },false);
   tool('modulate', 'Add, edit or remove a field modifier in plan.modulations. Select world/slice/curve frame, assignment/role and layer scope. Runs before final support publication; changes invalidate dependent output and confirmation. Add requires channel, amplitude, field and direction for displacement/tilt; edit patches saved settings. Read slice#modulation.',
-    {bundleId:bundleIdSchema,expectedRevision:z.string().min(1),action:z.enum(['add','edit','remove']),id:z.string().regex(/^[a-z][a-z0-9-]*$/),modifier:modulationPatchSchema.optional()},
-    async({bundleId,expectedRevision,...request})=>{
+    {bundleId:bundleIdSchema,...editIdentitySchema,action:z.enum(['add','edit','remove']),id:z.string().regex(/^[a-z][a-z0-9-]*$/),modifier:modulationPatchSchema.optional()},
+    async({bundleId,expectedRevision,expectedEditRevision,...request})=>{
       noApprovalFields(request.modifier);
-      const {dir}=await locate(bundleId),result=await applyModulation(dir,request,{expectedRevision});
+      const {dir}=await locate(bundleId),result=await applyModulation(dir,request,{expectedRevision,expectedEditRevision});
       return {...summary(bundleId,result.state),edit:result.edit};
     },false);
-  tool('adjust_recipe', 'Apply a validated recipe patch at expectedRevision. experimental.substrateAdaptation is boolean, default false: on adapts gap/volume and surface-following placement to deposited substrate. Edits invalidate final confirmation; read fresh state if stale.',
-    { bundleId: bundleIdSchema, expectedRevision: z.string().min(1), patch: z.object({experimental:z.object({substrateAdaptation:z.boolean().describe('Experimental deposited-substrate adaptation; default false.').optional()}).strict().optional()}).passthrough() }, async ({ bundleId, expectedRevision, patch }) => {
+  tool('adjust_recipe', 'Apply a validated recipe patch at expectedEditRevision (or strict legacy expectedRevision). experimental.substrateAdaptation is boolean, default false: on adapts gap/volume and surface-following placement to deposited substrate. Edits invalidate final confirmation; read fresh state if stale.',
+    { bundleId: bundleIdSchema, ...editIdentitySchema, patch: z.object({experimental:z.object({substrateAdaptation:z.boolean().describe('Experimental deposited-substrate adaptation; default false.').optional()}).strict().optional()}).passthrough() }, async ({ bundleId, expectedRevision,expectedEditRevision, patch }) => {
       noApprovalFields(patch);
       const { dir, bundle, state } = await read(bundleId,{program:false});
-      const options={expectedRevision,setupFile:state.machine?await setupFile(state.machine.id):undefined};
+      const options={expectedRevision,expectedEditRevision,setupFile:state.machine?await setupFile(state.machine.id):undefined};
       const next=Object.keys(patch).every(key=>SETTINGS_FIELDS.includes(key))
         ?await adjustSettings(dir,patch,options):await bundle.adjustBundle(dir,patch,options);
       return summary(bundleId, next);
@@ -529,16 +626,16 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
     return { bundleId, ...await bundle.checkPathBundle(dir), physicalValidation: 'not performed' };
   });
   tool('record_extension_dependency','Record supplied named extension configuration in the existing recipe skills record. No defaults, installation lookup or execution. Later operations validate what they consume. Null removes the named record.',
-    {bundleId:bundleIdSchema,extensionId:idSchema,configuration:objectSchema.nullable(),expectedRevision:z.string()},
-    async({bundleId,extensionId,configuration,expectedRevision})=>summary(bundleId,
-      await recordExtensionDependency(await directory(bundleId),extensionId,configuration,{expectedRevision})),false);
+    {bundleId:bundleIdSchema,extensionId:idSchema,configuration:objectSchema.nullable(),...editIdentitySchema},
+    async({bundleId,extensionId,configuration,expectedRevision,expectedEditRevision})=>summary(bundleId,
+      await recordExtensionDependency(await directory(bundleId),extensionId,configuration,{expectedRevision,expectedEditRevision})),false);
   tool('remember_setup', 'Remember this saved print setup for later prints on the same machine, shared with CLI initialization. This saves setup defaults, never job approvals.', { bundleId: bundleIdSchema }, async ({ bundleId }) => {
     const { dir, bundle, state } = await read(bundleId,{program:false});
     await rememberSetup(dir, { setupFile: await setupFile(state.machine.id) });
     return { bundleId, machineId: state.machine.id, remembered: true, approvalsChanged: false };
   }, false);
   tool('get_approval_status', 'Read the fresh hash-bound final settings/toolpath approval from the saved bundle. Caller-provided approvals are never accepted.', { bundleId: bundleIdSchema }, async ({ bundleId }) => summary(bundleId, (await read(bundleId)).state));
-  tool('begin_studio_work','Start Studio work as early as practical for an edit to an existing print — you may acknowledge the person first; the claim it records is what later mutations and result reports check, so make it before either. Identify the Studio instance when more than one is open. Edits start Updating preview; guidance stays visually quiet. For a Studio-originated request, pass its requestId to claim that request. Resolve every started request with respond_to_studio_request.',
+  tool('begin_studio_work','Optionally establish or claim work context before editing. Ordinary result-changing operations establish context automatically. Pass Studio requestIds on the operation; identify the Studio instance when ambiguous. Begin alone does not dim the view. Hand back once with respond_to_studio_request.',
     {bundleId:bundleIdSchema.optional(),studioInstanceId:z.string().optional(),instruction:z.string().min(1),requestId:z.string().optional(),kind:z.enum(['edit','guidance']).default('edit')},async({bundleId,studioInstanceId,instruction,requestId,kind})=>{
       const record=requestId?await agentRequests.get(requestId):null;
       if(!studioInstanceId&&record?.studioInstanceId)studioInstanceId=record.studioInstanceId;
@@ -554,11 +651,13 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
       }
       const editSession=studioInstanceId?studioSessions.get(studioInstanceId):null;
       if(editSession&&editSession.server.currentPrint()!==dir)throw Error('That Studio instance is displaying another print.');
-      if(requestId){if(record?.printId!==bundleId)throw Error('That request belongs to another print.');if(record.studioInstanceId&&record.studioInstanceId!==studioInstanceId)throw Error('That request belongs to another Studio instance.');return agentRequests.update(requestId,{status:'working'});}
-      return agentRequests.begin({directory:dir,instruction,kind,studioInstanceId});
+      if(requestId){if(record?.printId!==bundleId)throw Error('That request belongs to another print.');if(record.studioInstanceId&&record.studioInstanceId!==studioInstanceId)throw Error('That request belongs to another Studio instance.');}
+      const bundle=await bundleFor(dir),bundleState=await bundle.loadBundle(dir,{program:false});
+      if(requestId)return {...await agentRequests.update(requestId,{status:'working'}),editRevision:bundleState.editRevision};
+      return {...await agentRequests.begin({directory:dir,instruction,kind,studioInstanceId,bundleState}),editRevision:bundleState.editRevision};
     },false);
-  tool('respond_to_studio_request','After saving the intended inputs, publish status working with resultStage geometry or toolpath for every edit. Intermediate saves cannot finish a request; automatic tour generation waits for this target. Bind every included request when combining edits. Use waiting when paused for a choice or confirmation; resume the same requestId without losing its target. Complete after sending guidance or presenting the requested result; geometry-only work needs no generation. Mark failures explicitly. Studio clears Updating preview when the bound result is displayed, independently of this acknowledgement.',
-    {requestId:z.string(),status:z.enum(['working','waiting','completed','failed','cancelled']).default('completed'),resultStage:z.enum(['geometry','toolpath']).optional(),message:z.string().default('')},async({requestId,...response})=>agentRequests.update(requestId,response),false);
+  tool('respond_to_studio_request','Hand back once when the requested intent is achieved, discussion or a decision is needed, or a new user message interrupts autonomous work. Use returned workRequest.id. completed finishes; waiting pauses. The operation already underway settles and its concrete saved revision is displayed before undimming. Omit resultStage to accept the displayed pane, including usable previous toolpath. Intermediate saves remain visible and working. Inspection grants no approval. Legacy working targets remain supported for tours.',
+    {requestId:z.string(),status:z.enum(['working','waiting','completed','failed','cancelled']).default('completed'),resultStage:z.enum(['geometry','toolpath']).optional(),message:z.string().default('')},async({requestId,...response})=>handBackRequest(requestId,response),false);
   tool('wait_for_studio_request','Wait for Studio to request maker-agent input. Send any completed edit acknowledgement in chat commentary BEFORE this call. Do not defer it to the final response. While guiding a tour, call this between lessons instead of ending the turn and requiring the participant to ask for guidance. Claim a returned request and resolve it after doing its work. Prepare imported-model start layers silently; Studio leads the early lessons. Give proactive chat guidance only at the designated infill lesson and completion. Repeat after a timeout while the participant is navigating, without waiting for a chat message. Omit waitMs: the session uses the longest wait its client allows.',
     {after:z.array(z.string()).optional(),waitMs:z.number().int().min(0).max(LISTEN_LIMIT_MS).optional(),claim:z.boolean().optional(),studioInstanceId:z.string().optional()},async(args,session)=>{
       if(args.studioInstanceId&&!studioSessions.has(args.studioInstanceId))throw Error('That Studio instance is not owned by this agent.');
@@ -574,17 +673,25 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
       }
       return generation.length?{...result,generation}:result;
     });
-  tool('get_studio_events','Read and clear the Studio event queue: what the person did in your owned Studio instances since your last read (lesson changes, opened prints, imports, exports, approvals, displayed results, calculation start/finish/failure/cancellation, viewer connections) plus live import/repair and toolpath progress with elapsed time. Delivered events also arrive on tool results and listener waits; sequence numbers identify repeats. Set history to include recently read events.',
+  tool('get_studio_events','Read and clear the Studio event queue: what the person did in your owned Studio instances since your last read (lesson changes, opened prints, imports, exports, approvals, displayed results, calculation start/finish/failure/cancellation, viewer connections) plus live geometry, import/repair and toolpath progress with elapsed time. Delivered events also arrive on tool results and listener waits; sequence numbers identify repeats. Set history to include recently read events.',
     {history:z.boolean().default(false)},async({history})=>({events:studioEvents.drain(),generation:generationStatus(),...(history?{recent:studioEvents.history()}:{})}));
   tool('get_studio_requests','Read outstanding work and the latest edit outcome per print. Set history for all resolved records; optionally restrict to one print.',{bundleId:bundleIdSchema.optional(),history:z.boolean().default(false)},async({bundleId,...options})=>({requests:await agentRequests.query({...options,printId:bundleId})}));
   tool('get_studio_sessions','List live Studio instances owned exclusively by this agent. One agent may own several instances; print bundles remain shareable across agents.',{},async()=>({sessions:[...studioSessions.values()].map(({server:studio,url})=>({...studio.agentSession(),url}))}));
-  tool('cancel_studio_calculation','Cancel a live import/automatic repair or toolpath calculation. Supply studioInstanceId for Studio work; omit it for a tool import or generation. First read get_studio_events for its identity, elapsedMs and actual progress; pass the import jobId or Studio toolpath generationHash; direct tool generation requires both jobId and generationHash. Repairs have no reliable remaining-time estimate and continue unless cancelled. Explain your decision to the person. Cancellation interrupts work and cleans incomplete imports; it does not change the previously open print.',
+  tool('cancel_studio_calculation','Cancel a live geometry, import/automatic repair or toolpath calculation. Supply studioInstanceId for Studio work; omit it for a tool geometry calculation, import or generation. First read get_studio_events for its identity, elapsedMs and actual progress; pass the geometry/import jobId or Studio toolpath generationHash; direct tool generation requires both jobId and generationHash. Repairs have no reliable remaining-time estimate and continue unless cancelled. Explain your decision to the person. Cancellation interrupts work and cleans incomplete imports; it does not change the previously open print.',
     {studioInstanceId:z.string().optional(),jobId:z.string().optional(),generationHash:z.string().optional()},async({studioInstanceId,...identity})=>{
       if(!studioInstanceId){
+        const calculation=calculations.get(identity.jobId);
+        if(calculation){
+          if(calculation.ownerId!==ownerId)throw Error('That calculation is not owned by this chat.');
+          if(calculation.status==='committing')return {cancelled:false,committing:true,kind:'geometry',jobId:identity.jobId};
+          calculation.controller.abort(Object.assign(Error('Geometry calculation cancelled.'),{name:'AbortError',code:'GEOMETRY_CANCELLED'}));
+          return {cancelled:true,kind:'geometry',jobId:identity.jobId};
+        }
         const imported=imports.get(identity.jobId);
         if(imported&&imported.ownerId===ownerId){
+          if(imported.status==='committing')return {cancelled:false,committing:true,kind:imported.kind??'import',jobId:identity.jobId};
           imported.controller.abort(Object.assign(Error('Import cancelled.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));
-          return {cancelled:true,kind:'import',jobId:identity.jobId};
+          return {cancelled:true,kind:imported.kind??'import',jobId:identity.jobId};
         }
         const generation=generations.get(identity.jobId);
         if(!generation||generation.ownerId!==ownerId||identity.generationHash!==generation.generationHash)throw Error('Read the active jobId and generationHash before cancelling.');
@@ -624,9 +731,9 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
   tool('set_tour_start_at','Choose a deposited layer after the first for the identified tour lesson. Use the runId and lessonId from the guidance request scope or get_tour; discard work when that lesson has ended.',
     {startAt:z.object({layer:z.number().int().min(1)}).strict(),runId:z.string(),lessonId:z.string()},async({startAt,...scope})=>{await requireTourOwner();return tour.setStartAt(startAt,scope);},false);
   tool('change_machine','Change a print to a supported printer using its remembered or default setup. Invalidates final settings/toolpath confirmation and validates compatibility before saving.',
-    {bundleId:bundleIdSchema,machineId:z.string(),expectedRevision:z.string()},async({bundleId,machineId,expectedRevision})=>{
+    {bundleId:bundleIdSchema,machineId:z.string(),...editIdentitySchema},async({bundleId,machineId,expectedRevision,expectedEditRevision})=>{
       const {dir,bundle}=await locate(bundleId);if(!bundle.changeMachine)throw Error('This adapter cannot change its printer.');
-      return withMachineHint(bundleId,await changeMachine(dir,machineId,{expectedRevision,setupFile:await setupFile(machineId)}),machineId);
+      return withMachineHint(bundleId,await changeMachine(dir,machineId,{expectedRevision,expectedEditRevision,setupFile:await setupFile(machineId)}),machineId);
     },false);
   tool('capture_bundle','Explicitly take over the bundle in its existing Studio. Fails while actual work runs; cancels the old chat unfinished requests, preserves the window and rejects its later writes.',
     {bundleId:bundleIdSchema},async({bundleId})=>captureBundle(chats.get(ownerId),bundleId),false);
@@ -654,12 +761,16 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
   },false);
   tool('generate_toolpath', 'Generate and check the declared export from the current geometry and complete settings, including during the tour. This is reviewable output, not approval.', { bundleId: bundleIdSchema }, async ({ bundleId },_session,instance) => {
     const { dir, bundle } = await locate(bundleId);
+    const activity={generationHash:null};
+    const publishGeneration=active=>{for(const session of studioSessions.values())if(session.server.currentPrint()===dir)session.server.setGenerationActivity({generationHash:activity.generationHash,active});};
+    try{
     const checks=await bundle.generateBundle(dir,{dispatchComputation:async({directory,generationHash})=>{
       const jobId=randomUUID(),startedAt=Date.now();
       const job=new PreparedGenerationJob({key:directory+':'+generationHash,directory,generationHash,
         createWorker:cancellation=>new Worker(new URL('../../studio/generation-worker.mjs',import.meta.url),{workerData:{directory,generationHash,progress:true,cancellation}})});
       job.worker?.ref();
       generations.set(jobId,{ownerId,jobId,printId:bundleId,generationHash,startedAt,job});
+      activity.generationHash=generationHash;publishGeneration(true);
       studioEvents.record('generation-started',{jobId,printId:bundleId,generationHash,trigger:'agent'});
       try{
         const result=await job.generate(false,instance);
@@ -670,6 +781,7 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
       }finally{generations.delete(jobId);await job.dispose();}
     }});
     return { ...summary(bundleId, await bundle.loadBundle(dir)), checks };
+    }finally{if(activity.generationHash)publishGeneration(false);}
   }, false);
   tool('deliver_toolpath', 'Copy the exact current human-reviewed export bytes into the bundle delivery folder. Fails without current toolpath approval. Does not run hardware.', { bundleId: bundleIdSchema }, async ({ bundleId }) => {
     const { dir, bundle } = await locate(bundleId);
@@ -680,9 +792,9 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
   async function sessionInvoke(operation,args={}){
     if(app.closing)throw Error('The SAAM application is closing.');
     activity.calls++;
-    for(const {server} of studioSessions.values())server.agentWorking(operation!=='wait_for_studio_request');
+
     try{return await invoke(operation,args,{listen:LOCAL_LISTEN});}
-    finally{activity.calls--;if(!activity.calls)for(const {server} of studioSessions.values())server.agentWorking(false);}
+    finally{activity.calls--;}
   }
   async function openStudio(){
     if(app.closing)throw Error('The SAAM application is closing.');
@@ -755,6 +867,7 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
     if(session.server.attachmentBusy())throw Error('Wait for the current Studio operation to finish before capturing or re-pairing.');
     for(const operation of activeOperations.values())if(operation.ownerId===session.ownerId&&['set_tour_start_at','start_tour'].includes(operation.name)||operation.studioInstanceId===instanceId||operation.bundleId&&resolve(libraryRoot,operation.bundleId)===directory)
       throw Error('A bundle operation is running. Wait for it to finish before capturing or re-pairing.');
+    for(const job of calculations.values())if(directory&&resolve(libraryRoot,job.printId)===directory)throw Error('A geometry calculation is running for this bundle.');
     for(const job of imports.values())if(directory&&resolve(libraryRoot,job.printId)===directory)throw Error('An import is running for this bundle.');
     for(const job of generations.values())if(directory&&resolve(libraryRoot,job.printId)===directory)throw Error('A generation is running for this bundle.');
   }
@@ -793,15 +906,21 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
     await transferStudio(lobby,session,true);
     return {studioInstanceId:instanceId,attached:false};
   }
-  async function openStudio(){
-    const session=[...allStudios.values()].filter(({server})=>server.listening).at(-1);
+  async function openStudio({studioInstanceId,newInstance=false}={}){
+    if(app.closing)throw Error('The SAAM application is closing.');
+    if(newInstance&&studioInstanceId)throw Error('Choose an existing Studio or create a new instance.');
+    const session=newInstance?await lobby.startStudio(null):studioInstanceId?allStudios.get(studioInstanceId):[...allStudios.values()].filter(({server})=>server.listening).at(-1);
+    if(studioInstanceId&&!session?.server.listening)throw Error('That Studio is no longer running.');
     if(!session)return lobby.openStudio();
     const browserOpenRequested=autoOpen?await openBrowser(session.url):false;
     return {studioInstanceId:session.server.agentSession().instanceId,url:session.url,browserOpenRequested};
   }
+  function notifyStopping(reason){
+    for(const {server} of allStudios.values())server.applicationStopping(reason);
+  }
   function jobs(){
-    return [...[...allStudios.values()].map(({server})=>server.generationStatus()).filter(Boolean),
-      ...[...imports.values()].map(({controller,...job})=>({...job,status:'importing'})),
+    return [...[...calculations.values()].map(({controller,...job})=>job),...[...allStudios.values()].map(({server})=>server.generationStatus()).filter(Boolean),
+      ...[...imports.values()].map(({controller,...job})=>job),
       ...[...generations.values()].map(({job,...identity})=>({...identity,status:job.status})),
       ...[...workspaceSessions.values()].map(session=>({workspaceInstanceId:session.workspaceInstanceId,inspect:session.inspect}))];
   }
@@ -810,18 +929,19 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
     return [...jobs().filter(job=>!job.inspect),...workspaces.filter(value=>value.job&&!['complete','failed','cancelled'].includes(value.job.stage))];
   }
   function close(){return app.closing??=(async()=>{
-    for(const job of imports.values())job.controller.abort(Object.assign(Error('SAAM is quitting.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));
+    for(const job of calculations.values())if(job.status!=='committing')job.controller.abort(Object.assign(Error('SAAM is quitting.'),{name:'AbortError',code:'GEOMETRY_CANCELLED'}));
+    for(const job of imports.values())if(job.status!=='committing')job.controller.abort(Object.assign(Error('SAAM is quitting.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));
     await Promise.all([...generations.values()].map(({job})=>job.cancel().done));
     // Stop existing Studio workers before draining work; no queued operation may start after closing.
     await Promise.all([...allStudios.values()].map(({server})=>server.shutdown()));
-    await work.tail;await attachments.tail;
+    await Promise.all([...work.pending]);await attachments.tail;
     // An already-running opener can finish while shutdown is draining.
     await Promise.all([...allStudios.values()].map(({server})=>server.shutdown()));
     await Promise.all([...workspaceSessions.values()].map(session=>session.shutdown()));
     for(const chat of chats.values())chat.close();
     chats.clear();connectedChats.clear();allStudios.clear();workspaceSessions.clear();operationObservers.clear();eventObservers.clear();
   })();}
-  return {beginSession,connectChat,detachStudio,openStudio,runningJobs,close,
+  return {beginSession,connectChat,detachStudio,openStudio,notifyStopping,runningJobs,close,
     operations:lobby.operations,
     observeEvents(observer){eventObservers.add(observer);return()=>eventObservers.delete(observer);},
     observeOperations(observer){operationObservers.add(observer);return()=>operationObservers.delete(observer);},

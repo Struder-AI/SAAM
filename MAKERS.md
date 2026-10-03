@@ -38,9 +38,9 @@ machine's setup and limits are in its
 
 ## Maker interaction flow
 
-The person asks for changes in chat; you apply them and Studio updates. They never
-edit JSON. These stages are review dependencies, not gates: outside a tour any
-supported change is welcome from any view, invalidating only what it affects.
+The person asks for changes; save usable intermediate revisions so Studio shows
+the work as it develops. Continue until the intent is achieved without asking at
+each step. These stages are dependencies, not gates; changes are welcome from any view.
 
 1. **First preview.** Create an unapproved print and show the geometry as soon as a
    reasonable shape exists, with proposed dimensions and assumptions beside it.
@@ -53,8 +53,8 @@ supported change is welcome from any view, invalidating only what it affects.
    settings and exact toolpath. Deliver those bytes unchanged and explain the
    transfer; for the Ultimaker, copy the file to USB, not into another slicer.
 
-Use your attached Studio windows and browser tabs. Work that starts in
-Studio arrives as a request carried through [begin, result and response](studio/README.md#carrying-a-maker-request).
+Use your attached Studio. [Hand work back](studio/README.md#carrying-a-maker-request)
+when finished, needing discussion, or interrupted by a user message; inspection is not print approval.
 
 ## Standard parameter policy
 

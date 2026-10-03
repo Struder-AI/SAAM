@@ -5,9 +5,8 @@ description: Deposit along explicit XYZ, NURBS or surface UV curves with varying
 
 # Trace
 
-Trace deposits along spatial curves; self-contained Trace/Inject recipes omit `geometry`.
-[Slice](../slice/SKILL.md) covers 3D regions. Extensions supply curves through
-`traceResult(assignment, {courses, process})` in [curves.mjs](../../core/print/curves.mjs).
+Trace deposits along curves stored in [geometry](../../GEOMETRY.md); its recipe references each curve by stable `geometry` ID and owns deposition settings. [Slice](../slice/SKILL.md) covers solid regions.
+Inline curve inputs below remain accepted: saving separates their spatial definitions from the recipe. Extensions also supply generated curves through `traceResult(assignment, {courses, process})` in [curves.mjs](../../core/print/curves.mjs).
 
 Use the existing `slice` editing tool, or the same bulk recipe edit, to add a
 `construction: "curves"` record in `plan.slices.assignments`; no separate controller.
@@ -47,7 +46,7 @@ A curve may require supporting material with
 uses available predecessors; a producer or operation ID narrows it. Null gap
 uses the resolved bead height; null reference Z uses each sampled curve point.
 Contact is checked vertically against positive-volume strands, not inferred
-from a solid guide. This also works without an enclosing geometry.
+from a solid guide. No enclosing solid is required.
 
 A down-and-up curve can declare `depositionAction:{kind:"press",depthMm}` within its bead height.
 Polyline `segmentMetadata` retains segment identities through resampling and compaction.

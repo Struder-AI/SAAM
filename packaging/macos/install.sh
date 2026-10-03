@@ -4,8 +4,10 @@
 # Install SAAM.command runs this script inside the release's app folder;
 # app.tar sits next to app/. A running SAAM updating itself uses the same path:
 #   bash <package>/app/packaging/macos/install.sh --wait-pid <pid>
-# It waits for that SAAM to exit, installs without prompts, logs to
+# It waits for that SAAM to exit, logs to
 # ~/SAAM/state/logs/update.log and starts the new SAAM.
+# Only a home permission failure requests native authorization; the rest runs
+# as the original user.
 #
 # Nothing here is signed. The bundled Node.js is the official notarized build;
 # SAAM's own files are scripts it runs. SAAM.app and the troubleshooting
@@ -21,6 +23,99 @@ update_log=''
 log() { [ -z "$update_log" ] || printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >> "$update_log"; }
 say() { echo "$*"; log "$*"; }
 fail() { log "$1"; printf '\n%s\n' "$1" >&2; exit 1; }
+
+# Resolve the exact home before authorization; never grant access to a system
+# directory or follow a home symlink. Only this directory's ownership is changed.
+preparation_home() {
+  local requested="$1" ancestor suffix='' canonical
+  case "$requested" in /*) ;; *) fail 'The SAAM home must be an absolute path.' ;; esac
+  requested="${requested%/}"
+  [ -n "$requested" ] || requested='/'
+  case "/$requested/" in */../*|*/./*) fail 'The SAAM home cannot contain relative path components.' ;; esac
+  [ ! -L "$requested" ] || fail 'The SAAM home cannot be a symbolic link.'
+  ancestor="${requested%/}"
+  [ -n "$ancestor" ] || ancestor='/'
+  while [ ! -e "$ancestor" ]; do
+    suffix="/$(basename "$ancestor")$suffix"
+    ancestor="$(dirname "$ancestor")"
+  done
+  [ -d "$ancestor" ] || fail 'The SAAM home must be a directory.'
+  canonical="$(cd "$ancestor" && pwd -P)"
+  canonical="${canonical%/}$suffix"
+  [ -n "$canonical" ] || canonical='/'
+  case "$canonical" in /|/System|/System/*|/Library|/Library/*|/Applications|/Applications/*|/usr|/usr/*|/bin|/bin/*|/sbin|/sbin/*|/dev|/dev/*|/etc|/etc/*|/private|/private/etc|/private/etc/*|/private/var|/Users) fail 'The SAAM home cannot be a system directory.' ;; esac
+  [ "$(dirname "$canonical")" != '/Users' ] || fail 'Use a SAAM directory inside the user home, not the entire user home.'
+  [ "$canonical" != "$HOME" ] || fail 'Use a SAAM directory inside your home, not your entire home folder.'
+  printf '%s' "$canonical"
+}
+
+prepare_home_helper() {
+  local home="$1" owner="$2" group="$3" receipt="$4"
+  [ "$(id -u)" -eq 0 ] || fail 'Home preparation requires native administrator authorization.'
+  [[ "$owner" =~ ^[0-9]+$ && "$owner" -ne 0 && "$group" =~ ^[0-9]+$ ]] || fail 'Invalid original-user identity.'
+  home="$(preparation_home "$home")"
+  # The parent creates this original-user receipt before requesting authorization.
+  [ -f "$receipt" ] && [ ! -L "$receipt" ] && [ ! -s "$receipt" ] || fail 'Invalid home preparation receipt.'
+  case "$(basename "$receipt")" in saam-home.*) ;; *) fail 'Invalid home preparation receipt name.' ;; esac
+  printf 'helper-started\n' > "$receipt"
+  mkdir -p "$home"
+  chown "$owner:$group" "$home"
+  chmod u+rwx "$home"
+  printf 'complete\n' >> "$receipt"
+}
+
+probe_home() {
+  local home="$1" probe
+  mkdir -p "$home" || return
+  probe="$(mktemp -d "$home/.saam-write.XXXXXX")" || return
+  rmdir "$probe"
+}
+
+ensure_home() {
+  local home="$1" script="$2" error_file receipt outcome status owner group
+  error_file="$(mktemp "${TMPDIR:-/tmp/}saam-access.XXXXXX")"
+  if LC_ALL=C probe_home "$home" 2> "$error_file"; then rm -f "$error_file"; return; fi
+  # Only permission failures can benefit from authorization. Disk, path and
+  # read-only filesystem failures must not produce an administrator prompt.
+  if ! grep -Eq 'Permission denied|Operation not permitted' "$error_file"; then
+    outcome="$(cat "$error_file")"; rm -f "$error_file"; fail "Cannot prepare the SAAM home: $outcome"
+  fi
+  rm -f "$error_file"
+  [ -z "${SAAM_INSTALL_TEST_ROOT:-}" ] || fail 'The isolated home is not writable; native authorization is disabled for temporary trials.'
+  owner="$(id -u)"; group="$(id -g)"
+  receipt="$(mktemp "${TMPDIR:-/tmp/}saam-home.XXXXXX")"
+  say 'Home authorization: requested macOS authorization for home preparation only. This does not confirm that a prompt appeared.'
+  # AppleScript receives argv, and quotes every shell argument itself. Even
+  # alternate administrator credentials cannot change the original-user UID.
+  if outcome="$(/usr/bin/osascript - "$script" '--prepare-home' "$home" "$owner" "$group" "$receipt" <<'AUTHORIZATION'
+on run argv
+  set commandText to "/bin/bash"
+  repeat with argument in argv
+    set commandText to commandText & " " & quoted form of (contents of argument)
+  end repeat
+  try
+    do shell script commandText with administrator privileges
+    return "complete"
+  on error errorMessage number errorNumber
+    return "error " & errorNumber & ": " & errorMessage
+  end try
+end run
+AUTHORIZATION
+)"; then status=0; else status=$?; fi
+  if grep -q '^helper-started$' "$receipt"; then say 'Home authorization: helper started.'; fi
+  if [ "$status" -eq 0 ] && [ "$outcome" = 'complete' ] && grep -q '^complete$' "$receipt"; then
+    rm -f "$receipt"
+    probe_home "$home" || fail 'Home authorization: failed; original-user access is still unavailable.'
+    say 'Home authorization: complete; original-user access verified.'
+    return
+  fi
+  rm -f "$receipt"
+  case "$outcome" in
+    'error -128:'*|'error -60006:'*) fail 'Home authorization: cancelled; installation stopped before replacement.' ;;
+    'error -60005:'*|'error -60007:'*) fail 'Home authorization: denied; installation stopped before replacement.' ;;
+    *) fail "Home authorization: failed ($outcome; osascript exit $status). Installation stopped before replacement." ;;
+  esac
+}
 
 data_folder() {
   if [ "${SAAM_DATA:-}" = "$HOME/Library/Application Support/SAAM" ]; then printf '%s' "${SAAM_INSTALL_TEST_ROOT:-$HOME/SAAM}"
@@ -100,11 +195,7 @@ main() {
     '') ;;
     *) fail "Unknown option $1. Run: bash install.sh [--wait-pid <pid>]" ;;
   esac
-  if [ -n "$wait_pid" ]; then
-    mkdir -p "$(data_folder)/state/logs"
-    update_log="$(data_folder)/state/logs/update.log"
-    trap 'log "Update failed at install.sh line $LINENO."' ERR
-  fi
+  [ "$(id -u)" -ne 0 ] || fail 'Launch the installer normally, without sudo. It requests native authorization itself only if home preparation needs it; client registration must use your normal account.'
   here="$(cd "$(dirname "$0")" && pwd)"
   home="$(data_folder)"
   target="$home/app"
@@ -128,6 +219,23 @@ main() {
   [ -f "$archive" ] || fail 'The release folder has no app.tar. Extract the whole download again.'
   version="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$source/release.json" | head -n 1)"
   [[ "$version" =~ ^[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}$ ]] || fail 'The release has no valid version. Nothing was changed.'
+  # Validate the payload before requesting native home authorization.
+  local entries entry normalized manifest_entry='' archive_version required_files
+  required_files='runtime/node release.json packaging/launch.mjs scripts/saam.mjs packaging/migrate-home.mjs packaging/client-setup.mjs packaging/macos/SAAM.icns packaging/macos/install.sh'
+  entries="$(tar -tf "$archive")" || fail 'The release archive cannot be read. Nothing was changed.'
+  while IFS= read -r entry; do
+    normalized="${entry#./}"
+    [ -n "$normalized" ] && [ "$normalized" != '.' ] || continue
+    case "/$normalized/" in *'/../'*|//*|*:*|*\\*) fail 'The release archive contains an unsafe path. Nothing was changed.' ;; esac
+    [ "$normalized" != 'release.json' ] || manifest_entry="$entry"
+  done <<< "$entries"
+  for required in $required_files; do
+    printf '%s\n' "$entries" | sed 's,^\./,,' | grep -Fx "$required" >/dev/null || fail "The release archive has no $required. Nothing was changed."
+  done
+  archive_version="$(tar -xOf "$archive" "$manifest_entry" | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)" || fail 'The archived release metadata cannot be read. Nothing was changed.'
+  [ "$archive_version" = "$version" ] || fail 'The release versions disagree. Nothing was changed.'
+  home="$(preparation_home "$home")"
+  target="$home/app"
 
   # Work from outside the folder being replaced (SAAM may have started us from there).
   cd "$HOME"
@@ -142,6 +250,12 @@ main() {
   say "Installing SAAM ${version:-(unknown version)} for $(id -un) into $target."
   # The SAAM being updated has exited, so this refuses only another running SAAM.
   if saam_running; then fail 'SAAM is running. Choose Quit from the tray menu, then run install.sh again.'; fi
+  ensure_home "$home" "$here/install.sh"
+  if [ -n "$wait_pid" ]; then
+    mkdir -p "$home/state/logs"
+    update_log="$home/state/logs/update.log"
+    trap 'log "Update failed at install.sh line $LINENO."' ERR
+  fi
 
   # Unpack into a staging folder next to the installation first, so a failed
   # unpack leaves any installed SAAM as it was.
@@ -154,7 +268,7 @@ main() {
   echo 'Unpacking SAAM...'
   tar -xf "$archive" -C "$staging" \
     || { rm -rf "$staging"; fail 'Unpacking SAAM failed. Nothing was changed.'; }
-  for required in runtime/node release.json packaging/launch.mjs scripts/saam.mjs packaging/migrate-home.mjs packaging/client-setup.mjs packaging/macos/SAAM.icns packaging/macos/install.sh; do
+  for required in $required_files; do
     [ -f "$staging/$required" ] || { rm -rf "$staging"; fail "The candidate has no $required. Nothing was changed."; }
   done
   # A release built on Windows carries no executable bits.
@@ -252,4 +366,9 @@ LAUNCHER
   log 'Started SAAM.'
 }
 
-main "$@"
+if [ "${1:-}" = '--prepare-home' ]; then
+  [ "$#" -eq 5 ] || fail 'Invalid home preparation arguments.'
+  prepare_home_helper "$2" "$3" "$4" "$5"
+else
+  main "$@"
+fi

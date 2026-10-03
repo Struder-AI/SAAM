@@ -1,4 +1,5 @@
 import {requireThat} from '../private/bundle/numeric.mjs';
+import {requireEditRevision} from './edit-identity.mjs';
 import {loadBundle,updatePlan} from './bundle.mjs';
 import {depositionAssignment} from './assignment-records.mjs';
 import {mergeRecord} from './resolve-plan.mjs';
@@ -23,12 +24,12 @@ export function editSliceAssignments(slices,{action,id,assignment,before}) {
   return {...slices,assignments:[...entries.slice(0,destination),next,...entries.slice(destination)]};
 }
 
-export async function applySlice(directory,request,{expectedRevision}={}) {
+export async function applySlice(directory,request,{expectedRevision,expectedEditRevision}={}) {
   const previous=await loadBundle(directory,{program:false});
-  requireThat(expectedRevision===previous.revision,'This review is stale. Reload before changing slices.');
+  requireEditRevision(previous,{expectedRevision,expectedEditRevision});
   const slices=editSliceAssignments(previous.plan.slices,request);
   const plan={...previous.plan,slices},diagnostics=await diagnoseDepositionPlan(plan);
-  const state=await updatePlan(directory,plan,previous.revision);
+  const state=await updatePlan(directory,plan,previous.revision,{expectedEditRevision});
   const changed=state.revision!==previous.revision;
   return {state,edit:{action:request.action,id:request.id,changed,assignment:state.plan.slices.assignments.find(a=>a.id===request.id)??null,
     order:state.plan.slices.assignments.map(a=>a.id),validated:['recipe','geometry'],

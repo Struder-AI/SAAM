@@ -27,6 +27,7 @@ Assignments carry the normal fields; optional fields below may be omitted.
 | `loops` | `2` | Nonnegative loop count; an array varies the count by course. |
 | `fillDensity`, `fillPattern` | `0.2`, `rectilinear` | Zero leaves loops; one fills solid; otherwise sparse fill. |
 | `fillAnglesDeg`, `rotateFill` | `[45,135]`, `true` | Alternate row directions, or retain the first. |
+| `connectNearby` | Automatic | Deposit safe nearby connections; `false` retains separate strokes (including parallel support rows). May vary by course. |
 | `solidTop`, `solidBottom` | `3`, `3` | Dense courses where material ends, independent of owner boundaries. |
 | `fillOverlap`, `spacingFactor` | `0.15`, `1` | Fill overlap as a bead fraction; physical loop/row pitch multiplier. |
 | `sampleStepMm` | `0.2` | Physical sampling target. |
@@ -77,10 +78,7 @@ These choices do not select different deposition producers or schedulers.
 
 Brim supplies the region outside the first-layer outline and five outward loops.
 Define it before the body; `loops` sets its width. It is sacrificial bed adhesion.
-Support supplies an explicit footprint up to `contactZMm-topGapMm`, one loop and
-15% rows; its top two courses use 0.8 density. Its `support` volume needs a footprint,
-contact height, top gap and XY gap; `part` stays null. Generation rejects footprints
-meeting part clearance. [Support guidance](../supports/SKILL.md) owns placement.
+Flat footprint support uses the [tree/footprint settings](../supports/SKILL.md); curved selected roofs use [standard support](../standard-support/SKILL.md), with zero loops and fixed-direction infill.
 
 | Pattern | Shape / tradeoff |
 |---|---|
@@ -114,10 +112,5 @@ and explicit tree support remain extension inputs to shared engine operations.
 <!-- layer: script -->
 ## Script interfaces
 
-`prepareSliceContexts` resolves exclusive regions and reference-family requests.
-`sliceContextResult` resolves completed source geometry, then calls the same
-`sliceResult` for every region course. `layerStrokes` owns loops, masks and fill;
-`mapSliceStrokes` maps XYZ; shared contact, deposition, finalization and publication
-follow. `finalizedSliceResults` schedules these courses with Trace/Inject by
-prerequisites. `prepareSliceBoundaryFamily` exposes shared boundary geometry to
-curve-generating extensions without constructing Slice deposition.
+The [Slice implementation](../../core/print/slices.mjs) owns region/boundary construction;
+[composition](../../core/path/README.md) owns finalization and scheduling with Trace/Inject.

@@ -23,6 +23,7 @@ function buildShapes(rhino,geometries,{material=false}={}){
     const shell=construct(geometry);cache.set(geometry,shell);return shell;
   };
   function construct(geometry){
+    if(geometry?.shape==='spatial'){requireThat(geometry.solid,'This operation needs solid geometry.');return build(geometry.solid);}
     if(geometry.shape==='spline')return splineSolidShell(rhino,geometry);
     if(geometry.shape==='boolean')return booleanShell(geometry.operation,geometry.operands.map(build));
     if(Array.isArray(geometry.vertices)&&Array.isArray(geometry.triangles)){

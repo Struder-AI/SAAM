@@ -8,6 +8,7 @@ function geometryIds(geometry,ids){
   if(!geometry||typeof geometry!=='object')return;
   if(geometryExtensions[geometry.shape])ids.add(geometryExtensions[geometry.shape]);
   if(geometry.base)geometryIds(geometry.base,ids);
+  if(geometry.solid)geometryIds(geometry.solid,ids);
   for(const part of geometry.parts??[])geometryIds(part.geometry,ids);
   for(const operand of geometry.operands??[])geometryIds(operand,ids);
 }

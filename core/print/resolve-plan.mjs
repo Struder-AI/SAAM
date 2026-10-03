@@ -20,7 +20,7 @@ export function mergeRecord(previous,changes,{geometryTemplate,key}={}){
       ||field==='pattern'&&record(value)&&record(current)
         &&(Object.hasOwn(value,'tile')!==Object.hasOwn(current,'tile'));
     if(record(value)&&(variant||current===null||current===undefined))target[field]=structuredClone(value);
-    else if(record(value))target[field]=mergeRecord(current,value,{geometryTemplate,key:field});
+    else if(record(value))target[field]=mergeRecord(current,value,{geometryTemplate,key:field==='solid'?'geometry':field});
     else target[field]=structuredClone(value);
   }
   return target;
@@ -32,7 +32,11 @@ export function resolvePlanPatch(previous,patch,{geometryTemplate}){
   const recipe=Object.fromEntries(Object.entries(fields).filter(([key])=>!SETTINGS_FIELDS.includes(key)));
   let plan={...mergeRecord(previous,recipe,{geometryTemplate}),...resolveSettingsPatch(previous,settings)};
   if(Object.hasOwn(patch,'geometry')){
-    if(geometry===null){const {geometry:removed,...withoutGeometry}=plan;plan=withoutGeometry;}
+    if(previous.geometry?.shape==='spatial'&&(geometry===null||geometry.shape!=='spatial'&&!['solid','curves','points'].some(k=>Object.hasOwn(geometry,k)))){
+      const solid=geometry===null?null:previous.geometry.solid?mergeRecord(previous.geometry.solid,geometry,{geometryTemplate,key:'geometry'}):structuredClone(geometry);
+      plan={...plan,geometry:{...previous.geometry,solid}};
+    }
+    else if(geometry===null){const {geometry:removed,...withoutGeometry}=plan;plan=withoutGeometry;}
     else plan={...plan,geometry:previous.geometry?mergeRecord(previous.geometry,geometry,{geometryTemplate,key:'geometry'}):structuredClone(geometry)};
   }
   return plan;

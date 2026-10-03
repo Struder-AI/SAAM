@@ -7,7 +7,7 @@ import {buildMaterialScene,createMaterialRenderer} from './material-view.mjs';
 import {drawMachineCanvas} from './machine-view.mjs';
 
 import {createViewPerformance,createMotionQuality} from './view-performance.mjs';
-import {injectionPoints,depositionUnit} from './settings.mjs';
+import {depositionUnit} from './settings.mjs';
 
 const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 
@@ -85,11 +85,11 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
       if(!geometryRenderer&&geometryScene?.edgeFeatures.has(selected))for(const [a,b]of visibleGeometryEdgeSegments(geometryScene,project,selected))segment(a,b,'#eb591f',3);
       annotations.selectionText=selected?selectionLabel:geometryError||'Click a surface or edge to see its name';
     }
-    if(snapshot.showGeometry)for(const record of injectionPoints(shown.plan)){
-      const p=project(record.point),above=project([record.point[0],record.point[1],record.point[2]+record.approachMm]);
-      segment(above,p,'#b85c28',1.5);ctx.beginPath();ctx.arc(p[0],p[1],5,0,Math.PI*2);ctx.strokeStyle='#b85c28';ctx.lineWidth=2;ctx.stroke();
-      ctx.fillStyle='#8f451e';ctx.font='12px Segoe UI';ctx.fillText(record.id+' · '+record.volumeMm3+' mm³',p[0]+10,p[1]-8);
-      if(!geometryScene)annotations.selectionText='Authored injection locations and approach; no occupied volume is inferred';
+    if(snapshot.showGeometry&&geometryScene){
+      for(const curve of geometryScene.geometry.curves??[])for(let i=1;i<curve.points.length;i++)segment(project(curve.points[i-1]),project(curve.points[i]),curve.id===selected?'#eb591f':'#397da8',2);
+      for(const record of geometryScene.geometry.points??[]){
+        const p=project(record.point);ctx.beginPath();ctx.arc(p[0],p[1],5,0,Math.PI*2);ctx.fillStyle=record.id===selected?'#eb591f':'#397da8';ctx.fill();
+      }
     }
     if(tab==='toolpath'&&shown.program&&pathView){const moves=shown.program.moves,at=frameAtTime(moves,position),count=at.completed,placement=shown.plan.placement??{xMm:0,yMm:0},showTravel=settings.showTravel;
       annotations.layerText='Layer '+(layerIndexAt(pathView,position)+1)+'/'+pathView.groups.length;

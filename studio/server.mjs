@@ -3,6 +3,7 @@ import {bundleFor,readStableBundle,supportsBundleSchema} from './adapter-resolut
 import {TOUR_STEPS,TOUR_LESSONS as L} from './tour-catalog.mjs';
 import {createAgentRequests,workSnapshot} from './agent-requests.mjs';
 import {composeStudioState} from './state-response.mjs';
+import {completedOutputState} from '../core/print/review-state.mjs';
 import {printName,downloadName,requestedDownloadName} from './print-name.mjs';
 import {importStudioSTL,loadStudioImportRepair} from './import-stl.mjs';
 import http from 'node:http';
@@ -128,8 +129,6 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
   const viewFingerprint=(id,fingerprint,guide)=>id+fingerprint+(geometryOnly(guide)?':geometry':':program');
   let dir=directory?resolve(directory):null;
   const token=randomBytes(24).toString('hex'),viewPerformance=[];
-  // Whether the owning agent is working; its runtime pushes changes here.
-  const agentActivity={working:false};
   const workIdFor=directory=>directory?chat.current.requests.printId(directory,{optional:true}):null;
   // Studio observations for the owning agent: person-driven actions, worker
   // outcomes and displayed results, tagged with this instance and its print.
@@ -187,7 +186,8 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
   const displayedResults=new Map();
   // Speculation never enters the HTTP mutation queue or the browser's busy
   // state. Keep one worker/candidate, replacing it when the reviewed plan changes.
-  let preparation,generationFailure,generationCancelled,importProgress,importController,generationRun=null,closed=false;
+  let preparation,generationFailure,generationCancelled,importProgress,importController,generationRun=null,externalGeneration=null,closed=false;
+  const outputGenerating=()=>Boolean(generationRun?.directory===dir||externalGeneration?.directory===dir);
   const stateTag=(fingerprint,guide,failure=generationFailure,cancelled=generationCancelled,records=[],importRepair=null)=>
     'W/"'+createHash('sha256').update(JSON.stringify([instanceId,fingerprint,guide,failure,cancelled,records,importRepair])).digest('base64url')+'"';
   const matchesStateTag=(header,tag)=>typeof header==='string'&&header.split(',').some(value=>{
@@ -214,25 +214,12 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
     if(jobId||!generationHash||generationHash!==preparation?.generationHash)throw Error('The calculation changed. Read its current identity before cancelling.');
     return {...await cancelGeneration(reason),kind:'generation'};
   };
-  const planPreparation=(state,readDir,session)=>{
-    if(session.closed||!session.workerEnabled)return {action:'skip'};
-    // Geometry-only reads deliberately omit program bytes. A matching saved
-    // generation is enough to defer speculation; explicit review still checks
-    // its bytes and will regenerate if that stored result is damaged.
-    if(state.program||state.outputAvailability||state.review?.generation?.generationHash===state.generationHash&&!state.programError)return {action:'discard'};
+  const prepare=(state,readDir)=>{
+    if(closed||resolveBundle!==bundleFor)return null;
     const key=readDir+':'+state.generationHash+':'+state.revision;
-    return {action:session.currentKey===key?'reuse':'create',key};
-  };
-  const prepare=(state,readDir,{computationRequired=false}={})=>{
-    const key=readDir+':'+state.generationHash+':'+state.revision;
-    const decision=computationRequired
-      ?(closed||resolveBundle!==bundleFor?{action:'skip'}:{action:preparation?.key===key?'reuse':'create',key})
-      :planPreparation(state,readDir,{closed,workerEnabled:resolveBundle===bundleFor,currentKey:preparation?.key});
-    if(decision.action==='skip')return null;
-    if(decision.action==='discard'){discardPreparation();return null;}
-    if(decision.action==='reuse')return preparation;
+    if(preparation?.key===key)return preparation;
     discardPreparation();
-    return preparation=new PreparedGenerationJob({key:decision.key,directory:readDir,generationHash:state.generationHash,
+    return preparation=new PreparedGenerationJob({key,directory:readDir,generationHash:state.generationHash,
       createWorker:cancellation=>new Worker(new URL('./generation-worker.mjs',import.meta.url),
         {workerData:{directory:readDir,generationHash:state.generationHash,progress:true,cancellation}}),onUpdate:()=>publishProgress()});
   };
@@ -295,7 +282,7 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
       // is already useful and need not be recomputed on the first Continue.
       if(preparation?.status==='failed'&&(!preparation.worker||generationFailure?.directory===executionDir&&generationFailure.generationHash===generationHash))await discardPreparation();
       const executionState=(await readStableBundle(current,executionDir,{program:false})).state;
-      const job=prepare(executionState,executionDir,{computationRequired:true});
+      const job=prepare(executionState,executionDir);
       if(!job)return null;
       if(job.status==='preparing')markCalculation();
       const checked=await job.generate(development,reservation);
@@ -384,7 +371,6 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
       if(req.method==='GET'&&url.pathname==='/api/viewer'){
         if(url.searchParams.get('token')!==token||(req.headers.origin&&req.headers.origin!==origin)){send({error:'Invalid local session'},403);return;}
         lifetime.attach(res);
-        if(!res.writableEnded)res.write(`event: agent-activity\ndata: ${JSON.stringify(agentActivity)}\n\n`);
         return;
       }
       if(req.method==='GET'&&url.pathname==='/') {
@@ -470,16 +456,18 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
         const responseFingerprint=viewFingerprint(readId,example?`${fingerprint}:tour:${example.id}`:fingerprint,guide),failure=generationFailure,cancelled=generationCancelled;
         const importRepair=await loadStudioImportRepair(readDir);
         if(readDir!==dir)throw new Error('The print is being updated.');
-        const tag=stateTag(responseFingerprint,guide,failure,cancelled,records,importRepair);
+        const tag=stateTag(responseFingerprint+':output-generating:'+outputGenerating(),guide,failure,cancelled,records,importRepair);
         if(condition&&matchesStateTag(condition,tag)){res.setHeader('ETag',tag);res.writeHead(304);res.end();return;}
         const presentation=viewFingerprint(readId,presentationFingerprint,guide),name=await printName(readDir,state.plan);
         const assembled=composeStudioState(state,{directory:readDir,printId:readId,workId,instanceId,guide,example,records,importRepair,
           printName:name,fingerprint:responseFingerprint,presentationFingerprint:presentation,
-          generationFailure:failure,generationCancelled:cancelled});
+          generationFailure:failure,generationCancelled:cancelled,outputGenerating:outputGenerating()});
         if(state.checkedBytes){
-          const snapshot=`${readId}:${state.revision}:${state.exportHash}`;
-          const {dir,plan,revision,exportName,exportHash,checkedBytes}=state;
-          displayedResults.set(snapshot,{bundle,state:{dir,plan,revision,exportName,exportHash,checkedBytes}});
+          const output=state.completedOutput,snapshot=`${readId}:${output.id}`;
+          const {dir,checkedBytes}=state;
+          for(const key of displayedResults.keys())if(key!==snapshot)displayedResults.delete(key);
+          displayedResults.set(snapshot,{bundle,state:{dir,plan:output.plan,machine:output.machine,revision:output.id,completedOutput:output,
+            exportName:output.exportName,exportHash:output.exportHash,checkedBytes}});
           assembled.exportSnapshot=snapshot;
         }
         res.setHeader('ETag',tag);
@@ -489,9 +477,9 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
       if(req.method==='GET'&&url.pathname==='/api/sources'){
         const {state}=await readStableBundle(bundle,readDir,{program:'source',allSources:true});
         if(readDir!==dir)throw new Error('The print is being updated.');
-        for(const [key,value] of [['printId',readId],['revision',state.revision],['exportHash',state.exportHash]])
+        for(const [key,value] of [['printId',readId],['revision',state.completedOutput?.id],['exportHash',state.exportHash]])
           if(url.searchParams.get(key)!==value)throw new Error('The reviewed program changed. Reload before continuing.');
-        if(!state.program||state.programError)throw new Error(state.programError??'Generate the program first.');
+        if(!completedOutputState(state).available)throw new Error(state.programError??'Generate the program first.');
         res.writeHead(200,{'Content-Type':'application/x-ndjson; charset=utf-8'});
         for(const [name,text] of Object.entries(state.sources)){
           if(res.destroyed)return;
@@ -531,19 +519,12 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
         send(await cancelCalculation(data));return;
       }
       if(url.pathname==='/api/export'){
+        if(outputGenerating())throw Error('Wait for toolpath generation to finish before exporting.');
         const run=queueOperation(async()=>{
           const captured=displayedResults.get(data.exportSnapshot);
           if(!captured||captured.state.dir!==dir||captured.bundle!==await opened)
             throw Error('The displayed program changed. Reload before exporting.');
-          const live=(await readStableBundle(captured.bundle,dir,{program:false})).state;
-          if(live.revision!==captured.state.revision||
-            live.review.generation?.exportHash!==captured.state.exportHash||
-            live.review.generation?.generationHash!==live.generationHash||
-            live.review.generation?.mode!=='production')
-            throw Error('The displayed program changed. Reload before exporting.');
-          const currentBytes=await readFile(resolve(dir,live.review.generation.file));
-          if(createHash('sha256').update(currentBytes).digest('hex')!==captured.state.exportHash)
-            throw Error('The displayed program changed. Reload before exporting.');
+          if(outputGenerating())throw Error('Wait for toolpath generation to finish before exporting.');
           return exportPrint(captured.bundle,captured.state,data,await chat.current.tour.info());
         });
         queue=run.catch(()=>{});
@@ -564,12 +545,15 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
           const stage=data.stage??(progress.step===L.geometry?'geometry':'toolpath');
           if(!['geometry','toolpath'].includes(stage))throw Error('Unknown displayed stage.');
           const state=(await readStableBundle(current,dir,{program:stage==='geometry'?false:'source'})).state;
-          if(data.revision===state.revision&&(stage==='geometry'||state.program&&!state.programError&&data.exportHash===state.exportHash)){
-            presentedRequests=await chat.current.requests.presented(dir,{...workSnapshot(state),stage,studioInstanceId:instanceId});
-            note('view-presented',{stage,revision:state.revision,exportHash:stage==='toolpath'?state.exportHash??null:null,presentedRequestIds:presentedRequests.map(record=>record.id)});
-            for(const record of presentedRequests)note('request-presented',{requestId:record.id,requestKind:record.kind,stage});
+          const receiptable=stage==='geometry'||completedOutputState(state,{generating:outputGenerating()}).receipt;
+          const inspectable=stage==='geometry'||completedOutputState(state,{generating:outputGenerating()}).available;
+          const renderError=typeof data.renderError==='string'?data.renderError.slice(0,2000):null;
+          if(data.revision===state.revision&&(inspectable||renderError)&&(stage==='geometry'||data.exportHash===state.exportHash)){
+            presentedRequests=await chat.current.requests.presented(dir,{...workSnapshot(state),stage,studioInstanceId:instanceId,deliverable:receiptable&&!renderError,renderError});
+            note(renderError?'view-failed':'view-presented',{...(renderError?{error:renderError}:{}),stage,revision:state.revision,exportHash:stage==='toolpath'?state.exportHash??null:null,presentedRequestIds:presentedRequests.map(record=>record.id)});
+            for(const record of presentedRequests)if(!record.inspectionFailed)note('request-presented',{requestId:record.id,requestKind:record.kind,stage});
             const advisory=state.program?.summary?.shortTravel;
-            if(stage==='toolpath'&&advisory?.count&&chat.current.requests.printId(dir,{optional:true}))
+            if(!renderError&&stage==='toolpath'&&advisory?.count&&chat.current.requests.printId(dir,{optional:true}))
               await chat.current.requests.begin({directory:dir,source:'studio',kind:'advisory',studioInstanceId:instanceId,
                 key:`short-travel:${dir}:${state.exportHash}`,
                 evidence:{exportHash:state.exportHash,generationHash:state.generationHash,skills:state.skills,shortTravel:advisory},
@@ -577,9 +561,11 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
                   `Affected recipe skills: ${(state.skills??[]).join(', ')}. This notification preserves source locations and operation counts in evidence.shortTravel. `+
                   'Mention this finding to the person in your next reply, then acknowledge this advisory as completed and continue the current user task; no repair or new approval is required.'});
           }
-          send({...await chat.current.tour.acknowledgeView(dir,data,state),presentedRequests});return;
+          const guide=receiptable&&!renderError?await chat.current.tour.acknowledgeView(dir,data,state):await chat.current.tour.info();
+          send({...guide,presentedRequests});return;
         }
         if(url.pathname==='/api/agent-request'){
+          void server.interruptWork?.().catch(error=>note('handback-failed',{message:error.message}));
           send(await chat.current.requests.begin({directory:dir,source:'studio',kind:'guidance',studioInstanceId:instanceId,instruction:'The person requests help with '+await printName(dir)+'. '+(progress.active&&progress.directory===dir?progress.agentInstruction??'Help with the current tour lesson.':'Ask what change they want.')}));return;
         }
         if(url.pathname==='/api/tour-playback'){
@@ -621,9 +607,10 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
           note('plan-updated',{revision:updated.revision,history:data.direction});
         }
         else if(url.pathname==='/api/plan'){
-          const updated=await runBundleEdit(dir,()=>current.updatePlan(dir,data.plan,data.revision)),edit=updated?.review?.history?.at(-1);
-          const changes=updated?.revision!==data.revision&&edit?.event==='plan-edited'?edit.changes??[]:[];
-          note('plan-updated',{revision:data.revision??null,changes});
+          const updated=await runBundleEdit(dir,()=>current.updatePlan(dir,data.plan,data.revision,{expectedEditRevision:data.expectedEditRevision})),edit=updated?.review?.history?.at(-1);
+          const changed=data.expectedEditRevision?updated?.editRevision!==data.expectedEditRevision:updated?.revision!==data.revision;
+          const changes=changed&&edit?.event==='plan-edited'?edit.changes??[]:[];
+          note('plan-updated',{revision:updated.revision,changes});
         }
         else if(url.pathname==='/api/generate'){
           if(data.generationHash&&((await readStableBundle(current,dir,{program:false})).state).generationHash!==data.generationHash)throw Error('The print changed before generation. Review the updated print.');
@@ -656,6 +643,12 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
   });
   server.setStartAt=startAt=>chat.current.tour.setStartAt(startAt);
   server.currentPrint=()=>dir;
+  server.setGenerationActivity=({generationHash,active})=>{
+    if(active)externalGeneration={generationHash,directory:dir};
+    else if(externalGeneration?.generationHash===generationHash)externalGeneration=null;
+    lifetime.notify('studio-update',{kind:'state',kinds:['generation']});
+  };
+  server.applicationStopping=reason=>lifetime.notify('studio-update',{kind:'application-stopping',reason});
   const lifetime=viewerLifetime(server,{onViewers:count=>note(count?'viewer-opened':'viewer-closed',{viewers:count}),onClosing:()=>{
     closed=true;importController?.abort(Object.assign(Error('Import cancelled because Studio closed.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));
   },
@@ -685,11 +678,10 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
       const detail={studioInstanceId:instanceId,printId:workIdFor(dir),directory:dir,previousOwnerId:previous.ownerId,ownerId:next.ownerId,attachment:next.attached};
       const kind=next.attached?(previous.attached?'chat-captured':'chat-attached'):'chat-detached';
       previous.events.record(kind,detail);
-      chat.current=next;chat.waitingClient=null;agentActivity.working=false;
+      chat.current=next;chat.waitingClient=null;
       if(previous.events!==next.events)next.events.record(kind,detail);
       chat.stopRequestFeed=next.requests.subscribe(observeRequest);
       lifetime.notify('studio-update',{kind:'state',kinds:['chat','requests'],instanceId});
-      lifetime.notify('agent-activity',agentActivity);
       return server.attachment();
     });
     editTail=run.catch(()=>{});return run;
@@ -726,7 +718,6 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
   });
   server.once('close',()=>{closed=true;stopWatching();chat.stopRequestFeed();discardPreparation();void releaseInstance().catch(error=>note('instance-release-failed',{error:error.message}));});
   server.shutdown=lifetime.shutdown;server.viewerCount=lifetime.viewers;
-  server.agentWorking=working=>{agentActivity.working=Boolean(working);lifetime.notify('agent-activity',agentActivity);};
   Object.defineProperty(server,'studioEvents',{get(){return chat.current.events;}});server.generationStatus=generationStatus;
   server.cancelCalculation=cancelCalculation;
   server.runBundleEdit=runBundleEdit;

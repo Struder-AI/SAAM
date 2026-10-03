@@ -65,6 +65,7 @@ export async function validateSelectedExtensionRecipe(plan,processForAssignment)
     if(!geometry||typeof geometry!=='object')return;
     geometries.push(geometry);
     visit(geometry.base);
+    visit(geometry.solid);
     for(const part of geometry.parts??[])visit(part.geometry);
     for(const operand of geometry.operands??[])visit(operand);
   };

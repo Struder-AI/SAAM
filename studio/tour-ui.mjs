@@ -1,7 +1,7 @@
 import {TOUR_STEPS,TOUR_LESSONS as L} from './tour-catalog.mjs';
 import {hasUnpreparedEdit} from './work-state.mjs';
 export const needsTourToolpath=state=>Boolean(state?.tour?.active&&state.tour.directory===state.localPrintDirectory
-  &&state.tour.step>=L.playback&&!state.generationError&&!state.generationCancelled&&!state.outputAvailability
+  &&state.tour.step>=L.playback&&!state.generationError&&!state.generationCancelled&&!state.outputAvailability&&!state.programViewError
   &&!hasUnpreparedEdit(state.work?.requests?.filter(r=>r.printId===state.work.printId),state.work?.snapshot)&&(!state.program||state.programError));
 export function createTourUI({post,refresh,working,setTab,isBusy,state:current,seek}){
   const $=id=>document.getElementById(id);let progress=null,expanded=null,applied=null;
@@ -67,13 +67,13 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
       for(const id of highlights)$(id)?.classList.add('tour-highlight');
       if(progress.step===L.setup)$('more-settings').open=true;
       const desired=step.tab;
-      const key=progress.step+':'+state.printId+':'+(progress.step===L.playback?JSON.stringify(progress.startAt):'')+':'+desired+':'+Boolean(state.program)+':'+state.exportHash+':'+Boolean(progress.gates?.[progress.step])+':'+(state.generationError??state.programError??'');
+      const key=progress.step+':'+state.printId+':'+(progress.step===L.playback?JSON.stringify(progress.startAt):'')+':'+desired+':'+Boolean(state.program)+':'+state.exportHash+':'+Boolean(progress.gates?.[progress.step])+':'+(state.generationError??state.programError??state.programViewError??'');
       if(applied!==key){
         const keepPlayback=progress.step===L.playback&&playStarted&&state.program&&playedSource===state.printId+':'+state.exportHash;
         applied=key;queueMicrotask(()=>{
           if(keepPlayback)return;
           setTab(desired);
-          if(desired==='toolpath'&&!state.program){$('tour-status').textContent=state.generationError??state.programError??'Preparing your toolpath…';return;}
+          if(desired==='toolpath'&&!state.program){$('tour-status').textContent=state.generationError??state.programError??state.programViewError??'Preparing your toolpath…';return;}
           $('tour-status').textContent='';
           if(progress.step===L.playback){try{
             const start=progress.startAt??null;let landed,fallback=!start;
@@ -93,8 +93,8 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
       }
     }
   }
-  async function acknowledgeView(state,stage){
-    const response=await post('view-ready',{revision:state.revision,exportHash:state.exportHash,stage});
+  async function acknowledgeView(state,stage,failure){
+    const response=await post('view-ready',{revision:state.revision,exportHash:state.exportHash,stage,...failure});
     const {presentedRequests=[],...guide}=await response.json();
     progress=guide;state.tour=progress;render(state);return presentedRequests;
   }

@@ -13,22 +13,20 @@ Source metadata does not confer printing approval.
 
 ## Generation and review
 
-Studio's Export click confirms the displayed settings and exact checked toolpath.
-Studio waits for queued edits and rejects stale displayed snapshots; `exportReviewed`
-then writes the captured bytes unchanged. Opening a bundle checks artifacts before display.
+Studio's Export click confirms displayed settings and exact checked bytes once.
+Bundle retains one completed output with its immutable recipe, machine, geometry
+and SAAMpath snapshot. Recipe/machine edits keep it visible and exportable with
+an explicit previous-toolpath notice and its original settings and machine.
+Changed authored geometry clears the old view/export and shows current geometry.
+Only actual regeneration dims matching-geometry output and blocks export;
+failure/cancel restores it when geometry still matches. Agent activity never gates it.
 
-`core/print/workflow.mjs` owns initialization, validation, revisions, preparation,
-reopening and delivery. The shell adapter supplies recipe validation, geometry,
-generation, limitations and release metadata. Studio selects it by plan schema.
-Non-Studio callers retain `approve({actor, revision})` and `deliver`: the former
-records settings/toolpath approval; the latter requires that exact approval.
-`review-state.mjs` projects persisted currency and approval for these callers;
-Studio combines currency with transient work and presentation state.
-
-Bundle stores supplied components; creation, reopening and edits require integrity,
-not completeness. Missing geometry, recipe or machine stays missing. Slice needs
-source geometry; Trace/Inject may use authored curves/points without a solid.
-Operation boundaries report missing prerequisites. No machine is inferred at creation.
+`workflow.mjs` owns snapshots, integrity, revisions, regeneration and delivery;
+`review-state.mjs` supplies the shared eligibility/phase selector. Completed
+identity guards source/display/export; edit identity guards authored changes,
+with full-document CAS retained. Non-Studio approval/delivery remains current-only.
+Geometry includes solids, curves and points; recipe/machine may be incomplete.
+Operations report missing prerequisites; opening/retry never generates ordinary output.
 
 Geometry extensions return proposals through Geometry; only deposition or hybrid
 assignment contributions need Toolpath composition. Bundle accepts one revisioned
@@ -55,12 +53,17 @@ recipe, machine, geometry and generation contract to the checked program.
 `state.artifacts` distinguishes current, retained stale and absent results.
 Edits retain artifacts and clear approvals; old bytes never become current by omission.
 
-`restoreRevision(directory,{direction,expectedRevision})` implements undo/redo
-for both agents and Studio. Restoration creates a fresh revision, retains the audit
-trail, clears approval and leaves delivered files alone. New edits clear the redo
-branch. Immutable history records reference separately saved components and artifacts;
-large geometry/path/program files are shared. Camera and playback remain Studio-private.
-CLI: `undo|redo <directory> --revision <revision>`; Studio exposes Undo/Redo.
+`restoreRevision(directory,{direction,expectedRevision})` restores history at a fresh
+revision, clearing approval; new edits clear redo. Immutable records share large
+artifacts. CLI: `undo|redo <directory> --revision <revision>`.
+
+`shareBundle(directory,newZip)` packages current recipe, machine/settings,
+original source/repair provenance and selected extension dependency files.
+`importBundle(zip,newDirectory)` verifies inputs and imports extensions without execution;
+existing bundles/local edits are never overwritten. Open the returned directory in Studio.
+CLI: `share <bundle> <new.zip>`; `import-bundle <zip> <new-bundle>`.
+Native geometry is rebuilt; toolpaths, programs, checks, approvals, history and caches are excluded;
+recipients edit/regenerate and confirm before export. Print-ready delivery stays separate.
 
 ### Bundle ownership
 
@@ -157,10 +160,8 @@ Prints/<name>/
   delivery/part.gcode
 ```
 
-`plan.json` retains the recipe fields at top level and owns one `bundle` envelope
-containing the locked machine, review/check evidence and content-addressed
-geometry/program references. It is the only mutable commit point. Referenced
-artifacts are immutable; `delivery/` exists only after approval and delivery.
+`plan.json` owns the recipe, locked machine, review and immutable artifact references.
+It is the only mutable commit point; `delivery/` follows approval and delivery.
 Ordinary reads of the previous parallel-file layout are effect-free and return
 an actionable migration-required error. Run
 `node core/print/cli.mjs migrate Prints/<name>` explicitly to preflight and
@@ -192,13 +193,10 @@ content hash; reopening a saved program checks its exact bytes. Archival STL is
 checked by source-consuming operations, not by every view. These local records
 are integrity evidence, not authentication of files or human statements.
 
-The adapter also retains its latest checked interpretation, keyed by the
-plan/machine/geometry identity and actual export hash. Generation seeds
-this cache. Reopening interprets saved commands on a miss and returns copies on
-a hit; it never regenerates the path or export. Delivery reads and hashes the
-reviewed export, then copies those bytes. A changed export cannot inherit its
-previous toolpath approval. Local records detect changes relative to recorded
-content; they are not signatures authenticating the files or human statements.
+The adapter caches checked interpretations by recipe/machine/geometry and export hash.
+Reopening interprets saved commands on a miss; it never regenerates. Delivery hashes
+and copies reviewed bytes; changed output cannot inherit approval. These records
+detect changed content rather than authenticating files or human statements.
 Use `examples/prints/` only for explicitly curated examples.
 
 ## Shell pipeline (slices and draped-skin)

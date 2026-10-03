@@ -17,6 +17,8 @@ import {splineSolidTemplate,validateSplineSolid,splineSolidBounds} from '../geom
 import {blobFieldTemplate,validateBlobFieldRecord} from '../geom/blob-field-record.mjs';
 import {booleanSolidTemplate,validateBooleanSolid,booleanShell} from '../geom/boolean-solid.mjs';
 import {geometrySelections} from '../geom/selections.mjs';
+import {spatialTemplate} from '../geom/spatial.mjs';
+import {normalizeSpatialPlan,resolveSpatialPlan} from './spatial-inputs.mjs';
 import {defaultSlices,validateSlices} from './slices.mjs';
 import {defaultModulations,validateModulations} from '../path/modulation.mjs';
 import {modulationGeometrySources} from '../path/modulation-field.mjs';
@@ -50,8 +52,9 @@ export function recipeDefaults(){
 // Each shape carries its own parameters, so the strict field check is made
 // against the selected shape rather than against whichever shape is the default.
 export function geometryTemplate(shape,geometry) {
+  if(shape==='spatial')return spatialTemplate();
   if(shape==='blob-field')return blobFieldTemplate();
-  if(shape==='boolean')return booleanSolidTemplate();
+  if(shape==='boolean')return booleanSolidTemplate(geometry);
   if(Object.hasOwn(GEOMETRY_RECORDS,shape))return GEOMETRY_RECORDS[shape].template(geometry);
   if(shape==='mesh')return {shape:'mesh',vertices:[],triangles:[],source:null};
   if(shape==='assembly')return {shape:'assembly',parts:[]};
@@ -71,7 +74,7 @@ export function compileRecipe(plan){
   if(owned)return owned;
   const key=JSON.stringify(plan);
   if(compiledRecipes.has(key))return compiledRecipes.get(key);
-  const value={plan:structuredClone(plan)};
+  const value={plan:structuredClone(resolveSpatialPlan(normalizeSpatialPlan(plan)))};
   validateRecipeValue(value.plan);
   freezeRecipe(value);
   // Eviction only affects reuse, never which recipes are accepted.
@@ -90,7 +93,7 @@ function validateRecipeValue(plan) {
 
 // Authored forms (spline patches, meshes, assemblies of them) and the
 // compiled records of geometry skills.
-export const GEOMETRY_SHAPES=['spline','blob-field','mesh','boolean','assembly',...Object.keys(GEOMETRY_RECORDS)];
+export const GEOMETRY_SHAPES=['spline','blob-field','mesh','boolean','assembly','spatial',...Object.keys(GEOMETRY_RECORDS)];
 
 export function depositionOnlyPlan(plan){
   return plan?.geometry===undefined&&plan.slices?.assignments?.length>0&&plan.slices.assignments.every(a=>['curves','inject'].includes(a.construction)||!a.construction&&a.surface?.kind==='terminal');
@@ -133,6 +136,7 @@ export function validatePlanFields(plan) {
 }
 
 export function workspaceConstructionIdentity(plan){
+  plan=resolveSpatialPlan(plan);
   return hash({geometry:plan.geometry,slices:plan.slices,skills:plan.skills,modulations:plan.modulations,composition:plan.composition,experimental:plan.experimental,layerMm:plan.process?.layerMm,firstLayerMm:plan.process?.firstLayerMm,lineWidthMm:plan.process?.lineWidthMm});
 }
 

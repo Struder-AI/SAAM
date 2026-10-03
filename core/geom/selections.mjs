@@ -1,6 +1,7 @@
 // Address prepared material partitions without changing the reviewed outer shape.
 // Whole-component selections remain the default; partitions are opt-in regions.
 export function geometrySelections(geometry){
+  if(geometry?.shape==='spatial')return geometry.solid?geometrySelections(geometry.solid):new Map();
   const result=new Map();
   const append=(owner,shape,xMm=0,yMm=0,zMm=0)=>{
     result.set(owner,{geometry:shape,xMm,yMm,zMm,owner,material:null});

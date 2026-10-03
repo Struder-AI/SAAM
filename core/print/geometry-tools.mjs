@@ -5,6 +5,7 @@ import {requireThat as requireToolpath} from '../private/toolpath/numeric.mjs';
 // Geometry intersections and booleans as tools: an agent reads sections and
 // tops of a print (or of geometry it is about to write) and combines solids
 // without writing a script.
+import {requireEditRevision} from './edit-identity.mjs';
 import {loadBundle,updatePlan} from './bundle.mjs';
 import {resolveMaterialGeometry} from '../geom/build.mjs';
 import {topAt} from '../geom/query.mjs';
@@ -15,6 +16,7 @@ import {BOOLEAN_OPERATIONS,BOOLEAN_OPERAND_SHAPES} from '../geom/boolean-solid.m
 import {loopArea} from '../region/region2d.mjs';
 import {referencePatch} from '../geom/reference-surface.mjs';
 import {evaluate} from '../geom/nurbs.mjs';
+import {solidGeometry,replaceSolid} from '../geom/spatial.mjs';
 
 
 const round=v=>Math.round(v*1e4)/1e4;
@@ -87,25 +89,26 @@ export async function intersectRequest(directory,request){
   if(geometry)return intersectGeometry(geometry,query);
   requireThat(directory,'Name a print, or supply geometry to query.');
   const plan=(await loadBundle(directory,{program:false})).plan;
-  const owner=part?plan.geometry.parts?.find(p=>p.id===part):plan;
+  const solid=solidGeometry(plan.geometry),owner=part?solid?.parts?.find(p=>p.id===part):{geometry:solid};
   requireThat(owner,'Unknown part.');
   return intersectGeometry(owner.geometry,query);
 }
 
 // Wrap the current geometry (or one part) and a new operand in a boolean. The
 // same operation again appends: a difference subtracts every later operand.
-export async function combineGeometry(directory,request,{expectedRevision}={}){
+export async function combineGeometry(directory,request,{expectedRevision,expectedEditRevision}={}){
   requireThat(request&&typeof request==='object'&&Object.keys(request).every(k=>['operation','operand','part'].includes(k)),'A combine request has operation, operand and part.');
   requireThat(BOOLEAN_OPERATIONS.includes(request.operation),`operation is one of ${BOOLEAN_OPERATIONS.join(', ')}.`);
   requireThat(BOOLEAN_OPERAND_SHAPES.includes(request.operand?.shape),`The operand is ${BOOLEAN_OPERAND_SHAPES.join(', ')} geometry.`);
   const state=await loadBundle(directory,{program:false});
-  requireThat(typeof expectedRevision==='string'&&expectedRevision===state.revision,'This review is stale. Reload before combining geometry.');
-  const plan=structuredClone(state.plan),owner=request.part?plan.geometry.parts?.find(p=>p.id===request.part):plan;
-  requireThat(owner&&owner.geometry.shape!=='assembly','Select an assembly part with part.');
+  requireEditRevision(state,{expectedRevision,expectedEditRevision});
+  const plan=structuredClone(state.plan),solid=solidGeometry(plan.geometry),root={geometry:solid},owner=request.part?solid?.parts?.find(p=>p.id===request.part):root;
+  requireThat(owner?.geometry&&owner.geometry.shape!=='assembly','Select solid geometry, or an assembly part with part.');
   const current=owner.geometry;
   requireThat(BOOLEAN_OPERAND_SHAPES.includes(current.shape)||Array.isArray(current.vertices)&&!current.base,`Only ${BOOLEAN_OPERAND_SHAPES.join(', ')} geometry combines; feature-modified records are finished bodies.`);
-  owner.geometry=current.shape==='boolean'&&current.operation===request.operation
+  owner.geometry=current.shape==='boolean'&&current.operation===request.operation&&!Object.hasOwn(current,'displayOperand')
     ?{...current,operands:[...current.operands,request.operand]}
     :{shape:'boolean',operation:request.operation,operands:[current,request.operand]};
-  return updatePlan(directory,plan,state.revision);
+  plan.geometry=replaceSolid(plan.geometry,root.geometry);
+  return updatePlan(directory,plan,state.revision,{expectedEditRevision});
 }

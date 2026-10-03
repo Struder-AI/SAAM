@@ -3,11 +3,10 @@
 Mesh repair is preparation work; accepted geometry returns to the
 [import and review workflow](../../core/print/USAGE.md#import-an-stl).
 
-Studio and agent imports attempt strict validation first, then automatic repair
-for recognized defects without hole filling. They retain the original, repaired
-STL and report. Progress names real stages; elapsed time is not a repair ETA.
-The person or maker agent can cancel the import without direct repair tools.
-Use the commands below for builder diagnosis or explicitly bounded hole filling.
+Ordinary imports validate first, then repair recognized defects without proximity
+merging or hole filling. They retain original/repaired STL and a report. Imports
+are cancellable; progress names stages, not an ETA. Use explicit repair below to
+request tolerance-based vertex merging, diagnosis or bounded hole filling.
 
 | Finding | Operation |
 |---|---|
@@ -32,12 +31,12 @@ node core/print/cli.mjs repair-stl <new-repair-directory> <source.stl> <mm|inch>
 The destination must be new and its parent must exist. Success writes
 `original.stl` (the source bytes), `repaired.stl` (validated, in millimetres) and
 `repair.json` (hashes, bounds, cleanup and native results, unchanged and changed
-face counts, sampled shape differences and validation evidence). Failure publishes
-nothing and leaves the source unchanged. The native repair backend must be built
-([native setup](../../core/geom/native/README.md)).
+face counts, merge displacement and sampled shape evidence). Failure publishes
+nothing; source bytes stay unchanged. Only native fallback needs [CGAL setup](../../core/geom/native/README.md).
 
 | Option | Meaning |
 |---|---|
+| `mergeToleranceMm` | Opt-in nearest-retained vertex merging in mm; default 0 means exact duplicates only. For example, options.json: `{"mergeToleranceMm":0.01}`. See [merge semantics](../../core/geom/README.md#explicit-mesh-repair). |
 | `maxHoleEdges` | Maximum edges in a boundary to fill; default 0 disables filling. |
 | `maxHoleDiameterMm` | Maximum boundary bounding-box diagonal in mm; default 0. Both limits must be positive to fill. |
 | `maxSampledDistanceMm` | Reject results exceeding this sampled two-way shape change; sampling is not a certified bound. |

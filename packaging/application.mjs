@@ -42,7 +42,7 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
   async function quit(force=false){
     const jobs=await state.runtime.runningJobs();
     if(jobs.length&&!force)return {confirmationRequired:true,jobs,message:'SAAM has running jobs. Quit and cancel them?'};
-    later();return {quitting:true};
+    state.runtime.notifyStopping('quit');later();return {quitting:true};
   }
   async function retryClients(){state.clients=await setupClients({home:paths.home});return state.clients;}
   async function startClient(instanceId,client){
@@ -66,7 +66,7 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
     state.control=createServer(async(request,response)=>{
       if(request.method!=='POST'||request.url!=='/control'||request.headers['x-saam-control']!==token||request.headers.origin){respond(response,{ok:false,error:'Invalid local control request.'},403);return;}
       try{respond(response,await command(await jsonBody(request)));}
-      catch(error){respond(response,{ok:false,error:error.message,code:error.code??null},400);}
+      catch(error){respond(response,{ok:false,error:error.message,code:error.code??null,...(error.workRequest?{workRequest:error.workRequest}:{})},400);}
     });
     try{await new Promise((done,fail)=>{state.control.once('error',fail);state.control.listen(applicationPort(paths.home),'127.0.0.1',done);});}
     catch(error){
@@ -85,7 +85,7 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
       update:config.platform&&config.updateHost?async(offered,{force=false}={})=>{
         const jobs=await state.runtime.runningJobs();
         if(jobs.length&&!force)return {confirmationRequired:true,jobs,message:'Updating SAAM cancels running jobs.'};
-        const result=await installUpdate(offered,{...config,data:paths.state,log});later();return result;
+        const result=await installUpdate(offered,{...config,data:paths.state,log});state.runtime.notifyStopping('update');later();return result;
       }:null,
       quit:({force=false}={})=>quit(force)});
     state.runtime=createLocalRuntime({printsRoot:paths.prints,stateRoot:paths.state,autoOpen,relay:state.services,
@@ -94,7 +94,8 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
     async function command(message){
       if(message.command==='diagnostics')return {ok:true,receipt:await state.services.flushDiagnostics(),service:state.services.status()};
       if(message.command==='status')return {ok:true,pid:process.pid,instanceId,version:config.version,home:paths.home,jobs:await state.runtime.runningJobs(),studios:state.runtime.studios(),service:state.services.status()};
-      if(message.command==='open')return {ok:true,...await state.runtime.openStudio()};
+      if(message.command==='open')return {ok:true,...await state.runtime.openStudio({studioInstanceId:message.studioInstanceId})};
+      if(message.command==='new-instance')return {ok:true,...await state.runtime.openStudio({newInstance:true})};
       if(message.command==='quit')return {ok:true,...await quit(message.force===true)};
       if(message.command==='update')return {ok:true,...await state.services.update({force:message.force===true})};
       if(message.command==='help'){

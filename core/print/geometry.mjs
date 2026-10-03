@@ -14,6 +14,8 @@ import {buildShell,hasMesh} from '../geom/build.mjs';
 
 import {requireThat} from '../geom/tolerance.mjs';
 import { booleanDisplayMesh } from '../geom/boolean-display.mjs';
+import {displayGeometry} from '../geom/boolean-solid.mjs';
+import {spatialPreview,validateSpatial} from '../geom/spatial.mjs';
 
 // Display resolution of the proxy mesh: steps per knot span, per direction,
 // within a per-patch range. The proxy is for the viewer only; every toolpath
@@ -29,6 +31,7 @@ const netHash = patches => hash(patches.map(patch => [patch.name, patch.nu, patc
 const round = value => Number(value.toFixed(9));
 
 export async function createGeometry(parameters) {
+  if(parameters.shape==='spatial')return createSpatialGeometry(parameters);
   const r = await rhino();
   if(hasMesh(parameters))return await createMeshGeometry(r,parameters);
   const shell = buildShell(r, parameters);
@@ -83,9 +86,9 @@ async function inspectGeometry(bytes, descriptor) {
   if(descriptor.nativeFile==='model.mesh.json') {
     const saved=JSON.parse(Buffer.from(bytes).toString('utf8'));
     requireThat(saved.schema==='saam-native-geometry/1'&&hash(saved.geometry)===hash(descriptor.parameters),'Native mesh differs from reviewed geometry.');
-    const expected=(await createMeshGeometry(await rhino(),saved.geometry)).descriptor;
-    for(const key of ['vertices','faces','labels','features','boundsMm','geometryVersion'])
-      requireThat(hash(descriptor[key])===hash(expected[key]),'Mesh display/identity differs from the native reviewed geometry.');
+    const expected=(await createGeometry(saved.geometry)).descriptor;
+    for(const key of ['vertices','faces','labels','features','boundsMm','geometryVersion','curves','points'])
+      requireThat(hash(descriptor[key]??null)===hash(expected[key]??null),'Mesh display/identity differs from the native reviewed geometry.');
     return;
   }
   const r = await rhino();
@@ -103,6 +106,21 @@ async function inspectGeometry(bytes, descriptor) {
     assertClosed(makeShell(patches, { name: descriptor.parameters.shape }));
     requireThat(netHash(patches) === descriptor.patchHash, 'The 3DM surfaces differ from the reviewed geometry.');
   } finally { doc?.destroy(); }
+}
+
+export async function createSpatialGeometry(parameters,solidDescriptor){
+  validateSpatial(parameters);
+  const solid=parameters.solid?(solidDescriptor?{descriptor:solidDescriptor}:await createGeometry(parameters.solid)):null;
+  const {vertices=[],faces=[],labels=[],features=[]}=solid?.descriptor??{};
+  const preview=spatialPreview(parameters),bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
+  const include=p=>p.forEach((v,i)=>{bounds.min[i]=Math.min(bounds.min[i],v);bounds.max[i]=Math.max(bounds.max[i],v);});
+  if(solid){include(solid.descriptor.boundsMm.min);include(solid.descriptor.boundsMm.max);}
+  for(const c of preview.curves)for(const p of c.points)include(p);
+  for(const p of preview.points)include(p.point);
+  if(!Number.isFinite(bounds.min[0])){bounds.min=[0,0,0];bounds.max=[0,0,0];}
+  const bytes=Buffer.from(JSON.stringify({schema:'saam-native-geometry/1',units:'mm',geometry:parameters}));
+  return {bytes,descriptor:{schema:'saam-shell-geometry/1',nativeFile:'model.mesh.json',parameters,geometryVersion:hash(parameters),fileHash:hash(bytes),
+    nativeForm:'authored solid, curves and points',vertices,faces,labels,features:[...features,...preview.curves.map(c=>({id:c.id,kind:'curve'})),...preview.points.map(p=>({id:p.id,kind:'point'}))],boundsMm:bounds,...preview}};
 }
 
 // Quad proxy for the viewer: each patch is sampled on its own (u, v) grid, so
@@ -127,11 +145,11 @@ function proxyMesh(shell) {
 
 // A native mesh is stored as indexed triangles. Mixed assemblies retain the
 // source spline recipes too; each component still uses its own query backend.
-// A boolean is shown as its Manifold display mesh, one selectable body.
+// A boolean shows its selected operand or Manifold mesh, one selectable body.
 async function createMeshGeometry(r,parameters) {
   const shell=buildShell(r,parameters),vertices=[],faces=[],labels=[],features=[];
   const append=async(geometry,id,translation=[0,0,0])=>{
-    const component=buildShell(r,geometry),display=component.kind==='boolean'?await booleanDisplayMesh(component):null;
+    const component=buildShell(r,displayGeometry(geometry)),display=component.kind==='boolean'?await booleanDisplayMesh(component):null;
     const proxy=display?{vertices:display.vertices,faces:display.triangles,labels:display.triangles.map(()=>'boolean')}
       :component.kind==='triangle-mesh'?{vertices:component.vertices,faces:component.triangles,labels:component.triangles.map((_,i)=>`triangle:${i}`)}:proxyMesh(component);
     const offset=vertices.length;

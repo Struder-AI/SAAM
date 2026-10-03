@@ -7,12 +7,14 @@ import {fileURLToPath} from 'node:url';
 
 import {requestReceiptState,isEditRequest} from './work-state.mjs';
 import {createRequestIndex} from './request-index.mjs';
+import {revisionOf} from '../core/print/revisions.mjs';
 
 
-export function workSnapshot({plan,machine,review}){
+export function workSnapshot({plan,machine,review,editRevision,revision}){
   const hash=value=>createHash('sha256').update(canonical(value)).digest('hex');
   const generated=review?.history?.findLast(event=>event.event==='generated');
-  return {inputKey:hash({plan,machine}),geometryKey:hash(plan?.geometry??null),generationKey:generated?hash(generated):null};
+  return {revision,inputKey:hash({plan,machine}),geometryKey:hash(plan?.geometry??null),generationKey:generated?hash(generated):null,
+    ...(editRevision?{editRevision}:{})};
 }
 async function snapshot(directory){
   try{
@@ -20,7 +22,7 @@ async function snapshot(directory){
     const {bundle,...plan}=document;
     const [machine,review]=bundle?[bundle.machine,bundle.review]:await Promise.all(['machine.json','review.json']
       .map(async name=>JSON.parse(await readFile(resolve(directory,name),'utf8'))));
-    return workSnapshot({plan,machine,review});
+    return workSnapshot({plan,machine,review,revision:revisionOf(document)});
   }catch(error){if(error.code==='ENOENT')return null;throw error;}
 }
 
@@ -28,6 +30,8 @@ async function snapshot(directory){
 export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events,folder:requestFolder}={}){
   // A session is one agent connection to this owner; the store outlives it.
   const lifetime={closed:false,session:0};
+  let workTail=Promise.resolve();
+  const transition=action=>{const run=workTail.then(action);workTail=run.catch(()=>{});return run;};
   const root=resolve(libraryRoot),folder=resolve(requestFolder??resolve(root,'.studio-requests'));
   const records=new Map(),byPrint=new Map(),pending=new Map(),latest=new Map(),listeners=new Set(),waiters=new Set(),emitted=new Map();let changeVersion=0;
   const latestKey=r=>`${r.printId}\0${r.ownerId??''}`;
@@ -35,7 +39,7 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events,fol
   // and ownerless records; an ownerless store never sees Studio-bound work
   // live, and reads it only as explicit diagnostic history.
   const visible=(r,history)=>ownerId?(!r.ownerId||r.ownerId===ownerId):history||!r.studioInstanceId;
-  const unfinished=r=>['queued','working','waiting'].includes(r.status)||r.status==='completed'&&!r.presented&&r.result
+  const unfinished=r=>r.episode&&(r.workActive||r.handbackPending||r.inspectionTarget&&!r.inspectionPresented&&!r.inspectionFailed)||['queued','working','waiting'].includes(r.status)||r.status==='completed'&&!r.presented&&r.result
     &&requestReceiptState(r,{view:{ready:true,snapshot:{...r.result,stage:r.target?.stage??'toolpath'}}}).receipt;
   // One record per pending wait owns that wait's timer, event subscription and
   // resolver, so waking a waiter is a named step rather than a stored callback.
@@ -80,7 +84,43 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events,fol
       &&(history||unfinished(r)||latest.get(latestKey(r))?.id===r.id)).sort((a,b)=>a.createdAt-b.createdAt).map(r=>structuredClone(r));
   }
   const list=options=>query({...options,history:true});
-  return {list,query,get,printId,ownerId,events,folder,
+  return {list,query,get,printId,ownerId,events,folder,snapshot,
+    startWork({directory,requestIds=[],studioInstanceId,instruction}){return transition(async()=>{
+      let chosen=[];
+      for(const id of requestIds){
+        const record=await get(id);
+        if(record.printId!==printId(directory))throw Error('That request belongs to another print.');
+        if(record.ownerId&&record.ownerId!==ownerId)throw Error('That Studio request belongs to another agent.');
+        if(record.studioInstanceId&&studioInstanceId&&record.studioInstanceId!==studioInstanceId)throw Error('That request belongs to another Studio instance.');
+        if(['queued','working'].includes(record.status)&&!record.handbackPending&&(!record.episode||record.workActive))chosen.push(record);
+      }
+      if(!chosen.length&&!requestIds.length)chosen=(await query({printId:printId(directory)})).filter(r=>r.status==='working'&&!r.handbackPending&&(!r.episode||r.workActive)&&r.kind!=='advisory'&&(!r.studioInstanceId||r.studioInstanceId===studioInstanceId)).slice(-1);
+      if(chosen[0]?.episodeId){const group=(await query({printId:printId(directory)})).filter(r=>r.episodeId===chosen[0].episodeId&&r.workActive);chosen=[...new Map([...group,...chosen].map(r=>[r.id,r])).values()];}
+      if(!chosen.length)chosen=[await this.begin({directory,instruction,studioInstanceId})];
+      const result=[],episodeId=chosen[0].episodeId??chosen[0].id,episodeStartedAt=chosen[0].episodeStartedAt??[...records.values()].reduce((latest,r)=>Math.max(latest,(r.episodeStartedAt??0)+1),now());
+      for(const record of chosen)result.push(await save({...record,episodeId,episodeStartedAt,status:'working',episode:true,workActive:true,ownerId,updatedAt:Math.max(now(),record.updatedAt+1)}));
+      return result;
+    });},
+    async savedWork(id,saved){return transition(async()=>{const record=await get(id);return save({...record,lastSaved:saved,updatedAt:Math.max(now(),record.updatedAt+1)});});},
+    startHandback(id,response){return transition(async()=>{
+      const record=await get(id);
+      if(record.ownerId&&record.ownerId!==ownerId)throw Error('That Studio request belongs to another agent.');
+      if(!record.episode)return null;
+      if(record.handbackPending||!record.workActive)return record;
+      const members=(await query({printId:record.printId})).filter(r=>r.episodeId===(record.episodeId??record.id)&&r.workActive);
+      const group=members.length?members:[record],handbackIds=group.map(r=>r.id);
+      const saved=[];for(const member of group)saved.push(await save({...member,...response,handbackIds,workActive:false,handbackPending:true,inspectionPresented:false,inspectionFailed:null,updatedAt:Math.max(now(),member.updatedAt+1)}));
+      return {...saved.find(r=>r.id===id)??saved[0],handbackIds:saved.map(r=>r.id)};
+    });},
+    async finishHandback(id,response,target){
+      const record=await get(id);
+      if(!record.handbackPending)return record;
+      const stage=response.resultStage;
+      const result=target===undefined?record.lastSaved??null:target;
+      return save({...record,...response,result,target:result?{...result,stage:stage??(result.geometryKey!==record.baseline?.geometryKey&&result.generationKey===(record.baseline?.generationKey??null)?'geometry':'toolpath')}:record.target,
+        inspectionTarget:result?{...result,...(stage?{stage}:{})}:null,handbackPending:false,
+        inspectionPresented:!result,updatedAt:Math.max(now(),record.updatedAt+1)});
+    },
     async reassignStudio(studioInstanceId,nextOwnerId){
       for(const record of await list({anyOwner:true}))if(record.studioInstanceId===studioInstanceId&&record.ownerId===ownerId)
         await save({...record,ownerId:nextOwnerId,updatedAt:Math.max(now(),record.updatedAt+1)});
@@ -103,20 +143,21 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events,fol
       if(record.status!=='working'||record.presented)return record;
       return save({...record,updatedAt:Math.max(now(),record.updatedAt+1)});
     },
-    async begin({directory,instruction,source='agent',key,kind='edit',evidence,scope,studioInstanceId}){
+    async begin({directory,instruction,source='agent',key,kind='edit',evidence,scope,studioInstanceId,bundleState}){
       if(lifetime.closed)throw Error('Request service closed.');
       if(typeof instruction!=='string'||!instruction.trim())throw Error('Describe the requested agent work.');
       const id=key?createHash('sha256').update(key).digest('hex'):randomUUID();
       if(key)try{return await get(id);}catch(e){if(e.code!=='ENOENT')throw e;}
       if(!['edit','guidance','advisory'].includes(kind))throw Error('Unknown Studio work kind.');
       const currentId=printId(directory);
-      return save({id,printId:currentId,instruction,source,kind,scope,...(studioInstanceId?{studioInstanceId}:{}),...(kind==='advisory'?{evidence}:{}),baseline:await snapshot(directory),ownerId,status:source==='studio'?'queued':'working',createdAt:now(),updatedAt:now()});
+      return save({id,printId:currentId,instruction,source,kind,scope,...(studioInstanceId?{studioInstanceId}:{}),...(kind==='advisory'?{evidence}:{}),baseline:bundleState?workSnapshot(bundleState):await snapshot(directory),ownerId,status:source==='studio'?'queued':'working',createdAt:now(),updatedAt:now()});
     },
     async update(id,{status='completed',message='',resultStage}={}){
       if(lifetime.closed)throw Error('Request service closed.');
       if(!['working','waiting','completed','failed','cancelled'].includes(status))throw Error('Invalid agent response status.');
       const record=await get(id);
       if(record.studioInstanceId&&record.ownerId&&record.ownerId!==ownerId)throw Error('That Studio request belongs to another agent.');
+      if(status==='working'&&record.episode&&!record.workActive)return this.begin({directory:resolve(root,record.printId),instruction:record.instruction,studioInstanceId:record.studioInstanceId,kind:record.kind});
       if(record.status==='cancelled'||record.status==='completed')return record;
       const resuming=status==='working'&&record.status!=='working';
       // Pausing does not create a different request or discard an already saved
@@ -130,12 +171,20 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events,fol
     },
     async presented(directory,shown){
       const id=printId(directory,{optional:true}),updated=[];if(!id)return updated;
-      for(const candidate of await query({printId:id}))if(['working','completed'].includes(candidate.status)
+      for(const candidate of await query({printId:id})){
+        if(candidate.episode&&!candidate.handbackPending&&!candidate.inspectionPresented&&candidate.inspectionTarget
+          &&(!candidate.studioInstanceId||candidate.studioInstanceId===shown.studioInstanceId)
+          &&candidate.inspectionTarget.revision===shown.revision&&(!candidate.inspectionTarget.stage||candidate.inspectionTarget.stage===shown.stage)){
+          const record=await get(candidate.id);
+          if(!record.handbackPending&&record.inspectionTarget?.revision===shown.revision)updated.push(await save({...record,...(shown.renderError?{inspectionFailed:shown.renderError}:{inspectionPresented:true}),updatedAt:Math.max(now(),record.updatedAt+1)}));
+        }
+        if(!shown.renderError&&shown.deliverable!==false&&['working','completed'].includes(candidate.status)
         &&(!candidate.studioInstanceId||candidate.studioInstanceId===shown.studioInstanceId)
         &&!candidate.presented&&requestReceiptState(candidate,{view:{ready:true,snapshot:shown}}).receipt){
         const record=await get(candidate.id);
         if(['working','completed'].includes(record.status)&&!record.presented&&requestReceiptState(record,{view:{ready:true,snapshot:shown}}).receipt)
           updated.push(await save({...record,presented:true,updatedAt:Math.max(now(),record.updatedAt+1)}));
+      }
       }
       return updated;
     },

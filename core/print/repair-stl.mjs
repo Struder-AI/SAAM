@@ -30,17 +30,21 @@ async function prepare(source,options){
   const {units,signal,progress=()=>{}}=options;signal?.throwIfAborted();const start=performance.now();
   if(options.maxSampledDistanceMm!==undefined&&(!Number.isFinite(options.maxSampledDistanceMm)||options.maxSampledDistanceMm<0))throw Error('maxSampledDistanceMm must be nonnegative.');
   progress({stage:'read-source'});const input=typeof source==='string'?await decodeSTLFile(source,{units,signal,progress}):decodeSTL(source,{units});
-  const sourceHash=input.sha256??hash(source),clean=cleanTriangleSoup(input);let result,sourceError;
   progress({stage:'cleanup'});
-  try{makeMesh(clean.vertices,clean.triangles);checkAdjacentContacts(clean);result={...clean,report:{method:clean.stitching.edges?'edge-stitch-cleanup/1':'exact-cleanup/1'}};}catch(error){if(error.code==='MESH_MEMORY_EXHAUSTED')throw error;sourceError=error.message;}
+  const sourceHash=input.sha256??hash(source),clean=cleanTriangleSoup(input,{mergeToleranceMm:options.mergeToleranceMm});
+  // Shape-change evidence must include requested vertex motion, not compare
+  // the snapped surface only with itself. Exact-only callers keep one value.
+  const comparison=clean.merge?cleanTriangleSoup(input):clean;
+  let result,sourceError;
+  try{makeMesh(clean.vertices,clean.triangles);checkAdjacentContacts(clean);result={...clean,report:{method:clean.merge?.movedVertices?'vertex-merge-cleanup/1':clean.stitching.edges?'edge-stitch-cleanup/1':'exact-cleanup/1'}};}catch(error){if(error.code==='MESH_MEMORY_EXHAUSTED')throw error;sourceError=error.message;}
   if(!result){
     const nativeDirectory=await options.nativeReady?.();
     signal?.throwIfAborted();result=await repairMeshNative(clean,{...options,nativeDirectory});
   }
   signal?.throwIfAborted();progress({stage:'validate',triangles:result.triangles.length});makeMesh(result.vertices,result.triangles);checkAdjacentContacts(result);
-  const changes=shapeChanges(clean,result,progress,signal);
+  const changes=shapeChanges(comparison,result,progress,signal);
   if(options.maxSampledDistanceMm!==undefined&&Math.max(changes.sampledDistanceMm.sourceToResult,changes.sampledDistanceMm.resultToSource)>options.maxSampledDistanceMm)throw Object.assign(Error('Repair exceeds maxSampledDistanceMm; no result accepted.'),{code:'MESH_SHAPE_CHANGE',changes});
-  const report={schema:'saam-mesh-repair/2',sourceSha256:sourceHash,sourceUnits:units,outputUnits:'mm',sourceValidationError:sourceError??null,...result.report,removed:clean.removed,stitching:clean.stitching,inputTriangles:input.triangles.length,outputTriangles:result.triangles.length,...changes,
+  const report={schema:'saam-mesh-repair/2',sourceSha256:sourceHash,sourceUnits:units,outputUnits:'mm',sourceValidationError:sourceError??null,...result.report,...(clean.merge?{merge:clean.merge}:{}),removed:clean.removed,stitching:clean.stitching,inputTriangles:input.triangles.length,outputTriangles:result.triangles.length,...changes,
     validation:'Shared mesh topology/intersection checks, adjacent-contact checks and exact-output STL reimport. Numerical contact tolerance is 1e-9 mm; sampled distances do not certify shape fidelity.'};
   return {result,report,start};
 }

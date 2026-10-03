@@ -115,46 +115,44 @@ owns when the maker offers guidance.
 
 ## Agent request coordination
 
-One app retains chat identities and each chat's requests/events across command
-processes. Requests are journaled under the SAAM home's `state/`, outside the
-replaceable app. Records carry request, print and Studio instance IDs, instruction,
-source, kind, status, baseline, result target and presentation receipt.
-`queued`, `working`, `waiting`, `completed`, `failed` and `cancelled` describe
-explicit transitions. There is no activity lease, idle-work expiration or
-chat-disconnect failure. Actual activity may record evidence without claiming,
-resuming, completing or replacing the result target.
+One app journals chat requests under the SAAM home's `state/`. The first
+result-changing operation establishes work for its bundle and owner. Each saved,
+renderable revision reaches Studio immediately; neither checks nor further edits
+require withholding it. Working dots and the affected view's 28% fade persist
+through the agent's uninterrupted editing sequence, including between commands.
 
-Work and display are distinct: saving and generation alone cannot establish
-presentation. Begin records the input baseline. Publish a `geometry` or
-`toolpath` target when saved inputs are ready, including every request in a
-combined result. `/api/view-ready` acknowledges the exact rendered inputs;
-request completion alone does not unlock a tour gate. Waiting preserves targets
-and receipts, and resuming preserves the original baseline. Obsolete replies
-cannot restore completed UI activity.
+Hand-back means ready for inspection or discussion, not approval. It captures
+the operation already underway and binds its resulting saved revision after it
+settles. Studio undims when that revision is displayed; a failure shows the last
+usable result with the error. Future work has a new identity, so delayed replies
+and display acknowledgements cannot end it. Guidance and other bundles stay quiet.
+No activity lease, timer or chat disconnection invents completion.
 
-Updating preview dots and the 28% fade show active edits and pending display,
-scoped to the affected pane. Guidance, advisories, queued work and waiting for a
-choice stay quiet. The indicators clear when the exact requested result is ready;
-a later chat acknowledgement does not extend them. Downloads have separate
-progress. Work on another bundle does not fade this viewport.
+Inspection and tour receipts are separate: inspecting a previous eligible
+toolpath can finish hand-back without satisfying a lesson requiring new output.
+The viewer reports actual rendering; the agent never manufactures that receipt.
 
 ### Carrying a maker request
 
-Call `saam call begin_studio_work` before editing an existing Studio bundle or
-reporting its result. Acknowledge the person first if useful. Claim Studio work
-with `requestId` and its instruction; use `bundleId`/`studioInstanceId` when the
-active selection is ambiguous. Carry the returned current recipe and revision.
-An unchecked program summary is not a failed check.
+Use the intended `bundleId` and any originating `requestIds` on the first needed
+edit; use `studioInstanceId` when the target is ambiguous. The operation returns
+`workRequest`; retain its identity for hand-back. `begin_studio_work` remains
+available to explicit callers but is not a prerequisite. Carry current edit
+identity with edits; an unchecked program summary is not a failed check.
 
 | Situation | Action |
 |---|---|
-| Editing inputs | Keep the request working; combine related edits before publishing a result. |
-| Saved inputs ready | `respond_to_studio_request` with `status: working` and `resultStage: geometry` or `toolpath`. |
-| Geometry-only result | Show geometry; no generation is needed solely to complete work. |
-| Toolpath result | Generate once and check the current displayed result; tour toolpath lessons generate in Studio. |
-| Choice or confirmation needed | Explain what is ready; set `waiting`, then resume the same request. |
-| Advice | Answer in chat and complete the claimed guidance request. |
-| Finished, failed or superseded | Give the outcome, then resolve that ID as completed, failed or cancelled. |
+| Editing/checking/revising | Save usable revisions and continue; no intermediate completion or permission question. |
+| Finished | `respond_to_studio_request` with `requestId: workRequest.id` and `status: completed`. |
+| Discussion needed or user interjects | Hand back with `status: waiting`; handle the message before further autonomous edits. |
+| Failed or cancelled | Hand back with that status and explain the outcome. |
+| Geometry-only work | No generation solely to finish or undim. |
+| Tour toolpath lesson | Generate in Studio; retain the lesson's exact-result requirement. |
+
+Hand-back needs no `resultStage` unless a particular view is required. Studio
+requests initiate it directly. External chat messages are not automatically
+visible to SAAM: the agent signals hand-back when it receives an interjection.
+Do not claim immediate detection or substitute a timer.
 
 Use `saam wait` between requests after acknowledging completed work. Each bounded
 wait ends normally and may be repeated; it does not detach the chat. Client wakeup
@@ -224,11 +222,9 @@ checked output. Resource cleanup remains distinct from job duration policy.
 
 ### Request completion and display
 
-[work-state.mjs](work-state.mjs) derives activity, matching receipts and confirmation
-waiting from one normalized view/request context. [agent-ui.mjs](agent-ui.mjs)
-orders snapshots so stale replies cannot revive completed work. Journal records
-are durable; event queues are retained by the running app. Neither channel
-substitutes for a matching presentation receipt.
+[work-state.mjs](work-state.mjs) derives [work and hand-back](#agent-request-coordination);
+[agent-ui.mjs](agent-ui.mjs) reports rendering and ignores obsolete responses.
+Durable request records and live event queues cannot substitute for rendering.
 
 Export captures the exact displayed checked program. It does not regenerate,
 promote approval or reinterpret current files; later edits cannot change captured

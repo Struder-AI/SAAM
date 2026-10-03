@@ -6,6 +6,7 @@ import {buildShell} from './build.mjs';
 import {constructSolids} from './solid-operations.mjs';
 import {mappedTextMaterial} from './mapped-text-material.mjs';
 import {topAt,createSectionQuery} from './query.mjs';
+import {closeMeshPatchToPlane} from './mesh-patch-solid.mjs';
 
 export async function prepareExtensionGeometry(source,extension,request,options={}){
   const entry=options.create?'geometry-create':'geometry-edit';
@@ -19,7 +20,7 @@ export async function prepareExtensionGeometry(source,extension,request,options=
     process:source.process,composition:source.composition,skills:source.skills});
   const r=await rhino();
   const {geometry,placement,assignments,assignmentRequests,report}=await editor(input,request,{...options,buildGeometry:geometry=>buildShell(r,geometry),constructSolids,mappedTextMaterial,topAt,createSectionQuery,
-    ...(compileText?{compileText}:{})});
+    closeMeshPatchToPlane,...(compileText?{compileText}:{})});
   return {plan:{...source,...(geometry===undefined?{}:{geometry}),
     ...(placement===undefined?{}:{placement})},assignments,assignmentRequests,report};
 }

@@ -17,7 +17,7 @@ Choose from the request; default to maker. Web agents remain makers.
 | Request | First action |
 |---|---|
 | A tour | `saam start-tour`, before any other read |
-| Edit an existing Studio print | `saam call begin_studio_work` with its bundle or request identity, then load missing context |
+| Edit an existing Studio print | Use its bundle/request identity on the first needed operation; load missing context as needed |
 | Make a part, printing advice, operate Studio (**maker**) | `saam call maker_onboarding` |
 | Author guidance, recipe helpers, assets or examples through existing interfaces (**builder**) | `node scripts/agent-toolkit.mjs builder-onboarding [--area AREA]` |
 | Change a core skill, core capability, Studio or shared interface (**developer**) | `node scripts/agent-toolkit.mjs developer-onboarding [--area AREA]` |

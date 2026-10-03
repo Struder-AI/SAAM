@@ -13,16 +13,8 @@ import {interpolatePose} from './pose.mjs';
 import {unitDirection as unit,dot} from '../geom/frame.mjs';
 import {piecewiseChart,piecewiseChartFrame,mapPiecewiseChartPath,splitPiecewiseChartPath} from '../geom/piecewise-chart.mjs';
 
-const vec=(p,n)=>Array.isArray(p)&&p.length===n&&p.every(Number.isFinite);
-export function authoredNurbs(record,dimension=3){
-  requireThat(record&&Object.keys(record).every(k=>['degree','knots','controlPoints','weights'].includes(k)),'Unexpected NURBS curve fields.');
-  const {degree,knots,controlPoints,weights}=record;
-  requireThat(Number.isInteger(degree)&&degree>=1&&Array.isArray(controlPoints)&&controlPoints.length>degree&&controlPoints.every(p=>vec(p,dimension)),'NURBS needs a degree and finite control points.');
-  const n=controlPoints.length,order=degree+1;
-  requireThat(Array.isArray(knots)&&knots.length===n+order&&knots.every((k,i)=>Number.isFinite(k)&&(!i||k>=knots[i-1]))&&knots[n]>knots[degree],'NURBS needs a full increasing knot domain.');
-  requireThat(weights===undefined||Array.isArray(weights)&&weights.length===n&&weights.every(w=>Number.isFinite(w)&&w>0),'NURBS weights must be positive.');
-  return {n,order,knots:Float64Array.from(knots),domain:[knots[degree],knots[n]],cp:Float64Array.from(controlPoints.flatMap((p,i)=>{const w=weights?.[i]??1;return [p[0]*w,p[1]*w,(p[2]??0)*w,w];}))};
-}
+import {authoredNurbs} from '../geom/spatial.mjs';
+export {authoredNurbs} from '../geom/spatial.mjs';
 
 export function validateCurveProfiles(vary){
   if(vary===undefined)return;

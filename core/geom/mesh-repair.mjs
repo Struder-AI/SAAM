@@ -4,13 +4,11 @@ import {checkAdjacentContacts} from './mesh-spatial.mjs';
 import {subtract as sub,cross,dot,requireThat} from './tolerance.mjs';
 import {checkMeshCapacity} from './mesh-capacity.mjs';
 
-export function cleanTriangleSoup(input) {
+export function cleanTriangleSoup(input,{mergeToleranceMm=0}={}) {
   requireThat(Array.isArray(input.vertices)&&Array.isArray(input.triangles),'Repair needs vertices and triangles.');
+  requireThat(Number.isFinite(mergeToleranceMm)&&mergeToleranceMm>=0,'mergeToleranceMm must be a finite nonnegative distance in millimetres.');
   checkMeshCapacity(input.vertices.length,input.triangles.length);
-  const vertices=[],lookup=new Map(),mapping=input.vertices.map(p=>{
-    requireThat(Array.isArray(p)&&p.length===3&&p.every(Number.isFinite),'Repair coordinates must be finite XYZ.');
-    const key=p.join(',');if(!lookup.has(key)){lookup.set(key,vertices.length);vertices.push([...p]);}return lookup.get(key);
-  });
+  const {vertices,mapping,merge}=indexRepairVertices(input.vertices,mergeToleranceMm);
   const triangles=[],seen=new Set();let degenerate=0,duplicates=0;
   for(const face of input.triangles){
     requireThat(Array.isArray(face)&&face.length===3&&face.every(i=>Number.isInteger(i)&&i>=0&&i<mapping.length),'Invalid repair triangle indices.');
@@ -21,8 +19,51 @@ export function cleanTriangleSoup(input) {
   requireThat(triangles.length>=4,'Repair has no usable solid surface.');
   const stitching=degenerate?stitchCollapsedEdges(vertices,triangles):{triangles,stitchedEdges:0,addedTriangles:0};
   const compact=compactMesh(vertices,stitching.triangles);
-  return {...compact,removed:{degenerate,duplicates,unusedOrDuplicateVertices:input.vertices.length-compact.vertices.length},
+  return {...compact,...(mergeToleranceMm>0?{merge}:{}),removed:{degenerate,duplicates,unusedOrDuplicateVertices:input.vertices.length-compact.vertices.length},
     stitching:{edges:stitching.stitchedEdges,addedTriangles:stitching.addedTriangles,toleranceMm:1e-9}};
+}
+
+// Retained representatives never move: every snap is measured directly, not
+// through a chain of neighbours. Repeated coordinates reuse the same decision.
+function indexRepairVertices(points,toleranceMm){
+  const magnitude=[0,0,0];
+  for(const p of points){
+    requireThat(Array.isArray(p)&&p.length===3&&p.every(Number.isFinite),'Repair coordinates must be finite XYZ.');
+    for(let k=0;k<3;k++)magnitude[k]=Math.max(magnitude[k],Math.abs(p[k]));
+  }
+  // Power-of-two cells avoid rounding the tolerance into a coarser snap rule.
+  // Widen only the search cells for extreme coordinate/tolerance ratios, keeping
+  // integer neighbours representable; actual Euclidean distance still decides.
+  const width=magnitude.map(m=>Math.min(Number.MAX_VALUE,2**Math.max(Math.ceil(Math.log2(toleranceMm)),Math.ceil(Math.log2(m||Number.MIN_VALUE))-48)));
+  const vertices=[],mapping=[],exact=new Map(),cells=new Map();
+  const merge={toleranceMm,method:'nearest-retained-vertex/1',mergedVertices:0,movedVertices:0,maxDisplacementMm:0};
+  for(const point of points){
+    const key=point.join(','),known=exact.get(key);
+    const nearest={index:known??-1,distance:toleranceMm};
+    const cell=toleranceMm>0?point.map((v,k)=>Math.floor(v/width[k])):null;
+    if(known===undefined&&cell){
+      for(let x=-1;x<=1;x++)for(let y=-1;y<=1;y++)for(let z=-1;z<=1;z++){
+        const candidates=cells.get([cell[0]+x,cell[1]+y,cell[2]+z].join(','));
+        for(const index of candidates??[]){
+          const p=vertices[index],distance=Math.hypot(point[0]-p[0],point[1]-p[1],point[2]-p[2]);
+          if(distance<=toleranceMm&&(nearest.index<0||distance<nearest.distance||distance===nearest.distance&&index<nearest.index)){
+            nearest.index=index;nearest.distance=distance;
+          }
+        }
+      }
+    }
+    if(nearest.index<0){
+      nearest.index=vertices.length;vertices.push([...point]);
+      if(cell){const name=cell.join(','),bucket=cells.get(name)??[];bucket.push(nearest.index);cells.set(name,bucket);}
+    }else{
+      merge.mergedVertices++;
+      const p=vertices[nearest.index],distance=Math.hypot(point[0]-p[0],point[1]-p[1],point[2]-p[2]);
+      if(distance>0)merge.movedVertices++;
+      merge.maxDisplacementMm=Math.max(merge.maxDisplacementMm,distance);
+    }
+    exact.set(key,nearest.index);mapping.push(nearest.index);
+  }
+  return {vertices,mapping,merge};
 }
 
 // Removing a collinear face can expose A--C opposite C--B--A. Split the

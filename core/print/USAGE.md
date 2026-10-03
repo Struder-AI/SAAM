@@ -16,8 +16,7 @@ is relative to `Prints/` (`Prints/my-part` is `"my-part"`).
 ## Recipes
 
 `get_recipe_defaults` returns process/setup defaults and one common [slice](../../skills/slice/SKILL.md)
-assignment, with no geometry or automatic skin. Before `create_bundle`, author
-`geometry` or standalone [Trace](../../skills/trace/SKILL.md)/[Inject](../../skills/inject/SKILL.md) assignments.
+assignment, without automatic skin. Bundles always retain [geometry](../../GEOMETRY.md), including empty drafts; inline [Trace](../../skills/trace/SKILL.md)/[Inject](../../skills/inject/SKILL.md) inputs become curve/point geometry with recipe references.
 
 `slice` adds/edits/removes one assignment; `adjust_recipe` patches the recipe.
 Objects merge, arrays replace, unknown fields reject; omit `bundle`.
@@ -28,8 +27,7 @@ and gap rejection. Existing recipes need explicit migration for missing fields;
 loading never rewrites them. Dependencies and bridge-anchor checks apply in both
 modes.
 After a stale revision, reload and reassess. Reads omit geometry unless asked
-(`includeGeometry: true`). Any geometry, process or setup change invalidates the
-final confirmation. Changing printer applies its process defaults and keeps other
+(`includeGeometry: true`). Geometry changes clear the active toolpath; recipe/setup edits retain the previous checked output and its original settings until regeneration. Studio export confirms the displayed output. Changing printer applies process defaults and keeps other
 choices, rejects an incompatible recipe, and names any gated guidance it opens.
 
 ### Nozzle selection

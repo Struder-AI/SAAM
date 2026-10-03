@@ -107,6 +107,7 @@ does not authorize every finding. [Formats](../print/README.md#formats) specifie
 | [evaluateSurface / mappedSurface](surface-evaluation.mjs), [surfaceDerivatives](surface-derivatives.mjs) | Shared point/normal/derivative evaluation retains native units. Checked native differentials include second derivatives and reject out-of-domain, nonpositive-weight or singular-tangent samples. Affine selection retains native UV; sleeve phase is periodic arc length, height charts use world XY. |
 | [Curve sampling](curve-sampling.mjs) | `sampleCurveIntervals` refines physical chord/step bounds. `sampledPositiveIntervals` returns positive runs from ordered parameter/value samples, refining observed crossings to 1e-9 native units; touching zero-separated runs stay separate, unsampled crossings remain unknown. Callbacks evaluate geometry only. |
 | [constructSolids](solid-operations.mjs) | Heat-set, text and gridfinity submit construction/translation/Boolean requests; Geometry owns conversion, mapped-extrusion refinement and native disposal. Results are manufacturing meshes (null for empty material). Feature rules and editable records remain with extensions. |
+| [closeMeshPatchToPlane](mesh-patch-solid.mjs) | An indexed mesh plus selected `triangleIndices`, horizontal `planeZMm` and vertical `offsetMm` becomes a closed manufacturing mesh. Retains roof triangulation, holes and disconnected patches; faces need nonzero XY projection and vertices above the plane. Folds, point-only joins and overlapping projections retain ordinary mesh errors; no selection, trimming, process policy or native lifetime in callers. Standard support consumes this operation. |
 | [planarRegionLayers](planar-region-layers.mjs) | Given a height range, numeric process, authored `regionsAt(z)` polygons, optional shells and XY clearance, return merged planar Slice layers and family. Geometry checks shell intersections at the sampled layer heights and throws on a positive clearance overlap; it never invents source regions. |
 | [prepareContourSleeve](sleeve/contour-sleeve.mjs) | Given explicit section heights, pitch, standoff, offset, tolerances and fit mode, construct contour correspondence and a Slice family. Extensions choose those values; Geometry checks and maps the sections. |
 | [resolveGeometrySelections](build.mjs) | Resolves whole solids, components, material partitions and replacement volumes in an offset frame; owns runtime loading and reuses source builds within a batch. Async path generation requests these values; Toolpath retains assignment and ownership policy. |
@@ -446,29 +447,28 @@ when cleanup alone does not yield a valid mesh. Studio, CLI and agent imports
 attempt it for recognized defects, then present geometry for review. Invalid
 formats retain their diagnostics; repair never fills holes without explicit bounds.
 
-[Cleanup](./mesh-repair.mjs) merges identical coordinates and removes duplicate,
-degenerate and unused elements. Collapsed faces can leave a long boundary edge
-opposite a complete collinear chain. Cleanup subdivides the surviving face at
-those existing vertices, preserving positions and winding with a 1e-9 mm
-line-distance tolerance. It does not guess between branches or fill actual holes.
+[Cleanup](./mesh-repair.mjs) removes duplicate/degenerate faces and unused vertices.
+`cleanTriangleSoup(input,{mergeToleranceMm:0})` defaults to identical coordinates.
+An explicit positive tolerance snaps each point to its nearest retained vertex
+within that Euclidean distance in mm; input order breaks ties. Representatives
+never move, repeated coordinates share a decision, and neighbours do not chain.
+Spatial buckets only find candidates; they never round accepted coordinates.
+Collapsed-face stitching uses existing collinear boundary vertices (1e-9 mm),
+without guessing branches or filling holes. Ordinary imports remain exact-only.
 
-The native backend orients the soup, stitches compatible borders, and applies
-CGAL 6.2.1 local patch repair with smoothing disabled and genus preservation
-requested. It can split vertices to represent manifold patches, but that does
-not guarantee a valid closed solid. Optional hole filling needs both an edge-count
-limit and a physical bounding-box diagonal limit. Failed repair, remaining open
-boundaries or detected intersections produce no accepted output. See the
-[native build and license reference](./native/README.md).
+Repair reports include merge counts and maximum vertex displacement; shape-change
+evidence includes the merge. Tolerance bounds this stage, not later native repair.
+[CGAL](./native/README.md) orients/stitches and attempts local patch repair with
+smoothing off and genus preservation requested. Hole filling needs explicit edge
+and physical diameter limits; unresolved boundaries/intersections reject output.
 
 Final checks use shared mesh topology/intersection checks, adjacent-contact checks
 and reimport of the exact decimal ASCII STL. Contact tolerance is 1e-9 mm;
-this is not an exact-arithmetic validity proof. The report counts unchanged source
-faces and changed/new faces and samples vertices and triangle centroids in both
-directions. Samples are deterministic and bounded to 10,000 per direction. They
-are not a certified maximum surface error. Identical face geometry is recognized
-exactly without distance sampling. An optional sampled-distance limit rejects
-excessive measured changes; it does not certify unsampled regions. Geometry still
-needs review, and successful processing creates no manufacturing approval.
+this is not an exact-arithmetic validity proof. Reports count unchanged/changed/new
+faces and sample at most 10,000 vertices/centroids per direction, without claiming
+a certified surface-error bound. Identical geometry needs no sampling. The optional
+sampled-distance limit rejects measured excess; geometry still needs review and
+successful processing creates no manufacturing approval.
 
 ### Memory, files and progress
 

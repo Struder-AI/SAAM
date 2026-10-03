@@ -12,18 +12,18 @@ The home is `C:\SAAM` on Windows or `~/SAAM` on macOS: replaceable `app/`,
 and credential. `SAAM_DATA` selects a disposable home for installation trials.
 [Installation](../../packaging/INSTALL.md) owns migration and client setup.
 
-`saam help` lists operations; `saam help OP` returns the complete input schema.
-Use `saam call OP --input FILE`, `--stdin`, or scalar flags. `saam start-tour`
-starts the tour; `saam wait` returns Studio requests/events and can be repeated.
-The environment's Claude or Codex session ID identifies a chat. When absent,
-retain the returned `chatId` and pass `--chat-id ID` on every later command,
-including retries after errors. `--chat-name NAME` supplies the Studio label.
+`saam help` lists operations; `saam help OP` returns their complete schemas.
+Use `saam call OP --input FILE`, `--stdin`, or scalar flags. `saam start-tour` starts the tour; `saam wait` returns Studio requests/events.
+`apply_extension` takes `bundleId`, `expectedEditRevision` from current `editRevision`, `extensionId`, `request` and optional `part`; strict legacy `expectedRevision` remains accepted. Its selected manifest/manual owns request fields.
+It shares the revisioned geometry/deposition edit with `apply_text`, `apply_heat_set` and gridfinity updates; read [standard support](../../skills/standard-support/SKILL.md) for mesh-roof construction. Saved ordinary results remain editable.
+`share_bundle` and `import_bundle` take `bundleId` and an absolute `packageFile` ZIP path; [portable exchange](../print/README.md) carries editable inputs. Worker preparation is cancellable until publication; recipients regenerate and review before export.
+The environment's Claude or Codex session ID identifies a chat. Otherwise retain returned `chatId` and pass `--chat-id ID` on later commands, including retries. `--chat-name NAME` supplies the Studio label.
 
-[Runtime](runtime.mjs) retains each chat's request/event queues and windows.
-Studio-first windows wait for a chat; chat-first reviews open a window. Naming
-an available open bundle selects its window. Unnamed chats must name a bundle
-when several populated windows wait; empty windows are interchangeable.
-The same chat ID resumes its windows. There is one Studio per bundle.
+[Runtime](runtime.mjs) retains each chat's queues and windows. Edits establish
+[work context and hand-back](../../studio/README.md#carrying-a-maker-request);
+saved revisions display throughout the work. Naming an available open bundle
+selects its window; ambiguous populated windows require a target. Empty windows
+are interchangeable. A chat resumes its windows; there is one Studio per bundle.
 
 `saam call capture_bundle --bundle-id PART` explicitly transfers its existing
 Studio, preserving the reservation and window. Capture rejects active edits,

@@ -1,3 +1,5 @@
+import {completedOutputState} from '../core/print/review-state.mjs';
+
 // One request lifecycle for the viewport, persisted presentation and tour gates.
 // A target describes saved inputs; presentation describes a result actually drawn.
 // Guidance is visually quiet until the agent publishes an actual edit target.
@@ -18,7 +20,7 @@ export function requestReceiptState(request,{view:displayedView,state,stage,requ
   const display={view:displayedView};
   if(state){
     const geometryReady=stage==='geometry'&&Boolean(state.geometry);
-    const toolpathReady=stage==='toolpath'&&!requiresToolpath&&!state.generationError&&!state.programError&&Boolean(state.program);
+    const toolpathReady=stage==='toolpath'&&!requiresToolpath&&!state.generationError&&completedOutputState(state).receipt;
     const ready=Boolean(state.work?.snapshot)&&(geometryReady||toolpathReady);
     display.view={printId:state.work?.printId,snapshot:state.work?.snapshot?{...state.work.snapshot,stage}:null,ready,
       awaitingConfirmation:false};
@@ -28,7 +30,7 @@ export function requestReceiptState(request,{view:displayedView,state,stage,requ
   const receipt=Boolean(relevant&&(request.presented||view?.ready&&matchesReceipt(request,view.snapshot)));
   const awaitingConfirmation=Boolean(relevant&&!receipt&&view?.ready&&view.awaitingConfirmation
     &&request.target?.stage==='toolpath'&&request.target.inputKey===view.snapshot?.inputKey);
-  if(!request)return {activity:'idle',receipt:Boolean(view?.ready),awaitingConfirmation:Boolean(view?.awaitingConfirmation)};
+  if(!request)return {activity:'idle',receipt:Boolean(view?.ready||state&&stage==='toolpath'&&completedOutputState(state).available&&state.work?.snapshot),awaitingConfirmation:Boolean(view?.awaitingConfirmation)};
   if(!relevant)return {activity:'idle',receipt:false,awaitingConfirmation:false};
   if(receipt)return {activity:'presented',receipt:true,awaitingConfirmation:false};
   if(['waiting','cancelled'].includes(request.status))return {activity:request.status,receipt:false,awaitingConfirmation};
@@ -52,23 +54,23 @@ export function hasUnpreparedEdit(requests=[],snapshot){
     &&!request.presented&&request.target?.inputKey!==snapshot?.inputKey);
 }
 
-// Which pane the active work is regenerating, so only that pane dims: 'toolpath'
-// when every active edit and any load target the toolpath, 'all' when something
-// broader (a geometry edit, a full reload) is in flight, or null when idle. A
-// toolpath-only result lets the geometry pane stay crisp while it computes.
+export function inspectionReceipt(request,view){
+  return Boolean(request?.episode&&!request.workActive&&!request.handbackPending&&!request.inspectionPresented&&!request.inspectionFailed
+    &&view?.ready&&!view.loading&&request.printId===view.printId&&request.inspectionTarget
+    &&request.inspectionTarget.revision===view.snapshot?.revision
+    &&(!request.inspectionTarget.stage||request.inspectionTarget.stage===view.snapshot?.stage));
+}
+export function inspectionFailure(request,view){
+  return Boolean(request?.episode&&!request.workActive&&!request.handbackPending&&!request.inspectionPresented&&!request.inspectionFailed
+    &&request.inspectionTarget&&view?.errorAt&&request.printId===view.printId
+    &&request.inspectionTarget.revision===view.snapshot?.revision
+    &&(!request.inspectionTarget.stage||request.inspectionTarget.stage===view.errorStage));
+}
 export function summarizeWork(requests=[],{view}={}){
-  const work={working:false,allToolpath:true};
-  for(const request of requests){
-    if(!isEditRequest(request)||view?.printId&&request.printId!==view.printId)continue;
-    if(['queued','working'].includes(requestReceiptState(request,{view}).activity)){
-      work.working=true;if(request.target?.stage!=='toolpath')work.allToolpath=false;
-    }
-  }
-  const loadingScope=view?.loading?(view.loadingStage??'all'):null;
-  const requestScope=work.working?(work.allToolpath?'toolpath':'all'):null;
-  const stage=loadingScope&&requestScope
-    ?loadingScope==='toolpath'&&requestScope==='toolpath'?'toolpath':'all'
-    :loadingScope??requestScope??null;
-  const active=Boolean(view?.loading)||work.working;
-  return {active,message:'',stage};
+  const scoped=requests.filter(r=>r.episode&&(!view?.printId||r.printId===view.printId));
+  const latest=scoped.reduce((value,r)=>Math.max(value,r.episodeStartedAt??r.createdAt),0);
+  const relevant=scoped.filter(r=>(r.episodeStartedAt??r.createdAt)===latest);
+  const active=relevant.some(r=>r.workActive||r.handbackPending||r.inspectionTarget&&!r.inspectionPresented&&!r.inspectionFailed&&!inspectionReceipt(r,view)&&!inspectionFailure(r,view));
+  const failure=relevant.findLast(r=>['failed','cancelled'].includes(r.status)&&!r.workActive);
+  return {active:Boolean(view?.loading||active),message:relevant.findLast(r=>r.inspectionFailed)?.inspectionFailed??failure?.message??'',stage:active?'all':view?.loading?(view.loadingStage??'all'):null};
 }

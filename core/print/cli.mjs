@@ -2,7 +2,7 @@ import {applyExtensionEdit} from './extension-edits.mjs';
 // Every command uses the same print bundle; Studio previews the checked export.
 import {readFile,access} from 'node:fs/promises';
 import {resolve} from 'node:path';
-import {root,initBundle,loadBundle,generateBundle,generateToolpath,restoreRevision,adjustBundle,deliver,checkPathBundle,migrateBundle,bundleInstance,recoverBundleInstance} from './bundle.mjs';
+import {root,initBundle,loadBundle,generateBundle,generateToolpath,restoreRevision,adjustBundle,deliver,checkPathBundle,migrateBundle,bundleInstance,recoverBundleInstance,shareBundle,importBundle} from './bundle.mjs';
 import {changeMachine,rememberSetup,adjustSettings} from '../machine/bundle-settings.mjs';
 import {SETTINGS_FIELDS} from '../machine/settings.mjs';
 import {createSTLBundle,setSTLUnits} from './import-stl.mjs';
@@ -38,6 +38,10 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(`Open it for review with: npm run studio -- ${directory}`);
       console.log('Nothing is approved yet; review the geometry and generate freely, then confirm the exact settings/toolpath together in Studio before export.');
       const hint=await machineHint(root,{to:machineId});if(hint)console.log(hint);
+    } else if(command==='share'||command==='import-bundle') {
+      if(!target||!argument||extra!==undefined)throw Error('Use share <bundle-directory> <new-package.zip> or import-bundle <package.zip> <new-bundle-directory>.');
+      if(command==='share')console.log(JSON.stringify(await shareBundle(resolve(target),resolve(argument)),null,2));
+      else console.log(JSON.stringify(await importBundle(resolve(target),resolve(argument)),null,2));
     } else if(command==='undo'||command==='redo') {
       console.log(report(await restoreRevision(bundleDirectory(),{direction:command,expectedRevision})));
     } else if(command==='toolpath') {
@@ -117,6 +121,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
     } else {
       console.error('       cli.mjs init|migrate|demo|generate|check|deliver|remember-setup [print-directory] [plan.json]');
       console.error('       cli.mjs undo|redo <print-directory> --revision <revision>');
+      console.error('       cli.mjs share <bundle-directory> <new-package.zip> | import-bundle <package.zip> <new-bundle-directory>');
       console.error('       cli.mjs toolpath <print-directory> (save completed SAAMpath without export)');
       console.error('       cli.mjs instance-status|recover-instance <print-directory>');
       console.error('       cli.mjs adjust <print-directory> <patch.json> [--revision <revision>]');

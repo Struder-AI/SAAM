@@ -1,9 +1,8 @@
 # Geometry
 
-You author the part in one of three forms, combined with [booleans](#booleans)
-when one form alone won't do; [MAKERS](MAKERS.md#geometry) says which form suits
-what. Coordinates are millimetres relative to the recipe's `placement`, Z = 0 on
-the bed. Every toolpath skill slices and follows the result.
+Geometry holds solids, curves and points, in millimetres relative to recipe XY `placement`, with Z = 0 on the bed. [MAKERS](MAKERS.md#geometry) guides solid construction; [booleans](#booleans) combine solids.
+`{shape:"spatial",solid:null,curves:[],points:[]}` also represents geometry-only and empty drafts; `solid` can hold any ordinary solid/assembly. Curves are `{id,visible,closed,points|nurbs|uv}`; points are `{id,visible,point:XYZ}`. IDs are unique and stable.
+Trace/Inject recipe entries reference these IDs as `geometry:"id"` and retain deposition settings. Existing inline authoring inputs are separated when saved; old bundles remain readable without rewriting on open. XYZ/NURBS curves and points display; recipe-derived UV curves stay hidden until toolpath generation.
 
 ## Spline surfaces
 
@@ -106,12 +105,10 @@ recognized defects and reports cancellable progress.
 spline, mesh, blob-field, gridfinity or boolean operands in the same coordinates. `union`
 joins them, `intersection` keeps what they share, and `difference` subtracts
 every later operand from the first: a drilled plate is a box minus a cylinder.
-Spline sections remain exact; all booleans provide tops for roof-following work.
-Named-patch operations need a plain spline part.
-
+Spline sections remain exact; named-patch operations need a plain spline part.
+Optional `displayOperand` selects a zero-based operand for the geometry preview; manufacturing still uses the full Boolean. Standard support uses `0` to hide its support solid. Nested choices compose.
 `combine_geometry`: `{operation, operand, part?}` adds to the print or one component;
-repeating the operation appends. Text and heat-set operands cannot preserve their
-material/reinforcement metadata: apply those features to the completed boolean.
+repeating the operation appends, except a display-selected solid stays nested so additions remain visible. Apply text/heat-set metadata after combining.
 
 ## Assembly
 

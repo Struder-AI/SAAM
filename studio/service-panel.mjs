@@ -3,7 +3,8 @@
 const STATUS_POLL_MS=30_000;
 const UPDATE_POLL_MS=5*60_000;
 
-const connection={service:'not connected',chat:'not attached',waiting:false,serviceAttention:false};
+const connection={service:'not connected',chat:'not attached',waiting:false,serviceAttention:false,application:'running'};
+export function updateApplicationConnection(state){connection.application=state;updateConnectControl();}
 export function updateConnectControl({service,chat,waiting,serviceAttention}={}){
   if(service!==undefined)connection.service=service;
   if(chat!==undefined)connection.chat=chat;
@@ -11,19 +12,19 @@ export function updateConnectControl({service,chat,waiting,serviceAttention}={})
   if(serviceAttention!==undefined)connection.serviceAttention=serviceAttention;
   const control=document.getElementById('service-toggle'),serviceLight=document.getElementById('service-light'),chatLight=document.getElementById('chat-light');
   for(const light of [serviceLight,document.getElementById('service-panel-light')]){
-    light.classList.toggle('paired',connection.service==='connected'&&!connection.serviceAttention);
-    light.classList.toggle('attention',connection.serviceAttention);
+    light.classList.toggle('paired',connection.application==='running'&&connection.service==='connected'&&!connection.serviceAttention);
+    light.classList.toggle('attention',connection.application==='running'&&connection.serviceAttention);
   }
   for(const light of [chatLight,document.getElementById('chat-panel-light')]){
-    light.classList.toggle('paired',connection.chat.startsWith('attached'));
-    light.classList.toggle('waiting',connection.waiting);
+    light.classList.toggle('paired',connection.application==='running'&&connection.chat.startsWith('attached'));
+    light.classList.toggle('waiting',connection.application==='running'&&connection.waiting);
   }
-  control.title='Updates '+connection.service+' · Chat '+connection.chat;
+  control.title=connection.application==='running'?'Updates '+connection.service+' · Chat '+connection.chat:connection.application==='stopped'?'SAAM has stopped':'Cannot reach SAAM';
   control.setAttribute('aria-label','Connect: '+control.title);
 }
 export function createServicePanel({token,available:hasService=true}){
   const $=id=>document.getElementById(id),headers={'X-SAAM-Token':token};
-  const view={status:null,loading:false,updating:false,firstPromptShown:false,statusFailure:null};
+  const view={status:null,loading:false,updating:false,firstPromptShown:false,statusFailure:null,stopping:null};
   const request=async(action,body={})=>{
     const response=await fetch('/api/service/'+action,{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(body)});
     const result=await response.json();
@@ -32,6 +33,12 @@ export function createServicePanel({token,available:hasService=true}){
   };
   function message(value){$('service-message').textContent=value??'';}
   function render(){
+    if(view.stopping){
+      updateApplicationConnection('stopped');
+      $('service-status').textContent=view.stopping==='update'?'SAAM is updating and opens again.':'SAAM has stopped. Start SAAM again from its app icon.';
+      for(const id of ['service-consent','service-quit','service-invite-row','service-dismiss','service-check','service-update'])$(id).hidden=true;
+      message('');return;
+    }
     const status=view.status,available=status?.available!==false;
     $('service-toggle').hidden=false;
     $('service-consent').hidden=!available;
@@ -40,9 +47,9 @@ export function createServicePanel({token,available:hasService=true}){
     $('service-dismiss').hidden=!status?.firstRunPrompt;
     $('service-check').hidden=!status?.activated;
     const offer=status?.update,button=$('service-update');
-    button.hidden=!offer;button.disabled=view.updating;
+    button.hidden=!status?.activated||!offer||Boolean(view.statusFailure);button.disabled=view.updating;
     if(offer&&!view.updating){button.textContent='Update to '+offer.version;button.title='SAAM '+offer.version+' is available.';}
-    const failure=status?.problem??status?.diagnostics?.lastFailure?.error??view.statusFailure;
+    const failure=view.statusFailure??status?.problem??status?.diagnostics?.lastFailure?.error;
     const serviceState=failure?'needs attention':status?.activated?'connected':available?'not connected':'unavailable';
     updateConnectControl({service:serviceState,serviceAttention:Boolean(failure)});
     $('service-status').textContent=failure?failure+(status?.activated?' Check for updates or ask your agent to inspect diagnostics.':status?' Enter an alpha invite to reconnect.':' Ask your agent to check SAAM.')
@@ -53,11 +60,13 @@ export function createServicePanel({token,available:hasService=true}){
     if(status?.firstRunPrompt&&!view.firstPromptShown){view.firstPromptShown=true;open();$('service-invite').focus();}
   }
   async function refresh(){
+    if(view.stopping)return null;
     try{
       const response=await fetch('/api/service',{headers});
       const result=await response.json();if(!response.ok)throw Error(result.error);
-      view.status=result;view.statusFailure=null;render();return result;
-    }catch(error){view.statusFailure='Connection status unavailable. SAAM works locally.';render();return null;}
+      if(view.stopping)return null;
+      view.status=result;view.statusFailure=null;updateApplicationConnection('running');render();return result;
+    }catch(error){if(view.stopping)return null;view.statusFailure='Cannot reach SAAM.';updateApplicationConnection('unreachable');render();return null;}
   }
   async function activate(){
     const invite=$('service-invite').value.trim();if(!invite){$('service-invite').focus();return;}
@@ -71,6 +80,7 @@ export function createServicePanel({token,available:hasService=true}){
     catch(error){message(error.message);}
   }
   async function checkUpdate(manual=true){
+    if(view.stopping)return;
     if(!view.status?.activated)return;
     $('service-check').disabled=true;if(manual)message('Checking for updates…');
     try{
@@ -119,6 +129,8 @@ export function createServicePanel({token,available:hasService=true}){
   function close(){$('service-panel').hidden=true;$('service-toggle').setAttribute('aria-expanded','false');}
   function toggle(){if($('service-panel').hidden)open();else close();}
   $('service-toggle').onclick=toggle;
+  addEventListener('saam-studio-update',event=>{if(event.detail.kind==='application-stopping'){view.stopping=event.detail.reason;render();}});
+  addEventListener('saam-viewer-connection',event=>{if(!view.stopping&&!event.detail.open)void refresh();});
   $('service-update').onclick=update;
   $('service-quit').onclick=quit;
   $('service-close').onclick=()=>{if(view.status?.firstRunPrompt)void dismiss();else close();};

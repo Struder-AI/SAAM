@@ -109,7 +109,7 @@ export function sliceSummary(a){
   return [a.loops+(a.loops===1?' loop':' loops'),fill,...solid].join(' · ');
 }
 export function sliceRows(plan){
-  return (plan.slices?.assignments??[]).flatMap(a=>[...(a.construction?(a.construction==='inject'?injectionRows(a):curveAssignmentRows(a)):[
+  return (plan.slices?.assignments??[]).flatMap(a=>[...(a.construction?(a.construction==='inject'?injectionRows(a,plan):curveAssignmentRows(a,plan)):[
     [a.id,(a.preset==='support'?'Support':(a.part??'Part'))+' · '+(a.within.length?a.within.map(volumeName).join(' within '):'the rest of the part')+' · '+sliceSummary(a)],
     [a.id+' · Fill directions',a.fillAnglesDeg.join(', ')+'°'+(a.rotateFill&&a.fillAnglesDeg.length>1?', alternating by layer':'')],
     ...(a.stack?[[a.id+' · Layers',a.stack.firstLayerMm+' mm first, then '+a.stack.layerMm+' mm']]:[]),
@@ -124,8 +124,9 @@ export function sliceRows(plan){
   ]);
 }
 export function injectionPoints(plan){
-  return (plan.slices?.assignments??[]).filter(a=>a.construction==='inject').flatMap(a=>a.points.map((p,index)=>({...p,id:`${a.id}:${index}`})));
+  return (plan.slices?.assignments??[]).filter(a=>a.construction==='inject').flatMap(a=>a.points.map((p,index)=>({...spatialRecord(plan,'points',p),id:`${a.id}:${index}`})));
 }
+const spatialRecord=(plan,kind,record)=>record.geometry?{...plan.geometry?.[kind]?.find(p=>p.id===record.geometry),...record}:record;
 export const depositionUnit=kind=>({slice:'slice',trace:'trace course',inject:'injection point'}[kind]??'deposition course');
 export function depositionFamilyRows(inspection){
   const families=new Map();
@@ -135,9 +136,9 @@ export function depositionFamilyRows(inspection){
   }
   return [...families].map(([id,{kind,indices}])=>[id+' · Family',indices.size+' '+depositionUnit(kind)+'(s)']);
 }
-function injectionRows(a){
+function injectionRows(a,plan){
   return [[a.id,sliceSummary(a)],[a.id+' · Print after',a.dependencies.after.join(', ')||'Shared dependency order'],[a.id+' · Temperature',a.nozzleC===null?'Selected material setup':a.nozzleC+'°C, then restore setup'],
-    ...a.points.flatMap((p,index)=>[[a.id+' · Point '+(index+1),p.point.join(', ')+' mm before XY placement'],
+    ...a.points.map(p=>spatialRecord(plan,'points',p)).flatMap((p,index)=>[[a.id+' · Point '+(index+1),p.point?.join(', ')+' mm before XY placement'],
       [a.id+' · Injection '+(index+1),p.volumeMm3+' mm³ at '+p.flowMm3S+' mm³/s · '+p.holdSeconds+' s hold · '+p.approachMm+' mm vertical approach']])];
 }
 function sliceReferenceName(surface){
@@ -147,12 +148,13 @@ function sliceReferenceName(surface){
   if(surface.kind==='roof')return 'Part roof · vertical offset '+surface.offsetMm+' mm';
   return surface.kind==='mesh-strip'?'Explicit mesh strip':surface.kind+' surface · '+(typeof surface.patch==='string'?surface.patch:surface.patch?.name??'authored patch');
 }
-function curveAssignmentRows(a){
+function curveAssignmentRows(a,plan){
   const rows=[[a.id,sliceSummary(a)],[a.id+' · Print after',(a.after??a.dependencies?.after??[]).join(', ')||'Shared dependency order']];
   if(a.construction==='sleeve')return [...rows,[a.id+' · Part',a.part??'Part'],...skillSettingsRows('vase-wall',a,a.id)];
   if(a.construction==='curves'){
     if(a.repeat)rows.push([a.id+' · Repetition',a.repeat.family?'Family '+a.repeat.family+' · '+(a.repeat.indices?.join(', ')??'all layers'):a.repeat.translation.join(', ')+' mm × '+a.repeat.count]);
-    for(const [i,c] of a.curves.entries()){
+    for(const [i,record] of a.curves.entries()){
+      const c=spatialRecord(plan,'curves',record);
       const label=a.id+' · Curve '+(i+1);
       const source=c.uv?'UV '+c.uv.reference.kind+' reference':c.nurbs?'NURBS degree '+c.nurbs.degree:c.points.length+' points';
       rows.push([label,(c.closed?'Closed':'Open')+' · '+source+' · '+(c.role??'trace')]);

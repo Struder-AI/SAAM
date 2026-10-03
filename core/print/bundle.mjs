@@ -6,9 +6,16 @@ import {resolvePlanPatch} from './resolve-plan.mjs';
 import {requireGenerationExtensions} from '../path/extension-dependencies.mjs';
 import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
+import {normalizeSpatialPlan,geometryInput} from './spatial-inputs.mjs';
 
 const defaults=async machine=>(await import('./plan.mjs')).defaults(machine);
 const createGeometry=async parameters=>(await import('./geometry.mjs')).createGeometry(parameters);
+async function presentGeometry(plan,descriptor){
+  if(plan.geometry?.shape==='spatial'||plan.geometry&&!(plan.slices?.assignments??[]).some(a=>['curves','inject'].includes(a.construction)))return descriptor;
+  const normalized=normalizeSpatialPlan(plan);
+  const {createSpatialGeometry}=await import('./geometry.mjs');
+  return (await createSpatialGeometry(normalized.geometry,descriptor)).descriptor;
+}
 async function patchPlan(previous,patch){
   const {geometryTemplate}=await import('./plan.mjs');
   return resolvePlanPatch(previous,patch,{geometryTemplate});
@@ -51,11 +58,12 @@ export async function pathSource(plan){
 }
 
 export const {root, EXPORT_NAME, atomicManifest, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, bundleFingerprint, bundleFingerprints, migrateBundle, prepareGeneration, commitGeneration, generateToolpath, restoreRevision, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, exportReviewed, applySettingsSnapshot}=createBundleWorkflow({
-  kind:'shell',defaults,patchPlan,createGeometry,
+  kind:'shell',defaults,patchPlan,createGeometry,normalizePlan:normalizeSpatialPlan,geometryInput,presentGeometry,
   generatePath:generatePreparedPath,pathDependencies,pathSource,generationContract:PATH_CONTRACT,completionContract:NEUTRAL_PATH_CONTRACT,
   version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode',
   limitations:limitationsFor
 });
 
 export {changeMachine,rememberSetup} from '../machine/bundle-settings.mjs';
+export {shareBundle,importBundle} from './portable.mjs';
 export {bundleInstance,claimBundleInstance,releaseBundleInstance,withBundleInstance,recoverBundleInstance} from './studio-ownership.mjs';

@@ -5,9 +5,8 @@ description: Deposit at points, authored directly or supplied by skills, with ex
 
 # Inject
 
-Inject deposits at points, authored directly or supplied by skills; [trace](../trace/SKILL.md) follows curves.
-Points-only bundles omit `geometry`. Use `slice` or `adjust_recipe` for `plan.slices`
-assignment: `{id:"spot",construction:"inject",points:[{point:[5,5,2],volumeMm3:1,flowMm3S:.5,approachMm:1,holdSeconds:2}]}`.
+Inject deposits at points stored in [geometry](../../GEOMETRY.md); [Trace](../trace/SKILL.md) follows curves. Recipe point records use `geometry:"point-id"` plus volume, flow, approach and hold.
+Inline authoring remains accepted: `slice`/`adjust_recipe` can supply `{id:"spot",construction:"inject",points:[{point:[5,5,2],volumeMm3:1,flowMm3S:.5,approachMm:1,holdSeconds:2}]}`; saving moves XYZ into geometry with a stable ID.
 Defaults: `part:null`, `filament:null`, `process:null`, `nozzleC:null`, `dependencies:{afterParts:[],beforeParts:[],after:[]}`, `description:""`.
 XYZ follows authored traces: add recipe XY placement; no component transform.
 Each point executes in list order: descend without deposition from `approachMm`
