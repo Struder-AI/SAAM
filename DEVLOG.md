@@ -1,5 +1,13 @@
 # Development log
 
+## 2026-10-02 — Investigate H2D first AMS change stall
+
+- Owner reports installed 0.3.2 white/black vase freezes at the first black-to-white change; all-black copy is printing. Failed delivery SHA256 401553983ecef591a6c3e31a7dbffae2bff4279cd0770ecd1a2008b119d28f1b; retained locally at C:/SAAM/Prints/h2d-white-black-vase-bridge/delivery/part.gcode.3mf. Owner observed the head had moved toward the back, away from the part; black retraction was not visible. This locates the failure during changeover but does not identify the blocking command.
+- Compared actual archived AMS-19 (hash in its September 21 record), delivered failed bytes and fresh current fixture. First change service commands match after substituting logical IDs and return position; flush, temperatures, waits, B-1 routing and retraction are unchanged. Failed print starts logical 1 (black), switches 1→0→1→0 and uses full startup; accepted AMS-19 starts 0, uses 0→1→0 and fast startup. The stall precedes fuzzy-wall and nonplanar-bridge deposition. Current package IDs/sequence agree internally; physical printer mapping and firmware state remain unobserved.
+- Accepted fixture project metadata regenerates byte-for-byte (c1181788a9dfab5e3934e67e65984e735e1b22cce7b8383d1df416f66491fd03). Failed project differs only in three colour fields and rendered start/end fields. Since acceptance checkpoint bc4f9fa, H2D profile is unchanged and change/job/project modules changed only imports; installed change/project files match current source.
+- Existing single-file check node --test core/tests/bambu-hardware-regression.test.mjs fails: executable a76604c8b1b0347532cd7f8b70cc1a0fb117f8acca4545a0c531629f4cab9743 now ff96614a4e5eac382493252ad7a40577cc94404f31331695904721d52dbbe5e6. Diff includes path ordering, approach/recovery, labels and speeds. Commit e532fc2 removed the writer's maxFlowMm3S feed cap; this explains feed differences, not the AMS stall. Fresh fixture startup and first change are byte-identical to the accepted archive; second change differs only in return XY. Reconcile the hardware-evidence check without silently accepting new hashes. No new tests, whole suite, firmware capture or physical A/B trial run.
+- Next controlled comparisons: retain the failed file; renumber black to logical 0 without changing full startup, then vary fast startup separately. Replaying original AMS-19 can distinguish changed printer state from current output. Record head/cutter/filament activity to locate the stall; “changing filament” alone does not identify the blocking command. Evidence/diffs are in .local/ams-freeze-investigation; [0.3.3](plans/0.3.3.md) tracks diagnosis and coverage. No machine program or exporter patched.
+
 ## 2026-10-02 — Clarify standard-printing layer-height suggestions
 
 - User requested single-pass cursive relief above 0.3 mm on an S5 and correction of guidance presenting that value as a limit. Machine guidance now calls profile height ranges standard-printing suggestions and distinguishes authored Trace height, width and speed. Existing export rules already impose no material layer-height range; no implementation change. Manual shortened 62 to 60 lines. Installed 0.3.2 generated and checked hello-cursive-s5: one continuous 0.5 mm-high, 0.9 mm-wide Trace at 8 mm/s over a 1.2 mm panel; no short-travel findings. Reviewed rules and documentation diff; no software tests or physical trial run.
@@ -2702,20 +2710,10 @@
 
 ## 2026-09-21 — Fresh generated H2D AMS-19 physically passes
 
-- User reports "ams-19 is pass". Delivered v13 archive SHA256
-  30044f96b878e81bcc26795cef425658da60961c10f76096a0503c45b5d4beae.
-  This was an ordinary generated bundle, strict-reopened, with no substituted
-  reference project. It exercises right 0.8 PLA blue/orange/blue, installed left
-  0.4, right four-slot AMS, Textured PEI, fast startup and no tower.
-- Stored authored startup/shutdown plus seven empty template fields are
-  sufficient for this job; individual necessity or firmware execution of those
-  fields is not established. No further template isolation is needed to accept
-  this tested same-nozzle workflow. Maker guidance now permits normal generation
-  without reference-file patching, while preserving installation evidence limits.
-- Pin generated project SHA256 c1181788a9dfab5e3934e67e65984e735e1b22cce7b8383d1df416f66491fd03
-  alongside the existing successful executable hash in the hardware regression.
-- DUAL-20 is on D: with verified SHA256; its generated-project dual-nozzle
-  physical acceptance remains the next check before closing H2D dual work.
+- User reports "ams-19 is pass". Delivered v13 archive SHA256 30044f96b878e81bcc26795cef425658da60961c10f76096a0503c45b5d4beae. This was an ordinary generated bundle, strict-reopened, with no substituted reference project. It exercises right 0.8 PLA blue/orange/blue, installed left 0.4, right four-slot AMS, Textured PEI, fast startup and no tower.
+- Stored authored startup/shutdown plus seven empty template fields are sufficient for this job; individual necessity or firmware execution of those fields is not established. No further template isolation is needed to accept this tested same-nozzle workflow. Maker guidance now permits normal generation without reference-file patching, while preserving installation evidence limits.
+- Pin generated project SHA256 c1181788a9dfab5e3934e67e65984e735e1b22cce7b8383d1df416f66491fd03 alongside the existing successful executable hash in the hardware regression.
+- DUAL-20 is on D: with verified SHA256; its generated-project dual-nozzle physical acceptance remains the next check before closing H2D dual work.
 
 ## 2026-09-21 — Dev-map documentation consolidated; handoff written
 
