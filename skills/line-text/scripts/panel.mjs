@@ -97,19 +97,26 @@ export function buildPanel({lines, widthMm, heightMm, trimBottomMm = 0, backgrou
   return {widthMm: w, heightMm: h, background: {options: bg, borders, infill, spacingMm}, text: {options: tx, lines: lettering}, insetRingMm: [ringOuter, ringInner]};
 }
 
-// The panel's two line-network jobs. The background: the border and the ring, each one bead on every course, and
-// the two infill angles on alternate courses. The lettering, starting where the background ends: each line one
-// bead wide as its font and size ask. Every width here is the width it should print at; the width commanded is
-// that less the measured spread at the job's layer height, set per network so each prints at its own width.
+// The panel's two line-network jobs. The background builds from low to tall, thin before fat: the first course is
+// the first infill angle and a thin outline of the border and of the ring (as thin as the infill, so nothing on
+// it stands above its neighbours); the last course is the other infill angle, then the fat ring, then the fat
+// border laid over those outlines, last in the course so the nozzle never works beside a fat bead that is not
+// finished. The lettering, starting where the background ends: each line one bead wide as its font and size ask.
+// Every width here is the width it should print at; the width commanded is that less the measured spread at the
+// job's layer height, set per network so each prints at its own width.
 function panelNetworks(panel) {
   const {background: bg, text: tx} = panel, b = bg.options, x = tx.options;
   const net = (id, printedMm, layerMm, strokes, first = layerMm) => ({
     id, process: {firstLayerMm: first, layerMm, lineWidthMm: commandedWidthMm(printedMm, layerMm)}, strokes});
   const pts = s => s.points.map(p => [+p[0].toFixed(4), +p[1].toFixed(4)]);
+  const last = b.layers - 1, [border, ring] = bg.borders;
+  // Network order is print order within a course: thin infill and outlines, then the fat ring, then the fat border.
   const background = {layers: b.layers, networks: [
-    net('border', b.borderMm, b.layerMm, [{closed: true, points: bg.borders[0].points}]),
-    net('ring', b.ringMm, b.layerMm, [{closed: true, points: bg.borders[1].points}]),
-    net('infill', b.beadMm, b.layerMm, bg.infill.flatMap((layer, i) => layer.map(s => ({closed: false, points: s.points, layers: [i]}))))
+    net('infill', b.beadMm, b.layerMm, [
+      ...[border, ring].map(loop => ({closed: true, points: loop.points, layers: [0]})),
+      ...bg.infill.flatMap((layer, i) => layer.map(s => ({closed: false, points: s.points, layers: [i]})))]),
+    net('ring', b.ringMm, b.layerMm, [{closed: true, points: ring.points, layers: [last]}]),
+    net('border', b.borderMm, b.layerMm, [{closed: true, points: border.points, layers: [last]}])
   ]};
   const lettering = {layers: x.layers, networks: tx.lines.map((line, i) => ({
     id: `text-${i + 1}`, process: {lineWidthMm: commandedWidthMm(line.plan.beadWidthMm, x.layerMm)},
@@ -172,7 +179,7 @@ export function renderPanel(panel, {pxPerMm = 8, marginPx = 28} = {}) {
   const swatch = (color, x, y) => ({color, shapes: [{closed: false, widthPx: 8, points: [[x, y - 5], [x + 26, y - 5]]}]});
   const left = bg.options, right = tx.options;
   groups.push(
-    swatch(COLORS.border, marginPx, 22), label(`Left nozzle ${left.nozzleMm} mm: ${left.layers} layers of ${left.layerMm} mm, ${Math.round(left.density * 100)}% infill at ${left.anglesDeg.join(' and ')} deg, one ${left.borderMm} mm border bead, one ${left.ringMm} mm ring bead inset ${left.ringInsetMm} mm`, marginPx + 34, 22, 11, COLORS.label),
+    swatch(COLORS.border, marginPx, 22), label(`Left nozzle ${left.nozzleMm} mm: ${left.layers} layers of ${left.layerMm} mm, ${Math.round(left.density * 100)}% infill at ${left.anglesDeg.join(' and ')} deg, a thin outline first, then one ${left.borderMm} mm border bead and one ${left.ringMm} mm ring bead (inset ${left.ringInsetMm} mm) over it`, marginPx + 34, 22, 11, COLORS.label),
     swatch(COLORS.text, marginPx, 46), label(`Right nozzle ${right.nozzleMm} mm: ${right.layers} layers of ${right.layerMm} mm on top, one bead per stroke`, marginPx + 34, 46, 11, COLORS.label));
   const rgb = rasterize({widthPx, heightPx, groups, background: COLORS.bed});
   return {png: encodePng(widthPx, heightPx, rgb), widthPx, heightPx, pxPerMm: s};

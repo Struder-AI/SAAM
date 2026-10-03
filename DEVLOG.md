@@ -22,6 +22,19 @@
   strokes found no stretch where beads run side by side or retrace. Experimental deposition is on; flow stays at the
   ladder's 4 mm3/s so the correction applies. Generated: 28 minutes, 4,612 mm3 (1,846 left nozzle, 2,766 right), text
   speeds 2.6 to 6.1 mm/s. Panel tests 7/7.
+- Build order corrected the same day, on the user's reading of the playback ("its printing the taller border walls first and
+  then doing the diagonal infill lines. it will trip on the taller outlines... The first layer outline can be thin like
+  the thin background lines... then overlay it with thicker borders. There needs to be overall tallness awareness in the
+  build order"). The generated order was border, ring, infill on each course, so the fat beads went down before the thin
+  lines beside them. The path itself never prints lower than finished neighbours (heights only ascend), so the concern
+  is the real bead: a 2 mm bead on a 0.2 mm layer may not flatten to 2 mm and could pile into a ridge, which no model
+  here can predict (the ladder measured walls at layer = half the width, never a 10:1 ribbon). Now: the first course
+  is the infill plus a thin outline of the border and of the ring (as thin as the infill); the top course is the second
+  infill angle, then the fat ring, then the fat border over the thin outlines. Network order in the plan is print order
+  within a course. Test `the background builds thin before fat` reads the order back from the generated path and fails
+  if the fat border is moved first. Regenerated: 28 minutes, 4,406 mm3, right nozzle after the left finishes. This does
+  not make the fat beads physically safe; it removes the order the user saw. Whether to give the border a taller layer
+  is open.
 - Side effect handled: generating the demo overwrites the machine's remembered setup with its two colours (machine-scoped,
   `.local/machine-setups`); reset from the plain ladder bundle with `cli.mjs remember-setup`.
 - Not done: no print yet; spread on other filaments; no stored record of readings (BR-059 item 7).

@@ -209,5 +209,6 @@ the commanded width, so it cannot say whether spread follows the layer height or
 height, which is the safer guess for a thin layer. A flat ribbon (a 2.9 mm bead on a 0.6 mm layer) is outside what was
 measured.
 
-The demo panel ([panel.mjs](scripts/panel.mjs)) uses single beads everywhere: the border and the ring are each one
-bead, and every letter stroke is one bead sized to its font and weight, with the lettering on 0.6 mm layers.
+The demo panel ([panel.mjs](scripts/panel.mjs)) uses single beads everywhere, built thin before fat: the first course is
+the infill and a thin outline of the border and ring, and the top course ends with the fat ring and fat border laid over
+those outlines. The border and the ring are each one bead, and every letter stroke is one bead sized to its font and weight, with the lettering on 0.6 mm layers.

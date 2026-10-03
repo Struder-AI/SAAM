@@ -127,3 +127,23 @@ test('the panel is a plan for two 0.4 mm nozzles: background on the left, letter
   assert.deepEqual(new Set(program.filamentUsage.map(u => u.filament)), new Set([0, 1]));
   assert.ok(program.filamentUsage.every(u => u.volumeMm3 > 0), 'both filaments actually deposited');
 });
+
+test('the background builds thin before fat: a thin outline on the first course, the fat ring and border last on the top course', async () => {
+  const machine = loadMachine('bambu-h2d'), plan = applyPatch(machine, panelPatch(panel));
+  validatePlan(plan, machine);
+  const path = generatePath(plan, machine, await rhino());
+  const deposits = path.actions.filter(a => a.kind === 'move' && a.volumeMm3 > 0 && a.role !== 'prime' && a.region === 'background');
+  // The order the operations actually print in, read back from the generated path.
+  const order = [];
+  for (const m of deposits) { const key = `${m.operation}@${+m.to[2].toFixed(6)}`; if (order.at(-1) !== key) order.push(key); }
+  assert.deepEqual(order.map(k => k.split(':')[1]), ['infill', 'infill', 'ring', 'border'], 'infill first, then the fat ring, then the fat border');
+  assert.deepEqual(order.map(k => k.split('@')[1]), ['0.2', '0.4', '0.4', '0.4']);
+  // Nothing on the first course is wider than the infill bead: no fat bead stands beside the thin ones.
+  const networks = plan.composition.regions.find(r => r.id === 'background').skills['line-network'].networks;
+  const widthOf = id => networks.find(n => n.id === id).process.lineWidthMm;
+  assert.ok(widthOf('ring') > widthOf('infill') && widthOf('border') > widthOf('ring'), 'thin, then fat, then fattest');
+  const onFirst = networks.filter(n => n.strokes.some(s => !s.layers || s.layers.includes(0)));
+  assert.deepEqual(onFirst.map(n => n.id), ['infill'], 'only the thin network has strokes on the first course');
+  const outlines = networks.find(n => n.id === 'infill').strokes.filter(s => s.closed);
+  assert.equal(outlines.length, 2, 'a thin outline of the border and of the ring');
+});
