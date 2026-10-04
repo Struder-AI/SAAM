@@ -198,31 +198,44 @@ export function derive(pt,{functions,namespaces,isInstance,moduleActivations}) {
   for(const f of byId)for(const fnode of f.reads){const at=fieldOf.get(fnode);if(!at)continue;const [o]=at;
     if(writers.has(o))(readers.get(o)??readers.set(o,new Set()).get(o)).add(canon(f.id));}
   let stateArrows=0,pairArrows=0,stateNodes=0;
-  const touchesState=new Set();
   for(const [o,ws] of writers) {
     const rs=readers.get(o)??new Set();
     const others=[...rs].filter(r=>!ws.has(r)||ws.size>1);
     if(!others.length&&ws.size<2)continue;
     stateNodes++;stateArrows+=ws.size+rs.size;
     for(const w of ws)for(const r of rs)if(w!==r)pairArrows++;
-    for(const x of [...ws,...rs])touchesState.add(x);
   }
 
-  // Leaves: fold single-caller private helpers into their caller, repeatedly.
+  // Leaves: a callable folds into the leaf of its single entry, the one callable through which
+  // it is reached, repeatedly. A callback handed to the platform (arr.map(cb), p.then(cb), a
+  // handler stored on a platform object) is reached through the callable that hands it over
+  // (the platform edge's caller). A callable with more than one entry, or none, stays its own
+  // leaf; module load code never folds; a leaf stays within one file.
   const home=byId.map(f=>f.id);
   const find=x=>{while(home[x]!==x)x=home[x];return x;};
   for(let changed=true;changed;) {
     changed=false;
     for(const f of reps) {
-      if(home[f.id]!==f.id||f.module||exported.has(f.id)||touchesState.has(f.id))continue;
-      const callers=new Set(incoming[f.id].map(e=>e.via==='platform'?-1:find(e.from)));
-      if(callers.size!==1||callers.has(-1)||callers.has(find(f.id)))continue;
-      const [c]=callers;
+      if(home[f.id]!==f.id||f.module||!incoming[f.id].length)continue;
+      const entries=new Set(incoming[f.id].map(e=>find(e.from)));
+      if(entries.size!==1||entries.has(find(f.id)))continue;
+      const [c]=entries;
       if(byId[c].file!==f.file)continue;
       home[f.id]=c;changed=true;
     }
   }
   const leaves=new Set(reps.map(f=>find(f.id)));
+  // A leaf acts if any callable folded into it acts.
+  const leafCommand=byId.map(()=>false);
+  for(const f of reps)if(command[f.id])leafCommand[find(f.id)]=true;
+  // State between leaves: a folded callable's reads and writes are its leaf's.
+  let leafStateObjects=0,leafWriterReaderPairs=0;
+  for(const [o,ws0] of writers) {
+    const ws=new Set([...ws0].map(find)),rs=new Set([...(readers.get(o)??[])].map(find));
+    if(![...rs].some(r=>!ws.has(r))&&ws.size<2)continue;
+    leafStateObjects++;
+    for(const w of ws)for(const r of rs)if(w!==r)leafWriterReaderPairs++;
+  }
   // Every leaf has an arrow (plans/dev-maps.md#leaves): leaves no arrow enters or leaves, other
   // than arrows between callables folded into the same leaf.
   const touched=new Set();
@@ -234,12 +247,13 @@ export function derive(pt,{functions,namespaces,isInstance,moduleActivations}) {
   for(const f of reps)roleCount[command[f.id]?'command':'query']++;
   const arrowKinds={};for(const a of arrows.values())arrowKinds[a.kind]=(arrowKinds[a.kind]??0)+1;
   return {
-    edges,arrows:[...arrows.values()],command,effects,readersOf,both,leaves,home,exported,uncalled,arrowless,
+    edges,arrows:[...arrows.values()],command,leafCommand,effects,readersOf,both,leaves,home,exported,uncalled,arrowless,
     summary:{roleRounds,...(roleOscillation?{roleOscillation}:{}),callables:reps.length,copies:byId.length-reps.length,modules:reps.filter(f=>f.module).length,exported:exported.size,
       callEdges:edges.filter(e=>e.via==='call').length,platformCallbackEdges:edges.filter(e=>e.via==='platform').length,
       roles:roleCount,answersAndActs:both.length,arrows:arrows.size,arrowKinds,pairs:pairArrowsOf([...arrows.values()],x=>x).summary,
       state:{objects:stateNodes,arrowsThroughStateNodes:stateArrows,writerReaderPairs:pairArrows},
-      leaves:leaves.size,folded:reps.length-leaves.size,uncalledUnexported:uncalled.length,
+      leaves:leaves.size,leafRoles:{query:[...leaves].filter(l=>!leafCommand[l]).length,command:[...leaves].filter(l=>leafCommand[l]).length},
+      leafState:{objects:leafStateObjects,writerReaderPairs:leafWriterReaderPairs},folded:reps.length-leaves.size,uncalledUnexported:uncalled.length,
       arrowlessLeaves:{total:arrowless.length,moduleLoad:arrowless.filter(l=>byId[l].module).length,uncalledUnexported:arrowless.filter(l=>uncalled.some(f=>f.id===l)).length}}
   };
 }

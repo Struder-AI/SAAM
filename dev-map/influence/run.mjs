@@ -169,7 +169,7 @@ if(out) {
     arrowlessLeafKeys:result.arrowless.map(i=>fns[i].key),
     arrows:result.arrows.map(a=>({from:name(fns[a.from]),to:name(fns[a.to]),fromKey:fns[a.from].key,toKey:fns[a.to].key,kind:a.kind,count:a.count})),
     leaves:[...result.leaves].map(i=>{const folded=fns.filter(f=>f.id!==i&&!f.inClone&&fn[f.id]!==f.id&&(()=>{let x=f.id;while(fn[x]!==x)x=fn[x];return x;})()===i);
-      return {leaf:name(fns[i]),key:fns[i].key,role:result.command[i]?'command':'query',folded:folded.map(name),foldedKeys:folded.map(f=>f.key)};})
+      return {leaf:name(fns[i]),key:fns[i].key,role:result.leafCommand[i]?'command':'query',folded:folded.map(name),foldedKeys:folded.map(f=>f.key)};})
   },null,1));
 }
 
