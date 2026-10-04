@@ -18,6 +18,7 @@ export const noStore=dir=>`No stored map at ${dir}. Run: ${regenerate}`;
 // Every stored page, the source behind it, and which pages the source has moved out from under.
 export async function viewModel({repo=repoRoot,readSource=file=>readFile(resolve(repo,file),'utf8'),files}={}) {
   if(mapSet?.mode==='design')return (await import('./design.mjs')).designModel({repo});
+  if(mapSet?.mode==='influence')return (await import('../influence/solved-set.mjs')).solvedModel();
   const dir=storeDir(repo),held=await readIndex(dir);
   if(!held)throw Error(noStore(dir));
   const snapshotId=snapshotIdentity(held);
@@ -70,7 +71,7 @@ export async function buildGeneratedView({repo=repoRoot,out=resolve(repo,setFile
   await mkdir(next,{recursive:true});
   const started=Date.now();
   const child=spawn(process.env.PYTHON??'python',[fileURLToPath(new URL('./generated-view.py',import.meta.url)),next],
-    {stdio:['pipe','inherit','inherit'],env:{...process.env,PYTHONIOENCODING:'utf-8',PYTHONPATH:fileURLToPath(new URL('./',import.meta.url))}});
+    {stdio:['pipe',2,'inherit'],env:{...process.env,PYTHONIOENCODING:'utf-8',PYTHONPATH:fileURLToPath(new URL('./',import.meta.url))}});
   child.stdin.end(JSON.stringify(model));
   await new Promise((done,reject)=>{child.on('error',reject);child.on('exit',code=>code===0?done():reject(Error(`Generated-map renderer exited ${code}`)));});
   await mkdir(resolve(out,'svg'),{recursive:true});
@@ -79,7 +80,7 @@ export async function buildGeneratedView({repo=repoRoot,out=resolve(repo,setFile
   for(const name of await readdir(resolve(out,'svg')))if(!drawn.has(name))await rm(resolve(out,'svg',name),{force:true});
   for(const name of ['sources.js','index.html','stamp.js'])await copyFile(resolve(next,name),resolve(out,name));
   await rm(next,{recursive:true,force:true});
-  if(mapSet?.mode!=='design')await writeScorePage({repo,out});
+  if(!mapSet?.mode)await writeScorePage({repo,out});
   const {bytes,files}=await bytesUnder(out);
   return {out,index:resolve(out,'index.html'),pages:model.pages.length,stale:Object.keys(model.stale).length,
     changed:model.changed,changedInputs:model.changedInputs,ms:Date.now()-started,bytes,files};

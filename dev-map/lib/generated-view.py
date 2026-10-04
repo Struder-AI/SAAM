@@ -1022,6 +1022,12 @@ def lists(packet, page, pages):
         page.row("head", f'platform ({packet["platform"]})', "", "platform")
         page.row("item", f'{packet["platform"]} call sites with no target in any scanned root',
                  "", "platform#0")
+    # A generator that has its own listings (a solved influence set: its arrows' leaf arrows,
+    # unlinked and unowned leaves, preview notes) supplies them as titled sections of rows.
+    for s, section in enumerate(packet.get("sections", [])):
+        page.row("head", section["title"], "", f'sections#{s}')
+        for i, item in enumerate(section["items"]):
+            page.row(item.get("style", "item"), item["text"], item.get("go", ""), f'sections#{s}#{i}')
 
 
 LEGEND = [
@@ -1730,6 +1736,7 @@ def emit(out, model, pages, svgs):
 <style>{CSS}</style>
 <div id="side">
   <h1>{escape(heading)}</h1>
+  {f'<div class="sub" style="color:#fca5a5;font-weight:600">{escape(model["notice"])}</div>' if model.get("notice") else ''}
   <div class="sub">{len(svgs)} graph pages · {sum(p['destination']=='contents' for p in pages.values())} contents pages · {sum(p['destination']=='code' for p in pages.values())} source destinations, stored {escape(model["generated"])}, drawn
     {escape(model.get("built", "")[:16].replace("T", " "))} UTC.
     <span id="freshness-status">Live freshness unavailable; snapshot remains readable.</span>

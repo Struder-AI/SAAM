@@ -184,6 +184,12 @@ Repeats keep links on their maps. Size and depth have no cap; scoring judges the
 optional `scanFiles`, and `authoring: "manual"` to disable solving. Selected leaves need homes; folded declarations
 cannot be selected independently. Unselected connections stay external, including normally counted callers.
 
+**Influence sets** (the rebuild, [influence/solved-set.mjs](influence/solved-set.mjs)): `map.json` declares `mode: "influence"`,
+`analysis` (a `run.mjs --out` result), `authored` (the design set whose map 0 and ownership are fixed) and optional
+`sourceRoots`, `missing`, `preview`. `regenerate` solves each authored node whose inputs moved, writes `store/model.json`
+and draws the viewer; `read`, `build` and `check` use the store. `--set-dir DIR` selects a set kept outside `sets/`,
+such as a preview in an ignored folder.
+
 **Layout**: scanned `tree.json.layout[mapId]` keys positions by cluster/leaf/external identity; design
 `architecture.json.layout[index]` uses drawn indexes. Positions: `{x,y,emphasis?}`; viewport: `[x,y,width,height]`;
 captions: `{x,y,text}`. Unpositioned boxes stay below; absent layout uses automatic placement. `build` needs no scan.
