@@ -156,9 +156,12 @@ if(out) {
     unresolvedImports:built.unresolvedImports,
     unmodelled:built.unmodelled,
     answersAndActs:result.both.map(name),
+    answersAndActsKeys:result.both.map(f=>f.key),
     uncalledUnexported:result.uncalled.map(name),
-    arrows:result.arrows.map(a=>({from:name(fns[a.from]),to:name(fns[a.to]),kind:a.kind,count:a.count})),
-    leaves:[...result.leaves].map(i=>({leaf:name(fns[i]),role:result.command[i]?'command':'query',folded:fns.filter(f=>f.id!==i&&fn[f.id]!==f.id&&(()=>{let x=f.id;while(fn[x]!==x)x=fn[x];return x;})()===i).map(name)}))
+    uncalledUnexportedKeys:result.uncalled.map(f=>f.key),
+    arrows:result.arrows.map(a=>({from:name(fns[a.from]),to:name(fns[a.to]),fromKey:fns[a.from].key,toKey:fns[a.to].key,kind:a.kind,count:a.count})),
+    leaves:[...result.leaves].map(i=>{const folded=fns.filter(f=>f.id!==i&&!f.inClone&&fn[f.id]!==f.id&&(()=>{let x=f.id;while(fn[x]!==x)x=fn[x];return x;})()===i);
+      return {leaf:name(fns[i]),key:fns[i].key,role:result.command[i]?'command':'query',folded:folded.map(name),foldedKeys:folded.map(f=>f.key)};})
   },null,1));
 }
 

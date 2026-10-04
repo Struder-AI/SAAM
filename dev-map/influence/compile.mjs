@@ -168,7 +168,7 @@ export function compileModule(mod,{resolveImport}) {
         if((s.declaration.type==='FunctionDeclaration'||s.declaration.type==='ClassDeclaration')&&s.declaration.id)statement(s.declaration,ctx);
         return;
       case 'ExportAllDeclaration':return;
-      case 'VariableDeclaration':for(const d of s.declarations){if(d.init)bindPattern(d.id,expression(d.init,ctx),ctx);}return;
+      case 'VariableDeclaration':for(const d of s.declarations){if(d.init)bindPattern(d.id,named(d.init,ctx,bindingName(d.id)),ctx);}return;
       case 'FunctionDeclaration':{const v=functionValue(s,ctx);emit(ctx.fn,{k:'E',a:v,b:ctx.scope.lookup(s.id.name)});return;}
       case 'ClassDeclaration':{const v=classValue(s,ctx);emit(ctx.fn,{k:'E',a:v,b:ctx.scope.lookup(s.id.name)});return;}
       case 'ExpressionStatement':expression(s.expression,ctx,{unused:true});return;
@@ -221,6 +221,17 @@ export function compileModule(mod,{resolveImport}) {
         if(value!==undefined)emit(ctx.fn,{k:'E',a:value,b:t});if(d!==undefined)emit(ctx.fn,{k:'E',a:d,b:t});bindPattern(p.left,t,ctx);return;}
       case 'MemberExpression':assign(p,value,ctx);return;
     }
+  }
+  // A function or class expression bound to a variable or property is named by that binding.
+  function bindingName(target) {
+    if(target?.type==='Identifier')return target.name;
+    if(target?.type==='MemberExpression'&&!target.computed&&target.property.type!=='PrivateIdentifier')return target.property.name;
+    if(target?.type==='MemberExpression'&&target.property.type==='PrivateIdentifier')return '#'+target.property.name;
+    return undefined;
+  }
+  function named(e,ctx,name) {
+    if(name&&(e.type==='ArrowFunctionExpression'||e.type==='FunctionExpression')&&!e.id)return functionValue(e,ctx,name);
+    return expression(e,ctx);
   }
   function assign(target,value,ctx) {
     if(target.type==='Identifier'){if(value!==undefined)emit(ctx.fn,{k:'E',a:value,b:identifier(target.name,ctx)});return;}
@@ -299,7 +310,7 @@ export function compileModule(mod,{resolveImport}) {
           emit(ctx.fn,{k:'NEW',site:{...site(ctx.fn,e,source(e.callee)),resultUsed:!unused},c:callee,args:nodes,spreadAt,r});}
         return r;}
       case 'AssignmentExpression':{
-        const v=expression(e.right,ctx);
+        const v=named(e.right,ctx,e.operator==='='?bindingName(e.left):undefined);
         if(e.operator==='='||e.operator==='??='||e.operator==='||='||e.operator==='&&=')assign(e.left,v,ctx);
         else{expression(e.left,ctx);write(e.left,ctx);}
         return v;}
