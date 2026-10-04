@@ -54,7 +54,21 @@ Report against the obligation, not the work. State what the general operation no
 
 State intent positively, at its one owner: what SAAM does, not what must never happen again. A ban outlives the situation it was written for and has to be remembered and revoked; a statement of current intent already excludes the alternatives and stays true until someone edits it. When direction changes, edit the owner, and nothing else needs revoking. History (DECISIONS, DEVLOG, older plans) is reference, never authority.
 
-Hard rules are the owner's. An agent reacting to a complaint or a failure writes guidance or proposes a rule; it becomes a hard rule only in the owner's wording or with the owner's approval.
+## Rules
+
+Hard rules for builders and developers. The same list appears in
+[BUILDERS.md](BUILDERS.md#rules) and [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md#rules);
+change both together.
+
+1. Hard rules come only in the owner's wording or with the owner's approval. An agent reacting to a complaint or a failure writes guidance or proposes a rule.
+2. Staging, committing and pushing each need explicit authorization, which may already have been given in the conversation. Pushing to main and merging need authorization for those actions; a request to checkpoint is not a request to publish.
+3. A checkpoint commits all non-ignored work in the checkout, including concurrent contributions, unless the user narrows it, and stays on the current branch.
+4. Keep at most one pending branch per account and reuse it across tasks; edit on it rather than main unless direct main work is explicitly authorized.
+5. Admitting a component or method from outside SAAM, or from superseded work, needs explicit human approval.
+6. Record approvals as given, without widening their scope. Report software and physical results separately.
+7. Work enters a release intent only on the owner's request or approval.
+8. Preserve exact decision quotations, approval events, approved wording, and license, third-party or fixture provenance notices, with their dates.
+9. A cap is never replaced by silent truncation: partial output must not pass as a complete result.
 
 ## Code shape
 

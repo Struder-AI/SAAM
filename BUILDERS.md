@@ -22,6 +22,22 @@ Guidance helpers need their consumed contracts, not an automatic map read.
 When a session grows past roughly 250k tokens and the request substantially
 changes, suggest a fresh chat.
 
+## Rules
+
+Hard rules for builders and developers. The same list appears in
+[BUILDERS.md](BUILDERS.md#rules) and [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md#rules);
+change both together.
+
+1. Hard rules come only in the owner's wording or with the owner's approval. An agent reacting to a complaint or a failure writes guidance or proposes a rule.
+2. Staging, committing and pushing each need explicit authorization, which may already have been given in the conversation. Pushing to main and merging need authorization for those actions; a request to checkpoint is not a request to publish.
+3. A checkpoint commits all non-ignored work in the checkout, including concurrent contributions, unless the user narrows it, and stays on the current branch.
+4. Keep at most one pending branch per account and reuse it across tasks; edit on it rather than main unless direct main work is explicitly authorized.
+5. Admitting a component or method from outside SAAM, or from superseded work, needs explicit human approval.
+6. Record approvals as given, without widening their scope. Report software and physical results separately.
+7. Work enters a release intent only on the owner's request or approval.
+8. Preserve exact decision quotations, approval events, approved wording, and license, third-party or fixture provenance notices, with their dates.
+9. A cap is never replaced by silent truncation: partial output must not pass as a complete result.
+
 ## Design direction
 
 Core skills expose shared geometry and deposition capabilities. Guidance teaches
@@ -175,14 +191,13 @@ Keep core/Studio behavior and contracts in their owning component manual, future
 proposals clearly marked at their owners, and past work and observations in
 [DEVLOG.md](DEVLOG.md). Future possibilities must not read as implemented
 capabilities. Implement current requests directly. Work deferred beyond the
-active task goes in the release intent that schedules it ([plans](plans/)); work
-enters an intent document only on the person's request or approval. Follow
+active task goes in the release intent that schedules it ([plans](plans/)). Follow
 [documentation maintenance](#documentation-maintenance).
 
-Describe what was actually established. Record approvals as given, without
-extending their scope: a software simulation does not establish a physical result,
-and one person's instruction does not establish another person's agreement. This
-adds no approval procedure or requirement to collect more evidence for every change.
+Describe what was actually established: a software simulation does not establish
+a physical result, and one person's instruction does not establish another
+person's agreement. This adds no approval procedure or requirement to collect
+more evidence for every change.
 
 ## Collaboration
 
@@ -193,16 +208,12 @@ principles; leave implementation reasoning to the assignee. Coordinate changes
 at shared boundaries and pass findings to the collaborators they affect.
 
 Tasks sharing a checkout preserve concurrent edits and keep its current contributor
-branch. If the checkout is on main, create a contributor branch before editing;
-publish through a pull request unless direct main work is explicitly authorized.
-Keep at most one active pending branch per account and reuse it across
-tasks. Remove temporary repair branches when their work is integrated.
+branch, publishing through a pull request. Remove temporary repair branches when
+their work is integrated.
 Reread affected lines before editing. Infer scope and dependencies from the work,
 source history and recorded context; resolve concrete conflicts without requiring
 humans to maintain a coordination ledger. Preserve other tasks' unfinished work.
-An authorized checkpoint includes all non-ignored work by default, across tasks,
-unless the user explicitly narrows it. There is no blanket requirement to
-checkpoint before starting.
+There is no blanket requirement to checkpoint before starting.
 
 [Checkpoint and publication guidance](CONTRIBUTING-AGENTS.md) covers checkpoints
 and remote activity.
@@ -215,9 +226,8 @@ transcripts, saved branches, older plans and decision records are reference
 material, never authority; where they differ from current intent, current
 intent wins.
 
-Admitting a component or method from outside SAAM, or from superseded work,
-needs explicit human approval. Before asking, identify its purpose and provenance
-and compare its producers and consumers with current geometry, composition,
+Before asking to admit a component or method from outside SAAM or from
+superseded work, identify its purpose and provenance and compare its producers and consumers with current geometry, composition,
 machine and lifecycle interfaces. Ordinary authorized development adds no
 per-task approval gate.
 
@@ -277,8 +287,8 @@ necessary settings there, rather than relying on the originating conversation.
 ## Documentation maintenance
 
 Write current manuals and contracts in present tense, and label proposals and
-future work by status. State intent positively at its owner; hard rules are the
-owner's ([intent and rules](DEVELOPER-CONTEXT.md#intent-and-rules)). Update the owning account alongside the implementation.
+future work by status. State intent positively at its owner
+([intent and rules](DEVELOPER-CONTEXT.md#intent-and-rules)). Update the owning account alongside the implementation.
 Move completed-work narratives and dated measurements to [DEVLOG.md](DEVLOG.md);
 retain current limits and reproducible procedures at the component owner. Git
 retains superseded source. No separate documentation closeout gate is needed.
@@ -304,9 +314,8 @@ retains superseded source. No separate documentation closeout gate is needed.
 | Dated decision history | [DECISIONS.md](DECISIONS.md) |
 | Completed work and dated evidence | [DEVLOG.md](DEVLOG.md) |
 
-Preserve exact decision quotations, approval events, approved wording and license,
-third-party or fixture provenance notices with their dates. Surrounding guidance
-still describes current behavior. A historical narrative in a technical manual
+Around preserved quotations and notices, guidance still describes current
+behavior. A historical narrative in a technical manual
 does not become an exception merely by being there.
 
 Place specialized instructions where the operation or failure makes them useful;
