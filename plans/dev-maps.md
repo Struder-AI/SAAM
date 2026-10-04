@@ -33,7 +33,7 @@ The stored relationships stay directional; the drawing joins a pair.
 
 ## Leaves
 
-Every piece of SAAM code belongs to exactly one leaf, module load code included. A leaf is one callable with one causal role, opened as source. A helper folds into a leaf only when folding hides no arrow between other nodes. Leaves, their boundaries and their roles are computed from the analysis, never authored. A leaf that drives many unrelated effects is a design problem the map exposes, not a reason for a larger leaf. Leaf internals are read as source, not drawn.
+Every piece of SAAM code belongs to exactly one leaf, module load code included. A leaf is one callable with one causal role, opened as source. A helper folds into a leaf only when folding hides no arrow between other nodes. Leaves, their boundaries and their roles are computed from the analysis, never authored. Every leaf has at least one arrow: code with no causal effect does nothing, so it is removed. A leaf without arrows is either dead code to delete or an analysis gap to fix. A leaf that drives many unrelated effects is a design problem the map exposes, not a reason for a larger leaf. Leaf internals are read as source, not drawn.
 
 ## Levels
 
@@ -51,6 +51,7 @@ The map is complete only if the analysis models all code. These are the owner's 
 - **SAAM code uses only shapes the analysis models.** Supporting a new shape is a deliberate decision, weighing its value against the cost of modelling it. Platform APIs are included: SAAM uses the APIs whose influence is modelled.
 - **Influence between top-level nodes follows authored arrows.**
 - **Every leaf answers or acts**, returning at most its outcome when it acts.
+- **Every leaf has an arrow.**
 
 The [code-shape rules](../DEVELOPER-CONTEXT.md#code-shape) are consequences of these.
 
