@@ -35,9 +35,9 @@ const order=(a,b)=>a<b?-1:a>b?1:0;
 export function leafModel(analysis) {
   const leafOf=new Map(),leaves=new Map();
   let merged=0;
-  for(const {leaf:name,key=name,role,folded=[],foldedKeys=folded} of analysis.leaves) {
+  for(const {leaf:name,key=name,role,folded=[],foldedKeys=folded,readsState} of analysis.leaves) {
     if(leaves.has(key)){merged++;continue;}
-    leaves.set(key,{id:key,name,role,folded:foldedKeys,foldedNames:folded});
+    leaves.set(key,{id:key,name,role,folded:foldedKeys,foldedNames:folded,...(readsState!==undefined?{readsState}:{})});
     leafOf.set(key,key);
   }
   for(const {id,folded} of leaves.values())for(const f of folded){if(leafOf.has(f)){if(leafOf.get(f)!==id)merged++;continue;}leafOf.set(f,id);}
@@ -163,12 +163,18 @@ export const rateInfluence=(drawn,callers)=>scoreDrawn(drawn,callers,{pairsOf,..
 // flat under their own fixed nodes, so a link leaving it lands on that node's box. A leaf with no
 // arrow at all is set aside: no placement of it changes what any map says, so it is listed under
 // its node as unlinked (dead code or an analysis gap), not drawn.
-function startTree(node,ownerOf,links,start) {
+//
+// Its uniform helpers (uniformLeaves), when there are at least two, start and stay in one fixed
+// library cluster under it: the solver never moves them, and every map draws the library as one
+// box with one arrow per consumer box.
+function startTree(node,ownerOf,links,start,uniform=new Set()) {
   const parent=new Map(),clusters=new Map([[node,{label:null}]]),fixed=new Set([node]);
   parent.set(node,TOP);
   const linked=new Set(links.flatMap(({from,to})=>[from,to]));
   const own=[...ownerOf].filter(([,o])=>o===node).map(([leaf])=>leaf).sort(order);
-  const mine=own.filter(leaf=>linked.has(leaf)),unlinked=own.filter(leaf=>!linked.has(leaf));
+  const shared=own.filter(leaf=>linked.has(leaf)&&uniform.has(leaf)),library=shared.length>1?shared:[];
+  const mine=own.filter(leaf=>linked.has(leaf)&&!library.includes(leaf)),unlinked=own.filter(leaf=>!linked.has(leaf));
+  if(library.length){clusters.set(LIBRARY,{label:null});fixed.add(LIBRARY);parent.set(LIBRARY,node);for(const leaf of library)parent.set(leaf,LIBRARY);}
   const byFile=new Map();
   for(const leaf of mine){const file=leaf.slice(0,leaf.indexOf(':'));(byFile.get(file)??byFile.set(file,[]).get(file)).push(leaf);}
   let next=1;
@@ -182,7 +188,31 @@ function startTree(node,ownerOf,links,start) {
     if(!clusters.has(other)){clusters.set(other,{label:null});fixed.add(other);parent.set(other,TOP);}
     parent.set(leaf,other);
   }
-  return {tree:{parent,clusters,repeats:new Map()},fixed,leaves:mine,unlinked};
+  return {tree:{parent,clusters,repeats:new Map()},fixed,leaves:mine,library,unlinked};
+}
+const LIBRARY='library';
+
+// Uniform helpers (owner, 2026-10-04): a query several leaves call that reads no shared mutable
+// state, directly or through the queries it calls, so it treats every caller the same way: its
+// answer depends only on its arguments. The rule is a property of the leaf, never of its name. A
+// leaf reads shared state when the analysis says so (a leaf's `readsState`); for a result that
+// does not report it, a read of module-level bindings (an `initialises` arrow into it) counts as
+// one, which may leave helpers reading only module constants out but never lets a stateful one in.
+// Non-uniform leaves (commands, state readers) stay individually drawn with every arrow.
+export function uniformLeaves(model) {
+  const callers=new Map(),answersFrom=new Map(),reads=new Set();
+  const add=(m,k,v)=>(m.get(k)??m.set(k,new Set()).get(k)).add(v);
+  const reported=model.leaves.some(l=>l.readsState!==undefined);
+  for(const a of model.arrows) {
+    if(a.kind==='answer'){add(callers,a.from,a.to);add(answersFrom,a.to,a.from);}
+    else if(a.kind==='initialises'&&!reported)reads.add(a.to);
+  }
+  const free=new Set(model.leaves.filter(l=>l.role==='query'&&!(reported?l.readsState:reads.has(l.id))).map(l=>l.id));
+  for(let changed=true;changed;) {
+    changed=false;
+    for(const id of free)for(const from of answersFrom.get(id)??[])if(!free.has(from)){free.delete(id);changed=true;break;}
+  }
+  return new Set([...free].filter(id=>(callers.get(id)?.size??0)>1));
 }
 
 // A stage is at least this many moves (else as many as the region has nodes), and this many
@@ -190,18 +220,21 @@ function startTree(node,ownerOf,links,start) {
 export const STAGE_MOVES=0,PATIENCE=3;
 
 // Solve one authored node. Returns its clusters (parent, label null) and leaf homes, ids local.
-export function solveNode(node,ownerOf,arrows,{seed=1,start='flat',maxStages=Infinity,stageMoves=STAGE_MOVES,patience=PATIENCE,onStage}={}) {
+// `uniform` are the uniform helpers (uniformLeaves); this node's form its library cluster.
+export function solveNode(node,ownerOf,arrows,{seed=1,start='flat',maxStages=Infinity,stageMoves=STAGE_MOVES,patience=PATIENCE,onStage,uniform}={}) {
   const clock=performance.now();
   const links=arrows.filter(a=>ownerOf.get(a.from)===node||ownerOf.get(a.to)===node);
-  const {tree,fixed,leaves,unlinked}=startTree(node,ownerOf,links,start);
-  if(leaves.length<2)return {node,leaves:leaves.length,unlinked,links:links.length,clusters:new Map(),homes:new Map(leaves.map(l=>[l,node])),ms:0,stages:0,start:0,energy:0};
+  const {tree,fixed,leaves,library,unlinked}=startTree(node,ownerOf,links,start,uniform);
+  const shelf=library.length?{library:LIBRARY,libraryLeaves:library.length}:{library:null,libraryLeaves:0};
+  if(leaves.length<2)return {node,leaves:leaves.length,unlinked,links:links.length,...shelf,
+    clusters:new Map(library.length?[[LIBRARY,node]]:[]),homes:new Map([...leaves.map(l=>[l,node]),...library.map(l=>[l,LIBRARY])]),ms:0,stages:0,start:0,energy:0};
   let stages=0;
   const result=solveTree(tree,links,{seed,maxStages,stageMoves,patience,fixed,open:new Set([node]),repeats:false,score:rateInfluence,
     onStage:s=>{stages=s.stage+1;onStage?.(s);}});
   const inside=id=>{for(let p=id;p!==undefined;p=result.tree.parent.get(p))if(p===node)return true;return false;};
-  const clusters=new Map([...result.tree.clusters.keys()].filter(id=>!fixed.has(id)&&inside(id)).map(id=>[id,result.tree.parent.get(id)]));
-  const homes=new Map(leaves.map(leaf=>[leaf,result.tree.parent.get(leaf)]));
-  return {node,leaves:leaves.length,unlinked,links:links.length,clusters,homes,ms:performance.now()-clock,stages,start:result.start,energy:result.energy};
+  const clusters=new Map([...result.tree.clusters.keys()].filter(id=>(!fixed.has(id)||id===LIBRARY)&&inside(id)).map(id=>[id,result.tree.parent.get(id)]));
+  const homes=new Map([...leaves,...library].map(leaf=>[leaf,result.tree.parent.get(leaf)]));
+  return {node,leaves:leaves.length,unlinked,links:links.length,...shelf,clusters,homes,ms:performance.now()-clock,stages,start:result.start,energy:result.energy};
 }
 
 // The whole tree for a viewer: map 0 draws the authored nodes; each solved node nests its
@@ -224,7 +257,7 @@ export function assemble({authored,model,owners,solved}) {
     for(const [id,p] of s.clusters)(kids.get(p)??kids.set(p,[]).get(p)).push(id);
     let n=0;const walk=p=>{for(const id of (kids.get(p)??[]).sort(order)){rename.set(id+'\n'+s.node,`${s.node}/${++n}`);walk(id);}};walk(s.node);
     const name=id=>id===s.node?id:rename.get(id+'\n'+s.node);
-    for(const [id,p] of s.clusters){clusters.set(name(id),{label:null});parent.set(name(id),name(p));}
+    for(const [id,p] of s.clusters){clusters.set(name(id),{label:null,...(id===s.library?{library:true}:{})});parent.set(name(id),name(p));}
     for(const [leaf,p] of s.homes)parent.set(leaf,name(p));
   }
   const tree={parent,clusters,repeats:new Map()},access=treeAccess(tree);
@@ -244,7 +277,7 @@ export function assemble({authored,model,owners,solved}) {
   return {
     clusters:[...clusters.keys()].map(id=>({id,parent:parent.get(id),
       authored:authored.nodes.some(n=>n.id===id),solved:solvedIds.has(id)||undefined,
-      label:authored.nodes.find(n=>n.id===id)?.label??null,
+      label:authored.nodes.find(n=>n.id===id)?.label??null,...(clusters.get(id).library?{library:true}:{}),
       leaves:access.childrenOf(id).filter(c=>!clusters.has(c)).sort(order),
       ...(unlinked.has(id)?{unlinked:unlinked.get(id).sort(order)}:{})})),
     maps};
@@ -269,12 +302,12 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   for(const id of picked)if(!known.has(id))throw Error(`Not a map-0 node: ${id}. Nodes: ${[...known].join(', ')}`);
   const targets=all?authored.nodes.map(n=>n.id):picked;
   const seed=Number(option('--seed')??1),start=option('--start')??'flat',maxStages=Number(option('--max-stages')??Infinity);
-  const solved=[];
+  const solved=[],uniform=uniformLeaves(model);
   for(const node of targets) {
-    const s=solveNode(node,ownerOf,model.arrows,{seed,start,maxStages,
+    const s=solveNode(node,ownerOf,model.arrows,{seed,start,maxStages,uniform,
       onStage:x=>{if(x.stage%25===0)process.stderr.write(`${node} stage ${x.stage} energy ${x.energy.toFixed(4)} best ${x.best.toFixed(4)} T ${x.temperature.toExponential(2)} changed ${x.changed}\n`);}});
     solved.push(s);
-    process.stderr.write(`${node}: ${s.leaves} leaves (${s.unlinked.length} unlinked set aside), ${s.links} arrows, ${s.clusters.size} clusters, energy ${s.start.toFixed(4)} -> ${s.energy.toFixed(4)}, ${s.stages} stages, ${Math.round(s.ms)} ms\n`);
+    process.stderr.write(`${node}: ${s.leaves} leaves (${s.libraryLeaves} more in its library, ${s.unlinked.length} unlinked set aside), ${s.links} arrows, ${s.clusters.size} clusters, energy ${s.start.toFixed(4)} -> ${s.energy.toFixed(4)}, ${s.stages} stages, ${Math.round(s.ms)} ms\n`);
   }
   const t3=performance.now();
   const {clusters,maps}=assemble({authored,model,owners,solved});
@@ -284,7 +317,8 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   const summary={leaves:model.leaves.length,arrows:model.arrows.length,mergedLeaves:model.merged,sharedNames:model.sharedNames,sourceChanged,
     owned:count(owners.filter(o=>o.owner),o=>o.owner),ownedVia:count(owners.filter(o=>o.owner),o=>o.via),
     unowned:count(gaps,o=>o.gap),
-    solved:solved.map(s=>({node:s.node,leaves:s.leaves,unlinked:s.unlinked.length,arrows:s.links,clusters:s.clusters.size,startEnergy:s.start,energy:s.energy,stages:s.stages,ms:Math.round(s.ms)})),
+    uniform:uniform.size,
+    solved:solved.map(s=>({node:s.node,leaves:s.leaves,library:s.libraryLeaves,unlinked:s.unlinked.length,arrows:s.links,clusters:s.clusters.size,startEnergy:s.start,energy:s.energy,stages:s.stages,ms:Math.round(s.ms)})),
     timingsMs:{read:Math.round(t1-clock),ownership:Math.round(t2-t1),solve:Math.round(t3-t2),assemble:Math.round(t4-t3),total:Math.round(t4-clock)}};
   console.log(JSON.stringify(summary,null,1));
   const out=option('--out'),ownerRow=new Map(owners.map(o=>[o.leaf,o])),labels=out?leafLabels(model.leaves,{texts}):null;
