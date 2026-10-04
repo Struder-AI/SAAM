@@ -24,6 +24,8 @@ import {derive,pairArrowsOf} from './derive.mjs';
 import {compileModule} from './compile.mjs';
 import {compose} from './compose.mjs';
 import {importAliases} from '../lib/scope.mjs';
+import {stateFacts} from './state.mjs';
+import {contactFacts} from './channels.mjs';
 
 const repo=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
 const argv=process.argv.slice(2);
@@ -173,7 +175,9 @@ if(out) {
     arrowlessLeafKeys:result.arrowless.map(i=>fns[i].key),
     arrows:result.arrows.map(a=>({from:name(fns[a.from]),to:name(fns[a.to]),fromKey:fns[a.from].key,toKey:fns[a.to].key,kind:a.kind,count:a.count})),
     leaves:[...result.leaves].map(i=>{const folded=fns.filter(f=>f.id!==i&&!f.inClone&&fn[f.id]!==f.id&&(()=>{let x=f.id;while(fn[x]!==x)x=fn[x];return x;})()===i);
-      return {leaf:name(fns[i]),key:fns[i].key,role:result.leafCommand[i]?'command':'query',folded:folded.map(name),foldedKeys:folded.map(f=>f.key)};})
+      return {leaf:name(fns[i]),key:fns[i].key,role:result.leafCommand[i]?'command':'query',folded:folded.map(name),foldedKeys:folded.map(f=>f.key)};}),
+    // State facts and process/outside contacts (state.mjs, channels.mjs), made into nodes and links by leafModel.
+    state:stateFacts(pt,built,result,{modules}),contacts:contactFacts(pt,built,result,{modules,resolveImport})
   },null,1));
 }
 

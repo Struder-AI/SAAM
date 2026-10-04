@@ -246,7 +246,7 @@ export function derive(pt,{functions,namespaces,isInstance,moduleActivations}) {
   for(const f of reps)roleCount[command[f.id]?'command':'query']++;
   const arrowKinds={};for(const a of arrows.values())arrowKinds[a.kind]=(arrowKinds[a.kind]??0)+1;
   return {
-    edges,arrows:[...arrows.values()],command,leafCommand,effects,readersOf,both,leaves,home,exported,uncalled,arrowless,
+    edges,arrows:[...arrows.values()],command,leafCommand,effects,readersOf,both,leaves,home,canon,exported,uncalled,arrowless,
     summary:{roleRounds,...(roleOscillation?{roleOscillation}:{}),callables:reps.length,copies:byId.length-reps.length,modules:reps.filter(f=>f.module).length,exported:exported.size,
       callEdges:edges.filter(e=>e.via==='call').length,platformCallbackEdges:edges.filter(e=>e.via==='platform').length,
       roles:roleCount,answersAndActs:both.length,arrows:arrows.size,arrowKinds,pairs:pairArrowsOf([...arrows.values()],x=>x).summary,

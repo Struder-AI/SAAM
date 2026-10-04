@@ -45,7 +45,7 @@ function inputs() {
 // Each authored node is solved in its own process, a few at a time, so heaps stay small. A
 // node's stored solve is reused while the analysis, the authored set and the solver are as they
 // were when it was made.
-const solverFiles=['dev-map/influence/solve-middle.mjs','dev-map/influence/derive.mjs','dev-map/lib/solve.mjs','dev-map/lib/score.mjs','dev-map/lib/tree.mjs','dev-map/lib/graph.mjs'];
+const solverFiles=['dev-map/influence/solve-middle.mjs','dev-map/influence/derive.mjs','dev-map/influence/state.mjs','dev-map/influence/channels.mjs','dev-map/lib/solve.mjs','dev-map/lib/score.mjs','dev-map/lib/tree.mjs','dev-map/lib/graph.mjs'];
 function solveInputs({analysis,authored,roots,maxStages}) {
   const h=createHash('sha256');
   for(const file of [analysis,resolve(authored,'architecture.json'),resolve(authored,'ownership.json'),...solverFiles.map(f=>resolve(repo,f))])h.update(lf(readFileSync(file,'utf8')));
@@ -124,7 +124,7 @@ export async function writeModel({log=()=>{}}={}) {
   const sm=await import('./solve-middle.mjs');
   const paths=inputs(),{spec}=paths;
   const authored=sm.readAuthored(paths.authored);
-  const model=sm.leafModel(JSON.parse(readFileSync(paths.analysis,'utf8')));
+  const model=sm.leafModel(JSON.parse(readFileSync(paths.analysis,'utf8')),{actors:authored.actors});
   const {texts,changed}=sm.analysedTexts(model.leaves,{roots:[repo,...paths.roots]});
   const labels=sm.leafLabels(model.leaves,{texts});
   const uniform=sm.uniformLeaves(model);
@@ -193,8 +193,10 @@ export async function writeModel({log=()=>{}}={}) {
     const m=/^(.*?):(\d+) (.*)$/.exec(l.name),file=fileOf(l.id),shape=shapes.get(l.id);
     if(!shape)rangeUnknown++;
     const o=ownerRow.get(l.id);
-    leafRow.set(l.id,{key:l.id,name:l.name,label:labels.get(l.id),role:l.role,file,line:shape?.line??Number(m?.[2]??1),endLine:shape?.endLine??Number(m?.[2]??1),
-      ...(shape?{}:{rangeUnknown:true}),owner:o?.owner??null,...(o?.owner?{declaration:o.declaration,via:o.via}:{gap:o?.gap}),
+    // A state node opens at its declaring line; a channel has no source (channels.mjs).
+    const made=l.state||l.channel;
+    leafRow.set(l.id,{key:l.id,name:l.name,label:labels.get(l.id),role:l.role,file:l.channel?null:made?m?.[1]??file:file,line:shape?.line??Number(m?.[2]??1),endLine:shape?.endLine??Number(m?.[2]??1),
+      ...(shape||made?{}:{rangeUnknown:true}),...(l.state?{state:l.state}:{}),...(l.channel?{channel:l.channel}:{}),owner:o?.owner??null,...(o?.owner?{declaration:o.declaration,via:o.via}:{gap:o?.gap}),
       ...(uniform.has(l.id)?{uniform:true}:{}),...(uniform.has(l.id)&&shape?.modeArgument?{possiblyCallerDependent:true}:{}),
       ...(index.has(l.id)?{index:index.get(l.id)}:{unlinked:true}),
       folded:l.folded.map(k=>{const s=shapes.get(k);return {key:k,file:fileOf(k),...(s?{line:s.line,endLine:s.endLine}:{})};})});
@@ -242,7 +244,7 @@ export async function writeModel({log=()=>{}}={}) {
       parent:m.id===TOP?null:index.get(parentOf.get(m.id)),destination:'graph',leaves:m.nested,
       ...(m.score!==undefined?{score:m.score}:{}),components,ports,wires,...(unlinked?.length?{unlinked:[...unlinked].sort(keyOrder)}:{})});
   }
-  for(const r of leafRow.values())if(r.index)pages.push({index:r.index,path:`${r.file}::${r.label}`,key:r.key,kind:'function',label:r.label,role:r.role,
+  for(const r of leafRow.values())if(r.index)pages.push({index:r.index,path:`${r.file??'@channel'}::${r.label}`,key:r.key,kind:r.state?'state':r.channel?'channel':'function',label:r.label,role:r.role,
     file:r.file,line:r.line,endLine:r.endLine,lines:r.endLine-r.line+1,destination:'code',parent:index.get(parentOf.get(r.key)),components:[],wires:[],
     foldedCode:r.folded.filter(f=>f.line).map(f=>({path:f.key,file:f.file,line:f.line,endLine:f.endLine}))});
 
@@ -252,6 +254,16 @@ export async function writeModel({log=()=>{}}={}) {
   const unlinked=[...leafRow.values()].filter(r=>r.unlinked);
   const root=pages.find(p=>p.index==='0');
   if(spec.missing?.length)root.notAnalysed=[...spec.missing];
+  // State nodes read or written from more than one map-0 owner, other than Bundle's (shared part
+  // state): an architecture finding, listed on map 0. Unresolved channel ends, likewise.
+  const crossOwnerState=[];
+  for(const r of leafRow.values()) {
+    if(!r.state||r.owner==='bundle')continue;
+    const touched={};for(const a of model.arrows)if(a.to===r.key&&a.kind==='writes'||a.from===r.key&&a.kind==='reads'){const o=leafRow.get(a.to===r.key?a.from:a.to)?.owner??UNOWNED;touched[o]=(touched[o]??0)+1;}
+    if(Object.keys(touched).length>1)crossOwnerState.push({key:r.key,label:r.label,owner:r.owner,touchedBy:touched});
+  }
+  if(crossOwnerState.length)root.crossOwnerState=crossOwnerState;
+  if(model.channels)root.channels=model.channels;
   if(unowned.length)(pages.find(p=>p.index===index.get(UNOWNED))??root).unowned=unowned.map(r=>r.key).sort(keyOrder);
 
   const files=[...texts.keys()].sort(order);
@@ -262,7 +274,8 @@ export async function writeModel({log=()=>{}}={}) {
     inputs:{analysis:paths.analysis,authored:paths.authored,sourceRoots:paths.roots},sourceChanged:changed,
     summary:{leaves:model.leaves.length,merged:model.merged,sharedNames:model.sharedNames,arrows:model.arrows.length,drawn:model.leaves.length-unlinked.length,
       unlinked:unlinked.length,unowned:unowned.length,uniform:uniform.size,possiblyCallerDependent:[...leafRow.values()].filter(r=>r.possiblyCallerDependent).length,
-      maps:pages.filter(p=>p.destination==='graph').length,rangeUnknown,ownerDisagreements:ownerDisagreements.length,solverMismatch,solved:summaries},
+      maps:pages.filter(p=>p.destination==='graph').length,rangeUnknown,ownerDisagreements:ownerDisagreements.length,solverMismatch,solved:summaries,
+      ...(model.channels?{channels:{...model.channels.summary,stateNodes:[...leafRow.values()].filter(r=>r.state).length,crossOwnerState:crossOwnerState.length}}:{})},
     arrows:model.arrows,leaves:Object.fromEntries(leafRow),pages,sources,sourceInfo};
   stored.snapshotId=sha(JSON.stringify([stored.summary,pages.length,model.arrows.length,Object.values(sourceInfo).map(s=>s.sourceSha256)]));
   stored.checks=verify(stored);
@@ -335,6 +348,7 @@ function staleness(model) {
 export function mapZeroPositions(authoredDir=inputs().authored) {
   const architecture=JSON.parse(readFileSync(resolve(authoredDir,'architecture.json'),'utf8'));
   const idOf=new Map(architecture.nodes.filter(n=>!String(n.index).includes('.')).map(n=>[String(n.index),n.id]));
+  for(const id of Object.keys(architecture.actors??{}))idOf.set(`external:${id}`,`external:${id}`);// actor boxes (readAuthored)
   return Object.fromEntries(Object.entries(architecture.layout?.[TOP]?.positions??{})
     .filter(([index])=>idOf.has(index)).map(([index,point])=>[idOf.get(index),point]));
 }
@@ -363,6 +377,9 @@ export function solvedModel() {
     }
     if(p.unlinked)markers.push({id:'list:unlinked',label:`${p.unlinked.length} unlinked`,tone:'link',list:`unlinked:${p.index}`});
     if(p.unowned)markers.push({id:'list:unowned',label:`${p.unowned.length} unowned`,tone:'unowned',list:'unowned'});
+    if(p.crossOwnerState)markers.push({id:'list:cross-owner-state',label:`state shared across owners · ${p.crossOwnerState.length}`,note:p.crossOwnerState.map(x=>`${x.label} (${x.owner}): ${Object.keys(x.touchedBy).join(', ')}`).join('\n'),tone:'missing'});
+    if(p.channels){const u=p.channels.unresolved,n=Object.values(u).reduce((t,l)=>t+l.length,0);
+      if(n)markers.push({id:'list:unresolved-channels',label:`unresolved channel ends · ${n}`,note:Object.entries(u).flatMap(([k,l])=>l.map(x=>`${k}: ${typeof x==='string'?x:`${x.at} ${x.url??x.route??x.entry??x.kind??''} ${x.note??''}`}`)).join('\n'),tone:'missing'});}
     if(p.notAnalysed)markers.push({id:'list:not-analysed',label:`not analysed · ${p.notAnalysed.length} files`,note:p.notAnalysed.join('\n'),tone:'missing'});
     if(p.index===TOP&&m.sourceChanged?.length)markers.push({id:'list:source-moved',label:`source moved since the analysis · ${m.sourceChanged.length} files`,note:m.sourceChanged.join('\n'),tone:'missing'});
     Object.assign(p,{badges,markers});
@@ -385,7 +402,7 @@ export function solvedModel() {
 // `@unlinked` and `@unowned` are the lists. Leaves are not maps.
 const range=(a,b)=>a===b?`${a}`:`${a}-${b}`;
 const ARROW={one:'→',ack:'•→',both:'↔'};
-const LIST_UNLINKED='@unlinked',LIST_UNOWNED='@unowned';
+const LIST_UNLINKED='@unlinked',LIST_UNOWNED='@unowned',LIST_SHARED='@cross-owner-state',LIST_CHANNELS='@unresolved-channels';
 const byKey=(a,b)=>order(fileOf(a),fileOf(b))||keyParts(a).offset-keyParts(b).offset;
 const named=new WeakMap();
 function leafNames(m) {
@@ -425,7 +442,8 @@ function mapRead(m,page) {
     ...(page.ports.length?{boundary:Object.fromEntries(page.ports.map(p=>[p.port,p.label]))}:{}),
     ...(page.wires.length?{arrows:Object.fromEntries(page.wires.map(w=>[`${w.from} ${ARROW[w.ends]} ${w.to}`,w.count])),link:`@link/${page.index}/FROM/TO`}:{}),
     ...(top&&page.notAnalysed?.length?{notAnalysed:page.notAnalysed}:{}),...(top&&m.sourceChanged?.length?{sourceChanged:m.sourceChanged}:{}),
-    ...(top&&(unlinked||unowned)?{lists:{...(unlinked?{[LIST_UNLINKED]:unlinked}:{}),...(unowned?{[LIST_UNOWNED]:unowned}:{})}}:{})};
+    ...(top&&(unlinked||unowned||page.crossOwnerState||page.channels)?{lists:{...(unlinked?{[LIST_UNLINKED]:unlinked}:{}),...(unowned?{[LIST_UNOWNED]:unowned}:{}),
+      ...(page.crossOwnerState?{[LIST_SHARED]:page.crossOwnerState.length}:{}),...(page.channels?{[LIST_CHANNELS]:Object.values(page.channels.unresolved).reduce((t,l)=>t+l.length,0)}:{})}}:{})};
 }
 
 // One drawn arrow's leaf arrows, as indexes into the stored arrows grouped `FROM → TO` by the
@@ -462,7 +480,9 @@ function listRead(m,address) {
 
 export function readSolved(address='0') {
   const m=stored(),key=String(address),stale=staleness(m);
-  const result=key.startsWith('@link/')?linkRead(m,key):key===LIST_UNLINKED||key===LIST_UNOWNED?listRead(m,key):mapRead(m,pageOf(m,key));
+  const root=m.pages.find(p=>p.index===TOP);
+  const result=key.startsWith('@link/')?linkRead(m,key):key===LIST_UNLINKED||key===LIST_UNOWNED?listRead(m,key)
+    :key===LIST_SHARED?{crossOwnerState:root.crossOwnerState??[]}:key===LIST_CHANNELS?{unresolvedChannels:root.channels?.unresolved??{}}:mapRead(m,pageOf(m,key));
   return {...result,...(stale?{stale}:{})};
 }
 
