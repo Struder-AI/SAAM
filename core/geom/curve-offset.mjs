@@ -71,16 +71,20 @@ export function looseCurveField(curve,closed,directionAt){
   });
   // A degree-1 basis is 1 at its own control's Greville parameter and 0 at
   // every other, so a polyline's collocation is the identity.
-  const solved=curve.order===2?rhs:solveSparse(matrix,rhs),cache=new Map();
-  return depth=>{
-    requireThat(Number.isFinite(depth),'Curve offset depth must be finite.');
-    if(cache.has(depth))return cache.get(depth);
-    const out=cp.slice();
-    for(let i=0;i<n;i++)for(let k=0;k<3;k++)out[i*4+k]+=depth*solved[groups[i]][k]*cp[i*4+3];
-    const result={...curve,cp:out};
-    if(cache.size>=128)cache.delete(cache.keys().next().value);
-    cache.set(depth,result);return result;
-  };
+  const solved=curve.order===2?rhs:solveSparse(matrix,rhs);
+  return {curve,groups,solved,cache:new Map()};
+}
+
+// The curve moved by depth along a loose curve field; recent depths are cached.
+export function curveAtDepth(field,depth){
+  requireThat(Number.isFinite(depth),'Curve offset depth must be finite.');
+  const {curve,groups,solved,cache}=field,{n,cp}=curve;
+  if(cache.has(depth))return cache.get(depth);
+  const out=cp.slice();
+  for(let i=0;i<n;i++)for(let k=0;k<3;k++)out[i*4+k]+=depth*solved[groups[i]][k]*cp[i*4+3];
+  const result={...curve,cp:out};
+  if(cache.size>=128)cache.delete(cache.keys().next().value);
+  cache.set(depth,result);return result;
 }
 
 // The side direction at t: one unit direction where the curve is smooth, and
@@ -244,7 +248,8 @@ export function prepareCurveOffsets({curves,patch=null,periodicU=false,periodicV
   const base=period&&sources.length?(()=>{
     const c=sources[0],t=(c.domain[0]+c.domain[1])/2,{point,derivative}=evaluateCurve(c,t),size=Math.hypot(derivative[0],derivative[1]);
     const eps=1e-7*Math.max(domains[0][1]-domains[0][0],domains[1][1]-domains[1][0]);
-    return 1-preparePeriodicWinding(sources,period)([point[0]-derivative[1]/size*eps,point[1]+derivative[0]/size*eps]);
+    const sourceWinding=preparePeriodicWinding(sources,period);
+    return 1-sourceWinding([point[0]-derivative[1]/size*eps,point[1]+derivative[0]/size*eps]);
   })():0;
   function offset(depth){
     requireThat(Number.isFinite(depth),'Curve offset depth must be finite.');
@@ -256,8 +261,8 @@ export function prepareCurveOffsets({curves,patch=null,periodicU=false,periodicV
     const system=[],size=Math.abs(depth),at=(c,t)=>evaluateCurve(c,t).point;
     const shift=(p,v,k)=>[p[0]+k*v[0],p[1]+k*v[1],p[2]];
     inputs.forEach(({curve,closed},i)=>{
-      if(closed){const moved=fields[i](depth);system.push({curve:moved,closed,source:i,parent:moved,reference:curve});return;}
-      const right=fields[i](size),left=fields[i](-size),sum=left.domain[0]+left.domain[1],[d0,d1]=curve.domain;
+      if(closed){const moved=curveAtDepth(fields[i],depth);system.push({curve:moved,closed,source:i,parent:moved,reference:curve});return;}
+      const right=curveAtDepth(fields[i],size),left=curveAtDepth(fields[i],-size),sum=left.domain[0]+left.domain[1],[d0,d1]=curve.domain;
       const e0=at(curve,d0),e1=at(curve,d1),t0=tangentPerMm(curve,d0),t1=tangentPerMm(curve,d1);
       const [r0,r1,l0,l1]=[at(right,d0),at(right,d1),at(left,d0),at(left,d1)];
       system.push(depth>0?{curve:right,source:i,parent:right,reference:curve}:{curve:right},

@@ -37,7 +37,9 @@ export async function repairMeshNative(mesh,{maxHoleEdges=0,maxHoleDiameterMm=0,
   const temporary=nativeDirectory??await mkdtemp(join(tmpdir(),'saam-mesh-repair-')),input=join(temporary,'input.off'),output=join(temporary,'output.off');
   try{
     await pipeline(offChunks(mesh),createWriteStream(input),{signal});
-    const report=await (nativeRun??runNativeMeshRepair)(input,output,{maxHoleEdges,maxHoleDiameterMm,signal,progress});
+    // A worker without process access hands the native run to its parent.
+    const report=nativeRun?await nativeRun(input,output,{maxHoleEdges,maxHoleDiameterMm,signal,progress})
+      :await runNativeMeshRepair(input,output,{maxHoleEdges,maxHoleDiameterMm,signal,progress});
     const result=await readOff(output,{signal,progress});return {...result,report};
   }finally{
     // Only this call's freshly created directory under the OS temp root is removed.
