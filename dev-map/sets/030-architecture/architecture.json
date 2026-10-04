@@ -5,133 +5,19 @@
   "actors": {
     "user": {
       "label": "User",
-      "description": "Part intent and exact toolpath confirmation.",
-      "channels": [
-        {
-          "name": "Studio page",
-          "kind": "page (dom, ui)",
-          "target": "studio/, workspaces/ and extension ui/ code"
-        },
-        {
-          "name": "browser opened",
-          "kind": "process",
-          "target": "studio/browser.mjs opener (rundll32, open, xdg-open)"
-        },
-        {
-          "name": "tray",
-          "kind": "process",
-          "target": "packaging/tray.mjs"
-        },
-        {
-          "name": "terminal prompt",
-          "kind": "ui read",
-          "target": "readline question"
-        },
-        {
-          "name": "page console",
-          "kind": "console",
-          "target": "browser page code"
-        }
-      ],
-      "channelsStatus": "proposed, awaiting owner approval (2026-10-04)"
+      "description": "Part intent and exact toolpath confirmation."
     },
     "agent": {
       "label": "Desktop agent",
-      "description": "Codex or Claude Code; maker or authorized builder.",
-      "channels": [
-        {
-          "name": "saam stdout JSON",
-          "kind": "console stdout",
-          "target": "scripts/saam.mjs, core/print/cli.mjs"
-        },
-        {
-          "name": "saam stderr diagnostics",
-          "kind": "console stderr",
-          "target": "scripts/saam.mjs, core/print/cli.mjs"
-        },
-        {
-          "name": "tool output",
-          "kind": "console",
-          "target": "scripts/, packaging/"
-        },
-        {
-          "name": "client launch",
-          "kind": "process",
-          "target": "packaging/application.mjs client command"
-        }
-      ],
-      "channelsStatus": "proposed, awaiting owner approval (2026-10-04)"
+      "description": "Codex or Claude Code; maker or authorized builder."
     },
     "resources": {
       "label": "External resources",
-      "description": "Thingi10K and other asset/data sources; network or local resource providers.",
-      "channels": [
-        {
-          "name": "Thingi10K mirror",
-          "kind": "network",
-          "target": "huggingface Thingi10K, skills/thingi10k/"
-        },
-        {
-          "name": "relay service",
-          "kind": "network",
-          "target": "packaging/release-service.mjs (relay/ Cloudflare worker)"
-        },
-        {
-          "name": "release downloads",
-          "kind": "network",
-          "target": "packaging/update.mjs, packaging/build.mjs"
-        },
-        {
-          "name": "local tools (git, compiler)",
-          "kind": "process",
-          "target": "git, compiler and --version probes"
-        }
-      ],
-      "channelsStatus": "proposed, awaiting owner approval (2026-10-04)"
+      "description": "Thingi10K and other asset/data sources; network or local resource providers."
     },
     "stl-file": {
       "label": "STL file",
-      "description": "A user-selected local STL supplied to Studio by file selection or drop; import processing is internal.",
-      "channels": [
-        {
-          "name": "selected STL",
-          "kind": "file read",
-          "target": "STL source path (import-stl, repair-stl)"
-        }
-      ],
-      "channelsStatus": "proposed, awaiting owner approval (2026-10-04)"
-    },
-    "printer": {
-      "label": "Printer",
-      "description": "Receives the exported machine program through the person: the bundle delivery/ folder or a Studio download link. No code talks to a printer directly.",
-      "status": "proposed, awaiting owner approval (2026-10-04)",
-      "evidence": [
-        "core/print/workflow.mjs:721 delivery/ export write",
-        "studio/server.mjs:521-533 /api/export and /api/download/<key>"
-      ],
-      "channels": [
-        {
-          "name": "delivery folder",
-          "kind": "file write",
-          "target": "paths with a delivery segment"
-        }
-      ]
-    },
-    "native": {
-      "label": "Native mesh helper",
-      "description": "SAAM's own native mesh repair executable (build/mesh-repair/saam-mesh-repair), a declared boundary until native code is analysed; reached as a child process over stdio and scratch files.",
-      "status": "proposed, awaiting owner approval (2026-10-04)",
-      "evidence": [
-        "core/geom/mesh-native.mjs:54 spawn",
-        "core/print/mesh-repair-job.mjs:49 scratch directory"
-      ],
-      "channels": [
-        {
-          "name": "mesh repair process",
-          "kind": "process",
-          "target": "core/geom/mesh-native.mjs"
-        }
-      ]
+      "description": "A user-selected local STL supplied to Studio by file selection or drop; import processing is internal."
     }
   },
   "nodes": [
@@ -5312,14 +5198,6 @@
         "external:stl-file": {
           "x": 1260,
           "y": 960
-        },
-        "external:printer": {
-          "x": 1260,
-          "y": 1100
-        },
-        "external:native": {
-          "x": 440,
-          "y": 1035
         }
       },
       "viewport": [
