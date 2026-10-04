@@ -22,7 +22,7 @@ await walk(root);
 const errors = [];
 try { await checkSkillDigest(root); }
 catch (error) { errors.push(error.message); }
-let links = 0;
+const checked = {links: 0};
 const anchors = markdown => {
   const result=new Set(),counts=new Map();
   let fenced=false;
@@ -43,7 +43,7 @@ for (const path of documents) {
   for (const match of markdown.matchAll(/\]\(([^)]+)\)/g)) {
     const [target,fragment] = match[1].split('#');
     if (/^[a-z][a-z0-9+.-]*:/i.test(target)) continue;
-    links++;
+    checked.links++;
     if (historical.has(relative(root, path))) continue;
     const resolved = target ? resolve(dirname(path), decodeURIComponent(target)) : path;
     if (!resolved.startsWith(root + sep)) errors.push(`${relative(root,path)}: link escapes repository: ${target}`);
@@ -82,6 +82,6 @@ if (errors.length) {
   console.error(errors.join('\n'));
   process.exitCode = 1;
 } else {
-  console.log(`Checked ${documents.length} documents, ${links} local links (dated records excepted), ${entries.length} decision records, skill digest freshness and coverage, and private-file exclusions.`);
+  console.log(`Checked ${documents.length} documents, ${checked.links} local links (dated records excepted), ${entries.length} decision records, skill digest freshness and coverage, and private-file exclusions.`);
   console.log('Repository checks only; manufacturing software tests run separately and do not establish physical print success.');
 }

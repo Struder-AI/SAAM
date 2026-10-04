@@ -4,9 +4,9 @@ import {rotation,mm,mv,rotatePointZ as bedPoint,rotateZ,interpolateDirectionPair
 export function frameAtTime(moves, seconds) {
   if(!moves.length)return {completed:0,active:-1,fraction:0,point:null};
   let low=0,high=moves.length;
-  while(low<high){const mid=(low+high)>>1;if(moves[mid].startSeconds<=seconds)low=mid+1;else high=mid;}
+  while(low<high){const mid=(low+high)>>1;if(moves.at(mid).startSeconds<=seconds)low=mid+1;else high=mid;}
   const before=low===0,index=Math.max(0,low-1);
-  const move=moves[index],elapsed=Math.max(0,Math.min(move.durationSeconds,seconds-move.startSeconds));
+  const move=moves.at(index),elapsed=Math.max(0,Math.min(move.durationSeconds,seconds-move.startSeconds));
   let fraction=move.durationSeconds>0?Math.max(0,Math.min(1,elapsed/move.durationSeconds)):1;
   if(before)fraction=0;
   if(move.interpolation==='rest-to-rest-linear'&&move.controllerLengthMm>0&&move.accelerationMmS2>0&&move.peakSpeedMmS>0){

@@ -43,43 +43,49 @@ export function blobFieldBounds(field){
   return {min,max};
 }
 
-// Prepare finite point sources or a repeating bump lattice. Finite sources use
-// spatial buckets when their integer coordinates are exactly representable.
-export function createBlobFieldEvaluator(input){
+// Prepare finite point sources or a repeating bump lattice as a plain record
+// that evaluateBlobField samples. Finite sources use spatial buckets when their
+// integer coordinates are exactly representable.
+export function prepareBlobField(input){
   if(input?.kind==='bumps'){
     const vector=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite),positive=n=>Number.isFinite(n)&&n>0;
     requireThat(Object.keys(input).sort().join()==='kind,originMm,periodMm,radiusMm'&&vector(input.periodMm)&&input.periodMm.every(positive)&&positive(input.radiusMm)&&vector(input.originMm),
       'Bumps field needs positive XYZ periodMm, radiusMm and originMm.');
-    const field=structuredClone(input);
-    return function evaluate(point){
-      let value=0;
-      const ranges=point.map((v,i)=>[Math.ceil((v-field.radiusMm-field.originMm[i])/field.periodMm[i]),Math.floor((v+field.radiusMm-field.originMm[i])/field.periodMm[i])]);
-      requireThat(ranges.flat().every(Number.isSafeInteger),'Bump lattice indices exceed exact integer representation; increase lattice spacing or move its origin closer.');
-      for(let x=ranges[0][0];x<=ranges[0][1];x++)for(let y=ranges[1][0];y<=ranges[1][1];y++)for(let z=ranges[2][0];z<=ranges[2][1];z++){
-        const center=[x,y,z].map((v,i)=>field.originMm[i]+v*field.periodMm[i]);
-        value+=blobFalloff(Math.hypot(...point.map((v,i)=>v-center[i]))/field.radiusMm).value;
-      }
-      return {value};
-    };
+    return {kind:'bumps',field:structuredClone(input)};
   }
   const field=structuredClone(validateBlobField(input)),cell=field.points.reduce((reach,p)=>Math.max(reach,p.reachMm),0);
   const spans=field.points.map(p=>({lo:p.positionMm.map(v=>Math.floor((v-p.reachMm)/cell)),hi:p.positionMm.map(v=>Math.floor((v+p.reachMm)/cell))}));
   const buckets=spans.every(({lo,hi})=>[...lo,...hi].every(Number.isSafeInteger))?new Map():null;
-  const key=(x,y,z)=>x+','+y+','+z;
   if(buckets)spans.forEach(({lo,hi},index)=>{
     for(let x=lo[0];x<=hi[0];x++)for(let y=lo[1];y<=hi[1];y++)for(let z=lo[2];z<=hi[2];z++){
-      const k=key(x,y,z);if(!buckets.has(k))buckets.set(k,[]);buckets.get(k).push(index);
+      const k=bucketKey(x,y,z);if(!buckets.has(k))buckets.set(k,[]);buckets.get(k).push(index);
     }
   });
-  return function evaluate(point,{derivatives=false}={}){
-    requireThat(Array.isArray(point)&&point.length===3&&point.every(Number.isFinite),'Blob field evaluation needs finite XYZ millimetres.');
-    let value=0;const gradient=[0,0,0];
-    for(const index of buckets?(buckets.get(key(...point.map(v=>Math.floor(v/cell))))??[]):field.points.keys()){
-      const p=field.points[index],d=point.map((v,a)=>v-p.positionMm[a]),distance=Math.hypot(...d);
-      if(distance>=p.reachMm)continue;
-      const k=blobFalloff(distance/p.reachMm);value+=p.strength*k.value;
-      if(derivatives&&distance>0)for(let a=0;a<3;a++)gradient[a]+=p.strength*k.slope*d[a]/(distance*p.reachMm);
+  return {kind:'points',field,cell,buckets};
+}
+
+const bucketKey=(x,y,z)=>x+','+y+','+z;
+
+export function evaluateBlobField(prepared,point,{derivatives=false}={}){
+  const {field}=prepared;
+  if(prepared.kind==='bumps'){
+    let value=0;
+    const ranges=point.map((v,i)=>[Math.ceil((v-field.radiusMm-field.originMm[i])/field.periodMm[i]),Math.floor((v+field.radiusMm-field.originMm[i])/field.periodMm[i])]);
+    requireThat(ranges.flat().every(Number.isSafeInteger),'Bump lattice indices exceed exact integer representation; increase lattice spacing or move its origin closer.');
+    for(let x=ranges[0][0];x<=ranges[0][1];x++)for(let y=ranges[1][0];y<=ranges[1][1];y++)for(let z=ranges[2][0];z<=ranges[2][1];z++){
+      const center=[x,y,z].map((v,i)=>field.originMm[i]+v*field.periodMm[i]);
+      value+=blobFalloff(Math.hypot(...point.map((v,i)=>v-center[i]))/field.radiusMm).value;
     }
-    return derivatives?{value,gradient}:{value};
-  };
+    return {value};
+  }
+  requireThat(Array.isArray(point)&&point.length===3&&point.every(Number.isFinite),'Blob field evaluation needs finite XYZ millimetres.');
+  const {cell,buckets}=prepared;
+  let value=0;const gradient=[0,0,0];
+  for(const index of buckets?(buckets.get(bucketKey(...point.map(v=>Math.floor(v/cell))))??[]):field.points.keys()){
+    const p=field.points[index],d=point.map((v,a)=>v-p.positionMm[a]),distance=Math.hypot(...d);
+    if(distance>=p.reachMm)continue;
+    const k=blobFalloff(distance/p.reachMm);value+=p.strength*k.value;
+    if(derivatives&&distance>0)for(let a=0;a<3;a++)gradient[a]+=p.strength*k.slope*d[a]/(distance*p.reachMm);
+  }
+  return derivatives?{value,gradient}:{value};
 }

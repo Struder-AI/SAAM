@@ -2,15 +2,15 @@
 import Module from 'manifold-3d';
 import {makeMesh} from './mesh.mjs';
 import {requireThat} from './tolerance.mjs';
-let runtime;
-export const solidKernel=()=>runtime??=Module().then(module=>{module.setup();return module;});
+const kernel={runtime:null};
+export const solidKernel=()=>kernel.runtime??=Module().then(module=>{module.setup();return module;});
 // The kernel addresses 32-bit WebAssembly memory, so the largest mesh it can
 // hold is a capacity of the kernel rather than a chosen budget. Triangle cost
 // covers its indices, vertex properties and halfedge structures.
 export const KERNEL_TRIANGLE_CAPACITY=Math.floor(4*1024**3/64);
 // An aborted instance stays unusable, so discard it after a kernel failure and
 // let the next caller build a fresh one.
-export function discardSolidKernel(){runtime=undefined;}
+export function discardSolidKernel(){kernel.runtime=null;}
 
 // MeshGL stores Float32 positions. Carry their residual in three property
 // channels so distinct nearby double-precision vertices do not collapse on

@@ -55,12 +55,12 @@ export async function sourceSkewNotice(sinceMs=loadedAtMs,{base=root,roots=SOURC
 // rethrow without the error itself being rewritten. A detected skew persists
 // until this process restarts, which is the only cure for it.
 const skewNotes=new WeakMap();
-let skewNotice=null,skewCheckedAt=0;
+const skew={notice:null,checkedAt:0};
 export async function noteSourceSkew(error){
   if(!(error instanceof Error)||skewNotes.has(error))return error;
   skewNotes.set(error,'');
-  if(!skewNotice&&Date.now()-skewCheckedAt>=3000){skewCheckedAt=Date.now();skewNotice=await sourceSkewNotice();}
-  if(skewNotice)skewNotes.set(error,' '+skewNotice);
+  if(!skew.notice&&Date.now()-skew.checkedAt>=3000){skew.checkedAt=Date.now();skew.notice=await sourceSkewNotice();}
+  if(skew.notice)skewNotes.set(error,' '+skew.notice);
   return error;
 }
 export function reportedMessage(error){const note=skewNotes.get(error);return note?error.message+note:error.message;}
