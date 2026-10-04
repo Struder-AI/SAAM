@@ -737,11 +737,11 @@
     },
     "core/agent/toolkit.mjs": {
       "owner": "context",
-      "reason": "Mixed: builder/maker source onboarding (Maker context, main-session proposal) and development tooling (map read/regenerate, sync status; out of scope, marked outside-product per declaration) pending a file split."
+      "reason": "Mixed: builder/maker source onboarding (Maker context, main-session proposal) and development tooling (map read/regenerate, sync status), owned per declaration by node 11 Development tooling (owner decision 2026-10-04; no file split). The shared onboarding declaration, which also serves developer onboarding, stays Maker context."
     },
     "scripts/agent-toolkit.mjs": {
       "owner": "context",
-      "reason": "Source toolkit command entry; builder onboarding is Maker context (main-session proposal). Its one runCLI also dispatches development commands (developer-onboarding, read-map, regenerate, context-budget) pending a file split."
+      "reason": "Source toolkit command entry; builder onboarding is Maker context (main-session proposal). Its one runCLI also dispatches development commands (developer-onboarding, read-map, regenerate, context-budget), whose implementations are owned by node 11 Development tooling; runCLI stays Maker context (declaration-level ownership, no file split)."
     },
     "skills/catalog.mjs": {
       "owner": "extensions",
@@ -1454,6 +1454,30 @@
     "skills/wave-overhangs/scripts/canopy-example.mjs": {
       "owner": "context",
       "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
+    },
+    "scripts/check-repo.mjs": {
+      "owner": "development",
+      "reason": "Repository documentation link, anchor and digest-freshness check; development tooling."
+    },
+    "scripts/setup-check.mjs": {
+      "owner": "development",
+      "reason": "Source checkout setup verification (dependencies, kernels, bundle and Studio smoke); development tooling."
+    },
+    "scripts/skill-digest.mjs": {
+      "owner": "development",
+      "reason": "Regenerates and checks skills/DIGEST.md from skill metadata; development tooling. The digest it writes is Maker context guidance."
+    },
+    "scripts/build-mesh-repair.mjs": {
+      "owner": "development",
+      "reason": "Builds the native mesh repair helper from core/geom/native sources; build tooling. The helper's runtime lifetime is Geometry."
+    },
+    "packaging/build.mjs": {
+      "owner": "development",
+      "reason": "Release build: assembles the installable platform ZIP; build tooling, not post-install deployment (030-deployment)."
+    },
+    "packaging/native-repair.mjs": {
+      "owner": "development",
+      "reason": "Release build packaging of the native mesh repair helper (source identity and target architecture checks); build tooling."
     }
   },
   "leaves": {
@@ -1461,20 +1485,20 @@
       "owner": "context"
     },
     "core/agent/layers.mjs::contextBudget": {
-      "owner": "outside-product",
-      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
+      "owner": "development",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement). Owner decision 2026-10-04: owned by map-0 node 11 Development tooling at declaration level; the file is shared with Maker context onboarding, no file split."
     },
     "core/agent/layers.mjs::contextBudget::manuals": {
-      "owner": "outside-product",
-      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
+      "owner": "development",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement). Owner decision 2026-10-04: owned by map-0 node 11 Development tooling at declaration level; the file is shared with Maker context onboarding, no file split."
     },
     "core/agent/layers.mjs::contextBudget::read": {
-      "owner": "outside-product",
-      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
+      "owner": "development",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement). Owner decision 2026-10-04: owned by map-0 node 11 Development tooling at declaration level; the file is shared with Maker context onboarding, no file split."
     },
     "core/agent/layers.mjs::contextBudget::size": {
-      "owner": "outside-product",
-      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
+      "owner": "development",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement). Owner decision 2026-10-04: owned by map-0 node 11 Development tooling at declaration level; the file is shared with Maker context onboarding, no file split."
     },
     "core/agent/layers.mjs::gatedIndex": {
       "owner": "context"
@@ -1563,24 +1587,24 @@
       "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
     },
     "core/agent/toolkit.mjs::readMaps": {
-      "owner": "outside-product",
-      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
+      "owner": "development",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement). Owner decision 2026-10-04: owned by map-0 node 11 Development tooling at declaration level; the file is shared with Maker context onboarding, no file split."
     },
     "core/agent/toolkit.mjs::readSkill": {
       "owner": "context",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
     "core/agent/toolkit.mjs::regenerateMap": {
-      "owner": "outside-product",
-      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
+      "owner": "development",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement). Owner decision 2026-10-04: owned by map-0 node 11 Development tooling at declaration level; the file is shared with Maker context onboarding, no file split."
     },
     "core/agent/toolkit.mjs::syncStatus": {
-      "owner": "outside-product",
-      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
+      "owner": "development",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement). Owner decision 2026-10-04: owned by map-0 node 11 Development tooling at declaration level; the file is shared with Maker context onboarding, no file split."
     },
     "core/agent/toolkit.mjs::syncStatus::git": {
-      "owner": "outside-product",
-      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
+      "owner": "development",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement). Owner decision 2026-10-04: owned by map-0 node 11 Development tooling at declaration level; the file is shared with Maker context onboarding, no file split."
     },
     "core/export/bambu-body.mjs::@module": {
       "owner": "export"
@@ -9024,8 +9048,8 @@
       "owner": "studio"
     },
     "core/agent/toolkit.mjs::mapCommand": {
-      "owner": "outside-product",
-      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
+      "owner": "development",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement). Owner decision 2026-10-04: owned by map-0 node 11 Development tooling at declaration level; the file is shared with Maker context onboarding, no file split."
     },
     "core/agent/toolkit.mjs::root": {
       "owner": "context",
@@ -9044,12 +9068,12 @@
       "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
     },
     "core/agent/toolkit.mjs::developerMapSet": {
-      "owner": "outside-product",
-      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
+      "owner": "development",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement). Owner decision 2026-10-04: owned by map-0 node 11 Development tooling at declaration level; the file is shared with Maker context onboarding, no file split."
     },
     "core/agent/toolkit.mjs::execFileAsync": {
-      "owner": "outside-product",
-      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
+      "owner": "development",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement). Owner decision 2026-10-04: owned by map-0 node 11 Development tooling at declaration level; the file is shared with Maker context onboarding, no file split."
     },
     "core/export/griffin-player.mjs::temperatureWaitError": {
       "owner": "export"
@@ -11592,6 +11616,189 @@
     },
     "skills/wave-overhangs/scripts/canopy-example.mjs::state": {
       "owner": "context"
+    },
+    "scripts/check-repo.mjs::@module": {
+      "owner": "development"
+    },
+    "scripts/check-repo.mjs::anchors": {
+      "owner": "development"
+    },
+    "scripts/check-repo.mjs::checked": {
+      "owner": "development"
+    },
+    "scripts/check-repo.mjs::decisions": {
+      "owner": "development"
+    },
+    "scripts/check-repo.mjs::documents": {
+      "owner": "development"
+    },
+    "scripts/check-repo.mjs::entries": {
+      "owner": "development"
+    },
+    "scripts/check-repo.mjs::entry": {
+      "owner": "development"
+    },
+    "scripts/check-repo.mjs::errors": {
+      "owner": "development"
+    },
+    "scripts/check-repo.mjs::example": {
+      "owner": "development"
+    },
+    "scripts/check-repo.mjs::excluded": {
+      "owner": "development"
+    },
+    "scripts/check-repo.mjs::historical": {
+      "owner": "development"
+    },
+    "scripts/check-repo.mjs::id": {
+      "owner": "development"
+    },
+    "scripts/check-repo.mjs::ids": {
+      "owner": "development"
+    },
+    "scripts/check-repo.mjs::markdown": {
+      "owner": "development"
+    },
+    "scripts/check-repo.mjs::match": {
+      "owner": "development"
+    },
+    "scripts/check-repo.mjs::path": {
+      "owner": "development"
+    },
+    "scripts/check-repo.mjs::privateFiles": {
+      "owner": "development"
+    },
+    "scripts/check-repo.mjs::reference": {
+      "owner": "development"
+    },
+    "scripts/check-repo.mjs::resolved": {
+      "owner": "development"
+    },
+    "scripts/check-repo.mjs::root": {
+      "owner": "development"
+    },
+    "scripts/check-repo.mjs::tracked": {
+      "owner": "development"
+    },
+    "scripts/check-repo.mjs::walk": {
+      "owner": "development"
+    },
+    "scripts/setup-check.mjs::@module": {
+      "owner": "development"
+    },
+    "scripts/setup-check.mjs::checkSetup": {
+      "owner": "development"
+    },
+    "scripts/setup-check.mjs::deadline": {
+      "owner": "development"
+    },
+    "scripts/skill-digest.mjs::@module": {
+      "owner": "development"
+    },
+    "scripts/skill-digest.mjs::checkSkillDigest": {
+      "owner": "development"
+    },
+    "scripts/skill-digest.mjs::end": {
+      "owner": "development"
+    },
+    "scripts/skill-digest.mjs::root": {
+      "owner": "development"
+    },
+    "scripts/skill-digest.mjs::start": {
+      "owner": "development"
+    },
+    "scripts/skill-digest.mjs::updatedSkillIndex": {
+      "owner": "development"
+    },
+    "scripts/build-mesh-repair.mjs::@module": {
+      "owner": "development"
+    },
+    "scripts/build-mesh-repair.mjs::args": {
+      "owner": "development"
+    },
+    "scripts/build-mesh-repair.mjs::compiler": {
+      "owner": "development"
+    },
+    "scripts/build-mesh-repair.mjs::executable": {
+      "owner": "development"
+    },
+    "scripts/build-mesh-repair.mjs::flags": {
+      "owner": "development"
+    },
+    "scripts/build-mesh-repair.mjs::i": {
+      "owner": "development"
+    },
+    "scripts/build-mesh-repair.mjs::options": {
+      "owner": "development"
+    },
+    "scripts/build-mesh-repair.mjs::output": {
+      "owner": "development"
+    },
+    "scripts/build-mesh-repair.mjs::root": {
+      "owner": "development"
+    },
+    "scripts/build-mesh-repair.mjs::source": {
+      "owner": "development"
+    },
+    "scripts/build-mesh-repair.mjs::version": {
+      "owner": "development"
+    },
+    "packaging/build.mjs::@module": {
+      "owner": "development"
+    },
+    "packaging/build.mjs::describe": {
+      "owner": "development"
+    },
+    "packaging/build.mjs::EXCLUDED": {
+      "owner": "development"
+    },
+    "packaging/build.mjs::fetchNode": {
+      "owner": "development"
+    },
+    "packaging/build.mjs::main": {
+      "owner": "development"
+    },
+    "packaging/build.mjs::MANIFOLD_EXTRAS": {
+      "owner": "development"
+    },
+    "packaging/build.mjs::manifoldExtras": {
+      "owner": "development"
+    },
+    "packaging/build.mjs::measure": {
+      "owner": "development"
+    },
+    "packaging/build.mjs::PLATFORMS": {
+      "owner": "development"
+    },
+    "packaging/build.mjs::root": {
+      "owner": "development"
+    },
+    "packaging/build.mjs::run": {
+      "owner": "development"
+    },
+    "packaging/build.mjs::sha256": {
+      "owner": "development"
+    },
+    "packaging/build.mjs::TAR": {
+      "owner": "development"
+    },
+    "packaging/build.mjs::TAR_ENV": {
+      "owner": "development"
+    },
+    "packaging/build.mjs::writeMacZip": {
+      "owner": "development"
+    },
+    "packaging/native-repair.mjs::@module": {
+      "owner": "development"
+    },
+    "packaging/native-repair.mjs::executablePlatform": {
+      "owner": "development"
+    },
+    "packaging/native-repair.mjs::packageNativeRepair": {
+      "owner": "development"
+    },
+    "packaging/native-repair.mjs::sha": {
+      "owner": "development"
     }
   },
   "retiredAssignments": [

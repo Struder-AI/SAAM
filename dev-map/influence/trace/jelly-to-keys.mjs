@@ -67,7 +67,7 @@ function positions(file) {
 // Scope: the same rule as dev-map/influence/run.mjs. Jelly functions outside it (dependencies,
 // out-of-scope SAAM files) are platform code, so a path A -> platform... -> B is the call A -> B,
 // as the traces see it (they record the SAAM callable current when B is entered).
-const ROOTS=/^(core|studio|skills|workspaces|packaging|scripts|adapters)\//;
+const ROOTS=/^(core|studio|skills|workspaces|scripts|adapters)\/|^packaging\/(application|launch|build|native-repair)\.mjs$/;
 const OUT=/(^|\/)(tests?|demos?|bench|benchmarks?|fixtures?|examples?|vendor|node_modules)\/|\.test\.|\.min\.|^scripts\/(bench|bambu-audit)|^packaging\/(windows|macos)\//;
 const inScope=f=>/\.(mjs|js)$/.test(f)&&ROOTS.test(f)&&!OUT.test(f);
 

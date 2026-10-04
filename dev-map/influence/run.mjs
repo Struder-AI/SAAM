@@ -43,9 +43,10 @@ const selective=valueOf('--selective')!==undefined?+valueOf('--selective'):0;
 const valued=new Set(['--out','--platform','--depth','--draw','--svg','--engine','--max-depth','--max-instances','--edit','--max-ms','--selective']);
 const prefixes=argv.filter((a,i)=>!a.startsWith('--')&&!valued.has(argv[i-1]));
 
-// Scope: SAAM code that runs in use. Tests, demos, benchmarks and development tooling are out.
-// Packaging belongs to the 030-deployment set, except the application host that carries saam calls to the runtime.
-const ROOTS=/^(core|studio|skills|workspaces|scripts|adapters)\/|^packaging\/(application|launch)\.mjs$/;
+// Scope: SAAM code and its development tooling (map-0 node Development tooling). Tests, demos and benchmarks are out.
+// Packaging belongs to the 030-deployment set, except the application host that carries saam calls to the runtime
+// and the release build (build, native-repair).
+const ROOTS=/^(core|studio|skills|workspaces|scripts|adapters)\/|^packaging\/(application|launch|build|native-repair)\.mjs$/;
 const OUT=/(^|\/)(tests?|demos?|bench|benchmarks?|fixtures?|examples?|vendor|node_modules)\/|\.test\.|\.min\.|^scripts\/(bench|bambu-audit)|^packaging\/(windows|macos)\//;
 const inScope=f=>/\.(mjs|js)$/.test(f)&&ROOTS.test(f)&&!OUT.test(f);
 

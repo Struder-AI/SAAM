@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "Post-install packaging owners, 2026-10-04 (owner decision: post-install packaging belongs to 030-deployment; packaging/build.mjs and its native-repair packaging are build tooling, not owned here). Not conformance approval.",
+  "status": "Post-install packaging owners, 2026-10-04 (owner decision: post-install packaging belongs to 030-deployment; packaging/build.mjs and its native-repair packaging are release build tooling, owned by 030-architecture map-0 node 11 Development tooling, not here). Not conformance approval.",
   "policy": "Exact declaration/module ownership under solve-middle's rule: each listed anchor owns its declaration and those nested in it; owners are 030-deployment map-0 nodes.",
   "files": {
     "packaging/client-setup.mjs": {

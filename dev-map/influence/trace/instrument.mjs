@@ -11,7 +11,7 @@
 import * as acorn from 'acorn';
 
 // Scope: the same rule as dev-map/influence/run.mjs (keep them equal).
-const ROOTS=/^(core|studio|skills|workspaces|packaging|scripts|adapters)\//;
+const ROOTS=/^(core|studio|skills|workspaces|scripts|adapters)\/|^packaging\/(application|launch|build|native-repair)\.mjs$/;
 const OUT=/(^|\/)(tests?|demos?|bench|benchmarks?|fixtures?|examples?|vendor|node_modules)\/|\.test\.|\.min\.|^scripts\/(bench|bambu-audit)|^packaging\/(windows|macos)\//;
 export const inScope=f=>/\.(mjs|js)$/.test(f)&&ROOTS.test(f)&&!OUT.test(f);
 
