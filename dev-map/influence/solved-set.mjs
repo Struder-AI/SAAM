@@ -264,7 +264,7 @@ export async function writeModel({log=()=>{}}={}) {
   const sources=Object.fromEntries(files.map(f=>[f,lf(texts.get(f))]));
   const sourceInfo=Object.fromEntries(files.map(f=>[f,{sourceKind:'snapshot',sourceSha256:sha(sources[f])}]));
   const stored={schema:1,mode:'influence',title:spec.title,generated:new Date().toISOString(),regenerate:regenerateCommand,
-    notice:spec.preview?'PREVIEW · partial analysis · unreviewed solver output':'',
+    notice:spec.preview?`PREVIEW · ${notAnalysed?.length?'partial analysis · ':''}unreviewed solver output`:'',
     inputs:{analysis:paths.analysis,authored:paths.authored,sourceRoots:paths.roots},sourceChanged:changed,
     summary:{leaves:model.leaves.length,merged:model.merged,sharedNames:model.sharedNames,arrows:model.arrows.length,drawn:model.leaves.length-unlinked.length,
       unlinked:unlinked.length,unowned:unowned.length,uniform:uniform.size,possiblyCallerDependent:[...leafRow.values()].filter(r=>r.possiblyCallerDependent).length,
