@@ -56,7 +56,7 @@ export function derive(pt,{functions,namespaces,isInstance,moduleActivations}) {
   // Exported callables: those a module namespace field may hold.
   const exported=new Set();
   for(const ns of namespaces.values())for(const name of pt.fieldNames[ns]??[]) {
-    for(const o of pt.pts[pt.fields.get(ns+'\u0000'+name)])if(pt.objects[o].kind==='function')exported.add(canon(pt.objects[o].fn.id));
+    for(const o of pt.pts[pt.fieldNode(ns,name)])if(pt.objects[o].kind==='function')exported.add(canon(pt.objects[o].fn.id));
   }
 
   // Call edges.
@@ -71,9 +71,6 @@ export function derive(pt,{functions,namespaces,isInstance,moduleActivations}) {
   // Callbacks a store hands to a platform object (handlers, properties) are platform-invoked too.
   for(const f of byId)for(const st of f.stores)for(const t of st.site?.platformCallbacks??[])addEdge(f.id,t,st.site,'platform');
 
-  // Field node -> (object, name), for reads.
-  const fieldOf=new Map();
-  for(const [key,n] of pt.fields){const i=key.indexOf('\u0000');fieldOf.set(n,[+key.slice(0,i),key.slice(i+1)]);}
 
   // Ownership. A callable owns what it, a function nested in it, or any copy of either
   // allocated, and a fresh object a query it calls returns (ownership moves with the result:
@@ -86,11 +83,13 @@ export function derive(pt,{functions,namespaces,isInstance,moduleActivations}) {
     reach.set(f,r);return r;};
   // A write is an effect only if another callable can observe it: state only its writer (and
   // functions nested in it) reads, such as a private cache, stays inside that leaf.
-  const fieldObject=new Map();
-  for(const [key,n] of pt.fields)fieldObject.set(n,+key.slice(0,key.indexOf('\u0000')));
+  const fieldObject={get:n=>pt.fieldObj[n]};
   const readersOf=new Map();
-  for(const f of byId)for(const fnode of f.reads){const o=fieldObject.get(fnode);if(o===undefined)continue;
-    (readersOf.get(o)??readersOf.set(o,new Set()).get(o)).add(canon(f.id));}
+  // Objects a callable reads a field of: recorded by object (constraints.mjs), or by field node
+  // (compose.mjs).
+  const objectsRead=f=>f.readObjects??new Set([...f.reads].map(n=>fieldObject.get(n)).filter(o=>o!==undefined));
+  for(const f of byId)for(const o of objectsRead(f))
+    (readersOf.get(o)??readersOf.set(o,new Set()).get(o)).add(canon(f.id));
   const observed=(o,cf)=>{for(const r of readersOf.get(o)??[])if(r!==cf&&!lexicalAncestor(cf,r))return true;return false;};
   const effects=byId.map(()=>({state:new Set(),platform:0}));
   let command=byId.map(()=>false);
@@ -161,7 +160,7 @@ export function derive(pt,{functions,namespaces,isInstance,moduleActivations}) {
     if(depth>1)return false;
     for(const name of pt.fieldNames[o]??[]) {
       if(name==='__proto__')continue;
-      for(const v of pt.pts[pt.fields.get(o+'\u0000'+name)])if(!isOutcomeValue(v,owner,depth+1))return false;
+      for(const v of pt.pts[pt.fieldNode(o,name)])if(!isOutcomeValue(v,owner,depth+1))return false;
     }
     return true;
   };
@@ -195,7 +194,7 @@ export function derive(pt,{functions,namespaces,isInstance,moduleActivations}) {
   // State: objects written as an effect, and who reads them.
   const writers=new Map(),readers=new Map();
   for(const f of reps)for(const o of effects[f.id].state)(writers.get(o)??writers.set(o,new Set()).get(o)).add(f.id);
-  for(const f of byId)for(const fnode of f.reads){const at=fieldOf.get(fnode);if(!at)continue;const [o]=at;
+  for(const f of byId)for(const o of objectsRead(f)){
     if(writers.has(o))(readers.get(o)??readers.set(o,new Set()).get(o)).add(canon(f.id));}
   let stateArrows=0,pairArrows=0,stateNodes=0;
   for(const [o,ws] of writers) {

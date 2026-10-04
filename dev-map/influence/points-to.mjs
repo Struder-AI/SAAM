@@ -36,6 +36,48 @@ export class PairSet {
   }
 }
 
+// A set of object ids (the objects a node may hold), in insertion order: a plain array of small
+// integers, with an open-addressing index once it outgrows a linear scan. A JS Set costs about
+// 100 bytes per member here (measured: 2.5 GB of 4.5 GB live heap for 25 M members in the
+// core/application closure); this costs about 20. Members are only ever added, so an index into
+// the array stays valid while listeners add members during an iteration. Nodes that hold
+// nothing share EMPTY (most nodes): `add` gives a node its own set first.
+const SMALL=16;
+export class IntSet {
+  constructor(){this.a=[];this.idx=null;}
+  get size(){return this.a.length;}
+  has(o) {
+    const idx=this.idx;
+    if(idx===null)return this.a.includes(o);
+    const mask=idx.length-1,k=o+1;
+    for(let h=Math.imul(o,0x9E3779B1)>>>0&mask;;h=(h+1)&mask){const v=idx[h];if(v===k)return true;if(v===0)return false;}
+  }
+  // Adds o if absent; reports whether it was.
+  add(o) {
+    const a=this.a;
+    if(this.idx===null) {
+      if(a.includes(o))return false;
+      a.push(o);
+      if(a.length>SMALL)this.reindex(64);
+      return true;
+    }
+    let idx=this.idx;const k=o+1;
+    let mask=idx.length-1,h=Math.imul(o,0x9E3779B1)>>>0&mask;
+    for(;;h=(h+1)&mask){const v=idx[h];if(v===k)return false;if(v===0)break;}
+    a.push(o);
+    if(a.length*2>idx.length)this.reindex(idx.length*2);else idx[h]=k;
+    return true;
+  }
+  reindex(cap) {
+    const idx=new Int32Array(cap),mask=cap-1,a=this.a;
+    for(let i=0;i<a.length;i++){const o=a[i];let h=Math.imul(o,0x9E3779B1)>>>0&mask;while(idx[h]!==0)h=(h+1)&mask;idx[h]=o+1;}
+    this.idx=idx;
+  }
+  [Symbol.iterator](){return this.a.values();}
+  forEach(fn){const a=this.a;for(let i=0;i<a.length;i++)fn(a[i]);}
+}
+const EMPTY=Object.freeze(new IntSet());
+
 // Nodes on a cycle of copy edges always hold the same set, so they are collapsed into one
 // representative (union-find); `pts[n]` of a collapsed node is its representative's set.
 // Cycles are found by periodic Tarjan passes over the representatives, scheduled against the
@@ -46,12 +88,12 @@ export class PointsTo {
     this.objects=[];this.fieldMaps=[];this.fieldNames=[];this.fieldNodes=[];this.fieldListeners=[];
     this.edges=new PairSet(16);this.fieldCount=0;this.edgeCount=0;this.propagations=0;
     this.fed=[];this.fedWaiters=new Map();
-    this.fieldIndex=null;
+    this.fieldIndex=null;this.fieldObj=[];
     this.collapse=collapse;this.collapsed=0;this.cyclePasses=0;this.cycleMs=0;this.passMin=2e5;this.nextPass=this.passMin;
   }
   node() {
     const n=this.pts.length;
-    this.pts.push(new Set());this.succ.push(null);this.delta.push(null);this.listeners.push(null);this.queued.push(false);this.parent.push(n);this.members.push(null);
+    this.pts.push(EMPTY);this.succ.push(null);this.delta.push(null);this.listeners.push(null);this.queued.push(false);this.parent.push(n);this.members.push(null);
     return n;
   }
   find(n){const p=this.parent;while(p[n]!==n){p[n]=p[p[n]];n=p[n];}return n;}
@@ -61,8 +103,9 @@ export class PointsTo {
   }
   add(n,o) {
     n=this.find(n);
-    const set=this.pts[n];if(set.has(o))return;
-    set.add(o);(this.delta[n]??=[]).push(o);
+    let set=this.pts[n];if(set===EMPTY)set=this.pts[n]=new IntSet();
+    if(!set.add(o))return;
+    (this.delta[n]??=[]).push(o);
     if(!this.queued[n]){this.queued[n]=true;this.queue.push(n);}
   }
   // quiet: an edge that does not make b exist (a value that may be at any name, copied into
@@ -72,8 +115,8 @@ export class PointsTo {
     if(!quiet&&!this.fed[b])this.feed(b);
     if(a===b||!this.edges.add(a,b))return;
     (this.succ[a]??=[]).push(b);this.edgeCount++;
-    const set=this.pts[a];
-    if(set.size)for(const o of set)this.add(b,o);
+    const set=this.pts[a].a;
+    for(let i=0;i<set.length;i++)this.add(b,set[i]);
   }
   // A node is fed once something is written into it: an edge into it (not a quiet one), or a
   // write recorded with feed() (a primitive, an object placed directly). A field node made only
@@ -93,14 +136,14 @@ export class PointsTo {
   on(n,fn) {
     n=this.find(n);
     (this.listeners[n]??=[]).push(fn);
-    const set=this.pts[n];let k=set.size;if(!k)return;
-    for(const o of set){fn(o);if(--k===0)break;}
+    const set=this.pts[n],k=set.size;
+    for(let i=0;i<k;i++)fn(set.a[i]);
   }
   field(o,name) {
     const m=this.fieldMaps[o]??=new Map();
     let n=m.get(name);
     if(n!==undefined)return n;
-    n=this.node();m.set(name,n);this.fieldCount++;this.fieldIndex=null;
+    n=this.node();m.set(name,n);this.fieldObj[n]=o;this.fieldCount++;this.fieldIndex=null;
     (this.fieldNames[o]??=[]).push(name);(this.fieldNodes[o]??=[]).push(n);
     const ls=this.fieldListeners[o];
     if(ls)for(let i=0;i<ls.length;i++)ls[i](name,n);
@@ -178,9 +221,9 @@ export class PointsTo {
   // here, so the merged node starts with no pending delta.
   mergeAll(comp) {
     let r=comp[0];for(const x of comp)if(this.pts[x].size>this.pts[r].size)r=x;
-    const U=this.pts[r];
+    let U=this.pts[r];if(U===EMPTY)U=this.pts[r]=new IntSet();
     const added=[];
-    for(const x of comp)if(x!==r)for(const o of this.pts[x])if(!U.has(o)){U.add(o);added.push(o);}
+    for(const x of comp)if(x!==r){const xs=this.pts[x].a;for(let i=0;i<xs.length;i++)if(U.add(xs[i]))added.push(xs[i]);}
     const owed=[];
     for(const m of comp) {
       const S=this.pts[m],d=this.delta[m];let list;

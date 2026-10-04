@@ -392,7 +392,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     const add=(name,fnode,from)=>{
       if(kind==='keys'){put(el,keyObject(name));return;}
       const P=pairOf(name);
-      if(fnode!==undefined){pt.edge(fnode,pt.field(P,ELEMENT));caller.reads.add(fnode);}
+      if(fnode!==undefined){pt.edge(fnode,pt.field(P,ELEMENT));caller.readObjects.add(pt.fieldObj[fnode]);}
       else if(from!==undefined)loadFrom(from,null,pt.field(P,ELEMENT),caller);
     };
     const source=args[0];
@@ -554,27 +554,27 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
       for(let i=0;i<A.fed.length;i++)pt.edge(A.fed[i],target);
       if(reader)readsAll(o,A,reader);
     } else {
-      const fnode=pt.field(o,name);if(!loaded.add(fnode,target))return;pt.edge(fnode,target);reader?.reads.add(fnode);
+      const fnode=pt.field(o,name);if(!loaded.add(fnode,target))return;pt.edge(fnode,target);reader?.readObjects.add(o);
       if(name!=='__proto__')pt.on(pt.field(o,'__proto__'),p=>loadFrom(p,name,target,reader));
     }
   }
   function load(base,name,target,reader){pt.on(base,o=>loadFrom(o,name,target,reader));}
   // Reads of every field of one object, shared by all the loads and readers that make them: the
-  // object's fields (each reader records them all) and the targets every existing field is
+  // readers (each records the object once it has a field) and the targets every existing field is
   // copied to. Only fields that exist hold values: a field node no write fed (made by a read)
   // holds only values written under unknown names, which the '*' field holds too (intoAllFields).
   const allOf=new Map();
   function allFields(o) {
     let A=allOf.get(o);if(A)return A;
-    A={fields:[],fed:[],targets:[],readers:[]};allOf.set(o,A);
+    A={any:false,fed:[],targets:[],readers:[]};allOf.set(o,A);
     pt.onField(o,(f,fnode)=>{if(f==='__proto__')return;
-      A.fields.push(fnode);for(let i=0;i<A.readers.length;i++)A.readers[i].reads.add(fnode);
+      if(!A.any){A.any=true;for(let i=0;i<A.readers.length;i++)A.readers[i].readObjects.add(o);}
       pt.whenFed(fnode,()=>{A.fed.push(fnode);for(let i=0;i<A.targets.length;i++)pt.edge(fnode,A.targets[i]);});});
     return A;
   }
   function readsAll(o,A,reader) {
     if(!readAll.add(o,reader.object))return;
-    A.readers.push(reader);for(let i=0;i<A.fields.length;i++)reader.reads.add(A.fields[i]);
+    A.readers.push(reader);if(A.any)reader.readObjects.add(o);
   }
   // A read whose value is discarded or used only as a primitive (an operand of an operator, a
   // test, a template part, a computed key): the field nodes it reads are recorded for the
@@ -585,7 +585,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     if(name===null) {
       readsAll(o,allFields(o),reader);
     } else {
-      const fnode=pt.field(o,name);if(!readNamed.add(fnode,reader.object))return;reader.reads.add(fnode);
+      const fnode=pt.field(o,name);if(!readNamed.add(fnode,reader.object))return;reader.readObjects.add(o);
       if(name!=='__proto__')pt.on(pt.field(o,'__proto__'),p=>readFrom(p,name,reader));
     }
   }
@@ -1012,7 +1012,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     const f={id:functions.length,name,kind,file:mod.file,line:node.loc?.start.line,end:node.loc?.end.line,start:node.start,stop:node.end,owner:owner?.id,
       key:mod.file+':'+node.start,inClone:!!owner?.inClone,
       arrow,params:[],rest:undefined,restArray:undefined,ret:pt.node(),thisNode:thisNode??pt.node(),
-      stores:[],reads:new Set(),calls:[],returnsValue:false,allocations:[],exported:false};
+      stores:[],readObjects:new Set(),calls:[],returnsValue:false,allocations:[],exported:false};
     functions.push(f);
     f.object=pt.object({kind:'function',fn:f,name:name??'(anonymous)',owner:owner?.id});
     return f;
