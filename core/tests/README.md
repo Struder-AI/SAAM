@@ -52,7 +52,7 @@ All file names in the core column are relative to `core/tests/`.
 | Skill access and resource provenance | 1, 2 | [gridfinity access](../../skills/gridfinity/tests/access.test.mjs), [thingi10k library](../../skills/thingi10k/tests/library.test.mjs) |
 | Vase-wall seam, near-straight-corner and retired-budget regressions; wavy-seam pattern mapping | 3 | [vase.test.mjs](../../skills/vase-wall/tests/vase.test.mjs), [paths.test.mjs](../../skills/vase-wall/tests/paths.test.mjs) |
 | Canopy-rim wave residue; lettering past the retired triangle ceiling | 3 | [wave.test.mjs](../../skills/wave-overhangs/tests/wave.test.mjs), [text.test.mjs](../../skills/text/tests/text.test.mjs) |
-| Documentation links, build-request structure, devlog presence, digest freshness, private-file exclusions | — | `node scripts/check-repo.mjs` |
+| Documentation links and headings, decision-record identities, skill digest freshness and coverage, private-file exclusions | — | `node scripts/check-repo.mjs` |
 
 Run selected files directly, for example:
 

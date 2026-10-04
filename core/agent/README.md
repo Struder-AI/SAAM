@@ -14,8 +14,8 @@ node scripts/agent-toolkit.mjs developer-onboarding --area core/geom
 node scripts/agent-toolkit.mjs read-skill text --maker --builder --machine ultimaker-s5
 node scripts/agent-toolkit.mjs read-guidance MAKERS.md#standard-parameter-policy
 node scripts/agent-toolkit.mjs read-map 0
-node scripts/agent-toolkit.mjs read-map 2 --set 030-architecture
-node scripts/agent-toolkit.mjs regenerate 6 --set 030-architecture
+node scripts/agent-toolkit.mjs read-map @link/0/2/3
+node scripts/agent-toolkit.mjs regenerate
 node scripts/agent-toolkit.mjs context-budget
 ```
 
@@ -27,14 +27,13 @@ applicable advanced sections; `--all` opens everything. The reader returns
 published source links and the headings/gates it omitted. Local extensions use
 the selected catalog and manual reader; their source remains outside the app.
 
-The [map guide](../../dev-map/README.md#commands) owns the single read contract.
-`read-map` returns visible relationships and exact source ranges; leaves are read
-with ordinary file tools. Link/contract addresses return complete interfaces.
-Reads never return code or scan. Choose `030-architecture` for product work,
-`030-deployment` for installation, and `default` for scanned implementation.
-Indexes belong to their set and may change; record stable identities.
-`--area` accepts component manuals or map addresses and may repeat. Design
-regeneration redraws authored maps; implementation audit is separate.
+Map reads follow the [read contract](../../dev-map/README.md#commands): map 0,
+then a box, then `@link/MAP/FROM/TO` for an arrow's leaf arrows, then the source
+at `file:lines` with ordinary file tools. Reads never return code. The default
+set is `030-influence`; installation and service work passes
+`--set 030-deployment`. Run `regenerate` after each task. Indexes change on
+regeneration; record names and files. `--area` accepts component manuals or map
+addresses and may repeat.
 
 `context-budget` measures assembled manuals and the full application operation
 catalog without starting the app or its release service. Its isolated temporary
