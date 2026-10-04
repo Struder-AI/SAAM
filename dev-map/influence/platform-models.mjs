@@ -18,6 +18,8 @@
 //            dom, storage, shared-memory, ui. An effect is observable outside the caller.
 // - reads:   the outside world it reads: fs, network, clock, random, env, dom, storage.
 // - engine:  semantics the engine implements itself (call, apply, bind, promise).
+// - correlate: the copying engine's field-name-precise semantics (constraints.mjs correlation
+//            tracking: keys, entries, fromEntries); other engines apply the declarative model.
 // A constructor's model is {construct: {...}, call: {...}}; in `construct`, `el`, `fields` and
 // `any` describe the new instance and `this` is the instance.
 //
@@ -156,10 +158,11 @@ const EMITTER={
 export const MODELS={
   // Language and core objects.
   ...group('Object.',{
-    'keys getOwnPropertyNames getOwnPropertySymbols':{out:[arr()]},
+    'keys':{out:[arr()],correlate:'keys'},
+    'getOwnPropertyNames getOwnPropertySymbols':{out:[arr()]},
     'values':{out:[arr('arg0.*')]},
-    'entries':{out:[arr(arr('arg0.*'))]},
-    'fromEntries':{out:[fresh('Object',[],{any:['arg0[][]']})]},
+    'entries':{out:[arr(arr('arg0.*'))],correlate:'entries'},
+    'fromEntries':{out:[fresh('Object',[],{any:['arg0[][]']})],correlate:'fromEntries'},
     'assign':{out:['arg0'],into:[{to:'arg0',copy:['args1+']}]},
     'freeze seal preventExtensions':{out:['arg0'],note:'Changes only integrity flags, which SAAM never reads back.'},
     'isFrozen isSealed isExtensible is hasOwn':P,

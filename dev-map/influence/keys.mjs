@@ -238,5 +238,9 @@ export function keyInfo(ast) {
     if(d===null)return undefined;
     return d.size?{params:[...d]}:ELEMENT;
   }
-  return {keyOf};
+  // The binding record an identifier (a declaration or a use) resolves to: correlated loops and
+  // callbacks (constraints.mjs) name a key binding by its record. kind, inits and writes say
+  // whether it is ever reassigned.
+  const bindingOf=id=>recordOf.get(id);
+  return {keyOf,bindingOf};
 }

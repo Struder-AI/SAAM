@@ -109,7 +109,7 @@ const summary={
     :{readParse:Math.round(ms(t0,t1)),constraints:Math.round(ms(t1,t2)),solve:Math.round(ms(t2,t3)),derive:Math.round(ms(t3,t4)),total:Math.round(ms(t0,t4))},
   ...(engine==='summary'?{compose:built.stats}:{}),
   heapMB:Math.round(process.memoryUsage().heapUsed/1048576),
-  ...(engine==='summary'?{}:{solver:{collapsedNodes:pt.collapsed,cyclePasses:pt.cyclePasses,cycleMs:Math.round(pt.cycleMs),...(settled??{unknownCalls:'off'})}}),
+  ...(engine==='summary'?{}:{solver:{collapsedNodes:pt.collapsed,cyclePasses:pt.cyclePasses,cycleMs:Math.round(pt.cycleMs),...(settled??{unknownCalls:'off'}),correlation:built.correlation}}),
   pointsTo:{nodes:pt.pts.length,objects:pt.objects.length,fieldNodes:pt.fields.size,copyEdges:pt.edgeCount,propagations:pt.propagations,pointsToTotal:ptsTotal,largestSet:ptsMax},
   ...result.summary,
   unmodelled:count(built.unmodelled,u=>u.kind.startsWith('platform:')?'platform API without a model (sites)':u.kind),
@@ -165,6 +165,8 @@ if(out) {
     answersAndActsKeys:result.both.map(f=>f.key),
     uncalledUnexported:result.uncalled.map(name),
     uncalledUnexportedKeys:result.uncalled.map(f=>f.key),
+    arrowlessLeaves:result.arrowless.map(i=>name(fns[i])),
+    arrowlessLeafKeys:result.arrowless.map(i=>fns[i].key),
     arrows:result.arrows.map(a=>({from:name(fns[a.from]),to:name(fns[a.to]),fromKey:fns[a.from].key,toKey:fns[a.to].key,kind:a.kind,count:a.count})),
     leaves:[...result.leaves].map(i=>{const folded=fns.filter(f=>f.id!==i&&!f.inClone&&fn[f.id]!==f.id&&(()=>{let x=f.id;while(fn[x]!==x)x=fn[x];return x;})()===i);
       return {leaf:name(fns[i]),key:fns[i].key,role:result.command[i]?'command':'query',folded:folded.map(name),foldedKeys:folded.map(f=>f.key)};})

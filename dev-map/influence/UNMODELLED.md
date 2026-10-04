@@ -8,7 +8,7 @@
 |---|---|---|
 | Getters and setters (accessors) | 24 | Ban; rewrite as methods |
 | Generators and `yield` | 8 functions, 14 yields | Model |
-| `Object.defineProperty(ies)` | 9 | Model data descriptors (done); ban accessor descriptors (1 site) |
+| `Object.defineProperty(ies)` | 9 | Modelled (done); no longer reported |
 | `Proxy` and `Reflect` | 2 | Ban; rewrite as an explicit indexed reader |
 | Non-literal dynamic `import()` | 2 | Model as the declared extension boundary |
 | Callee expressions (`(await f())()`, `(a??b)()`, `(c?f:g)()`, `f()()`) and computed callees | 20 | Already modelled; drop the notes |
@@ -23,7 +23,7 @@
 
 **Generators (8 functions, 14 yields).** Streaming chunk producers: `core/export/gcode-lines.mjs:8`, `core/geom/mesh-repair.mjs:126`, `core/print/repair-stl.mjs:69` (async), `core/geom/mesh-native.mjs:20` (async), `core/path/action-context.mjs:13`, `core/region/region2d.mjs:215`, `skills/advanced-vase-wall/scripts/runtime.mjs:12`, `studio/move-store.mjs:65` (`[Symbol.iterator]`). *Model*: calling a generator returns a fresh iterator whose elements are what it yields (`yield*` adds the delegate's elements); its body runs as part of the call (sound for influence; small, about 20 lines in either engine). *Ban*: return arrays, which loses streaming for large STL and G-code output. Recommendation: model.
 
-**`Object.defineProperty` / `defineProperties` (9 sites).** Hidden or fixed fields: `core/print/workflow.mjs:338,354,361,390,416` (non-enumerable artifacts on state), `core/geom/mesh.mjs:35,37,119` (mesh fields and a copied descriptor set). One accessor: `studio/server.mjs:721` defines a `studioEvents` getter on the server. Data descriptors are now modelled as a store of `descriptor.value` (platform-models.mjs). Recommendation: allow data descriptors; ban accessor descriptors (rewrite `server.mjs:721` as a method), consistent with accessors above. The constraint walker still notes every call; drop the note for data descriptors once decided.
+**`Object.defineProperty` / `defineProperties` (9 sites): modelled.** Hidden or fixed fields: `core/print/workflow.mjs:338,354,361,390,416` (non-enumerable artifacts on state), `core/geom/mesh.mjs:35,37,119` (mesh fields and a copied descriptor set), and `studio/server.mjs:721`, which defines a `studioEvents` getter on the server. The copying engine models them field by field (`constraints.mjs` `propertyModel`, 2026-10-04): a descriptor's `value` is stored under the field it names, a getter runs as a call when the field is read and a setter when it is written, and `Object.getOwnPropertyDescriptors` copies each field into its own descriptor. The walker no longer notes these calls. What remains an owner question is only the accessor code shape itself (`get`/`set`, above), which `server.mjs:721` also uses through its descriptor. (The summary engine, `compile.mjs`, still notes them: it does not model them.)
 
 **`Proxy` and `Reflect` (2 sites).** `studio/move-store.mjs:74` and `studio/source-player.mjs:11-12` make compact move storage look like an array (`moves[i]`, `push`). Modelling a `get` trap means every field load on the proxy is a call into SAAM code, with the key as a value: expensive and it defeats field sensitivity. *Ban*: expose `at(i)` and `push` explicitly; callers that index use `at`. Recommendation: ban.
 

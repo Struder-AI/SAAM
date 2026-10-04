@@ -45,6 +45,7 @@ export class PointsTo {
     this.pts=[];this.succ=[];this.delta=[];this.listeners=[];this.queue=[];this.queued=[];this.parent=[];this.members=[];
     this.objects=[];this.fieldMaps=[];this.fieldNames=[];this.fieldNodes=[];this.fieldListeners=[];
     this.edges=new PairSet(16);this.fieldCount=0;this.edgeCount=0;this.propagations=0;
+    this.fed=[];this.fedWaiters=new Map();
     this.fieldIndex=null;
     this.collapse=collapse;this.collapsed=0;this.cyclePasses=0;this.cycleMs=0;this.passMin=2e5;this.nextPass=this.passMin;
   }
@@ -64,12 +65,28 @@ export class PointsTo {
     set.add(o);(this.delta[n]??=[]).push(o);
     if(!this.queued[n]){this.queued[n]=true;this.queue.push(n);}
   }
-  edge(a,b) {
+  // quiet: an edge that does not make b exist (a value that may be at any name, copied into
+  // every field: whenFed).
+  edge(a,b,quiet=false) {
     a=this.find(a);b=this.find(b);
+    if(!quiet&&!this.fed[b])this.feed(b);
     if(a===b||!this.edges.add(a,b))return;
     (this.succ[a]??=[]).push(b);this.edgeCount++;
     const set=this.pts[a];
     if(set.size)for(const o of set)this.add(b,o);
+  }
+  // A node is fed once something is written into it: an edge into it (not a quiet one), or a
+  // write recorded with feed() (a primitive, an object placed directly). A field node made only
+  // by a read, or reached only by quiet edges, is not fed: the field need not exist.
+  // whenFed(n, fn) calls fn once n is fed.
+  feed(n) {
+    n=this.find(n);if(this.fed[n])return;this.fed[n]=1;
+    const w=this.fedWaiters.get(n);if(w){this.fedWaiters.delete(n);for(const fn of w)fn();}
+  }
+  whenFed(n,fn) {
+    n=this.find(n);
+    if(this.fed[n]){fn();return;}
+    (this.fedWaiters.get(n)??this.fedWaiters.set(n,[]).get(n)).push(fn);
   }
   // Calls fn(o) for every object that reaches n, now and later. Members added while fn runs
   // reach it through the delta, so only the members present now are visited here.
@@ -188,5 +205,10 @@ export class PointsTo {
       if(s)for(const b of s)for(const o of list)this.add(b,o);
       if(l)for(const fn of l)for(const o of list)fn(o);
     }
+    // Fed if any member was; waiters move to the representative.
+    {let anyFed=false;const waiting=[];
+      for(const x of comp){if(this.fed[x])anyFed=true;const w=this.fedWaiters.get(x);if(w){this.fedWaiters.delete(x);waiting.push(...w);}}
+      if(anyFed){this.fed[r]=1;for(const fn of waiting)fn();}
+      else if(waiting.length)this.fedWaiters.set(r,waiting);}
   }
 }

@@ -39,7 +39,7 @@ export function pairArrowsOf(arrows,boxOf) {
   return {drawn,summary};
 }
 
-export function derive(pt,{functions,namespaces,isInstance}) {
+export function derive(pt,{functions,namespaces,isInstance,moduleActivations}) {
   const byId=functions;
   // Lexical nesting, for locality.
   const ancestorOf=(a,b)=>{for(let x=byId[b];x;x=x.owner!==undefined&&x.owner!==null?byId[x.owner]:null)if(x.id===a)return true;return false;};
@@ -47,6 +47,9 @@ export function derive(pt,{functions,namespaces,isInstance}) {
   // A function analysed once per direct call site is still one callable: copies map to the
   // declaration's own analysis (the one not made inside a copy).
   const rep=new Map();for(const f of byId)if(!f.inClone&&!rep.has(f.key))rep.set(f.key,f.id);
+  // A callable walked only in copies (a closure inside a correlated callback, constraints.mjs)
+  // is still one callable: its first copy stands for it.
+  for(const f of byId)if(!rep.has(f.key))rep.set(f.key,f.id);
   const canon=id=>rep.get(byId[id].key)??id;
   const reps=byId.filter(f=>canon(f.id)===f.id);
 
@@ -151,7 +154,7 @@ export function derive(pt,{functions,namespaces,isInstance}) {
   const isOutcomeValue=(o,owner,depth)=>{
     const x=pt.objects[o];
     if(x.kind==='platform')return false;
-    if(x.kind==='value'||x.kind==='primitive')return true;
+    if(x.kind==='value'||x.kind==='primitive'||x.kind==='key')return true;
     if(x.kind!=='object')return false;
     const w=x.owner;if(w==null)return false;
     const cw=canon(w);if(cw!==owner&&!lexicalAncestor(owner,cw))return false;
@@ -182,6 +185,11 @@ export function derive(pt,{functions,namespaces,isInstance}) {
     return returnsOutcome(e.to)?'acknowledged':'both';
   };
   for(const e of edges){const k=kindOf(e);e.kind=k;if(k==='answer')arrow(e.to,e.from,k);else arrow(e.from,e.to,k);}
+  // Module load code is a leaf too (plans/dev-maps.md#leaves): an importer (or a dynamic
+  // import) activates the imported module's load code, and a function reading a module-level
+  // variable receives what that load code initialised (`initialises`, constraints.mjs moduleRead).
+  for(const [a,b] of moduleActivations?.()??[])arrow(canon(a),canon(b),'activation');
+  for(const f of byId)for(const m of f.moduleReads??[])arrow(canon(m),canon(f.id),'initialises');
   const both=reps.filter(f=>!f.module&&f.kind!=='class'&&incoming[f.id].some(e=>e.kind==='both'));
 
   // State: objects written as an effect, and who reads them.
@@ -215,17 +223,23 @@ export function derive(pt,{functions,namespaces,isInstance}) {
     }
   }
   const leaves=new Set(reps.map(f=>find(f.id)));
+  // Every leaf has an arrow (plans/dev-maps.md#leaves): leaves no arrow enters or leaves, other
+  // than arrows between callables folded into the same leaf.
+  const touched=new Set();
+  for(const a of arrows.values()){const x=find(a.from),y=find(a.to);if(x!==y){touched.add(x);touched.add(y);}}
+  const arrowless=[...leaves].filter(l=>!touched.has(l));
   const uncalled=reps.filter(f=>!f.module&&!exported.has(f.id)&&!incoming[f.id].length&&f.kind!=='class');
 
   const roleCount={query:0,command:0};
   for(const f of reps)roleCount[command[f.id]?'command':'query']++;
   const arrowKinds={};for(const a of arrows.values())arrowKinds[a.kind]=(arrowKinds[a.kind]??0)+1;
   return {
-    edges,arrows:[...arrows.values()],command,effects,readersOf,both,leaves,home,exported,uncalled,
+    edges,arrows:[...arrows.values()],command,effects,readersOf,both,leaves,home,exported,uncalled,arrowless,
     summary:{roleRounds,...(roleOscillation?{roleOscillation}:{}),callables:reps.length,copies:byId.length-reps.length,modules:reps.filter(f=>f.module).length,exported:exported.size,
       callEdges:edges.filter(e=>e.via==='call').length,platformCallbackEdges:edges.filter(e=>e.via==='platform').length,
       roles:roleCount,answersAndActs:both.length,arrows:arrows.size,arrowKinds,pairs:pairArrowsOf([...arrows.values()],x=>x).summary,
       state:{objects:stateNodes,arrowsThroughStateNodes:stateArrows,writerReaderPairs:pairArrows},
-      leaves:leaves.size,folded:reps.length-leaves.size,uncalledUnexported:uncalled.length}
+      leaves:leaves.size,folded:reps.length-leaves.size,uncalledUnexported:uncalled.length,
+      arrowlessLeaves:{total:arrowless.length,moduleLoad:arrowless.filter(l=>byId[l].module).length,uncalledUnexported:arrowless.filter(l=>uncalled.some(f=>f.id===l)).length}}
   };
 }
