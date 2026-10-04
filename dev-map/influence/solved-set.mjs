@@ -328,10 +328,49 @@ function staleness(model) {
   return files.length?{reason:'source changed since the analysis',files,regenerate:'rerun the analysis, then '+model.regenerate}:null;
 }
 
+// Map 0's boxes stand where the authored design set places its nodes: its architecture.json
+// `layout["0"]`, keyed there by authored index and matched here by node id, so a renumbered set
+// keeps its places. Positions come from here alone; when a person can drag boxes and keep them,
+// this is what reads the kept positions instead. Generated placement stays for every other map.
+export function mapZeroPositions(authoredDir=inputs().authored) {
+  const architecture=JSON.parse(readFileSync(resolve(authoredDir,'architecture.json'),'utf8'));
+  const idOf=new Map(architecture.nodes.filter(n=>!String(n.index).includes('.')).map(n=>[String(n.index),n.id]));
+  return Object.fromEntries(Object.entries(architecture.layout?.[TOP]?.positions??{})
+    .filter(([index])=>idOf.has(index)).map(([index,point])=>[idOf.get(index),point]));
+}
+
+// The viewer's model. Map 0 takes the authored positions (boxes they do not place, such as the
+// unowned box, are set out below them and the page is fitted to all of it). What a page cannot
+// draw is a count that opens its list: a badge on the box whose map holds the list, and a marker
+// box on that map; files the analysis did not read are a marked list on map 0.
 export function solvedModel() {
-  const m=stored();
+  const m=stored(),lists={},pages=m.pages.map(p=>p.destination==='graph'?{...p}:p);
+  const byIndex=new Map(pages.map(p=>[p.index,p]));
+  const item=(key,note)=>{const r=m.leaves[key];
+    return {t:r.label,ref:`${r.file}:${r.line}-${r.endLine}`,...(r.index?{go:r.index}:{}),...(note?{n:note}:{})};};
+  for(const p of pages) {
+    if(p.unlinked)lists[`unlinked:${p.index}`]={title:`${p.index} ${p.label} · unlinked: no arrow, so not drawn`,items:p.unlinked.map(k=>item(k))};
+    if(p.unowned)lists.unowned={title:'unowned: no map-0 owner',items:p.unowned.map(k=>item(k,m.leaves[k].gap+(m.leaves[k].unlinked?' · unlinked':'')))};
+  }
+  const placed=mapZeroPositions();
+  for(const p of pages) {
+    if(p.destination!=='graph')continue;
+    const badges=[],markers=[];
+    for(const c of p.components) {
+      const own=c.kind==='group'&&byIndex.get(c.index);if(!own)continue;
+      if(own.unowned)badges.push({index:c.index,text:`${own.unowned.length} unowned`,tone:'unowned',list:'unowned'});
+      if(own.unlinked)badges.push({index:c.index,text:`${own.unlinked.length} unlinked`,tone:'link',list:`unlinked:${own.index}`});
+    }
+    if(p.unlinked)markers.push({id:'list:unlinked',label:`${p.unlinked.length} unlinked`,tone:'link',list:`unlinked:${p.index}`});
+    if(p.unowned)markers.push({id:'list:unowned',label:`${p.unowned.length} unowned`,tone:'unowned',list:'unowned'});
+    if(p.notAnalysed)markers.push({id:'list:not-analysed',label:`not analysed · ${p.notAnalysed.length} files`,note:p.notAnalysed.join('\n'),tone:'missing'});
+    if(p.index===TOP&&m.sourceChanged?.length)markers.push({id:'list:source-moved',label:`source moved since the analysis · ${m.sourceChanged.length} files`,note:m.sourceChanged.join('\n'),tone:'missing'});
+    Object.assign(p,{badges,markers});
+    if(p.index===TOP)p.layout={frame:'all',route:'direct',positions:Object.fromEntries(p.components
+      .map(c=>[c.index,placed[c.path.replace(/^@cluster\//,'')]]).filter(([,point])=>point))};
+  }
   return {generated:m.generated,title:m.title,notice:m.notice,regenerate:m.regenerate,scores:{},snapshotId:m.snapshotId,
-    pages:m.pages,sources:m.sources,sourceInfo:m.sourceInfo,stale:{},changed:[],changedInputs:[]};
+    influence:true,lists,pages,sources:m.sources,sourceInfo:m.sourceInfo,stale:{},changed:[],changedInputs:[]};
 }
 
 // The CLI read, each fact once. `boxes` maps a box's index to a cluster (label, leaves under it,
