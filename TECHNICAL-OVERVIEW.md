@@ -164,7 +164,7 @@ Schemas describe routine fields; manuals describe judgment and limitations.
 | t37 | `get_tour` | Read tour progress/guidance. |
 | t38 | `set_tour_start_at` | Select the relevant playback start. |
 
-Web users select local files in Studio. No tool grants final confirmation,
+People select local files in Studio. No tool grants final confirmation,
 arbitrary filesystem/command access or hardware execution. There is no mandatory
 trace, inject or heat-set catalog tool. Specialized conveniences may be added for
 concrete authoring needs; examples remain explicit, never default geometry.

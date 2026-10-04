@@ -51,11 +51,19 @@ async function atomicWrite(path,text){
 }
 async function optionalRead(path){try{return await readFile(path,'utf8');}catch(error){if(error.code==='ENOENT')return null;throw error;}}
 const marker='<!-- Managed by SAAM application -->';
-function guidance(home){return `${marker}\n# SAAM\n\nUse the installed saam command for making parts, opening Studio and starting the tour. All prints are in ${join(home,'Prints')}; extensions are in ${join(home,'extensions')}.\n\nStart with saam help. Use saam call maker_onboarding to get the current maker context. Operation help comes from saam help OPERATION. Pass JSON through stdin or --input FILE, because PowerShell 5.1 changes quoted JSON arguments. If client registration needs repair, call saam call repair_client_setup and handle its reported errors; the person may need to restart the client to reload permissions.\n\nThe command sends the client's session ID when available. If its response supplies a chat ID, retain it for this chat and pass --chat-id ID on every later command. Naming an existing print attaches to its open Studio when available. Respect Bundle reservations and request IDs. Show intermediate edits; use the returned workRequest to hand work back when finished, needing discussion, or receiving a user interjection. Follow maker onboarding for the operation contract. The person confirms exact settings and toolpath in Studio before export.\n\nAfter working, wait for Studio requests with saam wait. Claude Code can run this in the background and resume the agent when it completes. Codex wakeup is unverified: keep the wait in the client's managed command session and report if it cannot resume.\n`;}
+// The home's AGENTS.md, CLAUDE.md and client skill are the installed program's
+// AGENTS.md, with this home's folders and links resolved to the program's manuals.
+const programRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..');
+async function guidance(home){
+  const source=await readFile(join(programRoot,'AGENTS.md'),'utf8');
+  const linked=source.replace(/\]\((?!https?:|#)([^)\s]+)\)/g,(link,target)=>`](${join(programRoot,target)})`);
+  const located=`This SAAM home is ${resolve(home)}: prints are in ${join(home,'Prints')} and extensions in ${join(home,'extensions')}. SAAM regenerates this file from ${join(programRoot,'AGENTS.md')}.`;
+  return `${marker}\n${linked.replace(/^(# [^\n]*\n)/,`$1\n${located}\n`)}`;
+}
 async function registerSkill(directory,home){
   const target=join(directory,'saam','SKILL.md'),previous=await optionalRead(target);
   if(previous&&!previous.includes(marker))throw Error(`Kept existing custom skill at ${target}; rename it before retrying.`);
-  const skill=`---\nname: saam\ndescription: Make 3D printed parts through SAAM, work with print bundles and Studio, or start the SAAM tour.\n---\n\n${guidance(home)}`;
+  const skill=`---\nname: saam\ndescription: Make 3D printed parts through SAAM, work with print bundles and Studio, or start the SAAM tour.\n---\n\n${await guidance(home)}`;
   await atomicWrite(target,skill);return target;
 }
 async function registerCodex(clientHome,home){
@@ -157,11 +165,11 @@ export async function setupClients({home,clientHome=homedir(),platform=process.p
 }
 
 export async function writeHomeGuidance(home){
-  const written=[];
+  const written=[],text=await guidance(home);
   for(const name of ['AGENTS.md','CLAUDE.md']){
     const target=join(home,name),previous=await optionalRead(target);
     if(previous&&!previous.includes(marker))continue;
-    await atomicWrite(target,guidance(home));written.push(target);
+    await atomicWrite(target,text);written.push(target);
   }
   return written;
 }

@@ -66,7 +66,6 @@ reporting changes. Follow live import progress; cancel through the ordinary Stud
 calculation controls when the person or task calls for it. Makers need no direct
 mesh-repair tools. A replacement retains attribution and records its changes.
 
-<!-- layer: script -->
 ## Command line and cache
 
 ```sh

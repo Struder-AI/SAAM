@@ -1,6 +1,6 @@
 # Guided tour
 
-Ask your agent to open the SAAM tour. With command access it starts
+Ask your agent to open the SAAM tour. It runs
 `saam start-tour` and opens the returned Studio URL. Studio gives the first task;
 the application retains its windows and work between commands.
 

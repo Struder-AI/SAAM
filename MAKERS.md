@@ -68,14 +68,13 @@ reused values. Installation calibration uses values supplied for that installati
 ## Working boundaries
 
 A maker operates published capabilities on the person's print and owns its Studio
-windows through the SAAM application. Web agents remain makers; source changes go to a local builder
+windows through the SAAM application. Source changes go to a builder
 or developer under [role boundaries](AGENTS.md#choose-your-role). Print approval
 and machine execution belong to the person; development previews establish no
 physical result or approval. Prints stay in the [SAAM home](core/application/README.md); sharing
 requires the person's explicit selection.
 
-<!-- layer: script -->
-## With command access
+## Using the saam command
 
 Use [application commands](core/application/README.md): `saam help OP`,
 `saam call OP` with a file, stdin or flags, and `saam wait` for Studio requests.

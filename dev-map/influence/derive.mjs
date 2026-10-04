@@ -11,8 +11,6 @@
 // - A callable folds into its only caller when it is unexported, not handed to the platform,
 //   and touches no state another leaf reads or writes.
 
-const EFFECT_METHOD=/^(writeFile|appendFile|mkdir|rm|rmdir|unlink|rename|copyFile|cp|symlink|chmod|utimes|truncate|postMessage|send|fetch|dispatchEvent|appendChild|removeChild|replaceChildren|replaceWith|insertBefore|append|prepend|remove|setAttribute|removeAttribute|toggleAttribute|addEventListener|removeEventListener|setTimeout|setInterval|clearTimeout|clearInterval|requestAnimationFrame|cancelAnimationFrame|terminate|close|kill|spawn|exec|execFile|fork|listen|write|end|emit|exit|focus|blur|click|scrollTo|scrollIntoView|play|pause|showModal|setPointerCapture|releasePointerCapture|preventDefault|stopPropagation|abort|pushState|replaceState|reload|assign|open|createWriteStream|unref|ref)$/;
-
 // One arrow per pair of boxes (plans/dev-maps.md#notation). Leaf arrows run from influencer to
 // influenced, each `answer`, `activation`, `acknowledged` (dot at its tail) or `both`; boxOf
 // maps a leaf to the box drawing it. A pair gets a head at each end some arrow enters, and a
@@ -111,17 +109,21 @@ export function derive(pt,{functions,namespaces}) {
         if(k==='platform')into.platform++;
         else if((k!=='function'||st.name!=='prototype')&&observed(o,cf))into.state.add(o);
       }
-      for(const s of f.calls)if(s.platform) {
-        const method=s.text.split(/[.\s(]/).filter(Boolean).pop();
-        if(/^console\./.test(s.text))continue;
+      // World effects come from the platform models (platform-models.mjs). Logging is left out.
+      for(const s of f.calls)if(s.platform&&s.effects&&[...s.effects].some(e=>e!=='log')) {
         // A platform method acting on an object this callable owns stays inside it.
-        if(EFFECT_METHOD.test(method)&&!(s.receiver!==undefined&&pt.pts[s.receiver].size&&[...pt.pts[s.receiver]].every(o=>pt.objects[o].kind!=='platform'&&local(o))))into.platform++;
+        if(!(s.receiver!==undefined&&pt.pts[s.receiver].size&&[...pt.pts[s.receiver]].every(o=>pt.objects[o].kind!=='platform'&&local(o))))into.platform++;
       }
     }
   };
   // Roles: command if it has an effect or activates a command, to a fixed point; repeated
-  // until ownership (which depends on roles) stops changing them.
-  for(let round=0;round<10;round++) {
+  // until ownership (which depends on roles) stops changing them. Ownership is not monotone in
+  // roles, so a role state can recur: that is an oscillation, reported with the callables
+  // whose roles keep changing, never passed off as a settled result.
+  const seenStates=new Map();
+  let roleRounds=0,roleOscillation=null;
+  for(;;) {
+    roleRounds++;
     computeEffects();
     const next=byId.map(f=>effects[f.id].platform>0||effects[f.id].state.size>0);
     for(let changed=true;changed;) {
@@ -129,6 +131,15 @@ export function derive(pt,{functions,namespaces}) {
       for(const e of edges)if(!next[e.from]&&next[e.to]){next[e.from]=true;changed=true;}
     }
     const same=next.every((v,i)=>v===command[i]);
+    const state=next.map(v=>v?1:0).join('');
+    if(!same&&seenStates.has(state)) {
+      const flipping=byId.filter(f=>next[f.id]!==command[f.id]&&canon(f.id)===f.id).map(f=>`${f.file}:${f.line} ${f.name??'(anonymous)'}`);
+      roleOscillation={cycleLength:roleRounds-seenStates.get(state),flipping:flipping.slice(0,20),flippingCount:flipping.length,
+        cause:'ownership depends on roles: a callee becoming a command stops returned objects counting as owned, which can remove the effect that made it one'};
+      command=next.map((v,i)=>v||command[i]);
+      break;
+    }
+    seenStates.set(state,roleRounds);
     command=next;
     if(same)break;
   }
@@ -211,7 +222,7 @@ export function derive(pt,{functions,namespaces}) {
   const arrowKinds={};for(const a of arrows.values())arrowKinds[a.kind]=(arrowKinds[a.kind]??0)+1;
   return {
     edges,arrows:[...arrows.values()],command,effects,readersOf,both,leaves,home,exported,uncalled,
-    summary:{callables:reps.length,copies:byId.length-reps.length,modules:reps.filter(f=>f.module).length,exported:exported.size,
+    summary:{roleRounds,...(roleOscillation?{roleOscillation}:{}),callables:reps.length,copies:byId.length-reps.length,modules:reps.filter(f=>f.module).length,exported:exported.size,
       callEdges:edges.filter(e=>e.via==='call').length,platformCallbackEdges:edges.filter(e=>e.via==='platform').length,
       roles:roleCount,answersAndActs:both.length,arrows:arrows.size,arrowKinds,pairs:pairArrowsOf([...arrows.values()],x=>x).summary,
       state:{objects:stateNodes,arrowsThroughStateNodes:stateArrows,writerReaderPairs:pairArrows},

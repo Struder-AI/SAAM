@@ -6,15 +6,15 @@ Developers own core skills, core capabilities, Studio and shared interfaces; bui
 
 ### Working with dev maps
 
-Walk the selected map before editing to understand operations, callers and consequences on the same visible page the person reviews. Maps return relationships and exact source ranges; read those files for internals. Link/contract addresses return complete interfaces; leaves need no further map read. The [map guide](dev-map/README.md) owns terminology, scope, commands and authoring; its [single read contract](dev-map/README.md#commands) applies to replacement integrations.
+Walk the selected map before editing to understand operations, callers and consequences on the same visible page the person reviews. Maps return relationships and exact source ranges; read those files for internals. Link/contract addresses return complete interfaces; leaves need no further map read. The [map guide](dev-map/README.md) owns terminology, scope, commands and authoring.
 
 **A link records influence between two pieces of SAAM: one can change what the other does or receives.** Its arrow points from the influencer to the influenced: a query's answer runs against the call, a command's activation with it. Maps exist so you can change a node knowing everything it affects and everything that affects it, without reading source to find out; a link's kind only says how the influence travels. The [dev maps intent](plans/dev-maps.md) owns the rebuild now under way. Platform code (language, runtime, browser, packages) is not SAAM: our edits cannot change it, so calls into it are counted, never linked. An absent link reads as "no influence", so influence that cannot be ruled out stays visible, as a possible link or a finding. A generated link needs source evidence; file placement, authored nesting and a cleaner picture are none. Design contracts state intended influence, which the audit checks. Judge scanner work by whether the map's account of influence becomes more complete and truthful, not by the counts it changes.
 
-Use `030-architecture` for product work (toolkit default), `030-deployment` for installation/service work, and `default` only for scanned implementation evidence. Always pass `--set` to the lower-level CLI, which defaults to `default`. Never exchange indexes between sets; use indexes in discussion and stable declaration/contract identities in records. Authored designs express intent, not proven implementation: regenerate redraws; audit and audit-check assess implementation and freshness. Scanned regenerate rescans. Follow [Code shape](#code-shape) when editing; map compatibility authorizes no unrelated work.
+Use `030-architecture` for product work (toolkit default), `030-deployment` for installation/service work, and `default` only for scanned implementation evidence. The lower-level CLI defaults to `default`. Authored designs express intent, not proven implementation: regenerate redraws; audit and audit-check assess implementation and freshness. Scanned regenerate rescans. Follow [Code shape](#code-shape) when editing; map compatibility authorizes no unrelated work.
 
 ### Architectural discipline
 
-You are working in a codebase whose owner is unusually explicit about architectural shape. The failures of the past month did not come from unclear requests, they came from competent work that quietly substituted an easier property for the structure asked for. Read this so you recognize that substitution in yourself before it happens.
+You are working in a codebase whose owner is unusually explicit about architectural shape. Its past failures did not come from unclear requests; they came from competent work that quietly substituted an easier property for the structure asked for. Read this so you recognize that substitution in yourself before it happens.
 
 #### The direction
 
@@ -40,7 +40,7 @@ Consolidation is done when consumers use the general operation and the old route
 
 **Local completion reported as end-to-end.** An agent-originated test for a Studio-originated route. A bundled extension for an independent local one. Example parity for lifecycle consolidation. Focused evidence was honest, but it was treated as wider than it was.
 
-The mirror failures matter just as much. Deliberate removals (ribbons, templated shapes, general gap fill, the three-approval ceremony, web relay) and deliberate changes (vase family direction, source-only leaf panes, deferred material overlap) are not regressions. Reading an old decision and restoring what it describes is MORE damaging than dropping a live obligation.
+**Restoring history.** The mirror failure matters just as much: bringing something back because an old decision, plan or note describes it. Current intent lives in the current release intent and the component manuals; anything they do not describe is absent by choice, not a regression.
 
 #### What success has looked like
 
@@ -49,6 +49,26 @@ Architectural success has usually removed something. Geometry consolidation dele
 #### Reporting
 
 Report against the obligation, not the work. State what the general operation now is, which callers changed, which routes are gone, and why any surviving case is physically necessary. Where you replaced a path, state what the old one did that the new one does not. Use one status: implemented, integrated, verified for a named scope, deferred, or superseded. Where your evidence covers less than the obligation, say exactly how much less and at which entrypoint. Partial work honestly scoped is worth more here than a narrower task reported as complete.
+
+#### Intent and rules
+
+State intent positively, at its one owner: what SAAM does, not what must never happen again. A ban outlives the situation it was written for and has to be remembered and revoked; a statement of current intent already excludes the alternatives and stays true until someone edits it. When direction changes, edit the owner, and nothing else needs revoking. History (DECISIONS, DEVLOG, older plans) is reference, never authority.
+
+## Rules
+
+Hard rules for builders and developers. The same list appears in
+[BUILDERS.md](BUILDERS.md#rules) and [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md#rules);
+change both together.
+
+1. Hard rules come only in the owner's wording or with the owner's approval. An agent reacting to a complaint or a failure writes guidance or proposes a rule.
+2. Staging, committing and pushing each need explicit authorization, which may already have been given in the conversation. Pushing to main and merging need authorization for those actions; a request to checkpoint is not a request to publish.
+3. A checkpoint commits all non-ignored work in the checkout, including concurrent contributions, unless the user narrows it, and stays on the current branch.
+4. Keep at most one pending branch per account and reuse it across tasks; edit on it rather than main unless direct main work is explicitly authorized.
+5. Admitting a component or method from outside SAAM, or from superseded work, needs explicit human approval.
+6. Record approvals as given, without widening their scope. Report software and physical results separately.
+7. Work enters a release intent only on the owner's request or approval.
+8. Preserve exact decision quotations, approval events, approved wording, and license, third-party or fixture provenance notices, with their dates.
+9. A cap is never replaced by silent truncation: partial output must not pass as a complete result.
 
 ## Code shape
 
@@ -62,6 +82,6 @@ The code itself must show the scanner and human reviewer the influence between o
 Give conceptual stages and callbacks code names so clusters survive line edits. Apply the architectural discipline above before choosing scanner work; improve syntax resolution where an abstraction earns its place. Authorized architecture work includes these rewrites; an unrelated map read grants no extra scope.
 
 ## References and evidence
-Open component manuals as needed: skills, [application](core/application/README.md), [exporters](core/export/DEVELOP.md) and [toolkit](core/agent/README.md) keep their own contracts. Exclusion from the original scanned map does not exclude them from release audit. [Packaging](packaging/README.md) owns installation/publication; verify the checkout includes released source and the current publishing branch before deriving backlog from old notes. [DEVLOG](DEVLOG.md) owns release evidence; read [checkpoint/publication rules](CONTRIBUTING-AGENTS.md) immediately before committing.
+Open component manuals as needed: skills, [application](core/application/README.md), [exporters](core/export/DEVELOP.md) and [toolkit](core/agent/README.md) keep their own contracts. [Packaging](packaging/README.md) owns installation/publication; verify the checkout includes released source and the current publishing branch before deriving backlog from old notes. [DEVLOG](DEVLOG.md) owns release evidence; [checkpoint and publication guidance](CONTRIBUTING-AGENTS.md) covers committing.
 
-Source establishes implementation, not physical results. Check concrete uncertainties and reuse evidence until its inputs change; completion adds no test gate. Historical work is reference only, including [0.3.0 installation intent](plans/0.3.0.md); honor the [September 12 withdrawal](DECISIONS.md#d-029--withdraw-september-12-contributions-and-vet-readmission). The [active-work upgrade policy](plans/0.3.1.md#retained-behavior-and-extensions) governs saved bundles: preserve passive viewing and invalidate stale reconstruction/output when work resumes.
+Source establishes implementation, not physical results. Check concrete uncertainties and reuse evidence until its inputs change; completion adds no test gate.

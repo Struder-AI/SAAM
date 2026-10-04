@@ -15,7 +15,7 @@ Each callable has one causal role:
 - **Query**: it answers its caller and does nothing else. When A asks B, the arrow is B → A. B's code determines what A receives; A's arguments only shape the answer A gets back.
 - **Command**: it acts. When A activates B, the arrow is A → B, and B's effects carry influence onward: B → C for data B hands to C, B → state for what it writes. A command may return its **outcome**: that it completed or failed, and the identity of anything it created. It returns nothing else its caller computes with.
 
-An effect is a change another callable can observe; a private cache or a leaf's own working state is not one. A leaf that acts and also returns data its caller computes with is banned (command–query separation, with outcomes allowed). It hides effects behind a returned value; rewrite it as a command and a query. Separation is a property of leaves: a box holding several leaves normally relates to another box in both directions.
+An effect is a change another callable can observe; a private cache or a leaf's own working state is not one. Every leaf either answers or acts (command–query separation, with outcomes allowed); one that acts and also returns data its caller computes with is rewritten as a command and a query, because a returned value would hide its effects. Separation is a property of leaves: a box holding several leaves normally relates to another box in both directions.
 
 B's effects are B's own arrows, read and checked at B. A decides whether to activate B and what to do with its outcome; it does not mediate what B does.
 
@@ -27,13 +27,13 @@ Every related pair of boxes is joined by **one** arrow, at every level, never by
 
 - **One head**: influence one way.
 - **Head with a dot at the tail**: an activation that returns only its outcome (A •→ B).
-- **Two heads**: influence both ways. Between leaves it marks a callable that acts and returns data (banned, drawn until rewritten); between larger boxes it is the ordinary two-way relationship.
+- **Two heads**: influence both ways. Between leaves it marks a callable that acts and returns data, drawn until it is rewritten; between larger boxes it is the ordinary two-way relationship.
 
 The stored relationships stay directional; the drawing joins a pair.
 
 ## Leaves
 
-Every piece of SAAM code belongs to exactly one leaf, module load code included. A leaf is one callable with one causal role, opened as source. A helper folds into a leaf only when folding hides no arrow between other nodes. Leaves, their boundaries and their roles are computed from the analysis, never authored. A leaf that drives many unrelated effects is a design problem the map exposes, not a reason for a larger leaf. Leaf internals are read as source, not drawn.
+Every piece of SAAM code belongs to exactly one leaf, module load code included. A leaf is one callable with one causal role, opened as source. A helper folds into a leaf only when folding hides no arrow between other nodes. Leaves, their boundaries and their roles are computed from the analysis, never authored. Every leaf has at least one arrow: code with no causal effect does nothing, so it is removed. A leaf without arrows is either dead code to delete or an analysis gap to fix. A leaf that drives many unrelated effects is a design problem the map exposes, not a reason for a larger leaf. Leaf internals are read as source, not drawn.
 
 ## Levels
 
@@ -44,19 +44,20 @@ Every piece of SAAM code belongs to exactly one leaf, module load code included.
 
 Arrow direction plus role already says who calls whom: a query's arrow runs against the call. Separate authored access lists, such as those in the [0.3.1 contracts](0.3.1.md), become derivable and retire once the checks cover them.
 
-## Banned code
+## What SAAM code is
 
-The map is complete only if the analysis models all code, so the following are banned. Checks report them as errors at a source location, not as findings to accumulate:
+The map is complete only if the analysis models all code. These are the owner's hard rules; the checks reject anything else as an error at its source location, not as a finding to accumulate:
 
-- **Code shapes the analysis does not model.** Supporting a new shape is a deliberate decision, weighing its value against the cost of modelling it. Platform APIs are included: each one SAAM uses needs a model of its influence, or SAAM does not use it.
-- **Influence between top-level nodes that no authored arrow permits.**
-- **Leaves that act and return data their caller computes with.**
+- **SAAM code uses only shapes the analysis models.** Supporting a new shape is a deliberate decision, weighing its value against the cost of modelling it. Platform APIs are included: SAAM uses the APIs whose influence is modelled.
+- **Influence between top-level nodes follows authored arrows.**
+- **Every leaf answers or acts**, returning at most its outcome when it acts.
+- **Every leaf has an arrow.**
 
 The [code-shape rules](../DEVELOPER-CONTEXT.md#code-shape) are consequences of these.
 
 ## Potential, not actual
 
-The analysis represents every influence the code could exert, not whether a given run exerts it. False possibilities are minimised, not eliminated, and drawn marked as possible. Because crossing an authored boundary is banned, a false possibility there forces a rewrite of legitimate code. Spend precision at authored boundaries first, and give boundary code shapes the analysis can prove separate.
+The analysis represents every influence the code could exert, not whether a given run exerts it. False possibilities are minimised, not eliminated, and drawn marked as possible. Because influence across an authored boundary must follow an authored arrow, a false possibility there forces a rewrite of legitimate code. Spend precision at authored boundaries first, and give boundary code shapes the analysis can prove separate.
 
 ## Analysis
 
@@ -81,7 +82,7 @@ The owner may adjust scope.
 ## Milestones
 
 1. **Speed.** Prototype the analysis on a small region; time parsing, constraint generation, solving and arrow derivation; report sizes and extrapolate. No maps or checks.
-2. **Whole scope.** Platform models for the APIs SAAM uses; inventory of unmodelled shapes, each to model or ban; query/command classification; comparison against runtime traces.
+2. **Whole scope.** Platform models for the APIs SAAM uses; inventory of unmodelled shapes, each for the owner to model or rewrite; query/command classification; comparison against runtime traces.
 3. **Checks.** Unmodelled shapes, ownership coverage, top-level arrows and query/command separation, as errors.
 4. **Maps.** Derived levels, the middle-out solver, the viewer, and the [read contract](../dev-map/README.md#commands) on the CLI, toolkit and onboarding routes.
 5. **Retirement.** Remove the old scanner, scope configuration, finding classes and their documentation.

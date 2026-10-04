@@ -103,7 +103,6 @@ keep the cladding away from the mating foot. The body still needs supported
 sections and a valid cladding chart, and cladding needs the configured DENSO
 robot with its external rotary.
 
-<!-- layer: script -->
 ## Command line
 
 The same parameters object, in a JSON file:

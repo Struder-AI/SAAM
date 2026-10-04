@@ -56,7 +56,7 @@ export async function machineHint(root, { from = null, to }) {
     .join(', ')}: read ${sections.length > 1 ? 'them' : 'it'} by name when the print uses ${sections.length > 1 ? 'them' : 'it'}.` : null;
 }
 
-// Bytes of each layer per client and machine. Layers are cumulative reads, so each is the
+// Bytes of each layer per machine. Layers are cumulative reads, so each is the
 // difference between the read that opens it and the one before.
 export async function contextBudget(root, { machineIds = MACHINE_IDS } = {}) {
   const size = text => Buffer.byteLength(text, 'utf8');
@@ -84,41 +84,38 @@ export async function contextBudget(root, { machineIds = MACHINE_IDS } = {}) {
     }
     await runtime.close();
   } finally { await rm(printsRoot, { recursive: true, force: true }); }
-  const operate = await manuals({ client: 'web' }), script = await manuals({ client: 'script' }) - operate;
-  const web = { index, operate, onboardingJson: size(JSON.stringify(await onboardingSources(root, { client: 'web' }))) };
-  const scriptClient = { index, operate, script, onboardingJson: size(JSON.stringify(await onboardingSources(root, { client: 'script' }))) };
+  const operate = await manuals({});
+  const onboardingJson = size(JSON.stringify(await onboardingSources(root, {})));
   const advanced = {};
   for (const machineId of machineIds) {
-    const extra = await manuals({ client: 'script', machineId }) - operate - script;
+    const extra = await manuals({ machineId }) - operate;
     if (extra) advanced[machineId] = extra;
   }
   const skills = {};
   for (const [id, path] of [['GEOMETRY.md', 'GEOMETRY.md'], ...[...SKILL_IDS,...GUIDANCE_IDS,...EXTENSION_IDS].map(id => [id, skillManual(id)])]) {
-    const operateSkill = await read(path, { client: 'web' });
-    const row = { operate: operateSkill, script: await read(path, { client: 'script' }) - operateSkill,
-      all: await read(path, { all: true, client: 'script' }) };
+    const operateSkill = await read(path, {});
+    const row = { operate: operateSkill, all: await read(path, { all: true }) };
     for (const file of ['BUILDER.md', 'DEVELOPER.md']) {
       try { await access(resolve(root, 'skills', id, file)); row.builder = (row.builder ?? 0) + await read(`skills/${id}/${file}`, { all: true }); }
       catch (error) { if (error.code !== 'ENOENT') throw error; }
     }
     for (const machineId of machineIds) {
-      const extra = await read(path, { client: 'script', machineId }) - operateSkill - row.script;
+      const extra = await read(path, { machineId }) - operateSkill;
       if (extra) (row.advanced ??= {})[machineId] = extra;
     }
     skills[id] = row;
   }
   const serializedToolsBytes=size(JSON.stringify({tools:toolDefinitions}));
-  const firstUseBytes=web.onboardingJson+size(instructions)+serializedToolsBytes;
+  const firstUseBytes=onboardingJson+size(instructions)+serializedToolsBytes;
   return {
     unit: 'bytes of assembled UTF-8 text; onboardingJson is the serialized onboarding sources',
-    clients: { web: { ...web, indexPlusOperate: index + operate, applicationInstructions: size(instructions), toolDescriptions: tools,toolSchemas,
+    reader: { index, operate, indexPlusOperate: index + operate, onboardingJson, applicationInstructions: size(instructions), toolDescriptions: tools,toolSchemas,
       serializedToolsBytes,firstUseBytes,firstSliceUseBytes:firstUseBytes+skills.slice.operate,
       measurement:'Application operation catalog (draft-7 input schemas), instructions and onboarding; excludes chat-specific guidance.',
       sliceAndModulateBytes:operations.slice.total+operations.modulate.total,
       target:{bytes:15000,mode:'soft; no capability omission'},operations },
-      script: { ...scriptClient, indexPlusOperatePlusScript: index + operate + script } },
     advancedByMachine: advanced, manualsOnDemand: skills,
-    onDemandTotals: Object.values(skills).reduce((sum, row) => ({ operate: sum.operate + row.operate, script: sum.script + row.script,
-      all: sum.all + row.all, builder: sum.builder + (row.builder ?? 0) }), { operate: 0, script: 0, all: 0, builder: 0 })
+    onDemandTotals: Object.values(skills).reduce((sum, row) => ({ operate: sum.operate + row.operate,
+      all: sum.all + row.all, builder: sum.builder + (row.builder ?? 0) }), { operate: 0, all: 0, builder: 0 })
   };
 }

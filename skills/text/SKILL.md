@@ -178,7 +178,6 @@ or these settings rather than treating a failed mesh as printable. The
 [geometry reference](../../core/geom/README.md#text-and-solid-modifiers) owns the
 algorithms and precision limits.
 
-<!-- layer: script -->
 ## Command line
 
 `node core/print/cli.mjs text Prints/my-part text-request.json --revision REVISION`

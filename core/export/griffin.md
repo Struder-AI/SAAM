@@ -16,6 +16,10 @@ verification, and [remember the setup](../print/USAGE.md#remember-machine-setup)
 for subsequent jobs. The linked devlog observations identify their export and
 behavior; they do not establish the behavior of every S5 installation.
 
+Nave reports early Z movement instead of coordinated XYZ interpolation on
+inclined `G1` extrusion spans; use explicit short collinear segments and
+physically verify the result.
+
 ## Machine program templates and S5 observations
 
 `core/export/griffin.mjs` owns the S5 dialect and the shared motion emitter/modal
