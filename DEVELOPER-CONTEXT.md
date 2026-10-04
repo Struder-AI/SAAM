@@ -8,6 +8,8 @@ Developers own core skills, core capabilities, Studio and shared interfaces; bui
 
 Walk the selected map before editing to understand operations, callers and consequences on the same visible page the person reviews. Maps return relationships and exact source ranges; read those files for internals. Link/contract addresses return complete interfaces; leaves need no further map read. The [map guide](dev-map/README.md) owns terminology, scope, commands and authoring; its [single read contract](dev-map/README.md#commands) applies to replacement integrations.
 
+**A link records influence between two pieces of SAAM: one can change what the other does or receives.** Maps exist so you can change a node knowing everything it affects and everything that affects it, without reading source to find out; a link's kind only says how the influence travels. Platform code (language, runtime, browser, packages) is not SAAM: our edits cannot change it, so calls into it are counted, never linked. An absent link reads as "no influence", so influence that cannot be ruled out stays visible, as a possible link or a finding. A generated link needs source evidence; file placement, authored nesting and a cleaner picture are none. Design contracts state intended influence, which the audit checks. Judge scanner work by whether the map's account of influence becomes more complete and truthful, not by the counts it changes.
+
 Use `030-architecture` for product work (toolkit default), `030-deployment` for installation/service work, and `default` only for scanned implementation evidence. Always pass `--set` to the lower-level CLI, which defaults to `default`. Never exchange indexes between sets; use indexes in discussion and stable declaration/contract identities in records. Authored designs express intent, not proven implementation: regenerate redraws; audit and audit-check assess implementation and freshness. Scanned regenerate rescans. Follow [Code shape](#code-shape) when editing; map compatibility authorizes no unrelated work.
 
 ### Architectural discipline
@@ -50,7 +52,7 @@ Report against the obligation, not the work. State what the general operation no
 
 ## Code shape
 
-The scanner and human reviewer must see actual relationships at operation boundaries. These restrictions need the owner's explicit permission for a compelling exception:
+The code itself must show the scanner and human reviewer the influence between operations. These restrictions need the owner's explicit permission for a compelling exception:
 
 1. No callable and no state in a reassigned binding: execution history would determine what runs or what a value is. Owned state lives in an explicit record or stateful boundary; a callback chosen once is a `const` or named function.
 2. No callee chosen by an expression: the call site must name its callee.

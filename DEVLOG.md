@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-10-03 — State dev-map link intent
+
+- Owner confirmed the intent ([D-045](DECISIONS.md#d-045--a-dev-map-link-records-influence)): a link records influence between two pieces of SAAM, where one can change what the other does or receives. [Developer context](DEVELOPER-CONTEXT.md#working-with-dev-maps) owns the wording, and developer onboarding delivers it to every developer agent.
+- [Map guide](dev-map/README.md): link, finding and platform are defined by influence. Removed the finding kind-to-class table, the uncertain-kind list, the per-directory scope enumeration and repeated link-kind definitions; `lib/findings.mjs` and `lib/scope.mjs` keep those details.
+- Context for resumed scanner work (owner lifted the 2026-09-29 deferral): the current 030-architecture audit reports 17,457 unknowns. A rough callee-name tally puts about 12,000 as calls into platform code the audit cannot yet distinguish from SAAM (it runs with receiver resolution off), leaving roughly 2,000 candidate missing links. No scanner change yet.
+- Line counts: developer context 64 -> 66, map guide 240 -> 223, decisions +3. Verified onboarding output carries the statement; diff whitespace check passed. Documentation only: no tests, regenerate or audit. Untracked `tmp/` (unrelated 37 MB score-extraction scratch) left out of the checkpoint.
+
 ## 2026-10-03 — Schedule general 3D Booleans for 0.4.0
 
 - Owner accepted general solid Booleans and authoritative spatial ownership for [0.4.0](plans/0.4.0.md), following L01 review. Replaced the obsolete uncommitted Boolean intent; retained unrelated geodesic offsets and the unresolved CGAL-removal direction. Existing native-section CSG and Manifold construction Booleans are real capabilities; neither currently supplies the general ownership/emptiness/contact contract needed here.

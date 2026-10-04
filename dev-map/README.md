@@ -1,6 +1,6 @@
 # Dev maps
 
-Implementation-map intent: [DEVELOPER-CONTEXT.md](../DEVELOPER-CONTEXT.md).
+Intent, including what a link means: [DEVELOPER-CONTEXT.md](../DEVELOPER-CONTEXT.md#working-with-dev-maps).
 Active [0.3.2](../plans/0.3.2.md) sets: `030-architecture` for product work (toolkit default), `030-deployment` for installation/service work. CLI defaults to scanned `default`; pass `--set`. Designs express contracts, not conformance.
 
 - `lib/`: source scanning, leaves (`leaves.mjs`), the tree (`tree.mjs`), the
@@ -25,22 +25,20 @@ This guide owns map terminology; some tool fields retain older names. Scanned ma
 | Port / stub | The junction of a link and box, an argument or result slot / an unreached port showing a literal or why the value could not be traced. |
 | Boundary box / edge | A node on another map that a link crosses to / the map's boundary and external boxes. |
 | External | Active outside declarations, DOM events or module load linked to leaves. `0` draws all; clusters draw those linked to nested nodes. Indistinguishable externals with the same connections and directions share a box, so children may distinguish what parents group. |
-| Link / wire | A generated call, data flow or indirect relationship; maps draw one counted link per box pair. See [stored fields](#stored-analysis-and-viewer-fields). |
+| Link / wire | Influence between two nodes, generated from source evidence; its kind says how it travels. Maps draw one counted link per box pair. |
 | Gate / state link | The condition under which a call runs / a read or write of owned state, shown beside the leaf's code in the viewer. |
 | Operator / state | A non-call choice, loop, update, collection or member call / bindings and fields owned by an outer function or class and accessed by inner declarations or members. |
 | Carried value | A loop-updated variable: `initial` and `next` in, `current` and `final` out; an operator's ports, not nodes. |
-| Finding | A scanner limitation: [missing or uncertain](#findings). |
+| Finding | Influence the scanner can neither rule out nor fully trace: [missing or uncertain](#findings). |
 | Annotation | A sourced, dated statement the code cannot establish; see [facts](#authoring). |
-| Outside / platform | Scanned but unmapped code / a call target not scanned. Outside callers are active when making a part or operating Studio. |
+| Outside / platform | Scanned but unmapped SAAM code / code that is not SAAM (language, runtime, browser, packages), counted and never linked. Outside callers are active when making a part or operating Studio. |
 | Node path | A durable declaration or `@cluster/ID` identity independent of indexes. |
 | Score / energy | A map's squared penalties / the solver's weighted sum across maps; see [scoring](#scoring). |
 | Authored inputs | Tree, labels, optional page positions, annotations and scope. Scanned leaves and links are generated. |
 
 ## Scope
 
-The original scanned `default` maps core and Studio product code, excluding `core/agent` and machine dialect exporters under `core/export`, which are scanned outside callers. Output routing, travel advisory and playback timing remain mapped. Skills, adapters and scripts are also outside. Active callers include catalogued skill scripts, MCP, the toolkit and CLI, and exporters; inactive tests, demos, benchmarks and audits are counted, never drawn. Scope crossings in both directions appear as externals at every level.
-
-`lib/scope.mjs` owns these defaults. Named sets select leaves while retaining outside connections; design maps and release audits have their own scope. See [authoring](#authoring).
+The scanned `default` maps core and Studio product code. `lib/scope.mjs` owns its roots and the outside code scanned so its calls into the map are seen. Active outside callers are drawn; inactive ones (tests, demos, benchmarks, audits) are counted. Scope crossings in both directions appear as externals at every level. Named sets select leaves while retaining outside connections; design maps and release audits have their own scope. See [authoring](#authoring).
 
 ## Commands
 
@@ -87,7 +85,6 @@ A leaf includes enclosed declarations it alone reaches and private module
 helpers called only by that stage (`lib/helpers.mjs`). Design uses the current audit's same source-proved containment;
 authored nesting alone proves nothing. Exports, shared callers and escaping references prevent folding.
 Effects, dependencies, source and findings stay visible; folding asserts ownership, not purity.
-No authored vocabulary list suppresses nodes. `new X()` reaches the class.
 
 ## Stored analysis and viewer fields
 
@@ -102,7 +99,7 @@ Stored node fields: `index`, `kind`, `destination`, `stale` when its inputs move
   `leaves` nested, `ports` (a `boundary:` box for each node on another map a
   link crosses to, shown where the two maps meet), and one link per box pair
   lifted onto the boxes holding each end, with `kinds` and `count`. External
-  boxes count toward the map's edge. A link is a call, a value passed between calls or an indirect link.
+  boxes count toward the map's edge.
 - **Leaf** (function, method, handler, class): `path`, `file`, `range`,
   `folded` (owned declarations), `foldedCode` (helpers outside its source span),
   `inputs` (`parameterTargets` on a port this node calls: each callable a
@@ -139,40 +136,26 @@ Stored node fields: `index`, `kind`, `destination`, `stale` when its inputs move
   `current` and `final` ports. A code block adds `source`, `sourceKind`,
   `sourceSha256`, its callees and its call links.
 
-Indirect links are `file`, `http-route`, `worker-message`, `event-listener` (a
-callable handed to a registration or held by an `on<event>` property) and
-`registry-entry`, keyed dispatch: each entry of a named function table reached
-by key from the declaration naming it, computed keys and spreads being an
-analysis limit.
+Coupling kinds, for influence that travels without a call: `file`, `http-route`,
+`worker-message`, `event-listener` and `registry-entry` (keyed dispatch through a
+named function table).
 
 ## Findings
 
-`uncertainty` rows name a `kind`, `unresolved` rows a `rule`; each row names
-its `file`. Stored analysis and the viewer retain every finding. A map carries only the
-**missing** ones (`lib/findings.mjs`), each tagged `missing: code` (red: code
-outside every leaf) or `missing: link` (orange: a relationship between leaves
-no link draws): a leaf box carries its rows, a cluster box the count of each
-class nested in it as `findings`.
+A finding is influence the scanner can neither rule out nor fully trace. Stored
+analysis and the viewer keep every one: `uncertainty` rows name a `kind`,
+`unresolved` rows a `rule`, each its `file`. A map carries the **missing** ones,
+where influence may exist that no box or link shows: `missing: code` (red) for
+code outside every leaf, `missing: link` (orange) for influence between leaves no
+link draws. A leaf box carries its rows, a cluster box the count of each class
+nested in it as `findings`. **Uncertain** rows qualify what a leaf or link already
+draws, such as an argument's origin or which branch runs, and stay in stored
+analysis and the viewer. `lib/findings.mjs` classifies each kind.
 
-Absence of a link is no evidence of absence, especially at unscanned or dynamic boundaries. Never invent a link to hide a finding. Most findings need analysis/generator work; code-shape restrictions are owned by [developer context](../DEVELOPER-CONTEXT.md#code-shape).
-
-| Kind or rule | Class | Not drawn |
-|---|---|---|
-| `module-code` (on `0`: what runs at load, or a callable no leaf holds) | code | the code itself |
-| `member-receiver-unresolved`, `parameter-target` (with `candidates`), `registered-subscriber`, `unresolved-local-value`, `callable-origin`, and an `argument-origin` beside `callable-origin` | link | the call's target |
-| `member-mutation`, `nested-receiver-effect`, `nested-collection-effect`, unless `ownership` is `local` | link | a write to an object another leaf shares |
-| `collection-escape`, `collection-capture`, `record-escape` | link | contents after they leave the leaf |
-| `closure-capture` whose closure is a leaf of its own | link | state two leaves share |
-
-**Uncertain**, a precise aspect of what a leaf or link already draws, in stored
-leaf analysis and the viewer only: `argument-origin`, `return-origin`, `return-field-origin`,
-`return-field-override`, `choice-control`, `iteration-control`,
-`iteration-backedge-control`, `iteration-source`, `iteration-input`,
-`update-input`, `collection-input`, `callback-execution`, `loop-exception-path`,
-`branch-result`, `branch-data-join`, `loop-data-flow`, `collection-alias`,
-`collection-member-write`, `early-exit-control`, `exceptional-control-flow`,
-`switch-control-flow`, `loop-control-transfer`, `receiver-state-order`, and the
-rest of `closure-capture` and the write kinds.
+Absence of a link is no evidence of absence. Resolve a finding by establishing the
+influence, or its absence, from source: first ask whether simpler code removes the
+ambiguity ([code shape](../DEVELOPER-CONTEXT.md#code-shape)), otherwise improve the
+scanner. Never author a link to hide one.
 
 ## Staleness
 
