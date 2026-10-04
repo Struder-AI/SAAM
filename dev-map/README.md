@@ -42,7 +42,8 @@ not analysed a marked list on map 0. The viewer is `sets/030-influence/view/inde
 ```sh
 node scripts/agent-toolkit.mjs read-map ADDRESS [--set NAME]   # default 030-influence
 node scripts/agent-toolkit.mjs regenerate [--set NAME]
-node dev-map/cli.mjs --set NAME read ADDRESS | regenerate | build | check
+node dev-map/cli.mjs --set NAME read ADDRESS | regenerate [--solve changed|place] | build | check
+node dev-map/cli.mjs --set NAME serve [--port N] | import-layout FILE   # authored placement
 ```
 
 Read map 0, then a box, then `@link/MAP/FROM/TO` for the leaf arrows behind an arrow, then the
@@ -82,7 +83,7 @@ modules, Node and acorn, so only closures holding an edited file run again. Each
 kept by a hash of exactly what it reads: its own leaves (by rank, so offsets that merely move do
 not count), its library leaves, the leaf arrows touching them with each far end as its owner node,
 the solve options and the solver's code. Only nodes whose slice changed solve again. With
-`"solve": "place"` in `map.json`, a changed node is not solved: its new leaves go to their file's
+`"solve": "place"` in `map.json` (or `--solve place` for one run), a changed node is not solved: its new leaves go to their file's
 cluster, read as `placement not solved` until a default (`"changed"`) regenerate solves it.
 Timings (2026-10-04): clean 43 minutes (40 of them geometry's solve); unchanged 14 s; a comment
 line in a settings file 3.3 minutes, all analysis, nothing re-solved; one added call there 2.6
@@ -102,6 +103,38 @@ The owner authors the top level in `030-architecture`; everything below it is co
 Design sets (`030-architecture`, `030-deployment`) declare `mode: "design"` and
 `authoring: "manual"` in `map.json`; `build --set NAME` redraws them and `check --set NAME --viewer`
 checks their drawings. Their reads follow the same contract.
+
+## Authored placement
+
+The owner places boxes by dragging them in the viewer ([milestone 5](../plans/dev-maps.md#milestones)).
+
+```sh
+node dev-map/cli.mjs --set 030-influence serve [--port 8768]    # launch entry influence-authoring
+```
+
+draws the view, then serves it at `http://localhost:8768/` with **Arrange** on: drag any box on any
+map and the arrows touching it (heads, dots, labels, boundary boxes) re-route as it moves; other
+boxes stay put. Each drop is saved at once; **Undo move** (ctrl+z) reverts the last move on the
+map; **Reset map** returns a submap to its solved layout and redraws it, and on map 0 puts back
+every box moved this session. Positions persist as authored data
+([placement.mjs](influence/placement.mjs)), each file replaced atomically:
+
+- Map 0's nodes and actors: `030-architecture/architecture.json` `layout["0"].positions` (only that
+  block is rewritten; the architecture viewer uses the same positions).
+- Every other box: `sets/030-influence/layout.json`, `maps[MAP PATH][BOX]` = `{x,y}`. A box is named
+  by identity, never index: `@cluster/ID` for a cluster, `FILE::NAME[ #K]` for a leaf,
+  `b:IDENTITY` for a boundary box, `list:NAME` for a marker.
+
+`build` and `regenerate` draw authored positions over solved ones; a box without one keeps its
+solved place, and only arrows touching a placed box are re-routed. A position whose map or box is
+no longer drawn (a re-solve renumbered clusters, a leaf was renamed) stays in its file and is
+reported by `build`, `regenerate` and `check` (`placement.missing`) and listed on map 0.
+
+Opened any other way (a file, the static `influence-map` server), **Arrange** keeps moves in the
+browser; **Export layout** writes them to a file and
+`node dev-map/cli.mjs --set 030-influence import-layout FILE` commits it.
+
+`regenerate --solve changed|place` overrides `map.json` `solve` for one run.
 
 ## Old scanner tooling (retiring)
 

@@ -26,8 +26,10 @@ import {createHash} from 'node:crypto';
 import {resolve,dirname,basename} from 'node:path';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
+import {parseArgs} from 'node:util';
 import {parse} from 'acorn';
 import {pairArrowsOf} from './derive.mjs';
+import {readPlacement,pageIdentities,placePages} from './placement.mjs';
 import {setFile,setName,setDir,mapSet} from '../lib/map-set.mjs';
 
 const repo=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
@@ -375,20 +377,15 @@ function staleness(model) {
   return files.length?{reason:'source changed since the analysis',files,regenerate:model.regenerate}:null;
 }
 
-// Map 0's boxes stand where the authored design set places its nodes: its architecture.json
-// `layout["0"]`, keyed there by authored index and matched here by node id, so a renumbered set
-// keeps its places. Positions come from here alone; when a person can drag boxes and keep them,
-// this is what reads the kept positions instead. Generated placement stays for every other map.
-export function mapZeroPositions(authoredDir=inputs().authored) {
-  const architecture=JSON.parse(readFileSync(resolve(authoredDir,'architecture.json'),'utf8'));
-  const idOf=new Map(architecture.nodes.filter(n=>!String(n.index).includes('.')).map(n=>[String(n.index),n.id]));
-  for(const id of Object.keys(architecture.actors??{}))idOf.set(`external:${id}`,`external:${id}`);// actor boxes (readAuthored)
-  return Object.fromEntries(Object.entries(architecture.layout?.[TOP]?.positions??{})
-    .filter(([index])=>idOf.has(index)).map(([index,point])=>[idOf.get(index),point]));
-}
+// Authored placement (placement.mjs): map 0's nodes stand where the authored design set places
+// them (architecture.json `layout["0"]`, by authored index, matched by node id so a renumbered set
+// keeps its places); every other box the owner placed is in this set's layout.json by map path and
+// box identity. The authoring server (author-server.mjs) writes both.
+export const placementFiles=()=>({authored:inputs().authored,layout:here('layout.json'),repo});
 
 // The viewer's model. Map 0 takes the authored positions (boxes they do not place, such as the
-// unowned box, are set out below them and the page is fitted to all of it). What a page cannot
+// unowned box, are set out below them and the page is fitted to all of it); any other map takes
+// the positions placed on it over its solved layout. What a page cannot
 // draw is a count that opens its list: a badge on the box whose map holds the list, and a marker
 // box on that map; files the analysis did not read are a marked list on map 0.
 export function solvedModel() {
@@ -400,7 +397,7 @@ export function solvedModel() {
     if(p.unlinked)lists[`unlinked:${p.index}`]={title:`${p.index} ${p.label} · unlinked: no arrow, so not drawn`,items:p.unlinked.map(k=>item(k))};
     if(p.unowned)lists.unowned={title:'unowned: no map-0 owner',items:p.unowned.map(k=>item(k,m.leaves[k].gap+(m.leaves[k].unlinked?' · unlinked':'')))};
   }
-  const placed=mapZeroPositions();
+  const placement=readPlacement(placementFiles());
   for(const p of pages) {
     if(p.destination!=='graph')continue;
     const badges=[],markers=[];
@@ -424,12 +421,25 @@ export function solvedModel() {
         return {t:`${k}: ${x.url??x.route??x.entry??x.kind??''}`,...(at?{ref:`${at[1]}:${at[2]}-${at[2]}`}:{}),...(n?{n}:{})};})));}
     if(p.notAnalysed)listMarker('not-analysed',`not analysed · ${p.notAnalysed.length} files`,'not analysed: in-scope files the analysis did not read',p.notAnalysed.map(f=>({t:f})));
     if(p.index===TOP&&m.sourceChanged?.length)listMarker('source-moved',`source moved since the analysis · ${m.sourceChanged.length} files`,'source moved since the analysis',m.sourceChanged.map(f=>({t:f})));
-    Object.assign(p,{badges,markers,links:viewerLinks(m,p)});
-    if(p.index===TOP)p.layout={frame:'all',route:'direct',positions:Object.fromEntries(p.components
-      .map(c=>[c.index,placed[c.path.replace(/^@cluster\//,'')]]).filter(([,point])=>point))};
+    Object.assign(p,{badges,markers,links:viewerLinks(m,p),idents:pageIdentities(m,p,markers)});
+  }
+  // Positions whose map or box is no longer drawn stay in their file; map 0 lists them.
+  const graph=pages.filter(p=>p.destination==='graph'),root=graph.find(p=>p.index===TOP);
+  const {positions,missing,applied}=placePages(graph,placement.maps,placement.unknown);
+  if(missing.length) {
+    const id='list:authored-missing';
+    lists['authored-missing']={title:'authored positions whose box is no longer drawn: kept in their file until moved again or removed',
+      items:missing.map(x=>({t:`${x.map} · ${x.box}`,n:x.why??`not a node or actor in ${x.file}`}))};
+    root.markers.push({id,label:`authored positions not found · ${missing.length}`,tone:'missing',list:'authored-missing'});
+    root.idents[id]=id;
+  }
+  for(const p of graph) {
+    const at=positions.get(p.index)??{};
+    if(p.index===TOP)p.layout={frame:'all',route:'direct',positions:at};
+    else if(Object.keys(at).length)p.layout={overlay:true,positions:at};
   }
   return {generated:m.generated,title:m.title,notice:m.notice,regenerate:m.regenerate,scores:{},snapshotId:m.snapshotId,
-    influence:true,lists,pages,sources:m.sources,sourceInfo:m.sourceInfo,stale:{},changed:[],changedInputs:[]};
+    influence:true,authoring:{set:setName},placement:{applied,missing},lists,pages,sources:m.sources,sourceInfo:m.sourceInfo,stale:{},changed:[],changedInputs:[]};
 }
 
 // The CLI read: enough to choose what to read next, each fact once, never code. Agents see a
@@ -578,9 +588,14 @@ export function verifyReads(m) {
 }
 
 // ---- commands -----------------------------------------------------------------------------
+// `regenerate [--solve changed|place]` overrides map.json `solve` for one run, so a full solve
+// between sessions needs no edit. `serve [--port N]` is the authoring server (author-server.mjs);
+// `import-layout FILE` applies a viewer's Export layout file to the layout files.
 export async function influenceCommand(command,args) {
   const log=line=>process.stderr.write(line+'\n');
   if(command==='regenerate') {
+    const {values}=parseArgs({args,allowPositionals:true,options:{solve:{type:'string'}}});
+    if(values.solve!==undefined&&!['changed','place'].includes(values.solve))throw Error('--solve is changed or place.');
     const paths=inputs(),clock=Date.now(),seconds=()=>Math.round((Date.now()-clock)/1000);
     let analysed=null;
     if(mapSet.analyse) {
@@ -588,27 +603,43 @@ export async function influenceCommand(command,args) {
       analysed=await analyse({repo,out:paths.analysis,...mapSet.analyse,log});
     }
     const prep=await prepare(paths);log(`model and owners ready at ${seconds()} s`);
-    const solve=await solveAll(prep,{jobs:mapSet.jobs??2,mode:mapSet.solve??'changed',log});log(`solves ready at ${seconds()} s`);
+    const solve=await solveAll(prep,{jobs:mapSet.jobs??2,mode:values.solve??mapSet.solve??'changed',log});log(`solves ready at ${seconds()} s`);
     const model=await writeModel({log,prep,entries:solve.entries});held=model;
     const {buildGeneratedView}=await import('../lib/generated-view.mjs');
     const view=await buildGeneratedView({repo});
     // Every regeneration proves the reads say what the drawings draw, as `check` does.
     const reads=verifyReads(model);
-    console.log(JSON.stringify({mode:'influence',...(analysed?{analysis:analysed}:{}),solved:solve.solved,reused:solve.reused,...(solve.placed.length?{placed:solve.placed}:{}),summary:model.summary,checks:model.checks,reads,view:view.index},null,1));
+    console.log(JSON.stringify({mode:'influence',...(analysed?{analysis:analysed}:{}),solved:solve.solved,reused:solve.reused,...(solve.placed.length?{placed:solve.placed}:{}),summary:model.summary,checks:model.checks,reads,view:view.index,placement:view.placement},null,1));
     if(!model.checks.ok||!reads.ok)process.exitCode=1;
     return;
   }
   if(command==='build') {
     const {buildGeneratedView}=await import('../lib/generated-view.mjs');
     const view=await buildGeneratedView({repo});
-    console.log(JSON.stringify({mode:'influence',view:view.index,pages:view.pages,bytes:view.bytes}));
+    console.log(JSON.stringify({mode:'influence',view:view.index,pages:view.pages,bytes:view.bytes,placement:view.placement}));
     return;
   }
   if(command==='check') {
-    const m=stored(),checks=verify(m),reads=verifyReads(m),stale=staleness(m);
-    console.log(JSON.stringify({mode:'influence',summary:m.summary,checks,reads,...(stale?{stale}:{})},null,1));
+    const m=stored(),checks=verify(m),reads=verifyReads(m),stale=staleness(m),{placement}=solvedModel();
+    console.log(JSON.stringify({mode:'influence',summary:m.summary,checks,reads,placement,...(stale?{stale}:{})},null,1));
     if(!checks.ok||!reads.ok)process.exitCode=1;
     return;
   }
-  throw Error('Influence sets support read, regenerate, build and check.');
+  if(command==='serve') {
+    const {values}=parseArgs({args,options:{port:{type:'string',default:'8768'}}});
+    const {serve}=await import('./author-server.mjs');
+    await serve({port:Number(values.port),files:placementFiles(),view:here('view'),set:setName,log});
+    return;
+  }
+  if(command==='import-layout') {
+    const {positionals}=parseArgs({args,allowPositionals:true,options:{}});
+    if(positionals.length!==1)throw Error('Use: import-layout FILE (a file the viewer\'s Export layout wrote).');
+    const {importLayout}=await import('./placement.mjs');
+    const result=importLayout({...placementFiles(),file:resolve(positionals[0])});
+    const {buildGeneratedView}=await import('../lib/generated-view.mjs');
+    const view=await buildGeneratedView({repo});
+    console.log(JSON.stringify({mode:'influence',imported:result,view:view.index,placement:view.placement},null,1));
+    return;
+  }
+  throw Error('Influence sets support read, regenerate [--solve changed|place], build, check, serve [--port N] and import-layout FILE.');
 }

@@ -6,7 +6,7 @@ import {parseArgs} from 'node:util';
 import {repoRoot as root} from './lib/store.mjs';
 import {commandArgs,setFile,mapSet} from './lib/map-set.mjs';
 
-const usage='Use: node dev-map/cli.mjs [--set NAME | --set-dir DIR] read ADDRESS | build | regenerate [INDEX] | solve [--seed N] | flow-evidence ADDRESS | check [--json] | score [--json] | watch-freshness [--once] [--interval-ms 2000]';
+const usage='Use: node dev-map/cli.mjs [--set NAME | --set-dir DIR] read ADDRESS | build | regenerate [INDEX] [--solve changed|place] | serve [--port N] | import-layout FILE | solve [--seed N] | flow-evidence ADDRESS | check [--json] | score [--json] | watch-freshness [--once] [--interval-ms 2000]';
 const [command='build',...args]=commandArgs;
 if(command==='read') {
   const {positionals}=parseArgs({args,allowPositionals:true,options:{}});

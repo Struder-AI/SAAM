@@ -83,7 +83,8 @@ export async function buildGeneratedView({repo=repoRoot,out=resolve(repo,setFile
   if(!mapSet?.mode)await writeScorePage({repo,out});
   const {bytes,files}=await bytesUnder(out);
   return {out,index:resolve(out,'index.html'),pages:model.pages.length,stale:Object.keys(model.stale).length,
-    changed:model.changed,changedInputs:model.changedInputs,ms:Date.now()-started,bytes,files};
+    changed:model.changed,changedInputs:model.changedInputs,ms:Date.now()-started,bytes,files,
+    ...(model.placement?{placement:model.placement}:{})};
 }
 
 // After a regenerate the viewer follows. A machine without Python still regenerates.

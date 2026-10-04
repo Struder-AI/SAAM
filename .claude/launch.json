@@ -8,6 +8,12 @@
       "port": 8767
     },
     {
+      "name": "influence-authoring",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["dev-map/cli.mjs", "--set", "030-influence", "serve", "--port", "8768"],
+      "port": 8768
+    },
+    {
       "name": "generated-map",
       "runtimeExecutable": "python",
       "runtimeArgs": [

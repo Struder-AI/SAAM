@@ -74,7 +74,10 @@ class MapPage(Page):
     def layout(self):
         super().layout()
         if getattr(self, "authored", None):
-            self.position_authored()
+            if self.authored.get("overlay"):
+                self.position_overlay()
+            else:
+                self.position_authored()
         # The expanded owner is the page frame. Its references leave that boundary;
         # diagnostic lists stay outside it rather than masquerading as function contents.
         self.frame_w = max(self.W, 2 * MARGIN_L + max(tw(self.title, 21), tw(self.subtitle, 12),
@@ -160,22 +163,7 @@ class MapPage(Page):
         def route(edge):
             a, b = self.index[edge["src"]], self.index[edge["dst"]]
             if getattr(self, "design", False) or self.authored.get("route") == "direct":
-                paired = any(e["src"] == edge["dst"] and e["dst"] == edge["src"] for e in self.edges)
-                if abs(b.cy - a.cy) > abs(b.cx - a.cx):
-                    down = b.cy > a.cy
-                    offset = (35 if down else -35) if paired else 0
-                    sx, sy = a.cx + offset, a.y + a.h if down else a.y
-                    dx, dy = b.cx + offset, b.y if down else b.y + b.h
-                    bend = (dy - sy) * .45
-                    return ([(sx, sy), (sx, sy + bend), (dx, dy - bend), (dx, dy)],
-                            ((sx + dx) / 2 + (55 if down else -55) if paired else (sx + dx) / 2, (sy + dy) / 2))
-                right = b.cx > a.cx
-                offset = (20 if right else -20) if paired else 0
-                sx, sy = a.x + a.w if right else a.x, a.cy + offset
-                dx, dy = b.x if right else b.x + b.w, b.cy + offset
-                bend = (dx - sx) * .45
-                return ([(sx, sy), (sx + bend, sy), (dx - bend, dy), (dx, dy)],
-                        ((sx + dx) / 2, (sy + dy) / 2))
+                return self.direct_route(edge)
             if (a.id.startswith("external:") or b.id.startswith("external:")) and abs(b.cy - a.cy) > 100:
                 down = b.cy > a.cy
                 sx, sy = a.cx, a.y + a.h if down else a.y
@@ -187,6 +175,58 @@ class MapPage(Page):
         self.routes = [route(e) for e in self.edges]
         self.W, self.H = self.right_edge + 30, max(n.y + n.h for n in self.nodes) + 100
         self.zone_rects = []
+
+    def direct_route(self, edge):
+        """A wire straight from one box's facing side to the other's: the route of an authored
+        page, and of any wire touching a box the owner placed. The viewer's live drag
+        (AUTHOR_JS directRoute) draws the same curve, so a move looks the same before and after
+        it is redrawn."""
+        a, b = self.index[edge["src"]], self.index[edge["dst"]]
+        paired = any(e["src"] == edge["dst"] and e["dst"] == edge["src"] for e in self.edges)
+        if abs(b.cy - a.cy) > abs(b.cx - a.cx):
+            down = b.cy > a.cy
+            offset = (35 if down else -35) if paired else 0
+            sx, sy = a.cx + offset, a.y + a.h if down else a.y
+            dx, dy = b.cx + offset, b.y if down else b.y + b.h
+            bend = (dy - sy) * .45
+            return ([(sx, sy), (sx, sy + bend), (dx, dy - bend), (dx, dy)],
+                    ((sx + dx) / 2 + (55 if down else -55) if paired else (sx + dx) / 2, (sy + dy) / 2))
+        right = b.cx > a.cx
+        offset = (20 if right else -20) if paired else 0
+        sx, sy = a.x + a.w if right else a.x, a.cy + offset
+        dx, dy = b.x if right else b.x + b.w, b.cy + offset
+        bend = (dx - sx) * .45
+        return ([(sx, sy), (sx + bend, sy), (dx - bend, dy), (dx, dy)],
+                ((sx + dx) / 2, (sy + dy) / 2))
+
+    def position_overlay(self):
+        """Authored positions over the solved layout (plans/dev-maps.md milestone 5): each
+        placed box stands where the owner put it, every other box where the solver did, and
+        only the wires touching a placed box are re-routed, drawn whole and direct."""
+        moved = set()
+        for nid, point in (self.authored.get("positions") or {}).items():
+            node = self.index.get(nid)
+            if node is None:
+                continue
+            node.x, node.y = float(point["x"]), float(point["y"])
+            moved.add(nid)
+        if not moved:
+            return
+        for k, e in enumerate(self.edges):
+            if e["src"] in moved or e["dst"] in moved:
+                self.routes[k] = self.direct_route(e)
+                self.long.discard(k)
+                self.wrapped.discard(k)
+        self.fan = {}
+        for k in self.long:
+            for end in (self.edges[k]["src"], self.edges[k]["dst"]):
+                self.fan[end] = self.fan.get(end, 0) + 1
+        self.right_edge = max(self.right_edge, max(n.x + n.w for n in self.nodes) + 24)
+        self.W = max(self.W, max(n.x + n.w for n in self.nodes) + 40)
+        self.H = max(self.H, max(n.y + n.h for n in self.nodes) + 34)
+        for e, (_pts, lab) in zip(self.edges, self.routes):
+            if lab:
+                self.H = max(self.H, lab[1] + 20 + 12 * e["label"].count(chr(10)))
 
     def _list_columns(self, want):
         """The ledger split into columns of about `want` rows, cut only between sections — a
@@ -273,11 +313,11 @@ class MapPage(Page):
         # A count that opens a list: a whole marker box, or one badge row on a box.
         for n in self.nodes:
             if getattr(n, "list", ""):
-                o.append(f'<rect class="fm-list" data-list="{escape(n.list, QUOTE)}" x="{n.x:.1f}" y="{n.y:.1f}" '
+                o.append(f'<rect class="fm-list" data-list="{escape(n.list, QUOTE)}" data-node="{escape(n.id, QUOTE)}" x="{n.x:.1f}" y="{n.y:.1f}" '
                          f'width="{n.w:.1f}" height="{n.box_h:.1f}" rx="12" fill="#0ea5e9" fill-opacity="0.004"/>')
             for row, name in getattr(n, "list_rows", {}).items():
                 row_y = n.y + PADY + LH_TITLE * .75 + LH_TITLE * len(n.lines) + row * LH_NOTE
-                o.append(f'<rect class="fm-list" data-list="{escape(name, QUOTE)}" x="{n.x + PADX - 3:.1f}" '
+                o.append(f'<rect class="fm-list" data-list="{escape(name, QUOTE)}" data-node="{escape(n.id, QUOTE)}" x="{n.x + PADX - 3:.1f}" '
                          f'y="{row_y - FS_NOTE:.1f}" width="{tw(n.note_lines[row], FS_NOTE) + 6:.1f}" '
                          f'height="{LH_NOTE:.1f}" fill="#0ea5e9" fill-opacity="0.004"/>')
         # The foot of a box is where its source is. Drawn by the base; the hit box goes over it.
@@ -287,7 +327,7 @@ class MapPage(Page):
                 note_refs[0] = n.gate_ref
             for row, gate_ref in note_refs.items():
                 gate_y = n.y + PADY + LH_TITLE * .75 + LH_TITLE * len(n.lines) + row * LH_NOTE
-                o.append(f'<rect class="fm-src fm-gate-source" data-ref="{escape(gate_ref, QUOTE)}" '
+                o.append(f'<rect class="fm-src fm-gate-source" data-ref="{escape(gate_ref, QUOTE)}" data-node="{escape(n.id, QUOTE)}" '
                          f'x="{n.x + PADX - 3:.1f}" y="{gate_y - FS_NOTE:.1f}" '
                          f'width="{tw(n.note_lines[row], FS_NOTE) + 6:.1f}" height="{LH_NOTE:.1f}" '
                          f'fill="#0ea5e9" fill-opacity="0.004"><title>Condition source</title></rect>')
@@ -296,7 +336,7 @@ class MapPage(Page):
                 continue
             ty = (n.y + PADY + LH_TITLE * 0.75 + LH_TITLE * len(n.lines)
                   + LH_NOTE * (len(n.note_lines) + len(n.reference_rows)))
-            o.append(f'<rect class="fm-src" data-ref="{escape(n.anchor_ref, QUOTE)}" data-key="{escape(n.id, QUOTE)}" '
+            o.append(f'<rect class="fm-src" data-ref="{escape(n.anchor_ref, QUOTE)}" data-key="{escape(n.id, QUOTE)}" data-node="{escape(n.id, QUOTE)}" '
                      f'x="{n.x + PADX - 4:.1f}" y="{ty - 1:.1f}" '
                      f'width="{tw(foot, FS_FOOT) + 9:.1f}" height="{FS_FOOT + 5:.1f}" rx="2" '
                      f'fill="#0ea5e9" fill-opacity="0.004"/>')
@@ -596,6 +636,9 @@ def build_page(packet, ctx):
         node.note = (node.note + "\n" if node.note else "") + b["text"]
         node.note_fills = {**getattr(node, "note_fills", {}), row: TONE[b["tone"]]}
         node.list_rows = {**getattr(node, "list_rows", {}), row: b["list"]}
+    for nid, ident in packet.get("idents", {}).items():
+        if nid in page.index:
+            page.index[nid].ident = ident
     lists(packet, page, pages)
     page.layout()
     if getattr(page, "focus", None):
@@ -1234,6 +1277,12 @@ body.noside #side{display:none}
 #codepane .endpoint{font:inherit;color:#0369a1;background:none;border:0;padding:0;cursor:pointer;text-align:left}
 #codepane .endpoint:hover{text-decoration:underline}
 #canvas.wires .fm-edge,#canvas.wires .fm-elab,.fm-wire-hit{cursor:pointer}
+#canvas>svg{overflow:visible}
+#canvas.arrange .fm-node[data-ident]{cursor:grab}
+#stage.drag #canvas.arrange .fm-node{cursor:grabbing}
+#arrange.on{background:#0284c7;color:#fff;border-color:#0284c7}
+#author-status{font-size:12px;color:#475569;margin:0 6px}
+#author-status.bad{color:#dc2626;font-weight:600}
 #canvas.design .fm-node[data-boundary-role="internal"]>rect{stroke:#334155;stroke-dasharray:none;stroke-width:1.8}
 #canvas.design .fm-node[data-boundary-role="external"]>rect{stroke:#64748b;stroke-dasharray:7 4;stroke-width:1.8;fill:#f8fafc}
 .boundary-key{display:flex;gap:16px;align-items:center;font-size:12px;color:#475569}
@@ -1366,13 +1415,17 @@ function apply(){canvas.style.transform=`translate(${view.x}px,${view.y}px) scal
 function toggleMinimap(){const off=document.body.classList.toggle('nomini');
   try{localStorage.setItem('devmap-minimap',off?'off':'on');}catch(e){}}
 try{if(localStorage.getItem('devmap-minimap')==='off')document.body.classList.add('nomini');}catch(e){}
+/* A box's rectangle where it stands now: its drawn rect, plus the move an authored placement made. */
+function rectOf(g){const r=g.querySelector('rect');if(!r)return null;
+  const m=g.transform?.baseVal?.numberOfItems?g.transform.baseVal.consolidate().matrix:null;
+  return {x:r.x.baseVal.value+(m?m.e:0),y:r.y.baseVal.value+(m?m.f:0),w:r.width.baseVal.value,h:r.height.baseVal.value};}
 function minimap(){const s=canvas.querySelector(':scope>svg');
   if(!s){mini.style.display='none';return;}
   const w=s.width.baseVal.value,h=s.height.baseVal.value;
   let body='';
-  for(const g of canvas.querySelectorAll('.fm-node')){const r=g.querySelector('rect');if(!r)continue;
-    body+=`<rect x="${r.x.baseVal.value.toFixed(0)}" y="${r.y.baseVal.value.toFixed(0)}" `+
-          `width="${r.width.baseVal.value.toFixed(0)}" height="${r.height.baseVal.value.toFixed(0)}" fill="#64748b"/>`;}
+  for(const g of canvas.querySelectorAll('.fm-node')){const r=rectOf(g);if(!r)continue;
+    body+=`<rect x="${r.x.toFixed(0)}" y="${r.y.toFixed(0)}" `+
+          `width="${r.w.toFixed(0)}" height="${r.h.toFixed(0)}" fill="#64748b"/>`;}
   mini.innerHTML=`<svg viewBox="0 0 ${w} ${h}" width="200" height="132">${body}`+
     `<rect id="mv" fill="#0284c7" fill-opacity="0.14" stroke="#0284c7" stroke-width="${(w/200*1.6).toFixed(1)}"/></svg>`;
   mini.style.display='block';apply();}
@@ -1441,6 +1494,7 @@ function show(key,push,restore){const p=PAGES[key];if(!p)return false;
     canvas.classList.toggle('authored',!!PAGES[drawing].focus);
     canvas.classList.toggle('design',DESIGN);canvas.classList.toggle('wires',DESIGN||!!PAGES[drawing].links);
     if(PAGES[drawing].links)wireHits();
+    if(AUTHORING)authorShow();
     document.getElementById('fit-all').hidden=!PAGES[drawing].focus;
     crumb.innerHTML=trail(drawing);showScore(PAGES[drawing].sc);
     const mapped=PAGES[drawing];
@@ -1477,8 +1531,8 @@ function hot(id){if(id===hotId)return;
   if(pinId===id){pinLbl.style.display='block';
     pinLbl.innerHTML=`<b>${esc(me?me.dataset.label:id)}</b> · ${near.length} connected · ] [ to walk them`;}
   else pinLbl.style.display='none';}
-function centre(id){const g=node(id);if(!g)return;const r=g.querySelector('rect');if(!r)return;
-  at(r.x.baseVal.value+r.width.baseVal.value/2,r.y.baseVal.value+r.height.baseVal.value/2);}
+function centre(id){const g=node(id);if(!g)return;const r=rectOf(g);if(!r)return;
+  at(r.x+r.w/2,r.y+r.h/2);}
 /* Stand at the other end of a wire, and be able to come back. */
 function standAt(id){if(!node(id))return;
   if(pinId&&pinId!==id)jumped.push(pinId);
@@ -1520,13 +1574,16 @@ stage.addEventListener('wheel',e=>{if(e.target.closest('#codepane,#legendpane,.m
         nk=Math.min(8,Math.max(.02,view.k*Math.exp(-e.deltaY*.0015)));
   view.x=mx-(mx-view.x)*(nk/view.k);view.y=my-(my-view.y)*(nk/view.k);view.k=nk;apply();},
   {passive:false});
-stage.addEventListener('pointerdown',e=>{if(e.target.closest('#codepane,#legendpane,.map-contents')){moved=false;return;}down={x:e.clientX,y:e.clientY,vx:view.x,vy:view.y};
+stage.addEventListener('pointerdown',e=>{if(e.target.closest('#codepane,#legendpane,.map-contents')){moved=false;return;}
+  /* Arranging, a box under the pointer is picked up instead of the page (authorGrab). */
+  if(AUTHORING&&authorGrab(e)){moved=false;stage.setPointerCapture(e.pointerId);return;}
+  down={x:e.clientX,y:e.clientY,vx:view.x,vy:view.y};
   moved=false;stage.setPointerCapture(e.pointerId);stage.classList.add('drag');});
-stage.addEventListener('pointermove',e=>{if(!down)return;
+stage.addEventListener('pointermove',e=>{if(AUTHORING&&AUTHOR.drag){authorMove(e);return;}if(!down)return;
   const dx=e.clientX-down.x,dy=e.clientY-down.y;
   if(Math.abs(dx)+Math.abs(dy)>4)moved=true;
   view.x=down.vx+dx;view.y=down.vy+dy;apply();});
-stage.addEventListener('pointerup',()=>{down=null;stage.classList.remove('drag');});
+stage.addEventListener('pointerup',()=>{if(AUTHORING&&AUTHOR.drag)authorDrop();down=null;stage.classList.remove('drag');});
 
 /* A captured pointer retargets the click to #stage, so the mark under the cursor is
    hit-tested rather than read off the event. */
@@ -1743,6 +1800,133 @@ show(navigationKey(history.state,location.hash.slice(1)),false);
 """
 
 
+AUTHOR_JS = """
+
+/* -- authored placement (plans/dev-maps.md milestone 5) ------------------------------------
+   Arranging, any box can be dragged: the wires touching it are re-routed as it moves
+   (directRoute draws the curve generated-view.py direct_route draws) and every other box
+   stays put. A drop is saved at once, by box identity (data-ident), never by index: through
+   the authoring server (`node dev-map/cli.mjs --set NAME serve`) into the committed layout
+   files, or, opened any other way, into this browser's storage, which Export layout writes
+   out for `node dev-map/cli.mjs --set NAME import-layout FILE`. */
+const AUTHOR={server:false,on:false,maps:{},undo:[],first:{},at:{},drag:null};
+const AUTHOR_STORE='devmap-layout:'+AUTHORING.set;
+function authorSay(text,bad){const s=document.getElementById('author-status');s.textContent=text;s.classList.toggle('bad',!!bad);}
+function authorCount(){return Object.values(AUTHOR.maps).reduce((t,m)=>t+Object.keys(m).length,0);}
+function authorBar(){const on=AUTHOR.on;document.getElementById('arrange').classList.toggle('on',on);
+  for(const id of ['author-undo','author-reset'])document.getElementById(id).hidden=!on;
+  document.getElementById('author-export').hidden=!on||AUTHOR.server;canvas.classList.toggle('arrange',on);}
+function arrange(){AUTHOR.on=!AUTHOR.on;authorBar();}
+function drawnBox(g){const [x,y,w,h,bh]=g.dataset.box.split(',').map(Number);return {x,y,w,h,bh};}
+function geom(id){const g=node(id);if(!g||!g.dataset.box)return null;const b=drawnBox(g),p=AUTHOR.at[id];
+  const x=p?p.x:b.x,y=p?p.y:b.y;return {x,y,w:b.w,h:b.h,cx:x+b.w/2,cy:y+b.bh/2};}
+function directRoute(a,b,paired){
+  if(Math.abs(b.cy-a.cy)>Math.abs(b.cx-a.cx)){const down=b.cy>a.cy,off=paired?(down?35:-35):0;
+    const sx=a.cx+off,sy=down?a.y+a.h:a.y,dx=b.cx+off,dy=down?b.y:b.y+b.h,bend=(dy-sy)*.45;
+    return {pts:[[sx,sy],[sx,sy+bend],[dx,dy-bend],[dx,dy]],lab:[paired?(sx+dx)/2+(down?55:-55):(sx+dx)/2,(sy+dy)/2]};}
+  const right=b.cx>a.cx,off=paired?(right?20:-20):0;
+  const sx=right?a.x+a.w:a.x,sy=a.cy+off,dx=right?b.x:b.x+b.w,dy=b.cy+off,bend=(dx-sx)*.45;
+  return {pts:[[sx,sy],[sx+bend,sy],[dx-bend,dy],[dx,dy]],lab:[(sx+dx)/2,(sy+dy)/2]};}
+function pathOf(pts){const xy=p=>p[0].toFixed(1)+','+p[1].toFixed(1);return 'M'+xy(pts[0])+' C'+pts.slice(1).map(xy).join(' ');}
+/* Every wire touching a box, drawn whole and direct from where both its ends stand now: the
+   arrow (its head and tail marks ride on it), its hit path, its label; a long wire's end tags
+   go, since the wire is now drawn whole. */
+function reroute(id){const q=CSS.escape(id);
+  for(const edge of canvas.querySelectorAll(`.fm-edge[data-a="${q}"],.fm-edge[data-b="${q}"]`)){
+    const {a,b}=edge.dataset,ga=geom(a),gb=geom(b);if(!ga||!gb)continue;
+    const pair=`[data-a="${CSS.escape(a)}"][data-b="${CSS.escape(b)}"]`;
+    const paired=!!canvas.querySelector(`.fm-edge[data-a="${CSS.escape(b)}"][data-b="${CSS.escape(a)}"]`);
+    const r=directRoute(ga,gb,paired),d=pathOf(r.pts);
+    edge.setAttribute('d',d);edge.classList.remove('long');
+    canvas.querySelectorAll('.fm-wire-hit'+pair).forEach(h=>h.setAttribute('d',d));
+    canvas.querySelectorAll('.fm-endtag'+pair).forEach(t=>t.style.display='none');
+    canvas.querySelectorAll('.fm-elab'+pair).forEach(l=>l.setAttribute('transform',
+      `translate(${(r.lab[0]-l.dataset.lx).toFixed(1)},${(r.lab[1]-l.dataset.ly).toFixed(1)})`));}}
+/* A box, its overlay hit boxes (data-node) and its wires, moved to x,y on the drawing. */
+function place(id,x,y){const g=node(id);if(!g||!g.dataset.box)return;const b=drawnBox(g);
+  x=Math.max(0,x);y=Math.max(0,y);
+  if(Math.abs(x-b.x)<.05&&Math.abs(y-b.y)<.05)delete AUTHOR.at[id];else AUTHOR.at[id]={x,y};
+  const t=AUTHOR.at[id]?`translate(${(x-b.x).toFixed(1)},${(y-b.y).toFixed(1)})`:null;
+  for(const el of [g,...canvas.querySelectorAll(`[data-node="${CSS.escape(id)}"]`)])t?el.setAttribute('transform',t):el.removeAttribute('transform');
+  reroute(id);}
+/* A drawing is laid out from the layout files as they were at build; what has been saved
+   since (or kept in this browser) is applied over it when the page opens. */
+function authorShow(){AUTHOR.at={};AUTHOR.drag=null;const saved=AUTHOR.maps[PAGES[cur]?.lp];if(!saved)return;
+  for(const g of canvas.querySelectorAll('.fm-node[data-ident][data-box]')){const p=saved[g.dataset.ident];if(!p)continue;
+    const b=drawnBox(g);if(Math.abs(p.x-b.x)>.5||Math.abs(p.y-b.y)>.5)place(g.dataset.id,p.x,p.y);}
+  minimap();}
+function authorGrab(e){if(!AUTHOR.on||!PAGES[cur]?.lp||!e.target.closest)return false;
+  let g=e.target.closest('.fm-node[data-box]');
+  if(!g){const o=e.target.closest('[data-node]');g=o&&node(o.dataset.node);}
+  if(!g||!g.dataset.ident||!g.dataset.box)return false;
+  const at=geom(g.dataset.id);AUTHOR.drag={id:g.dataset.id,ident:g.dataset.ident,cx:e.clientX,cy:e.clientY,x:at.x,y:at.y,moved:false};
+  return true;}
+function authorMove(e){const d=AUTHOR.drag,dx=e.clientX-d.cx,dy=e.clientY-d.cy;
+  if(!d.moved&&Math.abs(dx)+Math.abs(dy)<=4)return;
+  d.moved=true;moved=true;place(d.id,d.x+dx/view.k,d.y+dy/view.k);}
+function authorDrop(){const d=AUTHOR.drag;AUTHOR.drag=null;if(!d||!d.moved)return;
+  const lp=PAGES[cur].lp,now=geom(d.id),point={x:Math.round(now.x),y:Math.round(now.y)};
+  const from={x:d.x,y:d.y,authored:!!AUTHOR.maps[lp]?.[d.ident]};
+  place(d.id,point.x,point.y);
+  AUTHOR.undo.push({map:lp,id:d.id,ident:d.ident,from});
+  const first=(AUTHOR.first[lp]??={});if(!(d.ident in first))first[d.ident]={...from,id:d.id};
+  authorSave(lp,{[d.ident]:point});minimap();}
+async function authorSave(map,set){
+  if(!AUTHOR.server){const m=(AUTHOR.maps[map]??={});
+    for(const [k,v] of Object.entries(set))v?m[k]=v:delete m[k];
+    if(!Object.keys(m).length)delete AUTHOR.maps[map];
+    try{localStorage.setItem(AUTHOR_STORE,JSON.stringify(AUTHOR.maps));
+      authorSay(`${authorCount()} positions kept in this browser only · Export layout to commit them`);}
+    catch(e){authorSay('browser storage unavailable: Export layout before closing',true);}
+    return true;}
+  authorSay('saving…');
+  try{const r=await fetch('api/positions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({map,set})});
+    const j=await r.json();if(!r.ok)throw Error(j.error||r.status);
+    AUTHOR.maps=j.maps;authorSay('saved to '+j.wrote.join(' and '));return true;}
+  catch(e){authorSay('not saved: '+e.message,true);return false;}}
+/* The last move on this map, undone: the box goes back, and so does its saved position (or
+   its lack of one, which leaves it to the solver). */
+function authorUndo(){const lp=PAGES[cur]?.lp;let k=AUTHOR.undo.length-1;
+  while(k>=0&&AUTHOR.undo[k].map!==lp)k--;
+  if(k<0){authorSay('nothing to undo on this map');return;}
+  const [u]=AUTHOR.undo.splice(k,1);place(u.id,u.from.x,u.from.y);minimap();
+  authorSave(lp,{[u.ident]:u.from.authored?{x:Math.round(u.from.x),y:Math.round(u.from.y)}:null});}
+/* A submap goes back to its solved layout: its authored positions are removed and it is
+   redrawn. Map 0 has no solved layout (its nodes are placed in the authored set), so there
+   every box moved this session goes back to where it stood when first moved. */
+async function authorReset(){const lp=PAGES[cur]?.lp;if(!lp)return;
+  if(lp==='0'){const first=AUTHOR.first[lp];
+    if(!first||!Object.keys(first).length){authorSay('no moves on map 0 this session');return;}
+    if(!confirm('Put every box moved on map 0 this session back where it stood?'))return;
+    const set={};for(const [ident,f] of Object.entries(first)){place(f.id,f.x,f.y);set[ident]=f.authored?{x:Math.round(f.x),y:Math.round(f.y)}:null;}
+    delete AUTHOR.first[lp];AUTHOR.undo=AUTHOR.undo.filter(u=>u.map!==lp);minimap();authorSave(lp,set);return;}
+  if(!confirm('Reset this map to its solved layout? Every authored position on it is removed.'))return;
+  AUTHOR.undo=AUTHOR.undo.filter(u=>u.map!==lp);delete AUTHOR.first[lp];
+  if(!AUTHOR.server){delete AUTHOR.maps[lp];try{localStorage.setItem(AUTHOR_STORE,JSON.stringify(AUTHOR.maps));}catch(e){}
+    show(cur,false);authorSay('this browser\\'s positions for the map removed; committed ones stay until imported over or reset by the server');return;}
+  authorSay('resetting and redrawing…');
+  try{const r=await fetch('api/reset',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({map:lp})});
+    const j=await r.json();if(!r.ok)throw Error(j.error||r.status);AUTHOR.maps=j.maps;authorSay('reset and redrawn; reloading');}
+  catch(e){authorSay('not reset: '+e.message,true);}}
+function authorExport(){const body=JSON.stringify({schema:1,set:AUTHORING.set,exported:new Date().toISOString(),maps:AUTHOR.maps},null,1);
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([body],{type:'application/json'}));
+  a.download=AUTHORING.set+'-layout.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  authorSay(`exported · commit with: node dev-map/cli.mjs --set ${AUTHORING.set} import-layout FILE`);}
+function authorStart(){let local={};try{local=JSON.parse(localStorage.getItem(AUTHOR_STORE)||'{}')||{};}catch(e){}
+  const offline=()=>{AUTHOR.server=false;AUTHOR.maps=local;authorBar();const n=authorCount();
+    authorSay(n?`${n} positions kept in this browser only · Export layout to commit them`:'no authoring server: Arrange keeps moves in this browser');
+    if(cur)authorShow();};
+  if(!/^https?:$/.test(location.protocol))return offline();
+  fetch('api/layout',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject(Error(r.status))).then(j=>{
+    if(j.mode!=='server')throw Error('not the authoring server');
+    AUTHOR.server=true;AUTHOR.on=true;AUTHOR.maps=j.maps;authorBar();
+    authorSay(`authoring · a drop saves to ${j.files.join(' and ')}`+(j.missing?` · ${j.missing} positions not found (map 0 list)`:''));
+    if(cur)authorShow();}).catch(offline);}
+addEventListener('keydown',e=>{if(!AUTHOR.on||e.target.closest?.('input,textarea'))return;
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();authorUndo();}});
+"""
+
+
 def influence_legend():
     def box(style):
         s = STYLE[style]
@@ -1802,6 +1986,13 @@ def legend_html():
     return "".join(o)
 
 
+AUTHOR_BAR = ('<button id="arrange" onclick="arrange()" title="drag boxes to place them; their wires follow">Arrange</button>'
+              '<button id="author-undo" onclick="authorUndo()" hidden title="undo the last move on this map (ctrl+z)">Undo move</button>'
+              '<button id="author-reset" onclick="authorReset()" hidden title="a submap: back to its solved layout; map 0: this session&#39;s moves undone">Reset map</button>'
+              '<button id="author-export" onclick="authorExport()" hidden title="write this browser&#39;s positions to a file for import-layout">Export layout</button>'
+              '<span id="author-status"></span>')
+
+
 def emit(out, model, pages, svgs, links=None):
     (out / "svg").mkdir(parents=True, exist_ok=True)
     inline = 0
@@ -1821,6 +2012,7 @@ def emit(out, model, pages, svgs, links=None):
     # the way it has to be broken in HTML.
     (out / "stamp.js").write_text(f'stampAt({json.dumps(model.get("built", ""))})', encoding="utf-8")
     page_data = json.dumps(pages).replace("</", "<\\/")
+    authoring_data = json.dumps(model.get("authoring")).replace("</", "<" + chr(92) + "/")
     lists_data = json.dumps(model.get("lists", {})).replace("</", "<\\/")
     graph_pages = {key: p for key, p in pages.items() if p["destination"] in ("graph", "contents")}
     rows, parents = [], {p["p"] for p in graph_pages.values()}
@@ -1882,6 +2074,7 @@ def emit(out, model, pages, svgs, links=None):
     <button onclick="overview()">Fit</button><button id="fit-all" onclick="fit()" hidden>Fit all dependencies</button>
     <button onclick="actual()">100%</button>
     <button onclick="toggleMinimap()" title="show or hide the minimap">Minimap</button>
+    {AUTHOR_BAR if model.get("authoring") else ""}
     <span id="zoom"></span>
   </div>
   <div id="stage"><div id="canvas"></div>
@@ -1892,7 +2085,7 @@ def emit(out, model, pages, svgs, links=None):
     <div id="minimap"></div>
     <div id="pin"></div>
     <div id="hint">{"click a wire = its interface set · " if model.get("design") else "click an arrow = its leaf arrows · " if model.get("influence") else ""}scroll = zoom · drag = pan · click a box = its page · click a box foot = its
-      source · hover = its wires · x pin focus · ] [ next/previous end · \ back to the box ·
+      source · {"Arrange: drag a box = place it, ctrl+z undo · " if model.get("authoring") else ""}hover = its wires · x pin focus · ] [ next/previous end · \ back to the box ·
       click a wire's end tag = stand at its other end · Back previous map · f fit · 0 actual ·
       u up · esc close</div>
   </div>
@@ -1903,7 +2096,8 @@ const BUILT={json.dumps(model.get("built", ""))};
 const SNAPSHOT_ID={json.dumps(model.get("snapshotId"))};
 const DESIGN={json.dumps(model.get("design", False))};
 const LISTS={lists_data};
-{JS}
+const AUTHORING={authoring_data};
+{AUTHOR_JS if model.get("authoring") else ""}{JS}{"authorStart();" if model.get("authoring") else ""}
 </script>
 """
     (out / "index.html").write_text(html, encoding="utf-8")
@@ -1968,6 +2162,8 @@ def build(model, out):
         pages[index]["externalConnections"] = {c["index"]: c.get("externalConnections", []) for c in p.get("components", []) if c.get("kind") == "external"}
         if p.get("links"):
             pages[index]["links"] = 1
+        if model.get("authoring") and destination == "graph":
+            pages[index]["lp"] = p["path"]
         if p.get("design"):
             pages[index]["contracts"] = p["wires"]
             pages[index]["componentLabels"] = {c["index"]: c["label"] for c in p["components"]}
