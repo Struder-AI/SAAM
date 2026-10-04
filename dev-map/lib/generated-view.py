@@ -1233,7 +1233,7 @@ body.noside #side{display:none}
 #codepane .interface ul{margin:0;padding-left:20px}
 #codepane .endpoint{font:inherit;color:#0369a1;background:none;border:0;padding:0;cursor:pointer;text-align:left}
 #codepane .endpoint:hover{text-decoration:underline}
-#canvas.design .fm-edge,#canvas.design .fm-elab,.fm-wire-hit{cursor:pointer}
+#canvas.wires .fm-edge,#canvas.wires .fm-elab,.fm-wire-hit{cursor:pointer}
 #canvas.design .fm-node[data-boundary-role="internal"]>rect{stroke:#334155;stroke-dasharray:none;stroke-width:1.8}
 #canvas.design .fm-node[data-boundary-role="external"]>rect{stroke:#64748b;stroke-dasharray:7 4;stroke-width:1.8;fill:#f8fafc}
 .boundary-key{display:flex;gap:16px;align-items:center;font-size:12px;color:#475569}
@@ -1246,8 +1246,11 @@ body.noside #side{display:none}
 .map-contents ul{padding:0;list-style:none}.map-contents li{margin:10px 0}
 .map-contents button{cursor:pointer;text-align:left;padding:8px 12px;background:#fff;border:1px solid #334155;border-radius:4px;font:inherit}
 .map-contents button.external{border-style:dashed;color:#475569}.map-contents small{display:block;margin:4px 0;color:#64748b}
-#canvas.design .fm-edge.wire-hot{stroke:#0284c7;stroke-width:3.4;opacity:1}
-#canvas.design .fm-elab.wire-hot{opacity:1}
+#canvas.wires .fm-edge.wire-hot{stroke:#0284c7;stroke-width:3.4;opacity:1}
+#canvas.wires .fm-elab.wire-hot{opacity:1}
+#codepane .leafarrows ul{margin:0 0 10px;padding-left:16px}
+#codepane .leafarrows li{margin:3px 0;line-height:1.35}
+#codepane .leafarrows .tail{color:#64748b}
 #canvas.wire-focus .fm-node:not(.wire-end){opacity:.14}
 #canvas.wire-focus .fm-node.wire-end{opacity:1}
 #canvas.wire-focus .fm-node.wire-end rect:first-of-type{stroke:#0284c7;stroke-width:3.4}
@@ -1347,6 +1350,7 @@ function remember(entry,push){
 }
 function goBack(){if(visitAt>0)history.back();}
 function svgAt(k,v){SVG[k]=v;}
+const LINKS={};
 function srcAll(v){SRC=v;}
 function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 function apply(){canvas.style.transform=`translate(${view.x}px,${view.y}px) scale(${view.k})`;
@@ -1435,7 +1439,8 @@ function show(key,push,restore){const p=PAGES[key];if(!p)return false;
     canvas.innerHTML=listing?contents(PAGES[drawing]):SVG[drawing]||'';cur=drawing;graphCur=drawing;pinId=null;jumped=[];hot(null);highlightWire(null);
     if(listing)zoomLbl.textContent='';
     canvas.classList.toggle('authored',!!PAGES[drawing].focus);
-    canvas.classList.toggle('design',DESIGN);
+    canvas.classList.toggle('design',DESIGN);canvas.classList.toggle('wires',DESIGN||!!PAGES[drawing].links);
+    if(PAGES[drawing].links)wireHits();
     document.getElementById('fit-all').hidden=!PAGES[drawing].focus;
     crumb.innerHTML=trail(drawing);showScore(PAGES[drawing].sc);
     const mapped=PAGES[drawing];
@@ -1495,7 +1500,7 @@ function highlightWire(edge){
 }
 stage.addEventListener('pointerover',e=>{
   const el=document.elementFromPoint(e.clientX,e.clientY),g=el&&el.closest('.fm-node');
-  const edge=DESIGN&&el?.closest('.fm-edge,.fm-elab,.fm-wire-hit');
+  const edge=(DESIGN||PAGES[cur]?.links)&&el?.closest('.fm-edge,.fm-elab,.fm-wire-hit');
   hot(edge?null:pinId??g?.dataset.id??null);
   highlightWire(edge);});
 stage.addEventListener('pointerleave',()=>{highlightWire(null);hot(pinId);});
@@ -1506,7 +1511,7 @@ stage.addEventListener('focusin',e=>{
 stage.addEventListener('focusout',e=>{if(e.target.closest('.fm-wire-hit')){highlightWire(null);hot(pinId);}});
 stage.addEventListener('keydown',e=>{
   const edge=e.target.closest('.fm-wire-hit');
-  if(edge&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openContracts(edge.dataset.a,edge.dataset.b);}
+  if(edge&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openWire(edge.dataset.a,edge.dataset.b);}
 });
 
 /* -- pan / zoom ------------------------------------------------------------ */
@@ -1533,7 +1538,7 @@ stage.addEventListener('click',e=>{if(e.target.closest('#codepane,#legendpane')|
   const jump=el.closest('.fm-endtag[data-jump]');
   if(jump){standAt(jump.dataset.jump);return;}
   const edge=el.closest('[data-a][data-b]');
-  if(edge&&DESIGN){openContracts(edge.dataset.a,edge.dataset.b);return;}
+  if(edge&&(DESIGN||PAGES[cur]?.links)){openWire(edge.dataset.a,edge.dataset.b);return;}
   const list=el.closest('.fm-list');
   if(list){openList(list.dataset.list);return;}
   const src=el.closest('.fm-src');
@@ -1548,6 +1553,8 @@ stage.addEventListener('click',e=>{if(e.target.closest('#codepane,#legendpane')|
   if(details){openExternal(details,PAGES[cur]?.externalConnections?.[external.dataset.id]??[]);return;}
   dismissCode();});
 document.addEventListener('click',e=>{
+  const leafEnd=e.target.closest('#codepane [data-ref]');
+  if(leafEnd){openCode(leafEnd.dataset.ref,PAGES[leafEnd.dataset.key]?leafEnd.dataset.key:null);return;}
   const evidence=e.target.closest('#codepane [data-go]');
   if(evidence&&PAGES[evidence.dataset.go]){dismissCode();show(evidence.dataset.go);return;}
   const tw=e.target.closest('#tree .tw');
@@ -1601,9 +1608,9 @@ function openExternal(details,connections){closeCode();legendPane.classList.remo
 function openList(name){const list=LISTS[name];if(!list)return;closeCode();legendPane.classList.remove('on');
   codePane.innerHTML=`<div class="ch"><span class="x" onclick="dismissCode()">&times;</span>`+
     `<h3>${esc(list.title)}</h3></div><div class="cb list">`+list.items.map((it,i)=>
-      `<button data-item="${i}"><b>${esc(it.t)}</b> <span>${esc(it.ref)}${it.n?' · '+esc(it.n):''}</span></button>`).join('')+`</div>`;
+      `<button data-item="${i}"><b>${esc(it.t)}</b> <span>${esc(it.ref??'')}${it.n?(it.ref?' · ':'')+esc(it.n):''}</span></button>`).join('')+`</div>`;
   codePane.querySelectorAll('[data-item]').forEach(b=>b.onclick=()=>{const it=list.items[+b.dataset.item];
-    if(it.go&&PAGES[it.go]){graphCur=null;show(it.go);}else openCode(it.ref);});
+    if(it.go&&PAGES[it.go]){graphCur=null;show(it.go);}else if(it.ref)openCode(it.ref);});
   codePane.classList.add('on');}
 function openCode(ref,key){const cut=ref.lastIndexOf(':'),file=ref.slice(0,cut),
         span=ref.slice(cut+1).split('-'),a=+span[0],b=+span[1];
@@ -1656,6 +1663,43 @@ function openContracts(from,to){
       '</section>').join('')+'</div>';
   codePane.classList.add('on');});
 }
+/* An influence drawing ships its arrows bare; each gets the wide transparent hit path a design
+   wire is drawn with, here rather than in every sidecar, so it can be clicked and focused. The
+   hits sit above every arrow, the shortest on top: where wires share a run into a box, the
+   short one would otherwise lie wholly under a long one and could never be picked. */
+function wireHits(){const edges=[...canvas.querySelectorAll('.fm-edge[data-a][data-b]')];if(!edges.length)return;
+  const hits=edges.map(edge=>{const hit=document.createElementNS('http://www.w3.org/2000/svg','path');
+    hit.setAttribute('class','fm-wire-hit');hit.setAttribute('d',edge.getAttribute('d'));
+    hit.dataset.a=edge.dataset.a;hit.dataset.b=edge.dataset.b;
+    for(const [k,v] of [['fill','none'],['stroke','transparent'],['stroke-width','14'],['vector-effect','non-scaling-stroke'],
+      ['pointer-events','stroke'],['tabindex','0'],['role','button'],['aria-label',`Open leaf arrows: ${edge.dataset.a} → ${edge.dataset.b}`]])hit.setAttribute(k,v);
+    return [edge.getTotalLength(),hit];}).sort((x,y)=>y[0]-x[0]);
+  edges[edges.length-1].after(...hits.map(([,hit])=>hit));}
+function openWire(a,b){if(DESIGN)openContracts(a,b);else openLeafArrows(a,b);}
+/* An influence arrow's leaf arrows, as the agent link read @link/MAP/FROM/TO gives them (both
+   come from solved-set.mjs: viewerLinks and linkRead share linkGroups and leafArrowParts):
+   grouped by box direction, each `FROM → TO kind ×N`. A leaf end opens its source; a box opens
+   its map. A page's leaf arrows load on first use from svg/<page>.links.js. */
+function loadLinks(key,then){if(LINKS[key]!==undefined)return then();
+  const s=document.createElement('script');s.src='svg/'+key+'.links.js?'+encodeURIComponent(BUILT);
+  s.onload=()=>then();s.onerror=()=>{LINKS[key]=null;then();};document.head.appendChild(s);}
+function linksAt(k,v){LINKS[k]=v;}
+function openLeafArrows(from,to){const key=cur;closeCode();const version=sourceVersion;
+  loadLinks(key,()=>{if(version!==sourceVersion||key!==cur)return;
+    const data=LINKS[key],groups=data?.wires[from+'/'+to]??data?.wires[to+'/'+from];if(!groups)return;
+    const box=i=>{const k=i.startsWith('b:')?i.slice(2):i,t=esc(PAGES[k]?.t??i),b=i.startsWith('b:')?'boundary · ':'';
+      return PAGES[k]?`<button class="endpoint" data-go="${esc(k)}">${b}${t}</button>`:b+t;};
+    const end=n=>{const [name,ref,go]=data.leaves[n];
+      return ref?`<button class="endpoint" data-ref="${esc(ref)}" data-key="${esc(go)}">${esc(name)}</button>`:esc(name);};
+    const total=groups.reduce((t,[,l])=>t+l.length,0);
+    legendPane.classList.remove('on');
+    codePane.innerHTML=`<div class="ch"><button class="x" onclick="dismissCode()" aria-label="Close leaf arrows">&times;</button>`+
+      `<div class="num">@link/${esc(key)}/${esc(from)}/${esc(to)} · ${total} leaf arrow${total===1?'':'s'}</div>`+
+      `<h3>${box(from)} ${groups.length>1?'↔':'→'} ${box(to)}</h3></div><div class="cb leafarrows">`+
+      groups.map(([dir,list])=>{const [x,y]=dir.split(' → ');
+        return `<section class="leafdir"><h3>${box(x)} → ${box(y)} · ${list.length}</h3><ul>`+
+          list.map(([f,t,tail])=>`<li>${end(f)} → ${end(t)} <span class="tail">${esc(tail)}</span></li>`).join('')+'</ul></section>';}).join('')+'</div>';
+    codePane.classList.add('on');});}
 function pageCode(){const p=PAGES[cur];if(p&&p.r)openCode(p.r,p.destination==='code'?cur:null);}
 function copy(t){navigator.clipboard.writeText(t);}
 
@@ -1758,13 +1802,19 @@ def legend_html():
     return "".join(o)
 
 
-def emit(out, model, pages, svgs):
+def emit(out, model, pages, svgs, links=None):
     (out / "svg").mkdir(parents=True, exist_ok=True)
     inline = 0
     for key, body in svgs.items():
         inline += len(body)
         (out / "svg" / f"{key}.js").write_text(f"svgAt({json.dumps(key)},{json.dumps(body)})",
                                                encoding="utf-8")
+    # An influence page's leaf arrows, fetched the first time one of its arrows is opened: the
+    # drawing stays light and the shell carries none of them.
+    for key, data in (links or {}).items():
+        body = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
+        (out / "svg" / f"{key}.links.js").write_text(f"linksAt({json.dumps(key)},{body})",
+                                                     encoding="utf-8")
     (out / "sources.js").write_text("srcAll(" + json.dumps(model["sources"]).replace("</", r"<\/")
                                     + ")", encoding="utf-8")
     # A source line holding `</script>` would close the block early, so the sequence is broken
@@ -1841,7 +1891,7 @@ def emit(out, model, pages, svgs):
       <div class="lb">{legend}</div></div>
     <div id="minimap"></div>
     <div id="pin"></div>
-    <div id="hint">{"click a wire = its interface set · " if model.get("design") else ""}scroll = zoom · drag = pan · click a box = its page · click a box foot = its
+    <div id="hint">{"click a wire = its interface set · " if model.get("design") else "click an arrow = its leaf arrows · " if model.get("influence") else ""}scroll = zoom · drag = pan · click a box = its page · click a box foot = its
       source · hover = its wires · x pin focus · ] [ next/previous end · \ back to the box ·
       click a wire's end tag = stand at its other end · Back previous map · f fit · 0 actual ·
       u up · esc close</div>
@@ -1916,6 +1966,8 @@ def build(model, out):
             pages[index]["foldedCode"] = p["foldedCode"]
         pages[index]["externals"] = {c["index"]: c["externals"] for c in p.get("components", []) if c.get("kind") == "external"}
         pages[index]["externalConnections"] = {c["index"]: c.get("externalConnections", []) for c in p.get("components", []) if c.get("kind") == "external"}
+        if p.get("links"):
+            pages[index]["links"] = 1
         if p.get("design"):
             pages[index]["contracts"] = p["wires"]
             pages[index]["componentLabels"] = {c["index"]: c["label"] for c in p["components"]}
@@ -1927,7 +1979,8 @@ def build(model, out):
     for index in sorted(packets, key=at):
         if pages[index]["destination"] == "graph":
             svgs[index] = build_page(packets[index], ctx).render()
-    size, inline = emit(out, model, pages, svgs)
+    links = {index: p["links"] for index, p in packets.items() if p.get("links")}
+    size, inline = emit(out, model, pages, svgs, links)
     kinds = {}
     for p in packets.values():
         kinds[p["kind"]] = kinds.get(p["kind"], 0) + 1
