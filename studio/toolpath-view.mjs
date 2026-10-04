@@ -76,7 +76,7 @@ function simplify(moves,first,last) {
 }
 export function buildToolpathView(moves) {
   const groups=[];
-  const read=moves.reader?.(['sliceFamily','sliceIndex','phase','layer'])??(i=>moves[i]);
+  const read=moves.reader?.(['sliceFamily','sliceIndex','phase','layer'])??(i=>moves.at(i));
   const keyAt=i=>layerKey(read(i));
   for(let i=0;i<moves.length;){
     const first=i,key=keyAt(i);
@@ -108,13 +108,13 @@ export function remainingLayerMs(view,moveIndex,seconds,speed){
   let low=0,high=view.groups.length;
   while(low<high){const mid=(low+high)>>1;if(view.groups[mid].last<moveIndex)low=mid+1;else high=mid;}
   const next=view.groups[low+1];
-  return next?Math.max(0,(view.moves[next.first].startSeconds-seconds)/speed*1000):Infinity;
+  return next?Math.max(0,(view.moves.at(next.first).startSeconds-seconds)/speed*1000):Infinity;
 }
 // A "layer" for inspection is one group: a run of same-phase, same-layer
 // moves, the same unit the axial-color inspect buttons jump between.
 export function layerIndexAt(view,seconds){
   if(!view.groups.length)return 0;
-  const startOf=index=>view.moves[view.groups[index].first].startSeconds;
+  const startOf=index=>view.moves.at(view.groups[index].first).startSeconds;
   let low=0,high=view.groups.length;
   while(low<high){const mid=(low+high)>>1;if(startOf(mid)<=seconds)low=mid+1;else high=mid;}
   return Math.max(0,Math.min(low-1,view.groups.length-1));
@@ -127,9 +127,9 @@ export function layerIndexAt(view,seconds){
 export function layerEndSeconds(view,index){
   if(!view.groups.length)return 0;
   const clamped=Math.max(0,Math.min(index,view.groups.length-1));
-  const group=view.groups[clamped],move=view.moves[group.last],end=move.startSeconds+move.durationSeconds;
+  const group=view.groups[clamped],move=view.moves.at(group.last),end=move.startSeconds+move.durationSeconds;
   const next=view.groups[clamped+1];
-  return next?Math.min(end,view.moves[next.first].startSeconds-1e-6):end;
+  return next?Math.min(end,view.moves.at(next.first).startSeconds-1e-6):end;
 }
 export function stepLayerIndex(view,seconds,direction){
   return Math.max(0,Math.min(layerIndexAt(view,seconds)+direction,view.groups.length-1));
@@ -139,7 +139,7 @@ export function stepLayerIndex(view,seconds,direction){
 // details without guessing from the source mesh or altering playback/export.
 export function representativeLayer(view,{feature='contour'}={}){
   const groups=view.groups.filter(group=>{
-    for(let i=group.first;i<=group.last;i++)if(view.moves[i].extruding)return true;
+    for(let i=group.first;i<=group.last;i++)if(view.moves.at(i).extruding)return true;
     return false;
   });
   if(!groups.length)return null;
@@ -150,7 +150,7 @@ export function representativeLayer(view,{feature='contour'}={}){
       if(progress<.15||progress>.7)continue;
       let first=null,length=0;
       for(let i=group.first;i<=group.last;i++){
-        const move=view.moves[i];if(!move.extruding||!/infill/.test(move.operation??'')||/solid/.test(move.operation))continue;
+        const move=view.moves.at(i);if(!move.extruding||!/infill/.test(move.operation??'')||/solid/.test(move.operation))continue;
         first??=move;length+=Math.hypot(...move.to.map((v,k)=>v-move.from[k]));
       }
       if(first)candidates.push({move:first,length,index});
@@ -166,7 +166,7 @@ export function representativeLayer(view,{feature='contour'}={}){
     if(progress<.15||progress>.85)continue;
     let corners=0,walls=0,previous=null,first=null;
     for(let i=group.first;i<=group.last;i++){
-      const move=view.moves[i];
+      const move=view.moves.at(i);
       if(!move.extruding||!/walls|perimeter/.test(move.operation??move.role??'')){previous=null;continue;}
       first??=move;walls++;
       if(previous&&previous.operation===move.operation&&previous.to.every((v,k)=>Math.abs(v-move.from[k])<1e-6)){
@@ -184,13 +184,13 @@ export function representativeLayer(view,{feature='contour'}={}){
   }
   const fallback=groups[Math.min(groups.length-1,Math.max(0,Math.round((groups.length-1)*.55)))];
   const chosen=best?.score>=20?candidates.filter(candidate=>candidate.score>=best.score*.65).at(-1):null;
-  const move=chosen?.move??Array.from({length:fallback.last-fallback.first+1},(_,i)=>view.moves[fallback.first+i]).find(m=>m.extruding);
+  const move=chosen?.move??Array.from({length:fallback.last-fallback.first+1},(_,i)=>view.moves.at(fallback.first+i)).find(m=>m.extruding);
   return move?{seconds:move.startSeconds,layer:move.layer,index:chosen?.index??view.groups.indexOf(fallback),groups:view.groups.length,feature:'contour'}:null;
 }
 function entries(view,group,reduced) {
   const memo=view.memo.group(group);
   if(!reduced)return memo.raw??=Array.from({length:group.last-group.first+1},(_,j)=>{
-    const i=group.first+j,m=view.moves[i];return {first:i,last:i,from:m.from,to:m.to,move:m};
+    const i=group.first+j,m=view.moves.at(i);return {first:i,last:i,from:m.from,to:m.to,move:m};
   });
   if(memo.reduced)return memo.reduced;
   const out=[],moves=view.moves.range?view.moves.range(group.first,group.last+1):view.moves;
@@ -237,8 +237,8 @@ export function toolpathFrame(view,count,travel,{pointCap=VIEWER_POINT_CAP}={}) 
   return view.memo.frame(key,()=>selectFrame(view,count,travel,pointCap));
 }
 export function toolpathPresentation(moves,at,detail) {
-  const displayed=detail.partial?[...detail.segments,{...detail.partial,to:moves[at.completed].from}]:detail.segments;
-  const current=moves[at.active];
+  const displayed=detail.partial?[...detail.segments,{...detail.partial,to:moves.at(at.completed).from}]:detail.segments;
+  const current=at.active<0?undefined:moves.at(at.active);
   const currentLayer=current?.phase==='finish'?moves.findLast(move=>move.extruding):current;
   return {displayed,current,currentLayer};
 }

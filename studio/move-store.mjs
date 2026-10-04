@@ -1,9 +1,11 @@
 // Local drawing/timeline storage. Packaged tours serialize snapshots only through
 // the versioned display cache; manufacturing output never uses that cache.
 // Doubles retain the interpreter's precision. Fixed-size chunks avoid repeated
-// whole-job reallocations; strings are interned once per column.
+// whole-job reallocations; strings are interned once per column. Rows are read
+// with at(i), never by index property. annotate completes each pushed row.
 const CHUNK=16384;
-export function moveStore(data={length:0,fields:null,chunks:[],lineOffset:0}) {
+const unchanged=row=>row;
+export function moveStore(data={length:0,fields:null,chunks:[],lineOffset:0},{annotate=unchanged}={}) {
   let fieldsByName;
   const at=index=>{
     if(index<0)index+=data.length;
@@ -16,7 +18,7 @@ export function moveStore(data={length:0,fields:null,chunks:[],lineOffset:0}) {
     }
     row.line+=data.lineOffset;return row;
   };
-  const methods={
+  return {
     get length(){return data.length;},
     at,
     // A local scratch row for batch display work. Copy only requested columns,
@@ -47,7 +49,8 @@ export function moveStore(data={length:0,fields:null,chunks:[],lineOffset:0}) {
       // A bounded temporary layer, so reduction reads each compact row once.
       const rows=Object.create(null);for(let i=first;i<end;i++)rows[i]=at(i);return rows;
     },
-    push(row){
+    push(source){
+      const row=annotate(source);
       data.fields??=Object.entries(row).map(([name,value])=>({name,width:Array.isArray(value)?value.length:1,
         ...(typeof value==='number'||Array.isArray(value)?{}:{values:[]})}));
       const offset=data.length%CHUNK;
@@ -71,6 +74,5 @@ export function moveStore(data={length:0,fields:null,chunks:[],lineOffset:0}) {
     offsetLines(n){data.lineOffset+=n;},
     snapshot(){return data;}
   };
-  return new Proxy(methods,{get(target,key){return typeof key==='string'&&/^\d+$/.test(key)?at(Number(key)):Reflect.get(target,key);}});
 }
 export const moveBuffers=data=>data.chunks.flatMap(chunk=>Object.values(chunk).map(column=>column.buffer));

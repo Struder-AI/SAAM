@@ -495,7 +495,7 @@ function render() {
   const samples=$('#axial-colors');samples.replaceChildren();samples.hidden=!hasConstruction(state.plan,'cladding')||!pathView;
   const sampledPhases=new Set();
   if(!samples.hidden)for(const [index,group] of pathView.groups.entries()){
-    const move=pathView.moves[group.first];
+    const move=pathView.moves.at(group.first);
     const swatch=phaseSwatches[move.phase];
     if(!swatch||sampledPhases.has(move.phase))continue;
     sampledPhases.add(move.phase);
@@ -507,7 +507,7 @@ function render() {
       if(busy)return;
       stop();layerFade.reset();
       const end=pathView.groups[index+1];
-      seconds=move.startSeconds+((end?pathView.moves[end.first].startSeconds:duration())-move.startSeconds)*(move.phase==='planar'?.98:.6);
+      seconds=move.startSeconds+((end?pathView.moves.at(end.first).startSeconds:duration())-move.startSeconds)*(move.phase==='planar'?.98:.6);
       $('#scrub').value=seconds;requestDraw();
     };
     samples.append(button);

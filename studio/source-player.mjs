@@ -7,12 +7,10 @@ import {moveStore} from './move-store.mjs';
 
 // Inputs are the exact checked machine source, plus its locked machine setup.
 // Both runtimes execute the same modal/Lua interpreter used by export checks.
-export function decodeSource(sources,plan,machine,{compact=true,inspection=null,authoredNozzleTemperatures}={}) {
-  const store=compact?moveStore():[],moves=new Proxy(store,{get(target,key){
-    if(key!=='push')return Reflect.get(target,key);
-    return row=>{const info=inspection?.operations?.[row.operation],layer=info?.layers?.[row.layer];return target.push({...row,
-      sliceFamily:info?.family??null,sliceIndex:layer?.index??null,modulated:!!info?.modifiers?.length});};
-  }});
+export function decodeSource(sources,plan,machine,{inspection=null,authoredNozzleTemperatures}={}) {
+  const sliceIdentity=row=>{const info=inspection?.operations?.[row.operation],layer=info?.layers?.[row.layer];return {...row,
+    sliceFamily:info?.family??null,sliceIndex:layer?.index??null,modulated:!!info?.modifiers?.length};};
+  const moves=moveStore(undefined,{annotate:sliceIdentity});
   const options={moves,authoredNozzleTemperatures};
   let program;
   if(plan.output==='machine-study')program=interpretMachineStudy(sources['motion.json'],options);

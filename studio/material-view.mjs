@@ -69,7 +69,7 @@ export async function buildMaterialScene(moves,plan,geometry,{onProgress=()=>{},
   let lastYield=performance.now(),visited=0,beads=0;
   const due=()=>performance.now()-lastYield>=8;
   const pause=async progress=>{onProgress(progress);await yieldTask();lastYield=performance.now();};
-  const indexedMove=i=>moves[i];
+  const indexedMove=i=>moves.at(i);
   const read=moves.reader?.(['extruding','from','to','phase','layer','sliceFamily','sliceIndex','modulated','operation','commandedVolumeMm3','volumeMm3','toolAxisFrom','toolAxisTo','toolUpFrom','toolUpTo','filament','lineWidthMm'])??indexedMove;
   for(let i=0;i<moves.length;i++){
     if(i%256===0&&due())await pause(i/Math.max(1,moves.length)*.25);
@@ -80,7 +80,7 @@ export async function buildMaterialScene(moves,plan,geometry,{onProgress=()=>{},
     beads++;
     for(const point of [move.from,move.to])point.forEach((v,k)=>{bounds.min[k]=Math.min(bounds.min[k],v);bounds.max[k]=Math.max(bounds.max[k],v);});
     const key=materialKey(move);let group=byKey.get(key);
-    if(!group){group={key,layerKey:layerKey(move),move:moves[i],indices:[],last:i};byKey.set(key,group);groups.push(group);}
+    if(!group){group={key,layerKey:layerKey(move),move:moves.at(i),indices:[],last:i};byKey.set(key,group);groups.push(group);}
     group.indices.push(i);group.last=i;
   }
   for(let i=0;i<groups.length;i++){
@@ -243,7 +243,7 @@ export function createMaterialRenderer(documentApi=document){
         commands.push({entry:buffers.get(group),count:low,detail:quality>=2?0:group.layerKey===layerKey(current)?1:fade.weights.get(group.layerKey)??0,
           style:toolpathStyle(group.move,current,skinPhase,fade.weights.get(group.layerKey)??0,{previousLayerOpacity})});
       }
-      const move=scene.moves[at.active];
+      const move=at.active<0?undefined:scene.moves.at(at.active);
       if(move?.extruding&&at.fraction<1){const section=beadSection(move,scene.plan,scene.geometry,move.from,at.point);
         if(section){
           const data=beadInstance(section);if(!partial)partial=instanceBuffer(data,gl.DYNAMIC_DRAW);
