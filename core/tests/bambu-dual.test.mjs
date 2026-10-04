@@ -13,7 +13,7 @@ import {resolveBambuJob} from '../export/bambu-job.mjs';
 import {recipeRows} from '../../studio/settings.mjs';
 import {beadSection} from '../../studio/material-view.mjs';
 
-import {mixedNozzleFixture} from './fixtures/bambu-dual.mjs';
+import {mixedNozzleFixture,dualNozzleVerificationFixture} from './fixtures/bambu-dual.mjs';
 const release={generatorVersion:'test',buildDate:'2026-09-21'};
 test('mixed 0.4/0.8 H2D regions emit tower-free changes, distinct process grids and independently decoded tool state',async()=>{
   const {plan,machine}=mixedNozzleFixture(),path=generatePath(plan,machine,await rhino());
@@ -153,4 +153,24 @@ test('four-slot AMS and single-slot HT units have independent capacities, connec
   assert.deepEqual(resolveBambuJob(single,x1,x1.outputs[0]).settings.extruder_ams_count,['1#4|4#0']);
   single.setup.bambu.amsConnections.push({unit:1,tool:0});
   assert.throws(()=>resolveBambuJob(single,x1,x1.outputs[0]),/capacities/);
+});
+
+test('a nozzle change from an AMS-fed start leaves out the startup prime and nozzle wipe; an external-spool start keeps them',async()=>{
+  // Physically, an AMS-fed job with the prime and wipe stalled for good after its first nozzle change and ran to the end
+  // without them; the DUAL-20 pass started from an external spool and had them.
+  const stages=code=>[/^G1 E45 /m.test(code),/^G150 T/m.test(code),/^M1002 gcode_claim_action : 14$/m.test(code)];
+  const generate=async fixture=>{
+    const {plan,machine}=fixture,path=generatePath(plan,machine,await rhino());
+    return unpackZip(exportProgram(path,plan,machine,release)).get('Metadata/plate_1.gcode').toString();
+  };
+  assert.deepEqual(stages(await generate(dualNozzleVerificationFixture())),[true,true,true],'external spool start: the verified startup is unchanged');
+  for(const source of [{type:'auto'},{type:'ams-ht',unit:1},{type:'ams',unit:1,slot:1}]){
+    const fixture=dualNozzleVerificationFixture(),b=fixture.plan.setup.bambu;
+    if(source.type!=='auto')b.amsConnections=[{type:source.type,unit:1,tool:0}];
+    b.filaments[0].source=source;
+    const code=await generate(fixture);
+    assert.ok(code.includes(';SAAM_TOOL_CHANGE'),'the job changes nozzles');
+    assert.deepEqual(stages(code),[false,false,false],`${source.type} start: no prime or wipe`);
+    assert.match(code,/^G150\.2\nG150\.1\n/m,'the rest of the startup stays in place');
+  }
 });

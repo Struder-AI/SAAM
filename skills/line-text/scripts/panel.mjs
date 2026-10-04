@@ -41,7 +41,8 @@ function within(p0, d, [xa, ya, xb, yb]) {
 }
 
 // Parallel infill lines at one angle across `region`, leaving out a ring band that carries its own
-// beads. Lines end on the region's edge, the centerline of the border's innermost bead.
+// beads. A line ends at the edge of whatever bead it meets; its rounded end then reaches half a bead
+// into that bead, so the two fuse.
 function hatch(w, h, {angleDeg, spacingMm, region, band}) {
   const a = angleDeg * Math.PI / 180, d = [Math.cos(a), Math.sin(a)], n = [-Math.sin(a), Math.cos(a)];
   const across = [[region[0], region[1]], [region[2], region[1]], [region[2], region[3]], [region[0], region[3]]].map(p => p[0] * n[0] + p[1] * n[1]);
@@ -79,10 +80,16 @@ export function buildPanel({lines, widthMm, heightMm, trimBottomMm = 0, backgrou
   const w = widthMm ?? Math.ceil((blockW + 2 * keepClear) / 10) * 10, fullH = heightMm ?? Math.ceil((blockH + 2 * keepClear) / 10) * 10, h = fullH - trimBottomMm;
   requireThat(w >= blockW + 2 * keepClear - 1e-9 && fullH >= blockH + 2 * keepClear - 1e-9, `The ${w} x ${fullH} mm panel is too small for the lettering inside its inner ring.`);
 
-  const region = inset(w, h, bg.borderMm - bg.beadMm / 2), band = {outer: inset(w, h, ringOuter), inner: inset(w, h, ringInner)};
   const borders = [bandLoop(w, h, 0, bg.borderMm), bandLoop(w, h, ringOuter, bg.ringMm)];
   const spacingMm = bg.beadMm / bg.density;
-  const infill = bg.anglesDeg.map(angleDeg => hatch(w, h, {angleDeg, spacingMm, region, band}));
+  // What an infill line meets differs by course. The first course carries only the thin outlines of the border and the
+  // ring, on the centerline of each fat bead, so its lines stop at the outer edge of those thin beads. The later
+  // courses meet the fat beads laid over them, so their lines stop at the fat beads' own edges.
+  const ringMid = ringOuter + bg.ringMm / 2;
+  const meets = course => course === 0
+    ? {region: inset(w, h, bg.borderMm / 2 + bg.beadMm / 2), band: {outer: inset(w, h, ringMid - bg.beadMm / 2), inner: inset(w, h, ringMid + bg.beadMm / 2)}}
+    : {region: inset(w, h, bg.borderMm), band: {outer: inset(w, h, ringOuter), inner: inset(w, h, ringInner)}};
+  const infill = bg.anglesDeg.map((angleDeg, course) => hatch(w, h, {angleDeg, spacingMm, ...meets(course)}));
 
   let top = (fullH + blockH) / 2; // laid out at full height; the bottom trim is applied to every line below
   const lettering = built.map(line => {
@@ -110,11 +117,12 @@ function panelNetworks(panel) {
     id, process: {firstLayerMm: first, layerMm, lineWidthMm: commandedWidthMm(printedMm, layerMm)}, strokes});
   const pts = s => s.points.map(p => [+p[0].toFixed(4), +p[1].toFixed(4)]);
   const last = b.layers - 1, [border, ring] = bg.borders;
-  // Network order is print order within a course: thin infill and outlines, then the fat ring, then the fat border.
+  // Network order is print order within a course: thin infill, then the thin outlines laid against its ends, then the
+  // fat ring, then the fat border. The outlines come after the infill so that the nozzle, hopping between infill
+  // pieces on either side of the ring outline, never drags across a bead it has already printed at its own height.
   const background = {layers: b.layers, networks: [
-    net('infill', b.beadMm, b.layerMm, [
-      ...[border, ring].map(loop => ({closed: true, points: loop.points, layers: [0]})),
-      ...bg.infill.flatMap((layer, i) => layer.map(s => ({closed: false, points: s.points, layers: [i]})))]),
+    net('infill', b.beadMm, b.layerMm, bg.infill.flatMap((layer, i) => layer.map(s => ({closed: false, points: s.points, layers: [i]})))),
+    net('outline', b.beadMm, b.layerMm, [border, ring].map(loop => ({closed: true, points: loop.points, layers: [0]}))),
     net('ring', b.ringMm, b.layerMm, [{closed: true, points: ring.points, layers: [last]}]),
     net('border', b.borderMm, b.layerMm, [{closed: true, points: border.points, layers: [last]}])
   ]};

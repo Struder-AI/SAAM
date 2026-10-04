@@ -211,4 +211,4 @@ measured.
 
 The demo panel ([panel.mjs](scripts/panel.mjs)) uses single beads everywhere, built thin before fat: the first course is
 the infill and a thin outline of the border and ring, and the top course ends with the fat ring and fat border laid over
-those outlines. The border and the ring are each one bead, and every letter stroke is one bead sized to its font and weight, with the lettering on 0.6 mm layers.
+those outlines. The first course's infill stops at the outer edge of the thin outlines and the later course at the fat beads' edges, so each line's rounded end overlaps the bead it meets (stopping at the fat edges on the first course left a gap, and the infill came away from the outline); the thin outlines print after the first-course infill so the nozzle never drags across a bead it has just printed. The border and the ring are each one bead, and every letter stroke is one bead sized to its font and weight, with the lettering on 0.6 mm layers.

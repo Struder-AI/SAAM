@@ -2,7 +2,7 @@
   "schema": "saam-machine/1",
   "id": "bambu-h2d",
   "name": "Bambu Lab H2D",
-  "revision": 24,
+  "revision": 25,
   "units": "mm",
   "planarWallToleranceMm": 0.01,
   "ams": {
@@ -205,7 +205,7 @@
       "mimeType": "application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
       "defaultFilamentColor": "#28A090",
       "program": {
-        "contract": "h2d-saam-startup-v13",
+        "contract": "h2d-saam-startup-v14",
         "start": [
           "{startupFlags}",
           "M201 X20000 Y20000 Z500 E5000",
@@ -364,18 +364,26 @@
           "M400 S2",
           "M109 S{nozzleC}",
           "M83",
-          "G1 E45 F{flushFeed}",
-          "G1 E-3 F1800",
-          "M400 P500",
+          {
+            "exceptAmsNozzleChange": [
+              "G1 E45 F{flushFeed}",
+              "G1 E-3 F1800",
+              "M400 P500"
+            ]
+          },
           "G150.2",
           "G150.1",
           "G91",
           "G1 Y-16 F12000",
           "G90",
-          "M400",
-          "M1002 gcode_claim_action : 14",
-          "G150 T{nozzleC}",
-          "M106 S255",
+          {
+            "exceptAmsNozzleChange": [
+              "M400",
+              "M1002 gcode_claim_action : 14",
+              "G150 T{nozzleC}",
+              "M106 S255"
+            ]
+          },
           "M400",
           "M400",
           "M1002 judge_flag g29_before_print_flag",

@@ -21,6 +21,7 @@ const BEGIN=';SAAM_BODY_BEGIN\n',END=';SAAM_BODY_END\n',GCODE='Metadata/plate_1.
 // Updated only after reviewing changes to the firmware service contract.
 const ENVELOPE_HASHES={
   "h2d-saam-startup-v13": "9ed2f343095f6cf0331ad6359fee1cc637bb7a707f9cea3da538a33fa70779f9",
+  "h2d-saam-startup-v14": "b56ffb90b11694960eef1c81c54d8084e389fc476165d43c30b1cb1c45070fc1",
   "x1c-saam-startup-v5": "1efa6f410cdd5628d11cda4dc8732cf7555921f4e409c9246ea74e1d3911067e"
 };
 function configuration(plan,machine){
@@ -70,7 +71,9 @@ function sections(c,job,output){
     endClearanceZ,parkZ,parkSettleZ:fmt(Math.max(endClearanceZ,parkZ-k.parkSettleMm))};
   const render=lines=>lines.flatMap(line=>{
     if(typeof line==='object'){
-      requireThat(Object.keys(line).length===1&&Array.isArray(line.fullStartOnly),'Invalid optional Bambu startup block.');
+      const keys=Object.keys(line);
+      requireThat(keys.length===1&&['fullStartOnly','exceptAmsNozzleChange'].includes(keys[0])&&Array.isArray(line[keys[0]]),'Invalid optional Bambu startup block.');
+      if(keys[0]==='exceptAmsNozzleChange')return job.amsNozzleChange?[]:line.exceptAmsNozzleChange;
       return job.fastStart?[]:line.fullStartOnly;
     }
     return [line];

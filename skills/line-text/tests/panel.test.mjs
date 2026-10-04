@@ -31,27 +31,35 @@ test('commanding a width less the measured spread prints the width wanted, and t
   assert.throws(() => commandedWidthMm(0.1, 0.6), /spread alone is wider/);
 });
 
-test('infill is 25% at 45 and -45 degrees: 2 mm spacing, kept inside the border and out of the ring band', () => {
+test('infill is 25% at 45 and -45 degrees: 2 mm spacing, and every line ends on the bead it must fuse with', () => {
   const {infill, spacingMm} = panel.background;
   near(spacingMm, 2, 1e-9);
   assert.equal(infill.length, 2);
-  const [w, h] = [panel.widthMm, panel.heightMm], bandOuter = 7, bandInner = 8;
+  const [w, h] = [panel.widthMm, panel.heightMm];
   const angles = infill.map(layer => { const [a, b] = layer[0].points; return Math.round(Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI * 1000) / 1000; });
   assert.ok(Math.abs(Math.abs(angles[0]) - 45) < 1e-6 || Math.abs(Math.abs(angles[0]) - 135) < 1e-6);
   assert.notEqual(Math.sign(Math.tan(angles[0] * Math.PI / 180)), Math.sign(Math.tan(angles[1] * Math.PI / 180)), 'the two layers cross');
-  for (const layer of infill) for (const s of layer) for (const [x, y] of s.points) {
-    assert.ok(x >= 1.75 - 1e-6 && x <= w - 1.75 + 1e-6 && y >= 1.75 - 1e-6 && y <= h - 1.75 + 1e-6, 'inside the border\'s innermost bead centerline');
-    const depth = Math.min(x, y, w - x, h - y);
-    assert.ok(!(depth > bandOuter + 1e-6 && depth < bandInner - 1e-6), `an end at ${depth} mm in is inside the ring band`);
-  }
-  // No infill segment passes through the ring band: its midpoint is never in the band.
-  for (const layer of infill) for (const s of layer) {
-    const [[x0, y0], [x1, y1]] = s.points;
-    for (let t = 0.05; t < 1; t += 0.05) {
-      const x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t, depth = Math.min(x, y, w - x, h - y);
-      assert.ok(!(depth > bandOuter + 1e-3 && depth < bandInner - 1e-3), 'a segment crosses the ring band');
+  // The first course carries thin 0.5 mm outlines on the centerlines of the fat border (1 mm in) and ring (7.5 mm in), so its lines
+  // stop at those outlines' outer edges: 1.25 mm in at the border, 7.25 and 7.75 mm at the ring. A line that stopped short of that,
+  // as the first print's did at 1.75 mm, leaves a gap between infill and outline. The later course meets the fat beads laid over it
+  // and stops at their edges: 2, 7 and 8 mm.
+  const stops = [{edge: 1.25, band: [7.25, 7.75]}, {edge: 2, band: [7, 8]}];
+  infill.forEach((layer, course) => {
+    const {edge, band: [bandOuter, bandInner]} = stops[course];
+    for (const s of layer) for (const [x, y] of s.points) {
+      const depth = Math.min(x, y, w - x, h - y);
+      assert.ok(Math.abs(depth - edge) < 1e-6 || Math.abs(depth - bandOuter) < 1e-6 || Math.abs(depth - bandInner) < 1e-6, `course ${course} ends ${depth} mm in, on no bead edge`);
+      assert.ok(!(depth > bandOuter + 1e-6 && depth < bandInner - 1e-6), `an end at ${depth} mm in is inside the ring band`);
     }
-  }
+    // No infill segment passes through the ring band: its midpoint is never in the band.
+    for (const s of layer) {
+      const [[x0, y0], [x1, y1]] = s.points;
+      for (let t = 0.05; t < 1; t += 0.05) {
+        const x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t, depth = Math.min(x, y, w - x, h - y);
+        assert.ok(!(depth > bandOuter + 1e-3 && depth < bandInner - 1e-3), 'a segment crosses the ring band');
+      }
+    }
+  });
 });
 
 test('the lettering keeps its own fonts and weights and sits inside the inner ring with clearance', () => {
@@ -137,15 +145,16 @@ test('the background builds thin before fat: a thin outline on the first course,
   // The order the operations actually print in, read back from the generated path.
   const order = [];
   for (const m of deposits) { const key = `${m.operation}@${+m.to[2].toFixed(6)}`; if (order.at(-1) !== key) order.push(key); }
-  assert.deepEqual(order.map(k => k.split(':')[1]), ['infill', 'infill', 'ring', 'border'], 'infill first, then the fat ring, then the fat border');
-  assert.deepEqual(order.map(k => k.split('@')[1]), ['0.2', '0.4', '0.4', '0.4']);
+  assert.deepEqual(order.map(k => k.split(':')[1]), ['infill', 'outline', 'infill', 'ring', 'border'], 'thin infill and its outlines, then the other infill, then the fat ring, then the fat border');
+  assert.deepEqual(order.map(k => k.split('@')[1]), ['0.2', '0.2', '0.4', '0.4', '0.4']);
   // Nothing on the first course is wider than the infill bead: no fat bead stands beside the thin ones.
   const networks = plan.composition.regions.find(r => r.id === 'background').skills['line-network'].networks;
   const widthOf = id => networks.find(n => n.id === id).process.lineWidthMm;
+  assert.equal(widthOf('outline'), widthOf('infill'), 'the outlines are as thin as the infill');
   assert.ok(widthOf('ring') > widthOf('infill') && widthOf('border') > widthOf('ring'), 'thin, then fat, then fattest');
   const onFirst = networks.filter(n => n.strokes.some(s => !s.layers || s.layers.includes(0)));
-  assert.deepEqual(onFirst.map(n => n.id), ['infill'], 'only the thin network has strokes on the first course');
-  const outlines = networks.find(n => n.id === 'infill').strokes.filter(s => s.closed);
+  assert.deepEqual(onFirst.map(n => n.id), ['infill', 'outline'], 'only the thin networks have strokes on the first course, the outlines after the infill');
+  const outlines = networks.find(n => n.id === 'outline').strokes;
   assert.equal(outlines.length, 2, 'a thin outline of the border and of the ring');
 });
 

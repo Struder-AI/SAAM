@@ -496,7 +496,7 @@ The same-file review/delivery lifecycle remains unchanged.
 
 ## H2D output contract
 
-`h2d-saam-startup-v13`: one or both standard hardened 0.4, 0.6 or 0.8 mm nozzles,
+`h2d-saam-startup-v14`: one or both standard hardened 0.4, 0.6 or 0.8 mm nozzles,
 including unequal diameters;
 1.75 mm PLA; Textured or Smooth PEI; no chamber heating. Startup establishes
 [100,100,20]. Shutdown clears geometry by 10 mm and parks at or below 320 mm.
@@ -533,6 +533,15 @@ are excluded from body totals. The planner/player establish the incoming
 filament's retraction debt afresh after each material change, including reuse
 of a previously selected logical filament. Dual-nozzle changes retain zero
 colour-flush length and do not increment the same-nozzle flush count.
+
+Revision v14 leaves two startup stages out of a job that starts on an AMS-fed filament and
+changes to the other nozzle: the 45 mm prime (`G1 E45`, retract, dwell) and the nozzle wipe
+(`G150 T`, with its action claim and fan). They sit in `exceptAmsNozzleChange` blocks, as
+`fullStartOnly` blocks do for fast start. A two-colour job on an H2D fed by an AMS HT (left) and a
+four-slot AMS (right) stalled for good, silently, right after its first nozzle change with them,
+and ran to the end without them. The DUAL-20 pass started from an external spool with them
+present, so an external start keeps them, as does any job with no nozzle change. The mechanism is
+unknown and one run each established it; the two stages were not separated. v13 archives open as before.
 
 Revision v13 adds authored stored startup and shutdown to the project writer.
 `sections()` renders each once from the canonical job and print bounds, then

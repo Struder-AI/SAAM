@@ -109,7 +109,12 @@ export function resolveBambuJob(plan,machine,output,{filamentSequence=[plan.setu
     flushFeed:round(k.startupPurgeFlowMm3S/2.4053*60,3),
     reducedFlushFeed:round(k.startupPurgeFlowMm3S/2.4053*60*0.8,3),
     calibrationFeed:round(k.startupPurgeFlowMm3S/2.4,4),bodyAcceleration:k.bodyAcceleration};
-  return {tool,map,physicalTool,fastStart,nozzle:s.nozzleMm,nozzles,plate:{id:b.plate,...plate},
+  // A job that starts on an AMS-fed nozzle and moves to the other nozzle leaves out the startup prime and nozzle wipe
+  // (`exceptAmsNozzleChange` blocks). Physically, such a job stalled for good right after its first nozzle change with them
+  // present and ran to the end without them; the pinned DUAL-20 pass, whose starting nozzle ran from an external spool,
+  // had them and passed, so an external start keeps them. The mechanism is not known.
+  const amsNozzleChange=filamentSequence.some(i=>filamentTools[i]!==tool)&&(filaments[used].source?.type??'auto')!=='external';
+  return {tool,map,physicalTool,fastStart,amsNozzleChange,nozzle:s.nozzleMm,nozzles,plate:{id:b.plate,...plate},
     materialChange:k.materialChangeMode==='single-nozzle-ams'?{mode:k.materialChangeMode,flushMm3:k.materialChangeFlushMm3}:null,
     filaments:filaments.map(f=>({...f})),selections,used,count,color:filaments[used].colour,material:s.material,
     filamentMm:s.filamentMm,density,volumeType,nozzleType,requestedTray,amsConnections:connections===null?null:connections.map(c=>({...c})),settings,
