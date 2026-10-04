@@ -190,12 +190,11 @@ cannot be selected independently. Unselected connections stay external, includin
 and draws the viewer; `read`, `build` and `check` use the store. `--set-dir DIR` selects a set kept outside `sets/`,
 such as a preview in an ignored folder. Map 0 is drawn at the authored set's map-0 positions (by node id); submaps
 are placed by the renderer. Pages carry no prose: unlinked and unowned leaves are counts on boxes and marker boxes
-that open their lists, and files not analysed a marked list on map 0. An influence `read` states each fact once:
-`boxes` by index (a cluster's `label`, `leaves` and list counts; a leaf's exact `key`, `label`, `lines` in the key's
-file, `folded` ranges outside them, and flags only when set: `command`, `uniform`, `possiblyCallerDependent`,
-`rangeUnknown`, `unowned`), `boundary` labels by `b:` box, and `arrows` whose `leafArrows` read `FROM KIND TO`
-(` ×N` for N sites; an end is a box index when that leaf is drawn on the map, else its exact key); then the lists
-the map cannot draw: `unlinked`, and on map 0 `notAnalysed` and `unowned` (on the unowned box's map when present).
+that open their lists, and files not analysed a marked list on map 0. A map `read` is its drawing: `boxes` (a
+cluster's label and leaf count; a leaf as `NAME FILE:LINES`, marked only `command` or `command returning data`,
+outside `folded` ranges, `possibly caller-dependent`), `boundary` names, and `arrows`, each drawn pair (`→`, `•→`,
+`↔`) with its leaf-arrow count, read whole at `@link/MAP/FROM/TO` as `FROM → TO KIND ×N` by direction. Map 0 adds
+the preview note, `notAnalysed` and counts for `@unlinked` and `@unowned`. `check` proves reads match the drawing.
 
 **Layout**: scanned `tree.json.layout[mapId]` keys positions by cluster/leaf/external identity; design
 `architecture.json.layout[index]` uses drawn indexes. Positions: `{x,y,emphasis?}`; viewport: `[x,y,width,height]`;
