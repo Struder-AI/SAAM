@@ -138,11 +138,11 @@ export async function onboarding({role, areas = [], machine: machineId, set = de
   const ids = role === 'maker' ? ONBOARDING
     : role === 'builder' ? ['BUILDERS.md', ...ONBOARDING, 'skills/AUTHORING.md', ...builderAreaIds]
     : ['GLOSSARY.md', 'DEVELOPER-CONTEXT.md', ...new Set(outside.flatMap(area => outsideAreas[area]))];
-  const mapKeys = role === 'maker' ? [] : [...(role === 'developer' ? ['0'] : []), ...targets];
+  const mapKeys = role === 'maker' ? [] : targets;
   const [context, environment, maps] = await Promise.all([contextPacket(ids, role === 'maker' ? {machineId} : {all: true}),
     environmentStatus(), mapKeys.length ? readMaps(mapKeys, {set}) : []]);
   return {role, environment, ...context, maps, ...(mapKeys.length ? {mapSet: set} : {}),
     nextStep: role === 'maker' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context and choose individual skill manuals when an edit needs them. The digest indexes gated sections; read one by name when its gate applies.'
       : role === 'builder' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context. Builders author guidance, recipe helpers, assets, examples and diagnostics using published APIs. Core skills and shared capability/contract changes require the developer role. The component manual for the area you consume owns its behaviour, contracts and limits; read the one for the code you touch. Maps show what code a change affects and what affects it: read-map 0 (or --area 0), then a box, @link/MAP/FROM/TO for its leaf arrows, then the source at file:lines. Run regenerate after each task.'
-      : `Focus next work on plans/0.3.3.md; plans/0.3.2.md retains prior scope/evidence and plans/0.3.1.md inherited contracts. Open component manuals as needed. Maps (${set}, map 0 above) show what code a change affects and what affects it. Read map 0, then read-map a box, then @link/MAP/FROM/TO for its leaf arrows; open the source at file:lines. Run regenerate after each task. Installation/service work uses --set 030-deployment.`};
+      : `Focus next work on plans/0.3.3.md; plans/0.3.2.md retains prior scope/evidence and plans/0.3.1.md inherited contracts. Open component manuals as needed. Maps (${set}) show what code a change affects and what affects it. Before editing, read-map 0, then the boxes you will change, then @link/MAP/FROM/TO for their leaf arrows; open the source at file:lines. Run regenerate after each task. Installation/service work uses --set 030-deployment.`};
 }

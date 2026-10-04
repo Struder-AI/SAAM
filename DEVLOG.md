@@ -1,5 +1,9 @@
 # Development log
 
+## 2026-10-04 — Developers read map 0 by their own call
+
+- Owner direction: builders read maps only when they decide they need them (unchanged), and developer onboarding no longer attaches map 0; its next step says to read-map 0 and the boxes to be changed before editing, so reading the map is an explicit act. DEVELOPER-CONTEXT orientation says the same. Developer onboarding output 17,823 → 16,478 characters; `read-map 0` reads 030-influence. No tests run.
+
 ## 2026-10-04 — State and channels reach 030-influence; plan-merge aliasing blob found
 
 - `analyse.mjs` merge carries `state` (united per allocation site) and `contacts` (per site from the largest closure); both in the merge hash. channels.mjs: a worker start needs `new Worker` (removed false starts at studio/server.mjs:610 and dobot-lua-subset.mjs:53), one start site may run several entries, `worker.onmessage=` on a started worker is a listener, a whole-message forwarder accepts every type, a URL with no local path is an outside contact; an `x.onmessage=` listener counts only on a started worker. generated-view.py renders channel pages without a source file.
