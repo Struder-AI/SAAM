@@ -373,46 +373,132 @@ export function solvedModel() {
     influence:true,lists,pages,sources:m.sources,sourceInfo:m.sourceInfo,stale:{},changed:[],changedInputs:[]};
 }
 
-// The CLI read, each fact once. `boxes` maps a box's index to a cluster (label, leaves under it,
-// and the counts of the lists its own map holds) or a leaf: exact key, label and `lines` in the
-// key's file, with `folded` helper ranges outside those lines and flags only when set (`command`; `uniform` off a
-// library map; `possiblyCallerDependent`; `rangeUnknown`; `unowned` naming why). `boundary` names
-// each `b:` box, the node on an enclosing map an arrow leaves to. Each arrow is one related pair
-// with every leaf arrow it stands for, written `FROM KIND TO` (` ×N` for N sites), an end being
-// the box index of a leaf drawn here, else its exact key; `ends` only when not one-way. A map then
-// lists only what it cannot draw: `unlinked` leaves of its node, and on map 0 `notAnalysed` files
-// and `unowned` leaves (on the unowned box's map when there is one). Leaves are not maps.
-export function readSolved(address='0') {
-  const m=stored(),key=String(address);
+// The CLI read: enough to choose what to read next, each fact once, never code. Agents see a
+// leaf as `NAME FILE:LINES` (`#K` added when two leaves would read alike); exact keys stay in the
+// store. A map read gives `boxes` by index (a cluster: label and leaf count; a leaf: its name and
+// range, then only what is set: `command` or `command returning data`, `folded` helper ranges
+// outside its own, `possibly caller-dependent`, `range unknown`), `boundary` names by `b:` box,
+// and `arrows`: the drawn pairs, `FROM → TO` (`•→` a dot at the tail, `↔` two heads) to their
+// leaf-arrow count, each read in full at `link` with FROM and TO filled in. Map 0 alone adds the
+// preview note, `notAnalysed` files, changed sources and the `lists` addresses with their counts.
+// A link read is that one arrow's leaf arrows, `FROM → TO KIND ×N` grouped by box direction;
+// `@unlinked` and `@unowned` are the lists. Leaves are not maps.
+const range=(a,b)=>a===b?`${a}`:`${a}-${b}`;
+const ARROW={one:'→',ack:'•→',both:'↔'};
+const LIST_UNLINKED='@unlinked',LIST_UNOWNED='@unowned';
+const byKey=(a,b)=>order(fileOf(a),fileOf(b))||keyParts(a).offset-keyParts(b).offset;
+const named=new WeakMap();
+function leafNames(m) {
+  if(named.has(m))return named.get(m);
+  const plain=r=>`${r.label} ${r.file}:${range(r.line,r.endLine)}`,groups=new Map();
+  for(const r of Object.values(m.leaves))(groups.get(plain(r))??groups.set(plain(r),[]).get(plain(r))).push(r.key);
+  const names=new Map();
+  for(const [name,keys] of groups)keys.sort((a,b)=>keyParts(a).offset-keyParts(b).offset)
+    .forEach((key,k)=>names.set(key,keys.length>1?`${name} #${k+1}`:name));
+  named.set(m,names);return names;
+}
+function pageOf(m,key) {
   const page=m.pages.find(p=>p.index===key||p.path===key||p.key===key)??(m.leaves[key]?.index?m.pages.find(p=>p.index===m.leaves[key].index):null);
   if(!page)throw Error(`No map ${key}. Read 0 for the top map.`);
   if(page.destination==='code')throw Error(`Source leaf ${key} is not a map. Use normal file tools at the source ranges shown on its containing map.`);
-  const byIndex=new Map(m.pages.map(p=>[p.index,p]));
-  // A range is `A-B`, or `A` for one line. A folded helper inside the leaf's own range is not
-  // restated; one elsewhere in the key's file is a range, in another file `FILE:RANGE`.
-  const range=(a,b)=>a===b?`${a}`:`${a}-${b}`;
-  const leaf=r=>{const folded=[...new Set(r.folded.filter(f=>f.line&&!(f.file===r.file&&f.line>=r.line&&f.endLine<=r.endLine))
+  return page;
+}
+const underUnowned=(m,page)=>{const top=m.pages.find(p=>p.path===`@cluster/${UNOWNED}`)?.index;
+  return top!==undefined&&(page.index===top||page.index.startsWith(top+'.'));};
+
+function mapRead(m,page) {
+  const names=leafNames(m);
+  const returnsData=new Set(m.arrows.filter(a=>a.kind==='both').map(a=>a.to)),unownedPage=underUnowned(m,page);
+  // A folded helper inside the leaf's range, or inside another listed helper, is not restated.
+  const within=(f,g)=>f.file===g.file&&f.line>=g.line&&f.endLine<=g.endLine&&(f.line!==g.line||f.endLine!==g.endLine);
+  const leaf=key=>{const r=m.leaves[key],outside=r.folded.filter(f=>f.line&&!(f.file===r.file&&f.line>=r.line&&f.endLine<=r.endLine));
+    const folded=[...new Set(outside.filter(f=>!outside.some(g=>within(f,g)))
       .map(f=>`${f.file===r.file?'':`${f.file}:`}${range(f.line,f.endLine)}`))];
-    return {label:r.label,lines:range(r.line,r.endLine),...(folded.length?{folded}:{}),...(r.role==='command'?{command:true}:{}),
-      ...(r.uniform&&!page.library?{uniform:true}:{}),...(r.possiblyCallerDependent?{possiblyCallerDependent:true}:{}),
-      ...(r.rangeUnknown?{rangeUnknown:true}:{}),...(r.owner?{}:{unowned:r.gap??'no owner'})};};
-  const drawnHere=new Map(page.components.filter(c=>c.kind==='leaf').map(c=>[c.path,c.index]));
-  const end=k=>drawnHere.get(k)??k;
-  const listed=(keys=[],skip=new Set())=>Object.fromEntries(keys.filter(k=>!skip.has(k)).map(k=>[k,leaf(m.leaves[k])]));
-  const stale=staleness(m);
-  const unlinked=listed(page.unlinked);
-  const unowned=listed(page.unowned,new Set([...drawnHere.keys(),...page.unlinked??[]]));
-  return {index:page.index,...(page.index==='0'?{}:{path:page.path}),label:page.label,...(m.notice?{preview:m.notice}:{}),
-    boxes:Object.fromEntries(page.components.map(c=>{
-      if(c.kind==='leaf')return [c.index,{key:c.path,...leaf(m.leaves[c.path])}];
-      const own=byIndex.get(c.index);
-      return [c.index,{label:c.label,leaves:c.count,...(own?.unlinked?{unlinked:own.unlinked.length}:{}),...(own?.unowned?{unowned:own.unowned.length}:{})}];})),
+    return [names.get(key),returnsData.has(key)?'command returning data':r.role==='command'?'command':'',folded.length?`folded ${folded.join(', ')}`:'',
+      r.possiblyCallerDependent?'possibly caller-dependent':'',r.rangeUnknown?'range unknown':'',!r.owner&&!unownedPage?'unowned':''].filter(Boolean).join(' · ');};
+  const byIndex=(a,b)=>{const x=a.index.split('.').map(Number),y=b.index.split('.').map(Number);
+    for(let k=0;k<Math.min(x.length,y.length);k++)if(x[k]!==y[k])return x[k]-y[k];return x.length-y.length;};
+  const boxes=Object.fromEntries([...page.components].sort(byIndex)
+    .map(c=>[c.index,c.kind==='leaf'?leaf(c.path):`${c.label} · ${c.count} ${c.count===1?'leaf':'leaves'}`]));
+  const top=page.index===TOP,unlinked=m.summary.unlinked,unowned=m.summary.unowned;
+  return {index:page.index,label:page.label,...(top&&m.notice?{preview:m.notice}:{}),boxes,
     ...(page.ports.length?{boundary:Object.fromEntries(page.ports.map(p=>[p.port,p.label]))}:{}),
-    arrows:page.wires.map(w=>({from:w.from,to:w.to,...(w.ends!=='one'?{ends:w.ends}:{}),
-      leafArrows:w.leafArrows.map(i=>{const a=m.arrows[i];return `${end(a.from)} ${a.kind} ${end(a.to)}${a.count>1?` ×${a.count}`:''}`;})})),
-    ...(Object.keys(unlinked).length?{unlinked}:{}),...(page.notAnalysed?{notAnalysed:page.notAnalysed}:{}),
-    ...(Object.keys(unowned).length?{unowned}:{}),...(page.index==='0'&&m.sourceChanged?.length?{sourceChanged:m.sourceChanged}:{}),
-    ...(stale?{stale}:{})};
+    ...(page.wires.length?{arrows:Object.fromEntries(page.wires.map(w=>[`${w.from} ${ARROW[w.ends]} ${w.to}`,w.count])),link:`@link/${page.index}/FROM/TO`}:{}),
+    ...(top&&page.notAnalysed?.length?{notAnalysed:page.notAnalysed}:{}),...(top&&m.sourceChanged?.length?{sourceChanged:m.sourceChanged}:{}),
+    ...(top&&(unlinked||unowned)?{lists:{...(unlinked?{[LIST_UNLINKED]:unlinked}:{}),...(unowned?{[LIST_UNOWNED]:unowned}:{})}}:{})};
+}
+
+// One drawn arrow's leaf arrows, as indexes into the stored arrows grouped `FROM → TO` by the
+// boxes each runs between. The read renders it; the check compares it with the drawn pair.
+function linkGroups(m,page,wire) {
+  const chainOf=idx=>idx.split('.').map((_,k,parts)=>parts.slice(0,k+1).join('.'));
+  const here=new Set(page.components.map(c=>c.index));
+  const boxOf=key=>{const chain=chainOf(m.leaves[key].index),box=chain.find(i=>here.has(i));
+    if(box)return box;const port=page.ports.find(p=>chain.includes(p.index));return port?.port;};
+  const groups=new Map(),arrows=[...wire.leafArrows].sort((i,j)=>byKey(m.arrows[i].from,m.arrows[j].from)||byKey(m.arrows[i].to,m.arrows[j].to));
+  for(const i of arrows) {
+    const a=m.arrows[i],key=`${boxOf(a.from)} → ${boxOf(a.to)}`;
+    (groups.get(key)??groups.set(key,[]).get(key)).push(i);
+  }
+  return groups;
+}
+const leafArrowText=(m,names,i)=>{const a=m.arrows[i];return `${names.get(a.from)} → ${names.get(a.to)} ${a.kind}${a.count>1?` ×${a.count}`:''}`;};
+function linkRead(m,address) {
+  const [,pageIndex,from,to]=/^@link\/([^/]+)\/([^/]+)\/([^/]+)$/.exec(address)??[];
+  if(!pageIndex)throw Error(`Link addresses read @link/MAP/FROM/TO, as a map read's \`link\` gives them.`);
+  const page=pageOf(m,pageIndex);
+  const wire=page.wires.find(w=>w.from===from&&w.to===to||w.from===to&&w.to===from);
+  if(!wire)throw Error(`Map ${page.index} draws no arrow between ${from} and ${to}.`);
+  const names=leafNames(m);
+  return {map:page.index,leafArrows:Object.fromEntries([...linkGroups(m,page,wire)].map(([k,list])=>[k,list.map(i=>leafArrowText(m,names,i))]))};
+}
+function listRead(m,address) {
+  const names=leafNames(m),leaves=Object.values(m.leaves).sort((a,b)=>byKey(a.key,b.key));
+  if(address===LIST_UNOWNED)return {unowned:Object.fromEntries(leaves.filter(r=>!r.owner).map(r=>[names.get(r.key),`${r.gap??'no owner'}${r.unlinked?' · unlinked':''}`]))};
+  const indexOf=new Map(m.pages.map(p=>[p.path,p.index])),groups={};
+  for(const r of leaves.filter(r=>r.unlinked)){const node=r.owner?indexOf.get(`@cluster/${r.owner}`)??r.owner:'unowned';(groups[node]??=[]).push(names.get(r.key));}
+  return {unlinked:groups};
+}
+
+export function readSolved(address='0') {
+  const m=stored(),key=String(address),stale=staleness(m);
+  const result=key.startsWith('@link/')?linkRead(m,key):key===LIST_UNLINKED||key===LIST_UNOWNED?listRead(m,key):mapRead(m,pageOf(m,key));
+  return {...result,...(stale?{stale}:{})};
+}
+
+// Each map read presents the drawing's picture: its arrows are the drawn pairs (same boxes,
+// ends and counts, one per pair, every boundary box an arrow uses named), and the link reads of
+// its arrows, parsed back to exact keys, are exactly the leaf arrows each drawn pair stands for.
+export function verifyReads(m) {
+  const names=leafNames(m),keyOf=new Map([...names].map(([key,name])=>[name,key])),errors=[];
+  const fail=(p,why)=>{if(errors.length<20)errors.push(`map ${p.index}: ${why}`);};
+  if(keyOf.size!==names.size)errors.push('two leaves read alike');
+  let maps=0,arrows=0,leafArrows=0;
+  for(const p of m.pages.filter(p=>p.destination==='graph')) {
+    maps++;
+    const read=mapRead(m,p),drawn=p.wires.map(w=>`${w.from} ${ARROW[w.ends]} ${w.to}`);
+    const pairs=new Set(p.wires.map(w=>[w.from,w.to].sort(order).join('\u0000')));
+    if(pairs.size!==p.wires.length)fail(p,'two arrows join one pair');
+    if(JSON.stringify(Object.entries(read.arrows??{}))!==JSON.stringify(p.wires.map((w,k)=>[drawn[k],w.count])))fail(p,'arrows differ from the drawn pairs');
+    const used=new Set(p.wires.flatMap(w=>[w.from,w.to]).filter(x=>x.startsWith('b:')));
+    if(used.size!==Object.keys(read.boundary??{}).length||[...used].some(b=>!(b in (read.boundary??{}))))fail(p,'boundary boxes differ from the arrows using them');
+    for(const w of p.wires) {
+      arrows++;
+      const groups=linkRead(m,`@link/${p.index}/${w.from}/${w.to}`).leafArrows,got=[];
+      for(const [dir,list] of Object.entries(groups)) {
+        const [x,y]=dir.split(' → ');
+        if(![w.from,w.to].includes(x)||![w.from,w.to].includes(y)||x===y)fail(p,`link ${w.from}/${w.to} groups ${dir}`);
+        for(const text of list) {
+          const count=/ ×(\d+)$/.exec(text)?.[1]??1,[,fromName,toName,kind]=/^(.*?) → (.*) (\S+)$/.exec(text.replace(/ ×\d+$/,''))??[];
+          got.push(`${keyOf.get(fromName)}>${keyOf.get(toName)}:${kind}:${count}`);
+        }
+      }
+      const want=w.leafArrows.map(i=>{const a=m.arrows[i];return `${a.from}>${a.to}:${a.kind}:${a.count}`;});
+      leafArrows+=want.length;
+      if(JSON.stringify(got.sort(order))!==JSON.stringify(want.sort(order)))fail(p,`link ${w.from}/${w.to} differs from its leaf arrows`);
+    }
+  }
+  return {ok:!errors.length,errors,maps,arrows,leafArrows};
 }
 
 // ---- commands -----------------------------------------------------------------------------
@@ -436,9 +522,9 @@ export async function influenceCommand(command,args) {
     return;
   }
   if(command==='check') {
-    const m=stored(),checks=verify(m),stale=staleness(m);
-    console.log(JSON.stringify({mode:'influence',summary:m.summary,checks,...(stale?{stale}:{})},null,1));
-    if(!checks.ok)process.exitCode=1;
+    const m=stored(),checks=verify(m),reads=verifyReads(m),stale=staleness(m);
+    console.log(JSON.stringify({mode:'influence',summary:m.summary,checks,reads,...(stale?{stale}:{})},null,1));
+    if(!checks.ok||!reads.ok)process.exitCode=1;
     return;
   }
   throw Error('Influence sets support read, regenerate, build and check.');
