@@ -37,7 +37,7 @@ const json = async path => JSON.parse(await readFile(path, 'utf8'));
 // Manuals as this command-line agent reads them: script sections included, advanced ones for
 // the named machine (see manuals.mjs#assembleGuidance).
 export async function contextPacket(ids, context = {}) {
-  const documents=await Promise.all([...new Set(ids)].map(id => readManual(root, id, {client: 'script', ...context})));
+  const documents=await Promise.all([...new Set(ids)].map(id => readManual(root, id, context)));
   if(ids.includes('skills/DIGEST.md')){
     const discovery=await extensionDiscovery(root,{readTool:'read-skill',openTool:'saam call open_workspace'});
     if(discovery)documents.push(discovery);
@@ -98,7 +98,7 @@ export async function readSkill(name, {maker = false, builder = false, developer
     ids.push(path);
   }
   const documents = await Promise.all(ids.map(path => path.endsWith('/SKILL.md')
-    ? readManual(root, anchor ? `${path}#${anchor}` : path, {client: 'script', machineId, all})
+    ? readManual(root, anchor ? `${path}#${anchor}` : path, {machineId, all})
     : readManual(root, path, {all: true})));
   return {skillId: id, roles: Object.keys(roles).filter(role => roles[role]), unavailableRoles, documents};
 }

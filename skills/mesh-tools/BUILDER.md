@@ -21,7 +21,6 @@ A diagnostic does not determine the intended solid. Preserve the original and
 explain consequential shape changes. Don't fill a large opening automatically or
 accept a partial result.
 
-<!-- layer: script -->
 ## Repair from the command line
 
 ~~~text

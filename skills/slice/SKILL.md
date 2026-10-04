@@ -109,7 +109,6 @@ use that extension too. Slice has no spiral producer. A raised sleeve needs a
 printed base; a successor needs an appropriate finished boundary. Rivet reservations
 and explicit tree support remain extension inputs to shared engine operations.
 
-<!-- layer: script -->
 ## Script interfaces
 
 The [Slice implementation](../../core/print/slices.mjs) owns region/boundary construction;

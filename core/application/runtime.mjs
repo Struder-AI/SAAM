@@ -406,11 +406,10 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
     return run;
   }
 
-  // The desktop client has local command access, including script sections.
   const machineIdSchema=z.string().optional().describe('Reusable printer profile for discovery before selecting a bundle. Use bundleId for saved capabilities.');
   async function manualContext({bundleId,machineId}){
-    if(bundleId)return {client:'script',machine:(await read(bundleId,{program:false})).state.machine};
-    return {client:'script',machineId};
+    if(bundleId)return {machine:(await read(bundleId,{program:false})).state.machine};
+    return {machineId};
   }
   tool('maker_onboarding','Start here for maker work when context is missing. Returns maker guidance, the skill index and print tools, including local script sections. Reuse it for the conversation.',
     {machineId:machineIdSchema,bundleId:bundleIdSchema.optional()}, async ({machineId,bundleId}) => ({ role:'maker',
@@ -453,7 +452,7 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
       const workspace=workspaceSession(workspaceInstanceId);
       return {workspaceInstanceId,job:await workspace.createBundles(design)};
     },false);
-  tool('read_skill', 'Read a skill or guidance manual by ID, or one section as ID#heading whatever its gate. Sections gated to command access or to machine capabilities are listed in omitted; bundleId uses the saved printer snapshot; machineId selects a reusable profile before bundle selection. Links are repository paths for read_guidance.',
+  tool('read_skill', 'Read a skill or guidance manual by ID, or one section as ID#heading whatever its gate. Sections gated to machine capabilities or read on request are listed in omitted; bundleId uses the saved printer snapshot; machineId selects a reusable profile before bundle selection. Links are repository paths for read_guidance.',
     { skillId: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}(#[^\s#]{1,200})?$/), machineId: machineIdSchema, bundleId:bundleIdSchema.optional() }, async ({ skillId: name, machineId,bundleId }) => {
     const [skillId, anchor] = name.split('#');
     const extension=await readExtension(skillId,{appRoot:root});
@@ -718,7 +717,7 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
       if(startAtLayer)await studio.server.setStartAt({layer:startAtLayer});
       const browserOpenRequested=autoOpen?await openBrowser(studio.url):false;
       return {bundleId,studioInstanceId:studio.server.agentSession().instanceId,url:studio.url,browserOpenRequested,tour:await tour.info(),
-        sources:await onboardingSources(root,{client:'script'}),participation:await readManual(root,'examples/prints/README.md#maker-agent-participation',{client:'script'})};
+        sources:await onboardingSources(root,{}),participation:await readManual(root,'examples/prints/README.md#maker-agent-participation',{})};
     },false);
   tool('get_tour','Read the active tour print, lesson gates and maker-agent instruction. After reaching the chat lesson, offer infill options in chat. After completion, immediately congratulate the participant, offer help with any difficulties printing the downloaded file, and ask what she wants to make next. Optional bounded wait follows user progress.',
     {after:z.string().optional(),waitMs:z.number().int().min(0).max(25000).optional()},async({after,waitMs=0})=>{

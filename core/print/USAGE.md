@@ -87,7 +87,6 @@ setup as the default for new prints on that machine; existing prints don't
 change. Only setup is remembered. Bambu output needs its [maker setup](../export/bambu.md#maker-setup)
 first; each [machine contract](../export/README.md) owns its own setup questions.
 
-<!-- layer: script -->
 ## Command line
 
 Use the installed [application command](../application/README.md) from any chat.

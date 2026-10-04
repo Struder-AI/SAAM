@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-03 — Installed homes use AGENTS.md; retire the web manual layer
+
+- The installed home's `AGENTS.md`, `CLAUDE.md` and the clients' `saam` skill are now generated from the program's [AGENTS.md](AGENTS.md) (with the home's folders and links resolved into the program's manuals) instead of a separate string in `packaging/client-setup.mjs`. AGENTS.md absorbed the installer-only guidance (saam help, JSON through stdin, chat IDs, reservations, workRequest, wait, client repair) and now serves both a source checkout and an installed home. Owner direction this session.
+- Web agents are unsupported: removed the `script` reader layer (`layer: script` gates, the web/script `client` context in `core/agent/manuals.mjs`, toolkit, runtime, and the per-client split in `context-budget`), the markers in nine manuals, and web-agent wording in AUTHORING, the tour README and the technical overview. MAKERS "With command access" is now "Using the saam command".
+- Verified: script-reader output for maker onboarding, three skills and two guidance reads is byte-identical to HEAD except the renamed heading and dropped gate labels (compared in a detached worktree); generated home files checked in a scratch home (marker, home line, absolute links, rewrite idempotent); `context-budget` runs. `core/tests/mcp-access.test.mjs`: 3 pass, 1 fails identically at HEAD (robot setup `outputAvailability`), so it predates this change. Not run: installer end to end, client skill registration into a real client.
+
 ## 2026-10-03 — Rewrite agent hard rules: intent at one owner, rules from the owner
 
 - Owner reviewed every hard rule developer agents follow. Diagnosis agreed with the owner: rules accreted as reactions to incidents and outlived them (D-029 forbade a tour that 0.3.x ships; D-011's three approvals still read as active); agents turned complaints into absolutes plus compliance machinery; two-contributor governance went unmaintained; bans go stale where positive statements of intent do not.

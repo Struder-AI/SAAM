@@ -5,10 +5,9 @@ workspaces. Core/shared changes require the developer
 role. Read [builder orientation](../BUILDERS.md) and the consumed contracts.
 
 `SKILL.md` owns maker operations, settings, limits and recovery; optional
-`BUILDER.md`/`DEVELOPER.md` own author guidance. Mark commands `<!-- layer: script -->`
-and machine sections `<!-- requires: capability -->`; unmarked text must work
-for web agents. [Context layers](../core/agent/README.md#context-layers) explains
-selection. Maps own implementation; keep each fact at one owner.
+`BUILDER.md`/`DEVELOPER.md` own author guidance. Mark machine-specific sections
+`<!-- requires: capability -->` and on-request sections `<!-- layer: advanced -->`;
+the [manual reader](../core/agent/README.md) opens them by machine or by name. Maps own implementation; keep each fact at one owner.
 
 Manual frontmatter uses `metadata.saam-kind: geometry`, `hybrid` or `guidance`.
 Descriptions guide selection; prefix unvalidated techniques with “Experimental.”

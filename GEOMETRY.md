@@ -145,7 +145,6 @@ setting. Arrays replace, so send the whole `patches` array, mesh or operand list
 Validation names what failed; `request_review` shows the result in Studio, and
 `get_print` with `includeGeometry: true` reads it back.
 
-<!-- layer: script -->
 ## Computing geometry with scripts
 
 For large or repetitive geometry, compute the recipe in a Node script and pass the

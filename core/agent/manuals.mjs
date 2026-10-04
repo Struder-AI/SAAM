@@ -26,7 +26,7 @@ function publishedPath(path) {
 }
 
 // A gate marker is an HTML comment on the line directly above a heading; it gates that heading's
-// section. `layer: script` needs command access; `layer: advanced` is read on request;
+// section. `layer: advanced` is read on request;
 // `requires: a, b` (advanced) also opens for a machine with any of those capabilities, and
 // `nonplanar>=N` for one whose nonplanar limit reaches N degrees.
 const MARKER = /^<!--\s*((?:layer|requires):[^>]*?)\s*-->\s*$/;
@@ -36,23 +36,19 @@ function parseMarker(line) {
   const gate = { layer: undefined, requires: [] };
   for (const part of body.split(';')) {
     const [key, value = ''] = part.split(':').map(item => item.trim());
-    if (key === 'layer' && ['script', 'advanced'].includes(value)) gate.layer = value;
+    if (key === 'layer' && value === 'advanced') gate.layer = value;
     else if (key === 'requires') gate.requires = value.split(',').map(item => item.trim()).filter(Boolean);
-    else throw Error(`Invalid gate marker "${line.trim()}": use layer: script|advanced and requires: capability, …`);
+    else throw Error(`Invalid gate marker "${line.trim()}": use layer: advanced and requires: capability, …`);
   }
   if (gate.requires.some(token => !/^[a-z][a-z0-9-]*$|^nonplanar>=\d+(?:\.\d+)?$/.test(token)))
     throw Error(`Invalid requirement in "${line.trim()}": name a machine capability or nonplanar>=DEGREES.`);
-  if (gate.requires.length) {
-    if (gate.layer === 'script') throw Error(`"${line.trim()}": a machine requirement makes a section advanced, not script.`);
-    gate.layer = 'advanced';
-  }
+  if (gate.requires.length) gate.layer = 'advanced';
   if (!gate.layer) throw Error(`Invalid gate marker "${line.trim()}".`);
   return gate;
 }
 
 // How a gate reads in the index and in the list of omitted sections.
 export function gateText(gate) {
-  if (gate.layer === 'script') return 'command access';
   if (!gate.requires.length) return 'on request';
   return gate.requires.map(token => token.replace(/^nonplanar>=(.*)$/, 'nonplanar ≥ $1°')).join(' or ') + ' machines';
 }
@@ -132,12 +128,11 @@ export function machineOpens(selection) {
   };
 }
 
-// The manual as this reader gets it. `context` is {client: 'web'|'script', machineId, all}: a
-// script section opens for a script client, an advanced one when the machine meets a requirement,
-// and every one with `all`. A heading asked for by name is always returned whole of its own gate.
+// The manual as this reader gets it. `context` is {machineId, all}: an advanced section opens
+// when the machine meets a requirement, and every one with `all`. A heading asked for by name is always returned whole of its own gate.
 // Closed sections are cut and listed in `omitted`; frontmatter and markers are dropped, line
 // endings are LF and relative links become repository paths.
-export function assembleGuidance(markdown, path, { anchor, client = 'web', machineId, machine, all = false } = {}) {
+export function assembleGuidance(markdown, path, { anchor, machineId, machine, all = false } = {}) {
   const sections = headings(markdown), opens = machineOpens(machine===undefined?machineId:machine);
   let start = /^---\r?\n[\s\S]*?\r?\n---\r?\n/.exec(markdown)?.[0].length ?? 0, end = markdown.length, requested;
   if (anchor) {
@@ -149,7 +144,7 @@ export function assembleGuidance(markdown, path, { anchor, client = 'web', machi
   sections.forEach((section, index) => {
     const { gate, offset } = section;
     if (!gate || index === requested || offset < start || offset >= end || cuts.some(([a, b]) => offset >= a && offset < b)) return;
-    if (all || (gate.layer === 'script' ? client === 'script' : gate.requires.some(opens))) return;
+    if (all || gate.requires.some(opens)) return;
     cuts.push([offset, Math.min(end, sectionEnd(sections, index, markdown.length))]);
     omitted.push({ title: section.title, guidanceId: `${path}#${section.anchor}`, gate: gateText(gate) });
   });

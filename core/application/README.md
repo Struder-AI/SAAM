@@ -10,6 +10,9 @@ Startup and network waits report bounded failures; they do not expire work.
 The home is `C:\SAAM` on Windows or `~/SAAM` on macOS: replaceable `app/`,
 `Prints/`, `extensions/` and persistent `state/`. Source runs use the same home
 and credential. `SAAM_DATA` selects a disposable home for installation trials.
+At each start the home's `AGENTS.md`, `CLAUDE.md` and the clients' `saam` skill
+are regenerated from the program's [AGENTS.md](../../AGENTS.md), with the home's
+folders and links into the program's manuals.
 [Installation](../../packaging/INSTALL.md) owns migration and client setup.
 
 `saam help` lists operations; `saam help OP` returns their complete schemas.
