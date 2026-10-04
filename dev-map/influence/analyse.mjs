@@ -18,7 +18,10 @@
 // Merging: a callable in several closures takes its leaf (the leaf it folds into, or itself) and
 // role from the largest closure holding it (files, then callables, then root path), since a larger
 // closure sees more of its callers. Arrows map onto those leaves; arrows inside one leaf drop; an
-// arrow's site count is the largest any one closure gives it.
+// arrow's site count is the largest any one closure gives it. State facts (state.mjs) unite per
+// allocation site and contacts (channels.mjs) take each site from the largest closure holding it;
+// the callable keys in both map onto the same leaves, and the solver makes state nodes, process
+// links and actor channels from them (channels.mjs withChannels).
 //
 //   node dev-map/influence/analyse.mjs --out FILE [--max-heap-mb N]
 import {readFileSync,writeFileSync,mkdirSync,existsSync,readdirSync,rmSync} from 'node:fs';
@@ -27,6 +30,8 @@ import {spawn} from 'node:child_process';
 import {resolve,dirname,relative} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {importGraph,closureOf,parseModule,staticImports} from './scope.mjs';
+import {mergeStateFacts} from './state.mjs';
+import {mergeContactFacts} from './channels.mjs';
 
 // The single switch: true once one sound run can cover the whole scope (plans/dev-maps.md). The
 // whole scope is then tried first as one closure, and the closure split is only the fallback.
@@ -154,7 +159,7 @@ export async function analyse({repo=repoOf,out,maxHeapMB=4096,startHeapMB=2048,l
   for(const f of readdirSync(dir)){const n=f.replace(/(\.meta)?\.json$/,'');if(!planned.has(n))rmSync(resolve(dir,f));}
 
   // ---- merging ----
-  const inputHash=sha(JSON.stringify([analyser,sha(readFileSync(fileURLToPath(import.meta.url),'utf8')),files,graph.unparsed,runs.map(r=>[r.root,r.hash]).sort(),
+  const inputHash=sha(JSON.stringify([analyser,...[fileURLToPath(import.meta.url),resolve(here,'state.mjs'),resolve(here,'channels.mjs')].map(f=>sha(readFileSync(f,'utf8'))),files,graph.unparsed,runs.map(r=>[r.root,r.hash]).sort(),
     attempts.filter(a=>a.status!=='ok').map(a=>[a.root,a.status,a.reason]).sort()]));
   // The merge's inputs are kept beside the result, not in it: a result that comes out the same
   // (an edit that moves no key, such as a comment at a file's end) is left untouched, so the
@@ -169,7 +174,8 @@ export async function analyse({repo=repoOf,out,maxHeapMB=4096,startHeapMB=2048,l
     const notAnalysed=[...new Set([...files.filter(f=>!covered.has(f)),...unparsed])].sort(order);
     merged={schema:1,scope:{files:files.length},
       closures:attempts.map(({root,files,status,reason})=>({root,files,status,...(reason?{reason}:{})})).sort((a,b)=>order(a.root,b.root)),
-      notAnalysed,unparsed,summary:merged.summary,leaves:merged.leaves,arrows:merged.arrows};
+      notAnalysed,unparsed,summary:merged.summary,leaves:merged.leaves,arrows:merged.arrows,
+      ...(merged.state?{state:merged.state}:{}),...(merged.contacts?{contacts:merged.contacts}:{})};
     if(merged.summary.checkErrors.length)throw Error(`Merged analysis is inconsistent: ${merged.summary.checkErrors.slice(0,5).join('; ')}`);
     const text=JSON.stringify(merged);
     if(text!==previous){mkdirSync(dirname(out),{recursive:true});writeFileSync(out,text);}
@@ -180,7 +186,7 @@ export async function analyse({repo=repoOf,out,maxHeapMB=4096,startHeapMB=2048,l
     reused:attempts.filter(a=>a.cached).length,skipped:attempts.filter(a=>a.status==='skipped').length,
     failed:attempts.filter(a=>a.status!=='ok').map(({root,files,status,reason})=>({root,files,status,reason})),
     notAnalysed:merged.notAnalysed,mergeReused:reusedMerge,
-    leaves:merged.leaves.length,arrows:merged.arrows.length,
+    leaves:merged.leaves.length,arrows:merged.arrows.length,stateObjects:merged.state?.length??0,contacts:merged.contacts?.contacts.length??0,
     secs:Math.round((Date.now()-started)/100)/10,runSecs:Math.round(attempts.reduce((s,a)=>s+(a.cached?0:a.secs??0),0)),
     peakChildRssMB:Math.max(0,...attempts.filter(a=>a.cached===false).map(a=>a.peakRssMB??0))||null,
     parentRssMB:Math.round(process.resourceUsage().maxRSS/1024)};
@@ -194,7 +200,7 @@ export function merge(runs) {
     const assign=new Map(),role=new Map(),names=new Map();
     for(const l of j.leaves){assign.set(l.key,l.key);role.set(l.key,l.role);names.set(l.key,l.leaf);
       l.foldedKeys.forEach((k,i)=>{assign.set(k,l.key);names.set(k,l.folded[i]);});}
-    return {root,files:j.summary.files,callables:assign.size,assign,role,names,arrows:j.arrows,parseErrors:j.parseErrors??[]};
+    return {root,files:j.summary.files,callables:assign.size,assign,role,names,arrows:j.arrows,parseErrors:j.parseErrors??[],state:j.state,contacts:j.contacts};
   }).sort((a,b)=>b.files-a.files||b.callables-a.callables||order(a.root,b.root));
   const best=new Map(),nameOf=new Map();
   for(const r of parsed)for(const [k,v] of r.assign)if(!best.has(k)){best.set(k,{to:v,run:r});nameOf.set(k,r.names.get(k));}
@@ -225,14 +231,29 @@ export function merge(runs) {
     for(const [key,c] of per){const h=arrows.get(key);if(!h){const [f,t,kind]=key.split('\n');arrows.set(key,{from:nameOf.get(f),to:nameOf.get(t),fromKey:f,toKey:t,kind,count:c});}else h.count=Math.max(h.count,c);}
   }
   const roleOf=l=>best.get(l).run.role.get(l)??'query';
+  // State facts (state.mjs) unite per allocation site; contacts (channels.mjs) take each site from
+  // the largest closure holding it. Callable keys in both map onto the merged leaves, as arrows do;
+  // a key no closure has a leaf for stays as it is and is listed.
+  const unknownFactKeys=new Set();
+  const toLeaf=k=>{const l=final.get(k);if(l===undefined){unknownFactKeys.add(k);return k;}return l;};
+  const leafList=keys=>[...new Set((keys??[]).map(toLeaf))].sort(order);
+  const hasFacts=parsed.some(r=>r.state||r.contacts);
+  const state=hasFacts?mergeStateFacts(parsed.map(r=>r.state)).map(s=>({...s,writers:leafList(s.writers),readers:leafList(s.readers),
+    ...(s.allocatedBy?{allocatedBy:toLeaf(s.allocatedBy)}:{})})).sort((a,b)=>order(a.site,b.site)):null;
+  const facts=hasFacts?mergeContactFacts(parsed.map(r=>r.contacts)):null;
+  const contacts=facts?{contacts:facts.contacts.map(c=>({...c,key:toLeaf(c.key),...(c.handlers?{handlers:leafList(c.handlers)}:{})}))
+    .sort((a,b)=>order(a.site??'',b.site??'')||order(a.kind,b.kind)||order(JSON.stringify(a),JSON.stringify(b))),
+    imports:Object.fromEntries(Object.entries(facts.imports).sort(([a],[b])=>order(a,b)))}:null;
   const out={
     leaves:leaves.map(l=>({leaf:nameOf.get(l),key:l,role:roleOf(l),folded:members.get(l).map(k=>nameOf.get(k)),foldedKeys:members.get(l)})),
     arrows:[...arrows.values()].sort((a,b)=>order(a.fromKey,b.fromKey)||order(a.toKey,b.toKey)||order(a.kind,b.kind)),
+    ...(state?{state}:{}),...(contacts?{contacts}:{}),
     parseErrors:[...new Set(parsed.flatMap(r=>r.parseErrors.map(e=>e.file)))]};
   const kinds={};for(const a of out.arrows)kinds[a.kind]=(kinds[a.kind]??0)+1;
   out.summary={closures:parsed.length,callables:best.size,leaves:leaves.length,folded:best.size-leaves.length,foldCycles:cycles,
     leafRoles:{command:leaves.filter(l=>roleOf(l)==='command').length,query:leaves.filter(l=>roleOf(l)!=='command').length},
-    arrows:out.arrows.length,arrowKinds:kinds,internalArrowInstancesDropped:internal,unknownArrowEnds:[...unknownEnds].sort(order),checkErrors:errors};
+    arrows:out.arrows.length,arrowKinds:kinds,internalArrowInstancesDropped:internal,unknownArrowEnds:[...unknownEnds].sort(order),
+    ...(hasFacts?{stateObjects:state.length,contacts:contacts.contacts.length,unknownFactKeys:[...unknownFactKeys].sort(order)}:{}),checkErrors:errors};
   return out;
 }
 

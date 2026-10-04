@@ -85,6 +85,15 @@ const testedValues=(fnNode,names)=>{const out=new Set();if(!fnNode)return out;
   walk(fnNode.body??fnNode);return out;};
 
 const DISCRIMINANTS=['type','stage','command','kind','op'];
+// Whether a message handler passes its message (its first parameter, or a name destructured from
+// it) to a call as a whole argument.
+const forwardsMessage=fnNode=>{
+  const p=fnNode?.params?.[0];if(!p)return false;
+  const names=new Set(p.type==='Identifier'?[p.name]:p.type==='ObjectPattern'?p.properties.map(q=>q.value?.type==='Identifier'?q.value.name:null).filter(Boolean):[]);
+  if(!names.size)return false;
+  let hit=false;
+  const walk=n=>{if(hit)return;if((n.type==='CallExpression'||n.type==='NewExpression')&&n.arguments.some(a=>a.type==='Identifier'&&names.has(a.name)))hit=true;for(const c of kids(n))walk(c);};
+  walk(fnNode.body);return hit;};
 // A port a worker thread talks to its starter through: parentPort (a MessagePort), or the worker
 // global (self) in a browser worker.
 const WORKER_SIDE=/parentPort|MessagePort|^self$|globalThis|WorkerGlobalScope|^postMessage$|^onmessage$/;
@@ -95,16 +104,21 @@ export function contactFacts(pt,{functions},derived,{modules=[],resolveImport}={
   const keyOf=id=>functions[canon(id)].key;
   const contacts=[],seen=new Set();
   const add=(f,site,c)=>{const k=`${keyOf(f.id)}|${site?.id??''}|${c.kind}|${JSON.stringify(c)}`;if(seen.has(k))return;seen.add(k);
-    contacts.push({key:keyOf(f.id),file:f.file,line:site?.line??f.line,...c});};
+    contacts.push({key:keyOf(f.id),file:f.file,line:site?.line??f.line,site:site?.id??`${f.file}:${f.start}`,...c});};
   const spawnSites=new Map();// site id -> entry
   const instanceSites=o=>{const x=pt.objects[o];return x?.site?[x.site]:[];};
+  // A call's receiver node, or for a property write (worker.onmessage=) the written object's.
+  let storeBase=new Map();
   const receiverInfo=s=>{const sites=new Set(),platform=new Set();
-    if(s.receiver===undefined)return {sites,platform};
-    for(const o of pt.pts[s.receiver]){const x=pt.objects[o];if(x.kind==='platform')platform.add(x.name);for(const id of instanceSites(o))sites.add(id);}
+    const node=s.receiver??storeBase.get(s);
+    if(node===undefined)return {sites,platform};
+    for(const o of pt.pts[node]){const x=pt.objects[o];if(x.kind==='platform')platform.add(x.name);for(const id of instanceSites(o))sites.add(id);}
     return {sites,platform};};
   const cbKeys=s=>[...new Set((s.platformCallbacks??[]).map(id=>keyOf(id)))];
   const cbNode=key=>{const i=key.lastIndexOf(':');const file=key.slice(0,i);return mods.has(file)?idxOf(file).fns.get(Number(key.slice(i+1))):null;};
-  const tested=keys=>{const out=new Set();for(const k of keys)for(const v of testedValues(cbNode(k),DISCRIMINANTS))out.add(v);return [...out].sort();};
+  // A handler that passes the message on whole (receive(message), resolve(data)) takes every
+  // value: what it tests itself does not limit what its callee handles.
+  const tested=keys=>{const out=new Set();for(const k of keys){const n=cbNode(k);if(forwardsMessage(n))return [];for(const v of testedValues(n,DISCRIMINANTS))out.add(v);}return [...out].sort();};
 
   for(const f of functions) {
     if(canon(f.id)!==f.id&&!f.inClone)continue;
@@ -112,8 +126,21 @@ export function contactFacts(pt,{functions},derived,{modules=[],resolveImport}={
     const idx=idxOf(f.file),fnNode=f.module?null:idx.fns.get(f.start);
     const ev=evaluator(f.file,idx,fnNode);
     const sites=[...f.calls,...f.stores.map(st=>st.site).filter(Boolean)];
+    storeBase=new Map(f.stores.filter(st=>st.site).map(st=>[st.site,st.base]));
+    const storeName=new Map(f.stores.filter(st=>st.site).map(st=>[st.site,st.name]));
     for(const s of sites) {
-      const apis=[...(s.apis?.keys()??[])];if(!apis.length)continue;
+      const apis=[...(s.apis?.keys()??[])];
+      // `worker.onmessage = handler` on a worker a start made (an instance, not a platform
+      // object, so the write reaches no platform API): a listener on that worker, the handler
+      // the function written there.
+      if(!apis.length&&storeName.get(s)==='onmessage') {
+        const {sites:rs}=receiverInfo(s);
+        if(rs.size){const asg=idx.parent.get(s.node),right=asg?.type==='AssignmentExpression'?asg.right:null;
+          const keys=right&&isFn(right)?[`${f.file}:${right.start}`]:[];
+          add(f,s,{kind:'worker-listen',sites:[...rs].sort(),handlers:keys,values:tested(keys),receiver:[],setter:true});}
+        continue;
+      }
+      if(!apis.length)continue;
       const node=s.node,args=node?.arguments??[];
       const has=re=>apis.some(a=>re.test(a));
       const effects=s.effects??new Set(),reads=s.worldReads??new Set();
@@ -122,9 +149,11 @@ export function contactFacts(pt,{functions},derived,{modules=[],resolveImport}={
         add(f,s,{kind:'http-send',url:ev(args[0]).s,method:method?.type==='Literal'?method.value:method?'*':'GET',replyUsed:!!s.resultUsed});continue;
       }
       if(has(/(^|[.\s])EventSource$/)){add(f,s,{kind:'http-send',url:ev(args[0]).s,method:'GET',stream:true,replyUsed:true,listeners:[]});continue;}
-      if(has(/(^|[.\s])Worker$/)) {
+      // Only `new Worker(...)`: a call whose callee merely may hold the constructor (imprecise
+      // points-to through a shared receiver, e.g. this.map.has) starts no thread.
+      if(has(/(^|[.\s])Worker$/)&&node?.type==='NewExpression'&&/Worker$/.test(node.callee.name??node.callee.property?.name??'')) {
         const e=ev(args[0]).s;spawnSites.set(s.id,e);
-        add(f,s,{kind:'worker-spawn',spawn:s.id,entry:e,data:literalValues(args[1],['workerData']).size>0||args[1]!==undefined});continue;
+        add(f,s,{kind:'worker-spawn',spawn:s.id,entry:e,api:apis.find(a=>/(^|[.\s])Worker$/.test(a)),data:literalValues(args[1],['workerData']).size>0||args[1]!==undefined});continue;
       }
       // Which side of a worker a message call is on is decided when matching (withChannels): the
       // objects its receiver holds that a worker start made, or else the worker its file runs in.
@@ -204,6 +233,8 @@ export function contactFacts(pt,{functions},derived,{modules=[],resolveImport}={
   };
   const resolved=[];
   for(const c of contacts) {
+    // An `x.onmessage =` listener counts only on an object a worker start made (not an EventSource).
+    if(c.setter){delete c.setter;if(!c.sites.some(id=>spawnSites.has(id)))continue;}
     const field=['url','entry','path','command'].find(k=>typeof c[k]==='string'&&c[k].includes(P));
     if(!field){resolved.push(c);continue;}
     const seenV=new Set();
@@ -218,10 +249,23 @@ export function contactFacts(pt,{functions},derived,{modules=[],resolveImport}={
   return {contacts:resolved,imports};
 }
 
+// Contacts from several analyses of overlapping code, `lists` largest analysis first: a site (a
+// call or comparison, by kind) takes its contacts from the first analysis holding it, since a
+// larger one resolves more parameters at more call sites. Imports are a file's own, so united.
 export function mergeContactFacts(lists) {
-  const contacts=new Map(),imports={};
-  for(const l of lists){if(!l)continue;for(const c of l.contacts){const k=JSON.stringify(c);if(!contacts.has(k))contacts.set(k,c);}Object.assign(imports,l.imports);}
-  return {contacts:[...contacts.values()],imports};
+  const contacts=[],taken=new Set(),imports={};
+  const siteOf=c=>`${c.kind}|${c.site??`${c.key}|${c.line}`}`;
+  for(const l of lists) {
+    if(!l)continue;
+    const mine=new Set(),seen=new Set();
+    for(const c of l.contacts) {
+      const s=siteOf(c);if(taken.has(s))continue;mine.add(s);
+      const k=JSON.stringify(c);if(!seen.has(k)){seen.add(k);contacts.push(c);}
+    }
+    for(const s of mine)taken.add(s);
+    for(const [f,list] of Object.entries(l.imports??{}))imports[f]??=list;
+  }
+  return {contacts,imports};
 }
 
 // ---- actors -----------------------------------------------------------------------------------
@@ -288,9 +332,10 @@ export function withChannels(analysis,{actors=null}={}) {
     const path=u?.path;
     const hits=path&&path!=='*'?routes.filter(r=>(r.prefix?glob(path.endsWith('*')?path:path+'*').test(r.path+'x')||path.startsWith(r.path)||glob(path).test(r.path):glob(path).test(r.path)||path===r.path)
       &&(r.method==='*'||c.method==='*'||r.method===c.method)):[];
-    // A request no route takes is listed; one whose target the source does not show may leave SAAM,
-    // so it is also an outside contact.
-    if(!hits.length){unresolved.senders.push({at:brief(c),key:c.key,url:c.url,method:c.method,...(c.via?{via:c.via}:{})});if(!path?.startsWith('/'))c.external='?';continue;}
+    // A request to a local path no route takes is listed. One whose target the source does not
+    // show (no leading path) is an outside contact: an actor channel takes it, or it is listed
+    // with the unassigned contacts.
+    if(!hits.length){if(!path?.startsWith('/')){c.external='?';continue;}unresolved.senders.push({at:brief(c),key:c.key,url:c.url,method:c.method,...(c.via?{via:c.via}:{})});continue;}
     for(const r of hits){routeHit.add(r);arrow(c.key,r.key,'request',`${c.method} ${r.path}`);if(c.replyUsed)arrow(r.key,c.key,'reply',`${c.method} ${r.path}`);count('http');}
   }
   for(const r of routes)if(!routeHit.has(r))unresolved.receivers.push({at:brief(r),key:r.key,route:`${r.method} ${r.path}${r.prefix?'*':''}`,note:'no caller found in the analysis'});
@@ -301,13 +346,14 @@ export function withChannels(analysis,{actors=null}={}) {
   for(const c of by('worker-spawn')) {
     const e=c.entry?.startsWith('@')?c.entry.slice(1):c.entry?.startsWith('/')?c.entry.slice(1):null;
     if(!e||!imports[e]){unresolved.spawns.push({at:brief(c),key:c.key,entry:c.entry,note:e?'entry not in the analysis':'entry not visible'});continue;}
-    spawns.set(c.spawn,{...c,entryFile:e,files:closure(e)});
+    // One start site may run several entries (a parameter resolved at several callers).
+    (spawns.get(c.spawn)??spawns.set(c.spawn,[]).get(c.spawn)).push({...c,entryFile:e,files:closure(e)});
     arrow(c.key,`${e}:0`,'spawn',e);count('worker-spawn');
   }
   // A message call is on the starting side when its receiver holds a worker a start made, else on
   // the worker side of every start whose thread runs its file.
-  const sideOf=c=>{const own=(c.sites??[]).filter(id=>spawns.has(id)).map(id=>spawns.get(id));
-    if(own.length)return {main:own};const runs=[...spawns.values()].filter(s=>s.files.has(c.file));return runs.length?{worker:runs}:null;};
+  const sideOf=c=>{const own=(c.sites??[]).filter(id=>spawns.has(id)).flatMap(id=>spawns.get(id));
+    if(own.length)return {main:own};const runs=[...spawns.values()].flat().filter(s=>s.files.has(c.file));return runs.length?{worker:runs}:null;};
   const listens=by('worker-listen').map(r=>({...r,side:sideOf(r)}));
   for(const r of listens)if(!r.side)unresolved.receivers.push({at:brief(r),key:r.key,kind:r.kind,note:'listens on no worker the analysis saw started, in no worker it saw'});
   for(const c of by('worker-post')) {
