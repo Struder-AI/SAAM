@@ -30,6 +30,12 @@ STYLE["caller"] = dict(fill="#fff1f2", stroke="#dc2626", sw=1.4, rx=13, tc="#991
 STYLE["invocation"] = dict(fill="#eef2ff", stroke="#4f46e5", sw=1.8, rx=7, tc="#312e81")
 STYLE["outside"] = dict(fill="#ecfdf5", stroke="#059669", sw=1.8, rx=7, tc="#065f46")
 STYLE["emphasis"] = dict(fill="#e0f2fe", stroke="#0284c7", sw=2.5, rx=9, tc="#0c4a6e")
+# An influence set's command leaf (it changes state; a query only answers), and the marker boxes
+# that stand for a list the drawing cannot show, one colour per list.
+STYLE["command"] = dict(fill="#eef2ff", stroke="#4f46e5", sw=1.8, rx=7, tc="#312e81")
+TONE = {"link": "#ea580c", "unowned": "#7c3aed", "missing": "#dc2626"}
+for _tone, _colour in TONE.items():
+    STYLE["mark-" + _tone] = dict(fill="#ffffff", stroke=_colour, sw=2.2, rx=12, tc=_colour, dash="6 3")
 EDGE["caller"] = dict(stroke="#dc2626", sw=1.5, head="l-co", dash="2 3")
 EDGE["capture"] = dict(stroke="#0369a1", sw=1.5, head="l-data", dash="3 3")
 ROW = 14.0
@@ -117,7 +123,9 @@ class MapPage(Page):
         return self
 
     def position_authored(self):
-        positions = self.authored["positions"]
+        positions = self.authored.get("positions") or {}
+        if not positions:
+            return
         for nid, point in positions.items():
             node = self.index[nid]
             node.x, node.y = point["x"], point["y"]
@@ -136,6 +144,9 @@ class MapPage(Page):
             for j, node in enumerate(row):
                 node.x, node.y = MARGIN_L + j * cell, y
             y += max(n.h for n in row) + 85
+        # A page whose unplaced boxes are part of what it says is fitted to all of them.
+        if self.authored.get("frame") == "all":
+            self.focus = [0, 0, max(n.x + n.w for n in self.nodes) + 50, max(n.y + n.h for n in self.nodes) + 70]
         for node in self.nodes:
             node.column = 0
         self.row_of, self.slot, self.gutter_lane, self.wrapped = {0: 0}, {}, {}, set()
@@ -148,7 +159,7 @@ class MapPage(Page):
                 self.fan[end] = self.fan.get(end, 0) + 1
         def route(edge):
             a, b = self.index[edge["src"]], self.index[edge["dst"]]
-            if getattr(self, "design", False):
+            if getattr(self, "design", False) or self.authored.get("route") == "direct":
                 paired = any(e["src"] == edge["dst"] and e["dst"] == edge["src"] for e in self.edges)
                 if abs(b.cy - a.cy) > abs(b.cx - a.cx):
                     down = b.cy > a.cy
@@ -259,6 +270,16 @@ class MapPage(Page):
                     if target:
                         o.append('</g>')
                     tx += tw(label, FS_NOTE)
+        # A count that opens a list: a whole marker box, or one badge row on a box.
+        for n in self.nodes:
+            if getattr(n, "list", ""):
+                o.append(f'<rect class="fm-list" data-list="{escape(n.list, QUOTE)}" x="{n.x:.1f}" y="{n.y:.1f}" '
+                         f'width="{n.w:.1f}" height="{n.box_h:.1f}" rx="12" fill="#0ea5e9" fill-opacity="0.004"/>')
+            for row, name in getattr(n, "list_rows", {}).items():
+                row_y = n.y + PADY + LH_TITLE * .75 + LH_TITLE * len(n.lines) + row * LH_NOTE
+                o.append(f'<rect class="fm-list" data-list="{escape(name, QUOTE)}" x="{n.x + PADX - 3:.1f}" '
+                         f'y="{row_y - FS_NOTE:.1f}" width="{tw(n.note_lines[row], FS_NOTE) + 6:.1f}" '
+                         f'height="{LH_NOTE:.1f}" fill="#0ea5e9" fill-opacity="0.004"/>')
         # The foot of a box is where its source is. Drawn by the base; the hit box goes over it.
         for n in self.nodes:
             note_refs = dict(getattr(n, "note_refs", {}))
@@ -512,14 +533,23 @@ def build_page(packet, ctx):
                 elif c["count"] > 1 and len(files) == 1 and next(iter(files)).endswith((".mjs", ".js")):
                     node.note = " · ".join(c["externals"][:6]) + (f' · +{c["count"] - 6}' if c["count"] > 6 else "")
                 continue
-            unit(c["index"], c["label"], "",
-                 f'{c["file"]}:{c["line"]}-{c["endLine"]}', "ast",
-                 ref=f'{c["file"]}:{c["line"]}-{c["endLine"]}', path=c.get("path") or f'{c["file"]}::{c["label"]}')
+            node = unit(c["index"], c["label"], "",
+                        f'{c["file"]}:{c["line"]}-{c["endLine"]}', "ast",
+                        ref=f'{c["file"]}:{c["line"]}-{c["endLine"]}', path=c.get("path") or f'{c["file"]}::{c["label"]}')
+            if c.get("role") == "command":
+                node.kind = "command"
+            if c.get("possiblyCallerDependent"):
+                node.note, node.note_fills = "mode argument?", {0: TONE["link"]}
         for p in packet["ports"]:
             if p.get("mechanism") == "boundary":
                 port(p["port"], f'{p["index"]} {p["label"]}', "caller", p["index"] if p["index"] in pages else "")
             else:
                 port(p["port"], p["port"], go=port_target(p["port"], pages))
+        # What the page cannot draw, as boxes: a count that opens its list, or a marked list.
+        for m in packet.get("markers", []):
+            node = page.n(m["id"], m["label"], kind="mark-" + m["tone"], note=m.get("note"))
+            node.list = m.get("list", "")
+            drawn.add(m["id"])
         for w in packet["wires"]:
             if w.get("kind") == "invocation":
                 invocation_edge(page, w, drawn, dropped)
@@ -558,6 +588,14 @@ def build_page(packet, ctx):
                 row = len(node.note.split("\n")) if node.note else 0
                 node.note = (node.note + "\n" if node.note else "") + f'{counts[cls]} {name}'
                 node.note_fills = {**getattr(node, "note_fills", {}), row: fill}
+    for b in packet.get("badges", []):
+        node = page.index.get(b["index"])
+        if node is None:
+            continue
+        row = len(node.note_lines)
+        node.note = (node.note + "\n" if node.note else "") + b["text"]
+        node.note_fills = {**getattr(node, "note_fills", {}), row: TONE[b["tone"]]}
+        node.list_rows = {**getattr(node, "list_rows", {}), row: b["list"]}
     lists(packet, page, pages)
     page.layout()
     if getattr(page, "focus", None):
@@ -1174,6 +1212,10 @@ body.noside #side{display:none}
 #score b{color:#0f172a}
 #score .bad{color:#9f1239}
 #codepane .cb{min-width:0;min-height:0;overflow:auto}
+#codepane .cb.list button{display:block;width:100%;text-align:left;font:12.5px/1.4 inherit;background:none;border:0;border-bottom:1px solid #f1f5f9;padding:5px 14px;cursor:pointer}
+#codepane .cb.list button:hover{background:#f0f9ff}
+#codepane .cb.list span{color:#64748b;font:11.5px ui-monospace,Consolas,monospace}
+.fm-list{cursor:pointer}.fm-list:hover{fill-opacity:.12!important}
 #codepane .cb>pre{width:max-content;min-width:100%;box-sizing:border-box;overflow:visible;white-space:pre}
 #codepane details{margin:8px 14px;color:#475569}
 #codepane details summary{cursor:pointer;font-size:12px}
@@ -1492,6 +1534,8 @@ stage.addEventListener('click',e=>{if(e.target.closest('#codepane,#legendpane')|
   if(jump){standAt(jump.dataset.jump);return;}
   const edge=el.closest('[data-a][data-b]');
   if(edge&&DESIGN){openContracts(edge.dataset.a,edge.dataset.b);return;}
+  const list=el.closest('.fm-list');
+  if(list){openList(list.dataset.list);return;}
   const src=el.closest('.fm-src');
   if(src){const target=PAGES[src.dataset.key];
     if(target&&target.destination==='code')show(src.dataset.key);else openCode(src.dataset.ref);return;}
@@ -1552,6 +1596,14 @@ function openExternal(details,connections){closeCode();legendPane.classList.remo
   codePane.innerHTML=`<div class="ch"><span class="x" onclick="dismissCode()">&times;</span>`+
     `<h3>${details.length} external dependencies</h3><p>Grouped for navigation. Every declaration and its calculated connections are retained below.</p></div>`+
     `<div class="cb">${details.map(path=>`<p>${esc(path)}<br><small>${describe(path)}</small></p>`).join('')}</div>`;
+  codePane.classList.add('on');}
+/* A list the drawing counts but cannot show. A drawn leaf opens on its map; another opens its source. */
+function openList(name){const list=LISTS[name];if(!list)return;closeCode();legendPane.classList.remove('on');
+  codePane.innerHTML=`<div class="ch"><span class="x" onclick="dismissCode()">&times;</span>`+
+    `<h3>${esc(list.title)}</h3></div><div class="cb list">`+list.items.map((it,i)=>
+      `<button data-item="${i}"><b>${esc(it.t)}</b> <span>${esc(it.ref)}${it.n?' · '+esc(it.n):''}</span></button>`).join('')+`</div>`;
+  codePane.querySelectorAll('[data-item]').forEach(b=>b.onclick=()=>{const it=list.items[+b.dataset.item];
+    if(it.go&&PAGES[it.go]){graphCur=null;show(it.go);}else openCode(it.ref);});
   codePane.classList.add('on');}
 function openCode(ref,key){const cut=ref.lastIndexOf(':'),file=ref.slice(0,cut),
         span=ref.slice(cut+1).split('-'),a=+span[0],b=+span[1];
@@ -1647,6 +1699,27 @@ show(navigationKey(history.state,location.hash.slice(1)),false);
 """
 
 
+def influence_legend():
+    def box(style):
+        s = STYLE[style]
+        dash = f' stroke-dasharray="{s["dash"]}"' if "dash" in s else ""
+        return (f'<svg width="34" height="14"><rect x="1" y="1" width="32" height="12" rx="{min(s["rx"], 6)}" '
+                f'fill="{s["fill"]}" stroke="{s["stroke"]}" stroke-width="{s["sw"]}"{dash}/></svg>')
+    rows = [("stage", "cluster", "opens its map; ≈ and library labels are provisional, derived from its leaves"),
+            ("code", "query leaf", "answers; its foot opens its source"),
+            ("command", "command leaf", "changes state"),
+            ("caller", "boundary", "the node on an enclosing map an arrow leaves to"),
+            ("mark-link", "unlinked", "leaves with no arrow, so not drawn; the count opens the list"),
+            ("mark-unowned", "unowned", "leaves no map-0 node owns; the count opens the list"),
+            ("mark-missing", "not analysed", "in-scope files whose leaves and arrows are absent")]
+    return ("<h2>Influence map</h2><p>Map 0 is the authored top level, placed as the authored set places it; "
+            "everything below it is unreviewed solver output. An arrow is every leaf arrow between two boxes, "
+            "labelled with its kinds and counts; two heads mean influence both ways. "
+            "<code>read ADDRESS</code> lists the leaf arrows.</p>"
+            + "".join(f'<div class="r">{box(style)}<span><b>{escape(name)}</b> — {escape(text)}</span></div>'
+                      for style, name, text in rows))
+
+
 def swatch(kind, key):
     if kind == "b":
         s = STYLE[key]
@@ -1698,6 +1771,7 @@ def emit(out, model, pages, svgs):
     # the way it has to be broken in HTML.
     (out / "stamp.js").write_text(f'stampAt({json.dumps(model.get("built", ""))})', encoding="utf-8")
     page_data = json.dumps(pages).replace("</", "<\\/")
+    lists_data = json.dumps(model.get("lists", {})).replace("</", "<\\/")
     graph_pages = {key: p for key, p in pages.items() if p["destination"] in ("graph", "contents")}
     rows, parents = [], {p["p"] for p in graph_pages.values()}
 
@@ -1731,16 +1805,16 @@ def emit(out, model, pages, svgs):
               "<p>Boxes open submaps or referenced source. Wires open contracts and evidence, including exact nested endpoints. "
               "Wire direction follows the stated contract flow. Each pair of boxes is one wire: two heads mean flow both ways, its label naming each direction; a dot at the tail marks an activation that returns only its outcome. Separate access entries, where supplied, name permitted call/read directions. "
               "No transitive access is granted. Implementation conformance remains unchecked.</p>"
-              if model.get("design") else legend_html())
+              if model.get("design") else INFLUENCE_LEGEND if model.get("influence") else legend_html())
     html = f"""<!doctype html><meta charset="utf-8"><title>{escape(heading)}</title>
 <style>{CSS}</style>
 <div id="side">
   <h1>{escape(heading)}</h1>
   {f'<div class="sub" style="color:#fca5a5;font-weight:600">{escape(model["notice"])}</div>' if model.get("notice") else ''}
-  <div class="sub">{len(svgs)} graph pages · {sum(p['destination']=='contents' for p in pages.values())} contents pages · {sum(p['destination']=='code' for p in pages.values())} source destinations, stored {escape(model["generated"])}, drawn
+  <div class="sub">{'' if model.get('influence') else f"{len(svgs)} graph pages · {sum(p['destination']=='contents' for p in pages.values())} contents pages · {sum(p['destination']=='code' for p in pages.values())} source destinations, "}stored {escape(model["generated"][:16].replace("T", " "))}, drawn
     {escape(model.get("built", "")[:16].replace("T", " "))} UTC.
     <span id="freshness-status">Live freshness unavailable; snapshot remains readable.</span>
-    Redrawn by every <code>regenerate</code>; this page reloads itself.</div>
+    {'' if model.get('influence') else 'Redrawn by every <code>regenerate</code>; this page reloads itself.'}</div>
   <input id="filter" placeholder="index or declaration path…" autocomplete="off">
   <div id="tree">{''.join(rows)}</div>
 </div>
@@ -1778,6 +1852,7 @@ const PAGES={page_data};
 const BUILT={json.dumps(model.get("built", ""))};
 const SNAPSHOT_ID={json.dumps(model.get("snapshotId"))};
 const DESIGN={json.dumps(model.get("design", False))};
+const LISTS={lists_data};
 {JS}
 </script>
 """
@@ -1786,7 +1861,8 @@ const DESIGN={json.dumps(model.get("design", False))};
 
 
 def build(model, out):
-    global REGENERATE
+    global REGENERATE, INFLUENCE_LEGEND
+    INFLUENCE_LEGEND = influence_legend() if model.get("influence") else ""
     REGENERATE = model.get("regenerate", REGENERATE)
     packets = {p["index"]: p for p in model["pages"]}
     pages = {}

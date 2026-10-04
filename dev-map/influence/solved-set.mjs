@@ -31,8 +31,6 @@ const order=(a,b)=>a<b?-1:a>b?1:0;
 const sha=text=>createHash('sha256').update(text).digest('hex');
 const lf=text=>text.replaceAll('\r\n','\n');
 const TOP='0',UNOWNED='(unowned)';
-// A map's ledger lists the leaf arrows behind its arrows when it carries at most this many.
-const LEDGER_ARROWS=150;
 const regenerateCommand=`node dev-map/cli.mjs ${setDir?`--set-dir ${setDir}`:`--set ${setName}`} regenerate`;
 const keyParts=key=>{const at=key.lastIndexOf(':');return {file:key.slice(0,at),offset:Number(key.slice(at+1))};};
 const fileOf=key=>keyParts(key).file;
@@ -210,22 +208,22 @@ export async function writeModel({log=()=>{}}={}) {
   const nameOf=new Map();
   for(const c of clusters) {
     if(index.get(c.id)===undefined)continue;
-    if(c.authored){nameOf.set(c.id,{label:c.label,description:'authored node',authored:true});continue;}
-    if(c.id===UNOWNED){nameOf.set(c.id,{label:'(unowned) · preview',description:'no map-0 owner; grouped by file, not solved'});continue;}
+    if(c.authored){nameOf.set(c.id,{label:c.label,authored:true});continue;}
+    if(c.id===UNOWNED){nameOf.set(c.id,{label:'unowned'});continue;}
     const held=leavesUnder(c.id),files=new Map();for(const l of held)files.set(fileOf(l),(files.get(fileOf(l))??0)+1);
     const [dom]=[...files].sort((a,b)=>b[1]-a[1]||order(a[0],b[0]))[0];
     const names=held.filter(l=>fileOf(l)===dom).sort((a,b)=>(degree.get(b)??0)-(degree.get(a)??0)||keyOrder(a,b)).slice(0,3).map(l=>labels.get(l));
     const top=c.id.split('/')[0];
-    if(top===UNOWNED)nameOf.set(c.id,{label:`${dom} · unowned`,description:'unowned, grouped by file (not solved)',byFile:true});
-    else if(c.library)nameOf.set(c.id,{label:`library · ${base(dom)}${files.size>1?` +${files.size-1}`:''}: ${names.join(', ')}`,description:'uniform helpers · provisional label',library:true,provisional:true});
-    else nameOf.set(c.id,{label:`≈ ${base(dom)}${files.size>1?` +${files.size-1}`:''}: ${names.join(', ')}`,description:'provisional label',provisional:true});
+    if(top===UNOWNED)nameOf.set(c.id,{label:`${dom} · unowned`,byFile:true});
+    else if(c.library)nameOf.set(c.id,{label:`library · ${base(dom)}${files.size>1?` +${files.size-1}`:''}: ${names.join(', ')}`,library:true,provisional:true});
+    else nameOf.set(c.id,{label:`≈ ${base(dom)}${files.size>1?` +${files.size-1}`:''}: ${names.join(', ')}`,provisional:true});
   }
   const boxLabel=id=>nameOf.get(id)?.label??leafRow.get(id)?.label??id;
-  const leafText=key=>{const r=leafRow.get(key);return `${r.label} (${base(r.file)})`;};
 
-  // Pages.
+  // Pages. Beside its boxes and arrows a page holds only what the drawing cannot show: its node's
+  // unlinked leaves, and on map 0 the files the analysis did not read and (on the unowned box's
+  // own map) the leaves no map-0 node owns. Everything else is drawn, or derivable from what is.
   const kindCount=list=>{const c={};for(const i of list)c[model.arrows[i].kind]=(c[model.arrows[i].kind]??0)+1;return c;};
-  const glyph={one:'→',ack:'•→',both:'↔'};
   const pages=[];
   for(const m of maps) {
     const idx=index.get(m.id);if(idx===undefined)continue;
@@ -233,63 +231,34 @@ export async function writeModel({log=()=>{}}={}) {
     const components=m.members.map(id=>cluster.has(id)
       ?{index:index.get(id),kind:'group',path:`@cluster/${id}`,count:nested.get(id),...nameOf.get(id)}
       :(({key,label,role,file,line,endLine,uniform,possiblyCallerDependent})=>({index:index.get(id),kind:'leaf',path:key,
-        label:label+(role==='command'?' · command':'')+(possiblyCallerDependent?' · mode arg?':''),role,file,line,endLine,
-        ...(uniform?{uniform}:{}),...(possiblyCallerDependent?{possiblyCallerDependent}:{})}))(leafRow.get(id)))
+        label,role,file,line,endLine,...(uniform?{uniform}:{}),...(possiblyCallerDependent?{possiblyCallerDependent}:{})}))(leafRow.get(id)))
       .sort((a,b)=>order(a.index,b.index));
     const ports=m.boundary.map(id=>({port:`b:${index.get(id)}`,mechanism:'boundary',index:index.get(id),label:boxLabel(id),
       path:cluster.has(id)?`@cluster/${id}`:id}));
     const wires=m.arrows.map(a=>({from:box(a.from),to:box(a.to),ends:a.ends,count:a.leafArrows.length,kinds:kindCount(a.leafArrows),leafArrows:a.leafArrows}));
-    const named=id=>id.startsWith('b:')?`[${ports.find(p=>p.port===id)?.index}] ${ports.find(p=>p.port===id)?.label}`:`${id} ${components.find(c=>c.index===id)?.label}`;
-    // Each pair's row; its leaf arrows are rows too where the map carries few enough to read
-    // beside the drawing, and always in the CLI read.
-    const total=wires.reduce((n,w)=>n+w.count,0),listed=total<=LEDGER_ARROWS;
-    const sections=[{title:`arrows: ${wires.length} pairs carrying ${total} leaf arrows${listed?'':` (leaf arrows: ${regenerateCommand.replace(/ regenerate$/,'')} read ${idx})`}`,
-      items:wires.flatMap(w=>[{text:`${named(w.from)} ${glyph[w.ends]} ${named(w.to)} · ${w.count} leaf arrows · ${Object.entries(w.kinds).map(([k,n])=>`${k}×${n}`).join(' ')}`,style:'note'},
-        ...(listed?w.leafArrows.map(i=>{const a=model.arrows[i];return {text:`    ${leafText(a.from)} → ${leafText(a.to)} · ${a.kind}${a.count>1?` ×${a.count}`:''}`,go:leafRow.get(a.from).index??''};}):[])])}];
-    const c=cluster.get(m.id);
-    if(c?.unlinked?.length)sections.push({title:`unlinked leaves (${c.unlinked.length}): no arrow, so not drawn; dead code or an analysis gap`,
-      items:c.unlinked.map(k=>{const r=leafRow.get(k);return {text:`${r.label}  ${r.file}:${r.line}-${r.endLine}  ${r.role}`};})});
-    const flagged=components.filter(x=>x.possiblyCallerDependent);
-    if(flagged.length)sections.push({title:`possibly caller-dependent (${flagged.length}): uniform helpers taking a boolean or string-literal mode argument; review`,
-      items:flagged.map(x=>({text:`${x.index} ${x.label}  ${x.file}:${x.line}`,go:x.index}))});
+    const unlinked=cluster.get(m.id)?.unlinked;
     pages.push({index:idx,path:m.id===TOP?'0':`@cluster/${m.id}`,kind:m.id===TOP?'root':'group',
-      label:m.id===TOP?spec.title:boxLabel(m.id),description:nameOf.get(m.id)?.description??'',...(nameOf.get(m.id)??{}),
+      label:m.id===TOP?spec.title:boxLabel(m.id),...(nameOf.get(m.id)??{}),
       parent:m.id===TOP?null:index.get(parentOf.get(m.id)),destination:'graph',leaves:m.nested,
-      ...(m.score!==undefined?{score:m.score}:{}),components,ports,wires,sections});
+      ...(m.score!==undefined?{score:m.score}:{}),components,ports,wires,...(unlinked?.length?{unlinked:[...unlinked].sort(keyOrder)}:{})});
   }
   for(const r of leafRow.values())if(r.index)pages.push({index:r.index,path:`${r.file}::${r.label}`,key:r.key,kind:'function',label:r.label,role:r.role,
     file:r.file,line:r.line,endLine:r.endLine,lines:r.endLine-r.line+1,destination:'code',parent:index.get(parentOf.get(r.key)),components:[],wires:[],
     foldedCode:r.folded.filter(f=>f.line).map(f=>({path:f.key,file:f.file,line:f.line,endLine:f.endLine}))});
 
-  // Map 0 says what this is: a preview of partial analysis, and every leaf it does not draw.
+  // Map 0 lists the in-scope files the analysis did not read; the unowned box's own map (map 0
+  // when there is none) lists every leaf without a map-0 owner.
   const unowned=[...leafRow.values()].filter(r=>!r.owner);
   const unlinked=[...leafRow.values()].filter(r=>r.unlinked);
   const root=pages.find(p=>p.index==='0');
-  const notes=[
-    `Generated ${new Date().toISOString().slice(0,16)}Z from ${basename(paths.analysis)} by the middle-out solver; nothing below map 0 is reviewed.`,
-    `Leaves: ${model.leaves.length} (by exact key; ${model.merged} merged), drawn ${model.leaves.length-unlinked.length}, unlinked ${unlinked.length}, unowned ${unowned.length}. Leaf arrows: ${model.arrows.length}.`,
-    `Cluster labels are provisional (≈): the file holding most of a cluster's leaves and its best-connected leaves there. Label passes do not exist yet.`,
-    `Libraries hold uniform helpers (${uniform.size}): queries several leaves call that read no shared state; the analysis does not yet report state reads, so any module-level read counts as one.`,
-    ...(changed.length?[`Source moved since the analysis for ${changed.length} files (ranges there may be off): ${changed.join(', ')}.`]:[]),
-    ...(solverMismatch.length?[`The assembled set differs from the solver's own drawing on ${solverMismatch.length} maps: ${solverMismatch.slice(0,8).join('; ')}.`]:[]),
-  ];
-  root.sections.unshift({title:`PREVIEW: partial influence analysis, solver output, unreviewed`,items:notes.map(text=>({text,style:'note'}))});
-  if(spec.missing?.length)root.sections.splice(1,0,{title:`not analysed (${spec.missing.length} in-scope files): their leaves and arrows are absent`,items:spec.missing.map(text=>({text}))});
-  // The unowned list stands on the unowned box's own map (map 0 points to it); a set with no
-  // such map lists them on map 0.
-  const unownedPage=pages.find(p=>p.index===index.get(UNOWNED))??root;
-  unownedPage.sections.unshift({title:`unowned leaves (${unowned.length}): no map-0 owner in ${basename(paths.authored)} ownership; drawn here when linked`,
-    items:unowned.sort((a,b)=>keyOrder(a.key,b.key)).map(r=>({text:`${r.label}  ${r.file}:${r.line}-${r.endLine}  · ${r.gap}${r.declaration?` · ${r.declaration}`:''}${r.unlinked?' · unlinked':''}`,go:r.index??''}))});
-  if(unownedPage!==root)root.sections.push({title:`unowned leaves (${unowned.length}): listed on map ${unownedPage.index}`,items:[{text:`${unownedPage.index} ${unownedPage.label}`,go:unownedPage.index}]});
-  root.sections.push({title:`unlinked leaves by node (${unlinked.length}): listed on each node's map`,
-    items:[...authored.nodes.map(n=>n.id),UNOWNED].map(id=>({text:`${index.get(id)} ${boxLabel(id)}: ${cluster.get(id)?.unlinked?.length??0}`,go:index.get(id)}))});
-  root.sections.push({title:'solver',items:summaries.map(s=>({text:`${s.node}: ${s.leaves} leaves solved + ${s.library??0} in its library, ${s.clusters} clusters, energy ${s.startEnergy?.toFixed(3)} → ${s.energy?.toFixed(3)}, ${s.stages} stages, ${s.ms} ms, ${s.generated}`}))});
+  if(spec.missing?.length)root.notAnalysed=[...spec.missing];
+  if(unowned.length)(pages.find(p=>p.index===index.get(UNOWNED))??root).unowned=unowned.map(r=>r.key).sort(keyOrder);
 
   const files=[...texts.keys()].sort(order);
   const sources=Object.fromEntries(files.map(f=>[f,lf(texts.get(f))]));
   const sourceInfo=Object.fromEntries(files.map(f=>[f,{sourceKind:'snapshot',sourceSha256:sha(sources[f])}]));
   const stored={schema:1,mode:'influence',title:spec.title,generated:new Date().toISOString(),regenerate:regenerateCommand,
-    notice:spec.preview?`PREVIEW · partial analysis${spec.missing?.length?` (${spec.missing.length} in-scope files missing)`:''} · solver output, unreviewed · provisional labels · ${unowned.length} unowned, ${unlinked.length} unlinked leaves`:'',
+    notice:spec.preview?'PREVIEW · partial analysis · unreviewed solver output':'',
     inputs:{analysis:paths.analysis,authored:paths.authored,sourceRoots:paths.roots},sourceChanged:changed,
     summary:{leaves:model.leaves.length,merged:model.merged,sharedNames:model.sharedNames,arrows:model.arrows.length,drawn:model.leaves.length-unlinked.length,
       unlinked:unlinked.length,unowned:unowned.length,uniform:uniform.size,possiblyCallerDependent:[...leafRow.values()].filter(r=>r.possiblyCallerDependent).length,
@@ -359,32 +328,90 @@ function staleness(model) {
   return files.length?{reason:'source changed since the analysis',files,regenerate:'rerun the analysis, then '+model.regenerate}:null;
 }
 
-export function solvedModel() {
-  const m=stored();
-  return {generated:m.generated,title:m.title,notice:m.notice,regenerate:m.regenerate,scores:{},snapshotId:m.snapshotId,
-    pages:m.pages,sources:m.sources,sourceInfo:m.sourceInfo,stale:{},changed:[],changedInputs:[]};
+// Map 0's boxes stand where the authored design set places its nodes: its architecture.json
+// `layout["0"]`, keyed there by authored index and matched here by node id, so a renumbered set
+// keeps its places. Positions come from here alone; when a person can drag boxes and keep them,
+// this is what reads the kept positions instead. Generated placement stays for every other map.
+export function mapZeroPositions(authoredDir=inputs().authored) {
+  const architecture=JSON.parse(readFileSync(resolve(authoredDir,'architecture.json'),'utf8'));
+  const idOf=new Map(architecture.nodes.filter(n=>!String(n.index).includes('.')).map(n=>[String(n.index),n.id]));
+  return Object.fromEntries(Object.entries(architecture.layout?.[TOP]?.positions??{})
+    .filter(([index])=>idOf.has(index)).map(([index,point])=>[idOf.get(index),point]));
 }
 
-// The CLI read: a map's boxes (leaves with their source ranges), boundary boxes and one arrow per
-// related pair with every leaf arrow it stands for. Leaves are not maps.
+// The viewer's model. Map 0 takes the authored positions (boxes they do not place, such as the
+// unowned box, are set out below them and the page is fitted to all of it). What a page cannot
+// draw is a count that opens its list: a badge on the box whose map holds the list, and a marker
+// box on that map; files the analysis did not read are a marked list on map 0.
+export function solvedModel() {
+  const m=stored(),lists={},pages=m.pages.map(p=>p.destination==='graph'?{...p}:p);
+  const byIndex=new Map(pages.map(p=>[p.index,p]));
+  const item=(key,note)=>{const r=m.leaves[key];
+    return {t:r.label,ref:`${r.file}:${r.line}-${r.endLine}`,...(r.index?{go:r.index}:{}),...(note?{n:note}:{})};};
+  for(const p of pages) {
+    if(p.unlinked)lists[`unlinked:${p.index}`]={title:`${p.index} ${p.label} · unlinked: no arrow, so not drawn`,items:p.unlinked.map(k=>item(k))};
+    if(p.unowned)lists.unowned={title:'unowned: no map-0 owner',items:p.unowned.map(k=>item(k,m.leaves[k].gap+(m.leaves[k].unlinked?' · unlinked':'')))};
+  }
+  const placed=mapZeroPositions();
+  for(const p of pages) {
+    if(p.destination!=='graph')continue;
+    const badges=[],markers=[];
+    for(const c of p.components) {
+      const own=c.kind==='group'&&byIndex.get(c.index);if(!own)continue;
+      if(own.unowned)badges.push({index:c.index,text:`${own.unowned.length} unowned`,tone:'unowned',list:'unowned'});
+      if(own.unlinked)badges.push({index:c.index,text:`${own.unlinked.length} unlinked`,tone:'link',list:`unlinked:${own.index}`});
+    }
+    if(p.unlinked)markers.push({id:'list:unlinked',label:`${p.unlinked.length} unlinked`,tone:'link',list:`unlinked:${p.index}`});
+    if(p.unowned)markers.push({id:'list:unowned',label:`${p.unowned.length} unowned`,tone:'unowned',list:'unowned'});
+    if(p.notAnalysed)markers.push({id:'list:not-analysed',label:`not analysed · ${p.notAnalysed.length} files`,note:p.notAnalysed.join('\n'),tone:'missing'});
+    if(p.index===TOP&&m.sourceChanged?.length)markers.push({id:'list:source-moved',label:`source moved since the analysis · ${m.sourceChanged.length} files`,note:m.sourceChanged.join('\n'),tone:'missing'});
+    Object.assign(p,{badges,markers});
+    if(p.index===TOP)p.layout={frame:'all',route:'direct',positions:Object.fromEntries(p.components
+      .map(c=>[c.index,placed[c.path.replace(/^@cluster\//,'')]]).filter(([,point])=>point))};
+  }
+  return {generated:m.generated,title:m.title,notice:m.notice,regenerate:m.regenerate,scores:{},snapshotId:m.snapshotId,
+    influence:true,lists,pages,sources:m.sources,sourceInfo:m.sourceInfo,stale:{},changed:[],changedInputs:[]};
+}
+
+// The CLI read, each fact once. `boxes` maps a box's index to a cluster (label, leaves under it,
+// and the counts of the lists its own map holds) or a leaf: exact key, label and `lines` in the
+// key's file, with `folded` helper ranges outside those lines and flags only when set (`command`; `uniform` off a
+// library map; `possiblyCallerDependent`; `rangeUnknown`; `unowned` naming why). `boundary` names
+// each `b:` box, the node on an enclosing map an arrow leaves to. Each arrow is one related pair
+// with every leaf arrow it stands for, written `FROM KIND TO` (` ×N` for N sites), an end being
+// the box index of a leaf drawn here, else its exact key; `ends` only when not one-way. A map then
+// lists only what it cannot draw: `unlinked` leaves of its node, and on map 0 `notAnalysed` files
+// and `unowned` leaves (on the unowned box's map when there is one). Leaves are not maps.
 export function readSolved(address='0') {
   const m=stored(),key=String(address);
   const page=m.pages.find(p=>p.index===key||p.path===key||p.key===key)??(m.leaves[key]?.index?m.pages.find(p=>p.index===m.leaves[key].index):null);
   if(!page)throw Error(`No map ${key}. Read 0 for the top map.`);
   if(page.destination==='code')throw Error(`Source leaf ${key} is not a map. Use normal file tools at the source ranges shown on its containing map.`);
-  const leaf=k=>m.leaves[k];
-  const sources=r=>[{file:r.file,range:[r.line,r.endLine]},...r.folded.filter(f=>f.line).map(f=>({file:f.file,range:[f.line,f.endLine]}))];
+  const byIndex=new Map(m.pages.map(p=>[p.index,p]));
+  // A range is `A-B`, or `A` for one line. A folded helper inside the leaf's own range is not
+  // restated; one elsewhere in the key's file is a range, in another file `FILE:RANGE`.
+  const range=(a,b)=>a===b?`${a}`:`${a}-${b}`;
+  const leaf=r=>{const folded=[...new Set(r.folded.filter(f=>f.line&&!(f.file===r.file&&f.line>=r.line&&f.endLine<=r.endLine))
+      .map(f=>`${f.file===r.file?'':`${f.file}:`}${range(f.line,f.endLine)}`))];
+    return {label:r.label,lines:range(r.line,r.endLine),...(folded.length?{folded}:{}),...(r.role==='command'?{command:true}:{}),
+      ...(r.uniform&&!page.library?{uniform:true}:{}),...(r.possiblyCallerDependent?{possiblyCallerDependent:true}:{}),
+      ...(r.rangeUnknown?{rangeUnknown:true}:{}),...(r.owner?{}:{unowned:r.gap??'no owner'})};};
+  const drawnHere=new Map(page.components.filter(c=>c.kind==='leaf').map(c=>[c.path,c.index]));
+  const end=k=>drawnHere.get(k)??k;
+  const listed=(keys=[],skip=new Set())=>Object.fromEntries(keys.filter(k=>!skip.has(k)).map(k=>[k,leaf(m.leaves[k])]));
   const stale=staleness(m);
-  return {index:page.index,path:page.path,kind:page.kind,label:page.label,description:page.description,
-    ...(page.provisional?{provisional:true}:{}),...(page.library?{library:true}:{}),parent:page.parent,leaves:page.leaves,
-    components:page.components.map(c=>c.kind==='leaf'
-      ?{index:c.index,path:c.path,label:c.label,kind:'leaf',role:c.role,...(c.uniform?{uniform:true}:{}),...(c.possiblyCallerDependent?{possiblyCallerDependent:true}:{}),destination:'source',sources:sources(leaf(c.path))}
-      :{index:c.index,path:c.path,label:c.label,kind:'cluster',count:c.count,...(c.provisional?{provisional:true}:{}),...(c.library?{library:true}:{}),...(c.authored?{authored:true}:{}),destination:'graph'}),
-    boundary:page.ports.map(p=>({box:p.port,index:p.index,path:p.path,label:p.label})),
-    arrows:page.wires.map(w=>({from:w.from,to:w.to,ends:w.ends,count:w.count,kinds:w.kinds,
-      leafArrows:w.leafArrows.map(i=>{const a=m.arrows[i];return {from:a.from,to:a.to,kind:a.kind,count:a.count};})})),
-    ...(page.index==='0'?{preview:{notice:m.notice,summary:m.summary,sourceChanged:m.sourceChanged,sections:page.sections.filter(s=>!s.title.startsWith('arrows:'))}}
-      :page.sections.some(s=>s.title.startsWith('unlinked'))?{unlinked:page.sections.find(s=>s.title.startsWith('unlinked')).items.map(i=>i.text)}:{}),
+  const unlinked=listed(page.unlinked);
+  const unowned=listed(page.unowned,new Set([...drawnHere.keys(),...page.unlinked??[]]));
+  return {index:page.index,...(page.index==='0'?{}:{path:page.path}),label:page.label,...(m.notice?{preview:m.notice}:{}),
+    boxes:Object.fromEntries(page.components.map(c=>{
+      if(c.kind==='leaf')return [c.index,{key:c.path,...leaf(m.leaves[c.path])}];
+      const own=byIndex.get(c.index);
+      return [c.index,{label:c.label,leaves:c.count,...(own?.unlinked?{unlinked:own.unlinked.length}:{}),...(own?.unowned?{unowned:own.unowned.length}:{})}];})),
+    ...(page.ports.length?{boundary:Object.fromEntries(page.ports.map(p=>[p.port,p.label]))}:{}),
+    arrows:page.wires.map(w=>({from:w.from,to:w.to,...(w.ends!=='one'?{ends:w.ends}:{}),
+      leafArrows:w.leafArrows.map(i=>{const a=m.arrows[i];return `${end(a.from)} ${a.kind} ${end(a.to)}${a.count>1?` ×${a.count}`:''}`;})})),
+    ...(Object.keys(unlinked).length?{unlinked}:{}),...(page.notAnalysed?{notAnalysed:page.notAnalysed}:{}),
+    ...(Object.keys(unowned).length?{unowned}:{}),...(page.index==='0'&&m.sourceChanged?.length?{sourceChanged:m.sourceChanged}:{}),
     ...(stale?{stale}:{})};
 }
 
