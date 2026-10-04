@@ -1811,10 +1811,10 @@ def emit(out, model, pages, svgs):
 <div id="side">
   <h1>{escape(heading)}</h1>
   {f'<div class="sub" style="color:#fca5a5;font-weight:600">{escape(model["notice"])}</div>' if model.get("notice") else ''}
-  <div class="sub">{len(svgs)} graph pages · {sum(p['destination']=='contents' for p in pages.values())} contents pages · {sum(p['destination']=='code' for p in pages.values())} source destinations, stored {escape(model["generated"])}, drawn
+  <div class="sub">{'' if model.get('influence') else f"{len(svgs)} graph pages · {sum(p['destination']=='contents' for p in pages.values())} contents pages · {sum(p['destination']=='code' for p in pages.values())} source destinations, "}stored {escape(model["generated"][:16].replace("T", " "))}, drawn
     {escape(model.get("built", "")[:16].replace("T", " "))} UTC.
     <span id="freshness-status">Live freshness unavailable; snapshot remains readable.</span>
-    Redrawn by every <code>regenerate</code>; this page reloads itself.</div>
+    {'' if model.get('influence') else 'Redrawn by every <code>regenerate</code>; this page reloads itself.'}</div>
   <input id="filter" placeholder="index or declaration path…" autocomplete="off">
   <div id="tree">{''.join(rows)}</div>
 </div>
