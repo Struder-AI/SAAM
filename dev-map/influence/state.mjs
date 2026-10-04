@@ -95,20 +95,32 @@ export function mergeStateFacts(lists) {
 
 // State nodes and their arrows from facts. `leafOf(callableKey)` gives a callable's leaf key, or
 // undefined for a callable the analysis has no leaf for (listed in `unknownCallables`).
+// Objects of one file with the same reader leaves are one node (`objects` > 1): each object joins
+// every one of its writers to every reader, so the united node joins exactly the same pairs. It is
+// owned through the first allocation in the file.
 export function stateNodes(facts,leafOf) {
-  const nodes=[],arrows=[],unknown=new Set();
+  const nodes=[],arrows=[],unknown=new Set(),groups=new Map();
   const leaves=keys=>{const out=new Set();for(const k of keys??[]){const l=leafOf(k);if(l===undefined)unknown.add(k);else out.add(l);}return out;};
+  const order=(a,b)=>a<b?-1:a>b?1:0;
   for(const r of facts) {
     const ws=leaves(r.writers),rs=leaves(r.readers);
     if(![...ws].some(w=>[...rs].some(q=>q!==w)))continue;
-    const key=`${r.site}.1`;
-    const fields=r.fields.length>4?[...r.fields.slice(0,4),`+${r.fields.length-4}`]:r.fields;
-    const label=`${r.label} {${fields.join(', ')}}`;
+    const sig=`${r.file}\u0000${[...rs].sort(order).join('\n')}`;
+    const g=groups.get(sig)??groups.set(sig,{ws:new Set(),rs,facts:[]}).get(sig);g.facts.push(r);for(const w of ws)g.ws.add(w);
+  }
+  for(const {ws,rs,facts:held} of groups.values()) {
+    held.sort((a,b)=>Number(a.site.slice(a.site.lastIndexOf(':')+1))-Number(b.site.slice(b.site.lastIndexOf(':')+1)));
+    const r=held[0],key=`${r.site}.1`;
+    const all=[...new Set(held.flatMap(x=>x.fields))].sort();
+    const fields=all.length>4?[...all.slice(0,4),`+${all.length-4}`]:all;
+    const label=`${r.label}${held.length>1?` +${held.length-1} objects`:''} {${fields.join(', ')}}`;
     nodes.push({leaf:`${r.file}:${r.line} ${label}`,key,role:'state',folded:[],foldedKeys:[],
-      state:{site:r.site,file:r.file,line:r.line,label,fields:r.fields,kind:r.kind,...(r.allocatedBy?{allocatedBy:r.allocatedBy}:{}),writers:ws.size,readers:rs.size}});
-    for(const w of ws)arrows.push({fromKey:w,toKey:key,kind:'writes',count:1});
-    for(const q of rs)arrows.push({fromKey:key,toKey:q,kind:'reads',count:1});
+      state:{site:r.site,file:r.file,line:r.line,label,fields:all,kind:r.kind,...(held.length>1?{objects:held.map(x=>x.site)}:{}),
+        ...(r.allocatedBy?{allocatedBy:r.allocatedBy}:{}),writers:ws.size,readers:rs.size}});
+    for(const w of ws)arrows.push({fromKey:w,toKey:key,kind:'writes',count:held.length});
+    for(const q of rs)arrows.push({fromKey:key,toKey:q,kind:'reads',count:held.length});
   }
   return {nodes,arrows,unknownCallables:[...unknown].sort(),
-    summary:{objects:facts.length,stateNodes:nodes.length,writes:arrows.filter(a=>a.kind==='writes').length,reads:arrows.filter(a=>a.kind==='reads').length}};
+    summary:{objects:facts.length,stateNodes:nodes.length,objectsInNodes:[...groups.values()].reduce((t,g)=>t+g.facts.length,0),
+      writes:arrows.filter(a=>a.kind==='writes').length,reads:arrows.filter(a=>a.kind==='reads').length}};
 }
