@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-04 — Map-0 ownership for influence leaves
+
+- `dev-map/sets/030-architecture/ownership.json`: 150 leaves of the merged per-closure influence analysis gained a map-0 owner (geometry +40, bundle +64, toolpath +7, studio +24, extensions +11, context +3, export +1), as whole-file entries (module plus each top-level declaration, since solve-middle reads only `ownership.leaves` and a named declaration never falls back to the module) or single declarations; four keys renamed to current graph.mjs names; one stale `files` entry for an ignored local file removed. Unowned leaves 370 → 220, counted with solve-middle's own `ownLeaves` against the source the analysis was built from (later code-shape commits moved lines; a fresh analysis is needed for current counts).
+- Left for the owner: the "agent" owner (45 leaves: saam command, application runtime, jobs, CLIs) has no internal map-0 node; post-install packaging (78 leaves); toolkit/onboarding (18). Scope corrections: demos (34) and build/dev tooling (36) are still in `run.mjs` ROOTS. Analysis gap: 11 function-valued consts inside callbacks get no declaration (graph.mjs names them `<callable@L:C>`). Four positional anchors break when lines move. No tests run.
+
 ## 2026-10-04 — Code shape: named operation dispatch and callee sites
 
 - `core/application/runtime.mjs`: built-in operations register only their definition (help, validation, scope); each body is a named entry function and `perform(name, …)` dispatches by a switch that names every callee, with a default that throws for a definition without an entry (55 definitions, 55 cases). Local extension actions stay at the declared extension boundary (`extensionActions`). Removed: callables stored in registry records and the `operation.action(...)` call that joined every operation's arguments and results; `let settleWork` became `Promise.withResolvers()`. Analysis of runtime.mjs alone: call edges 375 → 268. Results still join at `perform`'s return (dispatch on a transport name). The `core/application` closure still does not finish (8 GB, 452 s): the shared geometry helpers remain.
