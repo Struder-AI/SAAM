@@ -156,19 +156,25 @@ export async function analyse({repo=repoOf,out,maxHeapMB=4096,startHeapMB=2048,l
   // ---- merging ----
   const inputHash=sha(JSON.stringify([analyser,sha(readFileSync(fileURLToPath(import.meta.url),'utf8')),files,graph.unparsed,runs.map(r=>[r.root,r.hash]).sort(),
     attempts.filter(a=>a.status!=='ok').map(a=>[a.root,a.status,a.reason]).sort()]));
-  let previous=null;try{previous=JSON.parse(readFileSync(out,'utf8'));}catch{}
+  // The merge's inputs are kept beside the result, not in it: a result that comes out the same
+  // (an edit that moves no key, such as a comment at a file's end) is left untouched, so the
+  // solves keyed on it stay reused.
+  const hashFile=`${out}.inputs`;
+  let previous=null;try{previous=readFileSync(out,'utf8');}catch{}
   let merged,reusedMerge=false;
-  if(previous?.inputHash===inputHash){merged=previous;reusedMerge=true;}
+  if(previous!==null&&existsSync(hashFile)&&readFileSync(hashFile,'utf8')===inputHash){merged=JSON.parse(previous);reusedMerge=true;}
   else {
     merged=merge(runs.map(r=>({root:r.root,result:JSON.parse(readFileSync(r.file,'utf8'))})));
     const unparsed=[...new Set([...graph.unparsed,...merged.parseErrors])].sort(order);
     const notAnalysed=[...new Set([...files.filter(f=>!covered.has(f)),...unparsed])].sort(order);
-    merged={schema:1,inputHash,scope:{files:files.length},
+    merged={schema:1,scope:{files:files.length},
       closures:attempts.map(({root,files,status,reason})=>({root,files,status,...(reason?{reason}:{})})).sort((a,b)=>order(a.root,b.root)),
       notAnalysed,unparsed,summary:merged.summary,leaves:merged.leaves,arrows:merged.arrows};
     if(merged.summary.checkErrors.length)throw Error(`Merged analysis is inconsistent: ${merged.summary.checkErrors.slice(0,5).join('; ')}`);
-    mkdirSync(dirname(out),{recursive:true});
-    writeFileSync(out,JSON.stringify(merged));
+    const text=JSON.stringify(merged);
+    if(text!==previous){mkdirSync(dirname(out),{recursive:true});writeFileSync(out,text);}
+    else reusedMerge='same result';
+    writeFileSync(hashFile,inputHash);
   }
   const report={file:out,whole,scopeFiles:files.length,closures:attempts.length,ran:attempts.filter(a=>a.cached===false).length,
     reused:attempts.filter(a=>a.cached).length,skipped:attempts.filter(a=>a.status==='skipped').length,
