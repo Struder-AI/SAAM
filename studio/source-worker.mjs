@@ -5,28 +5,28 @@ import {validateSnapshot} from './machine-view.mjs';
 
 // One decode feeds the renderer and provider. Retain compact moves only when
 // a model needs random access; transferring those buffers would detach its input.
-let program,provider;
+const worker={program:null,provider:null};
 async function bind(state){
-  provider?.dispose();provider=null;
+  worker.provider?.dispose();worker.provider=null;
   try{
-    provider=await createMachinePresentation({program,machine:state.machine,setup:state.plan.setup,
+    worker.provider=await createMachinePresentation({program:worker.program,machine:state.machine,setup:state.plan.setup,
       sourceIdentity:{printId:state.printId,revision:String(state.revision),exportHash:state.exportHash}});
-    return {descriptor:provider?.descriptor??null};
-  }catch(error){provider?.dispose();provider=null;return {descriptor:null,machineError:error.message};}
+    return {descriptor:worker.provider?.descriptor??null};
+  }catch(error){worker.provider?.dispose();worker.provider=null;return {descriptor:null,machineError:error.message};}
 }
 self.onmessage=async({data})=>{
   const {id,type}=data;
   try{
     if(type==='load'){
       const state=data.state;
-      const sources=await fetchSources(state);program=decodeSource(sources,state.plan,state.machine,{inspection:state.inspection,authoredNozzleTemperatures:state.authoredNozzleTemperatures});
-      const machine=await bind(state),moves=program.moves.snapshot();
-      self.postMessage({id,program:{...program,moves},...machine},provider?[]:moveBuffers(moves));
+      const sources=await fetchSources(state);worker.program=decodeSource(sources,state.plan,state.machine,{inspection:state.inspection,authoredNozzleTemperatures:state.authoredNozzleTemperatures});
+      const machine=await bind(state),{program}=worker,moves=program.moves.snapshot();
+      self.postMessage({id,program:{...program,moves},...machine},worker.provider?[]:moveBuffers(moves));
     }else if(type==='bind')self.postMessage({id,...await bind(data.state)});
     else if(type==='sample'){
-      const request={requestId:id,seconds:data.seconds,...(data.manual?{manual:data.manual}:{}),...(data.jog?{jog:data.jog}:{})},owner=provider;
+      const request={requestId:id,seconds:data.seconds,...(data.manual?{manual:data.manual}:{}),...(data.jog?{jog:data.jog}:{})},owner=worker.provider;
       const snapshot=owner?validateSnapshot(await owner.sample(request),owner.descriptor,request):null;
-      if(owner===provider)self.postMessage({id,snapshot});else self.postMessage({id,error:'Machine model changed'});
+      if(owner===worker.provider)self.postMessage({id,snapshot});else self.postMessage({id,error:'Machine model changed'});
     }
   }catch(error){self.postMessage({id,error:error.message});}
 };
