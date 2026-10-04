@@ -4,6 +4,9 @@
 // PREFIX selects in-scope files by path prefix (`all` for the whole scope). --closure adds every
 // in-scope module the selection imports, transitively, so the analysis sees whole programs.
 // --depth sets how many call sites deep directly called functions are copied (default 1).
+// --engine summary selects the compositional analysis (compile.mjs, compose.mjs) instead of the
+// whole-program copies; --max-depth N and --max-instances N bound its call-path contexts, and
+// --edit FILE (repeatable) then measures re-analysis after an edit to FILE.
 import {readFile,writeFile} from 'node:fs/promises';
 import {execFileSync,spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
@@ -12,6 +15,8 @@ import * as acorn from 'acorn';
 import {PointsTo} from './points-to.mjs';
 import {buildConstraints,resolver} from './constraints.mjs';
 import {derive,pairArrowsOf} from './derive.mjs';
+import {compileModule} from './compile.mjs';
+import {compose} from './compose.mjs';
 import {importAliases} from '../lib/scope.mjs';
 
 const repo=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
@@ -21,7 +26,13 @@ const depthAt=argv.indexOf('--depth');const depth=depthAt>=0?+argv[depthAt+1]:1;
 const outAt=argv.indexOf('--out');const out=outAt>=0?argv[outAt+1]:null;
 const drawAt=argv.indexOf('--draw');const drawName=drawAt>=0?argv[drawAt+1]:null;
 const svgAt=argv.indexOf('--svg');const svgOut=svgAt>=0?argv[svgAt+1]:null;
-const prefixes=argv.filter((a,i)=>!a.startsWith('--')&&!(outAt>=0&&i===outAt+1)&&!(depthAt>=0&&i===depthAt+1)&&!(drawAt>=0&&i===drawAt+1)&&!(svgAt>=0&&i===svgAt+1));
+const valueOf=flag=>{const i=argv.indexOf(flag);return i>=0?argv[i+1]:undefined;};
+const engine=valueOf('--engine')??'copies';
+const maxDepth=valueOf('--max-depth')!==undefined?+valueOf('--max-depth'):Infinity;
+const maxInstances=valueOf('--max-instances')!==undefined?+valueOf('--max-instances'):Infinity;
+const edits=argv.flatMap((a,i)=>a==='--edit'?[argv[i+1]]:[]);
+const valued=new Set(['--out','--depth','--draw','--svg','--engine','--max-depth','--max-instances','--edit']);
+const prefixes=argv.filter((a,i)=>!a.startsWith('--')&&!valued.has(argv[i-1]));
 
 // Scope: SAAM code that runs in use. Tests, demos, benchmarks and development tooling are out.
 const ROOTS=/^(core|studio|skills|workspaces|packaging|scripts|adapters)\//;
@@ -64,19 +75,31 @@ const platformModules=new Map();
 for(const m of modules)for(const s of m.ast.body)if(s.source&&/^node:/.test(s.source.value)&&!platformModules.has(s.source.value)) {
   try{platformModules.set(s.source.value,await import(s.source.value));}catch{}
 }
-const pt=new PointsTo();
-const built=buildConstraints(pt,modules,{resolveImport,platformModules,depth});
-const t2=clock();
-pt.solve();
-const t3=clock();
+let pt,built,units,t2,t3;
+if(engine==='summary') {
+  units=new Map();const notes=[];
+  for(const m of modules){const u=compileModule(m,{resolveImport});units.set(m.file,u);notes.push(...u.notes);}
+  t2=clock();
+  pt=new PointsTo();
+  built=compose(pt,units,{platformModules,maxDepth,maxInstances});built.unmodelled=notes;
+  t3=clock();
+} else {
+  pt=new PointsTo();
+  built=buildConstraints(pt,modules,{resolveImport,platformModules,depth});
+  t2=clock();
+  pt.solve();
+  t3=clock();
+}
 const result=derive(pt,built);
 const t4=clock();
 
 const count=(list,key)=>{const c={};for(const x of list){const k=key(x);c[k]=(c[k]??0)+1;}return Object.fromEntries(Object.entries(c).sort((a,b)=>b[1]-a[1]));};
 let ptsTotal=0,ptsMax=0;for(const s of pt.pts){ptsTotal+=s.size;if(s.size>ptsMax)ptsMax=s.size;}
 const summary={
-  selection:prefixes,closure,depth,files:modules.length,bytes,parseErrors:parseErrors.length,
-  timingsMs:{readParse:Math.round(ms(t0,t1)),constraints:Math.round(ms(t1,t2)),solve:Math.round(ms(t2,t3)),derive:Math.round(ms(t3,t4)),total:Math.round(ms(t0,t4))},
+  selection:prefixes,closure,engine,depth:engine==='summary'?{maxDepth,maxInstances}:depth,files:modules.length,bytes,parseErrors:parseErrors.length,
+  timingsMs:engine==='summary'?{readParse:Math.round(ms(t0,t1)),compile:Math.round(ms(t1,t2)),composeAndSolve:Math.round(ms(t2,t3)),derive:Math.round(ms(t3,t4)),total:Math.round(ms(t0,t4))}
+    :{readParse:Math.round(ms(t0,t1)),constraints:Math.round(ms(t1,t2)),solve:Math.round(ms(t2,t3)),derive:Math.round(ms(t3,t4)),total:Math.round(ms(t0,t4))},
+  ...(engine==='summary'?{compose:built.stats}:{}),
   heapMB:Math.round(process.memoryUsage().heapUsed/1048576),
   pointsTo:{nodes:pt.pts.length,objects:pt.objects.length,fieldNodes:pt.fields.size,copyEdges:pt.edgeCount,propagations:pt.propagations,pointsToTotal:ptsTotal,largestSet:ptsMax},
   ...result.summary,
@@ -84,6 +107,35 @@ const summary={
   unresolvedImports:built.unresolvedImports.length
 };
 console.log(JSON.stringify(summary,null,1));
+
+// --edit FILE: re-analyse after an edit to FILE, as a session that keeps compiled files would.
+// The edit appends a callable that calls the file's first exported function with a fresh object,
+// so the file's summaries and the composed result both change. Only FILE is recompiled.
+for(const file of edits) {
+  if(engine!=='summary')throw Error('--edit needs --engine summary');
+  if(!units.has(file))throw Error(`${file} is not in the selection`);
+  const e0=clock();
+  const text=await readFile(resolve(repo,file),'utf8');
+  const exported=[...(units.get(file).iface?Object.keys(units.get(file).iface.exports):[])].find(n=>n!=='default'&&units.get(file).iface.local[units.get(file).iface.exports[n]?.local]);
+  const edited=text+`
+export function devMapEdit(input){ const made={input}; ${exported?`return ${exported}(made);`:'return made;'} }
+`;
+  let ast;try{ast=acorn.parse(edited,{ecmaVersion:'latest',sourceType:'module',locations:true,allowHashBang:true});}catch{ast=acorn.parse(edited,{ecmaVersion:'latest',sourceType:'script',locations:true,allowHashBang:true});}
+  const e1=clock();
+  const before=JSON.stringify(units.get(file).functions.map(f=>[f.key,f.openOps.length,f.closedOps.length]));
+  units.set(file,compileModule({file,text:edited,ast},{resolveImport}));
+  const e2=clock();
+  const pt2=new PointsTo();
+  const built2=compose(pt2,units,{platformModules,maxDepth,maxInstances});built2.unmodelled=built.unmodelled;
+  const e3=clock();
+  const result2=derive(pt2,built2);
+  const e4=clock();
+  console.log(JSON.stringify({edit:file,appendedCall:exported??null,
+    timingsMs:{parse:Math.round(ms(e0,e1)),compileFile:Math.round(ms(e1,e2)),composeAndSolve:Math.round(ms(e2,e3)),derive:Math.round(ms(e3,e4)),total:Math.round(ms(e0,e4))},
+    summariesChanged:before!==JSON.stringify(units.get(file).functions.map(f=>[f.key,f.openOps.length,f.closedOps.length])),
+    callEdges:result2.summary.callEdges,arrows:result2.summary.arrows,heapMB:Math.round(process.memoryUsage().heapUsed/1048576)}));
+  units.set(file,compileModule(parsed.get(file),{resolveImport}));
+}
 if(out) {
   const fn=result.home;const fns=built.functions;
   const name=f=>`${f.file}:${f.line} ${f.name??'(anonymous)'}`;

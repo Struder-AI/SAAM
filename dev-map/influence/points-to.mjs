@@ -48,9 +48,10 @@ export class PointsTo {
     (this.fieldListeners[o]??=[]).push(fn);
     for(const name of [...(this.fieldNames[o]??[])])fn(name,this.fields.get(o+'\u0000'+name));
   }
-  solve() {
+  // Runs to a fixed point, or for at most `steps` nodes (a caller interleaving other work).
+  solve(steps=Infinity) {
     const {queue}=this;
-    while(queue.length) {
+    while(queue.length&&steps-->0) {
       const n=queue.pop();this.queued[n]=false;
       const d=this.delta[n];if(!d)continue;this.delta[n]=null;
       this.propagations+=d.length;
