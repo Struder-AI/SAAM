@@ -8,6 +8,7 @@ import {dirname,join,posix} from 'node:path';
 import {PairSet} from './points-to.mjs';
 import {lookupPlatform,typeOf,familyOf,familyPath,propertyType,BROWSER_ROOTS} from './platform-models.mjs';
 import {keyInfo,literalKey} from './keys.mjs';
+import {precisionCritical} from './flows.mjs';
 
 const ELEMENT='[]';
 // expression() option: the value is discarded or used only as a primitive (readFrom).
@@ -28,7 +29,7 @@ const KEYED_DERIVED=new Set(['filter','slice','sort','toSorted','reverse','toRev
 // Mutating platform calls that only remove or reorder elements.
 const PERMUTES=/\.(sort|reverse|pop|shift)$/;
 
-export function buildConstraints(pt,modules,{resolveImport,platformModules=new Map(),cloning=true,depth=1,unknownData=false}) {
+export function buildConstraints(pt,modules,{resolveImport,platformModules=new Map(),cloning=true,depth=1,selective=0,unknownData=false}) {
   const functions=[],unmodelled=[],unresolvedImports=[];
   const platformObjects=new Map(),instances=new Map(),accessorReads=new Set();
   const PLATFORM_PROTO=platform('platform.prototype',undefined,false);
@@ -993,11 +994,21 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   }
   // Copies nest up to `depth` call sites deep; beyond that a site shares one copy.
   const clones=new Map();
+  // Selective context: a precision-critical callee (flows.mjs) called from a copy gets its own
+  // copy per copy of the caller, up to `selective` call sites beyond `depth`, and never twice
+  // for one site in a chain (recursion shares).
+  const criticalAst=new WeakMap(),selectiveAlloc=new Map();
+  const critical=ast=>{let c=criticalAst.get(ast);if(c===undefined){c=precisionCritical(ast);criticalAst.set(ast,c);}return c;};
   function cloneFor(siteId,target,caller) {
     const d=(caller.cloneDepth??0)+1;
-    const key=d<=depth&&caller.cloneKey?caller.cloneKey+'>'+siteId:siteId;
+    const deeper=caller.cloneKey&&(d<=depth||selective>0&&d<=depth+selective&&critical(target.ast)&&!caller.cloneKey.split('>').includes(siteId));
+    const key=deeper?caller.cloneKey+'>'+siteId:siteId;
     let f=clones.get(key);if(f)return f;
-    functionValue(target.ast,target.p.ctx,target.name,{clone:c=>{f=c;c.cloneKey=key;c.cloneDepth=d<=depth?d:1;clones.set(key,c);}});
+    // Copies beyond `depth` separate what callers pass, not what the callee makes: they share
+    // the objects they allocate, per call site (no heap cloning).
+    let ctx=target.p.ctx;
+    if(deeper&&d>depth&&!ctx.allocGroup){let g=selectiveAlloc.get(siteId);if(!g){g=new Map();selectiveAlloc.set(siteId,g);}ctx={...ctx,allocGroup:g};}
+    functionValue(target.ast,ctx,target.name,{clone:c=>{f=c;c.cloneKey=key;c.cloneDepth=deeper?d:1;clones.set(key,c);}});
     return f;
   }
   function analyzeModule(mod) {
