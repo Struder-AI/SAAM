@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-04 — Plain decision records; one owner
+
+- Owner direction ([D-049](DECISIONS.md#d-049--one-owner-plain-decision-records)): remettub owns SAAM and decides; tkeller contributes through remettub. The DECISIONS header now states the format in one paragraph (dated heading, decision, quoted source) instead of the status table and two-approval process; earlier entries keep their fields as history.
+- `scripts/check-repo.mjs`: removed the Status/Decision/Recorded/Approvals/Source, timestamp and two-approval checks and the DEVLOG-presence check; duplicate IDs and unknown replacements stay. Link checking now skips fenced blocks and inline code spans (`fields[i](depth)` was read as a link). Run: decision and code-span errors are gone; 9 broken links remain (core/geom/README, core/README, JELLY.md, UNMODELLED.md, plans/0.3.1-webmaster-request, four skill manuals).
+- Local notes: workers capped at 2 by default, raised by the owner per task (4 for this task). No tests run.
+
 ## 2026-10-04 — Dev map rebuild paused (owner request)
 
 - State on this branch: the influence analysis (`dev-map/influence/`) is sound: every call, constructor and platform model is wired in every copy, at depth-1 call-site context, with cycle collapsing, receiver-filtered dispatch, named computed keys (`keys.mjs`), correlation tracking for `Object.entries`/`keys`/`for…in` walkers, 761 platform models, getters and setters as calls, and module-load arrows. Sound closures run in about 0.5–1.5 s each (core/path 1.1 s, 14 arrowless of 1,563 leaves; print/workflow 0.6 s). The notation (one arrow per pair, outcome dot, two heads) is live in the design viewer. The middle-out solver, trace soundness check (with exact keys) and Jelly benchmark are merged.

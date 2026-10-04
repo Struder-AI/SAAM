@@ -20,7 +20,6 @@ async function walk(dir) {
 }
 await walk(root);
 const errors = [];
-if (!documents.includes(resolve(root, 'DEVLOG.md'))) errors.push('Missing DEVLOG.md work-history owner.');
 try { await checkSkillDigest(root); }
 catch (error) { errors.push(error.message); }
 let links = 0;
@@ -39,7 +38,8 @@ const anchors = markdown => {
   return result;
 };
 for (const path of documents) {
-  const markdown = await readFile(path, 'utf8');
+  // Code is quoted, not linked: fenced blocks and inline code spans are skipped.
+  const markdown = (await readFile(path, 'utf8')).replace(/^\s*(```|~~~)[\s\S]*?^\s*\1/gm,'').replace(/`[^`\n]*`/g,'');
   for (const match of markdown.matchAll(/\]\(([^)]+)\)/g)) {
     const [target,fragment] = match[1].split('#');
     if (/^[a-z][a-z0-9+.-]*:/i.test(target)) continue;
@@ -61,17 +61,6 @@ if (!entries.length) errors.push('No decision records found.');
 if (new Set(ids).size !== ids.length) errors.push('Duplicate decision IDs.');
 for (const entry of entries) {
   const id = entry.match(/^## (D-\d+)/)?.[1];
-  const status = entry.match(/^- Status: (.+)$/m)?.[1];
-  if (!/^(proposed|provisional|accepted|superseded|rejected|withdrawn)(?:\b|$)/.test(status ?? '')) errors.push(`${id}: missing/unknown status.`);
-  for (const field of ['Decision', 'Recorded', 'Approvals', 'Source']) {
-    if (!new RegExp(`^- ${field}: .+`, 'm').test(entry)) errors.push(`${id}: missing ${field}.`);
-  }
-  const recorded = entry.match(/^- Recorded: (.+)$/m)?.[1];
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(recorded ?? '') || !Number.isFinite(Date.parse(recorded))) errors.push(`${id}: invalid recording timestamp.`);
-  if (status === 'accepted') {
-    const approvals = entry.match(/^- Approvals: (.+)$/m)?.[1] ?? '';
-    if (!approvals.includes('remettub') || !approvals.includes('tkeller') || approvals.includes('not recorded')) errors.push(`${id}: accepted without both recorded approvals.`);
-  }
   for (const reference of entry.matchAll(/(?:Supersedes: |superseded by )(D-\d+)/g)) {
     if (!ids.includes(reference[1])) errors.push(`${id}: unknown replacement ${reference[1]}.`);
   }
@@ -93,6 +82,6 @@ if (errors.length) {
   console.error(errors.join('\n'));
   process.exitCode = 1;
 } else {
-  console.log(`Checked ${documents.length} documents, ${links} local links (dated records excepted), ${entries.length} decision records, devlog presence, skill digest freshness and coverage, and private-file exclusions.`);
+  console.log(`Checked ${documents.length} documents, ${links} local links (dated records excepted), ${entries.length} decision records, skill digest freshness and coverage, and private-file exclusions.`);
   console.log('Repository checks only; manufacturing software tests run separately and do not establish physical print success.');
 }

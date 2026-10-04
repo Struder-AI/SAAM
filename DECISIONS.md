@@ -5,24 +5,10 @@ intent in [plans](plans/) and the component manuals own current direction, and
 where they differ from an entry here, they win. Entries are not revised when
 direction changes, so an entry's status does not mean it is in force.
 
-Use a `## D-NNN — Title` heading and record `Status`, `Decision`, `Recorded` (UTC
-ISO 8601), `Approvals` and `Source`. Preserve exact source quotations and approval events; do
-not extend earlier approval to changed wording. Contributors: `tkeller`, `remettub`.
-
-## Statuses
-
-| Status | Meaning |
-|---|---|
-| proposed | No contributor approval recorded. |
-| provisional | One contributor approves. |
-| accepted | Both contributors approve; called active in the initial request. |
-| superseded | Replaced by a named later decision. |
-| rejected | Explicitly declined and closed. |
-| withdrawn | No longer pursued. |
-
-Record objections and substantive approval/status changes with actor, time and
-source. Do not infer the second contributor's approval. Approval refers to
-the recorded decision wording, not later substantive edits.
+Each entry is a `## D-NNN — Title` heading followed by the decision, its date and
+its source, quoted exactly. remettub owns SAAM and makes its decisions; tkeller
+contributes through remettub (owner, 2026-10-04). The Status and Approvals fields
+in earlier entries record the two-contributor process used until then.
 
 Source R1: remettub's restart request in the SAAM skeptical-assessment/restart
 conversation in Codex, observed 2026-09-08. Identifying excerpt:
@@ -468,3 +454,7 @@ Historical approved wording; current persistence direction is [D-027](#d-027--ex
 ## D-048 — Compositional influence analysis
 
 - Owner decision, 2026-10-03: the dev-map influence analysis is computed compositionally (per-function summaries composed over the call graph, re-analysing only what an edit reaches) rather than as one whole-program solve, to reach usable regeneration speed. [Dev maps intent](plans/dev-maps.md#analysis) owns the wording. Source: owner, Claude Code session 2026-10-03, approving the recommended option; no contributor consensus inferred.
+
+## D-049 — One owner; plain decision records
+
+- Owner decision, 2026-10-04: remettub owns SAAM and makes its decisions; tkeller contributes through remettub. A record is a dated heading, the decision and its quoted source; the field, status and two-approval checks in `scripts/check-repo.mjs` are removed. Source: owner, Claude Code session 2026-10-04: "The other developer (tkeller) has taken a supporting role and now contributes mainly through direct interaction with me." and "Yeah we need to change the decisions format, now I understand why it has been ignored."
