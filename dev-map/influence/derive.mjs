@@ -39,7 +39,7 @@ export function pairArrowsOf(arrows,boxOf) {
   return {drawn,summary};
 }
 
-export function derive(pt,{functions,namespaces}) {
+export function derive(pt,{functions,namespaces,isInstance}) {
   const byId=functions;
   // Lexical nesting, for locality.
   const ancestorOf=(a,b)=>{for(let x=byId[b];x;x=x.owner!==undefined&&x.owner!==null?byId[x.owner]:null)if(x.id===a)return true;return false;};
@@ -97,7 +97,7 @@ export function derive(pt,{functions,namespaces}) {
       const cf=canon(f.id);
       const instance=f.kind==='class'?pt.pts[f.thisNode]:null;
       const local=o=>{
-        if(instance?.has(o))return true;
+        if(instance?.has(o)||isInstance?.(o,cf))return true;
         const w=objectOwner(o);if(w==null)return false;
         const cw=canon(w);
         return cw===cf||lexicalAncestor(cf,cw)||!command[cw]&&callees(cf).has(cw);
@@ -151,7 +151,7 @@ export function derive(pt,{functions,namespaces}) {
   const isOutcomeValue=(o,owner,depth)=>{
     const x=pt.objects[o];
     if(x.kind==='platform')return false;
-    if(x.kind==='value')return true;
+    if(x.kind==='value'||x.kind==='primitive')return true;
     if(x.kind!=='object')return false;
     const w=x.owner;if(w==null)return false;
     const cw=canon(w);if(cw!==owner&&!lexicalAncestor(owner,cw))return false;
