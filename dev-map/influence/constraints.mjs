@@ -555,8 +555,25 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
       if(reader)readsAll(o,A,reader);
     } else {
       const fnode=pt.field(o,name);if(!loaded.add(fnode,target))return;pt.edge(fnode,target);reader?.readObjects.add(o);
-      if(name!=='__proto__')pt.on(pt.field(o,'__proto__'),p=>loadFrom(p,name,target,reader));
+      if(name!=='__proto__')viaPrototype(o,name,target,reader);
     }
+  }
+  // A named load or read also reaches whatever o's prototypes hold under that name. One listener
+  // per prototype field and a list of the loads waiting on it (target undefined: a read), rather
+  // than a closure per load: there are millions of them.
+  const protoWaits=new Map();
+  function viaPrototype(o,name,target,reader) {
+    const pf=pt.field(o,'__proto__');
+    let W=protoWaits.get(pf);
+    if(W===undefined) {
+      W={names:[],targets:[],readers:[]};protoWaits.set(pf,W);
+      pt.on(pf,p=>{const {names,targets,readers}=W;for(let i=0;i<names.length;i++)
+        if(targets[i]===undefined)readFrom(p,names[i],readers[i]);else loadFrom(p,names[i],targets[i],readers[i]);});
+    }
+    W.names.push(name);W.targets.push(target);W.readers.push(reader);
+    // Prototypes already there: loads are idempotent, so one reached again later is harmless.
+    const ps=pt.pts[pf],k=ps.size;
+    for(let i=0;i<k;i++){const p=ps.a[i];if(target===undefined)readFrom(p,name,reader);else loadFrom(p,name,target,reader);}
   }
   function load(base,name,target,reader){pt.on(base,o=>loadFrom(o,name,target,reader));}
   // Reads of every field of one object, shared by all the loads and readers that make them: the
@@ -586,7 +603,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
       readsAll(o,allFields(o),reader);
     } else {
       const fnode=pt.field(o,name);if(!readNamed.add(fnode,reader.object))return;reader.readObjects.add(o);
-      if(name!=='__proto__')pt.on(pt.field(o,'__proto__'),p=>readFrom(p,name,reader));
+      if(name!=='__proto__')viaPrototype(o,name,undefined,reader);
     }
   }
   function read(base,name,reader){pt.on(base,o=>readFrom(o,name,reader));}
@@ -923,18 +940,26 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     const nodes=spreadNodes(args,caller);
     const callee=pt.node();
     calls.push({site,caller,callee,args:nodes,result});
-    const thisFor=new Map(),methodNodes=caller.methodNodes??=new Map();
+    const methodNodes=caller.methodNodes??=new Map();
+    const S={site,caller,callee,nodes,result,method,thisFor:new Map()};
     const key=methodKey(method);
+    // The callees read from r: one node per (caller, receiver, method), with one listener and
+    // the list of (call, receiver) waiting on it rather than a closure per pair.
     pt.on(base,r=>{
-      const k=r*4096+key;let mn=methodNodes.get(k);
-      if(mn===undefined){mn=pt.node();methodNodes.set(k,mn);loadFrom(r,method,mn,caller);}
-      pt.on(mn,c=>{
-        let tn=thisFor.get(c);
-        if(tn!==undefined){pt.add(tn,r);return;}
-        tn=pt.node();thisFor.set(c,tn);pt.add(tn,r);pt.add(callee,c);
-        dispatch(c,site,caller,tn,nodes,result,method);
-      });
+      const k=r*4096+key;let M=methodNodes.get(k);
+      if(M===undefined) {
+        M={mn:pt.node(),calls:[],receivers:[]};methodNodes.set(k,M);loadFrom(r,method,M.mn,caller);
+        const W=M;pt.on(W.mn,c=>{for(let i=0;i<W.calls.length;i++)methodTarget(W.calls[i],W.receivers[i],c);});
+      }
+      M.calls.push(S);M.receivers.push(r);
+      const cs=pt.pts[M.mn],n=cs.size;for(let i=0;i<n;i++)methodTarget(S,r,cs.a[i]);
     });
+  }
+  function methodTarget(S,r,c) {
+    let tn=S.thisFor.get(c);
+    if(tn!==undefined){pt.add(tn,r);return;}
+    tn=pt.node();S.thisFor.set(c,tn);pt.add(tn,r);pt.add(S.callee,c);
+    dispatch(c,S.site,S.caller,tn,S.nodes,S.result,S.method);
   }
   const methodKeys=new Map();
   const methodKey=m=>{let k=methodKeys.get(m);if(k===undefined){k=methodKeys.size;if(k>=4096)throw Error('more than 4096 method names');methodKeys.set(m,k);}return k;};
