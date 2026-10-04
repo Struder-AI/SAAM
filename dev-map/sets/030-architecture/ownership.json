@@ -967,10 +967,6 @@
       "owner": "context",
       "reason": "Maker-facing guidance, regardless of physical directory."
     },
-    ".local/AGENTS.md": {
-      "owner": "context",
-      "reason": "Maker-facing guidance, regardless of physical directory."
-    },
     "MAKERS.md": {
       "owner": "context",
       "reason": "Maker-facing guidance, regardless of physical directory."
@@ -1394,6 +1390,50 @@
     "core/application/README.md": {
       "owner": "context",
       "reason": "Canonical maker-facing application command, attachment, home and lifetime guidance."
+    },
+    "core/geom/spatial.mjs": {
+      "owner": "geometry",
+      "reason": "Spatial geometry values (solid, curves, points), their validation, NURBS records and preview sampling; consumed by Bundle and Toolpath."
+    },
+    "core/geom/mesh-patch-solid.mjs": {
+      "owner": "geometry",
+      "reason": "Closes an authored mesh patch to a plane: a Geometry operation used by extension edits."
+    },
+    "core/print/portable.mjs": {
+      "owner": "bundle",
+      "reason": "Bundle input exchange: packs and validates portable print packages and imports them as bundles."
+    },
+    "core/print/completed-output.mjs": {
+      "owner": "bundle",
+      "reason": "Retains and restores the checked machine artifact with the immutable bundle revisions it was made from."
+    },
+    "core/print/edit-identity.mjs": {
+      "owner": "bundle",
+      "reason": "Expected bundle and edit revision checks on bundle state."
+    },
+    "core/print/spatial-inputs.mjs": {
+      "owner": "bundle",
+      "reason": "Saved recipe spatial inputs: normalization and resolution of authored geometry in plan persistence."
+    },
+    "core/application/portable-bundle-worker.mjs": {
+      "owner": "bundle",
+      "reason": "Worker body running bundle share/import (portable.mjs) with commit acknowledgement."
+    },
+    "core/application/portable-bundle-job.mjs": {
+      "owner": "bundle",
+      "reason": "Stages bundle share/import beside its destination and publishes the worker result."
+    },
+    "core/path/action-context.mjs": {
+      "owner": "toolpath",
+      "reason": "SAAMpath semantic action context records and contextual action streaming."
+    },
+    "studio/chat-ui.mjs": {
+      "owner": "studio",
+      "reason": "Studio chat pairing controls and window state."
+    },
+    "skills/standard-support/scripts/edit.mjs": {
+      "owner": "extensions",
+      "reason": "Standard-support extension edit: authored support contributions."
     }
   },
   "leaves": {
@@ -1432,6 +1472,9 @@
       "owner": "context"
     },
     "core/agent/layers.mjs::skillManual": {
+      "owner": "context"
+    },
+    "core/agent/layers.mjs::extensionDiscovery": {
       "owner": "context"
     },
     "core/agent/manuals.mjs::@module": {
@@ -2128,6 +2171,9 @@
     "core/file-write.mjs::replaceFile": {
       "owner": "bundle"
     },
+    "core/file-write.mjs::writeNewFile": {
+      "owner": "bundle"
+    },
     "core/geom/blob-field-compile.mjs::@module": {
       "owner": "geometry-leaf-fb2025a37f8b"
     },
@@ -2191,6 +2237,9 @@
     },
     "core/geom/boolean-solid.mjs::validateBooleanSolid": {
       "owner": "geometry-leaf-37443eccbab1"
+    },
+    "core/geom/boolean-solid.mjs::displayGeometry": {
+      "owner": "geometry"
     },
     "core/geom/chart-prism.mjs::@module": {
       "owner": "geometry-leaf-8a857d1de7f3"
@@ -2287,6 +2336,9 @@
     },
     "core/geom/curve-offset.mjs::wrap": {
       "owner": "geometry-leaf-cc5dc23e8429"
+    },
+    "core/geom/curve-offset.mjs::curveAtDepth": {
+      "owner": "geometry"
     },
     "core/geom/curve-ops.mjs::@module": {
       "owner": "geometry-leaf-8c8edc73dcba"
@@ -2587,6 +2639,9 @@
     },
     "core/geom/mesh-repair.mjs::validateRepair": {
       "owner": "geometry-leaf-dbf5ef5a8f76"
+    },
+    "core/geom/mesh-repair.mjs::indexRepairVertices": {
+      "owner": "geometry"
     },
     "core/geom/mesh-spatial.mjs::@module": {
       "owner": "geometry-leaf-78799abfeef0"
@@ -3380,6 +3435,18 @@
     },
     "core/geom/surface-intersection.mjs::tangent": {
       "owner": "geometry-leaf-31fccdd7257d"
+    },
+    "core/geom/surface-intersection.mjs::EDGES.at@173:15": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-intersection.mjs::EDGES.at@173:62": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-intersection.mjs::EDGES.at@174:15": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-intersection.mjs::EDGES.at@174:62": {
+      "owner": "geometry"
     },
     "core/geom/surface-offset.mjs::@module": {
       "owner": "geometry-leaf-6241ed7f33cd"
@@ -4393,6 +4460,9 @@
     "core/path/planning.mjs::travelClearance": {
       "owner": "toolpath"
     },
+    "core/path/planning.mjs::planProcess": {
+      "owner": "toolpath"
+    },
     "core/path/pose.mjs::@module": {
       "owner": "toolpath"
     },
@@ -4881,6 +4951,9 @@
       "owner": "bundle"
     },
     "core/print/review-state.mjs::lifecycleReview": {
+      "owner": "bundle"
+    },
+    "core/print/review-state.mjs::completedOutputState": {
       "owner": "bundle"
     },
     "core/print/slice-deposition.mjs::@module": {
@@ -6043,6 +6116,12 @@
     "studio/adapter-resolution.mjs::supportsBundleSchema": {
       "owner": "studio"
     },
+    "studio/adapter-resolution.mjs::bundles.saam-machine-study/1": {
+      "owner": "studio"
+    },
+    "studio/adapter-resolution.mjs::bundles.saam-shell-plan/1": {
+      "owner": "studio"
+    },
     "studio/agent-requests.mjs::@module": {
       "owner": "studio"
     },
@@ -6889,6 +6968,9 @@
     "studio/machine-view.mjs::vector": {
       "owner": "studio"
     },
+    "studio/machine-view.mjs::validPrimitive": {
+      "owner": "studio"
+    },
     "studio/material-view.mjs::@module": {
       "owner": "studio"
     },
@@ -7222,6 +7304,9 @@
     "studio/refresh-plan.mjs::presentationIdentity": {
       "owner": "studio"
     },
+    "studio/refresh-plan.mjs::outputView": {
+      "owner": "studio"
+    },
     "studio/request-index.mjs::@module": {
       "owner": "studio"
     },
@@ -7478,6 +7563,9 @@
       "owner": "studio"
     },
     "studio/settings.mjs::volumeName": {
+      "owner": "studio"
+    },
+    "studio/settings.mjs::spatialRecord": {
       "owner": "studio"
     },
     "studio/source-player.mjs::@module": {
@@ -7918,6 +8006,18 @@
     "studio/work-state.mjs::summarizeWork": {
       "owner": "studio"
     },
+    "studio/work-state.mjs::inspectionFailure": {
+      "owner": "studio"
+    },
+    "studio/work-state.mjs::inspectionReceipt": {
+      "owner": "studio"
+    },
+    "studio/work-state.mjs::isEditRequest": {
+      "owner": "studio"
+    },
+    "studio/work-state.mjs::receiptActivity": {
+      "owner": "studio"
+    },
     "core/local-extension.mjs::@module": {
       "owner": "extensions"
     },
@@ -8325,6 +8425,9 @@
     },
     "core/print/geometry.mjs::inspectGeometry": {
       "owner": "geometry-leaf-95d2b56f203c"
+    },
+    "core/print/geometry.mjs::createSpatialGeometry": {
+      "owner": "geometry"
     },
     "core/print/plan.mjs::compileRecipe": {
       "owner": "toolpath",
@@ -8787,6 +8890,9 @@
       "owner": "studio",
       "reason": "Private instance lifecycle and typed edits through Bundle ownership."
     },
+    "studio/server.mjs::serviceInput": {
+      "owner": "studio"
+    },
     "core/agent/toolkit.mjs::mapCommand": {
       "owner": "agent",
       "reason": "Developer map command adapter invokes tooling subprocess; no product engine responsibility."
@@ -8804,6 +8910,9 @@
       "owner": "export"
     },
     "core/export/prepare-path.mjs::upright": {
+      "owner": "export"
+    },
+    "core/export/prepare-path.mjs::hasPrime": {
       "owner": "export"
     },
     "core/extensions/library.mjs::@module": {
@@ -8874,6 +8983,12 @@
       "reason": "Map normalized text outlines into solid construction requests; extension controls feature selection and Boolean composition order."
     },
     "core/geom/mapped-text-material.mjs::mapper": {
+      "owner": "geometry-construction"
+    },
+    "core/geom/mapped-text-material.mjs::anchoredLayout": {
+      "owner": "geometry-construction"
+    },
+    "core/geom/mapped-text-material.mjs::anchoredLayout::<return@13:10>": {
       "owner": "geometry-construction"
     },
     "core/geom/piecewise-chart.mjs::roundedChart::@scope/forof-4/block-1::vertex": {
@@ -9234,6 +9349,9 @@
       "owner": "bundle"
     },
     "core/print/studio-ownership.mjs::withBundleInstance": {
+      "owner": "bundle"
+    },
+    "core/print/studio-ownership.mjs::reassignBundleInstance": {
       "owner": "bundle"
     },
     "core/print/version.mjs::@module": {
@@ -9753,6 +9871,12 @@
     "studio/service-panel.mjs::createServicePanel::update": {
       "owner": "studio"
     },
+    "studio/service-panel.mjs::updateApplicationConnection": {
+      "owner": "studio"
+    },
+    "studio/service-panel.mjs::updateConnectControl": {
+      "owner": "studio"
+    },
     "studio/studio-state.mjs::adoptNeutralPath": {
       "owner": "studio"
     },
@@ -9907,7 +10031,7 @@
       "owner": "extensions",
       "reason": "Selected plain-vase semantic checks, common foundation dependency policy and public-engine wall composition; advanced patterns depend on this base technique."
     },
-    "core/export/registry.mjs::adapters::griffin-gcode.interpret": {
+    "core/export/registry.mjs::adapters.griffin-gcode.interpret": {
       "owner": "export"
     },
     "studio/app.mjs::views.shell.facts": {
@@ -9920,6 +10044,15 @@
       "owner": "studio"
     },
     "studio/app.mjs::views.shell.settings": {
+      "owner": "studio"
+    },
+    "studio/app.mjs::<callback@614:27>::onclick": {
+      "owner": "studio"
+    },
+    "studio/app.mjs::<callback@644:26>::onclick": {
+      "owner": "studio"
+    },
+    "studio/app.mjs::chatUI.getBundleId": {
       "owner": "studio"
     },
     "skills/records.mjs::ASSIGNMENT_RECORDS.sleeve.family": {
@@ -9954,15 +10087,15 @@
       "owner": "geometry-surfaces",
       "reason": "Source-section geometric diagnostic getter over query-local accumulated state."
     },
-    "skills/records.mjs::GEOMETRY_RECORDS::gridfinity.validate": {
+    "skills/records.mjs::GEOMETRY_RECORDS.gridfinity.validate": {
       "owner": "geometry",
       "reason": "Distinct statically named saved geometric record validator; table holder itself is not a callable leaf."
     },
-    "skills/records.mjs::GEOMETRY_RECORDS::heat-set.validate": {
+    "skills/records.mjs::GEOMETRY_RECORDS.heat-set.validate": {
       "owner": "geometry",
       "reason": "Distinct statically named saved geometric record validator; table holder itself is not a callable leaf."
     },
-    "skills/records.mjs::GEOMETRY_RECORDS::text.validate": {
+    "skills/records.mjs::GEOMETRY_RECORDS.text.validate": {
       "owner": "geometry",
       "reason": "Distinct statically named saved geometric record validator; table holder itself is not a callable leaf."
     },
@@ -9973,6 +10106,9 @@
     "core/print/bundle.mjs::pathSource": {
       "owner": "toolpath",
       "reason": "Digests the existing generation contracts and recipe-selected implementation dependencies; Bundle receives source provenance without resolving extensions."
+    },
+    "core/print/bundle.mjs::presentGeometry": {
+      "owner": "bundle"
     },
     "core/print/workflow.mjs::createBundleWorkflow::generationSource": {
       "owner": "bundle",
@@ -10570,6 +10706,9 @@
       "owner": "extensions",
       "reason": "Workspace extension content, domain validation or factory loading through the existing library."
     },
+    "skills/wing/ui/app.mjs::@handler/button.onclick": {
+      "owner": "extensions"
+    },
     "skills/wing/ui/renderer.mjs::@module": {
       "owner": "extensions",
       "reason": "Workspace extension content, domain validation or factory loading through the existing library."
@@ -10828,6 +10967,186 @@
     "core/application/runtime.mjs::createLocalRuntime::chatIds": {
       "owner": "agent",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
+    },
+    "core/application/portable-bundle-job.mjs::@module": {
+      "owner": "bundle"
+    },
+    "core/application/portable-bundle-job.mjs::runPortableBundleJob": {
+      "owner": "bundle"
+    },
+    "core/application/portable-bundle-worker.mjs::<callable@17:7>": {
+      "owner": "bundle"
+    },
+    "core/application/portable-bundle-worker.mjs::@module": {
+      "owner": "bundle"
+    },
+    "core/application/portable-bundle-worker.mjs::beforeCommit": {
+      "owner": "bundle"
+    },
+    "core/application/portable-bundle-worker.mjs::progress": {
+      "owner": "bundle"
+    },
+    "core/application/portable-bundle-worker.mjs::settings": {
+      "owner": "bundle"
+    },
+    "core/application/portable-bundle-worker.mjs::value": {
+      "owner": "bundle"
+    },
+    "core/geom/mesh-patch-solid.mjs::@module": {
+      "owner": "geometry"
+    },
+    "core/geom/mesh-patch-solid.mjs::closeMeshPatchToPlane": {
+      "owner": "geometry"
+    },
+    "core/geom/spatial.mjs::@module": {
+      "owner": "geometry"
+    },
+    "core/geom/spatial.mjs::authoredNurbs": {
+      "owner": "geometry"
+    },
+    "core/geom/spatial.mjs::point": {
+      "owner": "geometry"
+    },
+    "core/geom/spatial.mjs::replaceSolid": {
+      "owner": "geometry"
+    },
+    "core/geom/spatial.mjs::solidGeometry": {
+      "owner": "geometry"
+    },
+    "core/geom/spatial.mjs::spatialPreview": {
+      "owner": "geometry"
+    },
+    "core/geom/spatial.mjs::spatialTemplate": {
+      "owner": "geometry"
+    },
+    "core/geom/spatial.mjs::validateSpatial": {
+      "owner": "geometry"
+    },
+    "core/path/action-context.mjs::@module": {
+      "owner": "toolpath"
+    },
+    "core/path/action-context.mjs::CONTEXT_KEYS": {
+      "owner": "toolpath"
+    },
+    "core/path/action-context.mjs::actionContext": {
+      "owner": "toolpath"
+    },
+    "core/path/action-context.mjs::contextualActions": {
+      "owner": "toolpath"
+    },
+    "core/path/action-context.mjs::sameContext": {
+      "owner": "toolpath"
+    },
+    "core/print/completed-output.mjs::@module": {
+      "owner": "bundle"
+    },
+    "core/print/completed-output.mjs::readCompletedOutput": {
+      "owner": "bundle"
+    },
+    "core/print/completed-output.mjs::readCompletedPath": {
+      "owner": "bundle"
+    },
+    "core/print/completed-output.mjs::retainCompletedOutput": {
+      "owner": "bundle"
+    },
+    "core/print/edit-identity.mjs::@module": {
+      "owner": "bundle"
+    },
+    "core/print/edit-identity.mjs::requireEditRevision": {
+      "owner": "bundle"
+    },
+    "core/print/portable.mjs::@module": {
+      "owner": "bundle"
+    },
+    "core/print/portable.mjs::SCHEMA": {
+      "owner": "bundle"
+    },
+    "core/print/portable.mjs::checkConstructionExtension": {
+      "owner": "bundle"
+    },
+    "core/print/portable.mjs::checkPathSpellings": {
+      "owner": "bundle"
+    },
+    "core/print/portable.mjs::checkRepairProvenance": {
+      "owner": "bundle"
+    },
+    "core/print/portable.mjs::checkSources": {
+      "owner": "bundle"
+    },
+    "core/print/portable.mjs::cleanupScratch": {
+      "owner": "bundle"
+    },
+    "core/print/portable.mjs::distinctName": {
+      "owner": "bundle"
+    },
+    "core/print/portable.mjs::exchangeIds": {
+      "owner": "bundle"
+    },
+    "core/print/portable.mjs::hash": {
+      "owner": "bundle"
+    },
+    "core/print/portable.mjs::importBundle": {
+      "owner": "bundle"
+    },
+    "core/print/portable.mjs::inputNames": {
+      "owner": "bundle"
+    },
+    "core/print/portable.mjs::json": {
+      "owner": "bundle"
+    },
+    "core/print/portable.mjs::portableName": {
+      "owner": "bundle"
+    },
+    "core/print/portable.mjs::readArchive": {
+      "owner": "bundle"
+    },
+    "core/print/portable.mjs::readInput": {
+      "owner": "bundle"
+    },
+    "core/print/portable.mjs::shareBundle": {
+      "owner": "bundle"
+    },
+    "core/print/portable.mjs::sourceRecords": {
+      "owner": "bundle"
+    },
+    "core/print/portable.mjs::validateExtensionPaths": {
+      "owner": "bundle"
+    },
+    "core/print/portable.mjs::validatePackage": {
+      "owner": "bundle"
+    },
+    "core/print/spatial-inputs.mjs::@module": {
+      "owner": "bundle"
+    },
+    "core/print/spatial-inputs.mjs::curveKeys": {
+      "owner": "bundle"
+    },
+    "core/print/spatial-inputs.mjs::geometryInput": {
+      "owner": "bundle"
+    },
+    "core/print/spatial-inputs.mjs::manufacturing": {
+      "owner": "bundle"
+    },
+    "core/print/spatial-inputs.mjs::normalizeSpatialPlan": {
+      "owner": "bundle"
+    },
+    "core/print/spatial-inputs.mjs::resolveSpatialPlan": {
+      "owner": "bundle"
+    },
+    "skills/standard-support/scripts/edit.mjs::@module": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/edit.mjs::editStandardSupport": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/edit.mjs::requireThat": {
+      "owner": "extensions"
+    },
+    "studio/chat-ui.mjs::@module": {
+      "owner": "studio"
+    },
+    "studio/chat-ui.mjs::initializeChatUI": {
+      "owner": "studio"
     }
   },
   "retiredAssignments": [
