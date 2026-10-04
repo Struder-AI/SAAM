@@ -88,5 +88,6 @@ The owner may adjust scope.
 
 ## Open decisions
 
+- **Live speed.** Milestone 1 solves a 450 KB program in under 2 s, but the whole scope takes about 100 s ([DEVLOG](../DEVLOG.md#2026-10-03--dev-map-rebuild-intent-and-milestone-1-speed-measurement)). Options: keep one whole-program solve and make the solver faster (estimated 3–10×, every edit re-solves everything), or compositional analysis: per-function summaries composed over the call graph, re-analysing only what an edit reaches. Recommendation: compositional; it changes this document's "one whole-program solve" wording.
 - **State on the map.** Recommendation: state is a node, owned by its boundary. Writes enter it and reads leave it, rather than an arrow from every writer to every reader.
 - **SAAM's own native code**: when and how to analyse it.
