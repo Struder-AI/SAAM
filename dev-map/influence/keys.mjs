@@ -17,6 +17,11 @@
 // A name that resolves to no binding is a global and is never trusted.
 const NUMERIC_BINARY=new Set(['-','*','/','%','**','<<','>>','>>>','&','|','^']);
 const NUMERIC_CALLS=new Set(['Number','parseInt','parseFloat']);
+// Array methods called on a literal array of numbers ([0,1,2].map(k=>...)): the parameter that
+// receives an element is a number, as the loop variable of `for (const k of [0,1])` is.
+const ELEMENT_PARAM=new Map([...'forEach map filter flatMap some every find findIndex findLast findLastIndex'.split(' ').map(m=>[m,0]),['reduce',1],['reduceRight',1]]);
+const numberList=e=>e?.type==='ArrayExpression'&&e.elements.length>0&&e.elements.every(x=>x?.type==='Literal'&&typeof x.value==='number'
+  ||x?.type==='UnaryExpression'&&x.operator==='-'&&x.argument.type==='Literal'&&typeof x.argument.value==='number');
 export const ELEMENT='[]';
 // Every number names the element field: o[i] and o[-1], o[0.5] or o[NaN] alike, and so does a
 // string that is a number's canonical form ('1', '-1', 'NaN'), which is the same property.
@@ -125,6 +130,7 @@ export function keyInfo(ast) {
             if(parent?.loop) {
               r.loop=parent.loop;
               if(parent.loop==='of'&&parent.right.type==='ArrayExpression'&&parent.right.elements.every(x=>x?.type==='Literal'&&typeof x.value==='string'))r.loopStrings=parent.right.elements.map(x=>literalKey(x.value));
+              if(parent.loop==='of'&&numberList(parent.right))r.numberElements=true;
             } else if(n.init)r.inits.push(n.init);
             else r.uninitialised=true;
           }
@@ -142,6 +148,13 @@ export function keyInfo(ast) {
         if(n.argument.type==='Identifier'){const r=resolve(n.argument,s);if(r)r.writes.push({op:'++'});}
         else walk(n.argument,s,n,'argument');
         return;
+      case 'CallExpression':{
+        const c=n.callee,f=n.arguments[0],at=c.type==='MemberExpression'&&!c.computed?ELEMENT_PARAM.get(c.property.name):undefined;
+        if(at!==undefined&&numberList(c.object)&&f&&isFunction(f)&&f.params[at]?.type==='Identifier') {
+          const r=scopeOf.get(f)?.names.get(f.params[at].name);if(r?.kind==='param')r.numberElements=true;
+        }
+        break;
+      }
       case 'ForInStatement':case 'ForOfStatement':{
         if(n.left.type==='VariableDeclaration') {
           for(const d of n.left.declarations)walk(d,s,{loop:n.type==='ForOfStatement'?'of':'in',right:n.right},'declarations');
@@ -171,9 +184,10 @@ export function keyInfo(ast) {
   // Classification. A value is numeric on a set of parameters (empty: always) or not numeric
   // (null). Variables start numeric with no parameters; each pass recomputes them from their
   // definitions, sets only grow and numeric only turns off, so it settles.
-  const candidate=r=>(r.kind==='var'||r.kind==='let'||r.kind==='const'||r.kind==='param')&&!r.loop;
+  const candidate=r=>(r.kind==='var'||r.kind==='let'||r.kind==='const'||r.kind==='param')&&(!r.loop||r.numberElements);
   const NONE=new Set();
-  for(const r of records)r.deps=candidate(r)?(r.kind==='param'?new Set([r]):NONE):null;
+  const own=r=>r.kind==='param'&&!r.numberElements?new Set([r]):NONE;
+  for(const r of records)r.deps=candidate(r)?own(r):null;
   const join=(a,b)=>a===null||b===null?null:!a.size?b:!b.size?a:new Set([...a,...b]);
   function deps(e) {
     switch(e?.type) {
@@ -204,7 +218,7 @@ export function keyInfo(ast) {
     changed=false;
     for(const r of records) {
       if(r.deps===null)continue;
-      let d=r.kind==='param'?new Set([r]):NONE;
+      let d=own(r);
       for(const e of r.inits){d=join(d,deps(e));if(d===null)break;}
       if(d!==null)for(const w of r.writes){d=join(d,writeDeps(w));if(d===null)break;}
       if(d===null){r.deps=null;changed=true;}

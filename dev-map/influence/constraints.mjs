@@ -10,6 +10,8 @@ import {lookupPlatform,typeOf,familyOf,familyPath,propertyType,BROWSER_ROOTS} fr
 import {keyInfo,literalKey} from './keys.mjs';
 
 const ELEMENT='[]';
+// expression() option: the value is discarded or used only as a primitive (readFrom).
+const VALUELESS=Object.freeze({valueless:true});
 // The name a correlated copy gives an unknown key that is none of the names the copy's
 // accesses could reach (constraints.mjs accessBases): the field of values written under
 // unknown names.
@@ -32,7 +34,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   const PLATFORM_PROTO=platform('platform.prototype',undefined,false);
   // Work already done, by integer pairs: (field node, target) per load, (object, target) per
   // all-fields load, (object, value) per store to a platform object or to all fields.
-  const loaded=new PairSet(16),loadedAll=new PairSet(14),storedAll=new PairSet(14),storedPlatform=new PairSet(10);
+  const loaded=new PairSet(16),loadedAll=new PairSet(14),readNamed=new PairSet(14),readAll=new PairSet(12),storedAll=new PairSet(14),storedPlatform=new PairSet(10);
   const calls=[],nsOf=new Map();
   // Correlation tracking: pending lazily walked loops and callbacks, keyed sources (settle).
   const pendingLoops=[],deferredFns=[],keyedSources=[],pendingCallbacks=[];
@@ -125,7 +127,18 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   const put=(fnode,o)=>{pt.feed(fnode);pt.add(fnode,o);};
   // Calls fn(name, node) for each field of o that exists: one something was written to (a
   // field node a read made exists only once written: PointsTo.whenFed); __proto__ always.
-  function eachExisting(o,fn){pt.onField(o,(name,fnode)=>{if(name==='__proto__')fn(name,fnode);else pt.whenFed(fnode,()=>fn(name,fnode));});}
+  // One field listener and one wait per field, whatever number of callers enumerate o.
+  const existingOf=new Map();
+  function eachExisting(o,fn) {
+    let E=existingOf.get(o);
+    if(E===undefined) {
+      E={names:[],nodes:[],fns:[]};existingOf.set(o,E);
+      const exists=(name,fnode)=>{E.names.push(name);E.nodes.push(fnode);const fns=E.fns;for(let i=0,k=fns.length;i<k;i++)fns[i](name,fnode);};
+      pt.onField(o,(name,fnode)=>{if(name==='__proto__')exists(name,fnode);else pt.whenFed(fnode,()=>exists(name,fnode));});
+    }
+    E.fns.push(fn);
+    for(let i=0,k=E.names.length;i<k;i++)fn(E.names[i],E.nodes[i]);
+  }
   function markImpure(o) {
     const x=pt.objects[o];if(x.keyed!==true)return;
     x.keyed=false;const ls=x.impure;x.impure=null;
@@ -428,13 +441,47 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     if(kind==='key')return;
     if(name===null) {
       if(!loadedAll.add(o,target))return;
-      pt.onField(o,(f,fnode)=>{if(f==='__proto__')return;pt.edge(fnode,target);reader?.reads.add(fnode);});
+      globalThis.__allLoad?.(reader,o,target,new Error().stack);
+      const A=allFields(o);A.targets.push(target);
+      for(let i=0;i<A.fed.length;i++)pt.edge(A.fed[i],target);
+      if(reader)readsAll(o,A,reader);
     } else {
       const fnode=pt.field(o,name);if(!loaded.add(fnode,target))return;pt.edge(fnode,target);reader?.reads.add(fnode);
       if(name!=='__proto__')pt.on(pt.field(o,'__proto__'),p=>loadFrom(p,name,target,reader));
     }
   }
   function load(base,name,target,reader){pt.on(base,o=>loadFrom(o,name,target,reader));}
+  // Reads of every field of one object, shared by all the loads and readers that make them: the
+  // object's fields (each reader records them all) and the targets every existing field is
+  // copied to. Only fields that exist hold values: a field node no write fed (made by a read)
+  // holds only values written under unknown names, which the '*' field holds too (intoAllFields).
+  const allOf=new Map();
+  function allFields(o) {
+    let A=allOf.get(o);if(A)return A;
+    A={fields:[],fed:[],targets:[],readers:[]};allOf.set(o,A);
+    pt.onField(o,(f,fnode)=>{if(f==='__proto__')return;
+      A.fields.push(fnode);for(let i=0;i<A.readers.length;i++)A.readers[i].reads.add(fnode);
+      pt.whenFed(fnode,()=>{A.fed.push(fnode);for(let i=0;i<A.targets.length;i++)pt.edge(fnode,A.targets[i]);});});
+    return A;
+  }
+  function readsAll(o,A,reader) {
+    if(!readAll.add(o,reader.object))return;
+    A.readers.push(reader);for(let i=0;i<A.fields.length;i++)reader.reads.add(A.fields[i]);
+  }
+  // A read whose value is discarded or used only as a primitive (an operand of an operator, a
+  // test, a template part, a computed key): the field nodes it reads are recorded for the
+  // derivation, but no objects are copied out, since none can flow anywhere from there.
+  function readFrom(o,name,reader) {
+    const kind=pt.objects[o].kind;
+    if(kind==='platform'||kind==='key')return;
+    if(name===null) {
+      readsAll(o,allFields(o),reader);
+    } else {
+      const fnode=pt.field(o,name);if(!readNamed.add(fnode,reader.object))return;reader.reads.add(fnode);
+      if(name!=='__proto__')pt.on(pt.field(o,'__proto__'),p=>readFrom(p,name,reader));
+    }
+  }
+  function read(base,name,reader){pt.on(base,o=>readFrom(o,name,reader));}
   function store(base,name0,value,writer,site) {
     writer?.stores.push({base,name:name0,site});
     // A write under a correlated unknown name may be a write to any field (accessBases).
@@ -1032,16 +1079,16 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
       case 'VariableDeclaration':for(const d of s.declarations){if(d.init)bindPattern(d.id,named(d.init,ctx,bindingName(d.id)),ctx,d.init);}return;
       case 'FunctionDeclaration':{const v=functionValue(s,ctx);pt.edge(v,ctx.scope.lookup(s.id.name));return;}
       case 'ClassDeclaration':{const v=classValue(s,ctx);pt.edge(v,ctx.scope.lookup(s.id.name));return;}
-      case 'ExpressionStatement':expression(s.expression,ctx,{unused:true});return;
+      case 'ExpressionStatement':expression(s.expression,ctx,{unused:true,valueless:true});return;
       case 'ReturnStatement':
         if(s.argument){const v=expression(s.argument,ctx);ctx.fn.returnsValue=true;if(v!==undefined)pt.edge(v,ctx.fn.ret);}
         return;
-      case 'IfStatement':{expression(s.test,ctx);const t=truth(s.test,ctx);
+      case 'IfStatement':{expression(s.test,ctx,VALUELESS);const t=truth(s.test,ctx);
         if(t!==false)statement(s.consequent,ctx);if(t!==true)statement(s.alternate,ctx);return;}
       case 'BlockStatement':block(s.body,ctx);return;
       case 'ForStatement':{const scope=new Scope(ctx.scope,ctx.fn);const c={...ctx,scope};
         if(s.init){if(s.init.type==='VariableDeclaration'){declareBlock([s.init],scope);statement(s.init,c);}else expression(s.init,c);}
-        if(s.test)expression(s.test,c);if(s.update)expression(s.update,c);statement(s.body,c);return;}
+        if(s.test)expression(s.test,c,VALUELESS);if(s.update)expression(s.update,c,VALUELESS);statement(s.body,c);return;}
       case 'ForOfStatement':case 'ForInStatement':{
         const cor=loopCorrelation(s,ctx);if(cor){correlatedLoop(s,ctx,cor);return;}
         const scope=new Scope(ctx.scope,ctx.fn);const c={...ctx,scope};
@@ -1050,7 +1097,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
         if(s.left.type==='VariableDeclaration'){declareBlock([s.left],scope);if(el!==undefined)bindPattern(s.left.declarations[0].id,el,c);}
         else if(el!==undefined)assign(s.left,el,c);
         statement(s.body,c);return;}
-      case 'WhileStatement':case 'DoWhileStatement':expression(s.test,ctx);statement(s.body,ctx);return;
+      case 'WhileStatement':case 'DoWhileStatement':expression(s.test,ctx,VALUELESS);statement(s.body,ctx);return;
       case 'TryStatement':
         statement(s.block,ctx);
         if(s.handler){const scope=new Scope(ctx.scope,ctx.fn);
@@ -1058,9 +1105,9 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
           statement(s.handler.body,{...ctx,scope});}
         statement(s.finalizer,ctx);return;
       case 'ThrowStatement':expression(s.argument,ctx);return;
-      case 'SwitchStatement':{expression(s.discriminant,ctx);const all=s.cases.flatMap(c=>c.consequent);
+      case 'SwitchStatement':{expression(s.discriminant,ctx,VALUELESS);const all=s.cases.flatMap(c=>c.consequent);
         const scope=new Scope(ctx.scope,ctx.fn);declareBlock(all,scope);const c={...ctx,scope};
-        for(const k of s.cases){if(k.test)expression(k.test,c);statements(k.consequent,c);}return;}
+        for(const k of s.cases){if(k.test)expression(k.test,c,VALUELESS);statements(k.consequent,c);}return;}
       case 'LabeledStatement':statement(s.body,ctx);return;
       case 'WithStatement':note('with',ctx.fn,s);return;
       case 'EmptyStatement':case 'BreakStatement':case 'ContinueStatement':case 'DebuggerStatement':return;
@@ -1148,7 +1195,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   }
   function computedKey(k,ctx) {
     if(k.type==='Literal')return literalKey(k.value);
-    if(!ctx.noWalk)expression(k,ctx);
+    if(!ctx.noWalk)expression(k,ctx,VALUELESS);
     if(k.type==='Identifier'&&ctx.namedKeys) {
       const r=prepared.get(ctx.mod.file).keyInfo.bindingOf(k);
       const n=r&&ctx.namedKeys.get(r);if(n!==undefined)return n;
@@ -1191,12 +1238,12 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   }
 
   // --- expressions: return the node holding the value, or undefined for primitives --------
-  function expression(e,ctx,{unused=false}={}) {
+  function expression(e,ctx,{unused=false,valueless=false}={}) {
     if(!e)return undefined;
     switch(e.type) {
       case 'Identifier':return identifier(e.name,ctx);
       case 'Literal':case 'TemplateLiteral':
-        if(e.type==='TemplateLiteral')for(const x of e.expressions)expression(x,ctx);
+        if(e.type==='TemplateLiteral')for(const x of e.expressions)expression(x,ctx,VALUELESS);
         if(e.regex){const o=allocate('regexp',ctx,e);pt.add(pt.field(o,'__proto__'),REGEXP_PROTO);const v=pt.node();pt.add(v,o);return v;}
         return undefined;
       case 'ThisExpression':return ctx.thisNode;
@@ -1239,8 +1286,9 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
         const base=expression(e.object,ctx);const key=memberKey(e,ctx);
         if(!e.computed&&UNMODELLED_MEMBERS.has(key))note('member:'+key,ctx.fn,e);
         if(base===undefined)return undefined;
+        if(valueless){eachKey(key,k=>read(base,k,ctx.fn));return undefined;}
         const t=pt.node();eachKey(key,k=>load(base,k,t,ctx.fn));return t;}
-      case 'ChainExpression':return expression(e.expression,ctx,{unused});
+      case 'ChainExpression':return expression(e.expression,ctx,{unused,valueless});
       case 'CallExpression':return callExpression(e,ctx,unused);
       case 'NewExpression':{const callee=expression(e.callee,ctx);const args=argumentNodes(e.arguments,ctx);const r=pt.node();
         if(callee!==undefined)construct({...site(ctx.fn,e,source(e.callee,ctx),ctx.allocGroup),resultUsed:!unused,name:calleeName(e.callee)},ctx.fn,callee,args,r);return r;}
@@ -1250,15 +1298,16 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
         else{expression(e.left,ctx);write(e.left,ctx);}
         return v;}
       case 'SequenceExpression':{let v;for(const x of e.expressions)v=expression(x,ctx);return v;}
-      case 'ConditionalExpression':{expression(e.test,ctx);const t=truth(e.test,ctx);
-        return union([t!==false?expression(e.consequent,ctx):undefined,t!==true?expression(e.alternate,ctx):undefined]);}
+      case 'ConditionalExpression':{expression(e.test,ctx,VALUELESS);const t=truth(e.test,ctx);const o={valueless};
+        return union([t!==false?expression(e.consequent,ctx,o):undefined,t!==true?expression(e.alternate,ctx,o):undefined]);}
       case 'LogicalExpression':{
         // A test a correlated copy decides (k === 'name') leaves the other operand unevaluated.
-        const left=expression(e.left,ctx),t=e.operator==='??'?undefined:truth(e.left,ctx);
+        const o={valueless};
+        const left=expression(e.left,ctx,o),t=e.operator==='??'?undefined:truth(e.left,ctx);
         if(e.operator==='&&'&&t===false||e.operator==='||'&&t===true)return left;
-        return union([left,expression(e.right,ctx)]);}
-      case 'BinaryExpression':expression(e.left,ctx);expression(e.right,ctx);return undefined;
-      case 'UnaryExpression':expression(e.argument,ctx);if(e.operator==='delete')write(e.argument,ctx);return undefined;
+        return union([left,expression(e.right,ctx,o)]);}
+      case 'BinaryExpression':expression(e.left,ctx,VALUELESS);expression(e.right,ctx,VALUELESS);return undefined;
+      case 'UnaryExpression':expression(e.argument,ctx,VALUELESS);if(e.operator==='delete')write(e.argument,ctx);return undefined;
       case 'UpdateExpression':expression(e.argument,ctx);write(e.argument,ctx);return undefined;
       case 'AwaitExpression':{const v=expression(e.argument,ctx);if(v===undefined)return undefined;const t=pt.node();pt.edge(v,t);load(v,ELEMENT,t,ctx.fn);return t;}
       case 'YieldExpression':note('yield',ctx.fn,e);expression(e.argument,ctx);return undefined;
@@ -1271,7 +1320,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
           pt.edge(moduleNamespace(ctx.mod,e.source.value,ctx.fn,e),pt.field(p,ELEMENT));return r;}
         note('dynamic-import',ctx.fn,e);expression(e.source,ctx);return undefined;}
       case 'MetaProperty':return undefined;
-      case 'ParenthesizedExpression':return expression(e.expression,ctx,{unused});
+      case 'ParenthesizedExpression':return expression(e.expression,ctx,{unused,valueless});
       default:note('expression:'+e.type,ctx.fn,e);return undefined;
     }
   }
