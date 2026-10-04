@@ -112,8 +112,8 @@ conveniently to source using ordinary repository tools.
 
 ## Maps and local documentation
 
-The dev map is being rebuilt ([dev maps intent](plans/dev-maps.md)); the
-[map guide](dev-map/README.md) owns its commands. Builders may inspect the code
+The influence maps show what code affects what ([dev maps intent](plans/dev-maps.md));
+the [map guide](dev-map/README.md) owns their commands. Builders may inspect the code
 behind consumed interfaces alongside its manual; makers need no maps. What code
 cannot state belongs where it is owned: a measurement in [DEVLOG.md](DEVLOG.md),
 an agreed direction in the current release intent, and a user-facing limit in
@@ -131,15 +131,15 @@ own settings, supported behavior and recovery. Caller-facing contracts belong
 to every builder or developer using that interface, including skill results,
 geometry queries and Studio extension boundaries. Core/Studio behaviour, contracts
 and limits belong to the [component manuals](#implementation-reference);
-structure — what exists and what calls what — is read from the generated map and
-the source it names. Skills and adapters retain
+influence — what code a change affects and what affects it — is read from the
+influence maps and the source they name. Skills and adapters retain
 their separate implementation references. Select context by the boundary being consumed or
 changed, rather than labeling an entire mixed component manual developer-only.
 
 ### Implementation reference
 
 One manual per component, beside the code it describes. Read the one you are
-changing; walk the map when you need its structure.
+changing; read the maps for what it affects and what affects it.
 
 | Component | Manual |
 |---|---|
@@ -271,12 +271,12 @@ retains superseded source. No separate documentation closeout gate is needed.
 | Checkpointing and remote contribution | [Contribution guidance](CONTRIBUTING-AGENTS.md), at that stage |
 | Test design and coverage selection | [Test reference](core/tests/README.md) |
 | Core/Studio behaviour, contracts and limits | The [component manuals](#implementation-reference); skill callers may read them independently |
-| Core/Studio structure — what exists and what calls what | The generated map: `read-map 0`, then the declarations the change touches |
+| Core/Studio influence — what a change affects and what affects it | The influence maps: `read-map 0`, then the boxes and `@link` arrows the change touches |
 | Application commands and chat attachment | [Application](core/application/README.md) |
 | Print operations and skill tools | [Print tools](core/print/USAGE.md) and relevant [skill manuals](skills/DIGEST.md) |
 | Skill authorship and catalog maintenance | [Skill development](skills/AUTHORING.md) |
 | Map commands and scope | [Map guide](dev-map/README.md) |
-| Developer entry instructions | [Developer context](DEVELOPER-CONTEXT.md); the generated map owns technical navigation |
+| Developer entry instructions | [Developer context](DEVELOPER-CONTEXT.md); the influence maps own technical navigation |
 | Documentation navigation for each role (human reference) | `maker-context-map.html` and `builder-context-map.html` |
 | Shared terms | [GLOSSARY.md](GLOSSARY.md) |
 | Current direction, scheduled and outstanding work | The current release intent in [plans](plans/) |
@@ -310,14 +310,14 @@ guidance is needed when developing or exercising the maker-facing workflow.
 | Choosing or changing tests | [Avoid check spirals](#avoid-check-spirals), then the [test reference](core/tests/README.md) |
 | Checkpoint or remote activity, after implementation | [Contribution guidance](CONTRIBUTING-AGENTS.md) |
 | Skill authoring and discovery metadata | [Skill development](skills/AUTHORING.md) |
-| Trace the system or change an interface | [Core architecture](core/README.md), then `read-map 0` and the declarations the change touches |
-| Geometry representation, queries, precision or mesh repair | [Geometry](core/geom/README.md) and [native mesh repair](core/geom/native/README.md); `read-map core/geom` for structure |
-| Offsets, intersections or material ownership | [Regions](core/region/README.md); `read-map core/region` for structure |
-| Skill operations, scheduling or travel | [Skill composition and travel](core/path/README.md), then the relevant [skill](skills/DIGEST.md); `read-map core/path` for structure |
-| Plans, validation, persistence, generation or delivery | [Print lifecycle](core/print/README.md); `read-map core/print` for structure |
+| Trace the system or change an interface | [Core architecture](core/README.md), then `read-map 0` and the boxes and `@link` arrows the change touches |
+| Geometry representation, queries, precision or mesh repair | [Geometry](core/geom/README.md) and [native mesh repair](core/geom/native/README.md); `read-map @cluster/geometry` for influence |
+| Offsets, intersections or material ownership | [Regions](core/region/README.md); `read-map @cluster/geometry` and `@cluster/toolpath` for influence |
+| Skill operations, scheduling or travel | [Skill composition and travel](core/path/README.md), then the relevant [skill](skills/DIGEST.md); `read-map @cluster/toolpath` for influence |
+| Plans, validation, persistence, generation or delivery | [Print lifecycle](core/print/README.md); `read-map @cluster/bundle` and `@cluster/toolpath` for influence |
 | Using shared print commands or changing their task guidance | [Print tools](core/print/USAGE.md) |
-| Machine capabilities, emission or interpretation | [Machine interfaces and program output](core/export/README.md), [machine presentation models](core/machine/README.md) and [machine files](machines/README.md); `read-map core/export` and `read-map core/machine` for structure |
-| Studio interaction, lifetime or rendering | [Studio](studio/README.md), [kinematics](studio/KINEMATICS.md) and [rendering](studio/RENDERING.md); `read-map studio` for structure |
+| Machine capabilities, emission or interpretation | [Machine interfaces and program output](core/export/README.md), [machine presentation models](core/machine/README.md) and [machine files](machines/README.md); `read-map @cluster/export` and `@cluster/settings` for influence |
+| Studio interaction, lifetime or rendering | [Studio](studio/README.md), [kinematics](studio/KINEMATICS.md) and [rendering](studio/RENDERING.md); `read-map @cluster/studio` for influence |
 | Chat-client commands and attachment | [Application](core/application/README.md) |
 | Performance measurement | [Slicing benchmarks](scripts/bench/README.md) and [region kernel verification](scripts/bench/region-reference.md) |
 | Maker-facing behavior or end-to-end use | [MAKERS](MAKERS.md) and [development testing](#testing-through-the-use-context) |

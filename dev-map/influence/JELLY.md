@@ -12,7 +12,7 @@ Benchmark of [Jelly](https://github.com/cs-au-dk/jelly) (Aarhus, BSD-3) against 
   - Ours: `node --max-old-space-size=6000 dev-map/influence/run.mjs --depth 2 --out ours.json all`
   - Jelly A, without dependencies: `node --max-old-space-size=8000 %TEMP%\jelly-bench\node_modules\@cs-au-dk\jelly\lib\main.js -b . -j jelly-cg.json --no-tty --no-print-progress FILES`. With the worktree as base directory, `node_modules` (a junction) resolves outside it, so Jelly skips every package.
   - Jelly B, with dependencies: the same command with `-b C:\CodeProjects\SAAM_tkeller`. This analyses 18 packages: zod, fflate, fontkit, rhino3dm, manifold-3d, clipper2-wasm and their dependencies.
-  - Jelly C: B plus `--approx` (approximate interpretation). See [Soundness options](#soundness-options).
+  - Jelly C: B plus `--approx` (approximate interpretation). See [Capabilities against the intent](#capabilities-against-the-intent).
   - Traces: `node dev-map/influence/trace/trace.mjs run --dir traces`, covering all six workflows with disposable SAAM homes.
   - Comparison: [`trace/jelly-to-keys.mjs`](trace/jelly-to-keys.mjs). `convert --jelly jelly-cg.json --out jelly.json [--strip .claude/worktrees/<agent>/]`, then `diff --dir traces --jelly jelly.json --ours ours.json --out diff.json`.
 - **Key mapping:** Jelly reports 1-based line:column spans from Babel. The script maps each span to the acorn node that starts at the same position:
