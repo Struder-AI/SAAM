@@ -331,7 +331,7 @@ function stored() {
 function staleness(model) {
   const files=Object.entries(model.sourceInfo).filter(([file,{sourceSha256}])=>{
     try{return sha(lf(readFileSync(resolve(repo,file),'utf8')))!==sourceSha256;}catch{return true;}}).map(([file])=>file);
-  return files.length?{reason:'source changed since the analysis',files,regenerate:'rerun the analysis, then '+model.regenerate}:null;
+  return files.length?{reason:'source changed since the analysis',files,regenerate:model.regenerate}:null;
 }
 
 // Map 0's boxes stand where the authored design set places its nodes: its architecture.json
