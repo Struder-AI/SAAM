@@ -6,7 +6,7 @@
 //
 // The set is a folder holding `map.json`:
 //   {"mode":"influence","title":…,"analysis":FILE,"analyse":{"maxHeapMB":4096}?,"authored":DIR,
-//    "sourceRoots":[DIR…],"preview":true?,"missing":[FILE…]?,"jobs":2?}
+//    "sourceRoots":[DIR…],"preview":true?,"missing":[FILE…]?,"jobs":2?,"solve":"changed"|"place"?}
 // `analysis` is a `run.mjs --out` result. With `analyse` it is made by regenerate itself
 // (analyse.mjs, from the current source, kept under the set's store); without it, it is a result
 // made elsewhere. `authored` is the design set whose map 0 and ownership are fixed (default
@@ -17,10 +17,11 @@
 //
 //   node dev-map/cli.mjs --set-dir DIR regenerate     (or --set NAME for a set under dev-map/sets)
 // analyses the scope when the set says `analyse` (only closures whose files moved run again),
-// solves each authored node whose inputs moved (`solve-middle.mjs`, `jobs` at a time, each in its
-// own small-heap process, kept in store/solve/), writes store/model.json and draws view/. `read
+// solves each authored node whose slice moved (`solve-middle.mjs`, `jobs` at a time, each in its
+// own small-heap process, kept in store/solve/; `solve` below), writes store/model.json and draws
+// view/. `"solve":"place"` places a changed node's new leaves without solving it. `read
 // ADDRESS`, `build` and `check` read the stored model; reads never solve.
-import {readFileSync,writeFileSync,mkdirSync,existsSync} from 'node:fs';
+import {readFileSync,writeFileSync,mkdirSync,existsSync,rmSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {resolve,dirname,basename} from 'node:path';
 import {spawn} from 'node:child_process';
@@ -46,36 +47,75 @@ function inputs() {
 }
 
 // ---- solving ------------------------------------------------------------------------------
-// Each authored node is solved in its own process, a few at a time, so heaps stay small. A
-// node's stored solve is reused while the analysis, the authored set and the solver are as they
-// were when it was made.
-const solverFiles=['dev-map/influence/solve-middle.mjs','dev-map/influence/derive.mjs','dev-map/influence/state.mjs','dev-map/influence/channels.mjs','dev-map/lib/solve.mjs','dev-map/lib/score.mjs','dev-map/lib/tree.mjs','dev-map/lib/graph.mjs'];
-function solveInputs({analysis,authored,roots,maxStages}) {
-  const h=createHash('sha256');
-  for(const file of [analysis,resolve(authored,'architecture.json'),resolve(authored,'ownership.json'),...solverFiles.map(f=>resolve(repo,f))])h.update(lf(readFileSync(file,'utf8')));
-  h.update(JSON.stringify(roots));if(maxStages)h.update(`maxStages ${maxStages}`);
-  return h.digest('hex');
+// The model, its texts and every leaf's owner, made once for the solves and the stored model.
+async function prepare(paths) {
+  const sm=await import('./solve-middle.mjs');
+  const authored=sm.readAuthored(paths.authored);
+  const analysis=JSON.parse(readFileSync(paths.analysis,'utf8'));
+  const model=sm.leafModel(analysis,{actors:authored.actors});
+  const {texts,changed}=sm.analysedTexts(model.leaves,{roots:[repo,...paths.roots]});
+  const owners=await sm.ownLeaves(model.leaves,authored,{texts});
+  const ownerOf=new Map(owners.filter(o=>o.owner).map(o=>[o.leaf,o.owner])),uniform=sm.uniformLeaves(model);
+  const options={seed:1,start:'flat',maxStages:paths.maxStages??Infinity};
+  // Each node's slice (solve-middle.mjs nodeSlice) and the key its solve is kept by.
+  const slices=new Map(authored.nodes.map(n=>{const slice=sm.nodeSlice(n.id,ownerOf,model.arrows,uniform);
+    return [n.id,{slice,hash:sm.sliceHash(slice,options)}];}));
+  return {sm,authored,analysis,model,texts,changed,owners,uniform,options,slices};
 }
 
-async function solveAll(nodes,paths,{jobs=2,log=()=>{}}={}) {
-  const dir=here('store/solve');mkdirSync(dir,{recursive:true});
-  const hash=solveInputs(paths);
-  const stale=nodes.filter(id=>{try{return readFileSync(resolve(dir,`${id}.hash`),'utf8')!==hash;}catch{return true;}});
-  const queue=[...stale],failures=[];
-  const run=async()=>{for(let node=queue.shift();node;node=queue.shift()) {
-    const started=Date.now();
-    log(`solving ${node}`);
-    const args=['--max-old-space-size=1536',resolve(repo,'dev-map/influence/solve-middle.mjs'),'--in',paths.analysis,'--node',node,
-      '--authored',paths.authored,...paths.roots.flatMap(r=>['--source-root',r]),...(paths.maxStages?['--max-stages',String(paths.maxStages)]:[]),'--out',resolve(dir,`${node}.json`)];
+// Each authored node's solve is kept in store/solve/ by a hash of exactly what it reads (its
+// slice, the options and the solver's code), so a node solves again only when that changed. A
+// node to solve runs in its own small-heap process, `jobs` at a time. With map.json
+// `"solve":"place"` a changed node with a kept solve is not solved: new leaves are placed in their
+// file's cluster and marked `placement not solved` (solve-middle.mjs placeSlice) until a
+// `"changed"` regenerate (the default) solves it.
+const entryFile=id=>`${id.replace(/[^A-Za-z0-9_.-]/g,c=>`~${c.charCodeAt(0).toString(16)}`)}.json`;
+function readEntry(dir,id,sm,options) {
+  for(const file of [entryFile(id),`${id}.json`]) {
+    let j;try{j=JSON.parse(readFileSync(resolve(dir,file),'utf8'));}catch{continue;}
+    if(j.schema===2&&j.node===id)return j;
+    if(j.schema===1&&existsSync(resolve(dir,`${id}.hash`)))return sm.legacyEntry(j,id,options);
+  }
+  return null;
+}
+function keepEntry(dir,entry) {
+  const {legacy,...kept}=entry;
+  writeFileSync(resolve(dir,entryFile(entry.node)),JSON.stringify(kept));
+  // A solve kept before slices (a whole result named by the raw id) is replaced.
+  for(const file of [`${entry.node}.hash`,...(`${entry.node}.json`!==entryFile(entry.node)?[`${entry.node}.json`]:[])])rmSync(resolve(dir,file),{force:true});
+  return kept;
+}
+
+async function solveAll(prep,{jobs=2,mode='changed',log=()=>{}}={}) {
+  const {sm,authored,model,slices,options}=prep;
+  if(!['changed','place'].includes(mode))throw Error(`map.json "solve" is "changed" (default) or "place", not ${JSON.stringify(mode)}.`);
+  const dir=here('store/solve');mkdirSync(resolve(dir,'pending'),{recursive:true});
+  const nameOf=new Map(model.leaves.map(l=>[l.id,l.name]));
+  const entries=new Map(),queue=[],solved=[],reused=[],placed=[],failures=[];
+  for(const {id} of authored.nodes) {
+    const {slice,hash}=slices.get(id),names=slice.own.map(key=>nameOf.get(key)),entry=readEntry(dir,id,sm,options);
+    if(entry?.hash===hash&&(entry.placement!=='not solved'||mode==='place')){entries.set(id,entry.legacy?keepEntry(dir,entry):entry);reused.push(id);continue;}
+    if(mode==='place'&&entry){entries.set(id,keepEntry(dir,sm.placeSlice(slice,entry,{hash,names})));placed.push(id);
+      log(`${id}: placed ${entries.get(id).placed.length} leaves without solving`);continue;}
+    queue.push({id,slice,hash,names});
+  }
+  // The largest slices first, so the longest solve starts at once.
+  queue.sort((a,b)=>b.slice.links.length-a.slice.links.length);
+  const run=async()=>{for(let job=queue.shift();job;job=queue.shift()) {
+    const {id}=job,started=Date.now(),input=resolve(dir,'pending',entryFile(id)),out=resolve(dir,'pending',`${entryFile(id)}.out`);
+    log(`solving ${id}`);
+    writeFileSync(input,JSON.stringify({slice:job.slice,options,hash:job.hash,names:job.names}));
+    const args=['--max-old-space-size=1536',resolve(repo,'dev-map/influence/solve-middle.mjs'),'--slice',input,'--out',out];
     const code=await new Promise(done=>{const child=spawn(process.execPath,args,{cwd:repo,stdio:['ignore','ignore','pipe']});
       let err='';child.stderr.on('data',d=>{err+=d;if(err.length>20000)err=err.slice(-10000);});
-      child.on('exit',c=>{if(c!==0)failures.push({node,code:c,stderr:err.slice(-2000)});done(c);});});
-    if(code===0)writeFileSync(resolve(dir,`${node}.hash`),hash);
-    log(`${node}: ${code===0?'solved':'failed'} in ${Math.round((Date.now()-started)/1000)} s`);
+      child.on('exit',c=>{if(c!==0)failures.push({node:id,code:c,stderr:err.slice(-2000)});done(c);});});
+    if(code===0){entries.set(id,keepEntry(dir,JSON.parse(readFileSync(out,'utf8'))));solved.push(id);}
+    rmSync(input,{force:true});rmSync(out,{force:true});
+    log(`${id}: ${code===0?'solved':'failed'} in ${Math.round((Date.now()-started)/1000)} s`);
   }};
   await Promise.all(Array.from({length:Math.max(1,jobs)},run));
   if(failures.length)throw Error(`Solve failed: ${failures.map(f=>`${f.node} (exit ${f.code}): ${f.stderr}`).join('\n')}`);
-  return {solved:stale,reused:nodes.filter(id=>!stale.includes(id)),hash};
+  return {solved,reused,placed,entries};
 }
 
 // ---- source ranges ------------------------------------------------------------------------
@@ -124,34 +164,22 @@ function modeArgument(fn) {
 // ---- writing --------------------------------------------------------------------------------
 // The stored model: every map as a page the viewer draws and `read` projects, every placed leaf
 // as a source page, and the leaf arrows each drawn arrow carries.
-export async function writeModel({log=()=>{}}={}) {
-  const sm=await import('./solve-middle.mjs');
+export async function writeModel({log=()=>{},prep=null,entries=null}={}) {
   const paths=inputs(),{spec}=paths;
-  const authored=sm.readAuthored(paths.authored);
-  const analysis=JSON.parse(readFileSync(paths.analysis,'utf8'));
-  const model=sm.leafModel(analysis,{actors:authored.actors});
-  const {texts,changed}=sm.analysedTexts(model.leaves,{roots:[repo,...paths.roots]});
+  prep??=await prepare(paths);
+  const {sm,authored,analysis,model,texts,changed,owners,uniform,slices}=prep;
   const labels=sm.leafLabels(model.leaves,{texts});
-  const uniform=sm.uniformLeaves(model);
-  const leafOf=new Map(model.leaves.map(l=>[l.id,l]));
 
-  // The solver's per-node outputs, rebuilt as solve-middle's own `solved` entries (cluster ids
-  // padded so assemble numbers them exactly as the solver did), and its maps kept for comparison.
-  let owners=null;const solved=[],solverMaps=new Map(),summaries=[],ownerDisagreements=[];
+  // Each node's kept solve (solveAll), taken over by its slice as assemble's `solved` entry, and
+  // the node's maps as its slice alone draws them, for comparison with the assembled set.
+  const dir=here('store/solve'),solved=[],solverMaps=new Map(),summaries=[],placedLeaves=new Set();
   for(const n of authored.nodes) {
-    const j=JSON.parse(readFileSync(here(`store/solve/${n.id}.json`),'utf8'));
-    if(j.arrows.length!==model.arrows.length||j.leaves.length!==model.leaves.length||j.leaves.some(l=>!leafOf.has(l.id)))
-      throw Error(`store/solve/${n.id}.json was solved from another analysis; run ${regenerateCommand}`);
-    const rows=j.leaves.map(l=>({leaf:l.id,owner:l.owner,declaration:l.declaration,via:l.via,gap:l.gap}));
-    if(!owners)owners=rows;
-    else {const first=new Map(owners.map(o=>[o.leaf,o.owner]));for(const o of rows)if(first.get(o.leaf)!==o.owner)ownerDisagreements.push(o.leaf);}
-    const s=j.summary.solved.find(x=>x.node===n.id);summaries.push({...s,generated:j.generated});
-    const pad=id=>id===n.id?id:id.slice(n.id.length+1).padStart(6,'0');
-    const under=j.clusters.filter(c=>c.id===n.id||c.id.startsWith(n.id+'/'));
-    solved.push({node:n.id,library:under.find(c=>c.library)?pad(under.find(c=>c.library).id):null,
-      clusters:new Map(under.filter(c=>c.id!==n.id).map(c=>[pad(c.id),pad(c.parent)])),
-      homes:new Map(under.flatMap(c=>c.leaves.map(l=>[l,pad(c.id)])))});
-    for(const m of j.maps)if(m.id===TOP||m.id===n.id||m.id.startsWith(n.id+'/'))solverMaps.set(`${n.id}\n${m.id}`,m);
+    const {slice,hash}=slices.get(n.id),e=entries?.get(n.id)??readEntry(dir,n.id,sm,prep.options);
+    if(e?.hash!==hash)throw Error(`store/solve/${entryFile(n.id)} is not ${n.id}'s solve for the current analysis; run ${regenerateCommand}`);
+    const s=sm.solvedOf(e,slice);solved.push(s);
+    summaries.push({...e.summary,generated:e.generated});
+    for(const r of e.placed??[])placedLeaves.add(slice.own[r]);
+    for(const m of sm.sliceMaps(slice,s))solverMaps.set(`${n.id}\n${m.id}`,m);
   }
   // Leaves with no map-0 owner are not solved; they are grouped by file for review, so the
   // unowned box opens onto maps a person can read, and listed in full on map 0.
@@ -202,7 +230,7 @@ export async function writeModel({log=()=>{}}={}) {
     const made=l.state||l.channel;
     leafRow.set(l.id,{key:l.id,name:l.name,label:labels.get(l.id),role:l.role,file:l.channel?null:made?m?.[1]??file:file,line:shape?.line??Number(m?.[2]??1),endLine:shape?.endLine??Number(m?.[2]??1),
       ...(shape||made?{}:{rangeUnknown:true}),...(l.state?{state:l.state}:{}),...(l.channel?{channel:l.channel}:{}),owner:o?.owner??null,...(o?.owner?{declaration:o.declaration,via:o.via}:{gap:o?.gap}),
-      ...(uniform.has(l.id)?{uniform:true}:{}),...(uniform.has(l.id)&&shape?.modeArgument?{possiblyCallerDependent:true}:{}),
+      ...(uniform.has(l.id)?{uniform:true}:{}),...(uniform.has(l.id)&&shape?.modeArgument?{possiblyCallerDependent:true}:{}),...(placedLeaves.has(l.id)?{placementNotSolved:true}:{}),
       ...(index.has(l.id)?{index:index.get(l.id)}:{unlinked:true}),
       folded:l.folded.map(k=>{const s=shapes.get(k);return {key:k,file:fileOf(k),...(s?{line:s.line,endLine:s.endLine}:{})};})});
   }
@@ -237,8 +265,8 @@ export async function writeModel({log=()=>{}}={}) {
     const box=id=>id.startsWith('boundary:')?`b:${index.get(id.slice(9))}`:index.get(id);
     const components=m.members.map(id=>cluster.has(id)
       ?{index:index.get(id),kind:'group',path:`@cluster/${id}`,count:nested.get(id),...nameOf.get(id)}
-      :(({key,label,role,file,line,endLine,uniform,possiblyCallerDependent})=>({index:index.get(id),kind:'leaf',path:key,
-        label,role,file,line,endLine,...(uniform?{uniform}:{}),...(possiblyCallerDependent?{possiblyCallerDependent}:{})}))(leafRow.get(id)))
+      :(({key,label,role,file,line,endLine,uniform,possiblyCallerDependent,placementNotSolved})=>({index:index.get(id),kind:'leaf',path:key,
+        label,role,file,line,endLine,...(uniform?{uniform}:{}),...(possiblyCallerDependent?{possiblyCallerDependent}:{}),...(placementNotSolved?{placementNotSolved}:{})}))(leafRow.get(id)))
       .sort((a,b)=>order(a.index,b.index));
     const ports=m.boundary.map(id=>({port:`b:${index.get(id)}`,mechanism:'boundary',index:index.get(id),label:boxLabel(id),
       path:cluster.has(id)?`@cluster/${id}`:id}));
@@ -280,7 +308,7 @@ export async function writeModel({log=()=>{}}={}) {
     inputs:{analysis:paths.analysis,authored:paths.authored,sourceRoots:paths.roots},sourceChanged:changed,
     summary:{leaves:model.leaves.length,merged:model.merged,sharedNames:model.sharedNames,arrows:model.arrows.length,drawn:model.leaves.length-unlinked.length,
       unlinked:unlinked.length,unowned:unowned.length,uniform:uniform.size,possiblyCallerDependent:[...leafRow.values()].filter(r=>r.possiblyCallerDependent).length,
-      maps:pages.filter(p=>p.destination==='graph').length,rangeUnknown,ownerDisagreements:ownerDisagreements.length,solverMismatch,solved:summaries,
+      maps:pages.filter(p=>p.destination==='graph').length,rangeUnknown,placementNotSolved:placedLeaves.size,solverMismatch,solved:summaries,
       ...(model.channels?{channels:{...model.channels.summary,stateNodes:[...leafRow.values()].filter(r=>r.state).length,crossOwnerState:crossOwnerState.length}}:{})},
     arrows:model.arrows,leaves:Object.fromEntries(leafRow),pages,sources,sourceInfo};
   stored.snapshotId=sha(JSON.stringify([stored.summary,pages.length,model.arrows.length,Object.values(sourceInfo).map(s=>s.sourceSha256)]));
@@ -438,7 +466,7 @@ function mapRead(m,page) {
     const folded=[...new Set(outside.filter(f=>!outside.some(g=>within(f,g)))
       .map(f=>`${f.file===r.file?'':`${f.file}:`}${range(f.line,f.endLine)}`))];
     return [names.get(key),returnsData.has(key)?'command returning data':r.role==='command'?'command':'',folded.length?`folded ${folded.join(', ')}`:'',
-      r.possiblyCallerDependent?'possibly caller-dependent':'',r.rangeUnknown?'range unknown':'',!r.owner&&!unownedPage?'unowned':''].filter(Boolean).join(' · ');};
+      r.possiblyCallerDependent?'possibly caller-dependent':'',r.placementNotSolved?'placement not solved':'',r.rangeUnknown?'range unknown':'',!r.owner&&!unownedPage?'unowned':''].filter(Boolean).join(' · ');};
   const byIndex=(a,b)=>{const x=a.index.split('.').map(Number),y=b.index.split('.').map(Number);
     for(let k=0;k<Math.min(x.length,y.length);k++)if(x[k]!==y[k])return x[k]-y[k];return x.length-y.length;};
   const boxes=Object.fromEntries([...page.components].sort(byIndex)
@@ -531,20 +559,20 @@ export function verifyReads(m) {
 export async function influenceCommand(command,args) {
   const log=line=>process.stderr.write(line+'\n');
   if(command==='regenerate') {
-    const paths=inputs(),{readAuthored}=await import('./solve-middle.mjs');
-    const nodes=readAuthored(paths.authored).nodes.map(n=>n.id);
+    const paths=inputs(),clock=Date.now(),seconds=()=>Math.round((Date.now()-clock)/1000);
     let analysed=null;
     if(mapSet.analyse) {
       const {analyse}=await import('./analyse.mjs');
       analysed=await analyse({repo,out:paths.analysis,...mapSet.analyse,log});
     }
-    const solve=await solveAll(nodes,paths,{jobs:mapSet.jobs??2,log});
-    const model=await writeModel({log});held=model;
+    const prep=await prepare(paths);log(`model and owners ready at ${seconds()} s`);
+    const solve=await solveAll(prep,{jobs:mapSet.jobs??2,mode:mapSet.solve??'changed',log});log(`solves ready at ${seconds()} s`);
+    const model=await writeModel({log,prep,entries:solve.entries});held=model;
     const {buildGeneratedView}=await import('../lib/generated-view.mjs');
     const view=await buildGeneratedView({repo});
     // Every regeneration proves the reads say what the drawings draw, as `check` does.
     const reads=verifyReads(model);
-    console.log(JSON.stringify({mode:'influence',...(analysed?{analysis:analysed}:{}),solved:solve.solved,reused:solve.reused,summary:model.summary,checks:model.checks,reads,view:view.index},null,1));
+    console.log(JSON.stringify({mode:'influence',...(analysed?{analysis:analysed}:{}),solved:solve.solved,reused:solve.reused,...(solve.placed.length?{placed:solve.placed}:{}),summary:model.summary,checks:model.checks,reads,view:view.index},null,1));
     if(!model.checks.ok||!reads.ok)process.exitCode=1;
     return;
   }
