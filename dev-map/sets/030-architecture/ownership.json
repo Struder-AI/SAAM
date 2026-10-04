@@ -736,12 +736,12 @@
       "reason": "Onboarding packet/layer definitions."
     },
     "core/agent/toolkit.mjs": {
-      "owner": "agent",
-      "reason": "Source role/context orchestration; context readers and developer map operations retain declaration-level mixed owners."
+      "owner": "context",
+      "reason": "Mixed: builder/maker source onboarding (Maker context, main-session proposal) and development tooling (map read/regenerate, sync status; out of scope, marked outside-product per declaration) pending a file split."
     },
     "scripts/agent-toolkit.mjs": {
-      "owner": "agent",
-      "reason": "Adapter operation dispatch, progress/diagnostic observers and agent-session association; private transport state remains visible."
+      "owner": "context",
+      "reason": "Source toolkit command entry; builder onboarding is Maker context (main-session proposal). Its one runCLI also dispatches development commands (developer-onboarding, read-map, regenerate, context-budget) pending a file split."
     },
     "skills/catalog.mjs": {
       "owner": "extensions",
@@ -1477,20 +1477,20 @@
       "owner": "context"
     },
     "core/agent/layers.mjs::contextBudget": {
-      "owner": "agent",
-      "reason": "Developer measurement orchestration instantiates temporary MCP runtime and measures schema/manual bytes; manual content assembly retains its separate Context owner. IO effects remain visible."
+      "owner": "outside-product",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
     },
     "core/agent/layers.mjs::contextBudget::manuals": {
-      "owner": "agent",
-      "reason": "Developer measurement orchestration instantiates temporary MCP runtime and measures schema/manual bytes; manual content assembly retains its separate Context owner. IO effects remain visible."
+      "owner": "outside-product",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
     },
     "core/agent/layers.mjs::contextBudget::read": {
-      "owner": "agent",
-      "reason": "Developer measurement orchestration instantiates temporary MCP runtime and measures schema/manual bytes; manual content assembly retains its separate Context owner. IO effects remain visible."
+      "owner": "outside-product",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
     },
     "core/agent/layers.mjs::contextBudget::size": {
-      "owner": "agent",
-      "reason": "Developer measurement orchestration instantiates temporary MCP runtime and measures schema/manual bytes; manual content assembly retains its separate Context owner. IO effects remain visible."
+      "owner": "outside-product",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
     },
     "core/agent/layers.mjs::gatedIndex": {
       "owner": "context"
@@ -1559,25 +1559,28 @@
       "owner": "context"
     },
     "core/agent/toolkit.mjs::@module": {
-      "owner": "agent"
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
     },
     "core/agent/toolkit.mjs::contextPacket": {
       "owner": "context",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
     "core/agent/toolkit.mjs::environmentStatus": {
-      "owner": "agent"
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
     },
     "core/agent/toolkit.mjs::json": {
-      "owner": "agent"
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
     },
     "core/agent/toolkit.mjs::onboarding": {
-      "owner": "agent",
-      "reason": "CLI orchestration selects role reads and composes Context results, environment diagnostics and developer maps; contextPacket/onboardingSources own manual assembly."
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
     },
     "core/agent/toolkit.mjs::readMaps": {
       "owner": "outside-product",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
     },
     "core/agent/toolkit.mjs::readSkill": {
       "owner": "context",
@@ -1585,15 +1588,15 @@
     },
     "core/agent/toolkit.mjs::regenerateMap": {
       "owner": "outside-product",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
     },
     "core/agent/toolkit.mjs::syncStatus": {
       "owner": "outside-product",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
     },
     "core/agent/toolkit.mjs::syncStatus::git": {
       "owner": "outside-product",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
     },
     "core/export/bambu-body.mjs::@module": {
       "owner": "export"
@@ -5850,13 +5853,36 @@
       "owner": "geometry-leaf-eddc9d84b546"
     },
     "scripts/agent-toolkit.mjs::@module": {
-      "owner": "agent"
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
     },
     "scripts/agent-toolkit.mjs::runCLI": {
-      "owner": "agent"
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
     },
     "scripts/agent-toolkit.mjs::runCLI::@default/write": {
-      "owner": "agent"
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
+    },
+    "scripts/agent-toolkit.mjs::schemas": {
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
+    },
+    "scripts/agent-toolkit.mjs::help": {
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
+    },
+    "scripts/agent-toolkit.mjs::string": {
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
+    },
+    "scripts/agent-toolkit.mjs::boolean": {
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
+    },
+    "scripts/agent-toolkit.mjs::many": {
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
     },
     "skills/advanced-vase-wall/scripts/loop-path.mjs::@module": {
       "owner": "extensions"
@@ -9014,8 +9040,32 @@
       "owner": "studio"
     },
     "core/agent/toolkit.mjs::mapCommand": {
-      "owner": "agent",
-      "reason": "Developer map command adapter invokes tooling subprocess; no product engine responsibility."
+      "owner": "outside-product",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
+    },
+    "core/agent/toolkit.mjs::root": {
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
+    },
+    "core/agent/toolkit.mjs::outsideAreas": {
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
+    },
+    "core/agent/toolkit.mjs::componentManuals": {
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
+    },
+    "core/agent/toolkit.mjs::developmentAreas": {
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
+    },
+    "core/agent/toolkit.mjs::developerMapSet": {
+      "owner": "outside-product",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
+    },
+    "core/agent/toolkit.mjs::execFileAsync": {
+      "owner": "outside-product",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
     },
     "core/export/griffin-player.mjs::temperatureWaitError": {
       "owner": "export"
