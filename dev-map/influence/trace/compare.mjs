@@ -27,19 +27,23 @@ function traceFiles(dir) {
 export function compare(analysis,dir,{examples=5}={}) {
   // --- the analysis -------------------------------------------------------------------
   const parseName=s=>{const m=/^(.*?):(\d+) (.*)$/.exec(s);return {file:m[1],line:+m[2],name:m[3]};};
-  const callables=new Map();// full name -> {file,line,name,role,key}
+  // A callable's identity is its exact key (file:offset) when the output carries keys (leaves'
+  // `key` and `foldedKeys`, arrows' `fromKey`/`toKey`), else its "file:line name".
+  const callables=new Map();// identity -> {file,line,name,role,key}
   for(const l of analysis.leaves??[]) {
-    callables.set(l.leaf,{...parseName(l.leaf),role:l.role,key:l.key,leaf:l.leaf});
-    for(const f of l.folded??[])if(!callables.has(f))callables.set(f,{...parseName(f),leaf:l.leaf});
+    callables.set(l.key??l.leaf,{...parseName(l.leaf),role:l.role,key:l.key,leaf:l.leaf});
+    (l.folded??[]).forEach((f,i)=>{const id=l.foldedKeys?.[i]??f;if(!callables.has(id))callables.set(id,{...parseName(f),key:l.foldedKeys?.[i],leaf:l.leaf});});
   }
   const arrowKey=(a,b)=>a+'\u0000'+b;
   const arrows=new Map();// from\0to -> Set(kind)
   for(const a of analysis.arrows) {
-    for(const x of [a.from,a.to])if(!callables.has(x))callables.set(x,{...parseName(x)});
-    const k=arrowKey(a.from,a.to);(arrows.get(k)??arrows.set(k,new Set()).get(k)).add(a.kind);
+    const from=a.fromKey??a.from,to=a.toKey??a.to;
+    if(!callables.has(from))callables.set(from,{...parseName(a.from),key:a.fromKey});
+    if(!callables.has(to))callables.set(to,{...parseName(a.to),key:a.toKey});
+    const k=arrowKey(from,to);(arrows.get(k)??arrows.set(k,new Set()).get(k)).add(a.kind);
     // Roles of folded callables follow from their arrows.
-    if(a.kind==='answer')callables.get(a.from).inferredRole??='query';
-    else callables.get(a.to).inferredRole='command';
+    if(a.kind==='answer')callables.get(from).inferredRole??='query';
+    else callables.get(to).inferredRole='command';
   }
   const byLine=new Map(),byKey=new Map();
   for(const [full,c] of callables){const k=c.file+':'+c.line;(byLine.get(k)??byLine.set(k,[]).get(k)).push(full);if(c.key)byKey.set(c.key,full);}

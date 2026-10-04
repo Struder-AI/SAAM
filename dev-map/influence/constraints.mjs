@@ -5,18 +5,21 @@
 // are opaque objects whose fields are further platform objects. Shapes the analysis does not
 // model are recorded as `unmodelled`, never silently approximated away.
 import {dirname,join,posix} from 'node:path';
+import {PairSet} from './points-to.mjs';
 import {lookupPlatform,typeOf,familyOf,familyPath,propertyType,BROWSER_ROOTS} from './platform-models.mjs';
 
 const ELEMENT='[]';
 const UNMODELLED_GLOBALS=new Set(['eval','Function','Proxy','Reflect']);
 const UNMODELLED_MEMBERS=new Set(['defineProperty','defineProperties','setPrototypeOf','__defineGetter__','__defineSetter__']);
 
-export function buildConstraints(pt,modules,{resolveImport,platformModules=new Map(),cloning=true,depth=1}) {
+export function buildConstraints(pt,modules,{resolveImport,platformModules=new Map(),cloning=true,depth=1,unknownData=false}) {
   const functions=[],unmodelled=[],unresolvedImports=[];
-  const platformObjects=new Map(),instances=new Map(),memo=new Set(),accessorReads=new Set();
+  const platformObjects=new Map(),instances=new Map(),accessorReads=new Set();
   const PLATFORM_PROTO=platform('platform.prototype',undefined,false);
-  const once=key=>memo.has(key)?false:(memo.add(key),true);
-  const nsOf=new Map();
+  // Work already done, by integer pairs: (field node, target) per load, (object, target) per
+  // all-fields load, (object, value) per store to a platform object or to all fields.
+  const loaded=new PairSet(16),loadedAll=new PairSet(14),storedAll=new PairSet(14),storedPlatform=new PairSet(10);
+  const calls=[],nsOf=new Map();
 
   // A platform object carries the real runtime value when its path names one, so field reads
   // follow what actually exists; an unknown platform value has unknown members.
@@ -60,12 +63,12 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
 
   // --- loads, stores and calls as listeners ------------------------------------------------
   function loadFrom(o,name,target,reader) {
-    if(!once(`l${o}|${name}|${target}`))return;
     if(isPlatform(o)){const c=platformChild(o,name);if(c!==undefined)pt.add(target,c);return;}
     if(name===null) {
+      if(!loadedAll.add(o,target))return;
       pt.onField(o,(f,fnode)=>{if(f==='__proto__')return;pt.edge(fnode,target);reader?.reads.add(fnode);});
     } else {
-      const fnode=pt.field(o,name);pt.edge(fnode,target);reader?.reads.add(fnode);
+      const fnode=pt.field(o,name);if(!loaded.add(fnode,target))return;pt.edge(fnode,target);reader?.reads.add(fnode);
       if(name!=='__proto__')pt.on(pt.field(o,'__proto__'),p=>loadFrom(p,name,target,reader));
     }
   }
@@ -73,13 +76,14 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   function store(base,name,value,writer,site) {
     writer?.stores.push({base,name,site});
     pt.on(base,o=>{
-      if(!once(`s${o}|${name}|${value}`))return;
       if(isPlatform(o)) {
+        if(!storedPlatform.add(o,value))return;
         // Recorded for the platform inventory: a write to a platform object's property.
         if(site){const p=pt.objects[o];(site.apis??=new Map()).set(`set ${p.known?p.name:pt.objects[familyObject(p)].name}.${name??'[computed]'}`,'store');}
         pt.on(value,v=>{if(isCallable(v))invokedByPlatform(v,writer,site,o);});return;
       }
       if(name===null) {
+        if(!storedAll.add(o,value))return;
         pt.field(o,'*');
         pt.onField(o,(f,fnode)=>{if(f!=='__proto__')pt.edge(value,fnode);});
       } else pt.edge(value,pt.field(o,name));
@@ -95,19 +99,17 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   // by the platform with values of the object's family.
   function invokedByPlatform(fobj,caller,site,holder) {
     const f=pt.objects[fobj].fn;
-    if(!once(`p${fobj}|${site.id}`))return;
+    if(!firstTime(site,`p${fobj}`))return;
     site.platformCallbacks.push(f.id);
     const event=holder===undefined?UNKNOWN:familyObject(pt.objects[holder]);
     for(const p of f.params)pt.add(p,event);
     if(f.rest!==undefined)pt.add(f.rest,event);
     if(!f.arrow)pt.add(f.thisNode,holder??UNKNOWN);
   }
-  // A call site's platform models apply once, in the first copy of its function that reaches
-  // them; later copies' results stay empty. Applying them in every copy is sound but multiplies
-  // the solve (core/print/slices.mjs closure: 0.4M to 4.3M copy edges, whole scope out of
-  // memory at 7 GB), so it waits for the compositional engine (D-048).
-  const onceSites=new Map();
-  const firstTime=(site,key)=>{const d=onceSites.get(site.id)??onceSites.set(site.id,new Set()).get(site.id);if(d.has(key))return false;d.add(key);return true;};
+  // Every walk of a call site (each copy of its function walks it again) is its own site object,
+  // so calls, constructors and platform models are wired in every copy; this records what one
+  // walk has wired already.
+  const firstTime=(site,key)=>{const d=site.done??=new Set();if(d.has(key))return false;d.add(key);return true;};
   // A platform call applies the model of the API it reaches (platform-models.mjs). An API without
   // a model is recorded as unmodelled and approximated generically: a fresh result holding the
   // receiver's and arguments' elements, with every callable argument invoked.
@@ -250,7 +252,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     const obj=pt.objects[o];
     if(obj.kind==='function') {
       const f=obj.fn;
-      if(!once(`d${o}|${site.id}`))return;
+      if(!firstTime(site,`d${o}`))return;
       site.targets.push(f.id);
       bindArguments(f,args);
       pt.edge(f.ret,result);
@@ -273,6 +275,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   function call(site,caller,callee,thisNode,args,result,method) {
     caller.calls.push(site);
     const nodes=spreadNodes(args,caller);
+    calls.push({site,caller,callee,args:nodes,result});
     pt.on(callee,o=>dispatch(o,site,caller,thisNode,nodes,result,method));
   }
   function spreadNodes(args,caller) {
@@ -284,6 +287,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   function construct(site,caller,callee,args,result) {
     caller.calls.push(site);site.construct=true;
     const nodes=spreadNodes(args,caller);
+    calls.push({site,caller,callee,args:nodes,result});
     pt.on(callee,o=>{
       const obj=pt.objects[o];
       const key=site.id+'|'+o;
@@ -293,7 +297,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
       if(obj.kind==='function') {
         pt.edge(pt.field(o,'prototype'),pt.field(inst,'__proto__'));
         const ctor=obj.fn;
-        if(once(`n${o}|${site.id}`)){site.targets.push(ctor.id);bindArguments(ctor,nodes);pt.add(ctor.thisNode,inst);pt.edge(ctor.ret,result);}
+        if(firstTime(site,`n${o}`)){site.targets.push(ctor.id);bindArguments(ctor,nodes);pt.add(ctor.thisNode,inst);pt.edge(ctor.ret,result);}
       } else if(isPlatform(o)) {
         const proto=obj.known&&obj.value?.prototype?platform(obj.name+'.prototype',obj.value.prototype):obj.known?PLATFORM_PROTO:familyObject(obj);
         pt.add(pt.field(inst,'__proto__'),proto);
@@ -786,7 +790,38 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   for(const mod of modules){nsOf.set(mod.file,pt.object({kind:'object',shape:'module',name:mod.file,owner:null}));}
   for(const mod of modules)prepareModule(mod);
   for(const mod of modules)analyzeModule(mod);
-  return {functions,unmodelled,unresolvedImports,namespaces:nsOf,platformObjects,accessorReads};
+  // A call whose callee the analysis holds no value for calls code outside the model (a method
+  // of data with no objects: a string, parsed or platform-supplied data, a parameter nobody
+  // passes a function to). As Jelly does for external calls (dev-map/influence/JELLY.md), every
+  // function handed to it, directly or as a field of an argument (an options callback), is taken
+  // as invoked, so the call edge exists. With unknownData its result and those functions'
+  // arguments are also plain data of unknown shape (the json family, methods modelled by name);
+  // that is off by default: it multiplied the core/path closure's solve 250-fold (DEVLOG
+  // 2026-10-04). Applied after a fixed point to the calls still unresolved, until none is new.
+  function settle() {
+    const DATA=platform(familyPath('json'));
+    let rounds=0,unknownCalls=0;
+    for(;;) {
+      pt.solve();rounds++;
+      let fresh=0;
+      for(const r of calls) {
+        if(r.unknown||pt.pts[r.callee].size)continue;
+        r.unknown=true;fresh++;r.site.unknownCallee=true;
+        const invoke=o=>{
+          if(!isCallable(o)||!firstTime(r.site,'u'+o))return;
+          const f=pt.objects[o].fn;r.site.platformCallbacks.push(f.id);
+          if(unknownData)for(const p of f.params)pt.add(p,DATA);
+          if(unknownData&&f.rest!==undefined)pt.add(f.rest,DATA);
+          if(unknownData&&!f.arrow)pt.add(f.thisNode,DATA);
+        };
+        for(const a of r.args)pt.on(a,o=>{invoke(o);if(!isCallable(o)&&!isPlatform(o))pt.onField(o,(name,fnode)=>{if(name!=='__proto__')pt.on(fnode,invoke);});});
+        if(unknownData)pt.add(r.result,DATA);
+      }
+      unknownCalls+=fresh;
+      if(!fresh)return {rounds,unknownCalls};
+    }
+  }
+  return {functions,unmodelled,unresolvedImports,namespaces:nsOf,platformObjects,accessorReads,settle};
 }
 
 // After solving: every call site's platform APIs (merged over the copies that walk it) and the
