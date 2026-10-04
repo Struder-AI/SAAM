@@ -498,6 +498,10 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
         if(site){const p=pt.objects[o];(site.apis??=new Map()).set(`set ${p.known?p.name:pt.objects[familyObject(p)].name}.${name??'[computed]'}`,'store');}
         pt.on(value,v=>{if(isCallable(v))invokedByPlatform(v,writer,site,o);});return;
       }
+      // A browser object SAAM created (createElement) is a platform object too: a callable
+      // stored on it (button.onclick) is a handler the platform invokes.
+      if(x.kind==='value'&&x.fresh&&typeOf(x.fresh).family==='dom'&&name!=='__proto__'&&storedPlatform.add(o,value))
+        pt.on(value,v=>{if(isCallable(v))invokedByPlatform(v,writer,site,o);});
       if(name===null)intoAllFields(value,o);
       else pt.edge(value,pt.field(o,name));
     });
@@ -523,7 +527,8 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     const f=pt.objects[fobj].fn;walkDeferred(f);
     if(!firstTime(site,`p${fobj}`))return;
     site.platformCallbacks.push(f.id);anyParams(f);
-    const event=holder===undefined?UNKNOWN:familyObject(pt.objects[holder]);
+    const h=holder===undefined?undefined:pt.objects[holder];
+    const event=h===undefined?UNKNOWN:h.kind==='value'&&h.fresh?typeObject(h.fresh):familyObject(h);
     for(const p of f.params)pt.add(p,event);
     if(f.rest!==undefined)pt.add(f.rest,event);
     if(!f.arrow)pt.add(f.thisNode,holder??UNKNOWN);
