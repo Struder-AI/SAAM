@@ -42,7 +42,7 @@ export class PairSet {
 // core/application closure); this costs about 20. Members are only ever added, so an index into
 // the array stays valid while listeners add members during an iteration. Nodes that hold
 // nothing share EMPTY (most nodes): `add` gives a node its own set first.
-const SMALL=16;
+const SMALL=32;
 export class IntSet {
   constructor(){this.a=[];this.idx=null;}
   get size(){return this.a.length;}
@@ -89,7 +89,7 @@ export class PointsTo {
     this.edges=new PairSet(16);this.fieldCount=0;this.edgeCount=0;this.propagations=0;
     this.fed=[];this.fedWaiters=new Map();
     this.fieldIndex=null;this.fieldObj=[];
-    this.collapse=collapse;this.collapsed=0;this.cyclePasses=0;this.cycleMs=0;this.passMin=2e5;this.nextPass=this.passMin;
+    this.collapse=collapse;this.collapsed=0;this.cyclePasses=0;this.cycleMs=0;this.passMin=2e5;this.nextPass=this.passMin;this.passScale=0.5;
   }
   node() {
     const n=this.pts.length;
@@ -184,10 +184,11 @@ export class PointsTo {
   collapseCycles() {
     const t0=performance.now();this.cyclePasses++;
     const N=this.pts.length,{parent,succ}=this;
+    const mark=new Int32Array(N).fill(-1);
     for(let r=0;r<N;r++) {
       const s=succ[r];if(!s||parent[r]!==r)continue;
-      const seen=new Set();let k=0;
-      for(let i=0;i<s.length;i++){const b=this.find(s[i]);if(b!==r&&!seen.has(b)){seen.add(b);s[k++]=b;}}
+      let k=0;
+      for(let i=0;i<s.length;i++){const b=this.find(s[i]);if(b!==r&&mark[b]!==r){mark[b]=r;s[k++]=b;}}
       s.length=k;
     }
     const index=new Int32Array(N).fill(-1),low=new Int32Array(N),onStack=new Uint8Array(N);
@@ -205,16 +206,18 @@ export class PointsTo {
           work.pop();pos.pop();
           if(work.length){const u=work[work.length-1];if(low[v]<low[u])low[u]=low[v];}
           if(low[v]===index[v]) {
-            let w;const comp=[];
-            do{w=stack.pop();onStack[w]=0;comp.push(w);}while(w!==v);
-            if(comp.length>1)sccs.push(comp);
+            if(stack[stack.length-1]===v){stack.pop();onStack[v]=0;}
+            else{let w;const comp=[];do{w=stack.pop();onStack[w]=0;comp.push(w);}while(w!==v);sccs.push(comp);}
           }
         }
       }
     }
+    const before=this.collapsed;
     for(const comp of sccs)this.mergeAll(comp);
     this.cycleMs+=performance.now()-t0;
-    this.nextPass=this.propagations+Math.max(this.passMin,this.edgeCount>>1);
+    // A pass costs a walk of the whole graph: when it finds little to merge, wait longer.
+    this.passScale=this.collapsed-before<N>>12?Math.min(this.passScale*2,8):Math.max(this.passScale/2,0.5);
+    this.nextPass=this.propagations+Math.max(this.passMin,this.edgeCount*this.passScale);
   }
   // Merges representatives into one. Each member's listeners and successors have been given
   // its set minus its pending delta; they are owed exactly the rest of the union, delivered
@@ -226,10 +229,11 @@ export class PointsTo {
     for(const x of comp)if(x!==r){const xs=this.pts[x].a;for(let i=0;i<xs.length;i++)if(U.add(xs[i]))added.push(xs[i]);}
     const owed=[];
     for(const m of comp) {
+      if(!this.listeners[m]&&!this.succ[m])continue;
       const S=this.pts[m],d=this.delta[m];let list;
       if(m===r)list=d?added.concat(d):added;
       else{if(S.size===U.size&&!d)continue;const pending=d?new Set(d):null;list=[];for(const o of U)if(!S.has(o)||pending?.has(o))list.push(o);}
-      if(list.length&&(this.listeners[m]||this.succ[m]))owed.push([this.listeners[m],this.succ[m],list]);
+      if(list.length)owed.push([this.listeners[m],this.succ[m],list]);
     }
     const ls=this.listeners[r]??[],ss=this.succ[r]??[];
     const mr=this.members[r]??=[r];
@@ -243,9 +247,11 @@ export class PointsTo {
       {const q=this.succ[x];if(q)for(let i=0;i<q.length;i++)ss.push(q[i]);}
       this.listeners[x]=null;this.succ[x]=null;
     }
+    // Edges within the component are now self edges: dropped, and owed nothing.
+    let k=0;for(let i=0;i<ss.length;i++){const b=this.find(ss[i]);if(b!==r)ss[k++]=b;}ss.length=k;
     this.listeners[r]=ls.length?ls:null;this.succ[r]=ss.length?ss:null;
     for(const [l,s,list] of owed) {
-      if(s)for(const b of s)for(const o of list)this.add(b,o);
+      if(s)for(const b0 of s){const b=this.find(b0);if(b===r)continue;for(const o of list)this.add(b,o);}
       if(l)for(const fn of l)for(const o of list)fn(o);
     }
     // Fed if any member was; waiters move to the representative.
