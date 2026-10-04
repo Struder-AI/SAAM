@@ -20,7 +20,7 @@ const UNMODELLED_MEMBERS=new Set(['defineProperty','defineProperties','setProtot
 
 // Operand fields per operation: nodes read, the node written, and allocation slots used.
 const IN={E:['a'],LOAD:['b'],STORE:['b','v'],CALL:['c','th'],NEW:['c'],SCALL:['fb'],COPYF:['src'],FE:['v'],FSTAR:['v'],ENS:['v'],LOADNS:['b'],REEXP:['b']};
-const OUT={E:'b',LOAD:'t',CALL:'r',NEW:'r',SCALL:'r',ALLOC:'n',SELF:'n',PLAT:'n',NS:'n'};
+const OUT={E:'b',LOAD:'t',CALL:'r',NEW:'r',SCALL:'r',ALLOC:'n',SELF:'n',PLAT:'n',NS:'n',PRIM:'n'};
 const SLOTS={ALLOC:['s'],FE:['s'],FSTAR:['s'],FSLOT:['s','s2'],FPLAT:['s'],COPYF:['s']};
 const HAS_ARGS=new Set(['CALL','NEW','SCALL']);
 export const OPS={IN,OUT,SLOTS,HAS_ARGS};
@@ -146,6 +146,14 @@ export function compileModule(mod,{resolveImport}) {
     const imp=imports.get(name);
     return imp?.from?{file:imp.from,name:imp.name}:undefined;
   }
+  // A primitive value: one node per callable and kind (string, number, boolean, bigint, or
+  // primitive when the kind is unknown), so methods called on primitives reach their models.
+  function prim(kind,ctx) {
+    const f=ctx.fn;f.prims??={};
+    let n=f.prims[kind];if(n===undefined){n=node(f);f.prims[kind]=n;emit(f,{k:'PRIM',n,prim:kind});}
+    return n;
+  }
+  const BOOLEAN_OPS=new Set(['==','!=','===','!==','<','<=','>','>=','in','instanceof']);
   function global(name,ctx) {
     if(UNMODELLED_GLOBALS.has(name))note('global:'+name,ctx.fn);
     if(name==='undefined'||name==='NaN'||name==='Infinity')return undefined;
@@ -277,7 +285,9 @@ export function compileModule(mod,{resolveImport}) {
       case 'Literal':case 'TemplateLiteral':
         if(e.type==='TemplateLiteral')for(const x of e.expressions)expression(x,ctx);
         if(e.regex)return allocate('regexp',ctx,e).v;
-        return undefined;
+        if(e.type==='TemplateLiteral')return prim('string',ctx);
+        if(e.value===null)return undefined;
+        return prim(typeof e.value==='bigint'||e.bigint!==undefined?'bigint':typeof e.value,ctx);
       case 'ThisExpression':return ctx.thisNode;
       case 'Super':return ctx.classInfo?.superNode;
       case 'ArrayExpression':{const {s,v}=allocate('array',ctx,e,'Array.prototype');
@@ -317,9 +327,11 @@ export function compileModule(mod,{resolveImport}) {
       case 'SequenceExpression':{let v;for(const x of e.expressions)v=expression(x,ctx);return v;}
       case 'ConditionalExpression':{expression(e.test,ctx);return union([expression(e.consequent,ctx),expression(e.alternate,ctx)],ctx);}
       case 'LogicalExpression':return union([expression(e.left,ctx),expression(e.right,ctx)],ctx);
-      case 'BinaryExpression':expression(e.left,ctx);expression(e.right,ctx);return undefined;
-      case 'UnaryExpression':expression(e.argument,ctx);if(e.operator==='delete')write(e.argument,ctx);return undefined;
-      case 'UpdateExpression':expression(e.argument,ctx);write(e.argument,ctx);return undefined;
+      case 'BinaryExpression':expression(e.left,ctx);expression(e.right,ctx);
+        return prim(BOOLEAN_OPS.has(e.operator)?'boolean':e.operator==='+'?'primitive':'number',ctx);
+      case 'UnaryExpression':expression(e.argument,ctx);if(e.operator==='delete')write(e.argument,ctx);
+        return e.operator==='void'?undefined:prim(e.operator==='typeof'?'string':e.operator==='!'||e.operator==='delete'?'boolean':'number',ctx);
+      case 'UpdateExpression':expression(e.argument,ctx);write(e.argument,ctx);return prim('number',ctx);
       case 'AwaitExpression':{const v=expression(e.argument,ctx);if(v===undefined)return undefined;const t=node(ctx.fn);
         emit(ctx.fn,{k:'E',a:v,b:t});load(v,ELEMENT,t,ctx.fn);return t;}
       case 'YieldExpression':note('yield',ctx.fn,e);expression(e.argument,ctx);return undefined;
@@ -537,7 +549,9 @@ function classify({fns,nodeOwner,slotOwner,slotSpec}) {
     for(const h of hs)if(nodeOwner[h]!==f.idx)free[f.idx].add(h);
   }
   for(let i=fns.length-1;i>0;i--){const p=fns[i].owner;if(p<0)continue;for(const h of free[i])if(nodeOwner[h]!==p)free[p].add(h);}
-  // Forward propagation to a fixed point.
+  // Forward propagation to a fixed point. An object the callable makes whose fields receive
+  // per-call values is per call too (directly, or through a store into a variable holding it).
+  const wanted=new Uint8Array(N);
   for(let changed=true;changed;) {
     changed=false;
     for(const f of fns) {
@@ -545,8 +559,13 @@ function classify({fns,nodeOwner,slotOwner,slotSpec}) {
       for(const op of f.ops) {
         let open=ins(op).some(h=>openN[h])||slotsOf(op).some(s=>openS[s]);
         const o=OUT[op.k];
-        if(op.k==='PLAT'||op.k==='NS'||op.k==='SELF')continue;
+        if(op.k==='PLAT'||op.k==='NS'||op.k==='SELF'||op.k==='PRIM')continue;
         if(open&&o&&markN(op[o]))changed=true;
+        if((op.k==='FE'||op.k==='FSTAR')&&openN[op.v]||op.k==='COPYF'&&openN[op.src])
+          if(!openS[op.s]&&slotOwner[op.s]===f.idx&&slotSpec[op.s].fn===undefined){openS[op.s]=1;changed=true;}
+        if(op.k==='STORE'&&op.v>=0&&openN[op.v]&&!openN[op.b]&&!wanted[op.b]&&nodeOwner[op.b]===f.idx){wanted[op.b]=1;changed=true;}
+        if(op.k==='E'&&wanted[op.b]&&!wanted[op.a]&&!openN[op.a]&&nodeOwner[op.a]===f.idx){wanted[op.a]=1;changed=true;}
+        if(op.k==='ALLOC'&&wanted[op.n]&&!openS[op.s]&&slotOwner[op.s]===f.idx&&slotSpec[op.s].fn===undefined){openS[op.s]=1;changed=true;}
       }
     }
     for(let s=0;s<S;s++)if(!openS[s]&&slotSpec[s].fn!==undefined&&!isModule(slotOwner[s])) {
@@ -607,6 +626,9 @@ function classify({fns,nodeOwner,slotOwner,slotSpec}) {
       }
     }
     const sliceOps=openOps.filter(x=>sliceOf.has(x));
+    // Variables nested callables use from further out are part of this callable's environment,
+    // so a closure made here resolves them through it.
+    for(const h of free[f.idx])L(h);
     const nOwn=counts[f.idx],n=nOwn+env.length;
     const open=new Uint8Array(n);
     for(let h=0;h<N;h++)if(nodeOwner[h]===f.idx&&openN[h])open[own[h]]=1;

@@ -34,7 +34,8 @@ const engine=valueOf('--engine')??'copies';
 const maxDepth=valueOf('--max-depth')!==undefined?+valueOf('--max-depth'):Infinity;
 const maxInstances=valueOf('--max-instances')!==undefined?+valueOf('--max-instances'):Infinity;
 const edits=argv.flatMap((a,i)=>a==='--edit'?[argv[i+1]]:[]);
-const valued=new Set(['--out','--platform','--depth','--draw','--svg','--engine','--max-depth','--max-instances','--edit']);
+const maxMs=valueOf('--max-ms')!==undefined?+valueOf('--max-ms'):undefined;
+const valued=new Set(['--out','--platform','--depth','--draw','--svg','--engine','--max-depth','--max-instances','--edit','--max-ms']);
 const prefixes=argv.filter((a,i)=>!a.startsWith('--')&&!valued.has(argv[i-1]));
 
 // Scope: SAAM code that runs in use. Tests, demos, benchmarks and development tooling are out.
@@ -84,7 +85,7 @@ if(engine==='summary') {
   for(const m of modules){const u=compileModule(m,{resolveImport});units.set(m.file,u);notes.push(...u.notes);}
   t2=clock();
   pt=new PointsTo();
-  built=compose(pt,units,{platformModules,maxDepth,maxInstances});built.unmodelled=notes;
+  built=compose(pt,units,{platformModules,debug:{maxMs}});built.unmodelled=[...notes,...built.unmodelled];
   t3=clock();
 } else {
   pt=new PointsTo();
@@ -99,6 +100,7 @@ const t4=clock();
 const count=(list,key)=>{const c={};for(const x of list){const k=key(x);c[k]=(c[k]??0)+1;}return Object.fromEntries(Object.entries(c).sort((a,b)=>b[1]-a[1]));};
 let ptsTotal=0,ptsMax=0;for(const s of pt.pts){ptsTotal+=s.size;if(s.size>ptsMax)ptsMax=s.size;}
 const summary={
+  ...(built.stats?.stoppedEarly?{INCOMPLETE:`composition stopped at --max-ms ${maxMs} before settling; every count below is partial`}:{}),
   selection:prefixes,closure,engine,depth:engine==='summary'?{maxDepth,maxInstances}:depth,files:modules.length,bytes,parseErrors:parseErrors.length,
   timingsMs:engine==='summary'?{readParse:Math.round(ms(t0,t1)),compile:Math.round(ms(t1,t2)),composeAndSolve:Math.round(ms(t2,t3)),derive:Math.round(ms(t3,t4)),total:Math.round(ms(t0,t4))}
     :{readParse:Math.round(ms(t0,t1)),constraints:Math.round(ms(t1,t2)),solve:Math.round(ms(t2,t3)),derive:Math.round(ms(t3,t4)),total:Math.round(ms(t0,t4))},
@@ -111,7 +113,7 @@ const summary={
   platformGettersAssumedPrimitive:[...built.accessorReads].sort()
 };
 // Platform use: call sites and the APIs they reach, by how each API was modelled.
-const inventory=engine==='summary'?[]:platformInventory(pt,built);
+const inventory=platformInventory(pt,built);
 {
   const apis=new Map();
   for(const r of inventory)for(const [api,how] of Object.entries(r.apis))apis.set(api,how);
@@ -139,7 +141,7 @@ export function devMapEdit(input){ const made={input}; ${exported?`return ${expo
   units.set(file,compileModule({file,text:edited,ast},{resolveImport}));
   const e2=clock();
   const pt2=new PointsTo();
-  const built2=compose(pt2,units,{platformModules,maxDepth,maxInstances});built2.unmodelled=built.unmodelled;
+  const built2=compose(pt2,units,{platformModules});built2.unmodelled=built.unmodelled;
   const e3=clock();
   const result2=derive(pt2,built2);
   const e4=clock();
