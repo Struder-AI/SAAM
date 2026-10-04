@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-10-04 — Jelly benchmark: study its unknown-value handling, drop it as an engine
+
+- Benchmarked Jelly 0.13.0 (`@cs-au-dk/jelly`, installed outside the repo with owner approval) on the 344 in-scope files against fresh traces (6 workflows, 2,343 observed pairs) and `run.mjs --depth 2`. Report: [dev-map/influence/JELLY.md](dev-map/influence/JELLY.md). New `dev-map/influence/trace/jelly-to-keys.mjs` maps Jelly's call graph onto analysis keys (6,865 of 6,865) and compares per observed call.
+- Recall: Jelly 2,199 (93.9%, with packages) and ours 2,187 (93.3%, exact keys); 42 missed by both. Time and memory are in the same range: best analysis time 7–11 s for Jelly, 8.7 s for ours, both 1–2 GB, on a loaded machine. `--approx` hangs on the top-level await of the WASM module `core/region/clipper.mjs`. Spot checks found no infeasible extra edge in either analysis.
+- Jelly lacks roles, mod/ref, call-site context, soundness and incremental refresh. Worth porting: unknown values as tokens, with every function passed to a call on an unknown value treated as invoked. That covers 103 of the 114 pairs Jelly has and we miss.
+- Found: `trace.mjs compare` matches folded callables by line and name, which undercounts our coverage by 31 pairs (2,158 against 2,187). It should index arrows by key. No product code changed, no tests run.
+
 ## 2026-10-04 — Compositional influence analysis: first engine, not yet usable
 
 - New engine behind `run.mjs --engine summary` (the copying engine stays the default for comparison). `dev-map/influence/compile.mjs` turns one file into per-callable summaries: operations over the callable's own nodes, enclosing variables as environment references, direct-call targets named symbolically (file and export), so a file compiles without reading any other. Each operation is closed (the same for every call; runs once) or open (depends on parameters, `this`, captured per-call state, or a fresh returned object). `compose.mjs` gives each function object one merged instance (all open operations, every call's arguments; records calls, reads and writes for `derive.mjs`) and each call a transfer instance running only the return slice, which alone supplies the result; recursion folds onto the instance already on the call path. Calls, platform calls and constructors are wired in every context (no per-site memo).
