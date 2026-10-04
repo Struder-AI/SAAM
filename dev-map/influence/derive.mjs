@@ -11,8 +11,6 @@
 // - A callable folds into its only caller when it is unexported, not handed to the platform,
 //   and touches no state another leaf reads or writes.
 
-const EFFECT_METHOD=/^(writeFile|appendFile|mkdir|rm|rmdir|unlink|rename|copyFile|cp|symlink|chmod|utimes|truncate|postMessage|send|fetch|dispatchEvent|appendChild|removeChild|replaceChildren|replaceWith|insertBefore|append|prepend|remove|setAttribute|removeAttribute|toggleAttribute|addEventListener|removeEventListener|setTimeout|setInterval|clearTimeout|clearInterval|requestAnimationFrame|cancelAnimationFrame|terminate|close|kill|spawn|exec|execFile|fork|listen|write|end|emit|exit|focus|blur|click|scrollTo|scrollIntoView|play|pause|showModal|setPointerCapture|releasePointerCapture|preventDefault|stopPropagation|abort|pushState|replaceState|reload|assign|open|createWriteStream|unref|ref)$/;
-
 // One arrow per pair of boxes (plans/dev-maps.md#notation). Leaf arrows run from influencer to
 // influenced, each `answer`, `activation`, `acknowledged` (dot at its tail) or `both`; boxOf
 // maps a leaf to the box drawing it. A pair gets a head at each end some arrow enters, and a
@@ -111,11 +109,10 @@ export function derive(pt,{functions,namespaces}) {
         if(k==='platform')into.platform++;
         else if((k!=='function'||st.name!=='prototype')&&observed(o,cf))into.state.add(o);
       }
-      for(const s of f.calls)if(s.platform) {
-        const method=s.text.split(/[.\s(]/).filter(Boolean).pop();
-        if(/^console\./.test(s.text))continue;
+      // World effects come from the platform models (platform-models.mjs). Logging is left out.
+      for(const s of f.calls)if(s.platform&&s.effects&&[...s.effects].some(e=>e!=='log')) {
         // A platform method acting on an object this callable owns stays inside it.
-        if(EFFECT_METHOD.test(method)&&!(s.receiver!==undefined&&pt.pts[s.receiver].size&&[...pt.pts[s.receiver]].every(o=>pt.objects[o].kind!=='platform'&&local(o))))into.platform++;
+        if(!(s.receiver!==undefined&&pt.pts[s.receiver].size&&[...pt.pts[s.receiver]].every(o=>pt.objects[o].kind!=='platform'&&local(o))))into.platform++;
       }
     }
   };

@@ -5,19 +5,15 @@
 // are opaque objects whose fields are further platform objects. Shapes the analysis does not
 // model are recorded as `unmodelled`, never silently approximated away.
 import {dirname,join,posix} from 'node:path';
+import {lookupPlatform,typeOf,familyOf,familyPath,propertyType,BROWSER_ROOTS} from './platform-models.mjs';
 
 const ELEMENT='[]';
-const INSERT=new Set(['push','unshift','splice','set','add','fill']);
 const UNMODELLED_GLOBALS=new Set(['eval','Function','Proxy','Reflect']);
 const UNMODELLED_MEMBERS=new Set(['defineProperty','defineProperties','setPrototypeOf','__defineGetter__','__defineSetter__']);
 
-// Platform calls that only ever return primitives: no object flows out of them.
-const PRIMITIVE_ROOTS=new Set(['Math','Number','isNaN','isFinite','parseInt','parseFloat','String','Boolean','encodeURIComponent','decodeURIComponent']);
-const PRIMITIVE_METHODS=new Set(['includes','indexOf','lastIndexOf','findIndex','findLastIndex','startsWith','endsWith','test','has','some','every','join','toString','toFixed','toPrecision','localeCompare','charCodeAt','codePointAt','charAt','isArray','hasOwn','hasOwnProperty','trim','trimStart','trimEnd','toLowerCase','toUpperCase','padStart','padEnd','repeat','replace','replaceAll','stringify','isInteger','isSafeInteger','isFinite','isNaN','now','getTime','valueOf','delete','size','byteLength','readUInt8','readUInt16LE','readUInt32LE','readInt32LE','readFloatLE','readDoubleLE','writeUInt8','writeUInt16LE','writeUInt32LE','writeInt32LE','writeFloatLE','writeDoubleLE','digest','randomUUID','toISOString','normalize','dirname','basename','extname','relative','isAbsolute','existsSync']);
-
 export function buildConstraints(pt,modules,{resolveImport,platformModules=new Map(),cloning=true,depth=1}) {
   const functions=[],unmodelled=[],unresolvedImports=[];
-  const platformObjects=new Map(),platformResults=new Map(),instances=new Map(),memo=new Set();
+  const platformObjects=new Map(),instances=new Map(),memo=new Set(),accessorReads=new Set();
   const PLATFORM_PROTO=platform('platform.prototype',undefined,false);
   const once=key=>memo.has(key)?false:(memo.add(key),true);
   const nsOf=new Map();
@@ -31,19 +27,32 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   }
   function platformRoot(name) {
     if(platformModules.has(name))return platform(name,platformModules.get(name));
-    if(name in globalThis)return platform(name,globalThis[name]);
-    return platform(name);
+    if(name in globalThis&&!BROWSER_ROOTS.has(name))return platform(name,globalThis[name]);
+    return unknownRoot(name);
   }
+  function unknownRoot(name){const o=platform(name);pt.objects[o].root=true;return o;}
   const UNKNOWN=platform('platform.unknown');
   const ARRAY_PROTO=platform('Array.prototype',Array.prototype),OBJECT_PROTO=platform('Object.prototype',Object.prototype),FUNCTION_PROTO=platform('Function.prototype',Function.prototype);
+  const REGEXP_PROTO=platform('RegExp.prototype',RegExp.prototype);
   const isPlatform=o=>pt.objects[o].kind==='platform';
   const isCallable=o=>pt.objects[o].kind==='function';
+  // A member of a value without a runtime value is a value of the same family (platform-models.mjs).
+  // A property the analysis process cannot read (a getter, or absent here but present where SAAM
+  // runs) takes its declared type, else it is an unknown value named by its path.
+  function familyObject(obj){const fam=familyOf(obj.name);return fam?platform(familyPath(fam)):UNKNOWN;}
+  function typeObject(type){const t=typeOf(type);return t.family?platform(familyPath(t.family)):platform(t.path,t.value);}
   function platformChild(o,name) {
     const obj=pt.objects[o];
-    if(!obj.known)return UNKNOWN;
+    // A named member of an unknown root (a package export, a browser global's member) keeps its
+    // name, so the model can tell `zipSync` from `unzipSync`; deeper members are the family's.
+    if(!obj.known)return obj.root&&name!==null&&name!==ELEMENT&&familyOf(obj.name)?platform(`${familyOf(obj.name)}.${name}`):familyObject(obj);
     if(name===null||name===ELEMENT)return undefined;
-    let v;try{if(obj.value==null||!(name in Object(obj.value)))return undefined;v=obj.value[name];}catch{return UNKNOWN;}
-    return platform(obj.name+'.'+name,v,true);
+    const path=obj.name+'.'+name;
+    const declared=propertyType(path);if(declared!==undefined)return typeObject(declared);
+    // A getter the analysis process cannot run on a prototype reads per-instance state; unless
+    // platform-models.mjs declares its type, it is taken to return a primitive (recorded).
+    let v;try{if(obj.value==null||!(name in Object(obj.value)))return undefined;v=obj.value[name];}catch{accessorReads.add(path);return undefined;}
+    return platform(path,v,true);
   }
   // One record per source location, however many copies walk it.
   const noted=new Set();
@@ -65,7 +74,11 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     writer?.stores.push({base,name,site});
     pt.on(base,o=>{
       if(!once(`s${o}|${name}|${value}`))return;
-      if(isPlatform(o)){pt.on(value,v=>{if(isCallable(v))invokedByPlatform(v,writer,site);});return;}
+      if(isPlatform(o)) {
+        // Recorded for the platform inventory: a write to a platform object's property.
+        if(site){const p=pt.objects[o];(site.apis??=new Map()).set(`set ${p.known?p.name:pt.objects[familyObject(p)].name}.${name??'[computed]'}`,'store');}
+        pt.on(value,v=>{if(isCallable(v))invokedByPlatform(v,writer,site,o);});return;
+      }
       if(name===null) {
         pt.field(o,'*');
         pt.onField(o,(f,fnode)=>{if(f!=='__proto__')pt.edge(value,fnode);});
@@ -78,40 +91,160 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     pt.on(src,o=>{if(isPlatform(o))return;pt.onField(o,(name,fnode)=>{if(name!=='__proto__'&&!overridden?.has(name))pt.edge(fnode,pt.field(dst,name));});});
   }
 
-  // A platform function called with a SAAM callable invokes it: arguments come from the
-  // receiver's elements, results return as elements of the call's result.
-  function invokedByPlatform(fobj,caller,site,feed) {
+  // A SAAM callable stored on a platform object (a handler property such as onclick) is invoked
+  // by the platform with values of the object's family.
+  function invokedByPlatform(fobj,caller,site,holder) {
     const f=pt.objects[fobj].fn;
     if(!once(`p${fobj}|${site.id}`))return;
     site.platformCallbacks.push(f.id);
-    const event=UNKNOWN;
-    for(const p of f.params){pt.add(p,event);if(feed!==undefined)pt.edge(feed,p);}
+    const event=holder===undefined?UNKNOWN:familyObject(pt.objects[holder]);
+    for(const p of f.params)pt.add(p,event);
     if(f.rest!==undefined)pt.add(f.rest,event);
-    if(!f.arrow)pt.add(f.thisNode,UNKNOWN);
-    if(feed!==undefined)pt.edge(f.ret,feed);
+    if(!f.arrow)pt.add(f.thisNode,holder??UNKNOWN);
   }
-  // Elements of SAAM containers only; platform namespaces are not containers.
-  function loadElements(n,target,caller){pt.on(n,o=>{if(!isPlatform(o))loadFrom(o,ELEMENT,target,caller);});}
-  function platformCall(site,caller,thisNode,args,result,method,callee) {
-    if(!once(`pc${site.id}`))return;
+  // A call site's platform models apply once, in the first copy of its function that reaches
+  // them; later copies' results stay empty. Applying them in every copy is sound but multiplies
+  // the solve (core/print/slices.mjs closure: 0.4M to 4.3M copy edges, whole scope out of
+  // memory at 7 GB), so it waits for the compositional engine (D-048).
+  const onceSites=new Map();
+  const firstTime=(site,key)=>{const d=onceSites.get(site.id)??onceSites.set(site.id,new Set()).get(site.id);if(d.has(key))return false;d.add(key);return true;};
+  // A platform call applies the model of the API it reaches (platform-models.mjs). An API without
+  // a model is recorded as unmodelled and approximated generically: a fresh result holding the
+  // receiver's and arguments' elements, with every callable argument invoked.
+  function platformCall(site,caller,thisNode,args,result,method,callee,inst,name) {
+    const obj=pt.objects[callee];
+    if(obj.parts)return;  // a family value reached as its own part, not a function
+    const construct=inst!==undefined;
+    const hit=obj.kind==='platform'?lookupPlatform({path:obj.name,value:obj.value,known:obj.known,method,name,construct})
+      :obj.name==='platform result'?lookupPlatform({path:'platform.unknown',known:false,method,name,construct})
+      :{api:obj.name,notCallable:true};
     site.platform=true;site.receiver=thisNode;
-    const root=callee===undefined?'':pt.objects[callee].name.split('.')[0];
-    const primitive=PRIMITIVE_ROOTS.has(root)||PRIMITIVE_METHODS.has(method)||root==='JSON'&&method==='stringify';
-    let elements;
-    if(primitive)elements=pt.node();
-    else {
-      let pr=platformResults.get(site.id);
-      if(pr===undefined){pr=pt.object({kind:'value',name:'platform result',owner:caller.id,site:site.id});platformResults.set(site.id,pr);}
-      pt.add(result,pr);pt.add(pt.field(pr,'__proto__'),PLATFORM_PROTO);
-      elements=pt.field(pr,ELEMENT);
-      if(thisNode!==undefined){loadElements(thisNode,elements,caller);loadElements(thisNode,result,caller);}
-    }
+    (site.apis??=new Map()).set(hit.api,hit.notCallable?'not-callable':hit.spec?hit.how:'unmodelled');
+    if(hit.notCallable||!firstTime(site,'pc|'+hit.api))return;
+    const c={site,caller,thisNode,args,result,inst,api:hit.api,memo:new Map(),cb:undefined};
+    if(hit.spec){applyModel(hit.spec,c);return;}
+    note('platform:'+hit.api,caller,site.node);
+    genericPlatformCall(c);
+  }
+  function genericPlatformCall({site,caller,thisNode,args,result,inst}) {
+    let pr=site.genericResult;
+    if(pr===undefined){pr=pt.object({kind:'value',name:'platform result',owner:caller.id,site:site.id});site.genericResult=pr;}
+    pt.add(result,pr);pt.add(pt.field(pr,'__proto__'),PLATFORM_PROTO);
+    const elements=pt.field(inst??pr,ELEMENT);
+    const elementsOf=(n,target)=>pt.on(n,o=>{if(!isPlatform(o))loadFrom(o,ELEMENT,target,caller);});
+    if(thisNode!==undefined){elementsOf(thisNode,elements);elementsOf(thisNode,result);}
     for(const a of args) {
-      if(!primitive)loadElements(a,elements,caller);
-      pt.on(a,o=>{if(isCallable(o))invokedByPlatform(o,caller,site,elements);});
-      if(thisNode!==undefined&&INSERT.has(method)){store(thisNode,ELEMENT,a,caller,site);site.inserts=true;}
+      elementsOf(a,elements);
+      pt.on(a,o=>{if(!isCallable(o))return;const f=pt.objects[o].fn;
+        if(!firstTime(site,'g'+o))return;site.platformCallbacks.push(f.id);
+        for(const p of f.params){pt.add(p,UNKNOWN);pt.edge(elements,p);}
+        if(f.rest!==undefined)pt.add(f.rest,UNKNOWN);
+        if(!f.arrow)pt.add(f.thisNode,UNKNOWN);
+        pt.edge(f.ret,elements);});
     }
-    if(method==='assign'&&args.length>1)for(const s of args.slice(1))pt.on(args[0],t=>{if(!isPlatform(t))copyFields(s,t);});
+  }
+
+  // --- applying a platform model ---------------------------------------------------------
+  // c: {site, caller, thisNode, args, result, inst, api, memo, cb}. Sources are described in
+  // platform-models.mjs.
+  const SOURCE=/^(this|args\d+\+|args|arg\d+|cb|\?|@[\w-]+)((?:\[\]|\.\*|\.[\w$#]+)*)$/;
+  function argAt(c,i){const a=c.args;if(i<a.length)return a[i];return a.spreadAt>=0?a[a.spreadAt]:undefined;}
+  function cbNode(c){return c.cb??=pt.node();}
+  function src(tok,c,key) {
+    if(typeof tok==='object')return freshNode(tok,c,key);
+    if(c.memo.has(tok))return c.memo.get(tok);
+    const m=SOURCE.exec(tok);
+    if(!m)throw Error(`Bad platform model source ${tok} (${c.api})`);
+    const b=m[1];let n;
+    if(b==='this')n=c.inst!==undefined?(()=>{const x=pt.node();pt.add(x,c.inst);return x;})():c.thisNode;
+    else if(b==='cb')n=cbNode(c);
+    else if(b==='?'){n=pt.node();pt.add(n,UNKNOWN);}
+    else if(b[0]==='@'){n=pt.node();pt.add(n,platform(familyPath(b.slice(1))));}
+    else if(b==='args'||b.endsWith('+')) {
+      const from=b==='args'?0:+b.slice(4,-1);
+      const list=c.args.slice(from);
+      if(c.args.spreadAt>=0&&from>c.args.spreadAt)list.push(c.args[c.args.spreadAt]);
+      n=union(list);
+    } else n=argAt(c,+b.slice(3));
+    for(const step of n===undefined?[]:m[2].match(/\[\]|\.\*|\.[\w$#]+/g)??[]) {
+      const t=pt.node();load(n,step==='[]'?ELEMENT:step==='.*'?null:step.slice(1),t,c.caller);n=t;
+    }
+    c.memo.set(tok,n);return n;
+  }
+  // A fresh object the call makes: one per walk of the call site (each copy of a function makes
+  // its own, as with its literals), API and position in the model.
+  function freshNode(spec,c,key) {
+    const id=`${c.api}|${key}`;const made=c.site.made??=new Map();
+    let o=made.get(id);
+    if(o===undefined) {
+      o=pt.object({kind:'value',name:`${spec.fresh} from ${c.api}`,owner:c.caller.id,site:c.site.id,fresh:spec.fresh});
+      made.set(id,o);
+      const t=typeOf(spec.fresh);
+      pt.add(pt.field(o,'__proto__'),t.family?platform(familyPath(t.family)):platform(t.path,t.value));
+      // Parts of a family value (an element's style or classList, nested parsed data) are the
+      // value itself, so changing them changes only what the caller made.
+      if(t.parts){pt.objects[o].parts=true;pt.onField(o,(name,fnode)=>{if(name!=='__proto__')pt.add(fnode,o);});}
+    }
+    fill(o,spec,c,key);
+    const n=pt.node();pt.add(n,o);return n;
+  }
+  function fill(o,spec,c,key) {
+    (spec.el??[]).forEach((s,i)=>{const n=src(s,c,key+'e'+i);if(n!==undefined)pt.edge(n,pt.field(o,ELEMENT));});
+    for(const [name,list] of Object.entries(spec.fields??{}))list.forEach((s,i)=>{const n=src(s,c,`${key}f${name}${i}`);if(n!==undefined)pt.edge(n,pt.field(o,name));});
+    (spec.any??[]).forEach((s,i)=>{const n=src(s,c,key+'a'+i);if(n===undefined)return;
+      pt.edge(n,pt.field(o,'*'));pt.onField(o,(name,fnode)=>{if(name!=='__proto__')pt.edge(n,fnode);});});
+    (spec.copy??[]).forEach((s,i)=>{const n=src(s,c,key+'c'+i);if(n!==undefined)copyFields(n,o);});
+  }
+  function applyModel(spec,c) {
+    const {site,caller}=c;
+    if(spec.engine){engineCall(spec.engine,c);return;}
+    (spec.out??[]).forEach((s,i)=>{const n=src(s,c,'o'+i);if(n!==undefined)pt.edge(n,c.result);});
+    if(c.inst!==undefined)fill(c.inst,spec,c,'i');
+    (spec.calls??[]).forEach((k,i)=>{const fn=src(k.fn,c,'k'+i);if(fn!==undefined)pt.on(fn,o=>{if(isCallable(o))invokeCallback(o,k,c,i);});});
+    for(const t of spec.into??[]) {
+      if(t.copy) {
+        const target=src(t.to,c,'t');if(target===undefined)continue;
+        caller.stores.push({base:target,name:null,site});
+        for(const s of t.copy){const n=src(s,c,'t');if(n!==undefined)pt.on(target,o=>{if(!isPlatform(o))copyFields(n,o);});}
+        continue;
+      }
+      const m=/^(.*?)(\[\]|\.\*)$/.exec(t.to);const base=src(m[1],c,'t');if(base===undefined)continue;
+      const name=m[2]==='[]'?ELEMENT:null;
+      caller.stores.push({base,name,site});
+      for(const s of t.from){const n=src(s,c,'t');if(n!==undefined)store(base,name,n,caller,site);}
+    }
+    for(const s of spec.mutates??[]){const base=src(s,c,'m');if(base!==undefined)caller.stores.push({base,name:ELEMENT,site});}
+    for(const s of spec.observe??[])src(s,c,'r');
+    if(spec.effect)(site.effects??=new Set()).add(spec.effect);
+    if(spec.reads)(site.worldReads??=new Set()).add(spec.reads);
+  }
+  function invokeCallback(fobj,k,c,i) {
+    const f=pt.objects[fobj].fn;
+    if(!firstTime(c.site,`cb${fobj}|${c.api}|${i}`))return;
+    c.site.platformCallbacks.push(f.id);
+    const params=k.params??[];
+    const feed=(j,target)=>{for(const s of params[j]??[]){const n=src(s,c,`p${i}.${j}`);if(n!==undefined)pt.edge(n,target);}};
+    f.params.forEach((p,j)=>feed(j,p));
+    if(f.rest!==undefined)for(let j=f.params.length;j<params.length;j++)feed(j,pt.field(f.restArray,ELEMENT));
+    if(!f.arrow&&k.this)for(const s of k.this){const n=src(s,c,`t${i}`);if(n!==undefined)pt.edge(n,f.thisNode);}
+    pt.edge(f.ret,cbNode(c));
+  }
+  // Function.prototype.call/apply/bind and the Promise constructor.
+  function engineCall(kind,{site,caller,thisNode,args,result,inst}) {
+    if(kind==='bind'){if(thisNode!==undefined)pt.edge(thisNode,result);return;}
+    if(kind==='promise') {
+      const resolver=pt.object({kind:'resolver',target:inst,name:'resolve'});
+      for(const a of args)pt.on(a,fo=>{if(!isCallable(fo))return;const f=pt.objects[fo].fn;
+        if(!firstTime(site,'pr'+fo))return;site.targets.push(f.id);for(const p of f.params)pt.add(p,resolver);});
+      return;
+    }
+    if(thisNode===undefined)return;
+    pt.on(thisNode,fo=>{if(!isCallable(fo))return;const f=pt.objects[fo].fn;
+      if(!firstTime(site,'ca'+fo))return;site.targets.push(f.id);
+      if(!f.arrow&&args[0]!==undefined)pt.edge(args[0],f.thisNode);
+      if(kind==='call')bindArguments(f,args.slice(1));
+      else if(args[1]!==undefined){const t=pt.node();load(args[1],ELEMENT,t,caller);for(const p of f.params)pt.edge(t,p);}
+      pt.edge(f.ret,result);});
   }
   function dispatch(o,site,caller,thisNode,args,result,method) {
     const obj=pt.objects[o];
@@ -125,17 +258,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     } else if(obj.kind==='resolver') {
       if(args[0]!==undefined)pt.edge(args[0],pt.field(obj.target,ELEMENT));
     } else if(obj.kind==='platform'||obj.kind==='value') {
-      if(['call','apply'].includes(method)&&thisNode!==undefined) {
-        pt.on(thisNode,fo=>{if(!isCallable(fo))return;const f=pt.objects[fo].fn;
-          if(!once(`ca${fo}|${site.id}`))return;site.targets.push(f.id);
-          if(!f.arrow&&args[0]!==undefined)pt.edge(args[0],f.thisNode);
-          if(method==='call')bindArguments(f,args.slice(1));
-          else if(args[1]!==undefined){const t=pt.node();load(args[1],ELEMENT,t,caller);for(const p of f.params)pt.edge(t,p);}
-          pt.edge(f.ret,result);});
-        return;
-      }
-      if(method==='bind'&&thisNode!==undefined){pt.edge(thisNode,result);return;}
-      platformCall(site,caller,thisNode,args,result,method,o);
+      platformCall(site,caller,thisNode,args,result,method,o,undefined,site.name);
     }
   }
   // A spread argument (args.spreadAt) may supply every parameter from its position on.
@@ -172,13 +295,9 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
         const ctor=obj.fn;
         if(once(`n${o}|${site.id}`)){site.targets.push(ctor.id);bindArguments(ctor,nodes);pt.add(ctor.thisNode,inst);pt.edge(ctor.ret,result);}
       } else if(isPlatform(o)) {
-        const proto=obj.known&&obj.value?.prototype?platform(obj.name+'.prototype',obj.value.prototype):PLATFORM_PROTO;
+        const proto=obj.known&&obj.value?.prototype?platform(obj.name+'.prototype',obj.value.prototype):obj.known?PLATFORM_PROTO:familyObject(obj);
         pt.add(pt.field(inst,'__proto__'),proto);
-        if(obj.name==='Promise') {
-          const resolver=pt.object({kind:'resolver',target:inst,name:'resolve'});
-          for(const a of nodes)pt.on(a,fo=>{if(!isCallable(fo))return;const f=pt.objects[fo].fn;
-            if(!once(`pr${fo}|${site.id}`))return;site.targets.push(f.id);for(const p of f.params)pt.add(p,resolver);});
-        } else platformCall(site,caller,undefined,nodes,result,'new',o);
+        platformCall(site,caller,undefined,nodes,result,undefined,o,inst,site.name);
       }
     });
   }
@@ -228,7 +347,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     f.object=pt.object({kind:'function',fn:f,name:name??'(anonymous)',owner:owner?.id});
     return f;
   }
-  function site(fn,node,text){return {id:`${fn.file}:${node.start}`,fn:fn.id,line:node.loc?.start.line,text,targets:[],platformCallbacks:[],platform:false,resultUsed:true};}
+  function site(fn,node,text){return {id:`${fn.file}:${node.start}`,fn:fn.id,line:node.loc?.start.line,node,text,targets:[],platformCallbacks:[],platform:false,resultUsed:true};}
 
   // --- the walker ----------------------------------------------------------------------
   // Module-level functions by local name, the module's exports and its imports, so a direct
@@ -334,7 +453,9 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     const n=pt.node();
     const file=resolveImport(mod.file,spec);
     if(file&&nsOf.has(file))pt.add(n,nsOf.get(file));
-    else if(file===null){pt.add(n,platformModules.has(spec)?platform(spec,platformModules.get(spec)):platform(spec));}
+    else if(file===null){pt.add(n,platformModules.has(spec)?platform(spec,platformModules.get(spec)):unknownRoot(spec));}
+    // A JSON module is plain data (platform-models.mjs family json).
+    else if(/\.json$/.test(spec))pt.add(n,platform(familyPath('json')));
     else {unresolvedImports.push({file:mod.file,spec,line:node.loc?.start.line});pt.add(n,platform('unresolved:'+spec));}
     return n;
   }
@@ -459,7 +580,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
       case 'Identifier':return identifier(e.name,ctx);
       case 'Literal':case 'TemplateLiteral':
         if(e.type==='TemplateLiteral')for(const x of e.expressions)expression(x,ctx);
-        if(e.regex)return allocate('regexp',ctx,e);
+        if(e.regex){const o=allocate('regexp',ctx,e);pt.add(pt.field(o,'__proto__'),REGEXP_PROTO);const v=pt.node();pt.add(v,o);return v;}
         return undefined;
       case 'ThisExpression':return ctx.thisNode;
       case 'Super':return ctx.classInfo?.superNode;
@@ -491,7 +612,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
       case 'ChainExpression':return expression(e.expression,ctx,{unused});
       case 'CallExpression':return callExpression(e,ctx,unused);
       case 'NewExpression':{const callee=expression(e.callee,ctx);const args=argumentNodes(e.arguments,ctx);const r=pt.node();
-        if(callee!==undefined)construct({...site(ctx.fn,e,source(e.callee,ctx)),resultUsed:!unused},ctx.fn,callee,args,r);return r;}
+        if(callee!==undefined)construct({...site(ctx.fn,e,source(e.callee,ctx)),resultUsed:!unused,name:calleeName(e.callee)},ctx.fn,callee,args,r);return r;}
       case 'AssignmentExpression':{
         const v=expression(e.right,ctx);
         if(e.operator==='='||e.operator==='??='||e.operator==='||='||e.operator==='&&=')assign(e.left,v,ctx);
@@ -567,9 +688,10 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     }
     const args=argumentNodes(e.arguments,ctx);
     const r=pt.node();
-    if(callee!==undefined)call({...site(ctx.fn,e,source(c,ctx)),resultUsed:!unused},ctx.fn,callee,thisNode,args,r,method);
+    if(callee!==undefined)call({...site(ctx.fn,e,source(c,ctx)),resultUsed:!unused,name:calleeName(c),member:method,receiverNode:thisNode},ctx.fn,callee,thisNode,args,r,method);
     return r;
   }
+  function calleeName(c){return c.type==='Identifier'?c.name:c.type==='MemberExpression'&&!c.computed?c.property.name:undefined;}
 
   function functionValue(node,ctx,name,{thisNode,clone}={}) {
     const arrow=node.type==='ArrowFunctionExpression';
@@ -653,7 +775,30 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   for(const mod of modules){nsOf.set(mod.file,pt.object({kind:'object',shape:'module',name:mod.file,owner:null}));}
   for(const mod of modules)prepareModule(mod);
   for(const mod of modules)analyzeModule(mod);
-  return {functions,unmodelled,unresolvedImports,namespaces:nsOf,platformObjects};
+  return {functions,unmodelled,unresolvedImports,namespaces:nsOf,platformObjects,accessorReads};
+}
+
+// After solving: every call site's platform APIs (merged over the copies that walk it) and the
+// writes to platform properties, for the inventory (plans/dev-maps.md milestone 2). A call that
+// reaches nothing, though its receiver holds a platform value with a runtime value, names a
+// member that value lacks in the analysis process (absent here, present where SAAM runs).
+export function platformInventory(pt,{functions}) {
+  const sites=new Map();
+  const entry=(f,s,kind)=>sites.get(s.id)??sites.set(s.id,{file:f.file,line:s.line,text:s.text,kind,apis:new Map(),reached:false}).get(s.id);
+  for(const f of functions) {
+    for(const s of f.calls) {
+      const r=entry(f,s,s.construct?'new':'call');
+      if(s.targets.length)r.reached=true;
+      for(const [api,how] of s.apis??[])r.apis.set(api,how);
+      if(!s.apis&&!s.targets.length&&s.member!==undefined&&s.receiverNode!==undefined) {
+        for(const o of pt.pts[s.receiverNode]){const x=pt.objects[o];if(x.kind==='platform'&&x.known&&x.value!=null){r.absent=`${x.name}.${s.member}`;break;}}
+      }
+    }
+    for(const st of f.stores)if(st.site?.apis)for(const [api,how] of st.site.apis)entry(f,st.site,'set').apis.set(api,how);
+  }
+  const list=[...sites.values()].map(r=>({...r,apis:Object.fromEntries(r.apis)}));
+  for(const r of list)if(r.absent){r.apis[r.absent]='absent';}
+  return list.filter(r=>Object.keys(r.apis).length);
 }
 
 export function resolver(files,{aliases={}}={}) {

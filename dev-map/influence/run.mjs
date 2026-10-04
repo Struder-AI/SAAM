@@ -1,16 +1,18 @@
 // Milestone 1 of plans/dev-maps.md: run the influence analysis on a selection of SAAM source
 // and time each phase. Usage:
-//   node dev-map/influence/run.mjs [--closure] [--depth N] [--out FILE] PREFIX...
+//   node dev-map/influence/run.mjs [--closure] [--depth N] [--out FILE] [--platform FILE] PREFIX...
 // PREFIX selects in-scope files by path prefix (`all` for the whole scope). --closure adds every
 // in-scope module the selection imports, transitively, so the analysis sees whole programs.
 // --depth sets how many call sites deep directly called functions are copied (default 1).
+// --platform writes the platform inventory: every call site reaching platform code, with the
+// APIs it reaches and how each was modelled (platform-models.mjs).
 import {readFile,writeFile} from 'node:fs/promises';
 import {execFileSync,spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {dirname,resolve} from 'node:path';
 import * as acorn from 'acorn';
 import {PointsTo} from './points-to.mjs';
-import {buildConstraints,resolver} from './constraints.mjs';
+import {buildConstraints,resolver,platformInventory} from './constraints.mjs';
 import {derive,pairArrowsOf} from './derive.mjs';
 import {importAliases} from '../lib/scope.mjs';
 
@@ -21,7 +23,8 @@ const depthAt=argv.indexOf('--depth');const depth=depthAt>=0?+argv[depthAt+1]:1;
 const outAt=argv.indexOf('--out');const out=outAt>=0?argv[outAt+1]:null;
 const drawAt=argv.indexOf('--draw');const drawName=drawAt>=0?argv[drawAt+1]:null;
 const svgAt=argv.indexOf('--svg');const svgOut=svgAt>=0?argv[svgAt+1]:null;
-const prefixes=argv.filter((a,i)=>!a.startsWith('--')&&!(outAt>=0&&i===outAt+1)&&!(depthAt>=0&&i===depthAt+1)&&!(drawAt>=0&&i===drawAt+1)&&!(svgAt>=0&&i===svgAt+1));
+const platAt=argv.indexOf('--platform');const platOut=platAt>=0?argv[platAt+1]:null;
+const prefixes=argv.filter((a,i)=>!a.startsWith('--')&&!(outAt>=0&&i===outAt+1)&&!(platAt>=0&&i===platAt+1)&&!(depthAt>=0&&i===depthAt+1)&&!(drawAt>=0&&i===drawAt+1)&&!(svgAt>=0&&i===svgAt+1));
 
 // Scope: SAAM code that runs in use. Tests, demos, benchmarks and development tooling are out.
 const ROOTS=/^(core|studio|skills|workspaces|packaging|scripts|adapters)\//;
@@ -80,10 +83,20 @@ const summary={
   heapMB:Math.round(process.memoryUsage().heapUsed/1048576),
   pointsTo:{nodes:pt.pts.length,objects:pt.objects.length,fieldNodes:pt.fields.size,copyEdges:pt.edgeCount,propagations:pt.propagations,pointsToTotal:ptsTotal,largestSet:ptsMax},
   ...result.summary,
-  unmodelled:count(built.unmodelled,u=>u.kind),
-  unresolvedImports:built.unresolvedImports.length
+  unmodelled:count(built.unmodelled,u=>u.kind.startsWith('platform:')?'platform API without a model (sites)':u.kind),
+  unresolvedImports:built.unresolvedImports.length,
+  platformGettersAssumedPrimitive:[...built.accessorReads].sort()
 };
+// Platform use: call sites and the APIs they reach, by how each API was modelled.
+const inventory=platformInventory(pt,built);
+{
+  const apis=new Map();
+  for(const r of inventory)for(const [api,how] of Object.entries(r.apis))apis.set(api,how);
+  summary.platform={sites:inventory.length,apis:apis.size,apisBy:count([...apis.values()],x=>x),
+    sitesBy:count(inventory.flatMap(r=>Object.values(r.apis)),x=>x)};
+}
 console.log(JSON.stringify(summary,null,1));
+if(platOut)await writeFile(platOut,JSON.stringify(inventory));
 if(out) {
   const fn=result.home;const fns=built.functions;
   const name=f=>`${f.file}:${f.line} ${f.name??'(anonymous)'}`;
