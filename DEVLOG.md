@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-04 — Clickable influence arrows; placement after tasks; owner assignment by coder agents
+
+- Viewer (worker): in influence sets clicking (or Enter on) any arrow, map 0 and submaps, opens its leaf arrows grouped by direction, leaf ends opening the code pane and box names their maps; pane and `@link` read share `linkGroups`/`leafArrowParts`; leaf arrows load per page from `svg/<page>.links.js`; hit paths are added in the browser, shortest on top (Geometry↔Toolpath lay under Maker context→Toolpath). Map 0's two finding lists drew every row inside an oversized box (913×2028 and 543×3888); they are now name-sized boxes opening their lists. Verified in a browser on a store copy: @link/0/2/3 9,833 leaf arrows, @link/2/b:4/2.1 9; check passes. `node dev-map/cli.mjs --set 030-influence build` re-renders without solving.
+- Owner: map 0 approved (D-050); authored drag placement is milestone 5. Map-0 owner assignment of new code is the coder agent's task (DEVELOPER-CONTEXT); 030-influence regenerates with `"solve": "place"` (new leaves join their file's cluster; full solves between sessions): regenerate 18 s in the main checkout. False possibilities measured: 33,957 of 43,577 leaf arrows (78%) and of 35,501 state reads (96%) come from 111 blob state nodes; call arrows 6,060. No tests run.
+
 ## 2026-10-04 — Developers read map 0 by their own call
 
 - Owner direction: builders read maps only when they decide they need them (unchanged), and developer onboarding no longer attaches map 0; its next step says to read-map 0 and the boxes to be changed before editing, so reading the map is an explicit act. DEVELOPER-CONTEXT orientation says the same. Developer onboarding output 17,823 → 16,478 characters; `read-map 0` reads 030-influence. No tests run.

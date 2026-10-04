@@ -6,5 +6,6 @@
  "analyse": {"maxHeapMB": 4096},
  "authored": "dev-map/sets/030-architecture",
  "sourceRoots": ["."],
- "jobs": 2
+ "jobs": 2,
+ "solve": "place"
 }
