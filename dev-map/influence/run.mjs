@@ -7,6 +7,9 @@
 // --engine summary selects the compositional analysis (compile.mjs, compose.mjs) instead of the
 // whole-program copies; --max-depth N and --max-instances N bound its call-path contexts, and
 // --edit FILE (repeatable) then measures re-analysis after an edit to FILE.
+// --no-unknown-calls leaves calls with no resolved callee unresolved (functions handed to them are
+// then not taken as invoked); --unknown-data also gives such calls' results and callbacks plain
+// data of unknown shape (constraints.mjs settle).
 // --platform writes the platform inventory: every call site reaching platform code, with the
 // APIs it reaches and how each was modelled (platform-models.mjs).
 import {readFile,writeFile} from 'node:fs/promises';
@@ -79,7 +82,7 @@ const platformModules=new Map();
 for(const m of modules)for(const s of m.ast.body)if(s.source&&/^node:/.test(s.source.value)&&!platformModules.has(s.source.value)) {
   try{platformModules.set(s.source.value,await import(s.source.value));}catch{}
 }
-let pt,built,units,t2,t3;
+let pt,built,units,t2,t3,settled=null;
 if(engine==='summary') {
   units=new Map();const notes=[];
   for(const m of modules){const u=compileModule(m,{resolveImport});units.set(m.file,u);notes.push(...u.notes);}
@@ -89,9 +92,9 @@ if(engine==='summary') {
   t3=clock();
 } else {
   pt=new PointsTo();
-  built=buildConstraints(pt,modules,{resolveImport,platformModules,depth});
+  built=buildConstraints(pt,modules,{resolveImport,platformModules,depth,unknownData:argv.includes('--unknown-data')});
   t2=clock();
-  pt.solve();
+  settled=argv.includes('--no-unknown-calls')?(pt.solve(),null):built.settle();
   t3=clock();
 }
 const result=derive(pt,built);
@@ -106,11 +109,12 @@ const summary={
     :{readParse:Math.round(ms(t0,t1)),constraints:Math.round(ms(t1,t2)),solve:Math.round(ms(t2,t3)),derive:Math.round(ms(t3,t4)),total:Math.round(ms(t0,t4))},
   ...(engine==='summary'?{compose:built.stats}:{}),
   heapMB:Math.round(process.memoryUsage().heapUsed/1048576),
+  ...(engine==='summary'?{}:{solver:{collapsedNodes:pt.collapsed,cyclePasses:pt.cyclePasses,cycleMs:Math.round(pt.cycleMs),...(settled??{unknownCalls:'off'})}}),
   pointsTo:{nodes:pt.pts.length,objects:pt.objects.length,fieldNodes:pt.fields.size,copyEdges:pt.edgeCount,propagations:pt.propagations,pointsToTotal:ptsTotal,largestSet:ptsMax},
   ...result.summary,
   unmodelled:count(built.unmodelled,u=>u.kind.startsWith('platform:')?'platform API without a model (sites)':u.kind),
   unresolvedImports:built.unresolvedImports.length,
-  platformGettersAssumedPrimitive:[...built.accessorReads].sort()
+  platformGettersAssumedPrimitive:[...(built.accessorReads??[])].sort()
 };
 // Platform use: call sites and the APIs they reach, by how each API was modelled.
 const inventory=platformInventory(pt,built);
