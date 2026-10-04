@@ -137,7 +137,7 @@ export function contactFacts(pt,{functions},derived,{modules=[],resolveImport}={
         const {sites:rs}=receiverInfo(s);
         if(rs.size){const asg=idx.parent.get(s.node),right=asg?.type==='AssignmentExpression'?asg.right:null;
           const keys=right&&isFn(right)?[`${f.file}:${right.start}`]:[];
-          add(f,s,{kind:'worker-listen',sites:[...rs].sort(),handlers:keys,values:tested(keys),receiver:[]});}
+          add(f,s,{kind:'worker-listen',sites:[...rs].sort(),handlers:keys,values:tested(keys),receiver:[],setter:true});}
         continue;
       }
       if(!apis.length)continue;
@@ -233,6 +233,8 @@ export function contactFacts(pt,{functions},derived,{modules=[],resolveImport}={
   };
   const resolved=[];
   for(const c of contacts) {
+    // An `x.onmessage =` listener counts only on an object a worker start made (not an EventSource).
+    if(c.setter){delete c.setter;if(!c.sites.some(id=>spawnSites.has(id)))continue;}
     const field=['url','entry','path','command'].find(k=>typeof c[k]==='string'&&c[k].includes(P));
     if(!field){resolved.push(c);continue;}
     const seenV=new Set();
