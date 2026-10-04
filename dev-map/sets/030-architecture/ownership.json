@@ -2251,12 +2251,15 @@
     "core/geom/blob-field.mjs::blobFieldBounds": {
       "owner": "geometry-leaf-b176f1017d8e"
     },
-    "core/geom/blob-field.mjs::createBlobFieldEvaluator": {
+    "core/geom/blob-field.mjs::prepareBlobField": {
       "owner": "geometry-leaf-f59f872c19d7",
       "reason": "Prepare finite weighted blob sources or an explicit periodic bump lattice for repeated geometric scalar queries; field composition and deposition policy remain with the caller."
     },
-    "core/geom/blob-field.mjs::createBlobFieldEvaluator::key": {
+    "core/geom/blob-field.mjs::bucketKey": {
       "owner": "geometry-leaf-c07b6037b154"
+    },
+    "core/geom/blob-field.mjs::evaluateBlobField": {
+      "owner": "geometry-leaf-f59f872c19d7"
     },
     "core/geom/blob-field.mjs::validateBlobField": {
       "owner": "geometry-leaf-3326c32b9cbd"
@@ -10340,11 +10343,11 @@
       "owner": "path-fields",
       "reason": "Toolpath recursively prepares authored scalar field composition once, preserving existing prepared values and consuming Geometry evaluator results."
     },
-    "core/geom/blob-field.mjs::createBlobFieldEvaluator::vector": {
+    "core/geom/blob-field.mjs::prepareBlobField::vector": {
       "owner": "geometry-leaf-f59f872c19d7",
       "reason": "Private local periodic-field input predicate used only by Geometry evaluator preparation; no new public operation."
     },
-    "core/geom/blob-field.mjs::createBlobFieldEvaluator::positive": {
+    "core/geom/blob-field.mjs::prepareBlobField::positive": {
       "owner": "geometry-leaf-f59f872c19d7",
       "reason": "Private local periodic-field input predicate used only by Geometry evaluator preparation; no new public operation."
     },
@@ -11894,7 +11897,6 @@
     "core/export/prepare-path.mjs::prepareMachinePath",
     "core/export/prepare-path.mjs::prepareMachinePath::append",
     "core/export/registry.mjs::adapters::interpret",
-    "core/geom/blob-field.mjs::createBlobFieldEvaluator::<return@57:10>",
     "core/geom/curve-offset.mjs::curlArcs::on::<return@156:57>",
     "core/geom/curve-offset.mjs::looseCurveField::<return@73:10>",
     "core/geom/curve-offset.mjs::prepareCurveOffsets::<callable@242:38>",

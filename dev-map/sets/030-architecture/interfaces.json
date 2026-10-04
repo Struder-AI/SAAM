@@ -1387,7 +1387,7 @@
     },
     {
       "contract": "fields-blob-evaluator",
-      "target": "core/geom/blob-field.mjs::createBlobFieldEvaluator",
+      "target": "core/geom/blob-field.mjs::prepareBlobField",
       "kinds": [
         "call"
       ],
@@ -1437,13 +1437,13 @@
         "call"
       ],
       "callers": [
-        "core/geom/blob-field.mjs::createBlobFieldEvaluator"
+        "core/geom/blob-field.mjs::prepareBlobField"
       ],
       "evidence": "Reviewed exact operation and caller; resource and value-flow observations remain visible."
     },
     {
       "contract": "geometry-blob-compilation-evaluator",
-      "target": "core/geom/blob-field.mjs::createBlobFieldEvaluator",
+      "target": "core/geom/blob-field.mjs::prepareBlobField",
       "kinds": [
         "call"
       ],
