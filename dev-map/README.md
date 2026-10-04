@@ -5,6 +5,7 @@ Active [0.3.2](../plans/0.3.2.md) sets: `030-architecture` for product work (too
 
 - `lib/`: source scanning, leaves (`leaves.mjs`), the tree (`tree.mjs`), the
   store, scoring, the solver and rendering.
+- `influence/`: the rebuild's influence analysis ([intent](../plans/dev-maps.md)), run with `run.mjs`.
 - `tree.json`, `facts.tsv`, `lib/scope.mjs`: default authored inputs.
 - `sets/NAME/map.json`, `tree.json`, `facts.tsv`: independent named sets.
 - `store/`, `view/`: generated snapshots and the viewer; git-ignored.
@@ -25,7 +26,7 @@ This guide owns map terminology; some tool fields retain older names. Scanned ma
 | Port / stub | The junction of a link and box, an argument or result slot / an unreached port showing a literal or why the value could not be traced. |
 | Boundary box / edge | A node on another map that a link crosses to / the map's boundary and external boxes. |
 | External | Active outside declarations, DOM events or module load linked to leaves. `0` draws all; clusters draw those linked to nested nodes. Indistinguishable externals with the same connections and directions share a box, so children may distinguish what parents group. |
-| Link / wire | Influence between two nodes, generated from source evidence; its kind says how it travels. Maps draw one counted link per box pair. |
+| Link / wire | Influence between two nodes, generated from source evidence; its kind says how it travels. Maps draw one counted link per box pair, as one arrow in the [notation](../plans/dev-maps.md#notation). |
 | Gate / state link | The condition under which a call runs / a read or write of owned state, shown beside the leaf's code in the viewer. |
 | Operator / state | A non-call choice, loop, update, collection or member call / bindings and fields owned by an outer function or class and accessed by inner declarations or members. |
 | Carried value | A loop-updated variable: `initial` and `next` in, `current` and `final` out; an operator's ports, not nodes. |

@@ -1,6 +1,6 @@
 # Dev maps intent
 
-Owner direction, 2026-10-03 ([D-046](../DECISIONS.md#d-046--rebuilt-dev-maps-causal-arrows-and-banned-unmodelled-code)). This document owns the intent for the rebuilt dev maps. [Developer context](../DEVELOPER-CONTEXT.md#working-with-dev-maps) carries the principle every developer applies; the [map guide](../dev-map/README.md) describes the current tool until the rebuild replaces it.
+Owner direction, 2026-10-03 ([D-046](../DECISIONS.md#d-046--rebuilt-dev-maps-causal-arrows-and-banned-unmodelled-code), [D-047](../DECISIONS.md#d-047--command-outcomes-and-one-arrow-per-pair)). This document owns the intent for the rebuilt dev maps. [Developer context](../DEVELOPER-CONTEXT.md#working-with-dev-maps) carries the principle every developer applies; the [map guide](../dev-map/README.md) describes the current tool until the rebuild replaces it.
 
 ## Purpose
 
@@ -13,11 +13,23 @@ Every arrow at every level means one thing: **causal influence, pointing from th
 Each callable has one causal role:
 
 - **Query**: it answers its caller and does nothing else. When A asks B, the arrow is B → A. B's code determines what A receives; A's arguments only shape the answer A gets back.
-- **Command**: it acts. When A activates B, the arrow is A → B, and B's effects carry influence onward: B → C for data B hands to C, B → state for what it writes.
+- **Command**: it acts. When A activates B, the arrow is A → B, and B's effects carry influence onward: B → C for data B hands to C, B → state for what it writes. A command may return its **outcome**: that it completed or failed, and the identity of anything it created. It returns nothing else its caller computes with.
 
-A callable that both answers and acts is banned (command–query separation). It hides effects behind a returned value, so no single arrow direction tells the truth about it; rewrite it as a command and a query.
+An effect is a change another callable can observe; a private cache or a leaf's own working state is not one. A leaf that acts and also returns data its caller computes with is banned (command–query separation, with outcomes allowed). It hides effects behind a returned value; rewrite it as a command and a query. Separation is a property of leaves: a box holding several leaves normally relates to another box in both directions.
+
+B's effects are B's own arrows, read and checked at B. A decides whether to activate B and what to do with its outcome; it does not mediate what B does.
 
 State is where influence waits between a write and a read. Bundle is the only shared part state; all other state belongs privately to one stateful boundary.
+
+## Notation
+
+Every related pair of boxes is joined by **one** arrow, at every level, never by two separate arrows:
+
+- **One head**: influence one way.
+- **Head with a dot at the tail**: an activation that returns only its outcome (A •→ B).
+- **Two heads**: influence both ways. Between leaves it marks a callable that acts and returns data (banned, drawn until rewritten); between larger boxes it is the ordinary two-way relationship.
+
+The stored relationships stay directional; the drawing joins a pair.
 
 ## Leaves
 
@@ -38,7 +50,7 @@ The map is complete only if the analysis models all code, so the following are b
 
 - **Code shapes the analysis does not model.** Supporting a new shape is a deliberate decision, weighing its value against the cost of modelling it. Platform APIs are included: each one SAAM uses needs a model of its influence, or SAAM does not use it.
 - **Influence between top-level nodes that no authored arrow permits.**
-- **Callables that both answer and act.**
+- **Leaves that act and return data their caller computes with.**
 
 The [code-shape rules](../DEVELOPER-CONTEXT.md#code-shape) are consequences of these.
 
@@ -76,6 +88,5 @@ The owner may adjust scope.
 
 ## Open decisions
 
-- **Acknowledgements.** May a command tell its caller it completed, failed, or what identity it created? Recommendation: yes, as an acknowledgement carried on the activation arrow. Anything else the caller computes with makes it a query and a command.
 - **State on the map.** Recommendation: state is a node, owned by its boundary. Writes enter it and reads leave it, rather than an arrow from every writer to every reader.
 - **SAAM's own native code**: when and how to analyse it.

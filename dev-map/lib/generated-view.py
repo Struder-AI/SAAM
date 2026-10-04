@@ -300,11 +300,27 @@ def port_target(name, pages):
     return name if name in pages else ""
 
 
-def wire(page, w, label, kind, drawn, dropped):
+def wire(page, w, label, kind, drawn, dropped, ends="one"):
     if w["from"] not in drawn or w["to"] not in drawn:
         dropped.append((page.key, w["from"], w["to"]))
         return
-    page.e(w["from"], w["to"], label, kind)
+    page.e(w["from"], w["to"], label, kind, ends=ends)
+
+
+def one_per_pair(wires):
+    """Each pair of boxes is drawn as one wire: a wire and its reverse become one wire with two
+    heads, its label naming each direction. The stored wires stay directional."""
+    by = {(w["from"], w["to"]): w for w in wires}
+    done = set()
+    for w in wires:
+        key = (w["from"], w["to"])
+        if key in done:
+            continue
+        back = by.get((w["to"], w["from"]))
+        done.add(key)
+        if back is not None and back is not w:
+            done.add((w["to"], w["from"]))
+        yield w, (back if back is not w else None)
 
 
 def value_bundles(wires):
@@ -507,8 +523,13 @@ def build_page(packet, ctx):
         for w in packet["wires"]:
             if w.get("kind") == "invocation":
                 invocation_edge(page, w, drawn, dropped)
+        for w, back in one_per_pair([w for w in packet["wires"] if w.get("kind") != "invocation"]):
+            if back is None:
+                wire(page, w, aggregate(w), "data", drawn, dropped, w.get("ends", "one"))
             else:
-                wire(page, w, aggregate(w), "data", drawn, dropped)
+                if back["from"] not in drawn or back["to"] not in drawn:
+                    dropped.append((page.key, back["from"], back["to"]))
+                wire(page, w, f'→ {aggregate(w)}' + chr(10) + f'← {aggregate(back)}', "data", drawn, dropped, "both")
     else:
         node_page(packet, page, unit, port, drawn, dropped)
     boundary = packet.get("callerBoundary")
@@ -1051,6 +1072,10 @@ LEGEND = [
                   "or a call written inside another call's arguments, passed on. Compatible values "
                   "between the same boxes share one drawn connection with every value named; "
                   "separate wires do not imply asynchronous execution."),
+    ("w", "data:ack", "an activation that returns only its outcome: the dot is at the caller, "
+                      "which learns that the command completed or failed, or what it created."),
+    ("w", "data:both", "influence both ways: one wire per pair of boxes, its label naming each direction. "
+                       "Between leaves it marks a command returning data its caller uses."),
     ("w", "caller", "calls: an observed caller already displayed on this page connects to its "
                     "callee, or to the rounded page boundary. This is a call relationship, "
                     "not returned data or an execution-order constraint."),
@@ -1549,7 +1574,7 @@ function openCode(ref,key){const cut=ref.lastIndexOf(':'),file=ref.slice(0,cut),
       codePane.classList.add('on');};
     paint();});}
 function openContracts(from,to){
-  const links=(PAGES[cur]?.contracts??[]).filter(w=>w.from===from&&w.to===to);
+  const links=(PAGES[cur]?.contracts??[]).filter(w=>w.from===from&&w.to===to||w.from===to&&w.to===from);
   const contracts=links.flatMap(w=>w.contracts);
   if(!contracts.length)return;
   const name=index=>PAGES[index]?.t??PAGES[cur]?.componentLabels?.[index]??index;
@@ -1566,7 +1591,7 @@ function openContracts(from,to){
   };
   codePane.innerHTML=`<div class="ch"><button class="x" onclick="dismissCode()" aria-label="Close interfaces">&times;</button>`+
     `<div class="num">${contracts.length===1?'Interface':`Interface set · ${contracts.length} interfaces`}</div>`+
-    `<h3>${esc(name(from))} → ${esc(name(to))}</h3><div class="interface-id">${esc(links[0].address)}</div></div>`+
+    `<h3>${esc(name(from))} ${links.some(w=>w.from===to)?'↔':'→'} ${esc(name(to))}</h3><div class="interface-id">${links.map(w=>esc(w.address)).join(' · ')}</div></div>`+
     '<div class="cb interfaces">'+contracts.map(c=>`<section class="interface"><h3>${esc(c.label)}</h3><div class="interface-id">${esc(c.id)}</div>`+
       `<p>${endpoint(c.fromIndex)} → ${endpoint(c.toIndex)}</p>`+
       ((c.code??[]).length?c.code.map(entry).join(''):'<p class="note">No code entry is bound to this wire.</p>')+
@@ -1623,13 +1648,17 @@ def swatch(kind, key):
         return (f'<svg width="34" height="14"><rect x="1" y="1" width="32" height="12" '
                 f'rx="{min(s["rx"], 6)}" fill="{s["fill"]}" stroke="{s["stroke"]}" '
                 f'stroke-width="{s["sw"]}"{dash}/></svg>')
+    key, _, tail = key.partition(":")
     e = EDGE[key]
     dash = f' stroke-dasharray="{e["dash"]}"' if "dash" in e else ""
+    start = {"ack": f' marker-start="url(#d-{key})"', "both": f' marker-start="url(#m-{key})"'}.get(tail, "")
     return (f'<svg width="34" height="14"><defs><marker id="m-{key}" viewBox="0 0 10 8" refX="9" '
             f'refY="4" markerWidth="7" markerHeight="6" orient="auto-start-reverse">'
-            f'<path d="M0,0 L10,4 L0,8 z" fill="{e["stroke"]}"/></marker></defs>'
-            f'<path d="M1,7 L26,7" fill="none" stroke="{e["stroke"]}" stroke-width="{e["sw"]}"'
-            f'{dash} marker-end="url(#m-{key})"/></svg>')
+            f'<path d="M0,0 L10,4 L0,8 z" fill="{e["stroke"]}"/></marker>'
+            f'<marker id="d-{key}" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6">'
+            f'<circle cx="5" cy="5" r="4" fill="{e["stroke"]}"/></marker></defs>'
+            f'<path d="M{8 if tail else 1},7 L26,7" fill="none" stroke="{e["stroke"]}" stroke-width="{e["sw"]}"'
+            f'{dash}{start} marker-end="url(#m-{key})"/></svg>')
 
 
 def legend_html():
@@ -1694,7 +1723,7 @@ def emit(out, model, pages, svgs):
     legend = (boundary_key + "<p>Internal nodes belong to this displayed map. Dashed boundary nodes belong elsewhere and show connections across its edge.</p>"
               "<p>Authored target architecture, with source evidence where available.</p>"
               "<p>Boxes open submaps or referenced source. Wires open contracts and evidence, including exact nested endpoints. "
-              "Wire direction follows the stated contract flow. Separate access entries, where supplied, name permitted call/read directions. "
+              "Wire direction follows the stated contract flow. Each pair of boxes is one wire: two heads mean flow both ways, its label naming each direction; a dot at the tail marks an activation that returns only its outcome. Separate access entries, where supplied, name permitted call/read directions. "
               "No transitive access is granted. Implementation conformance remains unchecked.</p>"
               if model.get("design") else legend_html())
     html = f"""<!doctype html><meta charset="utf-8"><title>{escape(heading)}</title>

@@ -5,13 +5,13 @@
 // in-scope module the selection imports, transitively, so the analysis sees whole programs.
 // --depth sets how many call sites deep directly called functions are copied (default 1).
 import {readFile,writeFile} from 'node:fs/promises';
-import {execFileSync} from 'node:child_process';
+import {execFileSync,spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {dirname,resolve} from 'node:path';
 import * as acorn from 'acorn';
 import {PointsTo} from './points-to.mjs';
 import {buildConstraints,resolver} from './constraints.mjs';
-import {derive} from './derive.mjs';
+import {derive,pairArrowsOf} from './derive.mjs';
 import {importAliases} from '../lib/scope.mjs';
 
 const repo=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
@@ -19,7 +19,9 @@ const argv=process.argv.slice(2);
 const closure=argv.includes('--closure');
 const depthAt=argv.indexOf('--depth');const depth=depthAt>=0?+argv[depthAt+1]:1;
 const outAt=argv.indexOf('--out');const out=outAt>=0?argv[outAt+1]:null;
-const prefixes=argv.filter((a,i)=>!a.startsWith('--')&&!(outAt>=0&&i===outAt+1)&&!(depthAt>=0&&i===depthAt+1));
+const drawAt=argv.indexOf('--draw');const drawName=drawAt>=0?argv[drawAt+1]:null;
+const svgAt=argv.indexOf('--svg');const svgOut=svgAt>=0?argv[svgAt+1]:null;
+const prefixes=argv.filter((a,i)=>!a.startsWith('--')&&!(outAt>=0&&i===outAt+1)&&!(depthAt>=0&&i===depthAt+1)&&!(drawAt>=0&&i===drawAt+1)&&!(svgAt>=0&&i===svgAt+1));
 
 // Scope: SAAM code that runs in use. Tests, demos, benchmarks and development tooling are out.
 const ROOTS=/^(core|studio|skills|workspaces|packaging|scripts|adapters)\//;
@@ -93,4 +95,23 @@ if(out) {
     arrows:result.arrows.map(a=>({from:name(fns[a.from]),to:name(fns[a.to]),kind:a.kind,count:a.count})),
     leaves:[...result.leaves].map(i=>({leaf:name(fns[i]),role:result.command[i]?'command':'query',folded:fns.filter(f=>f.id!==i&&fn[f.id]!==f.id&&(()=>{let x=f.id;while(fn[x]!==x)x=fn[x];return x;})()===i).map(name)}))
   },null,1));
+}
+
+// --draw NAME --svg FILE: the callable NAME with its direct callers and callees, one arrow per
+// pair in the dev-map notation, drawn by the shared renderer.
+if(drawName) {
+  const fns=built.functions;
+  const root=fns.find(f=>!f.inClone&&f.name===drawName);
+  if(!root)throw Error(`No callable named ${drawName}.`);
+  const near=new Set([root.id]);
+  for(const e of result.edges)if(e.from===root.id||e.to===root.id){near.add(e.from);near.add(e.to);}
+  const {drawn}=pairArrowsOf(result.arrows.filter(a=>near.has(a.from)&&near.has(a.to)),x=>x);
+  const kinds=d=>[...new Set(d.arrows.map(a=>a.kind))].join(' + ');
+  const spec={title:`${root.name} · influence`,subtitle:`${root.file}:${root.line} and its direct callers and callees`,
+    nodes:[...near].map(id=>({id:String(id),label:fns[id].name??'(anonymous)',kind:id===root.id?'state':'stage',
+      note:`${fns[id].file}:${fns[id].line} · ${result.command[id]?'command':'query'}`})),
+    edges:drawn.map(d=>({from:String(d.from),to:String(d.to),ends:d.ends,label:kinds(d)}))};
+  const run=spawnSync(process.env.PYTHON??'python',[resolve(repo,'dev-map/influence/draw.py')],{input:JSON.stringify(spec),encoding:'utf8',maxBuffer:64*1024*1024});
+  if(run.status!==0)throw Error(run.stderr);
+  await writeFile(svgOut??`${drawName}.svg`,run.stdout);
 }

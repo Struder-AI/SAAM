@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-10-03 — Command outcomes and one arrow per pair
+
+- Owner decision [D-047](DECISIONS.md#d-047--command-outcomes-and-one-arrow-per-pair), recorded in the [dev maps intent](plans/dev-maps.md#notation) and [code-shape rule 4](DEVELOPER-CONTEXT.md#code-shape): a command may return its outcome (completed or failed, created identity); private caches and a leaf's own working state are not effects; separation applies to leaves. Each related pair of boxes is one arrow: one head, a head with a dot at the tail (activation returning its outcome), or two heads (influence both ways; between leaves, a banned command returning data).
+- Viewer: `leveled.py` wires take `ends` (dot or second head at the tail); `generated-view.py` draws a stored wire and its reverse as one two-headed wire labelled with each direction, opens both directions' interfaces (title ↔), and adds both marks to the legends; `design.mjs` and `coverage.mjs` accept a two-headed wire as drawing both stored directions. Stored relationships and CLI reads stay directional (map 0 read still returns 38 wires). Map 0 now draws 30 arrows, 8 two-headed.
+- Analysis: `derive.mjs` classifies each call as answer, activation, acknowledged (the command returns only an outcome) or both, and `pairArrowsOf` joins leaf arrows into one arrow per box pair by the notation; `run.mjs --draw NAME --svg FILE` draws a callable's neighbourhood through `draw.py` with the shared renderer. `core/path` with imports: 1,861 answer, 68 activation, 75 acknowledged, 201 both.
+- Verified: `check --viewer` for 030-architecture (1,010 pages) and 030-deployment passes with nothing undrawn; browser check of map 0 arrows, a two-way interface pane and a `generateBundle` neighbourhood drawing. The toolkit `regenerate` fails to parse the build's stdout status line (pre-existing, flagged separately); the CLI regenerate was used. The scanned `default` map has no store and was not rebuilt. No tests run.
+
 ## 2026-10-03 — Calibrate command-query separation in the influence prototype
 
 - Ownership in `dev-map/influence/derive.mjs` now follows the intent: copies of one function share ownership; a fresh object returned by a query moves to its caller (code-shape rule 3); a write counts as an effect only if another callable reads it (private caches stay inside a leaf); platform methods on objects the callable created are local. Object literals no longer copy spread fields that a later property replaces (`{...input, stats}`), which had made correct stages look like they mutated their inputs.

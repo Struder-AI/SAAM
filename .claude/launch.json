@@ -4,8 +4,26 @@
     {
       "name": "generated-map",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "dev-map/view"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8765",
+        "--directory",
+        "dev-map/view"
+      ],
       "port": 8765
+    },
+    {
+      "name": "architecture-map",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8766",
+        "--directory",
+        "dev-map/sets/030-architecture/view"
+      ],
+      "port": 8766
     }
   ]
 }

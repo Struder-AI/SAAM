@@ -57,7 +57,7 @@ The code itself must show the scanner and human reviewer the influence between o
 1. No callable and no state in a reassigned binding: execution history would determine what runs or what a value is. Owned state lives in an explicit record or stateful boundary; a callback chosen once is a `const` or named function.
 2. No callee chosen by an expression: the call site must name its callee.
 3. A sequential stage may mutate exclusively owned inputs and hand the result forward. Ownership transfers with the data; earlier stages and other consumers must not retain access to the changing value. No hidden lookbacks to shared mutable sources. Bundle owns shared part state; private UI/session/job controllers own theirs. Copy only where ownership branches or a snapshot must survive.
-4. A callable answers or acts, never both: a query returns a value and has no other effect; a command has effects and returns nothing its caller computes with ([open acknowledgement question](plans/dev-maps.md#open-decisions)).
+4. A callable answers or acts: a query returns a value and has no effect another callable can observe; a command has effects and returns only its outcome (completed or failed, and the identity of what it created). Private caches and a leaf's own working state are not effects. Larger boxes relate both ways; [notation](plans/dev-maps.md#notation).
 
 Give conceptual stages and callbacks code names so clusters survive line edits. Apply the architectural discipline above before choosing scanner work; improve syntax resolution where an abstraction earns its place. Authorized architecture work includes these rewrites; an unrelated map read grants no extra scope.
 

@@ -204,9 +204,21 @@ def _attrs(n):
 
 
 def _ends(e):
-    """A wire's two endpoints as attributes, for the viewer to select it by."""
+    """A wire's two endpoints as attributes, for the viewer to select it by, and what its tail
+    shows: nothing, a dot (an activation returning its outcome) or a second head (both ways)."""
+    tail = e.get("ends", "one")
     return (f' data-a="{escape(e["src"], {chr(34): "&quot;"})}"'
-            f' data-b="{escape(e["dst"], {chr(34): "&quot;"})}"')
+            f' data-b="{escape(e["dst"], {chr(34): "&quot;"})}"'
+            + (f' data-ends="{tail}"' if tail != "one" else ""))
+
+
+def _tail(e, st):
+    tail = e.get("ends", "one")
+    if tail == "ack":
+        return f' marker-start="url(#{st["head"]}-dot)"'
+    if tail == "both":
+        return f' marker-start="url(#{st["head"]})"'
+    return ""
 
 
 def bezier_at(p, t):
@@ -246,14 +258,18 @@ class Page:
         self.nodes.append(node)
         return node
 
-    def e(self, src, dst, label="", kind="data", rank=True):
+    def e(self, src, dst, label="", kind="data", rank=True, ends="one"):
         """`rank=False` draws the wire but keeps it out of column assignment.
 
         For a wire that states a PRECEDENCE between two otherwise parallel branches
         rather than a payload moving along it. Ranking such a wire serialises the branches
         and the drawing then claims a pipeline where the code has a race.
+
+        `ends` is what the tail at `src` shows: "one" nothing, "ack" a dot (an activation
+        that returns only its outcome), "both" a second head (influence both ways). One pair
+        of boxes is always one wire.
         """
-        self.edges.append(dict(src=src, dst=dst, label=label, kind=kind, rank=rank))
+        self.edges.append(dict(src=src, dst=dst, label=label, kind=kind, rank=rank, ends=ends))
         return self
 
     # -- shared checks -----------------------------------------------------
@@ -723,6 +739,11 @@ class Page:
             o.append(f'<marker id="{name}" viewBox="0 0 10 8" refX="9" refY="4" '
                      f'markerWidth="8" markerHeight="7" orient="auto-start-reverse">'
                      f'<path d="M0,0 L10,4 L0,8 z" fill="{col}"/></marker>')
+        # A dot for each wire style: the tail of an activation that returns its outcome.
+        for st in {s_["head"]: s_ for s_ in EDGE.values()}.values():
+            o.append(f'<marker id="{st["head"]}-dot" viewBox="0 0 10 10" refX="5" refY="5" '
+                     f'markerWidth="6" markerHeight="6"><circle cx="5" cy="5" r="4" '
+                     f'fill="{st["stroke"]}"/></marker>')
         o.append("</defs>")
         o.append(f'<rect width="{self.W:.0f}" height="{self.H:.0f}" fill="#ffffff"/>')
         for k, (label, x0, x1, fill, ink) in enumerate(self.zone_rects):
@@ -769,7 +790,7 @@ class Page:
                          f'tabindex="0" role="button" aria-label="{escape(label, {chr(34): "&quot;"})}"/>')
             o.append(f'<path class="fm-edge{" long" if broken else ""}"{_ends(e)} d="{d}" '
                      f'fill="none" stroke="{st["stroke"]}" '
-                     f'stroke-width="{st["sw"]}"{dash}{wrap} '
+                     f'stroke-width="{st["sw"]}"{dash}{wrap}{_tail(e, st)} '
                      f'marker-end="url(#{st["head"]})"/>')
         for k_i in sorted(self.long):
             e = self.edges[k_i]

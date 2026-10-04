@@ -283,7 +283,8 @@ export async function designCommand(command,args,{repo}) {
         const script=await readFile(resolve(repo,setFile(`view/svg/${page.index}.js`)),'utf8');
         const [,svg]=JSON.parse(`[${script.slice(6,-1)}]`);
         for(const c of page.components)if(!svg.includes(`data-id="${c.index}"`))missing.push(`${page.index}: box ${c.index}`);
-        for(const w of page.wires)if(!svg.includes(`data-a="${w.from}" data-b="${w.to}"`))missing.push(`${page.index}: wire ${w.from} -> ${w.to}`);
+        // One wire per pair: a two-headed wire also draws the reverse direction.
+        for(const w of page.wires)if(!svg.includes(`data-a="${w.from}" data-b="${w.to}"`)&&!svg.includes(`data-a="${w.to}" data-b="${w.from}" data-ends="both"`))missing.push(`${page.index}: wire ${w.from} -> ${w.to}`);
         if(JSON.stringify(pages[page.index]?.contracts)!==JSON.stringify(page.wires))missing.push(`${page.index}: interface code`);
       }
     }
