@@ -239,6 +239,112 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     const r=prepared.get(ctx.mod.file).keyInfo.bindingOf(id);
     return r&&ctx.namedKeys.get(r);
   }
+  // --- type tests ---------------------------------------------------------------------------
+  // A branch guarded by a test of what kind of value a binding holds (`typeof v === 'object'`,
+  // `Array.isArray(v)`, `v`, `v == null`, with !, && and ||) sees only the objects that can pass
+  // that test: `if (!v || typeof v !== 'object') return v` returns no records or arrays. Only
+  // bindings that are never reassigned (const, or parameters and lets with no write) are
+  // narrowed, so the value a closure in the branch reads later is the one tested. Sound: an
+  // object is dropped only where its kind makes the test's outcome impossible.
+  // Kinds: function, array, record (plain object), instance (`new C`: may be an Array subclass),
+  // string (key objects), other (platform values: unknown).
+  const KINDS=['function','array','record','instance','string','other'];
+  function kindOf(o) {
+    const x=pt.objects[o];
+    if(x.kind==='function')return 'function';
+    if(x.kind==='key')return 'string';
+    // A fresh platform result of a built-in type (Object.fromEntries, map results, a Map, a
+    // typed array) is an object, an array only if Array; a family value (json, zod) may be anything.
+    if(x.kind==='value')return x.fresh==='Array'?'array':/^[A-Z]/.test(x.fresh??'')?'record':'other';
+    if(x.kind!=='object')return 'other';
+    if(x.shape==='array')return 'array';
+    return x.site!==undefined&&x.shape===undefined?'instance':'record';
+  }
+  const TYPEOF={function:'function',array:'object',record:'object',instance:'object',string:'string'};
+  // The test's outcome for a value of kind k held by `name`: true, false or undefined (unknown).
+  function typeTest(e,name,k) {
+    switch(e.type) {
+      case 'ParenthesizedExpression':return typeTest(e.expression,name,k);
+      case 'Identifier':return e.name===name?(k==='string'||k==='other'?undefined:true):undefined;
+      case 'UnaryExpression':{if(e.operator!=='!')return undefined;const t=typeTest(e.argument,name,k);return t===undefined?undefined:!t;}
+      case 'LogicalExpression':{
+        if(e.operator==='??')return undefined;
+        const a=typeTest(e.left,name,k),b=typeTest(e.right,name,k);
+        if(e.operator==='&&')return a===false||b===false?false:a===true&&b===true?true:undefined;
+        return a===true||b===true?true:a===false&&b===false?false:undefined;
+      }
+      case 'BinaryExpression':{
+        const eq=e.operator==='==='||e.operator==='==',ne=e.operator==='!=='||e.operator==='!=';
+        if(!eq&&!ne)return undefined;
+        for(const [a,b] of [[e.left,e.right],[e.right,e.left]]) {
+          if(a.type==='UnaryExpression'&&a.operator==='typeof'&&a.argument.type==='Identifier'&&a.argument.name===name&&b.type==='Literal'&&typeof b.value==='string') {
+            const t=TYPEOF[k];return t===undefined?undefined:(t===b.value)===eq;
+          }
+          if(a.type==='Identifier'&&a.name===name&&(b.type==='Literal'&&b.value===null&&!b.regex||b.type==='Identifier'&&b.name==='undefined'))
+            return k==='other'?undefined:!eq;
+        }
+        return undefined;
+      }
+      case 'CallExpression':{
+        const c=e.callee;
+        if(c.type==='MemberExpression'&&!c.computed&&c.object.type==='Identifier'&&c.object.name==='Array'&&c.property.name==='isArray'
+          &&e.arguments.length===1&&e.arguments[0].type==='Identifier'&&e.arguments[0].name===name)
+          return k==='array'?true:k==='function'||k==='record'||k==='string'?false:undefined;
+        return undefined;
+      }
+    }
+    return undefined;
+  }
+  // Identifiers a test could decide on, by name (the first occurrence's node, for its binding).
+  function testedNames(e,out=new Map()) {
+    switch(e?.type) {
+      case 'ParenthesizedExpression':testedNames(e.expression,out);break;
+      case 'Identifier':if(!out.has(e.name))out.set(e.name,e);break;
+      case 'UnaryExpression':if(e.operator==='!'||e.operator==='typeof')testedNames(e.argument,out);break;
+      case 'LogicalExpression':testedNames(e.left,out);testedNames(e.right,out);break;
+      case 'BinaryExpression':testedNames(e.left,out);testedNames(e.right,out);break;
+      case 'CallExpression':if(e.arguments.length===1)testedNames(e.arguments[0],out);break;
+    }
+    return out;
+  }
+  function immutableBinding(id,ctx) {
+    const r=prepared.get(ctx.mod.file)?.keyInfo.bindingOf(id);
+    if(!r)return false;
+    return r.kind==='const'||(r.kind==='param'||r.kind==='pattern-param'||r.kind==='let')&&!r.writes.length;
+  }
+  // ctx for code that runs only when `test` is `sense` (true or false): tested bindings shadowed
+  // by nodes holding only the objects whose kind allows that outcome.
+  function narrowed(ctx,test,sense) {
+    if(!cloning)return ctx;
+    let scope=null;
+    for(const [name,id] of testedNames(test)) {
+      if(name==='undefined'||!immutableBinding(id,ctx))continue;
+      const node=ctx.scope.lookup(name);
+      if(node===undefined)continue;
+      let s=ctx.scope;while(s&&!s.names.has(name))s=s.parent;
+      if(!s||s.module)continue;
+      const keep=new Set(KINDS.filter(k=>typeTest(test,name,k)!==!sense));
+      if(keep.size===KINDS.length)continue;
+      scope??=new Scope(ctx.scope,ctx.fn);
+      const n=scope.declare(name);
+      if(keep.size)pt.on(node,o=>{if(keep.has(kindOf(o)))pt.add(n,o);});
+    }
+    return scope?{...ctx,scope}:ctx;
+  }
+  // The objects of a node that may be falsy: only values of unknown kind (a key may be '').
+  function falsyOnly(n) {
+    if(!cloning)return n;
+    const f=pt.node();pt.on(n,o=>{const k=kindOf(o);if(k==='string'||k==='other')pt.add(f,o);});return f;
+  }
+  // A statement after which the rest of its statement list does not run.
+  function exits(s) {
+    switch(s?.type) {
+      case 'ReturnStatement':case 'ThrowStatement':case 'BreakStatement':case 'ContinueStatement':return true;
+      case 'BlockStatement':return s.body.length>0&&exits(s.body[s.body.length-1]);
+      case 'IfStatement':return exits(s.consequent)&&exits(s.alternate);
+    }
+    return false;
+  }
   // A two-element array literal whose first element is a name known now: a pair with that key.
   function staticName(x,ctx) {
     const s=stringKey(x);if(s!==undefined)return s;
@@ -1011,6 +1117,21 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     functionValue(target.ast,ctx,target.name,{clone:c=>{f=c;c.cloneKey=key;c.cloneDepth=deeper?d:1;clones.set(key,c);}});
     return f;
   }
+  // Recursion stays in the copy it entered (Whaley and Lam 2004 treat a recursive cycle within
+  // each context of its entry): a call to, or a reference to, a function from inside its own
+  // body (any lexically enclosing copy) is that copy, not the copy shared by every caller of the
+  // recursive call site. Sound, as binding a call to any copy of its callee is: each copy wires
+  // its parameters and result like the function. Recursive walkers then keep each caller's data
+  // apart instead of joining all of it in the one copy their recursive site would share.
+  function enclosingCopy(fn,ast) {
+    for(let f=fn;f;f=f.owner!=null?functions[f.owner]:null)if(f.walk?.node===ast)return f;
+    return undefined;
+  }
+  function recursionCopy(name,ctx) {
+    if(ctx.fn.module)return undefined;
+    const t=staticTarget(name,ctx);
+    return t&&enclosingCopy(ctx.fn,t.ast);
+  }
   function analyzeModule(mod) {
     const {ctx}=prepared.get(mod.file);
     const {scope,fn:moduleFn}=ctx;
@@ -1079,7 +1200,16 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     return undefined;
   }
 
-  function statements(list,ctx){for(const s of list)statement(s,ctx);}
+  // After `if (test) return …` (no else), the rest of the list runs only when test is false
+  // (narrowed). Not when a function declaration follows: it is hoisted, callable before the test.
+  function statements(list,ctx) {
+    for(let i=0;i<list.length;i++) {
+      const s=list[i];statement(s,ctx);
+      if(s.type==='IfStatement'&&i+1<list.length&&(exits(s.consequent)!==exits(s.alternate))
+        &&!list.some((x,j)=>j>i&&x.type==='FunctionDeclaration'))
+        ctx=narrowed(ctx,s.test,!exits(s.consequent));
+    }
+  }
   function block(list,ctx) {
     const scope=new Scope(ctx.scope,ctx.fn);declareBlock(list,scope);
     statements(list,{...ctx,scope});
@@ -1101,7 +1231,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
         if(s.argument){const v=expression(s.argument,ctx);ctx.fn.returnsValue=true;if(v!==undefined)pt.edge(v,ctx.fn.ret);}
         return;
       case 'IfStatement':{expression(s.test,ctx,VALUELESS);const t=truth(s.test,ctx);
-        if(t!==false)statement(s.consequent,ctx);if(t!==true)statement(s.alternate,ctx);return;}
+        if(t!==false)statement(s.consequent,narrowed(ctx,s.test,true));if(t!==true&&s.alternate)statement(s.alternate,narrowed(ctx,s.test,false));return;}
       case 'BlockStatement':block(s.body,ctx);return;
       case 'ForStatement':{const scope=new Scope(ctx.scope,ctx.fn);const c={...ctx,scope};
         if(s.init){if(s.init.type==='VariableDeclaration'){declareBlock([s.init],scope);statement(s.init,c);}else expression(s.init,c);}
@@ -1258,7 +1388,12 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   function expression(e,ctx,{unused=false,valueless=false}={}) {
     if(!e)return undefined;
     switch(e.type) {
-      case 'Identifier':return identifier(e.name,ctx);
+      case 'Identifier':{
+        // A function named inside its own copy (value.map(walk)) is that copy (recursionCopy).
+        const self=cloning?recursionCopy(e.name,ctx):undefined;
+        if(self!==undefined&&self.inClone){moduleRead(e.name,ctx);const v=pt.node();pt.add(v,self.object);return v;}
+        return identifier(e.name,ctx);
+      }
       case 'Literal':case 'TemplateLiteral':
         if(e.type==='TemplateLiteral')for(const x of e.expressions)expression(x,ctx,VALUELESS);
         if(e.regex){const o=allocate('regexp',ctx,e);pt.add(pt.field(o,'__proto__'),REGEXP_PROTO);const v=pt.node();pt.add(v,o);return v;}
@@ -1316,13 +1451,16 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
         return v;}
       case 'SequenceExpression':{let v;for(const x of e.expressions)v=expression(x,ctx);return v;}
       case 'ConditionalExpression':{expression(e.test,ctx,VALUELESS);const t=truth(e.test,ctx);const o={valueless};
-        return union([t!==false?expression(e.consequent,ctx,o):undefined,t!==true?expression(e.alternate,ctx,o):undefined]);}
+        return union([t!==false?expression(e.consequent,narrowed(ctx,e.test,true),o):undefined,t!==true?expression(e.alternate,narrowed(ctx,e.test,false),o):undefined]);}
       case 'LogicalExpression':{
         // A test a correlated copy decides (k === 'name') leaves the other operand unevaluated.
         const o={valueless};
         const left=expression(e.left,ctx,o),t=e.operator==='??'?undefined:truth(e.left,ctx);
         if(e.operator==='&&'&&t===false||e.operator==='||'&&t===true)return left;
-        return union([left,expression(e.right,ctx,o)]);}
+        // a && b runs b only when a is truthy, a || b only when a is falsy (narrowed); the value
+        // of a && b is a itself only when a is falsy, which no record, array or function is.
+        const right=e.operator==='??'?expression(e.right,ctx,o):expression(e.right,narrowed(ctx,e.left,e.operator==='&&'),o);
+        return union([e.operator==='&&'&&left!==undefined?falsyOnly(left):left,right]);}
       case 'BinaryExpression':expression(e.left,ctx,VALUELESS);expression(e.right,ctx,VALUELESS);return undefined;
       case 'UnaryExpression':expression(e.argument,ctx,VALUELESS);if(e.operator==='delete')write(e.argument,ctx);return undefined;
       case 'UpdateExpression':expression(e.argument,ctx);write(e.argument,ctx);return undefined;
@@ -1405,7 +1543,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
         ctx.fn.calls.push(s);
         // Copies of a correlated loop share the callee's copy at a site: one copy per name
         // (siteId#name) made recursive record walkers quadratic in field names (DEVLOG).
-        const f=cloneFor(s.id,target,ctx.fn);
+        const f=enclosingCopy(ctx.fn,target.ast)??cloneFor(s.id,target,ctx.fn);
         s.targets.push(f.id);
         bindArguments(f,spreadNodes(args,ctx.fn));pt.edge(f.ret,r);
         return r;
