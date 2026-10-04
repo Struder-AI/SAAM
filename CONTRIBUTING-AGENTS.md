@@ -14,8 +14,8 @@ and affects integration, present the specific conflict rather than guessing.
 
 Checkpoint scope and authorization are [rules](BUILDERS.md#rules). A checkpoint records
 the shared state; it does not declare every contribution complete, reviewed or
-approved for adoption. Do not assume that a dedicated coordinator or human
-reviewer has been assigned. Agents can perform technical review.
+approved for adoption. Agents can perform technical review; no coordinator or
+human reviewer is assumed.
 
 Publish the account's pending branch for a pull request into main. Remove
 temporary repair branches after integration.

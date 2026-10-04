@@ -14,7 +14,7 @@ Use `030-architecture` for product work (toolkit default), `030-deployment` for 
 
 ### Architectural discipline
 
-You are working in a codebase whose owner is unusually explicit about architectural shape. The failures of the past month did not come from unclear requests, they came from competent work that quietly substituted an easier property for the structure asked for. Read this so you recognize that substitution in yourself before it happens.
+You are working in a codebase whose owner is unusually explicit about architectural shape. Its past failures did not come from unclear requests; they came from competent work that quietly substituted an easier property for the structure asked for. Read this so you recognize that substitution in yourself before it happens.
 
 #### The direction
 
@@ -82,6 +82,6 @@ The code itself must show the scanner and human reviewer the influence between o
 Give conceptual stages and callbacks code names so clusters survive line edits. Apply the architectural discipline above before choosing scanner work; improve syntax resolution where an abstraction earns its place. Authorized architecture work includes these rewrites; an unrelated map read grants no extra scope.
 
 ## References and evidence
-Open component manuals as needed: skills, [application](core/application/README.md), [exporters](core/export/DEVELOP.md) and [toolkit](core/agent/README.md) keep their own contracts. Exclusion from the original scanned map does not exclude them from release audit. [Packaging](packaging/README.md) owns installation/publication; verify the checkout includes released source and the current publishing branch before deriving backlog from old notes. [DEVLOG](DEVLOG.md) owns release evidence; [checkpoint and publication guidance](CONTRIBUTING-AGENTS.md) covers committing.
+Open component manuals as needed: skills, [application](core/application/README.md), [exporters](core/export/DEVELOP.md) and [toolkit](core/agent/README.md) keep their own contracts. [Packaging](packaging/README.md) owns installation/publication; verify the checkout includes released source and the current publishing branch before deriving backlog from old notes. [DEVLOG](DEVLOG.md) owns release evidence; [checkpoint and publication guidance](CONTRIBUTING-AGENTS.md) covers committing.
 
 Source establishes implementation, not physical results. Check concrete uncertainties and reuse evidence until its inputs change; completion adds no test gate.

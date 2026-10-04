@@ -9,7 +9,7 @@ changed, not the size or location of an edit.
 Run `node scripts/agent-toolkit.mjs builder-onboarding [--area AREA]` once when
 builder context is missing. It returns this manual, maker context, skill authoring
 and the digest, plus the named area's contract or map. Reuse returned context;
-read individual manuals only as needed. Web agents remain makers.
+read individual manuals only as needed.
 
 **Builders inherit maker responsibilities.** Builder onboarding includes
 [MAKERS.md](MAKERS.md) for the person-facing workflow being extended and exercised.
@@ -104,8 +104,6 @@ agreed direction, and evidence to evaluate a proposed change. Keep assumptions a
 unresolved questions explicit. Software tests, benchmarks, vendor-tool results
 and physical prints establish different things; report the scope actually checked.
 
-Ultimaker S5: Nave reports early Z movement instead of coordinated XYZ interpolation on inclined `G1` extrusion spans; use explicit short collinear segments and physically verify the result.
-
 Leave the next developer a concise account they can reason from. Document the
 contracts, assumptions and algorithms that source alone does not convey. Distill
 exploratory conversation into precise current guidance, stated once at its owner.
@@ -114,46 +112,17 @@ conveniently to source using ordinary repository tools.
 
 ## Maps and local documentation
 
-The dev map is the generated account of core and Studio structure. Its intent,
-scope and reading rules are owned by [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md);
-the commands, page fields and authoring mechanics by the
-[map guide](dev-map/README.md). Developers orient by walking it from `0`;
-builders may inspect the code behind consumed interfaces alongside its manual;
-makers need no maps. Read a page with
-`node scripts/agent-toolkit.mjs read-map INDEX|DECLARATION` and its source with
-`--code`. **Text search for orientation is discouraged**: it finds names, while
-the walk exposes the relationships around what you are about to change. Use
-the index when talking about the current map and the declaration path as the
-durable name in a document, comment or code.
+The dev map is being rebuilt ([dev maps intent](plans/dev-maps.md)); the
+[map guide](dev-map/README.md) owns its commands. Builders may inspect the code
+behind consumed interfaces alongside its manual; makers need no maps. What code
+cannot state belongs where it is owned: a measurement in [DEVLOG.md](DEVLOG.md),
+an agreed direction in the current release intent, and a user-facing limit in
+the manual that owns the behaviour.
 
-Map pages carry no prose. What a page cannot say belongs where it is owned: a
-measurement in [DEVLOG.md](DEVLOG.md), an agreed direction in
-[DECISIONS.md](DECISIONS.md), a user-facing limit in the manual that owns the
-behaviour, and a measurement, vendor behaviour or recorded decision the code
-cannot state in `dev-map/facts.tsv`.
-
-### Supporting text and comments
-
-The map explains structure; it does not establish behaviour. A resolved wire
-is evidence of a call site, not proof of a payload, a precondition or an
-execution order, and an empty caller list is not proof that unscanned or
-dynamic callers do not exist. **Assume the relevant pages have been read when
-writing a docstring or comment**: add one only for local value such as a
-subtle precondition, a unit convention or an external constraint, never to
-repeat what the map or the code plainly shows. Reading the map can reveal poor
-boundaries; record the finding and handle it within the authorised scope.
-Reading a map does not itself authorise refactoring code to make the picture
-cleaner; the code-shape rules in the developer context say when a rewrite is
-warranted.
-
-### Keeping maps current
-
-Nothing is kept current by hand. After changing core or Studio, run
-`node scripts/agent-toolkit.mjs regenerate [INDEX]` and read the affected pages
-again; a read of a page whose inputs moved says `stale` and names the index to
-regenerate, and `node dev-map/cli.mjs check` reports the same for the whole
-store. Renaming or removing a declaration that authored grouping names means
-editing that membership; generation fails until it is.
+Add a docstring or comment only for local value, such as a subtle precondition,
+a unit convention or an external constraint, not to repeat what the code plainly
+shows. A structural finding is recorded and handled within the authorised scope;
+noticing it does not by itself authorise a refactor.
 
 ## Context ownership
 
@@ -252,7 +221,7 @@ ineffective heuristic before adding a user-facing bypass. When a proposed
 geometry, toolpathing or extrusion gate has ambiguous value or placement, discuss
 its failure case, evidence, cost and alternatives within existing authorization.
 A maker's judgment about a print does not itself change general product policy.
-Resource-budget failures should state the limit and how to raise it, leaving
+A failure states its real cause and what the person can change, leaving
 geometry and quality choices explicit. For count, size and elapsed-time limits, see
 [limits that adapt, and limits that are kept](core/README.md#limits-that-adapt-and-limits-that-are-kept).
 
@@ -306,7 +275,7 @@ retains superseded source. No separate documentation closeout gate is needed.
 | Application commands and chat attachment | [Application](core/application/README.md) |
 | Print operations and skill tools | [Print tools](core/print/USAGE.md) and relevant [skill manuals](skills/DIGEST.md) |
 | Skill authorship and catalog maintenance | [Skill development](skills/AUTHORING.md) |
-| Map commands, page fields, the scan scope and external facts | [Map guide](dev-map/README.md) and the [map contract](#maps-and-local-documentation) |
+| Map commands and scope | [Map guide](dev-map/README.md) |
 | Developer entry instructions | [Developer context](DEVELOPER-CONTEXT.md); the generated map owns technical navigation |
 | Documentation navigation for each role (human reference) | `maker-context-map.html` and `builder-context-map.html` |
 | Shared terms | [GLOSSARY.md](GLOSSARY.md) |
@@ -319,7 +288,7 @@ behavior. A historical narrative in a technical manual
 does not become an exception merely by being there.
 
 Place specialized instructions where the operation or failure makes them useful;
-the same manuals should serve local agents and the connector's manual reader.
+the same manuals serve every agent that reads them.
 Architectural references should explain boundaries and consumers and link to
 owning source using ordinary repository tools. Review claims against source and
 recorded evidence. The optional `node scripts/check-repo.mjs` diagnoses document

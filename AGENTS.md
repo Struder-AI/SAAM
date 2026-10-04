@@ -12,7 +12,7 @@ Record lasting preferences there, never in the client's memory.
 
 ## Choose your role
 
-Choose from the request; default to maker. Web agents remain makers.
+Choose from the request; default to maker.
 
 | Request | First action |
 |---|---|

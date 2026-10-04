@@ -1,7 +1,7 @@
 # Skill and extension authoring
 
 Builders compose published interfaces into guidance, recipes, assets or
-workspaces; web agents remain makers. Core/shared changes require the developer
+workspaces. Core/shared changes require the developer
 role. Read [builder orientation](../BUILDERS.md) and the consumed contracts.
 
 `SKILL.md` owns maker operations, settings, limits and recovery; optional
