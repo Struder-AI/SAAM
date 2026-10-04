@@ -18,6 +18,7 @@
 import {readFileSync,writeFileSync} from 'node:fs';
 import {dirname,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {parse as acornParse} from 'acorn';
 import {TOP,drawMap,linkSet,treeAccess} from '../lib/tree.mjs';
 import {solveTree} from '../lib/solve.mjs';
 import {scoreDrawn,INFLUENCE,SIZE,WEIGHT,weightOf} from '../lib/score.mjs';
@@ -56,16 +57,27 @@ export function leafModel(analysis) {
 
 // The text each file's keys were taken in. The analysis reads files as they are on disk, so a
 // checkout's line endings, or an edit since, move every offset. Of each file under each source
-// root, as read and with LF/CRLF swapped, the first in which every key falls on the line its
-// name gives is the analysed text. A file in which none fits has changed since the analysis; it
-// is listed and its text under the first root used as read.
+// root, as read and with LF/CRLF swapped, the first in which every key (folded callables' too)
+// is the start of a function, class or the module, on the line its name gives, is the analysed
+// text. A file in which none fits has changed since the analysis; it is listed and its text under
+// the first root used as read.
 const keyAt=l=>{const k=/^(.*):(\d+)$/.exec(l.id),m=/^(.*?):(\d+) /.exec(l.name??'');
   return k&&m&&k[1]===m[1]?{file:k[1],offset:Number(k[2]),line:Number(m[2])}:null;};
+const callableStarts=text=>{
+  let ast=null;
+  for(const sourceType of ['module','script']){try{ast=acornParse(text,{ecmaVersion:'latest',sourceType,allowHashBang:true});break;}catch{}}
+  const starts=new Set([0]);if(!ast)return starts;
+  const walk=n=>{if(/^(FunctionDeclaration|FunctionExpression|ArrowFunctionExpression|ClassDeclaration|ClassExpression)$/.test(n.type))starts.add(n.start);
+    for(const v of Object.values(n)){if(Array.isArray(v)){for(const c of v)if(c&&typeof c.type==='string')walk(c);}else if(v&&typeof v.type==='string')walk(v);}};
+  walk(ast);return starts;
+};
 export function analysedTexts(leaves,{root=repo,roots=[root]}={}) {
   const keys=new Map(),texts=new Map(),changed=[];
-  for(const l of leaves){const at=keyAt(l);if(at)(keys.get(at.file)??keys.set(at.file,[]).get(at.file)).push(at);}
+  for(const l of leaves)for(const at of [keyAt(l),...(l.foldedNames??[]).map((name,i)=>keyAt({id:l.folded[i],name}))])
+    if(at)(keys.get(at.file)??keys.set(at.file,[]).get(at.file)).push(at);
   const fits=(text,held)=>{const starts=[0];for(let i=text.indexOf('\n');i>=0;i=text.indexOf('\n',i+1))starts.push(i+1);
-    return held.every(({offset,line})=>{let lo=0,hi=starts.length-1;while(lo<hi){const mid=(lo+hi+1)>>1;if(starts[mid]<=offset)lo=mid;else hi=mid-1;}return lo+1===line;});};
+    if(!held.every(({offset,line})=>{let lo=0,hi=starts.length-1;while(lo<hi){const mid=(lo+hi+1)>>1;if(starts[mid]<=offset)lo=mid;else hi=mid-1;}return lo+1===line;}))return false;
+    const callable=callableStarts(text);return held.every(({offset})=>callable.has(offset));};
   for(const [file,held] of [...keys].sort(([a],[b])=>order(a,b))) {
     const read=roots.map(r=>{try{return readFileSync(resolve(r,file),'utf8');}catch{return null;}}).filter(t=>t!==null);
     const text=read.flatMap(disk=>{const lf=disk.replaceAll('\r\n','\n');return [disk,lf===disk?lf.replaceAll('\n','\r\n'):lf];}).find(t=>fits(t,held));
