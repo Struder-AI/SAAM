@@ -4,6 +4,7 @@
 // PREFIX selects in-scope files by path prefix (`all` for the whole scope). --closure adds every
 // in-scope module the selection imports, transitively, so the analysis sees whole programs.
 // --depth sets how many call sites deep directly called functions are copied (default 1).
+// --selective N copies precision-critical callees (flows.mjs) up to N call sites deeper still.
 // --engine summary selects the compositional analysis (compile.mjs, compose.mjs) instead of the
 // whole-program copies; --max-depth N and --max-instances N bound its call-path contexts, and
 // --edit FILE (repeatable) then measures re-analysis after an edit to FILE.
@@ -38,7 +39,8 @@ const maxDepth=valueOf('--max-depth')!==undefined?+valueOf('--max-depth'):Infini
 const maxInstances=valueOf('--max-instances')!==undefined?+valueOf('--max-instances'):Infinity;
 const edits=argv.flatMap((a,i)=>a==='--edit'?[argv[i+1]]:[]);
 const maxMs=valueOf('--max-ms')!==undefined?+valueOf('--max-ms'):undefined;
-const valued=new Set(['--out','--platform','--depth','--draw','--svg','--engine','--max-depth','--max-instances','--edit','--max-ms']);
+const selective=valueOf('--selective')!==undefined?+valueOf('--selective'):0;
+const valued=new Set(['--out','--platform','--depth','--draw','--svg','--engine','--max-depth','--max-instances','--edit','--max-ms','--selective']);
 const prefixes=argv.filter((a,i)=>!a.startsWith('--')&&!valued.has(argv[i-1]));
 
 // Scope: SAAM code that runs in use. Tests, demos, benchmarks and development tooling are out.
@@ -92,7 +94,7 @@ if(engine==='summary') {
   t3=clock();
 } else {
   pt=new PointsTo();
-  built=buildConstraints(pt,modules,{resolveImport,platformModules,depth,unknownData:argv.includes('--unknown-data')});
+  built=buildConstraints(pt,modules,{resolveImport,platformModules,depth,selective,unknownData:argv.includes('--unknown-data')});
   t2=clock();
   settled=argv.includes('--no-unknown-calls')?(pt.solve(),null):built.settle();
   t3=clock();
@@ -169,7 +171,7 @@ if(out) {
     arrowlessLeafKeys:result.arrowless.map(i=>fns[i].key),
     arrows:result.arrows.map(a=>({from:name(fns[a.from]),to:name(fns[a.to]),fromKey:fns[a.from].key,toKey:fns[a.to].key,kind:a.kind,count:a.count})),
     leaves:[...result.leaves].map(i=>{const folded=fns.filter(f=>f.id!==i&&!f.inClone&&fn[f.id]!==f.id&&(()=>{let x=f.id;while(fn[x]!==x)x=fn[x];return x;})()===i);
-      return {leaf:name(fns[i]),key:fns[i].key,role:result.command[i]?'command':'query',folded:folded.map(name),foldedKeys:folded.map(f=>f.key)};})
+      return {leaf:name(fns[i]),key:fns[i].key,role:result.leafCommand[i]?'command':'query',folded:folded.map(name),foldedKeys:folded.map(f=>f.key)};})
   },null,1));
 }
 
