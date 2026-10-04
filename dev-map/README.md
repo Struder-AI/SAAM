@@ -126,7 +126,11 @@ every box moved this session. Positions persist as authored data
   `b:IDENTITY` for a boundary box, `list:NAME` for a marker.
 
 `build` and `regenerate` draw authored positions over solved ones; a box without one keeps its
-solved place, and only arrows touching a placed box are re-routed. A position whose map or box is
+solved place, and only arrows touching a placed box are re-routed. A re-routed arrow (and every
+arrow on map 0) meets each box where the line between the two box centres leaves it; arrows on one
+side are spread along it in that order (12 px apart, a full side passing its outermost round the
+corner) and leave and enter square to the side (`leveled.py direct_routes`; the live drag runs a
+line-for-line copy, so a rebuild draws what the drag showed, within 0.1 px). A position whose map or box is
 no longer drawn (a re-solve renumbered clusters, a leaf was renamed) stays in its file and is
 reported by `build`, `regenerate` and `check` (`placement.missing`) and listed on map 0.
 
