@@ -195,7 +195,12 @@ def _attrs(n):
             "explodes": n.explodes or "", "boundary-role": getattr(n, "boundary_role", ""),
             # The page this box opens, where a page holds boxes that are themselves pages.
             "go": getattr(n, "go", "") or "",
-            "co": " · ".join(n.co)}
+            "co": " · ".join(n.co),
+            # The box's identity for authored placement (it survives re-solves; the index
+            # does not) and where the drawing put it, so the viewer can move it and re-route
+            # its wires without reading the shapes back.
+            "ident": getattr(n, "ident", "") or "",
+            "box": f"{n.x:.2f},{n.y:.2f},{n.w:.2f},{n.h:.2f},{n.box_h:.2f}" if hasattr(n, "box_h") else ""}
     if n.anchor_ref:
         data["src"] = n.source_path
         data["line"] = str(n.source_line)
@@ -822,7 +827,7 @@ class Page:
             lines = e["label"].split("\n")
             w = max(max(tw(line, FS_EDGE) for line in lines), tw(shape, FS_FOOT) if shape else 0) + 10
             h = 13 + 12 * (len(lines) - 1) + (10 if shape else 0)
-            o.append(f'<g class="fm-elab"{_ends(e)}>')
+            o.append(f'<g class="fm-elab"{_ends(e)} data-lx="{lab[0]:.1f}" data-ly="{lab[1]:.1f}">')
             o.append(f'<rect x="{lab[0] - w / 2:.1f}" y="{lab[1] - 10:.1f}" '
                      f'width="{w:.1f}" height="{h}" rx="3" fill="#ffffff" opacity="0.93"/>')
             for line_index, line in enumerate(lines):

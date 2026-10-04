@@ -1,0 +1,5 @@
+{
+ "schema": 1,
+ "about": "Authored box positions on influence maps, by map path and box identity: dev-map/README.md#authored-placement. Map 0's authored nodes are placed in the authored set's architecture.json.",
+ "maps": {}
+}
