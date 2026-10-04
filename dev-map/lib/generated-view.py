@@ -1875,6 +1875,12 @@ def build(model, out):
             title = f'{index} {p["label"]}'
             sub = f'cluster · {len(p["components"])} boxes · {p["leaves"]} leaves'
             detail, ref = p["path"], None
+        elif not p.get("file"):
+            # An actor channel (channels.mjs) has no source file or lines.
+            title = f'{index} {p.get("label") or p["path"]}'
+            sub = (f'{p.get("kind") or "leaf"} · {p["path"]} · '
+                   f'{len(p["components"])} components, {len(p["wires"])} wires')
+            detail, ref = p["path"], None
         else:
             title = f'{index} {p["path"][len(p["file"]) + 2:]}'
             sub = (f'{p["path"]} · {p["file"]}:{p["line"]}-{p["endLine"]} · {p["lines"]} lines · '
