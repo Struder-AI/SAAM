@@ -61,7 +61,7 @@ The analysis represents every influence the code could exert, not whether a give
 
 ## Analysis
 
-Inclusion-based points-to analysis (Andersen), computed compositionally: each function is summarised once by what it does with its inputs (what it returns, reads, writes and calls in terms of its parameters and what it allocates), and summaries are composed over the call graph, strongly connected components together. An edit re-analyses the changed functions and only the callers whose summaries change. Call targets, roles and arrows are derived from the composed result, field-sensitive and with the call-site context that keeps one caller's values from returning to another. It uses the existing parser; any new dependency needs owner approval.
+Inclusion-based points-to analysis (Andersen), field-sensitive, with the call-site context that keeps one caller's values from returning to another. Every call is wired in every context; speed is judged on this sound analysis only. Everything is computed, never authored. The way to usable speed is whatever measures best: a full solve whose results, such as per-function summaries, let an edit re-analyse only what it reaches; summaries composed over the call graph; or an engineered incremental solver. Call targets, roles and arrows are derived from the result. It uses the existing parser; any new dependency needs owner approval.
 
 Regeneration must be fast enough to use while working, refreshing as code changes; the measure is usability, not improvement over the old scanner, which was too slow for that. Completeness is checked against behaviour: traces from real Studio and agent runs must show no influence the map lacks, and a miss is an analysis bug.
 
