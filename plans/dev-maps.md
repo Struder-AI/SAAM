@@ -19,7 +19,9 @@ An effect is a change another callable can observe; a private cache or a leaf's 
 
 B's effects are B's own arrows, read and checked at B. A decides whether to activate B and what to do with its outcome; it does not mediate what B does.
 
-State is where influence waits between a write and a read. Bundle is the only shared part state; all other state belongs privately to one stateful boundary.
+State is where influence waits between a write and a read. Bundle is the only shared part state; all other state belongs privately to one stateful boundary. Each piece of state is a node owned by its boundary: writes enter it and reads leave it (owner, 2026-10-04).
+
+Outside parties are authored top-level actors, each reached through declared channels. The analysis detects each platform contact's kind (file, network, console, process and so on) and, where a kind serves several actors, its visible target (folder, URL, stream); each is assigned to one actor's channel, and a contact matching no channel is drawn as unassigned. A submap's actor shows only the channels present there. Console output is an effect on the actor reading it (owner, 2026-10-04).
 
 ## Notation
 
@@ -33,11 +35,11 @@ The stored relationships stay directional; the drawing joins a pair.
 
 ## Leaves
 
-Every piece of SAAM code belongs to exactly one leaf, module load code included. A leaf is one callable with one causal role, opened as source. A helper folds into a leaf only when folding hides no arrow between other nodes. Leaves, their boundaries and their roles are computed from the analysis, never authored. Every leaf has at least one arrow: code with no causal effect does nothing, so it is removed. A leaf without arrows is either dead code to delete or an analysis gap to fix. A leaf that drives many unrelated effects is a design problem the map exposes, not a reason for a larger leaf. Leaf internals are read as source, not drawn.
+Every piece of SAAM code belongs to exactly one leaf, module load code included. A leaf is one callable with one causal role, opened as source. A callable folds into the leaf of its single entry, the one callable through which it is reached; a callback handed to the platform is reached through the callable that hands it over. A leaf stays within one file and takes the role of command if any member acts. A callable with several callers stays its own leaf; when it treats every caller the same way (a query reading no shared state), it belongs to its node's library, drawn on consumer maps as one box with one arrow per consumer box (owner, 2026-10-04). Leaves, their boundaries and their roles are computed from the analysis, never authored. Every leaf has at least one arrow: code with no causal effect does nothing, so it is removed. A leaf without arrows is either dead code to delete or an analysis gap to fix. A leaf that drives many unrelated effects is a design problem the map exposes, not a reason for a larger leaf. Leaf internals are read as source, not drawn.
 
 ## Levels
 
-- **Top level, authored.** The owner authors the top-level structure of each set (architecture, deployment): its nodes and the arrows they permit, each a contract. Every leaf has exactly one top-level owner.
+- **Top level, authored.** The owner authors the top-level structure of each set (architecture, deployment): its nodes, their page positions and the arrows they permit, each a contract. Every leaf has exactly one top-level owner.
 - **Leaves, generated** from source by analysis.
 - **Between them, solved.** Higher-level arrows are derived, never authored: two boxes are linked when some leaf arrow runs from inside one to inside the other, and the link carries the leaf arrows it stands for. The top level's derived arrows are checked against its authored ones.
 - **The solver works middle-out**: authored nodes fixed above, leaves below. It groups each authored node's leaves into nested maps and never moves a leaf across an authored boundary. The starting objective is the existing size, edge, hub, island and balance penalties ([score.mjs](../dev-map/lib/score.mjs)) over influence arrows. Backflow, arrows against a map's best left-to-right order and so cycles among its boxes, is left out for now. Labels come from label passes; the solver runs when the owner asks.
@@ -63,19 +65,19 @@ The analysis represents every influence the code could exert, not whether a give
 
 Inclusion-based points-to analysis (Andersen), field-sensitive, with the call-site context that keeps one caller's values from returning to another. Every call is wired in every context; speed is judged on this sound analysis only. Everything is computed, never authored. The way to usable speed is whatever measures best: a full solve whose results, such as per-function summaries, let an edit re-analyse only what it reaches; summaries composed over the call graph; or an engineered incremental solver. Call targets, roles and arrows are derived from the result. It uses the existing parser; any new dependency needs owner approval.
 
-Regeneration must be fast enough to use while working, refreshing as code changes; the measure is usability, not improvement over the old scanner, which was too slow for that. Completeness is checked against behaviour: traces from real Studio and agent runs must show no influence the map lacks, and a miss is an analysis bug.
+Regeneration must be fast enough to use while working, refreshing as code changes; the measure is usability, not improvement over the old scanner, which was too slow for that. Maps regenerate after each task; incremental analysis, refreshing as each edit is saved, follows once development uses the maps (owner, 2026-10-04). Completeness is checked against behaviour: traces from real Studio and agent runs must show no influence the map lacks, and a miss is an analysis bug.
 
 ## Scope
 
-**Analysed:** all SAAM code that runs when SAAM is used, including code in other processes, which connect through modelled channels such as worker messages, HTTP and files.
+**Analysed:** all SAAM code that runs when SAAM is used, including code in other processes, which connect through modelled channels such as worker messages, HTTP and files; also skill demos and examples (owned by maker context) and development tooling (its own top-level node), so changes show what they break (owner, 2026-10-04).
 
 **Platform:** language, runtime, browser, Node and third-party packages, including WASM libraries. Platform code is modelled, never drawn as nodes.
 
 **Boundaries:**
 - SAAM's own native code is a declared boundary with an authored contract until it is analysed.
-- Extensions installed outside the repository meet SAAM only at the extension interface.
+- Every extension, bundled or installed locally, meets SAAM at the extension interface: a fixed contract per entry type. The analysis resolves bundled extensions through their manifests and draws their code; a local extension it cannot see is checked against the contract.
 
-**Out of scope:** code that does not run in use, such as tests, demos, benchmarks and development tooling.
+**Out of scope:** tests and benchmarks.
 
 The owner may adjust scope.
 
@@ -89,5 +91,4 @@ The owner may adjust scope.
 
 ## Open decisions
 
-- **State on the map.** Recommendation: state is a node, owned by its boundary. Writes enter it and reads leave it, rather than an arrow from every writer to every reader.
 - **SAAM's own native code**: when and how to analyse it.
