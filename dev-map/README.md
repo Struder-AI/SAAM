@@ -78,10 +78,15 @@ Regenerate after each task. `regenerate --set 030-influence` runs:
 4. **Write** `store/model.json`, **draw** `view/`, and **verify** that reads match the drawings.
 
 Each closure is cached under `store/analysis/closures/` with a hash of its files, the analyser's
-modules, Node and acorn, so only closures holding an edited file run again. The merge is rewritten
-only when a closure's result changed, and an unchanged merge keeps every solve reused. A clean run
-takes about 4.5 minutes; an unchanged one a few seconds. After an edit, its closures rerun and,
-since the merge changed, every node solves again: about two minutes (2026-10-04).
+modules, Node and acorn, so only closures holding an edited file run again. Each node's solve is
+kept by a hash of exactly what it reads: its own leaves (by rank, so offsets that merely move do
+not count), its library leaves, the leaf arrows touching them with each far end as its owner node,
+the solve options and the solver's code. Only nodes whose slice changed solve again. With
+`"solve": "place"` in `map.json`, a changed node is not solved: its new leaves go to their file's
+cluster, read as `placement not solved` until a default (`"changed"`) regenerate solves it.
+Timings (2026-10-04): clean 43 minutes (40 of them geometry's solve); unchanged 14 s; a comment
+line in a settings file 3.3 minutes, all analysis, nothing re-solved; one added call there 2.6
+minutes, `settings` alone re-solved.
 
 ## Authoring
 
