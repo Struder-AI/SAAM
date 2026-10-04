@@ -11425,6 +11425,27 @@
     "core/application/home.mjs::@module": {
       "owner": "application"
     },
+    "packaging/application.mjs::@module": {
+      "owner": "application"
+    },
+    "packaging/application.mjs::jsonBody": {
+      "owner": "application"
+    },
+    "packaging/application.mjs::respond": {
+      "owner": "application"
+    },
+    "packaging/application.mjs::startApplication": {
+      "owner": "application"
+    },
+    "packaging/launch.mjs::<callback@11:10>": {
+      "owner": "application"
+    },
+    "packaging/launch.mjs::<callback@7:74>": {
+      "owner": "application"
+    },
+    "packaging/launch.mjs::@module": {
+      "owner": "application"
+    },
     "core/application/home.mjs::homePaths": {
       "owner": "application"
     },
