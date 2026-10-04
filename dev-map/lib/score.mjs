@@ -17,7 +17,8 @@
 //              drawn: 10 boxes of 2 wires routed through one box of 20 is a bottleneck
 //   islands    0.2 per squared group of members, beyond the first, with no link between them
 //   backflow   0.05 per squared member pair linked against the best left-to-right order; loops
-//              make some unavoidable, so it is scored, never forbidden
+//              make some unavoidable, so it is scored, never forbidden; influence maps leave it
+//              out for now (INFLUENCE)
 //   balance    2 × the square of the biggest home box's share of the nested leaves beyond an even
 //              share: a map that is one box holding nearly everything is a bottleneck
 // Crossing (the share of links touching the map's nested content that no box on it holds) is
@@ -41,37 +42,48 @@ export function callersOf(links) {
   return callers;
 }
 
-// One map's score from what it draws (tree.mjs drawMap).
-export function scoreDrawn(drawn,callers) {
-  const pairs=new Map();
-  for(const {from,to} of drawn.lifted)pairs.set(`${from}
-${to}`,[from,to]);
+// The influence maps' objective (plans/dev-maps.md#levels): the same parts and weights, over one
+// arrow per related pair of boxes, without backflow. The middle-out solver
+// (dev-map/influence/solve-middle.mjs) supplies the pairing.
+export const INFLUENCE={backflow:false};
+
+// One map's score from what it draws (tree.mjs drawMap). `pairsOf`, when given, joins what the map
+// draws into one wire per related pair of boxes ([a, b] each, either way round), and boundary and
+// external wires are then counted once per pair too; `backflow: false` leaves backflow out.
+export function scoreDrawn(drawn,callers,{pairsOf=null,backflow=true}={}) {
+  // Every wire drawn, boundary wires included, once each, and each box's wire count.
+  const wires=new Map(),degree=new Map(),edges=[];
+  const wire=(a,b)=>{
+    if(pairsOf&&b<a)[a,b]=[b,a];
+    let ends=wires.get(a);if(!ends)wires.set(a,ends=new Set());
+    if(ends.has(b))return false;
+    ends.add(b);degree.set(a,(degree.get(a)??0)+1);degree.set(b,(degree.get(b)??0)+1);return true;
+  };
+  if(pairsOf){for(const [a,b] of pairsOf(drawn))if(wire(a,b))edges.push([a,b]);}
+  else for(const {from,to} of drawn.lifted)if(wire(from,to))edges.push([from,to]);
   const ubiquitous=drawn.crossing.filter(c=>(callers.get(c.outside)??0)>=UBIQUITOUS).length;
   const homes=drawn.homes.length,outside=drawn.outside.map((box,i)=>`external:${i}`);
-  drawn.outside.forEach((box,i)=>{for(const m of box.into)pairs.set(`${outside[i]}\n${m}`,[outside[i],m]);
-    for(const m of box.from)pairs.set(`${m}\n${outside[i]}`,[m,outside[i]]);});
-  // Every wire drawn, boundary wires included, for each box's wire count.
-  const wires=new Set(pairs.keys()),boundary=new Set();
-  for(const {inside,out,boundary:box} of drawn.crossing){const b=`boundary:${box}`;boundary.add(b);
-    wires.add(out?`${inside}\n${b}`:`${b}\n${inside}`);}
-  const degree=new Map([...drawn.members,...outside,...boundary].map(m=>[m,0]));
-  for(const wire of wires)for(const end of wire.split('\n'))degree.set(end,degree.get(end)+1);
-  return rateMap([...drawn.members,...outside],[...pairs.values()],{inner:drawn.members.length,boundary:boundary.size,
-    degrees:[...degree.values()],crossing:drawn.crossing.length,
+  drawn.outside.forEach((box,i)=>{for(const m of box.into)if(wire(outside[i],m))edges.push([outside[i],m]);
+    for(const m of box.from)if(wire(m,outside[i]))edges.push([m,outside[i]]);});
+  const boundary=new Map();
+  for(const {inside,out,boundary:box} of drawn.crossing){let b=boundary.get(box);if(!b)boundary.set(box,b=`boundary:${box}`);
+    if(out||pairsOf)wire(inside,b);else wire(b,inside);}
+  return rateMap([...drawn.members,...outside],edges,{inner:drawn.members.length,boundary:boundary.size,
+    degrees:[...new Set([...drawn.members,...outside,...boundary.values()])].map(m=>degree.get(m)??0),crossing:drawn.crossing.length,
     crossingPlain:drawn.crossing.length-ubiquitous,touching:drawn.touching,touchingPlain:drawn.touching-ubiquitous,
-    balance:homes>1&&drawn.nested.size?drawn.largest/drawn.nested.size-1/homes:0});
+    balance:homes>1&&drawn.nested.size?drawn.largest/drawn.nested.size-1/homes:0,backflow});
 }
 
 // A map's score from its members, the member pairs linked on it, its boundary boxes, every drawn
 // box's wire count, its balance, and the links touching its content and leaving it.
-export function rateMap(members,edges,{inner,boundary,degrees,crossing,crossingPlain,touching,touchingPlain,balance}) {
+export function rateMap(members,edges,{inner,boundary,degrees,crossing,crossingPlain,touching,touchingPlain,balance,backflow=true}) {
   // Islands: members joined by any link in either direction.
   const parent=new Map(members.map(m=>[m,m]));
   const find=m=>parent.get(m)===m?m:find(parent.get(m));
   for(const [a,b] of edges)parent.set(find(a),find(b));
   const islands=new Set(members.map(find)).size;
-  const order=flowOrder(members,edges);
-  const backward=edges.filter(([a,b])=>order.get(a)>order.get(b)).length;
+  let backward=0;
+  if(backflow){const order=flowOrder(members,edges);backward=edges.filter(([a,b])=>order.get(a)>order.get(b)).length;}
   const square=x=>x*x,externals=members.length-inner,edge=externals+boundary;
   const mean=degrees.reduce((a,b)=>a+b,0)/Math.max(1,degrees.length),free=mean+WEIGHT.hubFree;
   const badness={
