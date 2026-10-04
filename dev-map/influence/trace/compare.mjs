@@ -1,5 +1,5 @@
 // Compare runtime traces (runtime.mjs files under a directory) with the analysis output of
-// `node dev-map/influence/run.mjs --depth 2 --out FILE all`. Reports every observed influence the
+// `node dev-map/influence/run.mjs --out FILE all`. Reports every observed influence the
 // map lacks, grouped by cause, and how much of the analysed code the traces exercised.
 //
 // Matching. The analysis names a callable "file:line name"; a trace knows its file, start offset,

@@ -520,6 +520,7 @@ export function compose(pt,units,{platformModules=new Map(),pathLimit=3,progress
   function union(H,list){const present=list.filter(n=>n!==undefined);if(present.length<2)return present[0];const t=newNode(H.id);for(const n of present)flow(n,t);return t;}
   function src(tok,c,key) {
     if(typeof tok==='object')return freshNode(tok,c,key);
+    if(tok==='number')return undefined;
     if(c.memo.has(tok))return c.memo.get(tok);
     const m=SOURCE.exec(tok);
     if(!m)throw Error(`Bad platform model source ${tok} (${c.api})`);

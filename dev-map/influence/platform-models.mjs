@@ -26,7 +26,10 @@
 // '[]' elements, '.*' any field, '.name' a field. An object {fresh: type, el, fields, any, copy}
 // is a new object the call makes: type is a runtime class path ('Array', 'node:fs.Stats') whose
 // prototype it gets, or a family; el/any/fields/copy fill its elements, every field, named
-// fields, or a shallow copy of the sources' fields.
+// fields, or a shallow copy of the sources' fields. In a callback's params, 'number' says the
+// position receives only numbers (an index, a typed array element): it carries no object, and a
+// computed key built from that parameter stays an element key (keys.mjs). A position without it
+// may receive anything.
 //
 // Families are platform values the analysis has no runtime value for (browser objects, WASM and
 // package objects, parsed data). A family member is looked up by method name in its `members`;
@@ -68,10 +71,11 @@ const iter=(...el)=>fresh('Iterator',el);
 const promise=(...el)=>fresh('Promise',el);
 const json=(...copy)=>({fresh:'json',copy,el:copy.map(c=>c+'[]')});
 const done={out:[promise()]};                                // a promise of completion only
-const EACH=[['this[]'],[],['this']];
+const EACH=[['this[]'],['number'],['this']];
+const EACH_NUMBER=[['number'],['number'],['this']];
 // A zod parse runs the callbacks kept in the schema and the schemas nested in it, with the input.
 const PARSE=['this[]','this[][]','this[][][]','this[][][][]'].map(fn=>({fn,params:[['arg0','arg0.*','arg0[]'],['?']]}));                         // (element, index, receiver)
-const each=(more={})=>({calls:[{fn:'arg0',params:EACH,this:['arg1']}],...more});
+const each=(more={},params=EACH)=>({calls:[{fn:'arg0',params,this:['arg1']}],...more});
 // Expands {'a b c': model} into {a: model, b: model, c: model}, with an optional path prefix.
 function group(prefix,table) {
   const out={};
@@ -96,7 +100,7 @@ const ARRAY_METHODS={
   'map':each({out:[arr('cb')]}),
   'includes indexOf lastIndexOf join toString toLocaleString':P,
   'push unshift':{into:[{to:'this[]',from:['args']}]},
-  'reduce reduceRight':{out:['cb','arg1'],calls:[{fn:'arg0',params:[['cb','arg1','this[]'],['this[]'],[],['this']]}]},
+  'reduce reduceRight':{out:['cb','arg1'],calls:[{fn:'arg0',params:[['cb','arg1','this[]'],['this[]'],['number'],['this']]}]},
   'reverse':{out:['this'],mutates:['this']},
   'sort':{out:['this'],mutates:['this'],calls:[{fn:'arg0',params:[['this[]'],['this[]']]}]},
   'slice toReversed':{out:[arr('this[]')]},
@@ -107,13 +111,13 @@ const ARRAY_METHODS={
 // Typed arrays hold numbers: results are fresh typed arrays and elements carry nothing.
 const TYPED_METHODS={
   'at includes indexOf lastIndexOf join toString toLocaleString':P,
-  'every some findIndex findLastIndex forEach find findLast':each(),
-  'filter map':each({out:[fresh('TypedArray')]}),
+  'every some findIndex findLastIndex forEach find findLast':each({},EACH_NUMBER),
+  'filter map':each({out:[fresh('TypedArray')]},EACH_NUMBER),
   'slice toReversed with':{out:[fresh('TypedArray')]},
-  'toSorted':{out:[fresh('TypedArray')],calls:[{fn:'arg0',params:[[],[]]}]},
-  'sort':{out:['this'],mutates:['this'],calls:[{fn:'arg0',params:[[],[]]}]},
+  'toSorted':{out:[fresh('TypedArray')],calls:[{fn:'arg0',params:[['number'],['number']]}]},
+  'sort':{out:['this'],mutates:['this'],calls:[{fn:'arg0',params:[['number'],['number']]}]},
   'reverse fill copyWithin set':{out:['this'],mutates:['this']},
-  'reduce reduceRight':{out:['cb','arg1'],calls:[{fn:'arg0',params:[['cb','arg1'],[],[],['this']]}]},
+  'reduce reduceRight':{out:['cb','arg1'],calls:[{fn:'arg0',params:[['cb','arg1'],['number'],['number'],['this']]}]},
   'subarray':{out:['this'],note:'A view on the same buffer: writes through it are writes to the receiver.'},
   'entries':{out:[iter(arr())]},'keys values':{out:[iter()]}
 };
@@ -160,22 +164,22 @@ export const MODELS={
     'freeze seal preventExtensions':{out:['arg0'],note:'Changes only integrity flags, which SAAM never reads back.'},
     'isFrozen isSealed isExtensible is hasOwn':P,
     'getPrototypeOf':{out:['arg0.__proto__']},
-    'defineProperty':{out:['arg0'],into:[{to:'arg0.*',from:['arg2.value']}],
-      note:'Data descriptors only (a hidden or fixed field). An accessor descriptor (get/set) is the accessor shape, reported separately.'},
-    'defineProperties':{out:['arg0'],into:[{to:'arg0.*',from:['arg1.*.value']}],note:'As defineProperty, for each descriptor.'},
+    'defineProperty':{engine:'defineProperty',
+      note:'The field named by arg1 (every field when the analysis cannot name it) takes the descriptor value; a getter runs when it is read and gives its value, a setter runs when it is written.'},
+    'defineProperties':{engine:'defineProperties',note:'As defineProperty, for each descriptor.'},
     'create':{out:[fresh('Object',[],{fields:{__proto__:['arg0']},any:['arg1.*.value']})]},
-    'getOwnPropertyDescriptors':{out:[fresh('Object',[],{any:[fresh('Object',[],{fields:{value:['arg0.*'],get:['arg0.*'],set:['arg0.*']}})]})]}
+    'getOwnPropertyDescriptors':{engine:'descriptors',note:'A fresh object with one data descriptor per field of arg0, its value that field (accessors, which SAAM reads only through defineProperties, are their current values).'}
   }),
   ...group('Object.prototype.',{'hasOwnProperty isPrototypeOf propertyIsEnumerable toString toLocaleString':P,'valueOf':{out:['this']}}),
   'Function.prototype.call':{engine:'call'},'Function.prototype.apply':{engine:'apply'},'Function.prototype.bind':{engine:'bind'},
   'Function.prototype.toString':P,
   'Array':{construct:{el:['args']},call:{out:[arr('args')]}},
   'Array.isArray':P,
-  'Array.from':{out:[arr('arg0[]','cb')],calls:[{fn:'arg1',params:[['arg0[]'],[]]}]},
+  'Array.from':{out:[arr('arg0[]','cb')],calls:[{fn:'arg1',params:[['arg0[]'],['number']]}]},
   'Array.of':{out:[arr('args')]},
   ...group('Array.prototype.',ARRAY_METHODS),
   ...group('TypedArray.prototype.',TYPED_METHODS),
-  'TypedArray.from':{out:[fresh('TypedArray')],calls:[{fn:'arg1',params:[['arg0[]'],[]]}]},
+  'TypedArray.from':{out:[fresh('TypedArray')],calls:[{fn:'arg1',params:[['arg0[]'],['number']]}]},
   'TypedArray.of':{out:[fresh('TypedArray')]},
   ...Object.fromEntries(['Float64Array','Float32Array','Int32Array','Uint32Array','Int16Array','Uint16Array','Int8Array','Uint8Array','Uint8ClampedArray','BigInt64Array','BigUint64Array']
     .map(n=>[n,{construct:{},note:'A copy of an array argument, or a view on a buffer argument (buffer sharing is not modelled).'}])),

@@ -7,8 +7,10 @@
 import {dirname,join,posix} from 'node:path';
 import {PairSet} from './points-to.mjs';
 import {lookupPlatform,typeOf,familyOf,familyPath,propertyType,BROWSER_ROOTS} from './platform-models.mjs';
+import {keyInfo,literalKey} from './keys.mjs';
 
 const ELEMENT='[]';
+const keys=key=>Array.isArray(key)?key:[key];
 const UNMODELLED_GLOBALS=new Set(['eval','Function','Proxy','Reflect']);
 const UNMODELLED_MEMBERS=new Set(['defineProperty','defineProperties','setPrototypeOf','__defineGetter__','__defineSetter__']);
 
@@ -55,6 +57,8 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     // A getter the analysis process cannot run on a prototype reads per-instance state; unless
     // platform-models.mjs declares its type, it is taken to return a primitive (recorded).
     let v;try{if(obj.value==null||!(name in Object(obj.value)))return undefined;v=obj.value[name];}catch{accessorReads.add(path);return undefined;}
+    // A primitive (a length, a name, a constant) is no object.
+    if(v===null||typeof v!=='object'&&typeof v!=='function')return undefined;
     return platform(path,v,true);
   }
   // One record per source location, however many copies walk it.
@@ -82,17 +86,22 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
         if(site){const p=pt.objects[o];(site.apis??=new Map()).set(`set ${p.known?p.name:pt.objects[familyObject(p)].name}.${name??'[computed]'}`,'store');}
         pt.on(value,v=>{if(isCallable(v))invokedByPlatform(v,writer,site,o);});return;
       }
-      if(name===null) {
-        if(!storedAll.add(o,value))return;
-        pt.field(o,'*');
-        pt.onField(o,(f,fnode)=>{if(f!=='__proto__')pt.edge(value,fnode);});
-      } else pt.edge(value,pt.field(o,name));
+      if(name===null)intoAllFields(value,o);
+      else pt.edge(value,pt.field(o,name));
     });
   }
   // Copies every field of src's objects into dst, except names the literal sets explicitly
   // after the spread ({...input, stats}: the later stats replaces the spread one).
+  // A value the source holds under an unknown name ('*') may be any field of the copy.
   function copyFields(src,dst,overridden) {
-    pt.on(src,o=>{if(isPlatform(o))return;pt.onField(o,(name,fnode)=>{if(name!=='__proto__'&&!overridden?.has(name))pt.edge(fnode,pt.field(dst,name));});});
+    pt.on(src,o=>{if(isPlatform(o))return;pt.onField(o,(name,fnode)=>{
+      if(name==='__proto__'||overridden?.has(name))return;
+      if(name==='*')intoAllFields(fnode,dst);else pt.edge(fnode,pt.field(dst,name));});});
+  }
+  function intoAllFields(value,o) {
+    if(!storedAll.add(o,value))return;
+    pt.field(o,'*');
+    pt.onField(o,(f,fnode)=>{if(f!=='__proto__')pt.edge(value,fnode);});
   }
 
   // A SAAM callable stored on a platform object (a handler property such as onclick) is invoked
@@ -100,7 +109,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   function invokedByPlatform(fobj,caller,site,holder) {
     const f=pt.objects[fobj].fn;
     if(!firstTime(site,`p${fobj}`))return;
-    site.platformCallbacks.push(f.id);
+    site.platformCallbacks.push(f.id);anyParams(f);
     const event=holder===undefined?UNKNOWN:familyObject(pt.objects[holder]);
     for(const p of f.params)pt.add(p,event);
     if(f.rest!==undefined)pt.add(f.rest,event);
@@ -120,9 +129,9 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     const hit=obj.kind==='platform'?lookupPlatform({path:obj.name,value:obj.value,known:obj.known,method,name,construct})
       :obj.name==='platform result'?lookupPlatform({path:'platform.unknown',known:false,method,name,construct})
       :{api:obj.name,notCallable:true};
-    site.platform=true;site.receiver=thisNode;
+    site.platform=true;site.receiver=site.receiverNode??thisNode;
     (site.apis??=new Map()).set(hit.api,hit.notCallable?'not-callable':hit.spec?hit.how:'unmodelled');
-    if(hit.notCallable||!firstTime(site,'pc|'+hit.api))return;
+    if(hit.notCallable||!firstTime(site,`pc|${hit.api}|${callee}`))return;
     const c={site,caller,thisNode,args,result,inst,api:hit.api,memo:new Map(),cb:undefined};
     if(hit.spec){applyModel(hit.spec,c);return;}
     note('platform:'+hit.api,caller,site.node);
@@ -138,7 +147,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     for(const a of args) {
       elementsOf(a,elements);
       pt.on(a,o=>{if(!isCallable(o))return;const f=pt.objects[o].fn;
-        if(!firstTime(site,'g'+o))return;site.platformCallbacks.push(f.id);
+        if(!firstTime(site,'g'+o))return;site.platformCallbacks.push(f.id);anyParams(f);
         for(const p of f.params){pt.add(p,UNKNOWN);pt.edge(elements,p);}
         if(f.rest!==undefined)pt.add(f.rest,UNKNOWN);
         if(!f.arrow)pt.add(f.thisNode,UNKNOWN);
@@ -154,6 +163,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   function cbNode(c){return c.cb??=pt.node();}
   function src(tok,c,key) {
     if(typeof tok==='object')return freshNode(tok,c,key);
+    if(tok==='number')return undefined;
     if(c.memo.has(tok))return c.memo.get(tok);
     const m=SOURCE.exec(tok);
     if(!m)throw Error(`Bad platform model source ${tok} (${c.api})`);
@@ -225,6 +235,8 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     if(!firstTime(c.site,`cb${fobj}|${c.api}|${i}`))return;
     c.site.platformCallbacks.push(f.id);
     const params=k.params??[];
+    // A position the model passes only numbers to (an index) keeps numeric keys numeric.
+    f.params.forEach((_,j)=>{if(!params[j]?.includes('number'))anyParam(f,j);});
     const feed=(j,target)=>{for(const s of params[j]??[]){const n=src(s,c,`p${i}.${j}`);if(n!==undefined)pt.edge(n,target);}};
     f.params.forEach((p,j)=>feed(j,p));
     if(f.rest!==undefined)for(let j=f.params.length;j<params.length;j++)feed(j,pt.field(f.restArray,ELEMENT));
@@ -232,12 +244,13 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     pt.edge(f.ret,cbNode(c));
   }
   // Function.prototype.call/apply/bind and the Promise constructor.
-  function engineCall(kind,{site,caller,thisNode,args,result,inst}) {
+  function engineCall(kind,{site,caller,thisNode,args,result,inst,api}) {
     if(kind==='bind'){if(thisNode!==undefined)pt.edge(thisNode,result);return;}
+    if(kind==='descriptors'||kind==='defineProperty'||kind==='defineProperties'){propertyModel(kind,{site,caller,args,result,api});return;}
     if(kind==='promise') {
       const resolver=pt.object({kind:'resolver',target:inst,name:'resolve'});
       for(const a of args)pt.on(a,fo=>{if(!isCallable(fo))return;const f=pt.objects[fo].fn;
-        if(!firstTime(site,'pr'+fo))return;site.targets.push(f.id);for(const p of f.params)pt.add(p,resolver);});
+        if(!firstTime(site,'pr'+fo))return;site.targets.push(f.id);anyParams(f);for(const p of f.params)pt.add(p,resolver);});
       return;
     }
     if(thisNode===undefined)return;
@@ -245,8 +258,48 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
       if(!firstTime(site,'ca'+fo))return;site.targets.push(f.id);
       if(!f.arrow&&args[0]!==undefined)pt.edge(args[0],f.thisNode);
       if(kind==='call')bindArguments(f,args.slice(1));
-      else if(args[1]!==undefined){const t=pt.node();load(args[1],ELEMENT,t,caller);for(const p of f.params)pt.edge(t,p);}
+      else{anyParams(f);if(args[1]!==undefined){const t=pt.node();load(args[1],ELEMENT,t,caller);for(const p of f.params)pt.edge(t,p);}}
       pt.edge(f.ret,result);});
+  }
+  // Object.getOwnPropertyDescriptors, defineProperty and defineProperties, field by field: a
+  // descriptor's value becomes the field of the same name; a getter runs when the field is read
+  // (its result is the field's value), a setter when it is written (it receives what is written).
+  function propertyModel(kind,{site,caller,args,result,api}) {
+    if(kind==='descriptors') {
+      const made=site.made??=new Map();
+      let r=made.get(api);
+      if(r===undefined){r=pt.object({kind:'value',name:`Object from ${api}`,owner:caller.id,site:site.id,fresh:'Object'});made.set(api,r);pt.add(pt.field(r,'__proto__'),OBJECT_PROTO);}
+      pt.add(result,r);
+      const descriptor=new Map();
+      if(args[0]!==undefined)pt.on(args[0],o=>{if(isPlatform(o))return;pt.onField(o,(name,fnode)=>{
+        if(name==='__proto__')return;
+        let d=descriptor.get(name);
+        if(d===undefined){d=pt.object({kind:'value',name:`descriptor from ${api}`,owner:caller.id,site:site.id,fresh:'Object'});descriptor.set(name,d);
+          pt.add(pt.field(d,'__proto__'),OBJECT_PROTO);
+          if(name==='*'){const n=pt.node();pt.add(n,d);intoAllFields(n,r);}else pt.add(pt.field(r,name),d);}
+        pt.edge(fnode,pt.field(d,'value'));
+      });});
+      return;
+    }
+    if(args[0]!==undefined)pt.edge(args[0],result);
+    const target=args[0];if(target===undefined)return;
+    const define=(name,desc)=>{
+      const value=pt.node();load(desc,'value',value,caller);
+      store(target,name,value,caller,site);
+      const getter=pt.node();load(desc,'get',getter,caller);
+      const setter=pt.node();load(desc,'set',setter,caller);
+      pt.on(getter,g=>{if(!isCallable(g))return;const f=pt.objects[g].fn;if(!firstTime(site,'get'+g))return;
+        site.platformCallbacks.push(f.id);anyParams(f);
+        if(!f.arrow)pt.edge(target,f.thisNode);
+        const v=pt.node();pt.edge(f.ret,v);store(target,name,v,caller,site);});
+      pt.on(setter,g=>{if(!isCallable(g))return;const f=pt.objects[g].fn;if(!firstTime(site,'set'+g))return;
+        site.platformCallbacks.push(f.id);anyParams(f);
+        if(!f.arrow)pt.edge(target,f.thisNode);
+        const written=pt.node();load(target,name,written,caller);if(f.params[0]!==undefined)pt.edge(written,f.params[0]);});
+    };
+    if(kind==='defineProperty'){const desc=args[2];if(desc!==undefined)eachKey(site.keyArg??null,name=>define(name,desc));return;}
+    const descs=args[1];if(descs===undefined)return;
+    pt.on(descs,o=>{if(isPlatform(o))return;pt.onField(o,(name,fnode)=>{if(name!=='__proto__')define(name==='*'?null:name,fnode);});});
   }
   function dispatch(o,site,caller,thisNode,args,result,method) {
     const obj=pt.objects[o];
@@ -265,6 +318,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   }
   // A spread argument (args.spreadAt) may supply every parameter from its position on.
   function bindArguments(f,args) {
+    anyParams(f);
     const at=args.spreadAt??-1;
     args.forEach((a,i)=>{
       if(at>=0&&i>=at){for(let j=i;j<f.params.length;j++)pt.edge(a,f.params[j]);}
@@ -272,6 +326,30 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
       if(i>=f.params.length||at>=0&&i>=at)if(f.rest!==undefined)pt.edge(a,pt.field(f.restArray,ELEMENT));
     });
   }
+  // A method call dispatches on each receiver object separately: a callee read from receiver r
+  // runs with `this` holding only the receivers it was read from, so a method (or a platform
+  // model) never sees receivers whose own method is another function. Sound: at run time `this`
+  // is the object the callee was read from.
+  function methodCall(site,caller,base,method,args,result) {
+    caller.calls.push(site);
+    const nodes=spreadNodes(args,caller);
+    const callee=pt.node();
+    calls.push({site,caller,callee,args:nodes,result});
+    const thisFor=new Map(),methodNodes=caller.methodNodes??=new Map();
+    const key=methodKey(method);
+    pt.on(base,r=>{
+      const k=r*4096+key;let mn=methodNodes.get(k);
+      if(mn===undefined){mn=pt.node();methodNodes.set(k,mn);loadFrom(r,method,mn,caller);}
+      pt.on(mn,c=>{
+        let tn=thisFor.get(c);
+        if(tn!==undefined){pt.add(tn,r);return;}
+        tn=pt.node();thisFor.set(c,tn);pt.add(tn,r);pt.add(callee,c);
+        dispatch(c,site,caller,tn,nodes,result,method);
+      });
+    });
+  }
+  const methodKeys=new Map();
+  const methodKey=m=>{let k=methodKeys.get(m);if(k===undefined){k=methodKeys.size;if(k>=4096)throw Error('more than 4096 method names');methodKeys.set(m,k);}return k;};
   function call(site,caller,callee,thisNode,args,result,method) {
     caller.calls.push(site);
     const nodes=spreadNodes(args,caller);
@@ -388,7 +466,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
       for(const k in n){if(k==='loc')continue;const v=n[k];if(Array.isArray(v))v.forEach(visit);else if(v&&typeof v.type==='string')visit(v);}};
     visit(mod.ast);
     for(const r of reassigned)local.delete(r);
-    prepared.set(mod.file,{mod,ctx,local,exports,imports,reexports});
+    prepared.set(mod.file,{mod,ctx,local,exports,imports,reexports,keyInfo:keyInfo(mod.ast)});
     // Imports bind before the body runs.
     for(const s of mod.ast.body)if(s.type==='ImportDeclaration') {
       const target=moduleNamespace(mod,s.source.value,moduleFn,s);
@@ -531,7 +609,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
         for(const q of p.properties) {
           if(q.type==='RestElement'){bindPattern(q.argument,value,ctx);continue;}
           const key=propertyKey(q,ctx);
-          const t=pt.node();if(value!==undefined)load(value,key,t,ctx.fn);
+          const t=pt.node();if(value!==undefined)eachKey(key,k=>load(value,k,t,ctx.fn));
           bindPattern(q.value,t,ctx);
         }
         return;
@@ -558,8 +636,11 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     if(target.type==='Identifier'){if(value!==undefined)pt.edge(value,identifier(target.name,ctx));return;}
     if(target.type==='MemberExpression') {
       const base=expression(target.object,ctx);const key=memberKey(target,ctx);
-      if(base!==undefined&&value!==undefined)store(base,key,value,ctx.fn,site(ctx.fn,target));
-      else if(base!==undefined)ctx.fn.stores.push({base,name:key,site:site(ctx.fn,target)});
+      const at=site(ctx.fn,target);
+      eachKey(key,k=>{
+        if(base!==undefined&&value!==undefined)store(base,k,value,ctx.fn,at);
+        else if(base!==undefined)ctx.fn.stores.push({base,name:k,site:at});
+      });
       return;
     }
     bindPattern(target,value,ctx);
@@ -568,24 +649,61 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   function write(target,ctx) {
     if(target.type!=='MemberExpression')return;
     const base=expression(target.object,ctx);
-    if(base!==undefined)ctx.fn.stores.push({base,name:memberKey(target,ctx),site:site(ctx.fn,target)});
+    if(base!==undefined){const at=site(ctx.fn,target);eachKey(memberKey(target,ctx),k=>ctx.fn.stores.push({base,name:k,site:at}));}
   }
   function laterKeys(properties,spread) {
     const keys=new Set();
     for(const q of properties.slice(properties.indexOf(spread)+1))if(q.type==='Property'&&!q.computed)keys.add(q.key.type==='Identifier'?q.key.name:String(q.key.value));
     return keys;
   }
+  // A property key: a name, ELEMENT for an array index (numbers and index strings are the same
+  // property), a list of names (a key proved to be one of several strings), or null (any field).
   function propertyKey(p,ctx) {
-    if(!p.computed)return p.key.type==='Identifier'?p.key.name:p.key.type==='PrivateIdentifier'?'#'+p.key.name:String(p.key.value);
-    if(p.key.type==='Literal')return typeof p.key.value==='number'?ELEMENT:String(p.key.value);
-    expression(p.key,ctx);return null;
+    if(!p.computed)return p.key.type==='Identifier'?literalKey(p.key.name):p.key.type==='PrivateIdentifier'?'#'+p.key.name:literalKey(p.key.value);
+    return computedKey(p.key,ctx);
   }
   function memberKey(m,ctx) {
-    if(!m.computed)return m.property.type==='PrivateIdentifier'?'#'+m.property.name:m.property.name;
-    const k=m.property;
-    if(k.type==='Literal')return typeof k.value==='number'?ELEMENT:String(k.value);
-    expression(k,ctx);
-    return null;
+    if(!m.computed)return m.property.type==='PrivateIdentifier'?'#'+m.property.name:literalKey(m.property.name);
+    return computedKey(m.property,ctx);
+  }
+  function computedKey(k,ctx) {
+    if(k.type==='Literal')return literalKey(k.value);
+    if(!ctx.noWalk)expression(k,ctx);
+    const key=prepared.get(ctx.mod.file).keyInfo.keyOf(k);
+    if(key===undefined)return null;
+    if(!key.params)return key;
+    // A key numeric on parameters: the walks of the functions declaring them, enclosing this one.
+    const params=[];
+    for(const r of key.params) {
+      let f=ctx.fn;while(f&&f.start!==r.fn.start)f=f.owner!=null?functions[f.owner]:null;
+      if(!f)return null;
+      params.push({f,index:r.index});
+    }
+    return {params};
+  }
+  // Calls fn for each field a key names. A key numeric on parameters names the element field,
+  // and every field as soon as one of those parameters may receive something other than a number.
+  function eachKey(key,fn) {
+    if(key===null||typeof key!=='object'){fn(key);return;}
+    if(Array.isArray(key)){for(const k of key)fn(k);return;}
+    fn(ELEMENT);
+    let widened=false;const widen=()=>{if(!widened){widened=true;fn(null);}};
+    for(const {f,index} of key.params)whenAnyParam(f,index,widen);
+  }
+  // What each function's parameters may receive: every position not proved numeric is `any`.
+  function whenAnyParam(f,index,fn) {
+    if(f.allAny||f.anyParams?.has(index)){fn();return;}
+    const w=f.paramWaiters??=new Map();(w.get(index)??w.set(index,[]).get(index)).push(fn);
+  }
+  function anyParam(f,index) {
+    if(f.allAny||f.anyParams?.has(index))return;
+    (f.anyParams??=new Set()).add(index);
+    const w=f.paramWaiters?.get(index);if(w){f.paramWaiters.delete(index);for(const fn of w)fn();}
+  }
+  function anyParams(f) {
+    if(f.allAny)return;
+    f.allAny=true;
+    const w=f.paramWaiters;if(w){f.paramWaiters=null;for(const list of w.values())for(const fn of list)fn();}
   }
 
   // --- expressions: return the node holding the value, or undefined for primitives --------
@@ -611,10 +729,12 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
           if(p.type==='SpreadElement'){const s=expression(p.argument,ctx);if(s!==undefined)copyFields(s,o,laterKeys(e.properties,p));continue;}
           const key=propertyKey(p,ctx);
           if(p.kind==='get'||p.kind==='set')note('accessor',ctx.fn,p);
-          const val=p.value.type==='FunctionExpression'||p.value.type==='ArrowFunctionExpression'?functionValue(p.value,ctx,key,{thisNode:undefined}):expression(p.value,ctx);
+          const val=p.value.type==='FunctionExpression'||p.value.type==='ArrowFunctionExpression'?functionValue(p.value,ctx,typeof key==='string'?key:undefined,{thisNode:undefined}):expression(p.value,ctx);
           if(val===undefined)continue;
-          if(key===null){pt.edge(val,pt.field(o,'*'));pt.onField(o,(_,f)=>pt.edge(val,f));}
-          else pt.edge(val,pt.field(o,key));
+          eachKey(key,k=>{
+            if(k===null){pt.edge(val,pt.field(o,'*'));pt.onField(o,(_,f)=>pt.edge(val,f));}
+            else pt.edge(val,pt.field(o,k));
+          });
         }
         return v;}
       case 'FunctionExpression':case 'ArrowFunctionExpression':case 'FunctionDeclaration':return functionValue(e,ctx);
@@ -623,7 +743,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
         const base=expression(e.object,ctx);const key=memberKey(e,ctx);
         if(!e.computed&&UNMODELLED_MEMBERS.has(key))note('member:'+key,ctx.fn,e);
         if(base===undefined)return undefined;
-        const t=pt.node();load(base,key,t,ctx.fn);return t;}
+        const t=pt.node();eachKey(key,k=>load(base,k,t,ctx.fn));return t;}
       case 'ChainExpression':return expression(e.expression,ctx,{unused});
       case 'CallExpression':return callExpression(e,ctx,unused);
       case 'NewExpression':{const callee=expression(e.callee,ctx);const args=argumentNodes(e.arguments,ctx);const r=pt.node();
@@ -682,8 +802,17 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
       thisNode=m.object.type==='Super'?ctx.thisNode:expression(m.object,ctx);
       const base=m.object.type==='Super'?ctx.classInfo?.superProtoNode:thisNode;
       method=memberKey(m,ctx);
+      if(method!==null&&typeof method==='object')method=null;
       if(!m.computed&&UNMODELLED_MEMBERS.has(method))note('member:'+method,ctx.fn,m);
       if(m.computed&&m.property.type!=='Literal')note('computed-callee',ctx.fn,m);
+      if(base===thisNode) {
+        const args=argumentNodes(e.arguments,ctx);const r=pt.node();
+        // Object.defineProperty names its field by its second argument.
+        const keyArg=method==='defineProperty'&&e.arguments[1]&&e.arguments[1].type!=='SpreadElement'?computedKey(e.arguments[1],{...ctx,noWalk:true}):undefined;
+        if(base!==undefined)methodCall({...site(ctx.fn,e,source(c,ctx)),resultUsed:!unused,name:calleeName(c),member:method,receiverNode:thisNode,keyArg},ctx.fn,base,method,args,r);
+        else ctx.fn.calls.push({...site(ctx.fn,e,source(c,ctx)),resultUsed:!unused,name:calleeName(c),member:method});
+        return r;
+      }
       callee=pt.node();if(base!==undefined)load(base,method,callee,ctx.fn);
     } else {
       const target=c.type==='Identifier'&&cloning?staticTarget(c.name,ctx):undefined;
@@ -768,7 +897,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     for(const m of node.body.body) {
       if(m.kind==='constructor')continue;
       if(m.type==='StaticBlock'){statements(m.body,{...cctx,thisNode:v});continue;}
-      const key=propertyKey(m,cctx);
+      let key=propertyKey(m,cctx);if(key!==null&&typeof key==='object')key=null;
       const holder=m.static?ctor.object:proto;
       if(m.type==='MethodDefinition') {
         if(m.kind==='get'||m.kind==='set')note('accessor',ctor,m);
@@ -809,7 +938,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
         r.unknown=true;fresh++;r.site.unknownCallee=true;
         const invoke=o=>{
           if(!isCallable(o)||!firstTime(r.site,'u'+o))return;
-          const f=pt.objects[o].fn;r.site.platformCallbacks.push(f.id);
+          const f=pt.objects[o].fn;r.site.platformCallbacks.push(f.id);anyParams(f);
           if(unknownData)for(const p of f.params)pt.add(p,DATA);
           if(unknownData&&f.rest!==undefined)pt.add(f.rest,DATA);
           if(unknownData&&!f.arrow)pt.add(f.thisNode,DATA);

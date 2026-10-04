@@ -6,7 +6,7 @@
 //       run workflows (workflows.mjs; default all) in fresh Node processes with every in-scope
 //       module instrumented, workers and child Node processes included; traces land in DIR
 //   node dev-map/influence/trace/trace.mjs compare --dir DIR --analysis FILE [--out FILE] [--examples N]
-//       compare the traces with `node dev-map/influence/run.mjs --depth 2 --out FILE all`
+//       compare the traces with `node dev-map/influence/run.mjs --out FILE all`
 // Instrumentation: register.mjs (preload and load hook), instrument.mjs (source rewrite),
 // runtime.mjs (recorder). Comparison: compare.mjs.
 import {execFileSync,spawnSync} from 'node:child_process';

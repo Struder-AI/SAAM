@@ -1,5 +1,26 @@
 # Development log
 
+## 2026-10-04 — Sound whole scope: receiver-filtered dispatch and named keys (whole scope not yet finishing)
+
+- Cause, measured (instrumented solve: objects in most sets, backward copy chains, per-site loads): not unmodelled platform results. Two precision losses merged everything. (1) A method call bound `this` to the whole receiver set, so `Array.prototype.map` saw manifold and rhino objects as receivers, and generic family calls saw arrays. (2) Dynamic-key reads (`o[i]`, `o[k]`) read every field of every object, flattening records level by level. Ignoring all-field reads (diagnostic only) made whole scope solve in 1.5–3.4 s; ignoring all-field writes did not help.
+- `constraints.mjs`: method calls dispatch per receiver object. A callee read from receiver r runs with `this` holding only the receivers it came from. This is sound because at run time `this` is the object the callee was read from. On its own it took the `core/geom` closure from 157 s to 0.18 s of solving. Platform properties holding primitives (`Array.prototype.length`, `Function.prototype.name`) are no longer objects.
+- `keys.mjs` (new): a lexical scope resolver classifies every binding.
+  - Numeric keys (loop counters, arithmetic, `Math.*`) read and write only the element field. Numbers and canonical numeric strings share that field.
+  - A `const` string, or a loop over a literal list of strings, names its fields.
+  - A key that is numeric on a parameter (`a.map((v,i)=>b[i])`) stays an element key while every invocation passes a number there. Platform model params carry a new `number` token. A SAAM call, unknown callee, generic platform call, handler, getter or setter, `apply` or `Promise` executor widens the key to every field when it happens.
+- Property models: `Object.getOwnPropertyDescriptors`, `defineProperties` and `defineProperty` now work field by field. Getters run on read and setters on write, which adds call edges. `copyFields` now sends values written under unknown names (`*`) to every field of the copy, closing a soundness gap. Small checks (scratch): index, map-index, string-list, descriptor, getter and per-receiver dispatch all give exactly the expected objects. A parameter fed by a SAAM call widens.
+- Measured, sound, depth 1:
+
+  | Closure | Before | Now |
+  |---|---|---|
+  | `core/geom` | 157 s | 1.0 s |
+  | `core/geom/import-stl.mjs` | 19 s | 0.36 s |
+  | `core/path` | 0.97 s / 202 MB | 1.1 s / 251 MB |
+
+  Other closures: `core/print/slices.mjs` 1.6 s, `studio/app.mjs` 0.5 s, `core/region` 0.7 s, `core/export` 0.4 s, `core/print/workflow.mjs` 0.5 s, `studio/server.mjs` 0.75 s. `core/path` roles 1458/266, arrows 2,557 (answer 2,197, both 194, acknowledged 74, activation 92). Two of the new arrows come from getter and setter edges.
+- **Still not finishing:** `core/application` closure (stopped at 600 s) and whole scope (stopped at 900 s with a 12 GB heap limit; it ran out of time, not memory). The remaining merging is generic record walkers whose keys come from `Object.entries` or `Object.keys`, with recursion: `core/print/resolve-plan.mjs` `mergeRecord`, `core/machine/settings.mjs` `mergeSettings`, `core/print/spatial-inputs.mjs`, and `core/print/workflow.mjs` `planChanges`. Next: correlation tracking (Sridharan et al. 2012). Analyse a loop body `for (const [k,v] of Object.entries(o)) t[k]=f(v)` or `for (k in o)` once per field of `o`'s objects, with `k` as that named key.
+- Not done: whole-scope numbers, trace comparison, arrowless-leaf census, module-load arrows, incremental re-solve. `trace.mjs` and `compare.mjs` comments no longer cite `--depth 2`. `compose.mjs` accepts the `number` token, so it still imports. No tests run.
+
 ## 2026-10-04 — Sound copying engine and solver engineering: sound, but whole scope does not finish
 
 - Soundness: `constraints.mjs` keyed indirect calls, constructors and platform models by `site.id`, shared by every copy of a function, so only the first walk wired them, and the first walk is usually the uncalled original. Each walk of a site now records its own work (`site.done`). Small examples (a method reached through a copied helper, a constructor, a platform `map`, a nested helper): the old engine left every caller's result empty except one platform call; the new one wires them all. Cost is almost entirely the platform models: wiring only calls and constructors per copy left the `core/print/slices.mjs` closure at 0.44 M copy edges; with the platform models per copy it reached 4.6 M.
