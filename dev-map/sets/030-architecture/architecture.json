@@ -1008,6 +1008,7 @@
     {"id":"geometry-leaf-dca04ab2bf6a","index":"2.3.3.5.2","label":"rhino","description":"rhino in core/geom/runtime.mjs.","type":"component","source":{"file":"core/geom/runtime.mjs","declaration":"rhino"}},
     {"id":"toolpath","index":"3","label":"Toolpath engine","description":"Inject, Trace and Slice produce the completed SAAMpath, including explicit motion planning.","type":"component"},
     {"id":"application","index":"10","label":"Application","description":"The saam command and its runtime: operation dispatch, chats, Studio attachment, jobs and the SAAM home; carries agent requests to the engines, Bundle and Workspace.","type":"component","notes":["Owns the agent-facing application: scripts/saam.mjs, core/application (runtime, control, home, computation jobs, deposition schemas), the print and extension command hosts (core/print/cli.mjs, geometry-tools, import-stl, import-resource, gridfinity and thingi10k cli) and blob-field authoring commands. Installation, service, tray and update packaging belong to the 030-deployment set.","Map-0 arrows for this node are the owner's to author; drafted wires are proposals until approved."]},
+    {"id":"development","index":"11","label":"Development tooling","description":"Repository checks, setup verification, native helper and release builds, and developer map and context tools; outside the installed product.","type":"component","notes":["Owns scripts/check-repo.mjs, scripts/setup-check.mjs, scripts/skill-digest.mjs, scripts/build-mesh-repair.mjs, the release build (packaging/build.mjs, packaging/native-repair.mjs) and, at declaration level, the development parts of the source toolkit: map read/regenerate (core/agent/toolkit.mjs mapCommand, readMaps, regenerateMap, developerMapSet, execFileAsync), syncStatus and contextBudget (core/agent/layers.mjs). Builder and maker onboarding stay with Maker context (1); the shared onboarding and runCLI declarations, which also dispatch developer onboarding, stay there until a file split.","Map-0 arrows for this node are the owner's to author; drafted wires are proposals until approved."]},
     {"id":"geometry-native-resources","index":"2.3.3.6","label":"Native mesh repair resources","description":"Geometry-owned native implementation, build inputs and provenance. C++ is a source module leaf; its internal calls are outside the JavaScript scanner.","type":"component"},
     {"id":"geometry-native-resource-1","index":"2.3.3.6.1","label":"Native repair program","description":"Native repair program; explicit source resource, not scanned JavaScript declarations.","type":"component","source":{"file":"core/geom/native/mesh-repair.cpp"}},
     {"id":"geometry-native-resource-2","index":"2.3.3.6.2","label":"Native build configuration","description":"Native build configuration; explicit source resource, not scanned JavaScript declarations.","type":"component","source":{"file":"core/geom/native/CMakeLists.txt"}},
@@ -5177,6 +5178,10 @@
         "10": {
           "x": 440,
           "y": 280
+        },
+        "11": {
+          "x": 35,
+          "y": 1035
         },
         "external:user": {
           "x": 35,
