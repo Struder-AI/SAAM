@@ -4,7 +4,7 @@ import {mkdtemp,rm,readFile,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
-import {createBlobFieldEvaluator,validateBlobField} from '../geom/blob-field.mjs';
+import {prepareBlobField,evaluateBlobField,validateBlobField} from '../geom/blob-field.mjs';
 import {compileBlobField} from '../geom/blob-field-compile.mjs';
 import {solidKernel,preciseSolidMesh} from '../geom/solid.mjs';
 import {validateBlobFieldRecord} from '../geom/blob-field-record.mjs';
@@ -32,8 +32,8 @@ test('solid export retains coordinates below a Float32 ULP and honors property s
 });
 
 test('falloff sums: a lone point reaches the threshold at half its reach, gradients match differences, invalid points fail',()=>{
-  const f=field([blob([1,2,5],8),blob([4,2,5],6,-0.5)]),evaluate=createBlobFieldEvaluator(f);
-  close(createBlobFieldEvaluator(field([blob([0,0,5],10)]))([5,0,5]).value,0.25);
+  const f=prepareBlobField(field([blob([1,2,5],8),blob([4,2,5],6,-0.5)])),evaluate=(point,options)=>evaluateBlobField(f,point,options);
+  close(evaluateBlobField(prepareBlobField(field([blob([0,0,5],10)])),[5,0,5]).value,0.25);
   close(evaluate([20,20,20]).value,0);
   const point=[2.3,3.1,4.2],at=evaluate(point,{derivatives:true});
   for(let a=0;a<3;a++){const lo=[...point],hi=[...point];lo[a]-=1e-6;hi[a]+=1e-6;close(at.gradient[a],(evaluate(hi).value-evaluate(lo).value)/2e-6,1e-6);}
