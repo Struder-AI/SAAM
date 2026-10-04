@@ -6,13 +6,20 @@ import {parseArgs} from 'node:util';
 import {repoRoot as root} from './lib/store.mjs';
 import {commandArgs,setFile,mapSet} from './lib/map-set.mjs';
 
-const usage='Use: node dev-map/cli.mjs [--set NAME] read ADDRESS | build | regenerate [INDEX] | solve [--seed N] | flow-evidence ADDRESS | check [--json] | score [--json] | watch-freshness [--once] [--interval-ms 2000]';
+const usage='Use: node dev-map/cli.mjs [--set NAME | --set-dir DIR] read ADDRESS | build | regenerate [INDEX] | solve [--seed N] | flow-evidence ADDRESS | check [--json] | score [--json] | watch-freshness [--once] [--interval-ms 2000]';
 const [command='build',...args]=commandArgs;
 if(command==='read') {
   const {positionals}=parseArgs({args,allowPositionals:true,options:{}});
   if(positionals.length>1)throw Error('Read one map or contract address.');
   const {readMap}=await import('./lib/read.mjs');
   console.log(JSON.stringify(await readMap(positionals[0]??'0',{repo:root}),null,1));
+  process.exit(0);
+}
+// A solved influence set (influence/solved-set.mjs) is written whole by its generator: it is
+// read, drawn and checked here, never scanned or solved.
+if(mapSet?.mode==='influence') {
+  const {influenceCommand}=await import('./influence/solved-set.mjs');
+  await influenceCommand(command,args);
   process.exit(0);
 }
 if(mapSet?.mode==='design') {
