@@ -44,7 +44,8 @@ const valued=new Set(['--out','--platform','--depth','--draw','--svg','--engine'
 const prefixes=argv.filter((a,i)=>!a.startsWith('--')&&!valued.has(argv[i-1]));
 
 // Scope: SAAM code that runs in use. Tests, demos, benchmarks and development tooling are out.
-const ROOTS=/^(core|studio|skills|workspaces|packaging|scripts|adapters)\//;
+// Packaging belongs to the 030-deployment set, which has no analysis scope here yet.
+const ROOTS=/^(core|studio|skills|workspaces|scripts|adapters)\//;
 const OUT=/(^|\/)(tests?|demos?|bench|benchmarks?|fixtures?|examples?|vendor|node_modules)\/|\.test\.|\.min\.|^scripts\/(bench|bambu-audit)|^packaging\/(windows|macos)\//;
 const inScope=f=>/\.(mjs|js)$/.test(f)&&ROOTS.test(f)&&!OUT.test(f);
 

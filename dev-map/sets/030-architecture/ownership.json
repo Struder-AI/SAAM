@@ -380,7 +380,7 @@
       "reason": "Interactive machine presentation and jog state."
     },
     "core/print/geometry-tools.mjs": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Mixed command module: Agent request/bundle orchestration; Geometry query/intersection calculations; Toolpath ordinary slice-family construction. Anonymous geometric callbacks inside intersectGeometry remain folded into their lexical Agent orchestrator, an attribution limit rather than a new API."
     },
     "core/print/import-stl.mjs": {
@@ -488,7 +488,7 @@
       "reason": "Geometry-backed field preparation is part of the toolpath field pipeline."
     },
     "core/print/cli.mjs": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "External desktop command adapter, not an engine."
     },
     "core/file-write.mjs": {
@@ -736,12 +736,12 @@
       "reason": "Onboarding packet/layer definitions."
     },
     "core/agent/toolkit.mjs": {
-      "owner": "agent",
-      "reason": "Source role/context orchestration; context readers and developer map operations retain declaration-level mixed owners."
+      "owner": "context",
+      "reason": "Mixed: builder/maker source onboarding (Maker context, main-session proposal) and development tooling (map read/regenerate, sync status; out of scope, marked outside-product per declaration) pending a file split."
     },
     "scripts/agent-toolkit.mjs": {
-      "owner": "agent",
-      "reason": "Adapter operation dispatch, progress/diagnostic observers and agent-session association; private transport state remains visible."
+      "owner": "context",
+      "reason": "Source toolkit command entry; builder onboarding is Maker context (main-session proposal). Its one runCLI also dispatches development commands (developer-onboarding, read-map, regenerate, context-budget) pending a file split."
     },
     "skills/catalog.mjs": {
       "owner": "extensions",
@@ -756,7 +756,7 @@
       "reason": "Reviewed catalogued extension implementation; existing engine/bundle bypasses remain findings."
     },
     "skills/gridfinity/scripts/cli.mjs": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Command host adapter invokes the bundle lifecycle; extension computation lives in edit.mjs."
     },
     "skills/gridfinity/scripts/gridfinity.mjs": {
@@ -772,8 +772,8 @@
       "reason": "Reviewed catalogued extension implementation; existing engine/bundle bypasses remain findings."
     },
     "skills/heat-set-inserts/scripts/demo.mjs": {
-      "owner": "agent",
-      "reason": "Executable example/command host authors a print using public engine and bundle operations."
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
     },
     "skills/heat-set-inserts/scripts/feature.mjs": {
       "owner": "extensions",
@@ -788,27 +788,27 @@
       "reason": "Reviewed catalogued extension implementation; existing engine/bundle bypasses remain findings."
     },
     "skills/pipe-cladding/scripts/demo.mjs": {
-      "owner": "agent",
-      "reason": "Executable example/command host authors a print using public engine and bundle operations."
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
     },
     "skills/plastic-weld/scripts/example.mjs": {
-      "owner": "agent",
-      "reason": "Executable example/command host authors a print using public engine and bundle operations."
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
     },
     "skills/supports/scripts/supports.mjs": {
       "owner": "extensions",
       "reason": "Selected support technique validation and public-engine composition."
     },
     "skills/text/scripts/demo.mjs": {
-      "owner": "agent",
-      "reason": "Executable example/command host authors a print using public engine and bundle operations."
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
     },
     "skills/text/scripts/text.mjs": {
       "owner": "extensions",
       "reason": "Text feature authoring, ordering and semantic validation; normalized mapped material construction is Geometry."
     },
     "skills/thingi10k/scripts/cli.mjs": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Command host for resource acquisition and geometry import."
     },
     "skills/thingi10k/scripts/library.mjs": {
@@ -820,8 +820,8 @@
       "reason": "Portable vase technique policy, selected semantic checks and public-engine composition; geometric numerics stay in Geometry."
     },
     "skills/wave-overhangs/scripts/example.mjs": {
-      "owner": "agent",
-      "reason": "Executable example/command host authors a print using public engine and bundle operations."
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
     },
     "core/local-extension.mjs": {
       "owner": "extensions",
@@ -880,7 +880,7 @@
       "reason": "Bundle operation wrapper; extension construction/resource acquisition is requested through explicit interfaces."
     },
     "core/print/import-resource.mjs": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Command-host orchestration for resource acquisition and geometry import; no extension algorithm or bundle storage implementation."
     },
     "skills/gridfinity/scripts/edit.mjs": {
@@ -900,7 +900,7 @@
       "reason": "Toolpath combines engine contributions into one recipe proposal without persistence."
     },
     "core/private/agent/numeric.mjs": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Private utility implementation; no cross-bucket imports or re-exports."
     },
     "core/private/bundle/numeric.mjs": {
@@ -1288,7 +1288,7 @@
       "reason": "Material preparation and distance/containment queries, separate from Toolpath modulation policy."
     },
     "core/agent/blob-field.mjs": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Blob authoring commands compose Geometry construction, Settings selection and Bundle acceptance."
     },
     "core/print/slice-families.mjs": {
@@ -1352,40 +1352,24 @@
       "reason": "Generic workspace host state, explicit preview, worker jobs, persistence and one-way handoff."
     },
     "core/application/runtime.mjs": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Application operation dispatch, stable chats, one Studio per bundle, workspaces/jobs and diagnostics observation. Anonymous operation registrations are file/nearest stable createChat evidence, not invented callable names."
     },
     "core/application/deposition-schemas.mjs": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Application command input schemas; no transport adapter."
     },
     "core/application/home.mjs": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Application home: app, Prints, extensions and state; disposable SAAM_DATA override is for isolated trials."
     },
     "core/application/control.mjs": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Local command discovery, singleton startup coordination and application control requests; command completion owns no application lifetime."
     },
     "scripts/saam.mjs": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Desktop command parsing, schema-driven flags, explicit fallback chat identity and bounded request/event waits through one application."
-    },
-    "packaging/application.mjs": {
-      "owner": "agent",
-      "reason": "Application startup/readiness, local control, tray and single release-service attachment; explicit Quit/Update owns shutdown."
-    },
-    "packaging/launch.mjs": {
-      "owner": "agent",
-      "reason": "Process entry into the one ready application; icon/source launches reuse existing control."
-    },
-    "packaging/client-setup.mjs": {
-      "owner": "agent",
-      "reason": "Installed command PATH and scoped client skills/settings; writes home startup guidance and preserves unrelated configuration."
-    },
-    "packaging/tray.mjs": {
-      "owner": "agent",
-      "reason": "OS tray/menu-bar host; explicit Open, Update and Quit commands reach application control."
     },
     "core/application/README.md": {
       "owner": "context",
@@ -1434,6 +1418,42 @@
     "skills/standard-support/scripts/edit.mjs": {
       "owner": "extensions",
       "reason": "Standard-support extension edit: authored support contributions."
+    },
+    "scripts/extensions.mjs": {
+      "owner": "application",
+      "reason": "Extension command entry: lists and validates extensions through the application."
+    },
+    "core/application/computation-job.mjs": {
+      "owner": "application",
+      "reason": "Application computation jobs: runs an operation in a worker and publishes its outcome."
+    },
+    "core/agent/blob-field-worker.mjs": {
+      "owner": "application",
+      "reason": "Worker body for blob-field authoring commands run as application jobs."
+    },
+    "skills/advanced-vase-wall/scripts/irregular-demo.mjs": {
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
+    },
+    "skills/advanced-vase-wall/scripts/loop-demo.mjs": {
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
+    },
+    "skills/advanced-vase-wall/scripts/path-demo.mjs": {
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
+    },
+    "skills/pipe-cladding/scripts/bumpy-demo.mjs": {
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
+    },
+    "skills/text/scripts/draped-demo.mjs": {
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
+    },
+    "skills/wave-overhangs/scripts/canopy-example.mjs": {
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
     }
   },
   "leaves": {
@@ -1441,20 +1461,20 @@
       "owner": "context"
     },
     "core/agent/layers.mjs::contextBudget": {
-      "owner": "agent",
-      "reason": "Developer measurement orchestration instantiates temporary MCP runtime and measures schema/manual bytes; manual content assembly retains its separate Context owner. IO effects remain visible."
+      "owner": "outside-product",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
     },
     "core/agent/layers.mjs::contextBudget::manuals": {
-      "owner": "agent",
-      "reason": "Developer measurement orchestration instantiates temporary MCP runtime and measures schema/manual bytes; manual content assembly retains its separate Context owner. IO effects remain visible."
+      "owner": "outside-product",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
     },
     "core/agent/layers.mjs::contextBudget::read": {
-      "owner": "agent",
-      "reason": "Developer measurement orchestration instantiates temporary MCP runtime and measures schema/manual bytes; manual content assembly retains its separate Context owner. IO effects remain visible."
+      "owner": "outside-product",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
     },
     "core/agent/layers.mjs::contextBudget::size": {
-      "owner": "agent",
-      "reason": "Developer measurement orchestration instantiates temporary MCP runtime and measures schema/manual bytes; manual content assembly retains its separate Context owner. IO effects remain visible."
+      "owner": "outside-product",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
     },
     "core/agent/layers.mjs::gatedIndex": {
       "owner": "context"
@@ -1523,25 +1543,28 @@
       "owner": "context"
     },
     "core/agent/toolkit.mjs::@module": {
-      "owner": "agent"
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
     },
     "core/agent/toolkit.mjs::contextPacket": {
       "owner": "context",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
     "core/agent/toolkit.mjs::environmentStatus": {
-      "owner": "agent"
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
     },
     "core/agent/toolkit.mjs::json": {
-      "owner": "agent"
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
     },
     "core/agent/toolkit.mjs::onboarding": {
-      "owner": "agent",
-      "reason": "CLI orchestration selects role reads and composes Context results, environment diagnostics and developer maps; contextPacket/onboardingSources own manual assembly."
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
     },
     "core/agent/toolkit.mjs::readMaps": {
       "owner": "outside-product",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
     },
     "core/agent/toolkit.mjs::readSkill": {
       "owner": "context",
@@ -1549,15 +1572,15 @@
     },
     "core/agent/toolkit.mjs::regenerateMap": {
       "owner": "outside-product",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
     },
     "core/agent/toolkit.mjs::syncStatus": {
       "owner": "outside-product",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
     },
     "core/agent/toolkit.mjs::syncStatus::git": {
       "owner": "outside-product",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
     },
     "core/export/bambu-body.mjs::@module": {
       "owner": "export"
@@ -4525,22 +4548,31 @@
       "owner": "bundle"
     },
     "core/print/cli.mjs::@module": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/print/cli.mjs::bundleDirectory": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/print/cli.mjs::readJson": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/print/cli.mjs::report": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/print/cli.mjs::run": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/print/cli.mjs::run::cancel": {
-      "owner": "agent"
+      "owner": "application"
+    },
+    "core/print/cli.mjs::args": {
+      "owner": "application"
+    },
+    "core/print/cli.mjs::expectedRevision": {
+      "owner": "application"
+    },
+    "core/print/cli.mjs::revisionIndex": {
+      "owner": "application"
     },
     "core/print/curves.mjs::@module": {
       "owner": "toolpath"
@@ -4656,11 +4688,11 @@
       "owner": "bundle"
     },
     "core/print/geometry-tools.mjs::@module": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Hosts agent request composition and mixed-owner numerical/query helpers; module body is not proof that all nested operations share one responsibility."
     },
     "core/print/geometry-tools.mjs::combineGeometry": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Composes an explicit boolean edit, reads Bundle state and submits it through the existing revision-checked update operation."
     },
     "core/print/geometry-tools.mjs::intersectDraftFamilies": {
@@ -4668,11 +4700,11 @@
       "reason": "Constructs and validates ordinary draft Slice assignments, resolves ownership and reports sampled layers; consumes existing Geometry evaluation operations."
     },
     "core/print/geometry-tools.mjs::intersectGeometry": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Validates the agent query request and composes Geometry queries with Toolpath draft-family results. Anonymous section/top callbacks are geometric work folded here by inventory, not permission for arbitrary private calls."
     },
     "core/print/geometry-tools.mjs::intersectRequest": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Selects supplied or Bundle geometry and delegates explicit requested queries."
     },
     "core/print/geometry-tools.mjs::round": {
@@ -4714,15 +4746,15 @@
       "owner": "geometry-leaf-2abb9412bf70"
     },
     "core/print/import-stl.mjs::@module": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Agent command coordinates direct Geometry preparation and Bundle persistence."
     },
     "core/print/import-stl.mjs::createSTLBundle": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Agent command coordinates direct Geometry preparation and Bundle persistence."
     },
     "core/print/import-stl.mjs::importSTLBundle": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Agent command coordinates direct Geometry preparation and Bundle persistence."
     },
     "core/print/import-stl.mjs::setSTLUnits": {
@@ -5805,13 +5837,36 @@
       "owner": "geometry-leaf-eddc9d84b546"
     },
     "scripts/agent-toolkit.mjs::@module": {
-      "owner": "agent"
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
     },
     "scripts/agent-toolkit.mjs::runCLI": {
-      "owner": "agent"
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
     },
     "scripts/agent-toolkit.mjs::runCLI::@default/write": {
-      "owner": "agent"
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
+    },
+    "scripts/agent-toolkit.mjs::schemas": {
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
+    },
+    "scripts/agent-toolkit.mjs::help": {
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
+    },
+    "scripts/agent-toolkit.mjs::string": {
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
+    },
+    "scripts/agent-toolkit.mjs::boolean": {
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
+    },
+    "scripts/agent-toolkit.mjs::many": {
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
     },
     "skills/advanced-vase-wall/scripts/loop-path.mjs::@module": {
       "owner": "extensions"
@@ -5838,7 +5893,25 @@
       "owner": "extensions"
     },
     "skills/gridfinity/scripts/cli.mjs::@module": {
-      "owner": "agent"
+      "owner": "application"
+    },
+    "skills/gridfinity/scripts/cli.mjs::args": {
+      "owner": "application"
+    },
+    "skills/gridfinity/scripts/cli.mjs::i": {
+      "owner": "application"
+    },
+    "skills/gridfinity/scripts/cli.mjs::key": {
+      "owner": "application"
+    },
+    "skills/gridfinity/scripts/cli.mjs::options": {
+      "owner": "application"
+    },
+    "skills/gridfinity/scripts/cli.mjs::parameters": {
+      "owner": "application"
+    },
+    "skills/gridfinity/scripts/cli.mjs::state": {
+      "owner": "application"
     },
     "skills/gridfinity/scripts/gridfinity.mjs::@module": {
       "owner": "extensions"
@@ -5886,13 +5959,25 @@
       "owner": "extensions"
     },
     "skills/heat-set-inserts/scripts/demo.mjs::@module": {
-      "owner": "agent"
+      "owner": "context"
     },
     "skills/heat-set-inserts/scripts/demo.mjs::splineBox": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/heat-set-inserts/scripts/demo.mjs::splineBox::face": {
-      "owner": "extensions"
+      "owner": "context"
+    },
+    "skills/heat-set-inserts/scripts/demo.mjs::checks": {
+      "owner": "context"
+    },
+    "skills/heat-set-inserts/scripts/demo.mjs::directory": {
+      "owner": "context"
+    },
+    "skills/heat-set-inserts/scripts/demo.mjs::plan": {
+      "owner": "context"
+    },
+    "skills/heat-set-inserts/scripts/demo.mjs::state": {
+      "owner": "context"
     },
     "skills/heat-set-inserts/scripts/feature.mjs::@module": {
       "owner": "extensions"
@@ -5952,34 +6037,43 @@
       "owner": "extensions"
     },
     "skills/pipe-cladding/scripts/demo.mjs::@module": {
-      "owner": "agent"
+      "owner": "context"
     },
     "skills/pipe-cladding/scripts/demo.mjs::developmentPipePlan": {
-      "owner": "agent"
+      "owner": "context"
     },
     "skills/pipe-cladding/scripts/demo.mjs::developmentPipePlan::radiusAt": {
-      "owner": "agent"
+      "owner": "context"
     },
     "skills/pipe-cladding/scripts/demo.mjs::splineTube": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/pipe-cladding/scripts/demo.mjs::splineTube::grevilleV": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/pipe-cladding/scripts/demo.mjs::splineTube::ring": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/pipe-cladding/scripts/demo.mjs::tubeSurface": {
-      "owner": "extensions"
+      "owner": "context"
+    },
+    "skills/pipe-cladding/scripts/demo.mjs::checks": {
+      "owner": "context"
+    },
+    "skills/pipe-cladding/scripts/demo.mjs::directory": {
+      "owner": "context"
     },
     "skills/plastic-weld/scripts/example.mjs::@module": {
-      "owner": "agent"
+      "owner": "context"
     },
     "skills/plastic-weld/scripts/example.mjs::splineBox": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/plastic-weld/scripts/example.mjs::splineBox::face": {
-      "owner": "extensions"
+      "owner": "context"
+    },
+    "skills/plastic-weld/scripts/example.mjs::plan": {
+      "owner": "context"
     },
     "skills/supports/scripts/supports.mjs::@module": {
       "owner": "extensions"
@@ -6009,25 +6103,46 @@
       "owner": "extensions"
     },
     "skills/text/scripts/demo.mjs::@module": {
-      "owner": "agent"
+      "owner": "context"
     },
     "skills/text/scripts/demo.mjs::radiusAt": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/text/scripts/demo.mjs::splineBlock": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/text/scripts/demo.mjs::splineBlock::greville": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/text/scripts/demo.mjs::splineBlock::wall": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/text/scripts/demo.mjs::splineBox": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/text/scripts/demo.mjs::splineBox::face": {
-      "owner": "extensions"
+      "owner": "context"
+    },
+    "skills/text/scripts/demo.mjs::box": {
+      "owner": "context"
+    },
+    "skills/text/scripts/demo.mjs::directory": {
+      "owner": "context"
+    },
+    "skills/text/scripts/demo.mjs::fontPath": {
+      "owner": "context"
+    },
+    "skills/text/scripts/demo.mjs::part": {
+      "owner": "context"
+    },
+    "skills/text/scripts/demo.mjs::plan": {
+      "owner": "context"
+    },
+    "skills/text/scripts/demo.mjs::radius": {
+      "owner": "context"
+    },
+    "skills/text/scripts/demo.mjs::state": {
+      "owner": "context"
     },
     "skills/text/scripts/text.mjs::@module": {
       "owner": "extensions"
@@ -6039,7 +6154,13 @@
       "owner": "extensions"
     },
     "skills/thingi10k/scripts/cli.mjs::@module": {
-      "owner": "agent"
+      "owner": "application"
+    },
+    "skills/thingi10k/scripts/cli.mjs::client": {
+      "owner": "application"
+    },
+    "skills/thingi10k/scripts/cli.mjs::result": {
+      "owner": "application"
     },
     "skills/thingi10k/scripts/library.mjs::@module": {
       "owner": "extensions"
@@ -6087,16 +6208,25 @@
       "reason": "Extension computes vase deposition assignments without reading a bundle."
     },
     "skills/wave-overhangs/scripts/example.mjs::@module": {
-      "owner": "agent"
+      "owner": "context"
     },
     "skills/wave-overhangs/scripts/example.mjs::splineBox": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/wave-overhangs/scripts/example.mjs::splineBox::face": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/wave-overhangs/scripts/example.mjs::waveExamplePlan": {
-      "owner": "agent"
+      "owner": "context"
+    },
+    "skills/wave-overhangs/scripts/example.mjs::dir": {
+      "owner": "context"
+    },
+    "skills/wave-overhangs/scripts/example.mjs::result": {
+      "owner": "context"
+    },
+    "skills/wave-overhangs/scripts/example.mjs::state": {
+      "owner": "context"
     },
     "studio/adapter-resolution.mjs::@module": {
       "owner": "studio"
@@ -8167,10 +8297,10 @@
       "owner": "bundle"
     },
     "core/print/import-resource.mjs::@module": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/print/import-resource.mjs::importSTLResource": {
-      "owner": "agent"
+      "owner": "application"
     },
     "skills/gridfinity/scripts/edit.mjs::@module": {
       "owner": "extensions",
@@ -8206,10 +8336,10 @@
       "reason": "Selects recipe preparation family from built-in or extension assignment records."
     },
     "core/private/agent/numeric.mjs::@module": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/private/agent/numeric.mjs::requireThat": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/private/bundle/numeric.mjs::@module": {
       "owner": "bundle"
@@ -8894,8 +9024,32 @@
       "owner": "studio"
     },
     "core/agent/toolkit.mjs::mapCommand": {
-      "owner": "agent",
-      "reason": "Developer map command adapter invokes tooling subprocess; no product engine responsibility."
+      "owner": "outside-product",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
+    },
+    "core/agent/toolkit.mjs::root": {
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
+    },
+    "core/agent/toolkit.mjs::outsideAreas": {
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
+    },
+    "core/agent/toolkit.mjs::componentManuals": {
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
+    },
+    "core/agent/toolkit.mjs::developmentAreas": {
+      "owner": "context",
+      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
+    },
+    "core/agent/toolkit.mjs::developerMapSet": {
+      "owner": "outside-product",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
+    },
+    "core/agent/toolkit.mjs::execFileAsync": {
+      "owner": "outside-product",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement): out of scope per owner direction 2026-10-04; it shares a product file, so it is marked here until a file split lets the scope regex exclude it."
     },
     "core/export/griffin-player.mjs::temperatureWaitError": {
       "owner": "export"
@@ -10171,23 +10325,23 @@
       "reason": "Private local periodic-field input predicate used only by Geometry evaluator preparation; no new public operation."
     },
     "core/agent/blob-field.mjs::@module": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Explicit blob authoring command/defaults construct a supplied Geometry proposal and submit it through Bundle acceptance; no Bundle-owned compilation."
     },
     "core/agent/blob-field.mjs::compileRequest": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Explicit blob authoring command/defaults construct a supplied Geometry proposal and submit it through Bundle acceptance; no Bundle-owned compilation."
     },
     "core/agent/blob-field.mjs::createBlobFieldBundle": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Explicit blob authoring command/defaults construct a supplied Geometry proposal and submit it through Bundle acceptance; no Bundle-owned compilation."
     },
     "core/agent/blob-field.mjs::defaultEdgeMm": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Explicit blob authoring command/defaults construct a supplied Geometry proposal and submit it through Bundle acceptance; no Bundle-owned compilation."
     },
     "core/agent/blob-field.mjs::updateBlobFieldBundle": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Explicit blob authoring command/defaults construct a supplied Geometry proposal and submit it through Bundle acceptance; no Bundle-owned compilation."
     },
     "core/geom/offset-chart.mjs::@module": {
@@ -10734,238 +10888,319 @@
       "reason": "Workspace extension content, domain validation or factory loading through the existing library."
     },
     "core/application/deposition-schemas.mjs::@module": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/deposition-schemas.mjs::objectPatch": {
-      "owner": "agent"
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::blob": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::curve": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::draftFamilySchema": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::editSchemas": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::fieldSchema": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::geometrySchema": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::injectionPoint": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::modulationPatchSchema": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::modulationRecordSchema": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::names": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::number": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::nurbs": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::patchSchema": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::positive": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::process": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::profile": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::reference": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::sleevePath": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::sleevePattern": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::slicePatchSchema": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::sliceRecordSchema": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::surfaceSchema": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::uv": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::values": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::volume": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::weighted": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::xyz": {
+      "owner": "application"
     },
     "core/application/runtime.mjs::@module": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Existing application operation owner and instance association; anonymous preview_workspace/close_workspace callbacks inherit this nearest stable declaration, invoking the host explicit preview/shutdown contracts."
     },
     "core/application/runtime.mjs::createLocalRuntime::beginSession": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::sessionInvoke": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::close": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::directory": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::generationStatus": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::invoke": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::invoke::execute": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::invoke::execute::touch": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::locate": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::observeEvents": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::openStudio": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::read": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::setupFile": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::skills": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::startStudio": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::tool": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::withMachineHint": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::noApprovalFields": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::publicBundleIdentity": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::rejectLinks": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::summary": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::manualContext": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Agent passes a saved Bundle machine snapshot into Maker context, or explicitly requests reusable profile discovery."
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::associatedStudio": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::diagnosticFields": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::getResourceClient": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::importSTL": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::importSTL::progress": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::meshLibrary.download": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::meshLibrary.search": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::observeOperations": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::reportOperation": {
-      "owner": "agent"
+      "owner": "application"
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::workspaceSession": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Workspace operation dispatch and instance association through the existing application runtime; host and extension state remain behind their contracts."
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::openWorkspace": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Workspace operation dispatch and instance association through the existing application runtime; host and extension state remain behind their contracts."
     },
     "core/application/runtime.mjs::createLocalRuntime::libraryRoot": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::resourceClient": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::meshLibrary": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::app": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::chats": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::allStudios": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::workspaceSessions": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::imports": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::generations": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::work": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::operationObservers": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::eventObservers": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::activeOperations": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::transferringStudios": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::observeEvent": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::lobby": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::connectedChats": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::attachChat": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::connectChat": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::assertStudioIdle": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::cancelOldRequests": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::attachments": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::transferStudio": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::captureBundle": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::detachStudio": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::jobs": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::runningJobs": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::studios": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/runtime.mjs::createLocalRuntime::chatIds": {
-      "owner": "agent",
+      "owner": "application",
       "reason": "Exact current application root/chat factory responsibility; nested anonymous effects remain unresolved unless separately evidenced."
     },
     "core/application/portable-bundle-job.mjs::@module": {
@@ -11147,6 +11382,195 @@
     },
     "studio/chat-ui.mjs::initializeChatUI": {
       "owner": "studio"
+    },
+    "core/agent/blob-field-worker.mjs::@module": {
+      "owner": "application"
+    },
+    "core/agent/blob-field-worker.mjs::geometry": {
+      "owner": "application"
+    },
+    "core/agent/blob-field-worker.mjs::owner": {
+      "owner": "application"
+    },
+    "core/agent/blob-field-worker.mjs::parameters": {
+      "owner": "application"
+    },
+    "core/agent/blob-field-worker.mjs::preparedGeometry": {
+      "owner": "application"
+    },
+    "core/agent/blob-field-worker.mjs::source": {
+      "owner": "application"
+    },
+    "core/application/computation-job.mjs::@module": {
+      "owner": "application"
+    },
+    "core/application/computation-job.mjs::runComputationJob": {
+      "owner": "application"
+    },
+    "core/application/control.mjs::@module": {
+      "owner": "application"
+    },
+    "core/application/control.mjs::applicationPort": {
+      "owner": "application"
+    },
+    "core/application/control.mjs::controlRequest": {
+      "owner": "application"
+    },
+    "core/application/control.mjs::readInstance": {
+      "owner": "application"
+    },
+    "core/application/control.mjs::readyInstance": {
+      "owner": "application"
+    },
+    "core/application/home.mjs::@module": {
+      "owner": "application"
+    },
+    "core/application/home.mjs::homePaths": {
+      "owner": "application"
+    },
+    "core/application/home.mjs::saamHome": {
+      "owner": "application"
+    },
+    "scripts/extensions.mjs::@module": {
+      "owner": "application"
+    },
+    "scripts/extensions.mjs::result": {
+      "owner": "application"
+    },
+    "scripts/saam.mjs::@module": {
+      "owner": "application"
+    },
+    "scripts/saam.mjs::camel": {
+      "owner": "application"
+    },
+    "scripts/saam.mjs::commandInput": {
+      "owner": "application"
+    },
+    "scripts/saam.mjs::enabled": {
+      "owner": "application"
+    },
+    "scripts/saam.mjs::flagValue": {
+      "owner": "application"
+    },
+    "scripts/saam.mjs::runSaam": {
+      "owner": "application"
+    },
+    "skills/advanced-vase-wall/scripts/irregular-demo.mjs::@module": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/irregular-demo.mjs::checked": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/irregular-demo.mjs::checked.onProgress": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/irregular-demo.mjs::directory": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/irregular-demo.mjs::irregularLoopDemoPlan": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/irregular-demo.mjs::irregularLoopHost": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/loop-demo.mjs::@module": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/loop-demo.mjs::checked": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/loop-demo.mjs::directory": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/loop-demo.mjs::loopDemoPlan": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/loop-demo.mjs::loopHost": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/loop-demo.mjs::options": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/loop-demo.mjs::plan": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/loop-demo.mjs::variant": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/path-demo.mjs::@module": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/path-demo.mjs::checked": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/path-demo.mjs::directory": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/path-demo.mjs::mode": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/path-demo.mjs::plan": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/path-demo.mjs::points": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/path-demo.mjs::points.<callback@13:37>": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/path-demo.mjs::radiusAt": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/path-demo.mjs::settings": {
+      "owner": "context"
+    },
+    "skills/pipe-cladding/scripts/bumpy-demo.mjs::@module": {
+      "owner": "context"
+    },
+    "skills/pipe-cladding/scripts/bumpy-demo.mjs::bumpyPlan": {
+      "owner": "context"
+    },
+    "skills/pipe-cladding/scripts/bumpy-demo.mjs::checks": {
+      "owner": "context"
+    },
+    "skills/pipe-cladding/scripts/bumpy-demo.mjs::directory": {
+      "owner": "context"
+    },
+    "skills/text/scripts/draped-demo.mjs::@module": {
+      "owner": "context"
+    },
+    "skills/text/scripts/draped-demo.mjs::directory": {
+      "owner": "context"
+    },
+    "skills/text/scripts/draped-demo.mjs::plan": {
+      "owner": "context"
+    },
+    "skills/text/scripts/draped-demo.mjs::state": {
+      "owner": "context"
+    },
+    "skills/text/scripts/draped-demo.mjs::text": {
+      "owner": "context"
+    },
+    "skills/wave-overhangs/scripts/canopy-example.mjs::@module": {
+      "owner": "context"
+    },
+    "skills/wave-overhangs/scripts/canopy-example.mjs::canopyExamplePlan": {
+      "owner": "context"
+    },
+    "skills/wave-overhangs/scripts/canopy-example.mjs::dir": {
+      "owner": "context"
+    },
+    "skills/wave-overhangs/scripts/canopy-example.mjs::plan": {
+      "owner": "context"
+    },
+    "skills/wave-overhangs/scripts/canopy-example.mjs::result": {
+      "owner": "context"
+    },
+    "skills/wave-overhangs/scripts/canopy-example.mjs::splineBox": {
+      "owner": "context"
+    },
+    "skills/wave-overhangs/scripts/canopy-example.mjs::state": {
+      "owner": "context"
     }
   },
   "retiredAssignments": [
