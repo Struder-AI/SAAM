@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-03 — Calibrate command-query separation in the influence prototype
+
+- Ownership in `dev-map/influence/derive.mjs` now follows the intent: copies of one function share ownership; a fresh object returned by a query moves to its caller (code-shape rule 3); a write counts as an effect only if another callable reads it (private caches stay inside a leaf); platform methods on objects the callable created are local. Object literals no longer copy spread fields that a later property replaces (`{...input, stats}`), which had made correct stages look like they mutated their inputs.
+- Whole scope at depth 2: 95.7 s; 1,693 of 6,866 callables classified as commands; 1,015 flagged as both answering and acting (down from 1,181).
+- Hand check of 38 random flags: 5 genuinely mixed and 2 borderline (orchestration: bundle creation, agent tool handlers, STL import, movie export, computation jobs); 1 acknowledgement only; 9 caches or closures updating their own function's working state; 21 pure functions misclassified through imprecise points-to. Estimate: about 150–250 callables (2–4%) genuinely answer and act. Sample-based, not a census.
+
 ## 2026-10-03 — Dev map rebuild: intent and milestone 1 speed measurement
 
 - Owner direction recorded as [dev maps intent](plans/dev-maps.md) and [D-046](DECISIONS.md#d-046--rebuilt-dev-maps-causal-arrows-and-banned-unmodelled-code): every arrow is causal influence; a callable answers or acts, never both (now [code-shape rule 4](DEVELOPER-CONTEXT.md#code-shape)); authored top level, computed leaves, middle-out solver; unmodelled code and unauthorized top-level influence banned.

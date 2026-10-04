@@ -72,8 +72,10 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
       } else pt.edge(value,pt.field(o,name));
     });
   }
-  function copyFields(src,dst) {
-    pt.on(src,o=>{if(isPlatform(o))return;pt.onField(o,(name,fnode)=>{if(name!=='__proto__')pt.edge(fnode,pt.field(dst,name));});});
+  // Copies every field of src's objects into dst, except names the literal sets explicitly
+  // after the spread ({...input, stats}: the later stats replaces the spread one).
+  function copyFields(src,dst,overridden) {
+    pt.on(src,o=>{if(isPlatform(o))return;pt.onField(o,(name,fnode)=>{if(name!=='__proto__'&&!overridden?.has(name))pt.edge(fnode,pt.field(dst,name));});});
   }
 
   // A platform function called with a SAAM callable invokes it: arguments come from the
@@ -92,7 +94,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   function loadElements(n,target,caller){pt.on(n,o=>{if(!isPlatform(o))loadFrom(o,ELEMENT,target,caller);});}
   function platformCall(site,caller,thisNode,args,result,method,callee) {
     if(!once(`pc${site.id}`))return;
-    site.platform=true;
+    site.platform=true;site.receiver=thisNode;
     const root=callee===undefined?'':pt.objects[callee].name.split('.')[0];
     const primitive=PRIMITIVE_ROOTS.has(root)||PRIMITIVE_METHODS.has(method)||root==='JSON'&&method==='stringify';
     let elements;
@@ -432,6 +434,11 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     const base=expression(target.object,ctx);
     if(base!==undefined)ctx.fn.stores.push({base,name:memberKey(target,ctx),site:site(ctx.fn,target)});
   }
+  function laterKeys(properties,spread) {
+    const keys=new Set();
+    for(const q of properties.slice(properties.indexOf(spread)+1))if(q.type==='Property'&&!q.computed)keys.add(q.key.type==='Identifier'?q.key.name:String(q.key.value));
+    return keys;
+  }
   function propertyKey(p,ctx) {
     if(!p.computed)return p.key.type==='Identifier'?p.key.name:p.key.type==='PrivateIdentifier'?'#'+p.key.name:String(p.key.value);
     if(p.key.type==='Literal')return typeof p.key.value==='number'?ELEMENT:String(p.key.value);
@@ -465,7 +472,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
       case 'ObjectExpression':{const o=allocate('object',ctx,e);const v=pt.node();pt.add(v,o);
         pt.add(pt.field(o,'__proto__'),OBJECT_PROTO);
         for(const p of e.properties) {
-          if(p.type==='SpreadElement'){const s=expression(p.argument,ctx);if(s!==undefined)copyFields(s,o);continue;}
+          if(p.type==='SpreadElement'){const s=expression(p.argument,ctx);if(s!==undefined)copyFields(s,o,laterKeys(e.properties,p));continue;}
           const key=propertyKey(p,ctx);
           if(p.kind==='get'||p.kind==='set')note('accessor',ctx.fn,p);
           const val=p.value.type==='FunctionExpression'||p.value.type==='ArrowFunctionExpression'?functionValue(p.value,ctx,key,{thisNode:undefined}):expression(p.value,ctx);
