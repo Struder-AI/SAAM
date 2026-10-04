@@ -411,12 +411,20 @@ export function solvedModel() {
     }
     if(p.unlinked)markers.push({id:'list:unlinked',label:`${p.unlinked.length} unlinked`,tone:'link',list:`unlinked:${p.index}`});
     if(p.unowned)markers.push({id:'list:unowned',label:`${p.unowned.length} unowned`,tone:'unowned',list:'unowned'});
-    if(p.crossOwnerState)markers.push({id:'list:cross-owner-state',label:`state shared across owners · ${p.crossOwnerState.length}`,note:p.crossOwnerState.map(x=>`${x.label} (${x.owner}): ${Object.keys(x.touchedBy).join(', ')}`).join('\n'),tone:'missing'});
+    // A finding list is a box the size of its name that opens the list in the side pane; its
+    // rows as box text would draw it thousands of pixels tall for one readable line.
+    const listMarker=(name,label,title,items)=>{lists[name]={title,items};markers.push({id:`list:${name}`,label,tone:'missing',list:name});};
+    if(p.crossOwnerState)listMarker('cross-owner-state',`state shared across owners · ${p.crossOwnerState.length}`,'state shared across owners: read or written from more than one map-0 owner',
+      p.crossOwnerState.map(x=>item(x.key,`(${x.owner}): ${Object.keys(x.touchedBy).join(', ')}`)));
     if(p.channels){const u=p.channels.unresolved,n=Object.values(u).reduce((t,l)=>t+l.length,0);
-      if(n)markers.push({id:'list:unresolved-channels',label:`unresolved channel ends · ${n}`,note:Object.entries(u).flatMap(([k,l])=>l.map(x=>`${k}: ${typeof x==='string'?x:`${x.at} ${x.url??x.route??x.entry??x.kind??''} ${x.note??''}`}`)).join('\n'),tone:'missing'});}
-    if(p.notAnalysed)markers.push({id:'list:not-analysed',label:`not analysed · ${p.notAnalysed.length} files`,note:p.notAnalysed.join('\n'),tone:'missing'});
-    if(p.index===TOP&&m.sourceChanged?.length)markers.push({id:'list:source-moved',label:`source moved since the analysis · ${m.sourceChanged.length} files`,note:m.sourceChanged.join('\n'),tone:'missing'});
-    Object.assign(p,{badges,markers});
+      if(n)listMarker('unresolved-channels',`unresolved channel ends · ${n}`,'unresolved channel ends',Object.entries(u).flatMap(([k,l])=>l.map(x=>{
+        if(typeof x==='string')return {t:`${k}: ${x}`};
+        const at=/^(.*):(\d+)$/.exec(x.at??'');
+        const n=[at?'':x.at,x.note].filter(Boolean).join(' · ');
+        return {t:`${k}: ${x.url??x.route??x.entry??x.kind??''}`,...(at?{ref:`${at[1]}:${at[2]}-${at[2]}`}:{}),...(n?{n}:{})};})));}
+    if(p.notAnalysed)listMarker('not-analysed',`not analysed · ${p.notAnalysed.length} files`,'not analysed: in-scope files the analysis did not read',p.notAnalysed.map(f=>({t:f})));
+    if(p.index===TOP&&m.sourceChanged?.length)listMarker('source-moved',`source moved since the analysis · ${m.sourceChanged.length} files`,'source moved since the analysis',m.sourceChanged.map(f=>({t:f})));
+    Object.assign(p,{badges,markers,links:viewerLinks(m,p)});
     if(p.index===TOP)p.layout={frame:'all',route:'direct',positions:Object.fromEntries(p.components
       .map(c=>[c.index,placed[c.path.replace(/^@cluster\//,'')]]).filter(([,point])=>point))};
   }
@@ -494,7 +502,21 @@ function linkGroups(m,page,wire) {
   }
   return groups;
 }
-const leafArrowText=(m,names,i)=>{const a=m.arrows[i];return `${names.get(a.from)} → ${names.get(a.to)} ${a.kind}${a.count>1?` ×${a.count}`:''}`;};
+// One leaf arrow as a link read and the viewer's pane both give it: `FROM → TO TAIL`, the ends
+// by name (`NAME FILE:LINES`) and the tail its kind and count.
+const leafArrowParts=(m,names,i)=>{const a=m.arrows[i];return {from:a.from,to:a.to,fromName:names.get(a.from),toName:names.get(a.to),tail:`${a.kind}${a.count>1?` ×${a.count}`:''}`};};
+const leafArrowText=(m,names,i)=>{const x=leafArrowParts(m,names,i);return `${x.fromName} → ${x.toName} ${x.tail}`;};
+// A page's link reads for the viewer, compact: its leaves once each as [NAME, FILE:LINE-END or
+// '', leaf page or ''], then for each drawn arrow `FROM/TO` its groups as the read groups them,
+// each leaf arrow [FROM LEAF, TO LEAF, TAIL] by position in that leaf list.
+function viewerLinks(m,page) {
+  const names=leafNames(m),leaves=[],at=new Map(),wires={};
+  const leaf=key=>{if(!at.has(key)){const r=m.leaves[key];at.set(key,leaves.length);
+    leaves.push([names.get(key),r.file?`${r.file}:${r.line}-${r.endLine}`:'',r.index??'']);}return at.get(key);};
+  for(const w of page.wires)wires[`${w.from}/${w.to}`]=[...linkGroups(m,page,w)].map(([dir,list])=>[dir,list.map(i=>{
+    const x=leafArrowParts(m,names,i);return [leaf(x.from),leaf(x.to),x.tail];})]);
+  return {leaves,wires};
+}
 function linkRead(m,address) {
   const [,pageIndex,from,to]=/^@link\/([^/]+)\/([^/]+)\/([^/]+)$/.exec(address)??[];
   if(!pageIndex)throw Error(`Link addresses read @link/MAP/FROM/TO, as a map read's \`link\` gives them.`);
