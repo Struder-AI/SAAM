@@ -9,6 +9,7 @@ import {readManual} from './manuals.mjs';
 import {ONBOARDING,extensionDiscovery} from './layers.mjs';
 import {SKILL_IDS, GUIDANCE_IDS, EXTENSION_IDS,BUILDER_IDS} from '../../skills/catalog.mjs';
 import {readExtension} from '../extensions/library.mjs';
+const execFileAsync=promisify(execFile);
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 // Areas outside the map: skills, application, setup, the tests and this toolkit are not mapped, so
@@ -48,7 +49,7 @@ export async function contextPacket(ids, context = {}) {
 // What of main this checkout holds, for the one-line report a maker or builder gives at session
 // start. It fetches main first so the count is current; offline it counts against the last fetch.
 export async function syncStatus() {
-  const git = async (...args) => (await promisify(execFile)('git', args,
+  const git = async (...args) => (await execFileAsync('git', args,
     {cwd: root, timeout: 15000, env: {...process.env, GIT_TERMINAL_PROMPT: '0'}})).stdout.trim();
   const fetched = await git('fetch', '--quiet', 'origin', 'main').then(() => true, () => false);
   try {
@@ -107,7 +108,7 @@ export async function readSkill(name, {maker = false, builder = false, developer
 // process-wide set configuration from leaking between reads of different sets.
 export const developerMapSet = '030-architecture';
 async function mapCommand(set, command, args = []) {
-  const {stdout} = await promisify(execFile)(process.execPath,
+  const {stdout} = await execFileAsync(process.execPath,
     [resolve(root, 'dev-map/cli.mjs'), command, ...args, '--set', set], {cwd: root, maxBuffer: 32 * 1024 * 1024});
   return {mapSet: set, ...JSON.parse(stdout)};
 }

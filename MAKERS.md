@@ -31,10 +31,10 @@ Choose among three construction families: [Slice](skills/slice/SKILL.md) deposit
 over 3D regions, [Trace](skills/trace/SKILL.md) follows curves, and
 [Inject](skills/inject/SKILL.md) deposits at points. Techniques such as skins,
 vase walls, bridges and rivets use or combine these families; their manuals explain
-current options and limits. Reason from actual geometry about support, transitions
-and print order. Software checks alone do not establish printability. Each
-machine's setup and limits are in its
-[contract](core/export/README.md#machine-interoperability-design).
+current options and limits. Reason from geometry about transitions and print order.
+Usually omit support; where needed use [standard support](skills/standard-support/SKILL.md#choose-the-patches).
+Software checks alone do not establish printability. Each machine's setup and
+limits are in its [contract](core/export/README.md#machine-interoperability-design).
 
 ## Maker interaction flow
 

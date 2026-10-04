@@ -6,14 +6,17 @@ import {textLayout} from './text-layout.mjs';
 import {referenceSurface} from './reference-surface.mjs';
 import {union} from '../region/intersection.mjs';
 
+// The layout's tangent frame at the anchor, applied rigidly to the whole group.
+function anchoredLayout(layout,a,anchor,mirror){
+  const h=0.0001,dx=layout(a[0]+h,a[1]).map((v,i)=>(v-anchor[i])/h),length=Math.hypot(...dx);
+  const x=dx.map(v=>v/length),y=[-x[1],x[0]].map(v=>v*(mirror?-1:1));
+  return (u,v)=>anchor.map((p,i)=>p+(u-a[0])*x[i]+(v-a[1])*y[i]);
+}
+
 function layoutGroup(group,feature,toleranceMm){
-  let map=textLayout(feature,toleranceMm);
-  const anchor=group.anchor?map(...group.anchor):null;
-  if(group.anchor){
-    const h=0.0001,a=group.anchor,dx=map(a[0]+h,a[1]).map((v,i)=>(v-anchor[i])/h),length=Math.hypot(...dx);
-    const x=dx.map(v=>v/length),y=[-x[1],x[0]].map(v=>v*(feature.mirror?-1:1));
-    map=(u,v)=>anchor.map((p,i)=>p+(u-a[0])*x[i]+(v-a[1])*y[i]);
-  }
+  const layout=textLayout(feature,toleranceMm);
+  const anchor=group.anchor?layout(...group.anchor):null;
+  const map=group.anchor?anchoredLayout(layout,group.anchor,anchor,feature.mirror):layout;
   const refine=(a,b,pa,pb,out)=>{
     const m=a.map((v,i)=>(v+b[i])/2),pm=map(...m),chord=pa.map((v,i)=>(v+pb[i])/2);
     requireThat(pm.every(Number.isFinite),'Baseline layout produced a non-finite point.');

@@ -11,6 +11,18 @@ function validatePresentationRigid(t){
   require(r.every((row,i)=>r.every((other,j)=>Math.abs(dot(row,other)-(i===j?1:0))<=1e-6))&&Math.abs(dot(r[0],cross(r[1],r[2]))-1)<=1e-6,'frame must be a right-handed rotation');
 }
 function binding(b){require(b&&['printId','revision','exportHash','modelKey'].every(k=>typeof b[k]==='string'),'missing model/source identity');}
+// Whether a component shape is a supported primitive with valid dimensions.
+function validPrimitive(s){
+  const positive=v=>Number.isFinite(v)&&v>0,nonnegative=v=>Number.isFinite(v)&&v>=0;
+  switch(s.kind){
+    case 'line':return vector(s.fromMm)&&vector(s.toMm);
+    case 'polyline':return Array.isArray(s.pointsMm)&&s.pointsMm.length>=2&&s.pointsMm.every(vector)&&typeof s.closed==='boolean';
+    case 'sphere':return positive(s.radiusMm);
+    case 'box':return vector(s.sizeMm)&&s.sizeMm.every(positive);
+    case 'cone':return positive(s.lengthMm)&&nonnegative(s.radiusStartMm)&&nonnegative(s.radiusEndMm)&&s.radiusStartMm+s.radiusEndMm>0;
+  }
+  return false;
+}
 export function validateDescriptor(d){
   require(d?.schema==='saam-machine-presentation/1','unsupported descriptor version');binding(d.binding);
   require(typeof d.label==='string'&&typeof d.basis==='string'&&Array.isArray(d.limitations)&&d.limitations.every(s=>typeof s==='string'),'invalid scope');
@@ -19,8 +31,8 @@ export function validateDescriptor(d){
   if(d.controls!==undefined)require(Array.isArray(d.controls)&&d.controls.every(c=>typeof c.label==='string'&&typeof c.unit==='string'&&[c.min,c.max,c.step].every(Number.isFinite)&&c.min<c.max&&c.step>0),'invalid manual controls');
   for(const c of d.components){
     require(typeof c.id==='string'&&!ids.has(c.id)&&typeof c.label==='string'&&roles.has(c.role)&&d.frameIds.includes(c.frameId),'invalid component');ids.add(c.id);validatePresentationRigid(c.local);
-    const s=c.shape,positive=v=>Number.isFinite(v)&&v>0,nonnegative=v=>Number.isFinite(v)&&v>=0;
-    require(s&&({line:()=>vector(s.fromMm)&&vector(s.toMm),polyline:()=>Array.isArray(s.pointsMm)&&s.pointsMm.length>=2&&s.pointsMm.every(vector)&&typeof s.closed==='boolean',sphere:()=>positive(s.radiusMm),box:()=>vector(s.sizeMm)&&s.sizeMm.every(positive),cone:()=>positive(s.lengthMm)&&nonnegative(s.radiusStartMm)&&nonnegative(s.radiusEndMm)&&s.radiusStartMm+s.radiusEndMm>0}[s.kind]?.()),'unsupported or invalid primitive');
+    const s=c.shape;
+    require(s&&validPrimitive(s),'unsupported or invalid primitive');
   }
   if(d.machineBoundsWorldMm!==null){const b=d.machineBoundsWorldMm;require(b&&vector(b.min)&&vector(b.max)&&b.min.every((v,i)=>v<=b.max[i]),'invalid framing bounds');}
   return d;

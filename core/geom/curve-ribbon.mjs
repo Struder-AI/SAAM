@@ -6,7 +6,7 @@
 // helix's turns, stay.
 import {evaluateCurve} from './nurbs.mjs';
 import {requireThat} from './tolerance.mjs';
-import {requireCurve,looseCurveField,sideAt} from './curve-offset.mjs';
+import {requireCurve,looseCurveField,curveAtDepth,sideAt} from './curve-offset.mjs';
 import {extract,join,curveCrossings} from './curve-ops.mjs';
 
 // Parameter intervals where f < 0, from sign changes at 32 samples per knot
@@ -98,7 +98,7 @@ export function prepareCurveRibbon({curve,closed=false}){
     return [tangent[1]/size,-tangent[0]/size,0];
   }));
   function ribbon(depth){
-    const moved=field(depth),[d0,d1]=curve.domain;
+    const moved=curveAtDepth(field,depth),[d0,d1]=curve.domain;
     if(depth===0)return {pieces:[moved],folds:0};
     const merged=foldCuts(moved,curve,closed);
     const keep=[];let from=d0;
