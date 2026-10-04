@@ -1,0 +1,10 @@
+{
+ "mode": "influence",
+ "title": "SAAM influence maps",
+ "preview": true,
+ "analysis": "dev-map/sets/030-influence/store/analysis/analysis.json",
+ "analyse": {"maxHeapMB": 4096},
+ "authored": "dev-map/sets/030-architecture",
+ "sourceRoots": ["."],
+ "jobs": 2
+}

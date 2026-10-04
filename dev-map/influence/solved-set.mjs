@@ -5,14 +5,18 @@
 // passes exist, and marked so.
 //
 // The set is a folder holding `map.json`:
-//   {"mode":"influence","title":…,"analysis":FILE,"authored":DIR,"sourceRoots":[DIR…],
-//    "preview":true?,"missing":[FILE…]?,"jobs":2?}
-// `analysis` is a `run.mjs --out` result; `authored` the design set whose map 0 and ownership are
-// fixed (default dev-map/sets/030-architecture); `sourceRoots` further checkouts holding the text
-// the analysis read (solve-middle.mjs analysedTexts); `missing` the in-scope files the analysis did
-// not cover, listed on map 0. Paths are absolute or relative to the repository.
+//   {"mode":"influence","title":…,"analysis":FILE,"analyse":{"maxHeapMB":4096}?,"authored":DIR,
+//    "sourceRoots":[DIR…],"preview":true?,"missing":[FILE…]?,"jobs":2?}
+// `analysis` is a `run.mjs --out` result. With `analyse` it is made by regenerate itself
+// (analyse.mjs, from the current source, kept under the set's store); without it, it is a result
+// made elsewhere. `authored` is the design set whose map 0 and ownership are fixed (default
+// dev-map/sets/030-architecture); `sourceRoots` further checkouts holding the text the analysis
+// read (solve-middle.mjs analysedTexts); `missing` the in-scope files an analysis made elsewhere
+// did not cover (analyse.mjs lists its own), listed on map 0. Paths are absolute or relative to
+// the repository.
 //
 //   node dev-map/cli.mjs --set-dir DIR regenerate     (or --set NAME for a set under dev-map/sets)
+// analyses the scope when the set says `analyse` (only closures whose files moved run again),
 // solves each authored node whose inputs moved (`solve-middle.mjs`, `jobs` at a time, each in its
 // own small-heap process, kept in store/solve/), writes store/model.json and draws view/. `read
 // ADDRESS`, `build` and `check` read the stored model; reads never solve.
@@ -124,7 +128,8 @@ export async function writeModel({log=()=>{}}={}) {
   const sm=await import('./solve-middle.mjs');
   const paths=inputs(),{spec}=paths;
   const authored=sm.readAuthored(paths.authored);
-  const model=sm.leafModel(JSON.parse(readFileSync(paths.analysis,'utf8')));
+  const analysis=JSON.parse(readFileSync(paths.analysis,'utf8'));
+  const model=sm.leafModel(analysis);
   const {texts,changed}=sm.analysedTexts(model.leaves,{roots:[repo,...paths.roots]});
   const labels=sm.leafLabels(model.leaves,{texts});
   const uniform=sm.uniformLeaves(model);
@@ -251,14 +256,15 @@ export async function writeModel({log=()=>{}}={}) {
   const unowned=[...leafRow.values()].filter(r=>!r.owner);
   const unlinked=[...leafRow.values()].filter(r=>r.unlinked);
   const root=pages.find(p=>p.index==='0');
-  if(spec.missing?.length)root.notAnalysed=[...spec.missing];
+  const notAnalysed=analysis.notAnalysed??spec.missing;
+  if(notAnalysed?.length)root.notAnalysed=[...notAnalysed];
   if(unowned.length)(pages.find(p=>p.index===index.get(UNOWNED))??root).unowned=unowned.map(r=>r.key).sort(keyOrder);
 
   const files=[...texts.keys()].sort(order);
   const sources=Object.fromEntries(files.map(f=>[f,lf(texts.get(f))]));
   const sourceInfo=Object.fromEntries(files.map(f=>[f,{sourceKind:'snapshot',sourceSha256:sha(sources[f])}]));
   const stored={schema:1,mode:'influence',title:spec.title,generated:new Date().toISOString(),regenerate:regenerateCommand,
-    notice:spec.preview?'PREVIEW · partial analysis · unreviewed solver output':'',
+    notice:spec.preview?`PREVIEW · ${notAnalysed?.length?'partial analysis · ':''}unreviewed solver output`:'',
     inputs:{analysis:paths.analysis,authored:paths.authored,sourceRoots:paths.roots},sourceChanged:changed,
     summary:{leaves:model.leaves.length,merged:model.merged,sharedNames:model.sharedNames,arrows:model.arrows.length,drawn:model.leaves.length-unlinked.length,
       unlinked:unlinked.length,unowned:unowned.length,uniform:uniform.size,possiblyCallerDependent:[...leafRow.values()].filter(r=>r.possiblyCallerDependent).length,
@@ -507,12 +513,19 @@ export async function influenceCommand(command,args) {
   if(command==='regenerate') {
     const paths=inputs(),{readAuthored}=await import('./solve-middle.mjs');
     const nodes=readAuthored(paths.authored).nodes.map(n=>n.id);
+    let analysed=null;
+    if(mapSet.analyse) {
+      const {analyse}=await import('./analyse.mjs');
+      analysed=await analyse({repo,out:paths.analysis,...mapSet.analyse,log});
+    }
     const solve=await solveAll(nodes,paths,{jobs:mapSet.jobs??2,log});
     const model=await writeModel({log});held=model;
     const {buildGeneratedView}=await import('../lib/generated-view.mjs');
     const view=await buildGeneratedView({repo});
-    console.log(JSON.stringify({mode:'influence',solved:solve.solved,reused:solve.reused,summary:model.summary,checks:model.checks,view:view.index},null,1));
-    if(!model.checks.ok)process.exitCode=1;
+    // Every regeneration proves the reads say what the drawings draw, as `check` does.
+    const reads=verifyReads(model);
+    console.log(JSON.stringify({mode:'influence',...(analysed?{analysis:analysed}:{}),solved:solve.solved,reused:solve.reused,summary:model.summary,checks:model.checks,reads,view:view.index},null,1));
+    if(!model.checks.ok||!reads.ok)process.exitCode=1;
     return;
   }
   if(command==='build') {

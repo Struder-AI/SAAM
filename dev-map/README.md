@@ -1,11 +1,11 @@
 # Dev maps
 
 Intent, including what a link means: [DEVELOPER-CONTEXT.md](../DEVELOPER-CONTEXT.md#working-with-dev-maps).
-Active [0.3.2](../plans/0.3.2.md) sets: `030-architecture` for product work (toolkit default), `030-deployment` for installation/service work. CLI defaults to scanned `default`; pass `--set`. Designs express contracts, not conformance.
+Active [0.3.2](../plans/0.3.2.md) sets: `030-architecture` for product work (toolkit default), `030-deployment` for installation/service work, and `030-influence`, the influence maps generated from source under `030-architecture`'s map 0 (`regenerate --set 030-influence` runs analysis, solve and drawing). CLI defaults to scanned `default`; pass `--set`. Designs express contracts, not conformance.
 
 - `lib/`: source scanning, leaves (`leaves.mjs`), the tree (`tree.mjs`), the
   store, scoring, the solver and rendering.
-- `influence/`: the rebuild's influence analysis ([intent](../plans/dev-maps.md)), run with `run.mjs`.
+- `influence/`: the rebuild's influence analysis ([intent](../plans/dev-maps.md)): `run.mjs` analyses a selection, `analyse.mjs` the whole scope (`scope.mjs`) for a set's `regenerate`.
 - `tree.json`, `facts.tsv`, `lib/scope.mjs`: default authored inputs.
 - `sets/NAME/map.json`, `tree.json`, `facts.tsv`: independent named sets.
 - `store/`, `view/`: generated snapshots and the viewer; git-ignored.
@@ -186,7 +186,10 @@ cannot be selected independently. Unselected connections stay external, includin
 
 **Influence sets** (the rebuild, [influence/solved-set.mjs](influence/solved-set.mjs)): `map.json` declares `mode: "influence"`,
 `analysis` (a `run.mjs --out` result), `authored` (the design set whose map 0 and ownership are fixed) and optional
-`sourceRoots`, `missing`, `preview`. `regenerate` solves each authored node whose inputs moved, writes `store/model.json`
+`analyse`, `sourceRoots`, `missing`, `preview`. With `analyse` (`{"maxHeapMB":N}`), `regenerate` first makes `analysis`
+itself from the current source ([analyse.mjs](influence/analyse.mjs): one sound run per import closure, each kept by
+a hash of its files so only closures holding an edited file run again; a failed closure gives way to the closures of
+what it imports, and files left over are not analysed). It then solves each authored node whose inputs moved, writes `store/model.json`
 and draws the viewer; `read`, `build` and `check` use the store. `--set-dir DIR` selects a set kept outside `sets/`,
 such as a preview in an ignored folder. Map 0 is drawn at the authored set's map-0 positions (by node id); submaps
 are placed by the renderer. Pages carry no prose: unlinked and unowned leaves are counts on boxes and marker boxes

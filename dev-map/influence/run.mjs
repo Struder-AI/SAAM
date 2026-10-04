@@ -14,16 +14,16 @@
 // --platform writes the platform inventory: every call site reaching platform code, with the
 // APIs it reaches and how each was modelled (platform-models.mjs).
 import {readFile,writeFile} from 'node:fs/promises';
-import {execFileSync,spawnSync} from 'node:child_process';
+import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {dirname,resolve} from 'node:path';
 import * as acorn from 'acorn';
 import {PointsTo} from './points-to.mjs';
-import {buildConstraints,resolver,platformInventory} from './constraints.mjs';
+import {buildConstraints,platformInventory} from './constraints.mjs';
 import {derive,pairArrowsOf} from './derive.mjs';
 import {compileModule} from './compile.mjs';
 import {compose} from './compose.mjs';
-import {importAliases} from '../lib/scope.mjs';
+import {inScope,scopeFiles,importResolver,staticImports} from './scope.mjs';
 
 const repo=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
 const argv=process.argv.slice(2);
@@ -43,19 +43,12 @@ const selective=valueOf('--selective')!==undefined?+valueOf('--selective'):0;
 const valued=new Set(['--out','--platform','--depth','--draw','--svg','--engine','--max-depth','--max-instances','--edit','--max-ms','--selective']);
 const prefixes=argv.filter((a,i)=>!a.startsWith('--')&&!valued.has(argv[i-1]));
 
-// Scope: SAAM code and its development tooling (map-0 node Development tooling). Tests, demos and benchmarks are out.
-// Packaging belongs to the 030-deployment set, except the application host that carries saam calls to the runtime
-// and the release build (build, native-repair).
-const ROOTS=/^(core|studio|skills|workspaces|scripts|adapters)\/|^packaging\/(application|launch|build|native-repair)\.mjs$/;
-const OUT=/(^|\/)(tests?|demos?|bench|benchmarks?|fixtures?|examples?|vendor|node_modules)\/|\.test\.|\.min\.|^scripts\/(bench|bambu-audit)|^packaging\/(windows|macos)\//;
-const inScope=f=>/\.(mjs|js)$/.test(f)&&ROOTS.test(f)&&!OUT.test(f);
-
 const clock=()=>process.hrtime.bigint();
 const ms=(a,b)=>Number(b-a)/1e6;
 const t0=clock();
-const all=execFileSync('git',['ls-files'],{cwd:repo,encoding:'utf8'}).split('\n').filter(inScope);
+const all=scopeFiles(repo);
 let files=prefixes.includes('all')?all:all.filter(f=>prefixes.some(p=>f.startsWith(p)));
-const resolveImport=resolver(all,{aliases:importAliases});
+const resolveImport=importResolver(all);
 
 const parsed=new Map(),parseErrors=[];
 async function parse(file) {
@@ -71,9 +64,7 @@ if(closure) {
   const queue=[...files];
   while(queue.length) {
     const mod=parsed.get(queue.pop());if(!mod)continue;
-    const specs=[];
-    for(const s of mod.ast.body)if((s.type==='ImportDeclaration'||s.type==='ExportAllDeclaration'||s.type==='ExportNamedDeclaration')&&s.source)specs.push(s.source.value);
-    for(const spec of specs){const t=resolveImport(mod.file,spec);if(t&&!parsed.has(t)&&inScope(t)){await parse(t);queue.push(t);}}
+    for(const spec of staticImports(mod.ast)){const t=resolveImport(mod.file,spec);if(t&&!parsed.has(t)&&inScope(t)){await parse(t);queue.push(t);}}
   }
   files=[...parsed.keys()];
 }
@@ -172,7 +163,9 @@ if(out) {
     arrowlessLeaves:result.arrowless.map(i=>name(fns[i])),
     arrowlessLeafKeys:result.arrowless.map(i=>fns[i].key),
     arrows:result.arrows.map(a=>({from:name(fns[a.from]),to:name(fns[a.to]),fromKey:fns[a.from].key,toKey:fns[a.to].key,kind:a.kind,count:a.count})),
-    leaves:[...result.leaves].map(i=>{const folded=fns.filter(f=>f.id!==i&&!f.inClone&&fn[f.id]!==f.id&&(()=>{let x=f.id;while(fn[x]!==x)x=fn[x];return x;})()===i);
+    // Folded: every callable derive kept (derive.mjs canon; only those are ever folded) whose leaf
+    // is i. A callable walked only inside copies is kept as its first copy, so copies count here.
+    leaves:[...result.leaves].map(i=>{const folded=fns.filter(f=>f.id!==i&&fn[f.id]!==f.id&&(()=>{let x=f.id;while(fn[x]!==x)x=fn[x];return x;})()===i);
       return {leaf:name(fns[i]),key:fns[i].key,role:result.leafCommand[i]?'command':'query',folded:folded.map(name),foldedKeys:folded.map(f=>f.key)};})
   },null,1));
 }
