@@ -411,6 +411,8 @@ class Page:
             total = sum(lw.values())
             if self.width:
                 nb = max(1, math.ceil(total / self.width))
+            elif total <= 0:
+                nb = 1  # nothing wide enough to fold
             else:
                 # Fold to a shape, not to a width. A fixed wrap width turns a page with many
                 # ranks into a stack of short bands -- the taller the page gets, the narrower
