@@ -73,7 +73,7 @@ Regenerate after each task. `regenerate --set 030-influence` runs:
    imports; files no closure holds are listed as not analysed.
 2. **Merge** the closures into `store/analysis/analysis.json`, each callable taking its leaf and
    role from the largest closure holding it.
-3. **Solve** each authored node whose inputs moved ([solve-middle.mjs](influence/solve-middle.mjs)),
+3. **Solve** each authored node whose slice changed ([solve-middle.mjs](influence/solve-middle.mjs)),
    `jobs` at a time, into `store/solve/`.
 4. **Write** `store/model.json`, **draw** `view/`, and **verify** that reads match the drawings.
 

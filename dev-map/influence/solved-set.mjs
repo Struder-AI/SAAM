@@ -82,7 +82,7 @@ function keepEntry(dir,entry) {
   const {legacy,...kept}=entry;
   writeFileSync(resolve(dir,entryFile(entry.node)),JSON.stringify(kept));
   // A solve kept before slices (a whole result named by the raw id) is replaced.
-  for(const file of [`${entry.node}.hash`,...(`${entry.node}.json`!==entryFile(entry.node)?[`${entry.node}.json`]:[])])rmSync(resolve(dir,file),{force:true});
+  for(const file of [`${entry.node}.hash`,...(`${entry.node}.json`!==entryFile(entry.node)?[`${entry.node}.json`]:[])])try{rmSync(resolve(dir,file),{force:true});}catch{}
   return kept;
 }
 
