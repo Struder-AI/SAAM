@@ -23,6 +23,7 @@ import {TOP,drawMap,linkSet,treeAccess} from '../lib/tree.mjs';
 import {solveTree} from '../lib/solve.mjs';
 import {scoreDrawn,INFLUENCE,SIZE,WEIGHT,weightOf} from '../lib/score.mjs';
 import {pairArrowsOf} from './derive.mjs';
+import {withChannels} from './channels.mjs';
 
 const repo=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
 export const UNOWNED='(unowned)';
@@ -33,12 +34,15 @@ const order=(a,b)=>a<b?-1:a>b?1:0;
 // is only a display label, which several callables may share (anonymous callbacks on one line,
 // same-named methods). A leaf holds its own callable and those folded into it. A result without
 // keys falls back to names as identity; callables that then collide are one leaf (`merged`).
-export function leafModel(analysis) {
+// State nodes, process links and actor channels (channels.mjs) join the leaves and arrows first;
+// `actors` are the authored set's actor ids (readAuthored).
+export function leafModel(analysis,{actors}={}) {
+  analysis=withChannels(analysis,{actors});
   const leafOf=new Map(),leaves=new Map();
   let merged=0;
-  for(const {leaf:name,key=name,role,folded=[],foldedKeys=folded,readsState} of analysis.leaves) {
+  for(const {leaf:name,key=name,role,folded=[],foldedKeys=folded,readsState,state,channel,owner} of analysis.leaves) {
     if(leaves.has(key)){merged++;continue;}
-    leaves.set(key,{id:key,name,role,folded:foldedKeys,foldedNames:folded,...(readsState!==undefined?{readsState}:{})});
+    leaves.set(key,{id:key,name,role,folded:foldedKeys,foldedNames:folded,...(readsState!==undefined?{readsState}:{}),...(state?{state}:{}),...(channel?{channel,owner}:{})});
     leafOf.set(key,key);
   }
   for(const {id,folded} of leaves.values())for(const f of folded){if(leafOf.has(f)){if(leafOf.get(f)!==id)merged++;continue;}leafOf.set(f,id);}
@@ -52,7 +56,7 @@ export function leafModel(analysis) {
   }
   const named=new Map();for(const l of leaves.values())named.set(l.name,(named.get(l.name)??0)+1);
   const sharedNames=[...leaves.values()].filter(l=>named.get(l.name)>1).length;
-  return {leaves:[...leaves.values()],arrows:[...arrows.values()],merged,sharedNames,unknownEnds:[...missing].sort(order)};
+  return {leaves:[...leaves.values()],arrows:[...arrows.values()],merged,sharedNames,unknownEnds:[...missing].sort(order),...(analysis.channels?{channels:analysis.channels}:{})};
 }
 
 // The text each file's keys were taken in. The analysis reads files as they are on disk, so a
@@ -111,8 +115,15 @@ export function readAuthored(dir) {
   const top=architecture.nodes.filter(n=>!String(n.index).includes('.'));
   const byIndex=new Map(top.map(n=>[String(n.index),n.id]));
   const topOf=new Map(architecture.nodes.map(n=>[n.id,byIndex.get(String(n.index).split('.')[0])]));
-  return {nodes:top.map(n=>({id:n.id,index:String(n.index),label:n.label})).sort((a,b)=>Number(a.index)-Number(b.index)),
-    topOf,owners:ownership.leaves??{}};
+  const nodes=top.map(n=>({id:n.id,index:String(n.index),label:n.label})).sort((a,b)=>Number(a.index)-Number(b.index));
+  // Outside actors (architecture.json `actors`) are map-0 boxes holding their channels
+  // (channels.mjs), numbered after the nodes, then a generated box for outside contacts no
+  // actor's channel takes.
+  const actors=Object.keys(architecture.actors??{});
+  let next=Math.max(...nodes.map(n=>Number(n.index)));
+  for(const id of actors){nodes.push({id:`external:${id}`,index:String(++next),label:architecture.actors[id].label,actor:true});topOf.set(`external:${id}`,`external:${id}`);}
+  nodes.push({id:'external:unassigned',index:String(++next),label:'Unassigned outside contact',actor:true,generated:true});topOf.set('external:unassigned','external:unassigned');
+  return {nodes,topOf,owners:ownership.leaves??{},actors};
 }
 
 // Each leaf's map-0 owner. A leaf's callable is found among the declarations (lib/graph.mjs
@@ -124,7 +135,8 @@ export function readAuthored(dir) {
 // is reported, not guessed. `texts` are the analysed texts (analysedTexts), so offsets agree.
 export async function ownLeaves(leaves,authored,{root=repo,texts=analysedTexts(leaves,{root}).texts}={}) {
   const {extractGraph}=await import('../lib/graph.mjs');
-  const parse=l=>{const m=/^(.*?):(\d+) (.*)$/.exec(l.name??l.id),k=/^(.*):(\d+)$/.exec(l.id);
+  // A state node's key is its declaring site with a suffix (state.mjs); a channel has its actor.
+  const parse=l=>{if(l.channel)return null;const m=/^(.*?):(\d+) (.*)$/.exec(l.name??l.id),k=/^(.*):(\d+)(?:\.\d+)?$/.exec(l.id);
     return m?{file:m[1],line:Number(m[2]),name:m[3],offset:k&&k[1]===m[1]?Number(k[2]):null}:null;};
   const files=[...new Set(leaves.map(l=>parse(l)?.file).filter(Boolean))].sort(order);
   const graph=await extractGraph({repo:root,files,readSource:file=>texts.get(file)??readFileSync(resolve(root,file),'utf8')});
@@ -145,6 +157,7 @@ export async function ownLeaves(leaves,authored,{root=repo,texts=analysedTexts(l
       ??here.find(d=>d.name==='constructor')??here.find(d=>d.kind!=='variable');
   };
   return leaves.map(leaf=>{
+    if(leaf.channel)return {leaf:leaf.id,owner:leaf.owner??'external:unassigned',via:'channel'};
     const at=parse(leaf);
     if(!at)return {leaf:leaf.id,owner:null,gap:'unparsed leaf name'};
     let tried=[],d=null;
@@ -304,7 +317,7 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   const clock=performance.now();
   const authored=readAuthored(resolve(repo,option('--authored')??'dev-map/sets/030-architecture'));
   const analysis=JSON.parse(readFileSync(input,'utf8'));
-  const model=leafModel(analysis);
+  const model=leafModel(analysis,{actors:authored.actors});
   const t1=performance.now();
   const {texts,changed:sourceChanged}=analysedTexts(model.leaves,{roots:[repo,...options('--source-root').map(r=>resolve(r))]});
   const owners=await ownLeaves(model.leaves,authored,{texts});

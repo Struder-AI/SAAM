@@ -1516,7 +1516,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   function allocate(kind,ctx,e,variant='') {
     const g=ctx.allocGroup,k='a'+e.start+variant;
     if(g){const o=g.get(k);if(o!==undefined)return o;}
-    const o=pt.object({kind:'object',shape:kind,owner:ctx.fn.id,file:ctx.mod.file,line:e.loc?.start.line});ctx.fn.allocations.push(o);
+    const o=pt.object({kind:'object',shape:kind,owner:ctx.fn.id,file:ctx.mod.file,line:e.loc?.start.line,start:e.start});ctx.fn.allocations.push(o);
     if(g)g.set(k,o);
     return o;
   }

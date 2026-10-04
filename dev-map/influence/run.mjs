@@ -24,6 +24,8 @@ import {derive,pairArrowsOf} from './derive.mjs';
 import {compileModule} from './compile.mjs';
 import {compose} from './compose.mjs';
 import {inScope,scopeFiles,importResolver,staticImports} from './scope.mjs';
+import {stateFacts} from './state.mjs';
+import {contactFacts} from './channels.mjs';
 
 const repo=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
 const argv=process.argv.slice(2);
@@ -166,7 +168,9 @@ if(out) {
     // Folded: every callable derive kept (derive.mjs canon; only those are ever folded) whose leaf
     // is i. A callable walked only inside copies is kept as its first copy, so copies count here.
     leaves:[...result.leaves].map(i=>{const folded=fns.filter(f=>f.id!==i&&fn[f.id]!==f.id&&(()=>{let x=f.id;while(fn[x]!==x)x=fn[x];return x;})()===i);
-      return {leaf:name(fns[i]),key:fns[i].key,role:result.leafCommand[i]?'command':'query',folded:folded.map(name),foldedKeys:folded.map(f=>f.key)};})
+      return {leaf:name(fns[i]),key:fns[i].key,role:result.leafCommand[i]?'command':'query',folded:folded.map(name),foldedKeys:folded.map(f=>f.key)};}),
+    // State facts and process/outside contacts (state.mjs, channels.mjs), made into nodes and links by leafModel.
+    state:stateFacts(pt,built,result,{modules}),contacts:contactFacts(pt,built,result,{modules,resolveImport})
   },null,1));
 }
 
