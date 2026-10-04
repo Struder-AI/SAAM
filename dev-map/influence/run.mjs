@@ -1,0 +1,96 @@
+// Milestone 1 of plans/dev-maps.md: run the influence analysis on a selection of SAAM source
+// and time each phase. Usage:
+//   node dev-map/influence/run.mjs [--closure] [--depth N] [--out FILE] PREFIX...
+// PREFIX selects in-scope files by path prefix (`all` for the whole scope). --closure adds every
+// in-scope module the selection imports, transitively, so the analysis sees whole programs.
+// --depth sets how many call sites deep directly called functions are copied (default 1).
+import {readFile,writeFile} from 'node:fs/promises';
+import {execFileSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+import {dirname,resolve} from 'node:path';
+import * as acorn from 'acorn';
+import {PointsTo} from './points-to.mjs';
+import {buildConstraints,resolver} from './constraints.mjs';
+import {derive} from './derive.mjs';
+import {importAliases} from '../lib/scope.mjs';
+
+const repo=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
+const argv=process.argv.slice(2);
+const closure=argv.includes('--closure');
+const depthAt=argv.indexOf('--depth');const depth=depthAt>=0?+argv[depthAt+1]:1;
+const outAt=argv.indexOf('--out');const out=outAt>=0?argv[outAt+1]:null;
+const prefixes=argv.filter((a,i)=>!a.startsWith('--')&&!(outAt>=0&&i===outAt+1)&&!(depthAt>=0&&i===depthAt+1));
+
+// Scope: SAAM code that runs in use. Tests, demos, benchmarks and development tooling are out.
+const ROOTS=/^(core|studio|skills|workspaces|packaging|scripts|adapters)\//;
+const OUT=/(^|\/)(tests?|demos?|bench|benchmarks?|fixtures?|examples?|vendor|node_modules)\/|\.test\.|\.min\.|^scripts\/(bench|bambu-audit)|^packaging\/(windows|macos)\//;
+const inScope=f=>/\.(mjs|js)$/.test(f)&&ROOTS.test(f)&&!OUT.test(f);
+
+const clock=()=>process.hrtime.bigint();
+const ms=(a,b)=>Number(b-a)/1e6;
+const t0=clock();
+const all=execFileSync('git',['ls-files'],{cwd:repo,encoding:'utf8'}).split('\n').filter(inScope);
+let files=prefixes.includes('all')?all:all.filter(f=>prefixes.some(p=>f.startsWith(p)));
+const resolveImport=resolver(all,{aliases:importAliases});
+
+const parsed=new Map(),parseErrors=[];
+async function parse(file) {
+  if(parsed.has(file))return parsed.get(file);
+  const text=await readFile(resolve(repo,file),'utf8');
+  let ast=null;
+  try{ast=acorn.parse(text,{ecmaVersion:'latest',sourceType:'module',locations:true,allowHashBang:true});}
+  catch(e){try{ast=acorn.parse(text,{ecmaVersion:'latest',sourceType:'script',locations:true,allowHashBang:true});}catch{parseErrors.push({file,error:e.message});}}
+  const mod=ast&&{file,text,ast};parsed.set(file,mod);return mod;
+}
+for(const f of files)await parse(f);
+if(closure) {
+  const queue=[...files];
+  while(queue.length) {
+    const mod=parsed.get(queue.pop());if(!mod)continue;
+    const specs=[];
+    for(const s of mod.ast.body)if((s.type==='ImportDeclaration'||s.type==='ExportAllDeclaration'||s.type==='ExportNamedDeclaration')&&s.source)specs.push(s.source.value);
+    for(const spec of specs){const t=resolveImport(mod.file,spec);if(t&&!parsed.has(t)&&inScope(t)){await parse(t);queue.push(t);}}
+  }
+  files=[...parsed.keys()];
+}
+const modules=files.map(f=>parsed.get(f)).filter(Boolean);
+const bytes=modules.reduce((s,m)=>s+m.text.length,0);
+const t1=clock();
+
+// Node built-ins load for real, so platform reads follow what they actually export.
+const platformModules=new Map();
+for(const m of modules)for(const s of m.ast.body)if(s.source&&/^node:/.test(s.source.value)&&!platformModules.has(s.source.value)) {
+  try{platformModules.set(s.source.value,await import(s.source.value));}catch{}
+}
+const pt=new PointsTo();
+const built=buildConstraints(pt,modules,{resolveImport,platformModules,depth});
+const t2=clock();
+pt.solve();
+const t3=clock();
+const result=derive(pt,built);
+const t4=clock();
+
+const count=(list,key)=>{const c={};for(const x of list){const k=key(x);c[k]=(c[k]??0)+1;}return Object.fromEntries(Object.entries(c).sort((a,b)=>b[1]-a[1]));};
+let ptsTotal=0,ptsMax=0;for(const s of pt.pts){ptsTotal+=s.size;if(s.size>ptsMax)ptsMax=s.size;}
+const summary={
+  selection:prefixes,closure,depth,files:modules.length,bytes,parseErrors:parseErrors.length,
+  timingsMs:{readParse:Math.round(ms(t0,t1)),constraints:Math.round(ms(t1,t2)),solve:Math.round(ms(t2,t3)),derive:Math.round(ms(t3,t4)),total:Math.round(ms(t0,t4))},
+  heapMB:Math.round(process.memoryUsage().heapUsed/1048576),
+  pointsTo:{nodes:pt.pts.length,objects:pt.objects.length,fieldNodes:pt.fields.size,copyEdges:pt.edgeCount,propagations:pt.propagations,pointsToTotal:ptsTotal,largestSet:ptsMax},
+  ...result.summary,
+  unmodelled:count(built.unmodelled,u=>u.kind),
+  unresolvedImports:built.unresolvedImports.length
+};
+console.log(JSON.stringify(summary,null,1));
+if(out) {
+  const fn=result.home;const fns=built.functions;
+  const name=f=>`${f.file}:${f.line} ${f.name??'(anonymous)'}`;
+  await writeFile(out,JSON.stringify({summary,parseErrors,
+    unresolvedImports:built.unresolvedImports,
+    unmodelled:built.unmodelled,
+    answersAndActs:result.both.map(name),
+    uncalledUnexported:result.uncalled.map(name),
+    arrows:result.arrows.map(a=>({from:name(fns[a.from]),to:name(fns[a.to]),kind:a.kind,count:a.count})),
+    leaves:[...result.leaves].map(i=>({leaf:name(fns[i]),role:result.command[i]?'command':'query',folded:fns.filter(f=>f.id!==i&&fn[f.id]!==f.id&&(()=>{let x=f.id;while(fn[x]!==x)x=fn[x];return x;})()===i).map(name)}))
+  },null,1));
+}

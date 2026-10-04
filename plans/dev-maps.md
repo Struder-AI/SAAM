@@ -1,0 +1,81 @@
+# Dev maps intent
+
+Owner direction, 2026-10-03 ([D-046](../DECISIONS.md#d-046--rebuilt-dev-maps-causal-arrows-and-banned-unmodelled-code)). This document owns the intent for the rebuilt dev maps. [Developer context](../DEVELOPER-CONTEXT.md#working-with-dev-maps) carries the principle every developer applies; the [map guide](../dev-map/README.md) describes the current tool until the rebuild replaces it.
+
+## Purpose
+
+A developer or agent changes a piece of SAAM knowing everything it affects and everything that affects it, without reading source to find out. The standard is review ten times faster with four times the confidence. That holds only if the map is complete: an absent arrow must mean no influence.
+
+## Arrows
+
+Every arrow at every level means one thing: **causal influence, pointing from the code that can change something to the code whose behaviour or input it changes.** Calls, values and state are how influence travels, not separate meanings.
+
+Each callable has one causal role:
+
+- **Query**: it answers its caller and does nothing else. When A asks B, the arrow is B → A. B's code determines what A receives; A's arguments only shape the answer A gets back.
+- **Command**: it acts. When A activates B, the arrow is A → B, and B's effects carry influence onward: B → C for data B hands to C, B → state for what it writes.
+
+A callable that both answers and acts is banned (command–query separation). It hides effects behind a returned value, so no single arrow direction tells the truth about it; rewrite it as a command and a query.
+
+State is where influence waits between a write and a read. Bundle is the only shared part state; all other state belongs privately to one stateful boundary.
+
+## Leaves
+
+Every piece of SAAM code belongs to exactly one leaf, module load code included. A leaf is one callable with one causal role, opened as source. A helper folds into a leaf only when folding hides no arrow between other nodes. Leaves, their boundaries and their roles are computed from the analysis, never authored. A leaf that drives many unrelated effects is a design problem the map exposes, not a reason for a larger leaf. Leaf internals are read as source, not drawn.
+
+## Levels
+
+- **Top level, authored.** The owner authors the top-level structure of each set (architecture, deployment): its nodes and the arrows they permit, each a contract. Every leaf has exactly one top-level owner.
+- **Leaves, generated** from source by analysis.
+- **Between them, solved.** Higher-level arrows are derived, never authored: two boxes are linked when some leaf arrow runs from inside one to inside the other, and the link carries the leaf arrows it stands for. The top level's derived arrows are checked against its authored ones.
+- **The solver works middle-out**: authored nodes fixed above, leaves below. It groups each authored node's leaves into nested maps and never moves a leaf across an authored boundary. The starting objective is the existing size, edge, hub, island and balance penalties ([score.mjs](../dev-map/lib/score.mjs)) over influence arrows. Backflow, arrows against a map's best left-to-right order and so cycles among its boxes, is left out for now. Labels come from label passes; the solver runs when the owner asks.
+
+Arrow direction plus role already says who calls whom: a query's arrow runs against the call. Separate authored access lists, such as those in the [0.3.1 contracts](0.3.1.md), become derivable and retire once the checks cover them.
+
+## Banned code
+
+The map is complete only if the analysis models all code, so the following are banned. Checks report them as errors at a source location, not as findings to accumulate:
+
+- **Code shapes the analysis does not model.** Supporting a new shape is a deliberate decision, weighing its value against the cost of modelling it. Platform APIs are included: each one SAAM uses needs a model of its influence, or SAAM does not use it.
+- **Influence between top-level nodes that no authored arrow permits.**
+- **Callables that both answer and act.**
+
+The [code-shape rules](../DEVELOPER-CONTEXT.md#code-shape) are consequences of these.
+
+## Potential, not actual
+
+The analysis represents every influence the code could exert, not whether a given run exerts it. False possibilities are minimised, not eliminated, and drawn marked as possible. Because crossing an authored boundary is banned, a false possibility there forces a rewrite of legitimate code. Spend precision at authored boundaries first, and give boundary code shapes the analysis can prove separate.
+
+## Analysis
+
+One whole-program, inclusion-based points-to analysis (Andersen): each value is approximated by the allocation sites it may hold, solved to a fixed point over all in-scope code at once. Each callable's reads and writes follow from it. Call targets, roles and arrows are derived from that single result. It is field-sensitive from the start; context sensitivity is added where boundary checks need it. It uses the existing parser; any new dependency needs owner approval.
+
+Regeneration must be fast enough to use while working, refreshing as code changes; the measure is usability, not improvement over the old scanner, which was too slow for that. Completeness is checked against behaviour: traces from real Studio and agent runs must show no influence the map lacks, and a miss is an analysis bug.
+
+## Scope
+
+**Analysed:** all SAAM code that runs when SAAM is used, including code in other processes, which connect through modelled channels such as worker messages, HTTP and files.
+
+**Platform:** language, runtime, browser, Node and third-party packages, including WASM libraries. Platform code is modelled, never drawn as nodes.
+
+**Boundaries:**
+- SAAM's own native code is a declared boundary with an authored contract until it is analysed.
+- Extensions installed outside the repository meet SAAM only at the extension interface.
+
+**Out of scope:** code that does not run in use, such as tests, demos, benchmarks and development tooling.
+
+The owner may adjust scope.
+
+## Milestones
+
+1. **Speed.** Prototype the analysis on a small region; time parsing, constraint generation, solving and arrow derivation; report sizes and extrapolate. No maps or checks.
+2. **Whole scope.** Platform models for the APIs SAAM uses; inventory of unmodelled shapes, each to model or ban; query/command classification; comparison against runtime traces.
+3. **Checks.** Unmodelled shapes, ownership coverage, top-level arrows and query/command separation, as errors.
+4. **Maps.** Derived levels, the middle-out solver, the viewer, and the [read contract](../dev-map/README.md#commands) on the CLI, toolkit and onboarding routes.
+5. **Retirement.** Remove the old scanner, scope configuration, finding classes and their documentation.
+
+## Open decisions
+
+- **Acknowledgements.** May a command tell its caller it completed, failed, or what identity it created? Recommendation: yes, as an acknowledgement carried on the activation arrow. Anything else the caller computes with makes it a query and a command.
+- **State on the map.** Recommendation: state is a node, owned by its boundary. Writes enter it and reads leave it, rather than an arrow from every writer to every reader.
+- **SAAM's own native code**: when and how to analyse it.

@@ -1,5 +1,14 @@
 # Development log
 
+## 2026-10-03 — Dev map rebuild: intent and milestone 1 speed measurement
+
+- Owner direction recorded as [dev maps intent](plans/dev-maps.md) and [D-046](DECISIONS.md#d-046--rebuilt-dev-maps-causal-arrows-and-banned-unmodelled-code): every arrow is causal influence; a callable answers or acts, never both (now [code-shape rule 4](DEVELOPER-CONTEXT.md#code-shape)); authored top level, computed leaves, middle-out solver; unmodelled code and unauthorized top-level influence banned.
+- Prototype analysis in `dev-map/influence/` (`run.mjs`): inclusion-based points-to over acorn ASTs, platform objects checked against real runtime values, query/command roles, answer/activation/state arrows and computed leaves. Direct calls get per-call-site copies of the callee (`--depth`).
+- Speed (this Windows machine, Node 24): `core/path` with its imports (77 files, 450 KB) took 166 s context-insensitively, 1.8 s with one level of copies and 1.7 s with two. Two levels cut writer-to-reader state pairs from 36,579 to 1,601. The whole scope (344 files, 2.1 MB) took 93 s at one level and 111 s at two (3–4 GB heap): not yet usable while working.
+- Cause: values passed into shared callees flow back to every caller. Cutting return flow (diagnostic only) solved `core/path` in 14 ms with nearly identical call edges. Across the whole scope, merging persists through validators that return their input, generic value walkers (`hash`, `canonical`) and platform container results.
+- First unmodelled-shape inventory: `Object.defineProperty`/`defineProperties` (mesh, server), accessors, non-literal dynamic imports (local extensions, extension library), `Proxy`/`Reflect`, generators, computed callees. Mixed-role counts (about 1,180) are provisional: ownership is still approximate, and some (e.g. `formatLuaNumber`) look false.
+- Not done: no maps, checks, trace comparison or tests; JSON imports and `-demo` file names are not yet scoped correctly. Merging all plain data into one object was tried and rejected (it became a hub and slowed everything).
+
 ## 2026-10-03 — State dev-map link intent
 
 - Owner confirmed the intent ([D-045](DECISIONS.md#d-045--a-dev-map-link-records-influence)): a link records influence between two pieces of SAAM, where one can change what the other does or receives. [Developer context](DEVELOPER-CONTEXT.md#working-with-dev-maps) owns the wording, and developer onboarding delivers it to every developer agent.
