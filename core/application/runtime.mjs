@@ -861,6 +861,7 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
       case 'close_studio_session':return closeStudioSession(input);
       case 'generate_toolpath':return generateToolpath(input,session,instance);
       case 'deliver_toolpath':return deliverToolpath(input);
+      default:throw new Error(`Operation ${name} has a definition but no entry in perform().`);
     }
     throw Error(`Unknown SAAM operation ${name}.`);
   }
