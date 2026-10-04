@@ -522,8 +522,10 @@ export async function influenceCommand(command,args) {
     const model=await writeModel({log});held=model;
     const {buildGeneratedView}=await import('../lib/generated-view.mjs');
     const view=await buildGeneratedView({repo});
-    console.log(JSON.stringify({mode:'influence',...(analysed?{analysis:analysed}:{}),solved:solve.solved,reused:solve.reused,summary:model.summary,checks:model.checks,view:view.index},null,1));
-    if(!model.checks.ok)process.exitCode=1;
+    // Every regeneration proves the reads say what the drawings draw, as `check` does.
+    const reads=verifyReads(model);
+    console.log(JSON.stringify({mode:'influence',...(analysed?{analysis:analysed}:{}),solved:solve.solved,reused:solve.reused,summary:model.summary,checks:model.checks,reads,view:view.index},null,1));
+    if(!model.checks.ok||!reads.ok)process.exitCode=1;
     return;
   }
   if(command==='build') {
