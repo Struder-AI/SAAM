@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-04 — Minimal influence reads
+
+- `solved-set.mjs` read (worker): a map read is `boxes` (cluster: label and leaf count; leaf: `NAME FILE:LINES` plus only the marks that are set), `boundary`, and `arrows` = the drawn pairs (`→`, `•→`, `↔`) with leaf-arrow counts and one `@link/MAP/FROM/TO` template; map 0 alone adds the preview note, files not analysed and the `@unlinked`/`@unowned` list addresses. A link read carries that arrow's leaf arrows as `from file:lines → to file:lines kind ×N`, grouped by direction. No keys or offsets reach agents. `check` now verifies each map read's arrows equal its drawn pairs and each link read equals the stored leaf arrows. Main session: leaf boundary boxes also read `NAME FILE:LINES` (two `radiusAt` boxes were indistinguishable).
+- Sizes (v2 preview): map 0 85,962 → 1,358 characters, map 3.1 51,069 → 1,740, largest library 92,437 → 20,217; all 168 maps 2.28 M → 0.40 M. No information lost: every link read of every map, parsed back to exact keys, equals the old reads' 21,406 leaf arrows (worker script). `check` ok after the boundary change. Open: `agent-toolkit read-map` takes `--set NAME` only (fine once the influence set is committed); regenerate does not yet run the read check. No tests run.
+
 ## 2026-10-04 — core/application closure finishes soundly
 
 - `constraints.mjs`/`points-to.mjs`/`flows.mjs` (engine worker 2): recursion binds to the copy it runs in (Whaley-Lam 2004); type tests (`typeof`, `Array.isArray`, truthiness, `== null`, with `!`/`&&`/`||`) narrow never-reassigned bindings in if/else, `?:`, `&&`/`||` and early returns, removing the blob where publicBundleIdentity and manufacturing passed every input into their result; points-to sets are compact small-integer arrays (indexed past 32 members) with one shared empty set; callables record read objects instead of field nodes (65 M → 2.5 M entries; derive 21 s → 1 s); fewer listeners and cheaper cycle passes.

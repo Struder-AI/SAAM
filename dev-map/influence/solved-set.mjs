@@ -422,7 +422,7 @@ function mapRead(m,page) {
     .map(c=>[c.index,c.kind==='leaf'?leaf(c.path):`${c.label} · ${c.count} ${c.count===1?'leaf':'leaves'}`]));
   const top=page.index===TOP,unlinked=m.summary.unlinked,unowned=m.summary.unowned;
   return {index:page.index,label:page.label,...(top&&m.notice?{preview:m.notice}:{}),boxes,
-    ...(page.ports.length?{boundary:Object.fromEntries(page.ports.map(p=>[p.port,p.label]))}:{}),
+    ...(page.ports.length?{boundary:Object.fromEntries(page.ports.map(p=>[p.port,names.get(p.path)??p.label]))}:{}),
     ...(page.wires.length?{arrows:Object.fromEntries(page.wires.map(w=>[`${w.from} ${ARROW[w.ends]} ${w.to}`,w.count])),link:`@link/${page.index}/FROM/TO`}:{}),
     ...(top&&page.notAnalysed?.length?{notAnalysed:page.notAnalysed}:{}),...(top&&m.sourceChanged?.length?{sourceChanged:m.sourceChanged}:{}),
     ...(top&&(unlinked||unowned)?{lists:{...(unlinked?{[LIST_UNLINKED]:unlinked}:{}),...(unowned?{[LIST_UNOWNED]:unowned}:{})}}:{})};
