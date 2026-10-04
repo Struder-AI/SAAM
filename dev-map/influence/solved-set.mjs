@@ -31,6 +31,8 @@ const order=(a,b)=>a<b?-1:a>b?1:0;
 const sha=text=>createHash('sha256').update(text).digest('hex');
 const lf=text=>text.replaceAll('\r\n','\n');
 const TOP='0',UNOWNED='(unowned)';
+// A map's ledger lists the leaf arrows behind its arrows when it carries at most this many.
+const LEDGER_ARROWS=150;
 const regenerateCommand=`node dev-map/cli.mjs ${setDir?`--set-dir ${setDir}`:`--set ${setName}`} regenerate`;
 const keyParts=key=>{const at=key.lastIndexOf(':');return {file:key.slice(0,at),offset:Number(key.slice(at+1))};};
 const fileOf=key=>keyParts(key).file;
@@ -238,9 +240,12 @@ export async function writeModel({log=()=>{}}={}) {
       path:cluster.has(id)?`@cluster/${id}`:id}));
     const wires=m.arrows.map(a=>({from:box(a.from),to:box(a.to),ends:a.ends,count:a.leafArrows.length,kinds:kindCount(a.leafArrows),leafArrows:a.leafArrows}));
     const named=id=>id.startsWith('b:')?`[${ports.find(p=>p.port===id)?.index}] ${ports.find(p=>p.port===id)?.label}`:`${id} ${components.find(c=>c.index===id)?.label}`;
-    const sections=[{title:`arrows: ${wires.length} pairs carrying ${wires.reduce((n,w)=>n+w.count,0)} leaf arrows`,
+    // Each pair's row; its leaf arrows are rows too where the map carries few enough to read
+    // beside the drawing, and always in the CLI read.
+    const total=wires.reduce((n,w)=>n+w.count,0),listed=total<=LEDGER_ARROWS;
+    const sections=[{title:`arrows: ${wires.length} pairs carrying ${total} leaf arrows${listed?'':` (leaf arrows: ${regenerateCommand.replace(/ regenerate$/,'')} read ${idx})`}`,
       items:wires.flatMap(w=>[{text:`${named(w.from)} ${glyph[w.ends]} ${named(w.to)} · ${w.count} leaf arrows · ${Object.entries(w.kinds).map(([k,n])=>`${k}×${n}`).join(' ')}`,style:'note'},
-        ...w.leafArrows.map(i=>{const a=model.arrows[i];return {text:`    ${leafText(a.from)} → ${leafText(a.to)} · ${a.kind}${a.count>1?` ×${a.count}`:''}`,go:leafRow.get(a.from).index??''};})])}];
+        ...(listed?w.leafArrows.map(i=>{const a=model.arrows[i];return {text:`    ${leafText(a.from)} → ${leafText(a.to)} · ${a.kind}${a.count>1?` ×${a.count}`:''}`,go:leafRow.get(a.from).index??''};}):[])])}];
     const c=cluster.get(m.id);
     if(c?.unlinked?.length)sections.push({title:`unlinked leaves (${c.unlinked.length}): no arrow, so not drawn; dead code or an analysis gap`,
       items:c.unlinked.map(k=>{const r=leafRow.get(k);return {text:`${r.label}  ${r.file}:${r.line}-${r.endLine}  ${r.role}`};})});
@@ -270,8 +275,12 @@ export async function writeModel({log=()=>{}}={}) {
   ];
   root.sections.unshift({title:`PREVIEW: partial influence analysis, solver output, unreviewed`,items:notes.map(text=>({text,style:'note'}))});
   if(spec.missing?.length)root.sections.splice(1,0,{title:`not analysed (${spec.missing.length} in-scope files): their leaves and arrows are absent`,items:spec.missing.map(text=>({text}))});
-  root.sections.push({title:`unowned leaves (${unowned.length}): no map-0 owner in ${basename(paths.authored)} ownership; drawn under ${index.get(UNOWNED)} when linked`,
+  // The unowned list stands on the unowned box's own map (map 0 points to it); a set with no
+  // such map lists them on map 0.
+  const unownedPage=pages.find(p=>p.index===index.get(UNOWNED))??root;
+  unownedPage.sections.unshift({title:`unowned leaves (${unowned.length}): no map-0 owner in ${basename(paths.authored)} ownership; drawn here when linked`,
     items:unowned.sort((a,b)=>keyOrder(a.key,b.key)).map(r=>({text:`${r.label}  ${r.file}:${r.line}-${r.endLine}  · ${r.gap}${r.declaration?` · ${r.declaration}`:''}${r.unlinked?' · unlinked':''}`,go:r.index??''}))});
+  if(unownedPage!==root)root.sections.push({title:`unowned leaves (${unowned.length}): listed on map ${unownedPage.index}`,items:[{text:`${unownedPage.index} ${unownedPage.label}`,go:unownedPage.index}]});
   root.sections.push({title:`unlinked leaves by node (${unlinked.length}): listed on each node's map`,
     items:[...authored.nodes.map(n=>n.id),UNOWNED].map(id=>({text:`${index.get(id)} ${boxLabel(id)}: ${cluster.get(id)?.unlinked?.length??0}`,go:index.get(id)}))});
   root.sections.push({title:'solver',items:summaries.map(s=>({text:`${s.node}: ${s.leaves} leaves solved + ${s.library??0} in its library, ${s.clusters} clusters, energy ${s.startEnergy?.toFixed(3)} → ${s.energy?.toFixed(3)}, ${s.stages} stages, ${s.ms} ms, ${s.generated}`}))});
