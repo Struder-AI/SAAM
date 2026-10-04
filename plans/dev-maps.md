@@ -60,7 +60,7 @@ The analysis represents every influence the code could exert, not whether a give
 
 ## Analysis
 
-One whole-program, inclusion-based points-to analysis (Andersen): each value is approximated by the allocation sites it may hold, solved to a fixed point over all in-scope code at once. Each callable's reads and writes follow from it. Call targets, roles and arrows are derived from that single result. It is field-sensitive from the start; context sensitivity is added where boundary checks need it. It uses the existing parser; any new dependency needs owner approval.
+Inclusion-based points-to analysis (Andersen), computed compositionally: each function is summarised once by what it does with its inputs (what it returns, reads, writes and calls in terms of its parameters and what it allocates), and summaries are composed over the call graph, strongly connected components together. An edit re-analyses the changed functions and only the callers whose summaries change. Call targets, roles and arrows are derived from the composed result, field-sensitive and with the call-site context that keeps one caller's values from returning to another. It uses the existing parser; any new dependency needs owner approval.
 
 Regeneration must be fast enough to use while working, refreshing as code changes; the measure is usability, not improvement over the old scanner, which was too slow for that. Completeness is checked against behaviour: traces from real Studio and agent runs must show no influence the map lacks, and a miss is an analysis bug.
 
@@ -88,6 +88,5 @@ The owner may adjust scope.
 
 ## Open decisions
 
-- **Live speed.** Milestone 1 solves a 450 KB program in under 2 s, but the whole scope takes about 100 s ([DEVLOG](../DEVLOG.md#2026-10-03--dev-map-rebuild-intent-and-milestone-1-speed-measurement)). Options: keep one whole-program solve and make the solver faster (estimated 3–10×, every edit re-solves everything), or compositional analysis: per-function summaries composed over the call graph, re-analysing only what an edit reaches. Recommendation: compositional; it changes this document's "one whole-program solve" wording.
 - **State on the map.** Recommendation: state is a node, owned by its boundary. Writes enter it and reads leave it, rather than an arrow from every writer to every reader.
 - **SAAM's own native code**: when and how to analyse it.

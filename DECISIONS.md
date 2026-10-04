@@ -485,3 +485,7 @@ Historical approved wording; current persistence direction is [D-027](#d-027--ex
 ## D-047 — Command outcomes and one arrow per pair
 
 - Owner decision, 2026-10-03: a command may return its outcome to its caller (completed or failed, and the identity of anything it created) and nothing else the caller computes with; private caches and a leaf's own working state are not effects. Separation applies to leaves; larger boxes relate in both directions. Each related pair of boxes is drawn as one arrow: one head for one-way influence, a head with a dot at the tail for an activation returning only its outcome, two heads for influence both ways (between leaves, a banned callable that acts and returns data). [Dev maps intent](plans/dev-maps.md#notation) owns the details. Source: owner, Claude Code session 2026-10-03; no contributor consensus inferred.
+
+## D-048 — Compositional influence analysis
+
+- Owner decision, 2026-10-03: the dev-map influence analysis is computed compositionally (per-function summaries composed over the call graph, re-analysing only what an edit reaches) rather than as one whole-program solve, to reach usable regeneration speed. [Dev maps intent](plans/dev-maps.md#analysis) owns the wording. Source: owner, Claude Code session 2026-10-03, approving the recommended option; no contributor consensus inferred.
