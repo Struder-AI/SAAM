@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-04 — core/application closure finishes soundly
+
+- `constraints.mjs`/`points-to.mjs`/`flows.mjs` (engine worker 2): recursion binds to the copy it runs in (Whaley-Lam 2004); type tests (`typeof`, `Array.isArray`, truthiness, `== null`, with `!`/`&&`/`||`) narrow never-reassigned bindings in if/else, `?:`, `&&`/`||` and early returns, removing the blob where publicBundleIdentity and manufacturing passed every input into their result; points-to sets are compact small-integer arrays (indexed past 32 members) with one shared empty set; callables record read objects instead of field nodes (65 M → 2.5 M entries; derive 21 s → 1 s); fewer listeners and cheaper cycle passes.
+- Measured: core/application/runtime.mjs closure out of memory at 9.5 GB → finishes in 37 s at 2.6 GB (main session rerun; worker 30.9 s): 1,414 leaves, 8,212 arrows, 45 arrowless (38 uncalled unexported, 7 exported with callers outside the closure). Five reference closures identical in roles, leaves and arrows at every commit. Whole scope as one run still does not finish (7.1 GB and growing at 518 s; 66 M set entries but 115 k distinct sets): next is hash-consed sets and cheaper cycle merging. Every in-scope file is now covered by a closure that finishes.
+- Code-shape proposals for the owner: emit bundleId where records are built instead of runtime.mjs publicBundleIdentity deep walk; project known geometry shapes instead of spatial-inputs manufacturing recursion; one canonical-JSON replacer (workflow.mjs:24, private/geometry/hash.mjs:5); per-kind merges instead of resolve-plan mergeRecord. No tests run.
+
 ## 2026-10-04 — Influence viewer feedback; Development tooling node; owner decisions recorded
 
 - Viewer (owner feedback): map 0 of an influence set takes the authored map-0 positions (`mapZeroPositions` in solved-set.mjs is the one place positions come from); pages show unowned and unlinked leaves as count badges and marker boxes and files not analysed as one marked box, instead of text summaries; the agent read states each fact once (boxes by index, leaf arrows as `FROM KIND TO ×N`). Read size v2 preview: map 0 169,332 → 86,388 characters, all 171 maps 5.29 M → 2.28 M; content of every read identical before and after (worker diff of arrows, leaf arrows, keys, labels, roles, ranges). `check` passes on both previews.
