@@ -1,9 +1,8 @@
 # Checkpoint and publication guidance
 
-Read this after doing the development work, immediately before an authorized
-checkpoint or remote activity. Read it earlier when the task itself concerns
-integration or publication. During-work guidance lives in [BUILDERS.md](BUILDERS.md).
-Reading this document does not trigger another verification pass.
+This covers checkpoints and remote activity; it is most useful just before them.
+During-work guidance lives in [BUILDERS.md](BUILDERS.md). Reading it does not
+trigger another verification pass.
 
 ## Reconcile the contribution
 
@@ -37,8 +36,7 @@ services before relying on the integrated behavior.
 ## Record and publish
 
 Update current manuals and record completed work and actual verification in
-[DEVLOG.md](DEVLOG.md). Remove completed requests from [the open list](build_request.md),
-leaving only unfinished work. Preserve the stated scope of approvals and decisions.
+[DEVLOG.md](DEVLOG.md). Update the work's status in its release intent. Preserve the stated scope of approvals and decisions.
 
 Reuse the evidence selected under [Avoid check spirals](BUILDERS.md#avoid-check-spirals).
 Obtain only missing, applicable evidence for the change or required branch checks;
@@ -59,4 +57,3 @@ requested branch or fork. Pushing to main and merging require authorization for
 those actions. A request to checkpoint does not by itself request publication.
 
 Report the resulting commit or remote state and any unresolved issue accurately.
-Do not describe an uncommitted edit as checkpointed or a local commit as published.

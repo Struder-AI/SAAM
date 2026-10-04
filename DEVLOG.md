@@ -1,5 +1,15 @@
 # Development log
 
+## 2026-10-03 — Rewrite agent hard rules: intent at one owner, rules from the owner
+
+- Owner reviewed every hard rule developer agents follow. Diagnosis agreed with the owner: rules accreted as reactions to incidents and outlived them (D-029 forbade a tour that 0.3.x ships; D-011's three approvals still read as active); agents turned complaints into absolutes plus compliance machinery; two-contributor governance went unmaintained; bans go stale where positive statements of intent do not.
+- New [Intent and rules](DEVELOPER-CONTEXT.md#intent-and-rules): state intent positively at one owner; history is reference, never authority; hard rules come only in the owner's wording or with the owner's approval. DEVELOPER-CONTEXT's removal blacklist became "Restoring history"; [DECISIONS](DECISIONS.md) is now framed as dated history.
+- Retired `build_request.md` and its provenance ceremony, along with its `check-repo` validation and onboarding manual entry. BR-053 and BR-050 remainders moved to [0.3.3](plans/0.3.3.md) follow-ups, BR-044 to [0.4.0](plans/0.4.0.md), with the original quotes. Deferred work now goes in the release intent, only on owner request or approval.
+- Limits became guidance ([core/README](core/README.md#limits-that-adapt-and-limits-that-are-kept)); the one firm line is "no silent truncation". Removed nine register rows that refuse nothing.
+- Removed rules: synthetic approvals (workflow.mjs already blocks delivery of development output), the active-work upgrade policy line (the contract stays in 0.3.1), map rules pending the rebuilt maps, the concept/implementation approval aphorism, the raw-transcript rule, and the "never reread onboarding" ban. Role rules consolidated in AGENTS.md. Local notes now separate owner rules from preferences; removed task-specific and duplicated local rules.
+- Recorded the owner's open need in 0.3.3: no client memory, but installed homes have no notes location; no solution chosen.
+- Line counts: AGENTS 41 -> 41, DEVELOPER-CONTEXT 67 -> 72, BUILDERS 393 -> 347, CONTRIBUTING-AGENTS 62 -> 59, core/README 106 -> 99, build_request 81 -> deleted; DECISIONS header -27 lines (concurrent entries excluded). Checks: onboarding output, `check-repo` (no new errors; D-038–D-048 field-format errors pre-existing) and diff whitespace. Documentation and check-script only; no tests run.
+
 ## 2026-10-03 — Command outcomes and one arrow per pair
 
 - Owner decision [D-047](DECISIONS.md#d-047--command-outcomes-and-one-arrow-per-pair), recorded in the [dev maps intent](plans/dev-maps.md#notation) and [code-shape rule 4](DEVELOPER-CONTEXT.md#code-shape): a command may return its outcome (completed or failed, created identity); private caches and a leaf's own working state are not effects; separation applies to leaves. Each related pair of boxes is one arrow: one head, a head with a dot at the tail (activation returning its outcome), or two heads (influence both ways; between leaves, a banned command returning data).

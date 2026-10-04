@@ -1,32 +1,13 @@
 # Decisions
 
-Contributors: `tkeller`, `remettub`.
+A dated record of decisions and their sources. It is history: the current release
+intent in [plans](plans/) and the component manuals own current direction, and
+where they differ from an entry here, they win. Entries are not revised when
+direction changes, so an entry's status does not mean it is in force.
 
-Each entry states one decision, its status, a recording timestamp, approvals,
-and a brief source. Both contributors' approval makes a decision **accepted**;
-one contributor's approval makes it **provisional**. Never infer approval from
-authorship, silence, agent work, or agreement on a different decision.
-
-SAAM Studio has approval from both contributors as explicitly reported by
-remettub. Other entries record only the approvals stated in their metadata.
-The timestamp identifies instruction recording; the conversation does not
-expose an exact timestamp for the human's message.
-
-Contributor status and current work authorization are distinct. Entries D-021
-onward record explicit user direction without attributed contributor identity; `proposed` does not negate that authorization. Follow their stated
-scope for implementation. Earlier attributed approvals remain historical
-records and are not extended to later wording. In particular, [D-027](#d-027--export-only-print-persistence)
-owns current print persistence; D-015 and D-019 preserve the earlier wording.
-[D-043](#d-043--complete-consolidation-and-role-boundaries) refines the roles
-introduced by D-033; earlier entries preserve their original approval wording.
-Work history belongs in [DEVLOG.md](DEVLOG.md). Decision quotations, approval
-events and approved wording retain their historical tense and dates under the
-[provenance exception](BUILDERS.md#documentation-maintenance).
-
-Use a `## D-NNN — Title` heading and record `Status`, `Decision`, `Recorded`,
-`Approvals` and `Source`. The recording timestamp uses UTC ISO 8601 format.
-Preserve exact source quotations and approval events; surrounding prose describes
-the current decision and status. Do not extend earlier approval to changed wording.
+Use a `## D-NNN — Title` heading and record `Status`, `Decision`, `Recorded` (UTC
+ISO 8601), `Approvals` and `Source`. Preserve exact source quotations and approval events; do
+not extend earlier approval to changed wording. Contributors: `tkeller`, `remettub`.
 
 ## Statuses
 
@@ -40,9 +21,7 @@ the current decision and status. Do not extend earlier approval to changed wordi
 | withdrawn | No longer pursued. |
 
 Record objections and substantive approval/status changes with actor, time and
-source. Do not infer the second contributor's approval. An accepted decision
-remains effective until its replacement is accepted. Provisional decisions may
-be replaced by the contributor whose approval they carry. Approval refers to
+source. Do not infer the second contributor's approval. Approval refers to
 the recorded decision wording, not later substantive edits.
 
 Source R1: remettub's restart request in the SAAM skeptical-assessment/restart

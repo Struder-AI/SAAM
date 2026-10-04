@@ -23,9 +23,9 @@ Choose from the request; default to maker. Web agents remain makers.
 | Change a core skill, core capability, Studio or shared interface (**developer**) | `node scripts/agent-toolkit.mjs developer-onboarding [--area AREA]` |
 | An unused checkout | [SETUP.md](SETUP.md) once, then reuse it |
 
-Onboarding supplies the whole starting context; do not reread it or rerun it per
-request. Without commands, read [MAKERS.md](MAKERS.md), [BUILDERS.md](BUILDERS.md)
-or [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md) directly, once.
+Onboarding supplies the whole starting context; it is generally needed only once
+per session. Without commands, read [MAKERS.md](MAKERS.md), [BUILDERS.md](BUILDERS.md)
+or [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md) directly.
 
 [Application commands](core/application/README.md) own chat attachment, tours,
 Studio, waits, jobs and the SAAM home. Use the returned chat ID on later commands
@@ -35,7 +35,7 @@ context and keep responding to its requests through `saam wait`.
 
 ## Changing role
 
-Command-access makers may become builders for guidance or extensions using
-existing interfaces. Core/shared changes require developer authorization;
-explain and ask when none exists. Announce every escalation and carry only the
-original request's authorization. Makers never edit shared implementation first.
+Makers may become builders for guidance or extensions using existing
+interfaces. Changing core or shared code requires the developer role and the
+person's authorization; without it, explain the change and ask. Announce a role
+change; it carries only the original request's authorization.

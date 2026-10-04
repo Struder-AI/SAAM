@@ -2,9 +2,9 @@
 
 Builders author guidance and reusable compositions of published capabilities:
 recipe helpers, geometry/assets, examples, demos and diagnostic workflows.
-Core skills expose core capabilities; authoring or changing them, core, Studio
-or shared interfaces requires the [developer role](AGENTS.md#choose-your-role).
-The boundary is the responsibility changed, not the size or location of an edit.
+Changing core skills, core, Studio or shared interfaces is
+[developer work](AGENTS.md#changing-role); the boundary is the responsibility
+changed, not the size or location of an edit.
 
 Run `node scripts/agent-toolkit.mjs builder-onboarding [--area AREA]` once when
 builder context is missing. It returns this manual, maker context, skill authoring
@@ -83,8 +83,8 @@ decisions that require domain judgment.
 
 ## Working context
 
-Use source to establish current behavior, recorded decisions to establish agreed
-direction, and evidence to evaluate a proposed change. Keep assumptions and
+Use source to establish current behavior, the current release intent to establish
+agreed direction, and evidence to evaluate a proposed change. Keep assumptions and
 unresolved questions explicit. Software tests, benchmarks, vendor-tool results
 and physical prints establish different things; report the scope actually checked.
 
@@ -174,17 +174,15 @@ changing; walk the map when you need its structure.
 Keep core/Studio behavior and contracts in their owning component manual, future work and
 proposals clearly marked at their owners, and past work and observations in
 [DEVLOG.md](DEVLOG.md). Future possibilities must not read as implemented
-capabilities. Implement current requests directly; do not create a build-request
-record before starting or while carrying them through. [Build requests](build_request.md#outstanding-work)
-retain authorized work deferred or left incomplete beyond the active task, or
-work the human explicitly asks to put in the backlog. Completed work needs no
-build-request record. Follow [documentation maintenance](#documentation-maintenance).
+capabilities. Implement current requests directly. Work deferred beyond the
+active task goes in the release intent that schedules it ([plans](plans/)); work
+enters an intent document only on the person's request or approval. Follow
+[documentation maintenance](#documentation-maintenance).
 
 Describe what was actually established. Record approvals as given, without
 extending their scope: a software simulation does not establish a physical result,
-approval of a capability does not approve an old implementation, and one person's
-instruction does not establish another person's agreement. This adds no approval
-procedure or requirement to collect more evidence for every change.
+and one person's instruction does not establish another person's agreement. This
+adds no approval procedure or requirement to collect more evidence for every change.
 
 ## Collaboration
 
@@ -206,64 +204,22 @@ An authorized checkpoint includes all non-ignored work by default, across tasks,
 unless the user explicitly narrows it. There is no blanket requirement to
 checkpoint before starting.
 
-Read [checkpoint and publication guidance](CONTRIBUTING-AGENTS.md) after doing the
-work, immediately before an authorized checkpoint or remote activity; read it
-earlier when integration or publication is itself the task.
+[Checkpoint and publication guidance](CONTRIBUTING-AGENTS.md) covers checkpoints
+and remote activity.
 
 ## Context and selective adoption
 
-The current checkout's instructions, shared contracts and the user's authorization
-govern development. Older repositories, transcripts and saved branches are
-reference material; their past requirements do not become current requirements
-by entering an agent's context. Resolve a conflict with current scope before
-silently importing an older design. The
-[September 12 withdrawal](DECISIONS.md#d-029--withdraw-september-12-contributions-and-vet-readmission)
-names work that must not be restored wholesale.
+The current checkout's instructions, the current release intent, shared
+contracts and the user's authorization govern development. Older repositories,
+transcripts, saved branches, older plans and decision records are reference
+material, never authority; where they differ from current intent, current
+intent wins.
 
-Before admitting a component or method from superseded or outside work, identify
-its purpose and provenance, compare actual producers and consumers with current
-geometry, composition, machine and lifecycle interfaces, and obtain explicit
-human approval for that selective adoption. Existing approval applies to its
-stated scope. Approval of a concept does not approve its previous implementation;
-a merge, passing test or catalog entry does not establish architectural fit or
-machine support. Ordinary authorized development adds no per-task approval gate.
-
-## Build-request provenance
-
-These rules apply when recording work that belongs in the
-[backlog](build_request.md), not when starting an ordinary build, fix or maker
-task. Do the requested work directly. Do not create a temporary request merely
-to document its authorization, and do not apply the backlog's field schema to
-ordinary devlog entries.
-
-A backlog item must be explicitly human requested or an agent proposal explicitly
-approved by a human. When an item is needed, use the [request format](build_request.md)
-to record its contributor, source, session when available and originating context.
-Reuse identity already established in conversation or available project/client
-context without reconfirmation. Record attribution as inferred or unconfirmed
-when that is all the evidence supports; Git identity alone is not proof of who
-spoke. Missing contributor or session metadata is a recording limitation: it must
-not trigger identity questions, transcript searches or delays during ordinary
-work. Investigate historical provenance only when that investigation is requested.
-
-The recorded scope must cover the actual remaining work. A requested audit can be
-complete with findings and guidance; its recommendations do not automatically
-authorize every proposed fix. Missing acceptance evidence can be an unfinished
-check of requested behavior, but it does not commission a new study, additional
-feature or physical trial. Explain that relationship in the request. Unapproved
-ideas stay labeled as proposals at their owner, outside the work queue. An
-explicitly committed but deferred request retains its deferral; listing it does
-not authorize starting it early. A later audit of the queue is not blanket approval
-of its contents.
-
-When reviewing existing requests, check original human messages, later scope
-changes, implementation and recorded outcomes. Preserve concise evidence and the
-disposition in [DEVLOG.md](DEVLOG.md) when removing completed, superseded, cancelled
-or never-authorized work; retain only the authorized remainder of partial work.
-Move existing provenance with the record and preserve IDs and useful links. Keep
-raw private transcripts out of shared Git. This records existing authorization;
-it adds no identity-confirmation step, second approval, contributor-consensus
-requirement, manufacturing approval or software-test gate.
+Admitting a component or method from outside SAAM, or from superseded work,
+needs explicit human approval. Before asking, identify its purpose and provenance
+and compare its producers and consumers with current geometry, composition,
+machine and lifecycle interfaces. Ordinary authorized development adds no
+per-task approval gate.
 
 ## Avoid check spirals
 
@@ -287,9 +243,8 @@ geometry, toolpathing or extrusion gate has ambiguous value or placement, discus
 its failure case, evidence, cost and alternatives within existing authorization.
 A maker's judgment about a print does not itself change general product policy.
 Resource-budget failures should state the limit and how to raise it, leaving
-geometry and quality choices explicit. Before adding any count, size or elapsed-time
-limit, read [limits that adapt, and limits that are kept](core/README.md#limits-that-adapt-and-limits-that-are-kept),
-which owns the rule and the register of limits deliberately retained.
+geometry and quality choices explicit. For count, size and elapsed-time limits, see
+[limits that adapt, and limits that are kept](core/README.md#limits-that-adapt-and-limits-that-are-kept).
 
 ## Reproducible examples
 
@@ -304,14 +259,12 @@ Develop and exercise maker-facing changes through [MAKERS.md](MAKERS.md), public
 tools and the relevant skill manuals. Assess the affected experience, including
 installation, discoverability and recovery when relevant to the change.
 
-Use isolated projects, fixtures and machine simulators. Synthetic approvals are
-test data and must not authorize real jobs. Hardware execution and human print
-approvals remain with the person. Report software and physical results separately.
+Use isolated projects, fixtures and machine simulators. Report software and
+physical results separately.
 
 For an explicitly developmental preview, `node core/print/cli.mjs demo
 Prints/development/my-part` creates or reopens a shell bundle and generates
-without human approvals; an existing recipe can be initialized first. Development
-output cannot authorize delivery. It still
+without human approvals; an existing recipe can be initialized first. It still
 needs explicit robot command settings; for a new provisional part use the
 reusable setup instructions for
 [DENSO](skills/pipe-cladding/SKILL.md#contact-and-pose) or
@@ -324,7 +277,8 @@ necessary settings there, rather than relying on the originating conversation.
 ## Documentation maintenance
 
 Write current manuals and contracts in present tense, and label proposals and
-future work by status. Update the owning account alongside the implementation.
+future work by status. State intent positively at its owner; hard rules are the
+owner's ([intent and rules](DEVELOPER-CONTEXT.md#intent-and-rules)). Update the owning account alongside the implementation.
 Move completed-work narratives and dated measurements to [DEVLOG.md](DEVLOG.md);
 retain current limits and reproducible procedures at the component owner. Git
 retains superseded source. No separate documentation closeout gate is needed.
@@ -346,8 +300,8 @@ retains superseded source. No separate documentation closeout gate is needed.
 | Developer entry instructions | [Developer context](DEVELOPER-CONTEXT.md); the generated map owns technical navigation |
 | Documentation navigation for each role (human reference) | `maker-context-map.html` and `builder-context-map.html` |
 | Shared terms | [GLOSSARY.md](GLOSSARY.md) |
-| Contributor decisions and approval status | [DECISIONS.md](DECISIONS.md) |
-| Outstanding or incomplete work | [build_request.md](build_request.md) |
+| Current direction, scheduled and outstanding work | The current release intent in [plans](plans/) |
+| Dated decision history | [DECISIONS.md](DECISIONS.md) |
 | Completed work and dated evidence | [DEVLOG.md](DEVLOG.md) |
 
 Preserve exact decision quotations, approval events, approved wording and license,
@@ -360,7 +314,7 @@ the same manuals should serve local agents and the connector's manual reader.
 Architectural references should explain boundaries and consumers and link to
 owning source using ordinary repository tools. Review claims against source and
 recorded evidence. The optional `node scripts/check-repo.mjs` diagnoses document
-links, open-request and decision metadata, skill digest/catalog consistency and
+links, decision metadata, skill digest/catalog consistency and
 private-file exclusions; it cannot establish factual accuracy, human approval or
 printability. Use it to resolve those concrete maintenance uncertainties.
 
@@ -390,4 +344,4 @@ guidance is needed when developing or exercising the maker-facing workflow.
 | Performance measurement | [Slicing benchmarks](scripts/bench/README.md) and [region kernel verification](scripts/bench/region-reference.md) |
 | Maker-facing behavior or end-to-end use | [MAKERS](MAKERS.md) and [development testing](#testing-through-the-use-context) |
 | Documentation | [Ownership and maintenance](#documentation-maintenance) |
-| Project direction, outstanding work, history or terminology | Relevant [decisions](DECISIONS.md), [requests](build_request.md#outstanding-work), [devlog](DEVLOG.md) or [terms](GLOSSARY.md) |
+| Project direction, outstanding work, history or terminology | The current release intent in [plans](plans/), [devlog](DEVLOG.md), [decision history](DECISIONS.md) or [terms](GLOSSARY.md) |
