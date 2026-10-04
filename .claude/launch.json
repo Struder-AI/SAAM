@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "influence-map",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8767", "--directory", "dev-map/sets/030-influence/view"],
+      "port": 8767
+    },
+    {
       "name": "generated-map",
       "runtimeExecutable": "python",
       "runtimeArgs": [
