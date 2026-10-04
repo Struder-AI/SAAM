@@ -772,8 +772,8 @@
       "reason": "Reviewed catalogued extension implementation; existing engine/bundle bypasses remain findings."
     },
     "skills/heat-set-inserts/scripts/demo.mjs": {
-      "owner": "application",
-      "reason": "Executable example/command host authors a print using public engine and bundle operations."
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
     },
     "skills/heat-set-inserts/scripts/feature.mjs": {
       "owner": "extensions",
@@ -788,20 +788,20 @@
       "reason": "Reviewed catalogued extension implementation; existing engine/bundle bypasses remain findings."
     },
     "skills/pipe-cladding/scripts/demo.mjs": {
-      "owner": "application",
-      "reason": "Executable example/command host authors a print using public engine and bundle operations."
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
     },
     "skills/plastic-weld/scripts/example.mjs": {
-      "owner": "application",
-      "reason": "Executable example/command host authors a print using public engine and bundle operations."
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
     },
     "skills/supports/scripts/supports.mjs": {
       "owner": "extensions",
       "reason": "Selected support technique validation and public-engine composition."
     },
     "skills/text/scripts/demo.mjs": {
-      "owner": "application",
-      "reason": "Executable example/command host authors a print using public engine and bundle operations."
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
     },
     "skills/text/scripts/text.mjs": {
       "owner": "extensions",
@@ -820,8 +820,8 @@
       "reason": "Portable vase technique policy, selected semantic checks and public-engine composition; geometric numerics stay in Geometry."
     },
     "skills/wave-overhangs/scripts/example.mjs": {
-      "owner": "application",
-      "reason": "Executable example/command host authors a print using public engine and bundle operations."
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
     },
     "core/local-extension.mjs": {
       "owner": "extensions",
@@ -1446,6 +1446,30 @@
     "core/agent/blob-field-worker.mjs": {
       "owner": "application",
       "reason": "Worker body for blob-field authoring commands run as application jobs."
+    },
+    "skills/advanced-vase-wall/scripts/irregular-demo.mjs": {
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
+    },
+    "skills/advanced-vase-wall/scripts/loop-demo.mjs": {
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
+    },
+    "skills/advanced-vase-wall/scripts/path-demo.mjs": {
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
+    },
+    "skills/pipe-cladding/scripts/bumpy-demo.mjs": {
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
+    },
+    "skills/text/scripts/draped-demo.mjs": {
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
+    },
+    "skills/wave-overhangs/scripts/canopy-example.mjs": {
+      "owner": "context",
+      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
     }
   },
   "leaves": {
@@ -5925,13 +5949,25 @@
       "owner": "extensions"
     },
     "skills/heat-set-inserts/scripts/demo.mjs::@module": {
-      "owner": "application"
+      "owner": "context"
     },
     "skills/heat-set-inserts/scripts/demo.mjs::splineBox": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/heat-set-inserts/scripts/demo.mjs::splineBox::face": {
-      "owner": "extensions"
+      "owner": "context"
+    },
+    "skills/heat-set-inserts/scripts/demo.mjs::checks": {
+      "owner": "context"
+    },
+    "skills/heat-set-inserts/scripts/demo.mjs::directory": {
+      "owner": "context"
+    },
+    "skills/heat-set-inserts/scripts/demo.mjs::plan": {
+      "owner": "context"
+    },
+    "skills/heat-set-inserts/scripts/demo.mjs::state": {
+      "owner": "context"
     },
     "skills/heat-set-inserts/scripts/feature.mjs::@module": {
       "owner": "extensions"
@@ -5991,34 +6027,43 @@
       "owner": "extensions"
     },
     "skills/pipe-cladding/scripts/demo.mjs::@module": {
-      "owner": "application"
+      "owner": "context"
     },
     "skills/pipe-cladding/scripts/demo.mjs::developmentPipePlan": {
-      "owner": "application"
+      "owner": "context"
     },
     "skills/pipe-cladding/scripts/demo.mjs::developmentPipePlan::radiusAt": {
-      "owner": "application"
+      "owner": "context"
     },
     "skills/pipe-cladding/scripts/demo.mjs::splineTube": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/pipe-cladding/scripts/demo.mjs::splineTube::grevilleV": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/pipe-cladding/scripts/demo.mjs::splineTube::ring": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/pipe-cladding/scripts/demo.mjs::tubeSurface": {
-      "owner": "extensions"
+      "owner": "context"
+    },
+    "skills/pipe-cladding/scripts/demo.mjs::checks": {
+      "owner": "context"
+    },
+    "skills/pipe-cladding/scripts/demo.mjs::directory": {
+      "owner": "context"
     },
     "skills/plastic-weld/scripts/example.mjs::@module": {
-      "owner": "application"
+      "owner": "context"
     },
     "skills/plastic-weld/scripts/example.mjs::splineBox": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/plastic-weld/scripts/example.mjs::splineBox::face": {
-      "owner": "extensions"
+      "owner": "context"
+    },
+    "skills/plastic-weld/scripts/example.mjs::plan": {
+      "owner": "context"
     },
     "skills/supports/scripts/supports.mjs::@module": {
       "owner": "extensions"
@@ -6048,25 +6093,46 @@
       "owner": "extensions"
     },
     "skills/text/scripts/demo.mjs::@module": {
-      "owner": "application"
+      "owner": "context"
     },
     "skills/text/scripts/demo.mjs::radiusAt": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/text/scripts/demo.mjs::splineBlock": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/text/scripts/demo.mjs::splineBlock::greville": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/text/scripts/demo.mjs::splineBlock::wall": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/text/scripts/demo.mjs::splineBox": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/text/scripts/demo.mjs::splineBox::face": {
-      "owner": "extensions"
+      "owner": "context"
+    },
+    "skills/text/scripts/demo.mjs::box": {
+      "owner": "context"
+    },
+    "skills/text/scripts/demo.mjs::directory": {
+      "owner": "context"
+    },
+    "skills/text/scripts/demo.mjs::fontPath": {
+      "owner": "context"
+    },
+    "skills/text/scripts/demo.mjs::part": {
+      "owner": "context"
+    },
+    "skills/text/scripts/demo.mjs::plan": {
+      "owner": "context"
+    },
+    "skills/text/scripts/demo.mjs::radius": {
+      "owner": "context"
+    },
+    "skills/text/scripts/demo.mjs::state": {
+      "owner": "context"
     },
     "skills/text/scripts/text.mjs::@module": {
       "owner": "extensions"
@@ -6132,16 +6198,25 @@
       "reason": "Extension computes vase deposition assignments without reading a bundle."
     },
     "skills/wave-overhangs/scripts/example.mjs::@module": {
-      "owner": "application"
+      "owner": "context"
     },
     "skills/wave-overhangs/scripts/example.mjs::splineBox": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/wave-overhangs/scripts/example.mjs::splineBox::face": {
-      "owner": "extensions"
+      "owner": "context"
     },
     "skills/wave-overhangs/scripts/example.mjs::waveExamplePlan": {
-      "owner": "application"
+      "owner": "context"
+    },
+    "skills/wave-overhangs/scripts/example.mjs::dir": {
+      "owner": "context"
+    },
+    "skills/wave-overhangs/scripts/example.mjs::result": {
+      "owner": "context"
+    },
+    "skills/wave-overhangs/scripts/example.mjs::state": {
+      "owner": "context"
     },
     "studio/adapter-resolution.mjs::@module": {
       "owner": "studio"
@@ -11345,6 +11420,123 @@
     },
     "scripts/saam.mjs::runSaam": {
       "owner": "application"
+    },
+    "skills/advanced-vase-wall/scripts/irregular-demo.mjs::@module": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/irregular-demo.mjs::checked": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/irregular-demo.mjs::checked.onProgress": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/irregular-demo.mjs::directory": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/irregular-demo.mjs::irregularLoopDemoPlan": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/irregular-demo.mjs::irregularLoopHost": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/loop-demo.mjs::@module": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/loop-demo.mjs::checked": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/loop-demo.mjs::directory": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/loop-demo.mjs::loopDemoPlan": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/loop-demo.mjs::loopHost": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/loop-demo.mjs::options": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/loop-demo.mjs::plan": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/loop-demo.mjs::variant": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/path-demo.mjs::@module": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/path-demo.mjs::checked": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/path-demo.mjs::directory": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/path-demo.mjs::mode": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/path-demo.mjs::plan": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/path-demo.mjs::points": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/path-demo.mjs::points.<callback@13:37>": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/path-demo.mjs::radiusAt": {
+      "owner": "context"
+    },
+    "skills/advanced-vase-wall/scripts/path-demo.mjs::settings": {
+      "owner": "context"
+    },
+    "skills/pipe-cladding/scripts/bumpy-demo.mjs::@module": {
+      "owner": "context"
+    },
+    "skills/pipe-cladding/scripts/bumpy-demo.mjs::bumpyPlan": {
+      "owner": "context"
+    },
+    "skills/pipe-cladding/scripts/bumpy-demo.mjs::checks": {
+      "owner": "context"
+    },
+    "skills/pipe-cladding/scripts/bumpy-demo.mjs::directory": {
+      "owner": "context"
+    },
+    "skills/text/scripts/draped-demo.mjs::@module": {
+      "owner": "context"
+    },
+    "skills/text/scripts/draped-demo.mjs::directory": {
+      "owner": "context"
+    },
+    "skills/text/scripts/draped-demo.mjs::plan": {
+      "owner": "context"
+    },
+    "skills/text/scripts/draped-demo.mjs::state": {
+      "owner": "context"
+    },
+    "skills/text/scripts/draped-demo.mjs::text": {
+      "owner": "context"
+    },
+    "skills/wave-overhangs/scripts/canopy-example.mjs::@module": {
+      "owner": "context"
+    },
+    "skills/wave-overhangs/scripts/canopy-example.mjs::canopyExamplePlan": {
+      "owner": "context"
+    },
+    "skills/wave-overhangs/scripts/canopy-example.mjs::dir": {
+      "owner": "context"
+    },
+    "skills/wave-overhangs/scripts/canopy-example.mjs::plan": {
+      "owner": "context"
+    },
+    "skills/wave-overhangs/scripts/canopy-example.mjs::result": {
+      "owner": "context"
+    },
+    "skills/wave-overhangs/scripts/canopy-example.mjs::splineBox": {
+      "owner": "context"
+    },
+    "skills/wave-overhangs/scripts/canopy-example.mjs::state": {
+      "owner": "context"
     }
   },
   "retiredAssignments": [
