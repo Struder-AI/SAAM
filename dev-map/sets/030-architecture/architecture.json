@@ -1007,6 +1007,7 @@
     {"id":"geometry-leaf-b459837dc7b2","index":"2.3.3.5.1","label":"Module initialization / exports","description":"@module in core/geom/runtime.mjs.","type":"component","source":{"file":"core/geom/runtime.mjs"}},
     {"id":"geometry-leaf-dca04ab2bf6a","index":"2.3.3.5.2","label":"rhino","description":"rhino in core/geom/runtime.mjs.","type":"component","source":{"file":"core/geom/runtime.mjs","declaration":"rhino"}},
     {"id":"toolpath","index":"3","label":"Toolpath engine","description":"Inject, Trace and Slice produce the completed SAAMpath, including explicit motion planning.","type":"component"},
+    {"id":"application","index":"10","label":"Application","description":"The saam command and its runtime: operation dispatch, chats, Studio attachment, jobs and the SAAM home; carries agent requests to the engines, Bundle and Workspace.","type":"component","notes":["Owns the agent-facing application: scripts/saam.mjs, core/application (runtime, control, home, computation jobs, deposition schemas), the print and extension command hosts (core/print/cli.mjs, geometry-tools, import-stl, import-resource, gridfinity and thingi10k cli) and blob-field authoring commands. Installation, service, tray and update packaging belong to the 030-deployment set.","Map-0 arrows for this node are the owner's to author; drafted wires are proposals until approved."]},
     {"id":"geometry-native-resources","index":"2.3.3.6","label":"Native mesh repair resources","description":"Geometry-owned native implementation, build inputs and provenance. C++ is a source module leaf; its internal calls are outside the JavaScript scanner.","type":"component"},
     {"id":"geometry-native-resource-1","index":"2.3.3.6.1","label":"Native repair program","description":"Native repair program; explicit source resource, not scanned JavaScript declarations.","type":"component","source":{"file":"core/geom/native/mesh-repair.cpp"}},
     {"id":"geometry-native-resource-2","index":"2.3.3.6.2","label":"Native build configuration","description":"Native build configuration; explicit source resource, not scanned JavaScript declarations.","type":"component","source":{"file":"core/geom/native/CMakeLists.txt"}},
@@ -5172,6 +5173,10 @@
         "9": {
           "x": 840,
           "y": 425
+        },
+        "10": {
+          "x": 440,
+          "y": 280
         },
         "external:user": {
           "x": 35,
