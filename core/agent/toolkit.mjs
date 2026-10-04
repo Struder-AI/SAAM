@@ -106,27 +106,28 @@ export async function readSkill(name, {maker = false, builder = false, developer
 
 // Map-set selection belongs to each command. A separate CLI process keeps its
 // process-wide set configuration from leaking between reads of different sets.
-export const developerMapSet = '030-architecture';
+// Product work reads the influence maps generated from source; installation and
+// service work selects 030-deployment.
+export const developerMapSet = '030-influence';
 async function mapCommand(set, command, args = []) {
   const {stdout} = await execFileAsync(process.execPath,
     [resolve(root, 'dev-map/cli.mjs'), command, ...args, '--set', set], {cwd: root, maxBuffer: 32 * 1024 * 1024});
   return {mapSet: set, ...JSON.parse(stdout)};
 }
 
-// Design addresses name nodes/contracts; scanned addresses name declarations.
-// Reads never scan. Select `default` explicitly for the original implementation map.
+// Addresses are map indexes and @link/MAP/FROM/TO arrows (dev-map/README.md#commands).
 export async function readMaps(keys, options = {}) {
   return Promise.all(keys.map(key => mapCommand(options.set ?? developerMapSet, 'read',
     [key])));
 }
 
-// Design regeneration redraws authored maps; its implementation audit is separate.
+// Influence sets re-analyse edited code, solve and redraw; design sets redraw.
 export async function regenerateMap(index, {set = developerMapSet} = {}) {
   return mapCommand(set, 'regenerate', index ? [index] : []);
 }
 
 // Three roles, three readings. A maker reads prose and no map. A builder reads prose — its own
-// manual, skill authoring and the component manual for the area — and may walk the map. A
+// manual, skill authoring and the component manual for the area — and may read maps. A
 // developer reads shared terms, the full developer context and map `0`; component manuals open as needed.
 // A maker's manuals open by client and machine; a builder's and developer's are read whole.
 export async function onboarding({role, areas = [], machine: machineId, set = developerMapSet}) {
@@ -142,6 +143,6 @@ export async function onboarding({role, areas = [], machine: machineId, set = de
     environmentStatus(), mapKeys.length ? readMaps(mapKeys, {set}) : []]);
   return {role, environment, ...context, maps, ...(mapKeys.length ? {mapSet: set} : {}),
     nextStep: role === 'maker' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context and choose individual skill manuals when an edit needs them. The digest indexes gated sections; read one by name when its gate applies.'
-      : role === 'builder' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context. Builders author guidance, recipe helpers, assets, examples and diagnostics using published APIs. Core skills and shared capability/contract changes require the developer role. The component manual for the area you consume owns its behaviour, contracts and limits; read the one for the code you touch. The dev maps own structure: walk them from 0, or from a node you name with --area, for what calls what, with read-map ADDRESS. Maps give source ranges for direct file reads; run regenerate [INDEX] after an edit. Skills keep their own authoring references.'
-      : `Focus next work on plans/0.3.3.md; plans/0.3.2.md retains prior scope/evidence and plans/0.3.1.md retains inherited contracts. Reuse this developer context. Continue in map set ${set}: pass --set ${set} to map commands. 0.3.3 retains 030-architecture for product work and 030-deployment for installation/service work, including installed-release selection. Map reads return visible relationships and source locations, never code. Read files at those ranges only for implementation internals; leaf addresses are not map reads. Link/contract addresses return complete interfaces. Design maps express intent, not proven implementation; the original scanned map requires --set default. Design regenerate redraws; audit and audit-check assess implementation and freshness. Open component manuals as needed.`};
+      : role === 'builder' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context. Builders author guidance, recipe helpers, assets, examples and diagnostics using published APIs. Core skills and shared capability/contract changes require the developer role. The component manual for the area you consume owns its behaviour, contracts and limits; read the one for the code you touch. Maps show what code a change affects and what affects it: read-map 0 (or --area 0), then a box, @link/MAP/FROM/TO for its leaf arrows, then the source at file:lines. Run regenerate after each task.'
+      : `Focus next work on plans/0.3.3.md; plans/0.3.2.md retains prior scope/evidence and plans/0.3.1.md inherited contracts. Open component manuals as needed. Maps (${set}, map 0 above) show what code a change affects and what affects it. Read map 0, then read-map a box, then @link/MAP/FROM/TO for its leaf arrows; open the source at file:lines. Run regenerate after each task. Installation/service work uses --set 030-deployment.`};
 }
