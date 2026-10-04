@@ -200,7 +200,8 @@ def _attrs(n):
             # does not) and where the drawing put it, so the viewer can move it and re-route
             # its wires without reading the shapes back.
             "ident": getattr(n, "ident", "") or "",
-            "box": f"{n.x:.2f},{n.y:.2f},{n.w:.2f},{n.h:.2f},{n.box_h:.2f}" if hasattr(n, "box_h") else ""}
+            "box": (f"{n.x:.2f},{n.y:.2f},{n.w:.2f},{n.h:.2f},{n.box_h:.2f},{box_rx(n):.2f}"
+                    if hasattr(n, "box_h") else "")}
     if n.anchor_ref:
         data["src"] = n.source_path
         data["line"] = str(n.source_line)
@@ -224,6 +225,157 @@ def _tail(e, st):
     if tail == "both":
         return f' marker-start="url(#{st["head"]})"'
     return ""
+
+
+# Direct wires (an authored page, or any wire touching a box the owner placed) meet a box where
+# they face their other end, not at the midpoint of a side. PORT_GAP is the spacing kept between
+# two ends on one side, a little more than an arrowhead is wide; BEND_MIN how far a wire runs out
+# along the side's normal at least, so it leaves and enters across the side rather than grazing
+# along it. The viewer's live drag (generated-view.py AUTHOR_JS directRoutes) is a line-for-line
+# copy of `direct_routes`.
+PORT_GAP = 12.0
+BEND_MIN = 16.0
+# The sides a full side's ends spill onto, round its low and its high corner.
+PORT_ADJ = {"L": ("T", "B"), "R": ("T", "B"), "T": ("L", "R"), "B": ("L", "R")}
+
+
+def box_rx(n):
+    """The corner radius a box is drawn with, as SVG clamps it."""
+    rx = STYLE.get(n.kind, {}).get("rx", 7)
+    return min(rx, n.w / 2, n.box_h / 2)
+
+
+def spread(ts, lo, hi, gap):
+    """Positions for ends wanting `ts` (sorted) along [lo, hi], each at least `gap` from the
+    next and as near what it wanted as that allows: runs that would overlap merge and stand
+    centred on what their members wanted. Too many for the side, they share it evenly."""
+    n = len(ts)
+    if n == 0:
+        return []
+    if hi < lo:
+        return [(lo + hi) / 2] * n
+    if n > 1 and (n - 1) * gap > hi - lo:
+        return [lo + (hi - lo) * i / (n - 1) for i in range(n)]
+    runs = []                       # [first, count, sum of (wanted - offset in run)]
+    for i, t in enumerate(ts):
+        run = [i, 1, t]
+        while runs and runs[-1][2] / runs[-1][1] + runs[-1][1] * gap > run[2] / run[1]:
+            p = runs.pop()
+            run = [p[0], p[1] + run[1], p[2] + run[2] - run[1] * p[1] * gap]
+        runs.append(run)
+    out = []
+    for first, count, total in runs:
+        at = min(max(total / count, lo), hi - (count - 1) * gap)
+        out.extend(at + j * gap for j in range(count))
+    for i in range(1, n):
+        out[i] = max(out[i], out[i - 1] + gap)
+    out[n - 1] = min(out[n - 1], hi)
+    for i in range(n - 2, -1, -1):
+        out[i] = min(out[i], out[i + 1] - gap)
+    return out
+
+
+def _span(N, side):
+    return (N["y"], N["y"] + N["h"]) if side in ("L", "R") else (N["x"], N["x"] + N["w"])
+
+
+def _room(N, side):
+    """How many ends one side holds PORT_GAP apart."""
+    s0, s1 = _span(N, side)
+    free = s1 - s0 - 2 * (2 + 0.35 * N["rx"])
+    return 1 if free < 0 else math.floor(free / PORT_GAP) + 1
+
+
+def direct_routes(boxes, wires):
+    """-> [(points, label point)] for `wires` [(src box, dst box, paired)], boxes being
+    {x, y, w, h, rx}. Each end stands where the line between the two box centres leaves its box,
+    on whichever side that is; the ends sharing a side are spread along it in the order of those
+    crossings, so wires to neighbouring boxes neither share a point nor cross where they leave.
+    A side with more ends than it holds PORT_GAP apart passes its outermost ones round the corner
+    to the next side while that one has room. A point near a corner sits on the rounded outline.
+    Each curve leaves and enters along its side's normal, by at least BEND_MIN, so no wire grazes
+    along a box."""
+    ends = {}                       # (box, side) -> [(natural, wire, end)]
+    order = []                      # boxes, as their first end is met
+    for k, (a, b, _paired) in enumerate(wires):
+        for end, (nid, N, F) in enumerate(((a, boxes[a], boxes[b]), (b, boxes[b], boxes[a]))):
+            ncx, ncy = N["x"] + N["w"] / 2, N["y"] + N["h"] / 2
+            ux, uy = F["x"] + F["w"] / 2 - ncx, F["y"] + F["h"] / 2 - ncy
+            if abs(uy) * (N["w"] / 2) > abs(ux) * (N["h"] / 2):
+                side = "B" if uy > 0 else "T"
+                t = ncx + ux * (N["h"] / 2) / abs(uy)
+            else:
+                side = "R" if ux >= 0 else "L"
+                t = ncy + uy * (N["w"] / 2) / max(abs(ux), 1e-6)
+            if nid not in order:
+                order.append(nid)
+            ends.setdefault((nid, side), []).append((t, k, end))
+    for nid in order:
+        N, moved = boxes[nid], 0
+        for side in ("L", "R", "T", "B"):
+            group = ends.get((nid, side))
+            if not group:
+                continue
+            group.sort()
+            s0, s1 = _span(N, side)
+            mid = (s0 + s1) / 2
+            while len(group) > _room(N, side):
+                # The end nearer its corner goes first; past the corner it stands beyond every
+                # end already on that side, so the order round the box is kept.
+                tries = [(mid - group[0][0], 0, PORT_ADJ[side][0]),
+                         (group[-1][0] - mid, 1, PORT_ADJ[side][1])]
+                if tries[1][0] > tries[0][0]:
+                    tries.reverse()
+                for _far, high, to in tries:
+                    there = ends.setdefault((nid, to), [])
+                    if len(there) < _room(N, to):
+                        _t, k, end = group.pop(-1 if high else 0)
+                        moved += 1
+                        if side in ("L", "R"):
+                            t = N["x"] - moved if side == "L" else N["x"] + N["w"] + moved
+                        else:
+                            t = N["y"] - moved if side == "T" else N["y"] + N["h"] + moved
+                        there.append((t, k, end))
+                        break
+                else:
+                    break
+    port = {}
+    for (nid, side), group in ends.items():
+        N = boxes[nid]
+        group.sort()
+        s0, s1 = _span(N, side)
+        r = N["rx"]
+        m = 2 + 0.35 * r
+        for (_t, k, end), v in zip(group, spread([g[0] for g in group], s0 + m, s1 - m, PORT_GAP)):
+            u = min(v - s0, s1 - v)
+            inset = r - math.sqrt(max(0.0, r * r - (r - u) * (r - u))) if u < r else 0.0
+            if side == "R":
+                port[(k, end)] = (N["x"] + N["w"] - inset, v, 1.0, 0.0)
+            elif side == "L":
+                port[(k, end)] = (N["x"] + inset, v, -1.0, 0.0)
+            elif side == "B":
+                port[(k, end)] = (v, N["y"] + N["h"] - inset, 0.0, 1.0)
+            else:
+                port[(k, end)] = (v, N["y"] + inset, 0.0, -1.0)
+    out = []
+    for k, (_a, _b, paired) in enumerate(wires):
+        sx, sy, snx, sny = port[(k, 0)]
+        dx, dy, dnx, dny = port[(k, 1)]
+        # How far each end runs out along its normal: most of the way the other end lies along
+        # it, so a wire across a wide gap is a long easy S and one between near boxes still
+        # leaves square.
+        bs = max(BEND_MIN, 0.45 * abs((dx - sx) * snx + (dy - sy) * sny))
+        bd = max(BEND_MIN, 0.45 * abs((dx - sx) * dnx + (dy - sy) * dny))
+        pts = [(sx, sy), (sx + snx * bs, sy + sny * bs), (dx + dnx * bd, dy + dny * bd), (dx, dy)]
+        lx, ly = bezier_at(pts, 0.5)
+        if paired:
+            # Two wires between one pair run side by side; their labels stand apart.
+            if snx != 0.0:
+                ly += 22 if dx > sx else -22
+            else:
+                lx += 55 if dy > sy else -55
+        out.append((pts, (lx, ly)))
+    return out
 
 
 def bezier_at(p, t):
@@ -795,7 +947,9 @@ class Page:
                          f'fill="none" stroke="transparent" stroke-width="14" '
                          f'vector-effect="non-scaling-stroke" pointer-events="stroke" '
                          f'tabindex="0" role="button" aria-label="{escape(label, {chr(34): "&quot;"})}"/>')
-            o.append(f'<path class="fm-edge{" long" if broken else ""}"{_ends(e)} d="{d}" '
+            # A direct wire is re-routed by the viewer's live drag along with the others.
+            direct = ' data-direct="1"' if k_i in getattr(self, "direct", ()) else ""
+            o.append(f'<path class="fm-edge{" long" if broken else ""}"{_ends(e)}{direct} d="{d}" '
                      f'fill="none" stroke="{st["stroke"]}" '
                      f'stroke-width="{st["sw"]}"{dash}{wrap}{_tail(e, st)} '
                      f'marker-end="url(#{st["head"]})"/>')

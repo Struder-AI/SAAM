@@ -14,7 +14,7 @@ import textwrap
 from xml.sax.saxutils import escape
 
 from leveled import (Page, STYLE, EDGE, ASPECT, MARGIN_L, FS_FOOT, FS_NOTE, LH_NOTE,
-                     LH_TITLE, PADX, PADY)
+                     LH_TITLE, PADX, PADY, box_rx, direct_routes)
 from svg import tw
 from flow import MARKERS, kind_of      # importing flow registers its box and wire styles
 from viewer import CSS as BASE_CSS
@@ -160,10 +160,13 @@ class MapPage(Page):
         for i in self.long:
             for end in (self.edges[i]["src"], self.edges[i]["dst"]):
                 self.fan[end] = self.fan.get(end, 0) + 1
-        def route(edge):
+        direct = (self.direct_routes(range(len(self.edges)))
+                  if getattr(self, "design", False) or self.authored.get("route") == "direct" else {})
+
+        def route(k, edge):
             a, b = self.index[edge["src"]], self.index[edge["dst"]]
-            if getattr(self, "design", False) or self.authored.get("route") == "direct":
-                return self.direct_route(edge)
+            if k in direct:
+                return direct[k]
             if (a.id.startswith("external:") or b.id.startswith("external:")) and abs(b.cy - a.cy) > 100:
                 down = b.cy > a.cy
                 sx, sy = a.cx, a.y + a.h if down else a.y
@@ -172,32 +175,24 @@ class MapPage(Page):
                 return ([(sx, sy), (sx, sy + bend), (dx, dy - bend), (dx, dy)],
                         ((sx + dx) / 2, (sy + dy) / 2))
             return self._route(edge, set())
-        self.routes = [route(e) for e in self.edges]
+        self.routes = [route(k, e) for k, e in enumerate(self.edges)]
         self.W, self.H = self.right_edge + 30, max(n.y + n.h for n in self.nodes) + 100
         self.zone_rects = []
 
-    def direct_route(self, edge):
-        """A wire straight from one box's facing side to the other's: the route of an authored
-        page, and of any wire touching a box the owner placed. The viewer's live drag
-        (AUTHOR_JS directRoute) draws the same curve, so a move looks the same before and after
-        it is redrawn."""
-        a, b = self.index[edge["src"]], self.index[edge["dst"]]
-        paired = any(e["src"] == edge["dst"] and e["dst"] == edge["src"] for e in self.edges)
-        if abs(b.cy - a.cy) > abs(b.cx - a.cx):
-            down = b.cy > a.cy
-            offset = (35 if down else -35) if paired else 0
-            sx, sy = a.cx + offset, a.y + a.h if down else a.y
-            dx, dy = b.cx + offset, b.y if down else b.y + b.h
-            bend = (dy - sy) * .45
-            return ([(sx, sy), (sx, sy + bend), (dx, dy - bend), (dx, dy)],
-                    ((sx + dx) / 2 + (55 if down else -55) if paired else (sx + dx) / 2, (sy + dy) / 2))
-        right = b.cx > a.cx
-        offset = (20 if right else -20) if paired else 0
-        sx, sy = a.x + a.w if right else a.x, a.cy + offset
-        dx, dy = b.x if right else b.x + b.w, b.cy + offset
-        bend = (dx - sx) * .45
-        return ([(sx, sy), (sx + bend, sy), (dx - bend, dy), (dx, dy)],
-                ((sx + dx) / 2, (sy + dy) / 2))
+    def direct_routes(self, ks):
+        """{edge index: (points, label point)} for wires `ks` drawn straight from one box to the
+        other: every wire of an authored page, and every wire touching a box the owner placed.
+        Each end meets its box where it faces the other end, spread along the side from the
+        page's other direct wires there (leveled.direct_routes). The viewer's live drag
+        (AUTHOR_JS directRoutes) draws the same curves, so a move looks the same before and
+        after it is redrawn."""
+        ks = sorted(ks)
+        self.direct = set(ks)
+        pairs = {(self.edges[k]["src"], self.edges[k]["dst"]) for k in ks}
+        boxes = {n.id: dict(x=n.x, y=n.y, w=n.w, h=n.box_h, rx=box_rx(n)) for n in self.nodes}
+        wires = [(self.edges[k]["src"], self.edges[k]["dst"],
+                  (self.edges[k]["dst"], self.edges[k]["src"]) in pairs) for k in ks]
+        return dict(zip(ks, direct_routes(boxes, wires)))
 
     def position_overlay(self):
         """Authored positions over the solved layout (plans/dev-maps.md milestone 5): each
@@ -212,11 +207,11 @@ class MapPage(Page):
             moved.add(nid)
         if not moved:
             return
-        for k, e in enumerate(self.edges):
-            if e["src"] in moved or e["dst"] in moved:
-                self.routes[k] = self.direct_route(e)
-                self.long.discard(k)
-                self.wrapped.discard(k)
+        touched = [k for k, e in enumerate(self.edges) if e["src"] in moved or e["dst"] in moved]
+        for k, r in self.direct_routes(touched).items():
+            self.routes[k] = r
+            self.long.discard(k)
+            self.wrapped.discard(k)
         self.fan = {}
         for k in self.long:
             for end in (self.edges[k]["src"], self.edges[k]["dst"]):
@@ -1804,7 +1799,7 @@ AUTHOR_JS = """
 
 /* -- authored placement (plans/dev-maps.md milestone 5) ------------------------------------
    Arranging, any box can be dragged: the wires touching it are re-routed as it moves
-   (directRoute draws the curve generated-view.py direct_route draws) and every other box
+   (directRoutes draws the curves leveled.py direct_routes draws) and every other box
    stays put. A drop is saved at once, by box identity (data-ident), never by index: through
    the authoring server (`node dev-map/cli.mjs --set NAME serve`) into the committed layout
    files, or, opened any other way, into this browser's storage, which Export layout writes
@@ -1817,38 +1812,94 @@ function authorBar(){const on=AUTHOR.on;document.getElementById('arrange').class
   for(const id of ['author-undo','author-reset'])document.getElementById(id).hidden=!on;
   document.getElementById('author-export').hidden=!on||AUTHOR.server;canvas.classList.toggle('arrange',on);}
 function arrange(){AUTHOR.on=!AUTHOR.on;authorBar();}
-function drawnBox(g){const [x,y,w,h,bh]=g.dataset.box.split(',').map(Number);return {x,y,w,h,bh};}
+function drawnBox(g){const [x,y,w,h,bh,rx]=g.dataset.box.split(',').map(Number);return {x,y,w,h,bh,rx:Number.isFinite(rx)?rx:Math.min(7,w/2,bh/2)};}
 function geom(id){const g=node(id);if(!g||!g.dataset.box)return null;const b=drawnBox(g),p=AUTHOR.at[id];
   const x=p?p.x:b.x,y=p?p.y:b.y;return {x,y,w:b.w,h:b.h,cx:x+b.w/2,cy:y+b.bh/2};}
-function directRoute(a,b,paired){
-  if(Math.abs(b.cy-a.cy)>Math.abs(b.cx-a.cx)){const down=b.cy>a.cy,off=paired?(down?35:-35):0;
-    const sx=a.cx+off,sy=down?a.y+a.h:a.y,dx=b.cx+off,dy=down?b.y:b.y+b.h,bend=(dy-sy)*.45;
-    return {pts:[[sx,sy],[sx,sy+bend],[dx,dy-bend],[dx,dy]],lab:[paired?(sx+dx)/2+(down?55:-55):(sx+dx)/2,(sy+dy)/2]};}
-  const right=b.cx>a.cx,off=paired?(right?20:-20):0;
-  const sx=right?a.x+a.w:a.x,sy=a.cy+off,dx=right?b.x:b.x+b.w,dy=b.cy+off,bend=(dx-sx)*.45;
-  return {pts:[[sx,sy],[sx+bend,sy],[dx-bend,dy],[dx,dy]],lab:[(sx+dx)/2,(sy+dy)/2]};}
+/* leveled.py spread and direct_routes, line for line: each end of a direct wire meets its box
+   where it faces the other end, the ends on one side spread along it in the order they face. */
+const PORT_GAP=12,BEND_MIN=16,PORT_ADJ={L:['T','B'],R:['T','B'],T:['L','R'],B:['L','R']};
+const portSpan=(N,side)=>side==='L'||side==='R'?[N.y,N.y+N.h]:[N.x,N.x+N.w];
+function portRoom(N,side){const [s0,s1]=portSpan(N,side),free=s1-s0-2*(2+0.35*N.rx);return free<0?1:Math.floor(free/PORT_GAP)+1;}
+function spread(ts,lo,hi,gap){const n=ts.length;if(!n)return [];
+  if(hi<lo)return ts.map(()=>(lo+hi)/2);
+  if(n>1&&(n-1)*gap>hi-lo)return ts.map((_,i)=>lo+(hi-lo)*i/(n-1));
+  const runs=[];
+  ts.forEach((t,i)=>{let run=[i,1,t],last;
+    while(runs.length&&(last=runs[runs.length-1])[2]/last[1]+last[1]*gap>run[2]/run[1]){const p=runs.pop();run=[p[0],p[1]+run[1],p[2]+run[2]-run[1]*p[1]*gap];}
+    runs.push(run);});
+  const out=[];
+  for(const [,count,total] of runs){const at=Math.min(Math.max(total/count,lo),hi-(count-1)*gap);for(let j=0;j<count;j++)out.push(at+j*gap);}
+  for(let i=1;i<n;i++)out[i]=Math.max(out[i],out[i-1]+gap);
+  out[n-1]=Math.min(out[n-1],hi);
+  for(let i=n-2;i>=0;i--)out[i]=Math.min(out[i],out[i+1]-gap);
+  return out;}
+function bezierAt(p,t){const u=1-t,a=u*u*u,b=3*u*u*t,c=3*u*t*t,d=t*t*t;
+  return [a*p[0][0]+b*p[1][0]+c*p[2][0]+d*p[3][0],a*p[0][1]+b*p[1][1]+c*p[2][1]+d*p[3][1]];}
+function directRoutes(boxes,wires){const ends=new Map(),order=[],lr=s=>s==='L'||s==='R';
+  const group=(id,side)=>{const key=JSON.stringify([id,side]);return (ends.get(key)??ends.set(key,{id,side,g:[]}).get(key)).g;};
+  wires.forEach(([a,b],k)=>{[[a,boxes[a],boxes[b]],[b,boxes[b],boxes[a]]].forEach(([id,N,F],end)=>{
+    const ncx=N.x+N.w/2,ncy=N.y+N.h/2,ux=F.x+F.w/2-ncx,uy=F.y+F.h/2-ncy;let side,t;
+    if(Math.abs(uy)*(N.w/2)>Math.abs(ux)*(N.h/2)){side=uy>0?'B':'T';t=ncx+ux*(N.h/2)/Math.abs(uy);}
+    else{side=ux>=0?'R':'L';t=ncy+uy*(N.w/2)/Math.max(Math.abs(ux),1e-6);}
+    if(!order.includes(id))order.push(id);
+    group(id,side).push([t,k,end]);});});
+  const byPlace=(p,q)=>p[0]-q[0]||p[1]-q[1]||p[2]-q[2];
+  for(const id of order){const N=boxes[id];let moved=0;
+    for(const side of ['L','R','T','B']){const key=JSON.stringify([id,side]);if(!ends.has(key)||!ends.get(key).g.length)continue;
+      const g=ends.get(key).g;g.sort(byPlace);const [s0,s1]=portSpan(N,side),mid=(s0+s1)/2;
+      while(g.length>portRoom(N,side)){
+        const tries=[[mid-g[0][0],0,PORT_ADJ[side][0]],[g[g.length-1][0]-mid,1,PORT_ADJ[side][1]]];
+        if(tries[1][0]>tries[0][0])tries.reverse();
+        let done=false;
+        for(const [,high,to] of tries){const there=group(id,to);
+          if(there.length<portRoom(N,to)){const [,k,end]=high?g.pop():g.shift();moved++;
+            const t=lr(side)?(side==='L'?N.x-moved:N.x+N.w+moved):(side==='T'?N.y-moved:N.y+N.h+moved);
+            there.push([t,k,end]);done=true;break;}}
+        if(!done)break;}}}
+  const port={};
+  for(const {id,side,g} of ends.values()){const N=boxes[id];g.sort(byPlace);
+    const [s0,s1]=portSpan(N,side),r=N.rx,m=2+0.35*r;
+    const vs=spread(g.map(e=>e[0]),s0+m,s1-m,PORT_GAP);
+    g.forEach(([,k,end],i)=>{const v=vs[i],u=Math.min(v-s0,s1-v),inset=u<r?r-Math.sqrt(Math.max(0,r*r-(r-u)*(r-u))):0;
+      port[k+','+end]=side==='R'?[N.x+N.w-inset,v,1,0]:side==='L'?[N.x+inset,v,-1,0]:side==='B'?[v,N.y+N.h-inset,0,1]:[v,N.y+inset,0,-1];});}
+  return wires.map(([,,paired],k)=>{const [sx,sy,snx,sny]=port[k+',0'],[dx,dy,dnx,dny]=port[k+',1'];
+    const bs=Math.max(BEND_MIN,0.45*Math.abs((dx-sx)*snx+(dy-sy)*sny)),bd=Math.max(BEND_MIN,0.45*Math.abs((dx-sx)*dnx+(dy-sy)*dny));
+    const pts=[[sx,sy],[sx+snx*bs,sy+sny*bs],[dx+dnx*bd,dy+dny*bd],[dx,dy]];
+    let [lx,ly]=bezierAt(pts,.5);
+    if(paired){if(snx!==0)ly+=dx>sx?22:-22;else lx+=dy>sy?55:-55;}
+    return {pts,lab:[lx,ly]};});}
 function pathOf(pts){const xy=p=>p[0].toFixed(1)+','+p[1].toFixed(1);return 'M'+xy(pts[0])+' C'+pts.slice(1).map(xy).join(' ');}
-/* Every wire touching a box, drawn whole and direct from where both its ends stand now: the
-   arrow (its head and tail marks ride on it), its hit path, its label; a long wire's end tags
-   go, since the wire is now drawn whole. */
-function reroute(id){const q=CSS.escape(id);
-  for(const edge of canvas.querySelectorAll(`.fm-edge[data-a="${q}"],.fm-edge[data-b="${q}"]`)){
-    const {a,b}=edge.dataset,ga=geom(a),gb=geom(b);if(!ga||!gb)continue;
-    const pair=`[data-a="${CSS.escape(a)}"][data-b="${CSS.escape(b)}"]`;
-    const paired=!!canvas.querySelector(`.fm-edge[data-a="${CSS.escape(b)}"][data-b="${CSS.escape(a)}"]`);
-    const r=directRoute(ga,gb,paired),d=pathOf(r.pts);
-    edge.setAttribute('d',d);edge.classList.remove('long');
+/* Every direct wire on the page -- each one the drawing routed direct, and each touching a box
+   moved here -- drawn from where its boxes stand now, with the ports on every side shared out
+   again as a rebuild would: the arrow (its head and tail marks ride on it), its hit path, its
+   label; a long wire's end tags go, since the wire is now drawn whole. A wire no longer direct
+   (its box moved back to where it was drawn) takes its drawn route again. */
+function directWires(){const edges=[...canvas.querySelectorAll('.fm-edge[data-a][data-b]')],boxes={};
+  for(const g of canvas.querySelectorAll('.fm-node[data-box]')){const b=drawnBox(g),p=AUTHOR.at[g.dataset.id];
+    boxes[g.dataset.id]={x:p?p.x:b.x,y:p?p.y:b.y,w:b.w,h:b.bh,rx:b.rx};}
+  const direct=edges.filter(e=>boxes[e.dataset.a]&&boxes[e.dataset.b]&&(e.dataset.direct||AUTHOR.at[e.dataset.a]||AUTHOR.at[e.dataset.b]));
+  const pairs=new Set(direct.map(e=>JSON.stringify([e.dataset.a,e.dataset.b])));
+  const routes=directRoutes(boxes,direct.map(e=>[e.dataset.a,e.dataset.b,pairs.has(JSON.stringify([e.dataset.b,e.dataset.a]))]));
+  return {edges,direct,routes};}
+function reroute(){const {edges,direct,routes}=directWires();
+  const set=(edge,d,lab)=>{const {a,b}=edge.dataset,pair=`[data-a="${CSS.escape(a)}"][data-b="${CSS.escape(b)}"]`;
+    if(edge.dataset.d0===undefined){edge.dataset.d0=edge.getAttribute('d');edge.dataset.long0=edge.classList.contains('long')?'1':'';}
+    if(edge.getAttribute('d')===d)return;
+    edge.setAttribute('d',d);edge.classList.toggle('long',!lab&&!!edge.dataset.long0);
     canvas.querySelectorAll('.fm-wire-hit'+pair).forEach(h=>h.setAttribute('d',d));
-    canvas.querySelectorAll('.fm-endtag'+pair).forEach(t=>t.style.display='none');
-    canvas.querySelectorAll('.fm-elab'+pair).forEach(l=>l.setAttribute('transform',
-      `translate(${(r.lab[0]-l.dataset.lx).toFixed(1)},${(r.lab[1]-l.dataset.ly).toFixed(1)})`));}}
+    canvas.querySelectorAll('.fm-endtag'+pair).forEach(t=>t.style.display=lab?'none':'');
+    canvas.querySelectorAll('.fm-elab'+pair).forEach(l=>lab?l.setAttribute('transform',
+      `translate(${(lab[0]-l.dataset.lx).toFixed(1)},${(lab[1]-l.dataset.ly).toFixed(1)})`):l.removeAttribute('transform'));};
+  const on=new Set(direct);
+  direct.forEach((edge,i)=>set(edge,pathOf(routes[i].pts),routes[i].lab));
+  for(const edge of edges)if(!on.has(edge)&&edge.dataset.d0!==undefined)set(edge,edge.dataset.d0,null);}
 /* A box, its overlay hit boxes (data-node) and its wires, moved to x,y on the drawing. */
 function place(id,x,y){const g=node(id);if(!g||!g.dataset.box)return;const b=drawnBox(g);
   x=Math.max(0,x);y=Math.max(0,y);
   if(Math.abs(x-b.x)<.05&&Math.abs(y-b.y)<.05)delete AUTHOR.at[id];else AUTHOR.at[id]={x,y};
   const t=AUTHOR.at[id]?`translate(${(x-b.x).toFixed(1)},${(y-b.y).toFixed(1)})`:null;
   for(const el of [g,...canvas.querySelectorAll(`[data-node="${CSS.escape(id)}"]`)])t?el.setAttribute('transform',t):el.removeAttribute('transform');
-  reroute(id);}
+  reroute();}
 /* A drawing is laid out from the layout files as they were at build; what has been saved
    since (or kept in this browser) is applied over it when the page opens. */
 function authorShow(){AUTHOR.at={};AUTHOR.drag=null;const saved=AUTHOR.maps[PAGES[cur]?.lp];if(!saved)return;
