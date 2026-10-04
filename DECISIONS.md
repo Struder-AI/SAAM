@@ -458,3 +458,7 @@ Historical approved wording; current persistence direction is [D-027](#d-027--ex
 ## D-049 — One owner; plain decision records
 
 - Owner decision, 2026-10-04: remettub owns SAAM and makes its decisions; tkeller contributes through remettub. A record is a dated heading, the decision and its quoted source; the field, status and two-approval checks in `scripts/check-repo.mjs` are removed. Source: owner, Claude Code session 2026-10-04: "The other developer (tkeller) has taken a supporting role and now contributes mainly through direct interaction with me." and "Yeah we need to change the decisions format, now I understand why it has been ignored."
+
+## D-050 — Influence map 0 approved; authored placement
+
+- Owner decision, 2026-10-04: map 0 of the 030-influence set as drawn (authored nodes including Application and Development tooling, their positions, and the outside actors User, Desktop agent, External resources and STL file) is approved, open to adjustment during work. The proposed map-0 wires for Application and Development tooling and the proposed actors Printer and Native mesh helper were not drawn and are not covered. Placing nodes by hand in the viewer, with wires moving live, is a high-level objective. Source: owner, Claude Code session 2026-10-04: "0 map looks pretty good, I approve and we may adjust it as we continue to work." and "I want to author placement myself. Picking through the nodes manually and watching the wires move in real time, like in airsourceChemistry, is now a high level objective for us, ok?"

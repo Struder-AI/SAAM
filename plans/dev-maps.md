@@ -87,7 +87,8 @@ The owner may adjust scope.
 2. **Whole scope.** Platform models for the APIs SAAM uses; inventory of unmodelled shapes, each for the owner to model or rewrite; query/command classification; comparison against runtime traces.
 3. **Checks.** Unmodelled shapes, ownership coverage, top-level arrows and query/command separation, as errors.
 4. **Maps.** Derived levels, the middle-out solver, the viewer, and the [read contract](../dev-map/README.md#commands) on the CLI, toolkit and onboarding routes.
-5. **Retirement.** Remove the old scanner, scope configuration, finding classes and their documentation.
+5. **Authored placement.** The owner places nodes by dragging them in the viewer; wires follow live and positions persist as authored data (owner, 2026-10-04: a high-level objective).
+6. **Retirement.** Remove the old scanner, scope configuration, finding classes and their documentation.
 
 ## Open decisions
 
