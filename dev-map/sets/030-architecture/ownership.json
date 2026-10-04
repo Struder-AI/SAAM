@@ -1371,22 +1371,6 @@
       "owner": "application",
       "reason": "Desktop command parsing, schema-driven flags, explicit fallback chat identity and bounded request/event waits through one application."
     },
-    "packaging/application.mjs": {
-      "owner": "agent",
-      "reason": "Application startup/readiness, local control, tray and single release-service attachment; explicit Quit/Update owns shutdown."
-    },
-    "packaging/launch.mjs": {
-      "owner": "agent",
-      "reason": "Process entry into the one ready application; icon/source launches reuse existing control."
-    },
-    "packaging/client-setup.mjs": {
-      "owner": "agent",
-      "reason": "Installed command PATH and scoped client skills/settings; writes home startup guidance and preserves unrelated configuration."
-    },
-    "packaging/tray.mjs": {
-      "owner": "agent",
-      "reason": "OS tray/menu-bar host; explicit Open, Update and Quit commands reach application control."
-    },
     "core/application/README.md": {
       "owner": "context",
       "reason": "Canonical maker-facing application command, attachment, home and lifetime guidance."
