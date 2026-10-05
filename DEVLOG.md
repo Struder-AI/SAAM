@@ -1,5 +1,9 @@
 # Development log
 
+## 2026-10-04 — Background development instances; no browsers from tests
+
+- Worker-started Applications and test runs opened browser windows that froze the owner's app twice. `studio/browser.mjs` opens nothing when `SAAM_BACKGROUND=1` or under `node --test` (`NODE_TEST_CONTEXT`); `packaging/launch.mjs` starts a background instance without tray or browser. Development tool `scripts/dev-instance.mjs <saam args>` / `stop` runs `saam` against a background instance of the checkout with its own home under the OS temp folder (owner: "background instances for developer agents ... should be a dev tool"). Verified: `call list_workspaces` answered with no tray or browser process, `stop` quit it. No tests run.
+
 ## 2026-10-04 — Playback audits removed
 
 - Owner-authorized (R2): Dobot playback no longer runs `diagnoseMachinePath` (deleted with `requireProcessControl` and `authoredNozzleTargets`); DENSO drops the relay-vs-annotation and relay-off ending checks; the Bambu player drops the prelude checks and the tool-change re-render and resumes after `CHANGE_END` (a change block without an end before the next change is rejected); `prelude` moved to the writer. Kept: unsupported tool/frame/arm/axis rejection, finite values, positive timing, dwell relay-off. Tests asserting the removed audits trimmed.
