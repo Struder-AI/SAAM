@@ -6,7 +6,7 @@
 // model are recorded as `unmodelled`, never silently approximated away.
 import {dirname,join,posix} from 'node:path';
 import {PairSet} from './points-to.mjs';
-import {lookupPlatform,typeOf,familyOf,familyPath,propertyType,BROWSER_ROOTS} from './platform-models.mjs';
+import {lookupPlatform,typeOf,familyOf,familyPath,familyOwnsElements,propertyType,BROWSER_ROOTS} from './platform-models.mjs';
 import {keyInfo,literalKey} from './keys.mjs';
 import {precisionCritical} from './flows.mjs';
 
@@ -31,7 +31,7 @@ const PERMUTES=/\.(sort|reverse|pop|shift)$/;
 
 export function buildConstraints(pt,modules,{resolveImport,platformModules=new Map(),cloning=true,depth=1,selective=0,unknownData=false}) {
   const functions=[],unmodelled=[],unresolvedImports=[];
-  const platformObjects=new Map(),instances=new Map(),accessorReads=new Set();
+  const platformObjects=new Map(),accessorReads=new Set();
   const PLATFORM_PROTO=platform('platform.prototype',undefined,false);
   // Work already done, by integer pairs: (field node, target) per load, (object, target) per
   // all-fields load, (object, value) per store to a platform object or to all fields.
@@ -555,7 +555,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
       if(reader)readsAll(o,A,reader);
     } else {
       const fnode=pt.field(o,name);if(!loaded.add(fnode,target))return;pt.edge(fnode,target);reader?.readObjects.add(o);
-      if(name!=='__proto__')viaPrototype(o,name,target,reader);
+      if(name!=='__proto__'&&!(name===ELEMENT&&pt.objects[o].ownElements))viaPrototype(o,name,target,reader);
     }
   }
   // A named load or read also reaches whatever o's prototypes hold under that name. One listener
@@ -603,7 +603,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
       readsAll(o,allFields(o),reader);
     } else {
       const fnode=pt.field(o,name);if(!readNamed.add(fnode,reader.object))return;reader.readObjects.add(o);
-      if(name!=='__proto__')viaPrototype(o,name,undefined,reader);
+      if(name!=='__proto__'&&!(name===ELEMENT&&pt.objects[o].ownElements))viaPrototype(o,name,undefined,reader);
     }
   }
   function read(base,name,reader){pt.on(base,o=>readFrom(o,name,reader));}
@@ -729,6 +729,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   // A fresh object the call makes: one per walk of the call site (each copy of a function makes
   // its own, as with its literals), API and position in the model.
   function freshNode(spec,c,key) {
+    if(spec.deep)return deepCopy(spec.deep,c,key);
     const id=`${c.api}|${key}`;const made=c.site.made??=new Map();
     let o=made.get(id);
     if(o===undefined) {
@@ -738,10 +739,56 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
       pt.add(pt.field(o,'__proto__'),t.family?platform(familyPath(t.family)):platform(t.path,t.value));
       // Parts of a family value (an element's style or classList, nested parsed data) are the
       // value itself, so changing them changes only what the caller made.
+      if(t.ownElements)pt.objects[o].ownElements=true;
       if(t.parts){pt.objects[o].parts=true;pt.onField(o,(name,fnode)=>{if(name!=='__proto__')pt.add(fnode,o);});}
     }
     fill(o,spec,c,key);
     const n=pt.node();pt.add(n,o);return n;
+  }
+  // A deep copy (structuredClone): every object reachable from the source is copied into a fresh
+  // object the caller owns, so the copy shares no object with the source, and the caller reads
+  // every object it copies. One copy object per walk of the site and field path from the root, to
+  // CLONE_DEPTH names; the copy at that depth stands for its whole subtree (its fields hold
+  // itself), a sound fold. Copies keep built-in prototypes (arrays, maps, typed arrays) and turn
+  // class instances into plain objects, as structuredClone does; a platform value's copy is plain
+  // data of unknown shape (the json family, as JSON.parse makes); strings are shared (immutable);
+  // functions are not cloneable and are left out.
+  const CLONE_DEPTH=3;
+  const copiedInto=new PairSet(16);
+  function deepCopy(source,c,key) {
+    const from=src(source,c,key+'d');
+    const n=pt.node();
+    const root=cloneObject(c,key,'',n);
+    if(from!==undefined)pt.on(from,o=>{const k=pt.objects[o].kind;
+      if(k==='key')pt.add(n,o);else if(k==='platform')pt.add(pt.field(root,'__proto__'),platform(familyPath('json')));
+      else if(k!=='function'&&k!=='resolver')copyDeep(o,root,c,key,'',0);});
+    return n;
+  }
+  function cloneObject(c,key,path,n) {
+    const made=c.site.made??=new Map(),id=`${c.api}|${key}|deep|${path}`;
+    let o=made.get(id);
+    if(o===undefined){o=pt.object({kind:'value',name:`copy from ${c.api}`,owner:c.caller.id,site:c.site.id,fresh:'Object'});made.set(id,o);}
+    if(n!==undefined)pt.add(n,o);
+    return o;
+  }
+  function copyDeep(o,dst,c,key,path,depth) {
+    if(!copiedInto.add(o,dst))return;
+    readsAll(o,allFields(o),c.caller);
+    const stars=new Map();
+    eachExisting(o,(name,fnode)=>{
+      if(name==='__proto__'){pt.on(fnode,p=>pt.add(pt.field(dst,'__proto__'),isPlatform(p)?p:OBJECT_PROTO));return;}
+      let into;
+      if(name==='*'){into=stars.get(dst);if(into===undefined){into=pt.node();stars.set(dst,into);intoAllFields(into,dst);}}
+      else into=pt.field(dst,name);
+      const deeper=depth<CLONE_DEPTH,childPath=deeper?path+'/'+name:path;
+      pt.on(fnode,v=>{const k=pt.objects[v].kind;
+        if(k==='key'){pt.add(into,v);return;}
+        if(k==='function'||k==='resolver')return;
+        const child=deeper?cloneObject(c,key,childPath):dst;
+        pt.add(into,child);
+        if(k==='platform')pt.add(pt.field(child,'__proto__'),platform(familyPath('json')));
+        else copyDeep(v,child,c,key,childPath,deeper?depth+1:depth);});
+    });
   }
   function fill(o,spec,c,key) {
     // An array or set made only of other arrays' elements is keyed while all of those are.
@@ -774,8 +821,8 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
         for(const s of t.copy){const n=src(s,c,'t');if(n!==undefined)pt.on(target,o=>{if(!isPlatform(o))copyFields(n,o);});}
         continue;
       }
-      const m=/^(.*?)(\[\]|\.\*)$/.exec(t.to);const base=src(m[1],c,'t');if(base===undefined)continue;
-      const name=m[2]==='[]'?ELEMENT:null;
+      const m=/^(.*?)(\[\]|\.\*|\.[\w$#]+)$/.exec(t.to);const base=src(m[1],c,'t');if(base===undefined)continue;
+      const name=m[2]==='[]'?ELEMENT:m[2]==='.*'?null:m[2].slice(1);
       caller.stores.push({base,name,site});
       for(const s of t.from){const n=src(s,c,'t');if(n!==undefined)store(base,name,n,caller,site);}
     }
@@ -839,6 +886,9 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   // `skip` is fed by the caller (a correlated element position).
   function wireCallback(f,k,c,i,skip) {
     c.site.platformCallbacks.push(f.id);
+    // Run during the call (an array method, a sort comparator): its effects happen inside the
+    // caller's call, as a direct call's do (derive.mjs reach).
+    if(k.when!=='later')(c.site.syncCallbacks??=[]).push(f.id);
     const params=k.params??[];
     // A position the model passes only numbers to (an index) keeps numeric keys numeric.
     f.params.forEach((_,j)=>{if(!params[j]?.includes('number'))anyParam(f,j);});
@@ -981,9 +1031,11 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     calls.push({site,caller,callee,args:nodes,result});
     pt.on(callee,o=>{
       const obj=pt.objects[o];
-      const key=site.id+'|'+o;
-      let inst=instances.get(key);
-      if(inst===undefined){inst=pt.object({kind:isPlatform(o)?'value':'object',name:'new '+obj.name,owner:caller.id,site:site.id});instances.set(key,inst);}
+      // One instance per walk of the site and constructor, as with literals: each copy of a
+      // function makes its own (a correlated copy shares its group's, site.made).
+      const made=site.made??=new Map(),key='new|'+o;
+      let inst=made.get(key);
+      if(inst===undefined){inst=pt.object({kind:isPlatform(o)?'value':'object',name:'new '+obj.name,owner:caller.id,site:site.id});made.set(key,inst);}
       pt.add(result,inst);
       if(obj.kind==='function') {
         pt.edge(pt.field(o,'prototype'),pt.field(inst,'__proto__'));
@@ -992,6 +1044,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
       } else if(isPlatform(o)) {
         const proto=obj.known&&obj.value?.prototype?platform(obj.name+'.prototype',obj.value.prototype):obj.known?PLATFORM_PROTO:familyObject(obj);
         pt.add(pt.field(inst,'__proto__'),proto);
+        if(!obj.known&&familyOwnsElements(familyOf(obj.name)))pt.objects[inst].ownElements=true;
         platformCall(site,caller,undefined,nodes,result,undefined,o,inst,site.name);
       }
     });
@@ -1036,7 +1089,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   function newCallable(node,mod,owner,name,{arrow=false,kind='function',thisNode}={}) {
     const f={id:functions.length,name,kind,file:mod.file,line:node.loc?.start.line,end:node.loc?.end.line,start:node.start,stop:node.end,owner:owner?.id,
       key:mod.file+':'+node.start,inClone:!!owner?.inClone,
-      arrow,params:[],rest:undefined,restArray:undefined,ret:pt.node(),thisNode:thisNode??pt.node(),
+      arrow,async:!!node.async,generator:!!node.generator,params:[],rest:undefined,restArray:undefined,ret:pt.node(),thisNode:thisNode??pt.node(),
       stores:[],readObjects:new Set(),calls:[],returnsValue:false,allocations:[],exported:false};
     functions.push(f);
     f.object=pt.object({kind:'function',fn:f,name:name??'(anonymous)',owner:owner?.id});
@@ -1489,7 +1542,10 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
       case 'BinaryExpression':expression(e.left,ctx,VALUELESS);expression(e.right,ctx,VALUELESS);return undefined;
       case 'UnaryExpression':expression(e.argument,ctx,VALUELESS);if(e.operator==='delete')write(e.argument,ctx);return undefined;
       case 'UpdateExpression':expression(e.argument,ctx);write(e.argument,ctx);return undefined;
-      case 'AwaitExpression':{const v=expression(e.argument,ctx);if(v===undefined)return undefined;const t=pt.node();pt.edge(v,t);load(v,ELEMENT,t,ctx.fn);return t;}
+      case 'AwaitExpression':{
+        // An awaited call finishes inside the caller's call (derive.mjs reach).
+        {let a=e.argument;while(a.type==='ParenthesizedExpression'||a.type==='ChainExpression')a=a.expression;if(a.type==='CallExpression'||a.type==='NewExpression')a.awaited=true;}
+        const v=expression(e.argument,ctx);if(v===undefined)return undefined;const t=pt.node();pt.edge(v,t);load(v,ELEMENT,t,ctx.fn);return t;}
       case 'YieldExpression':note('yield',ctx.fn,e);expression(e.argument,ctx);return undefined;
       case 'SpreadElement':return expression(e.argument,ctx);
       case 'TaggedTemplateExpression':{for(const x of e.quasi.expressions)expression(x,ctx);

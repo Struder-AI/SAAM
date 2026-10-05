@@ -578,8 +578,8 @@ export function compose(pt,units,{platformModules=new Map(),pathLimit=3,progress
         for(const s of t.copy){const n=src(s,c,'t');if(n!==undefined)pt.on(target,o=>{const k=objs[o].kind;if(k!=='platform'&&k!=='primitive')copyFields(H,n,o);});}
         continue;
       }
-      const m=/^(.*?)(\[\]|\.\*)$/.exec(t.to);const b=src(m[1],c,'t');if(b===undefined)continue;
-      const name=m[2]==='[]'?ELEMENT:null;
+      const m=/^(.*?)(\[\]|\.\*|\.[\w$#]+)$/.exec(t.to);const b=src(m[1],c,'t');if(b===undefined)continue;
+      const name=m[2]==='[]'?ELEMENT:m[2]==='.*'?null:m[2].slice(1);
       for(const s of t.from){const n=src(s,c,'t');if(n!==undefined)store(H,b,name,n,site,tag);}
     }
     for(const s of spec.mutates??[]){const b=src(s,c,'m');if(b!==undefined)store(H,b,ELEMENT,undefined,site,tag);}

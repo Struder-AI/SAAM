@@ -25,10 +25,10 @@
 //
 // Sources: 'this' (receiver), 'argN', 'args' (all), 'argsN+' (from N on), 'cb' (callback
 // results), '?' (an unknown platform value), '@family' (a value of a platform family). Suffixes:
-// '[]' elements, '.*' any field, '.name' a field. An object {fresh: type, el, fields, any, copy}
+// '[]' elements, '.*' any field, '.name' a field. An `into` target is a source ending in '[]', '.*' or '.name'. An object {fresh: type, el, fields, any, copy}
 // is a new object the call makes: type is a runtime class path ('Array', 'node:fs.Stats') whose
 // prototype it gets, or a family; el/any/fields/copy fill its elements, every field, named
-// fields, or a shallow copy of the sources' fields. In a callback's params, 'number' says the
+// fields, or a shallow copy of the sources' fields; `deep` makes it a deep copy of one source. In a callback's params, 'number' says the
 // position receives only numbers (an index, a typed array element): it carries no object, and a
 // computed key built from that parameter stays an element key (keys.mjs). A position without it
 // may receive anything.
@@ -72,6 +72,9 @@ const arr=(...el)=>fresh('Array',el);
 const iter=(...el)=>fresh('Iterator',el);
 const promise=(...el)=>fresh('Promise',el);
 const json=(...copy)=>({fresh:'json',copy,el:copy.map(c=>c+'[]')});
+// A deep copy of the source (structuredClone): fresh objects all the way down, holding no object of
+// the source. Engines without deep copies apply `copy` and `el` (shallow: the nested values shared).
+const deep=source=>({...json(source),deep:source});
 const done={out:[promise()]};                                // a promise of completion only
 const EACH=[['this[]'],['number'],['this']];
 const EACH_NUMBER=[['number'],['number'],['this']];
@@ -129,14 +132,17 @@ const ITERATOR_METHODS={
   'forEach some every':each(),'find':each({out:['this[]']}),
   'reduce':{out:['cb','arg1'],calls:[{fn:'arg0',params:[['cb','arg1','this[]'],['this[]']]}]}
 };
+// A map's elements are its entries, as iterating it gives them: [key, value] pairs whose `#key`
+// and `#value` fields hold the key and the value apart, so reading values never yields keys.
+const entry=(keys,values)=>fresh('Array',[...keys,...values],{fields:{'#key':keys,'#value':values}});
 const MAP_METHODS={
-  'get':{out:['this[]']},
-  'set':{out:['this'],into:[{to:'this[]',from:['arg0','arg1']}]},
-  'has':{observe:['this[]']},
+  'get':{out:['this[].#value']},
+  'set':{out:['this'],into:[{to:'this[].#key',from:['arg0']},{to:'this[].#value',from:['arg1']},{to:'this[][]',from:['arg0','arg1']}]},
+  'has':{observe:['this[].#key']},
   'delete clear':{mutates:['this']},
-  'keys values':{out:[iter('this[]')]},
-  'entries':{out:[iter(arr('this[]'))]},
-  'forEach':{calls:[{fn:'arg0',params:[['this[]'],['this[]'],['this']]}]}
+  'keys':{out:[iter('this[].#key')]},'values':{out:[iter('this[].#value')]},
+  'entries':{out:[iter('this[]')]},
+  'forEach':{calls:[{fn:'arg0',params:[['this[].#value'],['this[].#key'],['this']]}]}
 };
 const SET_METHODS={
   'add':{out:['this'],into:[{to:'this[]',from:['arg0']}]},
@@ -192,9 +198,9 @@ export const MODELS={
     'setInt8 setUint8 setInt16 setUint16 setInt32 setUint32 setFloat32 setFloat64 setBigInt64 setBigUint64':{mutates:['this']}}),
   'Iterator.from':{out:[iter('arg0[]')]},
   ...group('Iterator.prototype.',ITERATOR_METHODS),
-  'Map':{construct:{el:['arg0[][]']}},'Map.groupBy':{out:[fresh('Map',['arg0[]','cb'])],calls:[{fn:'arg1',params:[['arg0[]'],[]]}]},
+  'Map':{construct:{el:[entry(['arg0[][]'],['arg0[][]'])]}},'Map.groupBy':{out:[fresh('Map',[entry(['cb'],[arr('arg0[]')])])],calls:[{fn:'arg1',params:[['arg0[]'],[]]}]},
   ...group('Map.prototype.',MAP_METHODS),
-  'WeakMap':{construct:{el:['arg0[][]']}},
+  'WeakMap':{construct:{el:[entry(['arg0[][]'],['arg0[][]'])]}},
   ...group('WeakMap.prototype.',{'get':MAP_METHODS.get,'set':MAP_METHODS.set,'has':MAP_METHODS.has,'delete':{mutates:['this']}}),
   'Set':{construct:{el:['arg0[]']}},
   ...group('Set.prototype.',SET_METHODS),
@@ -235,7 +241,7 @@ export const MODELS={
   ...group('Date.prototype.',{'getTime valueOf toISOString toJSON toString toLocaleString toLocaleDateString toLocaleTimeString getFullYear getMonth getDate getDay getHours getMinutes getSeconds getMilliseconds getUTCFullYear getUTCMonth getUTCDate getUTCHours getUTCMinutes getUTCSeconds getTimezoneOffset toUTCString toDateString':P}),
   'Error':ERROR,'TypeError':ERROR,'RangeError':ERROR,'SyntaxError':ERROR,'AggregateError':ERROR,'DOMException':ERROR,
   'Error.captureStackTrace':{mutates:['arg0']},
-  'structuredClone':{out:[json('arg0')],note:'A deep copy; modelled as a fresh object holding the original nested values.'},
+  'structuredClone':{out:[deep('arg0')],note:'A deep copy: fresh objects holding copies of the nested values (constraints.mjs deepCopy).'},
   ...group('',{'isNaN isFinite parseInt parseFloat encodeURIComponent decodeURIComponent encodeURI decodeURI escape unescape':P}),
   ...group('Atomics.',{'load isLockFree':{reads:'shared-memory'},'wait waitAsync':{reads:'shared-memory'},
     'store add sub and or xor exchange compareExchange notify':{mutates:['arg0'],effect:'shared-memory'}}),
@@ -442,7 +448,7 @@ export const FAMILIES={
       'flatten format':{out:[fresh('json')]},
       'unwrap removeDefault':{out:['this[]']},'meta':{out:[fresh('zod',['this','args']),fresh('json',['args'])]}
     })},
-  manifold:{note:'manifold-3d (WASM): Manifold, CrossSection and Mesh values are immutable; operations return fresh values; delete() frees WASM memory owned by the receiver.',
+  manifold:{note:'manifold-3d (WASM): Manifold, CrossSection and Mesh values are immutable; operations return fresh values; delete() frees WASM memory owned by the receiver.',ownElements:true,
     members:group('',{
       'default':{out:[promise(fresh('manifold'))],note:'Instantiates the WASM module.'},
       'setup':{mutates:['this']},
@@ -455,7 +461,7 @@ export const FAMILIES={
       'add subtract intersect translate rotate scale transform mirror refine simplify trimByPlane split':{out:[fresh('manifold',['this','args'])]},
       'getMesh':{out:[fresh('manifold',['this'])]},'status isEmpty volume surfaceArea numVert numTri genus boundingBox':P
     })},
-  clipper:{note:'clipper2-wasm: paths and clipping operations; containers are WASM objects that hold the points pushed into them and are freed with delete().',
+  clipper:{note:'clipper2-wasm: paths and clipping operations; containers are WASM objects that hold the points pushed into them and are freed with delete().',ownElements:true,
     members:group('',{'default':{out:[promise(fresh('clipper'))],note:'Instantiates the WASM module.'},'delete':{mutates:['this']},
       'push_back':{mutates:['this'],into:[{to:'this[]',from:['args']}]},'get':{out:['this[]']},'size':P,
       'Paths64 Path64 Clipper64':{construct:{}},
@@ -463,7 +469,7 @@ export const FAMILIES={
       'SetPreserveCollinear':{mutates:['this']},'AddSubject AddOpenSubject AddClip':{mutates:['this'],into:[{to:'this[]',from:['arg0']}]},
       'ExecutePath':{mutates:['args2+'],into:[{to:'arg2[]',from:['this[]','this[][]']},{to:'arg3[]',from:['this[]','this[][]']}]},
       'InflatePaths64 SimplifyPaths64':{out:[fresh('clipper',['arg0[]'])]}})},
-  rhino:{note:'rhino3dm (WASM): geometry and 3dm file objects; constructors and operations return fresh objects; setters change their receiver; delete() frees WASM memory.',
+  rhino:{note:'rhino3dm (WASM): geometry and 3dm file objects; constructors and operations return fresh objects; setters change their receiver; delete() frees WASM memory.',ownElements:true,
     members:group('',{'default':{out:[promise(fresh('rhino'))],note:'Instantiates the WASM module.'},'delete':{mutates:['this']},
       'setUserString setPoint setKnot setWeight add set':{mutates:['this'],into:[{to:'this[]',from:['args']}]},'get':{out:['this[]']},
       'File3dm ObjectAttributes LineCurve NurbsSurface Point3d':{construct:{el:['args']}},
@@ -513,7 +519,7 @@ function index() {
 }
 // A type's prototype: {path, value} for a runtime class, or {family} for a family.
 export function typeOf(type) {
-  if(FAMILIES[type])return {family:type,parts:!!FAMILIES[type].parts};
+  if(FAMILIES[type])return {family:type,parts:!!FAMILIES[type].parts,ownElements:!!FAMILIES[type].ownElements};
   const v=resolvePath(type);
   if(typeof v==='function'&&v.prototype)return {path:type+'.prototype',value:v.prototype};
   if(v&&typeof v==='object')return {path:type,value:v};
@@ -526,6 +532,10 @@ export function familyOf(path) {
   return FAMILY_ROOTS[root]??root;
 }
 export const familyPath=family=>family+'.*';
+// `ownElements`: a value of the family that a model made (fresh, or an instance) holds as elements
+// exactly what the models put there (el, into): WASM containers copy values in and give them back.
+// Its elements are never the family's unknown value.
+export const familyOwnsElements=family=>!!FAMILIES[family]?.ownElements;
 export const isFamilyPath=path=>path.endsWith('.*');
 
 const BY_NAME=['Array.prototype','String.prototype','Map.prototype','Set.prototype','Promise.prototype','Iterator.prototype','Object.prototype','Number.prototype',
