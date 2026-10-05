@@ -10,5 +10,5 @@ Quit. Closing a Studio tab leaves SAAM running. Both clients get skills and perm
 after installation to discover the saam command and skill. The agent handles
 client setup and repairs. The alpha invite is optional.
 
-Use Uninstall SAAM on the Start Menu to remove app files and shortcuts.
-Your prints, extensions, settings and logs stay in C:\SAAM.
+Use Uninstall SAAM on the Start Menu to remove the app, shortcuts and client
+setup. Your prints, extensions, settings and logs stay in C:\SAAM.

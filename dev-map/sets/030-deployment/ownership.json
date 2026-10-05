@@ -39,6 +39,12 @@
     "packaging/client-setup.mjs::atomicWrite": {
       "owner": "installer"
     },
+    "packaging/client-setup.mjs::claudePermissions": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::clientFolders": {
+      "owner": "installer"
+    },
     "packaging/client-setup.mjs::clientStatus": {
       "owner": "installer"
     },
@@ -81,13 +87,31 @@
     "packaging/client-setup.mjs::registerSkill": {
       "owner": "installer"
     },
+    "packaging/client-setup.mjs::reportUnregistration": {
+      "owner": "installer"
+    },
     "packaging/client-setup.mjs::retireClaude": {
       "owner": "installer"
     },
     "packaging/client-setup.mjs::retireCodex": {
       "owner": "installer"
     },
+    "packaging/client-setup.mjs::ruleMarker": {
+      "owner": "installer"
+    },
     "packaging/client-setup.mjs::setupClients": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::unregisterClaude": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::unregisterClients": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::unregisterCodex": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::unregisterSkill": {
       "owner": "installer"
     },
     "packaging/client-setup.mjs::writeHomeGuidance": {

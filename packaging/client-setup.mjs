@@ -1,6 +1,6 @@
 // User-level command discovery and narrow permissions; registration failures
 // are returned by setup and never prevent the application from starting.
-import {mkdir,readFile,writeFile,rename} from 'node:fs/promises';
+import {mkdir,readFile,writeFile,rename,rm,rmdir} from 'node:fs/promises';
 import {homedir} from 'node:os';
 import {resolve,join,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -12,7 +12,14 @@ async function atomicWrite(path,text){
   await writeFile(temporary,text);await rename(temporary,path);
 }
 async function optionalRead(path){try{return await readFile(path,'utf8');}catch(error){if(error.code==='ENOENT')return null;throw error;}}
-const marker='<!-- Managed by SAAM application -->';
+const marker='<!-- Managed by SAAM application -->',ruleMarker='# Managed by SAAM application';
+const claudePermissions=['Bash(saam *)','PowerShell(saam *)'];
+// Client configuration folders; their environment overrides apply only to the real home.
+function clientFolders(clientHome){
+  const real=clientHome===homedir();
+  return {agents:join(clientHome,'.agents'),codex:real?process.env.CODEX_HOME??join(clientHome,'.codex'):join(clientHome,'.codex'),
+    claude:real?process.env.CLAUDE_CONFIG_DIR??join(clientHome,'.claude'):join(clientHome,'.claude')};
+}
 // The home's AGENTS.md, CLAUDE.md and client skill are the installed program's
 // AGENTS.md, with this home's folders and links resolved to the program's manuals.
 const programRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..');
@@ -30,23 +37,46 @@ async function registerSkill(directory,home){
   await atomicWrite(target,skill);return target;
 }
 async function registerCodex(clientHome,home){
-  const skill=await registerSkill(join(clientHome,'.agents','skills'),home);
-  const directory=clientHome===homedir()?process.env.CODEX_HOME??join(clientHome,'.codex'):join(clientHome,'.codex');
-  const rule=join(directory,'rules','saam.rules');
-  const text='# Managed by SAAM application\nprefix_rule(pattern = ["saam"], decision = "allow", justification = "Call the installed SAAM local application.")\n';
+  const folders=clientFolders(clientHome),skill=await registerSkill(join(folders.agents,'skills'),home);
+  const rule=join(folders.codex,'rules','saam.rules');
+  const text=`${ruleMarker}\nprefix_rule(pattern = ["saam"], decision = "allow", justification = "Call the installed SAAM local application.")\n`;
   const previous=await optionalRead(rule);
-  if(previous&&!previous.startsWith('# Managed by SAAM application'))throw Error(`Kept custom rules at ${rule}; rename that file before retrying.`);
+  if(previous&&!previous.startsWith(ruleMarker))throw Error(`Kept custom rules at ${rule}; rename that file before retrying.`);
   await atomicWrite(rule,text);return {skill,permissions:rule,restartRequired:true};
 }
 async function registerClaude(clientHome,home){
-  const directory=clientHome===homedir()?process.env.CLAUDE_CONFIG_DIR??join(clientHome,'.claude'):join(clientHome,'.claude');
+  const directory=clientFolders(clientHome).claude;
   const skill=await registerSkill(join(directory,'skills'),home),settingsFile=join(directory,'settings.json');
   const previous=await optionalRead(settingsFile),settings=previous?JSON.parse(previous):{};
   if(!settings||typeof settings!=='object'||Array.isArray(settings))throw Error('Claude settings must be a JSON object.');
   settings.permissions??={};settings.permissions.allow??=[];
   if(!Array.isArray(settings.permissions.allow))throw Error('Claude permissions.allow must be an array.');
-  for(const permission of ['Bash(saam *)','PowerShell(saam *)'])if(!settings.permissions.allow.includes(permission))settings.permissions.allow.push(permission);
+  for(const permission of claudePermissions)if(!settings.permissions.allow.includes(permission))settings.permissions.allow.push(permission);
   await atomicWrite(settingsFile,JSON.stringify(settings,null,2)+'\n');return {skill,permissions:settingsFile,restartRequired:true};
+}
+// Each removal returns the paths it removed; unmarked files are someone else's and stay.
+async function unregisterSkill(directory){
+  const folder=join(directory,'saam'),skill=join(folder,'SKILL.md'),text=await optionalRead(skill);
+  if(!text?.includes(marker))return [];
+  await rm(skill);
+  try{await rmdir(folder);}catch(error){if(error.code!=='ENOTEMPTY'&&error.code!=='EEXIST')throw error;}
+  return [skill];
+}
+async function unregisterCodex(options){
+  const folders=clientFolders(options.clientHome),rule=join(folders.codex,'rules','saam.rules');
+  const removed=[...await retireCodex(options),...await unregisterSkill(join(folders.agents,'skills'))];
+  if((await optionalRead(rule))?.startsWith(ruleMarker)){await rm(rule);removed.push(rule);}
+  return removed;
+}
+async function unregisterClaude(options){
+  const directory=clientFolders(options.clientHome).claude,settingsFile=join(directory,'settings.json');
+  const removed=[...await retireClaude(options),...await unregisterSkill(join(directory,'skills'))];
+  const text=await optionalRead(settingsFile),settings=text===null?null:JSON.parse(text),allow=settings?.permissions?.allow;
+  if(Array.isArray(allow)&&claudePermissions.some(permission=>allow.includes(permission))){
+    settings.permissions.allow=allow.filter(permission=>!claudePermissions.includes(permission));
+    await atomicWrite(settingsFile,JSON.stringify(settings,null,2)+'\n');removed.push(settingsFile+'#permissions.allow');
+  }
+  return removed;
 }
 
 function installedProgram(path,{home,clientHome,platform}){
@@ -59,8 +89,7 @@ function ownedServer(record,options){
   return Array.isArray(record?.args)&&record.args.some(arg=>typeof arg==='string'&&arg.replaceAll('\\','/').endsWith('/adapters/mcp/src/server.mjs')&&installedProgram(arg,options));
 }
 async function retireClaude(options){
-  const {clientHome}=options,removed=[];
-  const directory=clientHome===homedir()?process.env.CLAUDE_CONFIG_DIR??join(clientHome,'.claude'):join(clientHome,'.claude');
+  const {clientHome}=options,removed=[],directory=clientFolders(clientHome).claude;
   const configuration=join(clientHome,'.claude.json'),text=await optionalRead(configuration);
   if(text){
     const document=JSON.parse(text);
@@ -91,8 +120,7 @@ async function retireClaude(options){
   return removed;
 }
 async function retireCodex(options){
-  const directory=options.clientHome===homedir()?process.env.CODEX_HOME??join(options.clientHome,'.codex'):join(options.clientHome,'.codex');
-  const configuration=join(directory,'config.toml'),text=await optionalRead(configuration);if(!text)return [];
+  const configuration=join(clientFolders(options.clientHome).codex,'config.toml'),text=await optionalRead(configuration);if(!text)return [];
   // Codex's own `mcp add` emits a table with a single-line JSON-compatible
   // args array. Only that recognized installed-SAAM registration is retired;
   // unfamiliar TOML and custom servers are left byte-for-byte intact.
@@ -127,6 +155,21 @@ export async function setupClients({home,clientHome=homedir(),platform=process.p
   return result;
 }
 
+// Removes SAAM's skills, rule and permissions, and retired registrations of this
+// home's program, from both clients; unrelated settings are kept.
+export async function unregisterClients({home,clientHome=homedir(),platform=process.platform}={}){
+  if(!home)throw Error('Client unregistration requires the SAAM home.');
+  const options={home:resolve(home),clientHome,platform},result={clientHome,removed:[],errors:[]};
+  try{result.removed.push(...await unregisterCodex(options));}catch(error){result.errors.push(`Codex: ${error.message}`);}
+  try{result.removed.push(...await unregisterClaude(options));}catch(error){result.errors.push(`Claude Code: ${error.message}`);}
+  return result;
+}
+function reportUnregistration(result){
+  for(const item of result.removed)console.log(`Removed ${item}`);
+  for(const error of result.errors)console.log(`Could not remove a client registration: ${error}`);
+  if(result.errors.length)process.exitCode=1;
+}
+
 export async function writeHomeGuidance(home){
   const written=[],text=await guidance(home);
   for(const name of ['AGENTS.md','CLAUDE.md']){
@@ -138,6 +181,8 @@ export async function writeHomeGuidance(home){
 }
 
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
-  setupClients({home:process.argv[2],register:process.argv[3]!=='--no-register'})
-    .then(result=>console.log(JSON.stringify(result))).catch(error=>{console.error(error.message);process.exitCode=1;});
+  const [home,option]=process.argv.slice(2);
+  const finished=option==='--unregister'?unregisterClients({home}).then(reportUnregistration)
+    :setupClients({home,register:option!=='--no-register'}).then(result=>console.log(JSON.stringify(result)));
+  finished.catch(error=>{console.error(error.message);process.exitCode=1;});
 }
