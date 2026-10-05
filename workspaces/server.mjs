@@ -71,7 +71,7 @@ export async function startWorkspace({extensionId,port=0,directory,appRoot,dataR
         else if(message.stage==='failed')finish('failed',{error:message.error});
         else{
           state.job={...state.job,...message};
-          emit('workspace-bundles-progress',{jobId:id,stage:message.stage,piece:message.piece,completed:message.completed,total:message.total});
+          emit('workspace-bundles-progress',{jobId:id,directory:job.directory,stage:message.stage,piece:message.piece,completed:message.completed,total:message.total,bundles:message.bundles});
         }
       });
       running.on('error',error=>finish('failed',{error:error.message}));

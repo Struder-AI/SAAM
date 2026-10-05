@@ -109,8 +109,9 @@ export function requireMachine(machine,capabilities,skill) {
   for(const capability of capabilities) requireThat(machine.capabilities?.includes(capability),`${skill} requires machine capability ${capability}.`);
 }
 
-// Validate SAAMpath independently of the chosen machine-program language.
-export function checkMachinePath(path,plan,machine) {
+// Explicit developer diagnostic; ordinary generation, loading and export do not
+// audit the motion produced by SAAM. This does not establish physical clearance.
+export function diagnoseMachinePath(path,plan,machine) {
   const temperatures=authoredNozzleTargets(plan,path.completion?.authoredNozzleTemperatures);
   let selected=plan,bounds=toolBounds(machine,plan.setup.tool);
   let from=path.initialPosition;

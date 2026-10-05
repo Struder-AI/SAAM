@@ -9,7 +9,7 @@ import {createHash,randomUUID} from 'node:crypto';
 export const REVISION = '2d5d3b2f3cd3711028ad75b12788c13b25559ec6';
 const repository = 'https://huggingface.co/datasets/Thingi10K/Thingi10K';
 const base = `${repository}/resolve/${REVISION}/`;
-const defaultCache = resolve(process.env.SAAM_DATA??resolve(homedir(),'.saam'),'.thingi10k');
+const defaultCache = resolve(process.env.SAAM_DATA??(process.platform==='win32'?'C:/SAAM':resolve(homedir(),'SAAM')),'tmp','cache','thingi10k');
 const maxMeshBytes = 64 * 1024 * 1024;
 const idPattern = /^[1-9][0-9]{0,11}$/;
 

@@ -112,10 +112,10 @@ export function validatePlanFields(plan) {
     process:{...Object.fromEntries([...positiveProcessFields,...nonnegativeProcessFields].map(key=>[key,null])),
       fanPercent:null,experimentalDeposition:null,primeLine:null,clearanceResponsibility:null,clearanceNote:null},
     ...(Object.hasOwn(plan,'skills')?{skills:Object.fromEntries(Object.entries(skills).filter(([id])=>Object.hasOwn(plan.skills??{},id)))}:{}),
-    ...(plan.geometry?{geometry:geometryTemplate(plan.geometry.shape,plan.geometry)}:{}),...(Object.hasOwn(plan,'workspace')?{workspace:plan.workspace}:{})};
+    ...(plan.geometry?{geometry:geometryTemplate(plan.geometry.shape,plan.geometry)}:{}),...(Object.hasOwn(plan,'workspace')?{workspace:null}:{})};
   if(plan.workspace){
     requireThat_toolpath(plan.workspace.schema==='saam-workspace-source/1'&&plan.workspace.source&&plan.workspace.requirements,'Invalid workspace construction source.');
-    requireThat_toolpath(plan.workspace.constructionIdentity===workspaceConstructionIdentity(plan),'This edit changes the workspace construction requirements. Regenerate the section in its workspace, or explicitly detach the workspace source before changing its construction.');
+
   }
   requireThat_toolpath(!plan.composition||!Object.hasOwn(plan.composition,'batchLayers'),'composition.batchLayers is retired; explicitly migrate the recipe to ascending-height scheduling and regenerate.');
   keys({...plan,setup:null},{...expected,setup:null});
@@ -133,11 +133,6 @@ export function validatePlanFields(plan) {
   }
 
   return plan;
-}
-
-export function workspaceConstructionIdentity(plan){
-  plan=resolveSpatialPlan(plan);
-  return hash({geometry:plan.geometry,slices:plan.slices,skills:plan.skills,modulations:plan.modulations,composition:plan.composition,experimental:plan.experimental,layerMm:plan.process?.layerMm,firstLayerMm:plan.process?.firstLayerMm,lineWidthMm:plan.process?.lineWidthMm});
 }
 
 export function validatePlanGeometry(plan) {

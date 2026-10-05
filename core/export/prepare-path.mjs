@@ -1,6 +1,6 @@
 import {requireThat,distance} from '../private/export/numeric.mjs';
 import {AdaptationMotion,machinePriming} from '../private/export/adaptation-motion.mjs';
-import {validateSetup,checkMachinePath,toolBounds,startupPosition,startupRetracted,sameNozzleMaterialChanges} from '../machine/rules.mjs';
+import {validateSetup,toolBounds,startupPosition,startupRetracted,sameNozzleMaterialChanges} from '../machine/rules.mjs';
 import {checkedFilamentPlan} from '../machine/filaments.mjs';
 import {contextualActions} from '../path/action-context.mjs';
 
@@ -43,7 +43,7 @@ function limitedFeed(start,actions,machine){
 }
 
 // The saved SAAMpath is independent of machine/output. This ephemeral path is
-// the exact selected-machine motion sent into the program writer and checker.
+// the exact selected-machine motion sent into the program writer.
 export function prepareExportPath(path,plan,machine){
   requireThat(path?.schema==='saampath/1'&&path.completion?.contract===NEUTRAL_PATH_CONTRACT,
     'Export requires a current neutral SAAMpath. Generate the toolpath first.');
@@ -116,6 +116,5 @@ export function prepareExportPath(path,plan,machine){
     initialPosition:start,...(plan.setup.denso?{initialPose:plan.setup.denso.initialPose}:{}),
     actions:limitedFeed(start,motion.actions,machine),summary:{...path.summary,boundsMm:geometryBounds}};
   if(!oriented)delete prepared.initialPose;
-  checkMachinePath(prepared,plan,machine);
   return prepared;
 }

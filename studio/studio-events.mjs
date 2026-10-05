@@ -4,7 +4,7 @@
 // a client that never surfaces a push still receives the batch on its next read.
 // Observers see every recorded event, held or delivered, and never drain.
 export const DELIVERED_KINDS=new Set(['chat-attached','chat-detached','chat-captured','tour-started','tour-lesson','tour-exited','tour-finished','request-queued','request-presented','view-failed','handback-failed',
-  'geometry-completed','geometry-failed','geometry-cancelled','generation-failed','generation-cancelled','import-completed','import-failed','import-repair-started','import-cancelled','bundle-share-completed','bundle-share-failed','bundle-share-cancelled','print-opened','export-delivered','workspace-opened','workspace-closed','workspace-bundles-completed','workspace-bundles-failed']);
+  'geometry-completed','geometry-failed','geometry-cancelled','generation-failed','generation-cancelled','import-completed','import-failed','import-repair-started','import-cancelled','bundle-share-completed','bundle-share-failed','bundle-share-cancelled','print-opened','export-delivered','workspace-opened','workspace-closed','workspace-bundles-completed','workspace-bundles-failed','workspace-bundle-visible','workspace-bundle-view-failed']);
 export const HELD_KINDS=new Set(['viewer-opened','viewer-closed','view-presented','geometry-started','generation-started','generation-finished','approved',
   'tour-playback','import-started','bundle-share-started','example-adopted','plan-updated','workspace-design-updated','workspace-previewed','workspace-bundles-started','workspace-bundles-progress','workspace-viewer-opened','workspace-viewer-closed']);
 export const EVENT_KINDS=[...DELIVERED_KINDS,...HELD_KINDS];

@@ -1,5 +1,5 @@
+import {homePaths} from '../core/application/home.mjs';
 import {replaceFile} from '../core/private/studio/file-write.mjs';
-import {canonical} from '../core/private/studio/hash.mjs';
 import {readFile,mkdir} from 'node:fs/promises';
 import {resolve,relative,isAbsolute} from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
@@ -7,23 +7,19 @@ import {fileURLToPath} from 'node:url';
 
 import {requestReceiptState,isEditRequest} from './work-state.mjs';
 import {createRequestIndex} from './request-index.mjs';
-import {revisionOf} from '../core/print/revisions.mjs';
+import {bundleFor,readStableBundle} from './adapter-resolution.mjs';
 
 
-export function workSnapshot({plan,machine,review,editRevision,revision}){
-  const hash=value=>createHash('sha256').update(canonical(value)).digest('hex');
-  const generated=review?.history?.findLast(event=>event.event==='generated');
-  return {revision,inputKey:hash({plan,machine}),geometryKey:hash(plan?.geometry??null),generationKey:generated?hash(generated):null,
-    ...(editRevision?{editRevision}:{})};
-}
 async function snapshot(directory){
-  try{
-    const document=JSON.parse(await readFile(resolve(directory,'plan.json'),'utf8'));
-    const {bundle,...plan}=document;
-    const [machine,review]=bundle?[bundle.machine,bundle.review]:await Promise.all(['machine.json','review.json']
-      .map(async name=>JSON.parse(await readFile(resolve(directory,name),'utf8'))));
-    return workSnapshot({plan,machine,review,revision:revisionOf(document)});
-  }catch(error){if(error.code==='ENOENT')return null;throw error;}
+  const adapter=await bundleFor(directory).catch(error=>{if(error.code==='ENOENT')return null;throw error;});
+  if(!adapter)return null;
+  return {...(await readStableBundle(adapter,directory,{program:false})).state.workEvidence};
+}
+// Old requests retain their authored baseline. An explicit new work episode
+// captures the current output before editing; the old event hash cannot prove bytes.
+function currentBaseline(baseline,current){
+  return baseline?.schema==='saam-work-evidence/1'||!baseline||!current?baseline:
+    {...current,revision:baseline.revision,inputKey:baseline.inputKey,geometryKey:baseline.geometryKey};
 }
 
 // One record per request: completing one request cannot clear another's dots.
@@ -85,7 +81,7 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events,fol
   }
   const list=options=>query({...options,history:true});
   return {list,query,get,printId,ownerId,events,folder,snapshot,
-    startWork({directory,requestIds=[],studioInstanceId,instruction}){return transition(async()=>{
+    startWork({directory,requestIds=[],studioInstanceId,instruction,bundleState}){return transition(async()=>{
       let chosen=[];
       for(const id of requestIds){
         const record=await get(id);
@@ -96,9 +92,10 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events,fol
       }
       if(!chosen.length&&!requestIds.length)chosen=(await query({printId:printId(directory)})).filter(r=>r.status==='working'&&!r.handbackPending&&(!r.episode||r.workActive)&&r.kind!=='advisory'&&(!r.studioInstanceId||r.studioInstanceId===studioInstanceId)).slice(-1);
       if(chosen[0]?.episodeId){const group=(await query({printId:printId(directory)})).filter(r=>r.episodeId===chosen[0].episodeId&&r.workActive);chosen=[...new Map([...group,...chosen].map(r=>[r.id,r])).values()];}
-      if(!chosen.length)chosen=[await this.begin({directory,instruction,studioInstanceId})];
+      if(!chosen.length)chosen=[await this.begin({directory,instruction,studioInstanceId,bundleState})];
+      const current=chosen.some(record=>record.baseline&&record.baseline.schema!=='saam-work-evidence/1')?(bundleState?.workEvidence??await snapshot(directory)):null;
       const result=[],episodeId=chosen[0].episodeId??chosen[0].id,episodeStartedAt=chosen[0].episodeStartedAt??[...records.values()].reduce((latest,r)=>Math.max(latest,(r.episodeStartedAt??0)+1),now());
-      for(const record of chosen)result.push(await save({...record,episodeId,episodeStartedAt,status:'working',episode:true,workActive:true,ownerId,updatedAt:Math.max(now(),record.updatedAt+1)}));
+      for(const record of chosen)result.push(await save({...record,baseline:currentBaseline(record.baseline,current),episodeId,episodeStartedAt,status:'working',episode:true,workActive:true,ownerId,updatedAt:Math.max(now(),record.updatedAt+1)}));
       return result;
     });},
     async savedWork(id,saved){return transition(async()=>{const record=await get(id);return save({...record,lastSaved:saved,updatedAt:Math.max(now(),record.updatedAt+1)});});},
@@ -150,7 +147,7 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events,fol
       if(key)try{return await get(id);}catch(e){if(e.code!=='ENOENT')throw e;}
       if(!['edit','guidance','advisory'].includes(kind))throw Error('Unknown Studio work kind.');
       const currentId=printId(directory);
-      return save({id,printId:currentId,instruction,source,kind,scope,...(studioInstanceId?{studioInstanceId}:{}),...(kind==='advisory'?{evidence}:{}),baseline:bundleState?workSnapshot(bundleState):await snapshot(directory),ownerId,status:source==='studio'?'queued':'working',createdAt:now(),updatedAt:now()});
+      return save({id,printId:currentId,instruction,source,kind,scope,...(studioInstanceId?{studioInstanceId}:{}),...(kind==='advisory'?{evidence}:{}),baseline:bundleState?{...bundleState.workEvidence}:await snapshot(directory),ownerId,status:source==='studio'?'queued':'working',createdAt:now(),updatedAt:now()});
     },
     async update(id,{status='completed',message='',resultStage}={}){
       if(lifetime.closed)throw Error('Request service closed.');
@@ -162,10 +159,10 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events,fol
       const resuming=status==='working'&&record.status!=='working';
       // Pausing does not create a different request or discard an already saved
       // result. In particular, waiting for input must preserve its target.
-      const baseline=record.baseline;
+      const baseline=status==='working'&&record.baseline&&record.baseline.schema!=='saam-work-evidence/1'?currentBaseline(record.baseline,await snapshot(resolve(root,record.printId))):record.baseline;
       const result=resuming?undefined:status==='completed'?await snapshot(resolve(root,record.printId)):record.result;
       if(resultStage&&!['geometry','toolpath'].includes(resultStage))throw Error('Unknown result stage.');
-      const target=resultStage?{...await snapshot(resolve(root,record.printId)),stage:resultStage}:record.target
+      const target=resultStage?{...(result??await snapshot(resolve(root,record.printId))),stage:resultStage}:record.target
         ??(status==='completed'&&result?{...result,stage:result.geometryKey!==baseline?.geometryKey&&result.generationKey===baseline?.generationKey?'geometry':'toolpath'}:undefined);
       return save({...record,baseline,result,target,presented:resultStage?false:record.presented,ownerId:ownerId??record.ownerId,status,message:String(message),updatedAt:Math.max(now(),record.updatedAt+1)});
     },
@@ -217,7 +214,7 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events,fol
   };
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
-  const [action='list',library='Prints',id,value,message]=process.argv.slice(2),requests=createAgentRequests(library);
+  const [action='list',library=homePaths().prints,id,value,message]=process.argv.slice(2),requests=createAgentRequests(library);
   let result;
   if(action==='begin-active'||action==='begin-active-guidance'){const progress=JSON.parse(await readFile(resolve(library,'.tour-progress.json'),'utf8'));if(!progress.active||!progress.selected)throw Error('No active tour print; use begin with a print ID.');result=await requests.begin({directory:resolve(library,'tour',progress.selected),instruction:id,kind:action.endsWith('guidance')?'guidance':'edit'});}
   else result=action==='begin'||action==='begin-guidance'?await requests.begin({directory:resolve(library,id),instruction:value,kind:action.endsWith('guidance')?'guidance':'edit'}):action==='claim'?await requests.update(id,{status:'working'}):action==='target'?await requests.update(id,{status:'working',resultStage:value}):action==='respond'?await requests.update(id,{status:value,message}):action==='wait'?await requests.wait():await requests.list();

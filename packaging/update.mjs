@@ -27,14 +27,15 @@ export function releaseUrl({updateHost,version,platform}){
   return `${String(updateHost).replace(/\/+$/,'')}/v${version}/SAAM-${version}-${platform}.zip`;
 }
 
-export async function installUpdate({version,url,sha256},{platform,updateHost,data,log}){
+export async function installUpdate({version,url,sha256},{platform,updateHost,data,report=async()=>{}}){
   if(!updateHost||url!==releaseUrl({updateHost,version,platform}))throw Error('This update is not the release this SAAM trusts.');
   if(!/^[a-f0-9]{64}$/.test(sha256??''))throw Error('The update names no valid checksum.');
-  log(`Downloading SAAM ${version} from ${url}`);
+  await report({kind:'update-download-started',version});
+  try{
   const response=await fetch(url);if(!response.ok)throw Error(`The download failed (${response.status}).`);
   const bytes=Buffer.from(await response.arrayBuffer());
   if(createHash('sha256').update(bytes).digest('hex')!==sha256)throw Error('The download does not match its checksum.');
-  // Earlier updates' packages are done with by now: keep only this one.
+  // Native installers still use the established update extraction contract.
   const updates=resolve(data,'updates'),folder=resolve(updates,version),top=resolve(folder,`SAAM-${version}-${platform}`);
   if(dirname(folder)!==updates)throw Error('The update folder would leave the updates folder.');
   await rm(updates,{recursive:true,force:true}).catch(()=>{});
@@ -56,6 +57,9 @@ export async function installUpdate({version,url,sha256},{platform,updateHost,da
     child.once('error',error=>failed(Error(`Could not start the SAAM ${version} installer: ${error.message}. The current SAAM remains open.`,{cause:error})));
   });
   child.unref();
-  log(`Installer for SAAM ${version} started; SAAM closes now and opens again when it finishes.`);
+  await report({kind:'update-installer-launcher-started',version});
   return {updating:true,version};
+  }catch(error){
+    await report({kind:'update-failed',version,error:error.message},{error});throw error;
+  }
 }

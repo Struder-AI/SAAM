@@ -51,13 +51,32 @@ export function resolveSpatialPlan(plan){
   return {...rest,...(geometry.solid?{geometry:geometry.solid}:{}),...(assignments?{slices:{...plan.slices,assignments}}:{})};
 }
 
-const manufacturing=value=>Array.isArray(value)?value.map(manufacturing):value&&typeof value==='object'
-  ?Object.fromEntries(Object.entries(value).filter(([key])=>!['visible','displayOperand'].includes(key)).map(([key,child])=>[key,manufacturing(child)])):value;
+function manufacturingGeometry(geometry){
+  if(!geometry)return geometry;
+  if(geometry.shape==='spatial')return {...geometry,solid:manufacturingGeometry(geometry.solid),
+    curves:geometry.curves.map(({visible,...curve})=>structuredClone(curve)),
+    points:geometry.points.map(({visible,...point})=>structuredClone(point))};
+  if(geometry.shape==='boolean'){
+    const {displayOperand,...solid}=geometry;
+    return {...solid,operands:geometry.operands.map(manufacturingGeometry)};
+  }
+  if(geometry.shape==='assembly')return {...geometry,
+    parts:geometry.parts.map(part=>({...part,geometry:manufacturingGeometry(part.geometry)}))};
+  if(geometry.shape==='text')return {...structuredClone(geometry),base:manufacturingGeometry(geometry.base),
+    materialParts:geometry.materialParts.map(part=>({...part,geometry:manufacturingGeometry(part.geometry)}))};
+  if(geometry.shape==='heat-set')return {...structuredClone(geometry),base:manufacturingGeometry(geometry.base)};
+  return structuredClone(geometry);
+}
+
+function manufacturingVolume(volume){
+  return volume.kind==='geometry'?{...volume,geometry:manufacturingGeometry(volume.geometry)}:structuredClone(volume);
+}
+
 export function geometryInput(plan){
   const normalized=normalizeSpatialPlan(plan);
-  return {geometry:manufacturing(normalized.geometry),placement:plan.placement??null,
+  return {geometry:manufacturingGeometry(normalized.geometry),placement:plan.placement??null,
     spatialInstructions:(plan.slices?.assignments??[]).filter(a=>a.repeat?.translation||a.within?.length).map(a=>({
-      ...(a.repeat?.translation?{repeat:a.repeat}:{}),...(a.within?.length?{within:manufacturing(a.within)}:{})})).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)))};
+      ...(a.repeat?.translation?{repeat:a.repeat}:{}),...(a.within?.length?{within:a.within.map(manufacturingVolume)}:{})})).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)))};
 }
 
 export {solidGeometry};

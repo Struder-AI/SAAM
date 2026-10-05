@@ -11,7 +11,7 @@ is relative to `Prints/` (`Prints/my-part` is `"my-part"`).
 | Show in Studio; read state | `request_review`; `list_bundles`, `get_bundle`, `check_bundle` |
 | Adjust recipe/assignments; undo/redo; change printer | `adjust_recipe`, `slice`, `modulate`; `restore_revision`; `change_machine` |
 | Generate for review; deliver the confirmed export | `generate_toolpath`; `deliver_toolpath` |
-| Path feasibility, when needed; save setup as the machine's default | `check_path`; `remember_setup` |
+| Path feasibility; defer this bundle's last-export setup save | `check_path`; `set_deferred_setup_save` |
 
 ## Recipes
 
@@ -82,10 +82,9 @@ lessons Studio generates, so don't start another. A check reports
 
 ## Remember machine setup
 
-`remember_setup`, and any setup change through `adjust_recipe`, saves this print's
-setup as the default for new prints on that machine; existing prints don't
-change. Only setup is remembered. Bambu output needs its [maker setup](../export/bambu.md#maker-setup)
-first; each [machine contract](../export/README.md) owns its own setup questions.
+A successful export remembers its exact artifact's setup in `<SAAM home>/local/machine-setups/`; new prints on that machine reuse it. Edits leave defaults unchanged.
+`set_deferred_setup_save` takes `bundleId`, current `expectedRevision` and `defer:true` to skip saves for that bundle until cleared with `false`; it changes no manufacturing identity.
+Only setup is remembered; existing prints keep their snapshots. Bambu needs its [maker setup](../export/bambu.md#maker-setup); each [machine contract](../export/README.md) owns setup questions.
 
 ## Command line
 

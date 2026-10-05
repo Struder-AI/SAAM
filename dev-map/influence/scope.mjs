@@ -2,6 +2,7 @@
 // run.mjs selects from these files and follows these imports for --closure; analyse.mjs splits
 // the scope into import closures by the same graph. The scope is stated here once.
 import {readFile} from 'node:fs/promises';
+import {existsSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import {resolve} from 'node:path';
 import * as acorn from 'acorn';
@@ -15,8 +16,8 @@ export const ROOTS=/^(core|studio|skills|workspaces|scripts|adapters)\/|^packagi
 export const OUT=/(^|\/)(tests?|demos?|bench|benchmarks?|fixtures?|examples?|vendor|node_modules)\/|\.test\.|\.min\.|^scripts\/(bench|bambu-audit)|^packaging\/(windows|macos)\//;
 export const inScope=f=>/\.(mjs|js)$/.test(f)&&ROOTS.test(f)&&!OUT.test(f);
 
-// The tracked in-scope files of the checkout at `repo`, as repository-relative paths.
-export const scopeFiles=repo=>execFileSync('git',['ls-files'],{cwd:repo,encoding:'utf8'}).split('\n').filter(inScope);
+// Existing in-scope files, including new unignored source, as repository-relative paths.
+export const scopeFiles=repo=>[...new Set(execFileSync('git',['ls-files','-z','--cached','--others','--exclude-standard'],{cwd:repo,encoding:'utf8'}).split('\0'))].filter(file=>inScope(file)&&existsSync(resolve(repo,file)));
 export const importResolver=files=>resolver(files,{aliases:importAliases});
 
 // A module as a script when it does not parse as a module; null when it parses as neither.

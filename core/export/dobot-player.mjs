@@ -1,6 +1,6 @@
 import {requireThat,distance} from '../private/export/numeric.mjs';
 import {LuaRuntime,LuaTable,LuaSubsetError} from './dobot-lua-subset.mjs';
-import {checkMachinePath,validateSetup} from '../machine/rules.mjs';
+import {diagnoseMachinePath,validateSetup} from '../machine/rules.mjs';
 
 
 export const DOBOT_LIMITATIONS=[
@@ -89,9 +89,9 @@ export function interpretDobotFiles(files,plan,machine,{moves=[]}={}) {
   for(const name of ['global.lua','src1.lua','src0.lua'])runtime.load(files[name],name);
   requireThat(relay===false&&synchronized&&moves.some(m=>m.extruding),'Dobot program lacks deposition or a synchronized relay-off ending.');
   const reconstructed={schema:'saampath/1',initialPosition:c.initialPositionMm,actions:moves.map(m=>({kind:'move',to:m.to,speedMmS:m.speedMmS,volumeMm3:m.volumeMm3}))};
-  checkMachinePath(reconstructed,plan,machine);
+  diagnoseMachinePath(reconstructed,plan,machine);
   return {moves,events,seconds,volumeMm3:volume,finalPosition:inverse(controllerPosition,c),
-    language:'dobot-lua',notice:`Experimental CP=0 stroke relay output. Commanded volume ${volume.toFixed(2)} mm³; modeled relay-rate estimate ${estimate.toFixed(2)} mm³ (difference ${(estimate-volume).toFixed(2)} mm³). Neither is measured deposition. Robot reachability, kinematics and collision clearance are unchecked.`,checks:['strict-lua-execution','archive-integrity','configured-cartesian-workspace','fixed-frame-orientation','relay-state','commanded-volume-intent-round-trip'],
+    language:'dobot-lua',notice:`Experimental CP=0 stroke relay output. Commanded volume ${volume.toFixed(2)} mmÂ³; modeled relay-rate estimate ${estimate.toFixed(2)} mmÂ³ (difference ${(estimate-volume).toFixed(2)} mmÂ³). Neither is measured deposition. Robot reachability, kinematics and collision clearance are unchecked.`,checks:['strict-lua-execution','archive-integrity','configured-cartesian-workspace','fixed-frame-orientation','relay-state','commanded-volume-intent-round-trip'],
     limitations:DOBOT_LIMITATIONS,sources:files,code:Object.entries(files).map(([name,text])=>`-- FILE ${name}\n${text}`).join('\n'),
     summary:{moves:moves.length,extrusionMoves:moves.filter(m=>m.extruding).length,volumeMm3:volume,commandedVolumeMm3:volume,
       estimatedRelayVolumeMm3:estimate,relayEstimateDifferenceMm3:estimate-volume,filamentMm:null,motionSeconds:seconds,materialModel:'relay-estimate',

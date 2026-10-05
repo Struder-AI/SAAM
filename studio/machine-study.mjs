@@ -1,4 +1,5 @@
 // Read-only adapter into the existing Studio, with no approval or delivery path.
+import {authoredWorkIdentity,preparedWorkEvidence} from '../core/print/work-evidence.mjs';
 import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createHash} from 'node:crypto';
@@ -34,6 +35,7 @@ export async function loadBundle(dir,{program=true,allSources=false}={}){
     inspection:{title:machine.name,description:'Nominal mechanism study · inspect source motion and machine geometry.',
       facts:[['Machine',machine.name],...(decoded?[['Motion',decoded.seconds+' seconds']]:[]),['Source','Authored mechanism study']],settings:[['Model',machine.kinematicModel?.basis??'Nominal profile']],
       note:'Simulation only. No print approvals, machine delivery or hardware execution.'}};
+  state.workEvidence=preparedWorkEvidence(authoredWorkIdentity(plan,machine),revision,state.review.generation);
   if(decoded)state.completedOutput={id:hash(JSON.stringify([revision,exportHash])),current:true,plan,machine,geometry,geometryHash,geometryInputHash:geometryHash,
     generationHash:revision,exportHash,review:state.review,exportName:name,limitations:[]};
   if(program)state.program=structuredClone(program==='source'?{sources,summary:decoded.summary,notice:decoded.notice}:{...decoded,sources});

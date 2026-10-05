@@ -147,7 +147,7 @@ Schemas describe routine fields; manuals describe judgment and limitations.
 | t20 | `apply_text` | Edit outline-font geometry. |
 | t21 | `apply_heat_set` | Apply a manual-listed size/profile and reinforcement. |
 | t22 | `change_machine` | Change machine and check compatibility. |
-| t23 | `remember_setup` | Save setup defaults for later bundles. |
+| t23 | `set_deferred_setup_save` | Defer this bundle’s normal last-export setup save. |
 | t24 | `check_bundle` | Validate geometry, recipe and any stored program. |
 | t25 | `check_path` | Feasibility through the shared generator without saved production output. |
 | t26 | `generate_toolpath` | Generate/check the composed path and machine program. |

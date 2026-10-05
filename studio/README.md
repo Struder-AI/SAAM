@@ -18,8 +18,8 @@ browser and retain that tab while the person reviews.
 Closing tabs, ending a command, a chat pause and elapsed idle time do not shut down
 SAAM or fail work. Quit or Update ends the application. Keep the print, Studio
 instance and chat identity together; a chat may own several windows, each window
-has at most one attached chat. Re-pair through the application, using the actual
-bundle identity when capturing a detached window. Never borrow another chat's ID.
+has at most one attached chat. Mention SAAM in your chat client; name the bundle
+when attaching or using `capture_bundle`. Never borrow another chat's ID.
 
 State responses identify their server instance. A restarted page reloads for new
 credentials; old credentials cannot acknowledge a result. Restart source runs
@@ -134,8 +134,8 @@ The viewer reports actual rendering; the agent never manufactures that receipt.
 
 ### Carrying a maker request
 
-Use the intended `bundleId` and any originating `requestIds` on the first needed
-edit; use `studioInstanceId` when the target is ambiguous. The operation returns
+Carry the expected Studio/bundle association and originating `requestIds` on
+the first needed operation ([target validation](../core/application/README.md#client-queue-monitoring)). The operation returns
 `workRequest`; retain its identity for hand-back. `begin_studio_work` remains
 available to explicit callers but is not a prerequisite. Carry current edit
 identity with edits; an unchecked program summary is not a failed check.
@@ -154,9 +154,8 @@ requests initiate it directly. External chat messages are not automatically
 visible to SAAM: the agent signals hand-back when it receives an interjection.
 Do not claim immediate detection or substitute a timer.
 
-Use `saam wait` between requests after acknowledging completed work. Each bounded
-wait ends normally and may be repeated; it does not detach the chat. Client wakeup
-support and identity fallback are described in [application commands](../core/application/README.md).
+Follow [client queue monitoring](../core/application/README.md#client-queue-monitoring)
+after acknowledging completed work; quiet expiry preserves attachment and work.
 A generation failure supplies exact error/input evidence; claim it, fix the cause
 within maker scope and show the corrected result. Do not retry unchanged inputs
 without addressing the failure.

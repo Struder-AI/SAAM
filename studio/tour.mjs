@@ -1,17 +1,17 @@
+import {homePaths} from '../core/application/home.mjs';
 import {replaceFile} from '../core/private/studio/file-write.mjs';
-import {canonical} from '../core/private/studio/hash.mjs';
 import {readFile,mkdir,stat,realpath,unlink} from 'node:fs/promises';
 import {resolve,dirname,sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {createHash,randomUUID} from 'node:crypto';
+import {randomUUID} from 'node:crypto';
 import {TOUR_VERSION,TOUR_DECK_VERSION,TOUR_DEMOS,TOUR_STEPS,TOUR_LESSONS as L,tourAgentInstruction} from './tour-catalog.mjs';
 import {demos} from '../examples/prints/create.mjs';
 
-import {createAgentRequests,workSnapshot} from './agent-requests.mjs';
+import {createAgentRequests} from './agent-requests.mjs';
+import {bundleFor,readStableBundle} from './adapter-resolution.mjs';
 import {requestReceiptState} from './work-state.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..'),packages=resolve(root,'examples/prints');
-const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const json=async file=>JSON.parse(await readFile(file,'utf8'));
 async function optional(file){try{return await json(file);}catch(e){if(e.code==='ENOENT')return null;throw e;}}
 async function save(file,value){await replaceFile(file,JSON.stringify(value,null,2)+'\n');}
@@ -45,28 +45,28 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
     await initBundle(directory,await recipe.plan(),{machineId:recipe.machineId});
     await save(resolve(directory,'.tour-reference.json'),{id,version:TOUR_VERSION});data.copies[id]=name;return directory;
   }
-  async function signature(data){
+  async function signature(data,shown){
     if(!data.selected)return null;
-    const dir=await confined(data.selected),document=await json(resolve(dir,'plan.json')),{bundle,...plan}=document;
-    return hash(canonical(data.step===L.geometry?plan.geometry:{plan,machine:bundle.machine}));
+    const dir=await confined(data.selected),state=shown?.dir===dir?shown:(await readStableBundle(await bundleFor(dir),dir,{program:false})).state;
+    return data.step===L.geometry?state.workEvidence.geometryKey:state.workEvidence.inputKey;
   }
-  async function editLessonBaseline(data){
+  async function editLessonBaseline(data,state){
     const printId=requests.printId(await confined(data.selected));
     if(data.editLesson?.printId===printId)return false;
     // Read the print's whole request history, not this owner's share of it: a
     // Studio relaunch may carry a different agent owner, and a record made
     // before the lesson must still count as prior work.
     const records=await requests.list({printId,anyOwner:true});
-    data.editLesson={printId,inputKey:await signature({...data,step:L.settings}),
+    data.editLesson={printId,inputKey:await signature({...data,step:L.settings},state),
       priorRequestIds:records.filter(r=>r.printId===printId).map(r=>r.id)};
     data.baseline=data.editLesson.inputKey;
     if(data.gates[L.settings]&&data.viewWork)data.viewSignature=data.viewWork.inputKey;
     return true;
   }
-  async function observed(){
+  async function observed(state){
     const data=await read();
-    if(data.active&&data.step===L.settings&&await editLessonBaseline(data))await save(progress,data);
-    if(data.active&&[L.geometry,L.settings,L.setup,L.export].includes(data.step)&&data.gates[data.step]&&await signature(data)!==data.viewSignature){
+    if(data.active&&data.step===L.settings&&await editLessonBaseline(data,state))await save(progress,data);
+    if(data.active&&[L.geometry,L.settings,L.setup,L.export].includes(data.step)&&data.gates[data.step]&&await signature(data,state)!==data.viewSignature){
       data.gates[data.step]=false;data.downloadedHash=null;await save(progress,data);
     }
     return data;
@@ -92,7 +92,7 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
   }
   return {
     close(){if(ownsRequests)requests.close();},
-    async info({records}={}){return describe(await observed(),records);},
+    async info({records,state}={}){return describe(await observed(state),records);},
     async attachStudio(directory){
       if(!studioId)return;
       const data=await read();
@@ -112,11 +112,11 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
     },
     async downloaded(exportHash){const data=await read();if(!data.active||data.step!==L.export)throw Error('Reach the final tour lesson before exporting.');data.downloadedHash=exportHash;await save(progress,data);},
     async acknowledgeView(directory,seen,state){
-      const data=await observed();
+      const data=await observed(state);
       if(!data.active||await confined(data.selected)!==resolve(directory)||seen.revision!==state.revision)return describe(data);
       if(data.step===L.settings){
         if(seen.stage!=='toolpath'||!state.program||state.programError||!seen.exportHash||seen.exportHash!==state.exportHash)return describe(data);
-        const shown={...workSnapshot(state),stage:'toolpath',studioInstanceId:studioId},baseline=data.editLesson;
+        const shown={...state.workEvidence,stage:'toolpath',studioInstanceId:studioId},baseline=data.editLesson;
         // A current lesson request or a new agent edit must publish the changed
         // inputs actually drawn. Old lessons and automatic generation cannot
         // supply that request target. History survives a change of chat owner.
@@ -128,11 +128,11 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
       }
       if([L.setup,L.export].includes(data.step)){
         if(seen.stage!=='toolpath'||!state.program||state.programError||!seen.exportHash||seen.exportHash!==state.exportHash)return describe(data);
-        data.gates[data.step]=true;data.viewSignature=await signature(data);await save(progress,data);
+        data.gates[data.step]=true;data.viewSignature=state.workEvidence.inputKey;await save(progress,data);
       }
       if([L.geometry,L.settings].includes(data.step)){
-        const current=await signature(data);
-        if(current!==data.baseline){data.gates[data.step]=true;data.viewSignature=current;data.viewWork={...workSnapshot(state),stage:seen.stage};await save(progress,data);}
+        const current=data.step===L.geometry?state.workEvidence.geometryKey:state.workEvidence.inputKey;
+        if(current!==data.baseline){data.gates[data.step]=true;data.viewSignature=current;data.viewWork={...state.workEvidence,stage:seen.stage};await save(progress,data);}
       }
       return describe(data);
     },
@@ -174,6 +174,6 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
   };
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
-  const [action='status',library='Prints',value]=process.argv.slice(2),tour=createTour(library);
+  const [action='status',library=homePaths().prints,value]=process.argv.slice(2),tour=createTour(library);
   console.log(JSON.stringify(action==='start-at'?await tour.setStartAt({layer:Number(value)}):action==='status'?await tour.info():(await tour.action(action)).data,null,2));
 }

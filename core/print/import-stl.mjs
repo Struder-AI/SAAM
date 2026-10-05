@@ -1,5 +1,6 @@
 // Agent import commands coordinate Geometry and Bundle; persistence accepts completed artifacts.
 import {initBundle,loadBundle,updatePlan} from './bundle.mjs';
+import {bundleInstance,requireBundleInstance} from './studio-ownership.mjs';
 import {requireEditRevision} from './edit-identity.mjs';
 import {solidGeometry,replaceSolid} from '../geom/spatial.mjs';
 import {changeMachine} from '../machine/bundle-settings.mjs';
@@ -11,21 +12,28 @@ import {prepareSTLImport,releaseSTLImport} from '../geom/import-stl.mjs';
 export {inferSTLUnits} from '../geom/import-stl.mjs';
 
 export async function commitSTLImport(directory,candidate,options={}){
+  try{
   options.signal?.throwIfAborted();
   await mkdir(dirname(resolve(directory)),{recursive:true});
   const parent=await realpath(dirname(resolve(directory))),target=join(parent,basename(resolve(directory)));
-  try{await mkdir(target);}catch(error){if(error.code==='EEXIST')error.importDestinationExists=true;throw error;}
+  try{await mkdir(target);}catch(error){if(error.code!=='EEXIST')throw error;
+    const owned=await bundleInstance(target),saved=await readFile(join(target,'plan.json')).then(()=>true,error=>{if(error.code==='ENOENT')return false;throw error;});
+    if(!owned||saved){error.importDestinationExists=true;throw error;}await requireBundleInstance(target);}
   try{
     await initBundle(target,{...recipeDefaults(),geometry:candidate.geometry},{machineId:null,
       sourcePath:candidate.sourcePath,preparedGeometry:candidate.artifact,attachments:candidate.attachments});
     options.signal?.throwIfAborted();
     if(options.machineId)await changeMachine(target,options.machineId,{setupFile:options.setupFile});
     options.signal?.throwIfAborted();
-    return {directory:target,repaired:candidate.repaired};
+    return {directory:target,repaired:candidate.repaired,importDiagnostic:candidate.importDiagnostic};
   }catch(error){
     try{if(await realpath(target)===target&&dirname(target)===parent)await rm(target,{recursive:true,force:true,maxRetries:3,retryDelay:100});}
     catch(cleanup){if(cleanup.code!=='ENOENT'){error.cleanupError=cleanup.message;error.message+=' Incomplete import cleanup failed: '+cleanup.message;}}
     throw error;
+  }
+  }catch(error){
+    throw Object.assign(error,{importDiagnostic:{...candidate.importDiagnostic,stage:'bundle',
+      failure:{name:error.name,code:error.code??null,message:error.message}}});
   }
 }
 export async function createSTLBundle(directory,source,options={}){

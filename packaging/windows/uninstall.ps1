@@ -23,7 +23,7 @@ catch { Write-Host "Could not remove $SaamRoot ($($_.Exception.Message)). Close 
 
 Write-Host ''
 Write-Host 'SAAM is uninstalled.' -ForegroundColor Green
-Write-Host "Your prints remain in $(Join-Path $data 'Prints'); settings and logs are in $(Join-Path $data 'state')."
+Write-Host "Your prints, extensions and remembered setups remain in $(Join-Path $data 'local'); logs are in $(Join-Path $data 'state')."
 Write-Host 'Delete that folder yourself if you no longer want them. Installing SAAM again picks them up.'
 if (-not $Yes) { Wait-ForClose }
 exit 0

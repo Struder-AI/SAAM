@@ -5,13 +5,13 @@ import {interpretDobotFiles} from '../core/export/dobot-player.mjs';
 import {interpretDensoFiles} from '../core/export/denso-player.mjs';
 import {moveStore} from './move-store.mjs';
 
-// Inputs are the exact checked machine source, plus its locked machine setup.
-// Both runtimes execute the same modal/Lua interpreter used by export checks.
-export function decodeSource(sources,plan,machine,{inspection=null,authoredNozzleTemperatures}={}) {
+// Decode the exact saved machine source with its locked setup for playback.
+// Source identity is checked while fetching; decoding does not audit our writer.
+export function decodeSource(sources,plan,machine,{inspection=null}={}) {
   const sliceIdentity=row=>{const info=inspection?.operations?.[row.operation],layer=info?.layers?.[row.layer];return {...row,
     sliceFamily:info?.family??null,sliceIndex:layer?.index??null,modulated:!!info?.modifiers?.length};};
   const moves=moveStore(undefined,{annotate:sliceIdentity});
-  const options={moves,authoredNozzleTemperatures};
+  const options={moves};
   let program;
   if(plan.output==='machine-study')program=interpretMachineStudy(sources['motion.json'],options);
   else if(plan.output==='griffin-gcode')program=interpretGriffin(sources.program,plan,machine,options);

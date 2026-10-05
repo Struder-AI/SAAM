@@ -3,7 +3,6 @@ import {mkdir,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {loadWorkspaceRuntime,workspacePieces} from '../core/extensions/workspaces.mjs';
 import {initBundle} from '../core/print/bundle.mjs';
-import {workspaceConstructionIdentity} from '../core/print/plan.mjs';
 import {replaceFile} from '../core/file-write.mjs';
 
 // One handoff operation for every workspace. Only Bundle persists part state.
@@ -26,8 +25,7 @@ export async function createWorkspaceBundles({extensionId,extension,design,direc
       // No Bundle, machine, export, approval or revision fields cross this boundary.
       const fields=new Set(['schema','generatorVersion','geometry','process','skills','slices','modulations','experimental','composition']);
       for(const key of Object.keys(plan))if(!fields.has(key))throw Error(`Workspace construction cannot supply ${key}.`);
-      const workspace={schema:'saam-workspace-source/1',extension,source:constructionSource,requirements,
-        constructionIdentity:workspaceConstructionIdentity(plan)};
+      const workspace={schema:'saam-workspace-source/1',extension,source:constructionSource,requirements};
       await initBundle(join(directory,piece.id),{...plan,workspace});
       created.push({id:piece.id,path:piece.id,piece,...(report===undefined?{}:{report})});
       await record();

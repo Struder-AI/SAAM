@@ -3,12 +3,11 @@
 const STATUS_POLL_MS=30_000;
 const UPDATE_POLL_MS=5*60_000;
 
-const connection={service:'not connected',chat:'not attached',waiting:false,serviceAttention:false,application:'running'};
+const connection={service:'not connected',chat:'not attached',serviceAttention:false,application:'running'};
 export function updateApplicationConnection(state){connection.application=state;updateConnectControl();}
-export function updateConnectControl({service,chat,waiting,serviceAttention}={}){
+export function updateConnectControl({service,chat,serviceAttention}={}){
   if(service!==undefined)connection.service=service;
   if(chat!==undefined)connection.chat=chat;
-  if(waiting!==undefined)connection.waiting=waiting;
   if(serviceAttention!==undefined)connection.serviceAttention=serviceAttention;
   const control=document.getElementById('service-toggle'),serviceLight=document.getElementById('service-light'),chatLight=document.getElementById('chat-light');
   for(const light of [serviceLight,document.getElementById('service-panel-light')]){
@@ -17,7 +16,6 @@ export function updateConnectControl({service,chat,waiting,serviceAttention}={})
   }
   for(const light of [chatLight,document.getElementById('chat-panel-light')]){
     light.classList.toggle('paired',connection.application==='running'&&connection.chat.startsWith('attached'));
-    light.classList.toggle('waiting',connection.application==='running'&&connection.waiting);
   }
   control.title=connection.application==='running'?'Updates '+connection.service+' · Chat '+connection.chat:connection.application==='stopped'?'SAAM has stopped':'Cannot reach SAAM';
   control.setAttribute('aria-label','Connect: '+control.title);

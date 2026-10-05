@@ -3,7 +3,7 @@ import {applyExtensionEdit} from './extension-edits.mjs';
 import {readFile,access} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {root,initBundle,loadBundle,generateBundle,generateToolpath,restoreRevision,adjustBundle,deliver,checkPathBundle,migrateBundle,bundleInstance,recoverBundleInstance,shareBundle,importBundle} from './bundle.mjs';
-import {changeMachine,rememberSetup,adjustSettings} from '../machine/bundle-settings.mjs';
+import {changeMachine,adjustSettings} from '../machine/bundle-settings.mjs';
 import {SETTINGS_FIELDS} from '../machine/settings.mjs';
 import {createSTLBundle,setSTLUnits} from './import-stl.mjs';
 import {repairSTLFiles} from './repair-stl.mjs';
@@ -109,8 +109,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
         ?await adjustSettings(bundleDirectory(),patch,{expectedRevision})
         :await adjustBundle(bundleDirectory(),patch,{expectedRevision});
       console.log(report(state));
-    } else if (command === 'remember-setup') {
-      console.log(await rememberSetup(bundleDirectory()));
+
     } else if (command === 'deliver') {
       console.log(await deliver(bundleDirectory()));
     } else if (command === 'check') {
@@ -119,7 +118,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(report(state));
       if(state.programError)process.exitCode=1;
     } else {
-      console.error('       cli.mjs init|migrate|demo|generate|check|deliver|remember-setup [print-directory] [plan.json]');
+      console.error('       cli.mjs init|migrate|demo|generate|check|deliver [print-directory] [plan.json]');
       console.error('       cli.mjs undo|redo <print-directory> --revision <revision>');
       console.error('       cli.mjs share <bundle-directory> <new-package.zip> | import-bundle <package.zip> <new-bundle-directory>');
       console.error('       cli.mjs toolpath <print-directory> (save completed SAAMpath without export)');

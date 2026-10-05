@@ -5,7 +5,7 @@ import {validateSnapshot} from './machine-view.mjs';
 
 // One decode feeds the renderer and provider. Retain compact moves only when
 // a model needs random access; transferring those buffers would detach its input.
-const worker={program:null,provider:null};
+const worker={program:null,provider:null,pending:Promise.resolve()};
 async function bind(state){
   worker.provider?.dispose();worker.provider=null;
   try{
@@ -14,7 +14,7 @@ async function bind(state){
     return {descriptor:worker.provider?.descriptor??null};
   }catch(error){worker.provider?.dispose();worker.provider=null;return {descriptor:null,machineError:error.message};}
 }
-self.onmessage=async({data})=>{
+async function handleMessage(data){
   const {id,type}=data;
   try{
     if(type==='load'){
@@ -29,4 +29,9 @@ self.onmessage=async({data})=>{
       if(owner===worker.provider)self.postMessage({id,snapshot});else self.postMessage({id,error:'Machine model changed'});
     }
   }catch(error){self.postMessage({id,error:error.message});}
+}
+// Program, provider and move buffers have one owner until the reply is sent.
+self.onmessage=({data})=>{
+  const handle=()=>handleMessage(data);
+  worker.pending=worker.pending.then(handle,handle);
 };

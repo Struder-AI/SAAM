@@ -48,7 +48,7 @@ export async function importStudioSTL(library,bytes,{name,units,directory:destin
     try{
       const {commitSTLImport}=await import('../core/print/import-stl.mjs');
       const {repaired}=await commitSTLImport(directory,candidate,{signal});
-      return {directory,repaired,repairSummary:repaired?await loadStudioImportRepair(directory):null};
+      return {directory,repaired,importDiagnostic:candidate.importDiagnostic,repairSummary:repaired?await loadStudioImportRepair(directory):null};
     }catch(error){if(destination||!error.importDestinationExists)throw error;}
   }}finally{await releaseSTLImport(candidate);}
 }

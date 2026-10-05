@@ -1,49 +1,11 @@
 // User-level command discovery and narrow permissions; registration failures
-// are returned to Studio and never prevent the application from starting.
-import {spawnSync} from 'node:child_process';
+// are returned by setup and never prevent the application from starting.
 import {mkdir,readFile,writeFile,rename} from 'node:fs/promises';
 import {homedir} from 'node:os';
 import {resolve,join,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {randomUUID} from 'node:crypto';
-
-function probe(command,args,platform){
-  const result=spawnSync(command,args,{encoding:'utf8',windowsHide:true,timeout:10000,shell:platform==='win32'&&command.endsWith('.cmd')});
-  if(result.error||result.status!==0)return null;
-  return result.stdout.trim();
-}
-function commandPath(name,platform){
-  const output=platform==='win32'?probe('where.exe',[name],platform):probe('/usr/bin/which',[name],platform);
-  return output?.split(/\r?\n/)[0]??null;
-}
-function minimum(version,wanted){
-  const numbers=version?.match(/\d+\.\d+\.\d+/)?.[0]?.split('.').map(Number);
-  if(!numbers)return false;
-  for(const [index,value] of wanted.entries()){if(numbers[index]>value)return true;if(numbers[index]<value)return false;}
-  return true;
-}
-function codexDesktop(platform){
-  if(platform==='win32'){
-    const output=probe('powershell.exe',['-NoProfile','-NonInteractive','-Command',"Get-AppxPackage | Where-Object { $_.Name -match 'Codex' } | Select-Object -First 1 | ForEach-Object { [string]$_.Version }"],platform);
-    if(output)return output;
-    return probe('powershell.exe',['-NoProfile','-NonInteractive','-Command',"Get-Process -Name ChatGPT -ErrorAction SilentlyContinue | Where-Object { $_.Path -match 'OpenAI\\.Codex_' } | Select-Object -First 1 | ForEach-Object { if ($_.Path -match 'OpenAI\\.Codex_([0-9.]+)_') { $Matches[1] } else { (Get-Item -LiteralPath $_.Path).VersionInfo.ProductVersion } }"],platform)||null;
-  }
-  if(platform==='darwin')return probe('/usr/bin/defaults',['read','/Applications/Codex.app/Contents/Info','CFBundleShortVersionString'],platform);
-  return null;
-}
-
-export async function clientStatus({clientHome=homedir(),platform=process.platform}={}){
-  const codexPath=commandPath('codex',platform),claudePath=commandPath('claude',platform);
-  const codexVersion=codexPath?probe(codexPath,['--version'],platform):null;
-  const desktopVersion=codexDesktop(platform);
-  const claudeVersion=claudePath?probe(claudePath,['--version'],platform):null;
-  return {clients:[
-    {id:'codex',name:'Codex',detected:!!(desktopVersion||codexVersion),version:desktopVersion??codexVersion,cliVersion:codexVersion,command:codexPath,
-      ready:!!desktopVersion,reason:desktopVersion?null:'Studio launch needs Codex Desktop. You can connect from an existing chat with saam call maker_onboarding.',firstSend:true,waitReinvokes:false},
-    {id:'claude',name:'Claude Code',detected:!!claudeVersion,version:claudeVersion,command:claudePath,
-      ready:minimum(claudeVersion,[2,1,285]),reason:minimum(claudeVersion,[2,1,285])?null:'Studio launch needs Claude Code 2.1.285 or later. You can connect from an existing chat with saam call maker_onboarding.',firstSend:true,waitReinvokes:true}
-  ],clientHome};
-}
+import {homePaths} from '../core/application/home.mjs';
 
 async function atomicWrite(path,text){
   await mkdir(dirname(path),{recursive:true});const temporary=path+'.saam-'+randomUUID();
@@ -57,7 +19,8 @@ const programRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 async function guidance(home){
   const source=await readFile(join(programRoot,'AGENTS.md'),'utf8');
   const linked=source.replace(/\]\((?!https?:|#)([^)\s]+)\)/g,(link,target)=>`](${join(programRoot,target)})`);
-  const located=`This SAAM home is ${resolve(home)}: prints are in ${join(home,'Prints')} and extensions in ${join(home,'extensions')}. SAAM regenerates this file from ${join(programRoot,'AGENTS.md')}.`;
+  const paths=homePaths(home);
+  const located=`This SAAM home is ${paths.home}: prints are in ${paths.prints}, extensions in ${paths.extensions} and agent notes in ${paths.notes}. SAAM regenerates this file from ${join(programRoot,'AGENTS.md')}.`;
   return `${marker}\n${linked.replace(/^(# [^\n]*\n)/,`$1\n${located}\n`)}`;
 }
 async function registerSkill(directory,home){
@@ -146,7 +109,7 @@ async function retireCodex(options){
 
 export async function setupClients({home,clientHome=homedir(),platform=process.platform,register=true}={}){
   if(!home)throw Error('Client setup requires the SAAM home.');
-  const status=await clientStatus({clientHome,platform}),result={...status,home:resolve(home),errors:[]};
+  const result={clients:[{id:'codex',name:'Codex'},{id:'claude',name:'Claude Code'}],clientHome,home:resolve(home),errors:[]};
   try{
     await writeHomeGuidance(result.home);
   }catch(error){result.errors.push(error.message);}

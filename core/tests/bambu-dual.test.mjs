@@ -4,7 +4,7 @@ import {loadMachine} from '../machine/profile.mjs';
 import {prepareExportPath} from '../export/prepare-path.mjs';
 import {defaults} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {exportProgram,interpretProgram} from '../export/registry.mjs';
+import {exportProgram,decodeProgram} from '../export/registry.mjs';
 import {unpackZip,packZip} from '../export/zip.mjs';
 import {decodeSource} from '../../studio/source-player.mjs';
 import {auditBambu} from '../../scripts/bambu-audit.mjs';
@@ -38,7 +38,7 @@ test('mixed 0.4/0.8 H2D regions emit tower-free changes, distinct process grids 
   assert.match(code,/M620\.10 A1 .* H0.4 T240 P215/);
   assert.equal(code.split('\n').filter(l=>l==='M620.17 T0 S225 L1').length,2,'Right physical heater uses its first actual filament in both calibration branches');
   assert.equal(code.split('\n').filter(l=>l==='M620.17 T1 S215 L0').length,2,'Left physical heater uses its first actual filament in both calibration branches');
-  const program=interpretProgram(bytes,plan,machine);
+  const program=decodeProgram(bytes,plan,machine);
   const preview=decodeSource({program:code},plan,machine);
   assert.equal(preview.moves.length,program.moves.length);
   assert.deepEqual(preview.moves.map(m=>[m.tool,m.filament,m.line]),program.moves.map(m=>[m.tool,m.filament,m.line]));
@@ -61,13 +61,13 @@ test('mixed 0.4/0.8 H2D regions emit tower-free changes, distinct process grids 
   assert.match(z.get('Metadata/slice_info.config').toString(),/nozzle id="0" extruder_id="1" nozzle_diameter="0.4"/);
   assert.match(z.get('Metadata/slice_info.config').toString(),/nozzle id="1" extruder_id="2" nozzle_diameter="0.8"/);
   const modified=unpackZip(bytes);modified.set('Metadata/plate_1.gcode',Buffer.from(code.replace(/(M620\.10 A1 [^\n]*H)0.8/,'$10.4')));
-  assert.throws(()=>interpretProgram(packZip(modified),plan,machine),/tool-change block/);
+  assert.throws(()=>decodeProgram(packZip(modified),plan,machine),/tool-change block/);
   for(const [before,after] of [['M620.15 C225','M620.15 C215'],['M620.11 P0 I0 B-1','M620.11 P0 I1 B-1'],
     ['M620.10 R0','M620.10 R2'],['M1015.4 S1 K1 H0.8','M1015.4 S1 K1 H0.4'],['M204 S10000\nM621 S1A','M204 S9000\nM621 S1A']]){
     const boundary=code.indexOf(';SAAM_TOOL_CHANGE ');
     const changed=code.slice(0,boundary)+code.slice(boundary).replace(before,after);assert.notEqual(changed,code);
     const corrupted=unpackZip(bytes);corrupted.set('Metadata/plate_1.gcode',Buffer.from(changed));
-    assert.throws(()=>interpretProgram(packZip(corrupted),plan,machine),/tool-change block/);
+    assert.throws(()=>decodeProgram(packZip(corrupted),plan,machine),/tool-change block/);
   }
 });
 
@@ -97,7 +97,7 @@ test('mixed nozzle job can start on the right and use each nozzle’s own build 
   const plan=filamentPlan(fixture.plan,machine,1);
   plan.placement.xMm=310;
   const path=await generatePath(plan,machine);prepareExportPath(path,plan,machine);
-  const program=interpretProgram(exportProgram(path,plan,machine,release),plan,machine);
+  const program=decodeProgram(exportProgram(path,plan,machine,release),plan,machine);
   assert.equal(program.filamentSequence[0],1);
   assert.ok(program.moves.some(m=>m.extruding&&m.tool===1&&m.to[0]>325));
   assert.ok(program.moves.filter(m=>m.extruding&&m.tool===0).every(m=>m.to[0]<=325));
@@ -128,7 +128,7 @@ test('every supported H2D diameter pair keeps each change descriptor on its own 
     for(const part of plan.geometry.parts)part.geometry=splineBox({runMm:8,widthMm:8,heightMm:0.6});
     const path=await generatePath(plan,machine),bytes=exportProgram(path,plan,machine,release);
     const report=auditBambu(bytes);assert.deepEqual(report.plates[0].changes.issues,[]);
-    const program=interpretProgram(bytes,plan,machine);
+    const program=decodeProgram(bytes,plan,machine);
     assert.deepEqual(program.envelope.job.nozzleDiametersMm,[left,right]);
     assert.ok(program.filamentUsage.every(u=>u.volumeMm3>0));
   }

@@ -21,15 +21,14 @@ cycles stop execution. Entries name `.mjs` functions for geometry, deposition,
 record or resource operations. Runtime factories receive named public Geometry
 and Toolpath operations; private core imports are not a portable interface.
 
-Workspace extensions declare `kind: "workspace"`, `workspace: {"ui":"ui"}`
-and a `workspace-runtime` entry. That factory receives `Geometry.loftPolygons`,
-`Geometry.clipLineToRegion`, `Toolpath.recipeDefaults` and
-`Toolpath.curveAssignment`; it returns `defaults`, `normalize`, `preview`, `pieces`,
-`construct` and optional `resources`. `construct(design, pieceId)`
-returns `{plan, source, requirements, report}`. The [host](../workspaces/server.mjs)
-serves UI, saves normalized designs and manages workers; preview is explicit.
-Core attaches protected identity and persists self-contained bundles. Extensions
-own domain validation, construction and UI, without bundle/lifetime authority.
+Workspace extensions declare `kind: "workspace"`, `workspace: {"ui":"ui"}` and a
+`workspace-runtime` factory receiving `Geometry.loftPolygons`,
+`Geometry.clipLineToRegion`, `Toolpath.recipeDefaults` and `Toolpath.curveAssignment`.
+It returns `defaults`, `normalize`, `preview`, `pieces`, `construct` and optional `resources`.
+`construct(design, pieceId)` returns `{plan, source, requirements, report}`; preview is explicit.
+The [host](../workspaces/server.mjs) saves designs and self-contained Bundles with historical
+source/requirements provenance. Ordinary sessions edit, generate and share parts using
+current recipe dependencies. Extensions own construction/UI, not Bundle authority.
 
 `node scripts/extensions.mjs list|resolve ID...|checkout ID|export ID FILE|import FILE`
 manages the shared library. `checkout` creates an editable user copy, under
