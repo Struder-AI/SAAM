@@ -69,11 +69,15 @@ async function prepare(paths) {
 
 // Each authored node's solve is kept in store/solve/ by a hash of exactly what it reads (its
 // slice, the options and the solver's code), so a node solves again only when that changed. A
-// node to solve runs in its own small-heap process, `jobs` at a time, warm from its kept solve
-// when it has one (solve-middle.mjs solveNode), else cold. With map.json
+// node to solve is solved cold (annealed from flat) and, when it has a kept solve, also warm from
+// it (solve-middle.mjs solveNode), each in its own small-heap process, `jobs` at a time. The warm
+// result is kept unless the cold one's energy is lower by COLD_MARGIN of it, or the node is named
+// in `cold`: a cold result reshuffles clusters (new identities, labels to author), so it must
+// clearly gain. The kept summary names the other result as `rival`. With map.json
 // `"solve":"place"` a changed node with a kept solve is not solved: new leaves are placed in their
 // file's cluster and marked `placement not solved` (solve-middle.mjs placeSlice) until a
 // `"changed"` regenerate (the default) solves it.
+export const COLD_MARGIN=0.03;
 const entryFile=id=>`${id.replace(/[^A-Za-z0-9_.-]/g,c=>`~${c.charCodeAt(0).toString(16)}`)}.json`;
 function readEntry(dir,id,sm,options) {
   for(const file of [entryFile(id),`${id}.json`]) {
@@ -91,36 +95,47 @@ function keepEntry(dir,entry) {
   return kept;
 }
 
-async function solveAll(prep,{jobs=2,mode='changed',log=()=>{}}={}) {
+async function solveAll(prep,{jobs=2,mode='changed',cold=[],log=()=>{}}={}) {
   const {sm,authored,model,slices,options}=prep;
   if(!['changed','place'].includes(mode))throw Error(`map.json "solve" is "changed" (default) or "place", not ${JSON.stringify(mode)}.`);
+  const unknown=cold.filter(id=>!slices.has(id));
+  if(unknown.length)throw Error(`--cold names no authored node: ${unknown.join(', ')}. Nodes: ${[...slices.keys()].join(', ')}`);
   const dir=here('store/solve');mkdirSync(resolve(dir,'pending'),{recursive:true});
   const nameOf=new Map(model.leaves.map(l=>[l.id,l.name]));
-  const entries=new Map(),queue=[],solved=[],reused=[],placed=[],failures=[];
+  const entries=new Map(),queue=[],solved={},reused=[],placed=[],failures=[];
   for(const {id} of authored.nodes) {
-    const {slice,hash}=slices.get(id),names=slice.own.map(key=>nameOf.get(key)),entry=readEntry(dir,id,sm,options);
-    if(entry?.hash===hash&&(entry.placement!=='not solved'||mode==='place')){entries.set(id,entry.legacy?keepEntry(dir,entry):entry);reused.push(id);continue;}
-    if(mode==='place'&&entry){entries.set(id,keepEntry(dir,sm.placeSlice(slice,entry,{hash,names})));placed.push(id);
+    const {slice,hash}=slices.get(id),names=slice.own.map(key=>nameOf.get(key)),entry=readEntry(dir,id,sm,options),forced=cold.includes(id);
+    if(!forced&&entry?.hash===hash&&(entry.placement!=='not solved'||mode==='place')){entries.set(id,entry.legacy?keepEntry(dir,entry):entry);reused.push(id);continue;}
+    if(!forced&&mode==='place'&&entry){entries.set(id,keepEntry(dir,sm.placeSlice(slice,entry,{hash,names})));placed.push(id);
       log(`${id}: placed ${entries.get(id).placed.length} leaves without solving`);continue;}
-    queue.push({id,slice,hash,names,warm:entry});
+    const node={id,slice,hash,names,forced,results:{},solves:entry?2:1};
+    queue.push({node,start:'cold'},...(entry?[{node,start:'warm',warm:entry}]:[]));
   }
-  // The largest slices first, so the longest solve starts at once.
-  queue.sort((a,b)=>b.slice.links.length-a.slice.links.length);
+  // Cold solves first (they take longest), the largest slices first in each.
+  queue.sort((a,b)=>(a.start==='cold'?0:1)-(b.start==='cold'?0:1)||b.node.slice.links.length-a.node.slice.links.length);
   const run=async()=>{for(let job=queue.shift();job;job=queue.shift()) {
-    const {id}=job,started=Date.now(),input=resolve(dir,'pending',entryFile(id)),out=resolve(dir,'pending',`${entryFile(id)}.out`);
-    log(`solving ${id}`);
-    writeFileSync(input,JSON.stringify({slice:job.slice,options,hash:job.hash,names:job.names,warm:job.warm}));
+    const {node,start}=job,{id,slice,hash,names,results}=node,started=Date.now();
+    const input=resolve(dir,'pending',`${entryFile(id)}.${start}`),out=`${input}.out`;
+    writeFileSync(input,JSON.stringify({slice,options,hash,names,warm:job.warm??null}));
     const args=['--max-old-space-size=1536',resolve(repo,'dev-map/influence/solve-middle.mjs'),'--slice',input,'--out',out];
     const code=await new Promise(done=>{const child=spawn(process.execPath,args,{cwd:repo,stdio:['ignore','ignore','pipe']});
       let err='';child.stderr.on('data',d=>{err+=d;if(err.length>20000)err=err.slice(-10000);});
-      child.on('exit',c=>{if(c!==0)failures.push({node:id,code:c,stderr:err.slice(-2000)});done(c);});});
-    if(code===0){entries.set(id,keepEntry(dir,JSON.parse(readFileSync(out,'utf8'))));solved.push(id);}
+      child.on('exit',c=>{if(c!==0)failures.push({node:`${id} ${start}`,code:c,stderr:err.slice(-2000)});done(c);});});
+    if(code===0)results[start]={entry:JSON.parse(readFileSync(out,'utf8')),seconds:Math.round((Date.now()-started)/1000)};
     rmSync(input,{force:true});rmSync(out,{force:true});
-    log(`${id}: ${code===0?'solved':'failed'} in ${Math.round((Date.now()-started)/1000)} s`);
+    if(code!==0){log(`${id}: ${start} solve failed`);continue;}
+    if(Object.keys(results).length<node.solves)continue;
+    // Both done: keep the better.
+    const {warm,cold:c}=results,e=x=>x.entry.summary.energy;
+    const keep=!warm||node.forced||e(c)<e(warm)-COLD_MARGIN*Math.abs(e(warm))?'cold':'warm',[kept,rival]=keep==='cold'?[c,warm]:[warm,c];
+    if(rival)kept.entry.summary.rival={start:rival.entry.summary.start,energy:e(rival),ms:rival.entry.summary.ms};
+    entries.set(id,keepEntry(dir,kept.entry));
+    solved[id]={warm:warm?e(warm):null,cold:e(c),kept:keep,...(node.forced?{forced:true}:{}),seconds:{...(warm?{warm:warm.seconds}:{}),cold:c.seconds}};
+    log(`${id}: warm ${warm?`${e(warm).toFixed(4)} (${warm.seconds} s)`:'none'}, cold ${e(c).toFixed(4)} (${c.seconds} s): kept ${keep}${node.forced?' (--cold)':''}`);
   }};
   await Promise.all(Array.from({length:Math.max(1,jobs)},run));
   if(failures.length)throw Error(`Solve failed: ${failures.map(f=>`${f.node} (exit ${f.code}): ${f.stderr}`).join('\n')}`);
-  return {solved,reused,placed,entries};
+  return {solved:Object.fromEntries(authored.nodes.filter(n=>solved[n.id]).map(n=>[n.id,solved[n.id]])),reused,placed,entries};
 }
 
 // ---- source ranges ------------------------------------------------------------------------
@@ -690,14 +705,18 @@ export function verifyReads(m) {
 }
 
 // ---- commands -----------------------------------------------------------------------------
-// `regenerate [--solve changed|place]` overrides map.json `solve` for one run, so a full solve
-// between sessions needs no edit. `serve [--port N]` is the authoring server (author-server.mjs);
-// `import-layout FILE` applies a viewer's Export layout file to the layout files.
+// `regenerate [--solve changed|place] [--cold NODE[,NODE]…]…`: `--solve` overrides map.json
+// `solve` for one run, so a full solve between sessions needs no edit; `--cold` solves the named
+// nodes even when unchanged and keeps their cold results (solveAll). Each node where cold beat
+// warm is listed in `relabel` with the new cluster identities it brought, which have no labels.
+// `serve [--port N]` is the authoring server (author-server.mjs); `import-layout FILE` applies a
+// viewer's Export layout file to the layout files.
 export async function influenceCommand(command,args) {
   const log=line=>process.stderr.write(line+'\n');
   if(command==='regenerate') {
-    const {values}=parseArgs({args,allowPositionals:true,options:{solve:{type:'string'}}});
+    const {values}=parseArgs({args,allowPositionals:true,options:{solve:{type:'string'},cold:{type:'string',multiple:true}}});
     if(values.solve!==undefined&&!['changed','place'].includes(values.solve))throw Error('--solve is changed or place.');
+    const cold=(values.cold??[]).flatMap(v=>v.split(',')).map(v=>v.trim()).filter(Boolean);
     const paths=inputs(),clock=Date.now(),seconds=()=>Math.round((Date.now()-clock)/1000);
     let analysed=null;
     if(mapSet.analyse) {
@@ -705,8 +724,13 @@ export async function influenceCommand(command,args) {
       analysed=await analyse({repo,out:paths.analysis,...mapSet.analyse,log});
     }
     const prep=await prepare(paths);log(`model and owners ready at ${seconds()} s`);
-    const solve=await solveAll(prep,{jobs:mapSet.jobs??2,mode:values.solve??mapSet.solve??'changed',log});log(`solves ready at ${seconds()} s`);
+    const solve=await solveAll(prep,{jobs:mapSet.jobs??2,mode:values.solve??mapSet.solve??'changed',cold,log});log(`solves ready at ${seconds()} s`);
     const model=await writeModel({log,prep,entries:solve.entries});held=labelled(model);
+    const fresh=[...model.summary.clusterIdentity.new,...model.summary.clusterIdentity.split.flatMap(s=>s.parts)];
+    const coldKept=Object.keys(solve.solved).filter(id=>solve.solved[id].kept==='cold'&&solve.solved[id].warm!==null);
+    const relabel=Object.fromEntries(coldKept.map(id=>[id,fresh.filter(x=>nodeOf(x)===id).sort(order)]).filter(([,l])=>l.length));
+    if(Object.keys(solve.solved).length)log(`best of warm and cold: kept cold for ${coldKept.join(', ')||'no node'}`
+      +(Object.keys(relabel).length?`; new clusters to label: ${Object.entries(relabel).map(([id,l])=>`${id} ${l.length}`).join(', ')}`:''));
     const {buildGeneratedView}=await import('../lib/generated-view.mjs');
     const view=await buildGeneratedView({repo});
     // Every regeneration proves the reads say what the drawings draw, as `check` does.
@@ -714,7 +738,7 @@ export async function influenceCommand(command,args) {
     // The code checks (code-checks.mjs) report; the maps are written whatever they find.
     const {setErrors,errorSummary}=await import('./code-checks.mjs'),code=errorSummary(setErrors(model,paths));
     log(`code errors: ${code.errors} (${Object.entries(code.byRule).map(([r,n])=>`${r} ${n}`).join(', ')}); list them with: node dev-map/cli.mjs --set ${setName} check`);
-    console.log(JSON.stringify({mode:'influence',...(analysed?{analysis:analysed}:{}),solved:solve.solved,reused:solve.reused,...(solve.placed.length?{placed:solve.placed}:{}),summary:model.summary,checks:model.checks,reads,code,view:view.index,placement:view.placement},null,1));
+    console.log(JSON.stringify({mode:'influence',...(analysed?{analysis:analysed}:{}),solved:solve.solved,...(Object.keys(relabel).length?{relabel}:{}),reused:solve.reused,...(solve.placed.length?{placed:solve.placed}:{}),summary:model.summary,checks:model.checks,reads,code,view:view.index,placement:view.placement},null,1));
     if(!model.checks.ok||!reads.ok)process.exitCode=1;
     return;
   }
@@ -748,5 +772,5 @@ export async function influenceCommand(command,args) {
     console.log(JSON.stringify({mode:'influence',imported:result,view:view.index,placement:view.placement},null,1));
     return;
   }
-  throw Error('Influence sets support read, regenerate [--solve changed|place], build, check, serve [--port N] and import-layout FILE.');
+  throw Error('Influence sets support read, regenerate [--solve changed|place] [--cold NODE], build, check, serve [--port N] and import-layout FILE.');
 }

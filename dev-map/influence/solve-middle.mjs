@@ -5,7 +5,7 @@
 // pair of boxes (pairArrowsOf), annealed by lib/solve.mjs under the authored nodes. Higher-level
 // arrows are derived only from leaf arrows. Labels come from label passes, never from here.
 //
-// Use (full solves run only when the owner asks):
+// Use:
 //   node dev-map/influence/solve-middle.mjs --in ANALYSIS.json (--node ID... | --all)
 //     [--authored DIR] [--seed N] [--start flat|file] [--max-stages N] [--out FILE] [--source-root DIR...]
 //   node dev-map/influence/solve-middle.mjs --slice SLICE.json --out ENTRY.json

@@ -42,7 +42,7 @@ not analysed a marked list on map 0. The viewer is `sets/030-influence/view/inde
 ```sh
 node scripts/agent-toolkit.mjs read-map ADDRESS [--set NAME]   # default 030-influence
 node scripts/agent-toolkit.mjs regenerate [--set NAME]
-node dev-map/cli.mjs --set NAME read ADDRESS | regenerate [--solve changed|place] | build | check
+node dev-map/cli.mjs --set NAME read ADDRESS | regenerate [--solve changed|place] [--cold NODE] | build | check
 node dev-map/cli.mjs --set NAME serve [--port N] | import-layout FILE   # authored placement
 ```
 
@@ -90,13 +90,15 @@ Each closure is cached under `store/analysis/closures/` with a hash of its files
 modules, Node and acorn, so only closures holding an edited file run again. Each node's solve is
 kept by a hash of exactly what it reads: its own leaves (by rank, so offsets that merely move do
 not count), its library leaves, the leaf arrows touching them with each far end as its owner node,
-the solve options and the solver's code. Only nodes whose slice changed solve again, warm: the
-kept solve, its new leaves placed in their file's cluster, is the start, and only moves that lower
-the objective are taken, so clusters change only where it gains. A node without a kept solve
-anneals from flat (cold; delete `store/solve/NODE.json` to force one). With `"solve": "place"` in
-`map.json` (or `--solve place` for one run), a changed node is not solved: its new leaves are
-placed and read as `placement not solved` until a default (`"changed"`) regenerate solves it.
-Timings (2026-10-04): a full solve, every node warm, 18 s (cold: about 2 minutes); unchanged 14 s.
+the solve options and the solver's code. Only nodes whose slice changed solve again, warm and cold.
+Warm starts from the kept solve, new leaves placed in their file's cluster, and takes only moves
+that lower the objective; cold anneals from flat and reshuffles clusters, so it is kept only when
+its energy is 3% lower (`COLD_MARGIN`) or the node is named by `--cold NODE` (repeatable or a comma
+list; solves it even unchanged). `regenerate` prints each node's `warm` and `cold` energy and which
+it `kept`, and under `relabel` the new clusters to label where cold won. With `"solve": "place"` in
+`map.json` (or `--solve place`), a changed node is not solved: its new leaves are placed and read
+as `placement not solved` until a `"changed"` regenerate (the default) solves it. Timings
+(2026-10-04, 2 jobs): every node warm and cold 128 s (studio's cold solve); unchanged 8 s.
 
 ## Authoring
 
@@ -171,5 +173,3 @@ overlap (about ±0.09); the others then get new identities.
 Opened any other way (a file, the static `influence-map` server), **Arrange** keeps moves in the
 browser; **Export layout** writes them to a file and
 `node dev-map/cli.mjs --set 030-influence import-layout FILE` commits it.
-
-`regenerate --solve changed|place` overrides `map.json` `solve` for one run.
