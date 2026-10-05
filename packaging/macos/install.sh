@@ -135,8 +135,9 @@ data_folder() {
   else printf '%s' "${SAAM_INSTALL_TEST_ROOT:-${SAAM_DATA:-$HOME/SAAM}}"; fi
 }
 
-# True while SAAM runs: the data folder's instance record names a live node
-# process, or a node process runs from the installation folder.
+# True while SAAM runs: an instance record names a live node process, or node
+# runs an installation's launch.mjs. Other node processes from the installation
+# (saam commands, runtime hosts, 0.3.0 client servers) do not hold it open.
 saam_running() {
   local record pid
   for record in "$(data_folder)/state/instance.json" "$HOME/Library/Application Support/SAAM/instance.json"; do
@@ -145,7 +146,7 @@ saam_running() {
     if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && ps -p "$pid" -o comm= | grep -q node; then return 0; fi
   fi
   done
-  pgrep -f "$(data_folder)/app/runtime/node|$HOME/Applications/SAAM/runtime/node" >/dev/null 2>&1
+  pgrep -f "$(data_folder)/app/packaging/launch.mjs|$HOME/Applications/SAAM/packaging/launch.mjs" >/dev/null 2>&1
 }
 
 # ~/Applications/SAAM.app: starts SAAM in the background without a window and
@@ -268,7 +269,7 @@ main() {
   fi
   echo "Installing SAAM ${version:-(unknown version)} for $(id -un) into $target."
   # The SAAM being updated has exited, so this refuses only another running SAAM.
-  if saam_running; then fail 'SAAM is running. Choose Quit from the tray menu, then run install.sh again.'; fi
+  if saam_running; then fail 'SAAM is running. Choose Quit in Studio or the SAAM menu, then run install.sh again.'; fi
   ensure_home "$home" "$here/install.sh"
   trap 'report failed' ERR
 

@@ -1,3 +1,4 @@
+use AppleScript version "2.4"
 use framework "AppKit"
 use framework "Foundation"
 use scripting additions
@@ -18,12 +19,12 @@ end sendControl
 -- A confirmation lists each running job with its runtime, activity and duration.
 on confirmationText(responseText)
   set responseData to (current application's NSString's stringWithString:responseText)'s dataUsingEncoding:(current application's NSUTF8StringEncoding)
-  set answer to current application's NSJSONSerialization's JSONObjectWithData:responseData options:0 |error|:(missing value)
-  if answer is missing value then return missing value
-  set required to answer's objectForKey:"confirmationRequired"
-  if required is missing value or required is current application's NSNull's null() then return missing value
+  set parsed to current application's NSJSONSerialization's JSONObjectWithData:responseData options:0 |error|:(missing value)
+  if parsed is missing value then return missing value
+  set required to parsed's objectForKey:"confirmationRequired"
+  if required is missing value or required is current application's NSNull's |null|() then return missing value
   if not (required's boolValue()) then return missing value
-  return (answer's objectForKey:"message") as text
+  return (parsed's objectForKey:"message") as text
 end confirmationText
 
 on newInstance_(sender)
@@ -69,32 +70,36 @@ on refreshMenu_(sender)
     set serviceStatus to appStatus's objectForKey:"service"
     set paired to (serviceStatus's objectForKey:"activated")'s boolValue()
     set offer to serviceStatus's objectForKey:"update"
-    updateItem's setHidden:(not (paired and offer is not missing value and offer is not current application's NSNull's null()))
+    updateItem's setHidden:(not (paired and offer is not missing value and offer is not current application's NSNull's |null|()))
     set runtimeMenu to runtimeItem's submenu()
     runtimeMenu's removeAllItems()
-    repeat with runtime in (appStatus's objectForKey:"runtimes")
+    set runtimeList to appStatus's objectForKey:"runtimes"
+    set studioList to appStatus's objectForKey:"studios"
+    repeat with runtimeIndex from 0 to ((runtimeList's |count|()) - 1)
+      set runtime to runtimeList's objectAtIndex:runtimeIndex
       set runtimeId to runtime's objectForKey:"id"
-      set group to current application's NSMenuItem's alloc()'s initWithTitle:(runtime's objectForKey:"label") action:"" keyEquivalent:""
+      set runtimeEntry to current application's NSMenuItem's alloc()'s initWithTitle:(runtime's objectForKey:"label") action:"" keyEquivalent:""
       set children to current application's NSMenu's alloc()'s initWithTitle:"Runtime"
       children's setAutoenablesItems:false
-      group's setSubmenu:children
-      runtimeMenu's addItem:group
+      runtimeEntry's setSubmenu:children
+      runtimeMenu's addItem:runtimeEntry
       set showItem to current application's NSMenuItem's alloc()'s initWithTitle:"Open Studio" action:"openSelectedRuntime:" keyEquivalent:""
       showItem's setTarget:me
       showItem's setRepresentedObject:runtimeId
       children's addItem:showItem
-      repeat with studio in (appStatus's objectForKey:"studios")
+      repeat with studioIndex from 0 to ((studioList's |count|()) - 1)
+        set studio to studioList's objectAtIndex:studioIndex
         if (studio's objectForKey:"runtimeId") as text is runtimeId as text then
           set identity to studio's objectForKey:"instanceId"
           set partName to studio's objectForKey:"printId"
-          if partName is missing value or partName is current application's NSNull's null() then set partName to "Empty Studio"
-          set attachment to studio's objectForKey:"attachment"
+          if partName is missing value or partName is current application's NSNull's |null|() then set partName to "Empty Studio"
+          set chatAttachment to studio's objectForKey:"attachment"
           set chatName to "No chat attached"
-          if attachment is not missing value and attachment is not current application's NSNull's null() then set chatName to attachment's objectForKey:"name"
-          set entry to current application's NSMenuItem's alloc()'s initWithTitle:((partName as text) & " — " & (chatName as text) & " [" & (identity as text) & "]") action:"openRuntime:" keyEquivalent:""
-          entry's setTarget:me
-          entry's setRepresentedObject:identity
-          children's addItem:entry
+          if chatAttachment is not missing value and chatAttachment is not current application's NSNull's |null|() then set chatName to chatAttachment's objectForKey:"name"
+          set studioEntry to current application's NSMenuItem's alloc()'s initWithTitle:((partName as text) & " — " & (chatName as text) & " [" & (identity as text) & "]") action:"openRuntime:" keyEquivalent:""
+          studioEntry's setTarget:me
+          studioEntry's setRepresentedObject:identity
+          children's addItem:studioEntry
         end if
       end repeat
       if runtimeId as text is not "installed" then
@@ -129,8 +134,8 @@ on updateApp_(sender)
       display dialog (jobPrompt & return & "Continue?") buttons {"Cancel", "Update"} default button "Cancel"
       my callControl("update", "true")
     end if
-  on error problem
-    display alert "SAAM" message problem
+  on error problem number errorNumber
+    if errorNumber is not -128 then display alert "SAAM" message problem
   end try
 end updateApp_
 on quitApp_(sender)
@@ -149,29 +154,30 @@ end quitApp_
 on run argv
   set controlPort to item 1 of argv
   set controlToken to item 2 of argv
-  set app to current application's NSApplication's sharedApplication()
-  app's setActivationPolicy:(current application's NSApplicationActivationPolicyAccessory)
+  -- AppleScript terms (app, run, count, null, button) are not variable names; Cocoa methods with those names are piped.
+  set sharedApp to current application's NSApplication's sharedApplication()
+  sharedApp's setActivationPolicy:(current application's NSApplicationActivationPolicyAccessory)
   set statusItem to current application's NSStatusBar's systemStatusBar()'s statusItemWithLength:(current application's NSVariableStatusItemLength)
-  statusItem's button()'s setTitle:"SAAM"
-  set menu to current application's NSMenu's alloc()'s initWithTitle:"SAAM"
-  set trayMenu to menu
-  menu's setAutoenablesItems:false
-  menu's setDelegate:me
-  repeat with entry in {{"Open Studio", "openStudio:"}, {"Studios", ""}, {"New Instance", "newInstance:"}, {"Update", "updateApp:"}, {"Quit", "quitApp:"}}
-    set menuItem to current application's NSMenuItem's alloc()'s initWithTitle:(item 1 of entry) action:(item 2 of entry) keyEquivalent:""
+  statusItem's |button|()'s setTitle:"SAAM"
+  set trayMenu to current application's NSMenu's alloc()'s initWithTitle:"SAAM"
+  trayMenu's setAutoenablesItems:false
+  trayMenu's setDelegate:me
+  repeat with menuEntry in {{"Open Studio", "openStudio:"}, {"Studios", ""}, {"New Instance", "newInstance:"}, {"Update", "updateApp:"}, {"Quit", "quitApp:"}}
+    set entryTitle to item 1 of menuEntry
+    set menuItem to current application's NSMenuItem's alloc()'s initWithTitle:entryTitle action:(item 2 of menuEntry) keyEquivalent:""
     menuItem's setTarget:me
-    menu's addItem:menuItem
-    if item 1 of entry is "Studios" then
+    trayMenu's addItem:menuItem
+    if entryTitle is "Studios" then
       set runtimeItem to menuItem
       menuItem's setSubmenu:(current application's NSMenu's alloc()'s initWithTitle:"Studios")
     end if
-    if item 1 of entry is "Update" then
+    if entryTitle is "Update" then
       set updateItem to menuItem
       menuItem's setHidden:true
     end if
   end repeat
-  statusItem's setMenu:menu
+  statusItem's setMenu:trayMenu
   current application's NSTimer's scheduledTimerWithTimeInterval:2 target:me selector:"refreshMenu:" userInfo:(missing value) repeats:true
   log "saam-tray-ready"
-  app's run()
+  sharedApp's |run|()
 end run
