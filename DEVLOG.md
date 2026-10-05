@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-05 — Publish SAAM 0.3.4
+
+- Published v0.3.4 at source 1cea79c58364f20c68498654c47a31a5b6cbf15e (owner pre-authorized publishing once nothing blocked; Windows isolated trial skipped by owner, release is macOS-focused). Built from a fresh LF worktree with checksum-verified official Node 24.19.0; Windows mesh helper 1715dfa5 (unchanged LF source since 0.3.3). Windows 43,955,214 bytes, d3a0f015e2d084015183702820c6c3396aa1e448c160e1dbb3e3a58cf5c1a300; arm64 Mac 47,846,367 bytes, 9f652a8954a31c966151b3a2d908f9df56c9cdf73d66d854c0e8c71bb6d41aa9; Intel Mac 49,196,427 bytes, bb9f3ad28ee338c755cf7a64990ec29695cdf4a5c7ac0a8958ecc317c3aabff5. Each package passed its setup check; Mac ZIPs carry no double-click installer. Public assets, sidecars, tag, stable/latest status and the latest INSTALL.md verified by download. Release notes lead agents to the v0.3.4 INSTALL.md.
+- Relay LATEST_RELEASE set to the three 0.3.4 assets in relay/wrangler.jsonc; deploy blocked by this machine's permission review, owner to run. Not run: whole suite, Windows isolated install, any macOS install.
+
 ## 2026-10-05 — Open 0.3.4 bug-fix patch; macOS start fixes merged
 
 - Owner: 0.3.4 is a quick bug-fix patch, followed immediately by 0.3.5 to verify Update end to end; ready rows go into either. Nine feature, coupling and cleanup rows moved to [0.3.5](plans/0.3.5.md); H2D AMS stall, mesh repair (owner approved one or two worker slots) and slice ownership stay. New rows from relay records of the tkeller macOS device: macOS SAAM does not start, startup failures reach the relay, macOS Update from 0.3.0, bug report button (owner), macOS first install is agent-led (Gatekeeper override reported by the tester). Developer orientation points at 0.3.4.
