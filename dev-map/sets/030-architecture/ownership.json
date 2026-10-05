@@ -8761,6 +8761,10 @@
       "owner": "bundle",
       "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
     },
+    "core/print/workflow.mjs::createBundleWorkflow::requireMigrated": {
+      "owner": "bundle",
+      "reason": "Generation failure on a recipe that explicit migration would update names migrate_bundle (0.3.4)."
+    },
     "core/print/workflow.mjs::createBundleWorkflow::restoreRevision": {
       "owner": "bundle",
       "reason": "Dependency/history increment: explicit reviewed declaration responsibility."

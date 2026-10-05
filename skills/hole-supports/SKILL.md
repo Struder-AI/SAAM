@@ -7,7 +7,7 @@ metadata:
 
 # Hole supports
 
-[Call `hole-supports`](../../core/print/USAGE.md#calling-an-extension) with
+[Call `hole-supports`](../../core/print/USAGE.md#command-line) with
 `{"mode":"discover"}` first. The report gives candidate centres, large/small
 radii and shoulder height in component millimetres; discovery changes nothing.
 Choose the hole, orientation, removal/drilling access and required bore finish

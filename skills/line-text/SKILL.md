@@ -7,7 +7,7 @@ metadata:
 
 # Single-line text
 
-[Call `line-text`](../../core/print/USAGE.md#calling-an-extension) to add,
+[Call `line-text`](../../core/print/USAGE.md#command-line) to add,
 replace or remove lettering in a print. Each centerline receives one bead;
 glyph coverage, excessive stroke weight and filled counters are reported.
 The saved ordinary Trace curves regenerate without this extension.

@@ -29,7 +29,7 @@ generation never shortens a requested wall.
 
 ### Mesh input workflow
 
-For an imported mesh, [call this extension](../../core/print/USAGE.md#calling-an-extension)
+For an imported mesh, [call this extension](../../core/print/USAGE.md#command-line)
 with a preparation request before generation:
 
 ```json
