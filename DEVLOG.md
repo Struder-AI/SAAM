@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-04 — Cluster labels are authored data
+
+- Label pass (worker): every solved cluster named, 169 labels in `030-influence/layout.json` `labels`, keyed by cluster identity beside positions, so they follow identity through re-solves and keep signatures for checkouts without the store. `solved-set.mjs` lays them over the stored model as it loads, so reads and drawings carry them and an edit shows after `build`; unlabelled clusters keep the generated `≈` label (libraries `library · ≈`). A label naming no drawn cluster is reported by build, regenerate and check (`placement.labels.missing`) and on map 0. 58 clusters flagged mixed (no single purpose) in the owner review list; short top-level names proposed, awaiting the owner.
+- Merged and regenerated in the main checkout (`--solve place`, 10 s): checks and reads ok, 187 maps, 169 labels applied, none missing. Worker ran in a worktree; retired-cluster label path and store-less checkout not exercised. No tests run.
+
 ## 2026-10-04 — Session close: confirmed intent recorded
 
 - Owner confirmations written into [0.3.3](plans/0.3.3.md) and [dev maps intent](plans/dev-maps.md): one unified agent toolkit through Application, diagnostics without a Studio counterpart kept, anything with a natural or existing Studio display shown there; cli.mjs and skill command lines go, maintenance commands become saam commands; tour examples created through Application, owned by Studio; demos become maker example recipes through Application; generation job and Application ↔ Studio coupling consolidated; contextBudget for the owner to understand; passthrough walker rewrite; cluster labels authored by agents and reviewed by the owner; map-0 held wires and actors approved after the label pass; full solves when the owner calls for them, orchestrators suggesting one when very stale. Checkpoint includes the owner's map position edits. No tests run.
