@@ -2,7 +2,7 @@
 import {spawn} from 'node:child_process';
 import {resolve} from 'node:path';
 import {createStudioWindows} from './studio-windows.mjs';
-import {selectRuntime,orchestratorContract} from '../core/application/runtime-selection.mjs';
+import {selectRuntime,orchestratorContract,contractProblem} from '../core/application/runtime-selection.mjs';
 
 const elapsed=ms=>ms<60000?Math.max(1,Math.round(ms/1000))+' s':ms<3600000?Math.round(ms/60000)+' min':(ms/3600000).toFixed(1)+' h';
 // Quit, Update, Stop and Reload confirmations list each running job: runtime, activity and duration.
@@ -39,7 +39,10 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     const id=String(++runtime.sequence);
     return new Promise((done,fail)=>{runtime.pending.set(id,{done,fail});runtime.child.send({id,type,args},error=>{if(error){runtime.pending.delete(id);fail(error);}});});
   }
+  const orchestrator=()=>({contract:orchestratorContract,label:'the running SAAM ('+services.status().version+')'});
   async function launch(selected){
+    const problem=contractProblem(orchestrator(),selected);
+    if(problem)throw problem;
     const child=spawn(selected.node,[resolve(selected.codeRoot,'packaging/runtime-host.mjs')],{cwd:selected.codeRoot,windowsHide:true,
       stdio:['ignore','pipe','pipe','ipc'],env:{...process.env,SAAM_DATA:paths.home,SAAM_BACKGROUND:'1',SAAM_RUNTIME:JSON.stringify(identity(selected))}});
     const runtime={...selected,child,pending:new Map(),sequence:0,active:0,stderr:''};runtimes.set(runtime.id,runtime);
@@ -53,7 +56,7 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     // A runtime stopped on purpose was already removed; its exit must not detach a successor's windows.
     function failed(error){for(const waiter of runtime.pending.values())waiter.fail(error);runtime.pending.clear();if(runtimes.get(runtime.id)===runtime){runtimes.delete(runtime.id);windows.detach(runtime.id);}}
     child.once('error',failed);child.once('exit',code=>failed(Error('Runtime '+runtime.label+' exited ('+code+'). '+runtime.stderr)));
-    try{await rpc(runtime,'start',{contract:orchestratorContract,autoOpen,service:services.status(),
+    try{await rpc(runtime,'start',{orchestrator:orchestrator(),autoOpen,service:services.status(),
       stateRoot:resolve(paths.state,'runtimes',runtime.id.replace(':','-')),windows:windows.restore(runtime.id)});return runtime;}
     catch(error){child.kill();throw error;}
   }

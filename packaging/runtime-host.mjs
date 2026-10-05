@@ -4,7 +4,7 @@ import {resolve} from 'node:path';
 import {z} from 'zod';
 import {createLocalRuntime,instructions} from '../core/application/runtime.mjs';
 import {homePaths} from '../core/application/home.mjs';
-import {orchestratorContract,codeStamp} from '../core/application/runtime-selection.mjs';
+import {orchestratorContract,codeStamp,contractProblem} from '../core/application/runtime-selection.mjs';
 import {processRuntime} from '../core/print/bundle-runtime.mjs';
 import {replaceFile} from '../core/file-write.mjs';
 import {checkSetup} from '../scripts/setup-check.mjs';
@@ -47,8 +47,10 @@ async function command(message){
   return {ok:true,result:await chat.invoke(operationName,message.args??{})};
 }
 async function start(args){
-  if(args.contract!==orchestratorContract)throw Error('This runtime requires orchestrator contract '+orchestratorContract+'. Update SAAM or this checkout.');
   const paths=homePaths(),stateRoot=args.stateRoot,runtime=processRuntime();
+  // Orchestrators before this description sent only their contract.
+  const problem=contractProblem(args.orchestrator??{contract:args.contract,label:'the running SAAM'},{contract:orchestratorContract,label:runtime.label});
+  if(problem)throw problem;
   await mkdir(stateRoot,{recursive:true});
   const setupFile=resolve(stateRoot,'setup-check.json'),setup={problem:null};
   code.started=await codeStamp();code.checked=Date.now();
