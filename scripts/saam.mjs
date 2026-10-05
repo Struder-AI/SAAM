@@ -41,7 +41,9 @@ export async function runSaam(args=process.argv.slice(2),{input=process.stdin,wr
   const parsed=commandInput(args);
   const identity=!['help','status','diagnostics','open','update','quit'].includes(parsed.command)
     ?{chatId:parsed.chatId,...(parsed.fallbackChatId?{nextCommand:'Pass --chat-id '+parsed.chatId+' on every later saam command in this chat.'}:{})}:{};
+  const selection={runtime:null};
   try{
+    const runtime=selection.runtime=await selectRuntime();
     const fields={};
     if(parsed.options.input&&enabled(parsed.options.stdin))throw Error('Choose --input FILE or --stdin.');
     if(parsed.options.input===true)throw Error('Supply the input filename.');
@@ -49,7 +51,6 @@ export async function runSaam(args=process.argv.slice(2),{input=process.stdin,wr
     if(enabled(parsed.options.stdin)){const chunks=[];for await(const chunk of input)chunks.push(Buffer.from(chunk));Object.assign(fields,JSON.parse(Buffer.concat(chunks).toString('utf8')));}
     const instance=await readyInstance();
     if(instance.contract!==orchestratorContract)throw Error('Update the installed SAAM first: this checkout requires orchestrator contract '+orchestratorContract+'.');
-    const runtime=await selectRuntime();
     const operation=parsed.command==='call'?parsed.operation:parsed.command==='wait'?'wait_for_studio_request':parsed.command==='start-tour'?'start_tour':null;
     if(operation){
       const help=await controlRequest(instance,{command:'help',operation,runtime});
@@ -61,7 +62,7 @@ export async function runSaam(args=process.argv.slice(2),{input=process.stdin,wr
       chatName:parsed.options.chatName,bundleId:parsed.options.bundleId??fields.bundleId,force:enabled(parsed.options.force)};
     const result=await controlRequest(instance,message,{waitMs:['call','start-tour','wait'].includes(parsed.command)?null:35000});
     write({...result,...identity});return result;
-  }catch(error){error.result={...error.result,...identity};throw error;}
+  }catch(error){error.result={...(selection.runtime&&{runtime:{id:selection.runtime.id,label:selection.runtime.label}}),...error.result,...identity};throw error;}
 
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){

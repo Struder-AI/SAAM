@@ -41,11 +41,18 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     });
     function failed(error){windows.detach(runtime.id);for(const waiter of runtime.pending.values())waiter.fail(error);runtime.pending.clear();if(runtimes.get(runtime.id)===runtime)runtimes.delete(runtime.id);}
     child.once('error',failed);child.once('exit',code=>failed(Error('Runtime '+runtime.label+' exited ('+code+'). '+runtime.stderr)));
-    try{await rpc(runtime,'start',{contract:orchestratorContract,runtimeId:runtime.id,label:runtime.label,fingerprint:runtime.fingerprint,autoOpen,service:services.status(),
+    try{await rpc(runtime,'start',{contract:orchestratorContract,runtime:identity(runtime),fingerprint:runtime.fingerprint,autoOpen,service:services.status(),
       stateRoot:resolve(paths.state,'runtimes',runtime.id.replace(':','-')),windows:windows.restore(runtime.id)});return runtime;}
     catch(error){child.kill();throw error;}
   }
   const fallback=await selectRuntime(codeRoot);
+  const identity=({id,label,command,codeRoot})=>({id,label,command,codeRoot});
+  // Names the runtime a control message reaches: the running one, else the one it would start.
+  async function identify(message){
+    const target=message.runtimeId??(message.studioInstanceId?windows.runtimeFor(message.studioInstanceId):null);
+    const selected=runtimes.get(target)??(message.runtime?await selectRuntime(message.runtime.codeRoot):fallback);
+    const {id,label}=runtimes.get(selected.id)??selected;return {id,label};
+  }
   async function ensure(requested){
     if(selection.closing)throw Error('SAAM is stopping.');
     const selected=requested?await selectRuntime(requested.codeRoot):fallback;
@@ -95,7 +102,7 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     await rpc(runtime,'stopping',{reason:'runtime-stop'});await rpc(runtime,'close');runtime.child.disconnect();windows.detach(runtime.id);runtimes.delete(runtime.id);return {stopped:true,runtimeId:runtime.id};
   }
   async function close(){selection.closing=true;await selection.tail;await Promise.all([...runtimes.values()].map(async runtime=>{try{await rpc(runtime,'close');}finally{if(runtime.child.connected)runtime.child.disconnect();}}));await windows.close();runtimes.clear();}
-  return {command,status,stopRuntime,notifyStopping,close,runningJobs:async()=>(await status()).jobs,
+  return {command,identify,status,stopRuntime,notifyStopping,close,runningJobs:async()=>(await status()).jobs,
     observeEvents(observer){eventObservers.add(observer);return()=>eventObservers.delete(observer);},
     observeOperations(observer){operationObservers.add(observer);return()=>operationObservers.delete(observer);}};
 }

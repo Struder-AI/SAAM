@@ -17,6 +17,11 @@ export async function orchestratorRoot(paths=homePaths()){
   if(release.contract!==orchestratorContract)throw Error('Update the installed SAAM '+release.version+' first: this code requires orchestrator contract '+orchestratorContract+'.');
   return paths.app;
 }
+// The exact command that reaches a source runtime: its checkout's saam, or the
+// development tool when this home is a background development instance.
+function sourceCommand(root,paths){
+  return process.env.SAAM_BACKGROUND==='1'&&process.env.SAAM_DATA?'node "'+resolve(root,'scripts/dev-instance.mjs')+'" --home "'+paths.home+'"':'node "'+resolve(root,'scripts/saam.mjs')+'"';
+}
 export async function selectRuntime(codeRoot=invocationRoot){
   const root=await realpath(codeRoot),paths=homePaths();
   if(process.platform==='win32'&&root.startsWith('\\\\'))throw Error('SAAM source runtimes must use a local disk.');
@@ -24,12 +29,12 @@ export async function selectRuntime(codeRoot=invocationRoot){
   await stat(resolve(root,'packaging/runtime-host.mjs'));
   const installed=resolve(root).toLowerCase()===resolve(paths.app).toLowerCase();
   const release=await readFile(resolve(root,'release.json'),'utf8').then(JSON.parse).catch(error=>{if(error.code!=='ENOENT')throw error;return null;});
-  if(installed)return {id:'installed',codeRoot:root,node:process.execPath,fingerprint:release?.version??'source',label:'Installed '+(release?.version??'SAAM')};
+  if(installed)return {id:'installed',codeRoot:root,node:process.execPath,fingerprint:release?.version??'source',label:'Installed '+(release?.version??'SAAM'),command:'saam'};
   const head=await execute('git',['rev-parse','HEAD'],{cwd:root,windowsHide:true}).then(result=>result.stdout.trim());
   const diff=await execute('git',['diff','HEAD','--binary','--','core','studio','skills','workspaces','scripts','packaging','adapters','machines'],{cwd:root,windowsHide:true,maxBuffer:32*1024*1024}).then(result=>result.stdout);
   const untracked=await execute('git',['ls-files','--others','--exclude-standard','--','core','studio','skills','workspaces','scripts','packaging','adapters','machines'],{cwd:root,windowsHide:true}).then(result=>result.stdout.trim().split('\n').filter(Boolean));
   const hash=createHash('sha256').update(head).update(diff);
   for(const name of untracked){hash.update(name);hash.update(await readFile(resolve(root,name)));}
   return {id:'src:'+createHash('sha256').update(process.platform==='win32'?root.toLowerCase():root).digest('hex').slice(0,12),codeRoot:root,node:process.execPath,
-    fingerprint:hash.digest('hex'),label:'Source '+basename(root)+' @ '+head.slice(0,8)+(diff||untracked.length?' (modified)':'')};
+    fingerprint:hash.digest('hex'),label:'Source '+basename(root)+' @ '+head.slice(0,8)+(diff||untracked.length?' (modified)':''),command:sourceCommand(root,paths)};
 }

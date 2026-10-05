@@ -46,10 +46,10 @@ async function start(args){
   const setupFile=resolve(stateRoot,'setup-check.json'),setup={problem:null};
   if((await readFile(setupFile,'utf8').then(JSON.parse).catch(()=>({}))).passed!==args.fingerprint){
     try{await checkSetup({log:()=>{}});await replaceFile(setupFile,JSON.stringify({passed:args.fingerprint})+'\n');}
-    catch(error){setup.problem={version:args.label,error:error.message,effect:'SAAM failed its setup check. Tell the person; reinstalling or repairing this runtime usually fixes it.'};}
+    catch(error){setup.problem={version:args.runtime.label,error:error.message,effect:'SAAM failed its setup check. Tell the person; reinstalling or repairing this runtime usually fixes it.'};}
   }
   host.runtime=createLocalRuntime({paths,stateRoot,autoOpen:args.autoOpen,relay,
-    application:{setupProblem:setup.problem,runtimeId:args.runtimeId,runtimeLabel:args.label,fingerprint:args.fingerprint,
+    application:{setupProblem:setup.problem,runtime:args.runtime,fingerprint:args.fingerprint,
       retryClients:async()=>request('clients'),
       registerStudio:async window=>request('window',window),
       showStudio:async url=>request('show',{url})}});

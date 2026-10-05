@@ -66,8 +66,10 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
     // The OS listener is the exclusive application lease, including during startup.
     state.control=createServer(async(request,response)=>{
       if(request.method!=='POST'||request.url!=='/control'||request.headers['x-saam-control']!==token||request.headers.origin){respond(response,{ok:false,error:'Invalid local control request.'},403);return;}
-      try{respond(response,await command(await jsonBody(request)));}
-      catch(error){respond(response,{ok:false,error:error.message,code:error.code??null,...(error.code==='STUDIO_TARGET_CHANGED'?{currentStudio:error.currentStudio,expectedStudio:error.expectedStudio}:{}),...(error.workRequest?{workRequest:error.workRequest}:{}),...(error.importDiagnostic?{importDiagnostic:error.importDiagnostic}:{})},400);}
+      const named=async message=>({runtime:await state.runtime?.identify(message).catch(()=>undefined)});
+      let message={};
+      try{message=await jsonBody(request);respond(response,{...await command(message),...await named(message)});}
+      catch(error){respond(response,{ok:false,error:error.message,code:error.code??null,...await named(message),...(error.code==='STUDIO_TARGET_CHANGED'?{currentStudio:error.currentStudio,expectedStudio:error.expectedStudio}:{}),...(error.workRequest?{workRequest:error.workRequest}:{}),...(error.importDiagnostic?{importDiagnostic:error.importDiagnostic}:{})},400);}
     });
     try{await new Promise((done,fail)=>{state.control.once('error',fail);state.control.listen(applicationPort(paths.home),'127.0.0.1',done);});}
     catch(error){

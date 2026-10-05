@@ -212,7 +212,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   // Every runtime-owned Studio instance starts here, showing dir or no print.
   async function startStudio(dir,{instanceId,sessionToken,restoring=false}={}){
     if(app.closing)throw Error('The SAAM application is quitting.');
-    const studio = createStudio(dir, { libraryRoot,machineSetups:paths.machineSetups,agentOwnerId:ownerId,agentRequests,studioEvents,relay,chatName:name,chatClient:client,instanceId,sessionToken,restoring,runtimeId:application.runtimeId,runtimeLabel:application.runtimeLabel,fingerprint:application.fingerprint });
+    const studio = createStudio(dir, { libraryRoot,machineSetups:paths.machineSetups,agentOwnerId:ownerId,agentRequests,studioEvents,relay,chatName:name,chatClient:client,instanceId,sessionToken,restoring,runtimeId:application.runtime?.id,runtimeLabel:application.runtime?.label,fingerprint:application.fingerprint });
     try{await studio.ready();}catch(error){await studio.shutdown().catch(()=>{});throw error;}
     try{await new Promise((resolveListen, reject) => { studio.once('error', reject); studio.listen(0, '127.0.0.1', resolveListen); });}
     catch(error){await studio.shutdown().catch(()=>{});throw error;}
@@ -520,7 +520,9 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   operation('read_local_agent_notes','Read shared Markdown notes and their home/path/revision identity for every SAAM role.',{});
   operation('update_local_agent_notes','Save the current shared Markdown notes for the explicit home at expectedRevision (null only when absent). On conflict, read again and combine changes.',{home:z.string().min(1),expectedRevision:z.string().regex(/^[a-f0-9]{64}$/).nullable(),text:z.string()},false);
   operation('maker_onboarding','Start here for maker work when context is missing. Returns maker guidance, the skill index and print tools, including local script sections. Reuse it for the conversation.',{machineId:machineIdSchema,bundleId:bundleIdSchema.optional()});
-  async function makerOnboarding({machineId,bundleId}){return { role:'maker',...(application.setupProblem&&{setupProblem:application.setupProblem}),notes:await readLocalAgentNotes(paths),
+  async function makerOnboarding({machineId,bundleId}){return { role:'maker',...(application.setupProblem&&{setupProblem:application.setupProblem}),
+      ...(application.runtime&&{runtime:{id:application.runtime.id,label:application.runtime.label,command:application.runtime.command,
+        note:'This chat uses this runtime; every result names it. Run each saam command for this chat with runtime.command.'}}),notes:await readLocalAgentNotes(paths),
       sources: await onboardingSources(root,await manualContext({machineId,bundleId})),
       nextStep: 'Reuse these sources for the conversation. Read skill manuals (read_skill) and linked references (read_guidance) when a task needs them. Authoring guidance uses builder onboarding in the local toolkit; core implementation requires explicit developer authorization.' };}
   operation('repair_client_setup','Refresh SAAM command discovery and permissions in Codex and Claude Code. Preserves unrelated settings and reports registration errors.',{},false);
