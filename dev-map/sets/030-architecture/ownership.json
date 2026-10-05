@@ -2271,6 +2271,9 @@
     "core/geom/blob-field-compile.mjs::compileBlobField": {
       "owner": "geometry-leaf-3bb7558566a2"
     },
+    "core/geom/blob-field-compile.mjs::extractBlobSurface": {
+      "owner": "geometry-leaf-3bb7558566a2"
+    },
     "core/geom/blob-field-record.mjs::@module": {
       "owner": "geometry-leaf-b9bc1dee2ebb"
     },
