@@ -206,6 +206,12 @@ async function main(){
   const releaseJson=JSON.stringify(release,null,2)+'\n';
   await writeFile(resolve(app,'release.json'),releaseJson);
   console.log(`Application: ${describe(await measure(app))}.`);
+  // The package is accepted only when its own modules pass the setup check in a disposable home,
+  // on its own Node when this host can run it.
+  const host=(process.platform==='win32'?'win':process.platform)+'-'+process.arch,home=resolve(out,'stage','home');
+  if(host!==platform)console.warn(`Setup check: this ${host} host runs the ${platform} package's modules on its own Node ${process.version}.`);
+  run(host===platform?resolve(runtime,target.binary.split('/').pop()):process.execPath,['scripts/setup-check.mjs'],{cwd:app,env:{...process.env,SAAM_DATA:home}});
+  await rm(home,{recursive:true,force:true});
   run(TAR,['-cf',resolve(folder,'app.tar'),'-C',app,'.'],{env:TAR_ENV});
 
   // The installer and what it needs before app.tar is unpacked.

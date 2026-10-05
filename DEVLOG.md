@@ -1,5 +1,19 @@
 # Development log
 
+## 2026-10-04 — Playback audits removed
+
+- Owner-authorized (R2): Dobot playback no longer runs `diagnoseMachinePath` (deleted with `requireProcessControl` and `authoredNozzleTargets`); DENSO drops the relay-vs-annotation and relay-off ending checks; the Bambu player drops the prelude checks and the tool-change re-render and resumes after `CHANGE_END` (a change block without an end before the next change is rejected); `prelude` moved to the writer. Kept: unsupported tool/frame/arm/axis rejection, finite values, positive timing, dwell relay-off. Tests asserting the removed audits trimmed.
+- Worker: decoded output of six programs (Dobot, DENSO, X1 and H2D single and multi) byte-identical before and after; targeted export tests show no new failures (existing failures from API drift left to the suite triage). Merged; both map sets regenerate, code errors 1,126. Open for the owner: Bambu reopen comparisons (`interpretBambu` envelope and package re-render) and Dobot's DENSO-like relay checks.
+
+## 2026-10-04 — One setup check, run by the application at first start
+
+- Owner: keep the setup check; SAAM runs it, not the maker agent. One `checkSetup` (scripts/setup-check.mjs) serves source checkouts (`npm run setup:check`), the release build and the installed application; its temp folder comes from the home's `tmp/` owner and a failure names its stage. The application runs it at each version's first start and records the passed version in `state/setup-check.json`; a failure still starts SAAM, reports `setup-check-failed` to diagnostics, returns `setupProblem` from `maker_onboarding` and reruns next start. `packaging/build.mjs` checks the built package in a disposable home before accepting it. Ownership moved to Application.
+- Worker, disposable home: first start ran it (1.65 s) and recorded the version, the second skipped it (0.35 s), a missing `manifold.wasm` appeared in `maker_onboarding` and first-run diagnostics; the build-path call failed on the broken kernel and passed intact against a scratch package. Team decisions: source runs rerun it after each commit (about 1.5 s, accepted); cross-platform builds check with the host's Node and warn; later failures are not retained beyond the relay (next start re-reports). Full release build not run. No tests run beyond review-state (its productionReady failure predates the change).
+
+## 2026-10-04 — Labels after the full solve
+
+- Worker: dropped the 63 labels of retired clusters, labelled 65 new clusters, relabelled 25 that kept identity through a weak rematch but changed content; all 171 solved clusters labelled (layout.json labels only). Merged and regenerated: 162 identities kept, 18 positions and 171 labels applied, none missing; checks and reads ok. 100 clusters flagged mixed in the owner review list, mostly geometry and extensions (STL decoding and repair spread across 2.1–2.4): a grouping question for the solver objective. Donate deferred to 0.3.4 (plans/0.3.4.md); its disabled button removed. No tests run.
+
 ## 2026-10-04 — Full solve keeps the best of warm and cold
 
 - Worker: each node to solve runs cold and, when it has a kept solve, warm, as separate jobs; cold is kept when its energy is at least 3% lower (`COLD_MARGIN`) or the node is named by `--cold NODE` (repeatable, comma lists). `regenerate` prints each node's energies and choice, and `relabel` lists new clusters where cold won; the kept summary records the other result as `rival`. README 175 → 175 lines.

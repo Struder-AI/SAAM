@@ -4,7 +4,7 @@
 
 Ship all three platforms: `win-x64`, `darwin-arm64` and `darwin-x64`; omit one only by owner decision. Build from one clean committed snapshot:
 `node packaging/build.mjs --platform PLATFORM --version VERSION --relay-url https://saam-relay.remettub.workers.dev --update-host https://github.com/Struder-AI/SAAM/releases/download --out dist/PLATFORM`.
-The builder verifies official Node or platform-checked `--node PATH` plus LICENSE. `--mesh-repair DIR` supplies the verified Windows helper; Mac availability is separate. Record SHA, platform, ZIP size/hash and runtime provenance. Review candidates use `--review` and explicit `--review-file`; publication requires clean tracked source. Installation preserves a recoverable app while replacing it and leaves user data intact. Unsigned alpha archive checks do not establish native execution.
+The builder verifies official Node or platform-checked `--node PATH` plus LICENSE, then setup-checks the built package (on its own Node when the host can run it), stopping on failure. `--mesh-repair DIR` supplies the verified Windows helper; Mac availability is separate. Record SHA, platform, ZIP size/hash and runtime provenance. Review candidates use `--review` and explicit `--review-file`; publication requires clean tracked source. Installation preserves a recoverable app while replacing it and leaves user data intact. Unsigned alpha archive checks do not establish native execution.
 
 ## Publishing
 

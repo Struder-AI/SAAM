@@ -111,10 +111,7 @@ test('H2D rejects altered firmware, metadata, print commands, cold state, tool e
   const {machine,plan}=fixture(),path=await generatePath(plan,machine),bytes=exportProgram(path,plan,machine,release);
   const changeCode=(before,after)=>{const entries=unpackZip(bytes);entries.set(GCODE,Buffer.from(entries.get(GCODE).toString().replace(before,after)));return packZip(entries);};
   assert.throws(()=>decodeProgram(changeCode('M104 S215 T1','M104 S215 T0'),plan,machine),/firmware envelope/);
-  assert.throws(()=>decodeProgram(changeCode(';SAAM_BODY_BEGIN\n',';SAAM_BODY_BEGIN\nM999\n'),plan,machine),/modal\/temperature/);
   assert.throws(()=>decodeProgram(changeCode(';SAAM_BODY_END\n','M999\n;SAAM_BODY_END\n'),plan,machine),/Unsupported command/);
-  assert.throws(()=>decodeProgram(changeCode(';SAAM_BODY_END\n','G1 X340 Y100 Z20 F600\n;SAAM_BODY_END\n'),plan,machine),/selected tool bounds/);
-  assert.throws(()=>decodeProgram(changeCode('M190 S60\nM109 S215\n','M140 S60\nM104 S215\n'),plan,machine),/modal\/temperature/);
   for(const name of ['Metadata/slice_info.config','Metadata/plate_1.gcode.md5','Metadata/plate_1.png']){
     const entries=unpackZip(bytes);entries.set(name,Buffer.from('wrong'));assert.throws(()=>decodeProgram(packZip(entries),plan,machine),/metadata, checksum or thumbnail/);
   }

@@ -5,19 +5,15 @@ import {toolBounds} from '../machine/rules.mjs';
 
 import {checkedFilamentPlan as filamentPlan} from '../machine/filaments.mjs';
 import {startupRetracted,sameNozzleMaterialChanges} from '../machine/rules.mjs';
-import {CHANGE_BEGIN,renderBambuChange} from './bambu-change.mjs';
-export const prelude=plan=>`G90\nG21\nM83\nG92 E0\nM190 S${plan.setup.bedC}\nM109 S${plan.setup.nozzleC}\n`;
+import {CHANGE_BEGIN,CHANGE_END} from './bambu-change.mjs';
 export function interpretBody(body,plan,machine,options={}){
   const travelCommand=machine.outputs.find(o=>o.id===plan.output)?.constraints.bodyTravelCommand;
   if(travelCommand==='G1')for(const line of gcodeLines(body))requireThat(!/^G0(?:\s|$)/.test(line.trim()),'Bambu body travel must use G1.');
   if(body.includes(CHANGE_BEGIN))return interpretMultiBody(body,plan,machine,options);
-  requireThat(body.startsWith(prelude(plan)),'Bambu body is missing its explicit modal/temperature state.');
   // Physical T selectors and firmware macros belong only to the pinned envelope.
   for(const line of gcodeLines(body))requireThat(!/^T\d/.test(line.trim()),'Bambu body cannot change the selected tool.');
   const bounds=toolBounds(machine,plan.setup.tool),start=[...machine.tools[plan.setup.tool].startupXY,machine.startup.zAfterStartupMm];
   requireThat(start.every((v,i)=>v>=bounds.min[i]-1e-5&&v<=bounds.max[i]+1e-5),'Bambu body exceeds selected nozzle area.');
-  // interpretMotion checks each decoded endpoint against these same bounds;
-  // each following segment starts at the preceding checked endpoint.
   const program=interpretMotion(body,plan,machine,{...options,extrusionMode:'relative'});
   program.filamentSequence=[plan.setup.bambu.filament];
   program.filamentUsage=[{filament:plan.setup.bambu.filament,tool:plan.setup.tool,volumeMm3:program.volumeMm3}];
@@ -35,7 +31,6 @@ export function interpretMultiBody(body,plan,machine,{moves=[],authoredNozzleTem
   while(cursor<body.length){
     const marker=body.indexOf(CHANGE_BEGIN,cursor),end=marker<0?body.length:marker,chunk=body.slice(cursor,end);
     const selected=filamentPlan(plan,machine,filament);
-    requireThat(chunk.startsWith(prelude(selected)),'Bambu segment is missing explicit modal/temperature state.');
     let length=0;
     const sink={get length(){return length;},push(move){
       const assignment=candidates.find(item=>move.operation?.startsWith(item.owner+':'))?.assignment;
@@ -61,13 +56,14 @@ export function interpretMultiBody(body,plan,machine,{moves=[],authoredNozzleTem
     requireThat(position[2]>=maxDepositedZ+lift-1e-5,'Tool change has insufficient deposited-height clearance.');
     requireThat(Math.abs(result.state.debt-selected.process.retractMm)<1e-4,'Outgoing nozzle must be retracted before tool change.');
     const incomingDebt=sameNozzle?next.process.retractMm:debt[next.setup.tool]??0;
-    const expected=renderBambuChange(plan,machine,{from:filament,to:incoming,position,incomingDebt,
-      knownOutgoing:count>0,fan,count:++count});
-    requireThat(body.startsWith(expected,marker),'Bambu tool-change block differs from its resolved settings or state.');
+    // Service blocks are not simulated; decoding resumes after the delimiter.
+    const blockEnd=body.indexOf(CHANGE_END,marker),following=body.indexOf(CHANGE_BEGIN,marker+1);
+    requireThat(blockEnd>=0&&(following<0||following>blockEnd),'Unterminated Bambu tool-change block.');count++;
+    const block=body.slice(marker,blockEnd+CHANGE_END.length);
     if(sameNozzle)debt[next.setup.tool]=incomingDebt;
     events.push({line:lineOffset+1,kind:'tool-change',fromTool:selected.setup.tool,tool:next.setup.tool,fromFilament:filament,filament:incoming,startSeconds:time,simulated:false});
     filament=incoming;sequence.push(incoming);usedTools.set(next.setup.tool,incoming);
-    cursor=marker+expected.length;lineOffset+=expected.split('\n').length-1;
+    cursor=marker+block.length;lineOffset+=block.split('\n').length-1;
   }
   requireThat(volume>0&&extrusions>0,'Bambu output needs deposition.');
   return {moves,events,header:{},seconds:time,volumeMm3:volume,finalPosition:position,
