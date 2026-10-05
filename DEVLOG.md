@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-05 — Code red: Studio windows piling up; checkouts starting installed 0.3.2
+
+- Owner: a subagent opening one browser window crashed the Claude app. Worker (Node HTTP/SSE probes only, no browser): no runtime-code reload loop (meta and event share one fingerprint; 11 loads, 0 reloads; one reload per real code change). Real defect: the window proxy answers 503 while a runtime restarts or is stopped, browsers then abandon Studio's live stream for good, the window counts no viewer, and every later open or review request opens another heavy WebGL window. `viewer-session.mjs` now reconnects at the browser's retry pace (3 s) and reloads once when new code appears (probe: original stream dead after 9.6 s; fixed reconnects and reloads once). The 2026-10-04 21:11 DuckDuckGo.WebView crash was Chromium out-of-memory (0xe0000008).
+- A checkout with `SAAM_DATA` unset started the installed 0.3.2 application (`scripts/saam.mjs` readyInstance; `npm run studio` handed off without `--no-open`, opening a window on the real home). The orchestrator contract is now one constant recorded in `release.json`; `orchestratorRoot` refuses an installed release without it before spawning anything. Verified: root selection cases, studio-lifetime test 6/6, a process watcher saw no browser process across opens, tours, restarts and stops. Pending: real-browser confirmation (owner). Subagents could also reach the installed 0.3.2 through the `saam` skill: the team brief now forbids it.
+
 ## 2026-10-05 — Full solve after the Codex orchestrator and placement work
 
 - Stopped two orphaned worker Applications (dimming and demos worktrees, started before `dev-instance` existed) that held the heavy-job slot Codex deferred to, and two stray log tails. Standing full solve: cold kept for toolpath and workspace; identities 90 kept, 69 rematched, 2 merged, 1 retired, 12 new. 105 authored positions applied, 3 missing; 168 labels applied, 3 missing (retired application clusters); 12 new clusters unlabelled; 9 unowned leaves (new declarations). Code errors 1,184. No tests run.
