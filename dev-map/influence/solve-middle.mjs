@@ -27,7 +27,8 @@ import {TOP,drawMap,linkSet,treeAccess} from '../lib/tree.mjs';
 import {solveTree} from '../lib/solve.mjs';
 import {scoreDrawn,INFLUENCE,SIZE,WEIGHT,weightOf} from '../lib/score.mjs';
 import {pairArrowsOf} from './derive.mjs';
-import {withChannels} from './channels.mjs';
+import {withChannels,boundaryFileStores} from './channels.mjs';
+export {boundaryFileStores};
 
 const repo=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
 export const UNOWNED='(unowned)';
@@ -135,14 +136,18 @@ export function readAuthored(dir) {
 // start offset; a leaf without a key falls back to the declarations at its line, by name. Its
 // owner is the first owned anchor on that declaration and the declarations around it, nearest
 // first (an anonymous body inherits its nearest stable declaration), else the module's for
-// module-level code. A leaf with no owned declaration, or whose owner is not under a map-0 node,
+// module-level code. A state node takes its class's owner when it is an instance, else its
+// allocation's declaration, else the owner of the callable allocating it (module-level state:
+// the module's). A leaf with no owned declaration, or whose owner is not under a map-0 node,
 // is reported, not guessed. `texts` are the analysed texts (analysedTexts), so offsets agree.
 export async function ownLeaves(leaves,authored,{root=repo,texts=analysedTexts(leaves,{root}).texts}={}) {
   const {extractGraph}=await import('../lib/graph.mjs');
   // A state node's key is its declaring site with a suffix (state.mjs); a channel has its actor.
   const parse=l=>{if(l.channel)return null;const m=/^(.*?):(\d+) (.*)$/.exec(l.name??l.id),k=/^(.*):(\d+)(?:\.\d+)?$/.exec(l.id);
     return m?{file:m[1],line:Number(m[2]),name:m[3],offset:k&&k[1]===m[1]?Number(k[2]):null}:null;};
-  const files=[...new Set(leaves.map(l=>parse(l)?.file).filter(Boolean))].sort(order);
+  // A callable or class by its key, `file:offset` (state.mjs instanceOf, allocatedBy).
+  const keyed=key=>{const m=/^(.*):(\d+)$/.exec(key??'');return m?{file:m[1],offset:Number(m[2])}:null;};
+  const files=[...new Set(leaves.flatMap(l=>[parse(l)?.file,keyed(l.state?.instanceOf)?.file,keyed(l.state?.allocatedBy)?.file]).filter(Boolean))].sort(order);
   const graph=await extractGraph({repo:root,files,readSource:file=>texts.get(file)??readFileSync(resolve(root,file),'utf8')});
   const byId=new Map(graph.declarations.map(d=>[d.id,d])),atLine=new Map(),inFile=new Map();
   for(const d of graph.declarations){const key=`${d.file}:${d.line}`;(atLine.get(key)??atLine.set(key,[]).get(key)).push(d);
@@ -160,23 +165,35 @@ export async function ownLeaves(leaves,authored,{root=repo,texts=analysedTexts(l
     return here.find(d=>d.kind!=='variable'&&d.name===want)??here.find(d=>d.name===want)??here.find(d=>d.kind==='class')
       ??here.find(d=>d.name==='constructor')??here.find(d=>d.kind!=='variable');
   };
+  // The anchors a declaration and the declarations around it carry, nearest first; the module's
+  // when none does (module-level code).
+  const anchorsOf=(d,file)=>{const found=[];for(let x=d;x;x=x.parent?byId.get(x.parent):null)if(x.anchor)found.push(...prefixes(x.anchor));
+    return found.length?[...new Set(found)]:[`${file}::@module`];};
+  // The anchors of the callable or class at a key: module load code is the module's.
+  const anchorsAt=key=>{const at=keyed(key);if(!at)return [];if(at.offset===0)return [`${at.file}::@module`];
+    const d=holding(at);return d?anchorsOf(d,at.file):[];};
   return leaves.map(leaf=>{
     if(leaf.channel)return {leaf:leaf.id,owner:leaf.owner??'external:unassigned',via:'channel'};
     const at=parse(leaf);
     if(!at)return {leaf:leaf.id,owner:null,gap:'unparsed leaf name'};
     let tried=[],d=null;
+    // State (state.mjs) is owned through what allocates it: an instance by its class's
+    // declaration (its fields are the class's, wherever `new` runs); otherwise the declaration
+    // holding the allocation, then the callable that allocates it (module load code for
+    // module-level state, owned by the module).
+    const byClass=leaf.state?.instanceOf?anchorsAt(leaf.state.instanceOf):[];
+    const byAllocator=leaf.state?.allocatedBy?anchorsAt(leaf.state.allocatedBy):[];
     if(at.name==='(module load)')tried=[`${at.file}::@module`];
     else {
       d=declarationOf(at);
-      if(!d)return {leaf:leaf.id,owner:null,gap:'no declaration holds it'};
-      for(let x=d;x;x=x.parent?byId.get(x.parent):null)if(x.anchor)tried.push(...prefixes(x.anchor));
-      tried=[...new Set(tried)];
-      if(!tried.length)tried=[`${at.file}::@module`];
+      if(!d&&!byClass.length&&!byAllocator.length)return {leaf:leaf.id,owner:null,gap:'no declaration holds it'};
+      tried=d?anchorsOf(d,at.file):[];
     }
-    const declaration=tried.find(a=>owned(a));
-    if(!declaration)return {leaf:leaf.id,owner:null,declaration:tried[0],gap:'no owned declaration'};
+    const own=byClass.find(a=>owned(a))??tried.find(a=>owned(a))??byAllocator.find(a=>owned(a));
+    const declaration=own??byClass[0]??tried[0]??byAllocator[0];
+    if(!own)return {leaf:leaf.id,owner:null,declaration,gap:'no owned declaration'};
     const node=owned(declaration),owner=authored.topOf.get(node);
-    const via=at.name==='(module load)'||declaration===d?.anchor?'exact':'inherited';
+    const via=byClass.includes(declaration)?'instance class':!tried.includes(declaration)?'allocated by':at.name==='(module load)'||declaration===d?.anchor?'exact':'inherited';
     if(!owner)return {leaf:leaf.id,owner:null,declaration,ownerNode:node,via,gap:`owner ${node} is not under a map-0 node`};
     return {leaf:leaf.id,owner,declaration,ownerNode:node,via};
   });
@@ -443,10 +460,10 @@ else if(main) {
   const clock=performance.now();
   const authored=readAuthored(resolve(repo,option('--authored')??'dev-map/sets/030-architecture'));
   const analysis=JSON.parse(readFileSync(input,'utf8'));
-  const model=leafModel(analysis,{actors:authored.actors});
+  const model0=leafModel(analysis,{actors:authored.actors});
   const t1=performance.now();
-  const {texts,changed:sourceChanged}=analysedTexts(model.leaves,{roots:[repo,...options('--source-root').map(r=>resolve(r))]});
-  const owners=await ownLeaves(model.leaves,authored,{texts});
+  const {texts,changed:sourceChanged}=analysedTexts(model0.leaves,{roots:[repo,...options('--source-root').map(r=>resolve(r))]});
+  const {model,owners}=boundaryFileStores(model0,await ownLeaves(model0.leaves,authored,{texts}),{nodes:authored.nodes});
   const t2=performance.now();
   const ownerOf=new Map(owners.filter(o=>o.owner).map(o=>[o.leaf,o.owner]));
   const known=new Set(authored.nodes.map(n=>n.id));

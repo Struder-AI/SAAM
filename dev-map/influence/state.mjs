@@ -13,7 +13,8 @@
 //   field (constraints.mjs readObjects), so a node is the whole object. Its key is its allocation
 //   site with a suffix, `FILE:OFFSET.1` (distinct from a callable allocated there); its name
 //   `FILE:LINE label {fields}`, so its owner is the declaration holding the allocation
-//   (solve-middle.mjs ownLeaves), as for leaves. Arrows: writer leaf `writes` state, state
+//   (solve-middle.mjs ownLeaves), as for leaves; an instance records its class (`instanceOf`),
+//   whose declaration owns it, and every object the callable allocating it (`allocatedBy`). Arrows: writer leaf `writes` state, state
 //   `reads` reader leaf.
 const ELEMENT='[]';
 const ANY='*';
@@ -50,6 +51,14 @@ export function stateFacts(pt,{functions},derived,{modules=[]}={}) {
   const line=(file,start)=>{const m=byFile.get(file);if(!m)return null;
     if(!lines.has(file))lines.set(file,lineAt(m.text));return lines.get(file)(start);};
   const key=id=>functions[canon(id)].key;
+  // An instance (`new C`) and the SAAM class whose constructor sees it as `this`: the class named
+  // at the `new`, else the only one (a subclass instance is also its base's `this`).
+  const classesOf=new Map();
+  for(const f of functions)if(f.kind==='class'&&f.thisNode!==undefined&&canon(f.id)===f.id)
+    for(const o of pt.pts[f.thisNode]??[])(classesOf.get(o)??classesOf.set(o,[]).get(o)).push(f);
+  const classOf=o=>{const cs=classesOf.get(o);if(!cs?.length)return null;const x=pt.objects[o];
+    const named=typeof x.name==='string'&&x.name.startsWith('new ')?cs.find(f=>f.name===x.name.slice(4)):null;
+    return named??(cs.length===1?cs[0]:null);};
   const objects=new Map();
   const at=o=>{
     let r=objects.get(o);if(r)return r;
@@ -64,7 +73,7 @@ export function stateFacts(pt,{functions},derived,{modules=[]}={}) {
     if(!label&&file!==null)label=nameAt(file,start)??`${what}`;
     if(ln===null&&file!==null)ln=x.line??line(file,start)??1;
     r={site:file!==null?`${file}:${start}`:`object:${o}`,file,line:ln,label:label??what,kind:x.kind,
-      ...(owner?{allocatedBy:functions[canon(owner.id)].key}:{}),fields:new Set(),writers:new Set(),readers:new Set()};
+      ...(owner?{allocatedBy:functions[canon(owner.id)].key}:{}),...(classOf(o)?{instanceOf:classOf(o).key}:{}),fields:new Set(),writers:new Set(),readers:new Set()};
     objects.set(o,r);return r;
   };
   for(const f of functions) {
@@ -116,7 +125,7 @@ export function stateNodes(facts,leafOf) {
     const label=`${r.label}${held.length>1?` +${held.length-1} objects`:''} {${fields.join(', ')}}`;
     nodes.push({leaf:`${r.file}:${r.line} ${label}`,key,role:'state',folded:[],foldedKeys:[],
       state:{site:r.site,file:r.file,line:r.line,label,fields:all,kind:r.kind,...(held.length>1?{objects:held.map(x=>x.site)}:{}),
-        ...(r.allocatedBy?{allocatedBy:r.allocatedBy}:{}),writers:ws.size,readers:rs.size}});
+        ...(r.allocatedBy?{allocatedBy:r.allocatedBy}:{}),...(r.instanceOf?{instanceOf:r.instanceOf}:{}),writers:ws.size,readers:rs.size}});
     for(const w of ws)arrows.push({fromKey:w,toKey:key,kind:'writes',count:held.length});
     for(const q of rs)arrows.push({fromKey:key,toKey:q,kind:'reads',count:held.length});
   }
