@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-05 — Slab under skin no longer false-rejects; fixtures; line width and layer limits decided
+
+- Roof chart prisms are bounded by a certified roof height range (`heightReferenceRange`): for a mesh the lowest outward-upward triangle meeting the region, for a spline the highest affine patch proven to cover it; Boolean and uncertified roofs keep the solid's bounds. A base slab under a draped skin no longer false-rejects; a slab reaching into the skin's height still rejects as uncertain (spline and mesh repro). DENSO cladding-prerequisite fixture rebuilt on the current work-graph API; regional-workflow edits after delivery use the current revision through the open Studio. Worker, targeted files singly: denso 7/7, regional-workflow, dobot, printer-profiles, studio-material, bambu, boolean-solid, blob-field, demos pass; workflow keeps 2 owner items.
+- Owner: line width does not follow a printer change (Q21: a check must prove value); profiles must not list allowed layer heights (Q22), and limit-like profile fields are audited to remove dead data (first pass: temperatureLimitsC, maxRetractMm, experimentalMaxFlowMm3S, nominalOffsetMm, boundsBasis have no code reader).
+
 ## 2026-10-05 — Whole suite before release: 56 → 6 failures
 
 - Whole suite (owner-authorized; disposable `SAAM_DATA`, `SAAM_BACKGROUND=1`, concurrency 2; worker): 56 failures of 194 tests at fd3c0aaa, 50 of them predating the Codex batch. Fixtures supply a machine, geometry and the neutral contract, deliver inside the Studio reservation, compare decoded moves with the prepared export path, and use W2's temporary home; assertions of removed behaviour trimmed (Studio approve/deliver routes, generation checks list, decoder audits, material gate, legacy CLI wording). workflow.test.mjs had been running out of memory on every run (a failing `assert.equal` on a whole program object), hiding its last 6 tests; fixed. Product: generation again refuses a profile without an exporter before building geometry (lost in 824e90d2).
