@@ -1,8 +1,5 @@
 // Reproduce the broad-loop, waisted sleeve without an originating private print.
-import {resolve} from 'node:path';
-import {pathToFileURL} from 'node:url';
 import {defaults} from '../../../core/print/plan.mjs';
-import {initBundle,generateBundle} from '../../../core/print/bundle.mjs';
 import {loopPath} from './loop-path.mjs';
 import {depositionAssignment} from '../../../core/print/assignment-records.mjs';
 
@@ -37,12 +34,4 @@ export function irregularLoopDemoPlan(){
   plan.slices.assignments.push(depositionAssignment({construction:'sleeve',id:'wall',endTransition:'spiral',zStartMm:.6,
     pattern:{paths:[loopPath({loops:20,widthCells:2.8,depthMm:4.8,samples:64,beadHeightMm:.2,exterior:'smooth'})],advance:[1,.2],repeats:145}}));
   return plan;
-}
-
-if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){
-  const directory=resolve(process.argv[2]??'Prints/development/irregular-loop-vase');
-  await initBundle(directory,irregularLoopDemoPlan(),{machineId:'ultimaker-s5'});
-  const checked=await generateBundle(directory,{development:true,onProgress:p=>console.log(JSON.stringify(p))});
-  console.log(JSON.stringify({directory,result:checked.result,moves:checked.moves,
-    scope:'Complete mapped-loop development preview; no human manufacturing approval or physical validation.'}));
 }

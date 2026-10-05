@@ -1,8 +1,5 @@
 // A normal rising vase course decorated with overlapping, gently tilted circles.
-import {resolve} from 'node:path';
-import {pathToFileURL} from 'node:url';
 import {defaults} from '../../../core/print/plan.mjs';
-import {initBundle,generateBundle} from '../../../core/print/bundle.mjs';
 import {circlePoints} from '../../../core/geom/cylinder.mjs';
 import {loopPath} from './loop-path.mjs';
 import {depositionAssignment} from '../../../core/print/assignment-records.mjs';
@@ -41,18 +38,4 @@ export function loopDemoPlan({courses=24,loopsPerTurn=20,samplesPerLoop=64,
   for(const settings of Object.values(plan.skills))settings.enabled=false;
   plan.slices.assignments=[depositionAssignment({construction:'sleeve',id:'wall',endTransition:'spiral',pathMode:'continuous',pattern})];
   return plan;
-}
-
-if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){
-  const variant=process.argv[3]??'smooth';
-  if(!['smooth','scalloped','both-scalloped','wavy'].includes(variant))throw new Error('Choose smooth, scalloped, both-scalloped or wavy.');
-  const directory=resolve(process.argv[2]??`Prints/development/${variant}-loop-vase`);
-  const options=variant==='wavy'?{exterior:'scalloped',waveDepthMm:.6,courses:36,loopsPerTurn:32,tileWidthMm:3.2,tileDepthMm:2.4,samplesPerLoop:40}:
-    {exterior:variant};
-  const plan=loopDemoPlan(options);
-  await initBundle(directory,plan,{machineId:'ultimaker-s5'});
-  const checked=await generateBundle(directory,{development:true});
-  console.log(JSON.stringify({directory,moves:checked.moves,estimatedMinutes:checked.estimatedMinutes,
-    variant,options,
-    scope:'Continuous tilted loops warped around a solid host. Development preview; contact and physical printing are not validated.'},null,2));
 }

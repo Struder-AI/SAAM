@@ -1,7 +1,4 @@
 import {developmentPipePlan,tubeSurface,splineTube} from './demo.mjs';
-import {initBundle,generateBundle} from '../../../core/print/bundle.mjs';
-import {resolve} from 'node:path';
-import {pathToFileURL} from 'node:url';
 
 export function bumpyPlan(){
   const plan=developmentPipePlan(),columns=16;
@@ -17,10 +14,4 @@ export function bumpyPlan(){
   const coating=plan.slices.assignments.find(a=>a.stack?.direction==='normal');
   Object.assign(coating,{within:[{kind:'normal-band',fromMm:0,toMm:1.2}],sampleStepMm:.65,fillOrder:{...coating.fillOrder,toleranceMm:.01},surface:tubeSurface(columns)});
   return plan;
-}
-if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){
-  const directory=resolve(process.argv[2]??'Prints/development/denso-bumpy-spline');
-  await initBundle(directory,bumpyPlan(),{machineId:'denso-vs068a4-rc8a'});
-  console.log('Created bumpy spline geometry: '+directory);
-  const checks=await generateBundle(directory,{development:true});console.log(JSON.stringify(checks,null,2));
 }

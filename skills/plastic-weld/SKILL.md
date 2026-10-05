@@ -42,7 +42,7 @@ Supported combinations:
 - Draped roofs, vase walls, thick lips, waves and supports can coexist elsewhere
   in the plan. The cavity itself must lie in solid planar material. Continuous or
   curved deposition crossing a cavity is rejected, rather than split silently.
-- Existing composition ordering, travel, cooling, plan locking, CLI/MCP edits,
+- Existing composition ordering, travel, cooling, plan locking, `saam` edits,
   Studio review and exact-byte delivery. Higher operations wait for injection.
 - S5 Griffin and experimental H2D output. The robot relay exporters cannot yet
   represent metered stationary extrusion or nozzle-temperature changes; they
@@ -126,19 +126,12 @@ Site counts have no fixed cap. Check that the chosen grid fits the body.
 
 ## Generate, review and adjust
 
-Use the normal recipe template, `create_bundle`/CLI `init`, and
-`adjust_recipe`/CLI `adjust`; no separate weld command or artifact format exists.
-Disable draped-skin in a plain coupon recipe. For a reproducible unapproved trial:
-
-```sh
-node skills/plastic-weld/scripts/example.mjs Prints/plastic-weld-trial
-node core/print/cli.mjs demo Prints/plastic-weld-trial
-node studio/server.mjs Prints/plastic-weld-trial
-```
-
-The example creates a 24 × 16 × 9 mm solid coupon with two staggered rivets. Add
-`--sparse` to its creation command for the sealed-envelope infill variant. Creation
-refuses an existing destination. Development generation creates no human approval.
+Use the normal recipe template, `create_bundle` and `adjust_recipe`; no separate
+weld command or artifact format exists. Disable draped-skin in a plain coupon
+recipe. A reproducible trial is a 24 × 16 × 9 mm solid coupon (slice
+`fillDensity: 1`) with the two staggered sites of one column, one row and two
+levels at 12 mm pitch from X 6, Y 8 mm; keep the default slice for the
+sealed-envelope infill variant. Generation creates no human approval.
 
 In Studio, inspect the empty basin and shaft before each weld layer, the solid
 floor and envelope, then the stationary injection marker. The marker shows the

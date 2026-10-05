@@ -75,5 +75,5 @@ high-curvature geometry and inspect starts/stops in Studio.
 
 [example.mjs](scripts/example.mjs) authors a small saddle beyond a box;
 [canopy-example.mjs](scripts/canopy-example.mjs) authors a larger surrounding
-canopy. Both create unapproved bundles through normal review. Split fronts may require multiple passes; inspect the resulting shared travel.
+canopy. Split fronts may require multiple passes; inspect the resulting shared travel.
 [Implementation and provenance](DEVELOPER.md) records method and attribution.
