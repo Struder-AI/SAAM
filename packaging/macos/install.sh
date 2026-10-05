@@ -1,7 +1,8 @@
 #!/bin/bash
 # Installs SAAM for this macOS user into ~/SAAM/app, replacing an
 # earlier installation, writes ~/Applications/SAAM.app and starts SAAM.
-# Install SAAM.command runs this script inside the release's app folder;
+# An agent runs bash app/packaging/macos/install.sh in the extracted release
+# folder (no double-click installer: Gatekeeper blocks one from a download);
 # app.tar sits next to app/. A running SAAM updating itself uses the same path:
 #   bash .../install.sh --wait-pid <pid> --workspace <dir> --workspace-token <token>
 # from a home tmp workspace: it claims the workspace, waits for that SAAM to

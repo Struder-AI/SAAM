@@ -10,7 +10,7 @@
 // --update-host is the release folder this build accepts updates from (see
 // packaging/update.mjs); without it the build never offers an update.
 //
-// The ZIP holds one folder: the installer, README.txt, the application as one
+// The ZIP holds one folder: the Windows double-click installer, README.txt, the application as one
 // archive (app.tar, so unpacking the ZIP writes a handful of files rather than
 // thousands) and app/, which holds only release.json and the installer scripts
 // at the path an installed SAAM's update runs them from
@@ -32,8 +32,8 @@ import {orchestratorContract} from '../core/application/runtime-selection.mjs';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const PLATFORMS={
   'win-x64':{os:'windows',archive:'zip',binary:'node.exe',installer:'Install SAAM.cmd',scripts:['install.ps1','common.ps1']},
-  'darwin-arm64':{os:'macos',archive:'tar.gz',binary:'bin/node',installer:'Install SAAM.command',scripts:['install.sh']},
-  'darwin-x64':{os:'macos',archive:'tar.gz',binary:'bin/node',installer:'Install SAAM.command',scripts:['install.sh']}
+  'darwin-arm64':{os:'macos',archive:'tar.gz',binary:'bin/node',scripts:['install.sh']},
+  'darwin-x64':{os:'macos',archive:'tar.gz',binary:'bin/node',scripts:['install.sh']}
 };
 // Tracked files a maker's installation does not need: development maps and
 // tooling, tests, the relay service and this packager.
@@ -74,13 +74,12 @@ async function measure(folder){
 }
 const describe=({files,bytes})=>`${files} files, ${(bytes/1e6).toFixed(1)} MB`;
 
-// Windows cannot set Unix executable bits on disk. Write them into the Mac ZIP
-// itself so Finder can launch Install SAAM.command immediately after extraction.
+// Windows cannot set Unix modes on disk, so the Mac ZIP records them itself.
 async function writeMacZip(folder,zip){
   const entries={};
   for(const entry of await readdir(folder,{recursive:true,withFileTypes:true})){
     const path=join(entry.parentPath,entry.name),name=relative(dirname(folder),path).replaceAll('\\','/');
-    const directory=entry.isDirectory(),mode=directory?0o40755:entry.name.endsWith('.command')?0o100755:0o100644;
+    const directory=entry.isDirectory(),mode=directory?0o40755:0o100644;
     entries[name+(directory?'/':'')]=[directory?new Uint8Array():await readFile(path),{os:3,attrs:(mode<<16)>>>0}];
   }
   await writeFile(zip,zipSync(entries));
@@ -215,8 +214,9 @@ async function main(){
   await rm(home,{recursive:true,force:true});
   run(TAR,['-cf',resolve(folder,'app.tar'),'-C',app,'.'],{env:TAR_ENV});
 
-  // The installer and what it needs before app.tar is unpacked.
-  await copyFile(resolve(root,'packaging',target.os,target.installer),resolve(folder,target.installer));
+  // What installation needs before app.tar is unpacked. macOS has no double-click
+  // installer: an agent installs it (a browser download meets Gatekeeper).
+  if(target.installer)await copyFile(resolve(root,'packaging',target.os,target.installer),resolve(folder,target.installer));
   await copyFile(resolve(root,'packaging',target.os,'README.txt'),resolve(folder,'README.txt'));
   const scripts=resolve(folder,'app','packaging',target.os);await mkdir(scripts,{recursive:true});
   for(const script of target.scripts)await copyFile(resolve(root,'packaging',target.os,script),resolve(scripts,script));
