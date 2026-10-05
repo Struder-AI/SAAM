@@ -180,7 +180,12 @@ export function createStudio(directory,{libraryRoot,machineSetups,resolveBundle=
     const selected=resolve(target);
     const run=editTail.then(async()=>{
       await opened;
-      if(dir&&dir!==selected)throw Error('The Studio changed before bundle creation.');
+      // A reused window leaves its print for the bundle being created.
+      if(dir&&dir!==selected){
+        if(operations.active||(await chat.current.tour.info()).active)throw Error('The Studio changed before bundle creation.');
+        if(reservation&&reservedDirectory===dir){await releaseBundleInstance(dir,reservation);reservation=null;reservedDirectory=null;}
+        discardPreparation();dir=null;opened=Promise.resolve(null);lifetime.notify('studio-update',{kind:'state',kinds:['print']});
+      }
       const previous=reservation&&reservedDirectory===selected?await bundleInstance(selected):null;
       if(previous?.token!==reservation?.token){reservation=null;reservedDirectory=null;}
       if(!reservation&&fresh){await mkdir(dirname(selected),{recursive:true});await mkdir(selected);}
