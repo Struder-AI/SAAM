@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-04 — One setup check, run by the application at first start
+
+- Owner: keep the setup check; SAAM runs it, not the maker agent. One `checkSetup` (scripts/setup-check.mjs) serves source checkouts (`npm run setup:check`), the release build and the installed application; its temp folder comes from the home's `tmp/` owner and a failure names its stage. The application runs it at each version's first start and records the passed version in `state/setup-check.json`; a failure still starts SAAM, reports `setup-check-failed` to diagnostics, returns `setupProblem` from `maker_onboarding` and reruns next start. `packaging/build.mjs` checks the built package in a disposable home before accepting it. Ownership moved to Application.
+- Worker, disposable home: first start ran it (1.65 s) and recorded the version, the second skipped it (0.35 s), a missing `manifold.wasm` appeared in `maker_onboarding` and first-run diagnostics; the build-path call failed on the broken kernel and passed intact against a scratch package. Team decisions: source runs rerun it after each commit (about 1.5 s, accepted); cross-platform builds check with the host's Node and warn; later failures are not retained beyond the relay (next start re-reports). Full release build not run. No tests run beyond review-state (its productionReady failure predates the change).
+
 ## 2026-10-04 — Labels after the full solve
 
 - Worker: dropped the 63 labels of retired clusters, labelled 65 new clusters, relabelled 25 that kept identity through a weak rematch but changed content; all 171 solved clusters labelled (layout.json labels only). Merged and regenerated: 162 identities kept, 18 positions and 171 labels applied, none missing; checks and reads ok. 100 clusters flagged mixed in the owner review list, mostly geometry and extensions (STL decoding and repair spread across 2.1–2.4): a grouping question for the solver objective. Donate deferred to 0.3.4 (plans/0.3.4.md); its disabled button removed. No tests run.

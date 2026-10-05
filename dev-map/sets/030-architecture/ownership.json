@@ -1456,8 +1456,8 @@
       "reason": "Repository documentation link, anchor and digest-freshness check; development tooling."
     },
     "scripts/setup-check.mjs": {
-      "owner": "development",
-      "reason": "Source checkout setup verification (dependencies, kernels, bundle and Studio smoke); development tooling."
+      "owner": "application",
+      "reason": "One setup check shared by the installed application (first start per version), the release build and source checkouts."
     },
     "scripts/skill-digest.mjs": {
       "owner": "development",
@@ -11599,13 +11599,13 @@
       "owner": "development"
     },
     "scripts/setup-check.mjs::@module": {
-      "owner": "development"
+      "owner": "application"
     },
     "scripts/setup-check.mjs::checkSetup": {
-      "owner": "development"
+      "owner": "application"
     },
     "scripts/setup-check.mjs::deadline": {
-      "owner": "development"
+      "owner": "application"
     },
     "scripts/skill-digest.mjs::@module": {
       "owner": "development"
