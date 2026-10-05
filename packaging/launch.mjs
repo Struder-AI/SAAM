@@ -17,4 +17,9 @@ async function launch(){
   const stop=()=>void application.stop().catch(error=>console.error(error.message));
   process.on('SIGINT',stop);process.on('SIGTERM',stop);process.on('SIGHUP',stop);
 }
-launch().catch(error=>{process.exitCode=1;console.error('SAAM could not start:',error.message);});
+// A command that launched this process over IPC hears its startup failure, then is released.
+function release(){if(process.connected)process.disconnect();}
+launch().then(release,error=>{
+  process.exitCode=1;console.error('SAAM could not start:',error.message);
+  if(process.connected)process.send({startupFailure:error.message},release);
+});

@@ -12161,6 +12161,15 @@
     "core/application/home-layout.mjs::restoreLocalData": {
       "owner": "application"
     },
+    "core/application/home-layout.mjs::REQUEST_RECORDS": {
+      "owner": "application"
+    },
+    "core/application/home-layout.mjs::homeRelative": {
+      "owner": "application"
+    },
+    "core/application/home-layout.mjs::retireRequestRecords": {
+      "owner": "application"
+    },
     "core/application/temporary-workspace.mjs::@module": {
       "owner": "application"
     },
@@ -12641,6 +12650,12 @@
       "owner": "application"
     },
     "packaging/launch.mjs::launch::stop": {
+      "owner": "application"
+    },
+    "packaging/launch.mjs::release": {
+      "owner": "application"
+    },
+    "packaging/application.mjs::startApplication::openService": {
       "owner": "application"
     },
     "scripts/saam.mjs::runSaam::runtime": {

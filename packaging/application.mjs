@@ -40,9 +40,20 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
     if(options.error)await reports.networkIssue(event,options.error).catch(()=>{});
   };
   const instanceFile=resolve(paths.state,'instance.json');
+  const config=await releaseConfiguration(),instanceId=randomBytes(16).toString('hex');
+  // The release service reads only its state file and configuration. It opens once
+  // this process holds the home's lease, or to report a failure to obtain it.
+  const openService=async()=>state.services??=await createReleaseService({...config,instanceId,statePath:resolve(paths.state,'release-service.json'),watchState:true,reports,
+    update:config.platform&&config.updateHost?async(offered,{force=false}={})=>{
+      const jobs=await state.runtime.runningJobs();
+      if(jobs.length&&!force)return {confirmationRequired:true,jobs,message:'Updating SAAM cancels these running jobs:\n'+describeJobs(jobs)};
+      const result=await installUpdate(offered,{...config,report:(event,options)=>report(event,options)});await state.runtime.notifyStopping('update');later();return result;
+    }:null,
+    quit:({force=false}={})=>quit(force)});
   // Ending reports its outcome (stopped, stop failed or startup failed), then
   // closes the release service, which delivers what it already accepted.
   function end(failure=null){return state.stopping??=(async()=>{
+    if(failure)await openService().catch(()=>{});
     state.services?.observeRuntime(null);
     let cleanupError=null;
     try{
@@ -91,18 +102,11 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
         await new Promise(done=>setTimeout(done,200));
       }
     }
+    await openService();
     await report({kind:'application-starting'},{firstRun:true});
     state.migration=await migrateLocalData(paths.home);
     await cleanupTemporaryWorkspaces();
     await writeHomeGuidance(paths.home);
-    const config=await releaseConfiguration(),instanceId=randomBytes(16).toString('hex');
-    state.services=await createReleaseService({...config,instanceId,statePath:resolve(paths.state,'release-service.json'),watchState:true,reports,
-      update:config.platform&&config.updateHost?async(offered,{force=false}={})=>{
-        const jobs=await state.runtime.runningJobs();
-        if(jobs.length&&!force)return {confirmationRequired:true,jobs,message:'Updating SAAM cancels these running jobs:\n'+describeJobs(jobs)};
-        const result=await installUpdate(offered,{...config,report:(event,options)=>report(event,options)});await state.runtime.notifyStopping('update');later();return result;
-      }:null,
-      quit:({force=false}={})=>quit(force)});
     state.runtimeMigration=await migrateRuntimeState(paths.state);
     state.runtime=await createRuntimeRegistry({paths,autoOpen,services:state.services,retryClients,codeRoot});
     state.services.observeRuntime(state.runtime);
