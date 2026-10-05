@@ -1,19 +1,20 @@
 // One ready local application owns commands, Studios, jobs and release services.
-import {mkdir,writeFile,unlink,readFile,appendFile} from 'node:fs/promises';
+import {writeFile,unlink,readFile} from 'node:fs/promises';
 import {createServer} from 'node:http';
 import {randomBytes} from 'node:crypto';
 import {resolve} from 'node:path';
-import {spawn} from 'node:child_process';
 import {z} from 'zod';
 import {homePaths} from '../core/application/home.mjs';
+import {migrateLocalData,restoreLocalData} from '../core/application/home-layout.mjs';
 import {createLocalRuntime,instructions} from '../core/application/runtime.mjs';
 import {applicationPort,readInstance,controlRequest} from '../core/application/control.mjs';
 import {createReleaseService,releaseConfiguration} from './release-service.mjs';
 import {installUpdate} from './update.mjs';
 import {startTray} from './tray.mjs';
-import {clientStatus,setupClients,writeHomeGuidance} from './client-setup.mjs';
+import {setupClients,writeHomeGuidance} from './client-setup.mjs';
 import {replaceFile} from '../core/file-write.mjs';
-import {openBrowser} from '../studio/browser.mjs';
+import {createDiagnosticReports} from '../core/application/diagnostics.mjs';
+import {cleanupTemporaryWorkspaces} from '../core/application/temporary-workspace.mjs';
 
 async function jsonBody(request){
   const chunks=[],size={bytes:0};
@@ -25,48 +26,43 @@ async function jsonBody(request){
 function respond(response,value,status=200){response.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});response.end(JSON.stringify(value));}
 export async function startApplication({autoOpen=true,openOnStart=true,tray=true}={}){
   const paths=homePaths();
-  await Promise.all([paths.prints,paths.extensions,resolve(paths.state,'logs')].map(path=>mkdir(path,{recursive:true})));
-  const log=async(...parts)=>appendFile(resolve(paths.state,'logs','saam.log'),new Date().toISOString()+' '+parts.join(' ')+'\n');
+  const reports=createDiagnosticReports({home:paths.home});
   const previous=await readInstance();
   if(previous){try{return {existing:true,...await controlRequest(previous,{command:openOnStart?'open':'status'},{waitMs:3000})};}catch{/* Binding the installation's OS endpoint decides ownership. */}}
-  const state={runtime:null,services:null,tray:null,control:null,stopping:null,clients:null},token=randomBytes(24).toString('hex');
+  const state={runtime:null,services:null,tray:null,control:null,stopping:null,migration:null},token=randomBytes(24).toString('hex');
+  const report=async(event,options={})=>{
+    if(state.services)return state.services.recordDiagnostic(event,options);
+    if(options.firstRun)await reports.firstRun(event,{complete:options.complete}).catch(()=>{});
+    if(options.error)await reports.networkIssue(event,options.error).catch(()=>{});
+  };
   const instanceFile=resolve(paths.state,'instance.json');
   async function stop(){return state.stopping??=(async()=>{
     state.tray?.stop();state.services?.close();await state.runtime?.close();
+    let recoveryError;
+    if(state.migration){
+      try{await restoreLocalData(state.migration);state.migration=null;}
+      catch(error){recoveryError=error;await report({kind:'startup-data-restore-failed',error:error.message},{firstRun:true}).catch(()=>{});}
+    }
     if(state.control?.listening){const closed=new Promise(done=>state.control.close(done));state.control.closeAllConnections();await closed;}
     const current=JSON.parse(await readFile(instanceFile,'utf8').catch(()=>'{}'));
     if(current.token===token)await unlink(instanceFile).catch(()=>{});
-    await log('SAAM stopped.');
+    await report({kind:'application-stopped'});
+    if(recoveryError)throw recoveryError;
   })();}
-  const later=()=>{setTimeout(()=>void stop().catch(error=>log('Stop failed:',error.message)),250);};
+  const later=()=>{setTimeout(()=>void stop().catch(error=>report({kind:'application-stop-failed',error:error.message})),250);};
   async function quit(force=false){
     const jobs=await state.runtime.runningJobs();
     if(jobs.length&&!force)return {confirmationRequired:true,jobs,message:'SAAM has running jobs. Quit and cancel them?'};
     state.runtime.notifyStopping('quit');later();return {quitting:true};
   }
-  async function retryClients(){state.clients=await setupClients({home:paths.home});return state.clients;}
-  async function startClient(instanceId,client){
-    state.clients=await retryClients();
-    const selected=state.clients.clients.find(value=>value.id===client);
-    if(!selected?.ready)throw Error(selected?.reason??'Choose Codex or Claude Code.');
-    await state.runtime.detachStudio(instanceId);
-    if(client==='codex'){
-      const prompt='Read AGENTS.md in this SAAM home, then run saam call maker_onboarding and connect to the waiting Studio. Guide me through the open part or tour.';
-      const link=new URL('codex://threads/new');link.searchParams.set('path',paths.home);link.searchParams.set('prompt',prompt);
-      if(!await openBrowser(link.href))throw Error('Codex could not be opened. Retry after installing or updating it.');
-      return {waiting:true,client,firstSend:true,message:'Press Send in Codex to connect.',setupErrors:state.clients.errors};
-    }
-    if(client!=='claude')throw Error('Choose Codex or Claude Code.');
-    const child=spawn(selected.command,['--desktop'],{cwd:paths.home,stdio:'ignore',windowsHide:true,shell:process.platform==='win32'&&selected.command.toLowerCase().endsWith('.cmd')});
-    await new Promise((done,fail)=>{child.once('spawn',done);child.once('error',fail);});child.unref();
-    return {waiting:true,client,firstSend:true,message:'In Claude Code, ask the agent to read AGENTS.md and run saam call maker_onboarding.',setupErrors:state.clients.errors};
-  }
+  async function retryClients(){return setupClients({home:paths.home});}
+
   try{
     // The OS listener is the exclusive application lease, including during startup.
     state.control=createServer(async(request,response)=>{
       if(request.method!=='POST'||request.url!=='/control'||request.headers['x-saam-control']!==token||request.headers.origin){respond(response,{ok:false,error:'Invalid local control request.'},403);return;}
       try{respond(response,await command(await jsonBody(request)));}
-      catch(error){respond(response,{ok:false,error:error.message,code:error.code??null,...(error.workRequest?{workRequest:error.workRequest}:{})},400);}
+      catch(error){respond(response,{ok:false,error:error.message,code:error.code??null,...(error.code==='STUDIO_TARGET_CHANGED'?{currentStudio:error.currentStudio,expectedStudio:error.expectedStudio}:{}),...(error.workRequest?{workRequest:error.workRequest}:{}),...(error.importDiagnostic?{importDiagnostic:error.importDiagnostic}:{})},400);}
     });
     try{await new Promise((done,fail)=>{state.control.once('error',fail);state.control.listen(applicationPort(paths.home),'127.0.0.1',done);});}
     catch(error){
@@ -79,19 +75,25 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
         await new Promise(done=>setTimeout(done,200));
       }
     }
+    await report({kind:'application-starting'},{firstRun:true});
+    state.migration=await migrateLocalData(paths.home);
+    await cleanupTemporaryWorkspaces();
     await writeHomeGuidance(paths.home);
     const config=await releaseConfiguration(),instanceId=randomBytes(16).toString('hex');
-    state.services=await createReleaseService({...config,instanceId,statePath:resolve(paths.state,'release-service.json'),watchState:true,
+    state.services=await createReleaseService({...config,instanceId,statePath:resolve(paths.state,'release-service.json'),watchState:true,reports,
       update:config.platform&&config.updateHost?async(offered,{force=false}={})=>{
         const jobs=await state.runtime.runningJobs();
         if(jobs.length&&!force)return {confirmationRequired:true,jobs,message:'Updating SAAM cancels running jobs.'};
-        const result=await installUpdate(offered,{...config,data:paths.state,log});state.runtime.notifyStopping('update');later();return result;
+        const result=await installUpdate(offered,{...config,data:paths.state,report:(event,options)=>report(event,options)});state.runtime.notifyStopping('update');later();return result;
       }:null,
       quit:({force=false}={})=>quit(force)});
     state.runtime=createLocalRuntime({printsRoot:paths.prints,stateRoot:paths.state,autoOpen,relay:state.services,
-      application:{startClient,detach:instanceId=>state.runtime.detachStudio(instanceId),clientStatus,retryClients}});
+      application:{retryClients}});
     state.services.observeRuntime(state.runtime);
     async function command(message){
+      if(message.command==='record-diagnostic'){
+        await report(message.event,message.options);return {ok:true};
+      }
       if(message.command==='diagnostics')return {ok:true,receipt:await state.services.flushDiagnostics(),service:state.services.status()};
       if(message.command==='status')return {ok:true,pid:process.pid,instanceId,version:config.version,home:paths.home,jobs:await state.runtime.runningJobs(),studios:state.runtime.studios(),service:state.services.status()};
       if(message.command==='open')return {ok:true,...await state.runtime.openStudio({studioInstanceId:message.studioInstanceId})};
@@ -109,7 +111,7 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
       const definition=state.runtime.operations.find(value=>value.name===operationName);
       if(!definition)throw Error('Use saam help to choose a command or operation.');
       definition.schema.parse(message.args??{});
-      const chat=await state.runtime.connectChat({id:message.chatId,name:message.chatName??(message.client?message.client+' '+message.chatId.slice(0,8):message.chatId),client:message.client,bundleId:message.operation==='capture_bundle'?undefined:message.bundleId});
+      const chat=await state.runtime.connectChat({id:message.chatId,name:message.chatName??(message.client?message.client+' '+message.chatId.slice(0,8):message.chatId),client:message.client,bundleId:message.operation==='capture_bundle'?undefined:message.bundleId,operation:operationName,args:message.args??{}});
       if(message.command==='wait')return {ok:true,result:await chat.invoke('wait_for_studio_request',message.args??{})};
       if(message.command==='start-tour')return {ok:true,result:await chat.invoke('start_tour',message.args??{})};
       if(message.command!=='call'||typeof message.operation!=='string')throw Error('Use saam help, call, wait, start-tour, open, status, update or quit.');
@@ -118,8 +120,12 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
     const record={instanceId,pid:process.pid,port:state.control.address().port,token,version:config.version};
     if(tray)state.tray=await startTray(record);
     await replaceFile(instanceFile,JSON.stringify(record)+'\n');
-    await log('SAAM ready:',config.version,'home:',paths.home);
     if(openOnStart)await state.runtime.openStudio();
+    await report({kind:'application-ready',version:config.version},{firstRun:true,complete:true});
+    state.migration=null;
     return {existing:false,record,runtime:state.runtime,services:state.services,stop};
-  }catch(error){await stop().catch(()=>{});await log('Startup failed:',error.stack??error.message);throw error;}
+  }catch(error){
+    await stop().catch(cleanup=>{error.cleanupError=cleanup.message;error.message+=' Startup cleanup failed: '+cleanup.message;});
+    await report({kind:'application-startup-failed',error:error.message,...(error.cleanupError?{cleanupError:error.cleanupError}:{})},{firstRun:true,complete:true,error});throw error;
+  }
 }

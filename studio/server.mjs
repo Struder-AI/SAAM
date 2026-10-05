@@ -1,7 +1,7 @@
 import {createTour,tourExample,useExample} from './tour.mjs';
 import {bundleFor,readStableBundle,supportsBundleSchema} from './adapter-resolution.mjs';
 import {TOUR_STEPS,TOUR_LESSONS as L} from './tour-catalog.mjs';
-import {createAgentRequests,workSnapshot} from './agent-requests.mjs';
+import {createAgentRequests} from './agent-requests.mjs';
 import {composeStudioState} from './state-response.mjs';
 import {completedOutputState} from '../core/print/review-state.mjs';
 import {printName,downloadName,requestedDownloadName} from './print-name.mjs';
@@ -9,13 +9,13 @@ import {importStudioSTL,loadStudioImportRepair} from './import-stl.mjs';
 import http from 'node:http';
 import {watchStudioChanges} from './changes.mjs';
 import {createStudioEvents} from './studio-events.mjs';
-import { readFile, readdir, stat, realpath } from 'node:fs/promises';
+import { readFile, readdir, stat, realpath, mkdir } from 'node:fs/promises';
 import { resolve, dirname, basename, isAbsolute, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes, createHash } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
 import {PreparedGenerationJob} from './prepared-generation-job.mjs';
-import {claimBundleInstance,releaseBundleInstance,reassignBundleInstance,withBundleInstance} from '../core/print/studio-ownership.mjs';
+import {claimBundleInstance,releaseBundleInstance,reassignBundleInstance,withBundleInstance,bundleInstance} from '../core/print/studio-ownership.mjs';
 import { viewerLifetime } from './lifetime.mjs';
 import {homePaths} from '../core/application/home.mjs';
 
@@ -110,11 +110,11 @@ async function serviceInput(request){
   return JSON.parse(Buffer.concat(chunks).toString()||'{}');
 }
 const noPrint=()=>Object.assign(Error('No print is open. Open a saved print, import an STL, start the tour, or ask your agent to make a part.'),{code:'NO_PRINT'});
-const printFreeRoutes=new Set(['/api/open','/api/tour','/api/view-performance','/api/import-stl','/api/cancel-calculation','/api/chat/start','/api/chat/detach','/api/chat/retry']);
+const printFreeRoutes=new Set(['/api/open','/api/tour','/api/view-performance','/api/import-stl','/api/cancel-calculation']);
 // A local development launcher may explicitly supply a scratch adapter resolver.
 // This is a function supplied by code, never a module path supplied by a print or HTTP request.
 // A null directory opens Studio with no print; the person or agent opens one later.
-export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBundle=bundleFor,agentOwnerId,agentRequests,studioEvents,relay,application,requestFolder,chatName,chatClient}={}) {
+export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBundle=bundleFor,agentOwnerId,agentRequests,studioEvents,relay,requestFolder,chatName,chatClient}={}) {
   const instanceId=randomBytes(16).toString('hex');
   const initialOwnerId=agentOwnerId??agentRequests?.ownerId??`studio:${instanceId}`;
   if(agentRequests?.ownerId&&agentRequests.ownerId!==initialOwnerId)throw Error('The request store belongs to another chat.');
@@ -124,7 +124,7 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
   const chat={current:{ownerId:initialOwnerId,requests:initialRequests,events:initialEvents,
     tour:createTour(libraryRoot,{ownerId:initialOwnerId,studioId:instanceId,agentRequests:initialRequests}),
     attached:initialOwnerId.startsWith('studio:')?null:Object.freeze({ownerId:initialOwnerId,name:chatName??initialOwnerId,client:chatClient??null})},
-    waitingClient:null,stopRequestFeed:null};
+    stopRequestFeed:null};
   const geometryOnly=guide=>guide.active&&guide.directory===dir&&guide.step<L.playback;
   const viewFingerprint=(id,fingerprint,guide)=>id+fingerprint+(geometryOnly(guide)?':geometry':':program');
   let dir=directory?resolve(directory):null;
@@ -146,7 +146,7 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
   const printIdFor=directory=>createHash('sha256').update(resolve(directory)).digest('hex');
   const printId=()=>printIdFor(dir);
   let queue=Promise.resolve();
-  const operations={active:0};
+  const operations={active:0,creating:false};
   function queueOperation(action){
     operations.active++;
     const run=queue.then(action).finally(()=>{operations.active--;});
@@ -175,6 +175,21 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
     });
     editTail=run.catch(()=>{});
     return run;
+  };
+  const runBundleCreation=(target,action,{fresh=true}={})=>{
+    const selected=resolve(target);
+    const run=editTail.then(async()=>{
+      await opened;
+      if(dir&&dir!==selected)throw Error('The Studio changed before bundle creation.');
+      const previous=reservation&&reservedDirectory===selected?await bundleInstance(selected):null;
+      if(previous?.token!==reservation?.token){reservation=null;reservedDirectory=null;}
+      if(!reservation&&fresh){await mkdir(dirname(selected),{recursive:true});await mkdir(selected);}
+      const claim=reservation??await claimBundleInstance(selected,{instanceId,ownerId:chat.current.ownerId});
+      reservation=claim;reservedDirectory=selected;operations.active++;operations.creating=true;
+      try{return await withBundleInstance(selected,claim,()=>action(claim));}
+      finally{operations.creating=false;operations.active--;}
+    });
+    editTail=run.catch(()=>{});return run;
   };
   const releaseInstance=()=>{
     const run=editTail.then(async()=>{
@@ -255,10 +270,10 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
         if(value.phase==='repair'&&importProgress.progress.phase!=='repair')note('import-repair-started',{jobId:importProgress.jobId,name:name??null,elapsedMs:Date.now()-importProgress.startedAt});
         importProgress={...importProgress,progress:value};publishProgress();
       }});}
-    catch(error){note(importController.signal.aborted?'import-cancelled':'import-failed',{jobId:importProgress.jobId,name:name??null,error:error.message,elapsedMs:Date.now()-importProgress.startedAt});throw error;}
+    catch(error){note(importController.signal.aborted?'import-cancelled':'import-failed',{jobId:importProgress.jobId,name:name??null,error:error.message,importDiagnostic:error.importDiagnostic??{stage:importProgress.progress.phase??'import',failure:{name:error.name,code:error.code??null,message:error.message}},elapsedMs:Date.now()-importProgress.startedAt});throw error;}
     finally{signal?.removeEventListener('abort',abort);const finished=importProgress;importProgress=null;importController=null;publishProgress({...finished,status:'idle',progress:null,cancellable:false});}
     await openPrint(imported.directory);
-    note('import-completed',{name:await printName(dir),units:units??null});
+    note('import-completed',{name:await printName(dir),units:units??null,importDiagnostic:imported.importDiagnostic});
     return imported;
   };
   const readGeneration=async current=>{
@@ -327,7 +342,7 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
   };
   const exportPrint=async(current,state,data,progress)=>{
     const name=requestedDownloadName(data.name,await printName(state.dir,state.plan),state.exportName);
-    const delivered=await current.exportReviewed(state);
+    const delivered=await runBundleEdit(state.dir,()=>current.exportReviewed(state));
     const inTour=progress.active&&progress.directory===state.dir;
     if(inTour)await chat.current.tour.downloaded(delivered.exportHash);
     note('export-delivered',{tour:inTour,name,exportHash:delivered.exportHash});
@@ -337,6 +352,7 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
     await opened;
     const next=await printDirectory(input,resolveBundle),adapter=await resolveBundle(next);
     await readStableBundle(adapter,next,{program:false});
+    if(next!==dir&&reservation&&reservedDirectory===next){discardPreparation();dir=next;opened=Promise.resolve(adapter);return;}
     if(next!==dir){
       const claim=await claimBundleInstance(next,{instanceId,ownerId:chat.current.ownerId});
       switching=true;
@@ -408,8 +424,7 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
         return;
       }
       if(req.method==='GET'&&url.pathname==='/api/chat'){
-        const clients=application?await application.clientStatus():{clients:[]};
-        send({instanceId,attachment:server.attachment(),waitingClient:chat.waitingClient,...clients});return;
+        send({instanceId,attachment:server.attachment()});return;
       }
       if(req.method==='GET'&&url.pathname==='/api/tour'){send(await chat.current.tour.info());return;}
       if(req.method==='GET'&&url.pathname==='/api/view-performance'){send({reports:viewPerformance});return;}
@@ -440,11 +455,7 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
         if(readDir!==dir||url.searchParams.get('printId')!==readId||url.searchParams.get('revision')!==String(state.revision)
           ||state.artifacts.path!=='current'||!artifact||url.searchParams.get('pathHash')!==artifact.hash)
           throw Error('The saved SAAMpath changed. Reload before viewing.');
-        if(!/^[a-f0-9]{64}$/.test(artifact.hash)||artifact.file!==`paths/${artifact.hash}.json`)
-          throw Error('Invalid saved SAAMpath reference.');
-        const bytes=await readFile(resolve(readDir,artifact.file));
-        if(createHash('sha256').update(bytes).digest('hex')!==artifact.hash)
-          throw Error('Saved SAAMpath changed; regenerate it.');
+        const bytes=await bundle.readToolpath(state);
         res.writeHead(200,{'Content-Type':'application/json','Content-Length':bytes.length});res.end(bytes);return;
       }
       if(req.method==='GET'&&url.pathname==='/api/state') {
@@ -491,24 +502,12 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
       }
       if(req.method!=='POST'||!url.pathname.startsWith('/api/')){send({error:'Not found'},404);return;}
       if(req.headers.origin!==origin||req.headers['x-saam-token']!==token){send({error:'Invalid local session'},403);return;}
+      if(operations.creating&&url.pathname!=='/api/cancel-calculation')throw Error('The print is being created. Wait for the current operation before changing Studio.');
       // A print, once open, stays open, so this check cannot go stale in the queue.
       if(!dir&&!printFreeRoutes.has(url.pathname))throw noPrint();
       const importing=url.pathname==='/api/import-stl',chunks=[];let size=0;
       for await(const chunk of req){size+=chunk.length;if(size>(importing?64*1024*1024:64_000))throw Error('Request too large.');chunks.push(chunk);}
       const body=Buffer.concat(chunks),data=importing?Object.fromEntries(url.searchParams):JSON.parse(body.toString()||'{}');
-      if(url.pathname.startsWith('/api/chat/')){
-        if(!application)throw Error('Chat launch is available through the SAAM application.');
-        if(url.pathname==='/api/chat/start'){
-          if(!['codex','claude'].includes(data.client))throw Error('Choose Codex or Claude Code.');
-          const launched=await application.startClient(instanceId,data.client);
-          if(!server.attachment())chat.waitingClient=data.client;
-          lifetime.notify('studio-update',{kind:'state',kinds:['chat'],instanceId});
-          send({attachment:server.attachment(),waitingClient:chat.waitingClient,...launched});return;
-        }
-        if(url.pathname==='/api/chat/detach'){await application.detach(instanceId);send({attachment:server.attachment(),waitingClient:chat.waitingClient});return;}
-        if(url.pathname==='/api/chat/retry'){send(await application.retryClients());return;}
-        send({error:'Not found'},404);return;
-      }
       // Browser-measured view bursts, kept in memory for an agent to read.
       if(url.pathname==='/api/view-performance'){viewPerformance.push({receivedAt:new Date().toISOString(),...data});viewPerformance.splice(0,viewPerformance.length-20);send({ok:true});return;}
       if(url.pathname==='/api/cancel-generation'){
@@ -549,7 +548,7 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
           const inspectable=stage==='geometry'||completedOutputState(state,{generating:outputGenerating()}).available;
           const renderError=typeof data.renderError==='string'?data.renderError.slice(0,2000):null;
           if(data.revision===state.revision&&(inspectable||renderError)&&(stage==='geometry'||data.exportHash===state.exportHash)){
-            presentedRequests=await chat.current.requests.presented(dir,{...workSnapshot(state),stage,studioInstanceId:instanceId,deliverable:receiptable&&!renderError,renderError});
+            presentedRequests=await chat.current.requests.presented(dir,{...state.workEvidence,stage,studioInstanceId:instanceId,deliverable:receiptable&&!renderError,renderError});
             note(renderError?'view-failed':'view-presented',{...(renderError?{error:renderError}:{}),stage,revision:state.revision,exportHash:stage==='toolpath'?state.exportHash??null:null,presentedRequestIds:presentedRequests.map(record=>record.id)});
             for(const record of presentedRequests)if(!record.inspectionFailed)note('request-presented',{requestId:record.id,requestKind:record.kind,stage});
             const advisory=state.program?.summary?.shortTravel;
@@ -620,7 +619,7 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
         send({ok:true});
       });
       queue=run.catch(()=>{});await run;
-    } catch(error){if(!res.headersSent){await noteSourceSkew(error);send({error:reportedMessage(error),code:error.code},400);}else res.end();}
+    } catch(error){if(!res.headersSent){await noteSourceSkew(error);send({error:reportedMessage(error),code:error.code,...(error.importDiagnostic?{importDiagnostic:error.importDiagnostic}:{})},400);}else res.end();}
   });
   // The application reopens through the same serialized and validated operation
   // as the picker, including when the person changed this viewer's print.
@@ -678,7 +677,7 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
       const detail={studioInstanceId:instanceId,printId:workIdFor(dir),directory:dir,previousOwnerId:previous.ownerId,ownerId:next.ownerId,attachment:next.attached};
       const kind=next.attached?(previous.attached?'chat-captured':'chat-attached'):'chat-detached';
       previous.events.record(kind,detail);
-      chat.current=next;chat.waitingClient=null;
+      chat.current=next;
       if(previous.events!==next.events)next.events.record(kind,detail);
       chat.stopRequestFeed=next.requests.subscribe(observeRequest);
       lifetime.notify('studio-update',{kind:'state',kinds:['chat','requests'],instanceId});
@@ -693,16 +692,7 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
       attached:Object.freeze({ownerId,name:name??ownerId,client:client??null})};
     return replaceAttachment(next);
   };
-  server.detachChat=({ownerId=`studio:${instanceId}`,agentRequests,studioEvents}={})=>{
-    const requests=agentRequests??createAgentRequests(libraryRoot,{ownerId,folder:requestFolder??chat.current.requests.folder});
-    const events=studioEvents??createStudioEvents();
-    if(requests.ownerId!==ownerId)throw Error('The detached request store belongs to another chat.');
-    if(!agentRequests)ownedRequests.add(requests);if(!studioEvents)ownedEvents.add(events);
-    const next={ownerId,requests,events,tour:createTour(libraryRoot,{ownerId,studioId:instanceId,agentRequests:requests}),attached:null};
-    return replaceAttachment(next);
-  };
   server.attachment=()=>chat.current.attached;
-  server.waitingClient=()=>chat.waitingClient;
   server.attachmentBusy=()=>operations.active>0||Boolean(importProgress)||['preparing','generating'].includes(generationStatus()?.status);
   let checkingGeneration=false;
   const stopWatching=watchStudioChanges(libraryRoot,kinds=>{
@@ -721,7 +711,10 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
   Object.defineProperty(server,'studioEvents',{get(){return chat.current.events;}});server.generationStatus=generationStatus;
   server.cancelCalculation=cancelCalculation;
   server.runBundleEdit=runBundleEdit;
+  server.runBundleCreation=runBundleCreation;
+  server.creationTarget=()=>reservation&&!dir?reservedDirectory:null;
+  server.showSavedCreation=async target=>{if(!operations.creating||reservedDirectory!==resolve(target))throw Error('No owned bundle creation is active.');const before=dir;await openPrint(target);if(dir!==before)lifetime.notify('studio-update',{kind:'state',kinds:['print']});};
   server.ready=()=>opened;
-  server.agentSession=()=>({instanceId,ownerId:chat.current.ownerId,printId:workIdFor(dir),directory:dir,connected:!closed,attachment:server.attachment(),waitingClient:chat.waitingClient});
+  server.agentSession=()=>({instanceId,ownerId:chat.current.ownerId,printId:workIdFor(dir),directory:dir,connected:!closed,attachment:server.attachment()});
   return server;
 }

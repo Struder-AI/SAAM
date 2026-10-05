@@ -1478,6 +1478,26 @@
     "packaging/native-repair.mjs": {
       "owner": "development",
       "reason": "Release build packaging of the native mesh repair helper (source identity and target architecture checks); build tooling."
+    },
+    "core/print/work-evidence.mjs": {
+      "owner": "bundle",
+      "reason": "Prepared authored-input and retained output identity evidence owned by Bundle."
+    },
+    "core/application/local-agent-notes.mjs": {
+      "owner": "application",
+      "reason": "Shared local agent notes for all roles belong to the selected SAAM home; Application owns concurrent Markdown update identity."
+    },
+    "core/application/home-layout.mjs": {
+      "owner": "application",
+      "reason": "Application lease owns recoverable migration of user data into the shared local home."
+    },
+    "core/application/temporary-workspace.mjs": {
+      "owner": "application",
+      "reason": "Application-owned temporary workspaces: explicit operation release, recorded child handoff and conservative crash cleanup."
+    },
+    "core/application/diagnostics.mjs": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
     }
   },
   "leaves": {
@@ -2113,16 +2133,10 @@
     "core/export/griffin-player.mjs::interpretMotionChunk": {
       "owner": "export"
     },
-    "core/export/griffin-player.mjs::number": {
-      "owner": "export"
-    },
     "core/export/griffin-player.mjs::parseGcodeCommand": {
       "owner": "export"
     },
     "core/export/griffin-player.mjs::readGcodeLine": {
-      "owner": "export"
-    },
-    "core/export/griffin-player.mjs::validateGcodeCompletion": {
       "owner": "export"
     },
     "core/export/griffin.mjs::@module": {
@@ -2161,13 +2175,7 @@
     "core/export/registry.mjs::@module": {
       "owner": "export"
     },
-    "core/export/registry.mjs::exportAndInterpretProgram": {
-      "owner": "export"
-    },
     "core/export/registry.mjs::exportProgram": {
-      "owner": "export"
-    },
-    "core/export/registry.mjs::interpretProgram": {
       "owner": "export"
     },
     "core/export/registry.mjs::outputAdapter": {
@@ -3886,12 +3894,6 @@
     "core/machine/rules.mjs::centeredPlacement": {
       "owner": "export"
     },
-    "core/machine/rules.mjs::checkMachinePath": {
-      "owner": "export"
-    },
-    "core/machine/rules.mjs::checkMachinePath::point": {
-      "owner": "export"
-    },
     "core/machine/rules.mjs::feederSelector": {
       "owner": "export"
     },
@@ -4995,9 +4997,6 @@
       "owner": "geometry-leaf-fdf656c4e4af"
     },
     "core/print/resolve-plan.mjs::@module": {
-      "owner": "bundle"
-    },
-    "core/print/resolve-plan.mjs::mergeRecord": {
       "owner": "bundle"
     },
     "core/print/resolve-plan.mjs::record": {
@@ -6373,12 +6372,6 @@
       "owner": "studio"
     },
     "studio/agent-requests.mjs::snapshot": {
-      "owner": "studio"
-    },
-    "studio/agent-requests.mjs::workSnapshot": {
-      "owner": "studio"
-    },
-    "studio/agent-requests.mjs::workSnapshot::hash": {
       "owner": "studio"
     },
     "studio/agent-ui.mjs::@module": {
@@ -8653,15 +8646,7 @@
       "owner": "settings",
       "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
     },
-    "core/machine/bundle-settings.mjs::rememberSetup": {
-      "owner": "settings",
-      "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
-    },
     "core/machine/settings.mjs::@module": {
-      "owner": "settings",
-      "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
-    },
-    "core/machine/settings.mjs::mergeSettings": {
       "owner": "settings",
       "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
     },
@@ -9077,9 +9062,6 @@
     "core/agent/toolkit.mjs::execFileAsync": {
       "owner": "development",
       "reason": "Development tooling (map read/regenerate, sync status, context measurement). Owner decision 2026-10-04: owned by map-0 node 11 Development tooling at declaration level; the file is shared with Maker context onboarding, no file split."
-    },
-    "core/export/griffin-player.mjs::temperatureWaitError": {
-      "owner": "export"
     },
     "core/export/prepare-path.mjs::depositionBounds": {
       "owner": "export"
@@ -11062,9 +11044,6 @@
     "core/application/runtime.mjs::noApprovalFields": {
       "owner": "application"
     },
-    "core/application/runtime.mjs::publicBundleIdentity": {
-      "owner": "application"
-    },
     "core/application/runtime.mjs::rejectLinks": {
       "owner": "application"
     },
@@ -11305,9 +11284,6 @@
     "core/print/completed-output.mjs::readCompletedOutput": {
       "owner": "bundle"
     },
-    "core/print/completed-output.mjs::readCompletedPath": {
-      "owner": "bundle"
-    },
     "core/print/completed-output.mjs::retainCompletedOutput": {
       "owner": "bundle"
     },
@@ -11333,9 +11309,6 @@
       "owner": "bundle"
     },
     "core/print/portable.mjs::checkSources": {
-      "owner": "bundle"
-    },
-    "core/print/portable.mjs::cleanupScratch": {
       "owner": "bundle"
     },
     "core/print/portable.mjs::distinctName": {
@@ -11384,9 +11357,6 @@
       "owner": "bundle"
     },
     "core/print/spatial-inputs.mjs::geometryInput": {
-      "owner": "bundle"
-    },
-    "core/print/spatial-inputs.mjs::manufacturing": {
       "owner": "bundle"
     },
     "core/print/spatial-inputs.mjs::normalizeSpatialPlan": {
@@ -11802,6 +11772,736 @@
     },
     "packaging/native-repair.mjs::sha": {
       "owner": "development"
+    },
+    "studio/source-worker.mjs::handleMessage": {
+      "owner": "studio",
+      "reason": "Studio owns serialized presentation requests and their program/provider lifetime."
+    },
+    "studio/source-worker.mjs::handleMessage::state": {
+      "owner": "studio",
+      "reason": "Studio owns serialized presentation requests and their program/provider lifetime."
+    },
+    "studio/source-worker.mjs::handleMessage::sources": {
+      "owner": "studio",
+      "reason": "Studio owns serialized presentation requests and their program/provider lifetime."
+    },
+    "studio/source-worker.mjs::handleMessage::machine": {
+      "owner": "studio",
+      "reason": "Studio owns serialized presentation requests and their program/provider lifetime."
+    },
+    "studio/source-worker.mjs::handleMessage::moves": {
+      "owner": "studio",
+      "reason": "Studio owns serialized presentation requests and their program/provider lifetime."
+    },
+    "studio/source-worker.mjs::handleMessage::request": {
+      "owner": "studio",
+      "reason": "Studio owns serialized presentation requests and their program/provider lifetime."
+    },
+    "studio/source-worker.mjs::handleMessage::owner": {
+      "owner": "studio",
+      "reason": "Studio owns serialized presentation requests and their program/provider lifetime."
+    },
+    "studio/source-worker.mjs::handleMessage::snapshot": {
+      "owner": "studio",
+      "reason": "Studio owns serialized presentation requests and their program/provider lifetime."
+    },
+    "studio/source-worker.mjs::@handler/self.onmessage::handle": {
+      "owner": "studio",
+      "reason": "Studio owns serialized presentation requests and their program/provider lifetime."
+    },
+    "core/application/runtime.mjs::CLAUDE_LISTEN": {
+      "owner": "application",
+      "reason": "Application owns client monitor policy, local control transport and chat/Studio target validation."
+    },
+    "core/application/runtime.mjs::expectedStudioSchema": {
+      "owner": "application",
+      "reason": "Application owns client monitor policy, local control transport and chat/Studio target validation."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::assertStudioTarget": {
+      "owner": "application",
+      "reason": "Application owns client monitor policy, local control transport and chat/Studio target validation."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::assertStudioTarget::session": {
+      "owner": "application",
+      "reason": "Application owns client monitor policy, local control transport and chat/Studio target validation."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::assertStudioTarget::current": {
+      "owner": "application",
+      "reason": "Application owns client monitor policy, local control transport and chat/Studio target validation."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::assertStudioTarget::currentStudio": {
+      "owner": "application",
+      "reason": "Application owns client monitor policy, local control transport and chat/Studio target validation."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::validateTarget": {
+      "owner": "application",
+      "reason": "Application owns client monitor policy, local control transport and chat/Studio target validation."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::validateTarget::ids": {
+      "owner": "application",
+      "reason": "Application owns client monitor policy, local control transport and chat/Studio target validation."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::validateTarget::id": {
+      "owner": "application",
+      "reason": "Application owns client monitor policy, local control transport and chat/Studio target validation."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::validateTarget::request": {
+      "owner": "application",
+      "reason": "Application owns client monitor policy, local control transport and chat/Studio target validation."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::invoke::execute::associated": {
+      "owner": "application",
+      "reason": "Application owns client monitor policy, local control transport and chat/Studio target validation."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::waitForStudioRequest::claim.<callback@700:43>::@scope/forof-1::request": {
+      "owner": "application",
+      "reason": "Application owns client monitor policy, local control transport and chat/Studio target validation."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::waitForStudioRequest::claim.<callback@700:43>::@scope/forof-2::request": {
+      "owner": "application",
+      "reason": "Application owns client monitor policy, local control transport and chat/Studio target validation."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::connectChat::targetInstance": {
+      "owner": "application",
+      "reason": "Application owns client monitor policy, local control transport and chat/Studio target validation."
+    },
+    "core/application/control.mjs::controlRequest::response.<callback@21:36>::command": {
+      "owner": "application",
+      "reason": "Application owns client monitor policy, local control transport and chat/Studio target validation."
+    },
+    "core/application/control.mjs::controlRequest::chunks": {
+      "owner": "application",
+      "reason": "Application owns client monitor policy, local control transport and chat/Studio target validation."
+    },
+    "core/application/control.mjs::controlRequest::chunk": {
+      "owner": "application",
+      "reason": "Application owns client monitor policy, local control transport and chat/Studio target validation."
+    },
+    "core/machine/settings.mjs::settingsRecord": {
+      "owner": "settings",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/machine/settings.mjs::mergeSetup": {
+      "owner": "settings",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/machine/settings.mjs::mergeSetup::setup": {
+      "owner": "settings",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/print/spatial-inputs.mjs::manufacturingGeometry": {
+      "owner": "bundle",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/print/spatial-inputs.mjs::manufacturingVolume": {
+      "owner": "bundle",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/print/resolve-plan.mjs::mergeGeometryPatch": {
+      "owner": "bundle",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/print/resolve-plan.mjs::mergeGeometryPatch::template": {
+      "owner": "bundle",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/print/resolve-plan.mjs::mergeGeometryPatch::base": {
+      "owner": "bundle",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/print/resolve-plan.mjs::mergeGeometryPatch::target": {
+      "owner": "bundle",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/print/slice-edit.mjs::record": {
+      "owner": "bundle",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/print/slice-edit.mjs::mergeAssignmentPatch": {
+      "owner": "bundle",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/print/slice-edit.mjs::mergeAssignmentPatch::target": {
+      "owner": "bundle",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/print/modulation.mjs::record": {
+      "owner": "bundle",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/print/modulation.mjs::mergeFieldPatch": {
+      "owner": "bundle",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/print/modulation.mjs::mergeFieldPatch::target": {
+      "owner": "bundle",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/print/modulation.mjs::mergeModifierPatch": {
+      "owner": "bundle",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/print/modulation.mjs::mergeModifierPatch::target": {
+      "owner": "bundle",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/application/runtime.mjs::agentRequest": {
+      "owner": "application",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/application/runtime.mjs::agentEvent": {
+      "owner": "application",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/application/runtime.mjs::agentStudioSession": {
+      "owner": "application",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/application/runtime.mjs::agentStudioJob": {
+      "owner": "application",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/application/runtime.mjs::agentTour": {
+      "owner": "application",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::waitForStudioRequest::records": {
+      "owner": "application",
+      "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
+    },
+    "core/export/registry.mjs::decodeProgram": {
+      "owner": "export"
+    },
+    "core/export/registry.mjs::exportAndDecodeProgram": {
+      "owner": "export"
+    },
+    "core/machine/rules.mjs::diagnoseMachinePath": {
+      "owner": "export"
+    },
+    "core/machine/rules.mjs::diagnoseMachinePath::point": {
+      "owner": "export"
+    },
+    "core/export/registry.mjs::readProgramSources": {
+      "owner": "export"
+    },
+    "core/export/registry.mjs::readProgramSources::source": {
+      "owner": "export"
+    },
+    "core/print/work-evidence.mjs::@module": {
+      "owner": "bundle"
+    },
+    "core/application/local-agent-notes.mjs::@module": {
+      "owner": "application"
+    },
+    "core/print/work-evidence.mjs::authoredWorkIdentity": {
+      "owner": "bundle",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/print/work-evidence.mjs::completedOutputIdentity": {
+      "owner": "bundle",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/print/work-evidence.mjs::preparedWorkEvidence": {
+      "owner": "bundle",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/application/local-agent-notes.mjs::notesRevision": {
+      "owner": "application",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/application/local-agent-notes.mjs::notesIdentity": {
+      "owner": "application",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/application/local-agent-notes.mjs::readNotesFile": {
+      "owner": "application",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/application/local-agent-notes.mjs::readNotesFile::bytes": {
+      "owner": "application",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/application/local-agent-notes.mjs::readLocalAgentNotes": {
+      "owner": "application",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/application/local-agent-notes.mjs::updateLocalAgentNotes": {
+      "owner": "application",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/application/local-agent-notes.mjs::updateLocalAgentNotes::identity": {
+      "owner": "application",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/application/local-agent-notes.mjs::updateLocalAgentNotes::sameHome": {
+      "owner": "application",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/application/local-agent-notes.mjs::updateLocalAgentNotes::lock": {
+      "owner": "application",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/application/local-agent-notes.mjs::updateLocalAgentNotes::handle": {
+      "owner": "application",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/application/local-agent-notes.mjs::updateLocalAgentNotes::current": {
+      "owner": "application",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::readPathBytes": {
+      "owner": "bundle",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::readPathBytes::bytes": {
+      "owner": "bundle",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::readToolpath": {
+      "owner": "bundle",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::writeAndRememberDelivery": {
+      "owner": "bundle",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::writeAndRememberDelivery::bytes": {
+      "owner": "bundle",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::writeAndRememberDelivery::destination": {
+      "owner": "bundle",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::writeAndRememberDelivery::attribution": {
+      "owner": "bundle",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::writeAndRememberDelivery::output": {
+      "owner": "bundle",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::writeAndRememberDelivery::@scope/catchclause-1/block-1::failure": {
+      "owner": "bundle",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::writeAndRememberDelivery::@scope/catchclause-2/block-1::failure": {
+      "owner": "bundle",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::setDeferredSetupSave": {
+      "owner": "bundle",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::setDeferredSetupSave::state": {
+      "owner": "bundle",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::setDeferredSetupSave::committed": {
+      "owner": "bundle",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/print/revisions.mjs::recordDelivery": {
+      "owner": "bundle",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/print/completed-output.mjs::verifyCompletedPath": {
+      "owner": "bundle",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/print/completed-output.mjs::verifyCompletedPath::bytes": {
+      "owner": "bundle",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "studio/agent-requests.mjs::currentBaseline": {
+      "owner": "studio",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::invoke::execute::performAndCapture": {
+      "owner": "application",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::setDeferredSetupSaveOperation": {
+      "owner": "application",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/machine/settings.mjs::withMachineSetupExport": {
+      "owner": "settings",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/machine/settings.mjs::withMachineSetupExport::lock": {
+      "owner": "settings",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/machine/settings.mjs::withMachineSetupExport::writer": {
+      "owner": "settings",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/machine/settings.mjs::withMachineSetupExport::busy": {
+      "owner": "settings",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/machine/settings.mjs::withMachineSetupExport::holder": {
+      "owner": "settings",
+      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
+    },
+    "core/geom/stl-file.mjs::decodeFile::reading": {
+      "owner": "geometry",
+      "reason": "Coder-assigned owner of structured import diagnostics (2026-10-04); positional callbacks inherit the stable operation."
+    },
+    "core/geom/import-stl.mjs::prepareSTLImportInWorker::importDiagnostic": {
+      "owner": "geometry",
+      "reason": "Coder-assigned owner of structured import diagnostics (2026-10-04); positional callbacks inherit the stable operation."
+    },
+    "core/geom/mesh-native.mjs::runNativeMeshRepair::nativeDiagnostic": {
+      "owner": "geometry",
+      "reason": "Coder-assigned owner of structured import diagnostics (2026-10-04); positional callbacks inherit the stable operation."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::importSTL::importDiagnostic": {
+      "owner": "application",
+      "reason": "Coder-assigned owner of structured import diagnostics (2026-10-04); positional callbacks inherit the stable operation."
+    },
+    "core/application/home-layout.mjs::@module": {
+      "owner": "application"
+    },
+    "core/application/home-layout.mjs::LOCAL_DATA": {
+      "owner": "application"
+    },
+    "core/application/home-layout.mjs::entryInfo": {
+      "owner": "application"
+    },
+    "core/application/home-layout.mjs::directoryInfo": {
+      "owner": "application"
+    },
+    "core/application/home-layout.mjs::ordinaryTree": {
+      "owner": "application"
+    },
+    "core/application/home-layout.mjs::migrationEntry": {
+      "owner": "application"
+    },
+    "core/application/home-layout.mjs::migrateLocalData": {
+      "owner": "application"
+    },
+    "core/application/home-layout.mjs::restoreLocalData": {
+      "owner": "application"
+    },
+    "core/application/temporary-workspace.mjs::@module": {
+      "owner": "application"
+    },
+    "core/application/temporary-workspace.mjs::SCHEMA": {
+      "owner": "application"
+    },
+    "core/application/temporary-workspace.mjs::samePath": {
+      "owner": "application"
+    },
+    "core/application/temporary-workspace.mjs::ownerFile": {
+      "owner": "application"
+    },
+    "core/application/temporary-workspace.mjs::workspaceRoot": {
+      "owner": "application"
+    },
+    "core/application/temporary-workspace.mjs::workspacePath": {
+      "owner": "application"
+    },
+    "core/application/temporary-workspace.mjs::validOwner": {
+      "owner": "application"
+    },
+    "core/application/temporary-workspace.mjs::readOwner": {
+      "owner": "application"
+    },
+    "core/application/temporary-workspace.mjs::gone": {
+      "owner": "application"
+    },
+    "core/application/temporary-workspace.mjs::changeChild": {
+      "owner": "application"
+    },
+    "core/application/temporary-workspace.mjs::createTemporaryWorkspace": {
+      "owner": "application"
+    },
+    "core/application/temporary-workspace.mjs::claimTemporaryHandoff": {
+      "owner": "application"
+    },
+    "core/application/temporary-workspace.mjs::completeTemporaryHandoff": {
+      "owner": "application"
+    },
+    "core/application/temporary-workspace.mjs::cleanupTemporaryWorkspaces": {
+      "owner": "application"
+    },
+    "core/application/diagnostics.mjs::@module": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::sensitive": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::scrubText": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::diagnostic": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::diagnostic::kept": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::transportCodes": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::isNetworkFailure": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::isNetworkFailure::current": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::queues": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::createDiagnosticReports": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::createDiagnosticReports::directory": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::createDiagnosticReports::serial": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::createDiagnosticReports::serial::result": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::createDiagnosticReports::serial::settled": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::createDiagnosticReports::records": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::createDiagnosticReports::records::names": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::createDiagnosticReports::records::values": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::createDiagnosticReports::records::name": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::createDiagnosticReports::latest": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::createDiagnosticReports::retain": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::createDiagnosticReports::retain::id": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::createDiagnosticReports::retain::name": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::createDiagnosticReports::retain::all": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::createDiagnosticReports::upload": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::createDiagnosticReports::firstRun": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::createDiagnosticReports::networkIssue": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/diagnostics.mjs::createDiagnosticReports::flush": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "packaging/release-service.mjs::createInstalledReleaseService::statePath": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "packaging/release-service.mjs::createInstalledReleaseService::reports": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "packaging/release-service.mjs::request::signal": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "packaging/release-service.mjs::request::timeoutFailure": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "packaging/release-service.mjs::createReleaseService::flushRetained": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "packaging/release-service.mjs::createReleaseService::recordDiagnostic": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "packaging/application.mjs::startApplication::reports": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "packaging/application.mjs::startApplication::report": {
+      "owner": "application",
+      "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::creationViews": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::visibleBundle": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::visibleBundle::dir": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::visibleBundle::saved": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::visibleBundle::retained": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::visibleBundle::existing": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::visibleBundle::@scope/block-1::view": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::visibleBundle::session": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::visibleBundle::studio": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::visibleBundle::browserOpenRequested": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::visibleBundle::view": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::revealSavedBundle": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::migrateBundleOperation": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::migrateBundleOperation::dir": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::migrateBundleOperation::bundle": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::showWorkspaceBundles": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::showWorkspaceBundles::part": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::showWorkspaceBundles::bundleId": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::showWorkspaceBundles::view": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::showWorkspaceBundles::records": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::showWorkspaceBundles::snapshot": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::showWorkspaceBundles::record": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::showWorkspaceBundles::result": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::queueWorkspaceViews": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::queueWorkspaceViews::run": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::queueWorkspaceViews::settled": {
+      "owner": "application",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "studio/server.mjs::createStudio::runBundleCreation": {
+      "owner": "studio",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "studio/server.mjs::createStudio::runBundleCreation::selected": {
+      "owner": "studio",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "studio/server.mjs::createStudio::runBundleCreation::run": {
+      "owner": "studio",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "studio/server.mjs::createStudio::creationTarget": {
+      "owner": "studio",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "studio/server.mjs::createStudio::showSavedCreation": {
+      "owner": "studio",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "studio/server.mjs::createStudio::showSavedCreation::before": {
+      "owner": "studio",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/print/portable.mjs::importBundle::requireCreationDestination": {
+      "owner": "bundle",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/print/portable.mjs::importBundle::requireCreationDestination::names": {
+      "owner": "bundle",
+      "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
     }
   },
   "retiredAssignments": [
@@ -12501,7 +13201,23 @@
     "adapters/mcp/src/runtime.mjs::createLocalRuntime::openWorkspace",
     "core/agent/toolkit.mjs::listWorkspaces",
     "core/agent/toolkit.mjs::openWorkspace",
-    "scripts/agent-toolkit.mjs::attachWorkspaceControl"
+    "scripts/agent-toolkit.mjs::attachWorkspaceControl",
+    "core/machine/settings.mjs::mergeSettings",
+    "core/print/resolve-plan.mjs::mergeRecord",
+    "core/print/spatial-inputs.mjs::manufacturing",
+    "core/application/runtime.mjs::publicBundleIdentity",
+    "core/export/registry.mjs::interpretProgram",
+    "core/export/registry.mjs::exportAndInterpretProgram",
+    "core/machine/rules.mjs::checkMachinePath",
+    "core/machine/rules.mjs::checkMachinePath::point",
+    "core/export/griffin-player.mjs::validateGcodeCompletion",
+    "core/export/griffin-player.mjs::temperatureWaitError",
+    "core/export/griffin-player.mjs::number",
+    "studio/agent-requests.mjs::workSnapshot",
+    "studio/agent-requests.mjs::workSnapshot::hash",
+    "core/machine/bundle-settings.mjs::rememberSetup",
+    "core/print/completed-output.mjs::readCompletedPath",
+    "core/print/portable.mjs::cleanupScratch"
   ],
   "scope": "Exact root responsibilities plus evidenced operation homes; unresolved submap containment remains explicit."
 }

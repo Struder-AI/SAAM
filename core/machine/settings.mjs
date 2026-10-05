@@ -1,28 +1,52 @@
 // Reusable machine/material/installation settings. Consumers keep selected
 // snapshots; reading a bundle never consults this store.
-import {readFile} from 'node:fs/promises';
-import {resolve} from 'node:path';
+import {readFile,mkdir,open,rm} from 'node:fs/promises';
+import {resolve,dirname} from 'node:path';
 import {loadMachine} from './profile.mjs';
 import {requireThat} from '../private/settings/numeric.mjs';
 import {replaceFile} from '../private/settings/file-write.mjs';
 import {homePaths} from '../application/home.mjs';
 
-const setupFor=machine=>resolve(homePaths().state,'machine-setups',machine.id+'.json');
+const setupFor=machine=>resolve(homePaths().machineSetups,machine.id+'.json');
 export const SETTINGS_FIELDS=Object.freeze(['setup','process','output','placement']);
 
-function mergeSettings(previous,changes){
-  const result={...previous};
-  for(const [key,value] of Object.entries(changes)){
-    result[key]=value&&typeof value==='object'&&!Array.isArray(value)&&key!=='primeLine'
-      ?mergeSettings(result[key],value):structuredClone(value);
+const settingsRecord=value=>value&&typeof value==='object'&&!Array.isArray(value);
+
+function mergeSetup(previous,changes){
+  if(!settingsRecord(changes))return structuredClone(changes);
+  const setup={...previous,...structuredClone(changes)};
+  if(settingsRecord(changes.ams))setup.ams={...previous?.ams,...structuredClone(changes.ams)};
+  if(settingsRecord(changes.bambu)){
+    setup.bambu={...previous?.bambu,...structuredClone(changes.bambu)};
+    if(settingsRecord(changes.bambu.startup))
+      setup.bambu.startup={...previous?.bambu?.startup,...structuredClone(changes.bambu.startup)};
   }
-  return result;
+  if(settingsRecord(changes.dobot))setup.dobot={...previous?.dobot,...structuredClone(changes.dobot)};
+  if(settingsRecord(changes.denso)){
+    setup.denso={...previous?.denso,...structuredClone(changes.denso)};
+    if(settingsRecord(changes.denso.initialPose))
+      setup.denso.initialPose={...previous?.denso?.initialPose,...structuredClone(changes.denso.initialPose)};
+  }
+  if(settingsRecord(changes.kinematicModel)){
+    setup.kinematicModel={...previous?.kinematicModel,...structuredClone(changes.kinematicModel)};
+    if(settingsRecord(changes.kinematicModel.worldFromBase))
+      setup.kinematicModel.worldFromBase={...previous?.kinematicModel?.worldFromBase,...structuredClone(changes.kinematicModel.worldFromBase)};
+    if(settingsRecord(changes.kinematicModel.flangeFromTool))
+      setup.kinematicModel.flangeFromTool={...previous?.kinematicModel?.flangeFromTool,...structuredClone(changes.kinematicModel.flangeFromTool)};
+  }
+  return setup;
 }
 
 export function resolveSettingsPatch(previous,patch){
   requireThat(patch&&typeof patch==='object'&&!Array.isArray(patch)&&Object.keys(patch).every(k=>SETTINGS_FIELDS.includes(k)),'Settings edits accept setup, process, output and placement only.');
-  const selected=Object.fromEntries(Object.keys(patch).map(key=>[key,previous[key]]));
-  const settings=mergeSettings(selected,patch);
+  const settings={};
+  if(Object.hasOwn(patch,'setup'))settings.setup=mergeSetup(previous.setup,patch.setup);
+  // Process values are scalars or an atomic prime-line record; placement is XY.
+  if(Object.hasOwn(patch,'process'))settings.process=settingsRecord(patch.process)
+    ?{...previous.process,...structuredClone(patch.process)}:structuredClone(patch.process);
+  if(Object.hasOwn(patch,'output'))settings.output=structuredClone(patch.output);
+  if(Object.hasOwn(patch,'placement'))settings.placement=settingsRecord(patch.placement)
+    ?{...previous.placement,...structuredClone(patch.placement)}:structuredClone(patch.placement);
   if(patch.setup?.firmwareVersion!==undefined&&patch.setup.firmwareVersion!==previous.setup?.firmwareVersion&&patch.setup.startupVerified===undefined)
     settings.setup={...settings.setup,startupVerified:false};
   return settings;
@@ -63,12 +87,34 @@ export async function selectSettings(machineId,{setupFile}={}){
   return {machine,settings};
 }
 
-export async function saveSetup(machine,setup,{setupFile,source='User setup supplied through chat'}={}){
+export async function saveSetup(machine,setup,{setupFile,source='Last successful export',exportReceipt}={}){
   requireThat(machine&&setup,'Choose a machine and setup before remembering settings.');
   const file=setupFile??setupFor(machine);
   await replaceFile(file,JSON.stringify({schema:'saam-machine-setup/1',machineId:machine.id,
-    setup:structuredClone(setup),source,updatedAt:new Date().toISOString()},null,2)+'\n');
+    setup:structuredClone(setup),source,...(exportReceipt?{exportReceipt}:{}),updatedAt:new Date().toISOString()},null,2)+'\n');
   return file;
+}
+
+// Hold the machine's store lock before copying an export, through remembering
+// its exact setup. Serializing only the final store write would invert exports.
+export async function withMachineSetupExport(machine,action){
+  const lock=setupFor(machine)+'.export.lock',writer={handle:null,unreadable:0};
+  await mkdir(dirname(lock),{recursive:true});
+  for(;;){
+    try{writer.handle=await open(lock,'wx');break;}
+    catch(error){
+      if(error.code!=='EEXIST')throw error;
+      const busy=Error('Machine setup has an interrupted export writer. Inspect '+lock+' before recovery.');
+      const holder=await readFile(lock,'utf8').then(JSON.parse).catch(error=>{if(error.code==='ENOENT'||error instanceof SyntaxError)return null;throw error;});
+      if(!(Number.isInteger(holder?.pid)&&holder.pid>0)&&++writer.unreadable>40)throw busy;
+      if(Number.isInteger(holder?.pid)&&holder.pid>0){
+        try{process.kill(holder.pid,0);}catch(error){if(error.code==='ESRCH')throw busy;throw error;}
+      }
+      await new Promise(function waitForExport(done){setTimeout(done,25);});
+    }
+  }
+  try{await writer.handle.writeFile(JSON.stringify({pid:process.pid,time:new Date().toISOString()}));return await action();}
+  finally{await writer.handle.close();await rm(lock);}
 }
 
 export function resolveMachineSettings(previous,previousMachine,{machine,settings},{boundsMm}={}){

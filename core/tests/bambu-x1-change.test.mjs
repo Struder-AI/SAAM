@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {x1ColourFixture} from './fixtures/bambu-x1-colours.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {prepareExportPath} from '../export/prepare-path.mjs';
-import {exportProgram,interpretProgram} from '../export/registry.mjs';
+import {exportProgram,decodeProgram} from '../export/registry.mjs';
 import {unpackZip,packZip} from '../export/zip.mjs';
 import {decodeSource} from '../../studio/source-player.mjs';
 import {auditBambu} from '../../scripts/bambu-audit.mjs';
@@ -16,7 +16,7 @@ test('X1 white-grey-black makes exactly two same-nozzle AMS changes, with checke
   const path=await generatePath(plan,machine),prepared=prepareExportPath(path,plan,machine);
   assert.deepEqual(path.actions.filter(a=>a.kind==='toolChange').map(a=>a.filament),[1,2]);
   assert.deepEqual(prepared.actions.filter(a=>a.kind==='toolChange').map(a=>[a.tool,a.filament]),[[0,1],[0,2]]);
-  const bytes=exportProgram(path,plan,machine,release),program=interpretProgram(bytes,plan,machine);
+  const bytes=exportProgram(path,plan,machine,release),program=decodeProgram(bytes,plan,machine);
   assert.deepEqual(program.filamentSequence,[0,1,2]);
   const code=program.code,source=decodeSource({program:code},plan,machine);
   assert.deepEqual(source.moves.map(m=>[m.tool,m.filament,m.to]),program.moves.map(m=>[m.tool,m.filament,m.to]));
@@ -39,7 +39,7 @@ test('X1 white-grey-black makes exactly two same-nozzle AMS changes, with checke
   assert.deepEqual(seq.sequence,[1,2,3]);assert.deepEqual(seq.nozzle_sequence,[0,0,0]);
   for(const [before,after]of [[';SAAM_CHUTE_FLUSH_MM3:300',';SAAM_CHUTE_FLUSH_MM3:0'],['T1\n','T2\n'],['M621 S1A','M621 S2A'],['G1 E-0.6 F1800','G1 E-0.8 F1800']]){
     const z=unpackZip(bytes);z.set('Metadata/plate_1.gcode',Buffer.from(code.replace(before,after)));
-    assert.throws(()=>interpretProgram(packZip(z),plan,machine),/tool-change block/);
+    assert.throws(()=>decodeProgram(packZip(z),plan,machine),/tool-change block/);
   }
 });
 

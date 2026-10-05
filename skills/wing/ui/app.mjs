@@ -171,7 +171,7 @@ function jobDisplay(job){
   $('results').replaceChildren();const path=document.createElement('code');path.textContent=job.directory;$('results').append(path);
   if(job.stage==='complete'){
     const p=document.createElement('p'),copy=document.createElement('button');p.textContent='All wing parts are saved together in this folder. One request handles the whole set.';
-    copy.textContent='Copy request for all parts';copy.onclick=async()=>{try{await navigator.clipboard.writeText(`Select a printer and setup for the whole wing set, then generate and check every print bundle listed in export.json in ${job.directory}, then open the set for review in Studio. Handle the whole folder as one task; preserve each part’s workspace construction requirements.`);copy.textContent='Copied';}catch(e){error(e.message);}};
+    copy.textContent='Copy request for all parts';copy.onclick=async()=>{try{await navigator.clipboard.writeText(`Select a printer and setup for the whole wing set, then generate and check every print bundle listed in export.json in ${job.directory}, then open the set for review in Studio. Handle the whole folder as one task; preserve each part’s source provenance.`);copy.textContent='Copied';}catch(e){error(e.message);}};
     $('results').append(p,copy);
   }
 }

@@ -5,9 +5,9 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {defaults,validatePlan} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
-import {checkMachinePath} from '../machine/rules.mjs';
+import {diagnoseMachinePath} from '../machine/rules.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {exportProgram,interpretProgram} from '../export/registry.mjs';
+import {exportProgram,decodeProgram} from '../export/registry.mjs';
 import {packZip,unpackZip} from '../export/zip.mjs';
 import {LuaRuntime} from '../export/dobot-lua-subset.mjs';
 import {initBundle,generateBundle,loadBundle,approve,deliver,adjustBundle} from '../print/bundle.mjs';
@@ -34,7 +34,7 @@ test('Dobot unconfigured profile is discoverable and allows geometry review, but
 });
 test('Dobot executes actual archived Lua, preserves three skill paths and reports relay estimates separately',async()=>{
   const {machine,plan}=fixture(),path=await generatePath(plan,machine);
-  const bytes=exportProgram(path,plan,machine,release),program=interpretProgram(bytes,plan,machine);
+  const bytes=exportProgram(path,plan,machine,release),program=decodeProgram(bytes,plan,machine);
   assert.deepEqual(bytes,exportProgram(path,plan,machine,release));
   const expected=path.actions.filter(a=>a.kind==='move');assert.equal(program.moves.length,expected.length);
   expected.forEach((m,i)=>{m.to.forEach((v,k)=>assert.ok(Math.abs(v-program.moves[i].to[k])<6e-6));assert.equal(m.volumeMm3,program.moves[i].volumeMm3);});
@@ -45,21 +45,21 @@ test('Dobot executes actual archived Lua, preserves three skill paths and report
   assert.equal(program.summary.filamentMm,null);assert.equal(program.summary.materialModel,'relay-estimate');
   assert.ok(program.summary.estimatedRelayVolumeMm3>0);assert.notEqual(program.volumeMm3,program.summary.estimatedRelayVolumeMm3);
   assert.ok(program.moves.every(m=>m.durationSeconds>0&&m.interpolation==='rest-to-rest-linear'));
-  assert.equal(checkMachinePath(path,plan,machine).configuration.configured,true);
+  assert.equal(diagnoseMachinePath(path,plan,machine).configuration.configured,true);
 });
 test('Dobot Lua interpreter rejects missing helpers, unsupported commands, altered frames, blending and relay state',async()=>{
   const {machine,plan}=fixture(),path=await generatePath(plan,machine),bytes=exportProgram(path,plan,machine,release);
   const change=(file,before,after)=>{const e=unpackZip(bytes);e.set(file,Buffer.from(e.get(file).toString().replace(before,after)));return packZip(e);};
-  const e=unpackZip(bytes);e.delete('global.lua');assert.throws(()=>interpretProgram(packZip(e),plan,machine),/must contain exactly/);
-  assert.throws(()=>interpretProgram(change('src1.lua','  MovL(','  MovJ('),plan,machine),/MovJ/);
-  assert.throws(()=>interpretProgram(change('global.lua','tool=1','tool=3'),plan,machine),/tool\/user frame/);
-  assert.throws(()=>interpretProgram(change('src1.lua','CP=0','CP=1'),plan,machine),/CP=0/);
-  assert.throws(()=>interpretProgram(change('src1.lua','DO("DO_1",1)','DO("DO_1",0)'),plan,machine),/relay state/);
-  assert.throws(()=>interpretProgram(change('src0.lua','RunPlan()','while true do end'),plan,machine),/looping without making progress/);
-  assert.throws(()=>interpretProgram(change('src1.lua','  MovL(','  DO("DO_2",1)\n  MovL('),plan,machine),/Unexpected relay/);
+  const e=unpackZip(bytes);e.delete('global.lua');assert.throws(()=>decodeProgram(packZip(e),plan,machine),/must contain exactly/);
+  assert.throws(()=>decodeProgram(change('src1.lua','  MovL(','  MovJ('),plan,machine),/MovJ/);
+  assert.throws(()=>decodeProgram(change('global.lua','tool=1','tool=3'),plan,machine),/tool\/user frame/);
+  assert.throws(()=>decodeProgram(change('src1.lua','CP=0','CP=1'),plan,machine),/CP=0/);
+  assert.throws(()=>decodeProgram(change('src1.lua','DO("DO_1",1)','DO("DO_1",0)'),plan,machine),/relay state/);
+  assert.throws(()=>decodeProgram(change('src0.lua','RunPlan()','while true do end'),plan,machine),/looping without making progress/);
+  assert.throws(()=>decodeProgram(change('src1.lua','  MovL(','  DO("DO_2",1)\n  MovL('),plan,machine),/Unexpected relay/);
   // Change P's arithmetic: playback must execute it, not recover geometry from intent.
-  const changed=interpretProgram(change('global.lua','x*1.02+-100','x*1.02+-99'),plan,machine);
-  const original=interpretProgram(bytes,plan,machine);
+  const changed=decodeProgram(change('global.lua','x*1.02+-100','x*1.02+-99'),plan,machine);
+  const original=decodeProgram(bytes,plan,machine);
   assert.ok(Math.abs(changed.moves[0].to[0]-original.moves[0].to[0]-1/1.02)<1e-6);
 });
 test('the Lua reader stops a program that commands nothing, not one that keeps commanding',()=>{
@@ -87,14 +87,14 @@ test('Dobot relay policy keeps adjacent print moves on, turns off for travel/dwe
     action([190,180,20],0),action([180,180,20],0.8),action([170,180,20],0.8),
     {kind:'dwell',seconds:0.5,phase:'test',layer:0},action([160,180,20],0),action([150,180,20],0.8)
   ]};
-  const bytes=exportProgram(path,plan,machine,release),program=interpretProgram(bytes,plan,machine);
+  const bytes=exportProgram(path,plan,machine,release),program=decodeProgram(bytes,plan,machine);
   assert.deepEqual(program.moves.map(m=>m.extruding),[false,true,true,false,true]);
   assert.equal(program.events.filter(e=>e.kind==='extrusion-on').length,2);
   const dwells=program.events.filter(e=>e.kind==='dwell');assert.equal(dwells.length,1);assert.equal(dwells[0].seconds,0.5);
   assert.ok(program.moves.every(m=>Math.abs(m.speedMmS-10)<1e-8),'SpeedL percent accounts for calibration scaling');
   const entries=unpackZip(bytes),body=entries.get('src1.lua').toString();assert.ok(!body.includes('Wait(4000)'));
   entries.set('src1.lua',Buffer.from(body.replace('DO("DO_1",1)','DO("DO_1",1)\n  Wait(4000)')));
-  assert.throws(()=>interpretProgram(packZip(entries),plan,machine),/Dwell requires relay off/);
+  assert.throws(()=>decodeProgram(packZip(entries),plan,machine),/Dwell requires relay off/);
 });
 test('a pause longer than one Wait command is split, not refused',()=>{
   const {machine,plan}=fixture(),action=(to,volumeMm3)=>({kind:'move',to,speedMmS:10,volumeMm3,phase:'test',layer:0});
@@ -102,7 +102,7 @@ test('a pause longer than one Wait command is split, not refused',()=>{
     const path={schema:'saampath/1',initialPosition:[200,180,20],actions:[
       action([190,180,20],0),{kind:'dwell',seconds,phase:'test',layer:0},action([180,180,20],0.8)]};
     const bytes=exportProgram(path,plan,machine,release);
-    return {body:unpackZip(bytes).get('src1.lua').toString(),read:interpretProgram(bytes,plan,machine)};
+    return {body:unpackZip(bytes).get('src1.lua').toString(),read:decodeProgram(bytes,plan,machine)};
   };
   const short=program(12);
   assert.ok(short.body.includes('Wait(12000)')&&!short.body.includes('Wait(60000)'),'a pause that fits one command is unchanged');

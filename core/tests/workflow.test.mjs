@@ -15,8 +15,9 @@ import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
 import { createGeometry, verifyGeometry } from '../print/geometry.mjs';
 import {
   initBundle, loadBundle, generateBundle, updatePlan, adjustBundle, approve, deliver,
-  rememberSetup, bundleFingerprint, changeMachine, proposedPlan
+  bundleFingerprint, changeMachine, proposedPlan
 } from '../print/bundle.mjs';
+import {saveSetup} from '../machine/settings.mjs';
 import { createStudio } from '../../studio/server.mjs';
 import { approvedReview, machineChangedReview } from '../print/workflow.mjs';
 
@@ -270,7 +271,8 @@ test('geometry and settings edits invalidate the approvals they affect', async t
 test('remembered S5 setup carries into the next shell print without a firmware version', async t => {
   const dir = await fixture(t);
   const setupFile = resolve(dir, 'saved-setup.json');
-  await adjustBundle(dir, { setup: { nozzleC: 205 } }, { setupFile });
+  const edited=await adjustBundle(dir, { setup: { nozzleC: 205 } });
+  await saveSetup(edited.machine,edited.plan.setup,{setupFile,source:'Synthetic remembered-setup fixture'});
   const saved = JSON.parse(await readFile(setupFile, 'utf8'));
   assert.equal(saved.schema, 'saam-machine-setup/1');
   assert.equal(saved.setup.startupVerified, false);
@@ -282,7 +284,6 @@ test('remembered S5 setup carries into the next shell print without a firmware v
   assert.equal(state.plan.setup.nozzleC, 205);
   assert.equal(state.plan.setup.firmwareVersion, '');
   assert.equal(state.toolpathApproved, false, 'reusing setup approves nothing');
-  await rememberSetup(next, { setupFile });
 });
 
 test('selecting one skill still produces one program from one plan', async t => {

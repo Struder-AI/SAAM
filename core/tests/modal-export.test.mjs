@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {exportProgram,interpretProgram} from '../export/registry.mjs';
+import {exportProgram,decodeProgram} from '../export/registry.mjs';
 import {exportMotion} from '../export/griffin.mjs';
 import {readFileSync} from 'node:fs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
@@ -24,7 +24,7 @@ test('modal fields retain exact machine moves across speed, travel, retract and 
     plan.process.maxCombMm=0;plan.process.minimumLayerSeconds=0;
     const path=await generatePath(plan,machine);
     const code=exportProgram(path,plan,machine,{generatorVersion:'test',buildDate:'2026-09-09'});
-    const actual=interpretProgram(code,plan,machine),expected=path.actions.filter(a=>a.kind==='move');
+    const actual=decodeProgram(code,plan,machine),expected=path.actions.filter(a=>a.kind==='move');
     assert.equal(actual.moves.length,expected.length);
     expected.forEach((a,i)=>{
       assert.ok(a.to.every((v,k)=>Math.abs(v-actual.moves[i].to[k])<6e-6));

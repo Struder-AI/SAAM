@@ -47,3 +47,17 @@ export async function commitManifest(dir,document,expected){
     return next;
   });
 }
+
+// Delivery records an observed fact against the latest manifest, never an old
+// reviewed snapshot. The artifact's original inputs remain its own identity.
+export async function recordDelivery(dir,receipt){
+  return withBundleWriteLock(dir,async()=>{
+    await requireBundleInstance(dir);
+    const current=JSON.parse(await readFile(resolve(dir,'plan.json'),'utf8'));
+    const review=current.bundle.review;
+    const next={...current,bundle:{...current.bundle,revision:randomUUID(),review:{...review,
+      history:[...(review.history??[]),{event:'delivered',...receipt}]}}};
+    await replaceFile(resolve(dir,'plan.json'),JSON.stringify(next)+'\n');
+    return next;
+  });
+}

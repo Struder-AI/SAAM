@@ -7,10 +7,10 @@ do both. Their results compose one machine-independent **SAAMpath**. The person
 reviews in Studio and gives one confirmation of current settings and exact
 toolpath before export.
 
-This file is the entry point both in a source checkout and in an installed SAAM
-home, where the installer copies it. Lasting SAAM preferences are never kept in
-a client's own memory. In a source checkout, read `.local/AGENTS.md` at session
-start (for a tour, after launch) and record them there.
+This entry point serves source and installed SAAM. Every role's onboarding reads
+shared `<SAAM home>/local/LOCAL-AGENT-NOTES.md`; [local notes](core/application/README.md#local-agent-notes)
+own reads and updates. Source checkout notes stay in `.local/AGENTS.md`; builders
+and developers also read `.local/DEVELOPMENT.md`. For tours, read notes after launch.
 
 ## Choose your role
 
@@ -45,12 +45,10 @@ Bundle reservations and request IDs. Show intermediate edits; use the returned
 `workRequest` to hand work back when finished, needing discussion, or receiving
 a user interjection.
 
-After working, wait for Studio requests with `saam wait`; follow a tour's returned
-participation context and keep responding to its requests the same way. Claude
-Code can run the wait in the background and resume when it completes. Codex
-wakeup is unverified: keep the wait in the client's managed command session and
-report if it cannot resume. Commands ending and browser tabs closing do not stop
-SAAM; Quit does.
+Follow [client queue monitoring](core/application/README.md#client-queue-monitoring)
+and a tour's returned participation context. Carry the expected Studio/bundle
+identity on the first needed operation. Commands ending and browser tabs closing
+do not stop SAAM; Quit does.
 
 If client registration needs repair, run `saam call repair_client_setup` and
 handle its reported errors; the person may need to restart the client to reload

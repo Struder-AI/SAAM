@@ -7,7 +7,7 @@ import {createHash} from 'node:crypto';
 import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {exportProgram,interpretProgram,exportAndInterpretProgram} from '../export/registry.mjs';
+import {exportProgram,decodeProgram,exportAndDecodeProgram} from '../export/registry.mjs';
 import {packZip,unpackZip} from '../export/zip.mjs';
 import {initBundle,generateBundle,loadBundle,approve,deliver,adjustBundle} from '../print/bundle.mjs';
 import {createStudio} from '../../studio/server.mjs';
@@ -25,7 +25,7 @@ function fixture(tool=0,nozzleMm=0.4){
 test('H2D maps logical material zero to either physical nozzle and round trips all three skills',async()=>{
   for(const tool of [0,1]){
     const {machine,plan}=fixture(tool),path=await generatePath(plan,machine);
-    const bytes=exportProgram(path,plan,machine,release),entries=unpackZip(bytes),program=interpretProgram(bytes,plan,machine);
+    const bytes=exportProgram(path,plan,machine,release),entries=unpackZip(bytes),program=decodeProgram(bytes,plan,machine);
     assert.deepEqual(bytes,exportProgram(path,plan,machine,release),'archive bytes are deterministic');
     const code=entries.get(GCODE).toString();
     const body=code.split(';SAAM_BODY_BEGIN\n')[1].split(';SAAM_BODY_END\n')[0];
@@ -61,7 +61,7 @@ test('H2D 0.8 mm setup uses selected nozzle metadata and round trips on either t
     plan.setup.ams=tool===0?{unit:1,slot:4}:{unit:2,slot:3};const selector=0;
     const path=await generatePath(plan,machine);
     const bytes=exportProgram(path,plan,machine,release),entries=unpackZip(bytes);
-    assert.deepEqual(interpretProgram(bytes,plan,machine).moves.length,path.actions.filter(a=>a.kind==='move').length);
+    assert.deepEqual(decodeProgram(bytes,plan,machine).moves.length,path.actions.filter(a=>a.kind==='move').length);
     const nozzles=tool===0?['0.8','0.4']:['0.4','0.8'];
     assert.equal(JSON.parse(entries.get('Metadata/plate_1.json')).nozzle_diameter,0.8);
     assert.deepEqual(JSON.parse(entries.get('Metadata/project_settings.config')).nozzle_diameter,nozzles);
@@ -102,7 +102,7 @@ test('H2D needs no colour or AMS choice, and rejects only a malformed one',async
 test('H2D 0.6 mm setup uses selected right-nozzle metadata and round trips',async()=>{
   const {machine,plan}=fixture(1,0.6),path=await generatePath(plan,machine);
   const bytes=exportProgram(path,plan,machine,release),entries=unpackZip(bytes);
-  assert.deepEqual(interpretProgram(bytes,plan,machine).moves.length,path.actions.filter(a=>a.kind==='move').length);
+  assert.deepEqual(decodeProgram(bytes,plan,machine).moves.length,path.actions.filter(a=>a.kind==='move').length);
   assert.equal(JSON.parse(entries.get('Metadata/plate_1.json')).nozzle_diameter,0.6);
   assert.deepEqual(JSON.parse(entries.get('Metadata/project_settings.config')).nozzle_diameter,['0.4','0.6']);
   assert.match(entries.get('Metadata/slice_info.config').toString(),/nozzle id="1" extruder_id="2" nozzle_diameter="0.6"/);
@@ -110,15 +110,15 @@ test('H2D 0.6 mm setup uses selected right-nozzle metadata and round trips',asyn
 test('H2D rejects altered firmware, metadata, print commands, cold state, tool excursions and archive corruption',async()=>{
   const {machine,plan}=fixture(),path=await generatePath(plan,machine),bytes=exportProgram(path,plan,machine,release);
   const changeCode=(before,after)=>{const entries=unpackZip(bytes);entries.set(GCODE,Buffer.from(entries.get(GCODE).toString().replace(before,after)));return packZip(entries);};
-  assert.throws(()=>interpretProgram(changeCode('M104 S215 T1','M104 S215 T0'),plan,machine),/firmware envelope/);
-  assert.throws(()=>interpretProgram(changeCode(';SAAM_BODY_BEGIN\n',';SAAM_BODY_BEGIN\nM999\n'),plan,machine),/modal\/temperature/);
-  assert.throws(()=>interpretProgram(changeCode(';SAAM_BODY_END\n','M999\n;SAAM_BODY_END\n'),plan,machine),/Unsupported command/);
-  assert.throws(()=>interpretProgram(changeCode(';SAAM_BODY_END\n','G1 X340 Y100 Z20 F600\n;SAAM_BODY_END\n'),plan,machine),/selected tool bounds/);
-  assert.throws(()=>interpretProgram(changeCode('M190 S60\nM109 S215\n','M140 S60\nM104 S215\n'),plan,machine),/modal\/temperature/);
+  assert.throws(()=>decodeProgram(changeCode('M104 S215 T1','M104 S215 T0'),plan,machine),/firmware envelope/);
+  assert.throws(()=>decodeProgram(changeCode(';SAAM_BODY_BEGIN\n',';SAAM_BODY_BEGIN\nM999\n'),plan,machine),/modal\/temperature/);
+  assert.throws(()=>decodeProgram(changeCode(';SAAM_BODY_END\n','M999\n;SAAM_BODY_END\n'),plan,machine),/Unsupported command/);
+  assert.throws(()=>decodeProgram(changeCode(';SAAM_BODY_END\n','G1 X340 Y100 Z20 F600\n;SAAM_BODY_END\n'),plan,machine),/selected tool bounds/);
+  assert.throws(()=>decodeProgram(changeCode('M190 S60\nM109 S215\n','M140 S60\nM104 S215\n'),plan,machine),/modal\/temperature/);
   for(const name of ['Metadata/slice_info.config','Metadata/plate_1.gcode.md5','Metadata/plate_1.png']){
-    const entries=unpackZip(bytes);entries.set(name,Buffer.from('wrong'));assert.throws(()=>interpretProgram(packZip(entries),plan,machine),/metadata, checksum or thumbnail/);
+    const entries=unpackZip(bytes);entries.set(name,Buffer.from('wrong'));assert.throws(()=>decodeProgram(packZip(entries),plan,machine),/metadata, checksum or thumbnail/);
   }
-  const corrupted=Buffer.from(bytes);corrupted[80]^=1;assert.throws(()=>interpretProgram(corrupted,plan,machine));
+  const corrupted=Buffer.from(bytes);corrupted[80]^=1;assert.throws(()=>decodeProgram(corrupted,plan,machine));
   const changed=structuredClone(machine);changed.outputs[0].program.start.push('M999');assert.throws(()=>exportProgram(path,plan,changed,release),/Unknown Bambu firmware envelope/);
   const unavailable=structuredClone(machine);unavailable.outputs[0].implemented=false;assert.throws(()=>exportProgram(path,plan,unavailable,release),/No exporter/);
   const chamber=structuredClone(plan);chamber.setup.buildVolumeC=40;assert.throws(()=>exportProgram(path,chamber,machine,release),/chamber heating/);
@@ -128,15 +128,15 @@ test('H2D rejects altered firmware, metadata, print commands, cold state, tool e
 
 test('H2D fresh export carries the same checked program as cold archive interpretation',async()=>{
   const {machine,plan}=fixture(),path=await generatePath(plan,machine);
-  const {bytes,program}=exportAndInterpretProgram(path,plan,machine,release);
-  assert.deepEqual(program,interpretProgram(bytes,plan,machine),'fresh and reopened playback use the exact same emitted commands');
+  const {bytes,program}=exportAndDecodeProgram(path,plan,machine,release);
+  assert.deepEqual(program,decodeProgram(bytes,plan,machine),'fresh and reopened playback use the exact same emitted commands');
   assert.deepEqual(bytes,exportProgram(path,plan,machine,release),'reusing interpretation changes no delivered bytes');
   const entries=unpackZip(bytes),thumbnail=entries.get('Metadata/plate_1.png');
   for(const name of ['plate_no_light_1','top_1','pick_1'])assert.deepEqual(entries.get(`Metadata/${name}.png`),thumbnail);
   const altered=Buffer.from(bytes);altered[80]^=1;
-  assert.throws(()=>interpretProgram(altered,plan,machine),'fresh export does not whitelist subsequently changed bytes');
+  assert.throws(()=>decodeProgram(altered,plan,machine),'fresh export does not whitelist subsequently changed bytes');
   const changed=structuredClone(plan);changed.setup.nozzleC++;
-  assert.throws(()=>interpretProgram(bytes,changed,machine),'fresh export does not whitelist changed settings');
+  assert.throws(()=>decodeProgram(bytes,changed,machine),'fresh export does not whitelist changed settings');
 });
 
 test('H2D restores initial XY/Z registration before loading and accepts only its reviewed startup',async()=>{
@@ -153,7 +153,7 @@ test('H2D restores initial XY/Z registration before loading and accepts only its
   assert.ok(start.endsWith('G1 Z20 F300\nG1 X100 Y100 F3600\nM400\n'));
 
   // Any edit to the pinned startup or shutdown needs a reviewed new contract.
-  assert.equal(interpretProgram(current,plan,machine).envelope.contract,machine.outputs[0].program.contract);
+  assert.equal(decodeProgram(current,plan,machine).envelope.contract,machine.outputs[0].program.contract);
   const edited=structuredClone(machine);edited.outputs[0].program.start.splice(edited.outputs[0].program.start.indexOf('M1002 gcode_claim_action : 74'),0,'G28 X T300');
   assert.throws(()=>exportProgram(path,plan,edited,release),/Unknown Bambu firmware envelope/);
   const retired=structuredClone(machine);retired.outputs[0].program.contract='h2d-02.08.02.61-pla-textured-v1';
@@ -162,9 +162,9 @@ test('H2D restores initial XY/Z registration before loading and accepts only its
 test('X1 Carbon shares the Bambu exporter with its own envelope, shutdown and package facts',async()=>{
   const machine=loadMachine('bambu-x1-carbon'),plan=defaults(machine);plan.geometry=boxMesh();plan.process.minimumLayerSeconds=0;
   plan.setup.ams={unit:2,slot:1};
-  const path=await generatePath(plan,machine),{bytes,program}=exportAndInterpretProgram(path,plan,machine,release);
+  const path=await generatePath(plan,machine),{bytes,program}=exportAndDecodeProgram(path,plan,machine,release);
   assert.deepEqual(bytes,exportProgram(path,plan,machine,release),'archive bytes are deterministic');
-  const cold=interpretProgram(bytes,plan,machine),moves=path.actions.filter(a=>a.kind==='move');
+  const cold=decodeProgram(bytes,plan,machine),moves=path.actions.filter(a=>a.kind==='move');
   assert.equal(cold.envelope.contract,'x1c-saam-startup-v5');assert.equal(cold.moves.length,moves.length);assert.equal(program.moves.length,moves.length);
   moves.forEach((m,i)=>m.to.forEach((v,k)=>assert.ok(Math.abs(v-cold.moves[i].to[k])<6e-6)));
   const entries=unpackZip(bytes),code=entries.get(GCODE).toString(),[start,rest]=code.split(';SAAM_BODY_BEGIN\n'),end=rest.split(';SAAM_BODY_END\n')[1];
@@ -189,7 +189,7 @@ test('X1 Carbon shares the Bambu exporter with its own envelope, shutdown and pa
   const petg=structuredClone(plan);Object.assign(petg.setup,{material:'PETG',nozzleC:250,bedC:70});assert.throws(()=>exportProgram(path,petg,machine,release),/requires a declared 0\.4 mm PLA setup/);
   const moved=structuredClone(machine);moved.tools[0].startupXY=[120,100];assert.throws(()=>exportProgram(path,plan,moved,release),/tool\/startup contract mismatch/);
   const edited=structuredClone(machine);edited.outputs[0].program.end.push('M999');assert.throws(()=>exportProgram(path,plan,edited,release),/Unknown Bambu firmware envelope/);
-  assert.throws(()=>interpretProgram(bytes,plan,loadMachine('bambu-h2d')),'an X1 archive is not an H2D program');
+  assert.throws(()=>decodeProgram(bytes,plan,loadMachine('bambu-h2d')),'an X1 archive is not an H2D program');
 });
 test('Bambu selected nozzle, other nozzle, plate and temperature stay coherent across every artifact',async()=>{
   for(const tool of [0,1])for(const diameter of [0.4,0.6,0.8])for(const plate of ['textured_plate','hot_plate']){
@@ -217,7 +217,7 @@ test('Bambu selected nozzle, other nozzle, plate and temperature stay coherent a
     assert.ok(code.includes(plate==='textured_plate'?'G29.1 Z-0.02':'G29.1 Z0'));
     assert.ok(code.includes(plate==='textured_plate'?'M972 S26 P0 C0':'M972 S36 P0 C0 X1'));
     assert.doesNotMatch(code,plate==='textured_plate'?/M972 S36/:/M972 S26|G29\.1 Z-0\.02/);
-    assert.equal(interpretProgram(bytes,plan,machine).envelope.simulation,'not simulated');
+    assert.equal(decodeProgram(bytes,plan,machine).envelope.simulation,'not simulated');
   }
 });
 
@@ -322,7 +322,7 @@ test('declared logical filaments preserve independent nozzle assignments on ever
     assert.deepEqual(settings.nozzle_diameter,['0.4','0.8']);
     for(const name of ['Metadata/model_settings.config','Metadata/slice_info.config'])assert.match(z.get(name).toString(),/key="filament_maps" value="2 1"/);
     assert.deepEqual(JSON.parse(z.get('Metadata/filament_sequence.json')).plate_1,{nozzle_sequence:[tool],sequence:[2-tool]},'declaring both nozzles does not claim both are used');
-    assert.equal(interpretProgram(bytes,plan,machine).envelope.job.tool,tool);
+    assert.equal(decodeProgram(bytes,plan,machine).envelope.job.tool,tool);
     plan.setup.bambu.filament=tool;
     assert.throws(()=>exportProgram(path,plan,machine,release),/nozzle disagrees/);
   }
@@ -382,7 +382,7 @@ test('fast_start skips optional checks, keeps startup handoff and rejects contra
       assert.match(start,/G28 Z P0 T300/);assert.match(start,/G0 X239 E15/);
       assert.doesNotMatch(start,/M18 E/,'fast mode avoids lidar preparation that disables the extruder');
     }
-    assert.equal(interpretProgram(bytes,plan,machine).envelope.job.fast_start,true);
+    assert.equal(decodeProgram(bytes,plan,machine).envelope.job.fast_start,true);
     assert.equal(JSON.parse(entries.get('Metadata/saam-job.json')).fast_start,true);
     const project=JSON.parse(entries.get('Metadata/project_settings.config'));
     assert.equal(project.single_extruder_multi_material,'1');
@@ -391,7 +391,7 @@ test('fast_start skips optional checks, keeps startup handoff and rejects contra
       for(const key of ['machine_start_gcode','machine_end_gcode']){
         const altered=new Map(entries),p=structuredClone(project);p[key]+='M999\n';
         altered.set('Metadata/project_settings.config',Buffer.from(JSON.stringify(p)));
-        assert.throws(()=>interpretProgram(packZip(altered),plan,machine),/metadata, checksum or thumbnail/);
+        assert.throws(()=>decodeProgram(packZip(altered),plan,machine),/metadata, checksum or thumbnail/);
       }
     }
     assert.match(start,/^; single_extruder_multi_material = 1$/m);
@@ -408,5 +408,5 @@ test('single used filament with a nonzero logical ID remains that ID in the USB 
   assert.match(entries.get(GCODE).toString(),/^; filament: 2$/m);
   assert.match(entries.get('Metadata/slice_info.config').toString(),/<filament id="2"/);
   assert.deepEqual(JSON.parse(entries.get('Metadata/plate_1.json')).filament_ids,[1]);
-  assert.equal(interpretProgram(bytes,plan,machine).filamentUsage[0].filament,1);
+  assert.equal(decodeProgram(bytes,plan,machine).filamentUsage[0].filament,1);
 });

@@ -50,7 +50,7 @@ try{
   // this cold cost separate from generation after geometry is already loaded.
   await stage('geometry-and-plan',()=>planning.validatePlan(plan,machine));
   const toolpath=await stage('generate',()=>{generationStart=performance.now();return generation.generatePreparedPath(plan,{onProgress});});
-  const {bytes,program}=await stage('export-and-interpret',()=>exports.exportAndInterpretProgram(toolpath,plan,machine,
+  const {bytes,program}=await stage('export-and-interpret',()=>exports.exportAndDecodeProgram(toolpath,plan,machine,
     {generatorVersion:planning.VERSION,buildDate:planning.BUILD_DATE}));
   report.afterLoadMs=report.stagesMs.generate+report.stagesMs['export-and-interpret'];
   report.result={actions:toolpath.actions.length,moves:program.moves.length,exportBytes:Buffer.byteLength(bytes),exportSha256:digest(bytes),travel:toolpath.summary.travel};

@@ -4,7 +4,7 @@ import {mkdtemp,rm,access} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {MACHINE_IDS,loadMachine} from '../machine/profile.mjs';
-import {checkMachinePath,validateSetup} from '../machine/rules.mjs';
+import {diagnoseMachinePath,validateSetup} from '../machine/rules.mjs';
 import {defaults,validatePlan} from '../print/plan.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
@@ -66,9 +66,9 @@ test('selected-tool bounds exclude cutter and glass clip regions',()=>{
     ['ultimaker-3',[100,100,20],[220,20,20]]
   ]){
     const machine=loadMachine(id),plan=authoredPlan(machine);
-    checkMachinePath({initialPosition:inside,actions:[]},plan,machine);
-    assert.throws(()=>checkMachinePath({initialPosition:outside,actions:[]},plan,machine),/tool bounds/);
-    assert.throws(()=>checkMachinePath({initialPosition:inside,actions:[{kind:'move',to:outside,speedMmS:10,volumeMm3:0}]},plan,machine),/tool bounds/);
+    diagnoseMachinePath({initialPosition:inside,actions:[]},plan,machine);
+    assert.throws(()=>diagnoseMachinePath({initialPosition:outside,actions:[]},plan,machine),/tool bounds/);
+    assert.throws(()=>diagnoseMachinePath({initialPosition:inside,actions:[{kind:'move',to:outside,speedMmS:10,volumeMm3:0}]},plan,machine),/tool bounds/);
   }
 });
 

@@ -20,12 +20,12 @@ node scripts/agent-toolkit.mjs context-budget
 ```
 
 `maker-onboarding` remains a source context read; installed maker work uses
-`saam call maker_onboarding`. Skill reads default to maker and accept `--maker`,
-`--builder`, `--developer`; missing optional manuals are reported. `ID#heading`
-reads one complete maker section regardless of its gate. `--machine` opens
-applicable advanced sections; `--all` opens everything. The reader returns
-published source links and the headings/gates it omitted. Local extensions use
-the selected catalog and manual reader; their source remains outside the app.
+`saam call maker_onboarding`. All roles receive [shared local notes](../application/README.md#local-agent-notes).
+Skill reads default to maker; `--maker`, `--builder`, `--developer` select roles.
+Missing optional manuals are reported. `ID#heading` reads a complete maker section;
+`--machine` opens applicable advanced sections and `--all` opens everything.
+The reader returns published links and omitted headings/gates. Local extensions
+use the selected catalog; their source remains outside the app.
 
 Map reads follow the [read contract](../../dev-map/README.md#commands): map 0,
 then a box, then `@link/MAP/FROM/TO` for an arrow's leaf arrows, then the source

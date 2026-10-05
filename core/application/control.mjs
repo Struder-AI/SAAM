@@ -1,6 +1,7 @@
 // Commands discover one ready application; launching a command never owns it.
 import {readFile,mkdir} from 'node:fs/promises';
 import {spawn} from 'node:child_process';
+import {request} from 'node:http';
 import {createHash} from 'node:crypto';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -15,10 +16,17 @@ export async function readInstance(){
   catch(error){if(error.code==='ENOENT'||error instanceof SyntaxError)return null;throw Error('The SAAM instance record cannot be read.',{cause:error});}
 }
 export async function controlRequest(instance,body,{waitMs=35000}={}){
-  const response=await fetch(`http://127.0.0.1:${instance.port}/control`,{method:'POST',
-    headers:{'Content-Type':'application/json','X-SAAM-Control':instance.token},body:JSON.stringify(body),...(waitMs===null?{}:{signal:AbortSignal.timeout(waitMs)})});
-  const value=await response.json();
-  if(!response.ok)throw Object.assign(Error(value.error??`SAAM answered ${response.status}.`),{result:value});
+  // Native HTTP has no implicit five-minute fetch header/body deadline.
+  // Operation waits own their duration; bounded control commands retain theirs.
+  const response=await new Promise((received,failed)=>{
+    const command=request({hostname:'127.0.0.1',port:instance.port,path:'/control',method:'POST',agent:false,timeout:0,
+      headers:{'Content-Type':'application/json','X-SAAM-Control':instance.token},
+      ...(waitMs===null?{}:{signal:AbortSignal.timeout(waitMs)})},received);
+    command.once('error',failed);command.end(JSON.stringify(body));
+  });
+  const chunks=[];for await(const chunk of response)chunks.push(Buffer.from(chunk));
+  const value=JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  if(response.statusCode<200||response.statusCode>=300)throw Object.assign(Error(value.error??`SAAM answered ${response.statusCode}.`),{result:value});
   return value;
 }
 export async function readyInstance(){
@@ -37,7 +45,7 @@ export async function readyInstance(){
     if(instance){
       try{await controlRequest(instance,{command:'status'},{waitMs:2000});return instance;}catch{/* Startup publishes only ready records; report a bounded failure. */}
     }
-    if(Date.now()>=deadline)throw Error(`SAAM did not become ready. See ${resolve(paths.state,'logs','saam.log')}.`);
+    if(Date.now()>=deadline)throw Error('SAAM did not become ready. Review first-run diagnostics in '+resolve(paths.tmp,'diagnostics')+'.');
     await new Promise(done=>setTimeout(done,200));
   }
 }

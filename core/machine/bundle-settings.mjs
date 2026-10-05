@@ -2,7 +2,7 @@
 // against the read revision. Bundle retains review/invalidation ownership.
 import {loadBundle,applySettingsSnapshot} from '../print/bundle.mjs';
 import {requireEditRevision} from '../print/edit-identity.mjs';
-import {selectSettings,resolveMachineSettings,resolveSettingsPatch,saveSetup} from './settings.mjs';
+import {selectSettings,resolveMachineSettings,resolveSettingsPatch} from './settings.mjs';
 import {requireThat} from '../private/settings/numeric.mjs';
 import {EXTENSION_CONFIGURATION_IDS} from '../../skills/catalog.mjs';
 
@@ -14,17 +14,11 @@ export async function changeMachine(directory,machineId,{expectedRevision,expect
   return applySettingsSnapshot(directory,{machine:selection.machine,settings},state.revision,{expectedEditRevision});
 }
 
-export async function rememberSetup(directory,options={}){
-  const state=await loadBundle(directory,{program:false});
-  return saveSetup(state.machine,state.plan.setup,options);
-}
-
-export async function adjustSettings(directory,patch,{expectedRevision,expectedEditRevision,setupFile}={}){
+export async function adjustSettings(directory,patch,{expectedRevision,expectedEditRevision}={}){
   const state=await loadBundle(directory,{program:false});
   requireEditRevision(state,{expectedRevision,expectedEditRevision},{optional:true});
   const settings=resolveSettingsPatch(state.plan,patch);
   const updated=await applySettingsSnapshot(directory,{machine:state.machine,settings},state.revision,{expectedEditRevision});
-  if(patch.setup&&updated.machine)await saveSetup(updated.machine,updated.plan.setup,{setupFile});
   return updated;
 }
 

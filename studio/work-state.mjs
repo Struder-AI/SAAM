@@ -13,7 +13,7 @@ function matchesReceipt(request,snapshot){
   if(!request.target)return false;
   return request.target.inputKey===snapshot.inputKey
     &&(request.target.stage==='geometry'||snapshot.stage==='toolpath')
-    &&(request.baseline.inputKey!==snapshot.inputKey||request.baseline.generationKey!==snapshot.generationKey);
+    &&(request.baseline.inputKey!==snapshot.inputKey||request.baseline.schema==='saam-work-evidence/1'&&request.baseline.generationKey!==snapshot.generationKey);
 }
 
 export function requestReceiptState(request,{view:displayedView,state,stage,requiresToolpath=false}={}){

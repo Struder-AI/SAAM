@@ -56,7 +56,7 @@ export async function runSaam(args=process.argv.slice(2),{input=process.stdin,wr
     }else for(const [key,value] of Object.entries(parsed.flags))fields[key]=value;
     const message={command:parsed.command,operation:parsed.operation,args:fields,chatId:parsed.chatId,client:parsed.client,
       chatName:parsed.options.chatName,bundleId:parsed.options.bundleId??fields.bundleId,force:enabled(parsed.options.force)};
-    const result=await controlRequest(instance,message,{waitMs:['call','start-tour'].includes(parsed.command)?null:35000});
+    const result=await controlRequest(instance,message,{waitMs:['call','start-tour','wait'].includes(parsed.command)?null:35000});
     write({...result,...identity});return result;
   }catch(error){error.result={...error.result,...identity};throw error;}
 

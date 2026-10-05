@@ -1,9 +1,9 @@
-import {saamHome} from '../application/home.mjs';
+import {homePaths} from '../application/home.mjs';
 // Extension exchange and resolution. Release defaults are replaceable; the
 // user's copies live beside prints and survive installation updates.
 import {createHash,randomUUID} from 'node:crypto';
-import {access,lstat,mkdir,readFile,readdir,rename,rm,writeFile} from 'node:fs/promises';
-import {homedir} from 'node:os';
+import {access,lstat,mkdir,cp,readFile,readdir,rename,rm,writeFile} from 'node:fs/promises';
+import {createTemporaryWorkspace} from '../application/temporary-workspace.mjs';
 import {dirname,relative,resolve,sep} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 
@@ -18,8 +18,7 @@ const canonical=value=>JSON.stringify(value,(_key,item)=>item&&typeof item==='ob
   ?Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])):item);
 
 export function extensionRoots({appRoot=applicationRoot,dataRoot}={}){
-  const data=dataRoot??saamHome();
-  return {bundled:resolve(appRoot,'skills'),local:resolve(data,'extensions')};
+  return {bundled:resolve(appRoot,'skills'),local:homePaths(dataRoot).extensions};
 }
 
 export function relativeExtensionFile(name){
@@ -157,15 +156,18 @@ async function installFiles(id,files,options){
     throw Error(`Local extension ${id} has changes. Keep it, or move it aside before importing another copy.`);
   }
   await mkdir(dirname(destination),{recursive:true});
+  const workspace=await createTemporaryWorkspace('extension'),prepared=resolve(workspace.directory,'entry');
   const staging=resolve(dirname(destination),`.${id}-${randomUUID()}.installing`);
   try{
-    await mkdir(staging);
+    await mkdir(prepared);
     for(const {path,bytes} of files){
-      const target=resolve(staging,...path.split('/'));
+      const target=resolve(prepared,...path.split('/'));
       await mkdir(dirname(target),{recursive:true});await writeFile(target,bytes,{flag:'wx'});
     }
+    // Publication stays on the destination volume; preparation lives in tmp.
+    await cp(prepared,staging,{recursive:true,force:false,errorOnExist:true});
     await rename(staging,destination);
-  }finally{await rm(staging,{recursive:true,force:true});}
+  }finally{try{await rm(staging,{recursive:true,force:true});}finally{await workspace.release();}}
   return {...await extensionAt(destination,id),origin:'local',unchanged:false};
 }
 

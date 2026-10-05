@@ -867,7 +867,7 @@ function reportOpening(error){
   if(error.code==='NO_PRINT')showNoPrint(error);
   else message(error.message,true);
 }
-const chatUI=initializeChatUI({getBundleId:()=>printSync.state?.work?.printId??null});
+const chatUI=initializeChatUI();
 function initializeStudio(){
   studioWork.tourUI=createStudioTour();
   working('Opening Studio…',loadStudio).catch(reportOpening);

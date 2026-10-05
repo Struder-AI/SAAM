@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {h2dColourFixture} from './fixtures/bambu-h2d-colours.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {prepareExportPath} from '../export/prepare-path.mjs';
-import {exportProgram,interpretProgram} from '../export/registry.mjs';
+import {exportProgram,decodeProgram} from '../export/registry.mjs';
 import {unpackZip,packZip} from '../export/zip.mjs';
 import {decodeSource} from '../../studio/source-player.mjs';
 import {auditBambu} from '../../scripts/bambu-audit.mjs';
@@ -15,7 +15,7 @@ test('H2D blue-orange-blue changes logical filament twice while retaining right 
   const path=await generatePath(plan,machine),prepared=prepareExportPath(path,plan,machine);
   assert.deepEqual(path.actions.filter(a=>a.kind==='toolChange').map(a=>a.filament),[1,0]);
   assert.deepEqual(prepared.actions.filter(a=>a.kind==='toolChange').map(a=>[a.tool,a.filament]),[[1,1],[1,0]]);
-  const bytes=exportProgram(path,plan,machine,release),program=interpretProgram(bytes,plan,machine),code=program.code;
+  const bytes=exportProgram(path,plan,machine,release),program=decodeProgram(bytes,plan,machine),code=program.code;
   assert.deepEqual(program.filamentSequence,[0,1,0]);
   const source=decodeSource({program:code},plan,machine);
   assert.deepEqual(source.moves.map(m=>[m.tool,m.filament,m.to]),program.moves.map(m=>[m.tool,m.filament,m.to]));
@@ -49,15 +49,15 @@ test('H2D blue-orange-blue changes logical filament twice while retaining right 
   for(const [before,after]of [['L124.72551','L0'],['T1 H-1','T0 H-1'],['M620.10 R0.6','M620.10 R0'],['I1 B-1','I1 B1']]){
     const altered=code.slice(0,boundary)+code.slice(boundary).replace(before,after);assert.notEqual(altered,code);
     const z=new Map(entries);z.set('Metadata/plate_1.gcode',Buffer.from(altered));
-    assert.throws(()=>interpretProgram(packZip(z),plan,machine),/tool-change block/);
+    assert.throws(()=>decodeProgram(packZip(z),plan,machine),/tool-change block/);
   }
 });
 
 test('the requested 0.8/0.8 ALT changes only installed-nozzle declarations, not right-nozzle body or service commands',async()=>{
   const {plan,machine}=h2dColourFixture();
-  const path=await generatePath(plan,machine),normal=interpretProgram(exportProgram(path,plan,machine,release),plan,machine);
+  const path=await generatePath(plan,machine),normal=decodeProgram(exportProgram(path,plan,machine,release),plan,machine);
   plan.setup.bambu.otherNozzleMm=0.8;
-  const alt=interpretProgram(exportProgram(await generatePath(plan,machine),plan,machine,release),plan,machine);
+  const alt=decodeProgram(exportProgram(await generatePath(plan,machine),plan,machine,release),plan,machine);
   const executable=code=>code.slice(code.indexOf('; EXECUTABLE_BLOCK_START'));
   assert.equal(executable(alt.code),executable(normal.code));
   assert.deepEqual(alt.envelope.job.nozzleDiametersMm,[0.8,0.8]);

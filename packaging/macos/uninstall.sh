@@ -43,7 +43,7 @@ main() {
   rm -rf "$target" "$bundle"
   echo
   echo 'SAAM is uninstalled.'
-  echo "Your prints remain in $(data_folder)/Prints; settings and logs are in $(data_folder)/state."
+  echo "Your prints, extensions and remembered setups remain in $(data_folder)/local; logs are in $(data_folder)/state."
   echo 'Delete that folder yourself if you no longer want them. Installing SAAM again picks them up.'
 }
 

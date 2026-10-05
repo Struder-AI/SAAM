@@ -9,13 +9,14 @@
 //       compare the traces with `node dev-map/influence/run.mjs --out FILE all`
 // Instrumentation: register.mjs (preload and load hook), instrument.mjs (source rewrite),
 // runtime.mjs (recorder). Comparison: compare.mjs.
-import {execFileSync,spawnSync} from 'node:child_process';
+import {spawnSync} from 'node:child_process';
 import {readFileSync,mkdirSync,rmSync,writeFileSync} from 'node:fs';
 import {dirname,resolve,join} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {tmpdir} from 'node:os';
 import {mkdtempSync} from 'node:fs';
 import {instrument,parse,inScope} from './instrument.mjs';
+import {scopeFiles} from '../scope.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
 const repo=resolve(here,'../../..');
@@ -25,7 +26,7 @@ const positional=argv.slice(1).filter((a,i,all)=>!a.startsWith('--')&&!(i>0&&all
 const command=argv[0];
 
 if(command==='check') {
-  const files=execFileSync('git',['ls-files'],{cwd:repo,encoding:'utf8'}).split('\n').filter(inScope);
+  const files=scopeFiles(repo).filter(inScope);
   let n=0,fns=0,sites=0;const failures=[];
   for(const file of files) {
     const text=readFileSync(resolve(repo,file),'utf8');
