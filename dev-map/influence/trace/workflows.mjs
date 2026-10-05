@@ -2,7 +2,7 @@
 //   node dev-map/influence/trace/workflows.mjs NAME HOME
 // HOME is a disposable directory (trace.mjs makes one and sets SAAM_DATA inside it); nothing
 // touches the user's prints or SAAM home. Approvals are synthetic and say so.
-import {writeFile,mkdir} from 'node:fs/promises';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 
@@ -43,12 +43,12 @@ export const workflows={
     const {directory}=await createSTLBundle(join(home,'Prints','box'),source,{units:'mm',machineId:'bambu-h2d'});
     return generateAndExport(directory);
   },
-  // The wavy pipe-cladding demo on the Denso arm: skill recipe, toolpath, robot program export.
+  // The tour's wavy pipe-cladding part on the Denso arm: static recipe, toolpath, robot program export.
   async 'denso-cladding'(home) {
     const {initBundle}=await core('print/bundle.mjs');
-    const {wavyDensoPlan}=await example('wavy-denso/recipe.mjs');
+    const {machineId,plan}=JSON.parse(await readFile(new URL('../../../examples/prints/wavy-denso/recipe.json',import.meta.url),'utf8'));
     const directory=join(home,'Prints','wavy');
-    await initBundle(directory,await wavyDensoPlan(),{machineId:'denso-vs068a4-rc8a'});
+    await initBundle(directory,plan,{machineId});
     return generateAndExport(directory);
   },
   // Studio's Node side driven over HTTP as the browser would: page, state, generation in the

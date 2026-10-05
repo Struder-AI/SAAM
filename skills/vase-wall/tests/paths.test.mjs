@@ -4,12 +4,12 @@ import assert from 'node:assert/strict';
 import {generatePath} from '../../../core/print/generate.mjs';
 import {contextualActions} from '../../../core/path/action-context.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
-import {loopDemoPlan} from '../../advanced-vase-wall/scripts/loop-demo.mjs';
+import {loopSleevePlan} from './fixtures/loop-sleeve.mjs';
 
 const wall=path=>[...contextualActions(path)].filter(({context})=>context.role==='vase-wall'||context.role==='segmented-path').map(({action})=>action);
 
 test('wide inward and outward loops map continuously across wavy mesh triangle seams',async()=>{
-  const plan=loopDemoPlan({courses:36,loopsPerTurn:20,samplesPerLoop:64,
+  const plan=loopSleevePlan({courses:36,loopsPerTurn:20,samplesPerLoop:64,
     exterior:'both-scalloped',tileWidthMm:8,tileDepthMm:4.8,waveDepthMm:.6});
   // Keep the full host's curvature but cover only the first six courses,
   // including the formerly unstable section near Z 1.234797974 mm.

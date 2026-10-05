@@ -96,8 +96,8 @@ Author `pattern: {paths, advance, repeats}`. Each path has `points` as
 These coordinates are not world XYZ. `advance: [turns, riseMm]` translates
 successive repeats. The explicit paths are the tile; there is no separate
 cell-layout, tilt or loop-preset input. Bake those geometric choices into the
-points. [loop-path.mjs](scripts/loop-path.mjs) returns explicit points for the
-[irregular demo](scripts/irregular-demo.mjs).
+points. The [irregular loop sleeve](examples/irregular-loop-sleeve.json) bakes 20
+overlapping loops per turn into one path around a waisted, offset mesh host.
 
 The mapper queries actual sleeve sections at sampled Z and maps normalized
 perimeter phase onto them. A smaller perimeter narrows phase intervals;

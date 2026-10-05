@@ -7,7 +7,7 @@ import {mkdtemp,rm,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
-import {developmentPipePlan} from '../../skills/pipe-cladding/scripts/demo.mjs';
+import {readFileSync} from 'node:fs';
 import {loadMachine} from '../machine/profile.mjs';
 import {validateDensoConfiguration} from '../machine/denso.mjs';
 import {defaults,validatePlan} from '../print/plan.mjs';
@@ -31,7 +31,9 @@ import {createStudio} from '../../studio/server.mjs';
 import {outputView} from '../../studio/refresh-plan.mjs';
 import {regionalStackPlan} from './fixtures/regional-stack.mjs';
 const machine=loadMachine('denso-vs068a4-rc8a'),near=(a,b,t=1e-6)=>assert.ok(Math.abs(a-b)<t,`${a} != ${b}`);
-const small=()=>{const p=developmentPipePlan();p.geometry=splineTube({columns:24,heightMm:1.2,boreRadiusMm:8,radiusAt:()=>10.4});p.slices.assignments.find(a=>a.stack?.direction==='normal').within[0].toMm=.4;return p;};
+// The pipe-cladding example recipe on a 1.2 mm tube.
+const densoTube=JSON.parse(readFileSync(new URL('../../skills/pipe-cladding/examples/denso-tube.json',import.meta.url),'utf8')).plan;
+const small=()=>{const p=structuredClone(densoTube);p.geometry=splineTube({columns:24,heightMm:1.2,boreRadiusMm:8,radiusAt:()=>10.4});p.slices.assignments.find(a=>a.stack?.direction==='normal').within[0].toMm=.4;return p;};
 const sources=bytes=>Object.fromEntries([...unpackZip(bytes)].filter(([name])=>name.endsWith('.pcs')).map(([name,b])=>[name,b.toString()]));
 
 test('DENSO setup is unresolved by default; tube geometry uses the shared native spline lifecycle',async()=>{

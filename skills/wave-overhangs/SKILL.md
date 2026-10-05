@@ -73,7 +73,7 @@ bands rather than relabeling them deposited material. Contours narrower than
 spacing of the boundary; there is no implicit perimeter cap. Refine narrow or
 high-curvature geometry and inspect starts/stops in Studio.
 
-[example.mjs](scripts/example.mjs) authors a small saddle beyond a box;
-[canopy-example.mjs](scripts/canopy-example.mjs) authors a larger surrounding
-canopy. Split fronts may require multiple passes; inspect the resulting shared travel.
+Example recipes grow a [small saddle](examples/box-saddle.json) beyond a box and a
+[surrounding canopy](examples/box-canopy.json) whose domain is a constant
+surface-distance outline. Split fronts may require multiple passes; inspect the resulting shared travel.
 [Implementation and provenance](DEVELOPER.md) records method and attribution.
