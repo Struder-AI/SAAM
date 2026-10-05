@@ -49,8 +49,9 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     child.stdout.on('data',()=>{});child.stderr.on('data',bytes=>{runtime.stderr=(runtime.stderr+bytes.toString()).slice(-8192);});
     child.on('message',message=>{
       if(message.reply){const waiter=runtime.pending.get(message.id);if(!waiter)return;runtime.pending.delete(message.id);if(message.ok)waiter.done(message.result);else waiter.fail(Object.assign(Error(message.error),message.detail));return;}
-      if(message.type==='operation'){for(const observer of operationObservers)observer({...message.event,runtimeId:runtime.id});return;}
-      if(message.type==='event'){for(const observer of eventObservers)observer({...message.event,runtimeId:runtime.id});return;}
+      // Only the installed runtime's operations and events reach consented relay diagnostics.
+      if(message.type==='operation'){if(runtime.id==='installed')for(const observer of operationObservers)observer({...message.event,runtimeId:runtime.id});return;}
+      if(message.type==='event'){if(runtime.id==='installed')for(const observer of eventObservers)observer({...message.event,runtimeId:runtime.id});return;}
       void incoming(runtime,message).then(result=>child.connected&&child.send({reply:true,id:message.id,ok:true,result}),error=>child.connected&&child.send({reply:true,id:message.id,ok:false,error:error.message,detail:{code:error.code}}));
     });
     // A runtime stopped on purpose was already removed; its exit must not detach a successor's windows.
