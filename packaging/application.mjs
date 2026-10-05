@@ -40,21 +40,30 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
     if(options.error)await reports.networkIssue(event,options.error).catch(()=>{});
   };
   const instanceFile=resolve(paths.state,'instance.json');
-  async function stop(){return state.stopping??=(async()=>{
-    state.tray?.stop();state.services?.close();await state.runtime?.close();
-    let recoveryError;
-    if(state.runtimeMigration){await restoreRuntimeState(state.runtimeMigration);state.runtimeMigration=null;}
-    if(state.migration){
-      try{await restoreLocalData(state.migration);state.migration=null;}
-      catch(error){recoveryError=error;await report({kind:'startup-data-restore-failed',error:error.message},{firstRun:true}).catch(()=>{});}
-    }
-    if(state.control?.listening){const closed=new Promise(done=>state.control.close(done));state.control.closeAllConnections();await closed;}
-    const current=JSON.parse(await readFile(instanceFile,'utf8').catch(()=>'{}'));
-    if(current.token===token)await unlink(instanceFile).catch(()=>{});
-    await report({kind:'application-stopped'});
-    if(recoveryError)throw recoveryError;
+  // Ending reports its outcome (stopped, stop failed or startup failed), then
+  // closes the release service, which delivers what it already accepted.
+  function end(failure=null){return state.stopping??=(async()=>{
+    state.services?.observeRuntime(null);
+    let cleanupError=null;
+    try{
+      state.tray?.stop();await state.runtime?.close();
+      if(state.runtimeMigration){await restoreRuntimeState(state.runtimeMigration);state.runtimeMigration=null;}
+      if(state.migration){
+        try{await restoreLocalData(state.migration);state.migration=null;}
+        catch(error){cleanupError=error;await report({kind:'startup-data-restore-failed',error:error.message},{firstRun:true}).catch(()=>{});}
+      }
+      if(state.control?.listening){const closed=new Promise(done=>state.control.close(done));state.control.closeAllConnections();await closed;}
+      const current=JSON.parse(await readFile(instanceFile,'utf8').catch(()=>'{}'));
+      if(current.token===token)await unlink(instanceFile).catch(()=>{});
+    }catch(error){cleanupError=error;}
+    const outcome=failure?{kind:'application-startup-failed',error:failure.message,...(cleanupError?{cleanupError:cleanupError.message}:{})}
+      :cleanupError?{kind:'application-stop-failed',error:cleanupError.message}:{kind:'application-stopped'};
+    await report(outcome,failure?{firstRun:true,complete:true,error:failure}:{}).catch(()=>{});
+    await state.services?.close();
+    if(cleanupError)throw cleanupError;
   })();}
-  const later=()=>{setTimeout(()=>void stop().catch(error=>report({kind:'application-stop-failed',error:error.message})),250);};
+  const stop=()=>end();
+  const later=()=>{setTimeout(()=>void stop().catch(()=>{}),250);};
   async function quit(force=false){
     const jobs=await state.runtime.runningJobs();
     if(jobs.length&&!force)return {confirmationRequired:true,jobs,message:'Quitting SAAM cancels these running jobs:\n'+describeJobs(jobs)+'\nQuit anyway?'};
@@ -111,14 +120,16 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
     }
 
     const record={instanceId,pid:process.pid,port:state.control.address().port,token,version:config.version,contract:orchestratorContract,codeRoot,user:userInfo().username};
-    if(tray&&!process.env.SAAM_DATA&&!process.env.SAAM_BACKGROUND&&!process.env.NODE_TEST_CONTEXT)state.tray=await startTray(record);
+    if(tray&&!process.env.SAAM_DATA&&!process.env.SAAM_BACKGROUND&&!process.env.NODE_TEST_CONTEXT){
+      state.tray=await startTray(record);
+      if(state.tray.problem)await report({kind:'tray-unavailable',error:state.tray.problem},{firstRun:true});
+    }
     await replaceFile(instanceFile,JSON.stringify(record)+'\n');
     if(openOnStart)await state.runtime.command({command:'open'});
     await report({kind:'application-ready',version:config.version},{firstRun:true,complete:true});
     state.migration=null;state.runtimeMigration=null;
     return {existing:false,record,runtime:state.runtime,services:state.services,stop};
   }catch(error){
-    await stop().catch(cleanup=>{error.cleanupError=cleanup.message;error.message+=' Startup cleanup failed: '+cleanup.message;});
-    await report({kind:'application-startup-failed',error:error.message,...(error.cleanupError?{cleanupError:error.cleanupError}:{})},{firstRun:true,complete:true,error});throw error;
+    await end(error).catch(cleanup=>{error.message+=' Startup cleanup failed: '+cleanup.message;});throw error;
   }
 }

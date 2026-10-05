@@ -11,7 +11,7 @@ fail() { printf '\n%s\n' "$1" >&2; exit 1; }
 
 data_folder() { printf '%s' "${SAAM_DATA:-$HOME/SAAM}"; }
 
-# Same check as install.sh: a live instance record, or node running from the installation.
+# Same check as install.sh: a live instance record, or node running the installation's launch.mjs.
 saam_running() {
   local record pid
   record="$(data_folder)/state/instance.json"
@@ -19,7 +19,7 @@ saam_running() {
     pid="$(sed -n 's/.*"pid"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$record" | head -n 1)"
     if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && ps -p "$pid" -o comm= | grep -q node; then return 0; fi
   fi
-  pgrep -f "$(data_folder)/app/runtime/node" >/dev/null 2>&1
+  pgrep -f "$(data_folder)/app/packaging/launch.mjs" >/dev/null 2>&1
 }
 
 main() {

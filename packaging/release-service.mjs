@@ -177,6 +177,7 @@ export async function createReleaseService({serviceUrl,statePath,version='develo
     observeRuntime(next){stopObserving();runtime=next;subscribe();},
     recordOperation:event=>emit(event,{source:'agent-operation'}),
     recordStudioEvent:event=>emit(studioEvent(event),{source:'studio'}),
-    close(){closed=true;stateWatcher?.close();stateWatcher=null;stopObserving();runtime=null;}
+    // Accepts nothing more and settles once events already sent are answered.
+    async close(){closed=true;stateWatcher?.close();stateWatcher=null;stopObserving();runtime=null;await Promise.all([...diagnostics.pending]);}
   };
 }
