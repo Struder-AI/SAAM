@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-04 — No persistent download cache
+
+- Owner option 2: the Thingi10K client stores nothing; metadata indexes are read per request and downloaded bytes are imported in the STL import job folder, removed with the job; the bundle keeps its source. A failed import of downloaded bytes keeps them as diagnostics evidence (`tmp/diagnostics/failed-import.<sha256>.stl`, latest only, never uploaded), named by `importDiagnostic.evidence`. Startup deletes a legacy `tmp/cache`. Removed `core/print/import-resource.mjs` (test-only second import route). thingi10k docs 89 → 84 lines.
+- Worker, real dev-instance runs against the live mirror: legacy cache deleted; a successful import leaves the STL only in its bundle; a re-import fetches again; a forced failure (86160) keeps hash-identical bytes named by the diagnostics. Library tests 5 of 6; the attribution/delivery test fails `BUNDLE_INSTANCE_BUSY` at deliver, also before the change. During the run C: was briefly full (48 KB free), unrelated to the change and a likely contributor to the app crashes.
+
 ## 2026-10-04 — Native installer diagnostics and updater tmp handoff
 
 - Owner: rebase and include in 0.3.3 (Mac tested after release, patched in 0.3.4 if needed). Worker re-applied the Codex patch by hand: installers report fixed stages (candidate-verified, starting, failed) through Application's consented diagnostics owner (`packaging/installer-report.mjs`), first-run evidence until SAAM starts; `update.log` gone. In-app updates unpack into a `tmp/jobs` workspace that the installer claims with its own PID and completes before starting SAAM; startup removes it. Installers delete pre-0.3.3 `state/updates` and `state/logs` (team decision: covered by the retention decision). Dropped Codex's per-message `progress` and racing `launch-requested` stages.
