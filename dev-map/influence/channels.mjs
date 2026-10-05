@@ -415,3 +415,54 @@ export function withChannels(analysis,{actors=null}={}) {
     channels:{summary:{state:st.summary,links:counts,actorChannels:assigned,
       unresolved:Object.fromEntries(Object.entries(u).map(([k,v])=>[k,v.length]))},unresolved:u}};
 }
+
+// ---- SAAM's own files -------------------------------------------------------------------------
+// A file contact no actor channel takes and whose name matched no other leaf's (above) mostly
+// touches SAAM's own folders: a bundle's files, the SAAM home's state, settings, extensions, temp
+// files a helper reads back. Their names are rarely visible, so writer and reader cannot be paired
+// by file. Once leaves have owners (solve-middle.mjs ownLeaves), a boundary whose leaves both write
+// and read such files keeps them as its own file state: one state node per map-0 owner
+// (`@store/OWNER/files:0`, owned by it), its writing leaves `writes` it and it `reads` into its
+// reading leaves, joining only leaves of that one boundary. A boundary that only writes or only
+// reads them is reaching outside SAAM, and those contacts stay unassigned and listed.
+// `model` is leafModel's, `owners` ownLeaves', `nodes` the authored map-0 nodes (for labels).
+export function boundaryFileStores(model,owners,{nodes=[]}={}) {
+  const W='@channel/unassigned/file-write:0',R='@channel/unassigned/file-read:0';
+  const ownerOf=new Map(owners.map(o=>[o.leaf,o.owner])),labelOf=new Map(nodes.map(n=>[n.id,n.label]));
+  const groups=new Map();
+  for(const a of model.arrows) {
+    if(a.kind!=='contact')continue;
+    const side=a.to===W?'w':a.from===R?'r':null;if(!side)continue;
+    const leaf=side==='w'?a.from:a.to,owner=ownerOf.get(leaf);
+    if(!owner||owner.startsWith('external:'))continue;
+    const g=groups.get(owner)??groups.set(owner,{w:new Map(),r:new Map(),arrows:[]}).get(owner);
+    g[side].set(leaf,(g[side].get(leaf)??0)+(a.count??1));g.arrows.push(a);
+  }
+  const moved=new Set(),movedLeaves=new Set(),leaves=[],arrows=[],rows=[],summary={};
+  for(const [owner,g] of [...groups].sort(([a],[b])=>order(a,b))) {
+    if(![...g.w.keys()].some(x=>[...g.r.keys()].some(y=>y!==x)))continue;
+    const key=`@store/${owner}/files:0`,label=`${labelOf.get(owner)??owner} files`;
+    leaves.push({id:key,name:`@store/${owner}:0 ${label}`,role:'state',folded:[],foldedNames:[],
+      state:{store:'files',owner,label,writers:g.w.size,readers:g.r.size}});
+    for(const [w,count] of g.w)arrows.push({from:w,to:key,kind:'writes',count});
+    for(const [r,count] of g.r)arrows.push({from:key,to:r,kind:'reads',count});
+    for(const a of g.arrows)moved.add(a);
+    for(const l of [...g.w.keys(),...g.r.keys()])movedLeaves.add(l);
+    rows.push({leaf:key,owner,declaration:`@store/${owner}`,via:'boundary files'});
+    summary[owner]={writers:g.w.size,readers:g.r.size};
+  }
+  if(!leaves.length)return {model,owners};
+  const kept=[...model.arrows.filter(a=>!moved.has(a)),...arrows],used=new Set(kept.flatMap(a=>[a.from,a.to]));
+  const dropped=new Set([W,R].filter(id=>!used.has(id)));
+  // The contacts now held as boundary files leave the unresolved list.
+  const leafOf=new Map();for(const l of model.leaves){leafOf.set(l.id,l.id);for(const k of l.folded??[])leafOf.set(k,l.id);}
+  let channels=model.channels;
+  if(channels) {
+    const contacts=channels.unresolved.contacts.filter(c=>!(/^file-/.test(c.kind)&&movedLeaves.has(leafOf.get(c.key))));
+    const unresolved={...channels.unresolved,contacts};
+    channels={...channels,unresolved,summary:{...channels.summary,boundaryFiles:{stores:leaves.length,contacts:channels.unresolved.contacts.length-contacts.length,owners:summary},
+      unresolved:Object.fromEntries(Object.entries(unresolved).map(([k,v])=>[k,v.length]))}};
+  }
+  return {model:{...model,leaves:[...model.leaves.filter(l=>!dropped.has(l.id)),...leaves],arrows:kept,...(channels?{channels}:{})},
+    owners:[...owners.filter(o=>!dropped.has(o.leaf)),...rows]};
+}

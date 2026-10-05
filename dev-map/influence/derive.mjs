@@ -184,10 +184,18 @@ export function derive(pt,{functions,namespaces,isInstance,moduleActivations}) {
     return returnsOutcome(e.to)?'acknowledged':'both';
   };
   for(const e of edges){const k=kindOf(e);e.kind=k;if(k==='answer')arrow(e.to,e.from,k);else arrow(e.from,e.to,k);}
-  // Module load code is a leaf too (plans/dev-maps.md#leaves): an importer (or a dynamic
-  // import) activates the imported module's load code, and a function reading a module-level
+  // Module load code is a leaf too (plans/dev-maps.md#leaves): a function reading a module-level
   // variable receives what that load code initialised (`initialises`, constraints.mjs moduleRead).
-  for(const [a,b] of moduleActivations?.()??[])arrow(canon(a),canon(b),'activation');
+  // An importer (or a dynamic import) decides only whether the imported module's load code runs,
+  // so it influences that load code only when the load code acts (a command): importing a module
+  // whose load code only defines bindings changes nothing the importer or anyone else receives
+  // (what it initialises is drawn as `initialises`). A module load left with no arrow is reported
+  // as arrowless (summary.arrowlessLeaves.moduleLoad), never given one.
+  let importActivations=0,importActivationsDropped=0;
+  for(const [a,b] of moduleActivations?.()??[]) {
+    const from=canon(a),to=canon(b);if(from===to)continue;
+    if(command[to]){arrow(from,to,'activation');importActivations++;}else importActivationsDropped++;
+  }
   for(const f of byId)for(const m of f.moduleReads??[])arrow(canon(m),canon(f.id),'initialises');
   const both=reps.filter(f=>!f.module&&f.kind!=='class'&&incoming[f.id].some(e=>e.kind==='both'));
 
@@ -249,7 +257,7 @@ export function derive(pt,{functions,namespaces,isInstance,moduleActivations}) {
     edges,arrows:[...arrows.values()],command,leafCommand,effects,readersOf,both,leaves,home,canon,exported,uncalled,arrowless,
     summary:{roleRounds,...(roleOscillation?{roleOscillation}:{}),callables:reps.length,copies:byId.length-reps.length,modules:reps.filter(f=>f.module).length,exported:exported.size,
       callEdges:edges.filter(e=>e.via==='call').length,platformCallbackEdges:edges.filter(e=>e.via==='platform').length,
-      roles:roleCount,answersAndActs:both.length,arrows:arrows.size,arrowKinds,pairs:pairArrowsOf([...arrows.values()],x=>x).summary,
+      roles:roleCount,answersAndActs:both.length,arrows:arrows.size,arrowKinds,importActivations:{kept:importActivations,queryLoadsDropped:importActivationsDropped},pairs:pairArrowsOf([...arrows.values()],x=>x).summary,
       state:{objects:stateNodes,arrowsThroughStateNodes:stateArrows,writerReaderPairs:pairArrows},
       leaves:leaves.size,leafRoles:{query:[...leaves].filter(l=>!leafCommand[l]).length,command:[...leaves].filter(l=>leafCommand[l]).length},
       leafState:{objects:leafStateObjects,writerReaderPairs:leafWriterReaderPairs},folded:reps.length-leaves.size,uncalledUnexported:uncalled.length,

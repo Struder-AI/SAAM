@@ -55,9 +55,10 @@ async function prepare(paths) {
   const sm=await import('./solve-middle.mjs');
   const authored=sm.readAuthored(paths.authored);
   const analysis=JSON.parse(readFileSync(paths.analysis,'utf8'));
-  const model=sm.leafModel(analysis,{actors:authored.actors});
-  const {texts,changed}=sm.analysedTexts(model.leaves,{roots:[repo,...paths.roots]});
-  const owners=await sm.ownLeaves(model.leaves,authored,{texts});
+  const model0=sm.leafModel(analysis,{actors:authored.actors});
+  const {texts,changed}=sm.analysedTexts(model0.leaves,{roots:[repo,...paths.roots]});
+  // SAAM's own file contacts become their boundary's file state once leaves have owners.
+  const {model,owners}=sm.boundaryFileStores(model0,await sm.ownLeaves(model0.leaves,authored,{texts}),{nodes:authored.nodes});
   const ownerOf=new Map(owners.filter(o=>o.owner).map(o=>[o.leaf,o.owner])),uniform=sm.uniformLeaves(model);
   const options={seed:1,start:'flat',maxStages:paths.maxStages??Infinity};
   // Each node's slice (solve-middle.mjs nodeSlice) and the key its solve is kept by.
@@ -289,9 +290,10 @@ export async function writeModel({log=()=>{},prep=null,entries=null}={}) {
     const m=/^(.*?):(\d+) (.*)$/.exec(l.name),file=fileOf(l.id),shape=shapes.get(l.id);
     if(!shape)rangeUnknown++;
     const o=ownerRow.get(l.id);
-    // A state node opens at its declaring line; a channel has no source (channels.mjs).
+    // A state node opens at its declaring line; a channel and a boundary's files have no source
+    // (channels.mjs).
     const made=l.state||l.channel;
-    leafRow.set(l.id,{key:l.id,name:l.name,label:labels.get(l.id),role:l.role,file:l.channel?null:made?m?.[1]??file:file,line:shape?.line??Number(m?.[2]??1),endLine:shape?.endLine??Number(m?.[2]??1),
+    leafRow.set(l.id,{key:l.id,name:l.name,label:labels.get(l.id),role:l.role,file:l.channel||l.state?.store?null:made?m?.[1]??file:file,line:shape?.line??Number(m?.[2]??1),endLine:shape?.endLine??Number(m?.[2]??1),
       ...(shape||made?{}:{rangeUnknown:true}),...(l.state?{state:l.state}:{}),...(l.channel?{channel:l.channel}:{}),owner:o?.owner??null,...(o?.owner?{declaration:o.declaration,via:o.via}:{gap:o?.gap}),
       ...(uniform.has(l.id)?{uniform:true}:{}),...(uniform.has(l.id)&&shape?.modeArgument?{possiblyCallerDependent:true}:{}),...(placedLeaves.has(l.id)?{placementNotSolved:true}:{}),
       ...(index.has(l.id)?{index:index.get(l.id)}:{unlinked:true}),
@@ -349,7 +351,7 @@ export async function writeModel({log=()=>{},prep=null,entries=null}={}) {
       parent:m.id===TOP?null:index.get(parentOf.get(m.id)),destination:'graph',leaves:m.nested,
       ...(m.score!==undefined?{score:m.score}:{}),components,ports,wires,...(unlinked?.length?{unlinked:[...unlinked].sort(keyOrder)}:{})});
   }
-  for(const r of leafRow.values())if(r.index)pages.push({index:r.index,path:`${r.file??'@channel'}::${r.label}`,key:r.key,kind:r.state?'state':r.channel?'channel':'function',label:r.label,role:r.role,
+  for(const r of leafRow.values())if(r.index)pages.push({index:r.index,path:`${r.file??(r.state?'@store':'@channel')}::${r.label}`,key:r.key,kind:r.state?'state':r.channel?'channel':'function',label:r.label,role:r.role,
     file:r.file,line:r.line,endLine:r.endLine,lines:r.endLine-r.line+1,destination:'code',parent:index.get(parentOf.get(r.key)),components:[],wires:[],
     foldedCode:r.folded.filter(f=>f.line).map(f=>({path:f.key,file:f.file,line:f.line,endLine:f.endLine}))});
 
