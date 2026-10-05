@@ -1,6 +1,6 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 
-import {prepareBlobField,evaluateBlobField,validateBlobField} from '../geom/blob-field.mjs';
+import {prepareBlobField,evaluateBlobField,validateBlobField,validateBumpsField} from '../geom/blob-field.mjs';
 import {solidDistance} from '../geom/solid-distance.mjs';
 
 const vector=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite);
@@ -34,7 +34,7 @@ export function validateModulationField(field) {
     validateModulationField(field.source);return field;
   }
   if(field.kind==='bumps'){
-    prepareBlobField(field);return field;
+    validateBumpsField(field);return field;
   }
   if(field.kind==='blob'){
     requireThat(fields(field,'kind,field'),'Blob modulation needs kind and field.');
