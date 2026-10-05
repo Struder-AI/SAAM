@@ -31,6 +31,25 @@ on openRuntime_(sender)
     display alert "SAAM" message problem
   end try
 end openRuntime_
+on openSelectedRuntime_(sender)
+  try
+    my sendControl("{\"command\":\"open\",\"runtimeId\":\"" & (sender's representedObject() as text) & "\"}")
+  on error problem
+    display alert "SAAM" message problem
+  end try
+end openSelectedRuntime_
+on stopSelectedRuntime_(sender)
+  try
+    set identity to sender's representedObject() as text
+    set responseText to my sendControl("{\"command\":\"stop-runtime\",\"runtimeId\":\"" & identity & "\"}")
+    if responseText contains "confirmationRequired" then
+      display dialog "Stopping this runtime cancels active work. Continue?" buttons {"Cancel", "Stop"} default button "Cancel"
+      my sendControl("{\"command\":\"stop-runtime\",\"runtimeId\":\"" & identity & "\",\"force\":true}")
+    end if
+  on error problem number errorNumber
+    if errorNumber is not -128 then display alert "SAAM" message problem
+  end try
+end stopSelectedRuntime_
 on refreshMenu_(sender)
   try
     set statusText to my callControl("status", "false")
@@ -42,17 +61,37 @@ on refreshMenu_(sender)
     updateItem's setHidden:(not (paired and offer is not missing value and offer is not current application's NSNull's null()))
     set runtimeMenu to runtimeItem's submenu()
     runtimeMenu's removeAllItems()
-    repeat with studio in (appStatus's objectForKey:"studios")
-      set identity to studio's objectForKey:"instanceId"
-      set partName to studio's objectForKey:"printId"
-      if partName is missing value or partName is current application's NSNull's null() then set partName to "Empty Studio"
-      set attachment to studio's objectForKey:"attachment"
-      set chatName to "No chat attached"
-      if attachment is not missing value and attachment is not current application's NSNull's null() then set chatName to attachment's objectForKey:"name"
-      set entry to current application's NSMenuItem's alloc()'s initWithTitle:((partName as text) & " — " & (chatName as text) & " [" & (identity as text) & "]") action:"openRuntime:" keyEquivalent:""
-      entry's setTarget:me
-      entry's setRepresentedObject:identity
-      runtimeMenu's addItem:entry
+    repeat with runtime in (appStatus's objectForKey:"runtimes")
+      set runtimeId to runtime's objectForKey:"id"
+      set group to current application's NSMenuItem's alloc()'s initWithTitle:(runtime's objectForKey:"label") action:"" keyEquivalent:""
+      set children to current application's NSMenu's alloc()'s initWithTitle:"Runtime"
+      children's setAutoenablesItems:false
+      group's setSubmenu:children
+      runtimeMenu's addItem:group
+      set showItem to current application's NSMenuItem's alloc()'s initWithTitle:"Open Studio" action:"openSelectedRuntime:" keyEquivalent:""
+      showItem's setTarget:me
+      showItem's setRepresentedObject:runtimeId
+      children's addItem:showItem
+      repeat with studio in (appStatus's objectForKey:"studios")
+        if (studio's objectForKey:"runtimeId") as text is runtimeId as text then
+          set identity to studio's objectForKey:"instanceId"
+          set partName to studio's objectForKey:"printId"
+          if partName is missing value or partName is current application's NSNull's null() then set partName to "Empty Studio"
+          set attachment to studio's objectForKey:"attachment"
+          set chatName to "No chat attached"
+          if attachment is not missing value and attachment is not current application's NSNull's null() then set chatName to attachment's objectForKey:"name"
+          set entry to current application's NSMenuItem's alloc()'s initWithTitle:((partName as text) & " — " & (chatName as text) & " [" & (identity as text) & "]") action:"openRuntime:" keyEquivalent:""
+          entry's setTarget:me
+          entry's setRepresentedObject:identity
+          children's addItem:entry
+        end if
+      end repeat
+      if runtimeId as text is not "installed" then
+        set stopItem to current application's NSMenuItem's alloc()'s initWithTitle:"Stop runtime" action:"stopSelectedRuntime:" keyEquivalent:""
+        stopItem's setTarget:me
+        stopItem's setRepresentedObject:runtimeId
+        children's addItem:stopItem
+      end if
     end repeat
     runtimeItem's setEnabled:((runtimeMenu's numberOfItems()) > 0)
   on error

@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import subprocess
 import pathlib
 import re
 import sys
@@ -1017,6 +1019,8 @@ body.noside #side{display:none}
 #codepane .endpoint:hover{text-decoration:underline}
 #canvas.wires .fm-edge,#canvas.wires .fm-elab,.fm-wire-hit{cursor:pointer}
 #canvas>svg{overflow:visible}
+#canvas>svg>rect:first-of-type{fill:none;pointer-events:none}
+#canvas.wires:not(.design) .fm-page-heading{display:none}
 #canvas.arrange .fm-node[data-ident]{cursor:grab}
 #stage.drag #canvas.arrange .fm-node{cursor:grabbing}
 #arrange.on{background:#0284c7;color:#fff;border-color:#0284c7}
@@ -1101,6 +1105,7 @@ const visits=[],visitSession=Date.now()+'-'+Math.random();
 let visitAt=-1,showVersion=0,sourceVersion=0;
 let liveFreshness=null;
 function freshnessMessage(now=Date.now()){
+  if(location.protocol==='file:')return {warning:'Saved map · snapshot source',source:'Source captured when this map was generated'};
   if(DESIGN)return {warning:'AUTHORED · conformance unchecked',source:'Source snapshot captured at build · check the design to verify freshness'};
   const status=liveFreshness,checked=status&&Date.parse(status.checkedAt);
   if(!status||!Number.isFinite(checked)||now<checked||now-checked>Math.min(status.validForMs||0,10000))
@@ -1124,7 +1129,7 @@ function updateFreshness(){
 function freshnessAt(status){liveFreshness=status;updateFreshness();}
 function pollFreshness(){
   updateFreshness();
-  if(DESIGN)return;
+  if(DESIGN||location.protocol==='file:')return;
   const script=document.createElement('script');script.src='freshness.js?'+Date.now();
   script.onload=script.onerror=()=>{script.remove();updateFreshness();};document.head.appendChild(script);
 }
@@ -1158,35 +1163,39 @@ try{if(localStorage.getItem('devmap-minimap')==='off')document.body.classList.ad
 function rectOf(g){const r=g.querySelector('rect');if(!r)return null;
   const m=g.transform?.baseVal?.numberOfItems?g.transform.baseVal.consolidate().matrix:null;
   return {x:r.x.baseVal.value+(m?m.e:0),y:r.y.baseVal.value+(m?m.f:0),w:r.width.baseVal.value,h:r.height.baseVal.value};}
+function drawingBounds(all=true){const bounds={x:Infinity,y:Infinity,right:-Infinity,bottom:-Infinity},ids=new Set();
+  const include=el=>{const r=el.getBBox(),t=el.transform?.baseVal?.numberOfItems?el.transform.baseVal.consolidate().matrix:null;
+    const x=r.x+(t?t.e:0),y=r.y+(t?t.f:0);
+    bounds.x=Math.min(bounds.x,x);bounds.y=Math.min(bounds.y,y);bounds.right=Math.max(bounds.right,x+r.width);bounds.bottom=Math.max(bounds.bottom,y+r.height);};
+  for(const g of canvas.querySelectorAll('.fm-node')){
+    if(!all&&PAGES[cur]?.focus&&(g.dataset.id.startsWith('list:')||g.dataset.id.startsWith('b:')))continue;
+    ids.add(g.dataset.id);include(g);}
+  for(const el of canvas.querySelectorAll('.fm-edge,.fm-elab,.fm-endtag'))
+    if(ids.has(el.dataset.a)&&ids.has(el.dataset.b)&&getComputedStyle(el).display!=='none')include(el);
+  if(!Number.isFinite(bounds.x))return {x:0,y:0,w:1,h:1};
+  return {x:bounds.x-32,y:bounds.y-32,w:Math.max(1,bounds.right-bounds.x+64),h:Math.max(1,bounds.bottom-bounds.y+64)};}
 function minimap(){const s=canvas.querySelector(':scope>svg');
   if(!s){mini.style.display='none';return;}
-  const w=s.width.baseVal.value,h=s.height.baseVal.value;
-  let body='';
+  const bounds=drawingBounds();let body='';
   for(const g of canvas.querySelectorAll('.fm-node')){const r=rectOf(g);if(!r)continue;
     body+=`<rect x="${r.x.toFixed(0)}" y="${r.y.toFixed(0)}" `+
           `width="${r.w.toFixed(0)}" height="${r.h.toFixed(0)}" fill="#64748b"/>`;}
-  mini.innerHTML=`<svg viewBox="0 0 ${w} ${h}" width="200" height="132">${body}`+
-    `<rect id="mv" fill="#0284c7" fill-opacity="0.14" stroke="#0284c7" stroke-width="${(w/200*1.6).toFixed(1)}"/></svg>`;
+  mini.innerHTML=`<svg viewBox="${bounds.x} ${bounds.y} ${bounds.w} ${bounds.h}" width="200" height="132">${body}`+
+    `<rect id="mv" fill="#0284c7" fill-opacity="0.14" stroke="#0284c7" stroke-width="${(bounds.w/200*1.6).toFixed(1)}"/></svg>`;
   mini.style.display='block';apply();}
 function at(ux,uy){const r=stage.getBoundingClientRect();
   view.x=r.width/2-ux*view.k;view.y=r.height/2-uy*view.k;apply();}
-mini.addEventListener('pointerdown',e=>{const s=mini.firstElementChild,d=canvas.firstElementChild;
-  if(!s||!d)return;e.stopPropagation();
-  const b=s.getBoundingClientRect(),w=d.width.baseVal.value,h=d.height.baseVal.value,
-        k=Math.min(b.width/w,b.height/h);
-  at((e.clientX-b.left-(b.width-w*k)/2)/k,(e.clientY-b.top-(b.height-h*k)/2)/k);});
-function fit(){const s=canvas.querySelector(':scope>svg');if(!s)return;
-  const w=s.width.baseVal.value,h=s.height.baseVal.value,r=stage.getBoundingClientRect();
-  /* Never zero or negative: a stage narrower than its own padding would otherwise fold the
-     page inside out, and the drawing would be gone rather than small. */
-  view.k=Math.max(0.02,Math.min(Math.min((r.width-48)/w,(r.height-48)/h),1));
-  view.x=(r.width-w*view.k)/2;view.y=Math.max(18,(r.height-h*view.k)/2);apply();}
-function actual(){const s=canvas.querySelector(':scope>svg');if(!s)return;const r=stage.getBoundingClientRect();
-  view.k=1;view.x=(r.width-s.width.baseVal.value)/2;view.y=18;apply();}
-function overview(){const bounds=PAGES[cur]?.focus;if(!bounds)return fit();
-  const [x,y,w,h]=bounds,r=stage.getBoundingClientRect();
-  view.k=Math.max(.02,Math.min((r.width-48)/w,(r.height-48)/h,1));
-  view.x=(r.width-w*view.k)/2-x*view.k;view.y=18-y*view.k;apply();}
+mini.addEventListener('pointerdown',e=>{const s=mini.firstElementChild;if(!s)return;e.stopPropagation();
+  const b=s.getBoundingClientRect(),v=s.viewBox.baseVal,k=Math.min(b.width/v.width,b.height/v.height);
+  at(v.x+(e.clientX-b.left-(b.width-v.width*k)/2)/k,v.y+(e.clientY-b.top-(b.height-v.height*k)/2)/k);});
+function fitBounds(bounds){const r=stage.getBoundingClientRect();
+  view.k=Math.max(.02,Math.min((r.width-48)/bounds.w,(r.height-48)/bounds.h,1));
+  view.x=(r.width-bounds.w*view.k)/2-bounds.x*view.k;
+  view.y=(r.height-bounds.h*view.k)/2-bounds.y*view.k;apply();}
+function fit(){if(canvas.querySelector(':scope>svg'))fitBounds(drawingBounds());}
+function actual(){if(!canvas.querySelector(':scope>svg'))return;const b=drawingBounds(),r=stage.getBoundingClientRect();
+  view.k=1;view.x=(r.width-b.w)/2-b.x;view.y=18-b.y;apply();}
+function overview(){if(canvas.querySelector(':scope>svg'))fitBounds(drawingBounds(false));}
 
 /* One page's drawing at a time, fetched as a script so the viewer opens from file:// with no
    server. The whole map inlined is an order of magnitude more bytes on every open. */
@@ -1548,13 +1557,13 @@ AUTHOR_JS = """
    the authoring server (`node dev-map/cli.mjs --set NAME serve`) into the committed layout
    files, or, opened any other way, into this browser's storage, which Export layout writes
    out for `node dev-map/cli.mjs --set NAME import-layout FILE`. */
-const AUTHOR={server:false,on:false,maps:{},undo:[],first:{},at:{},drag:null};
+const AUTHOR={server:false,on:false,maps:{},undo:[],first:{},at:{},drag:null,placement:null};
 const AUTHOR_STORE='devmap-layout:'+AUTHORING.set;
 function authorSay(text,bad){const s=document.getElementById('author-status');s.textContent=text;s.classList.toggle('bad',!!bad);}
 function authorCount(){return Object.values(AUTHOR.maps).reduce((t,m)=>t+Object.keys(m).length,0);}
 function authorBar(){const on=AUTHOR.on;document.getElementById('arrange').classList.toggle('on',on);
   for(const id of ['author-undo','author-reset'])document.getElementById(id).hidden=!on;
-  document.getElementById('author-export').hidden=!on||AUTHOR.server;canvas.classList.toggle('arrange',on);}
+  document.getElementById('author-export').hidden=!on||AUTHOR.server;canvas.classList.toggle('arrange',on);authorFolderButton();}
 function arrange(){AUTHOR.on=!AUTHOR.on;authorBar();}
 function drawnBox(g){const [x,y,w,h,bh,rx]=g.dataset.box.split(',').map(Number);return {x,y,w,h,bh,rx:Number.isFinite(rx)?rx:Math.min(7,w/2,bh/2)};}
 function geom(id){const g=node(id);if(!g||!g.dataset.box)return null;const b=drawnBox(g),p=AUTHOR.at[id];
@@ -1639,7 +1648,6 @@ function reroute(){const {edges,direct,routes}=directWires();
   for(const edge of edges)if(!on.has(edge)&&edge.dataset.d0!==undefined)set(edge,edge.dataset.d0,null);}
 /* A box, its overlay hit boxes (data-node) and its wires, moved to x,y on the drawing. */
 function place(id,x,y){const g=node(id);if(!g||!g.dataset.box)return;const b=drawnBox(g);
-  x=Math.max(0,x);y=Math.max(0,y);
   if(Math.abs(x-b.x)<.05&&Math.abs(y-b.y)<.05)delete AUTHOR.at[id];else AUTHOR.at[id]={x,y};
   const t=AUTHOR.at[id]?`translate(${(x-b.x).toFixed(1)},${(y-b.y).toFixed(1)})`:null;
   for(const el of [g,...canvas.querySelectorAll(`[data-node="${CSS.escape(id)}"]`)])t?el.setAttribute('transform',t):el.removeAttribute('transform');
@@ -1654,10 +1662,12 @@ function authorGrab(e){if(!AUTHOR.on||!PAGES[cur]?.lp||!e.target.closest)return 
   let g=e.target.closest('.fm-node[data-box]');
   if(!g){const o=e.target.closest('[data-node]');g=o&&node(o.dataset.node);}
   if(!g||!g.dataset.ident||!g.dataset.box)return false;
-  const at=geom(g.dataset.id);AUTHOR.drag={id:g.dataset.id,ident:g.dataset.ident,cx:e.clientX,cy:e.clientY,x:at.x,y:at.y,moved:false};
+  const at=geom(g.dataset.id);AUTHOR.drag={id:g.dataset.id,ident:g.dataset.ident,cx:e.clientX,cy:e.clientY,x:at.x,y:at.y,
+    initial:authorSnapshot(),moved:false};
   return true;}
 function authorMove(e){const d=AUTHOR.drag,dx=e.clientX-d.cx,dy=e.clientY-d.cy;
   if(!d.moved&&Math.abs(dx)+Math.abs(dy)<=4)return;
+  authorCancelPlacement(PAGES[cur]?.lp);
   d.moved=true;moved=true;place(d.id,d.x+dx/view.k,d.y+dy/view.k);}
 function authorDrop(){const d=AUTHOR.drag;AUTHOR.drag=null;if(!d||!d.moved)return;
   const lp=PAGES[cur].lp,now=geom(d.id),point={x:Math.round(now.x),y:Math.round(now.y)};
@@ -1665,40 +1675,69 @@ function authorDrop(){const d=AUTHOR.drag;AUTHOR.drag=null;if(!d||!d.moved)retur
   place(d.id,point.x,point.y);
   AUTHOR.undo.push({map:lp,id:d.id,ident:d.ident,from});
   const first=(AUTHOR.first[lp]??={});if(!(d.ident in first))first[d.ident]={...from,id:d.id};
-  authorSave(lp,{[d.ident]:point});minimap();}
-async function authorSave(map,set){
+  authorSave(lp,{[d.ident]:point},d.initial);minimap();}
+function authorSnapshot(){const points={};
+  for(const g of canvas.querySelectorAll('.fm-node[data-ident][data-box]')){
+    const at=geom(g.dataset.id);points[g.dataset.ident]={x:at.x,y:at.y};}
+  return points;}
+async function authorSave(map,set,initial={}){
+  authorCancelPlacement(map);
   if(!AUTHOR.server){const m=(AUTHOR.maps[map]??={});
+    for(const [k,v] of Object.entries(initial))if(m[k]===undefined)m[k]=v;
     for(const [k,v] of Object.entries(set))v?m[k]=v:delete m[k];
     if(!Object.keys(m).length)delete AUTHOR.maps[map];
     try{localStorage.setItem(AUTHOR_STORE,JSON.stringify(AUTHOR.maps));
       authorSay(`${authorCount()} positions kept in this browser only · Export layout to commit them`);}
     catch(e){authorSay('browser storage unavailable: Export layout before closing',true);}
-    return true;}
+    authorQueueFiles(map,set,initial);return true;}
   authorSay('saving…');
-  try{const r=await fetch('api/positions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({map,set})});
+  try{const r=await fetch('api/positions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({map,set,initial})});
     const j=await r.json();if(!r.ok)throw Error(j.error||r.status);
     AUTHOR.maps=j.maps;authorSay('saved to '+j.wrote.join(' and '));return true;}
   catch(e){authorSay('not saved: '+e.message,true);return false;}}
-/* The last move on this map, undone: the box goes back, and so does its saved position (or
-   its lack of one, which leaves it to the solver). */
+/* Undo preserves the authored map and restores the box to its exact prior position. */
 function authorUndo(){const lp=PAGES[cur]?.lp;let k=AUTHOR.undo.length-1;
   while(k>=0&&AUTHOR.undo[k].map!==lp)k--;
   if(k<0){authorSay('nothing to undo on this map');return;}
   const [u]=AUTHOR.undo.splice(k,1);place(u.id,u.from.x,u.from.y);minimap();
-  authorSave(lp,{[u.ident]:u.from.authored?{x:Math.round(u.from.x),y:Math.round(u.from.y)}:null});}
-/* A submap goes back to its solved layout: its authored positions are removed and it is
-   redrawn. Map 0 has no solved layout (its nodes are placed in the authored set), so there
-   every box moved this session goes back to where it stood when first moved. */
+  authorSave(lp,{[u.ident]:{x:u.from.x,y:u.from.y}});}
+function authorFinishPlacement(task){task.worker?.terminate();URL.revokeObjectURL(task.url);if(AUTHOR.placement===task)AUTHOR.placement=null;}
+function authorCancelPlacement(map){const task=AUTHOR.placement;if(!task||(map&&task.map!==map))return;
+  authorFinishPlacement(task);authorSay('placement cancelled · newer edits kept');}
+function authorSolveMap(boxes,wires,identities,map,page){
+  authorCancelPlacement();
+  const task={map,page,identities,saved:JSON.stringify(AUTHOR.maps[map]),worker:null,
+    url:URL.createObjectURL(new Blob([PLACEMENT_WORKER],{type:'text/javascript'}))};
+  try{task.worker=new Worker(task.url);AUTHOR.placement=task;
+    task.worker.onmessage=function placementFinished(event){
+      if(AUTHOR.placement!==task)return;
+      authorFinishPlacement(task);
+      if(event.data.error){authorSay('placement failed: '+event.data.error,true);return;}
+      if(JSON.stringify(AUTHOR.maps[map])!==task.saved){authorSay('placement cancelled · newer edits kept');return;}
+      const result=event.data.result,set={};
+      for(const [id,p] of Object.entries(result.positions)){if(identities[id])set[identities[id]]=p;if(cur===page)place(id,p.x,p.y);}
+      AUTHOR.undo=AUTHOR.undo.filter(u=>u.map!==map);delete AUTHOR.first[map];AUTHOR.maps[map]={};
+      authorSave(map,set);if(cur===page){minimap();overview();}};
+    task.worker.onerror=function placementFailed(event){if(AUTHOR.placement!==task)return;
+      authorFinishPlacement(task);authorSay('placement failed: '+event.message,true);};
+    authorSay('solving placement… · you can keep browsing');task.worker.postMessage({boxes,wires});
+  }catch(error){authorFinishPlacement(task);authorSay('placement failed: '+error.message,true);}}
+/* Reset asks for a new placement; a worker keeps a large solve off the UI thread.
+   Any newer edit or folder refresh cancels it before it can replace authored positions. */
 async function authorReset(){const lp=PAGES[cur]?.lp;if(!lp)return;
   if(lp==='0'){const first=AUTHOR.first[lp];
     if(!first||!Object.keys(first).length){authorSay('no moves on map 0 this session');return;}
     if(!confirm('Put every box moved on map 0 this session back where it stood?'))return;
-    const set={};for(const [ident,f] of Object.entries(first)){place(f.id,f.x,f.y);set[ident]=f.authored?{x:Math.round(f.x),y:Math.round(f.y)}:null;}
+    const set={};for(const [ident,f] of Object.entries(first)){place(f.id,f.x,f.y);set[ident]=f.authored?{x:f.x,y:f.y}:null;}
     delete AUTHOR.first[lp];AUTHOR.undo=AUTHOR.undo.filter(u=>u.map!==lp);minimap();authorSave(lp,set);return;}
-  if(!confirm('Reset this map to its solved layout? Every authored position on it is removed.'))return;
+  if(!confirm('Ask the placement solver to arrange this map again? This replaces its authored positions.'))return;
+  if(!AUTHOR.server){
+    const groups=[...canvas.querySelectorAll('.fm-node[data-box]')];
+    const boxes=groups.map(g=>({id:g.dataset.id,...geom(g.dataset.id)}));
+    const wires=[...canvas.querySelectorAll('.fm-edge[data-a][data-b]')].map(e=>[e.dataset.a,e.dataset.b]);
+    const identities=Object.fromEntries(groups.map(g=>[g.dataset.id,g.dataset.ident]));
+    authorSolveMap(boxes,wires,identities,lp,cur);return;}
   AUTHOR.undo=AUTHOR.undo.filter(u=>u.map!==lp);delete AUTHOR.first[lp];
-  if(!AUTHOR.server){delete AUTHOR.maps[lp];try{localStorage.setItem(AUTHOR_STORE,JSON.stringify(AUTHOR.maps));}catch(e){}
-    show(cur,false);authorSay('this browser\\'s positions for the map removed; committed ones stay until imported over or reset by the server');return;}
   authorSay('resetting and redrawing…');
   try{const r=await fetch('api/reset',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({map:lp})});
     const j=await r.json();if(!r.ok)throw Error(j.error||r.status);AUTHOR.maps=j.maps;authorSay('reset and redrawn; reloading');}
@@ -1708,9 +1747,9 @@ function authorExport(){const body=JSON.stringify({schema:1,set:AUTHORING.set,ex
   a.download=AUTHORING.set+'-layout.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
   authorSay(`exported · commit with: node dev-map/cli.mjs --set ${AUTHORING.set} import-layout FILE`);}
 function authorStart(){let local={};try{local=JSON.parse(localStorage.getItem(AUTHOR_STORE)||'{}')||{};}catch(e){}
-  const offline=()=>{AUTHOR.server=false;AUTHOR.maps=local;authorBar();const n=authorCount();
-    authorSay(n?`${n} positions kept in this browser only · Export layout to commit them`:'no authoring server: Arrange keeps moves in this browser');
-    if(cur)authorShow();};
+  const offline=()=>{AUTHOR.server=false;AUTHOR.on=true;AUTHOR.maps={...AUTHORING.maps,...local};authorBar();const n=authorCount();
+    authorSay(n?`${n} saved positions · edits stay in this browser · Export layout to keep a file`:'Arrange · edits stay in this browser · Export layout to keep a file');
+    if(cur)authorShow();authorRestoreFiles();};
   if(!/^https?:$/.test(location.protocol))return offline();
   fetch('api/layout',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject(Error(r.status))).then(j=>{
     if(j.mode!=='server')throw Error('not the authoring server');
@@ -1767,6 +1806,7 @@ AUTHOR_BAR = ('<button id="arrange" onclick="arrange()" title="drag boxes to pla
               '<button id="author-undo" onclick="authorUndo()" hidden title="undo the last move on this map (ctrl+z)">Undo move</button>'
               '<button id="author-reset" onclick="authorReset()" hidden title="a submap: back to its solved layout; map 0: this session&#39;s moves undone">Reset map</button>'
               '<button id="author-export" onclick="authorExport()" hidden title="write this browser&#39;s positions to a file for import-layout">Export layout</button>'
+              '<button id="author-files" onclick="authorConnectFiles()" hidden>Connect save folder</button>'
               '<span id="author-status"></span>')
 
 
@@ -1790,6 +1830,12 @@ def emit(out, model, pages, svgs, links=None):
     (out / "stamp.js").write_text(f'stampAt({json.dumps(model.get("built", ""))})', encoding="utf-8")
     page_data = json.dumps(pages).replace("</", "<\\/")
     authoring_data = json.dumps(model.get("authoring")).replace("</", "<" + chr(92) + "/")
+    placement_js = pathlib.Path(__file__).with_name("placement-solver.mjs").read_text(encoding="utf-8")
+    placement_js = placement_js.replace("export function solvePlacement", "function solvePlacement")
+    placement_worker = json.dumps(placement_js + "\nself.onmessage=function placementRequest(e){try{self.postMessage({result:solvePlacement(e.data)})}catch(error){self.postMessage({error:error.message})}};").replace("</", "<\\/")
+    documents_js = (pathlib.Path(__file__).parent.parent / "influence" / "position-documents.mjs").read_text(encoding="utf-8").replace("export function ", "function ")
+    files_js = pathlib.Path(__file__).with_name("file-authoring.mjs").read_text(encoding="utf-8")
+
     lists_data = json.dumps(model.get("lists", {})).replace("</", "<\\/")
     graph_pages = {key: p for key, p in pages.items() if p["destination"] in ("graph", "contents")}
     rows, parents = [], {p["p"] for p in graph_pages.values()}
@@ -1874,7 +1920,7 @@ const SNAPSHOT_ID={json.dumps(model.get("snapshotId"))};
 const DESIGN={json.dumps(model.get("design", False))};
 const LISTS={lists_data};
 const AUTHORING={authoring_data};
-{AUTHOR_JS if model.get("authoring") else ""}{JS}{"authorStart();" if model.get("authoring") else ""}
+{"const PLACEMENT_WORKER=" + placement_worker + ";" + documents_js + files_js if model.get("authoring") else ""}{AUTHOR_JS if model.get("authoring") else ""}{JS}{"authorStart();" if model.get("authoring") else ""}
 </script>
 """
     (out / "index.html").write_text(html, encoding="utf-8")
@@ -1948,10 +1994,35 @@ def build(model, out):
         if score:
             pages[index]["sc"] = score
     ctx = dict(pages=pages, stale=model["stale"], dropped=[])
-    svgs = {}
-    for index in sorted(packets, key=at):
-        if pages[index]["destination"] == "graph":
-            svgs[index] = build_page(packets[index], ctx).render()
+    drawings = {index: build_page(packets[index], ctx) for index in sorted(packets, key=at)
+                if pages[index]["destination"] == "graph"}
+    # Nesting is already settled in the stored model. Place only untouched influence maps;
+    # map 0 and a map with any authored position retain their complete drawn arrangement.
+    untouched = {index: page for index, page in drawings.items()
+                 if model.get("influence") and index != "0" and not page.authored.get("positions")}
+    inputs = {index: dict(boxes=[dict(id=n.id, x=n.x, y=n.y, w=n.w, h=n.h) for n in page.nodes],
+                          wires=[[e["src"], e["dst"]] for e in page.edges])
+              for index, page in untouched.items()}
+    placed = {}
+    if inputs:
+        run = subprocess.run([os.environ.get("SAAM_NODE", "node"),
+                              str(pathlib.Path(__file__).with_name("place-maps.mjs"))],
+                             input=json.dumps(inputs), text=True, encoding="utf-8", capture_output=True,
+                             check=True)
+        placed = json.loads(run.stdout)
+    for index, result in placed.items():
+        page = drawings[index]
+        page.authored = dict(positions=result["positions"], overlay=True)
+        # Re-layout measures the ledger after the new geometry, then routes every wire.
+        page.layout()
+        pages[index]["placement"] = dict(kind="physics", settled=result["settled"],
+                                         overlaps=len(result["overlaps"]))
+    for index in drawings.keys() - placed.keys():
+        pages[index]["placement"] = dict(kind="authored")
+    unsettled = [index for index, result in placed.items() if not result["settled"]]
+    if unsettled:
+        print(f'placement still settling on {len(unsettled)} maps: ' + ', '.join(unsettled), file=sys.stderr)
+    svgs = {index: page.render() for index, page in drawings.items()}
     links = {index: p["links"] for index, p in packets.items() if p.get("links")}
     size, inline = emit(out, model, pages, svgs, links)
     kinds = {}

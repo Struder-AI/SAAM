@@ -42,9 +42,13 @@ Every piece of SAAM code belongs to exactly one leaf, module load code included.
 - **Top level, authored.** The owner authors the top-level structure of each set (architecture, deployment): its nodes, their page positions and the arrows they permit, each a contract. Every leaf has exactly one top-level owner.
 - **Leaves, generated** from source by analysis.
 - **Between them, solved.** Higher-level arrows are derived, never authored: two boxes are linked when some leaf arrow runs from inside one to inside the other, and the link carries the leaf arrows it stands for. The top level's derived arrows are checked against its authored ones.
-- **The solver works middle-out**: authored nodes fixed above, leaves below. It groups each authored node's leaves into nested maps and never moves a leaf across an authored boundary. The starting objective is the existing size, edge, hub, island and balance penalties ([score.mjs](../dev-map/lib/score.mjs)) over influence arrows. Backflow, arrows against a map's best left-to-right order and so cycles among its boxes, is left out for now. Labels come from label passes; the solver runs when the owner asks.
+- **The nesting solver works middle-out**: authored nodes fixed above, leaves below. It groups each authored node's leaves into nested maps and never moves a leaf across an authored boundary. The starting objective is the existing size, edge, hub, island and balance penalties ([score.mjs](../dev-map/lib/score.mjs)) over influence arrows. Backflow, arrows against a map's best left-to-right order and so cycles among its boxes, is left out for now. Labels come from label passes; the solver runs when the owner asks.
 
 Arrow direction plus role already says who calls whom: a query's arrow runs against the call. Separate authored access lists, such as those in the [0.3.1 contracts](0.3.1.md), become derivable and retire once the checks cover them.
+
+## Placement
+
+Owner, 2026-10-04: the **placement solver** supplies physics-based initial box positions on untouched maps, in free space. Links drive refinement toward fewer crossings, shorter detours and less box occlusion. The **nesting solver** determines membership and levels. Map 0 is authored. Editing any other map authors its whole displayed arrangement, retained until the owner explicitly asks for new placement. The viewport is a camera; boxes may be placed beyond the drawing's original extent, including negative coordinates. A static local HTML file saves live to chosen map files; browser persistence and layout export provide fallback.
 
 ## What SAAM code is
 
@@ -86,7 +90,7 @@ The owner may adjust scope.
 1. **Speed.** Prototype the analysis on a small region; time parsing, constraint generation, solving and arrow derivation; report sizes and extrapolate. No maps or checks.
 2. **Whole scope.** Platform models for the APIs SAAM uses; inventory of unmodelled shapes, each for the owner to model or rewrite; query/command classification; comparison against runtime traces.
 3. **Checks.** Unmodelled shapes, ownership coverage, top-level arrows and query/command separation, as errors.
-4. **Maps.** Derived levels, the middle-out solver, the viewer, and the [read contract](../dev-map/README.md#commands) on the CLI, toolkit and onboarding routes.
+4. **Maps.** Derived levels, the nesting solver, the viewer, and the [read contract](../dev-map/README.md#commands) on the CLI, toolkit and onboarding routes.
 5. **Authored placement.** The owner places nodes by dragging them in the viewer; wires follow live and positions persist as authored data (owner, 2026-10-04: a high-level objective).
 6. **Retirement.** Remove the old scanner, scope configuration, finding classes and their documentation.
 

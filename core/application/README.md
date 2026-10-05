@@ -1,14 +1,8 @@
 # SAAM application
 
-One application per home owns Studios, chats, jobs and release services. [Startup](../../packaging/application.mjs) acquires the OS listener, starts the tray and publishes readiness.
-Each version's first start runs the [setup check](../../scripts/setup-check.mjs); failures reach `maker_onboarding` and diagnostics and rerun next start.
-[saam](../../scripts/saam.mjs) starts it when needed. Command exit, chat closure and browser closure leave it running.
-Quit and updates warn about jobs; startup/network deadlines report failures without expiring work.
+The installed [orchestrator](../../packaging/application.mjs) owns the OS listener, tray, release service and stable Studio window addresses. Each selected code root runs operations in one child [runtime](../../packaging/runtime-host.mjs); children stop with the orchestrator. `saam` selects installed code; `node CHECKOUT/scripts/saam.mjs` selects that checkout while retaining the installed orchestrator. Source changes restart an idle runtime; active work rejects reload. The tray lists runtimes/windows; `stop-runtime` stops the invoking checkout's runtime. Quit/Update cover all runtimes and warn about active jobs.
 
-The home is `C:\SAAM` on Windows or `~/SAAM` on macOS: replaceable `app/`, user-owned `local/` and persistent `state/`.
-Bundles live in `local/Prints/` and user extensions in `local/extensions/`; last-export setups are in `local/machine-setups/`. Source/installed runs share the home/credential. Developer agents verifying source changes use `node scripts/dev-instance.mjs <saam args>` (then `stop`): a background instance with its own home, no tray and no browser; test runs never open a browser either.
-Startup generates home `AGENTS.md`, `CLAUDE.md` and client skills from [AGENTS.md](../../AGENTS.md), resolving home folders/manual links.
-[Installation](../../packaging/INSTALL.md) owns migration, client registration and permissions, including absent clients.
+The shared home is `C:\SAAM` on Windows or `~/SAAM` on macOS: replaceable `app/`, user-owned `local/` and persistent `state/`. Bundles, extensions and last-export setups live in `local/Prints/`, `local/extensions/` and `local/machine-setups/`; requests/setup records are private to `state/runtimes/ID/`. Only the orchestrator migrates the home, generates client guidance and registers clients ([installation](../../packaging/INSTALL.md)). Each runtime checks its own setup. Developer verification uses `node scripts/dev-instance.mjs <saam args>` then `stop`: an isolated background home, no tray or browser.
 
 `saam help` lists operations; `saam help OP` supplies schemas. Pass inputs by file, stdin or scalar flags.
 `saam start-tour` starts the tour; `saam wait` reads Studio requests/events.
@@ -18,13 +12,13 @@ It shares revisioned edits with text, heat-set and gridfinity; [standard support
 `saam` is the only agent route, maintenance included: `migrate_bundle`, `get_bundle_instance`/`recover_bundle_instance` after a Studio crash, `repair_stl` and `extension_library`.
 Claude/Codex session IDs identify chats; otherwise retain returned `chatId` and pass `--chat-id ID`, including retries. `--chat-name` sets its label.
 
-[Runtime](runtime.mjs) retains queues/windows; edits establish [work and hand-back](../../studio/README.md#carrying-a-maker-request). Saved revisions display throughout work.
-Naming an available open bundle selects its window; ambiguous populated windows need a target. Empty windows are interchangeable; chats resume windows; one Studio owns each bundle.
-`saam call capture_bundle --bundle-id PART` transfers that Studio, preserving reservation/window. Capture rejects active edits, imports, generation, construction and export; waiting requests are not active work.
-It cancels the previous chat's unfinished requests and rejects its later writes. Studio-first requests survive initial attachment; elapsed time or missing connection never grants capture.
+[Runtime](runtime.mjs) retains queues and Studio state; edits establish [work and hand-back](../../studio/README.md#carrying-a-maker-request). Saved revisions display throughout work.
+Naming an available open bundle selects its window; ambiguous populated windows need a target. An idle owned window is reused before opening another. Chats resume their window; one Studio reserves each bundle. IDs, credentials and addresses restore across restarts; changed runtime code reloads the viewer.
+`saam call capture_bundle --bundle-id PART` transfers ownership within a runtime; across runtimes it closes the previous Studio and opens the bundle in the target runtime's reusable window. Capture rejects active edits, imports, generation, construction and export; waiting requests are not active work.
+Capture cancels prior unfinished requests and rejects old writes. Studio-first requests survive attachment; a restart reclaims only its own matching dead-process reservation.
 
 Connect says “Mention SAAM in your chat client.” Installed guidance handles attachment. `repair_client_setup` repairs registration; existing clients may need restarting.
-The consented release service observes operations and Studio/workspace events once; `saam diagnostics` waits for sends and returns the last receipt.
+The consented release service observes operations, Studio/workspace events and installer stages once; offline, only first-run evidence and the latest network issue wait in `tmp/`. `saam diagnostics` waits for sends and returns the last receipt.
 [The service](../../packaging/release-service.mjs) owns consent/redaction; Bundle owns revisions, confirmation and exact-byte delivery.
 
 ## Local agent notes

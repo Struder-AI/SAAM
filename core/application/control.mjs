@@ -6,6 +6,8 @@ import {createHash} from 'node:crypto';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {homePaths} from './home.mjs';
+import {orchestratorRoot} from './runtime-selection.mjs';
+import {userInfo} from 'node:os';
 
 export function applicationPort(home=homePaths().home){
   const identity=process.platform==='win32'?resolve(home).toLowerCase():resolve(home);
@@ -33,10 +35,13 @@ export async function readyInstance(){
   const paths=homePaths();await mkdir(paths.state,{recursive:true});
   const existing=await readInstance();
   if(existing){
+    if(existing.user&&existing.user!==userInfo().username)throw Error('SAAM is running for '+existing.user+'.');
     try{await controlRequest(existing,{command:'status'},{waitMs:3000});return existing;}
     catch{/* The OS control listener decides whether a new application can own this home. */}
   }
-  const child=spawn(process.execPath,[fileURLToPath(new URL('../../packaging/launch.mjs',import.meta.url)),'--no-open'],
+  const root=await orchestratorRoot(paths);
+  const node=root===paths.app?resolve(root,'runtime',process.platform==='win32'?'node.exe':'node'):process.execPath;
+  const child=spawn(node,[resolve(root,'packaging/launch.mjs'),'--no-open'],
     {detached:true,stdio:'ignore',windowsHide:true,env:process.env});
   await new Promise((done,fail)=>{child.once('spawn',done);child.once('error',fail);});child.unref();
   const deadline=Date.now()+30000;

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Uninstalls SAAM for this macOS user: removes ~/SAAM/app and
 # ~/Applications/SAAM.app and its desktop shortcut. Prints, the
-# settings and logs in ~/SAAM are kept.
+# local data and connection state in ~/SAAM are kept.
 # Run it from Terminal:
 #
 #   bash ~/SAAM/app/packaging/macos/uninstall.sh [--yes]
@@ -43,7 +43,7 @@ main() {
   rm -rf "$target" "$bundle"
   echo
   echo 'SAAM is uninstalled.'
-  echo "Your prints, extensions and remembered setups remain in $(data_folder)/local; logs are in $(data_folder)/state."
+  echo "Your prints, extensions and remembered setups remain in $(data_folder)/local."
   echo 'Delete that folder yourself if you no longer want them. Installing SAAM again picks them up.'
 }
 

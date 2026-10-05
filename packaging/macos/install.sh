@@ -3,9 +3,9 @@
 # earlier installation, writes ~/Applications/SAAM.app and starts SAAM.
 # Install SAAM.command runs this script inside the release's app folder;
 # app.tar sits next to app/. A running SAAM updating itself uses the same path:
-#   bash <package>/app/packaging/macos/install.sh --wait-pid <pid>
-# It waits for that SAAM to exit, logs to
-# ~/SAAM/state/logs/update.log and starts the new SAAM.
+#   bash .../install.sh --wait-pid <pid> --workspace <dir> --workspace-token <token>
+# from a home tmp workspace: it claims the workspace, waits for that SAAM to
+# exit and starts the new SAAM. Either way it reports fixed diagnostic stages.
 # Only a home permission failure requests native authorization; the rest runs
 # as the original user.
 #
@@ -14,15 +14,28 @@
 # launcher ~/SAAM/app/SAAM.command are written by this script rather
 # than copied from the download, so they carry no download quarantine.
 # Quarantine attributes and Gatekeeper settings are left alone.
-# Prints, extensions and state persist in ~/SAAM; legacy sources are preserved.
+# Local data and state persist in ~/SAAM; legacy sources are preserved.
 set -Eeuo pipefail
 
-# Set in update mode: no one watches that process, so progress and failures
-# also go to the update log.
-update_log=''
-log() { [ -z "$update_log" ] || printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >> "$update_log"; }
-say() { echo "$*"; log "$*"; }
-fail() { log "$1"; printf '\n%s\n' "$1" >&2; exit 1; }
+# main reports fixed stages (never paths, names or error text) through the
+# first of these SAAM programs that has packaging/installer-report.mjs;
+# installation stages are first-run evidence until SAAM starts and owns it.
+diagnostic_program=''
+first_run='--first-run'
+report() {
+  local program
+  [ -n "$diagnostic_program" ] || return 0
+  for program in "$diagnostic_program" "$target"; do
+    [ -f "$program/packaging/installer-report.mjs" ] || continue
+    "$program/runtime/node" "$program/packaging/installer-report.mjs" "$home" stage "$1" $first_run >/dev/null 2>&1 || true
+    return 0
+  done
+}
+fail() { report failed; printf '\n%s\n' "$1" >&2; exit 1; }
+# The installer, not its launcher, owns an update's workspace while it reads it.
+workspace_owner() {
+  [ -z "$workspace" ] || "$target/runtime/node" "$target/packaging/installer-report.mjs" "$home" "$1" "$workspace" "$workspace_token" "$$" >/dev/null 2>&1 || true
+}
 
 # Resolve the exact home before authorization; never grant access to a system
 # directory or follow a home symlink. Only this directory's ownership is changed.
@@ -84,7 +97,7 @@ ensure_home() {
   [ -z "${SAAM_INSTALL_TEST_ROOT:-}" ] || fail 'The isolated home is not writable; native authorization is disabled for temporary trials.'
   owner="$(id -u)"; group="$(id -g)"
   receipt="$(mktemp "${TMPDIR:-/tmp/}saam-home.XXXXXX")"
-  say 'Home authorization: requested macOS authorization for home preparation only. This does not confirm that a prompt appeared.'
+  echo 'Home authorization: requested macOS authorization for home preparation only. This does not confirm that a prompt appeared.'
   # AppleScript receives argv, and quotes every shell argument itself. Even
   # alternate administrator credentials cannot change the original-user UID.
   if outcome="$(/usr/bin/osascript - "$script" '--prepare-home' "$home" "$owner" "$group" "$receipt" <<'AUTHORIZATION'
@@ -102,11 +115,11 @@ on run argv
 end run
 AUTHORIZATION
 )"; then status=0; else status=$?; fi
-  if grep -q '^helper-started$' "$receipt"; then say 'Home authorization: helper started.'; fi
+  if grep -q '^helper-started$' "$receipt"; then echo 'Home authorization: helper started.'; fi
   if [ "$status" -eq 0 ] && [ "$outcome" = 'complete' ] && grep -q '^complete$' "$receipt"; then
     rm -f "$receipt"
     probe_home "$home" || fail 'Home authorization: failed; original-user access is still unavailable.'
-    say 'Home authorization: complete; original-user access verified.'
+    echo 'Home authorization: complete; original-user access verified.'
     return
   fi
   rm -f "$receipt"
@@ -161,7 +174,7 @@ PLIST
   cat > "$bundle/Contents/MacOS/SAAM" <<LAUNCHER
 #!/bin/bash
 # Starts SAAM $version in the background and exits; stop SAAM with Quit in SAAM
-# tray menu. Written by install.sh; prints stay in ~/SAAM/Prints.
+# tray menu. Written by install.sh; prints stay in ~/SAAM/local/Prints.
 # Run from the home folder, so SAAM never holds the program folder open.
 cd "\$HOME"
 # Job control puts SAAM in its own process group, so it outlives this script.
@@ -180,21 +193,25 @@ write_desktop_shortcut() {
   local bundle="$1" shortcut="$2"
   if [ -L "$shortcut" ] && [ "$(readlink "$shortcut")" = "$bundle" ]; then return; fi
   if [ -e "$shortcut" ] || [ -L "$shortcut" ]; then
-    say "Kept the existing desktop item at $shortcut. SAAM is in your home Applications folder."
+    echo "Kept the existing desktop item at $shortcut. SAAM is in your home Applications folder."
   elif ln -s "$bundle" "$shortcut"; then
-    say 'Created the SAAM desktop shortcut.'
+    echo 'Created the SAAM desktop shortcut.'
   else
-    say 'Could not create the desktop shortcut. Open SAAM from your home Applications folder.'
+    echo 'Could not create the desktop shortcut. Open SAAM from your home Applications folder.'
   fi
 }
 
 main() {
-  local here source archive version target staging launcher wait_pid='' waited applications bundle staged_bundle backup backup_bundle home legacy_data legacy_app transaction
-  case "${1:-}" in
-    --wait-pid) wait_pid="${2:-}"; [[ "$wait_pid" =~ ^[0-9]+$ ]] || fail 'Give --wait-pid a process id.' ;;
-    '') ;;
-    *) fail "Unknown option $1. Run: bash install.sh [--wait-pid <pid>]" ;;
-  esac
+  local here source archive version target staging launcher wait_pid='' workspace='' workspace_token='' waited applications bundle staged_bundle backup backup_bundle home legacy_data legacy_app transaction
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --wait-pid) wait_pid="${2:-}"; [[ "$wait_pid" =~ ^[0-9]+$ ]] || fail 'Give --wait-pid a process id.' ;;
+      --workspace) workspace="${2:-}" ;;
+      --workspace-token) workspace_token="${2:-}" ;;
+      *) fail "Unknown option $1. Run: bash install.sh [--wait-pid <pid>]" ;;
+    esac
+    shift 2 || fail "Give $1 a value."
+  done
   [ "$(id -u)" -ne 0 ] || fail 'Launch the installer normally, without sudo. It requests native authorization itself only if home preparation needs it; client registration must use your normal account.'
   here="$(cd "$(dirname "$0")" && pwd)"
   home="$(data_folder)"
@@ -208,6 +225,8 @@ main() {
   applications="$HOME/Applications"
   if [ -n "${SAAM_INSTALL_TEST_ROOT:-}" ]; then applications="$home"; fi
   bundle="$applications/SAAM.app"
+  workspace_owner claim
+  diagnostic_program="$target"
   [ "$here" != "$target/packaging/macos" ] || fail 'Run install.sh from the extracted release folder, not from the installed SAAM.'
   # The release folder's install.sh sits next to app/; the copy inside the
   # package's app folder sits in app/packaging/macos.
@@ -221,7 +240,7 @@ main() {
   [[ "$version" =~ ^[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}$ ]] || fail 'The release has no valid version. Nothing was changed.'
   # Validate the payload before requesting native home authorization.
   local entries entry normalized manifest_entry='' archive_version required_files
-  required_files='runtime/node release.json packaging/launch.mjs scripts/saam.mjs packaging/migrate-home.mjs packaging/client-setup.mjs packaging/macos/SAAM.icns packaging/macos/install.sh'
+  required_files='runtime/node release.json packaging/launch.mjs scripts/saam.mjs packaging/migrate-home.mjs packaging/client-setup.mjs packaging/installer-report.mjs packaging/macos/SAAM.icns packaging/macos/install.sh'
   entries="$(tar -tf "$archive")" || fail 'The release archive cannot be read. Nothing was changed.'
   while IFS= read -r entry; do
     normalized="${entry#./}"
@@ -240,22 +259,18 @@ main() {
   # Work from outside the folder being replaced (SAAM may have started us from there).
   cd "$HOME"
   if [ -n "$wait_pid" ]; then
-    say "Updating to SAAM ${version:-(unknown version)} from $archive; waiting for SAAM (process $wait_pid) to exit."
+    echo "Updating to SAAM ${version:-(unknown version)} from $archive; waiting for SAAM (process $wait_pid) to exit."
     waited=0
     while kill -0 "$wait_pid" 2>/dev/null; do
       [ "$waited" -lt 60 ] || fail "SAAM (process $wait_pid) did not exit within 60 seconds; the update to $version was not installed."
       sleep 1; waited=$((waited + 1))
     done
   fi
-  say "Installing SAAM ${version:-(unknown version)} for $(id -un) into $target."
+  echo "Installing SAAM ${version:-(unknown version)} for $(id -un) into $target."
   # The SAAM being updated has exited, so this refuses only another running SAAM.
   if saam_running; then fail 'SAAM is running. Choose Quit from the tray menu, then run install.sh again.'; fi
   ensure_home "$home" "$here/install.sh"
-  if [ -n "$wait_pid" ]; then
-    mkdir -p "$home/state/logs"
-    update_log="$home/state/logs/update.log"
-    trap 'log "Update failed at install.sh line $LINENO."' ERR
-  fi
+  trap 'report failed' ERR
 
   # Unpack into a staging folder next to the installation first, so a failed
   # unpack leaves any installed SAAM as it was.
@@ -275,8 +290,9 @@ main() {
   chmod +x "$staging/runtime/node" "$staging"/packaging/macos/*.sh
   "$staging/runtime/node" -e 'const fs=require("fs");if(JSON.parse(fs.readFileSync(process.argv[1],"utf8")).version!==process.argv[2])process.exit(1)' "$staging/release.json" "$version" \
     || { rm -rf "$staging"; fail 'Candidate runtime or release verification failed. Nothing was changed.'; }
+  diagnostic_program="$staging"; report candidate-verified
   "$staging/runtime/node" "$staging/packaging/migrate-home.mjs" "$home" "$legacy_data" "$legacy_app" \
-    || { rm -rf "$staging"; fail 'Migration failed; the earlier installation and legacy source data are preserved.'; }
+    || { report failed; diagnostic_program=''; rm -rf "$staging"; fail 'Migration failed; the earlier installation and legacy source data are preserved.'; }
   cat > "$staging/saam" <<COMMAND
 #!/bin/bash
 exec "$target/runtime/node" "$target/scripts/saam.mjs" "\$@"
@@ -289,13 +305,13 @@ COMMAND
 #!/bin/bash
 # Starts SAAM $version in a Terminal window, for troubleshooting: SAAM.app starts
 # it without one. Quit in SAAM Studio or close this window to stop SAAM.
-# Written by install.sh; prints stay in ~/SAAM/Prints.
+# Written by install.sh; prints stay in ~/SAAM/local/Prints.
 printf '\\033]0;SAAM - close this window to stop SAAM\\007'
 "$target/runtime/node" "$target/packaging/launch.mjs"
 status=\$?
 if [ "\$status" -ne 0 ]; then
   echo
-  echo 'SAAM stopped with an error. Its log is in ~/SAAM/state/logs.'
+  echo 'SAAM stopped with the error shown above.'
   read -r -p 'Press Return to close this window. ' _
 fi
 exit "\$status"
@@ -309,11 +325,12 @@ LAUNCHER
     local status=${1:-$?}
     trap - ERR HUP INT TERM
     if [ "$status" -ne 0 ]; then
-      [ "$installed_bundle" -eq 0 ] || rm -rf "$bundle" || say "Could not remove candidate launcher at $bundle."
-      [ "$installed_target" -eq 0 ] || rm -rf "$target" || say "Could not remove candidate SAAM at $target."
-      if [ "$moved_target" -eq 1 ]; then { [ ! -e "$target" ] && mv "$backup" "$target"; } || say "Earlier SAAM remains recoverable at $backup."; fi
-      if [ "$moved_bundle" -eq 1 ]; then { [ ! -e "$bundle" ] && mv "$backup_bundle" "$bundle"; } || say "Earlier launcher remains recoverable at $backup_bundle."; fi
-      say 'SAAM replacement failed; the earlier installation was restored or its recovery path is shown above.'
+      report failed
+      [ "$installed_bundle" -eq 0 ] || rm -rf "$bundle" || echo "Could not remove candidate launcher at $bundle."
+      [ "$installed_target" -eq 0 ] || rm -rf "$target" || echo "Could not remove candidate SAAM at $target."
+      if [ "$moved_target" -eq 1 ]; then { [ ! -e "$target" ] && mv "$backup" "$target"; } || echo "Earlier SAAM remains recoverable at $backup."; fi
+      if [ "$moved_bundle" -eq 1 ]; then { [ ! -e "$bundle" ] && mv "$backup_bundle" "$bundle"; } || echo "Earlier launcher remains recoverable at $backup_bundle."; fi
+      echo 'SAAM replacement failed; the earlier installation was restored or its recovery path is shown above.'
     fi
     exit "$status"
   }
@@ -325,15 +342,17 @@ LAUNCHER
   mv "$staged_bundle" "$bundle"; installed_bundle=1
   mv "$staging" "$target"; installed_target=1
   trap - ERR HUP INT TERM
-  if [ -n "$update_log" ]; then trap 'log "Update failed at install.sh line $LINENO."' ERR; fi
-  rm -rf "$backup" "$backup_bundle" || say "SAAM is installed; an earlier copy remains at $backup or $backup_bundle."
+  trap 'report failed' ERR
+  rm -rf "$backup" "$backup_bundle" || echo "SAAM is installed; an earlier copy remains at $backup or $backup_bundle."
+  # Versions before 0.3.3 extracted updates and wrote logs here.
+  rm -rf "$home/state/updates" "$home/state/logs" || true
   # Preserve the complete old program too: unknown user additions remain
   # recoverable, including any files not recognized by the migration boundary.
   mkdir -p "$home/state/migration"
   for earlier in "$legacy_data" "$legacy_app"; do
     if [ -e "$earlier" ] && [ "$earlier" != "$home" ] && [ "$earlier" != "$target" ]; then
       mv "$earlier" "$home/state/migration/$(basename "$(dirname "$earlier")")-$(basename "$earlier")-$transaction" \
-        || say "Earlier files remain recoverable at $earlier."
+        || echo "Earlier files remain recoverable at $earlier."
     fi
   done
   if [ -z "${SAAM_INSTALL_TEST_ROOT:-}" ]; then
@@ -342,28 +361,30 @@ LAUNCHER
     for profile in "$HOME/.zprofile" "$HOME/.bash_profile"; do
       if ! grep -Fq '# SAAM application PATH' "$profile" 2>/dev/null; then
         printf '\n# SAAM application PATH\nexport PATH="%s/app:$PATH"\n' "$home" >> "$profile" \
-          || say "Add $home/app to PATH, then ask the agent to repair client setup."
+          || echo "Add $home/app to PATH, then ask the agent to repair client setup."
       fi
     done
     export PATH="$target:$PATH"
-    "$target/runtime/node" "$target/packaging/client-setup.mjs" "$home" || say 'SAAM is installed; ask the agent to repair client setup.'
+    "$target/runtime/node" "$target/packaging/client-setup.mjs" "$home" || echo 'SAAM is installed; ask the agent to repair client setup.'
   else
-    "$target/runtime/node" "$target/packaging/client-setup.mjs" "$home" --no-register || say 'Client guidance setup failed.'
+    "$target/runtime/node" "$target/packaging/client-setup.mjs" "$home" --no-register || echo 'Client guidance setup failed.'
   fi
   # Updates keep the shortcut if present, without recreating one the person removed.
   if [ -z "$wait_pid" ] && [ -z "${SAAM_INSTALL_TEST_ROOT:-}" ]; then write_desktop_shortcut "$bundle" "$HOME/Desktop/SAAM.app"; fi
 
   echo
-  say "SAAM ${version} is installed."
+  echo "SAAM ${version} is installed."
   echo 'Start it from the SAAM desktop shortcut or ~/Applications/SAAM.app,'
   echo 'and stop it with Quit in its tray menu. Restart clients to discover saam.'
   echo "Your prints and settings stay in $(data_folder)."
+  # Startup removes the completed workspace; SAAM owns first-run evidence from here.
+  workspace_owner complete
+  report starting; first_run=''
   echo 'Starting SAAM now. Studio opens in your browser; an alpha invite is optional.'
   if [ -z "${SAAM_INSTALL_TEST_ROOT:-}" ]; then
-    if [ -z "$wait_pid" ]; then open -R "$bundle" || say "SAAM is installed at $bundle."; fi
+    if [ -z "$wait_pid" ]; then open -R "$bundle" || echo "SAAM is installed at $bundle."; fi
     open "$bundle"
   fi
-  log 'Started SAAM.'
 }
 
 if [ "${1:-}" = '--prepare-home' ]; then

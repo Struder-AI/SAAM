@@ -914,11 +914,11 @@ class Page:
             o.append(f'<text x="{x0 + 16:.1f}" y="{ZONE_Y + 20}" font-size="12.5" '
                      f'font-weight="700" letter-spacing="1.6" fill="{ink}" '
                      f'opacity="0.72">{escape(label.upper())}</text>')
-        o.append(f'<text x="{MARGIN_L}" y="44" font-size="21" font-weight="700" '
+        o.append(f'<text class="fm-page-heading" x="{MARGIN_L}" y="44" font-size="21" font-weight="700" '
                  f'fill="#0f172a">{escape(self.title)}</text>')
-        o.append(f'<text x="{MARGIN_L}" y="66" font-size="12" fill="#64748b">'
+        o.append(f'<text class="fm-page-heading" x="{MARGIN_L}" y="66" font-size="12" fill="#64748b">'
                  f'{escape(self.subtitle)}</text>')
-        o.append(f'<text x="{MARGIN_L}" y="82" font-size="10" fill="#94a3b8">'
+        o.append(f'<text class="fm-page-heading" x="{MARGIN_L}" y="82" font-size="10" fill="#94a3b8">'
                  f'{escape(self.key_line)}</text>')
 
         for k_i, (e, (pts, lab)) in enumerate(zip(self.edges, self.routes)):

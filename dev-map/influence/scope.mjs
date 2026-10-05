@@ -12,7 +12,7 @@ import {importAliases} from '../lib/scope.mjs';
 // Scope: SAAM code and its development tooling (map-0 node Development tooling). Tests, demos and benchmarks are out.
 // Packaging belongs to the 030-deployment set, except the application host that carries saam calls to the runtime
 // and the release build (build, native-repair).
-export const ROOTS=/^(core|studio|skills|workspaces|scripts|adapters)\/|^packaging\/(application|launch|build|native-repair)\.mjs$/;
+export const ROOTS=/^(core|studio|skills|workspaces|scripts|adapters)\/|^packaging\/(application|launch|runtime-host|runtime-registry|runtime-state|studio-windows|build|native-repair)\.mjs$/;
 export const OUT=/(^|\/)(tests?|demos?|bench|benchmarks?|fixtures?|examples?|vendor|node_modules)\/|\.test\.|\.min\.|^scripts\/(bench|bambu-audit)|^packaging\/(windows|macos)\//;
 export const inScope=f=>/\.(mjs|js)$/.test(f)&&ROOTS.test(f)&&!OUT.test(f);
 

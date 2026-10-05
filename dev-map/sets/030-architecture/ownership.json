@@ -3,6 +3,22 @@
   "status": "Application sources refreshed 2026-10-02 using targeted current declaration inventory. Runtime root and createChat scopes are distinguished; removed adapter/toolkit routes are retained only as retired history. Mixed owners and unresolved effects remain explicit. Not conformance approval.",
   "policy": "Exact declaration/module ownership; Geometry owners are source-linked leaf IDs. Anonymous bodies inherit their nearest stable declaration. File location does not define architectural ownership.",
   "files": {
+    "dev-map/influence/position-documents.mjs": {
+      "owner": "development",
+      "reason": "Shared authored-position document values for static and server writes."
+    },
+    "dev-map/lib/file-authoring.mjs": {
+      "owner": "development",
+      "reason": "Static viewer saves through user-selected map files."
+    },
+    "dev-map/lib/placement-solver.mjs": {
+      "owner": "development",
+      "reason": "Placement solver: positions within one map; independent of nesting."
+    },
+    "dev-map/lib/place-maps.mjs": {
+      "owner": "development",
+      "reason": "Renderer transport for untouched-map placement."
+    },
     "core/geom/blob-field.mjs": {
       "owner": "geometry",
       "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
@@ -813,7 +829,7 @@
     },
     "skills/thingi10k/scripts/library.mjs": {
       "owner": "extensions",
-      "reason": "Extension-owned asset acquisition and atomic local resource persistence, not Bundle mutation."
+      "reason": "Extension-owned asset acquisition; stores nothing and never mutates a Bundle."
     },
     "skills/advanced-vase-wall/scripts/prepare-mesh.mjs": {
       "owner": "extensions",
@@ -878,10 +894,6 @@
     "core/print/extension-edits.mjs": {
       "owner": "bundle",
       "reason": "Bundle operation wrapper; extension construction/resource acquisition is requested through explicit interfaces."
-    },
-    "core/print/import-resource.mjs": {
-      "owner": "application",
-      "reason": "Command-host orchestration for resource acquisition and geometry import; no extension algorithm or bundle storage implementation."
     },
     "skills/gridfinity/scripts/edit.mjs": {
       "owner": "extensions",
@@ -1494,6 +1506,30 @@
     "core/application/diagnostics.mjs": {
       "owner": "application",
       "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
+    },
+    "core/application/runtime-selection.mjs": {
+      "owner": "application",
+      "reason": "Owns selected runtime/window lifecycle or complete workspace export publication."
+    },
+    "packaging/runtime-host.mjs": {
+      "owner": "application",
+      "reason": "Owns selected runtime/window lifecycle or complete workspace export publication."
+    },
+    "packaging/runtime-registry.mjs": {
+      "owner": "application",
+      "reason": "Owns selected runtime/window lifecycle or complete workspace export publication."
+    },
+    "packaging/runtime-state.mjs": {
+      "owner": "application",
+      "reason": "Owns selected runtime/window lifecycle or complete workspace export publication."
+    },
+    "packaging/studio-windows.mjs": {
+      "owner": "application",
+      "reason": "Owns selected runtime/window lifecycle or complete workspace export publication."
+    },
+    "workspaces/export-publication.mjs": {
+      "owner": "workspace",
+      "reason": "Owns selected runtime/window lifecycle or complete workspace export publication."
     }
   },
   "leaves": {
@@ -8279,12 +8315,6 @@
     "core/print/extension-edits.mjs::createExtensionBundle": {
       "owner": "bundle"
     },
-    "core/print/import-resource.mjs::@module": {
-      "owner": "application"
-    },
-    "core/print/import-resource.mjs::importSTLResource": {
-      "owner": "application"
-    },
     "skills/gridfinity/scripts/edit.mjs::@module": {
       "owner": "extensions",
       "reason": "Pure extension contribution authoring; no bundle persistence or lifecycle."
@@ -9891,9 +9921,6 @@
       "owner": "extensions"
     },
     "skills/text/scripts/text.mjs::requireThat": {
-      "owner": "extensions"
-    },
-    "skills/thingi10k/scripts/library.mjs::replaceFile": {
       "owner": "extensions"
     },
     "skills/vase-wall/scripts/runtime.mjs::@module": {
@@ -12439,6 +12466,885 @@
     },
     "core/geom/mesh.mjs::meshFaceNormal": {
       "owner": "geometry"
+    },
+    "core/application/control.mjs::controlRequest::response.<callback@23:36>::command": {
+      "owner": "application"
+    },
+    "core/application/control.mjs::readyInstance::root": {
+      "owner": "application"
+    },
+    "core/application/control.mjs::readyInstance::node": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::showStudio": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::startStudio::upstreamUrl": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::startStudio::registration": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::startStudio::visible": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::startStudio::<callback@233:25>::chat": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::revealSavedBundle::<callable@395:19>": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::revealSavedBundle::<callable@395:19>::saved": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::listMachines::<callback@527:56>::m": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::waitForStudioRequest::claim.<callback@801:43>::claimed": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::waitForStudioRequest::claim.<callback@801:43>::@scope/forof-1::request": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::waitForStudioRequest::claim.<callback@801:43>::@scope/forof-2::request": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::requestReview::reusable": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::transferStudio::operation.<callback@1115:43>::instanceId": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::transferStudio::operation.<callback@1115:43>::workspaces": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::transferStudio::operation.<callback@1115:43>::directory": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::close::<callable@1159:42>": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::close::<callable@1159:42>::@scope/forof-1::job": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::close::<callable@1159:42>::@scope/forof-2::job": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::close::<callable@1159:42>::chat": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::restoreStudios": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::restoreStudios::window": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::restoreStudios::attachment": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::restoreStudios::chat": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::releaseStudioForCapture": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::releaseStudioForCapture::session": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::activeCount": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::observeEvents::<return@1188:64>": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::observeOperations::<return@1189:72>": {
+      "owner": "application"
+    },
+    "core/print/studio-ownership.mjs::releaseBundleInstance::<callback@36:40>::current": {
+      "owner": "bundle"
+    },
+    "core/print/studio-ownership.mjs::reassignBundleInstance::<callback@48:40>::current": {
+      "owner": "bundle"
+    },
+    "core/print/studio-ownership.mjs::reassignBundleInstance::<callback@48:40>::assigned": {
+      "owner": "bundle"
+    },
+    "core/print/studio-ownership.mjs::recoverBundleInstance::<callback@70:40>::current": {
+      "owner": "bundle"
+    },
+    "packaging/application.mjs::startApplication::codeRoot": {
+      "owner": "application"
+    },
+    "packaging/application.mjs::startApplication::stop::<callable@42:50>": {
+      "owner": "application"
+    },
+    "packaging/application.mjs::startApplication::stop::<callable@42:50>::recoveryError": {
+      "owner": "application"
+    },
+    "packaging/application.mjs::startApplication::stop::<callable@42:50>::closed": {
+      "owner": "application"
+    },
+    "packaging/application.mjs::startApplication::stop::<callable@42:50>::current": {
+      "owner": "application"
+    },
+    "packaging/application.mjs::startApplication::<callback@88:49>::jobs": {
+      "owner": "application"
+    },
+    "packaging/application.mjs::startApplication::<callback@88:49>::result": {
+      "owner": "application"
+    },
+    "packaging/application.mjs::startApplication::<callback@88:49>::result.report": {
+      "owner": "application"
+    },
+    "packaging/launch.mjs::launch": {
+      "owner": "application"
+    },
+    "packaging/launch.mjs::launch::paths": {
+      "owner": "application"
+    },
+    "packaging/launch.mjs::launch::root": {
+      "owner": "application"
+    },
+    "packaging/launch.mjs::launch::child": {
+      "owner": "application"
+    },
+    "packaging/launch.mjs::launch::application": {
+      "owner": "application"
+    },
+    "packaging/launch.mjs::launch::stop": {
+      "owner": "application"
+    },
+    "scripts/saam.mjs::runSaam::runtime": {
+      "owner": "application"
+    },
+    "studio/server.mjs::escapeTitle": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::<callback@498:77>::finish": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@523:34>::captured": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::current": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::progress": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::presentedRequests": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::stage": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::@scope/block-2::state": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::receiptable": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::inspectable": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::renderError": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::record": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::advisory": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::guide": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::played": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::ending": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::result": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::lesson": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::@scope/block-5/block-1::adapter": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::@scope/block-5/block-1::state": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::selected": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::@scope/block-7::adapter": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::@scope/block-7::state": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::@scope/block-8::updated": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::@scope/block-9::updated": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::edit": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::changed": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::server.<callback@369:34>::run.<callback@535:32>::changes": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::openPrint::run.<callback@628:30>::before": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::startTour::<callback@638:39>::result": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::replaceAttachment::run.<callback@664:29>::previous": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::replaceAttachment::run.<callback@664:29>::detail": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::replaceAttachment::run.<callback@664:29>::kind": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::stopWatching.<callback@699:53>::external": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::stopWatching.<callback@699:53>::job": {
+      "owner": "studio"
+    },
+    "studio/server.mjs::createStudio::sessionToken": {
+      "owner": "studio"
+    },
+    "studio/viewer-session.mjs::connect::<callback@9:42>::code": {
+      "owner": "studio"
+    },
+    "studio/viewer-session.mjs::connect::<callback@10:43>::detail": {
+      "owner": "studio"
+    },
+    "workspaces/export-worker.mjs::createWorkspaceBundles::@scope/forof-1/block-1::prior": {
+      "owner": "workspace"
+    },
+    "workspaces/export-worker.mjs::createWorkspaceBundles::manifest": {
+      "owner": "workspace"
+    },
+    "workspaces/export-worker.mjs::createWorkspaceBundles::initialManifestSha256": {
+      "owner": "workspace"
+    },
+    "workspaces/export-worker.mjs::createWorkspaceBundles::retained": {
+      "owner": "workspace"
+    },
+    "workspaces/export-worker.mjs::createWorkspaceBundles::@scope/forof-2::prior": {
+      "owner": "workspace"
+    },
+    "workspaces/export-worker.mjs::retainEditedBundle": {
+      "owner": "workspace"
+    },
+    "workspaces/export-worker.mjs::retainEditedBundle::source": {
+      "owner": "workspace"
+    },
+    "workspaces/export-worker.mjs::retainEditedBundle::bytes": {
+      "owner": "workspace"
+    },
+    "workspaces/export-worker.mjs::retainEditedBundle::filter": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::exportWork": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::updateDesign::<callback@49:64>::normalized": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::createBundles::<callback@57:58>::normalized": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::createBundles::<callback@57:58>::pieces": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::createBundles::<callback@57:58>::id": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::createBundles::<callback@57:58>::out": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::createBundles::<callback@57:58>::job": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::createBundles::<callable@65:13>": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::createBundles::<callback@57:58>::stagingName": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::createBundles::<callback@57:58>::targetName": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::createBundles::<callable@71:7>": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::createBundles::<callable@71:7>::previous": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::createBundles::<callable@71:7>::publication": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::createBundles::<callable@71:7>::lease": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::createBundles::<callback@57:58>::executeExport::<callback@76:46>::running": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::createBundles::<callback@57:58>::executeExport::<callback@76:46>::<callback@80:50>::completed": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::<callback@107:25>::origin": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::<callback@107:25>::url": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::<callback@107:25>::timer": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::<callback@107:25>::request": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::<callback@107:25>::name": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::<callback@107:25>::content": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::<callback@107:25>::html": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::<callback@107:25>::bridge": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::shutdown::<callable@151:36>": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::shutdown::<callable@151:36>::res": {
+      "owner": "workspace"
+    },
+    "workspaces/server.mjs::startWorkspace::shutdown::<callable@151:36>::ended": {
+      "owner": "workspace"
+    },
+    "core/application/runtime-selection.mjs::execute": {
+      "owner": "application"
+    },
+    "core/application/runtime-selection.mjs::invocationRoot": {
+      "owner": "application"
+    },
+    "core/application/runtime-selection.mjs::orchestratorRoot": {
+      "owner": "application"
+    },
+    "core/application/runtime-selection.mjs::selectRuntime": {
+      "owner": "application"
+    },
+    "core/application/runtime-selection.mjs::selectRuntime::root": {
+      "owner": "application"
+    },
+    "core/application/runtime-selection.mjs::selectRuntime::paths": {
+      "owner": "application"
+    },
+    "core/application/runtime-selection.mjs::selectRuntime::installed": {
+      "owner": "application"
+    },
+    "core/application/runtime-selection.mjs::selectRuntime::release": {
+      "owner": "application"
+    },
+    "core/application/runtime-selection.mjs::selectRuntime::head": {
+      "owner": "application"
+    },
+    "core/application/runtime-selection.mjs::selectRuntime::diff": {
+      "owner": "application"
+    },
+    "core/application/runtime-selection.mjs::selectRuntime::untracked": {
+      "owner": "application"
+    },
+    "core/application/runtime-selection.mjs::selectRuntime::hash": {
+      "owner": "application"
+    },
+    "core/application/runtime-selection.mjs::selectRuntime::name": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::pending": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::host": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::send": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::request": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::request::id": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::relay": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::relay.status": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::relay.activate": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::relay.dismissFirstRun": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::relay.checkUpdate": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::relay.update": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::relay.quit": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::command": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::command::runtime": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::command::operation": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::command::operationName": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::command::definition": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::command::chat": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::start": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::start::paths": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::start::stateRoot": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::start::setupFile": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::start::setup": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::start::log": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::start::application.retryClients": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::start::application.registerStudio": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::start::application.showStudio": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::handle": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::close": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::close::<callable@72:41>": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::<callback@73:22>::waiter": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::<callback@78:25>::waiter": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::windows": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::runtimes": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::selection": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::operationObservers": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::eventObservers": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::service": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::incoming": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::rpc": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::rpc::id": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::launch": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::launch::child": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::launch::runtime": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::launch::<callback@36:24>::waiter": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::launch::<callback@36:24>::@scope/block-2/forof-1::observer": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::launch::<callback@36:24>::@scope/block-3/forof-1::observer": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::launch::failed": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::launch::failed::waiter": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::fallback": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::ensure": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::ensure::selected": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::ensure::running": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::ensure::current": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::selected": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::selected::task": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::sync": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::sync::status": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::command": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::command::target": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::command::candidate": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::command::runtime": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::command::other": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::command::status": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::command::studio": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::status": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::status::states": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::notifyStopping": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::stopRuntime": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::stopRuntime::identity": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::stopRuntime::runtime": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::stopRuntime::current": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::close": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::runningJobs": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::observeEvents": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::observeEvents::<return@99:64>": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::observeOperations": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::observeOperations::<return@100:72>": {
+      "owner": "application"
+    },
+    "packaging/runtime-state.mjs::exists": {
+      "owner": "application"
+    },
+    "packaging/runtime-state.mjs::migrateRuntimeState": {
+      "owner": "application"
+    },
+    "packaging/runtime-state.mjs::migrateRuntimeState::target": {
+      "owner": "application"
+    },
+    "packaging/runtime-state.mjs::migrateRuntimeState::entries": {
+      "owner": "application"
+    },
+    "packaging/runtime-state.mjs::migrateRuntimeState::name": {
+      "owner": "application"
+    },
+    "packaging/runtime-state.mjs::migrateRuntimeState::from": {
+      "owner": "application"
+    },
+    "packaging/runtime-state.mjs::migrateRuntimeState::to": {
+      "owner": "application"
+    },
+    "packaging/runtime-state.mjs::migrateRuntimeState::source": {
+      "owner": "application"
+    },
+    "packaging/runtime-state.mjs::migrateRuntimeState::outcome": {
+      "owner": "application"
+    },
+    "packaging/runtime-state.mjs::migrateRuntimeState::entry": {
+      "owner": "application"
+    },
+    "packaging/runtime-state.mjs::restoreRuntimeState": {
+      "owner": "application"
+    },
+    "packaging/runtime-state.mjs::restoreRuntimeState::entry": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::file": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::windows": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::saved": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::writes": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::persist": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::persist::records": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::listener": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::listener::window": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::listener::<callback@18:32>::origin": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::listener::<callback@18:32>::target": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::listener::<callback@18:32>::headers": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::listener::<callback@18:32>::upstream": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::record": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::register": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::register::window": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::sync": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::sync::studio": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::sync::@scope/forof-1/block-1::window": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::sync::@scope/forof-2::window": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::detach": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::detach::window": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::restore": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::show": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::show::target": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::show::window": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::close": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::close::<callback@50:102>::done": {
+      "owner": "application"
+    },
+    "packaging/studio-windows.mjs::createStudioWindows::runtimeFor": {
+      "owner": "application"
+    },
+    "workspaces/export-publication.mjs::safeName": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::workspaceExportPath": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::currentWorkspaceExport": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::currentWorkspaceExport::pointer": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::currentWorkspaceExport::@scope/block-1::path": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::currentWorkspaceExport::@scope/block-1::record": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::currentWorkspaceExport::names": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::currentWorkspaceExport::name": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::currentWorkspaceExport::@scope/forof-1/block-1::path": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::currentWorkspaceExport::@scope/forof-1/block-1::record": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::lockWorkspaceExport": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::lockWorkspaceExport::entry": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::lockWorkspaceExport::path": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::lockWorkspaceExport::info": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::recoverWorkspaceExport": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::recoverWorkspaceExport::file": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::recoverWorkspaceExport::record": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::recoverWorkspaceExport::stage": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::recoverWorkspaceExport::target": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::recoverWorkspaceExport::pointer": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::recoverWorkspaceExport::exported": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::recoverWorkspaceExport::previousPath": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::recoverWorkspaceExport::old": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::recoverWorkspaceExport::bundle": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::recoverWorkspaceExport::@scope/block-1/block-1/block-1/forof-1/block-1::file": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::recoverWorkspaceExport::lock": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::recoverWorkspaceExport::lease": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::beginWorkspaceExport": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::beginWorkspaceExport::record": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::publishWorkspaceExport": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::publishWorkspaceExport::stagePath": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::publishWorkspaceExport::targetPath": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::publishWorkspaceExport::file": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::publishWorkspaceExport::record": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::retireWorkspaceExport": {
+      "owner": "workspace"
+    },
+    "workspaces/export-publication.mjs::finishWorkspaceExport": {
+      "owner": "workspace"
     }
   },
   "retiredAssignments": [

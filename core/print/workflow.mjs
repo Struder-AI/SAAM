@@ -234,10 +234,7 @@ async function prepareLegacyMigration(dir,document,planText){
   const source=originalSource(document.geometry);
   if(source){const sourceBytes=await readFile(resolve(dir,'geometry/source.stl'));inputs.set('geometry/source.stl',sourceBytes);requireThat(hash(sourceBytes)===source.sha256,'Imported STL source changed; repair it before migration.');}
   const programStatus=!review.generation?'none':review.generation.generationHash===preflight.identity.generationHash?'current':'stale';
-  if(programStatus==='current'){
-    const path=review.path?await readPathArtifact(dir,review.path):null;
-    decodeProgram(programBytes,document,machine,{authoredNozzleTemperatures:path?.completion?.authoredNozzleTemperatures});
-  }
+  if(programStatus==='current')decodeProgram(programBytes,document,machine);
   return {state,manifest,artifacts,planText,inputs,programStatus};
 }
 
