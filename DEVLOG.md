@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-04 — Byte-exact checkouts
+
+- Release audit: CRLF checkouts (`core.autocrlf=true`) changed `skills/wing/data/naca2412.dat` (sha256 dce4261b… vs recorded cf46ed61…), because the only airfoil rule in `.gitattributes` still named `workspaces/wing/data`. One repo-wide `* text=auto eol=lf` rule replaces path rules; Windows installer scripts stay CRLF, binary assets marked. All blobs were already LF: nothing renormalized. The 11 line-text font SVG hashes had the same fault.
+- `packaging/build.mjs` refuses files whose on-disk line endings differ from what `.gitattributes` gives (`git ls-files --eol`). The main checkout is still CRLF on disk: build releases from a fresh worktree or re-check it out first.
+- Worker, fresh CRLF worktree: all 6 airfoil and 11 font hashes match their records; Wing airfoils load and the preview runs; an old CRLF worktree reproduces the failure and the build check stops it. No tests run.
+
 ## 2026-10-04 — Old scanner retired; code checks as errors; geometry cold re-solve
 
 - Milestone 6 (worker): removed the scanned set, `tree.json`, `facts.tsv`, the finding, coupling, flow, presentation, freshness and coverage modules and the design-set audit (27 files, about 480 KB). Kept what the influence pipeline, design sets and toolkit reach: `graph.mjs` declaration anchors for ownership (identical over 371 files), the annealer, the scorer objective, tree drawing. The CLI (163 → 24 lines) defaults to `030-influence` and keeps the command's exit code (influence `check` used to exit 0 on failure).
