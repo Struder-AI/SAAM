@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-04 — Bambu reopen and Dobot relay checks removed
+
+- Owner-approved follow-up to the playback audit removal: Bambu reopen (`interpretBambu`) no longer re-renders the envelope or package entries (md5, metadata, project start/end G-code, thumbnails); ZIP structure and CRCs, the body boundary and the saved-context check remain; decoding about 5x faster. Dobot playback drops relay-vs-intent, Sync-before-DO and the relay-off ending (no repository evidence makes Sync-before-DO a firmware requirement; the writer still emits it). The dead `authoredNozzleTemperatures` decode option and its path-completion field are removed end to end; the Dobot notice shows mm³. Behaviour change: a Bambu archive whose project settings differ from the plan now decodes (Bundle owns the exact artifact hash and locked settings).
+- Worker: six programs re-export byte-identical; decoded output identical except the corrected notice; removed checks confirmed gone, wrong Dobot tool frame and corrupted ZIP still rejected. Targeted tests: only failures asserting removed comparisons were trimmed; existing failures unchanged. Remaining program-against-itself checks for a possible later pass: Bambu body Z vs saved shutdown clearance, multi-material order/lift/retraction, body-travel G1.
+
 ## 2026-10-04 — No persistent download cache
 
 - Owner option 2: the Thingi10K client stores nothing; metadata indexes are read per request and downloaded bytes are imported in the STL import job folder, removed with the job; the bundle keeps its source. A failed import of downloaded bytes keeps them as diagnostics evidence (`tmp/diagnostics/failed-import.<sha256>.stl`, latest only, never uploaded), named by `importDiagnostic.evidence`. Startup deletes a legacy `tmp/cache`. Removed `core/print/import-resource.mjs` (test-only second import route). thingi10k docs 89 → 84 lines.
