@@ -165,6 +165,12 @@ async function main(){
   const dirty=spawnSync('git',['status','--porcelain','--untracked-files=no'],{cwd:root,encoding:'utf8'}).stdout.trim();
   if(dirty&&!values.review)throw Error('Release builds require a clean tracked snapshot. Use --review for an isolated candidate build.');
   if(values.review)console.warn(`Review build from on-disk source; selected untracked files: ${selected.join(', ')||'(none)'}. Do not publish this artifact.`);
+  // Packages copy on-disk bytes. A file checked out before .gitattributes still reads clean to
+  // git status with other line endings, which breaks hashed data such as the Wing airfoils.
+  const stale=spawnSync('git',['ls-files','--eol','-z'],{cwd:root,encoding:'utf8'}).stdout.split('\0').filter(Boolean).flatMap(line=>{
+    const [,index,disk]=/^i\/(\S*)\s+w\/(\S*)/.exec(line),expected=index==='lf'&&/\beol=crlf\b/.test(line)?'crlf':index;
+    return disk&&disk!==expected?[line.slice(line.indexOf('\t')+1)]:[];});
+  if(stale.length)throw Error(`${stale.length} files on disk have line endings other than .gitattributes gives (e.g. ${stale.slice(0,3).join(', ')}); build from a fresh checkout.`);
   // stage/app is the application; stage/<top> becomes the ZIP.
   const top=`SAAM-${values.version}-${platform}`,app=resolve(out,'stage','app'),folder=resolve(out,'stage',top);
   await rm(resolve(out,'stage'),{recursive:true,force:true});await mkdir(app,{recursive:true});await mkdir(folder,{recursive:true});
