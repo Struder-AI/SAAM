@@ -1187,10 +1187,6 @@
       "owner": "geometry-charts",
       "reason": "Contour/contact evaluation and radial correspondence calculations; query callbacks and caches remain visible."
     },
-    "core/geom/sleeve/sleeve-contact.mjs": {
-      "owner": "geometry-charts",
-      "reason": "Contour/contact evaluation and radial correspondence calculations; query callbacks and caches remain visible."
-    },
     "core/geom/sleeve/mesh-sleeve.mjs": {
       "owner": "geometry-surfaces",
       "reason": "Mesh section classification and fitted periodic surface construction with explicit fit tolerances."
@@ -2752,21 +2748,6 @@
     "core/geom/mesh-topology.mjs::@module": {
       "owner": "geometry-leaf-9cd5d77e8e40"
     },
-    "core/geom/mesh-topology.mjs::meshEdgeMap": {
-      "owner": "geometry-leaf-76f7278e52ef"
-    },
-    "core/geom/mesh-topology.mjs::meshTopology": {
-      "owner": "geometry-leaf-7184774e314d"
-    },
-    "core/geom/mesh-topology.mjs::meshTopology::a": {
-      "owner": "geometry-leaf-a04df91a2398"
-    },
-    "core/geom/mesh-topology.mjs::meshTopology::b": {
-      "owner": "geometry-leaf-c49b43135ab0"
-    },
-    "core/geom/mesh-topology.mjs::meshTopology::third": {
-      "owner": "geometry-leaf-a72ab91c2d91"
-    },
     "core/geom/mesh.mjs::@module": {
       "owner": "geometry-leaf-f8c3d930f170"
     },
@@ -2806,12 +2787,6 @@
     "core/geom/mesh.mjs::meshResult": {
       "owner": "geometry-leaf-284ff2371853"
     },
-    "core/geom/mesh.mjs::meshResult::get": {
-      "owner": "geometry-leaf-88bc6858a35f"
-    },
-    "core/geom/mesh.mjs::meshResult::set": {
-      "owner": "geometry-leaf-dde8a4801b5c"
-    },
     "core/geom/mesh.mjs::meshSectionIndex": {
       "owner": "geometry-leaf-3ee84bb1e44f"
     },
@@ -2850,9 +2825,6 @@
     },
     "core/geom/mesh.mjs::translateMesh": {
       "owner": "geometry-leaf-aceb275e39b0"
-    },
-    "core/geom/mesh.mjs::translateMesh::data": {
-      "owner": "geometry-leaf-653216d53f5b"
     },
     "core/geom/mesh.mjs::trianglesAt": {
       "owner": "geometry-leaf-19491ec9db2a"
@@ -3394,9 +3366,6 @@
     },
     "core/geom/surface-intersection.mjs::coincidentRun::walk": {
       "owner": "geometry-leaf-74c403279745"
-    },
-    "core/geom/surface-intersection.mjs::curvePointAtZ": {
-      "owner": "geometry-leaf-8be0ee36c072"
     },
     "core/geom/surface-intersection.mjs::describe": {
       "owner": "geometry-leaf-d31be269b9f1"
@@ -4134,9 +4103,6 @@
     "core/path/curve-construction.mjs::curveLength": {
       "owner": "toolpath"
     },
-    "core/path/curve-construction.mjs::placeCenterlines": {
-      "owner": "toolpath"
-    },
     "core/path/curve-construction.mjs::spiralBeadCurve": {
       "owner": "toolpath"
     },
@@ -4198,9 +4164,6 @@
       "owner": "toolpath"
     },
     "core/path/deposited-curves.mjs::depositedCurveSegments": {
-      "owner": "toolpath"
-    },
-    "core/path/deposited-curves.mjs::depositedTopAt": {
       "owner": "toolpath"
     },
     "core/path/deposited-curves.mjs::diskInterval": {
@@ -9213,12 +9176,6 @@
     "core/geom/sleeve/directional-contour.mjs::fitDirectionalAngles::@scope/for-1/block-1/block-1::mean": {
       "owner": "geometry-charts"
     },
-    "core/geom/sleeve/directional-contour.mjs::prepareRegularizedSleeveContact": {
-      "owner": "geometry-charts"
-    },
-    "core/geom/sleeve/directional-contour.mjs::prepareRegularizedSleeveContact::contact.loopsAt": {
-      "owner": "geometry-charts"
-    },
     "core/geom/sleeve/directional-contour.mjs::reconstructDirectionalContour": {
       "owner": "geometry-charts"
     },
@@ -9350,21 +9307,6 @@
       "owner": "geometry-charts"
     },
     "core/geom/sleeve/prepared-radial-contact.mjs::wrap": {
-      "owner": "geometry-charts"
-    },
-    "core/geom/sleeve/sleeve-contact.mjs::@module": {
-      "owner": "geometry-charts"
-    },
-    "core/geom/sleeve/sleeve-contact.mjs::cross": {
-      "owner": "geometry-charts"
-    },
-    "core/geom/sleeve/sleeve-contact.mjs::prepareSleeveContact": {
-      "owner": "geometry-charts"
-    },
-    "core/geom/sleeve/sleeve-contact.mjs::prepareSleeveContact::at": {
-      "owner": "geometry-charts"
-    },
-    "core/geom/sleeve/sleeve-contact.mjs::prepareSleeveContact::boundary": {
       "owner": "geometry-charts"
     },
     "core/geom/sleeve/sleeve-frame.mjs::@module": {
@@ -12502,6 +12444,15 @@
     "core/print/portable.mjs::importBundle::requireCreationDestination::names": {
       "owner": "bundle",
       "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
+    },
+    "core/geom/blob-field.mjs::validateBumpsField": {
+      "owner": "geometry"
+    },
+    "core/geom/mesh-topology.mjs::checkMeshTopology": {
+      "owner": "geometry"
+    },
+    "core/geom/mesh.mjs::meshFaceNormal": {
+      "owner": "geometry"
     }
   },
   "retiredAssignments": [

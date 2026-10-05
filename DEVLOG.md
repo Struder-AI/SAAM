@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-10-04 — Map triage; engine review fixes; full-solve and demos intent
+
+- Triage (worker): 248 unlinked = 196 declaring loads, 12 dead leaves plus one dead const (list in `.local/team/triage-report.md`, awaiting owner approval), 39 analysis gaps. Merged its channels/platform-model commit: own-file path evaluation, process control follows its spawn, skill-script console to the agent, build tools assigned, file state declared at its first writer (plan.json is Bundle's), manifold operations copy their inputs; unassigned contacts 36 → 14, cross-owner state 47 → 46 (8 real sharing, 2 ownership errors, 36 imprecision). Held, not merged: extension entries through manifests (brings back a six-node alias blob with the text-compiling editors).
+- Engine review (worker, Geometry/Toolpath from the maps): deleted five uncalled exports and `sleeve-contact.mjs`; bumps fields validated by a query (`validateBumpsField`) instead of by preparing them; mesh records are plain values with their own face normals (`meshFaceNormal`), replacing lazy getters, an unread edges map and descriptor-copying translation. Verified against 0dd4ed4f in a worktree: mesh queries identical on 4 meshes × own/translated/cached, a draped-skin SAAMpath byte-identical, mesh tests pass. 2↔3 leaf arrows 264 → 237. Ownership and the architecture set's generated geometry leaves follow (stale declarations dropped, three new geometry owners).
+- Owner: a full solve runs without asking after each work cycle (or at the next start), warm and cold per node, the clearly better kept (plans/dev-maps.md, .local/DEVELOPMENT.md); example recipes are reference material in maker context, never run or displayed by SAAM (plans/0.3.3.md demos row corrected).
+- Main checkout: influence regenerate checks and reads ok, code errors 1,126; architecture set regenerates and checks. No tests run.
+
 ## 2026-10-04 — One route: saam is the only agent route
 
 - Worker, from the Codex baseline (Application visibility, saam operations for every bundle command already merged): new maintenance operations `get_bundle_instance` (query), `recover_bundle_instance` (refuses a live instance), `repair_stl` (cancellable import job) and `extension_library` (checkout/export/import); all immediate, no Studio view. The installer migrates the home before the application runs: that is maintenance's home when Application cannot run.
