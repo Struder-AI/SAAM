@@ -70,7 +70,7 @@ async function authorConnectFiles() {
     else directory=await window.showDirectoryPicker({id:'dev-map-save',mode:'readwrite'});
     const docs=await authorFileDocuments(directory),maps=documentPositions({architecture:docs.a,layout:docs.own});
     const pending=FILE_AUTHOR.pending;
-    AUTHOR.maps=maps;
+    authorCancelPlacement();AUTHOR.maps=maps;
     for(const edit of pending){const m=AUTHOR.maps[edit.map]??={};for(const [id,p] of Object.entries(edit.initial))if(m[id]===undefined)m[id]=p;
       for(const [id,p] of Object.entries(edit.set))p?m[id]=p:delete m[id];}
     FILE_AUTHOR.directory=directory;FILE_AUTHOR.resume=null;authorFolderButton();authorShow();minimap();
@@ -89,7 +89,7 @@ async function authorRestoreFiles() {
       const docs=await authorFileDocuments(directory),maps=documentPositions({architecture:docs.a,layout:docs.own});
       for(const edit of FILE_AUTHOR.pending){const m=maps[edit.map]??={};for(const [id,p] of Object.entries(edit.initial))if(m[id]===undefined)m[id]=p;
         for(const [id,p] of Object.entries(edit.set))p?m[id]=p:delete m[id];}
-      AUTHOR.maps=maps;FILE_AUTHOR.directory=directory;FILE_AUTHOR.resume=null;authorShow();minimap();authorFolderButton();await authorFlushFiles();
+      authorCancelPlacement();AUTHOR.maps=maps;FILE_AUTHOR.directory=directory;FILE_AUTHOR.resume=null;authorShow();minimap();authorFolderButton();await authorFlushFiles();
     }else authorSay('browser positions restored · Connect save folder to resume disk saving');
   }catch(e){authorSay('browser positions restored · Connect save folder to save to disk');}
 }

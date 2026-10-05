@@ -1557,7 +1557,7 @@ AUTHOR_JS = """
    the authoring server (`node dev-map/cli.mjs --set NAME serve`) into the committed layout
    files, or, opened any other way, into this browser's storage, which Export layout writes
    out for `node dev-map/cli.mjs --set NAME import-layout FILE`. */
-const AUTHOR={server:false,on:false,maps:{},undo:[],first:{},at:{},drag:null};
+const AUTHOR={server:false,on:false,maps:{},undo:[],first:{},at:{},drag:null,placement:null};
 const AUTHOR_STORE='devmap-layout:'+AUTHORING.set;
 function authorSay(text,bad){const s=document.getElementById('author-status');s.textContent=text;s.classList.toggle('bad',!!bad);}
 function authorCount(){return Object.values(AUTHOR.maps).reduce((t,m)=>t+Object.keys(m).length,0);}
@@ -1667,6 +1667,7 @@ function authorGrab(e){if(!AUTHOR.on||!PAGES[cur]?.lp||!e.target.closest)return 
   return true;}
 function authorMove(e){const d=AUTHOR.drag,dx=e.clientX-d.cx,dy=e.clientY-d.cy;
   if(!d.moved&&Math.abs(dx)+Math.abs(dy)<=4)return;
+  authorCancelPlacement(PAGES[cur]?.lp);
   d.moved=true;moved=true;place(d.id,d.x+dx/view.k,d.y+dy/view.k);}
 function authorDrop(){const d=AUTHOR.drag;AUTHOR.drag=null;if(!d||!d.moved)return;
   const lp=PAGES[cur].lp,now=geom(d.id),point={x:Math.round(now.x),y:Math.round(now.y)};
@@ -1680,6 +1681,7 @@ function authorSnapshot(){const points={};
     const at=geom(g.dataset.id);points[g.dataset.ident]={x:at.x,y:at.y};}
   return points;}
 async function authorSave(map,set,initial={}){
+  authorCancelPlacement(map);
   if(!AUTHOR.server){const m=(AUTHOR.maps[map]??={});
     for(const [k,v] of Object.entries(initial))if(m[k]===undefined)m[k]=v;
     for(const [k,v] of Object.entries(set))v?m[k]=v:delete m[k];
@@ -1699,9 +1701,29 @@ function authorUndo(){const lp=PAGES[cur]?.lp;let k=AUTHOR.undo.length-1;
   if(k<0){authorSay('nothing to undo on this map');return;}
   const [u]=AUTHOR.undo.splice(k,1);place(u.id,u.from.x,u.from.y);minimap();
   authorSave(lp,{[u.ident]:{x:u.from.x,y:u.from.y}});}
-/* A submap goes back to its solved layout: its authored positions are removed and it is
-   redrawn. Map 0 has no solved layout (its nodes are placed in the authored set), so there
-   every box moved this session goes back to where it stood when first moved. */
+function authorFinishPlacement(task){task.worker?.terminate();URL.revokeObjectURL(task.url);if(AUTHOR.placement===task)AUTHOR.placement=null;}
+function authorCancelPlacement(map){const task=AUTHOR.placement;if(!task||(map&&task.map!==map))return;
+  authorFinishPlacement(task);authorSay('placement cancelled · newer edits kept');}
+function authorSolveMap(boxes,wires,identities,map,page){
+  authorCancelPlacement();
+  const task={map,page,identities,saved:JSON.stringify(AUTHOR.maps[map]),worker:null,
+    url:URL.createObjectURL(new Blob([PLACEMENT_WORKER],{type:'text/javascript'}))};
+  try{task.worker=new Worker(task.url);AUTHOR.placement=task;
+    task.worker.onmessage=function placementFinished(event){
+      if(AUTHOR.placement!==task)return;
+      authorFinishPlacement(task);
+      if(event.data.error){authorSay('placement failed: '+event.data.error,true);return;}
+      if(JSON.stringify(AUTHOR.maps[map])!==task.saved){authorSay('placement cancelled · newer edits kept');return;}
+      const result=event.data.result,set={};
+      for(const [id,p] of Object.entries(result.positions)){if(identities[id])set[identities[id]]=p;if(cur===page)place(id,p.x,p.y);}
+      AUTHOR.undo=AUTHOR.undo.filter(u=>u.map!==map);delete AUTHOR.first[map];AUTHOR.maps[map]={};
+      authorSave(map,set);if(cur===page){minimap();overview();}};
+    task.worker.onerror=function placementFailed(event){if(AUTHOR.placement!==task)return;
+      authorFinishPlacement(task);authorSay('placement failed: '+event.message,true);};
+    authorSay('solving placement… · you can keep browsing');task.worker.postMessage({boxes,wires});
+  }catch(error){authorFinishPlacement(task);authorSay('placement failed: '+error.message,true);}}
+/* Reset asks for a new placement; a worker keeps a large solve off the UI thread.
+   Any newer edit or folder refresh cancels it before it can replace authored positions. */
 async function authorReset(){const lp=PAGES[cur]?.lp;if(!lp)return;
   if(lp==='0'){const first=AUTHOR.first[lp];
     if(!first||!Object.keys(first).length){authorSay('no moves on map 0 this session');return;}
@@ -1709,13 +1731,13 @@ async function authorReset(){const lp=PAGES[cur]?.lp;if(!lp)return;
     const set={};for(const [ident,f] of Object.entries(first)){place(f.id,f.x,f.y);set[ident]=f.authored?{x:f.x,y:f.y}:null;}
     delete AUTHOR.first[lp];AUTHOR.undo=AUTHOR.undo.filter(u=>u.map!==lp);minimap();authorSave(lp,set);return;}
   if(!confirm('Ask the placement solver to arrange this map again? This replaces its authored positions.'))return;
-  AUTHOR.undo=AUTHOR.undo.filter(u=>u.map!==lp);delete AUTHOR.first[lp];
   if(!AUTHOR.server){
-    const boxes=[...canvas.querySelectorAll('.fm-node[data-box]')].map(g=>({id:g.dataset.id,...geom(g.dataset.id)}));
+    const groups=[...canvas.querySelectorAll('.fm-node[data-box]')];
+    const boxes=groups.map(g=>({id:g.dataset.id,...geom(g.dataset.id)}));
     const wires=[...canvas.querySelectorAll('.fm-edge[data-a][data-b]')].map(e=>[e.dataset.a,e.dataset.b]);
-    const result=solvePlacement({boxes,wires}),set={};
-    for(const [id,p] of Object.entries(result.positions)){place(id,p.x,p.y);const g=node(id);if(g.dataset.ident)set[g.dataset.ident]=p;}
-    AUTHOR.maps[lp]={};authorSave(lp,set);minimap();overview();return;}
+    const identities=Object.fromEntries(groups.map(g=>[g.dataset.id,g.dataset.ident]));
+    authorSolveMap(boxes,wires,identities,lp,cur);return;}
+  AUTHOR.undo=AUTHOR.undo.filter(u=>u.map!==lp);delete AUTHOR.first[lp];
   authorSay('resetting and redrawing…');
   try{const r=await fetch('api/reset',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({map:lp})});
     const j=await r.json();if(!r.ok)throw Error(j.error||r.status);AUTHOR.maps=j.maps;authorSay('reset and redrawn; reloading');}
@@ -1810,6 +1832,7 @@ def emit(out, model, pages, svgs, links=None):
     authoring_data = json.dumps(model.get("authoring")).replace("</", "<" + chr(92) + "/")
     placement_js = pathlib.Path(__file__).with_name("placement-solver.mjs").read_text(encoding="utf-8")
     placement_js = placement_js.replace("export function solvePlacement", "function solvePlacement")
+    placement_worker = json.dumps(placement_js + "\nself.onmessage=function placementRequest(e){try{self.postMessage({result:solvePlacement(e.data)})}catch(error){self.postMessage({error:error.message})}};").replace("</", "<\\/")
     documents_js = (pathlib.Path(__file__).parent.parent / "influence" / "position-documents.mjs").read_text(encoding="utf-8").replace("export function ", "function ")
     files_js = pathlib.Path(__file__).with_name("file-authoring.mjs").read_text(encoding="utf-8")
 
@@ -1897,7 +1920,7 @@ const SNAPSHOT_ID={json.dumps(model.get("snapshotId"))};
 const DESIGN={json.dumps(model.get("design", False))};
 const LISTS={lists_data};
 const AUTHORING={authoring_data};
-{placement_js + documents_js + files_js if model.get("authoring") else ""}{AUTHOR_JS if model.get("authoring") else ""}{JS}{"authorStart();" if model.get("authoring") else ""}
+{"const PLACEMENT_WORKER=" + placement_worker + ";" + documents_js + files_js if model.get("authoring") else ""}{AUTHOR_JS if model.get("authoring") else ""}{JS}{"authorStart();" if model.get("authoring") else ""}
 </script>
 """
     (out / "index.html").write_text(html, encoding="utf-8")

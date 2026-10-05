@@ -123,11 +123,10 @@ is serialized and merges fresh files, preserving labels and other boxes. A faile
 Without file access, edits stay in browser storage; **Export layout** plus
 `node dev-map/cli.mjs --set 030-influence import-layout FILE` keeps them in the checkout.
 
-The [placement solver](../plans/dev-maps.md#placement) places untouched maps with springs,
-repulsion, damping, cooling and rectangle clearance.
-Soft flow-column guides seed its free-space solve. The nesting solver chooses membership and
-levels. Map 0 is authored; a map's first edit saves its whole arrangement. **Reset map**
-explicitly requests new physics placement on a submap; on map 0 it undoes this session's moves.
+The [placement solver](../plans/dev-maps.md#placement) seeds untouched maps with free-space
+physics, then refines link crossings, box occlusion, length and footprint with rectangle clearance.
+The nesting solver chooses membership and levels; map 0 and edited arrangements stay authored.
+**Reset map** runs submap placement in a worker, cancelled by newer edits; map 0 undoes session moves.
 
 Positions are signed coordinates in free space; Fit and the minimap follow boxes and wires.
 [placement.mjs](influence/placement.mjs) owns saved positions:

@@ -48,7 +48,7 @@ Arrow direction plus role already says who calls whom: a query's arrow runs agai
 
 ## Placement
 
-Owner, 2026-10-04: the **placement solver** supplies physics-based initial box positions on untouched maps, in free space. The **nesting solver** determines membership and levels. Map 0 is authored. Editing any other map authors its whole displayed arrangement, retained until the owner explicitly asks for new placement. The viewport is a camera; boxes may be placed beyond the drawing's original extent, including negative coordinates. Review and arrangement use a static local HTML file with browser persistence and layout export.
+Owner, 2026-10-04: the **placement solver** supplies physics-based initial box positions on untouched maps, in free space. Links drive refinement toward fewer crossings, shorter detours and less box occlusion. The **nesting solver** determines membership and levels. Map 0 is authored. Editing any other map authors its whole displayed arrangement, retained until the owner explicitly asks for new placement. The viewport is a camera; boxes may be placed beyond the drawing's original extent, including negative coordinates. A static local HTML file saves live to chosen map files; browser persistence and layout export provide fallback.
 
 ## What SAAM code is
 
