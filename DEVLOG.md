@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-05 — Source runtimes reach the relay, named
+
+- Owner: a tester running a source checkout without realising it must be visible on the relay, with no separate invite and without full reporting. Reverses 18b59399: the orchestrator forwards a source runtime's operation records and its Studio events that carry an error to the home's consented relay connection; the installed runtime still reports all Studio events. Every forwarded record carries `runtimeId` and `runtimeLabel` ("Source <checkout> @ <commit>"), now kept by the Studio event filter too.
+- Verified with a background dev instance against a loopback stand-in relay (test device): list_machines (completed) and get_bundle (failed, error kept) arrived named "Source SAAM_tkeller @ 527f319e". Failed Studio events from a source runtime not exercised.
+
 ## 2026-10-05 — Tour starts in a reused window; visible dev instance
 
 - Regression from window reuse (d90d5935): `start_tour` reaching the chat's own window failed with "A bundle operation is running", because `assertStudioIdle` counted the caller's own `start_tour` as other work. The viewing chat's own operations are now excluded when it reuses its own window; other chats' work and all job checks still block.
