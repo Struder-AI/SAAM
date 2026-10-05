@@ -14,7 +14,7 @@ test('the complete regional stack uses native geometry, final confirmation, shar
   await initBundle(directory,plan,{machineId:machine.id});
   let state=await loadBundle(directory);
   const nativeFile=join(directory,state.geometryArtifact.file),native=await readFile(nativeFile);
-  assert.deepEqual(new Set(state.skills),new Set(['slice']));
+  assert.deepEqual(new Set(state.skills),new Set(['slice','trace']));
   assert.doesNotMatch(state.limitations.join('\n'),/cap.*unsupported spans/,'no retired bridge-policy warning in the shared review workflow');
   await generateBundle(directory);state=await loadBundle(directory);
   assert.equal(state.programError,undefined);
