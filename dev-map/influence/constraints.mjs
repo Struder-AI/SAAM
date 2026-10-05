@@ -729,6 +729,7 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
   // A fresh object the call makes: one per walk of the call site (each copy of a function makes
   // its own, as with its literals), API and position in the model.
   function freshNode(spec,c,key) {
+    if(spec.deep)return deepCopy(spec.deep,c,key);
     const id=`${c.api}|${key}`;const made=c.site.made??=new Map();
     let o=made.get(id);
     if(o===undefined) {
@@ -743,6 +744,51 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
     }
     fill(o,spec,c,key);
     const n=pt.node();pt.add(n,o);return n;
+  }
+  // A deep copy (structuredClone): every object reachable from the source is copied into a fresh
+  // object the caller owns, so the copy shares no object with the source, and the caller reads
+  // every object it copies. One copy object per walk of the site and field path from the root, to
+  // CLONE_DEPTH names; the copy at that depth stands for its whole subtree (its fields hold
+  // itself), a sound fold. Copies keep built-in prototypes (arrays, maps, typed arrays) and turn
+  // class instances into plain objects, as structuredClone does; a platform value's copy is plain
+  // data of unknown shape (the json family, as JSON.parse makes); strings are shared (immutable);
+  // functions are not cloneable and are left out.
+  const CLONE_DEPTH=3;
+  const copiedInto=new PairSet(16);
+  function deepCopy(source,c,key) {
+    const from=src(source,c,key+'d');
+    const n=pt.node();
+    const root=cloneObject(c,key,'',n);
+    if(from!==undefined)pt.on(from,o=>{const k=pt.objects[o].kind;
+      if(k==='key')pt.add(n,o);else if(k==='platform')pt.add(pt.field(root,'__proto__'),platform(familyPath('json')));
+      else if(k!=='function'&&k!=='resolver')copyDeep(o,root,c,key,'',0);});
+    return n;
+  }
+  function cloneObject(c,key,path,n) {
+    const made=c.site.made??=new Map(),id=`${c.api}|${key}|deep|${path}`;
+    let o=made.get(id);
+    if(o===undefined){o=pt.object({kind:'value',name:`copy from ${c.api}`,owner:c.caller.id,site:c.site.id,fresh:'Object'});made.set(id,o);}
+    if(n!==undefined)pt.add(n,o);
+    return o;
+  }
+  function copyDeep(o,dst,c,key,path,depth) {
+    if(!copiedInto.add(o,dst))return;
+    readsAll(o,allFields(o),c.caller);
+    const stars=new Map();
+    eachExisting(o,(name,fnode)=>{
+      if(name==='__proto__'){pt.on(fnode,p=>pt.add(pt.field(dst,'__proto__'),isPlatform(p)?p:OBJECT_PROTO));return;}
+      let into;
+      if(name==='*'){into=stars.get(dst);if(into===undefined){into=pt.node();stars.set(dst,into);intoAllFields(into,dst);}}
+      else into=pt.field(dst,name);
+      const deeper=depth<CLONE_DEPTH,childPath=deeper?path+'/'+name:path;
+      pt.on(fnode,v=>{const k=pt.objects[v].kind;
+        if(k==='key'){pt.add(into,v);return;}
+        if(k==='function'||k==='resolver')return;
+        const child=deeper?cloneObject(c,key,childPath):dst;
+        pt.add(into,child);
+        if(k==='platform')pt.add(pt.field(child,'__proto__'),platform(familyPath('json')));
+        else copyDeep(v,child,c,key,childPath,deeper?depth+1:depth);});
+    });
   }
   function fill(o,spec,c,key) {
     // An array or set made only of other arrays' elements is keyed while all of those are.
@@ -775,8 +821,8 @@ export function buildConstraints(pt,modules,{resolveImport,platformModules=new M
         for(const s of t.copy){const n=src(s,c,'t');if(n!==undefined)pt.on(target,o=>{if(!isPlatform(o))copyFields(n,o);});}
         continue;
       }
-      const m=/^(.*?)(\[\]|\.\*)$/.exec(t.to);const base=src(m[1],c,'t');if(base===undefined)continue;
-      const name=m[2]==='[]'?ELEMENT:null;
+      const m=/^(.*?)(\[\]|\.\*|\.[\w$#]+)$/.exec(t.to);const base=src(m[1],c,'t');if(base===undefined)continue;
+      const name=m[2]==='[]'?ELEMENT:m[2]==='.*'?null:m[2].slice(1);
       caller.stores.push({base,name,site});
       for(const s of t.from){const n=src(s,c,'t');if(n!==undefined)store(base,name,n,caller,site);}
     }
