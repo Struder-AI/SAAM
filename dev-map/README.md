@@ -31,8 +31,8 @@ makes `analysis` from the current source; without it, `analysis` is a
 it did not cover. `sourceRoots` are checkouts holding the text the analysis read.
 
 Map 0 draws the authored nodes at their authored positions. Each node opens into clusters the
-middle-out solver groups its leaves into, nested down to leaves, which open as source. Cluster
-labels are provisional (`≈`), derived from their leaves until label passes exist; a node's
+middle-out solver groups its leaves into, nested down to leaves, which open as source. A cluster
+shows its [authored label](#authored-placement), else one generated from its leaves (`≈`); a node's
 library (shared queries treating every caller alike) is one `library ·` box. Pages carry no prose:
 unlinked and unowned leaves are counts on boxes and marker boxes that open their lists, and files
 not analysed a marked list on map 0. The viewer is `sets/030-influence/view/index.html`.
@@ -130,45 +130,44 @@ every box moved this session. Positions persist as authored data
 
 - Map 0's nodes and actors: `030-architecture/architecture.json` `layout["0"].positions` (only that
   block is rewritten; the architecture viewer uses the same positions).
-- Every other box: `sets/030-influence/layout.json`, `maps[MAP PATH][BOX]` = `{x,y}`. A box is named
-  by identity, never index: `@cluster/IDENTITY` for a cluster, `FILE::NAME[ #K]` for a leaf,
-  `b:IDENTITY` for a boundary box, `list:NAME` for a marker. Its `clusters` keeps each named
-  cluster's signature (below).
+- Every other box: `sets/030-influence/layout.json`, `maps[MAP PATH][BOX]` = `{x,y}`, by identity,
+  never index: `@cluster/IDENTITY` for a cluster, `FILE::NAME[ #K]` for a leaf, `b:IDENTITY` for a
+  boundary box, `list:NAME` for a marker. Its `labels[IDENTITY]` (label passes' cluster names, shown
+  by reads and drawings) and `clusters` (each named cluster's signature, below) ride along.
 
 `build` and `regenerate` draw authored positions over solved ones; a box without one keeps its
 solved place, and only arrows touching a placed box are re-routed. A re-routed arrow (and every
 arrow on map 0) meets each box where the line between the two box centres leaves it; arrows on one
 side are spread along it in that order (12 px apart, a full side passing its outermost round the
 corner) and leave and enter square to the side (`leveled.py direct_routes`; the live drag runs a
-line-for-line copy, so a rebuild draws what the drag showed, within 0.1 px). A position whose map or box is
-no longer drawn (its cluster retired, a leaf was renamed) stays in its file and is
-reported by `build`, `regenerate` and `check` (`placement.missing`, saying what became of a
-retired cluster) and listed on map 0.
+line-for-line copy, so a rebuild draws what the drag showed, within 0.1 px). A position or label
+whose box is no longer drawn stays in its file, is reported by `build`, `regenerate` and `check`
+(`placement.missing`, `placement.labels.missing`, saying what became of a retired cluster) and is
+listed on map 0.
 
 ### Cluster identity
 
-The solver numbers clusters afresh on every solve, so pages and positions name a solved cluster by
+The solver numbers clusters afresh on every solve, so pages, positions and labels name a cluster by
 an identity carried by content instead ([cluster-identity.mjs](influence/cluster-identity.mjs)):
 `NODE/~HEX` (HEX from a hash of its leaves when first seen) or `NODE/library`. Each `regenerate`
 matches the clusters it solved to those of the stored model it replaces, node by node, by the
 Jaccard overlap of all their leaves (by leaf identity): best pairs first, one to one, at overlap
 0.25 or more (below 0.5 reported `weak`: a full re-solve after a one-leaf change can reshuffle a
 node, and the best successors of its top clusters then overlap them by about 0.3; `"solve":"place"`
-keeps them whole). A matched cluster keeps its identity; when one splits, the best-overlapping part
-inherits it (and its positions) and the other parts are new and solver-placed; when clusters
-merge, the best-overlapping one's identity goes on and the others retire. The stored model keeps
-each cluster page's identity (its `path`), this solve's `solverId` and `signature` (leaf count and
-a MinHash of its leaves), and `summary.clusterIdentity` reports the run: `kept`, `rematched`
-(overlap, leaves before and now), `split`, `merged`, `retired`, `new`, and for layout.json the keys
-`migrated` and the named clusters now `retired`. `regenerate` prints one line of it; `check`
-repeats it.
+keeps them whole). A matched cluster keeps its identity, positions and label; when one splits, the
+best-overlapping part inherits them and the others are new (solver-placed, generated labels); when
+clusters merge, the best-overlapping one goes on and the others retire. The stored model keeps each
+cluster page's identity (`path`), this solve's `solverId` and `signature` (leaf count and a MinHash
+of its leaves); `summary.clusterIdentity` reports the run (`kept`, `rematched` with overlap and
+leaves before and now, `split`, `merged`, `retired`, `new`; for layout.json the keys `migrated` and
+the named clusters now `retired`), which `regenerate` prints in one line and `check` repeats.
 
 `regenerate` also brings layout.json along: keys of the solver's old numbering (`@cluster/NODE/3`,
 from before identities) are migrated to the identity of the cluster that numbering named, and
-`clusters` is refreshed with the current signature of every cluster the maps name (the authoring
-server adds one with each drop). Without an earlier stored model (a fresh checkout, a deleted
-store) those signatures still match the owner's placed clusters to the new solve, by estimated
-overlap (about ±0.09); unplaced clusters then get new identities.
+`clusters` is refreshed with the current signature of every cluster the maps or labels name (the
+authoring server adds one with each drop). Without an earlier stored model (a fresh checkout, a
+deleted store) those signatures still match the named clusters to the new solve, by estimated
+overlap (about ±0.09); the others then get new identities.
 
 Opened any other way (a file, the static `influence-map` server), **Arrange** keeps moves in the
 browser; **Export layout** writes them to a file and

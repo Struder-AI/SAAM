@@ -1,8 +1,8 @@
 // A solved influence map set (plans/dev-maps.md#levels): the authored top level of a design set,
 // each authored node opened into the clusters the middle-out solver (solve-middle.mjs) groups
 // its leaves into, nested down to leaves that open as source. Nothing in it is authored except
-// the top level; cluster labels are provisional, derived mechanically from the leaves until label
-// passes exist, and marked so.
+// the top level, positions and cluster labels (placement.mjs); a cluster without an authored label
+// shows one derived mechanically from its leaves, marked `≈`.
 //
 // The set is a folder holding `map.json`:
 //   {"mode":"influence","title":…,"analysis":FILE,"analyse":{"maxHeapMB":4096}?,"authored":DIR,
@@ -29,8 +29,8 @@ import {fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';
 import {parse} from 'acorn';
 import {pairArrowsOf} from './derive.mjs';
-import {readPlacement,pageIdentities,placePages,leafIdentities,readLayoutFile,writeLayout} from './placement.mjs';
-import {assignIdentities,storedClusters,layoutClusters,renameLayout,isCluster,isLegacy,nodeOf} from './cluster-identity.mjs';
+import {readPlacement,pageIdentities,placePages,leafIdentities,readLayoutFile,writeLayout,namedClusters,renamedLayout,signaturesFor} from './placement.mjs';
+import {assignIdentities,storedClusters,isCluster,isLegacy,nodeOf} from './cluster-identity.mjs';
 import {setFile,setName,setDir,mapSet} from '../lib/map-set.mjs';
 
 const repo=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
@@ -180,7 +180,7 @@ function identities({clusters,leafRow,leavesUnder}) {
   let prev=null;
   try{prev=JSON.parse(readFileSync(here('store/model.json'),'utf8'));}catch{}
   const earlier=prev?.pages&&prev?.leaves?storedClusters(prev,leafIdentities(prev)):new Map();
-  const layoutFile=here('layout.json'),layout=readLayoutFile(layoutFile),referenced=layoutClusters(layout.maps);
+  const layoutFile=here('layout.json'),layout=readLayoutFile(layoutFile),referenced=namedClusters(layout);
   const before=[],alias=new Map();
   for(const c of earlier.values()) {
     if(c.library){if(isLegacy(c.identity))alias.set(c.identity,`${c.node}/library`);continue;}
@@ -202,7 +202,7 @@ function identities({clusters,leafRow,leavesUnder}) {
     const why=prev?.identity?.retired?.[id]??(alias.has(id)?retired[alias.get(id)]:null);
     if(why)retired[id]=why;
   }
-  const {maps}=renameLayout(layout.maps,renamed),named=layoutClusters(maps);
+  const named=namedClusters(renamedLayout(layout,renamed));
   const {migrated,...report}=a.report;
   Object.assign(report,{migratedClusters:migrated.length,layout:{
     migrated:[...referenced].filter(id=>renamed.has(id)).sort(order).map(id=>({from:id,to:renamed.get(id)})),
@@ -210,9 +210,8 @@ function identities({clusters,leafRow,leavesUnder}) {
   // Applied to layout.json as it is when the model is written, so a drop saved meanwhile stays.
   const update=()=>{
     if(!existsSync(layoutFile))return false;
-    const fresh=readLayoutFile(layoutFile),{maps}=renameLayout(fresh.maps,renamed),sigs={};
-    for(const id of [...layoutClusters(maps)].sort(order)){const s=a.signatures.get(id)??fresh.clusters[id];if(s?.minhash)sigs[id]={leaves:s.leaves,minhash:s.minhash};}
-    return writeLayout(layoutFile,maps,sigs);
+    const fresh=renamedLayout(readLayoutFile(layoutFile),renamed);
+    return writeLayout(layoutFile,{...fresh,clusters:signaturesFor(fresh,id=>a.signatures.get(id))});
   };
   return {identity:a.identity,signatures:a.signatures,retired,report,writeLayout:update};
 }
@@ -307,8 +306,8 @@ export async function writeModel({log=()=>{},prep=null,entries=null}={}) {
   const ident=identities({clusters,leafRow,leavesUnder});
   const pathOf=id=>`@cluster/${ident.identity.get(id)??id}`;
 
-  // Labels. A cluster is named after the file holding most of its leaves and its best-connected
-  // leaves there: provisional, mechanical, never authored.
+  // Generated labels: a cluster is named after the file holding most of its leaves and its
+  // best-connected leaves there. Authored labels are laid over them as the model loads (labelled).
   const degree=new Map();for(const a of model.arrows)for(const e of [a.from,a.to])degree.set(e,(degree.get(e)??0)+1);
   const base=file=>basename(file).replace(/\.m?js$/,'');
   const nameOf=new Map();
@@ -321,7 +320,7 @@ export async function writeModel({log=()=>{},prep=null,entries=null}={}) {
     const names=held.filter(l=>fileOf(l)===dom).sort((a,b)=>(degree.get(b)??0)-(degree.get(a)??0)||keyOrder(a,b)).slice(0,3).map(l=>labels.get(l));
     const top=c.id.split('/')[0];
     if(top===UNOWNED)nameOf.set(c.id,{label:`${dom} · unowned`,byFile:true});
-    else if(c.library)nameOf.set(c.id,{label:`library · ${base(dom)}${files.size>1?` +${files.size-1}`:''}: ${names.join(', ')}`,library:true,provisional:true});
+    else if(c.library)nameOf.set(c.id,{label:`library · ≈ ${base(dom)}${files.size>1?` +${files.size-1}`:''}: ${names.join(', ')}`,library:true,provisional:true});
     else nameOf.set(c.id,{label:`≈ ${base(dom)}${files.size>1?` +${files.size-1}`:''}: ${names.join(', ')}`,provisional:true});
   }
   const boxLabel=id=>nameOf.get(id)?.label??leafRow.get(id)?.label??id;
@@ -485,7 +484,26 @@ function stored() {
   if(held)return held;
   const file=here('store/model.json');
   if(!existsSync(file))throw Error(`No stored map at ${here('store')}. Run: ${regenerateCommand}`);
-  return held=JSON.parse(readFileSync(file,'utf8'));
+  return held=labelled(JSON.parse(readFileSync(file,'utf8')));
+}
+// Label passes name solved clusters by identity in layout.json `labels` (placement.mjs); a cluster
+// without one keeps its generated label. They are laid over the stored model as it is loaded, so
+// every read and drawing carries them and an edited label shows without a regenerate. A label
+// naming no cluster of this model is reported (`labels.missing`) with what became of it.
+function labelled(m) {
+  const {labels}=readLayoutFile(here('layout.json')),retired=m.identity?.retired??{},drawn=new Set();
+  const relabel=x=>{const id=x.path?.startsWith('@cluster/')?x.path.slice(9):null;
+    if(!isCluster(id)||labels[id]===undefined)return;
+    x.label=id.endsWith('/library')?`library · ${labels[id]}`:labels[id];delete x.provisional;};
+  for(const p of m.pages) {
+    if(p.destination!=='graph')continue;
+    if(p.path.startsWith('@cluster/'))drawn.add(p.path.slice(9));
+    relabel(p);for(const c of p.components)relabel(c);for(const x of p.ports)relabel(x);
+  }
+  const missing=Object.keys(labels).filter(id=>!drawn.has(id)).sort(order)
+    .map(id=>({cluster:id,label:labels[id],why:retired[id]?`cluster retired, ${retired[id]}`:'not a cluster of this model'}));
+  m.labels={applied:Object.keys(labels).length-missing.length,missing};
+  return m;
 }
 // The source behind the stored model, as this checkout has it now.
 function staleness(model) {
@@ -556,11 +574,12 @@ export function solvedModel() {
     if(id&&retired[id])x.why+=`: cluster ${id} retired, ${retired[id]}`;
     else if(id&&isLegacy(id))x.why+=`: ${id} is the solver's old numbering; regenerate migrates it`;
   }
-  if(missing.length) {
+  const items=[...missing.map(x=>({t:`${x.map} · ${x.box}`,n:x.why??`not a node or actor in ${x.file}`})),
+    ...m.labels.missing.map(x=>({t:`label ${x.cluster} · ${x.label}`,n:x.why}))];
+  if(items.length) {
     const id='list:authored-missing';
-    lists['authored-missing']={title:'authored positions whose box is no longer drawn: kept in their file until moved again or removed',
-      items:missing.map(x=>({t:`${x.map} · ${x.box}`,n:x.why??`not a node or actor in ${x.file}`}))};
-    root.markers.push({id,label:`authored positions not found · ${missing.length}`,tone:'missing',list:'authored-missing'});
+    lists['authored-missing']={title:'authored positions and labels whose box is no longer drawn: kept in their file until moved again or removed',items};
+    root.markers.push({id,label:`authored positions or labels not found · ${items.length}`,tone:'missing',list:'authored-missing'});
     root.idents[id]=id;
   }
   for(const p of graph) {
@@ -569,7 +588,7 @@ export function solvedModel() {
     else if(Object.keys(at).length)p.layout={overlay:true,positions:at};
   }
   return {generated:m.generated,title:m.title,notice:m.notice,regenerate:m.regenerate,scores:{},snapshotId:m.snapshotId,
-    influence:true,authoring:{set:setName},placement:{applied,missing},lists,pages,sources:m.sources,sourceInfo:m.sourceInfo,stale:{},changed:[],changedInputs:[]};
+    influence:true,authoring:{set:setName},placement:{applied,missing,labels:m.labels},lists,pages,sources:m.sources,sourceInfo:m.sourceInfo,stale:{},changed:[],changedInputs:[]};
 }
 
 // The CLI read: enough to choose what to read next, each fact once, never code. Agents see a
@@ -746,7 +765,7 @@ export async function influenceCommand(command,args) {
     }
     const prep=await prepare(paths);log(`model and owners ready at ${seconds()} s`);
     const solve=await solveAll(prep,{jobs:mapSet.jobs??2,mode:values.solve??mapSet.solve??'changed',log});log(`solves ready at ${seconds()} s`);
-    const model=await writeModel({log,prep,entries:solve.entries});held=model;
+    const model=await writeModel({log,prep,entries:solve.entries});held=labelled(model);
     const {buildGeneratedView}=await import('../lib/generated-view.mjs');
     const view=await buildGeneratedView({repo});
     // Every regeneration proves the reads say what the drawings draw, as `check` does.

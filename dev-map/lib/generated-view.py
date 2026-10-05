@@ -1995,7 +1995,7 @@ def influence_legend():
         dash = f' stroke-dasharray="{s["dash"]}"' if "dash" in s else ""
         return (f'<svg width="34" height="14"><rect x="1" y="1" width="32" height="12" rx="{min(s["rx"], 6)}" '
                 f'fill="{s["fill"]}" stroke="{s["stroke"]}" stroke-width="{s["sw"]}"{dash}/></svg>')
-    rows = [("stage", "cluster", "opens its map; ≈ and library labels are provisional, derived from its leaves"),
+    rows = [("stage", "cluster", "opens its map; a ≈ label is generated from its leaves, any other authored"),
             ("code", "query leaf", "answers; its foot opens its source"),
             ("command", "command leaf", "changes state"),
             ("caller", "boundary", "the node on an enclosing map an arrow leaves to"),

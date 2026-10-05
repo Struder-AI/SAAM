@@ -1,10 +1,11 @@
 // Authored placement (plans/dev-maps.md milestone 5): where the owner put boxes by dragging them
-// in the viewer, kept as authored data in the repository and drawn over the solved layout.
+// in the viewer, and the names label passes give solved clusters, kept as authored data in the
+// repository and drawn over the solved layout and generated labels.
 //
 // Map 0's authored nodes and actors stand where the authored design set places them: its
 // architecture.json `layout["0"].positions`, keyed there by authored index (`external:ID` for an
 // actor). Every other placed box is in the influence set's layout.json:
-//   {"schema":1,"maps":{MAP:{BOX:{"x":N,"y":N}}},"clusters":{ID:{"leaves":N,"minhash":HEX}}}
+//   {"schema":1,"maps":{MAP:{BOX:{"x":N,"y":N}}},"labels":{ID:TEXT},"clusters":{ID:{"leaves":N,"minhash":HEX}}}
 // MAP is the page's path (`0`, `@cluster/ID`) and BOX the box's identity on it, never an index:
 //   @cluster/ID            a cluster by its identity (`NODE/~HEX`, `NODE/library`), carried
 //                          across re-solves by leaf overlap (cluster-identity.mjs), or map 0's
@@ -14,14 +15,16 @@
 //   @channel::NAME         an actor channel
 //   b:IDENTITY             the boundary box for the box with that identity on an enclosing map
 //   list:NAME              a marker box standing for a list
-// `clusters` holds the signature of each cluster the maps name, so a checkout without the earlier
-// model still matches them to the clusters it solves; regenerate keeps it current and migrates a
-// key of the solver's old numbering (`@cluster/NODE/3`) to its cluster's identity.
-// A box without a position is placed by the solver. A position whose map or box is no longer
-// drawn is kept in the file and reported (build, check, the viewer's map 0 list), never dropped.
+// `labels` names a solved cluster by its identity (ID as above, without `@cluster/`); a cluster
+// without one shows its generated label. `clusters` holds the signature of each cluster the maps or
+// labels name, so a checkout without the earlier model still matches them to the clusters it
+// solves; regenerate keeps it current and migrates a key of the solver's old numbering
+// (`@cluster/NODE/3`) to its cluster's identity. A box without a position is placed by the solver.
+// A position whose map or box is no longer drawn, or a label whose cluster is not, is kept in the
+// file and reported (build, check, the viewer's map 0 list), never dropped.
 import {readFileSync,writeFileSync,renameSync,rmSync} from 'node:fs';
 import {resolve,relative} from 'node:path';
-import {layoutClusters} from './cluster-identity.mjs';
+import {layoutClusters,renameLayout} from './cluster-identity.mjs';
 
 export const TOP='0';
 const order=(a,b)=>a<b?-1:a>b?1:0;
@@ -62,9 +65,15 @@ export function readLayoutFile(file) {
   try{text=readFileSync(file,'utf8');}catch(error){if(error.code==='ENOENT')return {maps:{},clusters:{}};throw error;}
   const json=JSON.parse(text);
   if(json.schema!==1||typeof json.maps!=='object')throw Error(`${file}: expected {"schema":1,"maps":{…}}.`);
-  json.clusters??={};
+  json.labels??={};json.clusters??={};
+  for(const [id,text] of Object.entries(json.labels))if(typeof text!=='string'||!text.trim())throw Error(`${file}: label ${id} is not text.`);
   return json;
 }
+// The cluster identities a layout names: by its maps' paths and boxes, and by its labels.
+export const namedClusters=layout=>new Set([...layoutClusters(layout.maps),...Object.keys(layout.labels)]);
+// A layout with cluster identities renamed (a legacy key migrating: cluster-identity.mjs).
+export const renamedLayout=(layout,names)=>({...layout,maps:renameLayout(layout.maps,names).maps,
+  labels:Object.fromEntries(Object.entries(layout.labels).map(([id,text])=>[names.get(id)??id,text]))});
 // Every authored position, MAP → BOX → {x,y}: map 0's from architecture.json, the rest from
 // layout.json. Architecture keys naming no node or actor are returned as `unknown`.
 export function readPlacement({authored,layout}) {
@@ -98,16 +107,17 @@ export function placePages(pages,maps,unknown=[]) {
   return {positions,missing,applied};
 }
 
-// The signatures a layout keeps: one for each cluster its maps name, current where the drawn
-// model has it (signatureOf), else as kept.
-function signaturesFor(own,signatureOf=()=>null) {
+// The signatures a layout keeps: one for each cluster it names, current where the drawn model has
+// it (signatureOf), else as kept.
+export function signaturesFor(own,signatureOf=()=>null) {
   const out={};
-  for(const id of layoutClusters(own.maps)){const s=signatureOf(id)??own.clusters?.[id];if(s?.minhash)out[id]={leaves:s.leaves,minhash:s.minhash};}
+  for(const id of namedClusters(own)){const s=signatureOf(id)??own.clusters?.[id];if(s?.minhash)out[id]={leaves:s.leaves,minhash:s.minhash};}
   return out;
 }
-// layout.json rewritten whole, only when its text changes; returns whether it was.
-export function writeLayout(file,maps,clusters) {
-  const text=layoutText(maps,clusters);
+// layout.json ({maps, labels, clusters}) rewritten whole, only when its text changes; returns
+// whether it was.
+export function writeLayout(file,layout) {
+  const text=layoutText(layout);
   let was=null;try{was=readFileSync(file,'utf8');}catch(error){if(error.code!=='ENOENT')throw error;}
   if(was===text)return false;
   writeAtomic(file,text);return true;
@@ -169,8 +179,8 @@ function withLayout(text,layout) {
   if(JSON.stringify(JSON.parse(out))!==JSON.stringify({...JSON.parse(lf),layout}))throw Error('architecture.json layout splice changed more than the layout.');
   return crlf?out.replaceAll('\n','\r\n'):out;
 }
-function layoutText(maps,clusters={}) {
-  const lines=['{',' "schema": 1,',' "about": "Authored box positions on influence maps, by map path and box identity: dev-map/README.md#authored-placement. Map 0\'s authored nodes are placed in the authored set\'s architecture.json.",',' "maps": {'];
+function layoutText({maps,labels={},clusters={}}) {
+  const lines=['{',' "schema": 1,',' "about": "Authored box positions and cluster labels on influence maps, by map path and box identity: dev-map/README.md#authored-placement. Map 0\'s authored nodes are placed in the authored set\'s architecture.json.",',' "maps": {'];
   const mapKeys=Object.keys(maps).sort(order);
   mapKeys.forEach((map,i)=>{
     lines.push(`  ${JSON.stringify(map)}: {`);
@@ -179,6 +189,12 @@ function layoutText(maps,clusters={}) {
     lines.push(`  }${i<mapKeys.length-1?',':''}`);
   });
   if(!mapKeys.length)lines[lines.length-1]+='}';else lines.push(' }');
+  const named=Object.keys(labels).sort(order);
+  if(named.length) {
+    lines[lines.length-1]+=',';lines.push(' "labels": {');
+    named.forEach((id,k)=>lines.push(`  ${JSON.stringify(id)}: ${JSON.stringify(labels[id])}${k<named.length-1?',':''}`));
+    lines.push(' }');
+  }
   const ids=Object.keys(clusters).sort(order);
   if(ids.length) {
     lines[lines.length-1]+=',';lines.push(' "clusters": {');
@@ -218,7 +234,7 @@ export function writePositions({authored,layout,repo,map,set,signatureOf}) {
     const layoutValue={...arch.json.layout,[TOP]:{...arch.json.layout?.[TOP],positions}};
     writeAtomic(arch.file,withLayout(arch.text,layoutValue));wrote.push(relative(repo,arch.file).replaceAll('\\','/'));
   }
-  if(ownChanged){writeAtomic(layout,layoutText(own.maps,signaturesFor(own,signatureOf)));wrote.push(relative(repo,layout).replaceAll('\\','/'));}
+  if(ownChanged){writeAtomic(layout,layoutText({...own,clusters:signaturesFor(own,signatureOf)}));wrote.push(relative(repo,layout).replaceAll('\\','/'));}
   return wrote;
 }
 // A submap back to its solved layout: its positions removed from layout.json. Map 0 has no
@@ -228,7 +244,7 @@ export function resetMap({layout,repo,map}) {
   const own=readLayoutFile(layout);
   if(!own.maps[map])return [];
   delete own.maps[map];
-  writeAtomic(layout,layoutText(own.maps,signaturesFor(own)));
+  writeAtomic(layout,layoutText({...own,clusters:signaturesFor(own)}));
   return [relative(repo,layout).replaceAll('\\','/')];
 }
 // An Export layout file from the viewer, {"maps":{MAP:{BOX:{x,y}|null}}}, applied map by map.
