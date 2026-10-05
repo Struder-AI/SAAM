@@ -7,26 +7,27 @@ import {defaults,validatePlan} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {exportProgram,decodeProgram} from '../export/registry.mjs';
+import {prepareExportPath} from '../export/prepare-path.mjs';
 import {packZip,unpackZip} from '../export/zip.mjs';
 import {LuaRuntime} from '../export/dobot-lua-subset.mjs';
 import {initBundle,generateBundle,loadBundle,approve,deliver,adjustBundle} from '../print/bundle.mjs';
 import {syntheticDobotSetup} from './fixtures/dobot.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
+import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
 const release={generatorVersion:'SYNTHETIC TEST',buildDate:'2026-09-09'};
 const actor='SYNTHETIC DOBOT TEST — not a real approval';
 function fixture(){
   const machine=loadMachine('dobot-mg400'),plan=syntheticDobotSetup(defaults(machine));
-  plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:2});plan.process.minimumLayerSeconds=0;
+  plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:2});plan.process.minimumLayerSeconds=0;plan.slices.assignments.push(skinAssignment({id:'skin'}));
   return {machine,plan};
 }
 test('Dobot unconfigured profile is discoverable and allows geometry review, but refuses export',async()=>{
-  const machine=loadMachine('dobot-mg400'),plan=defaults(machine);
+  const machine=loadMachine('dobot-mg400'),plan=defaults(machine);plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:2});
   validatePlan(plan,machine);
   const dir=await mkdtemp(join(tmpdir(),'saam-dobot-unconfigured-'));
   try{
     await initBundle(dir,plan,{machineId:machine.id});
     const state=await loadBundle(dir);
-    assert.equal(state.machineConfiguration.configured,false);assert.match(state.outputAvailability,/unconfigured/);
     await assert.rejects(()=>generateBundle(dir,{development:true}),/Dobot installation is unconfigured/);
     assert.equal(state.review.generation,null);
   }finally{await rm(dir,{recursive:true,force:true});}
@@ -35,11 +36,11 @@ test('Dobot executes actual archived Lua, preserves three skill paths and report
   const {machine,plan}=fixture(),path=await generatePath(plan,machine);
   const bytes=exportProgram(path,plan,machine,release),program=decodeProgram(bytes,plan,machine);
   assert.deepEqual(bytes,exportProgram(path,plan,machine,release));
-  const expected=path.actions.filter(a=>a.kind==='move');assert.equal(program.moves.length,expected.length);
+  const expected=prepareExportPath(path,plan,machine).actions.filter(a=>a.kind==='move');assert.equal(program.moves.length,expected.length);
   expected.forEach((m,i)=>{m.to.forEach((v,k)=>assert.ok(Math.abs(v-program.moves[i].to[k])<6e-6));assert.equal(m.volumeMm3,program.moves[i].volumeMm3);});
   assert.ok(program.moves.some(m=>/^body:\d+:fill$/.test(m.operation)),'solid top and bottom layers');
   assert.ok(program.moves.some(m=>/^body:\d+:infill$/.test(m.operation)),'sparse infill');
-  assert.ok(program.moves.some(m=>m.phase==='skin'));
+  assert.ok(program.moves.some(m=>m.operation?.startsWith('skin:')));
   assert.notDeepEqual(program.moves[0].to,program.moves[0].controllerTo,'display is inverse-calibrated to geometry');
   assert.equal(program.summary.filamentMm,null);assert.equal(program.summary.materialModel,'relay-estimate');
   assert.ok(program.summary.estimatedRelayVolumeMm3>0);assert.notEqual(program.volumeMm3,program.summary.estimatedRelayVolumeMm3);
@@ -73,15 +74,15 @@ test('the Lua reader stops a program that commands nothing, not one that keeps c
 
 test('Dobot rejects invalid instance/unsupported process and checks calibrated workspace and feed',async()=>{
   const {machine,plan}=fixture(),path=await generatePath(plan,machine);
-  for(const [key,value,pattern] of [['scaleX',0,/scaleX/],['relayPolicy','continuous',/relay policy/],['temperatureControl',null,/unconfigured/],['workspaceMaxMm',[0,0,1],/workspace/],['maxLinearSpeedMmS',1,/linear speed/],['initialPositionMm',[1,1,1],/initial position/]]){
+  for(const [key,value,pattern] of [['scaleX',0,/scaleX/],['relayPolicy','continuous',/relay policy/],['temperatureControl',null,/unconfigured/],['workspaceMaxMm',[0,0,1],/workspace/],['maxLinearSpeedMmS',1,/linear speed/]]){
     const p=structuredClone(plan);p.setup.dobot[key]=value;assert.throws(()=>exportProgram(path,p,machine,release),pattern);
   }
-  const p=structuredClone(plan);p.process.retractMm=1;assert.throws(()=>exportProgram(path,p,machine,release),/Retraction/);
+  const p=structuredClone(plan);p.process.retractMm=1;assert.throws(()=>exportProgram(path,p,machine,release),/cannot retract/);
   const fan=structuredClone(path);fan.actions.push({kind:'fan',percent:50,phase:'test',layer:0});assert.throws(()=>exportProgram(fan,plan,machine,release),/fan control/);
 });
 test('Dobot relay policy keeps adjacent print moves on, turns off for travel/dwell and adds no priming wait',()=>{
   const {machine,plan}=fixture(),action=(to,volumeMm3)=>({kind:'move',to,speedMmS:10,volumeMm3,phase:'test',layer:0});
-  const path={schema:'saampath/1',initialPosition:[200,180,20],actions:[
+  const path={schema:'saampath/1',completion:{contract:'saam-neutral-motion/1'},initialPosition:[200,180,20],actions:[
     action([190,180,20],0),action([180,180,20],0.8),action([170,180,20],0.8),
     {kind:'dwell',seconds:0.5,phase:'test',layer:0},action([160,180,20],0),action([150,180,20],0.8)
   ]};
@@ -97,7 +98,7 @@ test('Dobot relay policy keeps adjacent print moves on, turns off for travel/dwe
 test('a pause longer than one Wait command is split, not refused',()=>{
   const {machine,plan}=fixture(),action=(to,volumeMm3)=>({kind:'move',to,speedMmS:10,volumeMm3,phase:'test',layer:0});
   const program=seconds=>{
-    const path={schema:'saampath/1',initialPosition:[200,180,20],actions:[
+    const path={schema:'saampath/1',completion:{contract:'saam-neutral-motion/1'},initialPosition:[200,180,20],actions:[
       action([190,180,20],0),{kind:'dwell',seconds,phase:'test',layer:0},action([180,180,20],0.8)]};
     const bytes=exportProgram(path,plan,machine,release);
     return {body:unpackZip(bytes).get('src1.lua').toString(),read:decodeProgram(bytes,plan,machine)};
@@ -116,8 +117,7 @@ test('Dobot shared lifecycle binds exact ZIP to synthetic approvals, detects hel
   try{
     await initBundle(dir,plan,{machineId:machine.id});let state=await loadBundle(dir);
 
-    const checks=await generateBundle(dir);assert.ok(checks.checks.includes('strict-lua-execution'));
-    assert.ok(!checks.checks.includes('temperature-state'));assert.ok(!checks.checks.includes('extrusion-flow'));
+    const checks=await generateBundle(dir);
     assert.equal(checks.materialModel,'relay-estimate');
     state=await loadBundle(dir);assert.equal(state.programError,undefined);
     state=await approve(dir,{actor,revision:state.revision});

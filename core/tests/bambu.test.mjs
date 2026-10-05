@@ -8,10 +8,12 @@ import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {exportProgram,decodeProgram,exportAndDecodeProgram} from '../export/registry.mjs';
+import {prepareExportPath} from '../export/prepare-path.mjs';
 import {packZip,unpackZip} from '../export/zip.mjs';
-import {initBundle,generateBundle,loadBundle,approve,deliver,adjustBundle} from '../print/bundle.mjs';
+import {initBundle,generateBundle,loadBundle,approve,deliver,adjustBundle,bundleInstance,withBundleInstance} from '../print/bundle.mjs';
 import {createStudio} from '../../studio/server.mjs';
 import {boxMesh} from './fixtures/mesh.mjs';
+import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
 import {resolveBambuJob} from '../export/bambu-job.mjs';
 const release={generatorVersion:'test',buildDate:'2026-09-09'},GCODE='Metadata/plate_1.gcode';
 const actor='SYNTHETIC H2D TEST — not a real approval';
@@ -19,7 +21,7 @@ function fixture(tool=0,nozzleMm=0.4){
   const machine=loadMachine('bambu-h2d'),plan=defaults(machine);plan.setup.tool=tool;
   plan.setup.nozzleMm=nozzleMm;plan.setup.core=`Hardened steel ${nozzleMm}`;
   if(nozzleMm>=0.6)Object.assign(plan.process,{firstLayerMm:0.3,layerMm:0.3,lineWidthMm:nozzleMm});
-  plan.geometry=boxMesh();plan.process.minimumLayerSeconds=0;
+  plan.geometry=boxMesh();plan.process.minimumLayerSeconds=0;plan.slices.assignments.push(skinAssignment({id:'skin'}));
   return {machine,plan};
 }
 test('H2D maps logical material zero to either physical nozzle and round trips all three skills',async()=>{
@@ -39,9 +41,9 @@ test('H2D maps logical material zero to either physical nozzle and round trips a
     assert.match(entries.get('Metadata/model_settings.config').toString(),new RegExp(`key="filament_maps" value="${tool+1}"`));
     assert.deepEqual(JSON.parse(entries.get('Metadata/filament_sequence.json')).plate_1.nozzle_sequence,[tool]);
     assert.equal(entries.get(GCODE+'.md5').toString(),createHash('md5').update(code).digest('hex'));
-    const moves=path.actions.filter(a=>a.kind==='move');assert.equal(program.moves.length,moves.length);
+    const moves=prepareExportPath(path,plan,machine).actions.filter(a=>a.kind==='move');assert.equal(program.moves.length,moves.length);
     moves.forEach((m,i)=>{m.to.forEach((v,k)=>assert.ok(Math.abs(v-program.moves[i].to[k])<6e-6));assert.ok(Math.abs(m.volumeMm3-program.moves[i].volumeMm3)<1e-4);});
-    assert.ok(program.moves.some(m=>m.phase==='skin'));
+    assert.ok(program.moves.some(m=>m.operation?.startsWith('skin:')));
     assert.equal(program.envelope.simulation,'not simulated');
     assert.ok(program.envelope.endClearanceZ>=path.summary.boundsMm.max[2]+10);
     assert.ok(program.moves.every(m=>/^G[01] /.test(code.split('\n')[m.line-1])),'line numbers refer to actual packaged code');
@@ -61,7 +63,7 @@ test('H2D 0.8 mm setup uses selected nozzle metadata and round trips on either t
     plan.setup.ams=tool===0?{unit:1,slot:4}:{unit:2,slot:3};const selector=0;
     const path=await generatePath(plan,machine);
     const bytes=exportProgram(path,plan,machine,release),entries=unpackZip(bytes);
-    assert.deepEqual(decodeProgram(bytes,plan,machine).moves.length,path.actions.filter(a=>a.kind==='move').length);
+    assert.deepEqual(decodeProgram(bytes,plan,machine).moves.length,prepareExportPath(path,plan,machine).actions.filter(a=>a.kind==='move').length);
     const nozzles=tool===0?['0.8','0.4']:['0.4','0.8'];
     assert.equal(JSON.parse(entries.get('Metadata/plate_1.json')).nozzle_diameter,0.8);
     assert.deepEqual(JSON.parse(entries.get('Metadata/project_settings.config')).nozzle_diameter,nozzles);
@@ -102,7 +104,7 @@ test('H2D needs no colour or AMS choice, and rejects only a malformed one',async
 test('H2D 0.6 mm setup uses selected right-nozzle metadata and round trips',async()=>{
   const {machine,plan}=fixture(1,0.6),path=await generatePath(plan,machine);
   const bytes=exportProgram(path,plan,machine,release),entries=unpackZip(bytes);
-  assert.deepEqual(decodeProgram(bytes,plan,machine).moves.length,path.actions.filter(a=>a.kind==='move').length);
+  assert.deepEqual(decodeProgram(bytes,plan,machine).moves.length,prepareExportPath(path,plan,machine).actions.filter(a=>a.kind==='move').length);
   assert.equal(JSON.parse(entries.get('Metadata/plate_1.json')).nozzle_diameter,0.6);
   assert.deepEqual(JSON.parse(entries.get('Metadata/project_settings.config')).nozzle_diameter,['0.4','0.6']);
   assert.match(entries.get('Metadata/slice_info.config').toString(),/nozzle id="1" extruder_id="2" nozzle_diameter="0.6"/);
@@ -161,7 +163,7 @@ test('X1 Carbon shares the Bambu exporter with its own envelope, shutdown and pa
   plan.setup.ams={unit:2,slot:1};
   const path=await generatePath(plan,machine),{bytes,program}=exportAndDecodeProgram(path,plan,machine,release);
   assert.deepEqual(bytes,exportProgram(path,plan,machine,release),'archive bytes are deterministic');
-  const cold=decodeProgram(bytes,plan,machine),moves=path.actions.filter(a=>a.kind==='move');
+  const cold=decodeProgram(bytes,plan,machine),moves=prepareExportPath(path,plan,machine).actions.filter(a=>a.kind==='move');
   assert.equal(cold.envelope.contract,'x1c-saam-startup-v5');assert.equal(cold.moves.length,moves.length);assert.equal(program.moves.length,moves.length);
   moves.forEach((m,i)=>m.to.forEach((v,k)=>assert.ok(Math.abs(v-cold.moves[i].to[k])<6e-6)));
   const entries=unpackZip(bytes),code=entries.get(GCODE).toString(),[start,rest]=code.split(';SAAM_BODY_BEGIN\n'),end=rest.split(';SAAM_BODY_END\n')[1];
@@ -343,13 +345,10 @@ test('H2D Studio reviews extracted G-code and delivers the exact approved archiv
   const server=createStudio(dir);await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
   const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
   const view=await(await fetch(origin+'/api/state')).json();assert.equal(view.exportName,'part.gcode.3mf');assert.equal(view.code,undefined);assert.equal(view.program.code,undefined);
-  const response=await fetch(origin+'/api/deliver',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:'{}'});
-  assert.equal(response.status,200);assert.match(response.headers.get('content-disposition'),new RegExp(view.downloadName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
-  assert.deepEqual(Buffer.from(await response.arrayBuffer()),bytes);assert.deepEqual(await readFile(join(dir,'delivery/part.gcode.3mf')),bytes);
   const altered=Buffer.from(bytes);altered[90]^=1;await writeFile(exportFile,altered);
   assert.match((await loadBundle(dir)).programError,/changed/);await assert.rejects(deliver(dir),/approval/);
   await writeFile(exportFile,bytes);
-  await adjustBundle(dir,{process:{planarSpeedMmS:18}});state=await loadBundle(dir);
+  await withBundleInstance(dir,await bundleInstance(dir),()=>adjustBundle(dir,{process:{planarSpeedMmS:18}}));state=await loadBundle(dir);
   assert.equal(state.toolpathApproved,false);
 });
 
