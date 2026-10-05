@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-04 — Playback audits removed
+
+- Owner-authorized (R2): Dobot playback no longer runs `diagnoseMachinePath` (deleted with `requireProcessControl` and `authoredNozzleTargets`); DENSO drops the relay-vs-annotation and relay-off ending checks; the Bambu player drops the prelude checks and the tool-change re-render and resumes after `CHANGE_END` (a change block without an end before the next change is rejected); `prelude` moved to the writer. Kept: unsupported tool/frame/arm/axis rejection, finite values, positive timing, dwell relay-off. Tests asserting the removed audits trimmed.
+- Worker: decoded output of six programs (Dobot, DENSO, X1 and H2D single and multi) byte-identical before and after; targeted export tests show no new failures (existing failures from API drift left to the suite triage). Merged; both map sets regenerate, code errors 1,126. Open for the owner: Bambu reopen comparisons (`interpretBambu` envelope and package re-render) and Dobot's DENSO-like relay checks.
+
 ## 2026-10-04 — One setup check, run by the application at first start
 
 - Owner: keep the setup check; SAAM runs it, not the maker agent. One `checkSetup` (scripts/setup-check.mjs) serves source checkouts (`npm run setup:check`), the release build and the installed application; its temp folder comes from the home's `tmp/` owner and a failure names its stage. The application runs it at each version's first start and records the passed version in `state/setup-check.json`; a failure still starts SAAM, reports `setup-check-failed` to diagnostics, returns `setupProblem` from `maker_onboarding` and reruns next start. `packaging/build.mjs` checks the built package in a disposable home before accepting it. Ownership moved to Application.
