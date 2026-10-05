@@ -93,45 +93,102 @@ export function derive(pt,{functions,namespaces,isInstance,moduleActivations}) {
   const observed=(o,cf)=>{for(const r of readersOf.get(o)??[])if(r!==cf&&!lexicalAncestor(cf,r))return true;return false;};
   const effects=byId.map(()=>({state:new Set(),platform:0}));
   let command=byId.map(()=>false);
+  const localOf=new Map();
+  const localTo=cf=>{
+    let l=localOf.get(cf);if(l)return l;
+    const instance=byId[cf].kind==='class'?pt.pts[byId[cf].thisNode]:null;
+    l=o=>{
+      if(instance?.has(o)||isInstance?.(o,cf))return true;
+      const w=objectOwner(o);if(w==null)return false;
+      const cw=canon(w);
+      return cw===cf||lexicalAncestor(cf,cw)||!command[cw]&&callees(cf).has(cw);
+    };
+    localOf.set(cf,l);return l;
+  };
+  // Each copy's callees at its own call sites (the copy analysed for that site), with platform
+  // callbacks: what a call of this copy runs.
+  // `during`: the callee runs inside the caller's call (a direct call, or a callback a platform
+  // model runs synchronously); a later callback (a handler, a promise reaction) runs after it, as
+  // may an async function or a generator's body unless the call is awaited.
+  const finishes=(t,s)=>!(byId[t].async||byId[t].generator)||!!s.node?.awaited&&!byId[t].generator;
+  const calleesOf=byId.map(f=>{const out=new Map();const put=(t,during)=>{if(!out.has(t)||!during)out.set(t,during);};
+    for(const s of f.calls){for(const t of s.targets)put(t,finishes(t,s));const sync=new Set(s.syncCallbacks??[]);for(const t of s.platformCallbacks)put(t,sync.has(t)&&!byId[t].async&&!byId[t].generator);}
+    for(const st of f.stores)for(const t of st.site?.platformCallbacks??[])put(t,false);
+    return out;});
+  const callersOf=byId.map(()=>[]);
+  for(const f of byId)for(const [t,during] of calleesOf[f.id])if(t!==f.id)callersOf[t].push({c:f.id,during});
+  // What one call of each copy changes that the callable cannot keep to itself (`reached`): its
+  // own effects (stores and world effects below) and every effect of a callee it runs, except
+  // writes to objects local to it. A callee writing an object the caller allocated (its working
+  // state, a constructor filling its own instance) is the caller writing it, which is no effect
+  // (the rule for the caller's own writes above). Sound for roles: a callable none of whose
+  // reached effects remain changes nothing that existed before its call, so an object it made
+  // can reach another callable only through what it returns. Platform effects never become local.
+  let reached=byId.map(()=>({state:new Set(),platform:false}));
   const computeEffects=()=>{
     for(const e of effects){e.state.clear();e.platform=0;}
+    reached=byId.map(()=>({state:new Set(),platform:false}));
     for(const f of byId) {
       const cf=canon(f.id);
-      const instance=f.kind==='class'?pt.pts[f.thisNode]:null;
-      const local=o=>{
-        if(instance?.has(o)||isInstance?.(o,cf))return true;
-        const w=objectOwner(o);if(w==null)return false;
-        const cw=canon(w);
-        return cw===cf||lexicalAncestor(cf,cw)||!command[cw]&&callees(cf).has(cw);
-      };
-      const into=effects[cf];
+      const local=localTo(cf);
+      const into=effects[cf],r=reached[f.id];
       for(const st of f.stores)for(const o of pt.pts[st.base]) {
         if(local(o))continue;
         const k=pt.objects[o].kind;
-        if(k==='platform')into.platform++;
-        else if((k!=='function'||st.name!=='prototype')&&observed(o,cf))into.state.add(o);
+        if(k==='platform'){into.platform++;r.platform=true;}
+        else if((k!=='function'||st.name!=='prototype')&&observed(o,cf)){into.state.add(o);r.state.add(o);}
       }
       // World effects come from the platform models (platform-models.mjs). Logging is left out.
       for(const s of f.calls)if(s.platform&&s.effects&&[...s.effects].some(e=>e!=='log')) {
         // A platform method acting on an object this callable owns stays inside it.
-        if(!(s.receiver!==undefined&&pt.pts[s.receiver].size&&[...pt.pts[s.receiver]].every(o=>pt.objects[o].kind!=='platform'&&local(o))))into.platform++;
+        if(!(s.receiver!==undefined&&pt.pts[s.receiver].size&&[...pt.pts[s.receiver]].every(o=>pt.objects[o].kind!=='platform'&&local(o)))){into.platform++;r.platform=true;}
+      }
+    }
+    // Callee effects reach each caller copy, to a fixed point. A copy with a platform effect needs
+    // no state set: it is a command in every caller.
+    const queue=byId.map(f=>f.id).filter(id=>reached[id].platform||reached[id].state.size),queued=new Set(queue);
+    while(queue.length) {
+      const t=queue.pop();queued.delete(t);const rt=reached[t];
+      for(const {c,during} of callersOf[t]) {
+        const rc=reached[c];if(rc.platform)continue;
+        let grew=false;
+        if(rt.platform){rc.platform=true;rc.state.clear();grew=true;}
+        else{const local=during?localTo(canon(c)):()=>false;for(const o of rt.state)if(!rc.state.has(o)&&!local(o)){rc.state.add(o);grew=true;}}
+        if(grew&&!queued.has(c)){queued.add(c);queue.push(c);}
       }
     }
   };
-  // Roles: command if it has an effect or activates a command, to a fixed point; repeated
-  // until ownership (which depends on roles) stops changing them. Ownership is not monotone in
-  // roles, so a role state can recur: that is an oscillation, reported with the callables
-  // whose roles keep changing, never passed off as a settled result.
+  // Whether a call of copy b changes something outside its caller. A callable exported, module
+  // load code, one with no known caller or one run later is called from outside (its effects
+  // escape). Otherwise every caller is known (as for folding below) and runs it during its own
+  // call: an effect escapes only if some caller does not own the object it changes. A helper
+  // changing only its callers' working state (freeing their native handles, filling the
+  // instance its constructor made) answers them like a query: what it changed is the caller's,
+  // visible only through the caller (reached).
+  const escapes=b=>{
+    const r=reached[b];if(!r.platform&&!r.state.size)return false;
+    const cb=canon(b),B=byId[cb];
+    if(r.platform||B.module||exported.has(cb)||!callersOf[b].length)return true;
+    for(const {c,during} of callersOf[b]) {
+      if(!during)return true;
+      const local=localTo(canon(c));
+      for(const o of r.state)if(!local(o))return true;
+    }
+    return false;
+  };
+  // Roles: command if a call of it has an effect that reaches outside it (its own, or a
+  // callee's not local to it), to a fixed point; repeated until ownership (which depends on
+  // roles) stops changing them. Ownership is not monotone in roles, so a role state can recur:
+  // that is an oscillation, reported with the callables whose roles keep changing, never passed
+  // off as a settled result.
   const seenStates=new Map();
   let roleRounds=0,roleOscillation=null;
   for(;;) {
     roleRounds++;
     computeEffects();
-    const next=byId.map(f=>effects[f.id].platform>0||effects[f.id].state.size>0);
-    for(let changed=true;changed;) {
-      changed=false;
-      for(const e of edges)if(!next[e.from]&&next[e.to]){next[e.from]=true;changed=true;}
-    }
+    const next=byId.map(()=>false);
+    for(const f of byId)if(!next[canon(f.id)]&&escapes(f.id))next[canon(f.id)]=true;
+    for(const f of byId)if(canon(f.id)!==f.id)next[f.id]=next[canon(f.id)];
     const same=next.every((v,i)=>v===command[i]);
     const state=next.map(v=>v?1:0).join('');
     if(!same&&seenStates.has(state)) {
@@ -145,6 +202,8 @@ export function derive(pt,{functions,namespaces,isInstance,moduleActivations}) {
     command=next;
     if(same)break;
   }
+  // A query's writes all change its callers' own objects (escapes): no state.
+  for(const f of reps)if(!command[f.id])effects[f.id].state.clear();
   // What a command returns. Its outcome is nothing, a primitive (a status, an identity, a
   // revision), or a record it made holding only such values or a pending completion; anything
   // else is data the caller can compute with.
@@ -224,9 +283,12 @@ export function derive(pt,{functions,namespaces,isInstance,moduleActivations}) {
     }
   }
   const leaves=new Set(reps.map(f=>find(f.id)));
-  // A leaf acts if any callable folded into it acts.
+  // A leaf acts if its entry acts: every callable folded into it runs only within a call of the
+  // entry, whose role already holds what their effects change outside it (reached). Writes a
+  // folded callable makes to objects local to a query entry are that leaf's working state.
   const leafCommand=byId.map(()=>false);
-  for(const f of reps)if(command[f.id])leafCommand[find(f.id)]=true;
+  for(const l of leaves)leafCommand[l]=command[l];
+  for(const f of reps){const l=find(f.id);if(l!==f.id&&!command[l]&&effects[f.id].state.size){const local=localTo(l);for(const o of [...effects[f.id].state])if(local(o))effects[f.id].state.delete(o);}}
   // State between leaves: a folded callable's reads and writes are its leaf's.
   let leafStateObjects=0,leafWriterReaderPairs=0;
   for(const [o,ws0] of writers) {

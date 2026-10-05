@@ -442,7 +442,7 @@ export const FAMILIES={
       'flatten format':{out:[fresh('json')]},
       'unwrap removeDefault':{out:['this[]']},'meta':{out:[fresh('zod',['this','args']),fresh('json',['args'])]}
     })},
-  manifold:{note:'manifold-3d (WASM): Manifold, CrossSection and Mesh values are immutable; operations return fresh values; delete() frees WASM memory owned by the receiver.',
+  manifold:{note:'manifold-3d (WASM): Manifold, CrossSection and Mesh values are immutable; operations return fresh values; delete() frees WASM memory owned by the receiver.',ownElements:true,
     members:group('',{
       'default':{out:[promise(fresh('manifold'))],note:'Instantiates the WASM module.'},
       'setup':{mutates:['this']},
@@ -455,7 +455,7 @@ export const FAMILIES={
       'add subtract intersect translate rotate scale transform mirror refine simplify trimByPlane split':{out:[fresh('manifold',['this','args'])]},
       'getMesh':{out:[fresh('manifold',['this'])]},'status isEmpty volume surfaceArea numVert numTri genus boundingBox':P
     })},
-  clipper:{note:'clipper2-wasm: paths and clipping operations; containers are WASM objects that hold the points pushed into them and are freed with delete().',
+  clipper:{note:'clipper2-wasm: paths and clipping operations; containers are WASM objects that hold the points pushed into them and are freed with delete().',ownElements:true,
     members:group('',{'default':{out:[promise(fresh('clipper'))],note:'Instantiates the WASM module.'},'delete':{mutates:['this']},
       'push_back':{mutates:['this'],into:[{to:'this[]',from:['args']}]},'get':{out:['this[]']},'size':P,
       'Paths64 Path64 Clipper64':{construct:{}},
@@ -463,7 +463,7 @@ export const FAMILIES={
       'SetPreserveCollinear':{mutates:['this']},'AddSubject AddOpenSubject AddClip':{mutates:['this'],into:[{to:'this[]',from:['arg0']}]},
       'ExecutePath':{mutates:['args2+'],into:[{to:'arg2[]',from:['this[]','this[][]']},{to:'arg3[]',from:['this[]','this[][]']}]},
       'InflatePaths64 SimplifyPaths64':{out:[fresh('clipper',['arg0[]'])]}})},
-  rhino:{note:'rhino3dm (WASM): geometry and 3dm file objects; constructors and operations return fresh objects; setters change their receiver; delete() frees WASM memory.',
+  rhino:{note:'rhino3dm (WASM): geometry and 3dm file objects; constructors and operations return fresh objects; setters change their receiver; delete() frees WASM memory.',ownElements:true,
     members:group('',{'default':{out:[promise(fresh('rhino'))],note:'Instantiates the WASM module.'},'delete':{mutates:['this']},
       'setUserString setPoint setKnot setWeight add set':{mutates:['this'],into:[{to:'this[]',from:['args']}]},'get':{out:['this[]']},
       'File3dm ObjectAttributes LineCurve NurbsSurface Point3d':{construct:{el:['args']}},
@@ -513,7 +513,7 @@ function index() {
 }
 // A type's prototype: {path, value} for a runtime class, or {family} for a family.
 export function typeOf(type) {
-  if(FAMILIES[type])return {family:type,parts:!!FAMILIES[type].parts};
+  if(FAMILIES[type])return {family:type,parts:!!FAMILIES[type].parts,ownElements:!!FAMILIES[type].ownElements};
   const v=resolvePath(type);
   if(typeof v==='function'&&v.prototype)return {path:type+'.prototype',value:v.prototype};
   if(v&&typeof v==='object')return {path:type,value:v};
@@ -526,6 +526,10 @@ export function familyOf(path) {
   return FAMILY_ROOTS[root]??root;
 }
 export const familyPath=family=>family+'.*';
+// `ownElements`: a value of the family that a model made (fresh, or an instance) holds as elements
+// exactly what the models put there (el, into): WASM containers copy values in and give them back.
+// Its elements are never the family's unknown value.
+export const familyOwnsElements=family=>!!FAMILIES[family]?.ownElements;
 export const isFamilyPath=path=>path.endsWith('.*');
 
 const BY_NAME=['Array.prototype','String.prototype','Map.prototype','Set.prototype','Promise.prototype','Iterator.prototype','Object.prototype','Number.prototype',
