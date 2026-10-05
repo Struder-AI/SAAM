@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-10-04 — Codex batch merged; solver warm start; suspected-imprecision marking removed
+
+- Codex build-team left its 0.3.3 batch uncommitted at wrap-up; committed as found on `codex/build-team` (40625497) and merged (owner: the Claude team now takes 0.3.3 to release). Its entries follow.
+- Solver warm start (worker): a changed node starts from its kept solve carried to its current leaves (`carry` in solve-middle.mjs, shared with placing) and descends, taking only moves that lower the objective; a node without a kept solve anneals cold (delete `store/solve/NODE.json` to force one). Identity format and matching unchanged. Measured on one source: cold 50 kept, 47 merged, 33 retired, 71 new, objective 33.15, 180 s solving; warm 109 kept, 1 new, none merged or retired, 32.63, 12.5 s (regenerate 18 s); 18 authored positions attached in both. Geometry alone is worse warm (0.888 vs 0.744 cold).
+- Suspected-imprecision marking removed (it marked nothing since engine 4): the rule, possible wire style, split counts, `{real, possible}` reads, the verifyReads split. Analysis-proven possible arrows have no source yet.
+- Merged and regenerated in the main checkout: checks and reads ok, 18 positions and 169 labels applied. Workers ran in worktrees. No tests run.
+
 ## 2026-10-04 — Cluster labels are authored data
 
 - Label pass (worker): every solved cluster named, 169 labels in `030-influence/layout.json` `labels`, keyed by cluster identity beside positions, so they follow identity through re-solves and keep signatures for checkouts without the store. `solved-set.mjs` lays them over the stored model as it loads, so reads and drawings carry them and an edit shows after `build`; unlabelled clusters keep the generated `≈` label (libraries `library · ≈`). A label naming no drawn cluster is reported by build, regenerate and check (`placement.labels.missing`) and on map 0. 58 clusters flagged mixed (no single purpose) in the owner review list; short top-level names proposed, awaiting the owner.
