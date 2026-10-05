@@ -86,6 +86,12 @@ Regenerate after each task. `regenerate --set 030-influence` runs:
 3. **Solve** each authored node whose slice changed ([solve-middle.mjs](influence/solve-middle.mjs)),
    `jobs` at a time, into `store/solve/`.
 4. **Write** `store/model.json`, **draw** `view/`, and **verify** that reads match the drawings.
+5. **Check the code** ([code-checks.mjs](influence/code-checks.mjs)) against
+   [what SAAM code is](../plans/dev-maps.md#what-saam-code-is): `regenerate` reports the counts
+   and still writes the maps; `check` lists each error as `FILE:LINE: RULE: REASON` and fails on
+   any. Rules: `unmodelled` (a shape the analysis does not model, [UNMODELLED.md](influence/UNMODELLED.md)),
+   `unowned`, `contract` (a leaf arrow between top-level nodes no authored contract permits),
+   `command-returns-data` and `unlinked` (load code that only declares is exempt).
 
 Each closure is cached under `store/analysis/closures/` with a hash of its files, the analyser's
 modules, Node and acorn, so only closures holding an edited file run again. Each node's solve is

@@ -751,7 +751,10 @@ export async function influenceCommand(command,args) {
     const view=await buildGeneratedView({repo});
     // Every regeneration proves the reads say what the drawings draw, as `check` does.
     const reads=verifyReads(model);
-    console.log(JSON.stringify({mode:'influence',...(analysed?{analysis:analysed}:{}),solved:solve.solved,reused:solve.reused,...(solve.placed.length?{placed:solve.placed}:{}),summary:model.summary,checks:model.checks,reads,view:view.index,placement:view.placement},null,1));
+    // The code checks (code-checks.mjs) report; the maps are written whatever they find.
+    const {setErrors,errorSummary}=await import('./code-checks.mjs'),code=errorSummary(setErrors(model,paths));
+    log(`code errors: ${code.errors} (${Object.entries(code.byRule).map(([r,n])=>`${r} ${n}`).join(', ')}); list them with: node dev-map/cli.mjs --set ${setName} check`);
+    console.log(JSON.stringify({mode:'influence',...(analysed?{analysis:analysed}:{}),solved:solve.solved,reused:solve.reused,...(solve.placed.length?{placed:solve.placed}:{}),summary:model.summary,checks:model.checks,reads,code,view:view.index,placement:view.placement},null,1));
     if(!model.checks.ok||!reads.ok)process.exitCode=1;
     return;
   }
@@ -763,8 +766,10 @@ export async function influenceCommand(command,args) {
   }
   if(command==='check') {
     const m=stored(),checks=verify(m),reads=verifyReads(m),stale=staleness(m),{placement}=solvedModel();
-    console.log(JSON.stringify({mode:'influence',summary:m.summary,checks,reads,placement,...(stale?{stale}:{})},null,1));
-    if(!checks.ok||!reads.ok)process.exitCode=1;
+    const {setErrors,errorSummary,errorLine}=await import('./code-checks.mjs'),errors=setErrors(m,inputs());
+    for(const e of errors)console.error(errorLine(e));
+    console.log(JSON.stringify({mode:'influence',summary:m.summary,checks,reads,code:errorSummary(errors),placement,...(stale?{stale}:{})},null,1));
+    if(!checks.ok||!reads.ok||errors.length)process.exitCode=1;
     return;
   }
   if(command==='serve') {

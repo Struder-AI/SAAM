@@ -174,7 +174,7 @@ export async function analyse({repo=repoOf,out,maxHeapMB=4096,startHeapMB=2048,l
     const notAnalysed=[...new Set([...files.filter(f=>!covered.has(f)),...unparsed])].sort(order);
     merged={schema:1,scope:{files:files.length},
       closures:attempts.map(({root,files,status,reason})=>({root,files,status,...(reason?{reason}:{})})).sort((a,b)=>order(a.root,b.root)),
-      notAnalysed,unparsed,summary:merged.summary,leaves:merged.leaves,arrows:merged.arrows,
+      notAnalysed,unparsed,summary:merged.summary,leaves:merged.leaves,arrows:merged.arrows,unmodelled:merged.unmodelled,
       ...(merged.state?{state:merged.state}:{}),...(merged.contacts?{contacts:merged.contacts}:{})};
     if(merged.summary.checkErrors.length)throw Error(`Merged analysis is inconsistent: ${merged.summary.checkErrors.slice(0,5).join('; ')}`);
     const text=JSON.stringify(merged);
@@ -194,13 +194,21 @@ export async function analyse({repo=repoOf,out,maxHeapMB=4096,startHeapMB=2048,l
   return report;
 }
 
+function unmodelledSites(parsed,fileOf) {
+  const from=new Map();
+  for(const r of parsed)for(const k of r.assign.keys())if(!from.has(fileOf(k)))from.set(fileOf(k),r);
+  const seen=new Map();
+  for(const r of parsed)for(const {kind,file,line} of r.unmodelled)if(from.get(file)===r)seen.set(`${kind}|${file}|${line}`,{kind,file,line:line??null});
+  return [...seen.values()].sort((a,b)=>order(a.file,b.file)||(a.line??0)-(b.line??0)||order(a.kind,b.kind));
+}
+
 // Each run: {root, result} with result a `run.mjs --out` object.
 export function merge(runs) {
   const parsed=runs.map(({root,result:j})=>{
     const assign=new Map(),role=new Map(),names=new Map();
     for(const l of j.leaves){assign.set(l.key,l.key);role.set(l.key,l.role);names.set(l.key,l.leaf);
       l.foldedKeys.forEach((k,i)=>{assign.set(k,l.key);names.set(k,l.folded[i]);});}
-    return {root,files:j.summary.files,callables:assign.size,assign,role,names,arrows:j.arrows,parseErrors:j.parseErrors??[],state:j.state,contacts:j.contacts};
+    return {root,files:j.summary.files,callables:assign.size,assign,role,names,arrows:j.arrows,parseErrors:j.parseErrors??[],unmodelled:j.unmodelled??[],state:j.state,contacts:j.contacts};
   }).sort((a,b)=>b.files-a.files||b.callables-a.callables||order(a.root,b.root));
   const best=new Map(),nameOf=new Map();
   for(const r of parsed)for(const [k,v] of r.assign)if(!best.has(k)){best.set(k,{to:v,run:r});nameOf.set(k,r.names.get(k));}
@@ -248,6 +256,9 @@ export function merge(runs) {
     leaves:leaves.map(l=>({leaf:nameOf.get(l),key:l,role:roleOf(l),folded:members.get(l).map(k=>nameOf.get(k)),foldedKeys:members.get(l)})),
     arrows:[...arrows.values()].sort((a,b)=>order(a.fromKey,b.fromKey)||order(a.toKey,b.toKey)||order(a.kind,b.kind)),
     ...(state?{state}:{}),...(contacts?{contacts}:{}),
+    // Shapes the analysis does not model (plans/dev-maps.md#what-saam-code-is), each file's from the
+    // largest closure holding it, as its callables are.
+    unmodelled:unmodelledSites(parsed,fileOf),
     parseErrors:[...new Set(parsed.flatMap(r=>r.parseErrors.map(e=>e.file)))]};
   const kinds={};for(const a of out.arrows)kinds[a.kind]=(kinds[a.kind]??0)+1;
   out.summary={closures:parsed.length,callables:best.size,leaves:leaves.length,folded:best.size-leaves.length,foldCycles:cycles,
