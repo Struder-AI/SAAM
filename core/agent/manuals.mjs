@@ -16,9 +16,10 @@ const aliases = {
 };
 export const guidanceIds = Object.keys(aliases);
 
+// Published: Markdown, and the example recipes (create_bundle inputs) a skill or extension ships.
 function publishedPath(path) {
   const parts = path.split('/');
-  return path.endsWith('.md') && !/[\\:*?"<>|\x00-\x1f]/.test(path)
+  return (path.endsWith('.md') || /^(skills|extensions)\/[^/]+\/examples\/[^/]+\.json$/.test(path)) && !/[\\:*?"<>|\x00-\x1f]/.test(path)
     && parts.every(part => part && !/^[.]|[. ]$/.test(part)
       && (!excluded.has(part.toLowerCase()) || path === 'examples/prints/README.md' && part === 'prints')
       && !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(part))
@@ -163,7 +164,7 @@ async function loadGuidance(root, guidanceId) {
     path = Object.hasOwn(aliases, requested) ? aliases[requested] : decodeURIComponent(requested);
     anchor = encodedAnchor ? decodeURIComponent(encodedAnchor) : undefined;
   } catch { throw new Error('Invalid documentation path or heading.'); }
-  if (!publishedPath(path)) throw new Error('Invalid documentation path. Use a repository-relative Markdown link from a manual.');
+  if (!publishedPath(path)) throw new Error('Invalid documentation path. Use a repository-relative link from a manual.');
   if(path.startsWith('extensions/')){
     const [,id,...parts]=path.split('/'),selected=await readExtension(id,{appRoot:root});
     if(!selected||!parts.length||!selected.files.some(file=>file.path===parts.join('/')))
