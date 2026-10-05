@@ -76,7 +76,7 @@ test('page lifecycle opens independently, closes on pagehide and reconnects on h
   const events={},streams=[],dispatched=[];
   const source=await readFile(new URL('../../studio/viewer-session.mjs',import.meta.url),'utf8');
   runInNewContext(source.replace('export const viewerConnected','const viewerConnected'),{
-    document:{querySelector:()=>({content:'test-token'})},
+    document:{querySelector:()=>({content:'test-token'}),hasFocus:()=>false},
     EventSource:class{constructor(url){this.url=url;this.events={};streams.push(this);}addEventListener(name,handler){this.events[name]=handler;}close(){this.closed=true;}},
     CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},
     dispatchEvent:event=>dispatched.push(event),
