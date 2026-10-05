@@ -38,8 +38,6 @@ for _tone, _colour in TONE.items():
     STYLE["mark-" + _tone] = dict(fill="#ffffff", stroke=_colour, sw=2.2, rx=12, tc=_colour, dash="6 3")
 EDGE["caller"] = dict(stroke="#dc2626", sw=1.5, head="l-co", dash="2 3")
 EDGE["capture"] = dict(stroke="#0369a1", sw=1.5, head="l-data", dash="3 3")
-# An influence arrow whose leaf arrows are all possible (suspected imprecision): faded and dashed.
-EDGE["possible"] = dict(stroke="#94a3b8", sw=1.2, head="l-possible", dash="4 4", opacity=0.6)
 ROW = 14.0
 # The ledger under a drawing runs no taller than the map above it and no wider than this many
 # columns; below a screenful of rows it stays in one column, where it reads as a list.
@@ -575,8 +573,6 @@ def build_page(packet, ctx):
                         ref=f'{c["file"]}:{c["line"]}-{c["endLine"]}', path=c.get("path") or f'{c["file"]}::{c["label"]}')
             if c.get("role") == "command":
                 node.kind = "command"
-            if c.get("possible"):
-                node.note, node.note_fills = "possible · suspected imprecision", {0: "#64748b"}
             if c.get("possiblyCallerDependent"):
                 node.note, node.note_fills = "mode argument?", {0: TONE["link"]}
         for p in packet["ports"]:
@@ -593,13 +589,7 @@ def build_page(packet, ctx):
             if w.get("kind") == "invocation":
                 invocation_edge(page, w, drawn, dropped)
         for w, back in one_per_pair([w for w in packet["wires"] if w.get("kind") != "invocation"]):
-            if back is None and w.get("possible"):
-                # Possible leaf arrows (suspected imprecision, solved-set.mjs) are counted apart;
-                # an arrow of possible leaf arrows alone is drawn faded.
-                real = aggregate(w) if w["count"] else ""
-                wire(page, w, (real + " · " if real else "") + f'possible×{w["possible"]}',
-                     "data" if w["count"] else "possible", drawn, dropped, w.get("ends", "one"))
-            elif back is None:
+            if back is None:
                 wire(page, w, aggregate(w), "data", drawn, dropped, w.get("ends", "one"))
             else:
                 if back["from"] not in drawn or back["to"] not in drawn:
@@ -1305,7 +1295,6 @@ body.noside #side{display:none}
 #codepane .leafarrows ul{margin:0 0 10px;padding-left:16px}
 #codepane .leafarrows li{margin:3px 0;line-height:1.35}
 #codepane .leafarrows .tail{color:#64748b}
-#codepane .leafarrows .possible{color:#64748b;border-left:2px dashed #94a3b8;padding-left:8px}
 #canvas.wire-focus .fm-node:not(.wire-end){opacity:.14}
 #canvas.wire-focus .fm-node.wire-end{opacity:1}
 #canvas.wire-focus .fm-node.wire-end rect:first-of-type{stroke:#0284c7;stroke-width:3.4}
@@ -1754,13 +1743,13 @@ function openLeafArrows(from,to){const key=cur;closeCode();const version=sourceV
       return PAGES[k]?`<button class="endpoint" data-go="${esc(k)}">${b}${t}</button>`:b+t;};
     const end=n=>{const [name,ref,go]=data.leaves[n];
       return ref?`<button class="endpoint" data-ref="${esc(ref)}" data-key="${esc(go)}">${esc(name)}</button>`:esc(name);};
-    const total=groups.reduce((t,[,l])=>t+l.length,0),possible=groups.reduce((t,[,l,p])=>t+(p?l.length:0),0);
+    const total=groups.reduce((t,[,l])=>t+l.length,0);
     legendPane.classList.remove('on');
     codePane.innerHTML=`<div class="ch"><button class="x" onclick="dismissCode()" aria-label="Close leaf arrows">&times;</button>`+
-      `<div class="num">@link/${esc(key)}/${esc(from)}/${esc(to)} · ${total-possible} leaf arrow${total-possible===1?'':'s'}${possible?` · ${possible} possible`:''}</div>`+
-      `<h3>${box(from)} ${new Set(groups.map(([dir])=>dir)).size>1?'↔':'→'} ${box(to)}</h3></div><div class="cb leafarrows">`+
-      groups.map(([dir,list,p])=>{const [x,y]=dir.split(' → ');
-        return `<section class="leafdir${p?' possible':''}"><h3>${p?'possible · ':''}${box(x)} → ${box(y)} · ${list.length}</h3><ul>`+
+      `<div class="num">@link/${esc(key)}/${esc(from)}/${esc(to)} · ${total} leaf arrow${total===1?'':'s'}</div>`+
+      `<h3>${box(from)} ${groups.length>1?'↔':'→'} ${box(to)}</h3></div><div class="cb leafarrows">`+
+      groups.map(([dir,list])=>{const [x,y]=dir.split(' → ');
+        return `<section class="leafdir"><h3>${box(x)} → ${box(y)} · ${list.length}</h3><ul>`+
           list.map(([f,t,tail])=>`<li>${end(f)} → ${end(t)} <span class="tail">${esc(tail)}</span></li>`).join('')+'</ul></section>';}).join('')+'</div>';
     codePane.classList.add('on');});}
 function pageCode(){const p=PAGES[cur];if(p&&p.r)openCode(p.r,p.destination==='code'?cur:null);}
@@ -2007,12 +1996,7 @@ def influence_legend():
             "labelled with its kinds and counts; two heads mean influence both ways. "
             "<code>read ADDRESS</code> lists the leaf arrows.</p>"
             + "".join(f'<div class="r">{box(style)}<span><b>{escape(name)}</b> — {escape(text)}</span></div>'
-                      for style, name, text in rows)
-            + f'<div class="r">{swatch("w", "possible")}<span><b>possible</b> — every leaf arrow it stands for '
-            "touches a state node marked <i>possible · suspected imprecision</i>: one of an alias class the analysis "
-            "cannot tell apart (many state nodes from many allocating files read by nearly the same functions). "
-            "Still clickable. An arrow with real leaf arrows too is drawn solid, its label adding "
-            "<code>possible×N</code>; its pane lists the possible leaf arrows in their own groups.</span></div>")
+                      for style, name, text in rows))
 
 
 def swatch(kind, key):

@@ -69,7 +69,8 @@ async function prepare(paths) {
 
 // Each authored node's solve is kept in store/solve/ by a hash of exactly what it reads (its
 // slice, the options and the solver's code), so a node solves again only when that changed. A
-// node to solve runs in its own small-heap process, `jobs` at a time. With map.json
+// node to solve runs in its own small-heap process, `jobs` at a time, warm from its kept solve
+// when it has one (solve-middle.mjs solveNode), else cold. With map.json
 // `"solve":"place"` a changed node with a kept solve is not solved: new leaves are placed in their
 // file's cluster and marked `placement not solved` (solve-middle.mjs placeSlice) until a
 // `"changed"` regenerate (the default) solves it.
@@ -101,14 +102,14 @@ async function solveAll(prep,{jobs=2,mode='changed',log=()=>{}}={}) {
     if(entry?.hash===hash&&(entry.placement!=='not solved'||mode==='place')){entries.set(id,entry.legacy?keepEntry(dir,entry):entry);reused.push(id);continue;}
     if(mode==='place'&&entry){entries.set(id,keepEntry(dir,sm.placeSlice(slice,entry,{hash,names})));placed.push(id);
       log(`${id}: placed ${entries.get(id).placed.length} leaves without solving`);continue;}
-    queue.push({id,slice,hash,names});
+    queue.push({id,slice,hash,names,warm:entry});
   }
   // The largest slices first, so the longest solve starts at once.
   queue.sort((a,b)=>b.slice.links.length-a.slice.links.length);
   const run=async()=>{for(let job=queue.shift();job;job=queue.shift()) {
     const {id}=job,started=Date.now(),input=resolve(dir,'pending',entryFile(id)),out=resolve(dir,'pending',`${entryFile(id)}.out`);
     log(`solving ${id}`);
-    writeFileSync(input,JSON.stringify({slice:job.slice,options,hash:job.hash,names:job.names}));
+    writeFileSync(input,JSON.stringify({slice:job.slice,options,hash:job.hash,names:job.names,warm:job.warm}));
     const args=['--max-old-space-size=1536',resolve(repo,'dev-map/influence/solve-middle.mjs'),'--slice',input,'--out',out];
     const code=await new Promise(done=>{const child=spawn(process.execPath,args,{cwd:repo,stdio:['ignore','ignore','pipe']});
       let err='';child.stderr.on('data',d=>{err+=d;if(err.length>20000)err=err.slice(-10000);});
@@ -436,48 +437,6 @@ export function verify(model) {
     pagesWrong,leafArrowPlacementsChecked:arrowsChecked};
 }
 
-// ---- suspected imprecision ------------------------------------------------------------------
-// Potential, not actual (plans/dev-maps.md): a false possibility is minimised, not eliminated, and
-// drawn marked as possible. One measurable symptom of points-to imprecision is an alias class: state
-// nodes the analysis cannot tell apart, so each is read by nearly the same functions. Two state
-// nodes are alike when their reader sets (the leaves each `reads` arrow from it reaches) overlap by
-// Jaccard ≥ ALIKE; an alias class is a connected group of alike nodes. A class is suspected when it
-// holds ≥ CLASS_NODES state nodes allocated in ≥ CLASS_FILES files: genuinely shared state has one
-// home, while one object read through ~300 unrelated functions from dozens of allocating files is
-// the analysis merging objects. Reads only the stored model (no names, no re-solve). Its state
-// nodes are marked `possible`, and so is every leaf arrow with one as an end; the drawing fades
-// those arrows and reads count them apart. Temporary: once the engine stops merging these objects
-// this finds nothing; to remove it, delete this section and the uses of its helpers below.
-const ALIKE=0.8,CLASS_NODES=10,CLASS_FILES=5;
-const suspected=new WeakMap();
-export function suspectedImprecision(m) {
-  if(suspected.has(m))return suspected.get(m);
-  const states=Object.values(m.leaves).filter(r=>r.state).map(r=>r.key),readers=new Map(states.map(k=>[k,new Set()]));
-  for(const a of m.arrows)if(a.kind==='reads'&&readers.has(a.from))readers.get(a.from).add(a.to);
-  const shared=states.filter(k=>readers.get(k).size>=2),alike=(x,y)=>{let both=0;for(const r of x)if(y.has(r))both++;return both/(x.size+y.size-both)>=ALIKE;};
-  const parent=new Map(shared.map(k=>[k,k])),root=k=>{while(parent.get(k)!==k)k=parent.get(k);return k;};
-  for(let i=0;i<shared.length;i++)for(let j=i+1;j<shared.length;j++)if(alike(readers.get(shared[i]),readers.get(shared[j])))parent.set(root(shared[i]),root(shared[j]));
-  const classes=new Map();for(const k of shared)(classes.get(root(k))??classes.set(root(k),[]).get(root(k))).push(k);
-  const marked=new Map(),arrows=new Set(),found=[];
-  for(const members of classes.values()) {
-    const files=new Set(members.map(k=>fileOf(m.leaves[k].state.site??k)));
-    if(members.length<CLASS_NODES||files.size<CLASS_FILES)continue;
-    const sets=members.map(k=>readers.get(k)),common=[...sets[0]].filter(r=>sets.every(s=>s.has(r))).length;
-    found.push({stateNodes:members.length,files:files.size,commonReaders:common});
-    for(const k of members)marked.set(k,found.length-1);
-  }
-  m.arrows.forEach((a,i)=>{if(marked.has(a.from)||marked.has(a.to))arrows.add(i);});
-  const result={states:marked,arrows,classes:found,
-    rule:`alias class: ≥${CLASS_NODES} state nodes from ≥${CLASS_FILES} allocating files whose reader sets overlap (Jaccard ≥ ${ALIKE})`};
-  suspected.set(m,result);return result;
-}
-// The leaf arrows (by index) and state nodes (by key) marked possible; without this section both
-// are empty and every arrow is real.
-const possibleArrows=m=>suspectedImprecision(m).arrows;
-const possibleState=(m,key)=>suspectedImprecision(m).states.has(key);
-// A wire's split counts: `count` its real leaf arrows, `possible` the rest when there are any.
-const splitCount=(m,wire)=>{const p=wire.leafArrows.filter(i=>possibleArrows(m).has(i)).length;return p?{real:wire.leafArrows.length-p,possible:p}:{real:wire.leafArrows.length};};
-
 // ---- reading ------------------------------------------------------------------------------
 let held=null;
 function stored() {
@@ -556,13 +515,7 @@ export function solvedModel() {
         return {t:`${k}: ${x.url??x.route??x.entry??x.kind??''}`,...(at?{ref:`${at[1]}:${at[2]}-${at[2]}`}:{}),...(n?{n}:{})};})));}
     if(p.notAnalysed)listMarker('not-analysed',`not analysed · ${p.notAnalysed.length} files`,'not analysed: in-scope files the analysis did not read',p.notAnalysed.map(f=>({t:f})));
     if(p.index===TOP&&m.sourceChanged?.length)listMarker('source-moved',`source moved since the analysis · ${m.sourceChanged.length} files`,'source moved since the analysis',m.sourceChanged.map(f=>({t:f})));
-    // Possible leaf arrows (suspected imprecision) are counted apart: `kinds` and `count` are the
-    // real ones, `possible` the rest; a wire of possible arrows alone is drawn faded.
-    const wires=p.wires.map(w=>{const {real,possible}=splitCount(m,w);if(!possible)return w;
-      const keep=w.leafArrows.filter(i=>!possibleArrows(m).has(i)),kinds={};for(const i of keep)kinds[m.arrows[i].kind]=(kinds[m.arrows[i].kind]??0)+1;
-      return {...w,count:real,kinds,possible};});
-    const components=p.components.map(c=>c.kind==='leaf'&&possibleState(m,c.path)?{...c,possible:true}:c);
-    Object.assign(p,{wires,components,badges,markers,links:viewerLinks(m,p),idents:pageIdentities(m,p,markers)});
+    Object.assign(p,{badges,markers,links:viewerLinks(m,p),idents:pageIdentities(m,p,markers)});
   }
   // Positions whose map or box is no longer drawn stay in their file; map 0 lists them.
   const graph=pages.filter(p=>p.destination==='graph'),root=graph.find(p=>p.index===TOP);
@@ -597,11 +550,10 @@ export function solvedModel() {
 // range, then only what is set: `command` or `command returning data`, `folded` helper ranges
 // outside its own, `possibly caller-dependent`, `range unknown`), `boundary` names by `b:` box,
 // and `arrows`: the drawn pairs, `FROM → TO` (`•→` a dot at the tail, `↔` two heads) to their
-// leaf-arrow count (`{real, possible}` when some are possible: suspected imprecision above), each
-// read in full at `link` with FROM and TO filled in. Map 0 alone adds the preview note, the
-// `possible` rule and counts, `notAnalysed` files, changed sources and the `lists` addresses with
-// their counts. A link read is that one arrow's leaf arrows, `FROM → TO KIND ×N` grouped by box
-// direction, the possible ones grouped apart under `possible`; `@unlinked` and `@unowned` are the lists. Leaves are not maps.
+// leaf-arrow count, each read in full at `link` with FROM and TO filled in. Map 0 alone adds the
+// preview note, `notAnalysed` files, changed sources and the `lists` addresses with their counts.
+// A link read is that one arrow's leaf arrows, `FROM → TO KIND ×N` grouped by box direction;
+// `@unlinked` and `@unowned` are the lists. Leaves are not maps.
 const range=(a,b)=>a===b?`${a}`:`${a}-${b}`;
 const ARROW={one:'→',ack:'•→',both:'↔'};
 const LIST_UNLINKED='@unlinked',LIST_UNOWNED='@unowned',LIST_SHARED='@cross-owner-state',LIST_CHANNELS='@unresolved-channels';
@@ -634,7 +586,7 @@ function mapRead(m,page) {
     const folded=[...new Set(outside.filter(f=>!outside.some(g=>within(f,g)))
       .map(f=>`${f.file===r.file?'':`${f.file}:`}${range(f.line,f.endLine)}`))];
     return [names.get(key),returnsData.has(key)?'command returning data':r.role==='command'?'command':'',folded.length?`folded ${folded.join(', ')}`:'',
-      r.possiblyCallerDependent?'possibly caller-dependent':'',r.placementNotSolved?'placement not solved':'',r.rangeUnknown?'range unknown':'',!r.owner&&!unownedPage?'unowned':'',possibleState(m,key)?'possible: suspected imprecision':''].filter(Boolean).join(' · ');};
+      r.possiblyCallerDependent?'possibly caller-dependent':'',r.placementNotSolved?'placement not solved':'',r.rangeUnknown?'range unknown':'',!r.owner&&!unownedPage?'unowned':''].filter(Boolean).join(' · ');};
   const byIndex=(a,b)=>{const x=a.index.split('.').map(Number),y=b.index.split('.').map(Number);
     for(let k=0;k<Math.min(x.length,y.length);k++)if(x[k]!==y[k])return x[k]-y[k];return x.length-y.length;};
   const boxes=Object.fromEntries([...page.components].sort(byIndex)
@@ -642,27 +594,25 @@ function mapRead(m,page) {
   const top=page.index===TOP,unlinked=m.summary.unlinked,unowned=m.summary.unowned;
   return {index:page.index,label:page.label,...(top?{}:{address:page.path}),...(top&&m.notice?{preview:m.notice}:{}),boxes,
     ...(page.ports.length?{boundary:Object.fromEntries(page.ports.map(p=>[p.port,names.get(p.path)??p.label]))}:{}),
-    ...(page.wires.length?{arrows:Object.fromEntries(page.wires.map(w=>{const c=splitCount(m,w);return [`${w.from} ${ARROW[w.ends]} ${w.to}`,c.possible?c:c.real];})),link:`@link/${page.index}/FROM/TO`}:{}),
-    ...(top&&suspectedImprecision(m).states.size?{possible:{rule:suspectedImprecision(m).rule,stateNodes:suspectedImprecision(m).states.size,leafArrows:possibleArrows(m).size}}:{}),
+    ...(page.wires.length?{arrows:Object.fromEntries(page.wires.map(w=>[`${w.from} ${ARROW[w.ends]} ${w.to}`,w.count])),link:`@link/${page.index}/FROM/TO`}:{}),
     ...(top&&page.notAnalysed?.length?{notAnalysed:page.notAnalysed}:{}),...(top&&m.sourceChanged?.length?{sourceChanged:m.sourceChanged}:{}),
     ...(top&&(unlinked||unowned||page.crossOwnerState||page.channels)?{lists:{...(unlinked?{[LIST_UNLINKED]:unlinked}:{}),...(unowned?{[LIST_UNOWNED]:unowned}:{}),
       ...(page.crossOwnerState?{[LIST_SHARED]:page.crossOwnerState.length}:{}),...(page.channels?{[LIST_CHANNELS]:Object.values(page.channels.unresolved).reduce((t,l)=>t+l.length,0)}:{})}}:{})};
 }
 
 // One drawn arrow's leaf arrows, as indexes into the stored arrows grouped `FROM → TO` by the
-// boxes each runs between, the possible ones (suspected imprecision) in groups of their own. The
-// read renders it; the check compares it with the drawn pair.
+// boxes each runs between. The read renders it; the check compares it with the drawn pair.
 function linkGroups(m,page,wire) {
   const chainOf=idx=>idx.split('.').map((_,k,parts)=>parts.slice(0,k+1).join('.'));
   const here=new Set(page.components.map(c=>c.index));
   const boxOf=key=>{const chain=chainOf(m.leaves[key].index),box=chain.find(i=>here.has(i));
     if(box)return box;const port=page.ports.find(p=>chain.includes(p.index));return port?.port;};
-  const real=new Map(),possible=new Map(),arrows=[...wire.leafArrows].sort((i,j)=>byKey(m.arrows[i].from,m.arrows[j].from)||byKey(m.arrows[i].to,m.arrows[j].to));
+  const groups=new Map(),arrows=[...wire.leafArrows].sort((i,j)=>byKey(m.arrows[i].from,m.arrows[j].from)||byKey(m.arrows[i].to,m.arrows[j].to));
   for(const i of arrows) {
-    const a=m.arrows[i],key=`${boxOf(a.from)} → ${boxOf(a.to)}`,groups=possibleArrows(m).has(i)?possible:real;
+    const a=m.arrows[i],key=`${boxOf(a.from)} → ${boxOf(a.to)}`;
     (groups.get(key)??groups.set(key,[]).get(key)).push(i);
   }
-  return {real,possible};
+  return groups;
 }
 // One leaf arrow as a link read and the viewer's pane both give it: `FROM → TO TAIL`, the ends
 // by name (`NAME FILE:LINES`) and the tail its kind and count.
@@ -670,15 +620,13 @@ const leafArrowParts=(m,names,i)=>{const a=m.arrows[i];return {from:a.from,to:a.
 const leafArrowText=(m,names,i)=>{const x=leafArrowParts(m,names,i);return `${x.fromName} → ${x.toName} ${x.tail}`;};
 // A page's link reads for the viewer, compact: its leaves once each as [NAME, FILE:LINE-END or
 // '', leaf page or ''], then for each drawn arrow `FROM/TO` its groups as the read groups them,
-// each leaf arrow [FROM LEAF, TO LEAF, TAIL] by position in that leaf list; a possible group
-// follows the real ones with a third element 1.
+// each leaf arrow [FROM LEAF, TO LEAF, TAIL] by position in that leaf list.
 function viewerLinks(m,page) {
   const names=leafNames(m),leaves=[],at=new Map(),wires={};
   const leaf=key=>{if(!at.has(key)){const r=m.leaves[key];at.set(key,leaves.length);
     leaves.push([names.get(key),r.file?`${r.file}:${r.line}-${r.endLine}`:'',r.index??'']);}return at.get(key);};
-  const rows=list=>list.map(i=>{const x=leafArrowParts(m,names,i);return [leaf(x.from),leaf(x.to),x.tail];});
-  for(const w of page.wires){const {real,possible}=linkGroups(m,page,w);
-    wires[`${w.from}/${w.to}`]=[...[...real].map(([dir,list])=>[dir,rows(list)]),...[...possible].map(([dir,list])=>[dir,rows(list),1])];}
+  for(const w of page.wires)wires[`${w.from}/${w.to}`]=[...linkGroups(m,page,w)].map(([dir,list])=>[dir,list.map(i=>{
+    const x=leafArrowParts(m,names,i);return [leaf(x.from),leaf(x.to),x.tail];})]);
   return {leaves,wires};
 }
 function linkRead(m,address) {
@@ -687,9 +635,8 @@ function linkRead(m,address) {
   const page=pageOf(m,pageIndex);
   const wire=page.wires.find(w=>w.from===from&&w.to===to||w.from===to&&w.to===from);
   if(!wire)throw Error(`Map ${page.index} draws no arrow between ${from} and ${to}.`);
-  const names=leafNames(m),{real,possible}=linkGroups(m,page,wire);
-  const text=groups=>Object.fromEntries([...groups].map(([k,list])=>[k,list.map(i=>leafArrowText(m,names,i))]));
-  return {map:page.index,leafArrows:text(real),...(possible.size?{possible:text(possible)}:{})};
+  const names=leafNames(m);
+  return {map:page.index,leafArrows:Object.fromEntries([...linkGroups(m,page,wire)].map(([k,list])=>[k,list.map(i=>leafArrowText(m,names,i))]))};
 }
 function listRead(m,address) {
   const names=leafNames(m),leaves=Object.values(m.leaves).sort((a,b)=>byKey(a.key,b.key));
@@ -714,38 +661,32 @@ export function verifyReads(m) {
   const names=leafNames(m),keyOf=new Map([...names].map(([key,name])=>[name,key])),errors=[];
   const fail=(p,why)=>{if(errors.length<20)errors.push(`map ${p.index}: ${why}`);};
   if(keyOf.size!==names.size)errors.push('two leaves read alike');
-  let maps=0,arrows=0,leafArrows=0,possibleLeafArrows=0;
+  let maps=0,arrows=0,leafArrows=0;
   for(const p of m.pages.filter(p=>p.destination==='graph')) {
     maps++;
     const read=mapRead(m,p),drawn=p.wires.map(w=>`${w.from} ${ARROW[w.ends]} ${w.to}`);
     const pairs=new Set(p.wires.map(w=>[w.from,w.to].sort(order).join('\u0000')));
     if(pairs.size!==p.wires.length)fail(p,'two arrows join one pair');
-    // Each read count is the drawn pair's: a number when every leaf arrow is real, else real and
-    // possible that sum to it, possible being exactly its leaf arrows marked possible.
-    const counts=Object.entries(read.arrows??{}).map(([k,v])=>[k,typeof v==='number'?v:v.real+v.possible,typeof v==='number'?0:v.possible]);
-    if(JSON.stringify(counts)!==JSON.stringify(p.wires.map((w,k)=>[drawn[k],w.count,w.leafArrows.filter(i=>possibleArrows(m).has(i)).length])))fail(p,'arrows differ from the drawn pairs');
-    if(counts.some(([,,possible],k)=>typeof Object.values(read.arrows)[k]!=='number'&&!possible))fail(p,'a possible count of 0 is shown');
+    if(JSON.stringify(Object.entries(read.arrows??{}))!==JSON.stringify(p.wires.map((w,k)=>[drawn[k],w.count])))fail(p,'arrows differ from the drawn pairs');
     const used=new Set(p.wires.flatMap(w=>[w.from,w.to]).filter(x=>x.startsWith('b:')));
     if(used.size!==Object.keys(read.boundary??{}).length||[...used].some(b=>!(b in (read.boundary??{}))))fail(p,'boundary boxes differ from the arrows using them');
     for(const w of p.wires) {
       arrows++;
-      // Real and possible leaf arrows are read under their own keys, each exactly its share.
-      const link=linkRead(m,`@link/${p.index}/${w.from}/${w.to}`),got={real:[],possible:[]};
-      for(const [part,groups] of [['real',link.leafArrows],['possible',link.possible??{}]])for(const [dir,list] of Object.entries(groups)) {
+      const groups=linkRead(m,`@link/${p.index}/${w.from}/${w.to}`).leafArrows,got=[];
+      for(const [dir,list] of Object.entries(groups)) {
         const [x,y]=dir.split(' → ');
         if(![w.from,w.to].includes(x)||![w.from,w.to].includes(y)||x===y)fail(p,`link ${w.from}/${w.to} groups ${dir}`);
         for(const text of list) {
           const count=/ ×(\d+)$/.exec(text)?.[1]??1,[,fromName,toName,kind]=/^(.*?) → (.*) (\S+)$/.exec(text.replace(/ ×\d+$/,''))??[];
-          got[part].push(`${keyOf.get(fromName)}>${keyOf.get(toName)}:${kind}:${count}`);
+          got.push(`${keyOf.get(fromName)}>${keyOf.get(toName)}:${kind}:${count}`);
         }
       }
-      const want={real:[],possible:[]};
-      for(const i of w.leafArrows){const a=m.arrows[i];want[possibleArrows(m).has(i)?'possible':'real'].push(`${a.from}>${a.to}:${a.kind}:${a.count}`);}
-      leafArrows+=w.leafArrows.length;possibleLeafArrows+=want.possible.length;
-      for(const part of ['real','possible'])if(JSON.stringify(got[part].sort(order))!==JSON.stringify(want[part].sort(order)))fail(p,`link ${w.from}/${w.to} differs from its ${part} leaf arrows`);
+      const want=w.leafArrows.map(i=>{const a=m.arrows[i];return `${a.from}>${a.to}:${a.kind}:${a.count}`;});
+      leafArrows+=want.length;
+      if(JSON.stringify(got.sort(order))!==JSON.stringify(want.sort(order)))fail(p,`link ${w.from}/${w.to} differs from its leaf arrows`);
     }
   }
-  return {ok:!errors.length,errors,maps,arrows,leafArrows,possibleLeafArrows};
+  return {ok:!errors.length,errors,maps,arrows,leafArrows};
 }
 
 // ---- commands -----------------------------------------------------------------------------

@@ -252,12 +252,14 @@ export function createAnnealer(start,links,externalLinks,{fixed=new Set(),open=n
 // stage takes no move that changes the energy (the tree has frozen). Returns the lowest-energy
 // tree seen. A small region needs longer stages and more patience to tell frozen from unlucky:
 // `stageMoves` sets a stage's least moves and `patience` how many unchanged stages in a row
-// freeze it; `maxStages` caps the stages. The remaining options go to createAnnealer.
-export function solveTree(start,links,{externalLinks=[],seed=1,onStage,maxStages=Infinity,stageMoves=0,patience=1,...options}={}) {
+// freeze it; `maxStages` caps the stages. With `descend` it starts cold (temperature 0) and takes
+// only moves that lower the energy, so a good start tree changes only where that gains. The
+// remaining options go to createAnnealer.
+export function solveTree(start,links,{externalLinks=[],seed=1,onStage,maxStages=Infinity,stageMoves=0,patience=1,descend=false,...options}={}) {
   const rand=random(seed),annealer=createAnnealer(start,links,externalLinks,options);
   const first=annealer.energy();
   const uphill=[];
-  for(let i=0;i<annealer.size();i++){const t=annealer.propose(rand);if(!t)continue;if(t.delta>0)uphill.push(t.delta);t.undo();}
+  if(!descend)for(let i=0;i<annealer.size();i++){const t=annealer.propose(rand);if(!t)continue;if(t.delta>0)uphill.push(t.delta);t.undo();}
   let temperature=uphill.reduce((a,b)=>a+b,0)/Math.max(1,uphill.length)/Math.LN2;
   let best={energy:first,tree:annealer.snapshot()};
   for(let stage=0,still=0;;stage++) {
@@ -265,7 +267,7 @@ export function solveTree(start,links,{externalLinks=[],seed=1,onStage,maxStages
     const moves=Math.max(stageMoves,annealer.size());
     for(let i=0;i<moves;i++) {
       const t=annealer.propose(rand);if(!t)continue;
-      if(t.delta<=0||rand()<Math.exp(-t.delta/temperature)){accepted++;if(Math.abs(t.delta)>1e-12)changed++;}
+      if(t.delta< -1e-12||!descend&&(t.delta<=0||rand()<Math.exp(-t.delta/temperature))){accepted++;if(Math.abs(t.delta)>1e-12)changed++;}
       else t.undo();
     }
     const now=annealer.energy();
