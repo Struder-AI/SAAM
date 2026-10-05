@@ -1,8 +1,8 @@
-// First-use runtime check. No Git, regression suite, slicing or job approvals.
+// Runtime check shared by checkouts, release builds and each installed version's first start.
+// No Git, regression suite, slicing or job approvals.
 import assert from 'node:assert/strict';
-import {readFile,mkdtemp,rm,access} from 'node:fs/promises';
-import {tmpdir} from 'node:os';
-import {join,resolve} from 'node:path';
+import {readFile,access} from 'node:fs/promises';
+import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {performance} from 'node:perf_hooks';
 
@@ -11,7 +11,9 @@ export async function checkSetup({log=console.log}={}) {
   const started=performance.now(),stages={};
   const stage=async(name,action)=>{
     log(`Checking ${name}...`);
-    const start=performance.now();await action();stages[name]=Math.round(performance.now()-start);
+    const start=performance.now();
+    try{await action();}catch(error){error.message=`${name}: ${error.message}`;throw error;}
+    stages[name]=Math.round(performance.now()-start);
   };
   const manifest=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
   await stage('dependency entry points',async()=>{
@@ -34,7 +36,8 @@ export async function checkSetup({log=console.log}={}) {
     }
   });
   await stage('unapproved geometry and Studio',async()=>{
-    const directory=await mkdtemp(join(tmpdir(),'saam-setup-'));let server;
+    const {createTemporaryWorkspace}=await import('../core/application/temporary-workspace.mjs');
+    const workspace=await createTemporaryWorkspace('setup-check'),directory=resolve(workspace.directory,'bundle');let server;
     try{
       const {initBundle}=await import('../core/print/bundle.mjs');
       const {defaults}=await import('../core/print/plan.mjs');
@@ -57,7 +60,7 @@ export async function checkSetup({log=console.log}={}) {
       assert.equal(state.program,undefined);
     }finally{
       if(server?.listening)await server.shutdown();
-      await rm(directory,{recursive:true,force:true});
+      await workspace.release();
     }
   });
   const result={node:process.version,platform:process.platform,arch:process.arch,stagesMs:stages,totalMs:Math.round(performance.now()-started)};
