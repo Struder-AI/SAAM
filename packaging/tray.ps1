@@ -41,7 +41,7 @@ function Refresh-Menu {
         $stop.add_Click({ param($sender,$eventArgs) try {
           $result = Invoke-Control 'stop-runtime' $false '' $sender.Tag
           if ($result.confirmationRequired) {
-            $answer = [System.Windows.Forms.MessageBox]::Show('Stopping this runtime cancels active work. Continue?','SAAM',[System.Windows.Forms.MessageBoxButtons]::YesNo)
+            $answer = [System.Windows.Forms.MessageBox]::Show("$($result.message)`nContinue?",'SAAM',[System.Windows.Forms.MessageBoxButtons]::YesNo)
             if ($answer -eq [System.Windows.Forms.DialogResult]::Yes) { Invoke-Control 'stop-runtime' $true '' $sender.Tag | Out-Null }
           }
         } catch { Show-Problem $_.Exception.Message } })
@@ -55,7 +55,7 @@ $update.add_Click({
   try {
     $result = Invoke-Control 'update'
     if ($result.confirmationRequired) {
-      $answer = [System.Windows.Forms.MessageBox]::Show('Updating SAAM cancels running jobs. Continue?','Update SAAM',[System.Windows.Forms.MessageBoxButtons]::YesNo)
+      $answer = [System.Windows.Forms.MessageBox]::Show("$($result.message)`nContinue?",'Update SAAM',[System.Windows.Forms.MessageBoxButtons]::YesNo)
       if ($answer -eq [System.Windows.Forms.DialogResult]::Yes) { Invoke-Control 'update' $true | Out-Null }
     }
   } catch { Show-Problem $_.Exception.Message }
@@ -63,12 +63,12 @@ $update.add_Click({
 $quit = $menu.Items.Add('Quit')
 $quit.add_Click({
   try {
-    $status = Invoke-Control 'status'
-    if ($status.jobs.Count -gt 0) {
-      $answer = [System.Windows.Forms.MessageBox]::Show('SAAM has running jobs. Quit and cancel them?','Quit SAAM',[System.Windows.Forms.MessageBoxButtons]::YesNo)
+    $result = Invoke-Control 'quit'
+    if ($result.confirmationRequired) {
+      $answer = [System.Windows.Forms.MessageBox]::Show([string]$result.message,'Quit SAAM',[System.Windows.Forms.MessageBoxButtons]::YesNo)
       if ($answer -ne [System.Windows.Forms.DialogResult]::Yes) { return }
+      Invoke-Control 'quit' $true | Out-Null
     }
-    Invoke-Control 'quit' $true | Out-Null
     [System.Windows.Forms.Application]::Exit()
   } catch { Show-Problem $_.Exception.Message }
 })

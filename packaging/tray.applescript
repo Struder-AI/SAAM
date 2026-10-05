@@ -15,6 +15,16 @@ on sendControl(payload)
   set resultText to do shell script "/usr/bin/curl --fail --silent --show-error --max-time 35 -H " & quoted form of ("X-SAAM-Control: " & controlToken) & " -H 'Content-Type: application/json' --data " & quoted form of payload & " " & quoted form of ("http://127.0.0.1:" & controlPort & "/control")
   return resultText
 end sendControl
+-- A confirmation lists each running job with its runtime, activity and duration.
+on confirmationText(responseText)
+  set responseData to (current application's NSString's stringWithString:responseText)'s dataUsingEncoding:(current application's NSUTF8StringEncoding)
+  set answer to current application's NSJSONSerialization's JSONObjectWithData:responseData options:0 |error|:(missing value)
+  if answer is missing value then return missing value
+  set required to answer's objectForKey:"confirmationRequired"
+  if required is missing value or required is current application's NSNull's null() then return missing value
+  if not (required's boolValue()) then return missing value
+  return (answer's objectForKey:"message") as text
+end confirmationText
 
 on newInstance_(sender)
   try
@@ -42,8 +52,9 @@ on stopSelectedRuntime_(sender)
   try
     set identity to sender's representedObject() as text
     set responseText to my sendControl("{\"command\":\"stop-runtime\",\"runtimeId\":\"" & identity & "\"}")
-    if responseText contains "confirmationRequired" then
-      display dialog "Stopping this runtime cancels active work. Continue?" buttons {"Cancel", "Stop"} default button "Cancel"
+    set jobPrompt to my confirmationText(responseText)
+    if jobPrompt is not missing value then
+      display dialog (jobPrompt & return & "Continue?") buttons {"Cancel", "Stop"} default button "Cancel"
       my sendControl("{\"command\":\"stop-runtime\",\"runtimeId\":\"" & identity & "\",\"force\":true}")
     end if
   on error problem number errorNumber
@@ -113,8 +124,9 @@ end openStudio_
 on updateApp_(sender)
   try
     set responseText to my callControl("update", "false")
-    if responseText contains "confirmationRequired" then
-      display dialog "Updating SAAM cancels running jobs. Continue?" buttons {"Cancel", "Update"} default button "Cancel"
+    set jobPrompt to my confirmationText(responseText)
+    if jobPrompt is not missing value then
+      display dialog (jobPrompt & return & "Continue?") buttons {"Cancel", "Update"} default button "Cancel"
       my callControl("update", "true")
     end if
   on error problem
@@ -124,8 +136,9 @@ end updateApp_
 on quitApp_(sender)
   try
     set responseText to my callControl("quit", "false")
-    if responseText contains "confirmationRequired" then
-      display dialog "SAAM has running jobs. Quit and cancel them?" buttons {"Cancel", "Quit"} default button "Cancel"
+    set jobPrompt to my confirmationText(responseText)
+    if jobPrompt is not missing value then
+      display dialog jobPrompt buttons {"Cancel", "Quit"} default button "Cancel"
       my callControl("quit", "true")
     end if
     current application's NSApp's terminate:me

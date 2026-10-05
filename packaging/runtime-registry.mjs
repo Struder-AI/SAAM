@@ -4,6 +4,15 @@ import {resolve} from 'node:path';
 import {createStudioWindows} from './studio-windows.mjs';
 import {selectRuntime,orchestratorContract} from '../core/application/runtime-selection.mjs';
 
+const elapsed=ms=>ms<60000?Math.max(1,Math.round(ms/1000))+' s':ms<3600000?Math.round(ms/60000)+' min':(ms/3600000).toFixed(1)+' h';
+// Quit, Update, Stop and Reload confirmations list each running job: runtime, activity and duration.
+export function describeJobs(jobs){
+  return jobs.map(job=>{
+    const started=job.startedAt?new Date(job.startedAt).getTime():job.job?.startedAt;
+    const activity=job.job?(job.extension?.id??'workspace')+' parts: '+job.job.stage:(job.kind??job.status??'working')+(job.printId?' '+job.printId:'');
+    return '- '+job.runtimeLabel+': '+activity+(started?' for '+elapsed(Date.now()-started):'');
+  }).join('\n');
+}
 export async function createRuntimeRegistry({paths,autoOpen,services,retryClients,codeRoot}){
   const windows=await createStudioWindows(paths.state,{autoOpen}),runtimes=new Map(),selection={tail:Promise.resolve(),closing:false};
   const operationObservers=new Set(),eventObservers=new Set();
@@ -120,7 +129,10 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
       const id=message.runtimeId??(await selectRuntime(message.runtime?.codeRoot??codeRoot)).id,runtime=runtimes.get(id);
       if(!runtime)return {stopped:false,runtimeId:id};
       const current=await sync(runtime);
-      if((current.jobs.length||runtime.active||current.active)&&!message.force)return {confirmationRequired:true,jobs:current.jobs,message:(reason==='restart'?'Reloading':'Stopping')+' this runtime cancels active work.'};
+      if((current.jobs.length||runtime.active||current.active)&&!message.force){
+        const jobs=current.jobs.map(job=>({...job,runtimeId:runtime.id,runtimeLabel:runtime.label}));
+        return {confirmationRequired:true,jobs,message:(reason==='restart'?'Reloading':'Stopping')+' '+runtime.label+' cancels its active work:\n'+(describeJobs(jobs)||'- agent operations in progress')};
+      }
       await rpc(runtime,'stopping',{reason});windows.detach(runtime.id);runtimes.delete(runtime.id);
       return {stopped:true,runtime};
     });
