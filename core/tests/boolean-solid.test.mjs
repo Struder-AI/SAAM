@@ -1,9 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm,writeFile} from 'node:fs/promises';
+import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {execFileSync} from 'node:child_process';
 import {buildShell} from '../geom/build.mjs';
 import {rhino} from '../geom/runtime.mjs';
 import {topAt} from '../geom/query.mjs';
@@ -14,7 +13,7 @@ import {tessellateShell} from '../geom/tessellate.mjs';
 import {regionArea} from '../region/region2d.mjs';
 import {defaults} from '../print/plan.mjs';
 import {initBundle,loadBundle,generateBundle} from '../print/bundle.mjs';
-import {intersectGeometry} from '../print/geometry-tools.mjs';
+import {intersectGeometry,intersectRequest,combineGeometry} from '../print/geometry-tools.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 
 // An exact cylinder as GEOMETRY.md writes it: the rational circle along U, a
@@ -59,17 +58,14 @@ test('intersect reports sections and tops of a supplied geometry in its own coor
   assert.equal(result.tops[0].zMm,null);assert.equal(result.tops[1].zMm,5);assert.equal(result.tops[1].surface,'top');
 });
 
-test('CLI combine drills a print, which reopens, generates, and answers intersect',async t=>{
+test('combine drills a print, which reopens, generates, and answers intersect',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-boolean-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   const bundle=join(dir,'print'),plan=defaults();plan.geometry=box;
   await initBundle(bundle,plan);let state=await loadBundle(bundle,{program:false});
-  const combine=join(dir,'combine.json'),query=join(dir,'query.json');
-  await writeFile(combine,JSON.stringify({operation:'difference',operand:cylinder(10,10,4,-1,6)}));
-  await writeFile(query,JSON.stringify({sectionsAtZ:[2.5]}));
-  execFileSync(process.execPath,['core/print/cli.mjs','combine',bundle,combine,'--revision',state.revision],{stdio:'pipe'});
+  await combineGeometry(bundle,{operation:'difference',operand:cylinder(10,10,4,-1,6)},{expectedRevision:state.revision});
   state=await loadBundle(bundle,{program:false});
   assert.equal(state.plan.geometry.shape,'boolean');assert.equal(state.geometry.nativeFile,'model.mesh.json');assert.ok(state.geometry.faces.length>0);
-  const answer=JSON.parse(execFileSync(process.execPath,['core/print/cli.mjs','intersect',bundle,query],{stdio:'pipe'}));
+  const answer=await intersectRequest(bundle,{sectionsAtZ:[2.5]});
   assert.equal(answer.sections[0].holes,1);
   await generateBundle(bundle,{development:true});state=await loadBundle(bundle);
   assert.equal(state.programError,undefined);assert.ok(state.program.moves.length>0);

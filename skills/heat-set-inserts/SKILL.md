@@ -72,8 +72,3 @@ reports insufficient room or conflicting reservations so placement, fin length,
 host size or process can be revised. Intersecting holes and fins are not merged.
 Manufacturer dimensions are a starting point: printed fit and strength need
 physical evidence.
-
-## Command line
-
-`node core/print/cli.mjs heat-set Prints/my-part insert-request.json` takes the
-same request as `apply_heat_set`.

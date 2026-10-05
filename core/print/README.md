@@ -55,13 +55,12 @@ Edits retain artifacts and clear approvals; old bytes never become current by om
 
 `restoreRevision(directory,{direction,expectedRevision})` restores history at a fresh
 revision, clearing approval; new edits clear redo. Immutable records share large
-artifacts. CLI: `undo|redo <directory> --revision <revision>`.
+artifacts.
 
 `shareBundle(directory,newZip)` packages current recipe, machine/settings,
 original source/repair provenance and selected extension dependency files.
 `importBundle(zip,newDirectory)` verifies inputs and imports extensions without execution;
 existing bundles/local edits are never overwritten. Open the returned directory in Studio.
-CLI: `share <bundle> <new.zip>`; `import-bundle <zip> <new-bundle>`.
 Native geometry is rebuilt; toolpaths, programs, checks, approvals, history and caches are excluded;
 recipients edit/regenerate and confirm before export. Print-ready delivery stays separate.
 
@@ -69,10 +68,10 @@ recipients edit/regenerate and confirm before export. Print-ready delivery stays
 
 Studio reserves a bundle on open; a second instance cannot open it. `withBundleInstance` carries that reservation into writes and generation workers. Export uses the existing reservation.
 Claims, releases and manifest commits share `.bundle-write.lock`; commits compare revisions and atomically replace `plan.json`. Interrupted writes may leave unreferenced records.
-The reservation releases on switch or shutdown, never by timeout. `instance-status` and `recover-instance` in `core/print/cli.mjs` inspect and reclaim a dead Studio PID. An interrupted write lock needs separate PID inspection and explicit removal.
+The reservation releases on switch or shutdown, never by timeout. `saam` operations `get_bundle_instance` and `recover_bundle_instance` inspect and reclaim a dead Studio PID. An interrupted write lock needs separate PID inspection and explicit removal.
 Power-loss durability beyond atomic replacement is not claimed.
 
-`generateToolpath` saves SAAMpath; CLI `toolpath <directory>` exposes it.
+`generateToolpath` saves SAAMpath.
 Active edits/generation compare its source stamp with the installed release
 and selected extensions. Changed or unstamped sources invalidate prior output and
 confirmation; unchanged sources retain output-only reuse. Viewing/delivery use saved
@@ -163,9 +162,8 @@ Prints/<name>/
 `plan.json` owns the recipe, locked machine, review and immutable artifact references.
 It is the only mutable commit point; `delivery/` follows approval and delivery.
 Ordinary reads of the previous parallel-file layout are effect-free and return
-an actionable migration-required error. Run
-`node core/print/cli.mjs migrate Prints/<name>` explicitly to preflight and
-convert one bundle. Migration atomically replaces only `plan.json`, retains the
+an actionable migration-required error. `saam call migrate_bundle` explicitly
+preflights and converts one bundle. Migration atomically replaces only `plan.json`, retains the
 legacy sidecars and unknown files, and reports every created, updated, removed
 and retained path. Bundles with current layout and recipe fields are no-ops. Compatibility
 remains while supported or distributed print roots contain split-file bundles;

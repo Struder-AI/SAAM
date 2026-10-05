@@ -21,13 +21,11 @@ A diagnostic does not determine the intended solid. Preserve the original and
 explain consequential shape changes. Don't fill a large opening automatically or
 accept a partial result.
 
-## Repair from the command line
+## Explicit repair
 
-~~~text
-node core/print/cli.mjs repair-stl <new-repair-directory> <source.stl> <mm|inch> [options.json]
-~~~
-
-The destination must be new and its parent must exist. Success writes
+`saam call repair_stl` takes an absolute `sourcePath`, a new absolute
+`outputDirectory` whose parent exists, `units` (`mm` or `inch`) and the limits
+below. Success writes
 `original.stl` (the source bytes), `repaired.stl` (validated, in millimetres) and
 `repair.json` (hashes, bounds, cleanup and native results, unchanged and changed
 face counts, merge displacement and sampled shape evidence). Failure publishes
@@ -35,14 +33,14 @@ nothing; source bytes stay unchanged. Only native fallback needs [CGAL setup](..
 
 | Option | Meaning |
 |---|---|
-| `mergeToleranceMm` | Opt-in nearest-retained vertex merging in mm; default 0 means exact duplicates only. For example, options.json: `{"mergeToleranceMm":0.01}`. See [merge semantics](../../core/geom/README.md#explicit-mesh-repair). |
+| `mergeToleranceMm` | Opt-in nearest-retained vertex merging in mm, such as 0.01; default 0 means exact duplicates only. See [merge semantics](../../core/geom/README.md#explicit-mesh-repair). |
 | `maxHoleEdges` | Maximum edges in a boundary to fill; default 0 disables filling. |
 | `maxHoleDiameterMm` | Maximum boundary bounding-box diagonal in mm; default 0. Both limits must be positive to fill. |
 | `maxSampledDistanceMm` | Reject results exceeding this sampled two-way shape change; sampling is not a certified bound. |
 
-Progress goes to stderr and the report to stdout; percentages describe the named
-stage. There is no time limit: a repair ends when it succeeds, fails or is
-cancelled. Compare source and result and inspect changed faces: the report counts
+The result carries the report. `get_studio_events` shows the job's named stage
+and percentage; `cancel_studio_calculation` cancels it; there is no time limit.
+Compare source and result and inspect changed faces: the report counts
 exactly unchanged faces and samples distances both ways, and a clean intersection
 check alone doesn't show the shape was preserved. Import `repaired.stl` with
 units **mm** and review it; repair and import create no approvals.

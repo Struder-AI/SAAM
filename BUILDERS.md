@@ -241,11 +241,9 @@ installation, discoverability and recovery when relevant to the change.
 Use isolated projects, fixtures and machine simulators. Report software and
 physical results separately.
 
-For an explicitly developmental preview, `node core/print/cli.mjs demo
-Prints/development/my-part` creates or reopens a shell bundle and generates
-without human approvals; an existing recipe can be initialized first. It still
-needs explicit robot command settings; for a new provisional part use the
-reusable setup instructions for
+A developmental preview is an ordinary `saam` bundle, created and generated
+without human approvals. Robot parts still need explicit command settings; for a
+new provisional part use the reusable setup instructions for
 [DENSO](skills/pipe-cladding/SKILL.md#contact-and-pose) or
 [Dobot](core/export/dobot.md#dobot-output-contract), independently of its shape.
 

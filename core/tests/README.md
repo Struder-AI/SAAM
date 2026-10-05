@@ -48,7 +48,7 @@ All file names in the core column are relative to `core/tests/`.
 | Observed offset, contour and mesh defects on their minimal fixtures | 3 | [offset-remnants.test.mjs](./offset-remnants.test.mjs), [offset-junctions.test.mjs](./offset-junctions.test.mjs), [contour-cleanup.test.mjs](./contour-cleanup.test.mjs), [mesh-repair.test.mjs](./mesh-repair.test.mjs), [mesh-boundary.test.mjs](./mesh-boundary.test.mjs), [mesh-large.test.mjs](./mesh-large.test.mjs) |
 | Windows file-sharing conflict retries; source moves with no across-path surface frame | 3 | [file-write.test.mjs](./file-write.test.mjs), [studio-material.test.mjs](./studio-material.test.mjs) |
 | Large move counts and G-code/ZIP size boundaries (explicit stress run) | 3 | [stress/large-export.test.mjs](./stress/large-export.test.mjs), [stress/large-program.test.mjs](./stress/large-program.test.mjs) |
-| Shared import/setup, CLI access and bounded manual reading | 2 | [mcp-access.test.mjs](./mcp-access.test.mjs) |
+| Shared import/setup, checks and bounded manual reading | 2 | [mcp-access.test.mjs](./mcp-access.test.mjs) |
 | Skill access and resource provenance | 1, 2 | [gridfinity access](../../skills/gridfinity/tests/access.test.mjs), [thingi10k library](../../skills/thingi10k/tests/library.test.mjs) |
 | Vase-wall seam, near-straight-corner and retired-budget regressions; wavy-seam pattern mapping | 3 | [vase.test.mjs](../../skills/vase-wall/tests/vase.test.mjs), [paths.test.mjs](../../skills/vase-wall/tests/paths.test.mjs) |
 | Canopy-rim wave residue; lettering past the retired triangle ceiling | 3 | [wave.test.mjs](../../skills/wave-overhangs/tests/wave.test.mjs), [text.test.mjs](../../skills/text/tests/text.test.mjs) |

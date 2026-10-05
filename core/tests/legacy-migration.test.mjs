@@ -52,12 +52,10 @@ test('legacy reads are effect-free and explicit migration retains sidecars while
   assert.match(reopened.programError,/Generated files changed/);assert.equal(reopened.toolpathApproved,false);
 });
 
-test('current migration is an idempotent no-op available through the CLI',async t=>{
+test('current migration is an idempotent no-op',async t=>{
   const f=await generationFixture();t.after(f.cleanup);const before=await snapshot(f.directory);
   const first=await f.api.migrateBundle(f.directory),second=await f.api.migrateBundle(f.directory);
   assert.equal(first.status,'current');assert.equal(second.status,'current');assert.deepEqual(await snapshot(f.directory),before);
-  const {stdout}=await exec(process.execPath,['core/print/cli.mjs','migrate',f.directory],{cwd:process.cwd()});
-  assert.equal(JSON.parse(stdout).status,'current');assert.deepEqual(await snapshot(f.directory),before);
 });
 
 test('malformed legacy preflight leaves every original byte unchanged',async t=>{

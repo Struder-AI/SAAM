@@ -443,7 +443,7 @@ complete Rhino computation engine.
 The [mesh-tools manual](../../skills/mesh-tools/BUILDER.md) owns command use and
 review of changes. [The repair entry](../print/repair-stl.mjs) preserves the
 source, runs exact cleanup, and uses the [native CGAL adapter](./mesh-native.mjs)
-when cleanup alone does not yield a valid mesh. Studio, CLI and agent imports
+when cleanup alone does not yield a valid mesh. Studio and agent imports
 attempt it for recognized defects, then present geometry for review. Invalid
 formats retain their diagnostics; repair never fills holes without explicit bounds.
 

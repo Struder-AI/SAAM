@@ -30,12 +30,11 @@ The [host](../workspaces/server.mjs) saves designs and self-contained Bundles wi
 source/requirements provenance. Ordinary sessions edit, generate and share parts using
 current recipe dependencies. Extensions own construction/UI, not Bundle authority.
 
-`node scripts/extensions.mjs list|resolve ID...|checkout ID|export ID FILE|import FILE`
-manages the shared library. `checkout` creates an editable user copy, under
-`SAAM_DATA/extensions` when set; it overrides release defaults and survives updates.
-`export` packages manifest, manuals, scripts, assets and hashes; import validates
-without executing code or replacing changed copies. Share explicitly; release
-promotion needs review. MCP discovery also reads installed manifests.
+`saam call extension_library` manages the shared library; `list_skills` lists it.
+`checkout` creates an editable user copy in `<SAAM home>/local/extensions/`; it
+overrides release defaults and survives updates. `export` packages manifest, manuals,
+scripts, assets and hashes; `import` validates without executing code or replacing
+changed copies. Share explicitly; release promotion needs review.
 
 Document resource identity, provenance and license; callers save assets. Extensions have no technical sandbox or automatic I/O permission.
 Follow [parameter policy](../MAKERS.md#standard-parameter-policy) and [verification guidance](../BUILDERS.md#avoid-check-spirals).
