@@ -1,11 +1,12 @@
 import {requireThat} from '../private/export/numeric.mjs';
 import {exportMotion} from './griffin.mjs';
 import {checkedFilamentPlan as filamentPlan} from '../machine/filaments.mjs';
-import {prelude} from './bambu-player.mjs';
 import {renderBambuChange} from './bambu-change.mjs';
 
 import {sameNozzleMaterialChanges} from '../machine/rules.mjs';
 
+// Explicit modal and temperature state at the start of each body segment.
+const prelude=plan=>`G90\nG21\nM83\nG92 E0\nM190 S${plan.setup.bedC}\nM109 S${plan.setup.nozzleC}\n`;
 export function exportBambuBody(path,plan,machine){
   const travelCommand=machine.outputs.find(o=>o.id===plan.output).constraints.bodyTravelCommand;
   requireThat(travelCommand==='G1','Bambu body requires coordinated G1 travel.');

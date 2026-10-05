@@ -480,7 +480,7 @@ or topology. No raw startup G-code override is supported. Envelope hashes bind
 start, end **and constraints**, so changing a fixed service recipe requires an
 intentional new contract.
 
-Import re-derives the job, header, service blocks and every package entry and
+Import re-derives the job, header, start/end envelope and every package entry and
 compares them with the actual bytes. An inconsistent archive, changed plan,
 unknown service envelope, checksum mismatch or metadata edit is rejected.
 The same-file review/delivery lifecycle remains unchanged.

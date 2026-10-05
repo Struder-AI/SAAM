@@ -1,8 +1,7 @@
-import {requireThat,distance} from '../private/export/numeric.mjs';
+import {requireThat} from '../private/export/numeric.mjs';
 
 import {validateDensoConfiguration} from './denso.mjs';
-import {validateTemperatureC,authoredNozzleTargets} from '../private/export/temperature.mjs';
-import {checkedFilamentPlan as filamentPlan} from './filaments.mjs';
+import {validateTemperatureC} from '../private/export/temperature.mjs';
 
 export const toolFor=(machine,index)=>{
   const tool=machine.tools.find(t=>t.index===index);
@@ -100,42 +99,6 @@ export const startupRetracted=(machine,plan)=>plan.process.retractMm>0
 
 export const sameNozzleMaterialChanges=machine=>machine.outputs.some(o=>o.id==='bambu-gcode'&&o.constraints?.materialChangeMode==='single-nozzle-ams');
 
-export function requireProcessControl(machine){
-  requireThat(machine.outputs?.some(o=>['griffin-gcode','bambu-gcode'].includes(o.id)),
-    'Stationary metered extrusion and operation temperature control require a supported filament-axis G-code output; relay robot outputs are not implemented.');
-}
-
 export function requireMachine(machine,capabilities,skill) {
   for(const capability of capabilities) requireThat(machine.capabilities?.includes(capability),`${skill} requires machine capability ${capability}.`);
-}
-
-// Explicit developer diagnostic; ordinary generation, loading and export do not
-// audit the motion produced by SAAM. This does not establish physical clearance.
-export function diagnoseMachinePath(path,plan,machine) {
-  const temperatures=authoredNozzleTargets(plan,path.completion?.authoredNozzleTemperatures);
-  let selected=plan,bounds=toolBounds(machine,plan.setup.tool);
-  let from=path.initialPosition;
-  const point=p=>requireThat(Array.isArray(p)&&p.length===3&&p.every((v,i)=>Number.isFinite(v)&&v>=bounds.min[i]-1e-7&&v<=bounds.max[i]+1e-7),'SAAMpath exceeds selected tool bounds.');
-  point(from);
-  for(const action of path.actions){
-    if(action.kind==='toolChange'){
-      selected=filamentPlan(plan,machine,action.filament);validateSetup(selected,machine);
-      requireThat(action.tool===selected.setup.tool,'Tool-change action disagrees with its filament.');
-      bounds=toolBounds(machine,selected.setup.tool);point(from);continue;
-    }
-    if(action.kind==='move'){
-      point(action.to);const length=distance(from,action.to),seconds=action.durationSeconds??length/action.speedMmS;
-      requireThat(seconds>0&&Number.isFinite(seconds)&&Number.isFinite(action.volumeMm3)&&action.volumeMm3>=0,'Invalid machine motion.');
-      for(let i=0;i<3;i++)requireThat(Math.abs(action.to[i]-from[i])/seconds<=machine.maxFeedMmS['xyz'[i]]+1e-7,'Machine axis feed exceeded.');
-      from=action.to;
-    } else if(action.kind==='extrude'){
-      requireProcessControl(machine);point(from);
-      requireThat(Number.isFinite(action.volumeMm3)&&action.volumeMm3>0&&Number.isFinite(action.flowMm3S)&&action.flowMm3S>0,'Invalid stationary extrusion.');
-    } else if(action.kind==='temperature'){
-      requireProcessControl(machine);validateTemperatureC(action.targetC);
-      requireThat(temperatures.has(action.targetC),'Unplanned operation temperature; supply the saved neutral SAAMpath target inventory.');
-    } else if(['retract','recover'].includes(action.kind)&&machine.id==='dobot-mg400')requireThat(action.filamentMm===0,'Relay retraction unsupported.');
-    else if(action.kind==='fan'&&machine.id==='dobot-mg400')requireThat(action.percent===0,'Dobot output has no fan control.');
-  }
-  return {machine:machine.id,tool:plan.setup.tool,bounds,checks:['tool-bounds','axis-feed','finite-deposition'],...(machine.id==='dobot-mg400'?{configuration:validateDobotConfiguration(plan,machine),coverage:'Proposed design envelope and commanded volume only; robot kinematics, measured extrusion and collision clearance are unchecked.'}:{})};
 }

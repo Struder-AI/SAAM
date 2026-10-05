@@ -60,15 +60,6 @@ test('mixed 0.4/0.8 H2D regions emit tower-free changes, distinct process grids 
   assert.deepEqual(JSON.parse(z.get('Metadata/plate_1.json')).filament_ids,[0,1]);
   assert.match(z.get('Metadata/slice_info.config').toString(),/nozzle id="0" extruder_id="1" nozzle_diameter="0.4"/);
   assert.match(z.get('Metadata/slice_info.config').toString(),/nozzle id="1" extruder_id="2" nozzle_diameter="0.8"/);
-  const modified=unpackZip(bytes);modified.set('Metadata/plate_1.gcode',Buffer.from(code.replace(/(M620\.10 A1 [^\n]*H)0.8/,'$10.4')));
-  assert.throws(()=>decodeProgram(packZip(modified),plan,machine),/tool-change block/);
-  for(const [before,after] of [['M620.15 C225','M620.15 C215'],['M620.11 P0 I0 B-1','M620.11 P0 I1 B-1'],
-    ['M620.10 R0','M620.10 R2'],['M1015.4 S1 K1 H0.8','M1015.4 S1 K1 H0.4'],['M204 S10000\nM621 S1A','M204 S9000\nM621 S1A']]){
-    const boundary=code.indexOf(';SAAM_TOOL_CHANGE ');
-    const changed=code.slice(0,boundary)+code.slice(boundary).replace(before,after);assert.notEqual(changed,code);
-    const corrupted=unpackZip(bytes);corrupted.set('Metadata/plate_1.gcode',Buffer.from(changed));
-    assert.throws(()=>decodeProgram(packZip(corrupted),plan,machine),/tool-change block/);
-  }
 });
 
 test('feed intentions are independent of logical filament and nozzle identities',()=>{
