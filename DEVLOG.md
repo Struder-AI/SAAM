@@ -3,7 +3,7 @@
 ## 2026-10-05 — Publish SAAM 0.3.4
 
 - Published v0.3.4 at source 1cea79c58364f20c68498654c47a31a5b6cbf15e (owner pre-authorized publishing once nothing blocked; Windows isolated trial skipped by owner, release is macOS-focused). Built from a fresh LF worktree with checksum-verified official Node 24.19.0; Windows mesh helper 1715dfa5 (unchanged LF source since 0.3.3). Windows 43,955,214 bytes, d3a0f015e2d084015183702820c6c3396aa1e448c160e1dbb3e3a58cf5c1a300; arm64 Mac 47,846,367 bytes, 9f652a8954a31c966151b3a2d908f9df56c9cdf73d66d854c0e8c71bb6d41aa9; Intel Mac 49,196,427 bytes, bb9f3ad28ee338c755cf7a64990ec29695cdf4a5c7ac0a8958ecc317c3aabff5. Each package passed its setup check; Mac ZIPs carry no double-click installer. Public assets, sidecars, tag, stable/latest status and the latest INSTALL.md verified by download. Release notes lead agents to the v0.3.4 INSTALL.md.
-- Relay LATEST_RELEASE set to the three 0.3.4 assets in relay/wrangler.jsonc; deploy blocked by this machine's permission review, owner to run. Not run: whole suite, Windows isolated install, any macOS install.
+- Relay LATEST_RELEASE set to the three 0.3.4 assets in relay/wrangler.jsonc; deployed after the owner switched to manual approval (version 3a15bf29-183f-4a9a-b66e-4903a21f1d9f); the authenticated /device/release offer for the owner's device returns 0.3.4 with the published hashes (after a few seconds of edge propagation). INSTALL.md now says how an agent quits and uninstalls SAAM; the v0.3.4 and latest guide asset was replaced (guide-only) and verified by download. Not run: whole suite, Windows isolated install, any macOS install.
 
 ## 2026-10-05 — Open 0.3.4 bug-fix patch; macOS start fixes merged
 
