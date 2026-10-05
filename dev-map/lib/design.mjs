@@ -207,7 +207,7 @@ async function generateDesign({repo}) {
     const sameChildren=originalChildren.length===children.length&&originalChildren.every(n=>children.some(c=>c.index===n.index));
     const layout=sameChildren?spec.layout?.[p.index]??null:null;
     if(layout)for(const [index,point] of Object.entries(layout.positions??{})) {
-      if(!visible.has(index)||![point.x,point.y].every(v=>Number.isFinite(v)&&v>=0))throw Error(`Invalid layout position ${p.index}: ${index}`);
+      if(!visible.has(index)||![point.x,point.y].every(v=>Number.isFinite(v)))throw Error(`Invalid layout position ${p.index}: ${index}`);
     }
     pages.push({index:p.index,path:p.index==='0'?'0':`@design/${p.id}`,kind:p.index==='0'?'root':'group',
       label:p.label,description:p.description,design:true,parent:p.parent??null,stateful:!!p.stateful,destination:spans.has(p.id)&&!children.length?'code':p.index!=='0'&&children.length<6?'contents':'graph',leaves:0,

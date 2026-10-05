@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-05 — Skill example recipes; signed design positions; runtime model confirmed
+
+- Demos row (worker): five plan-module demos became static recipes, each verified against its module with dev-instance `create_bundle` + `generate_toolpath`: `skills/<id>/examples/*.json` (`{machineId, plan}`, linked from SKILL.md) for the irregular loop sleeve, DENSO tube, box saddle and box canopy; bumpy is the wavy DENSO tour lesson's own `recipe.json`. `read_guidance` reads skill and extension example recipes. loop-demo and `splineTube` became test fixtures; demo modules and the unused starter-geometry deleted; one shipped splineBox. Docs 829 → 828. Canopy generation took about 1.9 h (cost question open). The worker's early runs used `scripts/saam.mjs` directly before the dev-instance rule and probably opened Studio windows: the likely source of the owner's app crashes.
+- Codex's free-space placement saves negative positions on map 0, which the architecture design set rejected; `design.mjs` now accepts any finite position. Both sets regenerate and check; influence code errors 1,170.
+- Owner confirmed the runtime model (plans/0.3.3.md orchestrator row): runtime chosen by the command and named on every result, prints record their runtime and other runtimes are refused, explicit reload, job lists by runtime, two-way compatibility, no relay diagnostics from source runtimes. No tests run.
+
 ## 2026-10-05 — Tests can never reach the real home (W2)
 
 - `saamHome()` refuses the person's home under `node --test` (or `--test` in argv) unless `SAAM_DATA` is set. Library code takes home paths from its owner: machine setups through one `machineSetups` store option (replacing `setupFile`; no store means nothing recalled or remembered), `createLocalRuntime({paths,stateRoot})` with no home defaults, `createStudio` requires `libraryRoot`, notes and failed-import retention take paths. Tests that can reach the home import `core/tests/temporary-home.mjs` (37 suite and 2 stress files). Extension library local folder and temporary workspaces still resolve the home per process (for W3).
