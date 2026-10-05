@@ -9,7 +9,7 @@ The shared home is `C:\SAAM` on Windows or `~/SAAM` on macOS: replaceable `app/`
 `apply_extension` uses `bundleId`, current `expectedEditRevision` (or strict legacy `expectedRevision`), `extensionId`, `request` and optional `part`; its selected manifest/manual owns request fields.
 It shares revisioned edits with text, heat-set and gridfinity; [standard support](../../skills/standard-support/SKILL.md#choose-the-patches) explains editable mesh-roof construction.
 `share_bundle` / `import_bundle` use `bundleId` and an absolute `packageFile` ZIP; [portable exchange](../print/README.md) owns editable inputs. Preparation is cancellable until publication; recipients regenerate/review before export.
-`saam` is the only agent route, maintenance included: `migrate_bundle`, `get_bundle_instance`/`recover_bundle_instance` after a Studio crash, `repair_stl` and `extension_library`.
+`saam` is the only agent route, maintenance included: `migrate_bundle`, `get_bundle_instance`/`recover_bundle_instance` after a Studio crash, `repair_stl` and `extension_library`. Home migration, which runs before the Application can, belongs to the installers ([migrate-home](../../packaging/migrate-home.mjs)).
 Claude/Codex session IDs identify chats; otherwise retain returned `chatId` and pass `--chat-id ID`, including retries. `--chat-name` sets its label.
 
 [Runtime](runtime.mjs) retains queues and Studio state; edits establish [work and hand-back](../../studio/README.md#carrying-a-maker-request). Saved revisions display throughout work.
