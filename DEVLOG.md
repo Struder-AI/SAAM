@@ -1,5 +1,9 @@
 # Development log
 
+## 2026-10-04 — Skill scripts owned by Extensions
+
+- Owner: a script that uses the engines to make bundles is extension behaviour, so skill scripts (demos and examples included) belong to Extensions and meet the engines through the extension interface; 80 ownership entries moved from Maker context, plans/dev-maps.md scope line corrected. Regenerated (place, 17 s): Maker context has 25 leaves and no arrows to Toolpath, Geometry or Bundle; its pairs are Extensions 5, Application 6, Development tooling 13. The demos' direct engine imports now read as Extensions → engines, for the contract checks to judge. Open owner questions: core/print/cli.mjs as a second agent interface; tour examples' owner. No tests run.
+
 ## 2026-10-04 — Map-0 arrow audit; possible arrows; derivation and ownership fixes; demo inventory
 
 - Audit (worker, read-only) of all 19,645 cross-box leaf arrows: 18,015 blob state (one alias class split into 111 state nodes, 41 files; structuredClone modelled as sharing nested values at platform-models.mjs:238 is a likely conduit), 357 import activations, ~280 ownership/scope, ~418 other artefacts (role misclassification of pure region operations 133, callback/getter over-approximation 103, SAAM-internal files as outside contacts 125, allocation-site instance ownership 34, deep walkers 23), ~880 real and sensible, ~60-100 real couplings for the owner (two hosts build PreparedGenerationJob; Application ↔ Studio request/event store; contextBudget runtime inside layers.mjs).

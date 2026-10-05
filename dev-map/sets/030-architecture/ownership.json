@@ -5986,25 +5986,25 @@
       "owner": "extensions"
     },
     "skills/heat-set-inserts/scripts/demo.mjs::@module": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/heat-set-inserts/scripts/demo.mjs::splineBox": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/heat-set-inserts/scripts/demo.mjs::splineBox::face": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/heat-set-inserts/scripts/demo.mjs::checks": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/heat-set-inserts/scripts/demo.mjs::directory": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/heat-set-inserts/scripts/demo.mjs::plan": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/heat-set-inserts/scripts/demo.mjs::state": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/heat-set-inserts/scripts/feature.mjs::@module": {
       "owner": "extensions"
@@ -6064,43 +6064,43 @@
       "owner": "extensions"
     },
     "skills/pipe-cladding/scripts/demo.mjs::@module": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/pipe-cladding/scripts/demo.mjs::developmentPipePlan": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/pipe-cladding/scripts/demo.mjs::developmentPipePlan::radiusAt": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/pipe-cladding/scripts/demo.mjs::splineTube": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/pipe-cladding/scripts/demo.mjs::splineTube::grevilleV": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/pipe-cladding/scripts/demo.mjs::splineTube::ring": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/pipe-cladding/scripts/demo.mjs::tubeSurface": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/pipe-cladding/scripts/demo.mjs::checks": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/pipe-cladding/scripts/demo.mjs::directory": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/plastic-weld/scripts/example.mjs::@module": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/plastic-weld/scripts/example.mjs::splineBox": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/plastic-weld/scripts/example.mjs::splineBox::face": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/plastic-weld/scripts/example.mjs::plan": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/supports/scripts/supports.mjs::@module": {
       "owner": "extensions"
@@ -6130,46 +6130,46 @@
       "owner": "extensions"
     },
     "skills/text/scripts/demo.mjs::@module": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/text/scripts/demo.mjs::radiusAt": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/text/scripts/demo.mjs::splineBlock": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/text/scripts/demo.mjs::splineBlock::greville": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/text/scripts/demo.mjs::splineBlock::wall": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/text/scripts/demo.mjs::splineBox": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/text/scripts/demo.mjs::splineBox::face": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/text/scripts/demo.mjs::box": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/text/scripts/demo.mjs::directory": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/text/scripts/demo.mjs::fontPath": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/text/scripts/demo.mjs::part": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/text/scripts/demo.mjs::plan": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/text/scripts/demo.mjs::radius": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/text/scripts/demo.mjs::state": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/text/scripts/text.mjs::@module": {
       "owner": "extensions"
@@ -6235,25 +6235,25 @@
       "reason": "Extension computes vase deposition assignments without reading a bundle."
     },
     "skills/wave-overhangs/scripts/example.mjs::@module": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/wave-overhangs/scripts/example.mjs::splineBox": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/wave-overhangs/scripts/example.mjs::splineBox::face": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/wave-overhangs/scripts/example.mjs::waveExamplePlan": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/wave-overhangs/scripts/example.mjs::dir": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/wave-overhangs/scripts/example.mjs::result": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/wave-overhangs/scripts/example.mjs::state": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "studio/adapter-resolution.mjs::@module": {
       "owner": "studio"
@@ -11504,121 +11504,121 @@
       "owner": "application"
     },
     "skills/advanced-vase-wall/scripts/irregular-demo.mjs::@module": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/irregular-demo.mjs::checked": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/irregular-demo.mjs::checked.onProgress": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/irregular-demo.mjs::directory": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/irregular-demo.mjs::irregularLoopDemoPlan": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/irregular-demo.mjs::irregularLoopHost": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/loop-demo.mjs::@module": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/loop-demo.mjs::checked": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/loop-demo.mjs::directory": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/loop-demo.mjs::loopDemoPlan": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/loop-demo.mjs::loopHost": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/loop-demo.mjs::options": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/loop-demo.mjs::plan": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/loop-demo.mjs::variant": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/path-demo.mjs::@module": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/path-demo.mjs::checked": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/path-demo.mjs::directory": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/path-demo.mjs::mode": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/path-demo.mjs::plan": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/path-demo.mjs::points": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/path-demo.mjs::points.<callback@13:37>": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/path-demo.mjs::radiusAt": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/path-demo.mjs::settings": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/pipe-cladding/scripts/bumpy-demo.mjs::@module": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/pipe-cladding/scripts/bumpy-demo.mjs::bumpyPlan": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/pipe-cladding/scripts/bumpy-demo.mjs::checks": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/pipe-cladding/scripts/bumpy-demo.mjs::directory": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/text/scripts/draped-demo.mjs::@module": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/text/scripts/draped-demo.mjs::directory": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/text/scripts/draped-demo.mjs::plan": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/text/scripts/draped-demo.mjs::state": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/text/scripts/draped-demo.mjs::text": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/wave-overhangs/scripts/canopy-example.mjs::@module": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/wave-overhangs/scripts/canopy-example.mjs::canopyExamplePlan": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/wave-overhangs/scripts/canopy-example.mjs::dir": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/wave-overhangs/scripts/canopy-example.mjs::plan": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/wave-overhangs/scripts/canopy-example.mjs::result": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/wave-overhangs/scripts/canopy-example.mjs::splineBox": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "skills/wave-overhangs/scripts/canopy-example.mjs::state": {
-      "owner": "context"
+      "owner": "extensions"
     },
     "scripts/check-repo.mjs::@module": {
       "owner": "development"

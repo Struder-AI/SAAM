@@ -69,7 +69,7 @@ Regeneration must be fast enough to use while working, refreshing as code change
 
 ## Scope
 
-**Analysed:** all SAAM code that runs when SAAM is used, including code in other processes, which connect through modelled channels such as worker messages, HTTP and files; also skill demos and examples (owned by maker context) and development tooling (its own top-level node), so changes show what they break (owner, 2026-10-04).
+**Analysed:** all SAAM code that runs when SAAM is used, including code in other processes, which connect through modelled channels such as worker messages, HTTP and files; also skill scripts, demos and examples included (owned by Extensions: they meet the engines through the extension interface) and development tooling (its own top-level node), so changes show what they break (owner, 2026-10-04).
 
 **Platform:** language, runtime, browser, Node and third-party packages, including WASM libraries. Platform code is modelled, never drawn as nodes.
 
