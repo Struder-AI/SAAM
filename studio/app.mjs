@@ -2,7 +2,8 @@ import {initializeChatUI} from './chat-ui.mjs';
 import {invert,point} from '../core/geom/frame.mjs';
 import {createTourUI,needsTourToolpath} from './tour-ui.mjs';
 import { advancePlayback, exportMovie } from './playback.mjs';
-import { createLayerFade, layerEndSeconds, layerIndexAt, representativeLayer, stepLayerIndex, TOOLPATH_COLORS } from './toolpath-view.mjs';
+import { createLayerFade, layerEndSeconds, layerIndexAt, representativeLayer, stepLayerIndex } from './toolpath-view.mjs';
+import {DEFAULT_PHASE_COLOURS} from '../core/print/phase-colours.mjs';
 import {hasConstruction,sliceSummary,recipeRows,robotRows,materialGrams,nextExportName,depositionFamilyRows} from './settings.mjs';
 import {sourceSession,machineCameras} from './studio/machine-session.mjs';
 import {machineFitBounds,boundsCorners,machinePalette} from './machine-view.mjs';
@@ -45,10 +46,8 @@ const pinnedQuality=/^[0-2]$/.test(new URLSearchParams(location.search).get('mot
 const layerFade=createLayerFade();
 const cameras=machineCameras();
 const viewer=createViewerRenderer({canvas,pinnedQuality,reportPerformance:burst=>void fetch('/api/view-performance',{method:'POST',headers:{'Content-Type':'application/json','X-SAAM-Token':token},body:JSON.stringify(burst)}).catch(()=>{})});
-const phaseSwatches={planar:{name:'Body · Sky blue',color:TOOLPATH_COLORS.skyBlue},'vase-wall':{name:'Vase substrate · Orange',color:TOOLPATH_COLORS.orange},
-  'surface-axial':{name:'Axial · Teal',color:TOOLPATH_COLORS.teal},'surface-circumferential':{name:'Circumferential · Orange',color:TOOLPATH_COLORS.orange},'surface-reverse':{name:'Reverse · Orange',color:TOOLPATH_COLORS.orange},
-  'cladding-axial':{name:'Axial · Teal',color:TOOLPATH_COLORS.teal},'cladding-hoop':{name:'Circumferential · Orange',color:TOOLPATH_COLORS.orange},
-  'cladding-helix-forward':{name:'Helix A · Teal',color:TOOLPATH_COLORS.teal},'cladding-helix-reverse':{name:'Helix B · Orange',color:TOOLPATH_COLORS.orange}};
+const phasePalette=()=>printSync.state?.phasePalette??DEFAULT_PHASE_COLOURS;
+const sampleNames={planar:'Body',curves:'Cladding','vase-wall':'Vase substrate'};
 const cameraState=()=>({yaw:orbitView.yaw,tilt:orbitView.tilt,zoom:orbitView.zoom,pan:[...orbitView.pan],fitBounds:orbitView.fitBounds});
 function useCamera(c){if(c)({yaw:orbitView.yaw,tilt:orbitView.tilt,zoom:orbitView.zoom,pan:orbitView.pan,fitBounds:orbitView.fitBounds}=c);}
 function machineSample(t=playState.seconds){return machinePose.machineSession?.current(t,{manual:machinePose.manualValues,jog:machinePose.manualJog})??null;}
@@ -203,7 +202,7 @@ function painted(){
 // below are shared. A print names its kind in its own state.
 const views={
   shell:{
-    eyebrow:'DEVELOPMENT PREVIEW',skinPhase:'skin',skinLabel:'Surface paths',exportName:'part.gcode',
+    eyebrow:'DEVELOPMENT PREVIEW',skinLabel:'Surface paths',exportName:'part.gcode',
     // Faces are named by the shape that built them, so the label is the name.
     names:{},
     facts(state,tab) {
@@ -484,13 +483,14 @@ function render() {
   if(document.activeElement!==exportNameInput)exportNameInput.value=viewState.exportNameState.value;
   $('#settings-detail').replaceChildren(table(presentation.settings));
   $('#planar-label').textContent=hasConstruction(printSync.state.plan,'cladding')?'Body':'Deposition';
-  $('.dot.planar').style.background=TOOLPATH_COLORS.skyBlue;
+  const palette=phasePalette();
+  for(const [dot,phase] of [['planar','planar'],['inclined','curves'],['modulated','modulated']])$('.dot.'+dot).style.background=palette[phase];
   const pathView=viewer.sceneState().pathView;
   const samples=$('#axial-colors');samples.replaceChildren();samples.hidden=!hasConstruction(printSync.state.plan,'cladding')||!pathView;
   const sampledPhases=new Set();
   if(!samples.hidden)for(const [index,group] of pathView.groups.entries()){
     const move=pathView.moves.at(group.first);
-    const swatch=phaseSwatches[move.phase];
+    const swatch=sampleNames[move.phase]&&{name:sampleNames[move.phase],color:palette[move.phase]};
     if(!swatch||sampledPhases.has(move.phase))continue;
     sampledPhases.add(move.phase);
     const button=document.createElement('button'),dot=document.createElement('span');
@@ -542,7 +542,7 @@ function readViewerSnapshot(options={}) {
     ratio:options.ratio??(devicePixelRatio||1),position,frameNow:options.now??performance.now(),fadeState:options.fadeState??layerFade,updateUI,
     playbackSpeed:options.playbackSpeed??(playState.playing?Number($('#playback-speed').value):0),machineState:options.machineState??machineDisplay(position),
     state:printSync.state,shown,tab:viewState.tab,selected:viewState.selected,selectionLabel:viewState.selected?label(viewState.selected):'',showGeometry:showingGeometry(),
-    camera:{yaw:orbitView.yaw,tilt:orbitView.tilt,zoom:orbitView.zoom,pan:[...orbitView.pan],fitBounds:orbitView.fitBounds},bounds:partBounds(),skinPhase:view().skinPhase,cameraMode:cameras.mode,machineColors:viewState.machineColors,
+    camera:{yaw:orbitView.yaw,tilt:orbitView.tilt,zoom:orbitView.zoom,pan:[...orbitView.pan],fitBounds:orbitView.fitBounds},bounds:partBounds(),phaseColours:phasePalette(),cameraMode:cameras.mode,machineColors:viewState.machineColors,
     settings:{showTravel:$('#travel').checked,followPlate:$('#follow-plate').checked,previousLayerOpacity:Number($('#previous-layer-opacity').value)/100},
     playing:playState.playing,manualPose:Boolean(machinePose.manualValues),duration:duration(),interaction:orbitView.drag?(orbitView.drag.pan?'pan':'orbit'):null,
     performanceContext:{tab:viewState.tab,view:cameras.mode,solid:viewState.tab==='toolpath'&&viewer.sceneState().solid,moves:printSync.state?.program?.moves.length??0,canvasCss:[canvas.clientWidth,canvas.clientHeight],

@@ -1,11 +1,9 @@
+import {DEFAULT_PHASE_COLOURS,phaseColour} from '../core/print/phase-colours.mjs';
 // A display budget, never a modification of the interpreted or exported path.
 export const VIEWER_POINT_CAP=40_000;
 export const VIEWER_TOLERANCE_MM=0.02;
 export const CURRENT_LAYER_GAP_MM=0.04;
 export const LAYER_FADE_MS=2000;
-// User-verified visible palette; additional colors may be used when needed.
-// Sky blue includes the user's requested slight darkening from #62a9df.
-export const TOOLPATH_COLORS={skyBlue:'#5b9fd3',orange:'#c65b19',teal:'#53b8af',lavender:'#a799dc'};
 export const layerKey=move=>move?(move.sliceFamily?`${move.sliceFamily}\0${move.sliceIndex}`:`${move.phase}\0${move.layer}`):null;
 // Keep the normal two-second fade unless the next layer arrives sooner.
 export function createLayerFade() {
@@ -36,16 +34,15 @@ export function createLayerFade() {
 function mixColor(from,to,t){
   return '#'+[1,3,5].map(i=>Math.round(parseInt(from.slice(i,i+2),16)*(1-t)+parseInt(to.slice(i,i+2),16)*t).toString(16).padStart(2,'0')).join('');
 }
-export function toolpathStyle(move,current,skinPhase='draped-skin',emphasis,{lineWidthMm=0.4,pixelsPerMm=1,previousLayerOpacity=0.5}={}) {
+// Multi-material moves show their filament colour; others their phase colour.
+export function toolpathStyle(move,current,palette=DEFAULT_PHASE_COLOURS,emphasis,{lineWidthMm=0.4,pixelsPerMm=1,previousLayerOpacity=0.5}={}) {
   lineWidthMm=move.lineWidthMm??lineWidthMm;
   const active=!!current&&layerKey(move)===layerKey(current);
-  const skin=move.phase===skinPhase||move.phase==='skin'||move.phase==='fronts'||move.phase==='vase-wall'||move.phase==='segmented-paths'||move.phase==='surface-circumferential'||move.phase==='surface-reverse'||move.phase==='cladding-hoop'||move.phase==='cladding-helix-reverse';
   const baseline=Math.max(0.5,Math.min(1,previousLayerOpacity));
   const opacity=active?1:baseline+(1-baseline)*(emphasis??0);
   const strength=(opacity-0.5)*2;
-  const axial=move.phase==='surface-axial'||move.phase==='cladding-axial'||move.phase==='cladding-helix-forward';
-  const foreground=move.extruding?(move.filamentColor??(move.modulated?TOOLPATH_COLORS.lavender:axial?TOOLPATH_COLORS.teal:skin?TOOLPATH_COLORS.orange:move.phase==='prime'?'#5b92a3':TOOLPATH_COLORS.skyBlue)):'#657fa3';
-  const pale=move.extruding?(axial?mixColor(foreground,'#f3f1eb',.55):skin?'#d6a17c':move.phase==='prime'?'#5b92a3':'#b9d6ed'):'#aeb8c5';
+  const foreground=move.extruding&&move.filamentColor||phaseColour(palette,move);
+  const pale=mixColor(foreground,'#f3f1eb',.55);
   // Inset only the current layer's display strokes to reveal adjacent tracks.
   // This is a model-space gap, not a fixed-pixel minimum or a print change.
   const widthMm=active?Math.max(lineWidthMm-CURRENT_LAYER_GAP_MM,lineWidthMm/2):lineWidthMm;

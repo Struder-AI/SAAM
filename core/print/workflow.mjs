@@ -3,6 +3,7 @@ import {authoredWorkIdentity,preparedWorkEvidence} from './work-evidence.mjs';
 import {requireEditRevision} from './edit-identity.mjs';
 import {retainCompletedOutput,readCompletedOutput} from './completed-output.mjs';
 import {completedOutputState} from './review-state.mjs';
+import {checkedPhaseColours} from './phase-colours.mjs';
 // One print lifecycle for every geometry/generator adapter.
 import { readFile, mkdir, rename, access, rm,copyFile,readdir } from 'node:fs/promises';
 import {createReadStream} from 'node:fs';
@@ -127,7 +128,7 @@ async function initBundle(directory, plan = {schema:'saam-shell-plan/1'}, { mach
     throw new Error('Print already exists. Open it or choose another directory.');
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
 
-  const deferRememberSetup=plan?.bundle?.deferRememberSetup===true;
+  const deferRememberSetup=plan?.bundle?.deferRememberSetup===true,phaseColours=checkedPhaseColours(plan?.bundle?.phaseColours);
   let machineSnapshot;
   if(plan?.bundle){
     const {bundle,...recipe}=plan;
@@ -151,7 +152,7 @@ async function initBundle(directory, plan = {schema:'saam-shell-plan/1'}, { mach
   }
   const geometryArtifact=await saveGeometry(dir,geometry);
   const review={schema:'saam-review/1',approvals:{},history:[],generation:null};
-  await saveManifest(dir,{plan,machine,review,geometry:geometryArtifact,deferRememberSetup},null);
+  await saveManifest(dir,{plan,machine,review,geometry:geometryArtifact,deferRememberSetup,phaseColours},null);
   return dir;
 }
 
@@ -166,11 +167,12 @@ async function saveGeometry(dir, geometry) {
   return {hash:geometryHash,file,descriptor:geometry.descriptor};
 }
 
-const manifestDocument=({plan,machine,review,geometry,deferRememberSetup})=>({...plan,bundle:{schema:BUNDLE_SCHEMA,machine,review,geometry,...(deferRememberSetup?{deferRememberSetup:true}:{})}});
+const manifestDocument=({plan,machine,review,geometry,deferRememberSetup,phaseColours})=>({...plan,bundle:{schema:BUNDLE_SCHEMA,machine,review,geometry,
+  ...(deferRememberSetup?{deferRememberSetup:true}:{}),...(phaseColours?{phaseColours}:{})}});
 const saveManifest=(dir,state,expected)=>commitManifest(dir,manifestDocument(state),expected);
 
 async function commitState(state,next,{edit=false,history}={}){
-  const previous={plan:state.plan,machine:state.machine,geometry:state.geometryArtifact,review:state.review,deferRememberSetup:state.deferRememberSetup};
+  const previous={plan:state.plan,machine:state.machine,geometry:state.geometryArtifact,review:state.review,deferRememberSetup:state.deferRememberSetup,phaseColours:state.phaseColours};
   const navigation=state.review.navigation??{past:[],future:[]};
   const nextHistory=history??(edit?{past:[...navigation.past,await retainContent(state.dir,previous)],future:[]}:navigation);
   const generation=next.review?.generation===state.review.generation&&state.review.generation?.generationHash===state.generationHash
@@ -294,7 +296,8 @@ async function readBundleInput(directory) {
     const {bundle,...plan}=document,review=migrateReview(bundle.review);
     if(review.generation?.checks)review.generation={...review.generation,checks:migrateChecks(review.generation.checks)};
     requireThat(bundle.deferRememberSetup===undefined||typeof bundle.deferRememberSetup==='boolean','Invalid bundle setup remembering preference.');
-    state={plan,machine:bundle.machine,review,geometry:bundle.geometry,revision:revisionOf(document),deferRememberSetup:bundle.deferRememberSetup===true};
+    state={plan,machine:bundle.machine,review,geometry:bundle.geometry,revision:revisionOf(document),deferRememberSetup:bundle.deferRememberSetup===true,
+      phaseColours:checkedPhaseColours(bundle.phaseColours,'Bundle phaseColours')};
   }else{
     throw Error(`Legacy split-file bundle requires explicit migration. Use saam call migrate_bundle with the bundleId, or offline source maintenance; see core/application/README.md#offline-maintenance.`);
   }
@@ -306,7 +309,7 @@ async function readBundleInput(directory) {
 }
 
 async function validateBundleInput(input,previousCache) {
-  const {dir,planText,plan,review,machine,geometry,bytes,revision,deferRememberSetup}=input;
+  const {dir,planText,plan,review,machine,geometry,bytes,revision,deferRememberSetup,phaseColours}=input;
   const cache={...previousCache};
   try {
     // Read current bytes at every boundary, but canonicalize large mesh/plan
@@ -324,11 +327,11 @@ async function validateBundleInput(input,previousCache) {
       identity={key:identityKey,...authoredWorkIdentity(plan,machine),geometryHash,geometryInputHash:adapter.geometryInput?hash(adapter.geometryInput(plan)):geometryHash,editRevision:hash({plan,machine,geometryHash}),pathHash:hash(adapter.pathDependencies?adapter.pathDependencies(plan,machine):{plan,machine}),generationHash:hash({plan,machine,geometryHash,...(adapter.generationContract?{generationContract:adapter.generationContract}:{})})};
       cache.identity=identity;
     }
-    return {dir,plan,machine,geometry:geometry?.descriptor??null,geometryArtifact:geometry,geometryChecks:[],review,identity,cache,revision,deferRememberSetup};
+    return {dir,plan,machine,geometry:geometry?.descriptor??null,geometryArtifact:geometry,geometryChecks:[],review,identity,cache,revision,deferRememberSetup,phaseColours};
   } catch(error) {return {cache,error};}
 }
 
-async function describeBundle({dir,plan,machine,geometry,geometryArtifact,geometryChecks,review,identity,revision,deferRememberSetup},program) {
+async function describeBundle({dir,plan,machine,geometry,geometryArtifact,geometryChecks,review,identity,revision,deferRememberSetup,phaseColours},program) {
   const {geometryHash,geometryInputHash,generationHash,pathHash,editRevision}=identity;
   geometry=adapter.presentGeometry?await adapter.presentGeometry(plan,geometry):geometry;
   const artifacts={geometry:geometry?'current':'absent',path:!review.path?'absent':review.path.inputHash===pathHash?'current':'stale',program:!review.generation?'absent':review.generation.generationHash===generationHash?'current':'stale'};
@@ -336,7 +339,7 @@ async function describeBundle({dir,plan,machine,geometry,geometryArtifact,geomet
   const history={canUndo:Boolean(review.navigation?.past.length),canRedo:Boolean(review.navigation?.future.length)};
   if(!machine){
     const state={kind,dir,plan,machine:null,geometry,geometryChecks,review,geometryHash,geometryInputHash,generationHash,programChecked:false,exportName:null,limitations:[],skills:[],toolpathApproved:false,setupBasis:null,outputAvailability:'Ask the agent to supply a printer, material and toolpath recipe.'};
-    Object.assign(state,{revision,editRevision,pathHash,artifacts,history,workEvidence,deferRememberSetup});Object.defineProperty(state,'geometryArtifact',{value:geometryArtifact,enumerable:false});return state;
+    Object.assign(state,{revision,editRevision,pathHash,artifacts,history,workEvidence,deferRememberSetup,phaseColours});Object.defineProperty(state,'geometryArtifact',{value:geometryArtifact,enumerable:false});return state;
   }
   const state = {
     kind, dir, plan, machine, geometry, geometryChecks, review, geometryHash, geometryInputHash, generationHash, programChecked:Boolean(program&&review.generation),
@@ -347,7 +350,7 @@ async function describeBundle({dir,plan,machine,geometry,geometryArtifact,geomet
       ...Object.entries(plan.skills??{}).filter(([,settings])=>settings?.enabled).map(([name])=>name)]
   };
   state.toolpathApproved = false;
-  Object.assign(state,{revision,editRevision,pathHash,artifacts,history,workEvidence,deferRememberSetup});
+  Object.assign(state,{revision,editRevision,pathHash,artifacts,history,workEvidence,deferRememberSetup,phaseColours});
   state.setupBasis = plan.setup?.startupVerified
     ? 'Confirmed startup behavior'
     : machine.startup?.validation;
@@ -757,8 +760,18 @@ async function setDeferredSetupSave(directory,{defer,expectedRevision}){
   const state=await loadBundle(directory,{program:false});
   requireThat(expectedRevision===state.revision,'This revision is stale. Reload before changing setup remembering.');
   if(state.deferRememberSetup===defer)return {directory:state.dir,revision:state.revision,deferRememberSetup:defer};
-  const committed=await saveManifest(state.dir,{plan:state.plan,machine:state.machine,geometry:state.geometryArtifact,review:state.review,deferRememberSetup:defer},state.revision);
+  const committed=await saveManifest(state.dir,{plan:state.plan,machine:state.machine,geometry:state.geometryArtifact,review:state.review,deferRememberSetup:defer,phaseColours:state.phaseColours},state.revision);
   return {directory:state.dir,revision:revisionOf(committed),deferRememberSetup:defer};
+}
+
+// Display only: the choice replaces the print's previous one and changes no
+// recipe, path, program or approval identity.
+async function setPhaseColours(directory,{phaseColours,expectedRevision}){
+  const choice=checkedPhaseColours(phaseColours),state=await loadBundle(directory,{program:false});
+  requireThat(expectedRevision===state.revision,'This revision is stale. Reload before changing phase colours.');
+  if(canonical(choice)===canonical(state.phaseColours))return {directory:state.dir,revision:state.revision,phaseColours:choice};
+  const committed=await saveManifest(state.dir,{plan:state.plan,machine:state.machine,geometry:state.geometryArtifact,review:state.review,deferRememberSetup:state.deferRememberSetup,phaseColours:choice},state.revision);
+  return {directory:state.dir,revision:revisionOf(committed),phaseColours:choice};
 }
 
 async function applySettingsSnapshot(directory,selection,expectedRevision,{expectedEditRevision}={}) {
@@ -780,5 +793,5 @@ async function applySettingsSnapshot(directory,selection,expectedRevision,{expec
 }
 
 return {root,EXPORT_NAME,atomicManifest:true,proposedPlan,initBundle,loadBundle,loadBundleSnapshot,bundleFingerprint,bundleFingerprints,
-  migrateBundle,readToolpath,prepareGeneration,commitGeneration,generateToolpath,restoreRevision,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,exportReviewed,setDeferredSetupSave,applySettingsSnapshot};
+  migrateBundle,readToolpath,prepareGeneration,commitGeneration,generateToolpath,restoreRevision,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,exportReviewed,setDeferredSetupSave,setPhaseColours,applySettingsSnapshot};
 }

@@ -57,7 +57,7 @@ export async function pathSource(plan){
   } catch(error){if(error.code!=='EXTENSION_MISSING')throw error;return {release:version,hash:null,missing:error};}
 }
 
-export const {root, EXPORT_NAME, atomicManifest, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, bundleFingerprint, bundleFingerprints, migrateBundle, readToolpath, prepareGeneration, commitGeneration, generateToolpath, restoreRevision, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, exportReviewed, setDeferredSetupSave, applySettingsSnapshot}=createBundleWorkflow({
+export const {root, EXPORT_NAME, atomicManifest, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, bundleFingerprint, bundleFingerprints, migrateBundle, readToolpath, prepareGeneration, commitGeneration, generateToolpath, restoreRevision, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, exportReviewed, setDeferredSetupSave, setPhaseColours, applySettingsSnapshot}=createBundleWorkflow({
   kind:'shell',defaults,patchPlan,createGeometry,normalizePlan:normalizeSpatialPlan,geometryInput,presentGeometry,
   generatePath:generatePreparedPath,pathDependencies,pathSource,generationContract:PATH_CONTRACT,completionContract:NEUTRAL_PATH_CONTRACT,
   version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode',
