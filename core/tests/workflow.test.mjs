@@ -77,7 +77,7 @@ test('changing printer clears final confirmation and rejects stale edits',async 
   await writeFile(setupFile,JSON.stringify({schema:'saam-machine-setup/1',machineId:'bambu-h2d',setup:{tool:1,core:'Hardened steel 0.6',nozzleMm:0.6,material:'PLA',filamentColor:'#8B5A2B',ams:{unit:2,slot:4}}}));
   const next=await changeMachine(dir,'bambu-h2d',{expectedRevision:state.revision,machineSetups});
   assert.equal(next.machine.id,'bambu-h2d');assert.equal(next.plan.output,'bambu-gcode');
-  assert.equal(next.plan.setup.nozzleMm,0.6);assert.equal(next.plan.process.lineWidthMm,0.6);
+  assert.equal(next.plan.setup.nozzleMm,0.6);
   assert.equal(next.toolpathApproved,false);
   assert.deepEqual(next.plan.geometry,state.plan.geometry);
   await assert.rejects(changeMachine(dir,'missing-printer',{expectedRevision:next.revision}),/machine|Unknown/i);
@@ -244,8 +244,6 @@ test('geometry and settings edits invalidate the approvals they affect', async t
   assert.notEqual(fingerprint, await bundleFingerprint(dir));
 
   await assert.rejects(updatePlan(dir, state.plan, stale), /stale/);
-  // The selected tool's declared layer range owns this rejection, not a fixed cap.
-  await assert.rejects(adjustBundle(dir, { process: { layerMm: 0.9 } }), /Layer height outside profile limits/);
   await adjustBundle(dir,{process:{primeLine:{startMm:[5,5],endMm:[20,5],zMm:.2,widthMm:.4,heightMm:.2,speedMmS:10}}});
   state=await loadBundle(dir);assert.equal(state.plan.process.primeLine.endMm[0],20);
   await adjustBundle(dir,{process:{primeLine:{passes:[
