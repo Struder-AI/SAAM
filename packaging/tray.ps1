@@ -1,21 +1,31 @@
-param([int]$Port,[string]$Token,[int]$AppPid)
+param([int]$Port,[string]$Token,[int]$AppPid,[string]$RaiseScript)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
-function Invoke-Control([string]$Command,[bool]$Force=$false,[string]$StudioInstanceId='',[string]$RuntimeId='') {
-  $body = @{command=$Command;force=$Force;studioInstanceId=$StudioInstanceId;runtimeId=$RuntimeId} | ConvertTo-Json -Compress
+function Invoke-Control([string]$Command,[bool]$Force=$false,[string]$StudioInstanceId='',[string]$RuntimeId='',[string]$Display='') {
+  $body = @{command=$Command;force=$Force;studioInstanceId=$StudioInstanceId;runtimeId=$RuntimeId;display=$Display} | ConvertTo-Json -Compress
   Invoke-RestMethod -Uri "http://127.0.0.1:$Port/control" -Method Post -Headers @{'X-SAAM-Control'=$Token} -ContentType 'application/json' -Body $body -TimeoutSec 35
 }
 function Show-Problem($Problem) { [System.Windows.Forms.MessageBox]::Show([string]$Problem,'SAAM') | Out-Null }
+# A click opens Studio and this process, which received it, shows the window
+# SAAM answers (studio/browser.mjs showOpened does the same for a launch).
+function Show-Studio([string]$Command,[string]$StudioInstanceId='',[string]$RuntimeId='') {
+  $answer = Invoke-Control $Command $false $StudioInstanceId $RuntimeId 'caller'
+  if ($answer.display -eq 'raise') {
+    $outcome = try { & $RaiseScript -Port ([Uri]$answer.url).Port } catch { 'not-found' }
+    if ($outcome -ne 'not-found') { return }
+  }
+  if ($answer.display -eq 'raise' -or $answer.display -eq 'open') { Start-Process $answer.url }
+}
 $notify = New-Object System.Windows.Forms.NotifyIcon
 $notify.Icon = [System.Drawing.SystemIcons]::Application
 $notify.Text = 'SAAM'
 $menu = New-Object System.Windows.Forms.ContextMenuStrip
 $open = $menu.Items.Add('Open Studio')
-$open.add_Click({ try { Invoke-Control 'open' | Out-Null } catch { Show-Problem $_.Exception.Message } })
+$open.add_Click({ try { Show-Studio 'open' } catch { Show-Problem $_.Exception.Message } })
 $runtimes = $menu.Items.Add('Studios')
 $newInstance = $menu.Items.Add('New Instance')
-$newInstance.add_Click({ try { Invoke-Control 'new-instance' | Out-Null } catch { Show-Problem $_.Exception.Message } })
+$newInstance.add_Click({ try { Show-Studio 'new-instance' } catch { Show-Problem $_.Exception.Message } })
 $update = $menu.Items.Add('Update')
 $update.Visible = $false
 function Refresh-Menu {
@@ -27,13 +37,13 @@ function Refresh-Menu {
       $group = $runtimes.DropDownItems.Add($runtime.label)
       $show = $group.DropDownItems.Add('Open Studio')
       $show.Tag = $runtime.id
-      $show.add_Click({ param($sender,$eventArgs) try { Invoke-Control 'open' $false '' $sender.Tag | Out-Null } catch { Show-Problem $_.Exception.Message } })
+      $show.add_Click({ param($sender,$eventArgs) try { Show-Studio 'open' '' $sender.Tag } catch { Show-Problem $_.Exception.Message } })
       foreach ($studio in $status.studios | Where-Object { $_.runtimeId -eq $runtime.id }) {
         $part = if ($studio.printId) { $studio.printId } else { 'Empty Studio' }
         $chat = if ($studio.attachment) { $studio.attachment.name } else { 'No chat attached' }
         $item = $group.DropDownItems.Add("$part - $chat [$($studio.instanceId)]")
         $item.Tag = $studio.instanceId
-        $item.add_Click({ param($sender,$eventArgs) try { Invoke-Control 'open' $false $sender.Tag | Out-Null } catch { Show-Problem $_.Exception.Message } })
+        $item.add_Click({ param($sender,$eventArgs) try { Show-Studio 'open' $sender.Tag } catch { Show-Problem $_.Exception.Message } })
       }
       if ($runtime.id -ne 'installed') {
         $stop = $group.DropDownItems.Add('Stop runtime')
@@ -73,7 +83,7 @@ $quit.add_Click({
   } catch { Show-Problem $_.Exception.Message }
 })
 $notify.ContextMenuStrip = $menu
-$notify.add_DoubleClick({ try { Invoke-Control 'open' | Out-Null } catch { Show-Problem $_.Exception.Message } })
+$notify.add_DoubleClick({ try { Show-Studio 'open' } catch { Show-Problem $_.Exception.Message } })
 $notify.Visible = $true
 Write-Output 'saam-tray-ready'
 $timer = New-Object System.Windows.Forms.Timer

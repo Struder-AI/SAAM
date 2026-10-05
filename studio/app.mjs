@@ -19,6 +19,9 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const token=$('meta[name="saam-token"]').content;
 createServicePanel({token,available:$('meta[name="saam-service"]').content==='on'});
 const NO_PRINT='Open a print, import STL or ask your agent to make a part.';
+// The title names this window's address, by which opening SAAM again finds it (studio/raise-window.ps1).
+const studioTitle=printName=>'SAAM Studio '+location.port+(printName?' · '+printName:'');
+document.title=document.title.replace('SAAM Studio',studioTitle());
 const exportedThisSession=new Set();
 const exportKey=()=>printSync.state?.printId+':'+printSync.state?.exportHash;
 // Page state, one record per owner: the print and its server sync, Studio-run
@@ -358,7 +361,7 @@ async function presentStudioState({adopted,loaded,previous,presentationChanged,f
   const outputState=outputView(printSync.state);
   $('#kind-label').textContent=printSync.state.neutralProgram?'Saved SAAMpath · '+(printSync.state.machine?.name??'No printer selected')
     :(completedOutputState(printSync.state).previous?'Previous toolpath · ':outputState.review.generation?.mode==='development'?'Development preview · ':'')+(outputState.machine?.name??'No printer selected');
-  document.title='SAAM Studio · '+printSync.state.printName;
+  document.title=studioTitle(printSync.state.printName);
   $('#open-print').title='Open print: '+printSync.state.printName;
   // Geometry keys off the previously loaded state's version (null on a print
   // switch), not a value stored on geometryScene, so a different print always

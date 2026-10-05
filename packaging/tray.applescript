@@ -8,6 +8,7 @@ property controlToken : missing value
 property trayMenu : missing value
 property updateItem : missing value
 property runtimeItem : missing value
+property raiseScript : missing value
 
 on callControl(commandName, forceQuit)
   return my sendControl("{\"command\":\"" & commandName & "\",\"force\":" & forceQuit & "}")
@@ -27,9 +28,27 @@ on confirmationText(responseText)
   return (parsed's objectForKey:"message") as text
 end confirmationText
 
+-- A click opens Studio and this process, which received it, shows the window
+-- SAAM answers (studio/browser.mjs showOpened does the same for a launch).
+on showStudio(payload)
+  set openText to my sendControl(payload)
+  set openData to (current application's NSString's stringWithString:openText)'s dataUsingEncoding:(current application's NSUTF8StringEncoding)
+  set openReply to current application's NSJSONSerialization's JSONObjectWithData:openData options:0 |error|:(missing value)
+  set studioAddress to (openReply's objectForKey:"url") as text
+  set shownAs to openReply's objectForKey:"display"
+  if shownAs is missing value or shownAs is current application's NSNull's |null|() then return
+  set shownAs to shownAs as text
+  if shownAs is "raise" then
+    try
+      if (do shell script "/usr/bin/osascript -l JavaScript " & quoted form of raiseScript & " " & quoted form of studioAddress) is not "not-found" then return
+    end try
+  end if
+  if shownAs is "raise" or shownAs is "open" then do shell script "/usr/bin/open " & quoted form of studioAddress
+end showStudio
+
 on newInstance_(sender)
   try
-    my callControl("new-instance", "false")
+    my showStudio("{\"command\":\"new-instance\",\"display\":\"caller\"}")
   on error problem
     display alert "SAAM" message problem
   end try
@@ -37,14 +56,14 @@ end newInstance_
 on openRuntime_(sender)
   try
     -- The application supplies hexadecimal Studio identities, never shell code.
-    my sendControl("{\"command\":\"open\",\"studioInstanceId\":\"" & (sender's representedObject() as text) & "\"}")
+    my showStudio("{\"command\":\"open\",\"display\":\"caller\",\"studioInstanceId\":\"" & (sender's representedObject() as text) & "\"}")
   on error problem
     display alert "SAAM" message problem
   end try
 end openRuntime_
 on openSelectedRuntime_(sender)
   try
-    my sendControl("{\"command\":\"open\",\"runtimeId\":\"" & (sender's representedObject() as text) & "\"}")
+    my showStudio("{\"command\":\"open\",\"display\":\"caller\",\"runtimeId\":\"" & (sender's representedObject() as text) & "\"}")
   on error problem
     display alert "SAAM" message problem
   end try
@@ -121,7 +140,7 @@ end menuNeedsUpdate_
 
 on openStudio_(sender)
   try
-    my callControl("open", "false")
+    my showStudio("{\"command\":\"open\",\"display\":\"caller\"}")
   on error problem
     display alert "SAAM" message problem
   end try
@@ -154,6 +173,7 @@ end quitApp_
 on run argv
   set controlPort to item 1 of argv
   set controlToken to item 2 of argv
+  set raiseScript to item 4 of argv
   -- AppleScript terms (app, run, count, null, button) are not variable names; Cocoa methods with those names are piped.
   set sharedApp to current application's NSApplication's sharedApplication()
   sharedApp's setActivationPolicy:(current application's NSApplicationActivationPolicyAccessory)

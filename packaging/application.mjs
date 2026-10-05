@@ -9,7 +9,7 @@ import {createRuntimeRegistry,describeJobs} from './runtime-registry.mjs';
 import {migrateRuntimeState,restoreRuntimeState} from './runtime-state.mjs';
 import {homePaths} from '../core/application/home.mjs';
 import {migrateLocalData,restoreLocalData} from '../core/application/home-layout.mjs';
-import {applicationPort,readInstance,controlRequest} from '../core/application/control.mjs';
+import {applicationPort,readInstance,controlRequest,leaseHolder} from '../core/application/control.mjs';
 import {orchestratorContract} from '../core/application/runtime-selection.mjs';
 import {createReleaseService,releaseConfiguration} from './release-service.mjs';
 import {installUpdate} from './update.mjs';
@@ -32,7 +32,8 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
   const reports=createDiagnosticReports({home:paths.home});
   const previous=await readInstance();
   if(previous?.user&&previous.user!==userInfo().username)throw Error('SAAM is running for '+previous.user+'.');
-  if(previous){try{return {existing:true,...await controlRequest(previous,{command:openOnStart?'open':'status'},{waitMs:3000})};}catch{/* Binding the installation's OS endpoint decides ownership. */}}
+  // A launch is the person's own: this process shows the Studio the open answers (launch.mjs).
+  const opening=openOnStart?{command:'open',display:'caller'}:{command:'status'};
   const state={runtime:null,services:null,tray:null,control:null,stopping:null,migration:null,runtimeMigration:null},token=randomBytes(24).toString('hex');
   const report=async(event,options={})=>{
     if(state.services)return state.services.recordDiagnostic(event,options);
@@ -94,11 +95,17 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
     try{await new Promise((done,fail)=>{state.control.once('error',fail);state.control.listen(applicationPort(paths.home),'127.0.0.1',done);});}
     catch(error){
       if(error.code!=='EADDRINUSE')throw error;
-      const deadline=Date.now()+30000;
+      // Another application holds the lease: wait while it lives and is starting, then
+      // ask it. This process never becomes a second application.
       for(;;){
         const running=await readInstance();
-        if(running){try{return {existing:true,...await controlRequest(running,{command:openOnStart?'open':'status'},{waitMs:2000})};}catch{/* Wait for the owner to publish readiness. */}}
-        if(Date.now()>=deadline)throw Error('The SAAM control port is occupied but no ready application answered. Quit the existing SAAM or resolve the port conflict.');
+        if(running){
+          try{const answer=await controlRequest(running,opening,{waitMs:null});return {existing:true,opened:openOnStart?answer:null};}
+          catch(failure){if(failure.result&&failure.status!==403)throw failure;/* A record from before the holder's start. */}
+        }
+        const holder=await leaseHolder(applicationPort(paths.home));
+        if(holder==='none')throw Error('the SAAM already starting stopped before it was ready. Open SAAM again.');
+        if(holder==='other')throw Error('Another program uses the SAAM control port '+applicationPort(paths.home)+'. Close it, then open SAAM again.');
         await new Promise(done=>setTimeout(done,200));
       }
     }
@@ -129,10 +136,10 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
       if(state.tray.problem)await report({kind:'tray-unavailable',error:state.tray.problem},{firstRun:true});
     }
     await replaceFile(instanceFile,JSON.stringify(record)+'\n');
-    if(openOnStart)await state.runtime.command({command:'open'});
+    const opened=openOnStart?await state.runtime.command(opening):null;
     await report({kind:'application-ready',version:config.version},{firstRun:true,complete:true});
     state.migration=null;state.runtimeMigration=null;
-    return {existing:false,record,runtime:state.runtime,services:state.services,stop};
+    return {existing:false,opened,record,runtime:state.runtime,services:state.services,stop};
   }catch(error){
     await end(error).catch(cleanup=>{error.message+=' Startup cleanup failed: '+cleanup.message;});throw error;
   }

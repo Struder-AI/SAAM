@@ -28,8 +28,22 @@ export async function controlRequest(instance,body,{waitMs=35000}={}){
   });
   const chunks=[];for await(const chunk of response)chunks.push(Buffer.from(chunk));
   const value=JSON.parse(Buffer.concat(chunks).toString('utf8'));
-  if(response.statusCode<200||response.statusCode>=300)throw Object.assign(Error(value.error??`SAAM answered ${response.statusCode}.`),{result:value});
+  if(response.statusCode<200||response.statusCode>=300)throw Object.assign(Error(value.error??`SAAM answered ${response.statusCode}.`),{result:value,status:response.statusCode});
   return value;
+}
+// Who holds the home's control port: a SAAM application, ready or still starting,
+// answers a request without its token with 403 (saam); none: nothing listens;
+// other: another program answered; busy: no answer yet, or the connection dropped.
+export async function leaseHolder(port){
+  try{
+    const response=await new Promise((received,failed)=>{
+      const probe=request({hostname:'127.0.0.1',port,path:'/control',method:'POST',agent:false,signal:AbortSignal.timeout(2000)},received);
+      probe.once('error',failed);probe.end();
+    });
+    const chunks=[];for await(const chunk of response)chunks.push(Buffer.from(chunk));
+    const value=JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    return response.statusCode===403&&value.error==='Invalid local control request.'?'saam':'other';
+  }catch(error){return error.code==='ECONNREFUSED'?'none':error instanceof SyntaxError?'other':'busy';}
 }
 export async function readyInstance(){
   const paths=homePaths();await mkdir(paths.state,{recursive:true});

@@ -6,9 +6,11 @@ import {fileURLToPath} from 'node:url';
 export async function startTray({port,token,pid=process.pid}={}){
   if(!['win32','darwin'].includes(process.platform))return {problem:null,stop(){}};
   const script=fileURLToPath(new URL(process.platform==='win32'?'./tray.ps1':'./tray.applescript',import.meta.url));
+  // A tray click shows Studio from the tray process, which received it (studio/browser.mjs showOpened).
+  const raise=fileURLToPath(new URL(process.platform==='win32'?'../studio/raise-window.ps1':'../studio/raise-window.jxa',import.meta.url));
   const child=process.platform==='win32'
-    ?spawn('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-STA','-File',script,'-Port',String(port),'-Token',token,'-AppPid',String(pid)],{stdio:['ignore','pipe','pipe'],windowsHide:true})
-    :spawn('/usr/bin/osascript',[script,String(port),token,String(pid)],{stdio:['ignore','pipe','pipe']});
+    ?spawn('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-STA','-File',script,'-Port',String(port),'-Token',token,'-AppPid',String(pid),'-RaiseScript',raise],{stdio:['ignore','pipe','pipe'],windowsHide:true})
+    :spawn('/usr/bin/osascript',[script,String(port),token,String(pid),raise],{stdio:['ignore','pipe','pipe']});
   try{
     await new Promise((done,fail)=>{
       const output={problem:null},timer=setTimeout(()=>{child.kill();fail(Error('The SAAM tray did not become ready.'));},15000);

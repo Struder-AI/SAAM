@@ -25,3 +25,7 @@ function connect(){
 connect();
 addEventListener('pagehide',()=>{stream.connected=false;stream.events?.close();stream.events=null;});
 addEventListener('pageshow',event=>{if(event.persisted)connect();});
+// Focus is reported to this window's address: opening SAAM again brings forward the
+// window focused last (packaging/studio-windows.mjs).
+const focused=()=>navigator.sendBeacon('/window/focus');
+addEventListener('focus',focused);if(document.hasFocus())focused();
