@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-10-04 — Old scanner retired; code checks as errors; geometry cold re-solve
+
+- Milestone 6 (worker): removed the scanned set, `tree.json`, `facts.tsv`, the finding, coupling, flow, presentation, freshness and coverage modules and the design-set audit (27 files, about 480 KB). Kept what the influence pipeline, design sets and toolkit reach: `graph.mjs` declaration anchors for ownership (identical over 371 files), the annealer, the scorer objective, tree drawing. The CLI (163 → 24 lines) defaults to `030-influence` and keeps the command's exit code (influence `check` used to exit 0 on failure).
+- Milestone 3 (worker): `code-checks.mjs` reports `FILE:LINE: RULE: REASON` in `check` (exit 1) and counts at the end of `regenerate`, which still writes the maps. Main checkout after merge: 1,249 errors (contract 673, unmodelled 286, command-returns-data 232, unlinked 57, unowned 1); Application and Dev tools have no authored contracts yet.
+- Geometry cold re-solve (owner): kept solve deleted and regenerated; geometry energy 0.934 warm → 0.890 cold; 28 geometry labels retired with their clusters (141 of 169 labels apply). Warm store backed up in the session scratchpad.
+- The Codex batch renamed `exportAndInterpretProgram` to `exportAndDecodeProgram`; architecture.json and ownership.json follow, so 030-architecture regenerates again. All three sets regenerate and check (influence `check` exits 1 on the code errors by design). No tests run.
+
 ## 2026-10-04 — Short top-level names
 
 - Owner-approved: Geometry, Toolpath, Bundle, Workspace, Export, Settings, Dev tools, Agent, Unassigned; Maker context and External resources kept. architecture.json labels and the generated unassigned actor in solve-middle.mjs. Regenerated: checks and reads ok, positions and labels applied. Unblocks the held map-0 wires and actors. No tests run.

@@ -13207,7 +13207,7 @@
     "core/print/spatial-inputs.mjs::manufacturing",
     "core/application/runtime.mjs::publicBundleIdentity",
     "core/export/registry.mjs::interpretProgram",
-    "core/export/registry.mjs::exportAndInterpretProgram",
+    "core/export/registry.mjs::exportAndDecodeProgram",
     "core/machine/rules.mjs::checkMachinePath",
     "core/machine/rules.mjs::checkMachinePath::point",
     "core/export/griffin-player.mjs::validateGcodeCompletion",
