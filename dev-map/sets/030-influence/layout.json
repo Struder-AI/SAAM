@@ -3,7 +3,7 @@
  "about": "Authored box positions on influence maps, by map path and box identity: dev-map/README.md#authored-placement. Map 0's authored nodes are placed in the authored set's architecture.json.",
  "maps": {
   "0": {
-   "@cluster/(unowned)": {"x": 649, "y": 1135},
+   "@cluster/(unowned)": {"x": 631, "y": 1159},
    "@cluster/external:unassigned": {"x": 111, "y": 1262}
   }
  }
