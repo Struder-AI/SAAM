@@ -20,8 +20,8 @@ import {interpretDensoFiles} from '../export/denso-player.mjs';
 import {unpackZip} from '../export/zip.mjs';
 import {uprightPose} from '../path/pose.mjs';
 import {rotatePointZ as bedPoint} from '../geom/frame.mjs';
-import {prepareSliceContexts,sliceContextResult} from '../print/slices.mjs';
-import {surfaceRegion} from '../geom/surface-region.mjs';
+import {prepareSliceContexts} from '../print/slices.mjs';
+import {prepareDepositionWork,constructDepositionWork} from '../print/slice-deposition.mjs';
 import {buildShell} from '../geom/build.mjs';
 import {splineTube} from './fixtures/spline-shapes.mjs';
 import {scheduleOperations} from '../path/compose.mjs';
@@ -50,16 +50,16 @@ test('DENSO setup is unresolved by default; tube geometry uses the shared native
 });
 
 test('same-height cylindrical shells retain explicit prerequisites in the existing scheduler',async()=>{
-  const plan=small(),assignment=plan.slices.assignments.find(a=>a.stack?.direction==='normal'),shell=buildShell(await rhino(),plan.geometry);
-  const finishedSurface={...surfaceRegion(shell,assignment.surface),sourceOperationIds:['body'],coverage:['nominal']};
-  const {contexts}=prepareSliceContexts({plan,machine,shells:[[null,shell,true]],volumes:new Map(),bands:[],reserves:[],
-    referenceAssignments:[{assignment,shell,process:plan.process}]});
-  const result=sliceContextResult(contexts.find(record=>record.spec.id===assignment.id),{reference:finishedSurface}),first=result.operations[0];
-  const body={...first,id:'body',layerId:'body',after:[],rank:999};
-  assert.deepEqual(scheduleOperations([{operations:[...result.operations,body]}]).map(o=>o.id),['body','pipe-cladding:0','pipe-cladding:1']);
-  assert.throws(()=>scheduleOperations([result]),/unknown operation body/);
-  assert.throws(()=>scheduleOperations([{operations:[body,...result.operations]}],{order:['pipe-cladding:1','body']}),/cycle/);
-  assert.ok(result.operations[0].strokes.every(s=>s.points[0][2]!==s.points.at(-1)[2]));
+  // The cladding family resolves from the body's finished results; the work graph turns that source into operation prerequisites.
+  const plan=small(),shell=buildShell(await rhino(),plan.geometry),completed=new Map();
+  const {contexts}=prepareSliceContexts({plan,machine,shells:[[null,shell,true]],volumes:new Map()});
+  for(const node of prepareDepositionWork(contexts))completed.set(node.key,{node,result:constructDepositionWork(node,completed,{plan})});
+  const operations=id=>[...completed.values()].filter(({node})=>node.sourceId===id).flatMap(({result})=>result.operations);
+  const body=operations('body'),clad=operations('pipe-cladding'),last=body.at(-1).id;
+  assert.deepEqual(scheduleOperations([{operations:[...clad,...body]}]).map(o=>o.id).slice(-3),[last,'pipe-cladding:0:fill','pipe-cladding:1:fill']);
+  assert.throws(()=>scheduleOperations([{operations:clad}]),/unknown operation body:/);
+  assert.throws(()=>scheduleOperations([{operations:[...body,...clad]}],{order:['pipe-cladding:1:fill',last]}),/cycle/);
+  assert.ok(clad[0].strokes.every(s=>s.points[0][2]!==s.points.at(-1)[2]));
 });
 
 test('existing mesh/spline regional skills use RC8A at fixed orientation',async()=>{
