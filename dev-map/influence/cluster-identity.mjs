@@ -21,9 +21,9 @@
 // to the identity of the cluster that numbering named.
 import {createHash} from 'node:crypto';
 
-// A full re-solve after a one-leaf change can reshuffle a node's clusters (the annealer starts
-// flat): measured 2026-10-04 on export and extensions, each earlier top-level cluster's best
-// successor overlapped it by 0.27 to 0.32. Matches below STRONG are reported as weak.
+// A cold solve (no kept solve to start from) can reshuffle a node's clusters: measured 2026-10-04
+// on export and extensions, each earlier top-level cluster's best successor overlapped it by 0.27
+// to 0.32. Matches below STRONG are reported as weak.
 export const MATCH=0.25,STRONG=0.5;
 const K=32;
 const order=(a,b)=>a<b?-1:a>b?1:0;

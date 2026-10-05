@@ -37,13 +37,6 @@ library (shared queries treating every caller alike) is one `library ·` box. Pa
 unlinked and unowned leaves are counts on boxes and marker boxes that open their lists, and files
 not analysed a marked list on map 0. The viewer is `sets/030-influence/view/index.html`.
 
-**Possible arrows** (temporary, `suspectedImprecision` in solved-set.mjs): reads mark a state node
-`possible` when it belongs to an alias class, ≥10 state nodes from ≥5 allocating files whose reader
-sets overlap (Jaccard ≥ 0.8) — the analysis merging objects. Every leaf arrow touching one is
-possible: the viewer fades an arrow whose leaf arrows are all possible and its pane lists them in
-groups of their own; a map read gives `{real, possible}` for such arrows and a link read a separate
-`possible` key. The rule reads only the stored model; delete that section to remove it.
-
 ## Commands
 
 ```sh
@@ -91,12 +84,13 @@ Each closure is cached under `store/analysis/closures/` with a hash of its files
 modules, Node and acorn, so only closures holding an edited file run again. Each node's solve is
 kept by a hash of exactly what it reads: its own leaves (by rank, so offsets that merely move do
 not count), its library leaves, the leaf arrows touching them with each far end as its owner node,
-the solve options and the solver's code. Only nodes whose slice changed solve again. With
-`"solve": "place"` in `map.json` (or `--solve place` for one run), a changed node is not solved: its new leaves go to their file's
-cluster, read as `placement not solved` until a default (`"changed"`) regenerate solves it.
-Timings (2026-10-04): clean 43 minutes (40 of them geometry's solve); unchanged 14 s; a comment
-line in a settings file 3.3 minutes, all analysis, nothing re-solved; one added call there 2.6
-minutes, `settings` alone re-solved.
+the solve options and the solver's code. Only nodes whose slice changed solve again, warm: the
+kept solve, its new leaves placed in their file's cluster, is the start, and only moves that lower
+the objective are taken, so clusters change only where it gains. A node without a kept solve
+anneals from flat (cold; delete `store/solve/NODE.json` to force one). With `"solve": "place"` in
+`map.json` (or `--solve place` for one run), a changed node is not solved: its new leaves are
+placed and read as `placement not solved` until a default (`"changed"`) regenerate solves it.
+Timings (2026-10-04): a full solve, every node warm, 18 s (cold: about 2 minutes); unchanged 14 s.
 
 ## Authoring
 
@@ -152,9 +146,8 @@ an identity carried by content instead ([cluster-identity.mjs](influence/cluster
 `NODE/~HEX` (HEX from a hash of its leaves when first seen) or `NODE/library`. Each `regenerate`
 matches the clusters it solved to those of the stored model it replaces, node by node, by the
 Jaccard overlap of all their leaves (by leaf identity): best pairs first, one to one, at overlap
-0.25 or more (below 0.5 reported `weak`: a full re-solve after a one-leaf change can reshuffle a
-node, and the best successors of its top clusters then overlap them by about 0.3; `"solve":"place"`
-keeps them whole). A matched cluster keeps its identity; when one splits, the best-overlapping part
+0.25 or more (below 0.5 reported `weak`; a warm solve keeps most clusters whole, a cold one can
+reshuffle a node). A matched cluster keeps its identity; when one splits, the best-overlapping part
 inherits it (and its positions) and the other parts are new and solver-placed; when clusters
 merge, the best-overlapping one's identity goes on and the others retire. The stored model keeps
 each cluster page's identity (its `path`), this solve's `solverId` and `signature` (leaf count and

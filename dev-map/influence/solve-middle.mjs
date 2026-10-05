@@ -203,17 +203,19 @@ export async function ownLeaves(leaves,authored,{root=repo,texts=analysedTexts(l
 const pairsOf=drawn=>pairArrowsOf(drawn.lifted.map(l=>l.link),leaf=>drawn.holder.get(leaf)).drawn.map(d=>[d.from,d.to]);
 export const rateInfluence=(drawn,callers)=>scoreDrawn(drawn,callers,{pairsOf,...INFLUENCE});
 
-// The starting tree for one authored node: its linked leaves flat (the default, which anneals
-// lower), or grouped by source file (faster: about a third less time on core/path; a
-// warm start only; the solver regroups freely). Leaves of other nodes that its leaves link to sit
-// flat under their own fixed nodes, so a link leaving it lands on that node's box. A leaf with no
-// arrow at all is set aside: no placement of it changes what any map says, so it is listed under
-// its node as unlinked (dead code or an analysis gap), not drawn.
+// The starting tree for one authored node. Cold, its linked leaves flat (the default, which
+// anneals lower), or grouped by source file (faster: about a third less time on core/path; the
+// solver regroups freely). Warm, the node's last solve carried to its current leaves (`warm`,
+// carry): its clusters and leaf homes, a cluster left with fewer than two boxes giving them to its
+// parent. Leaves of other nodes that its leaves link to sit flat under their own fixed nodes, so a
+// link leaving it lands on that node's box. A leaf with no arrow at all is set aside: no placement
+// of it changes what any map says, so it is listed under its node as unlinked (dead code or an
+// analysis gap), not drawn.
 //
 // Its uniform helpers (uniformLeaves), when there are at least two, start and stay in one fixed
 // library cluster under it: the solver never moves them, and every map draws the library as one
 // box with one arrow per consumer box.
-function startTree(node,ownerOf,links,start,uniform=new Set()) {
+function startTree(node,ownerOf,links,start,uniform=new Set(),warm=null) {
   const parent=new Map(),clusters=new Map([[node,{label:null}]]),fixed=new Set([node]);
   parent.set(node,TOP);
   const linked=new Set(links.flatMap(({from,to})=>[from,to]));
@@ -221,13 +223,26 @@ function startTree(node,ownerOf,links,start,uniform=new Set()) {
   const shared=own.filter(leaf=>linked.has(leaf)&&uniform.has(leaf)),library=shared.length>1?shared:[];
   const mine=own.filter(leaf=>linked.has(leaf)&&!library.includes(leaf)),unlinked=own.filter(leaf=>!linked.has(leaf));
   if(library.length){clusters.set(LIBRARY,{label:null});fixed.add(LIBRARY);parent.set(LIBRARY,node);for(const leaf of library)parent.set(leaf,LIBRARY);}
-  const byFile=new Map();
-  for(const leaf of mine){const file=leaf.slice(0,leaf.indexOf(':'));(byFile.get(file)??byFile.set(file,[]).get(file)).push(leaf);}
-  let next=1;
-  for(const [,held] of byFile) {
-    if(start!=='file'||held.length<2||byFile.size<2){for(const leaf of held)parent.set(leaf,node);continue;}
-    const id=`c${next++}`;clusters.set(id,{label:null});parent.set(id,node);
-    for(const leaf of held)parent.set(leaf,id);
+  if(warm) {
+    const kept=[...warm.clusters].filter(([id])=>!clusters.has(id)&&id!==warm.library);
+    for(const [id] of kept)clusters.set(id,{label:null});
+    for(const [id,p] of kept)parent.set(id,clusters.has(p)&&!fixed.has(p)?p:node);
+    for(const leaf of mine){const home=warm.homes.get(leaf);parent.set(leaf,clusters.has(home)&&!fixed.has(home)?home:node);}
+    for(let thin=kept;thin.length;) {
+      const boxes=new Map();for(const p of parent.values())boxes.set(p,(boxes.get(p)??0)+1);
+      thin=[...clusters.keys()].filter(id=>!fixed.has(id)&&(boxes.get(id)??0)<2);
+      for(const id of thin){const up=parent.get(id);for(const [x,p] of parent)if(p===id)parent.set(x,up);clusters.delete(id);parent.delete(id);}
+    }
+  }
+  else {
+    const byFile=new Map();
+    for(const leaf of mine){const file=leaf.slice(0,leaf.indexOf(':'));(byFile.get(file)??byFile.set(file,[]).get(file)).push(leaf);}
+    let next=1;
+    for(const [,held] of byFile) {
+      if(start!=='file'||held.length<2||byFile.size<2){for(const leaf of held)parent.set(leaf,node);continue;}
+      const id=`c${next++}`;clusters.set(id,{label:null});parent.set(id,node);
+      for(const leaf of held)parent.set(leaf,id);
+    }
   }
   for(const {from,to} of links)for(const leaf of [from,to])if(!parent.has(leaf)) {
     const other=ownerOf.get(leaf)??UNOWNED;
@@ -266,21 +281,24 @@ export function uniformLeaves(model) {
 export const STAGE_MOVES=0,PATIENCE=3;
 
 // Solve one authored node. Returns its clusters (parent, label null) and leaf homes, ids local.
-// `uniform` are the uniform helpers (uniformLeaves); this node's form its library cluster.
-export function solveNode(node,ownerOf,arrows,{seed=1,start='flat',maxStages=Infinity,stageMoves=STAGE_MOVES,patience=PATIENCE,onStage,uniform}={}) {
+// `uniform` are the uniform helpers (uniformLeaves); this node's form its library cluster. Cold,
+// it anneals from startTree's flat or by-file tree. Warm (`warm`: its last solve carried to its
+// current leaves) it descends from that solve, taking only moves that lower the objective, so
+// clusters change only where the objective gains.
+export function solveNode(node,ownerOf,arrows,{seed=1,start='flat',maxStages=Infinity,stageMoves=STAGE_MOVES,patience=PATIENCE,onStage,uniform,warm=null}={}) {
   const clock=performance.now();
   const links=arrows.filter(a=>ownerOf.get(a.from)===node||ownerOf.get(a.to)===node);
-  const {tree,fixed,leaves,library,unlinked}=startTree(node,ownerOf,links,start,uniform);
+  const {tree,fixed,leaves,library,unlinked}=startTree(node,ownerOf,links,start,uniform,warm);
   const shelf=library.length?{library:LIBRARY,libraryLeaves:library.length}:{library:null,libraryLeaves:0};
-  if(leaves.length<2)return {node,leaves:leaves.length,unlinked,links:links.length,...shelf,
+  if(leaves.length<2)return {node,leaves:leaves.length,unlinked,links:links.length,...shelf,warm:!!warm,
     clusters:new Map(library.length?[[LIBRARY,node]]:[]),homes:new Map([...leaves.map(l=>[l,node]),...library.map(l=>[l,LIBRARY])]),ms:0,stages:0,start:0,energy:0};
   let stages=0;
-  const result=solveTree(tree,links,{seed,maxStages,stageMoves,patience,fixed,open:new Set([node]),repeats:false,score:rateInfluence,
+  const result=solveTree(tree,links,{seed,maxStages,stageMoves,patience,descend:!!warm,fixed,open:new Set([node]),repeats:false,score:rateInfluence,
     onStage:s=>{stages=s.stage+1;onStage?.(s);}});
   const inside=id=>{for(let p=id;p!==undefined;p=result.tree.parent.get(p))if(p===node)return true;return false;};
   const clusters=new Map([...result.tree.clusters.keys()].filter(id=>(!fixed.has(id)||id===LIBRARY)&&inside(id)).map(id=>[id,result.tree.parent.get(id)]));
   const homes=new Map([...leaves,...library].map(leaf=>[leaf,result.tree.parent.get(leaf)]));
-  return {node,leaves:leaves.length,unlinked,links:links.length,...shelf,clusters,homes,ms:performance.now()-clock,stages,start:result.start,energy:result.energy};
+  return {node,leaves:leaves.length,unlinked,links:links.length,...shelf,warm:!!warm,clusters,homes,ms:performance.now()-clock,stages,start:result.start,energy:result.energy};
 }
 
 // ---- one node's solve, kept by exactly what it reads --------------------------------------
@@ -306,7 +324,7 @@ export function nodeSlice(node,ownerOf,arrows,uniform) {
 // a library leaf kept), so an edit that only moves offsets without reordering them reuses the solve;
 // the solve options; and the solver's code (these functions and the annealer and scorer modules).
 let solverText=null;
-const solverSource=()=>solverText??=[startTree,solveNode,rateInfluence,pairsOf,pairArrowsOf].map(String).join('\n')
+const solverSource=()=>solverText??=[startTree,solveNode,carry,rateInfluence,pairsOf,pairArrowsOf].map(String).join('\n')
   +JSON.stringify({LIBRARY,UNOWNED,OUTSIDE,STAGE_MOVES,PATIENCE,SIZE,WEIGHT,INFLUENCE})
   +['dev-map/lib/solve.mjs','dev-map/lib/score.mjs','dev-map/lib/tree.mjs'].map(f=>readFileSync(resolve(repo,f),'utf8').replaceAll('\r\n','\n')).join('\n');
 export function sliceHash(slice,{seed=1,start='flat',maxStages=Infinity}={}) {
@@ -316,10 +334,13 @@ export function sliceHash(slice,{seed=1,start='flat',maxStages=Infinity}={}) {
 }
 
 // Solve a slice: outside ends sit under their owners' fixed boxes, as the full model's would.
-export function solveSlice(slice,{seed=1,start='flat',maxStages=Infinity,onStage}={}) {
+// `warm`, the node's kept solve with the slice's leaf names ({entry, names}), starts it warm.
+export function solveSlice(slice,{seed=1,start='flat',maxStages=Infinity,onStage,warm=null}={}) {
   const ownerOf=new Map(slice.own.map(leaf=>[leaf,slice.node]));
   for(const {from,to} of slice.links)for(const x of [from,to])if(x.startsWith(OUTSIDE)&&x!==OUTSIDE+UNOWNED)ownerOf.set(x,x.slice(OUTSIDE.length));
-  return solveNode(slice.node,ownerOf,slice.links,{seed,start,maxStages,uniform:new Set(slice.library),onStage});
+  const carried=warm&&carry(slice,warm.entry,warm.names);
+  return solveNode(slice.node,ownerOf,slice.links,{seed,start,maxStages,uniform:new Set(slice.library),onStage,
+    warm:carried&&{...carried,homes:new Map([...carried.homes].map(([r,c])=>[slice.own[r],c]))}});
 }
 
 // A kept solve (store/solve/NODE.json): clusters by solver id under the node, and leaf homes by
@@ -329,7 +350,7 @@ export function sliceEntry(slice,s,{hash,names}) {
   return {schema:2,node:slice.node,hash,generated:new Date().toISOString(),own:slice.own,names,library:s.library,
     clusters:[...s.clusters],homes:[...s.homes].map(([leaf,c])=>[rank.get(leaf),c]),
     summary:{node:s.node,leaves:s.leaves,library:s.libraryLeaves,unlinked:s.unlinked.length,arrows:s.links,clusters:s.clusters.size,
-      startEnergy:s.start,energy:s.energy,stages:s.stages,ms:Math.round(s.ms)}};
+      start:s.warm?'warm':'cold',startEnergy:s.start,energy:s.energy,stages:s.stages,ms:Math.round(s.ms)}};
 }
 // A kept solve as assemble's `solved` entry for the slice it was kept for.
 export const solvedOf=(entry,slice)=>({node:entry.node,library:entry.library,clusters:new Map(entry.clusters),
@@ -347,14 +368,14 @@ export function sliceMaps(slice,solved) {
     .map(m=>({...m,arrows:m.arrows.map(a=>({...a,leafArrows:a.leafArrows.map(i=>slice.index[i])}))}));
 }
 
-// Placing without solving (map.json `"solve":"place"`): a changed node keeps its last solve's
-// clusters. A leaf matched to one of its leaves (same file, name and order among same-named leaves
-// there; line and offset may move) keeps its cluster; a library leaf goes to the library; any
-// other leaf goes to the cluster holding most of its file's kept leaves, else under the node, and
-// is marked `placed` (placement not solved) until the node is next solved. Emptied clusters go.
+// A kept solve carried to a slice, for placing and for a warm solve's start. A leaf matched to one
+// of its leaves (same file, name and order among same-named leaves there; line and offset may
+// move) keeps its cluster; a library leaf goes to the library; any other leaf goes to the cluster
+// holding most of its file's kept leaves, else under the node, and is `placed`. Emptied clusters
+// go. Homes and placed leaves by rank.
 const identities=(keys,names)=>{const seen=new Map();
   return keys.map((key,i)=>{const id=String(names?.[i]??key).replace(/^(.*?):\d+ /,'$1 '),n=seen.get(id)??0;seen.set(id,n+1);return `${id}\n${n}`;});};
-export function placeSlice(slice,entry,{hash,names}) {
+function carry(slice,entry,names) {
   const was=new Map(identities(entry.own,entry.names).map((id,r)=>[id,r])),oldHome=new Map(entry.homes),oldPlaced=new Set(entry.placed??[]);
   const now=identities(slice.own,names),linked=new Set(slice.links.flatMap(({from,to})=>[from,to])),inLibrary=new Set(slice.library);
   const clusters=new Map(entry.clusters);let library=entry.library&&clusters.has(entry.library)?entry.library:null;
@@ -378,8 +399,15 @@ export function placeSlice(slice,entry,{hash,names}) {
     for(const id of [...clusters.keys()])if(!used.has(id)){clusters.delete(id);pruned=true;}
   }
   if(library&&!clusters.has(library))library=null;
+  return {clusters,library,homes,placed:placed.sort((a,b)=>a-b),linked};
+}
+// Placing without solving (map.json `"solve":"place"`): a changed node keeps its last solve's
+// clusters (carry), its unmatched leaves marked placed (placement not solved) until it is next
+// solved.
+export function placeSlice(slice,entry,{hash,names}) {
+  const {clusters,library,homes,placed,linked}=carry(slice,entry,names);
   const leaves=[...homes.values()].filter(h=>h!==library).length;
-  return {...entry,hash,own:slice.own,names,library,clusters:[...clusters],homes:[...homes],placement:'not solved',placed:placed.sort((a,b)=>a-b),
+  return {...entry,hash,own:slice.own,names,library,clusters:[...clusters],homes:[...homes],placement:'not solved',placed,
     summary:{...entry.summary,leaves,library:homes.size-leaves,unlinked:slice.own.filter(l=>!linked.has(l)).length,arrows:slice.links.length,
       clusters:clusters.size,placement:'not solved',placedLeaves:placed.length}};
 }
@@ -449,8 +477,8 @@ const option=name=>{const at=argv.indexOf(name);return at<0?undefined:argv[at+1]
 const options=name=>{const found=[];argv.forEach((a,i)=>{if(a===name)found.push(argv[i+1]);});return found;};
 const main=process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url);
 if(main&&option('--slice')) {
-  const {slice,options:o,hash,names}=JSON.parse(readFileSync(option('--slice'),'utf8'));
-  const s=solveSlice(slice,{...o,maxStages:o.maxStages??Infinity,
+  const {slice,options:o,hash,names,warm}=JSON.parse(readFileSync(option('--slice'),'utf8'));
+  const s=solveSlice(slice,{...o,maxStages:o.maxStages??Infinity,warm:warm&&{entry:warm,names},
     onStage:x=>{if(x.stage%25===0)process.stderr.write(`${slice.node} stage ${x.stage} energy ${x.energy.toFixed(4)} best ${x.best.toFixed(4)}\n`);}});
   writeFileSync(option('--out'),JSON.stringify(sliceEntry(slice,s,{hash,names})));
 }
