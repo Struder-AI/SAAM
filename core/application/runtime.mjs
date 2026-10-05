@@ -756,7 +756,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       const {dir}=await locate(bundleId),result=await applySlice(dir,request,{expectedRevision,expectedEditRevision});
       return {...summary(bundleId,result.state),edit:result.edit};
     }
-  operation('modulate','Add, edit or remove a field modifier in plan.modulations. Select world/slice/curve frame, assignment/role and layer scope. Runs before final support publication; changes invalidate dependent output and confirmation. Add requires channel, amplitude, field and direction for displacement/tilt; edit patches saved settings. Read slice#modulation.',{bundleId:bundleIdSchema,...editIdentitySchema,action:z.enum(['add','edit','remove']),id:z.string().regex(/^[a-z][a-z0-9-]*$/),modifier:modulationPatchSchema.optional()},false);
+  operation('modulate','Add, edit or remove a field modifier in plan.modulations. Select world/slice/curve frame, assignment/role and layer scope. Runs before final support publication; changes invalidate dependent output and confirmation. Add requires channel, amplitude, field and direction for displacement/tilt; edit patches saved settings. Read slice#contact-poses-and-extensions.',{bundleId:bundleIdSchema,...editIdentitySchema,action:z.enum(['add','edit','remove']),id:z.string().regex(/^[a-z][a-z0-9-]*$/),modifier:modulationPatchSchema.optional()},false);
   async function modulate({bundleId,expectedRevision,expectedEditRevision,...request}){
       noApprovalFields(request.modifier);
       const {dir}=await locate(bundleId),result=await applyModulation(dir,request,{expectedRevision,expectedEditRevision});

@@ -29,7 +29,7 @@ disconnected roof heights remain separate. General offset folds are unresolved.
 
 `repeat` translates a curve set by count/translation or selects indices from a
 named slice family. Surface references and family repetition use finalized
-source data; dependencies must exist. Optional [modulation](../slice/SKILL.md#modulation)
+source data; dependencies must exist. Optional [modulation](../slice/SKILL.md#contact-poses-and-extensions)
 primarily adds visual/surface effects; the profiles above directly express process variation.
 
 [Networks](../line-network/SKILL.md) and [bridging](../bridging/SKILL.md) supply curves.

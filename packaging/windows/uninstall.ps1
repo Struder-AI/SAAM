@@ -6,7 +6,7 @@ param([switch]$Yes)
 function Wait-ForClose { Write-Host ''; Read-Host 'Press Enter to close this window' | Out-Null }
 
 $data = Get-SaamDataFolder
-if (Test-SaamRunning) { Write-Host 'SAAM is running. Choose Quit from the tray menu, then uninstall again.' -ForegroundColor Red; Wait-ForClose; exit 1 }
+if (Test-SaamRunning) { Write-Host 'SAAM is running. Choose Quit in Studio or the SAAM tray menu, then uninstall again.' -ForegroundColor Red; Wait-ForClose; exit 1 }
 if (-not $Yes) {
   Write-Host "This removes SAAM from $SaamRoot and its shortcuts."
   Write-Host "Your prints and settings in $data are kept."

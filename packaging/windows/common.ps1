@@ -63,7 +63,9 @@ function Stop-WithMessage([string]$Message) {
 }
 
 # True while SAAM runs: the data folder's instance record names a live node
-# process, or a node process runs from the installation folder.
+# process, or a node process runs the installation's packaging\launch.mjs (as
+# install.sh). Other node processes from the installation (an agent's saam
+# command, client connectors) do not block the program folder's replacement.
 function Test-SaamRunning {
   foreach ($record in @((Join-Path $SaamHome 'state\instance.json'), (Join-Path $LegacyData 'instance.json'))) {
   if (Test-Path -LiteralPath $record) {
@@ -75,14 +77,15 @@ function Test-SaamRunning {
       }
     } catch { }
   } }
-  $fromInstall = Get-Process -Name node -ErrorAction SilentlyContinue |
-    Where-Object { $_.Path -and ($_.Path.StartsWith($SaamRoot + '\', [StringComparison]::OrdinalIgnoreCase) -or $_.Path.StartsWith($LegacyApp + '\', [StringComparison]::OrdinalIgnoreCase)) }
-  return [bool]$fromInstall
+  $launchers = @((Join-Path $SaamRoot 'packaging\launch.mjs'), (Join-Path $LegacyApp 'packaging\launch.mjs'))
+  $launched = Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $line = $_.CommandLine; $line -and @($launchers | Where-Object { $line.IndexOf($_, [StringComparison]::OrdinalIgnoreCase) -ge 0 }).Count }
+  return [bool]$launched
 }
 
 function Assert-SaamStopped([string]$Action) {
   if (Test-SaamRunning) {
-    Stop-WithMessage "SAAM is running. Choose Quit from the SAAM tray icon, then $Action again."
+    Stop-WithMessage "SAAM is running. Choose Quit in Studio or the SAAM tray menu, then $Action again."
   }
 }
 

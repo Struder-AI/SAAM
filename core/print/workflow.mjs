@@ -519,7 +519,7 @@ async function prepareToolpath(state,{onProgress,source}={}){
       return {path,artifact:saved};
     }
     if(source.missing)throw source.missing;
-    const path=await generatePath(state.plan,{onProgress});
+    const path=await generatePath(state.plan,{onProgress}).catch(error=>requireMigrated(state,error));
     requireThat(!adapter.completionContract||path.completion?.contract===adapter.completionContract&&path.completion.inputHash===state.pathHash,'Generated SAAMpath completion does not match its inputs.');
     const bytes=JSON.stringify(path),contentHash=hash(bytes),file=`paths/${contentHash}.json`;
     await save(resolve(state.dir,file),bytes);
@@ -527,6 +527,15 @@ async function prepareToolpath(state,{onProgress,source}={}){
   })();
   pathPreparation={key,result};
   try{return await result;}catch(error){if(pathPreparation?.result===result)pathPreparation=null;throw error;}
+}
+
+// Migration stays explicit: a generation failure on a recipe that migration
+// would update names migrate_bundle; any other failure is reported unchanged.
+async function requireMigrated(state,error){
+  const migrates=await import('./recipe-migration.mjs')
+    .then(({migrateRecipeFields})=>migrateRecipeFields(state.plan,state.machine).changes.length>0).catch(()=>false);
+  if(migrates)throw Error(`${error.message} This recipe predates the current format: run saam call migrate_bundle with the bundleId, then generate again.`,{cause:error});
+  throw error;
 }
 
 async function readPathBytes(dir,artifact){
