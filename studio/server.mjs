@@ -115,7 +115,7 @@ const printFreeRoutes=new Set(['/api/open','/api/tour','/api/view-performance','
 // This is a function supplied by code, never a module path supplied by a print or HTTP request.
 // A null directory opens Studio with no print; the person or agent opens one later.
 // The owner supplies libraryRoot and, to remember exported setups, machineSetups.
-export function createStudio(directory,{libraryRoot,machineSetups,resolveBundle=bundleFor,agentOwnerId,agentRequests,studioEvents,relay,requestFolder,chatName,chatClient,instanceId=randomBytes(16).toString('hex'),sessionToken,restoring=false,runtimeId,runtimeLabel,fingerprint}) {
+export function createStudio(directory,{libraryRoot,machineSetups,resolveBundle=bundleFor,agentOwnerId,agentRequests,studioEvents,relay,requestFolder,chatName,chatClient,instanceId=randomBytes(16).toString('hex'),sessionToken,restoring=false,runtimeId,runtimeLabel,fingerprint,routeStudio}) {
   const initialOwnerId=agentOwnerId??agentRequests?.ownerId??`studio:${instanceId}`;
   if(agentRequests?.ownerId&&agentRequests.ownerId!==initialOwnerId)throw Error('The request store belongs to another chat.');
   const initialRequests=agentRequests??createAgentRequests(libraryRoot,{ownerId:initialOwnerId,folder:requestFolder});
@@ -597,9 +597,14 @@ export function createStudio(directory,{libraryRoot,machineSetups,resolveBundle=
         else if(url.pathname==='/api/open'){
           if(progress.active)throw Error('Exit the tour to open another print.');
           const selected=await printDirectory(data.path,resolveBundle);
-          await openPrint(selected);
-          const adapter=await opened,state=(await readStableBundle(adapter,dir,{program:'source'})).state;
-          note('print-opened',{name:await printName(dir,state.plan),tour:progress.active,revision:state.revision});
+          // Another runtime's print reopens this window in that runtime.
+          const routed=await routeStudio?.(selected);
+          if(routed)note('print-opened',{runtime:routed.runtime});
+          else{
+            await openPrint(selected);
+            const adapter=await opened,state=(await readStableBundle(adapter,dir,{program:'source'})).state;
+            note('print-opened',{name:await printName(dir,state.plan),tour:progress.active,revision:state.revision});
+          }
         }
         else if(url.pathname==='/api/history'){
           if(progress.active)throw Error('Exit the tour before restoring edits.');
@@ -694,7 +699,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,resolveBundle=
     return replaceAttachment(next);
   };
   server.attachment=()=>chat.current.attached;
-  server.attachmentBusy=()=>operations.active>0||Boolean(importProgress)||['preparing','generating'].includes(generationStatus()?.status);
+  server.attachmentBusy=(ownOperations=0)=>operations.active>ownOperations||Boolean(importProgress)||['preparing','generating'].includes(generationStatus()?.status);
   let checkingGeneration=false;
   const stopWatching=watchStudioChanges(libraryRoot,kinds=>{
     const external=kinds.filter(kind=>kind!=='requests');

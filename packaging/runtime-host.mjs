@@ -5,6 +5,7 @@ import {z} from 'zod';
 import {createLocalRuntime,instructions} from '../core/application/runtime.mjs';
 import {homePaths} from '../core/application/home.mjs';
 import {orchestratorContract} from '../core/application/runtime-selection.mjs';
+import {processRuntime} from '../core/print/bundle-runtime.mjs';
 import {replaceFile} from '../core/file-write.mjs';
 import {checkSetup} from '../scripts/setup-check.mjs';
 
@@ -41,18 +42,20 @@ async function command(message){
 }
 async function start(args){
   if(args.contract!==orchestratorContract)throw Error('This runtime requires orchestrator contract '+orchestratorContract+'. Update SAAM or this checkout.');
-  const paths=homePaths(),stateRoot=args.stateRoot;
+  const paths=homePaths(),stateRoot=args.stateRoot,runtime=processRuntime();
   await mkdir(stateRoot,{recursive:true});
   const setupFile=resolve(stateRoot,'setup-check.json'),setup={problem:null};
   if((await readFile(setupFile,'utf8').then(JSON.parse).catch(()=>({}))).passed!==args.fingerprint){
     try{await checkSetup({log:()=>{}});await replaceFile(setupFile,JSON.stringify({passed:args.fingerprint})+'\n');}
-    catch(error){setup.problem={version:args.runtime.label,error:error.message,effect:'SAAM failed its setup check. Tell the person; reinstalling or repairing this runtime usually fixes it.'};}
+    catch(error){setup.problem={version:runtime.label,error:error.message,effect:'SAAM failed its setup check. Tell the person; reinstalling or repairing this runtime usually fixes it.'};}
   }
   host.runtime=createLocalRuntime({paths,stateRoot,autoOpen:args.autoOpen,relay,
-    application:{setupProblem:setup.problem,runtime:args.runtime,fingerprint:args.fingerprint,
+    application:{setupProblem:setup.problem,runtime,fingerprint:args.fingerprint,
       retryClients:async()=>request('clients'),
       registerStudio:async window=>request('window',window),
-      showStudio:async url=>request('show',{url})}});
+      showStudio:async url=>request('show',{url}),
+      releaseBundle:async bundleId=>request('release-bundle',{bundleId}),
+      routeWindow:async args=>request('route',args)}});
   host.runtime.observeOperations(event=>send({type:'operation',event}));
   host.runtime.observeEvents(event=>send({type:'event',event}));
   await host.runtime.restoreStudios(args.windows??[]);
@@ -65,7 +68,8 @@ async function handle(message){
   if(message.type==='command')return command(message.args);
   if(message.type==='status')return {jobs:await host.runtime.runningJobs(),active:host.runtime.activeCount(),studios:host.runtime.studios()};
   if(message.type==='open')return host.runtime.openStudio(message.args);
-  if(message.type==='release')return host.runtime.releaseStudioForCapture(message.args.studioInstanceId);
+  if(message.type==='restore')return host.runtime.restoreStudios(message.args.windows);
+  if(message.type==='release')return host.runtime.releaseStudio(message.args.studioInstanceId,message.args);
   if(message.type==='stopping'){host.runtime.notifyStopping(message.args.reason);return {completed:true};}
   if(message.type==='close'){await close();return {completed:true};}
   throw Error('Unknown runtime control message.');
@@ -74,6 +78,6 @@ function close(){return host.closing??=(async()=>{await host.runtime?.close();})
 process.on('message',message=>{
   if(message.reply){const waiter=pending.get(message.id);if(!waiter)return;pending.delete(message.id);if(message.ok)waiter.done(message.result);else waiter.fail(Object.assign(Error(message.error),message.detail));return;}
   void handle(message).then(result=>send({reply:true,id:message.id,ok:true,result}),error=>send({reply:true,id:message.id,ok:false,error:error.message,
-    detail:{code:error.code,currentStudio:error.currentStudio,expectedStudio:error.expectedStudio,workRequest:error.workRequest,importDiagnostic:error.importDiagnostic}}));
+    detail:{code:error.code,bundleRuntime:error.bundleRuntime,currentStudio:error.currentStudio,expectedStudio:error.expectedStudio,workRequest:error.workRequest,importDiagnostic:error.importDiagnostic}}));
 });
 process.on('disconnect',()=>{for(const waiter of pending.values())waiter.fail(Error('SAAM orchestrator stopped.'));pending.clear();void close().finally(()=>process.exit());});

@@ -2,6 +2,8 @@ import {readLocalAgentNotes,updateLocalAgentNotes} from './local-agent-notes.mjs
 import {retainFailedImport} from './diagnostics.mjs';
 import {watchStudioChanges} from '../../studio/changes.mjs';
 import {requireBundleInstance,bundleInstance,recoverBundleInstance} from '../print/studio-ownership.mjs';
+import {bundleRuntime,recordBundleRuntime} from '../print/bundle-runtime.mjs';
+import {withBundleWriteLock} from '../print/bundle-lock.mjs';
 import {applyExtensionEdit,createExtensionBundle} from '../print/extension-edits.mjs';
 // The local SAAM runtime: every agent operation over the same bundle lifecycle
 // and Studio used by the CLI, and the Studio/request state they share. It knows
@@ -212,7 +214,8 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   // Every runtime-owned Studio instance starts here, showing dir or no print.
   async function startStudio(dir,{instanceId,sessionToken,restoring=false}={}){
     if(app.closing)throw Error('The SAAM application is quitting.');
-    const studio = createStudio(dir, { libraryRoot,machineSetups:paths.machineSetups,agentOwnerId:ownerId,agentRequests,studioEvents,relay,chatName:name,chatClient:client,instanceId,sessionToken,restoring,runtimeId:application.runtime?.id,runtimeLabel:application.runtime?.label,fingerprint:application.fingerprint });
+    const studio = createStudio(dir, { libraryRoot,machineSetups:paths.machineSetups,agentOwnerId:ownerId,agentRequests,studioEvents,relay,chatName:name,chatClient:client,instanceId,sessionToken,restoring,runtimeId:application.runtime?.id,runtimeLabel:application.runtime?.label,fingerprint:application.fingerprint,
+      routeStudio:target=>routeWindow(allStudios.get(studio.agentSession().instanceId),target) });
     try{await studio.ready();}catch(error){await studio.shutdown().catch(()=>{});throw error;}
     try{await new Promise((resolveListen, reject) => { studio.once('error', reject); studio.listen(0, '127.0.0.1', resolveListen); });}
     catch(error){await studio.shutdown().catch(()=>{});throw error;}
@@ -340,6 +343,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     if(session.ownerId!==ownerId&&!capture&&!(beforeAttachment&&session.ownerId===lobby.id))throw Error('That Studio is no longer attached to this chat.');
   }
   async function validateTarget(name,args={},beforeAttachment=false){
+    if(args.bundleId&&name!=='capture_bundle')await requireOwnRuntime(args.bundleId);
     if(args.expectedStudio)assertStudioTarget(args.expectedStudio.studioInstanceId,args.expectedStudio.bundleId,{beforeAttachment,capture:name==='capture_bundle'});
     if(args.studioInstanceId&&args.bundleId&&name!=='request_review')assertStudioTarget(args.studioInstanceId,args.bundleId,{beforeAttachment});
     const ids=[...new Set([...(args.requestIds??[]),...(args.requestId?[args.requestId]:[])])];
@@ -1100,9 +1104,10 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     }
     connectedChats.add(chat.id);return chat;
   }
-  function assertStudioIdle(session){
+  // ownOperations: Studio operations of the caller itself, such as the open request that moves a window.
+  function assertStudioIdle(session,ownOperations=0){
     const instanceId=session.server.agentSession().instanceId,directory=session.server.currentPrint();
-    if(session.server.attachmentBusy())throw Error('Wait for the current Studio operation to finish before capturing or re-pairing.');
+    if(session.server.attachmentBusy(ownOperations))throw Error('Wait for the current Studio operation to finish before capturing or re-pairing.');
     for(const operation of activeOperations.values())if(operation.ownerId===session.ownerId&&['set_tour_start_at','start_tour'].includes(operation.name)||operation.studioInstanceId===instanceId||operation.bundleId&&resolve(libraryRoot,operation.bundleId)===directory)
       throw Error('A bundle operation is running. Wait for it to finish before capturing or re-pairing.');
     for(const job of calculations.values())if(directory&&resolve(libraryRoot,job.printId)===directory)throw Error('A geometry calculation is running for this bundle.');
@@ -1134,9 +1139,42 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   }
   async function captureBundle(chat,bundleId){
     bundleIdSchema.parse(bundleId);
-    const directory=resolve(libraryRoot,bundleId),session=[...allStudios.values()].find(candidate=>candidate.server.currentPrint()===directory);
-    if(!session)return chat.invoke('request_review',{bundleId});
-    return transferStudio(chat,session,true);
+    const directory=resolve(libraryRoot,bundleId),owner=await printRuntime(bundleId);
+    if(owner){
+      // Taking over another runtime's print: this code must read it before anything changes.
+      await bundleFor(directory).then(bundle=>bundle.loadBundle(directory,{program:false})).catch(error=>{
+        throw Object.assign(Error(application.runtime.label+' cannot read print '+bundleId+': '+error.message+' Keep using '+owner.command+' for it, or update this runtime.'),{code:'BUNDLE_UNREADABLE'});});
+      await application.releaseBundle?.(bundleId);
+      await withBundleWriteLock(directory,()=>recordBundleRuntime(directory,application.runtime),{wait:true});
+    }
+    const session=[...allStudios.values()].find(candidate=>candidate.server.currentPrint()===directory);
+    const taken=owner?{takenOverFrom:owner.label}:{};
+    if(!session)return {...await chat.invoke('request_review',{bundleId}),...taken};
+    return {...await transferStudio(chat,session,true),...taken};
+  }
+  // A print another runtime last wrote: null for this runtime's own (and in processes without runtimes).
+  async function printRuntime(bundleId){
+    const self=application.runtime;if(!self)return null;
+    const dir=resolve(libraryRoot,bundleId);
+    const saved=await access(resolve(dir,'plan.json')).then(()=>true,error=>{if(error.code==='ENOENT')return false;throw error;});
+    const owner=saved?await bundleRuntime(dir):self;
+    return owner.id===self.id?null:owner;
+  }
+  async function requireOwnRuntime(bundleId){
+    const owner=await printRuntime(bundleId);
+    if(owner)throw Object.assign(Error('Print '+bundleId+' belongs to SAAM runtime '+owner.label+'. Use '+owner.command+' for it, or take it over in this runtime ('+application.runtime.label+') with: '+application.runtime.command+' call capture_bundle --bundle-id '+bundleId),
+      {code:'BUNDLE_OTHER_RUNTIME',bundleRuntime:owner});
+  }
+  // The person opened another runtime's print in Studio: the orchestrator moves this window to that runtime.
+  async function routeWindow(session,dir){
+    const bundleId=relative(await realpath(libraryRoot),dir).split(sep).join('/'),owner=await printRuntime(bundleId);
+    if(!owner)return null;
+    const fallback='Print '+bundleId+' belongs to SAAM runtime '+owner.label;
+    const agent='Ask an agent to open it: '+owner.command+' call request_review --bundle-id '+bundleId;
+    if(!application.routeWindow)throw Error(fallback+'. '+agent);
+    assertStudioIdle(session,1);
+    try{return await application.routeWindow({instanceId:session.server.agentSession().instanceId,printId:bundleId,owner});}
+    catch(error){if(error.code==='BUNDLE_INSTANCE_BUSY')throw error;throw Error(fallback+', which SAAM cannot start ('+error.message+'). '+agent);}
   }
   async function openStudio({studioInstanceId,newInstance=false}={}){
     if(app.closing)throw Error('The SAAM application is closing.');
@@ -1181,13 +1219,16 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       if(attachment)connectedChats.add(chat.id);
     }
   }
-  async function releaseStudioForCapture(instanceId){
+  // Closes a Studio whose window moves to another runtime. A routed window was
+  // checked by its own open request, which may still be finishing.
+  async function releaseStudio(instanceId,{routed=false}={}){
     const session=allStudios.get(instanceId);
     if(!session)throw Error('That Studio is no longer running.');
-    assertStudioIdle(session);await cancelOldRequests(session);await session.server.shutdown();
+    if(!routed)assertStudioIdle(session);
+    await cancelOldRequests(session);await session.server.shutdown();
     return {completed:true};
   }
-  return {beginSession,connectChat,openStudio,notifyStopping,runningJobs,close,restoreStudios,releaseStudioForCapture,activeCount:()=>activeOperations.size+work.pending.size+transferringStudios.size,
+  return {beginSession,connectChat,openStudio,notifyStopping,runningJobs,close,restoreStudios,releaseStudio,activeCount:()=>activeOperations.size+work.pending.size+transferringStudios.size,
     operations:lobby.operations,
     observeEvents(observer){eventObservers.add(observer);return()=>eventObservers.delete(observer);},
     observeOperations(observer){operationObservers.add(observer);return()=>operationObservers.delete(observer);},
