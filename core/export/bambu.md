@@ -282,15 +282,14 @@ H2D project JSON additionally expands explicit compatibility-field scopes throug
 [the project writer](bambu-project.mjs); its field vocabulary/defaults are
 cross-referenced to Studio 02.08.02.61. It contains no vendor executable templates or
 reference part data. Stored `machine_start_gcode` and `machine_end_gcode` receive
-the very same rendered strings as the executable start and end; the strict
-importer reconstructs both and rejects any discrepancy. Arrays follow declared filaments, physical tools or supported
+the very same rendered strings as the executable start and end. Arrays follow declared filaments, physical tools or supported
 variants; the reference's unused filament and High Flow variants are not retained.
 `filament_map_2` belongs to the resolved slice CONFIG, not the saved H2D project.
 Numbers with different meanings are intentionally not unified.
 
 | Aspect / authoritative input | All generated repetitions and handling |
 |---|---|
-| Stored startup/shutdown: one rendered `sections()` result | Executable prefix/suffix and H2D project `machine_start_gcode`/`machine_end_gcode` receive identical strings. Full/fast selection, nozzle/filament/temperature/plate values and shutdown bounds are resolved before this duplication. Strict import regenerates both; editing either copy invalidates the archive. Other stored template fields remain empty in the physically accepted v13 jobs. |
+| Stored startup/shutdown: one rendered `sections()` result | Executable prefix/suffix and H2D project `machine_start_gcode`/`machine_end_gcode` receive identical strings. Full/fast selection, nozzle/filament/temperature/plate values and shutdown bounds are resolved before this duplication. Other stored template fields remain empty in the physically accepted v13 jobs. |
 | Selected diameter: `setup.nozzleMm` | CONFIG/project `printer_settings_id` and `nozzle_diameter`; plate JSON `nozzle_diameter`; slice `nozzle_diameters`, filament `nozzle_diameter`, nozzle `nozzle_diameter`; H2D both `M620.10 H`, `M1015.4 H`; SAAM job summary. Fixed 0.4 command literals were replaced. |
 | Other installed diameter: `bambu.otherNozzleMm` | Other element of CONFIG/project `nozzle_diameter`, slice `nozzle_diameters`, job summary; when used, its own filament/nozzle records and changeover H values. Never independently defaulted inside each writer. |
 | Nozzle side: `setup.tool`, each `bambu.filaments[].tool` + machine `physicalExtruder` | CONFIG/project `filament_map`, `filament_nozzle_map`, `physical_extruder_map`; slice CONFIG `filament_map_2`; model/slice `filament_maps`; slice filament `group_id`, nozzle `id`/`extruder_id`; sequence `nozzle_sequence`; H2D `M104 T` and `G151 P`. The selected filament must agree with setup.tool. No profile settings spread can overwrite them. |
@@ -480,9 +479,8 @@ or topology. No raw startup G-code override is supported. Envelope hashes bind
 start, end **and constraints**, so changing a fixed service recipe requires an
 intentional new contract.
 
-Import re-derives the job, header, start/end envelope and every package entry and
-compares them with the actual bytes. An inconsistent archive, changed plan,
-unknown service envelope, checksum mismatch or metadata edit is rejected.
+Import checks ZIP structure and CRCs, the body boundary and the saved context
+against the plan, then decodes the body; it does not re-render the envelope.
 The same-file review/delivery lifecycle remains unchanged.
 
 ## H2D output contract

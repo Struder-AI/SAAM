@@ -32,7 +32,7 @@ export function exportAndDecodeProgram(path,plan,machine,release){
     return {...result,program:withTravelAdvisory(result.program)};
   }
   const bytes=adapter.export(path,plan,machine,release);
-  return {bytes,program:withTravelAdvisory(adapter.interpret(bytes,plan,machine,{authoredNozzleTemperatures:path.completion?.authoredNozzleTemperatures}))};
+  return {bytes,program:withTravelAdvisory(adapter.interpret(bytes,plan,machine))};
 }
 
 // Bundle already owns the exact artifact hash and locked settings. Extract the

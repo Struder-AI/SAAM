@@ -19,7 +19,7 @@ async function handleMessage(data){
   try{
     if(type==='load'){
       const state=data.state;
-      const sources=await fetchSources(state);worker.program=decodeSource(sources,state.plan,state.machine,{inspection:state.inspection,authoredNozzleTemperatures:state.authoredNozzleTemperatures});
+      const sources=await fetchSources(state);worker.program=decodeSource(sources,state.plan,state.machine,{inspection:state.inspection});
       const machine=await bind(state),{program}=worker,moves=program.moves.snapshot();
       self.postMessage({id,program:{...program,moves},...machine},worker.provider?[]:moveBuffers(moves));
     }else if(type==='bind')self.postMessage({id,...await bind(data.state)});
