@@ -1,5 +1,9 @@
 # Development log
 
+## 2026-10-05 — Full solve after the Codex orchestrator and placement work
+
+- Stopped two orphaned worker Applications (dimming and demos worktrees, started before `dev-instance` existed) that held the heavy-job slot Codex deferred to, and two stray log tails. Standing full solve: cold kept for toolpath and workspace; identities 90 kept, 69 rematched, 2 merged, 1 retired, 12 new. 105 authored positions applied, 3 missing; 168 labels applied, 3 missing (retired application clusters); 12 new clusters unlabelled; 9 unowned leaves (new declarations). Code errors 1,184. No tests run.
+
 ## 2026-10-04 — Placement learns from authored maps
 
 - The hand edits showed useful vertical-order changes, helpers near their neighbours and balanced free-space layouts. The placement solver now refines its physics seed with neighbour-based moves and swaps, explicitly scoring link crossings, wires through boxes, length and footprint. Each accepted move preserves rectangle clearance, lowers the score and adds neither a center-segment crossing nor a box hit. Membership and nesting stay unchanged; authored maps bypass placement. Offline Reset runs the same embedded solver in a Blob worker; newer edits, superseding resets and folder refreshes cancel it, with visible errors and worker/URL cleanup.
