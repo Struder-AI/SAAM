@@ -121,6 +121,10 @@ export const instructions = 'Use saam help for operations and saam help OP for c
 // The optional service supplies Studio's release and diagnostics controls.
 export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen = process.env.SAAM_NO_AUTO_OPEN !== '1',localExtension=installedExtension,thingi10kClient,relay,application={},stateRoot=homePaths().state } = {}) {
   const libraryRoot = resolve(printsRoot);
+  async function showStudio(url){
+    if(application.showStudio)return application.showStudio(url);
+    return openBrowser(url);
+  }
   let resourceClient;
   const getResourceClient=async()=>resourceClient??=loadExtensionEntry('thingi10k','resource-client').then(create=>create());
   const meshLibrary=thingi10kClient??{
@@ -206,9 +210,9 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
     }finally{imports.delete(jobId);}
   }
   // Every runtime-owned Studio instance starts here, showing dir or no print.
-  async function startStudio(dir){
+  async function startStudio(dir,{instanceId,sessionToken,restoring=false}={}){
     if(app.closing)throw Error('The SAAM application is quitting.');
-    const studio = createStudio(dir, { libraryRoot,agentOwnerId:ownerId,agentRequests,studioEvents,relay,chatName:name,chatClient:client });
+    const studio = createStudio(dir, { libraryRoot,agentOwnerId:ownerId,agentRequests,studioEvents,relay,chatName:name,chatClient:client,instanceId,sessionToken,restoring,runtimeId:application.runtimeId,runtimeLabel:application.runtimeLabel,fingerprint:application.fingerprint });
     try{await studio.ready();}catch(error){await studio.shutdown().catch(()=>{});throw error;}
     try{await new Promise((resolveListen, reject) => { studio.once('error', reject); studio.listen(0, '127.0.0.1', resolveListen); });}
     catch(error){await studio.shutdown().catch(()=>{});throw error;}
@@ -218,7 +222,12 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
       const ids=[...new Set(requests.map(r=>r.episodeId??r.id))];
       await Promise.all(ids.map(id=>handBackRequest(id,{status:'waiting',message:'The person requested help in Studio.'})));
     };
-    const session = { server: studio, url: `http://127.0.0.1:${studio.address().port}` },studioInstanceId=studio.agentSession().instanceId;
+    const upstreamUrl=`http://127.0.0.1:${studio.address().port}`,studioInstanceId=studio.agentSession().instanceId;
+    const registration={visible:null};
+    try{registration.visible=application.registerStudio?await application.registerStudio({instanceId:studioInstanceId,upstreamUrl,sessionToken:studio.sessionToken()}):{url:upstreamUrl};}
+    catch(error){await studio.shutdown().catch(()=>{});throw error;}
+    const visible=registration.visible;
+    const session={server:studio,url:visible.url};
     session.ownerId=ownerId;allStudios.set(studioInstanceId,session);studioSessions.set(studioInstanceId, session);
 
     studio.once('close',()=>{
@@ -374,8 +383,11 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
     const existing=saved&&!migrating?await associatedStudio(bundleId,studioInstanceId,requestIds):null;
     if(retained){const view={dir,server:retained.server,url:retained.url,pending:true,migrating,opening:null,stopWatching:null,browserOpenRequested:false};view.stopWatching=watchStudioChanges(libraryRoot,()=>{void revealSavedBundle(view,true).catch(()=>{});});return view;}
     if(existing){const session=allStudios.get(existing.server.agentSession().instanceId);return {...existing,url:session.url,pending:false,browserOpenRequested:false};}
-    const studio=await startStudio(saved&&!migrating?dir:null);
-    const browserOpenRequested=autoOpen?await openBrowser(studio.url):false;
+    const reusable=[...studioSessions.values()].filter(session=>session.server.listening&&!session.server.creationTarget()).at(-1);
+    if(reusable)assertStudioIdle(reusable);
+    const studio=reusable??await startStudio(saved&&!migrating?dir:null);
+    if(reusable&&saved&&!migrating)await studio.server.openPrint(dir);
+    const browserOpenRequested=autoOpen?await showStudio(studio.url):false;
     const view={dir,server:studio.server,url:studio.url,pending:!saved||migrating,browserOpenRequested,migrating,opening:null,stopWatching:null};
     if(view.pending)view.stopWatching=watchStudioChanges(libraryRoot,()=>{void revealSavedBundle(view,true).catch(()=>{});});
     return view;
@@ -545,7 +557,7 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
     }
   operation('update_workspace','Save a complete workspace design atomically and return its normalized state. Construction remains unapproved until reviewed in Studio.',{workspaceInstanceId:workspaceIdSchema,design:objectSchema},false);
   async function updateWorkspace({workspaceInstanceId,design}){return {workspaceInstanceId,...await workspaceSession(workspaceInstanceId).updateDesign(design)};}
-  operation('create_workspace_bundles','Start background creation of a fresh bundle set from the supplied design, or the current saved design. Read get_workspace for progress; review each resulting bundle in Studio.',{workspaceInstanceId:workspaceIdSchema,design:objectSchema.optional()},false);
+  operation('create_workspace_bundles','Replace the current exported set from the supplied or saved design; complete the new set first and retain independently edited parts. Read get_workspace for progress; review each resulting bundle in Studio.',{workspaceInstanceId:workspaceIdSchema,design:objectSchema.optional()},false);
   async function createWorkspaceBundles({workspaceInstanceId,design}){
       const workspace=workspaceSession(workspaceInstanceId);
       return {workspaceInstanceId,job:await workspace.createBundles(design)};
@@ -845,7 +857,7 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
       const directory=studio.server.currentPrint();
       const bundleId=agentRequests.printId(directory);
       if(startAtLayer)await studio.server.setStartAt({layer:startAtLayer});
-      const browserOpenRequested=autoOpen?await openBrowser(studio.url):false;
+      const browserOpenRequested=autoOpen?await showStudio(studio.url):false;
       return {bundleId,studioInstanceId:studio.server.agentSession().instanceId,url:studio.url,browserOpenRequested,tour:agentTour(await tour.info()),
         notes:await readLocalAgentNotes(),sources:await onboardingSources(root,{}),participation:await readManual(root,'examples/prints/README.md#maker-agent-participation',{})};
     }
@@ -876,13 +888,15 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
     if(studioInstanceId&&!chosen)throw Error('That Studio instance is not attached to this chat.');
     if(existing&&chosen&&existing!==chosen)throw Error('This bundle already has a Studio instance. Use that window.');
     const empty=[...studioSessions.values()].find(candidate=>!candidate.server.currentPrint());
-    const session=chosen??empty??await startStudio(dir);
+    const reusable=[...studioSessions.values()].filter(candidate=>candidate.server.listening).at(-1);
+    if(!chosen&&!empty&&reusable)assertStudioIdle(reusable);
+    const session=chosen??empty??reusable??await startStudio(dir);
     await session.server.openPrint(dir);
     preferredStudioByPrint.set(bundleId,session.server.agentSession().instanceId);
     if(startAt)await session.server.setStartAt(startAt);
     const url=session.url+viewPath;
     // An open viewer is rebound in place; only a Studio nobody is viewing opens a tab.
-    const browserOpenRequested = autoOpen && !session.server.viewerCount() ? await openBrowser(url) : false;
+    const browserOpenRequested = autoOpen && !session.server.viewerCount() ? await showStudio(url) : false;
     return { ...summary(bundleId, state),studioInstanceId:session.server.agentSession().instanceId, url, browserOpenRequested };
   }
   operation('close_studio_session','Close one Studio instance owned by this agent without affecting other instances or the shared print bundle.',{studioInstanceId:z.string()},false);
@@ -1004,7 +1018,7 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
   async function openStudio(){
     if(app.closing)throw Error('The SAAM application is closing.');
     const session=[...studioSessions.values()].filter(({server})=>server.listening).at(-1)??await startStudio(null);
-    const browserOpenRequested=autoOpen&&!session.server.viewerCount()?await openBrowser(session.url):false;
+    const browserOpenRequested=autoOpen&&!session.server.viewerCount()?await showStudio(session.url):false;
     return {studioInstanceId:session.server.agentSession().instanceId,url:session.url,browserOpenRequested};
   }
   async function showWorkspaceBundles(workspace,event){
@@ -1036,13 +1050,13 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
       session=await startWorkspace({extensionId,directory:dir,appRoot:root,onEvent:event=>{
         const {kind,...detail}=event;
         studioEvents.record(kind,{...detail,workspaceInstanceId,extensionId});
-        if(kind==='workspace-bundles-progress'&&event.stage==='created'&&!app.closing)queueWorkspaceViews(session,event);
+        if(kind==='workspace-bundles-completed'&&!app.closing)queueWorkspaceViews(session,event);
       }});
       session.workspaceInstanceId=workspaceInstanceId;session.ownerId=ownerId;session.bundleViews={records:new Map(),tail:Promise.resolve(),error:null};
       workspaceSessions.set(workspaceInstanceId,session);
       session.server.once('close',()=>{if(workspaceSessions.get(workspaceInstanceId)===session)workspaceSessions.delete(workspaceInstanceId);});
     }
-    const browserOpenRequested=autoOpen&&!session.server.viewerCount?.()?await openBrowser(session.url):false;
+    const browserOpenRequested=autoOpen&&!session.server.viewerCount?.()?await showStudio(session.url):false;
     return {workspaceInstanceId:session.workspaceInstanceId,url:session.url,directory:session.directory,extension:session.extension,browserOpenRequested};
   }
   return {id:ownerId,name,client,requests:agentRequests,events:studioEvents,
@@ -1129,7 +1143,7 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
     const session=newInstance?await lobby.startStudio(null):studioInstanceId?allStudios.get(studioInstanceId):[...allStudios.values()].filter(({server})=>server.listening).at(-1);
     if(studioInstanceId&&!session?.server.listening)throw Error('That Studio is no longer running.');
     if(!session)return lobby.openStudio();
-    const browserOpenRequested=autoOpen?await openBrowser(session.url):false;
+    const browserOpenRequested=autoOpen?await showStudio(session.url):false;
     return {studioInstanceId:session.server.agentSession().instanceId,url:session.url,browserOpenRequested};
   }
   function notifyStopping(reason){
@@ -1158,7 +1172,21 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
     for(const chat of chats.values())chat.close();
     chats.clear();connectedChats.clear();allStudios.clear();workspaceSessions.clear();operationObservers.clear();eventObservers.clear();
   })();}
-  return {beginSession,connectChat,openStudio,notifyStopping,runningJobs,close,
+  async function restoreStudios(windows){
+    for(const window of windows){
+      const attachment=window.attachment;
+      const chat=attachment?beginSession({id:attachment.ownerId,name:attachment.name,client:attachment.client}):lobby;
+      await chat.startStudio(window.printId?resolve(libraryRoot,window.printId):null,{instanceId:window.instanceId,sessionToken:window.sessionToken,restoring:true});
+      if(attachment)connectedChats.add(chat.id);
+    }
+  }
+  async function releaseStudioForCapture(instanceId){
+    const session=allStudios.get(instanceId);
+    if(!session)throw Error('That Studio is no longer running.');
+    assertStudioIdle(session);await cancelOldRequests(session);await session.server.shutdown();
+    return {completed:true};
+  }
+  return {beginSession,connectChat,openStudio,notifyStopping,runningJobs,close,restoreStudios,releaseStudioForCapture,activeCount:()=>activeOperations.size+work.pending.size+transferringStudios.size,
     operations:lobby.operations,
     observeEvents(observer){eventObservers.add(observer);return()=>eventObservers.delete(observer);},
     observeOperations(observer){operationObservers.add(observer);return()=>operationObservers.delete(observer);},

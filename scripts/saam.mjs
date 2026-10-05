@@ -4,6 +4,7 @@ import {resolve} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {readyInstance,controlRequest} from '../core/application/control.mjs';
+import {selectRuntime} from '../core/application/runtime-selection.mjs';
 
 const camel=name=>name.replace(/-([a-z])/g,(_match,letter)=>letter.toUpperCase());
 function flagValue(value,schema={}){
@@ -47,14 +48,16 @@ export async function runSaam(args=process.argv.slice(2),{input=process.stdin,wr
     if(parsed.options.input)Object.assign(fields,JSON.parse(await readFile(resolve(String(parsed.options.input)),'utf8')));
     if(enabled(parsed.options.stdin)){const chunks=[];for await(const chunk of input)chunks.push(Buffer.from(chunk));Object.assign(fields,JSON.parse(Buffer.concat(chunks).toString('utf8')));}
     const instance=await readyInstance();
+    if(instance.contract!==1)throw Error('Update the installed SAAM first: this checkout requires orchestrator contract 1.');
+    const runtime=await selectRuntime();
     const operation=parsed.command==='call'?parsed.operation:parsed.command==='wait'?'wait_for_studio_request':parsed.command==='start-tour'?'start_tour':null;
     if(operation){
-      const help=await controlRequest(instance,{command:'help',operation});
+      const help=await controlRequest(instance,{command:'help',operation,runtime});
       const properties=help.operations[0].input.properties??{};
       for(const [key,value] of Object.entries(parsed.flags))fields[key]=flagValue(value,properties[key]);
       if(parsed.command==='call'&&properties.bundleId&&parsed.options.bundleId!==undefined)fields.bundleId??=String(parsed.options.bundleId);
     }else for(const [key,value] of Object.entries(parsed.flags))fields[key]=value;
-    const message={command:parsed.command,operation:parsed.operation,args:fields,chatId:parsed.chatId,client:parsed.client,
+    const message={runtime,command:parsed.command,operation:parsed.operation,args:fields,chatId:parsed.chatId,client:parsed.client,
       chatName:parsed.options.chatName,bundleId:parsed.options.bundleId??fields.bundleId,force:enabled(parsed.options.force)};
     const result=await controlRequest(instance,message,{waitMs:['call','start-tour','wait'].includes(parsed.command)?null:35000});
     write({...result,...identity});return result;

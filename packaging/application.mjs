@@ -3,10 +3,12 @@ import {writeFile,unlink,readFile} from 'node:fs/promises';
 import {createServer} from 'node:http';
 import {randomBytes} from 'node:crypto';
 import {resolve} from 'node:path';
-import {z} from 'zod';
+import {userInfo} from 'node:os';
+import {fileURLToPath} from 'node:url';
+import {createRuntimeRegistry} from './runtime-registry.mjs';
+import {migrateRuntimeState,restoreRuntimeState} from './runtime-state.mjs';
 import {homePaths} from '../core/application/home.mjs';
 import {migrateLocalData,restoreLocalData} from '../core/application/home-layout.mjs';
-import {createLocalRuntime,instructions} from '../core/application/runtime.mjs';
 import {applicationPort,readInstance,controlRequest} from '../core/application/control.mjs';
 import {createReleaseService,releaseConfiguration} from './release-service.mjs';
 import {installUpdate} from './update.mjs';
@@ -15,7 +17,6 @@ import {setupClients,writeHomeGuidance} from './client-setup.mjs';
 import {replaceFile} from '../core/file-write.mjs';
 import {createDiagnosticReports} from '../core/application/diagnostics.mjs';
 import {cleanupTemporaryWorkspaces} from '../core/application/temporary-workspace.mjs';
-import {checkSetup} from '../scripts/setup-check.mjs';
 
 async function jsonBody(request){
   const chunks=[],size={bytes:0};
@@ -26,11 +27,12 @@ async function jsonBody(request){
 }
 function respond(response,value,status=200){response.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});response.end(JSON.stringify(value));}
 export async function startApplication({autoOpen=true,openOnStart=true,tray=true}={}){
-  const paths=homePaths();
+  const paths=homePaths(),codeRoot=resolve(fileURLToPath(new URL('..',import.meta.url)));
   const reports=createDiagnosticReports({home:paths.home});
   const previous=await readInstance();
+  if(previous?.user&&previous.user!==userInfo().username)throw Error('SAAM is running for '+previous.user+'.');
   if(previous){try{return {existing:true,...await controlRequest(previous,{command:openOnStart?'open':'status'},{waitMs:3000})};}catch{/* Binding the installation's OS endpoint decides ownership. */}}
-  const state={runtime:null,services:null,tray:null,control:null,stopping:null,migration:null},token=randomBytes(24).toString('hex');
+  const state={runtime:null,services:null,tray:null,control:null,stopping:null,migration:null,runtimeMigration:null},token=randomBytes(24).toString('hex');
   const report=async(event,options={})=>{
     if(state.services)return state.services.recordDiagnostic(event,options);
     if(options.firstRun)await reports.firstRun(event,{complete:options.complete}).catch(()=>{});
@@ -40,6 +42,7 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
   async function stop(){return state.stopping??=(async()=>{
     state.tray?.stop();state.services?.close();await state.runtime?.close();
     let recoveryError;
+    if(state.runtimeMigration){await restoreRuntimeState(state.runtimeMigration);state.runtimeMigration=null;}
     if(state.migration){
       try{await restoreLocalData(state.migration);state.migration=null;}
       catch(error){recoveryError=error;await report({kind:'startup-data-restore-failed',error:error.message},{firstRun:true}).catch(()=>{});}
@@ -54,7 +57,7 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
   async function quit(force=false){
     const jobs=await state.runtime.runningJobs();
     if(jobs.length&&!force)return {confirmationRequired:true,jobs,message:'SAAM has running jobs. Quit and cancel them?'};
-    state.runtime.notifyStopping('quit');later();return {quitting:true};
+    await state.runtime.notifyStopping('quit');later();return {quitting:true};
   }
   async function retryClients(){return setupClients({home:paths.home});}
 
@@ -85,55 +88,30 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
       update:config.platform&&config.updateHost?async(offered,{force=false}={})=>{
         const jobs=await state.runtime.runningJobs();
         if(jobs.length&&!force)return {confirmationRequired:true,jobs,message:'Updating SAAM cancels running jobs.'};
-        const result=await installUpdate(offered,{...config,report:(event,options)=>report(event,options)});state.runtime.notifyStopping('update');later();return result;
+        const result=await installUpdate(offered,{...config,report:(event,options)=>report(event,options)});await state.runtime.notifyStopping('update');later();return result;
       }:null,
       quit:({force=false}={})=>quit(force)});
-    // The setup check runs at the first start of each installed version. A failure starts
-    // SAAM anyway, reaches makers through maker_onboarding and reruns at the next start.
-    const setupFile=resolve(paths.state,'setup-check.json'),setup={problem:null};
-    if((await readFile(setupFile,'utf8').then(JSON.parse).catch(()=>({}))).passed!==config.version){
-      try{await checkSetup({log:()=>{}});await replaceFile(setupFile,JSON.stringify({passed:config.version})+'\n');}
-      catch(error){
-        setup.problem={version:config.version,error:error.message,effect:'SAAM failed its setup check, so operations that need the failed part may fail. Tell the person; reinstalling SAAM usually repairs it.'};
-        await report({kind:'setup-check-failed',version:config.version,error:error.message},{firstRun:true});
-      }
-    }
-    state.runtime=createLocalRuntime({printsRoot:paths.prints,stateRoot:paths.state,autoOpen,relay:state.services,
-      application:{retryClients,setupProblem:setup.problem}});
+    state.runtimeMigration=await migrateRuntimeState(paths.state);
+    state.runtime=await createRuntimeRegistry({paths,autoOpen,services:state.services,retryClients,codeRoot});
     state.services.observeRuntime(state.runtime);
     async function command(message){
       if(message.command==='record-diagnostic'){
         await report(message.event,message.options);return {ok:true};
       }
       if(message.command==='diagnostics')return {ok:true,receipt:await state.services.flushDiagnostics(),service:state.services.status()};
-      if(message.command==='status')return {ok:true,pid:process.pid,instanceId,version:config.version,home:paths.home,jobs:await state.runtime.runningJobs(),studios:state.runtime.studios(),service:state.services.status()};
-      if(message.command==='open')return {ok:true,...await state.runtime.openStudio({studioInstanceId:message.studioInstanceId})};
-      if(message.command==='new-instance')return {ok:true,...await state.runtime.openStudio({newInstance:true})};
+      if(message.command==='status')return {ok:true,pid:process.pid,instanceId,version:config.version,home:paths.home,...await state.runtime.status(),service:state.services.status()};
+      if(message.command==='stop-runtime')return {ok:true,...await state.runtime.stopRuntime(message)};
       if(message.command==='quit')return {ok:true,...await quit(message.force===true)};
       if(message.command==='update')return {ok:true,...await state.services.update({force:message.force===true})};
-      if(message.command==='help'){
-        const operation=message.operation?state.runtime.operations.find(value=>value.name===message.operation):null;
-        if(message.operation&&!operation)throw Error('Unknown SAAM operation '+message.operation+'.');
-        return {ok:true,instructions,commands:['open','help [OP]','call OP --input FILE|--stdin|--flags','wait','start-tour','status','update','quit'],
-          operations:(operation?[operation]:state.runtime.operations).map(value=>({name:value.name,description:value.description,readOnly:value.readOnly,
-            ...(operation?{input:z.toJSONSchema(value.schema,{target:'draft-7',io:'input'})}:{})}))};
-      }
-      const operationName=message.command==='wait'?'wait_for_studio_request':message.command==='start-tour'?'start_tour':message.command==='call'?message.operation:null;
-      const definition=state.runtime.operations.find(value=>value.name===operationName);
-      if(!definition)throw Error('Use saam help to choose a command or operation.');
-      definition.schema.parse(message.args??{});
-      const chat=await state.runtime.connectChat({id:message.chatId,name:message.chatName??(message.client?message.client+' '+message.chatId.slice(0,8):message.chatId),client:message.client,bundleId:message.operation==='capture_bundle'?undefined:message.bundleId,operation:operationName,args:message.args??{}});
-      if(message.command==='wait')return {ok:true,result:await chat.invoke('wait_for_studio_request',message.args??{})};
-      if(message.command==='start-tour')return {ok:true,result:await chat.invoke('start_tour',message.args??{})};
-      if(message.command!=='call'||typeof message.operation!=='string')throw Error('Use saam help, call, wait, start-tour, open, status, update or quit.');
-      return {ok:true,result:await chat.invoke(message.operation,message.args??{})};
+      return state.runtime.command(message);
     }
-    const record={instanceId,pid:process.pid,port:state.control.address().port,token,version:config.version};
-    if(tray)state.tray=await startTray(record);
+
+    const record={instanceId,pid:process.pid,port:state.control.address().port,token,version:config.version,contract:1,codeRoot,user:userInfo().username};
+    if(tray&&!process.env.SAAM_DATA&&!process.env.SAAM_BACKGROUND&&!process.env.NODE_TEST_CONTEXT)state.tray=await startTray(record);
     await replaceFile(instanceFile,JSON.stringify(record)+'\n');
-    if(openOnStart)await state.runtime.openStudio();
+    if(openOnStart)await state.runtime.command({command:'open'});
     await report({kind:'application-ready',version:config.version},{firstRun:true,complete:true});
-    state.migration=null;
+    state.migration=null;state.runtimeMigration=null;
     return {existing:false,record,runtime:state.runtime,services:state.services,stop};
   }catch(error){
     await stop().catch(cleanup=>{error.cleanupError=cleanup.message;error.message+=' Startup cleanup failed: '+cleanup.message;});

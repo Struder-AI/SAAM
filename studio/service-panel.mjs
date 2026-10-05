@@ -33,7 +33,7 @@ export function createServicePanel({token,available:hasService=true}){
   function render(){
     if(view.stopping){
       updateApplicationConnection('stopped');
-      $('service-status').textContent=view.stopping==='update'?'SAAM is updating and opens again.':'SAAM has stopped. Start SAAM again from its app icon.';
+      $('service-status').textContent=view.stopping==='update'?'SAAM is updating and opens again.':view.stopping==='restart'?'Reloading this runtime with updated code…':view.stopping==='runtime-stop'?'This runtime stopped. Ask your agent to reconnect.':'SAAM has stopped. Start SAAM again from its app icon.';
       for(const id of ['service-consent','service-quit','service-invite-row','service-dismiss','service-check','service-update'])$(id).hidden=true;
       message('');return;
     }
@@ -128,7 +128,7 @@ export function createServicePanel({token,available:hasService=true}){
   function toggle(){if($('service-panel').hidden)open();else close();}
   $('service-toggle').onclick=toggle;
   addEventListener('saam-studio-update',event=>{if(event.detail.kind==='application-stopping'){view.stopping=event.detail.reason;render();}});
-  addEventListener('saam-viewer-connection',event=>{if(!view.stopping&&!event.detail.open)void refresh();});
+  addEventListener('saam-viewer-connection',event=>{if(event.detail.open&&(view.stopping==='restart'||view.stopping==='runtime-stop')){view.stopping=null;void refresh();}else if(!view.stopping&&!event.detail.open)void refresh();});
   $('service-update').onclick=update;
   $('service-quit').onclick=quit;
   $('service-close').onclick=()=>{if(view.status?.firstRunPrompt)void dismiss();else close();};

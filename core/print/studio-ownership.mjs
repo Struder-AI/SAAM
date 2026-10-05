@@ -10,7 +10,7 @@ import {withBundleWriteLock} from './bundle-lock.mjs';
 
 const instanceContext=new AsyncLocalStorage();
 const instanceFile=dir=>resolve(dir,'.bundle-studio.json');
-const conflict=record=>Object.assign(Error(`This print is already open in another Studio instance (${record.instanceId}). Switch or close that instance before opening it here.`),{code:'BUNDLE_INSTANCE_BUSY'});
+const conflict=record=>Object.assign(Error(`This print is already open in another Studio instance (${record.runtimeLabel??record.instanceId}). Switch or close that instance before opening it here.`),{code:'BUNDLE_INSTANCE_BUSY'});
 const same=(a,b)=>a?.instanceId===b?.instanceId&&a?.ownerId===b?.ownerId&&a?.token===b?.token;
 
 export async function bundleInstance(directory){
@@ -18,12 +18,15 @@ export async function bundleInstance(directory){
   catch(error){if(error.code==='ENOENT')return null;throw error;}
 }
 
-export async function claimBundleInstance(directory,{instanceId,ownerId}){
+export async function claimBundleInstance(directory,{instanceId,ownerId,restoring=false,runtimeId,runtimeLabel}){
   if(typeof instanceId!=='string'||!instanceId||typeof ownerId!=='string'||!ownerId)throw Error('Bundle reservation requires a Studio instance and agent owner.');
   return withBundleWriteLock(directory,async()=>{
     const current=await bundleInstance(directory);
-    if(current)throw conflict(current);
-    const record={instanceId,ownerId,pid:process.pid,token:randomUUID(),startedAt:new Date().toISOString()};
+    if(current){
+      if(!restoring||current.instanceId!==instanceId||current.ownerId!==ownerId)throw conflict(current);
+      try{process.kill(current.pid,0);throw conflict(current);}catch(error){if(error.code!=='ESRCH')throw error;}
+    }
+    const record={instanceId,ownerId,pid:process.pid,token:randomUUID(),...(runtimeId?{runtimeId,runtimeLabel}:{}),startedAt:new Date().toISOString()};
     await replaceFile(instanceFile(directory),JSON.stringify(record)+'\n');
     return record;
   },{wait:true});

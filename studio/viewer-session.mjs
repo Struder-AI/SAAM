@@ -6,9 +6,10 @@ function connect(){
   if(stream.stopping)return;
   stream.events?.close();stream.connected=false;
   const viewer=stream.events=new EventSource('/api/viewer?token='+encodeURIComponent(token));
+  viewer.addEventListener('runtime-code',event=>{const code=JSON.parse(event.data).fingerprint;if(code&&code!==decodeURIComponent(document.querySelector('meta[name="saam-runtime"]')?.content??''))location.reload();});
   viewer.addEventListener('studio-update',event=>{
     const detail=JSON.parse(event.data);
-    if(detail.kind==='application-stopping'){stream.stopping=true;stream.connected=false;stream.events.close();}
+    if(detail.kind==='application-stopping'){stream.connected=false;if(detail.reason==='quit'||detail.reason==='update'){stream.stopping=true;stream.events.close();}}
     dispatchEvent(new CustomEvent('saam-studio-update',{detail}));
   });
   // Changes can be missed while the stream is down; a restarted server also
