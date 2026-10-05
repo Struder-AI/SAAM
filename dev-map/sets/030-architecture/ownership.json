@@ -813,7 +813,7 @@
     },
     "skills/thingi10k/scripts/library.mjs": {
       "owner": "extensions",
-      "reason": "Extension-owned asset acquisition and atomic local resource persistence, not Bundle mutation."
+      "reason": "Extension-owned asset acquisition; stores nothing and never mutates a Bundle."
     },
     "skills/advanced-vase-wall/scripts/prepare-mesh.mjs": {
       "owner": "extensions",
@@ -878,10 +878,6 @@
     "core/print/extension-edits.mjs": {
       "owner": "bundle",
       "reason": "Bundle operation wrapper; extension construction/resource acquisition is requested through explicit interfaces."
-    },
-    "core/print/import-resource.mjs": {
-      "owner": "application",
-      "reason": "Command-host orchestration for resource acquisition and geometry import; no extension algorithm or bundle storage implementation."
     },
     "skills/gridfinity/scripts/edit.mjs": {
       "owner": "extensions",
@@ -8279,12 +8275,6 @@
     "core/print/extension-edits.mjs::createExtensionBundle": {
       "owner": "bundle"
     },
-    "core/print/import-resource.mjs::@module": {
-      "owner": "application"
-    },
-    "core/print/import-resource.mjs::importSTLResource": {
-      "owner": "application"
-    },
     "skills/gridfinity/scripts/edit.mjs::@module": {
       "owner": "extensions",
       "reason": "Pure extension contribution authoring; no bundle persistence or lifecycle."
@@ -9891,9 +9881,6 @@
       "owner": "extensions"
     },
     "skills/text/scripts/text.mjs::requireThat": {
-      "owner": "extensions"
-    },
-    "skills/thingi10k/scripts/library.mjs::replaceFile": {
       "owner": "extensions"
     },
     "skills/vase-wall/scripts/runtime.mjs::@module": {
