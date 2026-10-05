@@ -5,6 +5,7 @@
 // A synthetic approval must never be mistaken for a person's, and none of these
 // checks establish that a part prints.
 
+import {home} from './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
@@ -73,9 +74,9 @@ test('changing printer clears final confirmation and rejects stale edits',async 
   await generateBundle(dir);state=await loadBundle(dir);
   state=await approve(dir,{actor:ACTOR,revision:state.revision});
   await assert.rejects(changeMachine(dir,'bambu-h2d',{expectedRevision:'stale'}),/stale/);
-  const setupFile=resolve(dir,'h2d-setup.json');
+  const machineSetups=dir,setupFile=resolve(machineSetups,'bambu-h2d.json');
   await writeFile(setupFile,JSON.stringify({schema:'saam-machine-setup/1',machineId:'bambu-h2d',setup:{tool:1,core:'Hardened steel 0.6',nozzleMm:0.6,material:'PLA',filamentColor:'#8B5A2B',ams:{unit:2,slot:4}}}));
-  const next=await changeMachine(dir,'bambu-h2d',{expectedRevision:state.revision,setupFile});
+  const next=await changeMachine(dir,'bambu-h2d',{expectedRevision:state.revision,machineSetups});
   assert.equal(next.machine.id,'bambu-h2d');assert.equal(next.plan.output,'bambu-gcode');
   assert.equal(next.plan.setup.nozzleMm,0.6);assert.equal(next.plan.process.lineWidthMm,0.6);
   assert.equal(next.toolpathApproved,false);
@@ -270,16 +271,16 @@ test('geometry and settings edits invalidate the approvals they affect', async t
 
 test('remembered S5 setup carries into the next shell print without a firmware version', async t => {
   const dir = await fixture(t);
-  const setupFile = resolve(dir, 'saved-setup.json');
+  const machineSetups = dir, setupFile = resolve(machineSetups, 'ultimaker-s5.json');
   const edited=await adjustBundle(dir, { setup: { nozzleC: 205 } });
-  await saveSetup(edited.machine,edited.plan.setup,{setupFile,source:'Synthetic remembered-setup fixture'});
+  await saveSetup(edited.machine,edited.plan.setup,{machineSetups,source:'Synthetic remembered-setup fixture'});
   const saved = JSON.parse(await readFile(setupFile, 'utf8'));
   assert.equal(saved.schema, 'saam-machine-setup/1');
   assert.equal(saved.setup.startupVerified, false);
 
   const next = resolve(dir, 'next-print');
-  const nextPlan=await proposedPlan('ultimaker-s5',{setupFile});nextPlan.geometry=smallPlan().geometry;
-  await initBundle(next, nextPlan, { setupFile });
+  const nextPlan=await proposedPlan('ultimaker-s5',{machineSetups});nextPlan.geometry=smallPlan().geometry;
+  await initBundle(next, nextPlan);
   const state = await loadBundle(next, { program: false });
   assert.equal(state.plan.setup.nozzleC, 205);
   assert.equal(state.plan.setup.firmwareVersion, '');
@@ -300,7 +301,7 @@ test('selecting one skill still produces one program from one plan', async t => 
 test('Studio reviews a shell print and delivers it under its own export name', async t => {
   const dir = await fixture(t);
   await generateBundle(dir, { development: true });
-  const server = createStudio(dir);
+  const server = createStudio(dir,{libraryRoot:home});
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise(done => server.close(done)));
   const origin = `http://127.0.0.1:${server.address().port}`;

@@ -1,3 +1,4 @@
+import {home} from './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,readFile,writeFile} from 'node:fs/promises';
@@ -334,7 +335,7 @@ test('H2D Studio reviews extracted G-code and delivers the exact approved archiv
   assert.equal(state.exportName,'part.gcode.3mf');assert.equal(state.outputAvailability,null);
   state=await approve(dir,{actor,revision:state.revision});assert.equal(state.toolpathApproved,true);
   const exportFile=join(dir,state.review.generation.file),bytes=await readFile(exportFile);
-  const server=createStudio(dir);await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
+  const server=createStudio(dir,{libraryRoot:home});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
   const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
   const view=await(await fetch(origin+'/api/state')).json();assert.equal(view.exportName,'part.gcode.3mf');assert.equal(view.code,undefined);assert.equal(view.program.code,undefined);
   const response=await fetch(origin+'/api/deliver',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:'{}'});

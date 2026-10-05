@@ -1,6 +1,7 @@
 // Source context assembly and map reads; making belongs to the application.
 // No Studio, chat, live-work or release-service lifetime is created here.
 import {readLocalAgentNotes} from '../application/local-agent-notes.mjs';
+import {homePaths} from '../application/home.mjs';
 import {readFile, access} from 'node:fs/promises';
 import {resolve, dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -141,7 +142,7 @@ export async function onboarding({role, areas = [], machine: machineId, set = de
     : ['GLOSSARY.md', 'DEVELOPER-CONTEXT.md', ...new Set(outside.flatMap(area => outsideAreas[area]))];
   const mapKeys = role === 'maker' ? [] : targets;
   const [context, environment, maps, notes] = await Promise.all([contextPacket(ids, role === 'maker' ? {machineId} : {all: true}),
-    environmentStatus(), mapKeys.length ? readMaps(mapKeys, {set}) : [],readLocalAgentNotes()]);
+    environmentStatus(), mapKeys.length ? readMaps(mapKeys, {set}) : [],readLocalAgentNotes(homePaths())]);
   return {role, environment, notes, ...context, maps, ...(mapKeys.length ? {mapSet: set} : {}),
     nextStep: role === 'maker' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context and choose individual skill manuals when an edit needs them. The digest indexes gated sections; read one by name when its gate applies.'
       : role === 'builder' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context. Builders author guidance, recipe helpers, assets, examples and diagnostics using published APIs. Core skills and shared capability/contract changes require the developer role. The component manual for the area you consume owns its behaviour, contracts and limits; read the one for the code you touch. Maps show what code a change affects and what affects it: read-map 0 (or --area 0), then a box, @link/MAP/FROM/TO for its leaf arrows, then the source at file:lines. Run regenerate after each task.'

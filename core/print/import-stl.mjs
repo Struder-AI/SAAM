@@ -23,7 +23,7 @@ export async function commitSTLImport(directory,candidate,options={}){
     await initBundle(target,{...recipeDefaults(),geometry:candidate.geometry},{machineId:null,
       sourcePath:candidate.sourcePath,preparedGeometry:candidate.artifact,attachments:candidate.attachments});
     options.signal?.throwIfAborted();
-    if(options.machineId)await changeMachine(target,options.machineId,{setupFile:options.setupFile});
+    if(options.machineId)await changeMachine(target,options.machineId,{machineSetups:options.machineSetups});
     options.signal?.throwIfAborted();
     return {directory:target,repaired:candidate.repaired,importDiagnostic:candidate.importDiagnostic};
   }catch(error){

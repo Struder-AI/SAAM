@@ -1,3 +1,4 @@
+import '../../../core/tests/temporary-home.mjs';
 import test from 'node:test';
 import {contextualActions} from '../../../core/path/action-context.mjs';
 import assert from 'node:assert/strict';

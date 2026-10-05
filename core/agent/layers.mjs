@@ -67,12 +67,12 @@ export async function contextBudget(root, { machineIds = MACHINE_IDS } = {}) {
     return total;
   };
   const index = await read('skills/DIGEST.md', {});
-  const { instructions, createLocalRuntime } = await import('../application/runtime.mjs');
+  const { instructions, createLocalRuntime } = await import('../application/runtime.mjs'), { homePaths } = await import('../application/home.mjs');
   const { mkdtemp, rm } = await import('node:fs/promises'), { tmpdir } = await import('node:os');
-  const printsRoot = await mkdtemp(resolve(tmpdir(), 'saam-context-budget-'));
+  const home = await mkdtemp(resolve(tmpdir(), 'saam-context-budget-'));
   let tools = 0,toolSchemas=0;const operations={},toolDefinitions=[];
   try {
-    const runtime = createLocalRuntime({ printsRoot, stateRoot:resolve(printsRoot,'.state'), autoOpen: false });
+    const runtime = createLocalRuntime({ paths: homePaths(home), autoOpen: false });
     for (const operation of runtime.beginSession().operations){
       // Measure the complete application operation catalog, including its schemas.
       const inputSchema=z.toJSONSchema(operation.schema,{target:'draft-7',io:'input'});
@@ -83,7 +83,7 @@ export async function contextBudget(root, { machineIds = MACHINE_IDS } = {}) {
       toolDefinitions.push(definition);tools+=description;toolSchemas+=schema;
     }
     await runtime.close();
-  } finally { await rm(printsRoot, { recursive: true, force: true }); }
+  } finally { await rm(home, { recursive: true, force: true }); }
   const operate = await manuals({});
   const onboardingJson = size(JSON.stringify(await onboardingSources(root, {})));
   const advanced = {};

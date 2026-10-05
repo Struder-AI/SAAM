@@ -1,3 +1,4 @@
+import {home} from './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {once} from 'node:events';
@@ -11,7 +12,7 @@ import {viewerLifetime} from '../../studio/lifetime.mjs';
 
 // No geometry creation, interpretation or slicing: only sockets and timers.
 async function fixture(t,options={}){
-  const server=createStudio('missing-synthetic-lifetime-bundle',options);
+  const server=createStudio('missing-synthetic-lifetime-bundle',{libraryRoot:home,...options});
   t.after(()=>server.shutdown());
   server.listen(0,'127.0.0.1');await once(server,'listening');
   const url=`http://127.0.0.1:${server.address().port}`;
@@ -30,7 +31,7 @@ async function fixture(t,options={}){
 
 test('Studio waits indefinitely before the first browser requests a page',async t=>{
   t.mock.timers.enable({apis:['setTimeout']});
-  const server=createStudio('missing-synthetic-lifetime-bundle');
+  const server=createStudio('missing-synthetic-lifetime-bundle',{libraryRoot:home});
   t.after(()=>server.shutdown());
   server.listen(0,'127.0.0.1');await once(server,'listening');
   t.mock.timers.tick(24*60*60*1000);
