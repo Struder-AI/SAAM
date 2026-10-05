@@ -1,8 +1,8 @@
 // Invocation selects a code root; only the installed application owns the user surface.
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
-import {readFile,realpath,stat} from 'node:fs/promises';
-import {resolve,basename} from 'node:path';
+import {readFile,readdir,realpath,stat} from 'node:fs/promises';
+import {resolve,basename,join} from 'node:path';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {homePaths} from './home.mjs';
@@ -29,12 +29,22 @@ export async function selectRuntime(codeRoot=invocationRoot){
   await stat(resolve(root,'packaging/runtime-host.mjs'));
   const installed=resolve(root).toLowerCase()===resolve(paths.app).toLowerCase();
   const release=await readFile(resolve(root,'release.json'),'utf8').then(JSON.parse).catch(error=>{if(error.code!=='ENOENT')throw error;return null;});
-  if(installed)return {id:'installed',codeRoot:root,node:process.execPath,fingerprint:release?.version??'source',label:'Installed '+(release?.version??'SAAM'),command:'saam'};
-  const head=await execute('git',['rev-parse','HEAD'],{cwd:root,windowsHide:true}).then(result=>result.stdout.trim());
-  const diff=await execute('git',['diff','HEAD','--binary','--','core','studio','skills','workspaces','scripts','packaging','adapters','machines'],{cwd:root,windowsHide:true,maxBuffer:32*1024*1024}).then(result=>result.stdout);
-  const untracked=await execute('git',['ls-files','--others','--exclude-standard','--','core','studio','skills','workspaces','scripts','packaging','adapters','machines'],{cwd:root,windowsHide:true}).then(result=>result.stdout.trim().split('\n').filter(Boolean));
-  const hash=createHash('sha256').update(head).update(diff);
-  for(const name of untracked){hash.update(name);hash.update(await readFile(resolve(root,name)));}
+  if(installed)return {id:'installed',codeRoot:root,node:process.execPath,label:'Installed '+(release?.version??'SAAM'),command:'saam'};
+  const head=await gitHead(root);
   return {id:'src:'+createHash('sha256').update(process.platform==='win32'?root.toLowerCase():root).digest('hex').slice(0,12),codeRoot:root,node:process.execPath,
-    fingerprint:hash.digest('hex'),label:'Source '+basename(root)+' @ '+head.slice(0,8)+(diff||untracked.length?' (modified)':''),command:sourceCommand(root,paths)};
+    label:'Source '+basename(root)+' @ '+head.slice(0,8),command:sourceCommand(root,paths)};
+}
+const gitHead=root=>execute('git',['rev-parse','HEAD'],{cwd:root,windowsHide:true}).then(result=>result.stdout.trim());
+// A cheap identity of the code at root: the release version, or a checkout's commit and newest
+// source modification. A runtime keeps the code it started with until an explicit reload;
+// comparing stamps only tells Studio that newer code is available.
+export async function codeStamp(root=invocationRoot){
+  const release=await readFile(resolve(root,'release.json'),'utf8').then(JSON.parse).catch(error=>{if(error.code!=='ENOENT')throw error;return null;});
+  if(release)return 'release:'+release.version;
+  let newest=0;
+  for(const folder of ['adapters','core','extensions','machines','packaging','scripts','skills','studio','workspaces']){
+    const entries=await readdir(resolve(root,folder),{recursive:true,withFileTypes:true}).catch(error=>{if(error.code==='ENOENT')return [];throw error;});
+    for(const entry of entries)if(entry.isFile())newest=Math.max(newest,(await stat(join(entry.parentPath,entry.name))).mtimeMs);
+  }
+  return (await gitHead(root))+':'+newest;
 }

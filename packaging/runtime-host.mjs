@@ -4,7 +4,7 @@ import {resolve} from 'node:path';
 import {z} from 'zod';
 import {createLocalRuntime,instructions} from '../core/application/runtime.mjs';
 import {homePaths} from '../core/application/home.mjs';
-import {orchestratorContract} from '../core/application/runtime-selection.mjs';
+import {orchestratorContract,codeStamp} from '../core/application/runtime-selection.mjs';
 import {processRuntime} from '../core/print/bundle-runtime.mjs';
 import {replaceFile} from '../core/file-write.mjs';
 import {checkSetup} from '../scripts/setup-check.mjs';
@@ -15,8 +15,14 @@ function request(type,args={}){
   const id='child:'+ ++host.sequence;
   return new Promise((done,fail)=>{pending.set(id,{done,fail});send({id,type,args});});
 }
+// This runtime keeps the code it started with; Studio may offer a reload when the checkout changes.
+const code={started:null,checked:0,newer:false};
+async function newerCode(){
+  if(Date.now()-code.checked>10000){code.checked=Date.now();code.newer=await codeStamp().then(stamp=>stamp!==code.started,()=>false);}
+  return code.newer;
+}
 const relay={
-  status:async()=>request('service',{method:'status'}),
+  status:async()=>({...await request('service',{method:'status'}),runtime:{label:processRuntime().label,newerCode:await newerCode()}}),
   activate:async invite=>request('service',{method:'activate',invite}),
   dismissFirstRun:async()=>request('service',{method:'dismiss'}),
   checkUpdate:async()=>request('service',{method:'check-update'}),
@@ -28,7 +34,7 @@ async function command(message){
   if(message.command==='help'){
     const operation=message.operation?runtime.operations.find(value=>value.name===message.operation):null;
     if(message.operation&&!operation)throw Error('Unknown SAAM operation '+message.operation+'.');
-    return {ok:true,instructions,commands:['open','help [OP]','call OP --input FILE|--stdin|--flags','wait','start-tour','status','stop-runtime','update','quit'],
+    return {ok:true,instructions,commands:['open','help [OP]','call OP --input FILE|--stdin|--flags','wait','start-tour','status','reload-runtime','stop-runtime','update','quit'],
       operations:(operation?[operation]:runtime.operations).map(value=>({name:value.name,description:value.description,readOnly:value.readOnly,
         ...(operation?{input:z.toJSONSchema(value.schema,{target:'draft-7',io:'input'})}:{})}))};
   }
@@ -45,12 +51,13 @@ async function start(args){
   const paths=homePaths(),stateRoot=args.stateRoot,runtime=processRuntime();
   await mkdir(stateRoot,{recursive:true});
   const setupFile=resolve(stateRoot,'setup-check.json'),setup={problem:null};
-  if((await readFile(setupFile,'utf8').then(JSON.parse).catch(()=>({}))).passed!==args.fingerprint){
-    try{await checkSetup({log:()=>{}});await replaceFile(setupFile,JSON.stringify({passed:args.fingerprint})+'\n');}
+  code.started=await codeStamp();code.checked=Date.now();
+  if((await readFile(setupFile,'utf8').then(JSON.parse).catch(()=>({}))).passed!==code.started){
+    try{await checkSetup({log:()=>{}});await replaceFile(setupFile,JSON.stringify({passed:code.started})+'\n');}
     catch(error){setup.problem={version:runtime.label,error:error.message,effect:'SAAM failed its setup check. Tell the person; reinstalling or repairing this runtime usually fixes it.'};}
   }
   host.runtime=createLocalRuntime({paths,stateRoot,autoOpen:args.autoOpen,relay,
-    application:{setupProblem:setup.problem,runtime,fingerprint:args.fingerprint,
+    application:{setupProblem:setup.problem,runtime,fingerprint:code.started,
       retryClients:async()=>request('clients'),
       registerStudio:async window=>request('window',window),
       showStudio:async url=>request('show',{url}),

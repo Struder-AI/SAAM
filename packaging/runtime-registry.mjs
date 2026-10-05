@@ -41,9 +41,10 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
       if(message.type==='event'){for(const observer of eventObservers)observer({...message.event,runtimeId:runtime.id});return;}
       void incoming(runtime,message).then(result=>child.connected&&child.send({reply:true,id:message.id,ok:true,result}),error=>child.connected&&child.send({reply:true,id:message.id,ok:false,error:error.message,detail:{code:error.code}}));
     });
-    function failed(error){windows.detach(runtime.id);for(const waiter of runtime.pending.values())waiter.fail(error);runtime.pending.clear();if(runtimes.get(runtime.id)===runtime)runtimes.delete(runtime.id);}
+    // A runtime stopped on purpose was already removed; its exit must not detach a successor's windows.
+    function failed(error){for(const waiter of runtime.pending.values())waiter.fail(error);runtime.pending.clear();if(runtimes.get(runtime.id)===runtime){runtimes.delete(runtime.id);windows.detach(runtime.id);}}
     child.once('error',failed);child.once('exit',code=>failed(Error('Runtime '+runtime.label+' exited ('+code+'). '+runtime.stderr)));
-    try{await rpc(runtime,'start',{contract:orchestratorContract,fingerprint:runtime.fingerprint,autoOpen,service:services.status(),
+    try{await rpc(runtime,'start',{contract:orchestratorContract,autoOpen,service:services.status(),
       stateRoot:resolve(paths.state,'runtimes',runtime.id.replace(':','-')),windows:windows.restore(runtime.id)});return runtime;}
     catch(error){child.kill();throw error;}
   }
@@ -55,20 +56,15 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     const selected=runtimes.get(target)??(message.runtime?await selectRuntime(message.runtime.codeRoot):fallback);
     const {id,label}=runtimes.get(selected.id)??selected;return {id,label};
   }
-  async function ensure(requested){
-    if(selection.closing)throw Error('SAAM is stopping.');
-    const selected=requested?await selectRuntime(requested.codeRoot):fallback;
-    // Runtime roots are validated locally; the client cannot supply a stale fingerprint or executable.
-    const running=runtimes.get(selected.id);
-    if(!running)return launch(selected);
-    if(running.fingerprint===selected.fingerprint)return running;
-    const current=await rpc(running,'status');await windows.sync(running.id,current.studios);
-    if(running.active||current.active||current.jobs.length)throw Object.assign(Error('Source changed while '+running.label+' has active work. Finish or cancel it before reloading.'),{code:'RUNTIME_CODE_CHANGED',jobs:current.jobs});
-    await rpc(running,'stopping',{reason:'restart'});await rpc(running,'close');running.child.disconnect();windows.detach(running.id);runtimes.delete(running.id);
-    return launch(selected);
-  }
-  async function selected(message){
-    const task=selection.tail.then(()=>ensure(message.runtime));selection.tail=task.then(()=>{},()=>{});return task;
+  // Starting and stopping runtimes is serial. A running runtime keeps its code until an explicit reload.
+  function serial(action){const task=selection.tail.then(action);selection.tail=task.then(()=>{},()=>{});return task;}
+  function selected(message){
+    return serial(async()=>{
+      if(selection.closing)throw Error('SAAM is stopping.');
+      // Runtime roots are validated locally; the client cannot supply an executable.
+      const chosen=message.runtime?await selectRuntime(message.runtime.codeRoot):fallback;
+      return runtimes.get(chosen.id)??launch(chosen);
+    });
   }
   async function sync(runtime){const status=await rpc(runtime,'status');await windows.sync(runtime.id,status.studios);return status;}
   // An explicit take-over closes other runtimes' Studios showing the print (refused while work runs there).
@@ -117,16 +113,32 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
       studios:states.flatMap(({runtime,status})=>status.studios.map(studio=>({...studio,runtimeId:runtime.id,runtimeLabel:runtime.label})))};
   }
   async function notifyStopping(reason){await Promise.all([...runtimes.values()].map(runtime=>rpc(runtime,'stopping',{reason})));}
-  async function stopRuntime(message){
-    const identity=message.runtimeId?null:await selectRuntime(message.runtime?.codeRoot??codeRoot);
-    const runtime=runtimes.get(message.runtimeId??identity.id);
-    if(!runtime)return {stopped:false};
-    const current=await sync(runtime);
-    if((current.jobs.length||runtime.active||current.active)&&!message.force)return {confirmationRequired:true,jobs:current.jobs,message:'Stopping this runtime cancels active work.'};
-    await rpc(runtime,'stopping',{reason:'runtime-stop'});await rpc(runtime,'close');runtime.child.disconnect();windows.detach(runtime.id);runtimes.delete(runtime.id);return {stopped:true,runtimeId:runtime.id};
+  // Stops the runtime a message names; its windows keep their addresses for the next start.
+  // Closing waits for the runtime's Studios, which may themselves be asking to start a runtime.
+  async function halt(message,reason){
+    const removed=await serial(async()=>{
+      const id=message.runtimeId??(await selectRuntime(message.runtime?.codeRoot??codeRoot)).id,runtime=runtimes.get(id);
+      if(!runtime)return {stopped:false,runtimeId:id};
+      const current=await sync(runtime);
+      if((current.jobs.length||runtime.active||current.active)&&!message.force)return {confirmationRequired:true,jobs:current.jobs,message:(reason==='restart'?'Reloading':'Stopping')+' this runtime cancels active work.'};
+      await rpc(runtime,'stopping',{reason});windows.detach(runtime.id);runtimes.delete(runtime.id);
+      return {stopped:true,runtime};
+    });
+    if(!removed.stopped)return removed;
+    const {runtime}=removed;
+    try{await rpc(runtime,'close');}finally{if(runtime.child.connected)runtime.child.disconnect();}
+    return {stopped:true,runtimeId:runtime.id,codeRoot:runtime.codeRoot};
+  }
+  const stopRuntime=message=>halt(message,'runtime-stop');
+  // The only way a running runtime gets newer code; its windows reopen with it.
+  async function reloadRuntime(message){
+    const halted=await halt(message,'restart');
+    if(halted.confirmationRequired)return halted;
+    const runtime=await selected({runtime:{codeRoot:halted.codeRoot??message.runtime?.codeRoot??codeRoot}});
+    return {reloaded:true,runtime:{id:runtime.id,label:runtime.label}};
   }
   async function close(){selection.closing=true;await selection.tail;await Promise.all([...runtimes.values()].map(async runtime=>{try{await rpc(runtime,'close');}finally{if(runtime.child.connected)runtime.child.disconnect();}}));await windows.close();runtimes.clear();}
-  return {command,identify,status,stopRuntime,notifyStopping,close,runningJobs:async()=>(await status()).jobs,
+  return {command,identify,status,stopRuntime,reloadRuntime,notifyStopping,close,runningJobs:async()=>(await status()).jobs,
     observeEvents(observer){eventObservers.add(observer);return()=>eventObservers.delete(observer);},
     observeOperations(observer){operationObservers.add(observer);return()=>operationObservers.delete(observer);}};
 }

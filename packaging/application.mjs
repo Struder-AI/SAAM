@@ -103,6 +103,7 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
       }
       if(message.command==='diagnostics')return {ok:true,receipt:await state.services.flushDiagnostics(),service:state.services.status()};
       if(message.command==='status')return {ok:true,pid:process.pid,instanceId,version:config.version,home:paths.home,...await state.runtime.status(),service:state.services.status()};
+      if(message.command==='reload-runtime')return {ok:true,...await state.runtime.reloadRuntime(message)};
       if(message.command==='stop-runtime')return {ok:true,...await state.runtime.stopRuntime(message)};
       if(message.command==='quit')return {ok:true,...await quit(message.force===true)};
       if(message.command==='update')return {ok:true,...await state.services.update({force:message.force===true})};

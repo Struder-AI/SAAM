@@ -50,11 +50,13 @@ export function createServicePanel({token,available:hasService=true}){
     const failure=view.statusFailure??status?.problem??status?.diagnostics?.lastFailure?.error;
     const serviceState=failure?'needs attention':status?.activated?'connected':available?'not connected':'unavailable';
     updateConnectControl({service:serviceState,serviceAttention:Boolean(failure)});
-    $('service-status').textContent=failure?failure+(status?.activated?' Check for updates or ask your agent to inspect diagnostics.':status?' Enter an alpha invite to reconnect.':' Ask your agent to check SAAM.')
+    $('service-status').textContent=(failure?failure+(status?.activated?' Check for updates or ask your agent to inspect diagnostics.':status?' Enter an alpha invite to reconnect.':' Ask your agent to check SAAM.')
       :!status?'Checking connection…'
       :!available?'Updates unavailable. SAAM works locally.'
       :status.activated?`Connected · SAAM ${status.version}`
-      :'Enter an alpha invite for updates and diagnostics.';
+      :'Enter an alpha invite for updates and diagnostics.')
+      // A source runtime keeps its code until the developer's agent reloads it.
+      +(status?.runtime?.newerCode?' Newer code is available for '+status.runtime.label+': ask your agent to reload this runtime.':'');
     if(status?.firstRunPrompt&&!view.firstPromptShown){view.firstPromptShown=true;open();$('service-invite').focus();}
   }
   async function refresh(){
