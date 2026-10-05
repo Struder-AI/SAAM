@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-05 — Publish SAAM 0.3.5 (Update verification)
+
+- Owner: "Gatekeeper compatibility confirmed. Now we need to confirm the update button, so release 0.3.5". Published v0.3.5 at source 090d1ca259148ccf5a10b5983951318454857b21 (0.3.4 plus the install guide's quit/uninstall line), same build procedure and Windows mesh helper as 0.3.4. Windows 43,956,286 bytes, 8a042c2935a8dc190237cfbd81a9d4dcceedf817b1c78eaf4253ad3379b41298; arm64 Mac 47,847,366 bytes, 86de0a2c66ab36da57c622758cb5fa40f26b5ab44fbfc678d2af52529ae0e7f9; Intel Mac 49,196,945 bytes, 11aa2c30a876d7c99633ccf9810d99e1466406544cec5d9d0a064a617aa98beb. Setup checks passed; public assets, sidecars, tag and stable/latest status verified by download. Relay deployed (c4928de0-67b0-479e-a45f-4005bc53d9b7); the authenticated offer returns 0.3.5.
+- Mac (owner): agent-led fresh 0.3.4 install after removing SAAM, its client approvals and the earlier Gatekeeper override; Gatekeeper compatibility confirmed by the owner. Pending: Update 0.3.4 to 0.3.5 on the Mac. Not run: whole suite.
+
 ## 2026-10-05 — Publish SAAM 0.3.4
 
 - Published v0.3.4 at source 1cea79c58364f20c68498654c47a31a5b6cbf15e (owner pre-authorized publishing once nothing blocked; Windows isolated trial skipped by owner, release is macOS-focused). Built from a fresh LF worktree with checksum-verified official Node 24.19.0; Windows mesh helper 1715dfa5 (unchanged LF source since 0.3.3). Windows 43,955,214 bytes, d3a0f015e2d084015183702820c6c3396aa1e448c160e1dbb3e3a58cf5c1a300; arm64 Mac 47,846,367 bytes, 9f652a8954a31c966151b3a2d908f9df56c9cdf73d66d854c0e8c71bb6d41aa9; Intel Mac 49,196,427 bytes, bb9f3ad28ee338c755cf7a64990ec29695cdf4a5c7ac0a8958ecc317c3aabff5. Each package passed its setup check; Mac ZIPs carry no double-click installer. Public assets, sidecars, tag, stable/latest status and the latest INSTALL.md verified by download. Release notes lead agents to the v0.3.4 INSTALL.md.
