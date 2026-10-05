@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-04 — One route: saam is the only agent route
+
+- Worker, from the Codex baseline (Application visibility, saam operations for every bundle command already merged): new maintenance operations `get_bundle_instance` (query), `recover_bundle_instance` (refuses a live instance), `repair_stl` (cancellable import job) and `extension_library` (checkout/export/import); all immediate, no Studio view. The installer migrates the home before the application runs: that is maintenance's home when Application cannot run.
+- Removed: `core/print/cli.mjs` and the npm `shell` script, gridfinity and thingi10k command lines, `scripts/extensions.mjs` (extension `resolve` dropped; `list_skills` lists extensions), `examples/prints/create.mjs`, the raw command lines in `studio/tour.mjs` and `studio/agent-requests.mjs`, runnable entries of six plan-exporting demos and the run-only demos (path-demo, heat-set demo, plastic-weld example, text demo and draped-demo, text BUILDER.md). Tour recipes live in `studio/tour.mjs`. Maker manuals no longer give command lines. Docs 2,051 → 1,968 lines.
+- Verified (worker, worktree, disposable `SAAM_DATA`): real saam runs of the four operations, crash recovery, repair, extension exchange, tour starter; targeted tests mcp-access, demos, gridfinity access, studio-tour-lifetime, vase-wall paths pass; legacy-migration (7), boolean-solid (1), blob-field (1) and denso (4) failures predate the change (fixtures without a machine). Merged and regenerated: checks and reads ok, code errors 1,156; the retired "command-line imports" cluster's label is reported. Remaining: demos row (ship skill recipe examples through Application), settled-draft dimming decision, developer tools outside Application. No whole suite run.
+
 ## 2026-10-04 — Byte-exact checkouts
 
 - Release audit: CRLF checkouts (`core.autocrlf=true`) changed `skills/wing/data/naca2412.dat` (sha256 dce4261b… vs recorded cf46ed61…), because the only airfoil rule in `.gitattributes` still named `workspaces/wing/data`. One repo-wide `* text=auto eol=lf` rule replaces path rules; Windows installer scripts stay CRLF, binary assets marked. All blobs were already LF: nothing renormalized. The 11 line-text font SVG hashes had the same fault.
