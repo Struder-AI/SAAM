@@ -1,5 +1,9 @@
 # Development log
 
+## 2026-10-04 — Labels after the full solve
+
+- Worker: dropped the 63 labels of retired clusters, labelled 65 new clusters, relabelled 25 that kept identity through a weak rematch but changed content; all 171 solved clusters labelled (layout.json labels only). Merged and regenerated: 162 identities kept, 18 positions and 171 labels applied, none missing; checks and reads ok. 100 clusters flagged mixed in the owner review list, mostly geometry and extensions (STL decoding and repair spread across 2.1–2.4): a grouping question for the solver objective. Donate deferred to 0.3.4 (plans/0.3.4.md); its disabled button removed. No tests run.
+
 ## 2026-10-04 — Full solve keeps the best of warm and cold
 
 - Worker: each node to solve runs cold and, when it has a kept solve, warm, as separate jobs; cold is kept when its energy is at least 3% lower (`COLD_MARGIN`) or the node is named by `--cold NODE` (repeatable, comma lists). `regenerate` prints each node's energies and choice, and `relabel` lists new clusters where cold won; the kept summary records the other result as `rival`. README 175 → 175 lines.
