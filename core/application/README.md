@@ -6,7 +6,7 @@ Each version's first start runs the [setup check](../../scripts/setup-check.mjs)
 Quit and updates warn about jobs; startup/network deadlines report failures without expiring work.
 
 The home is `C:\SAAM` on Windows or `~/SAAM` on macOS: replaceable `app/`, user-owned `local/` and persistent `state/`.
-Bundles live in `local/Prints/` and user extensions in `local/extensions/`; last-export setups are in `local/machine-setups/`. Source/installed runs share the home/credential; `SAAM_DATA` isolates another home.
+Bundles live in `local/Prints/` and user extensions in `local/extensions/`; last-export setups are in `local/machine-setups/`. Source/installed runs share the home/credential. Developer agents verifying source changes use `node scripts/dev-instance.mjs <saam args>` (then `stop`): a background instance with its own home, no tray and no browser; test runs never open a browser either.
 Startup generates home `AGENTS.md`, `CLAUDE.md` and client skills from [AGENTS.md](../../AGENTS.md), resolving home folders/manual links.
 [Installation](../../packaging/INSTALL.md) owns migration, client registration and permissions, including absent clients.
 
