@@ -894,7 +894,7 @@ class Page:
              f'height="{self.H:.0f}" viewBox="0 0 {self.W:.0f} {self.H:.0f}" '
              f'font-family="{FONT}">', "<defs>"]
         for name, col in [("l-data", "#334155"), ("l-gate", "#be123c"),
-                          ("l-io", "#0891b2"), ("l-co", CO_TC)]:
+                          ("l-io", "#0891b2"), ("l-co", CO_TC), ("l-possible", "#94a3b8")]:
             o.append(f'<marker id="{name}" viewBox="0 0 10 8" refX="9" refY="4" '
                      f'markerWidth="8" markerHeight="7" orient="auto-start-reverse">'
                      f'<path d="M0,0 L10,4 L0,8 z" fill="{col}"/></marker>')
@@ -927,7 +927,9 @@ class Page:
             # A wrap carries the same payload as any other wire, but it is a consequence
             # of the page being folded, not of the flow. Drawn recessive so it reads as
             # "continues below" instead of competing with the band it crosses.
-            wrap = ' opacity="0.5"' if k_i in self.wrapped else ""
+            # A wire style may be faded itself (`opacity`: a possible influence arrow).
+            fade = (0.5 if k_i in self.wrapped else 1) * st.get("opacity", 1)
+            wrap = f' opacity="{fade:g}"' if fade < 1 else ""
             broken = k_i in self.long and LONG_STYLE == "ends"
             if broken:
                 # Both ends, stroked; the span between them is the end tags below, which say

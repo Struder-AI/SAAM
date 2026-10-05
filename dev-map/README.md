@@ -37,6 +37,13 @@ library (shared queries treating every caller alike) is one `library ·` box. Pa
 unlinked and unowned leaves are counts on boxes and marker boxes that open their lists, and files
 not analysed a marked list on map 0. The viewer is `sets/030-influence/view/index.html`.
 
+**Possible arrows** (temporary, `suspectedImprecision` in solved-set.mjs): reads mark a state node
+`possible` when it belongs to an alias class, ≥10 state nodes from ≥5 allocating files whose reader
+sets overlap (Jaccard ≥ 0.8) — the analysis merging objects. Every leaf arrow touching one is
+possible: the viewer fades an arrow whose leaf arrows are all possible and its pane lists them in
+groups of their own; a map read gives `{real, possible}` for such arrows and a link read a separate
+`possible` key. The rule reads only the stored model; delete that section to remove it.
+
 ## Commands
 
 ```sh
