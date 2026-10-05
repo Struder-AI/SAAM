@@ -85,7 +85,7 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
       update:config.platform&&config.updateHost?async(offered,{force=false}={})=>{
         const jobs=await state.runtime.runningJobs();
         if(jobs.length&&!force)return {confirmationRequired:true,jobs,message:'Updating SAAM cancels running jobs.'};
-        const result=await installUpdate(offered,{...config,data:paths.state,report:(event,options)=>report(event,options)});state.runtime.notifyStopping('update');later();return result;
+        const result=await installUpdate(offered,{...config,report:(event,options)=>report(event,options)});state.runtime.notifyStopping('update');later();return result;
       }:null,
       quit:({force=false}={})=>quit(force)});
     // The setup check runs at the first start of each installed version. A failure starts

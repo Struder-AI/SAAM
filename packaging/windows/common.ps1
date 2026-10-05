@@ -1,7 +1,7 @@
 # Shared by install.ps1 and uninstall.ps1 (dot-sourced).
 # Windows PowerShell 5.1 compatible; ASCII only.
 #
-# One home: app is replaceable; Prints, extensions and state persist.
+# One home: app is replaceable; local data and state persist.
 
 $ErrorActionPreference = 'Stop'
 
@@ -23,15 +23,26 @@ function Get-SaamDataFolder {
   return $SaamHome
 }
 
-# Set by install.ps1 when SAAM updates itself: no one watches that window, so
-# progress and failures also go to <data>\logs\update.log.
-$UpdateLog = $null
-function Write-Log([string]$Message) {
-  if ($UpdateLog) { Add-Content -LiteralPath $UpdateLog -Value ((Get-Date).ToString('o') + ' ' + $Message) -Encoding UTF8 }
+# install.ps1 reports fixed stages (never paths, names or error text) through
+# the first of these SAAM programs that has packaging\installer-report.mjs.
+$DiagnosticProgram = $null
+$FirstRun = $false
+function Write-Diagnostic([string]$Stage) {
+  if (-not $DiagnosticProgram) { return }
+  $ErrorActionPreference = 'Continue'
+  foreach ($program in @($DiagnosticProgram, $SaamRoot)) {
+    $reporter = Join-Path $program 'packaging\installer-report.mjs'
+    if (Test-Path -LiteralPath $reporter) {
+      $reportArgs = @($reporter, $SaamHome, 'stage', $Stage)
+      if ($FirstRun) { $reportArgs += '--first-run' }
+      & (Join-Path $program 'runtime\node.exe') @reportArgs 2>$null | Out-Null
+      return
+    }
+  }
 }
 
 function Stop-WithMessage([string]$Message) {
-  Write-Log $Message
+  Write-Diagnostic 'failed'
   Write-Host ''
   Write-Host $Message -ForegroundColor Red
   exit 1
