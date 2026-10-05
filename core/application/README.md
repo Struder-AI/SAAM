@@ -1,6 +1,7 @@
 # SAAM application
 
 One application per home owns Studios, chats, jobs and release services. [Startup](../../packaging/application.mjs) acquires the OS listener, starts the tray and publishes readiness.
+Each version's first start runs the [setup check](../../scripts/setup-check.mjs); failures reach `maker_onboarding` and diagnostics and rerun next start.
 [saam](../../scripts/saam.mjs) starts it when needed. Command exit, chat closure and browser closure leave it running.
 Quit and updates warn about jobs; startup/network deadlines report failures without expiring work.
 
@@ -15,7 +16,6 @@ Startup generates home `AGENTS.md`, `CLAUDE.md` and client skills from [AGENTS.m
 It shares revisioned edits with text, heat-set and gridfinity; [standard support](../../skills/standard-support/SKILL.md#choose-the-patches) explains editable mesh-roof construction.
 `share_bundle` / `import_bundle` use `bundleId` and an absolute `packageFile` ZIP; [portable exchange](../print/README.md) owns editable inputs. Preparation is cancellable until publication; recipients regenerate/review before export.
 `saam` is the only agent route, maintenance included: `migrate_bundle`, `get_bundle_instance`/`recover_bundle_instance` after a Studio crash, `repair_stl` and `extension_library`.
-Before the application can run, the [installer](../../packaging/INSTALL.md) migrates the home.
 Claude/Codex session IDs identify chats; otherwise retain returned `chatId` and pass `--chat-id ID`, including retries. `--chat-name` sets its label.
 
 [Runtime](runtime.mjs) retains queues/windows; edits establish [work and hand-back](../../studio/README.md#carrying-a-maker-request). Saved revisions display throughout work.
