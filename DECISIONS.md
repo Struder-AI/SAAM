@@ -462,3 +462,7 @@ Historical approved wording; current persistence direction is [D-027](#d-027--ex
 ## D-050 — Influence map 0 approved; authored placement
 
 - Owner decision, 2026-10-04: map 0 of the 030-influence set as drawn (authored nodes including Application and Development tooling, their positions, and the outside actors User, Desktop agent, External resources and STL file) is approved, open to adjustment during work. The proposed map-0 wires for Application and Development tooling and the proposed actors Printer and Native mesh helper were not drawn and are not covered. Placing nodes by hand in the viewer, with wires moving live, is a high-level objective. Source: owner, Claude Code session 2026-10-04: "0 map looks pretty good, I approve and we may adjust it as we continue to work." and "I want to author placement myself. Picking through the nodes manually and watching the wires move in real time, like in airsourceChemistry, is now a high level objective for us, ok?"
+
+## D-051 — Code shape: no passthrough wires without good reason
+
+- Owner decision, 2026-10-04: code-shape rule 5 in DEVELOPER-CONTEXT. Source: owner, Claude Code session 2026-10-04: "It seems to me that passthrough wires like in your mergeSettings example increase complexity and reduce visibility and we should avoid coding like that without good reason." Approved wording: "That wording is good." Also this session: load code that only declares stays listed without arrows ("C is fine, code that does nothing should be represented as doing nothing.").
