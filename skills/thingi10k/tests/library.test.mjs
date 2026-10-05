@@ -134,7 +134,7 @@ test('application import preserves attribution through correction and delivery',
   await assert.rejects(call('import_thingi10k_bundle',{bundleId:'Bunny',fileId:'101',machineId:'ultimaker-s5'}));
   assert.equal(requests.length,count,'existing print is rejected before download');
   const reservation=await bundleInstance(dir);
-  await withBundleInstance(dir,reservation,async()=>{
+  const destination=await withBundleInstance(dir,reservation,async()=>{
     await setSTLUnits(dir,'mm',{expectedRevision:state.revision});
     state=await loadBundle(dir,{program:false});assert.deepEqual(state.plan.geometry.source.attribution,imported.attribution);
     state.plan.process.minimumLayerSeconds=0;
@@ -144,8 +144,8 @@ test('application import preserves attribution through correction and delivery',
     await generateBundle(dir);
     state=await loadBundle(dir);
     await approve(dir,{revision:state.revision,actor:'SYNTHETIC TEST ONLY'});
+    return deliver(dir);
   });
-  const destination=await deliver(dir);
   assert.equal(createHash('sha256').update(await readFile(destination)).digest('hex'),state.exportHash);
   const attribution=JSON.parse(await readFile(resolve(dir,'delivery/source-attribution.json')));
   assert.equal(attribution.sha256,imported.attribution.sha256);
