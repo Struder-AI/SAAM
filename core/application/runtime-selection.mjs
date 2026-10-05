@@ -8,8 +8,14 @@ import {fileURLToPath} from 'node:url';
 import {homePaths} from './home.mjs';
 const execute=promisify(execFile);
 export const invocationRoot=resolve(fileURLToPath(new URL('../..',import.meta.url)));
+// The orchestrator/runtime protocol this code speaks; a packaged release records it in release.json.
+export const orchestratorContract=1;
 export async function orchestratorRoot(paths=homePaths()){
-  try{await stat(resolve(paths.app,'release.json'));return paths.app;}catch(error){if(error.code!=='ENOENT')throw error;return invocationRoot;}
+  const release=await readFile(resolve(paths.app,'release.json'),'utf8').then(JSON.parse).catch(error=>{if(error.code!=='ENOENT')throw error;return null;});
+  if(!release)return invocationRoot;
+  // Starting an installed application that cannot run this code would only open its windows on the real home.
+  if(release.contract!==orchestratorContract)throw Error('Update the installed SAAM '+release.version+' first: this code requires orchestrator contract '+orchestratorContract+'.');
+  return paths.app;
 }
 export async function selectRuntime(codeRoot=invocationRoot){
   const root=await realpath(codeRoot),paths=homePaths();

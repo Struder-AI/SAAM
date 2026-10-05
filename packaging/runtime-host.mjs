@@ -4,6 +4,7 @@ import {resolve} from 'node:path';
 import {z} from 'zod';
 import {createLocalRuntime,instructions} from '../core/application/runtime.mjs';
 import {homePaths} from '../core/application/home.mjs';
+import {orchestratorContract} from '../core/application/runtime-selection.mjs';
 import {replaceFile} from '../core/file-write.mjs';
 import {checkSetup} from '../scripts/setup-check.mjs';
 
@@ -39,7 +40,7 @@ async function command(message){
   return {ok:true,result:await chat.invoke(operationName,message.args??{})};
 }
 async function start(args){
-  if(args.contract!==1)throw Error('This runtime requires orchestrator contract 1. Update SAAM or this checkout.');
+  if(args.contract!==orchestratorContract)throw Error('This runtime requires orchestrator contract '+orchestratorContract+'. Update SAAM or this checkout.');
   const paths=homePaths(),stateRoot=args.stateRoot;
   await mkdir(stateRoot,{recursive:true});
   const setupFile=resolve(stateRoot,'setup-check.json'),setup={problem:null};
@@ -56,7 +57,7 @@ async function start(args){
   host.runtime.observeEvents(event=>send({type:'event',event}));
   await host.runtime.restoreStudios(args.windows??[]);
   if(args.autoOpen&&!args.windows?.length)await host.runtime.openStudio();
-  return {contract:1};
+  return {contract:orchestratorContract};
 }
 async function handle(message){
   if(message.type==='start')return start(message.args);

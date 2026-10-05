@@ -2,7 +2,7 @@
 import {spawn} from 'node:child_process';
 import {resolve} from 'node:path';
 import {createStudioWindows} from './studio-windows.mjs';
-import {selectRuntime} from '../core/application/runtime-selection.mjs';
+import {selectRuntime,orchestratorContract} from '../core/application/runtime-selection.mjs';
 
 export async function createRuntimeRegistry({paths,autoOpen,services,retryClients,codeRoot}){
   const windows=await createStudioWindows(paths.state,{autoOpen}),runtimes=new Map(),selection={tail:Promise.resolve(),closing:false};
@@ -41,7 +41,7 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     });
     function failed(error){windows.detach(runtime.id);for(const waiter of runtime.pending.values())waiter.fail(error);runtime.pending.clear();if(runtimes.get(runtime.id)===runtime)runtimes.delete(runtime.id);}
     child.once('error',failed);child.once('exit',code=>failed(Error('Runtime '+runtime.label+' exited ('+code+'). '+runtime.stderr)));
-    try{await rpc(runtime,'start',{contract:1,runtimeId:runtime.id,label:runtime.label,fingerprint:runtime.fingerprint,autoOpen,service:services.status(),
+    try{await rpc(runtime,'start',{contract:orchestratorContract,runtimeId:runtime.id,label:runtime.label,fingerprint:runtime.fingerprint,autoOpen,service:services.status(),
       stateRoot:resolve(paths.state,'runtimes',runtime.id.replace(':','-')),windows:windows.restore(runtime.id)});return runtime;}
     catch(error){child.kill();throw error;}
   }
