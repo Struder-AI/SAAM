@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-04 — Full solve keeps the best of warm and cold
+
+- Worker: each node to solve runs cold and, when it has a kept solve, warm, as separate jobs; cold is kept when its energy is at least 3% lower (`COLD_MARGIN`) or the node is named by `--cold NODE` (repeatable, comma lists). `regenerate` prints each node's energies and choice, and `relabel` lists new clusters where cold won; the kept summary records the other result as `rival`. README 175 → 175 lines.
+- First full solve in the main checkout (2 min 3 s; studio cold 114 s is the critical path): cold kept for geometry (0.839 → 0.809), toolpath (0.918 → 0.837), extensions, bundle, settings; warm kept for the rest. Identities: 10 kept, 91 rematched, 7 split, 48 merged, 35 retired, 51 new. All 18 owner positions applied; 106 of 169 labels apply, 63 to redo (label pass for geometry, toolpath, extensions, bundle, settings). Checks and reads ok; code errors 1,126. No tests run.
+
 ## 2026-10-04 — Map triage; engine review fixes; full-solve and demos intent
 
 - Triage (worker): 248 unlinked = 196 declaring loads, 12 dead leaves plus one dead const (list in `.local/team/triage-report.md`, awaiting owner approval), 39 analysis gaps. Merged its channels/platform-model commit: own-file path evaluation, process control follows its spawn, skill-script console to the agent, build tools assigned, file state declared at its first writer (plan.json is Bundle's), manifold operations copy their inputs; unassigned contacts 36 → 14, cross-owner state 47 → 46 (8 real sharing, 2 ownership errors, 36 imprecision). Held, not merged: extension entries through manifests (brings back a six-node alias blob with the text-compiling editors).
