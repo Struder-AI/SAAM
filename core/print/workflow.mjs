@@ -10,7 +10,7 @@ async function hashFile(path){const sha=createHash('sha256');for await(const chu
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { exportAndDecodeProgram, decodeProgram, readProgramSources } from '../export/registry.mjs';
+import { exportAndDecodeProgram, decodeProgram, readProgramSources, outputAdapter } from '../export/registry.mjs';
 import { loadMachine } from '../machine/profile.mjs';
 import {consumeCheckedProgram,createPendingCheckedProgramStore} from './program-handoff.mjs';
 import {replaceFile} from '../file-write.mjs';
@@ -454,6 +454,8 @@ async function checkPathBundle(directory, {onProgress} = {}) {
 async function prepareGeneration(directory,{onProgress}={}){
   const state=await loadBundle(directory,{program:false}),source=await generationSource(state.plan);
   requireThat(state.machine,'Supply a machine, material and toolpath recipe before generation.');
+  // A profile without an output contract refuses before geometry or motion is built.
+  outputAdapter(state.plan,state.machine);
   const key=hash([state.dir,state.generationHash,source.release,source.hash??state.review.path?.source?.hash]);
   if(preparation?.key!==key)preparation={key};
   const candidate=preparation;
