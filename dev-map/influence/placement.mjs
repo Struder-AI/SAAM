@@ -25,6 +25,7 @@
 import {readFileSync,writeFileSync,renameSync,rmSync} from 'node:fs';
 import {resolve,relative} from 'node:path';
 import {layoutClusters,renameLayout} from './cluster-identity.mjs';
+import {layoutText,positionDocuments} from './position-documents.mjs';
 
 export const TOP='0';
 const order=(a,b)=>a<b?-1:a>b?1:0;
@@ -62,7 +63,7 @@ function readArchitecture(authoredDir) {
 }
 export function readLayoutFile(file) {
   let text;
-  try{text=readFileSync(file,'utf8');}catch(error){if(error.code==='ENOENT')return {maps:{},clusters:{}};throw error;}
+  try{text=readFileSync(file,'utf8');}catch(error){if(error.code==='ENOENT')return {schema:1,maps:{},labels:{},clusters:{}};throw error;}
   const json=JSON.parse(text);
   if(json.schema!==1||typeof json.maps!=='object')throw Error(`${file}: expected {"schema":1,"maps":{…}}.`);
   json.labels??={};json.clusters??={};
@@ -137,114 +138,14 @@ function writeAtomic(file,text) {
     }
   }
 }
-// The text span of a top-level property's value in a JSON document.
-function topLevelValue(text,key) {
-  let depth=0,i=0;
-  const skipString=at=>{let k=at+1;while(text[k]!=='"')k+=text[k]==='\\'?2:1;return k+1;};
-  while(i<text.length) {
-    const c=text[i];
-    if(c==='"') {
-      const end=skipString(i);
-      if(depth===1&&JSON.parse(text.slice(i,end))===key) {
-        let k=end;while(/\s/.test(text[k]))k++;
-        if(text[k]===':') {
-          k++;while(/\s/.test(text[k]))k++;
-          const start=k;let d=0;
-          for(;k<text.length;k++) {
-            const ch=text[k];
-            if(ch==='"'){k=skipString(k)-1;if(d===0){k++;break;}continue;}
-            if(ch==='{'||ch==='[')d++;
-            else if(ch==='}'||ch===']'){d--;if(d===0){k++;break;}}
-            else if(d===0&&(ch===','||/\s/.test(ch)))break;
-          }
-          return {start,end:k};
-        }
-      }
-      i=end;continue;
-    }
-    if(c==='{'||c==='[')depth++;else if(c==='}'||c===']')depth--;
-    i++;
-  }
-  return null;
-}
-// architecture.json with only its `layout` rewritten: the rest of the hand-formatted file stays
-// byte for byte, line endings included.
-function withLayout(text,layout) {
-  const crlf=text.includes('\r\n'),lf=crlf?text.replaceAll('\r\n','\n'):text;
-  const value=JSON.stringify(layout,null,2).replaceAll('\n','\n  ');
-  const span=topLevelValue(lf,'layout');
-  let out;
-  if(span)out=lf.slice(0,span.start)+value+lf.slice(span.end);
-  else {const close=lf.lastIndexOf('}');out=`${lf.slice(0,close).trimEnd()},\n  "layout": ${value}\n${lf.slice(close)}`;}
-  if(JSON.stringify(JSON.parse(out))!==JSON.stringify({...JSON.parse(lf),layout}))throw Error('architecture.json layout splice changed more than the layout.');
-  return crlf?out.replaceAll('\n','\r\n'):out;
-}
-function layoutText({maps,labels={},clusters={}}) {
-  const lines=['{',' "schema": 1,',' "about": "Authored box positions and cluster labels on influence maps, by map path and box identity: dev-map/README.md#authored-placement. Map 0\'s authored nodes are placed in the authored set\'s architecture.json.",',' "maps": {'];
-  const mapKeys=Object.keys(maps).sort(order);
-  mapKeys.forEach((map,i)=>{
-    lines.push(`  ${JSON.stringify(map)}: {`);
-    const boxes=Object.keys(maps[map]).sort(order);
-    boxes.forEach((box,k)=>{const p=maps[map][box];lines.push(`   ${JSON.stringify(box)}: {"x": ${p.x}, "y": ${p.y}}${k<boxes.length-1?',':''}`);});
-    lines.push(`  }${i<mapKeys.length-1?',':''}`);
-  });
-  if(!mapKeys.length)lines[lines.length-1]+='}';else lines.push(' }');
-  const named=Object.keys(labels).sort(order);
-  if(named.length) {
-    lines[lines.length-1]+=',';lines.push(' "labels": {');
-    named.forEach((id,k)=>lines.push(`  ${JSON.stringify(id)}: ${JSON.stringify(labels[id])}${k<named.length-1?',':''}`));
-    lines.push(' }');
-  }
-  const ids=Object.keys(clusters).sort(order);
-  if(ids.length) {
-    lines[lines.length-1]+=',';lines.push(' "clusters": {');
-    ids.forEach((id,k)=>{const c=clusters[id];lines.push(`  ${JSON.stringify(id)}: {"leaves": ${c.leaves}, "minhash": ${JSON.stringify(c.minhash)}}${k<ids.length-1?',':''}`);});
-    lines.push(' }');
-  }
-  lines.push('}');
-  return lines.join('\n')+'\n';
-}
-const point=(p,where)=>{
-  if(p===null)return null;
-  if(!p||![p.x,p.y].every(Number.isFinite))throw Error(`${where}: a position is {"x":N,"y":N} or null.`);
-  return {x:p.x,y:p.y};
-};
 // Positions set on one map, BOX → {x,y} or null (back to solved placement). Map 0's authored
 // nodes and actors go to architecture.json, which keeps any other field of a position (such
 // as `emphasis`); everything else to layout.json. Returns the files written, repository-relative.
 export function writePositions({authored,layout,repo,map,set,initial={},signatureOf}) {
-  if(typeof map!=='string'||!map||typeof set!=='object'||!set||Array.isArray(set))throw Error('Expected {"map":PATH,"set":{BOX:{x,y}|null}}.');
-  if(typeof initial!=='object'||!initial||Array.isArray(initial))throw Error('Initial placement is a box-position record.');
   const arch=readArchitecture(authored),own=readLayoutFile(layout);
-  let archChanged=false,ownChanged=false;
-  const positions=structuredClone(arch.json.layout?.[TOP]?.positions??{});
-  // The first edit authors the whole displayed map. Fill only absent positions, so a
-  // concurrent viewer's newer edits win over the initiating viewer's initial snapshot.
-  if(map!==TOP)for(const [box,raw] of Object.entries(initial)) {
-    const boxes=own.maps[map]??={};
-    if(boxes[box]!==undefined)continue;
-    const p=point(raw,`${map} ${box}`);
-    if(p===null)continue;
-    boxes[box]=p;ownChanged=true;
-  }
-  for(const [box,raw] of Object.entries(set)) {
-    const p=point(raw,`${map} ${box}`);
-    const key=map===TOP?arch.keyOf.get(box):undefined;
-    if(key!==undefined) {
-      if(p===null)throw Error(`${box} is an authored map-0 node; it keeps a position (architecture.json).`);
-      positions[key]={...positions[key],...p};archChanged=true;continue;
-    }
-    const boxes=own.maps[map]??={};
-    if(p===null)delete boxes[box];else boxes[box]=p;
-    if(!Object.keys(boxes).length)delete own.maps[map];
-    ownChanged=true;
-  }
-  const wrote=[];
-  if(archChanged) {
-    const layoutValue={...arch.json.layout,[TOP]:{...arch.json.layout?.[TOP],positions}};
-    writeAtomic(arch.file,withLayout(arch.text,layoutValue));wrote.push(relative(repo,arch.file).replaceAll('\\','/'));
-  }
-  if(ownChanged){writeAtomic(layout,layoutText({...own,clusters:signaturesFor(own,signatureOf)}));wrote.push(relative(repo,layout).replaceAll('\\','/'));}
+  const next=positionDocuments({architecture:arch.text,layout:own,map,set,initial}),wrote=[];
+  if(next.architecture){writeAtomic(arch.file,next.architecture);wrote.push(relative(repo,arch.file).replaceAll('\\','/'));}
+  if(next.layout){writeAtomic(layout,layoutText({...next.layout,clusters:signaturesFor(next.layout,signatureOf)}));wrote.push(relative(repo,layout).replaceAll('\\','/'));}
   return wrote;
 }
 // A submap back to its solved layout: its positions removed from layout.json. Map 0 has no

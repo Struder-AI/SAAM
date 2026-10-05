@@ -1563,7 +1563,7 @@ function authorSay(text,bad){const s=document.getElementById('author-status');s.
 function authorCount(){return Object.values(AUTHOR.maps).reduce((t,m)=>t+Object.keys(m).length,0);}
 function authorBar(){const on=AUTHOR.on;document.getElementById('arrange').classList.toggle('on',on);
   for(const id of ['author-undo','author-reset'])document.getElementById(id).hidden=!on;
-  document.getElementById('author-export').hidden=!on||AUTHOR.server;canvas.classList.toggle('arrange',on);}
+  document.getElementById('author-export').hidden=!on||AUTHOR.server;canvas.classList.toggle('arrange',on);authorFolderButton();}
 function arrange(){AUTHOR.on=!AUTHOR.on;authorBar();}
 function drawnBox(g){const [x,y,w,h,bh,rx]=g.dataset.box.split(',').map(Number);return {x,y,w,h,bh,rx:Number.isFinite(rx)?rx:Math.min(7,w/2,bh/2)};}
 function geom(id){const g=node(id);if(!g||!g.dataset.box)return null;const b=drawnBox(g),p=AUTHOR.at[id];
@@ -1687,7 +1687,7 @@ async function authorSave(map,set,initial={}){
     try{localStorage.setItem(AUTHOR_STORE,JSON.stringify(AUTHOR.maps));
       authorSay(`${authorCount()} positions kept in this browser only · Export layout to commit them`);}
     catch(e){authorSay('browser storage unavailable: Export layout before closing',true);}
-    return true;}
+    authorQueueFiles(map,set,initial);return true;}
   authorSay('saving…');
   try{const r=await fetch('api/positions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({map,set,initial})});
     const j=await r.json();if(!r.ok)throw Error(j.error||r.status);
@@ -1727,7 +1727,7 @@ function authorExport(){const body=JSON.stringify({schema:1,set:AUTHORING.set,ex
 function authorStart(){let local={};try{local=JSON.parse(localStorage.getItem(AUTHOR_STORE)||'{}')||{};}catch(e){}
   const offline=()=>{AUTHOR.server=false;AUTHOR.on=true;AUTHOR.maps={...AUTHORING.maps,...local};authorBar();const n=authorCount();
     authorSay(n?`${n} saved positions · edits stay in this browser · Export layout to keep a file`:'Arrange · edits stay in this browser · Export layout to keep a file');
-    if(cur)authorShow();};
+    if(cur)authorShow();authorRestoreFiles();};
   if(!/^https?:$/.test(location.protocol))return offline();
   fetch('api/layout',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject(Error(r.status))).then(j=>{
     if(j.mode!=='server')throw Error('not the authoring server');
@@ -1784,6 +1784,7 @@ AUTHOR_BAR = ('<button id="arrange" onclick="arrange()" title="drag boxes to pla
               '<button id="author-undo" onclick="authorUndo()" hidden title="undo the last move on this map (ctrl+z)">Undo move</button>'
               '<button id="author-reset" onclick="authorReset()" hidden title="a submap: back to its solved layout; map 0: this session&#39;s moves undone">Reset map</button>'
               '<button id="author-export" onclick="authorExport()" hidden title="write this browser&#39;s positions to a file for import-layout">Export layout</button>'
+              '<button id="author-files" onclick="authorConnectFiles()" hidden>Connect save folder</button>'
               '<span id="author-status"></span>')
 
 
@@ -1809,6 +1810,9 @@ def emit(out, model, pages, svgs, links=None):
     authoring_data = json.dumps(model.get("authoring")).replace("</", "<" + chr(92) + "/")
     placement_js = pathlib.Path(__file__).with_name("placement-solver.mjs").read_text(encoding="utf-8")
     placement_js = placement_js.replace("export function solvePlacement", "function solvePlacement")
+    documents_js = (pathlib.Path(__file__).parent.parent / "influence" / "position-documents.mjs").read_text(encoding="utf-8").replace("export function ", "function ")
+    files_js = pathlib.Path(__file__).with_name("file-authoring.mjs").read_text(encoding="utf-8")
+
     lists_data = json.dumps(model.get("lists", {})).replace("</", "<\\/")
     graph_pages = {key: p for key, p in pages.items() if p["destination"] in ("graph", "contents")}
     rows, parents = [], {p["p"] for p in graph_pages.values()}
@@ -1893,7 +1897,7 @@ const SNAPSHOT_ID={json.dumps(model.get("snapshotId"))};
 const DESIGN={json.dumps(model.get("design", False))};
 const LISTS={lists_data};
 const AUTHORING={authoring_data};
-{placement_js if model.get("authoring") else ""}{AUTHOR_JS if model.get("authoring") else ""}{JS}{"authorStart();" if model.get("authoring") else ""}
+{placement_js + documents_js + files_js if model.get("authoring") else ""}{AUTHOR_JS if model.get("authoring") else ""}{JS}{"authorStart();" if model.get("authoring") else ""}
 </script>
 """
     (out / "index.html").write_text(html, encoding="utf-8")

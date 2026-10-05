@@ -3,6 +3,14 @@
   "status": "Application sources refreshed 2026-10-02 using targeted current declaration inventory. Runtime root and createChat scopes are distinguished; removed adapter/toolkit routes are retained only as retired history. Mixed owners and unresolved effects remain explicit. Not conformance approval.",
   "policy": "Exact declaration/module ownership; Geometry owners are source-linked leaf IDs. Anonymous bodies inherit their nearest stable declaration. File location does not define architectural ownership.",
   "files": {
+    "dev-map/influence/position-documents.mjs": {
+      "owner": "development",
+      "reason": "Shared authored-position document values for static and server writes."
+    },
+    "dev-map/lib/file-authoring.mjs": {
+      "owner": "development",
+      "reason": "Static viewer saves through user-selected map files."
+    },
     "dev-map/lib/placement-solver.mjs": {
       "owner": "development",
       "reason": "Placement solver: positions within one map; independent of nesting."

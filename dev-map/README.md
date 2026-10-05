@@ -115,11 +115,13 @@ checks their drawings. Their reads follow the same contract.
 
 ## Authored placement
 
-Open `sets/030-influence/view/index.html` directly in a browser; no running process is needed.
-**Arrange** starts on; drag a box and its wires follow. **Undo move** (ctrl+z) restores it.
-**Export layout** saves the browser's arrangements;
-`node dev-map/cli.mjs --set 030-influence import-layout FILE` imports them into the checkout.
-The optional `serve` command saves directly instead of using browser storage.
+Open `sets/030-influence/view/index.html` without a server; **Arrange** starts on; **Undo move** restores a drag.
+**Connect save folder** selects `dev-map/sets` and grants disk writes in supporting Chromium
+browsers. Each drop saves the existing architecture/layout files, which build and regenerate read.
+The viewer remembers the folder; the browser may require reconnection after reopening. Saving
+is serialized and merges fresh files, preserving labels and other boxes. A failed write is visible.
+Without file access, edits stay in browser storage; **Export layout** plus
+`node dev-map/cli.mjs --set 030-influence import-layout FILE` keeps them in the checkout.
 
 The [placement solver](../plans/dev-maps.md#placement) places untouched maps with springs,
 repulsion, damping, cooling and rectangle clearance.
@@ -128,8 +130,7 @@ levels. Map 0 is authored; a map's first edit saves its whole arrangement. **Res
 explicitly requests new physics placement on a submap; on map 0 it undoes this session's moves.
 
 Positions are signed coordinates in free space; Fit and the minimap follow boxes and wires.
-Reopening the file restores browser edits; export keeps a portable copy. Imported positions
-live in [placement.mjs](influence/placement.mjs):
+[placement.mjs](influence/placement.mjs) owns saved positions:
 
 - Map 0's nodes and actors: `030-architecture/architecture.json` `layout["0"].positions`;
   only that block changes, and the architecture viewer shares it.
@@ -137,10 +138,8 @@ live in [placement.mjs](influence/placement.mjs):
   `@cluster/IDENTITY`, `FILE::NAME[ #K]`, `b:IDENTITY` or `list:NAME`. Its authored cluster names
   (`labels`) and cluster signatures (`clusters`, below) ride along.
 
-Build and regenerate preserve saved positions. Retired positions and labels stay in their
-files, are reported by build/regenerate/check and are listed on map 0.
-Wires meet box outlines and spread along each side (12 px apart, spilling round corners).
-`leveled.py direct_routes` and live dragging use the same rule, matching within 0.1 px on rebuild.
+Retired positions and labels stay in their files, reported by build/regenerate/check and on map 0.
+Wires meet box outlines and spread along each side; rebuild and dragging share the same routing.
 
 ### Cluster identity
 
