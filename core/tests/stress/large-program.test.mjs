@@ -1,4 +1,5 @@
 // Real size-boundary regressions. Run explicitly with npm run test:stress.
+import '../temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {exportProgram,decodeProgram} from '../../export/registry.mjs';

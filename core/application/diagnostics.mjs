@@ -32,8 +32,8 @@ export function isNetworkFailure(error){
   return false;
 }
 // A failed import of downloaded bytes keeps them, named by hash, until a newer one replaces them.
-export async function retainFailedImport(bytes){
-  const directory=resolve(homePaths().tmp,'diagnostics'),name=`failed-import.${createHash('sha256').update(bytes).digest('hex')}.stl`;
+export async function retainFailedImport(paths,bytes){
+  const directory=resolve(paths.tmp,'diagnostics'),name=`failed-import.${createHash('sha256').update(bytes).digest('hex')}.stl`;
   await replaceFile(resolve(directory,name),bytes);
   for(const old of await readdir(directory))if(old!==name&&/^failed-import\.[a-f0-9]{64}\.stl$/.test(old))await rm(resolve(directory,old),{force:true});
   return resolve(directory,name);
