@@ -1,11 +1,12 @@
 # Development log
 
-## 2026-10-05 — Publish SAAM 0.3.3 (GitHub; relay offer pending)
+## 2026-10-05 — Publish SAAM 0.3.3
 
 - Published v0.3.3 at source 70db43b5ae810c1b7c2165794f1dfe99431f2836 (owner: "Just package and release it"); tag, six archives/sidecars and the latest guide verified by download. Built from a fresh LF worktree with checksum-verified official Node 24.19.0. Windows: 43,950,204 bytes, c4fd71f3f524af4b7906edb45be8c18af678c4e9d76b9984bc838fc69867c559; arm64 Mac: 47,831,069 bytes, b05e72636a748f222711b08f089d89bd357badc451f2f635ca8324cee465cb53; Intel Mac: 49,183,385 bytes, c0175a3c4a0fc048dd1037ca190057866708590d1225410381ebed8f84acdcd1. Each package passed its setup check.
 - The Windows native mesh-repair helper was rebuilt from the committed LF `mesh-repair.cpp` (w64devkit, CGAL 6.2.1; binary 1715dfa5…): the previous helper's record held the CRLF copy's hash, which the builder rightly refused once checkouts became byte-exact.
 - Windows isolated trial (`.local/033-release`): the published 0.3.2 ZIP installed, a 0.3.2-generated print, local extension and state sentinel seeded; the 0.3.3 installer over it kept them byte-identical; first start moved `Prints` and `extensions` into `local/`. Installed 0.3.3 generated a checked program; this checkout ran as a second runtime under it and was refused on the installed print with the capture command; installed Studio served all 31 modules and the 16-phase palette; quit left no process. No PATH, client registration or shortcut changed.
-- Pending: relay `LATEST_RELEASE` update and deploy (blocked by this machine's permission review; owner to run or approve), then the in-app Update from 0.3.2 and authenticated offer check. Not run: whole suite (owner chose release as the test), Mac native install, tray dialogs, installed client attachment.
+- Relay deployed with all three 0.3.3 hashes (relay code unchanged since 0.3.2), version 9bfb1fb6-8377-4096-b2d1-ae72cf802b8d; the authenticated `/device/release` offer for the owner's device matches. In-app Update, isolated: a published 0.3.2 home (seeded print, extension, state, a copy of the owner's relay connection) ran `saam update`; it downloaded and checksummed the public ZIP, installed and restarted 0.3.3, which migrated the home with every seeded hash and the connection intact, generated a checked program and had its operation receipt acknowledged. Both disposable homes were deleted afterwards.
+- Not run: whole suite (owner chose release as the test), Mac native install, tray dialogs, installed client attachment.
 
 ## 2026-10-05 — Source runtimes reach the relay, named
 
