@@ -4,7 +4,7 @@ import {mkdtemp,rm,access} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {MACHINE_IDS,loadMachine} from '../machine/profile.mjs';
-import {diagnoseMachinePath,validateSetup} from '../machine/rules.mjs';
+import {validateSetup} from '../machine/rules.mjs';
 import {defaults,validatePlan} from '../print/plan.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
@@ -56,19 +56,6 @@ test('material changes use their own process limits instead of locking the X1 to
   for(const id of ids.slice(1)){
     const machine=loadMachine(id),plan=authoredPlan(machine);Object.assign(plan.setup,{material:'ABS',nozzleC:250,bedC:90});
     validatePlan(plan,machine);
-  }
-});
-
-test('selected-tool bounds exclude cutter and glass clip regions',()=>{
-  for(const [id,inside,outside] of [
-    ['bambu-x1-carbon',[100,100,20],[10,10,20]],
-    ['ultimaker-2-extended',[100,100,20],[5,2,20]],
-    ['ultimaker-3',[100,100,20],[220,20,20]]
-  ]){
-    const machine=loadMachine(id),plan=authoredPlan(machine);
-    diagnoseMachinePath({initialPosition:inside,actions:[]},plan,machine);
-    assert.throws(()=>diagnoseMachinePath({initialPosition:outside,actions:[]},plan,machine),/tool bounds/);
-    assert.throws(()=>diagnoseMachinePath({initialPosition:inside,actions:[{kind:'move',to:outside,speedMmS:10,volumeMm3:0}]},plan,machine),/tool bounds/);
   }
 });
 

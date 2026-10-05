@@ -506,7 +506,7 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
   operation('read_local_agent_notes','Read shared Markdown notes and their home/path/revision identity for every SAAM role.',{});
   operation('update_local_agent_notes','Save the current shared Markdown notes for the explicit home at expectedRevision (null only when absent). On conflict, read again and combine changes.',{home:z.string().min(1),expectedRevision:z.string().regex(/^[a-f0-9]{64}$/).nullable(),text:z.string()},false);
   operation('maker_onboarding','Start here for maker work when context is missing. Returns maker guidance, the skill index and print tools, including local script sections. Reuse it for the conversation.',{machineId:machineIdSchema,bundleId:bundleIdSchema.optional()});
-  async function makerOnboarding({machineId,bundleId}){return { role:'maker',notes:await readLocalAgentNotes(),
+  async function makerOnboarding({machineId,bundleId}){return { role:'maker',...(application.setupProblem&&{setupProblem:application.setupProblem}),notes:await readLocalAgentNotes(),
       sources: await onboardingSources(root,await manualContext({machineId,bundleId})),
       nextStep: 'Reuse these sources for the conversation. Read skill manuals (read_skill) and linked references (read_guidance) when a task needs them. Authoring guidance uses builder onboarding in the local toolkit; core implementation requires explicit developer authorization.' };}
   operation('repair_client_setup','Refresh SAAM command discovery and permissions in Codex and Claude Code. Preserves unrelated settings and reports registration errors.',{},false);

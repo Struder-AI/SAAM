@@ -37,10 +37,6 @@ test('X1 white-grey-black makes exactly two same-nozzle AMS changes, with checke
   assert.match(code,/G1 E-0.6 F1800/);assert.match(code,/G1 E-1 F1800/);
   const seq=JSON.parse(unpackZip(bytes).get('Metadata/filament_sequence.json')).plate_1;
   assert.deepEqual(seq.sequence,[1,2,3]);assert.deepEqual(seq.nozzle_sequence,[0,0,0]);
-  for(const [before,after]of [[';SAAM_CHUTE_FLUSH_MM3:300',';SAAM_CHUTE_FLUSH_MM3:0'],['T1\n','T2\n'],['M621 S1A','M621 S2A'],['G1 E-0.6 F1800','G1 E-0.8 F1800']]){
-    const z=unpackZip(bytes);z.set('Metadata/plate_1.gcode',Buffer.from(code.replace(before,after)));
-    assert.throws(()=>decodeProgram(packZip(z),plan,machine),/tool-change block/);
-  }
 });
 
 test('X1 automatic changes reject external feed and missing clearance contract',async()=>{

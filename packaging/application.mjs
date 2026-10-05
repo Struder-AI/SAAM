@@ -15,6 +15,7 @@ import {setupClients,writeHomeGuidance} from './client-setup.mjs';
 import {replaceFile} from '../core/file-write.mjs';
 import {createDiagnosticReports} from '../core/application/diagnostics.mjs';
 import {cleanupTemporaryWorkspaces} from '../core/application/temporary-workspace.mjs';
+import {checkSetup} from '../scripts/setup-check.mjs';
 
 async function jsonBody(request){
   const chunks=[],size={bytes:0};
@@ -87,8 +88,18 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
         const result=await installUpdate(offered,{...config,data:paths.state,report:(event,options)=>report(event,options)});state.runtime.notifyStopping('update');later();return result;
       }:null,
       quit:({force=false}={})=>quit(force)});
+    // The setup check runs at the first start of each installed version. A failure starts
+    // SAAM anyway, reaches makers through maker_onboarding and reruns at the next start.
+    const setupFile=resolve(paths.state,'setup-check.json'),setup={problem:null};
+    if((await readFile(setupFile,'utf8').then(JSON.parse).catch(()=>({}))).passed!==config.version){
+      try{await checkSetup({log:()=>{}});await replaceFile(setupFile,JSON.stringify({passed:config.version})+'\n');}
+      catch(error){
+        setup.problem={version:config.version,error:error.message,effect:'SAAM failed its setup check, so operations that need the failed part may fail. Tell the person; reinstalling SAAM usually repairs it.'};
+        await report({kind:'setup-check-failed',version:config.version,error:error.message},{firstRun:true});
+      }
+    }
     state.runtime=createLocalRuntime({printsRoot:paths.prints,stateRoot:paths.state,autoOpen,relay:state.services,
-      application:{retryClients}});
+      application:{retryClients,setupProblem:setup.problem}});
     state.services.observeRuntime(state.runtime);
     async function command(message){
       if(message.command==='record-diagnostic'){

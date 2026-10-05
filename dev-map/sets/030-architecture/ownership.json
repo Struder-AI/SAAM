@@ -1456,8 +1456,8 @@
       "reason": "Repository documentation link, anchor and digest-freshness check; development tooling."
     },
     "scripts/setup-check.mjs": {
-      "owner": "development",
-      "reason": "Source checkout setup verification (dependencies, kernels, bundle and Studio smoke); development tooling."
+      "owner": "application",
+      "reason": "One setup check shared by the installed application (first start per version), the release build and source checkouts."
     },
     "scripts/skill-digest.mjs": {
       "owner": "development",
@@ -1625,6 +1625,9 @@
     "core/export/bambu-body.mjs::@module": {
       "owner": "export"
     },
+    "core/export/bambu-body.mjs::prelude": {
+      "owner": "export"
+    },
     "core/export/bambu-body.mjs::exportBambuBody": {
       "owner": "export"
     },
@@ -1671,9 +1674,6 @@
       "owner": "export"
     },
     "core/export/bambu-player.mjs::interpretMultiBody::sink.push": {
-      "owner": "export"
-    },
-    "core/export/bambu-player.mjs::prelude": {
       "owner": "export"
     },
     "core/export/bambu-project.mjs::@module": {
@@ -8347,10 +8347,6 @@
       "owner": "export",
       "reason": "Rejects selected settings and emitted commands outside the supported output temperature range; relocated from process-controls."
     },
-    "core/private/export/temperature.mjs::authoredNozzleTargets": {
-      "owner": "export",
-      "reason": "Checks supplied neutral-path target inventory for program interpretation; does not discover targets by executing or inspecting Toolpath recipes."
-    },
     "core/private/extensions/file-write.mjs::@module": {
       "owner": "extensions"
     },
@@ -9379,10 +9375,6 @@
     "core/machine/filaments.mjs::materialProcess": {
       "owner": "toolpath",
       "reason": "Authored logical-material process overrides independent of physical output compatibility."
-    },
-    "core/machine/rules.mjs::requireProcessControl": {
-      "owner": "export",
-      "reason": "Checks selected machine process-control capability at Export boundary."
     },
     "core/path/deposition-motion.mjs::@module": {
       "owner": "toolpath"
@@ -11599,13 +11591,13 @@
       "owner": "development"
     },
     "scripts/setup-check.mjs::@module": {
-      "owner": "development"
+      "owner": "application"
     },
     "scripts/setup-check.mjs::checkSetup": {
-      "owner": "development"
+      "owner": "application"
     },
     "scripts/setup-check.mjs::deadline": {
-      "owner": "development"
+      "owner": "application"
     },
     "scripts/skill-digest.mjs::@module": {
       "owner": "development"
@@ -11915,12 +11907,6 @@
       "owner": "export"
     },
     "core/export/registry.mjs::exportAndDecodeProgram": {
-      "owner": "export"
-    },
-    "core/machine/rules.mjs::diagnoseMachinePath": {
-      "owner": "export"
-    },
-    "core/machine/rules.mjs::diagnoseMachinePath::point": {
       "owner": "export"
     },
     "core/export/registry.mjs::readProgramSources": {
