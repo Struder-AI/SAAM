@@ -4,6 +4,7 @@ import {TOUR_STEPS,TOUR_LESSONS as L} from './tour-catalog.mjs';
 import {createAgentRequests} from './agent-requests.mjs';
 import {composeStudioState} from './state-response.mjs';
 import {completedOutputState} from '../core/print/review-state.mjs';
+import {resolvePhaseColours} from '../core/print/phase-colours.mjs';
 import {printName,downloadName,requestedDownloadName} from './print-name.mjs';
 import {importStudioSTL,loadStudioImportRepair} from './import-stl.mjs';
 import http from 'node:http';
@@ -114,8 +115,9 @@ const printFreeRoutes=new Set(['/api/open','/api/tour','/api/view-performance','
 // A local development launcher may explicitly supply a scratch adapter resolver.
 // This is a function supplied by code, never a module path supplied by a print or HTTP request.
 // A null directory opens Studio with no print; the person or agent opens one later.
-// The owner supplies libraryRoot and, to remember exported setups, machineSetups.
-export function createStudio(directory,{libraryRoot,machineSetups,resolveBundle=bundleFor,agentOwnerId,agentRequests,studioEvents,relay,requestFolder,chatName,chatClient,instanceId=randomBytes(16).toString('hex'),sessionToken,restoring=false,runtimeId,runtimeLabel,fingerprint}) {
+// The owner supplies libraryRoot and, to remember exported setups, machineSetups;
+// localPhaseColours reads the home's phase-colour preference.
+export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColours=async()=>null,resolveBundle=bundleFor,agentOwnerId,agentRequests,studioEvents,relay,requestFolder,chatName,chatClient,instanceId=randomBytes(16).toString('hex'),sessionToken,restoring=false,runtimeId,runtimeLabel,fingerprint}) {
   const initialOwnerId=agentOwnerId??agentRequests?.ownerId??`studio:${instanceId}`;
   if(agentRequests?.ownerId&&agentRequests.ownerId!==initialOwnerId)throw Error('The request store belongs to another chat.');
   const initialRequests=agentRequests??createAgentRequests(libraryRoot,{ownerId:initialOwnerId,folder:requestFolder});
@@ -467,13 +469,15 @@ export function createStudio(directory,{libraryRoot,machineSetups,resolveBundle=
         if(readDir!==dir)throw new Error('The print is being updated.');
         const responseFingerprint=viewFingerprint(readId,example?`${fingerprint}:tour:${example.id}`:fingerprint,guide),failure=generationFailure,cancelled=generationCancelled;
         const importRepair=await loadStudioImportRepair(readDir);
+        const local=await localPhaseColours().then(colours=>({colours}),error=>({problem:'Local phase colours ignored: '+error.message}));
+        const phasePalette=resolvePhaseColours(state.phaseColours,local.colours);
         if(readDir!==dir)throw new Error('The print is being updated.');
-        const tag=stateTag(responseFingerprint+':output-generating:'+outputGenerating(),guide,failure,cancelled,records,importRepair);
+        const tag=stateTag(responseFingerprint+':output-generating:'+outputGenerating()+':'+JSON.stringify(phasePalette),guide,failure,cancelled,records,importRepair);
         if(condition&&matchesStateTag(condition,tag)){res.setHeader('ETag',tag);res.writeHead(304);res.end();return;}
         const presentation=viewFingerprint(readId,presentationFingerprint,guide),name=await printName(readDir,state.plan);
         const assembled=composeStudioState(state,{directory:readDir,printId:readId,workId,instanceId,guide,example,records,importRepair,
           printName:name,fingerprint:responseFingerprint,presentationFingerprint:presentation,
-          generationFailure:failure,generationCancelled:cancelled,outputGenerating:outputGenerating()});
+          generationFailure:failure,generationCancelled:cancelled,outputGenerating:outputGenerating(),phasePalette,phasePaletteProblem:local.problem});
         if(state.checkedBytes){
           const output=state.completedOutput,snapshot=`${readId}:${output.id}`;
           const {dir,checkedBytes}=state;

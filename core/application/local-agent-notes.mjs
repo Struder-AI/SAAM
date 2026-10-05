@@ -4,6 +4,7 @@ import {readFile,mkdir,open,rm} from 'node:fs/promises';
 import {resolve,dirname} from 'node:path';
 import {createHash} from 'node:crypto';
 import {replaceFile} from '../file-write.mjs';
+import {checkedPhaseColours} from '../print/phase-colours.mjs';
 
 const notesRevision=bytes=>createHash('sha256').update(bytes).digest('hex');
 function notesIdentity(paths){return {home:paths.home,path:paths.notes};}
@@ -12,6 +13,11 @@ async function readNotesFile(identity){
   catch(error){if(error.code==='ENOENT')return {...identity,revision:null,text:''};throw error;}
 }
 export async function readLocalAgentNotes(paths){return readNotesFile(notesIdentity(paths));}
+// The notes are prose; Studio phase colours are the one machine-readable preference beside them.
+export async function readLocalPhaseColours(paths){
+  const text=await readFile(paths.phaseColours,'utf8').catch(error=>{if(error.code==='ENOENT')return null;throw error;});
+  return text===null?null:checkedPhaseColours(JSON.parse(text),paths.phaseColours);
+}
 export async function updateLocalAgentNotes(paths,{home,expectedRevision,text}){
   const identity=notesIdentity(paths);
   const sameHome=process.platform==='win32'?resolve(home).toLowerCase()===identity.home.toLowerCase():resolve(home)===identity.home;

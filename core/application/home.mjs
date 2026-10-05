@@ -11,6 +11,6 @@ export function saamHome(){
 }
 export function homePaths(root=saamHome()){
   const home=resolve(root),local=resolve(home,'local');
-  return {home,local,tmp:resolve(home,'tmp'),notes:resolve(local,'LOCAL-AGENT-NOTES.md'),machineSetups:resolve(local,'machine-setups'),app:resolve(home,'app'),prints:resolve(local,'Prints'),
+  return {home,local,tmp:resolve(home,'tmp'),notes:resolve(local,'LOCAL-AGENT-NOTES.md'),phaseColours:resolve(local,'phase-colours.json'),machineSetups:resolve(local,'machine-setups'),app:resolve(home,'app'),prints:resolve(local,'Prints'),
     extensions:resolve(local,'extensions'),state:resolve(home,'state')};
 }

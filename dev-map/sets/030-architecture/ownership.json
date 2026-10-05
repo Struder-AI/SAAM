@@ -431,6 +431,10 @@
       "owner": "bundle",
       "reason": "Bundle review identities and checked-program handoff."
     },
+    "core/print/phase-colours.mjs": {
+      "owner": "studio",
+      "reason": "Display palette for SAAMpath phases: defaults, the print's choice and the local preference, resolved for Studio drawing."
+    },
     "core/print/file-snapshot.mjs": {
       "owner": "bundle",
       "reason": "Bundle persistence/factory scaffolding; workflow declarations receive explicit responsibility overrides."

@@ -1,4 +1,4 @@
-import {readLocalAgentNotes,updateLocalAgentNotes} from './local-agent-notes.mjs';
+import {readLocalAgentNotes,updateLocalAgentNotes,readLocalPhaseColours} from './local-agent-notes.mjs';
 import {retainFailedImport} from './diagnostics.mjs';
 import {watchStudioChanges} from '../../studio/changes.mjs';
 import {requireBundleInstance,bundleInstance,recoverBundleInstance} from '../print/studio-ownership.mjs';
@@ -100,7 +100,7 @@ export function summary(bundleId, state) {
     bundleId, kind: state.kind, revision: state.revision, editRevision:state.editRevision, geometryHash:state.geometryHash,
     machineId: state.machine?.id??null, output: state.plan.output, skills: state.skills,
     toolpathApproved: lifecycle.toolpathApproved,
-    programChecked,deferRememberSetup:state.deferRememberSetup===true,
+    programChecked,deferRememberSetup:state.deferRememberSetup===true,phaseColours:state.phaseColours??null,
     generation: state.review.generation ? { mode: state.review.generation.mode, current: lifecycle.current } : null,
     programError: state.programError ?? null, exportHash: state.exportHash ?? null,
     shortTravel: state.program?.summary?.shortTravel ?? null,
@@ -212,7 +212,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   // Every runtime-owned Studio instance starts here, showing dir or no print.
   async function startStudio(dir,{instanceId,sessionToken,restoring=false}={}){
     if(app.closing)throw Error('The SAAM application is quitting.');
-    const studio = createStudio(dir, { libraryRoot,machineSetups:paths.machineSetups,agentOwnerId:ownerId,agentRequests,studioEvents,relay,chatName:name,chatClient:client,instanceId,sessionToken,restoring,runtimeId:application.runtimeId,runtimeLabel:application.runtimeLabel,fingerprint:application.fingerprint });
+    const studio = createStudio(dir, { libraryRoot,machineSetups:paths.machineSetups,localPhaseColours:()=>readLocalPhaseColours(paths),agentOwnerId:ownerId,agentRequests,studioEvents,relay,chatName:name,chatClient:client,instanceId,sessionToken,restoring,runtimeId:application.runtimeId,runtimeLabel:application.runtimeLabel,fingerprint:application.fingerprint });
     try{await studio.ready();}catch(error){await studio.shutdown().catch(()=>{});throw error;}
     try{await new Promise((resolveListen, reject) => { studio.once('error', reject); studio.listen(0, '127.0.0.1', resolveListen); });}
     catch(error){await studio.shutdown().catch(()=>{});throw error;}
@@ -314,7 +314,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   function operation(name, description, shape, readOnly = true, openWorld = false) {
     extensionActions.delete(name);
     const tracked=Boolean(shape.bundleId)&&!immediateTools.has(name);
-    const resultChanging=tracked&&!readOnly&&!['request_review','set_deferred_setup_save','deliver_toolpath'].includes(name);
+    const resultChanging=tracked&&!readOnly&&!['request_review','set_deferred_setup_save','set_phase_colours','deliver_toolpath'].includes(name);
     const instanceScope=tracked&&!readOnly&&!['request_review','create_bundle','import_bundle','import_stl_bundle','import_thingi10k_bundle','migrate_bundle'].includes(name);
     // The full strict schema makes unexpected top-level approval data an error
     // instead of letting Zod silently discard it.
@@ -769,6 +769,10 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   async function setDeferredSetupSaveOperation({bundleId,expectedRevision,defer}){
     const {dir,bundle}=await locate(bundleId);return {bundleId,...await bundle.setDeferredSetupSave(dir,{defer,expectedRevision})};
   }
+  operation('set_phase_colours','Choose Studio colours for SAAMpath phases of this print ({phase:"#rrggbb"}); null clears. Overrides local preferences and defaults; display only, so approval and outputs are unchanged.',{bundleId:bundleIdSchema,expectedRevision:z.string().min(1),phaseColours:objectSchema.nullable()},false);
+  async function setPhaseColoursOperation({bundleId,expectedRevision,phaseColours}){
+    const {dir,bundle}=await locate(bundleId);return {bundleId,...await bundle.setPhaseColours(dir,{phaseColours,expectedRevision})};
+  }
   operation('get_approval_status','Read the fresh hash-bound final settings/toolpath approval from the saved bundle. Caller-provided approvals are never accepted.',{ bundleId: bundleIdSchema });
   async function getApprovalStatus({ bundleId }){return summary(bundleId, (await read(bundleId)).state);}
   operation('begin_studio_work','Optionally establish or claim work context before editing. Ordinary result-changing operations establish context automatically. Pass Studio requestIds on the operation; identify the Studio instance when ambiguous. Begin alone does not dim the view. Hand back once with respond_to_studio_request.',{bundleId:bundleIdSchema.optional(),studioInstanceId:z.string().optional(),instruction:z.string().min(1),requestId:z.string().optional(),kind:z.enum(['edit','guidance']).default('edit')},false);
@@ -986,6 +990,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       case 'check_path':return checkPath(input);
       case 'record_extension_dependency':return recordExtensionDependencyOperation(input);
       case 'set_deferred_setup_save':return setDeferredSetupSaveOperation(input);
+      case 'set_phase_colours':return setPhaseColoursOperation(input);
       case 'get_approval_status':return getApprovalStatus(input);
       case 'begin_studio_work':return beginStudioWork(input);
       case 'respond_to_studio_request':return respondToStudioRequest(input);

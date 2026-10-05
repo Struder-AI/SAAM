@@ -11,7 +11,7 @@ is relative to `Prints/` (`Prints/my-part` is `"my-part"`).
 | Show in Studio; read state | `request_review`; `list_bundles`, `get_bundle`, `check_bundle` |
 | Adjust recipe/assignments; undo/redo; change printer | `adjust_recipe`, `slice`, `modulate`; `restore_revision`; `change_machine` |
 | Generate for review; deliver the confirmed export | `generate_toolpath`; `deliver_toolpath` |
-| Path feasibility; defer this bundle's last-export setup save | `check_path`; `set_deferred_setup_save` |
+| Path feasibility; defer this bundle's last-export setup save; phase colours | `check_path`; `set_deferred_setup_save`; `set_phase_colours` |
 
 ## Recipes
 
@@ -85,6 +85,16 @@ lessons Studio generates, so don't start another. A check reports
 A successful export remembers its exact artifact's setup in `<SAAM home>/local/machine-setups/`; new prints on that machine reuse it. Edits leave defaults unchanged.
 `set_deferred_setup_save` takes `bundleId`, current `expectedRevision` and `defer:true` to skip saves for that bundle until cleared with `false`; it changes no manufacturing identity.
 Only setup is remembered; existing prints keep their snapshots. Bambu needs its [maker setup](../export/bambu.md#maker-setup); each [machine contract](../export/README.md) owns setup questions.
+
+## Phase colours
+
+Studio colours each move by its SAAMpath phase, the label the generator or exporter
+gives it (`planar`, `curves`, `supports`, `prime`, ...); `travel` is every
+non-depositing move. `set_phase_colours` takes `bundleId`, current `expectedRevision`
+and `phaseColours` (`{phase:"#rrggbb"}`, null clears); it is display only. The
+person's `<SAAM home>/local/phase-colours.json`, same shape, is the local preference.
+Print choice overrides local preference, which overrides the [defaults](phase-colours.mjs);
+unknown phases are rejected. Multi-material moves show their filament colour.
 
 ## Command line
 

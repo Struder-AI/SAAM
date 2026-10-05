@@ -85,22 +85,12 @@ identity replaces or clears them; approval-only metadata rebinds the machine
 session. This does not skip the server's current-source checks or fetch program
 data during an initial geometry lesson.
 
-### Visually verified toolpath colors
+### Phase colours
 
-Sky blue, orange, teal and lavender form the preferred visible color set;
-agents may use other colors when more are needed. The
-[devlog](../DEVLOG.md#2026-09-10--studio-color-review) records the visual feedback.
-
-| Color | Display value | Current assignment |
-|---|---|---|
-| Sky blue | `#5b9fd3` | Body / planar paths |
-| Orange | `#c65b19` | Circumferential / skin paths |
-| Teal | `#53b8af` | Axial cladding |
-| Lavender | `#a799dc` | Available for another operation |
-
-Named pipe-view buttons seek to the body, axial and
-circumferential samples without changing camera or speed. The shared
-`TOOLPATH_COLORS` palette and style function apply to lines, material and movies.
+Lines, material, partial moves, movies, legend and pipe-view sample buttons draw
+the Studio state's resolved `phasePalette` ([choice and precedence](../core/print/USAGE.md#phase-colours));
+multi-material moves show their filament colour. [`phase-colours.mjs`](../core/print/phase-colours.mjs)
+owns the defaults and their contrast and colour-vision check.
 
 ### Material geometry and playback
 

@@ -215,7 +215,7 @@ export function createMaterialRenderer(documentApi=document){
     // quality 0 is the reviewed still image. Motion levels trade detail for
     // frame time: 1 halves and 2 thirds the render resolution, and 2 also draws
     // every bead with the square section.
-    draw(next,{at,current,fade,project,width,height,ratio,skinPhase,previousLayerOpacity=0.5,machine=null,machineMode='ghost',machinePalette,quality=0}){
+    draw(next,{at,current,fade,project,width,height,ratio,phaseColours,previousLayerOpacity=0.5,machine=null,machineMode='ghost',machinePalette,quality=0}){
       if(lost)throw new Error('3D graphics context was lost. Refresh Studio to restore material rendering.');
       if(scene!==next)reset(next);
       // A fitted bead may be narrower than one screen pixel. Render enough
@@ -241,14 +241,14 @@ export function createMaterialRenderer(documentApi=document){
         let low=0,high=group.indices.length;
         while(low<high){const mid=(low+high)>>1;if(group.indices[mid]<at.completed)low=mid+1;else high=mid;}
         commands.push({entry:buffers.get(group),count:low,detail:quality>=2?0:group.layerKey===layerKey(current)?1:fade.weights.get(group.layerKey)??0,
-          style:toolpathStyle(group.move,current,skinPhase,fade.weights.get(group.layerKey)??0,{previousLayerOpacity})});
+          style:toolpathStyle(group.move,current,phaseColours,fade.weights.get(group.layerKey)??0,{previousLayerOpacity})});
       }
       const move=at.active<0?undefined:scene.moves.at(at.active);
       if(move?.extruding&&at.fraction<1){const section=beadSection(move,scene.plan,scene.geometry,move.from,at.point);
         if(section){
           const data=beadInstance(section);if(!partial)partial=instanceBuffer(data,gl.DYNAMIC_DRAW);
           else{gl.bindBuffer(gl.ARRAY_BUFFER,partial.buffer);gl.bufferSubData(gl.ARRAY_BUFFER,0,data);}
-          commands.push({entry:partial,count:1,detail:quality>=2?0:1,style:toolpathStyle(move,current,skinPhase)});
+          commands.push({entry:partial,count:1,detail:quality>=2?0:1,style:toolpathStyle(move,current,phaseColours)});
         }
       }
       gl.useProgram(program);gl.uniformMatrix4fv(uniforms.projection,false,matrix);gl.uniform3fv(uniforms.light,light);

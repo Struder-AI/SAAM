@@ -25,7 +25,7 @@ The consented release service observes operations, Studio/workspace events and i
 
 Every role's onboarding returns the complete Markdown at `<SAAM home>/local/LOCAL-AGENT-NOTES.md` with `home`, `path` and `revision`; missing notes have empty text and null revision.
 `read_local_agent_notes` refreshes it. `update_local_agent_notes` takes that explicit `home`, `expectedRevision` and replacement `text`; keep entries brief, update in place and remove stale ones.
-Atomic updates reject busy/stale writers: read again and combine changes. Preferences belong here, outside client memory and generated guidance; no checkout personal notes are imported automatically.
+Atomic updates reject busy/stale writers: read again and combine changes. Preferences belong here, outside client memory and generated guidance; no checkout personal notes are imported automatically. The one machine-readable preference, [phase colours](../print/USAGE.md#phase-colours), is `phase-colours.json` beside the notes.
 Checkout development notes remain in `.local/AGENTS.md` and `.local/DEVELOPMENT.md`.
 
 ## Client queue monitoring
