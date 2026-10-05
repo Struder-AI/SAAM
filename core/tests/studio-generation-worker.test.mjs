@@ -27,8 +27,8 @@ test('preparation errors retain their notification and code; a changed plan take
   const failure=Object.assign(new Error('SYNTHETIC check failure'),{code:'CHECK_FAILED'}),options=settings(),calls=[];
   const bundle={async prepareGeneration(){calls.push('prepare');throw failure;},async commitGeneration(){assert.fail('failed preparation must not write');}};
   const preparation=await prepareGeneration(bundle,options);
-  assert.deepEqual(preparation.notification,{type:'prepared',error:'SYNTHETIC check failure'});assert.strictEqual(preparation.error,failure);
-  assert.deepEqual(await generateMessage({type:'generate'},Promise.resolve(preparation),bundle,options),{type:'generated',error:failure.message,code:'CHECK_FAILED'});
+  assert.deepEqual(preparation.notification,{type:'prepared',error:'SYNTHETIC check failure',stage:undefined});assert.strictEqual(preparation.error,failure);
+  assert.deepEqual(await generateMessage({type:'generate'},Promise.resolve(preparation),bundle,options),{type:'generated',error:failure.message,code:'CHECK_FAILED',stage:undefined});
   assert.deepEqual(calls,['prepare']);
   bundle.prepareGeneration=async()=>({generationHash:'changed'});
   const prepared=await prepareGeneration(bundle,options);
@@ -38,10 +38,10 @@ test('preparation errors retain their notification and code; a changed plan take
 test('worker cancellation and checked-source failures retain exact error responses',async()=>{
   const ready=Promise.resolve({error:null,candidate:{generationHash:'locked'}}),options=settings();options.control.cancel();
   const cancelled={async loadBundle(){return {generationHash:'locked'};},async commitGeneration(){assert.fail('cancelled calculations must not write');}};
-  assert.deepEqual(await generateMessage({type:'generate'},ready,cancelled,options),{type:'generated',error:'Toolpath calculation cancelled.',code:'GENERATION_CANCELLED'});
+  assert.deepEqual(await generateMessage({type:'generate'},ready,cancelled,options),{type:'generated',error:'Toolpath calculation cancelled.',code:'GENERATION_CANCELLED',stage:undefined});
   for(const [source,error] of [[{},'Checked machine source is unavailable.'],[{program:{},programError:'SYNTHETIC byte mismatch'},'SYNTHETIC byte mismatch']]){
     const bundle={async loadBundle(directory,read){return read.program===false?{generationHash:'locked'}:source;},async commitGeneration(directory,candidate,write){assert.equal(write.development,false);return {};}};
-    assert.deepEqual(await generateMessage({type:'generate',development:'true'},ready,bundle,settings()),{type:'generated',error,code:undefined});
+    assert.deepEqual(await generateMessage({type:'generate',development:'true'},ready,bundle,settings()),{type:'generated',error,code:undefined,stage:undefined});
   }
   assert.equal(await generateMessage({type:'unrelated'},new Promise(()=>{}),{},settings()),undefined,'unrelated messages neither wait nor access the bundle');
 });

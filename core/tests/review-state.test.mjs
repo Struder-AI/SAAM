@@ -30,7 +30,8 @@ test('review projection covers unchecked, unavailable, development, production, 
 
 test('Studio and application consume the same checked lifecycle decisions',()=>{
   const approved=state({program:{summary:{moves:10}},toolpathApproved:true,
-    review:{generation:{mode:'production'},approvals:{toolpath:{hash:'exact'}}}});
+    review:{generation:{mode:'production'},approvals:{toolpath:{hash:'exact'}}},
+    completedOutput:{current:true,geometryHash:'geometry',review:{generation:{mode:'production'}}}});
   const projected=lifecycleReview(approved);
   const controls=studioControls(approved,ui);
   const application=applicationSummary('example',approved);
