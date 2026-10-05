@@ -6,10 +6,10 @@ import {selectSettings,resolveMachineSettings,resolveSettingsPatch} from './sett
 import {requireThat} from '../private/settings/numeric.mjs';
 import {EXTENSION_CONFIGURATION_IDS} from '../../skills/catalog.mjs';
 
-export async function changeMachine(directory,machineId,{expectedRevision,expectedEditRevision,setupFile}={}){
+export async function changeMachine(directory,machineId,{expectedRevision,expectedEditRevision,machineSetups}={}){
   const state=await loadBundle(directory,{program:false});
   requireEditRevision(state,{expectedRevision,expectedEditRevision},{optional:true});
-  const selection=await selectSettings(machineId,{setupFile});
+  const selection=await selectSettings(machineId,{machineSetups});
   const settings=resolveMachineSettings(state.plan,state.machine,selection,{boundsMm:state.geometry?.boundsMm});
   return applySettingsSnapshot(directory,{machine:selection.machine,settings},state.revision,{expectedEditRevision});
 }

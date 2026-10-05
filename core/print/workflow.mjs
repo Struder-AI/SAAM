@@ -120,7 +120,7 @@ async function proposedPlan(machineId, options={}) {
   const {machine,settings}=await selectSettings(machineId,options);
   return {...await defaults(machine),...settings};
 }
-async function initBundle(directory, plan = {schema:'saam-shell-plan/1'}, { setupFile, machineId, sourceBytes,sourcePath,preparedGeometry,attachments=[] } = {}) {
+async function initBundle(directory, plan = {schema:'saam-shell-plan/1'}, { machineId, sourceBytes,sourcePath,preparedGeometry,attachments=[] } = {}) {
   const dir = resolve(directory);
   try {
     await access(resolve(dir, 'plan.json'));
@@ -234,10 +234,7 @@ async function prepareLegacyMigration(dir,document,planText){
   const source=originalSource(document.geometry);
   if(source){const sourceBytes=await readFile(resolve(dir,'geometry/source.stl'));inputs.set('geometry/source.stl',sourceBytes);requireThat(hash(sourceBytes)===source.sha256,'Imported STL source changed; repair it before migration.');}
   const programStatus=!review.generation?'none':review.generation.generationHash===preflight.identity.generationHash?'current':'stale';
-  if(programStatus==='current'){
-    const path=review.path?await readPathArtifact(dir,review.path):null;
-    decodeProgram(programBytes,document,machine,{authoredNozzleTemperatures:path?.completion?.authoredNozzleTemperatures});
-  }
+  if(programStatus==='current')decodeProgram(programBytes,document,machine);
   return {state,manifest,artifacts,planText,inputs,programStatus};
 }
 
@@ -711,26 +708,27 @@ async function approve(directory, { actor, revision, program = true }) {
 }
 
 // Export captures the displayed result; later edits do not change that snapshot.
-async function exportReviewed(state){
+async function exportReviewed(state,{machineSetups}={}){
   const live=await loadBundle(state.dir,{program:'source'});
   requireThat(completedOutputState(live).exportable&&state.completedOutput?.id===live.completedOutput.id
     &&state.checkedBytes&&hash(state.checkedBytes)===live.exportHash,'The displayed program changed. Reload before exporting.');
   return writeDelivery({...state,checkedBytes:state.checkedBytes,plan:live.completedOutput.plan,machine:live.completedOutput.machine,
-    exportName:live.completedOutput.exportName,exportHash:live.exportHash,deferRememberSetup:live.deferRememberSetup},true);
+    exportName:live.completedOutput.exportName,exportHash:live.exportHash,deferRememberSetup:live.deferRememberSetup},true,machineSetups);
 }
 
 // Non-Studio callers retain their explicit approval API.
-async function deliver(directory,{artifact=false}={}) {
+async function deliver(directory,{artifact=false,machineSetups}={}) {
   const state = await loadBundle(directory,{program:'source'});
   requireThat(state.toolpathApproved, 'Delivery requires approval of the exact current export.');
-  return writeDelivery(state,artifact);
+  return writeDelivery(state,artifact,machineSetups);
 }
 
-async function writeDelivery(state,artifact){
-  if(state.deferRememberSetup)return writeAndRememberDelivery(state,artifact);
-  return withMachineSetupExport(state.machine,()=>writeAndRememberDelivery(state,artifact));
+// The setup store (machineSetups) remembers the delivered setup unless the bundle defers it.
+async function writeDelivery(state,artifact,machineSetups){
+  if(state.deferRememberSetup||!machineSetups)return writeAndRememberDelivery(state,artifact,null);
+  return withMachineSetupExport(machineSetups,state.machine,()=>writeAndRememberDelivery(state,artifact,machineSetups));
 }
-async function writeAndRememberDelivery(state,artifact){
+async function writeAndRememberDelivery(state,artifact,machineSetups){
   const bytes = state.checkedBytes;
   const destination = resolve(state.dir, `delivery/${state.exportName}`);
   await save(destination, bytes);
@@ -745,7 +743,7 @@ async function writeAndRememberDelivery(state,artifact){
     artifactId:output.id,inputRevision:output.inputRevision??null,generationHash:output.generationHash,exportHash:state.exportHash});}
   catch(error){const failure=Error('The export was copied to '+destination+', but recording its delivery failed: '+error.message,{cause:error});
     failure.code='DELIVERY_RECORD_FAILED';failure.delivered={file:destination,exportHash:state.exportHash,artifactId:output.id};throw failure;}
-  if(!state.deferRememberSetup)try{await saveSetup(output.machine,output.plan.setup,{exportReceipt:{
+  if(machineSetups)try{await saveSetup(output.machine,output.plan.setup,{machineSetups,exportReceipt:{
     directory:state.dir,artifactId:output.id,inputRevision:output.inputRevision??null,generationHash:output.generationHash,exportHash:state.exportHash}});}
   catch(error){const failure=Error('The export was copied to '+destination+', but remembering its machine setup failed: '+error.message,{cause:error});
     failure.code='EXPORTED_SETUP_SAVE_FAILED';failure.delivered={file:destination,exportHash:state.exportHash,artifactId:output.id};throw failure;}

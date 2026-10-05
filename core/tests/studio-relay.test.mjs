@@ -1,4 +1,5 @@
 // Existing print-free Studio safety coverage retained after retiring relay/MCP pairing.
+import './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,mkdir,writeFile} from 'node:fs/promises';

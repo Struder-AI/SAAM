@@ -1,3 +1,4 @@
+import './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm} from 'node:fs/promises';
@@ -13,7 +14,7 @@ async function fixture(t){
   t.after(()=>rm(root,{recursive:true,force:true,maxRetries:3,retryDelay:100}));
   const directory=join(root,'part'),plan=defaults(loadMachine('ultimaker-s5'));
   plan.geometry=splineBox({runMm:12,widthMm:10,heightMm:2});
-  await initBundle(directory,plan,{machineId:'ultimaker-s5',setupFile:join(root,'setup.json')});
+  await initBundle(directory,plan,{machineId:'ultimaker-s5'});
   return {root,directory};
 }
 

@@ -167,7 +167,7 @@ function save(){const a=document.createElement('a'),url=URL.createObjectURL(new 
 $('save').onclick=save;$('load').onclick=()=>$('file').click();$('file').onchange=async e=>{try{const d=JSON.parse(await e.target.files[0].text());await update(d);settings();}catch(e){error(e.message);}finally{$('file').value='';}};
 function jobDisplay(job){
   view.job=job;if(!job)return;actions();
-  $('progress').textContent=job.stage==='complete'?`${job.total} bundles created`:job.stage==='failed'?'Export stopped: '+job.error:`${job.completed} / ${job.total} · ${job.piece??'Preparing'}…`;
+  $('progress').textContent=job.stage==='complete'?`${job.result?.bundles.length??job.total} bundles ready${job.result?.bundles.some(b=>b.retained)?' · prior part edits retained':''}`:job.stage==='failed'?'Export stopped: '+job.error:`${job.completed} / ${job.total} Â· ${job.piece??'Preparing'}â€¦`;
   $('results').replaceChildren();const path=document.createElement('code');path.textContent=job.directory;$('results').append(path);
   if(job.stage==='complete'){
     const p=document.createElement('p'),copy=document.createElement('button');p.textContent='All wing parts are saved together in this folder. One request handles the whole set.';

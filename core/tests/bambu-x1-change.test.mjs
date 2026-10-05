@@ -1,3 +1,4 @@
+import './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {x1ColourFixture} from './fixtures/bambu-x1-colours.mjs';

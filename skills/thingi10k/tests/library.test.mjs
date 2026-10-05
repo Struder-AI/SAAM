@@ -1,15 +1,16 @@
+import '../../../core/tests/temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp, readFile, rm, access} from 'node:fs/promises';
+import {mkdtemp, readFile, readdir, rm, access} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
 import {createHash} from 'node:crypto';
 import {createThingi10KClient, csvRows, readRemote, REVISION} from '../scripts/library.mjs';
-import {importSTLResource} from '../../../core/print/import-resource.mjs';
 import {boxMesh} from '../../../core/tests/fixtures/mesh.mjs';
 import {loadBundle, generateBundle, approve, deliver, updatePlan, bundleInstance, withBundleInstance} from '../../../core/print/bundle.mjs';
 import {setSTLUnits} from '../../../core/print/import-stl.mjs';
 import {createLocalRuntime} from '../../../core/application/runtime.mjs';
+import {homePaths} from '../../../core/application/home.mjs';
 
 // Synthetic data deliberately gives a file a different license from its thing.
 const context = 'Thing ID,Date,Category,Sub-category,Name,Author,License\r\n'
@@ -35,8 +36,7 @@ async function fixture(t, meshBytes = stl) {
       '101.stl':meshBytes, '102.stl':meshBytes}[name];
     return new Response(body ?? 'absent', {status:body === undefined ? 404 : 200});
   };
-  const cacheDirectory = resolve(root, 'cache');
-  return {root, requests, fetchImpl, cacheDirectory, client:createThingi10KClient({cacheDirectory, fetchImpl})};
+  return {root, requests, fetchImpl, client:createThingi10KClient({fetchImpl})};
 }
 
 test('CSV preserves quoted names, embedded newlines and escaped quotes', () => {
@@ -44,8 +44,8 @@ test('CSV preserves quoted names, embedded newlines and escaped quotes', () => {
   assert.throws(() => csvRows('ID,Name\n1,"incomplete'), /Incomplete/);
 });
 
-test('keyword search, thing links, file IDs, pagination and cache reuse have distinct meanings', async t => {
-  const {client, requests, cacheDirectory} = await fixture(t);
+test('keyword search, thing links, file IDs and pagination have distinct meanings', async t => {
+  const {client, requests} = await fixture(t);
   const first = await client.search({query:'fetch me a bunny',limit:1});
   assert.equal(first.total,3); assert.equal(first.results[0].fileId,'101'); assert.equal(first.nextOffset,1);
   assert.equal(first.results[0].license,'Creative Commons - Attribution');
@@ -63,14 +63,12 @@ test('keyword search, thing links, file IDs, pagination and cache reuse have dis
     await assert.rejects(client.search({query}), /Thingiverse model link/);
   await assert.rejects(client.download('../101'),/numeric/);
   await assert.rejects(client.download('103'),/not STL/);
-  assert.equal(requests.length,3,'search never downloads geometry');
-  const offline = createThingi10KClient({cacheDirectory,fetchImpl:()=>{throw Error('must reuse metadata');}});
-  assert.equal((await offline.search({query:'bunny'})).total,3);
+  assert.ok(requests.every(url=>url.includes('/metadata/')),'search never downloads geometry');
 });
 
 test('network errors remain failures and can be retried, rather than becoming mirror misses', async t => {
-  const {cacheDirectory, fetchImpl} = await fixture(t); let fail = true;
-  const client = createThingi10KClient({cacheDirectory,fetchImpl:url => {
+  const {fetchImpl} = await fixture(t); let fail = true;
+  const client = createThingi10KClient({fetchImpl:url => {
     if(fail) return Promise.resolve(new Response('unavailable',{status:503}));
     return fetchImpl(url);
   }});
@@ -102,21 +100,24 @@ test('downloads enforce streamed and declared limits, redirect boundaries, HTTP 
   }))}),/connection lost/);
 });
 
-test('failed mesh import retains exact download, attribution and mandatory chat notice',async t=>{
-  const broken=Buffer.from('not an STL'), {client,root}=await fixture(t,broken);
-  const directory=resolve(root,'broken');
-  const result=await importSTLResource(directory,()=>client.download('101'),{machineId:'ultimaker-s5',setupFile:resolve(root,'setup.json')});
+test('failed mesh import keeps only the exact download as evidence, with the mandatory chat notice',async t=>{
+  const broken=Buffer.from('not an STL'), {client,root}=await fixture(t,broken), home=process.env.SAAM_DATA;
+  process.env.SAAM_DATA=resolve(root,'home');t.after(()=>{if(home===undefined)delete process.env.SAAM_DATA;else process.env.SAAM_DATA=home;});
+  const printsRoot=resolve(root,'prints'),runtime=createLocalRuntime({paths:{...homePaths(resolve(root,'home')),prints:printsRoot},stateRoot:resolve(root,'state'),autoOpen:false,localExtension:{},thingi10kClient:client});
+  t.after(()=>runtime.close());
+  const result=await runtime.beginSession({id:'synthetic-thingi10k-failure'}).invoke('import_thingi10k_bundle',{bundleId:'Broken',fileId:'101',machineId:'ultimaker-s5'});
   assert.equal(result.imported,false); assert.ok(result.error);
   assert.deepEqual(await readFile(result.sourcePath),broken);
-  assert.equal(JSON.parse(await readFile(result.sourcePath+'.json')).license,result.attribution.license);
+  assert.equal(resolve(result.sourcePath),resolve(root,'home','tmp','diagnostics',result.importDiagnostic.evidence));
   assert.ok(result.chatNotice.includes(result.attribution.licenseUrl));
-  await assert.rejects(access(resolve(directory,'plan.json')),/ENOENT/);
+  assert.deepEqual(await readdir(resolve(root,'home','tmp','jobs')),[]);
+  await assert.rejects(access(resolve(printsRoot,'Broken','plan.json')),/ENOENT/);
 });
 
 test('application import preserves attribution through correction and delivery',async t=>{
   const {client:library,root,requests}=await fixture(t);
   const printsRoot=resolve(root,'prints');
-  const runtime=createLocalRuntime({printsRoot,stateRoot:resolve(root,'state'),autoOpen:false,localExtension:{},thingi10kClient:library});
+  const runtime=createLocalRuntime({paths:{...homePaths(root),prints:printsRoot},stateRoot:resolve(root,'state'),autoOpen:false,localExtension:{},thingi10kClient:library});
   const session=runtime.beginSession({id:'synthetic-thingi10k'});
   t.after(()=>runtime.close());
   const call=async(name,args)=>session.invoke(name,args);

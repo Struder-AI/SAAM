@@ -1,5 +1,6 @@
 // A stored map set drawn for the owner: a design set's stored design or an influence set's stored
-// model, rendered by generated-view.py. It reads the store and never analyses or solves.
+// model, rendered by generated-view.py. It reads the store, then places untouched influence maps;
+// it never analyses source or solves nesting.
 import {readFile,readdir,mkdir,rm,stat,copyFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {spawn} from 'node:child_process';
@@ -32,7 +33,7 @@ export async function buildGeneratedView({repo=repoRoot,out=resolve(repo,setFile
   await mkdir(next,{recursive:true});
   const started=Date.now();
   const child=spawn(process.env.PYTHON??'python',[fileURLToPath(new URL('./generated-view.py',import.meta.url)),next],
-    {stdio:['pipe',2,'inherit'],env:{...process.env,PYTHONIOENCODING:'utf-8',PYTHONPATH:fileURLToPath(new URL('./',import.meta.url))}});
+    {stdio:['pipe',2,'inherit'],env:{...process.env,SAAM_NODE:process.execPath,PYTHONIOENCODING:'utf-8',PYTHONPATH:fileURLToPath(new URL('./',import.meta.url))}});
   child.stdin.end(JSON.stringify(model));
   await new Promise((done,reject)=>{child.on('error',reject);child.on('exit',code=>code===0?done():reject(Error(`Generated-map renderer exited ${code}`)));});
   await mkdir(resolve(out,'svg'),{recursive:true});

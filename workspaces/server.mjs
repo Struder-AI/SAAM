@@ -4,6 +4,7 @@ import {resolve,join,extname} from 'node:path';
 import {Worker} from 'node:worker_threads';
 import {randomUUID} from 'node:crypto';
 import {replaceFile} from '../core/file-write.mjs';
+import {recoverWorkspaceExport,currentWorkspaceExport,lockWorkspaceExport,beginWorkspaceExport,publishWorkspaceExport,finishWorkspaceExport,retireWorkspaceExport,workspaceExportPath} from './export-publication.mjs';
 import {loadWorkspaceRuntime,requireWorkspaceCurrent,workspacePieces} from '../core/extensions/workspaces.mjs';
 import {relativeExtensionFile} from '../core/extensions/library.mjs';
 
@@ -22,6 +23,7 @@ export async function startWorkspace({extensionId,port=0,directory,appRoot,dataR
     throw error;
   });
   let server,worker=null,stopping=null,closed=false,queue=Promise.resolve();
+  const exportWork={done:null};
   const viewers=new Set(),saved=join(directory,'design.json');
   const emit=(kind,detail={})=>{
     const event={kind,extensionId:extension.id,extensionDigest:extension.digest,...detail};
@@ -34,6 +36,7 @@ export async function startWorkspace({extensionId,port=0,directory,appRoot,dataR
   };
   try{
     await lock.writeFile(JSON.stringify({pid:process.pid,extensionId}));
+    await recoverWorkspaceExport(directory);
     const loaded=await readFile(saved,'utf8').catch(error=>{if(error.code==='ENOENT')return null;throw error;});
     const state={design:await definition.normalize(loaded?JSON.parse(loaded):structuredClone(definition.defaults)),job:null};
     const snapshot=()=>({design:structuredClone(state.design),job:structuredClone(state.job),extension:structuredClone(extension)});
@@ -53,7 +56,7 @@ export async function startWorkspace({extensionId,port=0,directory,appRoot,dataR
     });
     const createBundles=(design=state.design)=>serialize(async()=>{
       await requireWorkspaceCurrent(extension,options);
-      if(worker)throw Error('A bundle creation job is already running.');
+      if(worker||state.job&&!['complete','failed'].includes(state.job.stage))throw Error('A bundle creation job is already running.');
       const normalized=await definition.normalize(structuredClone(design));
       const pieces=workspacePieces(await definition.pieces(normalized));
       const id=randomUUID(),out=join(directory,'set-'+new Date().toISOString().replace(/[:.]/g,'-')+'-'+id.slice(0,6));
@@ -64,21 +67,35 @@ export async function startWorkspace({extensionId,port=0,directory,appRoot,dataR
         state.job={...state.job,stage,...detail};
         emit(stage==='complete'?'workspace-bundles-completed':'workspace-bundles-failed',{jobId:id,...detail});
       };
-      worker=new Worker(new URL('./export-worker.mjs',import.meta.url),{execArgv:[],workerData:{extensionId,extension,design:normalized,directory:out,...options}});
-      const running=worker;
-      running.on('message',message=>{
-        if(message.stage==='complete')finish('complete',{result:message.result});
-        else if(message.stage==='failed')finish('failed',{error:message.error});
-        else{
-          state.job={...state.job,...message};
-          emit('workspace-bundles-progress',{jobId:id,directory:job.directory,stage:message.stage,piece:message.piece,completed:message.completed,total:message.total,bundles:message.bundles});
-        }
-      });
-      running.on('error',error=>finish('failed',{error:error.message}));
-      running.on('exit',code=>{
-        finish('failed',{error:'Workspace construction worker exited before completing ('+code+').'});
-        if(worker===running)worker=null;
-      });
+      const stagingName='.export-'+id,targetName=out.slice(directory.length+1);
+      async function executeExport(){
+        const previous=await currentWorkspaceExport(directory,extensionId);
+        await beginWorkspaceExport(directory,{stage:stagingName,target:targetName,previous});
+        const publication={source:null},lease={id:stagingName,retain:false};
+        try{
+          await lockWorkspaceExport(previous,async()=>{
+            if(closed)throw Error('Workspace closed before construction.');
+            worker=new Worker(new URL('./export-worker.mjs',import.meta.url),{execArgv:[],workerData:{extensionId,extension,design:normalized,directory:workspaceExportPath(directory,stagingName),previous,...options}});
+            const running=worker;
+            publication.source=await new Promise((done,fail)=>{
+              const completed={received:false};
+              running.on('message',message=>{
+                if(message.stage==='complete'){completed.received=true;done(message.result);}
+                else if(message.stage==='failed')fail(Error(message.error));
+                else{state.job={...state.job,...message};emit('workspace-bundles-progress',{jobId:id,directory:job.directory,stage:message.stage,piece:message.piece,completed:message.completed,total:message.total,bundles:message.bundles});}
+              });
+              running.once('error',fail);
+              running.once('exit',code=>{if(worker===running)worker=null;if(!completed.received)fail(Error('Workspace construction worker exited before completing ('+code+').'));});
+            });
+            if(closed)throw Error('Workspace closed before publication.');
+            await publishWorkspaceExport(directory,{stage:stagingName,target:targetName,previous});lease.retain=true;
+          },0,lease);
+          await retireWorkspaceExport(directory,stagingName,previous);
+          await finishWorkspaceExport(directory,stagingName);
+          finish('complete',{directory:out,bundles:publication.source.bundles,result:publication.source});
+        }catch(error){await recoverWorkspaceExport(directory);finish('failed',{error:error.message});}
+      }
+      exportWork.done=executeExport().catch(error=>finish('failed',{error:error.message}));
       emit('workspace-bundles-started',{jobId:id});return structuredClone(job);
     });
     const send=(res,value,status=200)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(value));};
@@ -135,6 +152,7 @@ export async function startWorkspace({extensionId,port=0,directory,appRoot,dataR
       closed=true;await queue;
       for(const res of viewers)res.end();
       if(worker){await worker.terminate();worker=null;}
+      await exportWork.done;
       await lock.close();await rm(lockPath,{force:true});emit('workspace-closed');
       if(server.listening){const ended=new Promise(done=>server.close(done));server.closeAllConnections();await ended;}
     })();

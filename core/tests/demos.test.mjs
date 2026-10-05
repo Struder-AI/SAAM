@@ -1,3 +1,4 @@
+import './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {surfaceDrapePlan} from '../../examples/prints/surface-drape/recipe.mjs';

@@ -76,7 +76,7 @@
     {"id":"extensions","index":"4","label":"Extensions","description":"Extension definitions, domain construction and packaged UI, separate from bundles; maker guidance belongs to 1.","type":"component","notes":["The existing extension library owns dependency resolution, local overrides and portable packages; workspace content uses the same library. Source references identify ownership, not conformance certification."]},
     {"id":"extension-library","index":"4.1","label":"Extension library / authoring","description":"Installed extension definitions and builder-authorized edits; maker manuals are owned by 1.","type":"component","source":{"file":"core/extensions/library.mjs"}},
     {"id":"extension-run","index":"4.2","label":"Extension loading & invocation","description":"Existing local loader; general package execution still to implement.","type":"component","source":{"file":"core/local-extension.mjs","declaration":"loadLocalExtension"}},
-    {"id":"extension-resources","index":"4.3","label":"Thingi10K resource client","description":"Existing search/download/cache client.","type":"component","source":{"file":"skills/thingi10k/scripts/library.mjs","declaration":"createThingi10KClient"}},
+    {"id":"extension-resources","index":"4.3","label":"Thingi10K resource client","description":"Existing search/download client; stores nothing.","type":"component","source":{"file":"skills/thingi10k/scripts/library.mjs","declaration":"createThingi10KClient"}},
     {"id":"extension-catalog","index":"4.4","label":"skills/catalog.mjs","description":"Current IDs and discovery metadata.","type":"component","source":{"file":"skills/catalog.mjs"}},
     {"id":"extension-manual-plastic-weld","index":"1.26","label":"plastic-weld/SKILL.md","description":"Maker-context guidance stored alongside its extension; read by the context reader.","type":"guidance","source":{"file":"skills/plastic-weld/SKILL.md"}},
     {"id":"extension-manual-heat-set-inserts","index":"1.27","label":"heat-set-inserts/SKILL.md","description":"Maker-context guidance stored alongside its extension; read by the context reader.","type":"guidance","source":{"file":"skills/heat-set-inserts/SKILL.md"}},
@@ -999,7 +999,7 @@
     {"id":"geometry-leaf-b459837dc7b2","index":"2.3.3.5.1","label":"Module initialization / exports","description":"@module in core/geom/runtime.mjs.","type":"component","source":{"file":"core/geom/runtime.mjs"}},
     {"id":"geometry-leaf-dca04ab2bf6a","index":"2.3.3.5.2","label":"rhino","description":"rhino in core/geom/runtime.mjs.","type":"component","source":{"file":"core/geom/runtime.mjs","declaration":"rhino"}},
     {"id":"toolpath","index":"3","label":"Toolpath","description":"Inject, Trace and Slice produce the completed SAAMpath, including explicit motion planning.","type":"component"},
-    {"id":"application","index":"10","label":"Application","description":"The saam command and its runtime: operation dispatch, chats, Studio attachment, jobs and the SAAM home; carries agent requests to the engines, Bundle and Workspace.","type":"component","notes":["Owns the agent-facing application: scripts/saam.mjs, core/application (runtime, control, home, computation jobs, deposition schemas), the print and extension command hosts (core/print/cli.mjs, geometry-tools, import-stl, import-resource, gridfinity and thingi10k cli) and blob-field authoring commands. Installation, service, tray and update packaging belong to the 030-deployment set.","Map-0 arrows for this node are the owner's to author; drafted wires are proposals until approved."]},
+    {"id":"application","index":"10","label":"Application","description":"The saam command and its runtime: operation dispatch, chats, Studio attachment, jobs and the SAAM home; carries agent requests to the engines, Bundle and Workspace.","type":"component","notes":["Owns the agent-facing application: scripts/saam.mjs, core/application (runtime, control, home, computation jobs, deposition schemas), the print and extension command hosts (core/print/cli.mjs, geometry-tools, import-stl, gridfinity and thingi10k cli) and blob-field authoring commands. Installation, service, tray and update packaging belong to the 030-deployment set.","Map-0 arrows for this node are the owner's to author; drafted wires are proposals until approved."]},
     {"id":"development","index":"11","label":"Dev tools","description":"Repository checks, setup verification, native helper and release builds, and developer map and context tools; outside the installed product.","type":"component","notes":["Owns scripts/check-repo.mjs, scripts/setup-check.mjs, scripts/skill-digest.mjs, scripts/build-mesh-repair.mjs, the release build (packaging/build.mjs, packaging/native-repair.mjs) and, at declaration level, the development parts of the source toolkit: map read/regenerate (core/agent/toolkit.mjs mapCommand, readMaps, regenerateMap, developerMapSet, execFileAsync), syncStatus and contextBudget (core/agent/layers.mjs). Builder and maker onboarding stay with Maker context (1); the shared onboarding and runCLI declarations, which also dispatch developer onboarding, stay there until a file split.","Map-0 arrows for this node are the owner's to author; drafted wires are proposals until approved."]},
     {"id":"geometry-native-resources","index":"2.3.3.6","label":"Native mesh repair resources","description":"Geometry-owned native implementation, build inputs and provenance. C++ is a source module leaf; its internal calls are outside the JavaScript scanner.","type":"component"},
     {"id":"geometry-native-resource-1","index":"2.3.3.6.1","label":"Native repair program","description":"Native repair program; explicit source resource, not scanned JavaScript declarations.","type":"component","source":{"file":"core/geom/native/mesh-repair.cpp"}},
@@ -5036,7 +5036,7 @@
     {"id":"geometry-reference-mapped-surface","from":"geometry-leaf-4f938cd1a069","to":"geometry-leaf-1ebb00df734e","label":"selected affine chart","operations":["mappedSurface"],"direction":"The named operation supplies its result/completion to the consumer; access explicitly permits the invocation.","inputs":"Native surface, selected bounds/domain and orientation","outputs":"Mapped evaluation chart retaining derivative units","effects":"Local chart construction with source parameters preserved.","failure":"Propagate the existing operation error; no fabricated success.","excludes":"No transitive access, private state manipulation or additional API permission.","access":[{"from":"geometry-leaf-1ebb00df734e","to":"geometry-leaf-4f938cd1a069"}],"evidence":["core/geom/surface-evaluation.mjs::mappedSurface","core/geom/reference-surface.mjs::referenceSurface"],"status":"Exact source operation and callers reviewed for 0.3.1; schemas/effects remain subject to audit."},
     {"id":"geometry-sleeve-interval-section","from":"geometry-leaf-315d463535bb","to":"geometry-mesh-sleeve-interval","label":"mesh sleeve section preparation","operations":["prepareSection"],"direction":"The named operation supplies its result/completion to the consumer; access explicitly permits the invocation.","inputs":"Explicit mesh/material geometry and cutting surface","outputs":"Prepared section query","effects":"Geometry owns section preparation and sampling; caller selects its search interval.","failure":"Propagate the existing operation error; no fabricated success.","excludes":"No transitive access, private state manipulation or additional API permission.","access":[{"from":"geometry-mesh-sleeve-interval","to":"geometry-leaf-315d463535bb"}],"evidence":["core/region/section.mjs::prepareSection","core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval"],"status":"Exact source operation and callers reviewed for 0.3.1; schemas/effects remain subject to audit."},
     {"id":"geometry-constructed-geometry-verification","from":"geometry-leaf-2abb9412bf70","to":"geometry-leaf-af9c3c60207a","label":"constructed native geometry verification","operations":["verifyGeometry"],"direction":"The named operation supplies its result/completion to the consumer; access explicitly permits the invocation.","inputs":"Native artifact bytes and explicit geometry descriptor","outputs":"Geometry identity and validation evidence","effects":"Geometry checks its serialization and representation; Bundle acceptance remains separate.","failure":"Propagate the existing operation error; no fabricated success.","excludes":"No transitive access, private state manipulation or additional API permission.","access":[{"from":"geometry-leaf-af9c3c60207a","to":"geometry-leaf-2abb9412bf70"}],"evidence":["core/print/geometry.mjs::verifyGeometry","core/print/geometry.mjs::createGeometry"],"status":"Exact source operation and callers reviewed for 0.3.1; schemas/effects remain subject to audit."},
-    {"id":"agent-thingi-resource-client","from":"extension-resources","to":"agent","label":"Thingi10K resource service","operations":["createThingi10KClient"],"direction":"The named operation supplies its result/completion to the consumer; access explicitly permits the invocation.","inputs":"Explicit client/cache configuration for the pinned resource snapshot.","outputs":"Public metadata/search/download client and provenance.","effects":"Extension owns its cache and allowlisted upstream/CDN IO; acquired values still require explicit Geometry/Bundle acceptance.","failure":"Propagate the existing operation error; no fabricated success.","excludes":"No arbitrary URL fetching, Bundle mutation, confirmation or private engine calls.","access":[{"from":"agent","to":"extension-resources"}],"evidence":["skills/thingi10k/scripts/library.mjs::createThingi10KClient","skills/thingi10k/scripts/cli.mjs::@module"],"status":"Exact source operation and callers reviewed for 0.3.1; schemas/effects remain subject to audit."},
+    {"id":"agent-thingi-resource-client","from":"extension-resources","to":"agent","label":"Thingi10K resource service","operations":["createThingi10KClient"],"direction":"The named operation supplies its result/completion to the consumer; access explicitly permits the invocation.","inputs":"Explicit client configuration for the pinned resource snapshot.","outputs":"Public metadata/search/download client and provenance.","effects":"Extension owns its allowlisted upstream/CDN IO; acquired values still require explicit Geometry/Bundle acceptance.","failure":"Propagate the existing operation error; no fabricated success.","excludes":"No arbitrary URL fetching, Bundle mutation, confirmation or private engine calls.","access":[{"from":"agent","to":"extension-resources"}],"evidence":["skills/thingi10k/scripts/library.mjs::createThingi10KClient","skills/thingi10k/scripts/cli.mjs::@module"],"status":"Exact source operation and callers reviewed for 0.3.1; schemas/effects remain subject to audit."},
     {"id":"fields-blob-evaluator","from":"geometry-leaf-f59f872c19d7","to":"path-fields","label":"prepared geometric scalar field","operations":["prepareBlobField","evaluateBlobField"],"direction":"Geometry provides a prepared evaluator to Toolpath; Toolpath invokes the exact preparation operation.","inputs":"Finite saam-blob-field/1 point field or {kind:bumps,periodMm,radiusMm,originMm} periodic lattice descriptor.","outputs":"Reusable evaluate(point) closure returning {value}; finite fields additionally support optional gradient derivatives.","effects":"Geometry snapshots the descriptor and owns spatial indexing and ordered accumulation; unrepresentable finite bucket coordinates use the ordered direct sum. Caller owns evaluation lifetime and sampling/composition policy.","failure":"Existing field validation propagates; periodic lattice indices must remain safe integers.","excludes":"No private falloff access, Toolpath channel/transfer policy or implicit Bundle state.","access":[{"from":"path-fields","to":"geometry-leaf-f59f872c19d7"}],"evidence":["core/geom/blob-field.mjs::createBlobFieldEvaluator","core/path/modulation-field.mjs::prepareScalarField","core/path/modulation-field.mjs::validateModulationField"]},
     {"id":"fields-validate-blob","from":"geometry-leaf-3326c32b9cbd","to":"path-fields","label":"validateBlobField","operations":["validateBlobField"],"direction":"Provider supplies the named operation result; consumer explicitly invokes it.","inputs":"Explicit finite blob native value.","outputs":"Validated original value.","effects":"Local schema/value checks only.","failure":"Preserve operation prerequisites and original errors; no fabricated result.","excludes":"No transitive private access, caller state reads or additional operation permission.","access":[{"from":"path-fields","to":"geometry-leaf-3326c32b9cbd"}],"evidence":["core/geom/blob-field.mjs::validateBlobField","core/path/modulation-field.mjs::validateModulationField"]},
     {"id":"agent-compile-blob","from":"geometry-leaf-3bb7558566a2","to":"agent","label":"compileBlobField","operations":["compileBlobField"],"direction":"Provider supplies the named operation result; consumer explicitly invokes it.","inputs":"Explicit finite field and positive extraction edgeMm.","outputs":"Manufacturing mesh record with field, extraction and compiledHash.","effects":"Geometry owns native extraction/clipping, mesh validation and finally disposal; Agent supplies explicit authoring inputs and submits the result to Bundle.","failure":"Preserve operation prerequisites and original errors; no fabricated result.","excludes":"No transitive private access, caller state reads or additional operation permission.","access":[{"from":"agent","to":"geometry-leaf-3bb7558566a2"}],"evidence":["core/geom/blob-field-compile.mjs::compileBlobField","core/agent/blob-field.mjs::compileRequest"]},
@@ -5131,65 +5131,65 @@
     "0": {
       "positions": {
         "1": {
-          "x": 137,
-          "y": 91
+          "x": 149,
+          "y": 86
         },
         "2": {
-          "x": 596,
-          "y": 936
+          "x": 1105,
+          "y": 171
         },
         "3": {
-          "x": 704,
-          "y": 132
+          "x": 1349,
+          "y": 140
         },
         "4": {
-          "x": 509,
-          "y": 484
+          "x": 457,
+          "y": 431
         },
         "5": {
-          "x": 1189,
-          "y": 193,
+          "x": 1172,
+          "y": 523,
           "emphasis": true
         },
         "6": {
-          "x": 1260,
-          "y": 670
+          "x": 1123,
+          "y": 659
         },
         "7": {
-          "x": 909,
-          "y": 234
+          "x": 576,
+          "y": 557
         },
         "8": {
-          "x": 873,
-          "y": 651
+          "x": 1551,
+          "y": 414
         },
         "9": {
-          "x": 840,
-          "y": 425
+          "x": 958,
+          "y": 525
         },
         "10": {
           "x": 402,
           "y": 278
         },
         "11": {
-          "x": 177,
-          "y": 670
+          "x": 197,
+          "y": 514
         },
         "external:user": {
-          "x": 0,
-          "y": 562
+          "x": -8,
+          "y": 741
         },
         "external:agent": {
-          "x": 35,
-          "y": 285
+          "x": -88,
+          "y": 296
         },
         "external:resources": {
-          "x": 0,
-          "y": 827
+          "x": 594,
+          "y": 954
         },
         "external:stl-file": {
-          "x": 1046,
-          "y": 1091
+          "x": 862,
+          "y": 57
         }
       },
       "viewport": [

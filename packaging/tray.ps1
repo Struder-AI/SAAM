@@ -2,8 +2,8 @@ param([int]$Port,[string]$Token,[int]$AppPid)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
-function Invoke-Control([string]$Command,[bool]$Force=$false,[string]$StudioInstanceId='') {
-  $body = @{command=$Command;force=$Force;studioInstanceId=$StudioInstanceId} | ConvertTo-Json -Compress
+function Invoke-Control([string]$Command,[bool]$Force=$false,[string]$StudioInstanceId='',[string]$RuntimeId='') {
+  $body = @{command=$Command;force=$Force;studioInstanceId=$StudioInstanceId;runtimeId=$RuntimeId} | ConvertTo-Json -Compress
   Invoke-RestMethod -Uri "http://127.0.0.1:$Port/control" -Method Post -Headers @{'X-SAAM-Control'=$Token} -ContentType 'application/json' -Body $body -TimeoutSec 35
 }
 function Show-Problem($Problem) { [System.Windows.Forms.MessageBox]::Show([string]$Problem,'SAAM') | Out-Null }
@@ -23,12 +23,29 @@ function Refresh-Menu {
     $status = Invoke-Control 'status'
     $update.Visible = [bool]$status.service.activated -and [bool]$status.service.update
     $runtimes.DropDownItems.Clear()
-    foreach ($studio in $status.studios) {
-      $part = if ($studio.printId) { $studio.printId } else { 'Empty Studio' }
-      $chat = if ($studio.attachment) { $studio.attachment.name } else { 'No chat attached' }
-      $item = $runtimes.DropDownItems.Add("$part - $chat [$($studio.instanceId)]")
-      $item.Tag = $studio.instanceId
-      $item.add_Click({ param($sender,$eventArgs) try { Invoke-Control 'open' $false $sender.Tag | Out-Null } catch { Show-Problem $_.Exception.Message } })
+    foreach ($runtime in $status.runtimes) {
+      $group = $runtimes.DropDownItems.Add($runtime.label)
+      $show = $group.DropDownItems.Add('Open Studio')
+      $show.Tag = $runtime.id
+      $show.add_Click({ param($sender,$eventArgs) try { Invoke-Control 'open' $false '' $sender.Tag | Out-Null } catch { Show-Problem $_.Exception.Message } })
+      foreach ($studio in $status.studios | Where-Object { $_.runtimeId -eq $runtime.id }) {
+        $part = if ($studio.printId) { $studio.printId } else { 'Empty Studio' }
+        $chat = if ($studio.attachment) { $studio.attachment.name } else { 'No chat attached' }
+        $item = $group.DropDownItems.Add("$part - $chat [$($studio.instanceId)]")
+        $item.Tag = $studio.instanceId
+        $item.add_Click({ param($sender,$eventArgs) try { Invoke-Control 'open' $false $sender.Tag | Out-Null } catch { Show-Problem $_.Exception.Message } })
+      }
+      if ($runtime.id -ne 'installed') {
+        $stop = $group.DropDownItems.Add('Stop runtime')
+        $stop.Tag = $runtime.id
+        $stop.add_Click({ param($sender,$eventArgs) try {
+          $result = Invoke-Control 'stop-runtime' $false '' $sender.Tag
+          if ($result.confirmationRequired) {
+            $answer = [System.Windows.Forms.MessageBox]::Show('Stopping this runtime cancels active work. Continue?','SAAM',[System.Windows.Forms.MessageBoxButtons]::YesNo)
+            if ($answer -eq [System.Windows.Forms.DialogResult]::Yes) { Invoke-Control 'stop-runtime' $true '' $sender.Tag | Out-Null }
+          }
+        } catch { Show-Problem $_.Exception.Message } })
+      }
     }
     $runtimes.Enabled = $runtimes.DropDownItems.Count -gt 0
   } catch { $update.Visible = $false;$runtimes.Enabled = $false }

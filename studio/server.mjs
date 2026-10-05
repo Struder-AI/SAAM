@@ -17,7 +17,6 @@ import { Worker } from 'node:worker_threads';
 import {PreparedGenerationJob} from './prepared-generation-job.mjs';
 import {claimBundleInstance,releaseBundleInstance,reassignBundleInstance,withBundleInstance,bundleInstance} from '../core/print/studio-ownership.mjs';
 import { viewerLifetime } from './lifetime.mjs';
-import {homePaths} from '../core/application/home.mjs';
 
 
 const here=dirname(fileURLToPath(import.meta.url));
@@ -109,13 +108,14 @@ async function serviceInput(request){
   for await(const chunk of request){size.bytes+=chunk.length;if(size.bytes>4000)throw Error('Request too large.');chunks.push(chunk);}
   return JSON.parse(Buffer.concat(chunks).toString()||'{}');
 }
+function escapeTitle(value){return value.replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));}
 const noPrint=()=>Object.assign(Error('No print is open. Open a saved print, import an STL, start the tour, or ask your agent to make a part.'),{code:'NO_PRINT'});
 const printFreeRoutes=new Set(['/api/open','/api/tour','/api/view-performance','/api/import-stl','/api/cancel-calculation']);
 // A local development launcher may explicitly supply a scratch adapter resolver.
 // This is a function supplied by code, never a module path supplied by a print or HTTP request.
 // A null directory opens Studio with no print; the person or agent opens one later.
-export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBundle=bundleFor,agentOwnerId,agentRequests,studioEvents,relay,requestFolder,chatName,chatClient}={}) {
-  const instanceId=randomBytes(16).toString('hex');
+// The owner supplies libraryRoot and, to remember exported setups, machineSetups.
+export function createStudio(directory,{libraryRoot,machineSetups,resolveBundle=bundleFor,agentOwnerId,agentRequests,studioEvents,relay,requestFolder,chatName,chatClient,instanceId=randomBytes(16).toString('hex'),sessionToken,restoring=false,runtimeId,runtimeLabel,fingerprint}) {
   const initialOwnerId=agentOwnerId??agentRequests?.ownerId??`studio:${instanceId}`;
   if(agentRequests?.ownerId&&agentRequests.ownerId!==initialOwnerId)throw Error('The request store belongs to another chat.');
   const initialRequests=agentRequests??createAgentRequests(libraryRoot,{ownerId:initialOwnerId,folder:requestFolder});
@@ -128,7 +128,7 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
   const geometryOnly=guide=>guide.active&&guide.directory===dir&&guide.step<L.playback;
   const viewFingerprint=(id,fingerprint,guide)=>id+fingerprint+(geometryOnly(guide)?':geometry':':program');
   let dir=directory?resolve(directory):null;
-  const token=randomBytes(24).toString('hex'),viewPerformance=[];
+  const token=sessionToken??randomBytes(24).toString('hex'),viewPerformance=[];
   const workIdFor=directory=>directory?chat.current.requests.printId(directory,{optional:true}):null;
   // Studio observations for the owning agent: person-driven actions, worker
   // outcomes and displayed results, tagged with this instance and its print.
@@ -158,7 +158,7 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
   let opened=dir?(async()=>{
     const selected=dir,adapter=await resolveBundle(selected);
     await readStableBundle(adapter,selected,{program:false});
-    const claim=await claimBundleInstance(selected,{instanceId,ownerId:chat.current.ownerId});
+    const claim=await claimBundleInstance(selected,{instanceId,ownerId:chat.current.ownerId,restoring,runtimeId,runtimeLabel});
     try{await chat.current.tour.attachStudio(selected);}
     catch(error){await releaseBundleInstance(selected,claim);throw error;}
     reservation=claim;reservedDirectory=selected;return adapter;
@@ -184,7 +184,7 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
       const previous=reservation&&reservedDirectory===selected?await bundleInstance(selected):null;
       if(previous?.token!==reservation?.token){reservation=null;reservedDirectory=null;}
       if(!reservation&&fresh){await mkdir(dirname(selected),{recursive:true});await mkdir(selected);}
-      const claim=reservation??await claimBundleInstance(selected,{instanceId,ownerId:chat.current.ownerId});
+      const claim=reservation??await claimBundleInstance(selected,{instanceId,ownerId:chat.current.ownerId,restoring,runtimeId,runtimeLabel});
       reservation=claim;reservedDirectory=selected;operations.active++;operations.creating=true;
       try{return await withBundleInstance(selected,claim,()=>action(claim));}
       finally{operations.creating=false;operations.active--;}
@@ -342,7 +342,7 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
   };
   const exportPrint=async(current,state,data,progress)=>{
     const name=requestedDownloadName(data.name,await printName(state.dir,state.plan),state.exportName);
-    const delivered=await runBundleEdit(state.dir,()=>current.exportReviewed(state));
+    const delivered=await runBundleEdit(state.dir,()=>current.exportReviewed(state,{machineSetups}));
     const inTour=progress.active&&progress.directory===state.dir;
     if(inTour)await chat.current.tour.downloaded(delivered.exportHash);
     note('export-delivered',{tour:inTour,name,exportHash:delivered.exportHash});
@@ -354,7 +354,7 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
     await readStableBundle(adapter,next,{program:false});
     if(next!==dir&&reservation&&reservedDirectory===next){discardPreparation();dir=next;opened=Promise.resolve(adapter);return;}
     if(next!==dir){
-      const claim=await claimBundleInstance(next,{instanceId,ownerId:chat.current.ownerId});
+      const claim=await claimBundleInstance(next,{instanceId,ownerId:chat.current.ownerId,restoring,runtimeId,runtimeLabel});
       switching=true;
       try{await releaseInstance();discardPreparation();dir=next;reservation=claim;reservedDirectory=next;opened=Promise.resolve(adapter);}
       catch(error){await releaseBundleInstance(next,claim);throw error;}
@@ -387,10 +387,11 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
       if(req.method==='GET'&&url.pathname==='/api/viewer'){
         if(url.searchParams.get('token')!==token||(req.headers.origin&&req.headers.origin!==origin)){send({error:'Invalid local session'},403);return;}
         lifetime.attach(res);
+        res.write('event: runtime-code\ndata: '+JSON.stringify({fingerprint})+'\n\n');
         return;
       }
       if(req.method==='GET'&&url.pathname==='/') {
-        const html=(await readFile(resolve(here,'index.html'),'utf8')).replace('__CSRF__',token).replace('__SERVICE__',relay?'on':'');
+        const html=(await readFile(resolve(here,'index.html'),'utf8')).replace('__CSRF__',token).replace('__SERVICE__',relay?'on':'').replace('</head>', '<meta name="saam-runtime" content="'+encodeURIComponent(fingerprint??'')+'"></head>').replace('<title>', '<title>'+ (runtimeLabel?escapeTitle(runtimeLabel)+' · ':''));
         res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end(html);return;
       }
       if(req.method==='GET'&&['/work-state.mjs','/agent-ui.mjs','/chat-ui.mjs','/tour-ui.mjs','/tour-catalog.mjs','/viewer-session.mjs','/view-performance.mjs','/refresh-plan.mjs','/viewer-renderer.mjs','/studio-state.mjs','/studio-controls.mjs','/neutral-path.mjs','/service-panel.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/machine-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
@@ -409,7 +410,7 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
         const action=req.method==='POST'?url.pathname.slice('/api/service/'.length):null;
         if(!relay||!reading&&!['activate','dismiss','check-update','update','quit'].includes(action)){send({error:'Not found'},404);return;}
         if(req.headers['x-saam-token']!==token||(reading?req.headers.origin&&req.headers.origin!==origin:req.headers.origin!==origin)){send({error:'Invalid local session'},403);return;}
-        if(reading){send(relay.status());return;}
+        if(reading){send(await relay.status());return;}
         if(action==='activate'){
           const chunks=[];let size=0;
           for await(const chunk of req){size+=chunk.length;if(size>4_000)throw Error('Request too large.');chunks.push(chunk);}
@@ -418,7 +419,7 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
           return;
         }
         if(action==='dismiss'){try{send(await relay.dismissFirstRun());}catch(error){send({error:error.message},500);}return;}
-        if(action==='check-update'){try{await relay.checkUpdate();send(relay.status());}catch(error){send({error:error.message},502);}return;}
+        if(action==='check-update'){try{await relay.checkUpdate();send(await relay.status());}catch(error){send({error:error.message},502);}return;}
         if(action==='update'){try{send(await relay.update(await serviceInput(req)));}catch(error){send({error:'SAAM could not update: '+error.message},502);}return;}
         if(action==='quit'){try{send(await relay.quit(await serviceInput(req)));}catch(error){send({error:error.message},400);}return;}
         return;
@@ -707,6 +708,7 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
     }
   });
   server.once('close',()=>{closed=true;stopWatching();chat.stopRequestFeed();discardPreparation();void releaseInstance().catch(error=>note('instance-release-failed',{error:error.message}));});
+  server.sessionToken=()=>token;
   server.shutdown=lifetime.shutdown;server.viewerCount=lifetime.viewers;
   Object.defineProperty(server,'studioEvents',{get(){return chat.current.events;}});server.generationStatus=generationStatus;
   server.cancelCalculation=cancelCalculation;

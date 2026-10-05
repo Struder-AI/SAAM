@@ -1,4 +1,5 @@
 // Shared import, checks and manual reading, isolated from real setup and print records.
+import './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, rm, mkdir, symlink, link } from 'node:fs/promises';
@@ -45,21 +46,21 @@ test('manual sections preserve duplicate heading identities and reject private o
 test('shared STL importer and both recipe adapters resolve the same remembered setup without recording approvals', async t => {
   const scratch = await mkdtemp(resolve(tmpdir(), 'saam-synthetic-access-'));
   t.after(() => rm(scratch, { recursive: true, force: true }));
-  const setupFile = resolve(scratch, 'setup.json');
+  const machineSetups = scratch, setupFile = resolve(machineSetups, 'ultimaker-s5.json');
   await writeFile(setupFile, JSON.stringify({ schema: 'saam-machine-setup/1', machineId: 'ultimaker-s5',
     setup: { ...shellDefaults().setup, bedC: 67 }, source: 'SYNTHETIC TEST ONLY' }));
-  assert.equal((await proposedPlan('ultimaker-s5', { setupFile })).setup.bedC, 67);
+  assert.equal((await proposedPlan('ultimaker-s5', { machineSetups })).setup.bedC, 67);
   const mesh = boxMesh(8, 6, 1);
   const bytes = Buffer.from('solid test\n' + mesh.triangles.map(triangle => 'facet normal 0 0 0\nouter loop\n'
     + triangle.map(i => 'vertex ' + mesh.vertices[i].join(' ')).join('\n') + '\nendloop\nendfacet').join('\n') + '\nendsolid test');
   const dir = resolve(scratch, 'Imported');
-  await importSTLBundle(dir, bytes, { units: 'mm', machineId: 'ultimaker-s5', setupFile });
+  await importSTLBundle(dir, bytes, { units: 'mm', machineId: 'ultimaker-s5', machineSetups });
   const state = await loadBundle(dir);
   assert.equal(state.plan.setup.bedC, 67);
   assert.deepEqual(state.review.approvals, {});
   assert.deepEqual(await readFile(resolve(dir, 'geometry/source.stl')), bytes);
   const inferred = resolve(scratch, 'Automatic units');
-  await importSTLBundle(inferred, bytes, { machineId: 'ultimaker-s5', setupFile });
+  await importSTLBundle(inferred, bytes, { machineId: 'ultimaker-s5', machineSetups });
   assert.equal((await loadBundle(inferred)).plan.geometry.source.unitsInferred, true);
 });
 

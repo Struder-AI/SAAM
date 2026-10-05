@@ -1,13 +1,13 @@
 // Reusable machine/material/installation settings. Consumers keep selected
-// snapshots; reading a bundle never consults this store.
+// snapshots; reading a bundle never consults this store. The owner supplies the
+// store folder (`machineSetups`); without one, nothing is remembered or recalled.
 import {readFile,mkdir,open,rm} from 'node:fs/promises';
 import {resolve,dirname} from 'node:path';
 import {loadMachine} from './profile.mjs';
 import {requireThat} from '../private/settings/numeric.mjs';
 import {replaceFile} from '../private/settings/file-write.mjs';
-import {homePaths} from '../application/home.mjs';
 
-const setupFor=machine=>resolve(homePaths().machineSetups,machine.id+'.json');
+const setupFor=(machineSetups,machine)=>resolve(machineSetups,machine.id+'.json');
 export const SETTINGS_FIELDS=Object.freeze(['setup','process','output','placement']);
 
 const settingsRecord=value=>value&&typeof value==='object'&&!Array.isArray(value);
@@ -74,10 +74,10 @@ export function settingsDefaults(machine){
   };
 }
 
-export async function selectSettings(machineId,{setupFile}={}){
+export async function selectSettings(machineId,{machineSetups}={}){
   const machine=loadMachine(machineId),settings=settingsDefaults(machine);
   let saved;
-  try{saved=JSON.parse(await readFile(setupFile??setupFor(machine),'utf8'));}
+  if(machineSetups)try{saved=JSON.parse(await readFile(setupFor(machineSetups,machine),'utf8'));}
   catch(error){if(error.code!=='ENOENT')throw error;}
   if(saved){
     requireThat(saved.schema==='saam-machine-setup/1'&&saved.machineId===machine.id,'Saved machine setup is incompatible.');
@@ -87,9 +87,9 @@ export async function selectSettings(machineId,{setupFile}={}){
   return {machine,settings};
 }
 
-export async function saveSetup(machine,setup,{setupFile,source='Last successful export',exportReceipt}={}){
-  requireThat(machine&&setup,'Choose a machine and setup before remembering settings.');
-  const file=setupFile??setupFor(machine);
+export async function saveSetup(machine,setup,{machineSetups,source='Last successful export',exportReceipt}={}){
+  requireThat(machine&&setup&&machineSetups,'Choose a machine, setup and setup store before remembering settings.');
+  const file=setupFor(machineSetups,machine);
   await replaceFile(file,JSON.stringify({schema:'saam-machine-setup/1',machineId:machine.id,
     setup:structuredClone(setup),source,...(exportReceipt?{exportReceipt}:{}),updatedAt:new Date().toISOString()},null,2)+'\n');
   return file;
@@ -97,8 +97,8 @@ export async function saveSetup(machine,setup,{setupFile,source='Last successful
 
 // Hold the machine's store lock before copying an export, through remembering
 // its exact setup. Serializing only the final store write would invert exports.
-export async function withMachineSetupExport(machine,action){
-  const lock=setupFor(machine)+'.export.lock',writer={handle:null,unreadable:0};
+export async function withMachineSetupExport(machineSetups,machine,action){
+  const lock=setupFor(machineSetups,machine)+'.export.lock',writer={handle:null,unreadable:0};
   await mkdir(dirname(lock),{recursive:true});
   for(;;){
     try{writer.handle=await open(lock,'wx');break;}

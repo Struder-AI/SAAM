@@ -27,6 +27,7 @@ import {fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';
 import {zipSync} from 'fflate';
 import {executablePlatform,packageNativeRepair} from './native-repair.mjs';
+import {orchestratorContract} from '../core/application/runtime-selection.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const PLATFORMS={
@@ -202,7 +203,7 @@ async function main(){
   }
   else await fetchNode(values['node-version'],platform,runtime);
 
-  const release={version:values.version,relayUrl,platform,updateHost,node:values.node?'supplied':values['node-version'],nativeRepair,builtAt:new Date().toISOString(),...(values.review?{reviewBuild:true}:{})};
+  const release={version:values.version,contract:orchestratorContract,relayUrl,platform,updateHost,node:values.node?'supplied':values['node-version'],nativeRepair,builtAt:new Date().toISOString(),...(values.review?{reviewBuild:true}:{})};
   const releaseJson=JSON.stringify(release,null,2)+'\n';
   await writeFile(resolve(app,'release.json'),releaseJson);
   console.log(`Application: ${describe(await measure(app))}.`);

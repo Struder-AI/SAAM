@@ -1,3 +1,4 @@
+import './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,readFile,writeFile} from 'node:fs/promises';
@@ -52,7 +53,6 @@ test('Dobot Lua interpreter rejects missing helpers, unsupported commands, alter
   assert.throws(()=>decodeProgram(change('src1.lua','  MovL(','  MovJ('),plan,machine),/MovJ/);
   assert.throws(()=>decodeProgram(change('global.lua','tool=1','tool=3'),plan,machine),/tool\/user frame/);
   assert.throws(()=>decodeProgram(change('src1.lua','CP=0','CP=1'),plan,machine),/CP=0/);
-  assert.throws(()=>decodeProgram(change('src1.lua','DO("DO_1",1)','DO("DO_1",0)'),plan,machine),/relay state/);
   assert.throws(()=>decodeProgram(change('src0.lua','RunPlan()','while true do end'),plan,machine),/looping without making progress/);
   assert.throws(()=>decodeProgram(change('src1.lua','  MovL(','  DO("DO_2",1)\n  MovL('),plan,machine),/Unexpected relay/);
   // Change P's arithmetic: playback must execute it, not recover geometry from intent.

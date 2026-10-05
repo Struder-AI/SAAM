@@ -1,7 +1,8 @@
-// Only first-run evidence and the latest transport issue survive disconnection.
+// Only first-run evidence, the latest transport issue and the latest failed
+// download's original survive disconnection; that original is never uploaded.
 import {mkdir,readdir,readFile,rm} from 'node:fs/promises';
 import {resolve} from 'node:path';
-import {randomUUID} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {homePaths} from './home.mjs';
 import {replaceFile} from '../file-write.mjs';
 const sensitive=/(?:secret|token|password|credential|authorization|cookie|invite|transcript|reasoning|prompt|instruction|query|content|chat|conversation|messages|url|uri|path|filename|directory|filecontent|sourcecode)/i;
@@ -29,6 +30,13 @@ export function isNetworkFailure(error){
     if(transportCodes.has(current.code)||current instanceof TypeError&&/^(fetch failed|Failed to fetch|NetworkError when attempting to fetch resource\.)$/.test(current.message))return true;
   }
   return false;
+}
+// A failed import of downloaded bytes keeps them, named by hash, until a newer one replaces them.
+export async function retainFailedImport(paths,bytes){
+  const directory=resolve(paths.tmp,'diagnostics'),name=`failed-import.${createHash('sha256').update(bytes).digest('hex')}.stl`;
+  await replaceFile(resolve(directory,name),bytes);
+  for(const old of await readdir(directory))if(old!==name&&/^failed-import\.[a-f0-9]{64}\.stl$/.test(old))await rm(resolve(directory,old),{force:true});
+  return resolve(directory,name);
 }
 const queues=new Map();
 export function createDiagnosticReports({home=homePaths().home,statePath=resolve(homePaths(home).state,'release-service.json')}={}){

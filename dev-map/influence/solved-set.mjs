@@ -23,7 +23,7 @@
 // ADDRESS`, `build` and `check` read the stored model; reads never solve.
 import {readFileSync,writeFileSync,mkdirSync,existsSync,rmSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-import {resolve,dirname,basename} from 'node:path';
+import {resolve,dirname,basename,relative,isAbsolute} from 'node:path';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';
@@ -491,6 +491,16 @@ function staleness(model) {
 // keeps its places); every other box the owner placed is in this set's layout.json by map path and
 // box identity. The authoring server (author-server.mjs) writes both.
 export const placementFiles=()=>({authored:inputs().authored,layout:here('layout.json'),repo});
+function authoringFolder() {
+  const files=placementFiles(),architecture=resolve(files.authored,'architecture.json');
+  let folder=dirname(files.layout);
+  while(relative(folder,architecture).startsWith('..')||isAbsolute(relative(folder,architecture))) {
+    const parent=dirname(folder);if(parent===folder)return null;folder=parent;
+  }
+  return {path:folder,name:basename(folder),architecture:relative(folder,architecture).replaceAll('\\','/'),
+    layout:relative(folder,files.layout).replaceAll('\\','/')};
+}
+
 
 // The viewer's model. Map 0 takes the authored positions (boxes they do not place, such as the
 // unowned box, are set out below them and the page is fitted to all of it); any other map takes
@@ -556,7 +566,7 @@ export function solvedModel() {
     else if(Object.keys(at).length)p.layout={overlay:true,positions:at};
   }
   return {generated:m.generated,title:m.title,notice:m.notice,regenerate:m.regenerate,scores:{},snapshotId:m.snapshotId,
-    influence:true,authoring:{set:setName},placement:{applied,missing,labels:m.labels},lists,pages,sources:m.sources,sourceInfo:m.sourceInfo,stale:{},changed:[],changedInputs:[]};
+    influence:true,authoring:{set:setName,maps:placement.maps,folder:authoringFolder()},placement:{applied,missing,labels:m.labels},lists,pages,sources:m.sources,sourceInfo:m.sourceInfo,stale:{},changed:[],changedInputs:[]};
 }
 
 // The CLI read: enough to choose what to read next, each fact once, never code. Agents see a

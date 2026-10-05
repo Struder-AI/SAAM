@@ -437,7 +437,7 @@ async function decodeInWorker(snapshot){
   machinePose.machineSession=sourceSession(new Worker('/studio/source-worker.mjs',{type:'module'}));
   return machinePose.machineSession.load({printId:snapshot.printId,revision:snapshot.revision,exportHash:snapshot.exportHash,
     plan:snapshot.plan,machine:snapshot.machine,inspection:snapshot.pathSummary?.inspection,
-    authoredNozzleTemperatures:snapshot.authoredNozzleTemperatures,program:{sources:snapshot.program.sources}});
+    program:{sources:snapshot.program.sources}});
 }
 function bindCachedProgram(snapshot){return machinePose.machineSession?.bind(snapshot);}
 function table(entries) {
