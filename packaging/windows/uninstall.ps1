@@ -1,4 +1,5 @@
-# Removes C:\SAAM\app and this user's shortcuts; persistent home data is kept.
+# Removes C:\SAAM\app, this user's shortcuts, PATH entry and Claude Code and
+# Codex registrations; persistent home data is kept.
 param([switch]$Yes)
 
 . (Join-Path $PSScriptRoot 'common.ps1')
@@ -8,11 +9,16 @@ function Wait-ForClose { Write-Host ''; Read-Host 'Press Enter to close this win
 $data = Get-SaamDataFolder
 if (Test-SaamRunning) { Write-Host 'SAAM is running. Choose Quit in Studio or the SAAM tray menu, then uninstall again.' -ForegroundColor Red; Wait-ForClose; exit 1 }
 if (-not $Yes) {
-  Write-Host "This removes SAAM from $SaamRoot and its shortcuts."
+  Write-Host "This removes SAAM from $SaamRoot, with its shortcuts, PATH entry and Claude Code and Codex registrations."
   Write-Host "Your prints and settings in $data are kept."
   if ((Read-Host 'Type Y and press Enter to uninstall') -notmatch '^[Yy]') { Write-Host 'Nothing was removed.'; Wait-ForClose; exit 0 }
 }
 
+if (-not $env:SAAM_INSTALL_TEST_ROOT) {
+  try { & (Join-Path $SaamRoot 'runtime\node.exe') (Join-Path $SaamRoot 'packaging\client-setup.mjs') $data --unregister; $unregistered = $LASTEXITCODE -eq 0 }
+  catch { Write-Host $_.Exception.Message; $unregistered = $false }
+  if (-not $unregistered) { Write-Host 'Remove the registrations named above from Claude Code and Codex yourself.' -ForegroundColor Red }
+}
 foreach ($link in $Shortcuts) { if (Test-Path -LiteralPath $link) { Remove-Item -LiteralPath $link -Force } }
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 [Environment]::SetEnvironmentVariable('Path', (($userPath -split ';' | Where-Object { $_.TrimEnd('\') -ine $SaamRoot.TrimEnd('\') }) -join ';'), 'User')

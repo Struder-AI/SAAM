@@ -12,5 +12,5 @@ Codex after installation to discover the saam command and skill; the agent
 handles client setup and repairs. Claude Code requires 2.1.285 or later; the
 alpha invite is optional.
 
-Run bash ~/SAAM/app/packaging/macos/uninstall.sh to remove app files and
-shortcuts. Your prints, extensions, settings and logs stay in ~/SAAM.
+Run bash ~/SAAM/app/packaging/macos/uninstall.sh to remove the app, shortcuts
+and client setup. Your prints, extensions, settings and logs stay in ~/SAAM.
