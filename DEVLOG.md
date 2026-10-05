@@ -1,5 +1,9 @@
 # Development log
 
+## 2026-10-04 — Short top-level names
+
+- Owner-approved: Geometry, Toolpath, Bundle, Workspace, Export, Settings, Dev tools, Agent, Unassigned; Maker context and External resources kept. architecture.json labels and the generated unassigned actor in solve-middle.mjs. Regenerated: checks and reads ok, positions and labels applied. Unblocks the held map-0 wires and actors. No tests run.
+
 ## 2026-10-04 — Codex batch merged; solver warm start; suspected-imprecision marking removed
 
 - Codex build-team left its 0.3.3 batch uncommitted at wrap-up; committed as found on `codex/build-team` (40625497) and merged (owner: the Claude team now takes 0.3.3 to release). Its entries follow.

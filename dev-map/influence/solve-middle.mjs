@@ -127,7 +127,7 @@ export function readAuthored(dir) {
   const actors=Object.keys(architecture.actors??{});
   let next=Math.max(...nodes.map(n=>Number(n.index)));
   for(const id of actors){nodes.push({id:`external:${id}`,index:String(++next),label:architecture.actors[id].label,actor:true});topOf.set(`external:${id}`,`external:${id}`);}
-  nodes.push({id:'external:unassigned',index:String(++next),label:'Unassigned outside contact',actor:true,generated:true});topOf.set('external:unassigned','external:unassigned');
+  nodes.push({id:'external:unassigned',index:String(++next),label:'Unassigned',actor:true,generated:true});topOf.set('external:unassigned','external:unassigned');
   return {nodes,topOf,owners:ownership.leaves??{},actors};
 }
 
