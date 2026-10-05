@@ -17,7 +17,6 @@ import { Worker } from 'node:worker_threads';
 import {PreparedGenerationJob} from './prepared-generation-job.mjs';
 import {claimBundleInstance,releaseBundleInstance,reassignBundleInstance,withBundleInstance,bundleInstance} from '../core/print/studio-ownership.mjs';
 import { viewerLifetime } from './lifetime.mjs';
-import {homePaths} from '../core/application/home.mjs';
 
 
 const here=dirname(fileURLToPath(import.meta.url));
@@ -115,7 +114,8 @@ const printFreeRoutes=new Set(['/api/open','/api/tour','/api/view-performance','
 // A local development launcher may explicitly supply a scratch adapter resolver.
 // This is a function supplied by code, never a module path supplied by a print or HTTP request.
 // A null directory opens Studio with no print; the person or agent opens one later.
-export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBundle=bundleFor,agentOwnerId,agentRequests,studioEvents,relay,requestFolder,chatName,chatClient,instanceId=randomBytes(16).toString('hex'),sessionToken,restoring=false,runtimeId,runtimeLabel,fingerprint}={}) {
+// The owner supplies libraryRoot and, to remember exported setups, machineSetups.
+export function createStudio(directory,{libraryRoot,machineSetups,resolveBundle=bundleFor,agentOwnerId,agentRequests,studioEvents,relay,requestFolder,chatName,chatClient,instanceId=randomBytes(16).toString('hex'),sessionToken,restoring=false,runtimeId,runtimeLabel,fingerprint}) {
   const initialOwnerId=agentOwnerId??agentRequests?.ownerId??`studio:${instanceId}`;
   if(agentRequests?.ownerId&&agentRequests.ownerId!==initialOwnerId)throw Error('The request store belongs to another chat.');
   const initialRequests=agentRequests??createAgentRequests(libraryRoot,{ownerId:initialOwnerId,folder:requestFolder});
@@ -342,7 +342,7 @@ export function createStudio(directory,{libraryRoot=homePaths().prints,resolveBu
   };
   const exportPrint=async(current,state,data,progress)=>{
     const name=requestedDownloadName(data.name,await printName(state.dir,state.plan),state.exportName);
-    const delivered=await runBundleEdit(state.dir,()=>current.exportReviewed(state));
+    const delivered=await runBundleEdit(state.dir,()=>current.exportReviewed(state,{machineSetups}));
     const inTour=progress.active&&progress.directory===state.dir;
     if(inTour)await chat.current.tour.downloaded(delivered.exportHash);
     note('export-delivered',{tour:inTour,name,exportHash:delivered.exportHash});

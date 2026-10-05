@@ -1,3 +1,4 @@
+import './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,access} from 'node:fs/promises';
@@ -63,12 +64,12 @@ test('profiles without an exporter persist through shared setup review and refus
   const root=await mkdtemp(join(tmpdir(),'saam-printer-profiles-'));
   t.after(()=>rm(root,{recursive:true,force:true}));
   for(const id of ids.slice(1)){
-    const directory=join(root,id),setupFile=join(root,id+'-setup.json');
-    const plan=await proposedPlan(id,{setupFile});plan.geometry=splineBox({runMm:12,widthMm:10,heightMm:1});
-    await initBundle(directory,plan,{machineId:id,setupFile});
+    const directory=join(root,id),machineSetups=join(root,'machine-setups');
+    const plan=await proposedPlan(id,{machineSetups});plan.geometry=splineBox({runMm:12,widthMm:10,heightMm:1});
+    await initBundle(directory,plan,{machineId:id});
     let state=await loadBundle(directory,{program:false});
     assert.equal(state.machine.id,id);assert.equal(state.toolpathApproved,false);
-    await adjustBundle(directory,{setup:{material:'ABS',nozzleC:250,bedC:95}},{expectedRevision:state.revision,setupFile});
+    await adjustBundle(directory,{setup:{material:'ABS',nozzleC:250,bedC:95}},{expectedRevision:state.revision});
     state=await loadBundle(directory,{program:false});assert.equal(state.plan.setup.material,'ABS');
     const progress=[];
     await assert.rejects(generateBundle(directory,{development:true,onProgress:event=>progress.push(event)}),/export is not implemented/);

@@ -48,7 +48,7 @@ async function start(args){
     try{await checkSetup({log:()=>{}});await replaceFile(setupFile,JSON.stringify({passed:args.fingerprint})+'\n');}
     catch(error){setup.problem={version:args.label,error:error.message,effect:'SAAM failed its setup check. Tell the person; reinstalling or repairing this runtime usually fixes it.'};}
   }
-  host.runtime=createLocalRuntime({printsRoot:paths.prints,stateRoot,autoOpen:args.autoOpen,relay,
+  host.runtime=createLocalRuntime({paths,stateRoot,autoOpen:args.autoOpen,relay,
     application:{setupProblem:setup.problem,runtimeId:args.runtimeId,runtimeLabel:args.label,fingerprint:args.fingerprint,
       retryClients:async()=>request('clients'),
       registerStudio:async window=>request('window',window),

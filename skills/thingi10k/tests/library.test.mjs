@@ -1,3 +1,4 @@
+import '../../../core/tests/temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp, readFile, readdir, rm, access} from 'node:fs/promises';
@@ -9,6 +10,7 @@ import {boxMesh} from '../../../core/tests/fixtures/mesh.mjs';
 import {loadBundle, generateBundle, approve, deliver, updatePlan, bundleInstance, withBundleInstance} from '../../../core/print/bundle.mjs';
 import {setSTLUnits} from '../../../core/print/import-stl.mjs';
 import {createLocalRuntime} from '../../../core/application/runtime.mjs';
+import {homePaths} from '../../../core/application/home.mjs';
 
 // Synthetic data deliberately gives a file a different license from its thing.
 const context = 'Thing ID,Date,Category,Sub-category,Name,Author,License\r\n'
@@ -101,7 +103,7 @@ test('downloads enforce streamed and declared limits, redirect boundaries, HTTP 
 test('failed mesh import keeps only the exact download as evidence, with the mandatory chat notice',async t=>{
   const broken=Buffer.from('not an STL'), {client,root}=await fixture(t,broken), home=process.env.SAAM_DATA;
   process.env.SAAM_DATA=resolve(root,'home');t.after(()=>{if(home===undefined)delete process.env.SAAM_DATA;else process.env.SAAM_DATA=home;});
-  const printsRoot=resolve(root,'prints'),runtime=createLocalRuntime({printsRoot,stateRoot:resolve(root,'state'),autoOpen:false,localExtension:{},thingi10kClient:client});
+  const printsRoot=resolve(root,'prints'),runtime=createLocalRuntime({paths:{...homePaths(resolve(root,'home')),prints:printsRoot},stateRoot:resolve(root,'state'),autoOpen:false,localExtension:{},thingi10kClient:client});
   t.after(()=>runtime.close());
   const result=await runtime.beginSession({id:'synthetic-thingi10k-failure'}).invoke('import_thingi10k_bundle',{bundleId:'Broken',fileId:'101',machineId:'ultimaker-s5'});
   assert.equal(result.imported,false); assert.ok(result.error);
@@ -115,7 +117,7 @@ test('failed mesh import keeps only the exact download as evidence, with the man
 test('application import preserves attribution through correction and delivery',async t=>{
   const {client:library,root,requests}=await fixture(t);
   const printsRoot=resolve(root,'prints');
-  const runtime=createLocalRuntime({printsRoot,stateRoot:resolve(root,'state'),autoOpen:false,localExtension:{},thingi10kClient:library});
+  const runtime=createLocalRuntime({paths:{...homePaths(root),prints:printsRoot},stateRoot:resolve(root,'state'),autoOpen:false,localExtension:{},thingi10kClient:library});
   const session=runtime.beginSession({id:'synthetic-thingi10k'});
   t.after(()=>runtime.close());
   const call=async(name,args)=>session.invoke(name,args);

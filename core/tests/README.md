@@ -62,6 +62,6 @@ node --test skills/vase-wall/tests/vase.test.mjs
 node scripts/check-repo.mjs
 ```
 
-`npm test` runs the stored suite. Stress tests (`npm run test:stress`) and the
-repository-document check are separate; focused selection needs no subsequent
-full-suite run.
+`npm test` runs the stored suite; stress tests (`npm run test:stress`) and the document check are separate.
+Focused selection needs no full-suite run. `saamHome()` refuses the person's home
+under `node --test`: a test reaching it imports [temporary-home.mjs](./temporary-home.mjs) first.

@@ -1,3 +1,4 @@
+import {home} from './temporary-home.mjs';
 import {createPlanningState,planningPath,planMove} from '../path/planning.mjs';
 import {contextualActions} from '../path/action-context.mjs';
 import test from 'node:test';
@@ -119,7 +120,7 @@ test('RC8A uses the public bundle, exact browser source and cold reopen without 
   const dir=await mkdtemp(join(tmpdir(),'saam-denso-'));t.after(()=>rm(dir,{recursive:true,force:true}));const plan=small();
   await initBundle(dir,plan,{machineId:machine.id});const checks=await generateBundle(dir,{development:true});assert.equal(checks.mode,'development');
   const state=await loadBundle(dir);assert.equal(state.programError,undefined);assert.deepEqual(state.review.approvals,{});await assert.rejects(()=>deliver(dir),/approv/);
-  const server=createStudio(dir);await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>server.shutdown());
+  const server=createStudio(dir,{libraryRoot:home});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>server.shutdown());
   const origin=`http://127.0.0.1:${server.address().port}`,fetcher=(url,...args)=>fetch(origin+url,...args),remote=outputView(await(await fetcher('/api/state')).json());
   assert.equal(remote.program.moves,undefined);
   const files=await fetchSources(remote,fetcher),decoded=decodeSource(files,remote.plan,remote.machine);
@@ -133,5 +134,5 @@ test('RC8A uses the public bundle, exact browser source and cold reopen without 
   await server.runBundleEdit(dir,()=>generateBundle(dir));const ready=await loadBundle(dir);
   await server.runBundleEdit(dir,()=>approve(dir,{actor,revision:ready.revision}));
   const delivered=await server.runBundleEdit(dir,()=>deliver(dir));assert.deepEqual(await readFile(delivered),bytes);
-  await server.runBundleEdit(dir,()=>adjustBundle(dir,{setup:{denso:{workYawDeg:5}}},{setupFile:join(dir,'synthetic-setup.json')}));const altered=await loadBundle(dir);assert.equal(altered.toolpathApproved,false);
+  await server.runBundleEdit(dir,()=>adjustBundle(dir,{setup:{denso:{workYawDeg:5}}}));const altered=await loadBundle(dir);assert.equal(altered.toolpathApproved,false);
 });

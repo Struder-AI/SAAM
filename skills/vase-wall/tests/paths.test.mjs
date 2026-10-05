@@ -1,3 +1,4 @@
+import '../../../core/tests/temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {generatePath} from '../../../core/print/generate.mjs';

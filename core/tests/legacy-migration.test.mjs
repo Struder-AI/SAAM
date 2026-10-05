@@ -1,3 +1,4 @@
+import './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {access,copyFile,mkdir,readFile,readdir,rm,writeFile,appendFile} from 'node:fs/promises';
