@@ -30,15 +30,32 @@ export function createServicePanel({token,available:hasService=true}){
     view.statusFailure=null;return result;
   };
   function message(value){$('service-message').textContent=value??'';}
+  function reportMessage(value,failed=false){$('report-message').textContent=value;$('report-message').classList.toggle('error',failed);}
+  const countReport=()=>{$('report-count').textContent=$('report-text').value.length+' / 2000';};
+  async function sendReport(){
+    const text=$('report-text').value.trim(),button=$('report-send');
+    if(!text){$('report-text').focus();return;}
+    if(button.disabled)return;button.disabled=true;reportMessage('Sending…');
+    try{
+      await request('report',{description:text,stage:document.querySelector('nav button.active')?.dataset.tab});
+      $('report-text').value='';countReport();reportMessage('Report received. Thank you.');
+    }catch(error){reportMessage(error.message,true);await refresh();}
+    finally{button.disabled=false;}
+  }
   function render(){
     if(view.stopping){
       updateApplicationConnection('stopped');
       $('service-status').textContent=view.stopping==='update'?'SAAM is updating and opens again.':view.stopping==='restart'?'Reloading this runtime with updated code…':view.stopping==='runtime-stop'?'This runtime stopped. Ask your agent to reconnect.':'SAAM has stopped. Start SAAM again from its app icon.';
-      for(const id of ['service-consent','service-quit','service-invite-row','service-dismiss','service-check','service-update'])$(id).hidden=true;
+      for(const id of ['service-consent','service-quit','service-invite-row','service-dismiss','service-check','service-update','report-section'])$(id).hidden=true;
       message('');return;
     }
     const status=view.status,available=status?.available!==false;
     $('service-toggle').hidden=false;
+    // Reports travel only through an activated connection; otherwise the section says how to report.
+    $('report-section').hidden=false;$('report-form').hidden=!status?.activated;
+    $('report-hint').textContent=status?.activated?'Sends your description with the SAAM version, platform, this window and its print; diagnostics SAAM already sent give the context. Links and file paths are removed.'
+      :available?'Bug reports travel through the alpha service: enter an alpha invite above to send one, or describe the problem to your agent.'
+      :'This installation has no alpha service: describe the problem to your agent.';
     $('service-consent').hidden=!available;
     $('service-quit').hidden=!status?.canQuit;
     $('service-invite-row').hidden=!available||Boolean(status?.activated);
@@ -137,6 +154,9 @@ export function createServicePanel({token,available:hasService=true}){
   $('service-dismiss').onclick=dismiss;
   $('service-activate').onclick=activate;
   $('service-check').onclick=()=>void checkUpdate();
+  $('report-send').onclick=()=>void sendReport();
+  $('report-text').addEventListener('input',countReport);countReport();
+  $('report-bug').onclick=()=>{open();$('report-section').scrollIntoView({block:'nearest'});if(!$('report-form').hidden)$('report-text').focus();};
   $('service-invite').addEventListener('keydown',event=>{if(event.key==='Enter')void activate();});
   $('service-panel').addEventListener('keydown',event=>{if(event.key==='Escape'){if(view.status?.firstRunPrompt)void dismiss();else close();$('service-toggle').focus();}});
   document.addEventListener('visibilitychange',()=>{if(hasService&&document.visibilityState==='visible')void refresh();});

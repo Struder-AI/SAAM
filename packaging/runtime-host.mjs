@@ -27,7 +27,8 @@ const relay={
   dismissFirstRun:async()=>request('service',{method:'dismiss'}),
   checkUpdate:async()=>request('service',{method:'check-update'}),
   update:async options=>request('service',{method:'update',options}),
-  quit:async options=>request('service',{method:'quit',options})
+  quit:async options=>request('service',{method:'quit',options}),
+  report:async report=>request('service',{method:'report',report})
 };
 async function command(message){
   const runtime=host.runtime;

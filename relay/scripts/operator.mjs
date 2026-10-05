@@ -6,6 +6,8 @@ import {fileURLToPath} from 'node:url';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
 const DEPLOYED='https://saam-relay.remettub.workers.dev';
+// A bug report is read beside its installation's records from the preceding half hour.
+const CONTEXT_MS=30*60_000,CONTEXT_ROWS=20;
 const time=at=>at?new Date(at).toISOString().replace('T',' ').slice(0,19):'never';
 
 function options(argv){
@@ -71,7 +73,24 @@ async function main(){
     for(const device of ids)console.log(JSON.stringify(await send(relay,secret,'DELETE',`/operator/devices/${encodeURIComponent(device)}`)));
     return;
   }
-  if(command!=='pull')throw Error('Commands: invite --for NAME [--days N], invites, revoke-invite ID, devices, remove DEVICE…, pull [--device ID] [--since 1d].');
+  if(command==='reports'){
+    const from=since(named.since??'7d'),{devices}=await send(relay,secret,'GET','/operator/devices');
+    const records=await allRecords(relay,secret,{device:named.device,since:from-CONTEXT_MS}),labels=new Map(devices.map(item=>[item.id,item.label]));
+    const reports=records.filter(record=>record.name==='bug-report'&&record.at>=from);
+    for(const report of reports){
+      const {event={},about={}}=report.body??{};
+      console.log(`\n${time(report.at)} UTC  ${labels.get(report.device)??'(removed installation)'} (${report.device})\n  SAAM ${about.version} · ${about.platform??'unknown platform'} · ${event.runtimeLabel??'installed'}`
+        +`\n  Studio ${event.studioInstanceId} · print ${event.printId??'(none open)'} · ${event.stage??'unknown stage'}\n\n  ${String(event.description).split('\n').join('\n  ')}\n`);
+      const before=records.filter(record=>record.device===report.device&&record.id<report.id&&record.at>=report.at-CONTEXT_MS);
+      console.log(`  Preceding records (${CONTEXT_MS/60_000} min): ${before.length}${before.length>CONTEXT_ROWS?`, last ${CONTEXT_ROWS} shown; pull --device ${report.device} for all`:''}`);
+      for(const record of before.slice(-CONTEXT_ROWS)){
+        const {event:detail={}}=record.body??{};
+        console.log(`    ${time(record.at).slice(11)}  ${[record.name,detail.name,detail.stage].filter(Boolean).join(' ')}${detail.error?'  error: '+String(detail.error).replace(/\s+/g,' '):''}`);
+      }
+    }
+    console.log(`\n${reports.length} bug report${reports.length===1?'':'s'} since ${time(from)} UTC.`);return;
+  }
+  if(command!=='pull')throw Error('Commands: invite --for NAME [--days N], invites, revoke-invite ID, devices, remove DEVICE…, reports [--device ID] [--since 7d], pull [--device ID] [--since 1d].');
   if(!named.device&&!named.since)throw Error('pull needs --device or --since.');
   const records=await allRecords(relay,secret,{device:named.device,since:since(named.since)});
   const folder=resolve(root,'.local/relay-records');await mkdir(folder,{recursive:true});

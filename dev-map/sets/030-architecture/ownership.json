@@ -9990,6 +9990,15 @@
     "studio/service-panel.mjs::createServicePanel::render": {
       "owner": "studio"
     },
+    "studio/service-panel.mjs::createServicePanel::countReport": {
+      "owner": "studio"
+    },
+    "studio/service-panel.mjs::createServicePanel::reportMessage": {
+      "owner": "studio"
+    },
+    "studio/service-panel.mjs::createServicePanel::sendReport": {
+      "owner": "studio"
+    },
     "studio/service-panel.mjs::createServicePanel::request": {
       "owner": "studio"
     },
@@ -12330,6 +12339,10 @@
       "owner": "application",
       "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
     },
+    "packaging/release-service.mjs::createReleaseService::report": {
+      "owner": "application",
+      "reason": "0.3.4 bug report: one consented release-service event the relay must acknowledge."
+    },
     "packaging/application.mjs::startApplication::reports": {
       "owner": "application",
       "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
@@ -12936,6 +12949,9 @@
       "owner": "application"
     },
     "packaging/runtime-host.mjs::relay.quit": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::relay.report": {
       "owner": "application"
     },
     "packaging/runtime-host.mjs::command": {
