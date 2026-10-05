@@ -1,0 +1,42 @@
+// Brings the default browser's tab showing a Studio address to the front:
+// osascript -l JavaScript raise-window.jxa URL. Only the person's own launch or
+// tray click runs this. Safari and Chromium browsers list their tabs to Apple
+// events (macOS asks the person once to let SAAM control the browser); other
+// browsers, or a refusal, print not-found. Prints raised or not-found.
+ObjC.import('AppKit');
+function studioTab(browser, origin) {
+  for (const window of browser.windows()) {
+    try {
+      const tabs = window.tabs();
+      for (let index = 0; index < tabs.length; index++) {
+        const address = String(tabs[index].url());
+        if (address === origin || address.startsWith(origin + '/')) return {window, tab: tabs[index], index};
+      }
+    } catch (problem) { /* A window without tabs, such as settings. */ }
+  }
+  return null;
+}
+function run(argv) {
+  const match = /^https?:\/\/[^/]+/.exec(String(argv[0]));
+  if (!match) return 'not-found';
+  try {
+    const handler = $.NSWorkspace.sharedWorkspace.URLForApplicationToOpenURL($.NSURL.URLWithString(match[0] + '/'));
+    if (!handler || handler.isNil()) return 'not-found';
+    const browser = Application(handler.path.js);
+    if (!browser.running()) return 'not-found';
+    const found = studioTab(browser, match[0]);
+    if (!found) return 'not-found';
+    // Safari selects a tab through currentTab; Chromium browsers through activeTabIndex.
+    if (/^com\.apple\.Safari/.test(browser.id())) {
+      found.window.currentTab = found.tab;
+      if (found.window.miniaturized()) found.window.miniaturized = false;
+    } else {
+      found.window.activeTabIndex = found.index + 1;
+      if (found.window.minimized()) found.window.minimized = false;
+    }
+    found.window.index = 1;
+    browser.activate();
+    return 'raised';
+  } catch (problem) { /* Not scriptable, or the person declined control: the caller opens the address. */ }
+  return 'not-found';
+}

@@ -2,7 +2,7 @@
 import {spawn} from 'node:child_process';
 import {resolve} from 'node:path';
 import {startApplication} from './application.mjs';
-import {background} from '../studio/browser.mjs';
+import {background,showOpened} from '../studio/browser.mjs';
 import {homePaths} from '../core/application/home.mjs';
 import {orchestratorRoot,invocationRoot} from '../core/application/runtime-selection.mjs';
 
@@ -13,6 +13,8 @@ async function launch(){
     await new Promise((done,fail)=>{child.once('spawn',done);child.once('error',fail);});child.unref();return;
   }
   const application=await startApplication(background?{autoOpen:false,openOnStart:false,tray:false}:{openOnStart:!process.argv.includes('--no-open')});
+  // This process holds the foreground right from the person's launch, so it shows the Studio.
+  await showOpened(application.opened);
   if(application.existing)return;
   const stop=()=>void application.stop().catch(error=>console.error(error.message));
   process.on('SIGINT',stop);process.on('SIGTERM',stop);process.on('SIGHUP',stop);

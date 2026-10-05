@@ -6839,6 +6839,15 @@
     "studio/browser.mjs::openBrowser": {
       "owner": "studio"
     },
+    "studio/browser.mjs::script": {
+      "owner": "studio"
+    },
+    "studio/browser.mjs::raiseCommand": {
+      "owner": "studio"
+    },
+    "studio/browser.mjs::showOpened": {
+      "owner": "studio"
+    },
     "studio/camera.mjs::@module": {
       "owner": "studio"
     },
@@ -10196,6 +10205,9 @@
     "studio/app.mjs::chatUI.getBundleId": {
       "owner": "studio"
     },
+    "studio/app.mjs::studioTitle": {
+      "owner": "studio"
+    },
     "skills/records.mjs::ASSIGNMENT_RECORDS.sleeve.family": {
       "owner": "toolpath",
       "reason": "Host-owned neutral recipe structure, construction family or generation prerequisite dispatch; actual selected semantic check remains Extensions."
@@ -12518,6 +12530,9 @@
     "core/application/control.mjs::readyInstance::node": {
       "owner": "application"
     },
+    "core/application/control.mjs::leaseHolder": {
+      "owner": "application"
+    },
     "core/application/runtime.mjs::createLocalRuntime::showStudio": {
       "owner": "application"
     },
@@ -12777,6 +12792,9 @@
       "owner": "studio"
     },
     "studio/viewer-session.mjs::connect::<callback@10:43>::detail": {
+      "owner": "studio"
+    },
+    "studio/viewer-session.mjs::focused": {
       "owner": "studio"
     },
     "workspaces/export-worker.mjs::createWorkspaceBundles::@scope/forof-1/block-1::prior": {

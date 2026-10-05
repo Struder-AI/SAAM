@@ -70,7 +70,7 @@ async function start(args){
   host.runtime.observeOperations(event=>send({type:'operation',event}));
   host.runtime.observeEvents(event=>send({type:'event',event}));
   await host.runtime.restoreStudios(args.windows??[]);
-  if(args.autoOpen&&!args.windows?.length)await host.runtime.openStudio();
+  if(args.autoOpen&&args.openOnStart!==false&&!args.windows?.length)await host.runtime.openStudio();
   return {contract:orchestratorContract};
 }
 async function handle(message){

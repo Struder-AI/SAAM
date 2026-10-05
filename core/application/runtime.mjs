@@ -1039,10 +1039,11 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     try{return await invoke(operation,args,{listen:client==='claude'?CLAUDE_LISTEN:LOCAL_LISTEN});}
     finally{activity.calls--;}
   }
-  async function openStudio(){
+  // dispatch:false: the caller shows the window itself (the person's own launch).
+  async function openStudio({dispatch=true}={}){
     if(app.closing)throw Error('The SAAM application is closing.');
     const session=[...studioSessions.values()].filter(({server})=>server.listening).at(-1)??await startStudio(null);
-    const browserOpenRequested=await show(session);
+    const browserOpenRequested=dispatch?await show(session):false;
     return {studioInstanceId:session.server.agentSession().instanceId,url:session.url,browserOpenRequested};
   }
   async function showWorkspaceBundles(workspace,event){
@@ -1213,13 +1214,13 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     try{return await application.routeWindow({instanceId:session.server.agentSession().instanceId,printId:bundleId,owner});}
     catch(error){if(error.code==='BUNDLE_INSTANCE_BUSY')throw error;throw Error(fallback+', which SAAM cannot start ('+error.message+'). '+agent);}
   }
-  async function openStudio({studioInstanceId,newInstance=false}={}){
+  async function openStudio({studioInstanceId,newInstance=false,dispatch=true}={}){
     if(app.closing)throw Error('The SAAM application is closing.');
     if(newInstance&&studioInstanceId)throw Error('Choose an existing Studio or create a new instance.');
     const session=newInstance?await lobby.startStudio(null):studioInstanceId?allStudios.get(studioInstanceId):[...allStudios.values()].filter(({server})=>server.listening).at(-1);
     if(studioInstanceId&&!session?.server.listening)throw Error('That Studio is no longer running.');
-    if(!session)return lobby.openStudio();
-    const browserOpenRequested=await show(session);
+    if(!session)return lobby.openStudio({dispatch});
+    const browserOpenRequested=dispatch?await show(session):false;
     return {studioInstanceId:session.server.agentSession().instanceId,url:session.url,browserOpenRequested};
   }
   function notifyStopping(reason){
