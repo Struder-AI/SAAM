@@ -40,11 +40,10 @@ function candidateSpansAt(patch, x, y) {
   return spans;
 }
 
-// Every point of the patch directly above or below (x, y).
-export function projectToPatch(patch, x, y) {
-  // Constant-weight nets reproduce linear UV coordinates through Greville
-  // abscissae. Certify the entire projected net before using its direct inverse;
-  // arbitrary/folded projections retain the multi-seed Newton construction.
+// Constant-weight nets reproduce linear UV coordinates through Greville
+// abscissae. Certify the entire projected net before using its direct inverse;
+// arbitrary/folded projections retain the multi-seed Newton construction.
+function affineProjection(patch){
   if(!affineProjections.has(patch)){
     const {nu,nv,orderU,orderV,knotsU,knotsV,cp}=patch;
     const greville=(knots,n,order)=>Array.from({length:n},(_,i)=>Array.from({length:order-1},(_,k)=>knots[i+k+1]).reduce((a,b)=>a+b,0)/(order-1));
@@ -58,10 +57,24 @@ export function projectToPatch(patch, x, y) {
     }
     affineProjections.set(patch,affine?{origin,du,dv,determinant,u0:us[0],v0:vs[0]}:null);
   }
-  const affine=affineProjections.get(patch);
+  return affineProjections.get(patch);
+}
+const affineUv=({origin,du,dv,determinant,u0,v0},x,y)=>{
+  const dx=x-origin[0],dy=y-origin[1];
+  return [u0+(dx*dv[1]-dy*dv[0])/determinant,v0+(du[0]*dy-du[1]*dx)/determinant];
+};
+// True only when the patch's certified affine XY projection holds every point,
+// and so their convex hull: the patch then lies above or below all of it.
+export function patchCoversChart(patch,points){
+  const affine=affineProjection(patch);
+  return !!affine&&points.every(([x,y])=>{const [u,v]=affineUv(affine,x,y);return u>=patch.domainU[0]&&u<=patch.domainU[1]&&v>=patch.domainV[0]&&v<=patch.domainV[1];});
+}
+
+// Every point of the patch directly above or below (x, y).
+export function projectToPatch(patch, x, y) {
+  const affine=affineProjection(patch);
   if(affine){
-    const {origin,du,dv,determinant,u0,v0}=affine,dx=x-origin[0],dy=y-origin[1];
-    const u=u0+(dx*dv[1]-dy*dv[0])/determinant,v=v0+(du[0]*dy-du[1]*dx)/determinant;
+    const [u,v]=affineUv(affine,x,y);
     if(u<patch.domainU[0]-TOLERANCE.parameter||u>patch.domainU[1]+TOLERANCE.parameter||v<patch.domainV[0]-TOLERANCE.parameter||v>patch.domainV[1]+TOLERANCE.parameter)return [];
     const cu=clamp(u,patch.domainU),cv=clamp(v,patch.domainV),frame=evaluate(patch,cu,cv);
     if(Math.hypot(frame.point[0]-x,frame.point[1]-y)<=TOLERANCE.point)return [{u:cu,v:cv,point:frame.point,normal:frame.normal}];

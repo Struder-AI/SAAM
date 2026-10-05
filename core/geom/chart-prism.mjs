@@ -3,13 +3,13 @@
 import {projectToPatch} from './field.mjs';
 import {pointInRegion,pointSegmentDistance} from '../region/region2d.mjs';
 import {normalize,cross,dot,requireThat} from './tolerance.mjs';
-import {heightSlicePoint,heightReferenceBounds,referenceHeight} from './height-slice.mjs';
+import {heightSlicePoint,heightReferenceRange,referenceHeight} from './height-slice.mjs';
 
 export function chartPrism(reference,{loopsUv,direction,fromMm,toMm}){
   requireThat(['patch','height-field'].includes(reference.kind)&&fromMm<toMm&&loopsUv.length,'A chart prism needs a surface region and increasing translation bounds.');
   if(reference.kind==='height-field'){
     requireThat(Math.hypot(direction[0],direction[1])<1e-9&&direction[2]>0,'A height-field chart prism translates along positive Z.');
-    const source=heightReferenceBounds(reference.reference),points=loopsUv.flat(),min=[Math.min(...points.map(p=>p[0])),Math.min(...points.map(p=>p[1])),source.min[2]+reference.offsetMm+fromMm],max=[Math.max(...points.map(p=>p[0])),Math.max(...points.map(p=>p[1])),source.max[2]+reference.offsetMm+toMm];
+    const [low,high]=heightReferenceRange(reference.reference,loopsUv),points=loopsUv.flat(),min=[Math.min(...points.map(p=>p[0])),Math.min(...points.map(p=>p[1])),low+reference.offsetMm+fromMm],max=[Math.max(...points.map(p=>p[0])),Math.max(...points.map(p=>p[1])),high+reference.offsetMm+toMm];
     return {kind:'chart-prism',reference,loopsUv,direction:[0,0,1],fromMm,toMm,bounds:{min,max}};
   }
   const d=normalize(direction),seed=Math.abs(d[0])<.9?[1,0,0]:[0,1,0],x=normalize(seed.map((v,k)=>v-dot(seed,d)*d[k])),y=cross(d,x),axes=[x,y,d];
