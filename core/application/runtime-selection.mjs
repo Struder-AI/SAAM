@@ -29,9 +29,10 @@ export async function orchestratorRoot(paths=homePaths()){
   return paths.app;
 }
 // The exact command that reaches a source runtime: its checkout's saam, or the
-// development tool when this home is a background development instance.
+// development tool when this home is a development instance.
 function sourceCommand(root,paths){
-  return process.env.SAAM_BACKGROUND==='1'&&process.env.SAAM_DATA?'node "'+resolve(root,'scripts/dev-instance.mjs')+'" --home "'+paths.home+'"':'node "'+resolve(root,'scripts/saam.mjs')+'"';
+  const dev=process.env.SAAM_DATA&&process.env.SAAM_DEV_INSTANCE;
+  return dev?'node "'+resolve(root,'scripts/dev-instance.mjs')+'" --home "'+paths.home+'"'+(dev==='visible'?' --visible':''):'node "'+resolve(root,'scripts/saam.mjs')+'"';
 }
 export async function selectRuntime(codeRoot=invocationRoot){
   const root=await realpath(codeRoot),paths=homePaths();

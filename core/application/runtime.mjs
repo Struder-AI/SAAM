@@ -257,7 +257,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     if(moved)return Object.assign(await startStudio(dir,moved),{shownAt:Date.now()});
     const reused=session??own.at(-1);
     if(!reused)return startStudio(dir);
-    assertStudioIdle(reused);
+    assertStudioIdle(reused,0,reused.ownerId===ownerId?ownerId:null);
     if(dir&&reused.server.currentPrint()!==dir)await reused.server.openPrint(dir);
     return reused;
   }
@@ -1140,11 +1140,12 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     }
     return null;
   }
-  // ownOperations: Studio operations of the caller itself, such as the open request that moves a window.
-  function assertStudioIdle(session,ownOperations=0){
+  // ownOperations: Studio operations of the caller itself, such as the open request that moves a window;
+  // caller: the chat viewing its own window, whose running operation (start_tour, request_review) is not other work.
+  function assertStudioIdle(session,ownOperations=0,caller=null){
     const instanceId=session.server.agentSession().instanceId,directory=session.server.currentPrint();
     if(session.server.attachmentBusy(ownOperations))throw Error('Wait for the current Studio operation to finish before capturing or re-pairing.');
-    for(const operation of activeOperations.values())if(operation.ownerId===session.ownerId&&['set_tour_start_at','start_tour'].includes(operation.name)||operation.studioInstanceId===instanceId||operation.bundleId&&resolve(libraryRoot,operation.bundleId)===directory)
+    for(const operation of activeOperations.values())if(operation.ownerId!==caller&&(operation.ownerId===session.ownerId&&['set_tour_start_at','start_tour'].includes(operation.name)||operation.studioInstanceId===instanceId||operation.bundleId&&resolve(libraryRoot,operation.bundleId)===directory))
       throw Error('A bundle operation is running. Wait for it to finish before capturing or re-pairing.');
     for(const job of calculations.values())if(directory&&resolve(libraryRoot,job.printId)===directory)throw Error('A geometry calculation is running for this bundle.');
     for(const job of imports.values())if(directory&&resolve(libraryRoot,job.printId)===directory)throw Error('An import is running for this bundle.');
