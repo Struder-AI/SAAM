@@ -2,7 +2,6 @@
 // Keep viewer snapshots private: replacement readers must preserve this projection.
 import {mapSet} from './map-set.mjs';
 import {designModel} from './design.mjs';
-import {readGenerated} from './store.mjs';
 import {sourceLocations} from './source-locations.mjs';
 
 // Field selection is the visible-page boundary, never a size cap.
@@ -28,7 +27,6 @@ function designContract(contract) {
 
 export async function readMap(address,{repo}) {
   if(mapSet?.mode==='influence')return (await import('../influence/solved-set.mjs')).readSolved(address);
-  if(mapSet?.mode!=='design')return readGenerated(address,{repo});
   const model=await designModel({repo}),pages=new Map(model.pages.map(p=>[p.index,p]));
   const contract=model.pages.flatMap(p=>p.wires.flatMap(w=>w.contracts)).find(c=>c.id===address);
   const page=model.pages.find(p=>p.index===address||p.path===address);

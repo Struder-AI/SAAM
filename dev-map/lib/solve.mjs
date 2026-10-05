@@ -1,13 +1,9 @@
-// The cluster solver. The leaves are given and so is the top map `0`; the solver authors every
-// cluster between them: which clusters exist, where each leaf and cluster is homed, and which
-// boxes each map repeats. Its goal is the tree's energy, the weighted map score per leaf (score.mjs), lowered
-// by simulated annealing from the tree as placed (tree.mjs). It writes the lowest-energy tree it
-// met to dev-map/tree.json. Labels are authored in a label pass, never here; a cluster that
-// survives a solve keeps its label, matched by the leaves it holds, and a new one needs a label.
-import {readFileSync,writeFileSync} from 'node:fs';
-import {resolve} from 'node:path';
-import {TOP,treeFile,drawMap,linkSet,numberTree,treeFileOf,placeTree} from './tree.mjs';
-import {scoreDrawn,callersOf,readModel,weightOf} from './score.mjs';
+// The annealer behind the middle-out solver (dev-map/influence/solve-middle.mjs): it authors the
+// clusters between fixed boxes and given leaves (which clusters exist, where each leaf and cluster
+// is homed, which boxes each map repeats), lowering the tree's energy, the weighted map score per
+// leaf (score.mjs), by simulated annealing. Labels are authored in a label pass, never here.
+import {TOP,drawMap,linkSet} from './tree.mjs';
+import {scoreDrawn,callersOf,weightOf} from './score.mjs';
 
 const random=seed=>()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);
   t=t+Math.imul(t^t>>>7,61|t)^t;return ((t^t>>>14)>>>0)/4294967296;};
@@ -276,73 +272,4 @@ export function solveTree(start,links,{externalLinks=[],seed=1,onStage,maxStages
     temperature*=0.93;
   }
   return {start:first,energy:best.energy,tree:best.tree};
-}
-
-// Labels follow the leaves: a solved cluster takes the label and id of the starting cluster whose
-// nested leaves it shares more than half of (by Jaccard overlap), one to one, best first.
-export function carryLabels(from,to) {
-  const leavesUnder=tree=>{
-    const kids=new Map();for(const [id,p] of tree.parent)(kids.get(p)??kids.set(p,[]).get(p)).push(id);
-    const found=new Map(),walk=id=>{if(!tree.clusters.has(id))return [id];
-      if(!found.has(id))found.set(id,(kids.get(id)??[]).flatMap(walk));return found.get(id);};
-    for(const id of tree.clusters.keys())walk(id);
-    return found;
-  };
-  const before=leavesUnder(from),after=leavesUnder(to),holding=new Map();
-  for(const [id,leaves] of before)for(const leaf of leaves)(holding.get(leaf)??holding.set(leaf,[]).get(leaf)).push(id);
-  const pairs=[];
-  for(const [id,leaves] of after) {
-    const shared=new Map();
-    for(const leaf of leaves)for(const old of holding.get(leaf)??[])shared.set(old,(shared.get(old)??0)+1);
-    for(const [old,n] of shared) {
-      const overlap=n/(leaves.length+before.get(old).length-n);
-      if(overlap>0.5)pairs.push({id,old,overlap});
-    }
-  }
-  pairs.sort((a,b)=>b.overlap-a.overlap||(a.id<b.id?-1:1));
-  const renamed=new Map(),used=new Set();
-  for(const {id,old} of pairs)if(!renamed.has(id)&&!used.has(old)){renamed.set(id,old);used.add(old);}
-  // Unmatched clusters take ids no starting cluster had.
-  let next=1+Math.max(0,...[...from.clusters.keys(),...to.clusters.keys()].map(id=>Number(/^c(\d+)$/.exec(id)?.[1]??0)));
-  for(const id of [...to.clusters.keys()].sort())if(!renamed.has(id))renamed.set(id,`c${next++}`);
-  const rename=id=>renamed.get(id)??id;
-  return {parent:new Map([...to.parent].map(([id,p])=>[rename(id),rename(p)])),
-    clusters:new Map([...to.clusters.keys()].map(id=>[rename(id),{label:renamed.get(id)&&used.has(renamed.get(id))?from.clusters.get(renamed.get(id))?.label??null:null}])),
-    repeats:new Map([...to.repeats].map(([map,s])=>[rename(map),new Set([...s].map(rename))])),
-    carried:[...renamed].filter(([,old])=>used.has(old)).length};
-}
-
-// The tree in tree.json, placed, and the text it was read from; null when it is unreadable.
-function fileTree(repo,leaves,links) {
-  let text;
-  try{text=readFileSync(resolve(repo,treeFile),'utf8');}catch{return null;}
-  const file=JSON.parse(text);
-  return {text,tree:placeTree({clusters:file.clusters??[],leaves:file.leaves??{},repeats:file.repeats??{}},leaves,links)};
-}
-
-// Solve the stored tree and write it to tree.json. Labels follow the best tree every stage, so a
-// cluster that drifts a little each stage keeps its label; a label authored in tree.json while the
-// solve runs is taken up at the next stage. Every tenth stage the best tree so far is written,
-// marked with its stage, so a long solve can be regenerated and read while it runs.
-export async function solve({repo,seed=1,onStage}={}) {
-  const {held,leaves,tree,links,externalLinks}=await readModel({repo});
-  let labelled=tree,written=fileTree(repo,leaves,links)?.text;
-  const follow=best=>{
-    const file=fileTree(repo,leaves,links);
-    if(file&&file.text!==written){labelled=file.tree;written=file.text;}
-    labelled=carryLabels(labelled,best);
-    return labelled;
-  };
-  const write=(named,solved)=>{
-    written=JSON.stringify({...treeFileOf(named,numberTree(named,linkSet(links))),solved:{from:held.generated,seed,...solved}},null,1)+'\n';
-    writeFileSync(resolve(repo,treeFile),written);
-  };
-  const result=solveTree(tree,links,{externalLinks,seed,onStage:s=>{
-    const named=follow(s.bestTree());
-    if(s.stage%10===0)write(named,{stage:s.stage,energy:s.best});
-    onStage?.(s);}});
-  const solved=follow(result.tree);
-  write(solved,{start:result.start,energy:result.energy});
-  return {start:result.start,energy:result.energy,clusters:solved.clusters.size,carried:solved.carried,
-    repeats:[...solved.repeats.values()].reduce((n,s)=>n+s.size,0),file:treeFile};
 }

@@ -14,18 +14,6 @@
       "port": 8768
     },
     {
-      "name": "generated-map",
-      "runtimeExecutable": "python",
-      "runtimeArgs": [
-        "-m",
-        "http.server",
-        "8765",
-        "--directory",
-        "dev-map/view"
-      ],
-      "port": 8765
-    },
-    {
       "name": "architecture-map",
       "runtimeExecutable": "python",
       "runtimeArgs": [

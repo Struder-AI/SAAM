@@ -1,40 +1,10 @@
-// The nesting: the tree of maps. The leaves are given (leaves.mjs) and so is the top map `0`;
-// everything between them is clusters, authored by the cluster solver (solve.mjs) in
-// dev-map/tree.json, whose labels a label pass authors. Leaves and clusters are the nodes. Each
-// has exactly one home, the map that numbers it, and may be drawn on other maps as repeats.
-//
-// Placement is total: every leaf is placed whatever the file says or leaves out, and what the
-// file names that no longer exists is dropped. Two rules make a tree legal, and placement
-// enforces them rather than failing: a cluster homes at least one node and draws at least two
-// boxes, and a repeat is never on its node's home map or inside the cluster it repeats.
-//
-// A tree is a record: `parent` (node → the map that homes it), `clusters` (id → {label}) and
-// `repeats` (map → the nodes it repeats). A leaf's id is its declaration path; a cluster's is the
-// id the solver gave it.
-import {readFile} from 'node:fs/promises';
-import {resolve} from 'node:path';
-import {setFile,mapSet} from './map-set.mjs';
-
+// The nesting the middle-out solver (dev-map/influence/solve-middle.mjs) works on: the tree of
+// maps under the top map `0`. Leaves and clusters are the nodes; each has exactly one home, the
+// map that numbers it, and may be drawn on other maps as repeats. A tree is a record: `parent`
+// (node → the map that homes it), `clusters` (id → {label}) and `repeats` (map → the nodes it
+// repeats).
 export const TOP='0';
-export const treeFile=setFile('tree.json');
 const order=(a,b)=>a<b?-1:a>b?1:0;
-
-export async function readTreeFile(repo) {
-  const text=await readFile(resolve(repo,treeFile),'utf8').catch(error=>{if(error.code==='ENOENT')return null;throw error;});
-  const file=text===null?{}:JSON.parse(text);
-  return {schema:1,clusters:file.clusters??[],leaves:file.leaves??{},repeats:file.repeats??{},order:file.order??{},layout:file.layout??{}};
-}
-
-// The file a tree is written back as: clusters in index order when an index is given, leaves by
-// path, and each map's repeats.
-export function treeFileOf(tree,index=new Map()) {
-  const at=id=>index.get(id)??id,byAt=(a,b)=>/^[\d.]+$/.test(at(a))&&/^[\d.]+$/.test(at(b))?byIndex(at(a),at(b)):order(at(a),at(b));
-  const clusters=[...tree.clusters.keys()].sort(byAt).map(id=>({id,...tree.clusters.get(id),parent:tree.parent.get(id)}));
-  const leaves=Object.fromEntries([...tree.parent].filter(([id])=>!tree.clusters.has(id)).sort(([a],[b])=>order(a,b)));
-  const repeats=Object.fromEntries([...tree.repeats].filter(([,set])=>set.size).sort(([a],[b])=>byAt(a,b))
-    .map(([map,set])=>[map,[...set].sort(order)]));
-  return {schema:1,clusters,leaves,repeats,...(Object.keys(tree.order??{}).length?{order:tree.order}:{}),...(Object.keys(tree.layout??{}).length?{layout:tree.layout}:{})};
-}
 
 // The navigation a map needs from a tree, as accessors, so a solver's live state and a settled
 // tree are read the same way.
@@ -49,63 +19,6 @@ export function treeAccess(tree) {
   };
   return {childrenOf:id=>children.get(id)??[],repeatsOn:id=>tree.repeats.get(id)??new Set(),
     isCluster:id=>tree.clusters.has(id),leavesOf:under,parentOf:id=>tree.parent.get(id)};
-}
-
-// Place every leaf and make the tree legal. `file` is what readTreeFile returns; `links` are
-// {from, to} between leaf paths.
-export function placeTree(file,leaves,links) {
-  const clusters=new Map(),parent=new Map(),repeats=new Map();
-  for(const c of file.clusters)if(c?.id&&!clusters.has(c.id)&&c.id!==TOP&&!leaves.has(c.id))clusters.set(c.id,{label:c.label??null,...(c.description?{description:c.description}:{})});
-  const isMap=id=>id===TOP||clusters.has(id);
-  for(const c of file.clusters)if(clusters.has(c.id)&&!parent.has(c.id))parent.set(c.id,isMap(c.parent)&&c.parent!==c.id?c.parent:TOP);
-  // A parent chain that comes back to itself is broken at the first cluster met twice.
-  for(const id of clusters.keys()) {
-    const seen=new Set([id]);
-    for(let at=parent.get(id);at!==TOP;at=parent.get(at)){if(seen.has(at)){parent.set(at,TOP);break;}seen.add(at);}
-  }
-  for(const leaf of [...leaves].sort(order))if(isMap(file.leaves[leaf]))parent.set(leaf,file.leaves[leaf]);
-  // A leaf the file does not place goes where most of its links already are, else to 0.
-  const neighbours=new Map();
-  for(const {from,to} of links){(neighbours.get(from)??neighbours.set(from,[]).get(from)).push(to);(neighbours.get(to)??neighbours.set(to,[]).get(to)).push(from);}
-  let unplaced=[...leaves].filter(leaf=>!parent.has(leaf)).sort(order);
-  for(let placed=true;placed&&unplaced.length;) {
-    placed=false;
-    for(const leaf of unplaced) {
-      const votes=new Map();
-      for(const n of neighbours.get(leaf)??[])if(parent.has(n))votes.set(parent.get(n),(votes.get(parent.get(n))??0)+1);
-      if(!votes.size)continue;
-      parent.set(leaf,[...votes].sort((a,b)=>b[1]-a[1]||order(a[0],b[0]))[0][0]);placed=true;
-    }
-    unplaced=unplaced.filter(leaf=>!parent.has(leaf));
-  }
-  for(const leaf of unplaced)parent.set(leaf,TOP);
-  for(const [map,ids] of Object.entries(file.repeats))if(isMap(map))
-    repeats.set(map,new Set(ids.filter(id=>leaves.has(id)||clusters.has(id))));
-  return settle({parent,clusters,repeats,order:file.order??{},layout:file.layout??{}});
-}
-
-// The two rules, applied until the tree holds them. Local mutation of the tree being built.
-function settle(tree) {
-  const {parent,clusters,repeats}=tree;
-  const inside=(map,id)=>{for(let at=map;at!==undefined;at=parent.get(at)){if(at===id)return true;if(at===TOP)return false;}return false;};
-  for(let changed=true;changed;) {
-    changed=false;
-    for(const [map,set] of repeats)for(const id of set)
-      if(parent.get(id)===map||clusters.has(id)&&inside(map,id)||!parent.has(id)){set.delete(id);changed=true;}
-    const homes=new Map();
-    for(const [id,p] of parent)homes.set(p,(homes.get(p)??0)+1);
-    for(const id of clusters.keys()) {
-      const home=homes.get(id)??0,drawn=home+(repeats.get(id)?.size??0);
-      if(home>=1&&drawn>=2)continue;
-      // Dissolved: what it homes goes to its parent, and every repeat of it or on it goes.
-      const up=parent.get(id);
-      for(const [child,p] of parent)if(p===id)parent.set(child,up);
-      clusters.delete(id);parent.delete(id);repeats.delete(id);
-      for(const set of repeats.values())set.delete(id);
-      changed=true;break;
-    }
-  }
-  return tree;
 }
 
 // What a map draws and where each link lands on it. A member stands for the leaves nested under
@@ -151,15 +64,14 @@ export function drawMap(map,{childrenOf,repeatsOn,isCluster,leavesOf,parentOf},{
   }
   const alike=new Map();
   for(const [external,ends] of reach) {
-    const boundary=!mapSet?.externalLabels?.[external]&&mapSet?.externalGroups?.find(g=>g.prefixes.some(prefix=>external.startsWith(prefix)));
-    const key=boundary?'boundary:'+boundary.id:(mapSet?.externalLabels?.[external]?external+'\n':'')+[...ends.keys()].sort().join('\n');
-    const group=alike.get(key)??alike.set(key,{externals:[],ends:new Map(),details:[],...(boundary?{boundary:boundary.id,label:boundary.label}:{})}).get(key);
+    const key=[...ends.keys()].sort().join('\n');
+    const group=alike.get(key)??alike.set(key,{externals:[],ends:new Map(),details:[]}).get(key);
     group.externals.push(external);
     for(const [end,count] of ends){group.ends.set(end,(group.ends.get(end)??0)+count);const [out,box,kind]=JSON.parse(end);group.details.push({external,out,box,kind,count});}
   }
-  const outside=[...alike.values()].map(({externals,ends,details,...boundary})=>{
+  const outside=[...alike.values()].map(({externals,ends,details})=>{
     const connections=[...ends].map(([key,count])=>{const [out,box,kind]=JSON.parse(key);return {out,box,kind,count};});
-    return {...boundary,externals:externals.sort(),connections,details,
+    return {externals:externals.sort(),connections,details,
       into:[...new Set(connections.filter(e=>!e.out).map(e=>e.box))],from:[...new Set(connections.filter(e=>e.out).map(e=>e.box))]};})
     .sort((a,b)=>a.externals[0]<b.externals[0]?-1:1);
   const largest=Math.max(0,...held.filter(h=>h.rank===0).map(h=>h.leaves.length));
@@ -201,68 +113,10 @@ export function flowOrder(unordered,edges,compare=order) {
   return new Map([...front,...back.reverse()].map((m,i)=>[m,i]));
 }
 
-// Published indexes: `0`, then the Nth node a map homes, in the map's left-to-right flow order,
-// and so on down.
-export function numberTree(tree,linkSet) {
-  const access=treeAccess(tree),index=new Map([[TOP,TOP]]),stack=[TOP];
-  while(stack.length) {
-    const map=stack.pop(),drawn=drawMap(map,access,linkSet);
-    const edges=[...new Set(drawn.lifted.map(l=>`${l.from}\n${l.to}`))].map(key=>key.split('\n'));
-    const flow=flowOrder(drawn.members,edges);
-    const authored=tree.order?.[map];
-    const homes=drawn.homes.sort((a,b)=>authored?(authored.indexOf(a)<0?Infinity:authored.indexOf(a))-(authored.indexOf(b)<0?Infinity:authored.indexOf(b))||flow.get(a)-flow.get(b):flow.get(a)-flow.get(b));
-    homes.forEach((id,i)=>index.set(id,map===TOP?String(i+1):`${index.get(map)}.${i+1}`));
-    for(const id of homes)if(tree.clusters.has(id))stack.push(id);
-  }
-  return index;
-}
-
 // Links numbered, with each leaf's link numbers and its externals, for drawMap.
 export function linkSet(links,externalLinks=[]) {
   const linksOf=new Map(),externalsOf=new Map();
   links.forEach((link,n)=>{for(const end of [link.from,link.to])(linksOf.get(end)??linksOf.set(end,[]).get(end)).push(n);});
   for(const e of externalLinks)(externalsOf.get(e.leaf)??externalsOf.set(e.leaf,[]).get(e.leaf)).push(e);
   return {links,linksOf:leaf=>linksOf.get(leaf)??[],externalsOf:leaf=>externalsOf.get(leaf)??[]};
-}
-
-// Only address-bearing fields are rewritten; a numeric data label is not a map address. Source
-// addresses and tree indexes share one number space, so an object held by several pages is
-// rewritten once: `seen` spans the whole pass.
-const addressKeys=new Set(['index','handle','from','to','parent','port','mechanism','outside','via',
-  'parentEndpoint','parentFrom','parentTo','caller','callee','page','endpoint','id']);
-const address=/^([a-z-]+:)?(\d+(?:\.\d+)*)(@\d+)?$/;
-export function renumber(value,tree,seen=new WeakSet()) {
-  if(!value||typeof value!=='object'||seen.has(value))return value;
-  seen.add(value);
-  if(Array.isArray(value)){value.forEach(item=>renumber(item,tree,seen));return value;}
-  for(const [key,item] of Object.entries(value)) {
-    const m=addressKeys.has(key)&&typeof item==='string'&&address.exec(item);
-    if(m&&tree.has(m[2]))value[key]=(m[1]??'')+tree.get(m[2])+(m[3]??'');
-    else renumber(item,tree,seen);
-  }
-  return value;
-}
-
-export const homeOf=at=>at.includes('.')?at.slice(0,at.lastIndexOf('.')):TOP;
-const byIndex=(a,b)=>{
-  const x=a.split('.').map(Number),y=b.split('.').map(Number);
-  for(let i=0;i<Math.max(x.length,y.length);i++)if((x[i]??-1)!==(y[i]??-1))return (x[i]??-1)-(y[i]??-1);
-  return 0;
-};
-
-// Mark repeats on published pages (already renumbered): a repeat names its home map; a home
-// node names every other map it appears on.
-export function markRepeats(published) {
-  const elsewhere=new Map();
-  for(const page of published.values())for(const c of page.components??[]) {
-    if(!published.has(c.index)||homeOf(c.index)===page.index)continue;
-    const list=elsewhere.get(c.index)??elsewhere.set(c.index,new Set()).get(c.index);
-    list.add(page.index);
-  }
-  for(const page of published.values())for(const c of page.components??[]) {
-    delete c.home;delete c.alsoOn;
-    if(!published.has(c.index))continue;
-    if(homeOf(c.index)!==page.index)c.home=homeOf(c.index);
-    else if(elsewhere.has(c.index))c.alsoOn=[...elsewhere.get(c.index)].sort(byIndex);
-  }
 }

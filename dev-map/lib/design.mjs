@@ -1,5 +1,5 @@
-// Authored architecture is an intention, never evidence of implementation compliance.
-// Reuse the map viewer, keeping contracts and conceptual nodes out of scanned leaves.
+// A design set: authored architecture drawn with the map viewer. It is an intention, never
+// evidence of implementation compliance.
 import {readFile,writeFile,realpath,mkdir} from 'node:fs/promises';
 import {resolve,relative,isAbsolute} from 'node:path';
 import {createHash} from 'node:crypto';
@@ -8,7 +8,6 @@ import {mapSet,setFile,setName} from './map-set.mjs';
 import {interfaceCode} from './interface-code.mjs';
 import {extractGraph} from './graph.mjs';
 import {implementationLinks} from './design-implementation.mjs';
-import {auditStatus} from './architecture-audit.mjs';
 
 // Explicit source references are previews, not implementation ownership or inferred calls.
 async function sourceReferences(repo,nodes) {
@@ -64,14 +63,13 @@ async function sourceReferences(repo,nodes) {
 
 // Presentation only: authored IDs, ownership and contract endpoints stay intact.
 // Small navigation groups add a click without enough internal structure to draw.
-function flattenNavigation(nodes,protectedNodes,inertModules=[]) {
+function flattenNavigation(nodes,protectedNodes) {
   const children=p=>[...nodes.values()].filter(n=>!n.collapsed&&n.parent===p.index);
   const inline=p=>{
     const held=children(p);p.contents=held.map(n=>n.index);
     for(const n of held)n.parent=p.parent;
     if(!protectedNodes.has(p.id))p.collapsed=true;
   };
-  for(const id of inertModules)if(nodes.has(id)&&!protectedNodes.has(id))inline(nodes.get(id));
   let changed=true;
   while(changed) {
     changed=false;
@@ -148,28 +146,15 @@ async function generateDesign({repo}) {
     if(error.code==='ENOENT'&&!spec.implementationLinks?.length)return '{"leaves":{}}';
     throw error;
   });
-  const report=JSON.parse(await readFile(resolve(repo,setFile('store/audit.json')),'utf8').catch(e=>{if(e.code==='ENOENT')return 'null';throw e;}));
-  const audit=await auditStatus(repo),containment=audit.state==='current'?report?.containment??null:null;
-  const foldedNodes=new Map(),protectedNodes=new Set(spec.contracts.flatMap(c=>[c.from,c.to,...(c.access??[]).flatMap(a=>[a.from,a.to])]));
-  if(containment)for(const fold of containment.folds) {
-    const helper=[...nodes.values()].find(n=>n.source&&`${n.source.file}::${n.source.declaration}`===fold.declaration);
-    const owner=nodes.get(containment.owners[fold.declaration]);
-    if(!helper||!owner||helper.id===owner.id||protectedNodes.has(helper.id)||containment.protected.includes(fold.declaration)
-      ||[...nodes.values()].some(n=>n.parent===helper.index)
-      ||Object.entries(containment.owners).some(([path,id])=>id===helper.id&&containment.homes[path]!==containment.homes[fold.declaration]))continue;
-    foldedNodes.set(helper.id,{...helper,into:owner.id,declaration:fold.declaration});
-    nodes.delete(helper.id);indexes.delete(helper.index);
-  }
-  const observed=await implementationLinks(repo,spec,nodes,{containment,ownershipText});
+  const protectedNodes=new Set(spec.contracts.flatMap(c=>[c.from,c.to,...(c.access??[]).flatMap(a=>[a.from,a.to])]));
+  const observed=await implementationLinks(repo,spec,nodes,{ownershipText});
   // Keep actual semantic owners visible even when they have no resolved caller;
   // flattening must not hide a disconnected operation that needs investigation.
-  const semanticOwners=containment?Object.values(containment.owners):Object.values(JSON.parse(ownershipText).leaves).map(n=>n.owner);
+  const semanticOwners=Object.values(JSON.parse(ownershipText).leaves).map(n=>n.owner);
   const observedEndpoints=new Set(observed.contracts.flatMap(c=>[c.from,c.to]));
-  const inertModules=(containment?.navigation?.candidates??[]).map(n=>n.node).filter(id=>!protectedNodes.has(id)&&!observedEndpoints.has(id));
-  flattenNavigation(nodes,new Set([...protectedNodes,...semanticOwners.filter(id=>!inertModules.includes(id)),...observedEndpoints]),inertModules);
+  flattenNavigation(nodes,new Set([...protectedNodes,...semanticOwners,...observedEndpoints]));
   const bindings=[...(JSON.parse(bindingText).bindings??[]),...observed.bindings];
   const references=new Map(nodes);
-  for(const [id,n] of foldedNodes)references.set(id,n);
   for(const b of bindings)references.set(b.target,{id:b.target,source:{file:b.target.split('::')[0]}});
   const {sources,spans,sourceInfo}=await sourceReferences(repo,references);
   const entries=await interfaceCode(repo,bindings,sources);
@@ -220,38 +205,25 @@ async function generateDesign({repo}) {
     const wires=[...links.values()].map(w=>({...w,address:'@link/'+p.index+'/'+encodeURIComponent(w.from)+'/'+encodeURIComponent(w.to),label:w.contracts.length===1?w.contracts[0].label:`${w.contracts.length} contracts`}));
     const originalChildren=spec.nodes.filter(n=>n.index.includes('.')?n.index.slice(0,n.index.lastIndexOf('.'))===p.index:p.index==='0');
     const sameChildren=originalChildren.length===children.length&&originalChildren.every(n=>children.some(c=>c.index===n.index));
-    const heldLayout=sameChildren?spec.layout?.[p.index]:null;
-    const layout=heldLayout?{...heldLayout,positions:Object.fromEntries(Object.entries(heldLayout.positions??{}).filter(([index])=>![...foldedNodes.values()].some(n=>n.index===index)))}:null;
+    const layout=sameChildren?spec.layout?.[p.index]??null:null;
     if(layout)for(const [index,point] of Object.entries(layout.positions??{})) {
       if(!visible.has(index)||![point.x,point.y].every(v=>Number.isFinite(v)&&v>=0))throw Error(`Invalid layout position ${p.index}: ${index}`);
     }
-    const folded=[...foldedNodes.values()].filter(n=>n.into===p.id).map(n=>({path:n.declaration,...spans.get(n.id)}));
-    const provisional=containment?.provisional.filter(r=>r.owner===p.id)??[];
-    const containmentNotes=p.index==='0'?[containment?`${containment.folds.length} private containment folds proved; remaining authored nesting is provisional.`:'Semantic containment evidence is missing or stale; authored nesting is provisional.']:
-      provisional.length?['Authored grouping remains provisional; see declaration evidence in the implementation audit.']:[];
     pages.push({index:p.index,path:p.index==='0'?'0':`@design/${p.id}`,kind:p.index==='0'?'root':'group',
       label:p.label,description:p.description,design:true,parent:p.parent??null,stateful:!!p.stateful,destination:spans.has(p.id)&&!children.length?'code':p.index!=='0'&&children.length<6?'contents':'graph',leaves:0,
       ...(spans.has(p.id)?{sourceSpan:spans.get(p.id)}:{}),
-      components,wires,ports:[],...(folded.length?{foldedCode:folded}:{}),...(layout?{layout}:{}),notes:[...(p.notes??[]),...containmentNotes]});
+      components,wires,ports:[],...(layout?{layout}:{}),notes:p.notes??[]});
   }
-  const generatorFiles=['design.mjs','design-implementation.mjs','semantic-containment.mjs','helpers.mjs','lexical-bindings.mjs','interface-code.mjs','graph.mjs','map-set.mjs','generated-view.mjs','generated-view.py','leveled.py','svg.py','flow.py','viewer.py','../../core/agent/manuals.mjs'];
+  const generatorFiles=['design.mjs','design-implementation.mjs','interface-code.mjs','graph.mjs','scope.mjs','map-set.mjs','generated-view.mjs','generated-view.py','leveled.py','svg.py','flow.py','viewer.py','../../core/agent/manuals.mjs'];
   const generator=await Promise.all(generatorFiles.map(file=>readFile(resolve(repo,'dev-map/lib',file),'utf8')));
-  const snapshotId=createHash('sha256').update(text+bindingText+observed.ownershipText+JSON.stringify(mapSet)+generator.join('\n')+JSON.stringify(sourceInfo)+JSON.stringify(containment)+JSON.stringify(audit&&{generated:audit.generated,totals:audit.totals})).digest('hex');
-  const inputFiles=[...new Set([setFile('architecture.json'),setFile('interfaces.json'),setFile('ownership.json'),setFile('map.json'),setFile('store/audit.json'),...generatorFiles.map(file=>relative(repo,resolve(repo,'dev-map/lib',file)).replaceAll('\\','/')),...Object.keys(sources)])];
+  const snapshotId=createHash('sha256').update(text+bindingText+observed.ownershipText+JSON.stringify(mapSet)+generator.join('\n')+JSON.stringify(sourceInfo)).digest('hex');
+  const inputFiles=[...new Set([setFile('architecture.json'),setFile('interfaces.json'),setFile('ownership.json'),setFile('map.json'),...generatorFiles.map(file=>relative(repo,resolve(repo,'dev-map/lib',file)).replaceAll('\\','/')),...Object.keys(sources)])];
   const inputs=Object.fromEntries(await Promise.all(inputFiles.map(async file=>[file,createHash('sha256').update(await readFile(resolve(repo,file),'utf8').catch(error=>{if(error.code==='ENOENT')return '';throw error;})).digest('hex')])));
-  return {inputs,design:true,auditAvailable:!!report,audit,title:mapSet.title,generated:spec.date,snapshotId,pages,sources,sourceInfo,stale:{},
+  return {inputs,design:true,title:mapSet.title,generated:spec.date,snapshotId,pages,sources,sourceInfo,stale:{},
     changed:[],changedInputs:[],scores:{},regenerate:`node dev-map/cli.mjs regenerate --set ${setName}`};
 }
 
 export async function designCommand(command,args,{repo}) {
-  if(['audit','inventory','audit-check'].includes(command)) {
-    const {architectureAudit,auditStatus}=await import('./architecture-audit.mjs');
-    const result=command==='audit-check'?await auditStatus(repo):await architectureAudit(repo,{inventoryOnly:command==='inventory'});
-    if(command==='audit-check')await writeFile(resolve(repo,setFile('view/audit-status.json')),JSON.stringify(result));
-    console.log(JSON.stringify(result));
-    if(command==='audit-check'&&result.state!=='current')throw Error('Architecture audit missing or stale; run audit.');
-    return;
-  }
   const refresh=command==='regenerate';
   const model=refresh?await generateDesign({repo}):await designModel({repo});
   if(refresh) {
@@ -288,12 +260,12 @@ export async function designCommand(command,args,{repo}) {
         if(JSON.stringify(pages[page.index]?.contracts)!==JSON.stringify(page.wires))missing.push(`${page.index}: interface code`);
       }
     }
-    console.log(JSON.stringify({mode:'design',valid:true,pages:model.pages.length,viewer:current?'current':'missing or stale',...(args.includes('--viewer')?{undrawn:missing}:{}),implementation:model.auditAvailable?'partial root and operation boundary audit available; run audit-check for freshness':'unchecked; no audit snapshot'}));
+    console.log(JSON.stringify({mode:'design',valid:true,pages:model.pages.length,viewer:current?'current':'missing or stale',...(args.includes('--viewer')?{undrawn:missing}:{})}));
     if(missing.length)throw Error('Design viewer is missing boxes, wires or source previews.');
     if(!current)process.exitCode=1;
     // cli dispatch must preserve a failing check.
     if(!current)throw Error('Build this design set to refresh the viewer.');
     return;
   }
-  throw Error('Design commands support build, regenerate, check, inventory, audit and audit-check. Solving requires a scanned set.');
+  throw Error('Design sets support read, regenerate, build and check [--viewer].');
 }

@@ -7,14 +7,6 @@ semantics; each dialect contract ([Griffin](griffin.md), [Bambu](bambu.md),
 [Dobot](dobot.md), [DENSO](denso.md)) owns what its output must contain and
 the vendor and measured evidence behind it.
 
-Exporters are outside the dev map (`exporters` in
-[the map scope](../../dev-map/lib/scope.mjs)). They are scanned as an active
-outside caller: their calls into core are listed on the pages they call, and
-every mapped call into them is drawn as an outside arrow naming its target.
-The dialect-neutral files here stay mapped: `registry.mjs`,
-`travel-advisory.mjs`, `source-time.mjs` and `machine-study.mjs`. Any other
-file added under `core/export` is an exporter.
-
 ## The adapter interface
 
 `registry.mjs` holds one entry per machine output id (`machine.outputs[].id`):
@@ -49,6 +41,6 @@ the approved stateful boundary of
 
 Declare the output in the machine file, add its registry entry and its branch in
 `decodeSource`, and write its contract beside the others. Record vendor facts
-and measurements in that contract, not in `dev-map/facts.tsv`. Tests are
+and measurements in that contract. Tests are
 `core/tests/<dialect>*.test.mjs`, with `export.test.mjs` and
 `modal-export.test.mjs` across dialects.
