@@ -8,6 +8,9 @@ role. Read [builder orientation](../BUILDERS.md) and the consumed contracts.
 `BUILDER.md`/`DEVELOPER.md` own author guidance. Mark machine-specific sections
 `<!-- requires: capability -->` and on-request sections `<!-- layer: advanced -->`;
 the [manual reader](../core/agent/README.md) opens them by machine or by name. Maps own implementation; keep each fact at one owner.
+Example recipes are `examples/NAME.json` files holding `{machineId, plan}` (a
+`create_bundle` input less `bundleId`), written from a verified bundle's recipe,
+linked from `SKILL.md` and read with `read_guidance`. SAAM never runs them.
 
 Manual frontmatter uses `metadata.saam-kind: geometry`, `hybrid` or `guidance`.
 Descriptions guide selection; prefix unvalidated techniques with “Experimental.”

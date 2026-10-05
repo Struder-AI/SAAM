@@ -1,7 +1,7 @@
 # Building on SAAM
 
 Builders author guidance and reusable compositions of published capabilities:
-recipe helpers, geometry/assets, examples, demos and diagnostic workflows.
+recipe helpers, geometry/assets, examples and diagnostic workflows.
 Changing core skills, core, Studio or shared interfaces is
 [developer work](AGENTS.md#changing-role); the boundary is the responsibility
 changed, not the size or location of an edit.
@@ -227,10 +227,10 @@ geometry and quality choices explicit. For count, size and elapsed-time limits, 
 
 ## Reproducible examples
 
-The [three demo workspaces](examples/prints/README.md) package editable recipes
-for surface drape, wavy DENSO and Nudge Cup. The creation command refuses existing
-destinations. Use `--generate` for unapproved development toolpaths, then inspect
-geometry and toolpath in Studio.
+A skill's [example recipes](skills/AUTHORING.md) are static references and the
+[tour examples](examples/prints/README.md) Studio's tour content. Make an example's
+setup, assets and recipe assumptions reachable from its skill manual or packaged
+tools for a fresh part, not from the originating conversation.
 
 ## Testing through the use context
 
@@ -246,10 +246,6 @@ without human approvals. Robot parts still need explicit command settings; for a
 new provisional part use the reusable setup instructions for
 [DENSO](skills/pipe-cladding/SKILL.md#contact-and-pose) or
 [Dobot](core/export/dobot.md#dobot-output-contract), independently of its shape.
-
-A demo's setup, assets and recipe assumptions must be reachable from its skill
-manual for a fresh part. Put reusable preparation in packaged tools and describe
-necessary settings there, rather than relying on the originating conversation.
 
 ## Documentation maintenance
 

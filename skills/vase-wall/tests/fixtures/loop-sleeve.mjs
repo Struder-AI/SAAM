@@ -1,11 +1,21 @@
 // A normal rising vase course decorated with overlapping, gently tilted circles.
-import {defaults} from '../../../core/print/plan.mjs';
-import {circlePoints} from '../../../core/geom/cylinder.mjs';
-import {loopPath} from './loop-path.mjs';
-import {depositionAssignment} from '../../../core/print/assignment-records.mjs';
+import {defaults} from '../../../../core/print/plan.mjs';
+import {circlePoints} from '../../../../core/geom/cylinder.mjs';
+import {depositionAssignment} from '../../../../core/print/assignment-records.mjs';
+
+// The explicit tile points: `loops` circles per turn as [phase, height] with signed depth.
+function loopPath({loops,widthCells,depthMm,samples,beadHeightMm,riseMm,exterior}){
+  const points=[],offsetMm=[];
+  for(let cell=0;cell<loops;cell++)for(let i=cell?1:0;i<=samples;i++){
+    const t=i/samples,angle=2*Math.PI*t,depth=depthMm*(1-Math.cos(angle))/2,u=i===samples?1:t+widthCells/2*Math.sin(angle),phase=(cell+u)/loops;
+    points.push([phase,.03*depth+phase*riseMm]);
+    offsetMm.push(exterior==='both-scalloped'?depthMm/2-depth:exterior==='scalloped'?depth:-depth);
+  }
+  return {points,offsetMm,beadHeightMm};
+}
 
 // A vase host is normally solid. The recipe creates the hollow printed wall.
-export function loopHost({radius,heightMm,waveDepthMm=0,rows=25}){
+function loopHost({radius,heightMm,waveDepthMm=0,rows=25}){
   const ring=circlePoints(radius,[0,0],.01),columns=ring.length,vertices=[],triangles=[];
   const levels=waveDepthMm?rows:2;
   for(let j=0;j<levels;j++){
@@ -24,9 +34,8 @@ export function loopHost({radius,heightMm,waveDepthMm=0,rows=25}){
   return {shape:'mesh',vertices,triangles,source:null};
 }
 
-export function loopDemoPlan({courses=24,loopsPerTurn=20,samplesPerLoop=64,
+export function loopSleevePlan({courses=24,loopsPerTurn=20,samplesPerLoop=64,
   radius=14,tileDepthMm=4.8,tileWidthMm=5.6,exterior='smooth',waveDepthMm=0}={}){
-  if(!['smooth','scalloped','both-scalloped'].includes(exterior))throw new Error('Choose smooth, scalloped or both-scalloped.');
   const plan=defaults();
   const perimeter=2*Math.PI*(radius-plan.process.lineWidthMm/2),rise=plan.process.layerMm;
   const pattern={paths:[loopPath({loops:loopsPerTurn,widthCells:tileWidthMm*loopsPerTurn/perimeter,depthMm:tileDepthMm,

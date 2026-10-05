@@ -10,12 +10,12 @@ import {bundleFor,readStableBundle} from './adapter-resolution.mjs';
 import {requestReceiptState} from './work-state.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..'),packages=resolve(root,'examples/prints');
-// Tour content: each lesson example's recipe, copied into the tour folder when a lesson needs it.
+// Tour content: each lesson example's {machineId, plan}, copied into the tour folder when a lesson needs it.
 const recipes=Object.freeze({
-  starter:{machineId:'ultimaker-s5',plan:async()=>(await import('../examples/prints/starter/recipe.mjs')).starterPlan()},
-  'surface-drape':{machineId:'ultimaker-s5',plan:async()=>(await import('../examples/prints/surface-drape/recipe.mjs')).surfaceDrapePlan()},
-  'wavy-denso':{machineId:'denso-vs068a4-rc8a',plan:async()=>(await import('../examples/prints/wavy-denso/recipe.mjs')).wavyDensoPlan()},
-  'nudge-cup':{machineId:'ultimaker-s5',plan:async()=>(await import('../examples/prints/nudge-cup/recipe.mjs')).nudgeCupPlan()}
+  starter:async()=>({machineId:'ultimaker-s5',plan:(await import('../examples/prints/starter/recipe.mjs')).starterPlan()}),
+  'surface-drape':async()=>({machineId:'ultimaker-s5',plan:(await import('../examples/prints/surface-drape/recipe.mjs')).surfaceDrapePlan()}),
+  'wavy-denso':async()=>json(resolve(packages,'wavy-denso/recipe.json')),
+  'nudge-cup':async()=>({machineId:'ultimaker-s5',plan:(await import('../examples/prints/nudge-cup/recipe.mjs')).nudgeCupPlan()})
 });
 const json=async file=>JSON.parse(await readFile(file,'utf8'));
 async function optional(file){try{return await json(file);}catch(e){if(e.code==='ENOENT')return null;throw e;}}
@@ -45,9 +45,9 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
     const title=id==='starter'?'handle':id==='surface-drape'?'wavy-roof':id;
     let name=title,index=1,directory;
     for(;;){directory=resolve(base,name);try{await mkdir(directory);break;}catch(e){if(e.code!=='EEXIST')throw e;name=title+'-'+(++index);}}
-    const recipe=recipes[id];
+    const {machineId,plan}=await recipes[id]();
     const {initBundle}=await import('../core/print/bundle.mjs');
-    await initBundle(directory,await recipe.plan(),{machineId:recipe.machineId});
+    await initBundle(directory,plan,{machineId});
     await save(resolve(directory,'.tour-reference.json'),{id,version:TOUR_VERSION});data.copies[id]=name;return directory;
   }
   async function signature(data,shown){
