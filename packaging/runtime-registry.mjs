@@ -23,6 +23,7 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     if(args.method==='check-update'){await services.checkUpdate();return services.status();}
     if(args.method==='update')return services.update(args.options);
     if(args.method==='quit')return services.quit(args.options);
+    if(args.method==='report')return services.report(args.report);
     throw Error('Unknown release service request.');
   }
   async function incoming(runtime,message){

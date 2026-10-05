@@ -106,7 +106,7 @@ export async function listPrints(libraryRoot,resolveBundle=bundleFor) {
 // page, the library and the tour; everything that reads a print answers this.
 async function serviceInput(request){
   const chunks=[],size={bytes:0};
-  for await(const chunk of request){size.bytes+=chunk.length;if(size.bytes>4000)throw Error('Request too large.');chunks.push(chunk);}
+  for await(const chunk of request){size.bytes+=chunk.length;if(size.bytes>16_000)throw Error('Request too large.');chunks.push(chunk);}
   return JSON.parse(Buffer.concat(chunks).toString()||'{}');
 }
 function escapeTitle(value){return value.replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));}
@@ -415,14 +415,19 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
         // Mutations use the same local token and origin checks as Studio edits.
         const reading=req.method==='GET'&&url.pathname==='/api/service';
         const action=req.method==='POST'?url.pathname.slice('/api/service/'.length):null;
-        if(!relay||!reading&&!['activate','dismiss','check-update','update','quit'].includes(action)){send({error:'Not found'},404);return;}
+        if(!relay||!reading&&!['activate','dismiss','check-update','update','quit','report'].includes(action)){send({error:'Not found'},404);return;}
         if(req.headers['x-saam-token']!==token||(reading?req.headers.origin&&req.headers.origin!==origin:req.headers.origin!==origin)){send({error:'Invalid local session'},403);return;}
         if(reading){send(await relay.status());return;}
         if(action==='activate'){
-          const chunks=[];let size=0;
-          for await(const chunk of req){size+=chunk.length;if(size>4_000)throw Error('Request too large.');chunks.push(chunk);}
-          const {invite}=JSON.parse(Buffer.concat(chunks).toString()||'{}');
+          const {invite}=await serviceInput(req);
           try{send(await relay.activate(String(invite??'')));}catch(error){send({error:error.message},400);}
+          return;
+        }
+        if(action==='report'){
+          // The report names the window and print it came from; the person's text is all it adds.
+          const {description,stage}=await serviceInput(req);
+          const studio={studioInstanceId:instanceId,printId:workIdFor(dir),runtimeId:runtimeId??null,runtimeLabel:runtimeLabel??null,stage:['geometry','toolpath'].includes(stage)?stage:null};
+          try{send(await relay.report({description:String(description??''),studio}));}catch(error){send({error:error.message},400);}
           return;
         }
         if(action==='dismiss'){try{send(await relay.dismissFirstRun());}catch(error){send({error:error.message},500);}return;}

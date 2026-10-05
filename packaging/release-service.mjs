@@ -173,6 +173,17 @@ export async function createReleaseService({serviceUrl,statePath,version='develo
       const selected=offer;emit({kind:'update-started',version:selected.version});
       try{return await update(selected,options);}catch(error){emit({kind:'update-failed',version:selected.version,error:errorMessage(error)});throw error;}
     },
+    // A person's bug report is one event the relay must acknowledge; the operator reads it
+    // beside the device's preceding records. diagnostic() keeps strings to 2048 characters.
+    async report({description,studio={}}={}){
+      const text=String(description??'').trim();
+      if(!text)throw Error('Describe what went wrong.');
+      if(text.length>2000)throw Error('Shorten the report to 2000 characters.');
+      if(!url||!state.device)throw Error('Bug reports travel through the alpha service. Enter an alpha invite in Connect to send one, or describe the problem to your agent.');
+      const receipt=await emit({...studio,kind:'bug-report',description:text},{source:'bug-report'});
+      if(receipt?.received!==true)throw Error('The report was not received: '+(diagnostics.lastFailure?.error??'the release service did not answer.'));
+      return {received:true};
+    },
     quit:(options={})=>{if(!quit)throw Error('This SAAM stops from its terminal.');return quit(options);},
     observeRuntime(next){stopObserving();runtime=next;subscribe();},
     recordOperation:event=>emit(event,{source:'agent-operation'}),
