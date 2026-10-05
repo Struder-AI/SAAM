@@ -10,6 +10,7 @@ import {migrateRuntimeState,restoreRuntimeState} from './runtime-state.mjs';
 import {homePaths} from '../core/application/home.mjs';
 import {migrateLocalData,restoreLocalData} from '../core/application/home-layout.mjs';
 import {applicationPort,readInstance,controlRequest} from '../core/application/control.mjs';
+import {orchestratorContract} from '../core/application/runtime-selection.mjs';
 import {createReleaseService,releaseConfiguration} from './release-service.mjs';
 import {installUpdate} from './update.mjs';
 import {startTray} from './tray.mjs';
@@ -106,7 +107,7 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
       return state.runtime.command(message);
     }
 
-    const record={instanceId,pid:process.pid,port:state.control.address().port,token,version:config.version,contract:1,codeRoot,user:userInfo().username};
+    const record={instanceId,pid:process.pid,port:state.control.address().port,token,version:config.version,contract:orchestratorContract,codeRoot,user:userInfo().username};
     if(tray&&!process.env.SAAM_DATA&&!process.env.SAAM_BACKGROUND&&!process.env.NODE_TEST_CONTEXT)state.tray=await startTray(record);
     await replaceFile(instanceFile,JSON.stringify(record)+'\n');
     if(openOnStart)await state.runtime.command({command:'open'});

@@ -4,7 +4,7 @@ import {resolve} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {readyInstance,controlRequest} from '../core/application/control.mjs';
-import {selectRuntime} from '../core/application/runtime-selection.mjs';
+import {selectRuntime,orchestratorContract} from '../core/application/runtime-selection.mjs';
 
 const camel=name=>name.replace(/-([a-z])/g,(_match,letter)=>letter.toUpperCase());
 function flagValue(value,schema={}){
@@ -48,7 +48,7 @@ export async function runSaam(args=process.argv.slice(2),{input=process.stdin,wr
     if(parsed.options.input)Object.assign(fields,JSON.parse(await readFile(resolve(String(parsed.options.input)),'utf8')));
     if(enabled(parsed.options.stdin)){const chunks=[];for await(const chunk of input)chunks.push(Buffer.from(chunk));Object.assign(fields,JSON.parse(Buffer.concat(chunks).toString('utf8')));}
     const instance=await readyInstance();
-    if(instance.contract!==1)throw Error('Update the installed SAAM first: this checkout requires orchestrator contract 1.');
+    if(instance.contract!==orchestratorContract)throw Error('Update the installed SAAM first: this checkout requires orchestrator contract '+orchestratorContract+'.');
     const runtime=await selectRuntime();
     const operation=parsed.command==='call'?parsed.operation:parsed.command==='wait'?'wait_for_studio_request':parsed.command==='start-tour'?'start_tour':null;
     if(operation){
