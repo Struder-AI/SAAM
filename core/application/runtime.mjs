@@ -1,7 +1,7 @@
 import {readLocalAgentNotes,updateLocalAgentNotes} from './local-agent-notes.mjs';
 import {homePaths} from './home.mjs';
 import {watchStudioChanges} from '../../studio/changes.mjs';
-import {requireBundleInstance} from '../print/studio-ownership.mjs';
+import {requireBundleInstance,bundleInstance,recoverBundleInstance} from '../print/studio-ownership.mjs';
 import {applyExtensionEdit,createExtensionBundle} from '../print/extension-edits.mjs';
 // The local SAAM runtime: every agent operation over the same bundle lifecycle
 // and Studio used by the CLI, and the Studio/request state they share. It knows
@@ -23,7 +23,7 @@ import { bundleFor } from '../../studio/adapter-resolution.mjs';
 import {createTour,tourExample} from '../../studio/tour.mjs';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
 import {createStudioEvents} from '../../studio/studio-events.mjs';
-import {listExtensions,loadExtensionEntry,readExtension} from '../extensions/library.mjs';
+import {listExtensions,loadExtensionEntry,readExtension,checkoutExtension,exportExtension,importExtension} from '../extensions/library.mjs';
 import {createBlobFieldBundle,updateBlobFieldBundle} from '../agent/blob-field.mjs';
 import {applySlice} from '../print/slice-edit.mjs';
 import {applyModulation} from '../print/modulation.mjs';
@@ -295,7 +295,7 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
     found.push(...await localExtension.skills?.()??[]);
     return found.sort((a, b) => a.id.localeCompare(b.id));
   }
-  const immediateTools=new Set(['begin_studio_work','respond_to_studio_request','wait_for_studio_request','get_studio_requests','get_studio_events','get_studio_sessions','cancel_studio_calculation','get_tour','get_workspace','capture_bundle']);
+  const immediateTools=new Set(['begin_studio_work','respond_to_studio_request','wait_for_studio_request','get_studio_requests','get_studio_events','get_studio_sessions','cancel_studio_calculation','get_tour','get_workspace','capture_bundle','get_bundle_instance','recover_bundle_instance','repair_stl']);
   const diagnosticFields=(value,keys)=>Object.fromEntries(keys.filter(key=>value&&Object.hasOwn(value,key)).map(key=>[key,value[key]]));
   const reportOperation=event=>{for(const observer of operationObservers)try{observer(event);}catch{/* Diagnostics never fail an operation. */}};
   // The registry holds each operation's definition (help, validation, scope);
@@ -599,6 +599,35 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
   operation('migrate_bundle','Explicitly migrate a legacy split-file bundle into the current saved manifest, retaining original sidecars. Shows the migrated bundle in Studio; no implicit read-time migration.',{bundleId:bundleIdSchema},false);
   async function migrateBundleOperation({bundleId}){
     const dir=await directory(bundleId),bundle=await bundleModule();return {bundleId,...await bundle.migrateBundle(dir)};
+  }
+  // Maintenance: a crashed Studio leaves its reservation, which bars every Studio
+  // from the bundle until deliberately released. These run outside Studio views.
+  operation('get_bundle_instance','Maintenance: read the Studio reservation holding a bundle (instance, owner, process, start time), or null. Use when a bundle reports it is open in another Studio instance.',{bundleId:bundleIdSchema});
+  async function getBundleInstanceOperation({bundleId}){
+    const record=await bundleInstance(await directory(bundleId));
+    return {bundleId,instance:record?{instanceId:record.instanceId,ownerId:record.ownerId,pid:record.pid,startedAt:record.startedAt}:null};
+  }
+  operation('recover_bundle_instance','Maintenance: release a Studio reservation whose process has exited, after a crash. A running instance keeps its bundle.',{bundleId:bundleIdSchema},false);
+  async function recoverBundleInstanceOperation({bundleId}){return {bundleId,...await recoverBundleInstance(await directory(bundleId))};}
+  operation('repair_stl','Maintenance: repair a local STL into a new absolute outputDirectory (original.stl, repaired.stl in mm, repair.json) with explicit vertex merging, hole filling and shape-change limits. Ordinary imports already repair recognized defects. Import repaired.stl with units mm for review. get_studio_events reports its jobId and progress; cancel_studio_calculation cancels it.',{sourcePath:z.string().min(1),outputDirectory:z.string().min(1),units:z.enum(['mm','inch']),mergeToleranceMm:z.number().min(0).optional(),maxHoleEdges:z.number().int().min(0).optional(),maxHoleDiameterMm:z.number().min(0).optional(),maxSampledDistanceMm:z.number().min(0).optional()},false);
+  async function repairStl({sourcePath,outputDirectory,units,...limits}){
+    if(!isAbsolute(sourcePath)||!/\.stl$/i.test(sourcePath))throw Error('Choose an absolute path to a local .stl source file.');
+    if(!isAbsolute(outputDirectory))throw Error('Choose an absolute path for the new repair directory.');
+    const jobId=randomUUID(),controller=new AbortController();
+    const job={ownerId,jobId,printId:null,studioInstanceId:null,kind:'stl-repair',status:'repairing',startedAt:Date.now(),controller,progress:{stage:'read-source'}};
+    imports.set(jobId,job);
+    try{
+      const {repairSTLFiles}=await import('../print/repair-stl.mjs');
+      return {jobId,directory:outputDirectory,report:await repairSTLFiles(outputDirectory,sourcePath,{...limits,units,signal:controller.signal,progress:value=>{job.progress=value;}})};
+    }finally{imports.delete(jobId);}
+  }
+  operation('extension_library','Builder exchange for the local extension library. checkout copies a bundled extensionId to an editable user copy that survives updates; export writes extensionId to a new absolute packageFile; import validates packageFile without executing it and never replaces a changed copy.',{action:z.enum(['checkout','export','import']),extensionId:z.string().regex(/^[a-z][a-z0-9-]*$/).optional(),packageFile:z.string().optional()},false);
+  async function extensionLibrary({action,extensionId,packageFile}){
+    if(action!=='import'&&!extensionId)throw Error(`Choose the extensionId to ${action}.`);
+    if(action!=='checkout'&&!(packageFile&&isAbsolute(packageFile)))throw Error('Choose an absolute packageFile path.');
+    if(action==='checkout')return checkoutExtension(extensionId,{appRoot:root});
+    if(action==='export')return exportExtension(extensionId,packageFile,{appRoot:root});
+    return importExtension(packageFile,{appRoot:root});
   }
   operation('share_bundle','Package current editable bundle inputs and selected extensions into a new portable ZIP. Toolpaths, programs, approvals and history are excluded; recipient imports, edits and regenerates. Existing package files are never overwritten.',{bundleId:bundleIdSchema,packageFile:z.string()},true,true);
   async function shareBundle({bundleId,packageFile}){
@@ -916,6 +945,10 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
       case 'get_bundle':return getBundle(input);
       case 'create_bundle':return createBundle(input);
       case 'migrate_bundle':return migrateBundleOperation(input);
+      case 'get_bundle_instance':return getBundleInstanceOperation(input);
+      case 'recover_bundle_instance':return recoverBundleInstanceOperation(input);
+      case 'repair_stl':return repairStl(input);
+      case 'extension_library':return extensionLibrary(input);
       case 'share_bundle':return shareBundle(input);
       case 'import_bundle':return importBundle(input,instance);
       case 'import_stl_bundle':return importStlBundle(input);

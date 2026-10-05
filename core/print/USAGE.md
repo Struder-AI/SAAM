@@ -49,7 +49,7 @@ Units default to `auto`: SAAM assumes mm unless the raw size only fits the
 printer in inches ([D-030](../../DECISIONS.md#d-030--provisional-stl-units-assumption)),
 and Studio shows the assumption. `set_stl_units` rescales a plain imported mesh,
 keeping edits and settings; text-wrapped or composed geometry needs its own edit.
-Studio, CLI and agent imports first validate the source, then attempt repair only
+Studio and agent imports first validate the source, then attempt repair only
 for recognized geometric defects, without hole filling. A repair retains both
 STLs and its change report in `repair/`; review changed geometry. Malformed input
 and failed repair keep their diagnostic. Failed or cancelled imports remove only

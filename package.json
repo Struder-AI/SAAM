@@ -10,7 +10,6 @@
     "test:stress": "node --test --test-concurrency=1 core/tests/stress/*.test.mjs",
     "studio": "node packaging/launch.mjs",
     "agent": "node scripts/agent-toolkit.mjs",
-    "shell": "node core/print/cli.mjs",
     "saam": "node scripts/saam.mjs",
     "setup:mesh": "node scripts/build-mesh-repair.mjs"
   },

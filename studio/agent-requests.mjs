@@ -1,9 +1,7 @@
-import {homePaths} from '../core/application/home.mjs';
 import {replaceFile} from '../core/private/studio/file-write.mjs';
 import {readFile,mkdir} from 'node:fs/promises';
 import {resolve,relative,isAbsolute} from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
-import {fileURLToPath} from 'node:url';
 
 import {requestReceiptState,isEditRequest} from './work-state.mjs';
 import {createRequestIndex} from './request-index.mjs';
@@ -212,12 +210,4 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events,fol
     async cancelScope(scope){for(const r of await query())if(r.scope?.runId===scope.runId&&(!scope.lessonId||r.scope.lessonId===scope.lessonId)&&['queued','working','waiting'].includes(r.status))await this.update(r.id,{status:'cancelled'});},
     async cancelFor(directory){const id=printId(directory);for(const r of await query({printId:id}))if(['queued','working','waiting'].includes(r.status))await this.update(r.id,{status:'cancelled'});}
   };
-}
-if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
-  const [action='list',library=homePaths().prints,id,value,message]=process.argv.slice(2),requests=createAgentRequests(library);
-  let result;
-  if(action==='begin-active'||action==='begin-active-guidance'){const progress=JSON.parse(await readFile(resolve(library,'.tour-progress.json'),'utf8'));if(!progress.active||!progress.selected)throw Error('No active tour print; use begin with a print ID.');result=await requests.begin({directory:resolve(library,'tour',progress.selected),instruction:id,kind:action.endsWith('guidance')?'guidance':'edit'});}
-  else result=action==='begin'||action==='begin-guidance'?await requests.begin({directory:resolve(library,id),instruction:value,kind:action.endsWith('guidance')?'guidance':'edit'}):action==='claim'?await requests.update(id,{status:'working'}):action==='target'?await requests.update(id,{status:'working',resultStage:value}):action==='respond'?await requests.update(id,{status:value,message}):action==='wait'?await requests.wait():await requests.list();
-  if(action==='wait'&&id==='--claim')result.requests=await Promise.all(result.requests.map(request=>requests.update(request.id,{status:'working'})));
-  console.log(JSON.stringify(result,null,2));
 }

@@ -65,12 +65,5 @@ viewing, then offer help with printing or another part.
 | [Nudge Cup](nudge-cup/README.md) | Mesh geometry, spiral wall, weighted foot and curved skin. |
 | [Wavy DENSO](wavy-denso/README.md) | Spline substrate and axial/helical cladding with robot output. |
 
-Their recipes and the [fin block recipe](starter/recipe.mjs) are editable sources.
-To make local copies under a new directory:
-
-```sh
-node examples/prints/create.mjs all Prints/tour-refresh --generate
-```
-
-Omit `--generate` for geometry and settings only. Review generated examples
-in Studio; generated bundles and machine files stay local.
+Their recipes and the [fin block recipe](starter/recipe.mjs) are editable sources;
+Studio's tour copies one into the tour folder when its lesson opens.

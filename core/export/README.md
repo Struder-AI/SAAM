@@ -48,8 +48,8 @@ operation labels. Missing labels remain unknown; recipe skills alone do not prov
 which producer caused a travel. The check is one linear scan of interpreted moves,
 cached with the owning program and included in source-only worker handoff.
 Generation records it as
-`plan.json` → `bundle.review.generation.checks.shortTravel`; CLI/toolkit summaries and MCP
-print state expose it. Review, approvals, delivery and emitted bytes are unchanged
+`plan.json` → `bundle.review.generation.checks.shortTravel`; `saam` print state
+exposes it. Review, approvals, delivery and emitted bytes are unchanged
 by the finding. Browser playback does not rerun the check.
 Studio's read-only machine-study adapter applies the same advisory to its authored
 motion and caches it by source text.

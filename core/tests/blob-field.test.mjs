@@ -1,9 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm,readFile,writeFile} from 'node:fs/promises';
+import {mkdtemp,rm,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {execFileSync} from 'node:child_process';
 import {prepareBlobField,evaluateBlobField,validateBlobField} from '../geom/blob-field.mjs';
 import {compileBlobField} from '../geom/blob-field-compile.mjs';
 import {solidKernel,preciseSolidMesh} from '../geom/solid.mjs';
@@ -63,16 +62,6 @@ test('requests default the threshold and sampling and store them explicitly',asy
   const g=await compileRequest({points:[blob([0,0,2],4)]});
   assert.equal(g.field.threshold,0.25);assert.equal(g.extraction.edgeMm,0.5);
   assert.throws(()=>compileRequest({points:[],isoValue:0}),/request/);
-});
-
-test('CLI creates and rebuilds a blob field from a request file without approving it',async t=>{
-  const dir=await mkdtemp(join(tmpdir(),'saam-blob-field-cli-'));t.after(()=>rm(dir,{recursive:true,force:true}));
-  const bundle=join(dir,'print'),file=join(dir,'request.json'),request={points:[blob([0,0,2],8)],edgeMm:0.5};
-  await writeFile(file,JSON.stringify(request));
-  execFileSync(process.execPath,['core/print/cli.mjs','blob-field-create',bundle,file,'ultimaker-s5'],{stdio:'pipe'});
-  const state=await loadBundle(bundle);request.threshold=0.3;await writeFile(file,JSON.stringify(request));
-  execFileSync(process.execPath,['core/print/cli.mjs','blob-field-update',bundle,file,'--revision',state.revision],{stdio:'pipe'});
-  const next=await loadBundle(bundle);assert.equal(next.plan.geometry.field.threshold,0.3);assert.deepEqual(next.review.approvals,{});
 });
 
 test('blob field lifecycle slices, reopens, delivers exact bytes and invalidates changed points',async t=>{

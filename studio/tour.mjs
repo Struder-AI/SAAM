@@ -1,17 +1,22 @@
-import {homePaths} from '../core/application/home.mjs';
 import {replaceFile} from '../core/private/studio/file-write.mjs';
 import {readFile,mkdir,stat,realpath,unlink} from 'node:fs/promises';
 import {resolve,dirname,sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {randomUUID} from 'node:crypto';
 import {TOUR_VERSION,TOUR_DECK_VERSION,TOUR_DEMOS,TOUR_STEPS,TOUR_LESSONS as L,tourAgentInstruction} from './tour-catalog.mjs';
-import {demos} from '../examples/prints/create.mjs';
 
 import {createAgentRequests} from './agent-requests.mjs';
 import {bundleFor,readStableBundle} from './adapter-resolution.mjs';
 import {requestReceiptState} from './work-state.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..'),packages=resolve(root,'examples/prints');
+// Tour content: each lesson example's recipe, copied into the tour folder when a lesson needs it.
+const recipes=Object.freeze({
+  starter:{machineId:'ultimaker-s5',plan:async()=>(await import('../examples/prints/starter/recipe.mjs')).starterPlan()},
+  'surface-drape':{machineId:'ultimaker-s5',plan:async()=>(await import('../examples/prints/surface-drape/recipe.mjs')).surfaceDrapePlan()},
+  'wavy-denso':{machineId:'denso-vs068a4-rc8a',plan:async()=>(await import('../examples/prints/wavy-denso/recipe.mjs')).wavyDensoPlan()},
+  'nudge-cup':{machineId:'ultimaker-s5',plan:async()=>(await import('../examples/prints/nudge-cup/recipe.mjs')).nudgeCupPlan()}
+});
 const json=async file=>JSON.parse(await readFile(file,'utf8'));
 async function optional(file){try{return await json(file);}catch(e){if(e.code==='ENOENT')return null;throw e;}}
 async function save(file,value){await replaceFile(file,JSON.stringify(value,null,2)+'\n');}
@@ -40,7 +45,7 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
     const title=id==='starter'?'handle':id==='surface-drape'?'wavy-roof':id;
     let name=title,index=1,directory;
     for(;;){directory=resolve(base,name);try{await mkdir(directory);break;}catch(e){if(e.code!=='EEXIST')throw e;name=title+'-'+(++index);}}
-    const recipe=id==='starter'?{plan:async()=>(await import('../examples/prints/starter/recipe.mjs')).starterPlan(),machineId:'ultimaker-s5'}:demos[id];
+    const recipe=recipes[id];
     const {initBundle}=await import('../core/print/bundle.mjs');
     await initBundle(directory,await recipe.plan(),{machineId:recipe.machineId});
     await save(resolve(directory,'.tour-reference.json'),{id,version:TOUR_VERSION});data.copies[id]=name;return directory;
@@ -172,8 +177,4 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
       await save(progress,data);return {data:await describe(data),directory:data.selected?await confined(data.selected):null};
     }
   };
-}
-if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
-  const [action='status',library=homePaths().prints,value]=process.argv.slice(2),tour=createTour(library);
-  console.log(JSON.stringify(action==='start-at'?await tour.setStartAt({layer:Number(value)}):action==='status'?await tour.info():(await tour.action(action)).data,null,2));
 }

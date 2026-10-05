@@ -1,5 +1,3 @@
-import {pathToFileURL} from 'node:url';
-import {resolve} from 'node:path';
 import {frontAssignment} from './prepare.mjs';
 import {defaults} from '../../../core/print/plan.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
@@ -41,13 +39,4 @@ export function canopyExamplePlan(machine=loadMachine(),progress=()=>{}){
   plan.slices.assignments.push(frontAssignment({id:'four-sided-canopy',lineSpacingMm:.3,propagationStepMm:.3,reason:'The central 24 × 24 mm spline plateau follows the box top perimeter centerline at Z=10, accounting for half a bead at each box edge. Grow a rounded, wavy canopy about 33 mm beyond every side in one continuous slice.',
       surface:{kind:'spline',offsetMm:0,patch:{name:'canopy',...surface}},domainUv,seedUv,afterParts:[null],beforeParts:[]}));
   return plan;
-}
-
-if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){
-  if(!process.argv[2])throw new Error('Provide a new print directory for this development example.');
-  const {initBundle,generateBundle,loadBundle}=await import('../../../core/print/bundle.mjs');
-  const dir=resolve(process.argv[2]),plan=canopyExamplePlan(loadMachine(),p=>console.log(JSON.stringify(p)));
-  await initBundle(dir,plan,{machineId:'ultimaker-s5'});
-  const result=await generateBundle(dir,{development:true}),state=await loadBundle(dir);
-  console.log(JSON.stringify({directory:dir,mode:result.mode,waves:state.pathSummary.slices.instances.filter(r=>r.fillOrder).map(r=>({id:r.id,...r.fillOrder}))},null,2));
 }

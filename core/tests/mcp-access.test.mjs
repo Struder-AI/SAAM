@@ -1,38 +1,15 @@
-// Public CLI/shared import parity, isolated from real setup and print records.
+// Shared import, checks and manual reading, isolated from real setup and print records.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, rm, mkdir, symlink, link } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { resolve } from 'node:path';
 import { importSTLBundle } from '../print/import-stl.mjs';
-import { initBundle, loadBundle, proposedPlan } from '../print/bundle.mjs';
+import { initBundle, loadBundle, proposedPlan, adjustBundle } from '../print/bundle.mjs';
 import { defaults as shellDefaults } from '../print/plan.mjs';
-import { loadMachine } from '../machine/profile.mjs';
 import { boxMesh } from './fixtures/mesh.mjs';
 import { readGuidance } from '../agent/manuals.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
-
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..'), run = promisify(execFile);
-
-test('the public CLI exposes unresolved robot setup before first generation', async t => {
-  const scratch = await mkdtemp(resolve(tmpdir(), 'saam-synthetic-setup-status-'));
-  t.after(() => rm(scratch, { recursive: true, force: true }));
-  for (const machineId of ['denso-vs068a4-rc8a', 'dobot-mg400']) {
-    const machine = loadMachine(machineId), dir = resolve(scratch, machineId);
-    await initBundle(dir, shellDefaults(machine), { machineId });
-    const script = resolve(root, 'core/print/cli.mjs');
-    const checked = JSON.parse((await run(process.execPath, [script, 'check', dir])).stdout);
-    assert.match(checked.outputAvailability, /unconfigured/);
-    assert.equal(checked.machineConfiguration.configured, false);
-    assert.ok(checked.machineConfiguration.missing.includes('toolFrame'));
-    assert.equal(checked.toolpathApproved, false);
-    const state = await loadBundle(dir);
-    assert.equal(state.review.generation, null);
-  }
-});
 
 test('manual sections preserve duplicate heading identities and reject private or redirected paths', async t => {
   const scratch = await mkdtemp(resolve(tmpdir(), 'saam-synthetic-manuals-'));
@@ -86,20 +63,18 @@ test('shared STL importer and both recipe adapters resolve the same remembered s
   assert.equal((await loadBundle(inferred)).plan.geometry.source.unitsInferred, true);
 });
 
-test('the public CLI checks ungenerated geometry and rejects stale chat revisions', async t => {
+test('checks report ungenerated geometry and edits reject stale chat revisions', async t => {
   const dir = await mkdtemp(resolve(tmpdir(), 'saam-synthetic-cli-access-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const plan = shellDefaults();
   plan.geometry = splineBox({runMm:12,widthMm:10,heightMm:1});
   plan.process.minimumLayerSeconds = 0;
   await initBundle(dir, plan);
-  const script = resolve(root, 'core/print/cli.mjs');
-  const checked = JSON.parse((await run(process.execPath, [script, 'check', dir])).stdout);
-  assert.equal(checked.program, null);
-  const patch = resolve(dir, 'patch.json');
-  await writeFile(patch, JSON.stringify({ process: { planarSpeedMmS: 23 } }));
-  await assert.rejects(run(process.execPath, [script, 'adjust', dir, patch, '--revision', 'stale']), error => /stale/.test(error.stderr));
-  await run(process.execPath, [script, 'adjust', dir, patch, '--revision', checked.revision]);
+  const checked = await loadBundle(dir);
+  assert.equal(checked.program ?? null, null);
+  const patch = { process: { planarSpeedMmS: 23 } };
+  await assert.rejects(adjustBundle(dir, patch, { expectedRevision: 'stale' }), /stale/);
+  await adjustBundle(dir, patch, { expectedRevision: checked.revision });
   const after = await loadBundle(dir);
   assert.equal(after.plan.process.planarSpeedMmS, 23);
   assert.deepEqual(after.review.approvals, {});

@@ -66,15 +66,9 @@ reporting changes. Follow live import progress; cancel through the ordinary Stud
 calculation controls when the person or task calls for it. Makers need no direct
 mesh-repair tools. A replacement retains attribution and records its changes.
 
-## Command line and cache
+## Cache
 
-```sh
-node skills/thingi10k/scripts/cli.mjs search "bunny"
-node skills/thingi10k/scripts/cli.mjs import Prints/bunny 293137 ultimaker-s5
-saam call request_review --bundle-id bunny
-```
-
-The CLI and app cache in the SAAM home's `tmp/cache/thingi10k/`: indexes and
+SAAM caches in the home's `tmp/cache/thingi10k/`: indexes and
 complete downloads, named by file ID and SHA-256 with an
 attribution JSON beside each. Remove ordinary cache only when idle; retain failed originals promised at
 `sourcePath`. Prints keep their own source.
