@@ -23,10 +23,22 @@ function Get-SaamDataFolder {
   return $SaamHome
 }
 
-# install.ps1 reports fixed stages (never paths, names or error text) through
-# the first of these SAAM programs that has packaging\installer-report.mjs.
+# install.ps1 reports each stage with its output so far (its transcript;
+# diagnostics scrub paths, URLs and credentials) through the first of these
+# SAAM programs that has packaging\installer-report.mjs.
 $DiagnosticProgram = $null
 $FirstRun = $false
+$Transcript = $null
+function Start-InstallerTranscript {
+  $script:Transcript = Join-Path ([IO.Path]::GetTempPath()) ('saam-install-' + [guid]::NewGuid().ToString('N') + '.txt')
+  Start-Transcript -LiteralPath $script:Transcript | Out-Null
+}
+function Stop-InstallerTranscript {
+  if (-not $script:Transcript) { return }
+  try { Stop-Transcript | Out-Null } catch { }
+  Remove-Item -LiteralPath $script:Transcript -Force -ErrorAction SilentlyContinue
+  $script:Transcript = $null
+}
 function Write-Diagnostic([string]$Stage) {
   if (-not $DiagnosticProgram) { return }
   $ErrorActionPreference = 'Continue'
@@ -35,6 +47,7 @@ function Write-Diagnostic([string]$Stage) {
     if (Test-Path -LiteralPath $reporter) {
       $reportArgs = @($reporter, $SaamHome, 'stage', $Stage)
       if ($FirstRun) { $reportArgs += '--first-run' }
+      if ($Transcript) { $reportArgs += @('--log', $Transcript) }
       & (Join-Path $program 'runtime\node.exe') @reportArgs 2>$null | Out-Null
       return
     }
@@ -42,9 +55,10 @@ function Write-Diagnostic([string]$Stage) {
 }
 
 function Stop-WithMessage([string]$Message) {
-  Write-Diagnostic 'failed'
   Write-Host ''
   Write-Host $Message -ForegroundColor Red
+  Write-Diagnostic 'failed'
+  Stop-InstallerTranscript
   exit 1
 }
 

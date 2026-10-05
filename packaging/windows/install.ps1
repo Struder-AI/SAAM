@@ -8,7 +8,7 @@
 #   powershell ... -File <this file> -WaitPid <pid> -Workspace <dir> -WorkspaceToken <token>
 # when a running SAAM updates itself from a home tmp workspace: this claims the
 # workspace, waits for that SAAM to exit, installs and starts the new SAAM.
-# Either way it reports fixed diagnostic stages. Only a home permission failure
+# Either way it reports each stage with its output. Only a home permission failure
 # requests native authorization; the rest runs as the original user.
 param([int]$WaitPid = 0, [switch]$NoLaunch, [switch]$PrepareHomeOnly,
   [string]$PreparationHome, [string]$PreparationReceipt, [string]$Workspace, [string]$WorkspaceToken)
@@ -101,7 +101,8 @@ $updating = $WaitPid -gt 0
 # Installation stages are first-run evidence until SAAM starts and owns it.
 $DiagnosticProgram = $SaamRoot
 $FirstRun = $true
-trap { Write-Diagnostic 'failed'; break }
+Start-InstallerTranscript
+trap { Write-Host $_.Exception.Message -ForegroundColor Red; Write-Diagnostic 'failed'; Stop-InstallerTranscript; break }
 
 # The installer, not its launcher, owns an update's workspace while it reads it.
 function Set-WorkspaceOwner([string]$Action) {
@@ -191,7 +192,7 @@ if ($updating) {
     Stop-WithMessage "SAAM (process $WaitPid) did not exit within 60 seconds; the update to $version was not installed."
   }
 }
-Write-Host "Installing SAAM $version for $env:USERNAME into $SaamRoot."
+Write-Host "Installing SAAM $version into $SaamRoot."
 # The SAAM being updated has exited, so this refuses only another running SAAM.
 Assert-SaamStopped 'run "Install SAAM.cmd"'
 
@@ -324,4 +325,5 @@ if (-not $NoLaunch) {
     Start-Process -FilePath $wscript -ArgumentList $launcher -WorkingDirectory $env:USERPROFILE -WindowStyle Hidden
   }
 }
+Stop-InstallerTranscript
 exit 0

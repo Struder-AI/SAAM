@@ -5,7 +5,7 @@
 # app.tar sits next to app/. A running SAAM updating itself uses the same path:
 #   bash .../install.sh --wait-pid <pid> --workspace <dir> --workspace-token <token>
 # from a home tmp workspace: it claims the workspace, waits for that SAAM to
-# exit and starts the new SAAM. Either way it reports fixed diagnostic stages.
+# exit and starts the new SAAM. Either way it reports each stage with its output.
 # Only a home permission failure requests native authorization; the rest runs
 # as the original user.
 #
@@ -17,21 +17,23 @@
 # Local data and state persist in ~/SAAM; legacy sources are preserved.
 set -Eeuo pipefail
 
-# main reports fixed stages (never paths, names or error text) through the
-# first of these SAAM programs that has packaging/installer-report.mjs;
-# installation stages are first-run evidence until SAAM starts and owns it.
+# main reports each stage with its output so far (its transcript; diagnostics
+# scrub paths, URLs and credentials) through the first of these SAAM programs
+# that has packaging/installer-report.mjs; installation stages are first-run
+# evidence until SAAM starts and owns it.
 diagnostic_program=''
+transcript=''
 first_run='--first-run'
 report() {
   local program
   [ -n "$diagnostic_program" ] || return 0
   for program in "$diagnostic_program" "$target"; do
     [ -f "$program/packaging/installer-report.mjs" ] || continue
-    "$program/runtime/node" "$program/packaging/installer-report.mjs" "$home" stage "$1" $first_run >/dev/null 2>&1 || true
+    "$program/runtime/node" "$program/packaging/installer-report.mjs" "$home" stage "$1" $first_run ${transcript:+--log "$transcript"} >/dev/null 2>&1 || true
     return 0
   done
 }
-fail() { report failed; printf '\n%s\n' "$1" >&2; exit 1; }
+fail() { printf '\n%s\n' "$1" >&2; report failed; exit 1; }
 # The installer, not its launcher, owns an update's workspace while it reads it.
 workspace_owner() {
   [ -z "$workspace" ] || "$target/runtime/node" "$target/packaging/installer-report.mjs" "$home" "$1" "$workspace" "$workspace_token" "$$" >/dev/null 2>&1 || true
@@ -213,6 +215,10 @@ main() {
     esac
     shift 2 || fail "Give $1 a value."
   done
+  # Everything the installer says also goes to its transcript, which each stage report carries.
+  transcript="$(mktemp "${TMPDIR:-/tmp/}saam-install.XXXXXX")"
+  trap 'rm -f "$transcript"' EXIT
+  exec > >(tee -a "$transcript") 2>&1
   [ "$(id -u)" -ne 0 ] || fail 'Launch the installer normally, without sudo. It requests native authorization itself only if home preparation needs it; client registration must use your normal account.'
   here="$(cd "$(dirname "$0")" && pwd)"
   home="$(data_folder)"
@@ -267,7 +273,7 @@ main() {
       sleep 1; waited=$((waited + 1))
     done
   fi
-  echo "Installing SAAM ${version:-(unknown version)} for $(id -un) into $target."
+  echo "Installing SAAM ${version:-(unknown version)} into $target."
   # The SAAM being updated has exited, so this refuses only another running SAAM.
   if saam_running; then fail 'SAAM is running. Choose Quit in Studio or the SAAM menu, then run install.sh again.'; fi
   ensure_home "$home" "$here/install.sh"
