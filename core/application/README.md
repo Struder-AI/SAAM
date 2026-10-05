@@ -24,7 +24,7 @@ Naming an available open bundle selects its window; ambiguous populated windows 
 It cancels the previous chat's unfinished requests and rejects its later writes. Studio-first requests survive initial attachment; elapsed time or missing connection never grants capture.
 
 Connect says “Mention SAAM in your chat client.” Installed guidance handles attachment. `repair_client_setup` repairs registration; existing clients may need restarting.
-The consented release service observes operations and Studio/workspace events once; `saam diagnostics` waits for sends and returns the last receipt.
+The consented release service observes operations, Studio/workspace events and installer stages once; offline, only first-run evidence and the latest network issue wait in `tmp/`. `saam diagnostics` waits for sends and returns the last receipt.
 [The service](../../packaging/release-service.mjs) owns consent/redaction; Bundle owns revisions, confirmation and exact-byte delivery.
 
 ## Local agent notes
