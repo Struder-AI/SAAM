@@ -15,9 +15,13 @@ function connect(){
   // Changes can be missed while the stream is down; a restarted server also
   // rejects this token. Either way the page must check its revision.
   const changed=open=>dispatchEvent(new CustomEvent('saam-viewer-connection',{detail:{open}}));
-  viewer.addEventListener('error',()=>{stream.connected=false;changed(false);});
+  // A browser retries a dropped stream itself but abandons it (readyState 2,
+  // CLOSED) after any other answer, such as the window's 503 while its runtime
+  // restarts. Retry at the browser's pace so this page still learns of the new
+  // code and stays counted as the window's viewer instead of a new window opening.
+  viewer.addEventListener('error',()=>{stream.connected=false;changed(false);if(viewer.readyState===2)setTimeout(()=>{if(stream.events===viewer)connect();},3000);});
   viewer.addEventListener('open',()=>{stream.connected=true;changed(true);});
 }
 connect();
-addEventListener('pagehide',()=>{stream.connected=false;stream.events?.close();});
+addEventListener('pagehide',()=>{stream.connected=false;stream.events?.close();stream.events=null;});
 addEventListener('pageshow',event=>{if(event.persisted)connect();});
