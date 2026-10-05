@@ -62,7 +62,7 @@ test('intersect reports sections and tops of a supplied geometry in its own coor
 test('combine drills a print, which reopens, generates, and answers intersect',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-boolean-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   const bundle=join(dir,'print'),plan=defaults();plan.geometry=box;
-  await initBundle(bundle,plan);let state=await loadBundle(bundle,{program:false});
+  await initBundle(bundle,plan,{machineId:'ultimaker-s5'});let state=await loadBundle(bundle,{program:false});
   await combineGeometry(bundle,{operation:'difference',operand:cylinder(10,10,4,-1,6)},{expectedRevision:state.revision});
   state=await loadBundle(bundle,{program:false});
   assert.equal(state.plan.geometry.shape,'boolean');assert.equal(state.geometry.nativeFile,'model.mesh.json');assert.ok(state.geometry.faces.length>0);

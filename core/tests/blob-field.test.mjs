@@ -68,7 +68,7 @@ test('requests default the threshold and sampling and store them explicitly',asy
 test('blob field lifecycle slices, reopens, delivers exact bytes and invalidates changed points',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-blob-field-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   const request={points:[blob([0,0,1],8),blob([5,0,1],6)],edgeMm:0.5};
-  let state=await createBlobFieldBundle(dir,request);
+  let state=await createBlobFieldBundle(dir,request,{machineId:'ultimaker-s5'});
   assert.deepEqual(state.plan.geometry.field.points,request.points);assert.equal(state.geometry.nativeFile,'model.mesh.json');
   const native=await createGeometry(state.plan.geometry),fake=structuredClone(native.descriptor);fake.vertices[0][0]+=1;
   await assert.rejects(verifyGeometry(native.bytes,fake),/display\/identity/);

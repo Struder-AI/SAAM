@@ -134,7 +134,7 @@ test('conditional state returns approval metadata while keeping the displayed so
   const shownResponse=await fetch(url+'/api/state'),shown=await shownResponse.json(),shownTag=shownResponse.headers.get('etag');
   assert.ok(shownTag);
   await run(()=>bundle.approve(dir,{actor:'SYNTHETIC metadata fixture',revision:shown.revision,program:'source'}));
-  await bundle.deliver(dir);
+  await run(()=>bundle.deliver(dir));
   const changedResponse=await fetch(url+'/api/state',{headers:{'If-None-Match':shownTag}}),changed=await changedResponse.json();
   assert.equal(changedResponse.status,200);assert.equal(changed.presentationFingerprint,shown.presentationFingerprint);
   assert.equal(changed.exportHash,shown.exportHash);assert.equal(changed.toolpathApproved,true);assert.notEqual(changed.revision,shown.revision);

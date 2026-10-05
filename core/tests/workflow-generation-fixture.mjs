@@ -13,7 +13,7 @@ export function generationWorkflow(events=[],onGenerate=()=>{}){
     verifyGeometry:async()=>{},
     async generatePath(plan){
       events.push('generate');onGenerate();await generateHook?.();
-      return {schema:'saampath/1',initialPosition:[...machine.tools[plan.setup.tool].startupXY,machine.startup.zAfterStartupMm],
+      return {schema:'saampath/1',completion:{contract:'saam-neutral-motion/1'},initialPosition:[...machine.tools[plan.setup.tool].startupXY,machine.startup.zAfterStartupMm],
         summary:{travel:{totalMm:1},nonplanarLimit:null},actions:[
           {kind:'move',phase:'planar',layer:0,to:[100,100,1],speedMmS:10,volumeMm3:0},
           {kind:'move',phase:'planar',layer:0,to:[101,100,1],speedMmS:10,volumeMm3:.04}]};
@@ -25,7 +25,7 @@ export async function generationFixture(){
   const directory=await mkdtemp(join(tmpdir(),'saam-generation-stages-')),events=[];
   let generateCount=0;
   const workflow=generationWorkflow(events,()=>generateCount++),api=workflow.api;
-  await api.initBundle(directory,defaults(loadMachine()));
+  await api.initBundle(directory,{...defaults(loadMachine()),geometry:{shape:'fixture'}},{machineId:'ultimaker-s5'});
   const read=name=>readFile(join(directory,name),'utf8');
   const options={onProgress:p=>events.push(p.stage),beforeCommit:()=>events.push('commit')};
   return {directory,api,events,options,read,get generateCount(){return generateCount;},set generateHook(hook){workflow.generateHook=hook;},

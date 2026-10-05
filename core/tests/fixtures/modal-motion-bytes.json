@@ -1,5 +1,5 @@
 {
-  "provenance": "Captured from the existing shared exporter before the 2026-09-11 formatting optimization. Contains writer edge cases as well as machine moves; use round-trip integration tests for complete machine programs.",
+  "provenance": "Captured from the existing shared exporter before the 2026-09-11 formatting optimization. Contains writer edge cases as well as machine moves; use round-trip integration tests for complete machine programs. Re-captured 2026-10-05: the writer no longer limits feed by maxFlowMm3S (owner decision).",
   "plan": {
     "setup": {
       "filamentMm": 1.75
@@ -191,7 +191,7 @@
       ";SAAM_PHASE:planar",
       ";LAYER:0",
       "G1 X-0.00001 Y2.12346 Z0.2 E0 F0.6",
-      "G1 X0.05001 E0.00167 F672.442",
+      "G1 X0.05001 E0.00167 F2400",
       "G0 X1.23456 F3000",
       "G0 Y3.12346",
       "G1 E-0.79833 F1500",
@@ -215,7 +215,7 @@
       ";SAAM_PHASE:planar",
       ";LAYER:0",
       "G1 X-0.00001 Y2.12346 Z0.2 E0 F0.6",
-      "G1 X0.05001 E0.00167 F672.442",
+      "G1 X0.05001 E0.00167 F2400",
       "G0 X1.23456 F3000",
       "G0 Y3.12346",
       "G1 E-0.80001 F1500",

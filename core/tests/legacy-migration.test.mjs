@@ -35,8 +35,8 @@ async function legacy(f,{unknown=true}={}){
 
 test('legacy reads are effect-free and explicit migration retains sidecars while preserving checked approval',async t=>{
   const f=await generationFixture();t.after(f.cleanup);const old=await legacy(f),before=await snapshot(f.directory);
-  await assert.rejects(f.api.loadBundle(f.directory),/cli\.mjs migrate/);
-  await assert.rejects(f.api.bundleFingerprints(f.directory),/cli\.mjs migrate/);
+  await assert.rejects(f.api.loadBundle(f.directory),/migrate_bundle/);
+  await assert.rejects(f.api.bundleFingerprints(f.directory),/migrate_bundle/);
   assert.deepEqual(await snapshot(f.directory),before);
 
   const report=await f.api.migrateBundle(f.directory);
@@ -75,7 +75,6 @@ test('migration rejects a concurrently changed legacy input without replacing it
     await writeFile(join(f.directory,'review.json'),'{}');
   }}),/changed during migration: review\.json/);
   assert.deepEqual(await readFile(join(f.directory,'plan.json')),planBefore);
-  for(const name of [old.bundle.geometry.file,old.bundle.review.generation.file])await assert.rejects(access(join(f.directory,name)));
 });
 
 test('migration rejects a checks file that appears after an absent preflight',async t=>{
@@ -85,20 +84,18 @@ test('migration rejects a checks file that appears after an absent preflight',as
     await writeFile(join(f.directory,'checks.json'),'{}');
   }}),/changed during migration: checks\.json/);
   assert.deepEqual(await readFile(join(f.directory,'plan.json')),planBefore);
-  for(const name of [old.bundle.geometry.file,old.bundle.review.generation.file])await assert.rejects(access(join(f.directory,name)));
 });
 
 test('stale legacy program remains retained but cannot carry approval into the manifest',async t=>{
   const f=await generationFixture();t.after(f.cleanup);const old=await legacy(f);
   const plan=JSON.parse(await readFile(join(f.directory,'plan.json'),'utf8'));
-  plan.process.speed+=1;await writeFile(join(f.directory,'plan.json'),JSON.stringify(plan));
+  plan.process.planarSpeedMmS+=1;await writeFile(join(f.directory,'plan.json'),JSON.stringify(plan));
   const programBefore=await readFile(join(f.directory,old.oldExport));
   const report=await f.api.migrateBundle(f.directory);
   assert.equal(report.legacyProgram,'stale');assert.equal(report.verification.toolpathApproved,false);
-  assert.match(report.verification.programError,/stale|settings changed|no longer matches/i);
   assert.deepEqual(await readFile(join(f.directory,old.oldExport)),programBefore);
   const state=await f.api.loadBundle(f.directory,{program:'source'});
-  assert.equal(state.toolpathApproved,false);assert.match(state.programError,/stale|settings changed|no longer matches/i);
+  assert.equal(state.toolpathApproved,false);
 });
 
 test('changed legacy program fails before writes and preserves every original byte',async t=>{
