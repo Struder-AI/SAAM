@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-05 — Tour starts in a reused window; visible dev instance
+
+- Regression from window reuse (d90d5935): `start_tour` reaching the chat's own window failed with "A bundle operation is running", because `assertStudioIdle` counted the caller's own `start_tour` as other work. The viewing chat's own operations are now excluded when it reuses its own window; other chats' work and all job checks still block.
+- `scripts/dev-instance.mjs --visible`: the development instance's orchestrator opens Studio in the default browser (still its own home, no tray); `SAAM_DEV_INSTANCE` replaces `SAAM_BACKGROUND` as the signal for the dev-instance source command, which carries `--visible`.
+- Verified on a visible dev instance (own home; orchestrator and runtime both this checkout, contract 1): start-tour failed twice before the fix, opened the tour in the same window after `reload`. studio-open 7/7, studio-tour-lifetime 1/1, studio-lifetime 6/6. Not yet observed: the fresh-home first call (expected same cause; window stress test).
+
 ## 2026-10-05 — Runtime model implemented
 
 - Owner-confirmed model (worker): every `saam` result names its runtime and `maker_onboarding` states it; prints record the runtime that last wrote them (`.bundle-runtime.json`; no record = installed), other runtimes are refused before any effect (`BUNDLE_OTHER_RUNTIME`, naming the owner's command and `capture_bundle`), `capture_bundle` is the explicit move, Studio moves a window to its print's runtime. No automatic restarts: `reload-runtime` / `dev-instance reload`, Studio says when newer code is available, per-command `git diff` gone (light command ~0.42 s). Contract in `package.json` `saam.contract`, one `contractProblem()` in four places before routing or spawning. Source runtimes forward no relay diagnostics. Quit/Update/Stop/Reload list jobs by runtime, activity, target and duration (tray dialogs). Idle viewed windows reused across chats and runtimes; dispatched or reconnecting windows count as present for 60 s. Fixed a chat's second new bundle failing with "The Studio changed before bundle creation".
