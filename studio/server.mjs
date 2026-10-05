@@ -653,6 +653,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,resolveBundle=
   });
   server.setStartAt=startAt=>chat.current.tour.setStartAt(startAt);
   server.currentPrint=()=>dir;
+  server.inTour=async()=>{const guide=await chat.current.tour.info();return Boolean(guide.active&&dir&&guide.directory===dir);};
   server.setGenerationActivity=({generationHash,active})=>{
     if(active)externalGeneration={generationHash,directory:dir};
     else if(externalGeneration?.generationHash===generationHash)externalGeneration=null;

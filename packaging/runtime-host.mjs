@@ -64,7 +64,8 @@ async function start(args){
       registerStudio:async window=>request('window',window),
       showStudio:async url=>request('show',{url}),
       releaseBundle:async bundleId=>request('release-bundle',{bundleId}),
-      routeWindow:async args=>request('route',args)}});
+      routeWindow:async args=>request('route',args),
+      adoptWindow:async args=>request('adopt',args)}});
   host.runtime.observeOperations(event=>send({type:'operation',event}));
   host.runtime.observeEvents(event=>send({type:'event',event}));
   await host.runtime.restoreStudios(args.windows??[]);

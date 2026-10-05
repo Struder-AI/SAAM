@@ -127,6 +127,12 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     if(application.showStudio)return application.showStudio(url);
     return openBrowser(url);
   }
+  // A window opened for a viewer counts as present while the browser starts, so no second one opens.
+  const present=session=>session.server.viewerCount()>0||Date.now()-(session.shownAt??0)<60000;
+  async function show(session,url=session.url){
+    if(!autoOpen||session.server.viewerCount())return false;
+    const opened=await showStudio(url);if(opened)session.shownAt=Date.now();return opened;
+  }
   let resourceClient;
   const getResourceClient=async()=>resourceClient??=loadExtensionEntry('thingi10k','resource-client').then(create=>create());
   const meshLibrary=thingi10kClient??{
@@ -239,6 +245,21 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       for(const [id,instance] of preferredStudioByPrint)if(instance===studioInstanceId)preferredStudioByPrint.delete(id);
     });
     return session;
+  }
+  // The window this chat's next view uses, in order: its own window someone is viewing; an idle
+  // window someone is viewing, here or (through the orchestrator, preferring this chat's previous
+  // window) in another runtime; its own window; a new one. dir: the saved print to show, if any.
+  async function viewStudio(dir){
+    const own=[...studioSessions.values()].filter(session=>session.server.listening&&!session.server.creationTarget());
+    const session=own.filter(present).at(-1)??await adoptWindow(chats.get(ownerId));
+    const moved=session?null:await application.adoptWindow?.({chatId:ownerId});
+    // The moved window's viewer is reconnecting to it.
+    if(moved)return Object.assign(await startStudio(dir,moved),{shownAt:Date.now()});
+    const reused=session??own.at(-1);
+    if(!reused)return startStudio(dir);
+    assertStudioIdle(reused);
+    if(dir&&reused.server.currentPrint()!==dir)await reused.server.openPrint(dir);
+    return reused;
   }
   // Bundle/workspace queues preserve dependent command order; immediate tools bypass them.
   const operations=new Map();
@@ -386,11 +407,8 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     const existing=saved&&!migrating?await associatedStudio(bundleId,studioInstanceId,requestIds):null;
     if(retained){const view={dir,server:retained.server,url:retained.url,pending:true,migrating,opening:null,stopWatching:null,browserOpenRequested:false};view.stopWatching=watchStudioChanges(libraryRoot,()=>{void revealSavedBundle(view,true).catch(()=>{});});return view;}
     if(existing){const session=allStudios.get(existing.server.agentSession().instanceId);return {...existing,url:session.url,pending:false,browserOpenRequested:false};}
-    const reusable=[...studioSessions.values()].filter(session=>session.server.listening&&!session.server.creationTarget()).at(-1);
-    if(reusable)assertStudioIdle(reusable);
-    const studio=reusable??await startStudio(saved&&!migrating?dir:null);
-    if(reusable&&saved&&!migrating)await studio.server.openPrint(dir);
-    const browserOpenRequested=autoOpen?await showStudio(studio.url):false;
+    const studio=await viewStudio(saved&&!migrating?dir:null);
+    const browserOpenRequested=await show(studio);
     const view={dir,server:studio.server,url:studio.url,pending:!saved||migrating,browserOpenRequested,migrating,opening:null,stopWatching:null};
     if(view.pending)view.stopWatching=watchStudioChanges(libraryRoot,()=>{void revealSavedBundle(view,true).catch(()=>{});});
     return view;
@@ -856,13 +874,12 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   operation('start_tour','Start fresh tour copies in this application, attach this chat and return the first Studio screen plus participation guidance.',{startAtLayer:z.number().int().min(1).optional()},false);
   async function startTour({startAtLayer}){
       await requireTourOwner();
-      const existing=[...studioSessions.values()].find(candidate=>!candidate.server.currentPrint());
-      const studio=existing??await startStudio(null);
+      const studio=await viewStudio(null);
       const prepared=await studio.server.startTour();
       const directory=studio.server.currentPrint();
       const bundleId=agentRequests.printId(directory);
       if(startAtLayer)await studio.server.setStartAt({layer:startAtLayer});
-      const browserOpenRequested=autoOpen?await showStudio(studio.url):false;
+      const browserOpenRequested=await show(studio);
       return {bundleId,studioInstanceId:studio.server.agentSession().instanceId,url:studio.url,browserOpenRequested,tour:agentTour(await tour.info()),
         notes:await readLocalAgentNotes(paths),sources:await onboardingSources(root,{}),participation:await readManual(root,'examples/prints/README.md#maker-agent-participation',{})};
     }
@@ -892,16 +909,13 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     const chosen=studioInstanceId?studioSessions.get(studioInstanceId):existing;
     if(studioInstanceId&&!chosen)throw Error('That Studio instance is not attached to this chat.');
     if(existing&&chosen&&existing!==chosen)throw Error('This bundle already has a Studio instance. Use that window.');
-    const empty=[...studioSessions.values()].find(candidate=>!candidate.server.currentPrint());
-    const reusable=[...studioSessions.values()].filter(candidate=>candidate.server.listening).at(-1);
-    if(!chosen&&!empty&&reusable)assertStudioIdle(reusable);
-    const session=chosen??empty??reusable??await startStudio(dir);
+    const session=chosen??await viewStudio(dir);
     await session.server.openPrint(dir);
     preferredStudioByPrint.set(bundleId,session.server.agentSession().instanceId);
     if(startAt)await session.server.setStartAt(startAt);
     const url=session.url+viewPath;
     // An open viewer is rebound in place; only a Studio nobody is viewing opens a tab.
-    const browserOpenRequested = autoOpen && !session.server.viewerCount() ? await showStudio(url) : false;
+    const browserOpenRequested = await show(session,url);
     return { ...summary(bundleId, state),studioInstanceId:session.server.agentSession().instanceId, url, browserOpenRequested };
   }
   operation('close_studio_session','Close one Studio instance owned by this agent without affecting other instances or the shared print bundle.',{studioInstanceId:z.string()},false);
@@ -1023,7 +1037,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   async function openStudio(){
     if(app.closing)throw Error('The SAAM application is closing.');
     const session=[...studioSessions.values()].filter(({server})=>server.listening).at(-1)??await startStudio(null);
-    const browserOpenRequested=autoOpen&&!session.server.viewerCount()?await showStudio(session.url):false;
+    const browserOpenRequested=await show(session);
     return {studioInstanceId:session.server.agentSession().instanceId,url:session.url,browserOpenRequested};
   }
   async function showWorkspaceBundles(workspace,event){
@@ -1104,6 +1118,23 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     }
     connectedChats.add(chat.id);return chat;
   }
+  // Idle: no work, no tour and no unfinished request in the window; another chat may then take it.
+  async function idleWindow(session){
+    const instanceId=session.server.agentSession().instanceId;
+    try{assertStudioIdle(session);}catch{return false;}
+    if(transferringStudios.has(instanceId)||await session.server.inTour())return false;
+    const requests=await chats.get(session.ownerId)?.requests.query()??[];
+    return !requests.some(request=>request.studioInstanceId===instanceId&&['queued','working','waiting'].includes(request.status));
+  }
+  async function adoptWindow(chat){
+    const candidates=[...allStudios.values()].filter(session=>session.ownerId!==chat.id&&session.server.listening&&!session.server.creationTarget()&&present(session))
+      .sort((a,b)=>(b.ownerId===lobby.id)-(a.ownerId===lobby.id));
+    for(const session of candidates){
+      if(!await idleWindow(session))continue;
+      try{await transferStudio(chat,session,session.ownerId!==lobby.id);return session;}catch{/* It became busy; try the next. */}
+    }
+    return null;
+  }
   // ownOperations: Studio operations of the caller itself, such as the open request that moves a window.
   function assertStudioIdle(session,ownOperations=0){
     const instanceId=session.server.agentSession().instanceId,directory=session.server.currentPrint();
@@ -1182,7 +1213,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     const session=newInstance?await lobby.startStudio(null):studioInstanceId?allStudios.get(studioInstanceId):[...allStudios.values()].filter(({server})=>server.listening).at(-1);
     if(studioInstanceId&&!session?.server.listening)throw Error('That Studio is no longer running.');
     if(!session)return lobby.openStudio();
-    const browserOpenRequested=autoOpen?await showStudio(session.url):false;
+    const browserOpenRequested=await show(session);
     return {studioInstanceId:session.server.agentSession().instanceId,url:session.url,browserOpenRequested};
   }
   function notifyStopping(reason){
@@ -1221,9 +1252,11 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   }
   // Closes a Studio whose window moves to another runtime. A routed window was
   // checked by its own open request, which may still be finishing.
-  async function releaseStudio(instanceId,{routed=false}={}){
+  // idle: another runtime's chat adopts the window only if nobody is working in it.
+  async function releaseStudio(instanceId,{routed=false,idle=false}={}){
     const session=allStudios.get(instanceId);
     if(!session)throw Error('That Studio is no longer running.');
+    if(idle&&!await idleWindow(session))throw Error('That Studio window is in use.');
     if(!routed)assertStudioIdle(session);
     await cancelOldRequests(session);await session.server.shutdown();
     return {completed:true};

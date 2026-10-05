@@ -45,10 +45,23 @@ export async function createStudioWindows(stateRoot,{autoOpen=true}={}){
     await persist();
   }
   const record=instanceId=>{const {server,upstream,upstreamUrl,viewers,...saved}=windows.get(instanceId)??{};if(!saved.instanceId)throw Error('That Studio window is closed.');return saved;};
-  function move(instanceId,runtimeId){const window=windows.get(instanceId);window.runtimeId=runtimeId;}
-  function detach(runtimeId){for(const window of windows.values())if(window.runtimeId===runtimeId)window.upstream=null;}
+  // A viewer of a window whose Studio is replaced reconnects to it: the window stays present meanwhile.
+  const reconnecting=window=>{if(window.viewers>0)window.dispatchedAt=Date.now();};
+  function move(instanceId,runtimeId){const window=windows.get(instanceId);reconnecting(window);window.runtimeId=runtimeId;}
+  function detach(runtimeId){for(const window of windows.values())if(window.runtimeId===runtimeId){reconnecting(window);window.upstream=null;}}
   function restore(runtimeId){return [...windows.values()].filter(window=>window.runtimeId===runtimeId&&!window.closed).map(({server,upstream,upstreamUrl,viewers,...record})=>record);}
-  async function show(url){const target=new URL(url),window=[...windows.values()].find(item=>String(item.port)===target.port);if(target.protocol!=='http:'||target.hostname!=='127.0.0.1')throw Error('Runtime windows must use local SAAM addresses.');if(!autoOpen||window?.viewers)return false;return openBrowser(url);}
+  // A window opened for a viewer counts as present while the browser starts, so no second tab opens.
+  const present=window=>!window.closed&&Boolean(window.upstream)&&(window.viewers>0||Date.now()-(window.dispatchedAt??0)<60000);
+  async function show(url){
+    const target=new URL(url),window=[...windows.values()].find(item=>String(item.port)===target.port);
+    if(target.protocol!=='http:'||target.hostname!=='127.0.0.1')throw Error('Runtime windows must use local SAAM addresses.');
+    if(!autoOpen||window&&present(window))return false;
+    // Marked before dispatch so a concurrent request waits for this tab; cleared if none opened.
+    if(window)window.dispatchedAt=Date.now();
+    const opened=await openBrowser(url).catch(()=>false);
+    if(!opened&&window)window.dispatchedAt=0;
+    return opened;
+  }
   async function close(){await writes.tail.catch(()=>{});await Promise.all([...windows.values()].map(async window=>{if(window.server.listening){const done=new Promise(resolve=>window.server.close(resolve));window.server.closeAllConnections();await done;}}));windows.clear();}
-  return {register,sync,detach,restore,show,close,record,move,runtimeFor:instanceId=>windows.get(instanceId)?.runtimeId};
+  return {register,sync,detach,restore,show,close,record,move,present:()=>[...windows.values()].filter(present),runtimeFor:instanceId=>windows.get(instanceId)?.runtimeId};
 }

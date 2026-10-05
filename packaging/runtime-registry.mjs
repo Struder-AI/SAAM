@@ -32,6 +32,7 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     if(message.type==='service')return service(message.args);
     if(message.type==='release-bundle')return releaseBundle(runtime,message.args.bundleId);
     if(message.type==='route')return route(runtime,message.args);
+    if(message.type==='adopt')return adopt(runtime,message.args);
     throw Error('Unknown runtime request.');
   }
   function rpc(runtime,type,args={}){
@@ -96,6 +97,20 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     if((await sync(target)).studios.some(studio=>studio.printId===printId))throw Object.assign(Error('This print is open in another Studio window of '+target.label+'. Switch to that window.'),{code:'BUNDLE_INSTANCE_BUSY'});
     setImmediate(()=>void moveWindow(caller,target,instanceId,{printId,routed:true}).catch(error=>console.error('Studio window move failed: '+error.message)));
     return {routed:true,runtime:{id:target.id,label:target.label}};
+  }
+  // A chat in caller needs a view: take an idle window someone is viewing in another runtime,
+  // this chat's previous window first. The caller reopens it under the same identity.
+  async function adopt(caller,{chatId}){
+    const candidates=windows.present().filter(window=>window.runtimeId!==caller.id&&runtimes.has(window.runtimeId))
+      .sort((a,b)=>(b.attachment?.ownerId===chatId)-(a.attachment?.ownerId===chatId));
+    for(const window of candidates){
+      const from=runtimes.get(window.runtimeId),{instanceId,sessionToken}=windows.record(window.instanceId);
+      windows.move(instanceId,caller.id);
+      try{await rpc(from,'release',{studioInstanceId:instanceId,idle:true});}
+      catch{windows.move(instanceId,from.id);continue;}
+      await sync(from);return {instanceId,sessionToken};
+    }
+    return null;
   }
   // The window keeps its address, credentials and chat; its Studio reopens in the target runtime.
   // A target that cannot reopen it gives the window back.
