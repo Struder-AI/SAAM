@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-05 — SAAMpath phase colours
+
+- `core/print/phase-colours.mjs` holds one default palette covering every phase the generator and exporters label (plus travel, deposition fallback and modulated), validates choices and resolves print > local > default. Bundles store a display-only `phaseColours` set by `set_phase_colours` (approval and outputs unchanged); the local preference is `<home>/local/phase-colours.json`, read by the notes owner. Studio state returns `phasePalette`, used by lines, material, partial moves, legend, samples and injection markers (TOOLPATH_COLORS and skinPhase removed). Filament colours still win on multi-material prints.
+- Worker: defaults validated numerically on Studio's background (contrast ≥ 3:1, protan/deutan ΔE ≥ 8.1); every move of six reference programs plus S5 maps to an explicit entry; dev-instance checks of default, local, print+local, invalid local, unknown phase and clear; colour edits leave generation and export identity unchanged. studio-material, studio-open pass; workflow keeps its owner items. Not looked at on screen yet. Docs 376 → 376 lines. Queued for after the restart: certified roof bounds for Boolean roofs so standard supports get the slab-under-skin fix (owner).
+
 ## 2026-10-05 — Slab under skin no longer false-rejects; fixtures; line width and layer limits decided
 
 - Roof chart prisms are bounded by a certified roof height range (`heightReferenceRange`): for a mesh the lowest outward-upward triangle meeting the region, for a spline the highest affine patch proven to cover it; Boolean and uncertified roofs keep the solid's bounds. A base slab under a draped skin no longer false-rejects; a slab reaching into the skin's height still rejects as uncertain (spline and mesh repro). DENSO cladding-prerequisite fixture rebuilt on the current work-graph API; regional-workflow edits after delivery use the current revision through the open Studio. Worker, targeted files singly: denso 7/7, regional-workflow, dobot, printer-profiles, studio-material, bambu, boolean-solid, blob-field, demos pass; workflow keeps 2 owner items.
