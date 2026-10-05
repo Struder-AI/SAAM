@@ -5,6 +5,7 @@ import {createHash,randomUUID} from 'node:crypto';
 import {replaceFile} from '../file-write.mjs';
 import {requireBundleInstance} from './studio-ownership.mjs';
 import {withBundleWriteLock} from './bundle-lock.mjs';
+import {recordBundleRuntime} from './bundle-runtime.mjs';
 
 export const digest=value=>createHash('sha256').update(typeof value==='string'||value instanceof Uint8Array?value:JSON.stringify(value)).digest('hex');
 export async function storeRecord(dir,value){
@@ -44,6 +45,7 @@ export async function commitManifest(dir,document,expected){
     if(expected===null?current!==null:!current||revisionOf(current)!==expected)throw Error('This revision is stale. Reload before changing the print.');
     const next={...document,bundle:{...document.bundle,revision:randomUUID()}};
     await replaceFile(resolve(dir,'plan.json'),JSON.stringify(next)+'\n');
+    await recordBundleRuntime(dir);
     return next;
   });
 }
@@ -58,6 +60,7 @@ export async function recordDelivery(dir,receipt){
     const next={...current,bundle:{...current.bundle,revision:randomUUID(),review:{...review,
       history:[...(review.history??[]),{event:'delivered',...receipt}]}}};
     await replaceFile(resolve(dir,'plan.json'),JSON.stringify(next)+'\n');
+    await recordBundleRuntime(dir);
     return next;
   });
 }

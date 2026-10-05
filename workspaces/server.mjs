@@ -60,7 +60,7 @@ export async function startWorkspace({extensionId,port=0,directory,appRoot,dataR
       const normalized=await definition.normalize(structuredClone(design));
       const pieces=workspacePieces(await definition.pieces(normalized));
       const id=randomUUID(),out=join(directory,'set-'+new Date().toISOString().replace(/[:.]/g,'-')+'-'+id.slice(0,6));
-      state.job={id,stage:'starting',directory:out,completed:0,total:pieces.length,bundles:[]};
+      state.job={id,stage:'starting',startedAt:Date.now(),directory:out,completed:0,total:pieces.length,bundles:[]};
       const job=state.job;
       const finish=(stage,detail)=>{
         if(state.job.id!==id||['complete','failed'].includes(state.job.stage))return;

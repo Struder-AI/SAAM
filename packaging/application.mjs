@@ -5,7 +5,7 @@ import {randomBytes} from 'node:crypto';
 import {resolve} from 'node:path';
 import {userInfo} from 'node:os';
 import {fileURLToPath} from 'node:url';
-import {createRuntimeRegistry} from './runtime-registry.mjs';
+import {createRuntimeRegistry,describeJobs} from './runtime-registry.mjs';
 import {migrateRuntimeState,restoreRuntimeState} from './runtime-state.mjs';
 import {homePaths} from '../core/application/home.mjs';
 import {migrateLocalData,restoreLocalData} from '../core/application/home-layout.mjs';
@@ -57,7 +57,7 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
   const later=()=>{setTimeout(()=>void stop().catch(error=>report({kind:'application-stop-failed',error:error.message})),250);};
   async function quit(force=false){
     const jobs=await state.runtime.runningJobs();
-    if(jobs.length&&!force)return {confirmationRequired:true,jobs,message:'SAAM has running jobs. Quit and cancel them?'};
+    if(jobs.length&&!force)return {confirmationRequired:true,jobs,message:'Quitting SAAM cancels these running jobs:\n'+describeJobs(jobs)+'\nQuit anyway?'};
     await state.runtime.notifyStopping('quit');later();return {quitting:true};
   }
   async function retryClients(){return setupClients({home:paths.home});}
@@ -66,8 +66,10 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
     // The OS listener is the exclusive application lease, including during startup.
     state.control=createServer(async(request,response)=>{
       if(request.method!=='POST'||request.url!=='/control'||request.headers['x-saam-control']!==token||request.headers.origin){respond(response,{ok:false,error:'Invalid local control request.'},403);return;}
-      try{respond(response,await command(await jsonBody(request)));}
-      catch(error){respond(response,{ok:false,error:error.message,code:error.code??null,...(error.code==='STUDIO_TARGET_CHANGED'?{currentStudio:error.currentStudio,expectedStudio:error.expectedStudio}:{}),...(error.workRequest?{workRequest:error.workRequest}:{}),...(error.importDiagnostic?{importDiagnostic:error.importDiagnostic}:{})},400);}
+      const named=async message=>({runtime:await state.runtime?.identify(message).catch(()=>undefined)});
+      let message={};
+      try{message=await jsonBody(request);respond(response,{...await command(message),...await named(message)});}
+      catch(error){respond(response,{ok:false,error:error.message,code:error.code??null,...await named(message),...(error.code==='STUDIO_TARGET_CHANGED'?{currentStudio:error.currentStudio,expectedStudio:error.expectedStudio}:{}),...(error.workRequest?{workRequest:error.workRequest}:{}),...(error.importDiagnostic?{importDiagnostic:error.importDiagnostic}:{}),...(error.bundleRuntime?{bundleRuntime:error.bundleRuntime}:{})},400);}
     });
     try{await new Promise((done,fail)=>{state.control.once('error',fail);state.control.listen(applicationPort(paths.home),'127.0.0.1',done);});}
     catch(error){
@@ -88,7 +90,7 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
     state.services=await createReleaseService({...config,instanceId,statePath:resolve(paths.state,'release-service.json'),watchState:true,reports,
       update:config.platform&&config.updateHost?async(offered,{force=false}={})=>{
         const jobs=await state.runtime.runningJobs();
-        if(jobs.length&&!force)return {confirmationRequired:true,jobs,message:'Updating SAAM cancels running jobs.'};
+        if(jobs.length&&!force)return {confirmationRequired:true,jobs,message:'Updating SAAM cancels these running jobs:\n'+describeJobs(jobs)};
         const result=await installUpdate(offered,{...config,report:(event,options)=>report(event,options)});await state.runtime.notifyStopping('update');later();return result;
       }:null,
       quit:({force=false}={})=>quit(force)});
@@ -101,6 +103,7 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
       }
       if(message.command==='diagnostics')return {ok:true,receipt:await state.services.flushDiagnostics(),service:state.services.status()};
       if(message.command==='status')return {ok:true,pid:process.pid,instanceId,version:config.version,home:paths.home,...await state.runtime.status(),service:state.services.status()};
+      if(message.command==='reload-runtime')return {ok:true,...await state.runtime.reloadRuntime(message)};
       if(message.command==='stop-runtime')return {ok:true,...await state.runtime.stopRuntime(message)};
       if(message.command==='quit')return {ok:true,...await quit(message.force===true)};
       if(message.command==='update')return {ok:true,...await state.services.update({force:message.force===true})};

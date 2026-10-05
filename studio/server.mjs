@@ -117,7 +117,7 @@ const printFreeRoutes=new Set(['/api/open','/api/tour','/api/view-performance','
 // A null directory opens Studio with no print; the person or agent opens one later.
 // The owner supplies libraryRoot and, to remember exported setups, machineSetups;
 // localPhaseColours reads the home's phase-colour preference.
-export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColours=async()=>null,resolveBundle=bundleFor,agentOwnerId,agentRequests,studioEvents,relay,requestFolder,chatName,chatClient,instanceId=randomBytes(16).toString('hex'),sessionToken,restoring=false,runtimeId,runtimeLabel,fingerprint}) {
+export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColours=async()=>null,resolveBundle=bundleFor,agentOwnerId,agentRequests,studioEvents,relay,requestFolder,chatName,chatClient,instanceId=randomBytes(16).toString('hex'),sessionToken,restoring=false,runtimeId,runtimeLabel,fingerprint,routeStudio}) {
   const initialOwnerId=agentOwnerId??agentRequests?.ownerId??`studio:${instanceId}`;
   if(agentRequests?.ownerId&&agentRequests.ownerId!==initialOwnerId)throw Error('The request store belongs to another chat.');
   const initialRequests=agentRequests??createAgentRequests(libraryRoot,{ownerId:initialOwnerId,folder:requestFolder});
@@ -182,7 +182,12 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
     const selected=resolve(target);
     const run=editTail.then(async()=>{
       await opened;
-      if(dir&&dir!==selected)throw Error('The Studio changed before bundle creation.');
+      // A reused window leaves its print for the bundle being created.
+      if(dir&&dir!==selected){
+        if(operations.active||(await chat.current.tour.info()).active)throw Error('The Studio changed before bundle creation.');
+        if(reservation&&reservedDirectory===dir){await releaseBundleInstance(dir,reservation);reservation=null;reservedDirectory=null;}
+        discardPreparation();dir=null;opened=Promise.resolve(null);lifetime.notify('studio-update',{kind:'state',kinds:['print']});
+      }
       const previous=reservation&&reservedDirectory===selected?await bundleInstance(selected):null;
       if(previous?.token!==reservation?.token){reservation=null;reservedDirectory=null;}
       if(!reservation&&fresh){await mkdir(dirname(selected),{recursive:true});await mkdir(selected);}
@@ -601,9 +606,14 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
         else if(url.pathname==='/api/open'){
           if(progress.active)throw Error('Exit the tour to open another print.');
           const selected=await printDirectory(data.path,resolveBundle);
-          await openPrint(selected);
-          const adapter=await opened,state=(await readStableBundle(adapter,dir,{program:'source'})).state;
-          note('print-opened',{name:await printName(dir,state.plan),tour:progress.active,revision:state.revision});
+          // Another runtime's print reopens this window in that runtime.
+          const routed=await routeStudio?.(selected);
+          if(routed)note('print-opened',{runtime:routed.runtime});
+          else{
+            await openPrint(selected);
+            const adapter=await opened,state=(await readStableBundle(adapter,dir,{program:'source'})).state;
+            note('print-opened',{name:await printName(dir,state.plan),tour:progress.active,revision:state.revision});
+          }
         }
         else if(url.pathname==='/api/history'){
           if(progress.active)throw Error('Exit the tour before restoring edits.');
@@ -647,6 +657,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
   });
   server.setStartAt=startAt=>chat.current.tour.setStartAt(startAt);
   server.currentPrint=()=>dir;
+  server.inTour=async()=>{const guide=await chat.current.tour.info();return Boolean(guide.active&&dir&&guide.directory===dir);};
   server.setGenerationActivity=({generationHash,active})=>{
     if(active)externalGeneration={generationHash,directory:dir};
     else if(externalGeneration?.generationHash===generationHash)externalGeneration=null;
@@ -698,7 +709,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
     return replaceAttachment(next);
   };
   server.attachment=()=>chat.current.attached;
-  server.attachmentBusy=()=>operations.active>0||Boolean(importProgress)||['preparing','generating'].includes(generationStatus()?.status);
+  server.attachmentBusy=(ownOperations=0)=>operations.active>ownOperations||Boolean(importProgress)||['preparing','generating'].includes(generationStatus()?.status);
   let checkingGeneration=false;
   const stopWatching=watchStudioChanges(libraryRoot,kinds=>{
     const external=kinds.filter(kind=>kind!=='requests');

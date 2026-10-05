@@ -8,6 +8,7 @@ import {packZip,unpackZip} from '../export/zip.mjs';
 import {writeNewFile} from '../file-write.mjs';
 import {initBundle,loadBundle,bundleFingerprint} from './bundle.mjs';
 import {withBundleInstance,requireBundleInstance} from './studio-ownership.mjs';
+import {recordBundleRuntime} from './bundle-runtime.mjs';
 import {requiredExtensionIds} from '../path/extension-dependencies.mjs';
 import {exportExtension,importExtension,readExtension,resolveExtensions,relativeExtensionFile} from '../extensions/library.mjs';
 
@@ -222,6 +223,7 @@ export async function importBundle(packageFile,directory,options={}){
     }
     // The destination was exclusively claimed above. Copy complete bytes to
     // its volume, then publish without replacing any concurrently added file.
+    await recordBundleRuntime(target);
     const publication=resolve(target,'plan.json.publishing');
     await copyFile(resolve(staging,'plan.json'),publication,constants.COPYFILE_EXCL);
     try{await link(publication,resolve(target,'plan.json'));}
