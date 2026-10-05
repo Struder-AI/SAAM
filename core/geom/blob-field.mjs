@@ -43,16 +43,18 @@ export function blobFieldBounds(field){
   return {min,max};
 }
 
+export function validateBumpsField(input){
+  const vector=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite),positive=n=>Number.isFinite(n)&&n>0;
+  requireThat(Object.keys(input).sort().join()==='kind,originMm,periodMm,radiusMm'&&vector(input.periodMm)&&input.periodMm.every(positive)&&positive(input.radiusMm)&&vector(input.originMm),
+    'Bumps field needs positive XYZ periodMm, radiusMm and originMm.');
+  return input;
+}
+
 // Prepare finite point sources or a repeating bump lattice as a plain record
 // that evaluateBlobField samples. Finite sources use spatial buckets when their
 // integer coordinates are exactly representable.
 export function prepareBlobField(input){
-  if(input?.kind==='bumps'){
-    const vector=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite),positive=n=>Number.isFinite(n)&&n>0;
-    requireThat(Object.keys(input).sort().join()==='kind,originMm,periodMm,radiusMm'&&vector(input.periodMm)&&input.periodMm.every(positive)&&positive(input.radiusMm)&&vector(input.originMm),
-      'Bumps field needs positive XYZ periodMm, radiusMm and originMm.');
-    return {kind:'bumps',field:structuredClone(input)};
-  }
+  if(input?.kind==='bumps')return {kind:'bumps',field:structuredClone(validateBumpsField(input))};
   const field=structuredClone(validateBlobField(input)),cell=field.points.reduce((reach,p)=>Math.max(reach,p.reachMm),0);
   const spans=field.points.map(p=>({lo:p.positionMm.map(v=>Math.floor((v-p.reachMm)/cell)),hi:p.positionMm.map(v=>Math.floor((v+p.reachMm)/cell))}));
   const buckets=spans.every(({lo,hi})=>[...lo,...hi].every(Number.isSafeInteger))?new Map():null;

@@ -3,7 +3,6 @@ import {requireThat,distance2} from '../tolerance.mjs';
 // are retained; weighted isotonic regression regularizes only polar angle.
 // A fixed arc-length quadrature gives section vertex splits no new fit weight.
 
-import {prepareSleeveContact} from './sleeve-contact.mjs';
 const TAU=2*Math.PI;
 
 export function regularizeDirectionalContour(curve,anchor,{toleranceMm,samples=8192,logRadiusSlopeTarget=256}={}){
@@ -109,15 +108,4 @@ function verifyDirectionalContour({loop,angularAdjustmentMm,movedVertices},sampl
     maxChordLogRadiusSlope=Math.max(maxChordLogRadiusSlope,Math.abs((a[0]*e[0]+a[1]*e[1])/denominator),Math.abs((b[0]*e[0]+b[1]*e[1])/denominator));
   }
   return {samples:loop.length,samplingErrorMm,angularAdjustmentMm,correspondenceErrorMm,movedVertices,minimumAngleStep:step,logRadiusSlopeTarget,maxChordLogRadiusSlope};
-}
-
-export function prepareRegularizedSleeveContact({curveAt,anchorAt,side='inside',toleranceMm=.05,samples=8192}){
-  const report={regularizedSections:0,maxSamplingErrorMm:0,maxAngularAdjustmentMm:0,maxCorrespondenceErrorMm:0};
-  const contact=prepareSleeveContact({side,anchorAt,loopsAt:z=>{
-    const result=regularizeDirectionalContour(curveAt(z),anchorAt(z),{toleranceMm,samples});
-    report.regularizedSections++;
-    for(const [key,source] of [['maxSamplingErrorMm','samplingErrorMm'],['maxAngularAdjustmentMm','angularAdjustmentMm'],['maxCorrespondenceErrorMm','correspondenceErrorMm']])report[key]=Math.max(report[key],result.report[source]);
-    return [result.loop];
-  }});
-  return {at:contact.at,report:()=>({...contact.report(),...report})};
 }

@@ -89,13 +89,6 @@ export function depositedBeadsContain(segments,point,toleranceMm=.02){
   });
 }
 
-export function depositedTopAt(segments,[x,y],ceilingMm,toleranceMm=.02){
-  const ceiling=Number.isFinite(ceilingMm)?ceilingMm:depositedBeadBounds(segments).max[2];
-  if(!Number.isFinite(ceiling))return null;
-  const hit=beadContactAlong(segments,[x,y,ceiling+toleranceMm],[0,0,1],{toleranceMm});
-  return hit?.point[2]??null;
-}
-
 export function depositedBeadBounds(segments){
   const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
   for(const segment of segments)for(let axis=0;axis<3;axis++){

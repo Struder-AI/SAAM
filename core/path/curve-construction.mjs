@@ -1,17 +1,6 @@
 import {distance,requireThat} from '../private/toolpath/numeric.mjs';
 
 
-// Explicit centerlines stay independent. Closure is materialized so callers
-// can retain their supplied seam and direction through ordinary composition.
-export function placeCenterlines(curves,{offset=[0,0,0],zMm=null,role='trace'}={}) {
-  return curves.map(curve=>{
-    const {points:sourcePoints,closed,courses,layers,...properties}=curve;
-    const local=curve.closed?[...curve.points,curve.points[0]]:curve.points;
-    const points=local.map(p=>[p[0]+offset[0],p[1]+offset[1],(zMm??p[2]??0)+offset[2]]);
-    return {role,...properties,closed:false,points};
-  });
-}
-
 export function curveLength(points) {
   return points.slice(1).reduce((sum,p,i)=>sum+distance(points[i],p),0);
 }

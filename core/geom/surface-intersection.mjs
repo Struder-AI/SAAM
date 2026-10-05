@@ -446,10 +446,3 @@ function segmentDistance(p, a, b) {
   const t = l > 0 ? Math.max(0, Math.min(1, dot(subtract(p, a), d) / l)) : 0;
   return distance(p, a.map((v, k) => v + t * d[k]));
 }
-
-// A point on both patches at a given height: where a section plane meets the
-// intersection curve, solved exactly from a nearby curve point.
-export function curvePointAtZ(A, B, x0, z) {
-  const s = solveConstrained(A, B, x0, n => [n.a.point[2] - z, [n.a.du[2], n.a.dv[2], 0, 0]]);
-  return s && inside(A, s.x[0], s.x[1], 1e-8) && inside(B, s.x[2], s.x[3], 1e-8) ? s : null;
-}
