@@ -11,8 +11,8 @@ Sets:
 - `030-architecture`: the authored top level `030-influence` builds on. Read it directly only to
   author map 0 ([authoring](#authoring)), not to explore implementation.
 
-Pass the CLI `--set NAME` (or `--set-dir DIR` for a set kept outside `sets/`); without it, it
-still selects the [old scanned set](#old-scanner-tooling-retiring).
+Pass the CLI `--set NAME` (or `--set-dir DIR` for a set kept outside `sets/`); the default is
+`030-influence`.
 
 ## Influence sets
 
@@ -79,6 +79,12 @@ Regenerate after each task. `regenerate --set 030-influence` runs:
 3. **Solve** each authored node whose slice changed ([solve-middle.mjs](influence/solve-middle.mjs)),
    `jobs` at a time, into `store/solve/`.
 4. **Write** `store/model.json`, **draw** `view/`, and **verify** that reads match the drawings.
+5. **Check the code** ([code-checks.mjs](influence/code-checks.mjs)) against
+   [what SAAM code is](../plans/dev-maps.md#what-saam-code-is): `regenerate` reports the counts
+   and still writes the maps; `check` lists each error as `FILE:LINE: RULE: REASON` and fails on
+   any. Rules: `unmodelled` (a shape the analysis does not model, [UNMODELLED.md](influence/UNMODELLED.md)),
+   `unowned`, `contract` (a leaf arrow between top-level nodes no authored contract permits),
+   `command-returns-data` and `unlinked` (load code that only declares is exempt).
 
 Each closure is cached under `store/analysis/closures/` with a hash of its files, the analyser's
 modules, Node and acorn, so only closures holding an edited file run again. Each node's solve is
@@ -167,14 +173,3 @@ browser; **Export layout** writes them to a file and
 `node dev-map/cli.mjs --set 030-influence import-layout FILE` commits it.
 
 `regenerate --solve changed|place` overrides `map.json` `solve` for one run.
-
-## Old scanner tooling (retiring)
-
-Still present until [milestone 5](../plans/dev-maps.md#milestones) removes it; not used for product
-work. Nothing here describes the influence maps.
-
-- The scanner in `lib/` (leaves, tree, graph, findings, couplings, scope) and its scanned set,
-  selected when the CLI is given no `--set`: `tree.json`, `facts.tsv`, `lib/scope.mjs`.
-- `score`, `solve`, `watch-freshness` and `flow-evidence` on scanned sets; `inventory`, `audit` and
-  `audit-check` on design sets (`view/audit.html`, `store/audit.json`).
-- `lib/score.mjs` stays: its penalties are the influence solver's starting objective.
