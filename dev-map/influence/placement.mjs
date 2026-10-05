@@ -207,16 +207,26 @@ function layoutText({maps,labels={},clusters={}}) {
 const point=(p,where)=>{
   if(p===null)return null;
   if(!p||![p.x,p.y].every(Number.isFinite))throw Error(`${where}: a position is {"x":N,"y":N} or null.`);
-  return {x:Math.max(0,Math.round(p.x)),y:Math.max(0,Math.round(p.y))};
+  return {x:p.x,y:p.y};
 };
 // Positions set on one map, BOX → {x,y} or null (back to solved placement). Map 0's authored
 // nodes and actors go to architecture.json, which keeps any other field of a position (such
 // as `emphasis`); everything else to layout.json. Returns the files written, repository-relative.
-export function writePositions({authored,layout,repo,map,set,signatureOf}) {
+export function writePositions({authored,layout,repo,map,set,initial={},signatureOf}) {
   if(typeof map!=='string'||!map||typeof set!=='object'||!set||Array.isArray(set))throw Error('Expected {"map":PATH,"set":{BOX:{x,y}|null}}.');
+  if(typeof initial!=='object'||!initial||Array.isArray(initial))throw Error('Initial placement is a box-position record.');
   const arch=readArchitecture(authored),own=readLayoutFile(layout);
   let archChanged=false,ownChanged=false;
   const positions=structuredClone(arch.json.layout?.[TOP]?.positions??{});
+  // The first edit authors the whole displayed map. Fill only absent positions, so a
+  // concurrent viewer's newer edits win over the initiating viewer's initial snapshot.
+  if(map!==TOP)for(const [box,raw] of Object.entries(initial)) {
+    const boxes=own.maps[map]??={};
+    if(boxes[box]!==undefined)continue;
+    const p=point(raw,`${map} ${box}`);
+    if(p===null)continue;
+    boxes[box]=p;ownChanged=true;
+  }
   for(const [box,raw] of Object.entries(set)) {
     const p=point(raw,`${map} ${box}`);
     const key=map===TOP?arch.keyOf.get(box):undefined;

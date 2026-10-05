@@ -3,8 +3,6 @@
 [Dev maps intent](../plans/dev-maps.md) owns what the maps are for, what an arrow means, notation,
 leaves, levels, scope and milestones. This guide covers the tools as they stand.
 
-Sets:
-
 - `030-influence`: influence maps generated from all SAAM source under `030-architecture`'s map 0.
   Product work reads these; the toolkit and onboarding default to them.
 - `030-deployment`: the authored deployment design, for installation and service work.
@@ -76,9 +74,9 @@ Regenerate after each task. `regenerate --set 030-influence` runs:
    imports; files no closure holds are listed as not analysed.
 2. **Merge** the closures into `store/analysis/analysis.json`, each callable taking its leaf and
    role from the largest closure holding it.
-3. **Solve** each authored node whose slice changed ([solve-middle.mjs](influence/solve-middle.mjs)),
+3. **Solve nesting** for each authored node whose slice changed ([solve-middle.mjs](influence/solve-middle.mjs)),
    `jobs` at a time, into `store/solve/`.
-4. **Write** `store/model.json`, **draw** `view/`, and **verify** that reads match the drawings.
+4. **Write** `store/model.json`, **place untouched maps**, **draw** `view/`, and **verify** reads match drawings.
 5. **Check the code** ([code-checks.mjs](influence/code-checks.mjs)) against
    [what SAAM code is](../plans/dev-maps.md#what-saam-code-is): `regenerate` reports the counts
    and still writes the maps; `check` lists each error as `FILE:LINE: RULE: REASON` and fails on
@@ -117,35 +115,32 @@ checks their drawings. Their reads follow the same contract.
 
 ## Authored placement
 
-The owner places boxes by dragging them in the viewer ([milestone 5](../plans/dev-maps.md#milestones)).
+Open `sets/030-influence/view/index.html` directly in a browser; no running process is needed.
+**Arrange** starts on; drag a box and its wires follow. **Undo move** (ctrl+z) restores it.
+**Export layout** saves the browser's arrangements;
+`node dev-map/cli.mjs --set 030-influence import-layout FILE` imports them into the checkout.
+The optional `serve` command saves directly instead of using browser storage.
 
-```sh
-node dev-map/cli.mjs --set 030-influence serve [--port 8768]    # launch entry influence-authoring
-```
+The [placement solver](../plans/dev-maps.md#placement) places untouched maps with springs,
+repulsion, damping, cooling and rectangle clearance.
+Soft flow-column guides seed its free-space solve. The nesting solver chooses membership and
+levels. Map 0 is authored; a map's first edit saves its whole arrangement. **Reset map**
+explicitly requests new physics placement on a submap; on map 0 it undoes this session's moves.
 
-draws the view, then serves it at `http://localhost:8768/` with **Arrange** on: drag any box on any
-map and the arrows touching it (heads, dots, labels, boundary boxes) re-route as it moves; other
-boxes stay put. Each drop is saved at once; **Undo move** (ctrl+z) reverts the last move on the
-map; **Reset map** returns a submap to its solved layout and redraws it, and on map 0 puts back
-every box moved this session. Positions persist as authored data
-([placement.mjs](influence/placement.mjs)), each file replaced atomically:
+Positions are signed coordinates in free space; Fit and the minimap follow boxes and wires.
+Reopening the file restores browser edits; export keeps a portable copy. Imported positions
+live in [placement.mjs](influence/placement.mjs):
 
-- Map 0's nodes and actors: `030-architecture/architecture.json` `layout["0"].positions` (only that
-  block is rewritten; the architecture viewer uses the same positions).
-- Every other box: `sets/030-influence/layout.json`, `maps[MAP PATH][BOX]` = `{x,y}`, by identity,
-  never index: `@cluster/IDENTITY` for a cluster, `FILE::NAME[ #K]` for a leaf, `b:IDENTITY` for a
-  boundary box, `list:NAME` for a marker. Its `labels[IDENTITY]` (label passes' cluster names, shown
-  by reads and drawings) and `clusters` (each named cluster's signature, below) ride along.
+- Map 0's nodes and actors: `030-architecture/architecture.json` `layout["0"].positions`;
+  only that block changes, and the architecture viewer shares it.
+- Other boxes: `sets/030-influence/layout.json`, `maps[MAP PATH][BOX]` = `{x,y}`, by identity:
+  `@cluster/IDENTITY`, `FILE::NAME[ #K]`, `b:IDENTITY` or `list:NAME`. Its authored cluster names
+  (`labels`) and cluster signatures (`clusters`, below) ride along.
 
-`build` and `regenerate` draw authored positions over solved ones; a box without one keeps its
-solved place, and only arrows touching a placed box are re-routed. A re-routed arrow (and every
-arrow on map 0) meets each box where the line between the two box centres leaves it; arrows on one
-side are spread along it in that order (12 px apart, a full side passing its outermost round the
-corner) and leave and enter square to the side (`leveled.py direct_routes`; the live drag runs a
-line-for-line copy, so a rebuild draws what the drag showed, within 0.1 px). A position or label
-whose box is no longer drawn stays in its file, is reported by `build`, `regenerate` and `check`
-(`placement.missing`, `placement.labels.missing`, saying what became of a retired cluster) and is
-listed on map 0.
+Build and regenerate preserve saved positions. Retired positions and labels stay in their
+files, are reported by build/regenerate/check and are listed on map 0.
+Wires meet box outlines and spread along each side (12 px apart, spilling round corners).
+`leveled.py direct_routes` and live dragging use the same rule, matching within 0.1 px on rebuild.
 
 ### Cluster identity
 
@@ -169,7 +164,3 @@ from before identities) are migrated to the identity of the cluster that numberi
 authoring server adds one with each drop). Without an earlier stored model (a fresh checkout, a
 deleted store) those signatures still match the named clusters to the new solve, by estimated
 overlap (about ±0.09); the others then get new identities.
-
-Opened any other way (a file, the static `influence-map` server), **Arrange** keeps moves in the
-browser; **Export layout** writes them to a file and
-`node dev-map/cli.mjs --set 030-influence import-layout FILE` commits it.

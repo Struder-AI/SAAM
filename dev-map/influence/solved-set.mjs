@@ -556,7 +556,7 @@ export function solvedModel() {
     else if(Object.keys(at).length)p.layout={overlay:true,positions:at};
   }
   return {generated:m.generated,title:m.title,notice:m.notice,regenerate:m.regenerate,scores:{},snapshotId:m.snapshotId,
-    influence:true,authoring:{set:setName},placement:{applied,missing,labels:m.labels},lists,pages,sources:m.sources,sourceInfo:m.sourceInfo,stale:{},changed:[],changedInputs:[]};
+    influence:true,authoring:{set:setName,maps:placement.maps},placement:{applied,missing,labels:m.labels},lists,pages,sources:m.sources,sourceInfo:m.sourceInfo,stale:{},changed:[],changedInputs:[]};
 }
 
 // The CLI read: enough to choose what to read next, each fact once, never code. Agents see a

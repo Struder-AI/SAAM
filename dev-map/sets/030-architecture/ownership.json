@@ -3,6 +3,14 @@
   "status": "Application sources refreshed 2026-10-02 using targeted current declaration inventory. Runtime root and createChat scopes are distinguished; removed adapter/toolkit routes are retained only as retired history. Mixed owners and unresolved effects remain explicit. Not conformance approval.",
   "policy": "Exact declaration/module ownership; Geometry owners are source-linked leaf IDs. Anonymous bodies inherit their nearest stable declaration. File location does not define architectural ownership.",
   "files": {
+    "dev-map/lib/placement-solver.mjs": {
+      "owner": "development",
+      "reason": "Placement solver: positions within one map; independent of nesting."
+    },
+    "dev-map/lib/place-maps.mjs": {
+      "owner": "development",
+      "reason": "Renderer transport for untouched-map placement."
+    },
     "core/geom/blob-field.mjs": {
       "owner": "geometry",
       "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."

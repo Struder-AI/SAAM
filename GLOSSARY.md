@@ -29,3 +29,5 @@ Terminology: [architecture](TECHNICAL-OVERVIEW.md), [release scope](plans/0.2.0.
 | Course | A circuit around a sleeve, optionally constructed by repeating explicit paths. |
 | Pattern | An arrangement of deposition strokes, such as an infill pattern or repeated sleeve tiles. |
 | Modulation | An optional effect on an otherwise valid toolpath, primarily for visual appearance and surface texture, with other useful applications left open. Required construction and process compensation work independently of modulation. |
+| Nesting solver | Groups code leaves into nested maps beneath their authored top-level owner. |
+| Placement solver | Arranges the boxes of one map in free canvas space. |

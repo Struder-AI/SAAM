@@ -61,7 +61,7 @@ export async function serve({port=8768,files,view,set,log=console.error}) {
       if(!/^application\/json\b/.test(req.headers['content-type']??''))return send(res,415,{error:'send application/json'});
       const input=await body(req);
       if(path==='/api/positions') {
-        const wrote=await exclusive(()=>writePositions({...files,map:input.map,set:input.set,signatureOf}));
+        const wrote=await exclusive(()=>writePositions({...files,map:input.map,set:input.set,initial:input.initial,signatureOf}));
         log(`placed on ${input.map}: ${Object.entries(input.set).map(([box,p])=>`${box} ${p?`(${p.x}, ${p.y})`:'→ solved'}`).join('; ')} → ${wrote.join(', ')}`);
         return send(res,200,{ok:true,wrote,...layout()});
       }
