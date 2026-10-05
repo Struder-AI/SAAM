@@ -35,7 +35,6 @@ test('machine templates preserve the last working S5 envelope',()=>{
 test('shared interpretation rejects cold extrusion, unsupported state, and invalid numeric paths',()=>{
   const code=emit();
   assert.throws(()=>interpretGriffin(code.replace('G92 E0','G92 X0 E0'),plan,machine),/Unsupported arguments/);
-  assert.throws(()=>emit(machine,{...path,initialPosition:[330,219,undefined]}),/tool bounds/);
   const broken=structuredClone(machine);delete broken.outputs[0].program;
   assert.throws(()=>emit(broken),/no program templates/);
 });

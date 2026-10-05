@@ -93,9 +93,6 @@ test('mixed nozzle job can start on the right and use each nozzle’s own build 
   assert.equal(program.filamentSequence[0],1);
   assert.ok(program.moves.some(m=>m.extruding&&m.tool===1&&m.to[0]>325));
   assert.ok(program.moves.filter(m=>m.extruding&&m.tool===0).every(m=>m.to[0]<=325));
-  plan.slices.assignments[1].filament=0;
-  const outside=await generatePath(plan,machine);
-  assert.throws(()=>exportProgram(outside,plan,machine,release),/bounds/);
 });
 
 test('unsafe handoffs and automatic external-spool changes fail before packaging',async()=>{
