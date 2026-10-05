@@ -185,9 +185,9 @@ export async function ownLeaves(leaves,authored,{root=repo,texts=analysedTexts(l
     const byAllocator=leaf.state?.allocatedBy?anchorsAt(leaf.state.allocatedBy):[];
     if(at.name==='(module load)')tried=[`${at.file}::@module`];
     else {
+      // A site in no declaration is module-level code, the module's.
       d=declarationOf(at);
-      if(!d&&!byClass.length&&!byAllocator.length)return {leaf:leaf.id,owner:null,gap:'no declaration holds it'};
-      tried=d?anchorsOf(d,at.file):[];
+      tried=d?anchorsOf(d,at.file):[`${at.file}::@module`];
     }
     const own=byClass.find(a=>owned(a))??tried.find(a=>owned(a))??byAllocator.find(a=>owned(a));
     const declaration=own??byClass[0]??tried[0]??byAllocator[0];

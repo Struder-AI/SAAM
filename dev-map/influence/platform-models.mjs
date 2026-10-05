@@ -448,18 +448,19 @@ export const FAMILIES={
       'flatten format':{out:[fresh('json')]},
       'unwrap removeDefault':{out:['this[]']},'meta':{out:[fresh('zod',['this','args']),fresh('json',['args'])]}
     })},
-  manifold:{note:'manifold-3d (WASM): Manifold, CrossSection and Mesh values are immutable; operations return fresh values; delete() frees WASM memory owned by the receiver.',ownElements:true,
+  manifold:{note:'manifold-3d (WASM): Manifold, CrossSection and Mesh values are immutable; operations return fresh values; delete() frees WASM memory owned by the receiver. A Mesh wrapper keeps the arrays it is given; Manifold, CrossSection and every operation copy their inputs into WASM, so a result holds none of the JS values passed in (they are read).',ownElements:true,
     members:group('',{
       'default':{out:[promise(fresh('manifold'))],note:'Instantiates the WASM module.'},
       'setup':{mutates:['this']},
-      'Manifold CrossSection Mesh':{construct:{el:['args','args.*','args[]']},call:{out:[fresh('manifold',['args','args.*'])]}},
+      'Mesh':{construct:{el:['args','args.*','args[]']},call:{out:[fresh('manifold',['args','args.*'])]}},
+      'Manifold CrossSection':{construct:{observe:['args.*','args[]']},call:{out:[fresh('manifold')],observe:['args.*','args[]']}},
       'delete':{mutates:['this']},
-      'setProperties':{out:[fresh('manifold',['this'])],calls:[{fn:'arg1',params:[[fresh('TypedArray')],[fresh('TypedArray')],[fresh('TypedArray')]]}]},
-      'warp':{out:[fresh('manifold',['this'])],calls:[{fn:'arg0',params:[[fresh('TypedArray')]]}]},
+      'setProperties':{out:[fresh('manifold')],calls:[{fn:'arg1',params:[[fresh('TypedArray')],[fresh('TypedArray')],[fresh('TypedArray')]]}]},
+      'warp':{out:[fresh('manifold')],calls:[{fn:'arg0',params:[[fresh('TypedArray')]]}]},
       'levelSet':{out:[fresh('manifold')],calls:[{fn:'arg0',params:[[fresh('TypedArray')]]}]},
-      'cube sphere cylinder ofMesh union compose':{out:[fresh('manifold',['args','args[]'])]},
-      'add subtract intersect translate rotate scale transform mirror refine simplify trimByPlane split':{out:[fresh('manifold',['this','args'])]},
-      'getMesh':{out:[fresh('manifold',['this'])]},'status isEmpty volume surfaceArea numVert numTri genus boundingBox':P
+      'cube sphere cylinder ofMesh union intersection difference extrude revolve compose':{out:[fresh('manifold')],observe:['args.*','args[]','args[][]']},
+      'add subtract intersect translate rotate scale transform mirror refine refineToLength refineToTolerance simplify trimByPlane split':{out:[fresh('manifold')],observe:['args.*','args[]']},
+      'getMesh':{out:[fresh('manifold')]},'status isEmpty volume surfaceArea numVert numTri genus boundingBox':P
     })},
   clipper:{note:'clipper2-wasm: paths and clipping operations; containers are WASM objects that hold the points pushed into them and are freed with delete().',ownElements:true,
     members:group('',{'default':{out:[promise(fresh('clipper'))],note:'Instantiates the WASM module.'},'delete':{mutates:['this']},

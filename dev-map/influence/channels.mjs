@@ -43,16 +43,39 @@ function evaluator(file,idx,fn) {
   const params=new Map();
   for(let g=fn;g;g=idx.parent.get(g)){if(!isFn(g))continue;
     g.params.forEach((p,i)=>{const id=p.type==='AssignmentPattern'?p.left:p;if(id.type==='Identifier'&&!params.has(id.name))params.set(id.name,`${file}:${g.start}#${i}`);});}
+  // The one const of that name the callable's own body declares (not a nested function's).
+  const localConst=name=>{
+    if(!fn)return null;const found=[];
+    const walk=n=>{if(n!==fn&&isFn(n))return;
+      if(n.type==='VariableDeclaration'&&n.kind==='const')for(const d of n.declarations)if(d.id.type==='Identifier'&&d.id.name===name&&d.init)found.push(d.init);
+      for(const c of kids(n))walk(c);};
+    walk(fn);return found.length===1?found[0]:null;
+  };
+  // A path inside SAAM's own installation ('@'), its '.' and '..' segments resolved; one that
+  // climbs out of it is unknown.
+  const own=s=>{
+    if(!s.startsWith('@'))return s;
+    const out=[];
+    for(const seg of s.slice(1).split('/')) {
+      if(!seg||seg==='.')continue;
+      if(seg!=='..'){out.push(seg);continue;}
+      if(!out.length||/[*\u0001]/.test(out.at(-1)))return '*';
+      out.pop();
+    }
+    return '@'+out.join('/');
+  };
   const ev=(n,depth=0)=>{
     if(!n||depth>8)return {s:'*'};
     switch(n.type) {
       case 'Literal':return typeof n.value==='string'?{s:n.value,at:n.start}:{s:'*'};
       case 'TemplateLiteral':{let s='',at;n.quasis.forEach((q,i)=>{s+=q.value.cooked;if(q.value.cooked)at=q.start;if(i<n.expressions.length){const e=ev(n.expressions[i],depth+1);s+=e.s;if(e.at!==undefined)at=e.at;}});return {s,at};}
       case 'BinaryExpression':if(n.operator==='+'){const a=ev(n.left,depth+1),b=ev(n.right,depth+1);return {s:a.s+b.s,at:b.at??a.at};}return {s:'*'};
-      case 'Identifier':
+      case 'Identifier':{
+        const local=localConst(n.name);
+        if(local)return ev(local,depth+1);
         if(params.has(n.name))return {s:P+params.get(n.name)+P};
         if(idx.consts.has(n.name))return ev(idx.consts.get(n.name),depth+1);
-        return {s:'*'};
+        return {s:'*'};}
       case 'AssignmentPattern':return ev(n.left,depth+1);
       case 'AwaitExpression':return ev(n.argument,depth+1);
       case 'NewExpression':
@@ -61,12 +84,18 @@ function evaluator(file,idx,fn) {
         return {s:'*'};
       case 'CallExpression':{
         const name=n.callee.type==='MemberExpression'?n.callee.property.name:n.callee.name;
+        // import.meta.resolve(name): an installed package, within SAAM's own installation.
+        if(name==='resolve'&&n.callee.object?.type==='MetaProperty'&&n.arguments[0])return {s:'@node_modules/'+ev(n.arguments[0],depth+1).s};
         if(/^(join|resolve)$/.test(name??'')&&n.arguments.length){const parts=n.arguments.map(x=>ev(x,depth+1));const last=[...parts].reverse().find(p=>p.at!==undefined);
-          return {s:parts.map(p=>p.s).join('/'),at:last?.at};}
+          return {s:own(parts.map(p=>p.s).join('/')),at:last?.at};}
         if(name==='fileURLToPath'&&n.arguments[0])return ev(n.arguments[0],depth+1);
+        if(name==='dirname'&&n.arguments[0]){const a=ev(n.arguments[0],depth+1).s;return {s:/^@[^*\u0001]*$/.test(a)?a.slice(0,Math.max(1,a.lastIndexOf('/'))):'*'};}
         return {s:'*'};
       }
-      case 'MemberExpression':if(n.object.name==='process'&&n.property.name==='execPath')return {s:'@node'};return {s:'*'};
+      case 'MemberExpression':
+        if(n.object.name==='process'&&n.property.name==='execPath')return {s:'@node'};
+        if(n.object.type==='MetaProperty'&&n.property.name==='url')return {s:'@'+file};
+        return {s:'*'};
       default:return {s:'*'};
     }
   };
@@ -275,7 +304,7 @@ export function mergeContactFacts(lists) {
 export const ACTOR_RULES=[
   {actor:'agent',channel:'saam stdout JSON',test:c=>c.kind==='console'&&c.stream==='stdout'&&/^(scripts\/saam\.mjs|core\/print\/cli\.mjs)$/.test(c.file)},
   {actor:'agent',channel:'saam stderr diagnostics',test:c=>c.kind==='console'&&c.stream==='stderr'&&/^(scripts\/saam\.mjs|core\/print\/cli\.mjs)$/.test(c.file)},
-  {actor:'agent',channel:'tool output',test:c=>c.kind==='console'&&/^(scripts|packaging)\//.test(c.file)},
+  {actor:'agent',channel:'tool output',test:c=>c.kind==='console'&&/^(scripts|packaging|skills\/[^/]+\/scripts)\//.test(c.file)},
   {actor:'agent',channel:'client launch',test:c=>c.kind==='process-spawn'&&/^packaging\/application\.mjs$/.test(c.file)&&!/node|launch/.test(c.command+c.args.join(' '))},
   {actor:'user',channel:'Studio page',test:c=>(c.kind==='ui-out'||c.kind==='ui-in')&&/^(studio|workspaces|skills\/[^/]+\/ui)\//.test(c.file)},
   {actor:'user',channel:'browser opened',test:c=>c.kind==='process-spawn'&&/rundll32|xdg-open|^open$|\*/.test(c.command)&&/^studio\/browser\.mjs$/.test(c.file)},
@@ -285,7 +314,8 @@ export const ACTOR_RULES=[
   {actor:'resources',channel:'Thingi10K mirror',test:c=>(c.kind==='http-send'&&/huggingface|thingi/i.test(c.url))||(c.kind==='network'||c.kind==='http-send')&&/^skills\/thingi10k\//.test(c.file)},
   {actor:'resources',channel:'relay service',test:c=>(c.kind==='http-send'||c.kind==='network')&&/^packaging\/release-service\.mjs$/.test(c.file)},
   {actor:'resources',channel:'release downloads',test:c=>(c.kind==='http-send'||c.kind==='network')&&/^packaging\/(update|build)\.mjs$/.test(c.file)},
-  {actor:'resources',channel:'local tools (git, compiler)',test:c=>c.kind==='process-spawn'&&/git|cmake|clang|cl\b|g\+\+|\bcc\b|--version/.test(c.command+' '+c.args.join(' '))},
+  {actor:'resources',channel:'local tools (git, compiler)',test:c=>c.kind==='process-spawn'&&(/git|cmake|clang|cl\b|g\+\+|\bcc\b|--version/.test(c.command+' '+c.args.join(' '))
+    ||/^(packaging\/build|scripts\/build-[\w-]+)\.mjs$/.test(c.file))},
   {actor:'stl-file',channel:'selected STL',test:c=>c.kind==='file-read'&&(/stl/i.test(c.path)||/import-stl|repair-stl/.test(c.file))},
   {actor:'printer',channel:'delivery folder',test:c=>c.kind==='file-write'&&/delivery/.test(c.path)},
   {actor:'native',channel:'mesh repair process',test:c=>/^process-(spawn|control)$/.test(c.kind)&&(/mesh-repair|saam-mesh/.test(c.command)||/^core\/geom\/mesh-native\.mjs$/.test(c.file))}
@@ -383,7 +413,8 @@ export function withChannels(analysis,{actors=null}={}) {
   for(const [name,{w,r}] of [...files].sort(([a],[b])=>order(a,b))) {
     const ws=new Set(w.map(c=>leaf(c.key)).filter(Boolean)),rs=new Set(r.map(c=>leaf(c.key)).filter(Boolean));
     if(![...ws].some(x=>[...rs].some(y=>y!==x)))continue;
-    const decl=[...w,...r].map(c=>c.nameAt).filter(Boolean).sort()[0];if(!decl)continue;
+    const first=list=>list.map(c=>c.nameAt).filter(Boolean).sort()[0];
+    const decl=first(w)??first(r);if(!decl)continue;
     const key=`${decl}.2`,line=w.concat(r).find(c=>c.nameAt===decl)?.line??1;
     leaves.push({leaf:`${decl.slice(0,decl.lastIndexOf(':'))}:${line} file ${name}`,key,role:'state',folded:[],foldedKeys:[],state:{file:name,writers:ws.size,readers:rs.size}});
     for(const x of ws)arrows.push({fromKey:x,toKey:key,kind:'writes',count:1});
@@ -391,6 +422,11 @@ export function withChannels(analysis,{actors=null}={}) {
     for(const c of [...w,...r])c.internal=true;
     count('file-state');
   }
+
+  // A process-control call (kill, unref) acts on the child its leaf started: it goes where that
+  // start goes, SAAM-internal or to the start's channel.
+  const starts=new Map();for(const c of by('process-spawn'))(starts.get(leaf(c.key))??starts.set(leaf(c.key),[]).get(leaf(c.key))).push(c);
+  for(const c of by('process-control')){const s=starts.get(leaf(c.key));if(!s)continue;if(s.every(x=>x.internal))c.internal=true;else c.controls=s.find(x=>!x.internal);}
 
   // Outside contacts to actor channels.
   const declared=actors?new Set(actors):null;
@@ -402,7 +438,7 @@ export function withChannels(analysis,{actors=null}={}) {
   const assigned={};
   for(const c of outside) {
     if(c.kind==='file-read'&&c.path?.startsWith('@'))continue;// SAAM's own installed files
-    const rule=ACTOR_RULES.find(r=>(!declared||declared.has(r.actor))&&r.test(c));
+    const rule=ACTOR_RULES.find(r=>(!declared||declared.has(r.actor))&&r.test(c.controls??c));
     const key=rule?channel(rule.actor,rule.channel):channel('unassigned',c.kind);
     if(!rule)unresolved.contacts.push({at:brief(c),key:c.key,kind:c.kind,...(c.path?{path:c.path}:{}),...(c.command?{command:c.command}:{}),...(c.url?{url:c.url}:{}),...(c.api?{api:c.api}:{})});
     const into=/^(ui-in|file-read)$/.test(c.kind)||c.kind==='network'&&false;
