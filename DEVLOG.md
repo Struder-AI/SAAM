@@ -1,5 +1,9 @@
 # Development log
 
+## 2026-10-04 — Session close: confirmed intent recorded
+
+- Owner confirmations written into [0.3.3](plans/0.3.3.md) and [dev maps intent](plans/dev-maps.md): one unified agent toolkit through Application, diagnostics without a Studio counterpart kept, anything with a natural or existing Studio display shown there; cli.mjs and skill command lines go, maintenance commands become saam commands; tour examples created through Application, owned by Studio; demos become maker example recipes through Application; generation job and Application ↔ Studio coupling consolidated; contextBudget for the owner to understand; passthrough walker rewrite; cluster labels authored by agents and reviewed by the owner; map-0 held wires and actors approved after the label pass; full solves when the owner calls for them, orchestrators suggesting one when very stale. Checkpoint includes the owner's map position edits. No tests run.
+
 ## 2026-10-04 — Engine 4: the alias blob was a Map model bug
 
 - constraints.mjs/platform-models.mjs/derive.mjs (worker): Map elements are `[key, value]` entries with key and value in their own fields (the old model put both in one slot, so `values()`/`get()` returned keys; query.mjs columnCrossings keyed by geometry nodes then leaked geometry into plan records; also a soundness fix, since destructured entries never reached values); `structuredClone` is a deep copy into caller-owned objects per site and field path up to depth 3; roles per call site (a callee's write reaches its caller only if the caller does not own the object; exported callables, module load, later callbacks and unawaited async keep their effects); `new` instances no longer shared across function copies; Clipper stand-in no longer an element of containers. No product rewrite needed for the blob.

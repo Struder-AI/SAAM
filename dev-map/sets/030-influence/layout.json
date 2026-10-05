@@ -5,6 +5,12 @@
   "0": {
    "@cluster/(unowned)": {"x": 631, "y": 1159},
    "@cluster/external:unassigned": {"x": 111, "y": 1262}
+  },
+  "@cluster/application": {
+   "@cluster/application/~06cdc0": {"x": 568, "y": 213}
   }
+ },
+ "clusters": {
+  "application/~06cdc0": {"leaves": 33, "minhash": "00b89a61120001770486a2fc0535fcd704917e40016e518b00d0e3050b912be6089980d300d2552817d370370030bd7415d7ab8a04343bcd06791216045f883c0b7e0d6b030245310440df800525b8a203e69ece03d6f6d91132501c102a7b3e049654e9018e5d131751dc4509d7500e04c2842f028963342555e08b0c4ac431"}
  }
 }
