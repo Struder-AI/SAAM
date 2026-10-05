@@ -228,6 +228,5 @@ export async function generatePath(plan, {onProgress,modulations,modulationPrepa
   const path=planningPath(finished.state,[started.actions,startup.actions,execution.actions,finished.actions],{...summary,composition:{...execution.summary,operationOrder:order}});
   for(const action of path.actions)if(action.kind==='temperature')
     requireThat(authoredTemperatures.has(action.targetC),'Unplanned operation temperature.');
-  return saamPath({...path,completion:{contract:NEUTRAL_PATH_CONTRACT,inputHash:pathInputHash(plan),
-    authoredNozzleTemperatures:[...authoredTemperatures].sort((a,b)=>a-b)}});
+  return saamPath({...path,completion:{contract:NEUTRAL_PATH_CONTRACT,inputHash:pathInputHash(plan)}});
 }

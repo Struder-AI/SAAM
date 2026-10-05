@@ -20,7 +20,7 @@ export function interpretBody(body,plan,machine,options={}){
   return program;
 }
 
-export function interpretMultiBody(body,plan,machine,{moves=[],authoredNozzleTemperatures}={}){
+export function interpretMultiBody(body,plan,machine,{moves=[]}={}){
   const initial=plan.setup.bambu.filament,debt={},sequence=[initial],usedTools=new Map([[plan.setup.tool,initial]]),usage=new Map(),events=[];
   const candidates=plan.slices.assignments.flatMap(assignment=>{
     const owners=assignment.construction?[assignment.id]:assignment.part!==null?[assignment.part+':'+assignment.id]
@@ -39,7 +39,7 @@ export function interpretMultiBody(body,plan,machine,{moves=[],authoredNozzleTem
       moves.push(tagged);length++;
       if(move.extruding)maxDepositedZ=Math.max(maxDepositedZ,...[move.from[2],move.to[2]]);
     }};
-    const result=interpretMotionChunk(chunk,selected,machine,{position,debt:debt[selected.setup.tool]??0,fan,authoredNozzleTemperatures,
+    const result=interpretMotionChunk(chunk,selected,machine,{position,debt:debt[selected.setup.tool]??0,fan,
       startupRecoveryPending:count===0&&startupRetracted(machine,selected)},sink);
     for(const event of result.events)events.push({...event,line:event.line+lineOffset,...(event.startSeconds===undefined?{}:{startSeconds:event.startSeconds+time}),tool:selected.setup.tool,filament});
     time+=result.seconds;volume+=result.volumeMm3;extrusions+=result.summary.extrusionMoves;

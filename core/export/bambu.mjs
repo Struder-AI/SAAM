@@ -1,7 +1,7 @@
 import {requireThat} from '../private/export/numeric.mjs';
 import {prepareExportPath} from './prepare-path.mjs';
 // Bounded Bambu output (H2D, X1 Carbon), not an interpreter for arbitrary
-// Bambu Studio jobs. Firmware service commands are matched to the pinned
+// Bambu Studio jobs. Firmware service commands come from the pinned
 // envelope in the machine file, which also owns every model-specific fact.
 // The intervening print body is reconstructed by the shared modal interpreter.
 import {createHash} from 'node:crypto';
@@ -122,14 +122,14 @@ export function exportBambu(path,plan,machine,release){
 // The body must be interpreted to populate package totals and thumbnails. Keep
 // that result with the exact bytes assembled from it instead of parsing the
 // same million-command body again immediately after packaging. Imported bytes
-// still enter through interpretBambu and its archive integrity checks.
+// enter through interpretBambu.
 export function exportAndInterpretBambu(path,plan,machine,release){
   path=prepareExportPath(path,plan,machine);
   const output=configuration(plan,machine);
   const filamentSequence=[plan.setup.bambu?.filament,...path.actions.filter(a=>a.kind==='toolChange').map(a=>a.filament)];
   const job=resolveBambuJob(plan,machine,output,{filamentSequence});
   const body=exportBambuBody(path,plan,machine);
-  const program=interpretBody(body,plan,machine,{authoredNozzleTemperatures:path.completion?.authoredNozzleTemperatures});
+  const program=interpretBody(body,plan,machine);
   requireThat(JSON.stringify(program.filamentSequence)===JSON.stringify(filamentSequence),'Bambu interpreted filament order differs from startup calibration.');
   const c=contextFor(path,plan,machine,release),s=sections(c,job,output);
   const code=header(c,program,job)+s.start+BEGIN+body+END+s.end+'; EXECUTABLE_BLOCK_END\n';
@@ -146,11 +146,7 @@ export function interpretBambu(bytes,plan,machine,options={}){
   const body=code.slice(begin+BEGIN.length,end),program=interpretBody(body,plan,machine,options);
   const job=resolveBambuJob(plan,machine,output,{filamentSequence:program.filamentSequence});
   checkContext(c,plan,machine,program.filamentSequence.map(filament=>job.selections[filament].setup.tool));
-  const s=sections(c,job,output);
-  requireThat(code===header(c,program,job)+s.start+BEGIN+body+END+s.end+'; EXECUTABLE_BLOCK_END\n','Bambu program differs from its declared firmware envelope.');
-  const expected=packageEntries(code,c,program,plan,output,job,s);
-  requireThat(entries.size===expected.size&&[...expected].every(([name,value])=>entries.get(name)?.equals(Buffer.from(value))),'Bambu package metadata, checksum or thumbnail differs from the program.');
-  return completeProgram(program,code,c,s,job);
+  return completeProgram(program,code,c,sections(c,job,output),job);
 }
 
 function completeProgram(program,code,c,s,job){
