@@ -65,8 +65,7 @@ can vary either enabled output. Missing orientation implies ordinary print-Z ali
 [Export preparation](./prepare-path.mjs) adds installation startup and priming,
 material-change clearance and axis-feed limits without mutating the authored path.
 Only exporters enforce installed nozzle/material compatibility and required setup.
-Interpreters check the exact emitted program; Studio reviews those same bytes.
-`checkMachinePath` checks an export-prepared path, not neutral authoring intent.
+Interpreters decode the exact emitted program; Studio reviews those same bytes.
 Unsupported output errors occur after SAAMpath construction and carry `stage: export`.
 
 | Action | Implemented outputs |

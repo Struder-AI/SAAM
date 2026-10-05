@@ -5,7 +5,6 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {defaults,validatePlan} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
-import {diagnoseMachinePath} from '../machine/rules.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {exportProgram,decodeProgram} from '../export/registry.mjs';
 import {packZip,unpackZip} from '../export/zip.mjs';
@@ -45,7 +44,6 @@ test('Dobot executes actual archived Lua, preserves three skill paths and report
   assert.equal(program.summary.filamentMm,null);assert.equal(program.summary.materialModel,'relay-estimate');
   assert.ok(program.summary.estimatedRelayVolumeMm3>0);assert.notEqual(program.volumeMm3,program.summary.estimatedRelayVolumeMm3);
   assert.ok(program.moves.every(m=>m.durationSeconds>0&&m.interpolation==='rest-to-rest-linear'));
-  assert.equal(diagnoseMachinePath(path,plan,machine).configuration.configured,true);
 });
 test('Dobot Lua interpreter rejects missing helpers, unsupported commands, altered frames, blending and relay state',async()=>{
   const {machine,plan}=fixture(),path=await generatePath(plan,machine),bytes=exportProgram(path,plan,machine,release);

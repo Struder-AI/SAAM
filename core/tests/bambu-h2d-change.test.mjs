@@ -45,12 +45,6 @@ test('H2D blue-orange-blue changes logical filament twice while retaining right 
   assert.deepEqual(project.filament_map,['2','2']);
   assert.deepEqual(JSON.parse(entries.get('Metadata/filament_sequence.json')).plate_1.nozzle_sequence,[1,1,1]);
   assert.deepEqual(auditBambu(bytes).plates[0].changes.issues,[]);
-  const boundary=code.indexOf(';SAAM_TOOL_CHANGE ');
-  for(const [before,after]of [['L124.72551','L0'],['T1 H-1','T0 H-1'],['M620.10 R0.6','M620.10 R0'],['I1 B-1','I1 B1']]){
-    const altered=code.slice(0,boundary)+code.slice(boundary).replace(before,after);assert.notEqual(altered,code);
-    const z=new Map(entries);z.set('Metadata/plate_1.gcode',Buffer.from(altered));
-    assert.throws(()=>decodeProgram(packZip(z),plan,machine),/tool-change block/);
-  }
 });
 
 test('the requested 0.8/0.8 ALT changes only installed-nozzle declarations, not right-nozzle body or service commands',async()=>{

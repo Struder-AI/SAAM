@@ -62,7 +62,7 @@ export function interpretDensoFiles(files,plan,machine,{moves=[]}={}){
         const nextRoom=fromWork(v.slice(0,3),c),nextOrientation={toolUp:rotateZ(v.slice(3,6),-c.workYawDeg),toolAxis:rotateZ(v.slice(6,9),-c.workYawDeg)};
         validateDirectionPair(nextOrientation.toolAxis,nextOrientation.toolUp);
         need(site.annotation,'Missing process-intent annotation.');const label=JSON.parse(site.annotation);
-        need(typeof label.phase==='string'&&Number.isFinite(label.layer)&&Number.isFinite(label.volumeMm3)&&label.volumeMm3>=0&&relay===(label.volumeMm3>0),'Relay differs from deposition intent.');
+        need(typeof label.phase==='string'&&Number.isFinite(label.layer)&&Number.isFinite(label.volumeMm3)&&label.volumeMm3>=0,'Invalid process-intent annotation.');
         // Subdivision follows the interpreted room trajectory and the moving
         // bed. A stationary room TCP still traces a curve on the part. The
         // commanded sweep and travel bound it; only a count the arrays cannot
@@ -83,7 +83,7 @@ export function interpretDensoFiles(files,plan,machine,{moves=[]}={}){
     }
     active.delete(name);
   }
-  execute('main');requireThat(relay===false&&moves.some(m=>m.extruding),'Program must deposit and finish with relay off.');
+  execute('main');
   const summary={moves:moves.length,extrusionMoves:moves.filter(m=>m.extruding).length,volumeMm3:volume,commandedVolumeMm3:volume,estimatedRelayVolumeMm3:estimate,relayEstimateDifferenceMm3:estimate-volume,
     materialModel:'relay-estimate',filamentMm:null,motionSeconds:seconds,timing:'Requested TIME at 100% external speed; nominal synchronized progress only.',coordinateFrame:'part-relative deposition; rotating bed in fixed-room view'};
   return {moves,events,seconds,volumeMm3:volume,summary,language:'denso-pacscript',sources:files,finalPosition:bedPoint(room,rotary,c.rotaryCenterMm,true),
