@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-05 — Whole suite before release: 56 → 6 failures
+
+- Whole suite (owner-authorized; disposable `SAAM_DATA`, `SAAM_BACKGROUND=1`, concurrency 2; worker): 56 failures of 194 tests at fd3c0aaa, 50 of them predating the Codex batch. Fixtures supply a machine, geometry and the neutral contract, deliver inside the Studio reservation, compare decoded moves with the prepared export path, and use W2's temporary home; assertions of removed behaviour trimmed (Studio approve/deliver routes, generation checks list, decoder audits, material gate, legacy CLI wording). workflow.test.mjs had been running out of memory on every run (a failing `assert.equal` on a whole program object), hiding its last 6 tests; fixed. Product: generation again refuses a profile without an exporter before building geometry (lost in 824e90d2).
+- Owner Q19 no (export does not refuse tool-bounds; assertions removed) and Q20 no (`maxFlowMm3S` not enforced; modal-motion byte fixture re-captured, F672.442 → F2400). Remaining 6: H2D hardware hash (live test), line width on printer change and unenforced profile layer limits (owner), DENSO reference-family and regional-stack overlap fixtures (engine redesign). Affected files rerun singly; no fifth whole run. `C:\SAAM` untouched.
+
 ## 2026-10-05 — Skill example recipes; signed design positions; runtime model confirmed
 
 - Demos row (worker): five plan-module demos became static recipes, each verified against its module with dev-instance `create_bundle` + `generate_toolpath`: `skills/<id>/examples/*.json` (`{machineId, plan}`, linked from SKILL.md) for the irregular loop sleeve, DENSO tube, box saddle and box canopy; bumpy is the wavy DENSO tour lesson's own `recipe.json`. `read_guidance` reads skill and extension example recipes. loop-demo and `splineTube` became test fixtures; demo modules and the unused starter-geometry deleted; one shipped splineBox. Docs 829 → 828. Canopy generation took about 1.9 h (cost question open). The worker's early runs used `scripts/saam.mjs` directly before the dev-instance rule and probably opened Studio windows: the likely source of the owner's app crashes.
