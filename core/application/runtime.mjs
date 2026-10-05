@@ -1,5 +1,6 @@
 import {readLocalAgentNotes,updateLocalAgentNotes} from './local-agent-notes.mjs';
 import {homePaths} from './home.mjs';
+import {retainFailedImport} from './diagnostics.mjs';
 import {watchStudioChanges} from '../../studio/changes.mjs';
 import {requireBundleInstance,bundleInstance,recoverBundleInstance} from '../print/studio-ownership.mjs';
 import {applyExtensionEdit,createExtensionBundle} from '../print/extension-edits.mjs';
@@ -8,7 +9,7 @@ import {applyExtensionEdit,createExtensionBundle} from '../print/extension-edits
 // no transport; the application's local command interface invokes its operations.
 import { z } from 'zod';
 import { mkdir, readdir, lstat, realpath, stat, access } from 'node:fs/promises';
-import { resolve, dirname, relative, isAbsolute, sep } from 'node:path';
+import { resolve, dirname, relative, isAbsolute, sep, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {openBrowser} from '../../studio/browser.mjs';
 import {randomUUID} from 'node:crypto';
@@ -121,8 +122,7 @@ export const instructions = 'Use saam help for operations and saam help OP for c
 export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen = process.env.SAAM_NO_AUTO_OPEN !== '1',localExtension=installedExtension,thingi10kClient,relay,application={},stateRoot=homePaths().state } = {}) {
   const libraryRoot = resolve(printsRoot);
   let resourceClient;
-  const getResourceClient=async()=>resourceClient??=loadExtensionEntry('thingi10k','resource-client')
-    .then(create=>create({cacheDirectory:resolve(homePaths().tmp,'cache','thingi10k')}));
+  const getResourceClient=async()=>resourceClient??=loadExtensionEntry('thingi10k','resource-client').then(create=>create());
   const meshLibrary=thingi10kClient??{
     search:async args=>(await getResourceClient()).search(args),
     download:async(fileId,options)=>(await getResourceClient()).download(fileId,options)
@@ -157,13 +157,14 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
       const before=imports.get(jobId);imports.set(jobId,{...before,progress:value});
       if(value.stage==='repair'&&before.progress.stage!=='repair')studioEvents.record('import-repair-started',{jobId,printId:bundleId,elapsedMs:Date.now()-startedAt});
     };
-    let downloaded,candidate,phase='acquire';
+    // Downloaded bytes go only to this import's job folder, which leaves with the job.
+    let bytes,downloaded,candidate,phase='acquire';
     try{
-      const sourcePath=source.kind==='local'?source.path:(downloaded=await meshLibrary.download(source.fileId,{signal:controller.signal,progress})).sourcePath;
+      if(source.kind!=='local')({bytes,...downloaded}=await meshLibrary.download(source.fileId,{signal:controller.signal}));
       controller.signal.throwIfAborted();
       phase='geometry';
       const {prepareSTLImport,releaseSTLImport}=await import('../geom/import-stl.mjs');
-      candidate=await prepareSTLImport(sourcePath,{units,attribution:downloaded?.attribution,signal:controller.signal,progress});
+      candidate=await prepareSTLImport(bytes??source.path,{units,attribution:downloaded?.attribution,signal:controller.signal,progress});
       let committed;
       try{
         phase='bundle';
@@ -179,8 +180,10 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
         failure:{name:error.name,code:error.code??null,message:error.message}};
       error.importDiagnostic??=importDiagnostic;
       if(downloaded&&!controller.signal.aborted&&(phase==='geometry'||phase==='bundle')){
-        const result={...downloaded,imported:false,error:error.message,importDiagnostic,
-          nextStep:'The downloaded original and attribution are retained at sourcePath and sourcePath + .json. Automatic repair could not accept this input; explain the reported failure and choose a corrected source or ask a builder to diagnose it.'};
+        const sourcePath=await retainFailedImport(bytes).catch(retention=>{importDiagnostic.evidenceError=retention.message;return null;});
+        importDiagnostic.evidence=sourcePath&&basename(sourcePath);
+        const result={...downloaded,sourcePath,imported:false,error:error.message,importDiagnostic,
+          nextStep:'The downloaded original is kept as diagnostics evidence at sourcePath until another downloaded import fails. Automatic repair could not accept this input; explain the reported failure and choose a corrected source or ask a builder to diagnose it.'};
         studioEvents.record('import-failed',{jobId,printId:bundleId,error:error.message,importDiagnostic});return result;
       }
       studioEvents.record(controller.signal.aborted?'import-cancelled':'import-failed',{jobId,printId:bundleId,error:error.message,importDiagnostic});throw error;
@@ -652,7 +655,7 @@ export function createLocalRuntime({ printsRoot = homePaths().prints, autoOpen =
     }
   operation('search_thingi10k','Find meshes by descriptive keywords (such as bunny), numeric file ID or a Thingiverse thing URL. Reads the Thingi10K mirror index; returns per-file source and license links. Prefer making tailored geometry when attractive. Read the thingi10k skill manual.',{query:z.string().min(1),limit:z.number().int().min(1).default(10),offset:z.number().int().min(0).default(0)},true,true);
   async function searchThingi10k(args){return meshLibrary.search(args);}
-  operation('import_thingi10k_bundle','Download a selected Thingi10K STL file ID on the SAAM host and import an unapproved print. ALWAYS give its license link in chat and briefly identify the source unless obvious. Recognized defects receive automatic repair; returns attribution and a retained download even if import fails. Review geometry with request_review after successful import.',{bundleId:bundleIdSchema,fileId:z.string().regex(/^[1-9][0-9]{0,11}$/),machineId:z.string(),units:z.enum(['auto','mm','inch']).default('auto')},false,true);
+  operation('import_thingi10k_bundle','Download a selected Thingi10K STL file ID on the SAAM host and import an unapproved print. ALWAYS give its license link in chat and briefly identify the source unless obvious. Recognized defects receive automatic repair; returns attribution even if import fails, with the failed download kept as diagnostics evidence. Review geometry with request_review after successful import.',{bundleId:bundleIdSchema,fileId:z.string().regex(/^[1-9][0-9]{0,11}$/),machineId:z.string(),units:z.enum(['auto','mm','inch']).default('auto')},false,true);
   async function importThingi10kBundle({bundleId,fileId,machineId,units}){
       const dir=await directory(bundleId,{create:true});
       const remembered=await setupFile(machineId);

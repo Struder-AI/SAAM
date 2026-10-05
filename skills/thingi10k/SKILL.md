@@ -59,16 +59,11 @@ On `imported: true`, call `request_review` and follow the
 assumptions, choose toolpath skills and review in Studio. Import creates no
 approvals and never silently repairs, simplifies or rescales the model.
 
-On `imported: false`, the result has the error, the retained `sourcePath`,
-attribution and chat notice. Open the retained STL through Studio import: it checks
+On `imported: false`, the result has the error, attribution, chat notice and
+`sourcePath`: the downloaded original, kept as diagnostics evidence until another
+download fails to import. Have the person open it through Studio import: it checks
 the mesh and attempts recognized repairs automatically, preserving the source and
 reporting changes. Follow live import progress; cancel through the ordinary Studio
 calculation controls when the person or task calls for it. Makers need no direct
 mesh-repair tools. A replacement retains attribution and records its changes.
-
-## Cache
-
-SAAM caches in the home's `tmp/cache/thingi10k/`: indexes and
-complete downloads, named by file ID and SHA-256 with an
-attribution JSON beside each. Remove ordinary cache only when idle; retain failed originals promised at
-`sourcePath`. Prints keep their own source.
+Nothing else is stored: each search reads the index and each import downloads afresh.

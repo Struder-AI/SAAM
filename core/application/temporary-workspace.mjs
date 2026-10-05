@@ -65,6 +65,8 @@ export async function claimTemporaryHandoff(directory,token,pid){
 export async function completeTemporaryHandoff(directory,token){await changeChild(directory,token,null);}
 export async function cleanupTemporaryWorkspaces(){
   const root=await workspaceRoot(),removed=[],retained=[];
+  // Earlier builds kept downloads in tmp/cache; nothing reads it now.
+  await rm(resolve(dirname(root),'cache'),{recursive:true,force:true,maxRetries:4,retryDelay:100});
   for(const entry of await readdir(root,{withFileTypes:true})){
     const directory=resolve(root,entry.name);
     try{
