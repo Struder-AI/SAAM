@@ -41,16 +41,22 @@ export async function readyInstance(){
   }
   const root=await orchestratorRoot(paths);
   const node=root===paths.app?resolve(root,'runtime',process.platform==='win32'?'node.exe':'node'):process.execPath;
+  // The launched process tells its startup failure over IPC; waiting lasts while it lives.
   const child=spawn(node,[resolve(root,'packaging/launch.mjs'),'--no-open'],
-    {detached:true,stdio:'ignore',windowsHide:true,env:process.env});
-  await new Promise((done,fail)=>{child.once('spawn',done);child.once('error',fail);});child.unref();
-  const deadline=Date.now()+30000;
-  for(;;){
-    const instance=await readInstance();
-    if(instance){
-      try{await controlRequest(instance,{command:'status'},{waitMs:2000});return instance;}catch{/* Startup publishes only ready records; report a bounded failure. */}
+    {detached:true,stdio:['ignore','ignore','ignore','ipc'],windowsHide:true,env:process.env});
+  const launched={failure:null,exitCode:undefined};
+  child.on('message',message=>{if(typeof message?.startupFailure==='string')launched.failure=message.startupFailure;});
+  child.once('close',code=>{launched.exitCode=code;});
+  await new Promise((done,fail)=>{child.once('spawn',done);child.once('error',fail);});child.unref();child.channel?.unref();
+  try{
+    for(;;){
+      const ended=launched.exitCode!==undefined,instance=await readInstance();
+      if(instance){
+        try{await controlRequest(instance,{command:'status'},{waitMs:2000});return instance;}catch{/* Startup publishes only ready records. */}
+      }
+      if(launched.failure)throw Error('SAAM could not start: '+launched.failure);
+      if(ended)throw Error('SAAM stopped before it was ready (exit code '+launched.exitCode+').');
+      await new Promise(done=>setTimeout(done,200));
     }
-    if(Date.now()>=deadline)throw Error('SAAM did not become ready. Review first-run diagnostics in '+resolve(paths.tmp,'diagnostics')+'.');
-    await new Promise(done=>setTimeout(done,200));
-  }
+  }finally{if(child.connected)child.disconnect();}
 }
