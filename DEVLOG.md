@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-04 — Native installer diagnostics and updater tmp handoff
+
+- Owner: rebase and include in 0.3.3 (Mac tested after release, patched in 0.3.4 if needed). Worker re-applied the Codex patch by hand: installers report fixed stages (candidate-verified, starting, failed) through Application's consented diagnostics owner (`packaging/installer-report.mjs`), first-run evidence until SAAM starts; `update.log` gone. In-app updates unpack into a `tmp/jobs` workspace that the installer claims with its own PID and completes before starting SAAM; startup removes it. Installers delete pre-0.3.3 `state/updates` and `state/logs` (team decision: covered by the retention decision). Dropped Codex's per-message `progress` and racing `launch-requested` stages.
+- Verified (worker): parse checks (PowerShell, bash -n), disposable updater runs (bad checksum and corrupt zip release the workspace; a detached stand-in installer claimed and completed it; cleanup keeps a live owner's workspace), stage functions against a scratch home. Not run: a full scratch install (needs a release build), a running Application receiving `record-diagnostic`, macOS. Known limits: a fresh install failing before candidate verification reports only on screen; an installer that never claims its workspace leaves it.
+
 ## 2026-10-04 — Background development instances; no browsers from tests
 
 - Worker-started Applications and test runs opened browser windows that froze the owner's app twice. `studio/browser.mjs` opens nothing when `SAAM_BACKGROUND=1` or under `node --test` (`NODE_TEST_CONTEXT`); `packaging/launch.mjs` starts a background instance without tray or browser. Development tool `scripts/dev-instance.mjs <saam args>` / `stop` runs `saam` against a background instance of the checkout with its own home under the OS temp folder (owner: "background instances for developer agents ... should be a dev tool"). Verified: `call list_workspaces` answered with no tray or browser process, `stop` quit it. No tests run.
