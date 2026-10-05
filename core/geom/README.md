@@ -447,7 +447,8 @@ when cleanup alone does not yield a valid mesh. Studio and agent imports
 attempt it for recognized defects, then present geometry for review. Invalid
 formats retain their diagnostics; repair never fills holes without explicit bounds.
 
-[Cleanup](./mesh-repair.mjs) removes duplicate/degenerate faces and unused vertices.
+[Cleanup](./mesh-repair.mjs) removes degenerate faces and unused vertices; coincident
+faces keep one copy facing their net orientation (an opposed pair cancels).
 `cleanTriangleSoup(input,{mergeToleranceMm:0})` defaults to identical coordinates.
 An explicit positive tolerance snaps each point to its nearest retained vertex
 within that Euclidean distance in mm; input order breaks ties. Representatives
@@ -458,9 +459,8 @@ without guessing branches or filling holes. Ordinary imports remain exact-only.
 
 Repair reports include merge counts and maximum vertex displacement; shape-change
 evidence includes the merge. Tolerance bounds this stage, not later native repair.
-[CGAL](./native/README.md) orients/stitches and attempts local patch repair with
-smoothing off and genus preservation requested. Hole filling needs explicit edge
-and physical diameter limits; unresolved boundaries/intersections reject output.
+[CGAL](./native/README.md) orients/stitches, fills holes only within explicit edge
+and diameter limits, and replaces a self-crossing surface by its solid's boundary.
 
 Final checks use shared mesh topology/intersection checks, adjacent-contact checks
 and reimport of the exact decimal ASCII STL. Contact tolerance is 1e-9 mm;

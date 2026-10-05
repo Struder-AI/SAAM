@@ -12,7 +12,7 @@ request tolerance-based vertex merging, diagnosis or bounded hole filling.
 |---|---|
 | Malformed or truncated STL, nonfinite coordinates | Obtain a complete export or fix the source. |
 | Duplicate points/faces or collapsed triangles | Exact cleanup and matching collinear boundary stitching. |
-| Inconsistent winding or self-intersecting faces | Orientation and local patch repair; review the changed areas. |
+| Inconsistent winding or self-intersecting faces | Orientation; a self-crossing surface becomes its solid's boundary (overlaps unite, inward shells stay cavities). Review the changed areas. |
 | Open boundaries | Fill only openings within explicit edge-count and size limits, according to the intended solid. |
 | Nonmanifold topology | Compatible patches are split and oriented; ambiguous topology is rejected. |
 | Out of memory for this mesh | The reported stage could not allocate for the reported size; rerun with a larger `--max-old-space-size` or on a machine with more RAM. |
@@ -47,8 +47,8 @@ units **mm** and review it; repair and import create no approvals.
 
 [The repair entry](../../core/print/repair-stl.mjs) owns orchestration and files;
 [the geometry reference](../../core/geom/README.md#explicit-mesh-repair) owns the
-cleanup, stitching (1e-9 mm line tolerance), CGAL 6.2.1 local patch repair with
-smoothing disabled, and the [memory contract](../../core/geom/README.md#memory-files-and-progress).
+cleanup, stitching (1e-9 mm line tolerance), CGAL 6.2.1 solid reconstruction
+and the [memory contract](../../core/geom/README.md#memory-files-and-progress).
 
 `repairSTLFiles(directory, source, options)` takes an STL path or bytes; prefer
 paths for large inputs, since reading, hashing and writing stream in chunks.

@@ -62,7 +62,8 @@ export async function prepareSTLImportInWorker(scratch,source,{units='auto',boun
         progress:event=>{importDiagnostic.repairStage=event.stage;progress?.({...event,stage:'repair',step:event.stage});}});
       importDiagnostic.repairedSha256=repairReport.repairedSha256;importDiagnostic.repaired=true;
       importDiagnostic.repair={method:repairReport.method,inputTriangles:repairReport.inputTriangles,outputTriangles:repairReport.outputTriangles,
-        removed:repairReport.removed,stitching:repairReport.stitching,changedSourceFaces:repairReport.changedSourceFaces,newOutputFaces:repairReport.newOutputFaces};
+        removed:repairReport.removed,stitching:repairReport.stitching,reconstruction:repairReport.reconstruction??null,changedSourceFaces:repairReport.changedSourceFaces,newOutputFaces:repairReport.newOutputFaces,
+        sampledDistanceMm:repairReport.sampledDistanceMm};
       sourcePath=join(directory,'repaired.stl');units='mm';repaired=true;
       attachments=['original.stl','repaired.stl','repair.json'].map(name=>({file:'repair/'+name,sourcePath:join(directory,name)}));
       importDiagnostic.stage='import-repaired';progress?.({stage:'import-repaired'});result=await prepare();
