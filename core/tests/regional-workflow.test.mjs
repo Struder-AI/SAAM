@@ -30,7 +30,7 @@ test('the complete regional stack uses native geometry, final confirmation, shar
   assert.deepEqual(await readFile(nativeFile),native);
 
   const server=createStudio(directory,{libraryRoot:directory});await new Promise(done=>server.listen(0,'127.0.0.1',done));
-  t.after(()=>new Promise(done=>server.close(done)));
+  t.after(()=>server.shutdown());
   const origin=`http://127.0.0.1:${server.address().port}`;
   const reviewed=await(await fetch(origin+'/api/state')).json();
   assert.equal(reviewed.toolpathApproved,true);
@@ -38,7 +38,8 @@ test('the complete regional stack uses native geometry, final confirmation, shar
   assert.equal((await fetch(origin+'/settings.mjs')).status,200);
 
   const assignments=structuredClone(plan.slices.assignments);assignments.find(a=>a.id==='cap').fillAnglesDeg=[0,90];
-  await adjustBundle(directory,{slices:{assignments}},{expectedRevision:state.revision});
+  // The open Studio owns edits to its print; delivery recorded itself, so the edit names the current revision.
+  state=await loadBundle(directory);await server.runBundleEdit(directory,()=>adjustBundle(directory,{slices:{assignments}},{expectedRevision:state.revision}));
   state=await loadBundle(directory);
   assert.equal(state.toolpathApproved,false);
   assert.deepEqual(await readFile(join(directory,'delivery/part.gcode')),bytes);

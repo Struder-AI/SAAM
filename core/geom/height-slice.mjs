@@ -1,7 +1,7 @@
 // Native height-field slice references. The chart is world XY in millimetres;
 // it preserves the source roof or spline, never fits a replacement surface.
 import {topAt,containsPoint} from './query.mjs';
-import {projectToPatch} from './field.mjs';
+import {projectToPatch,patchCoversChart} from './field.mjs';
 import {normalize,requireThat,TOLERANCE} from './tolerance.mjs';
 import {extractLevelSet,SENTINEL} from './level-set.mjs';
 import {validateSplineSolid,clampedKnots,splineSolidBounds} from './spline-solid.mjs';
@@ -22,6 +22,31 @@ export function heightReferenceBounds(reference) {
   const points=[];
   for(let i=0;i<reference.patch.cp.length;i+=4)points.push(Array.from(reference.patch.cp.slice(i,i+3),v=>v/reference.patch.cp[i+3]));
   return splineSolidBounds({patches:[{controlPoints:[points]}]});
+}
+
+// Conservative [low, high] Z of a height reference over the XY points of a
+// chart region. A roof's highest crossing exits its solid, so it lies on an
+// outward upward triangle of a closed mesh, and on or above any affine spline
+// patch covering the whole region. Other roofs keep their solid's bounds.
+export function heightReferenceRange(reference,loops){
+  const bounds=heightReferenceBounds(reference),points=loops.flat();
+  if(reference.kind!=='roof')return [bounds.min[2],bounds.max[2]];
+  const solid=reference.geometry;let floor=-Infinity;
+  if(solid.kind==='triangle-mesh'){
+    const lo=[0,1].map(k=>Math.min(...points.map(p=>p[k]))-TOLERANCE.point),hi=[0,1].map(k=>Math.max(...points.map(p=>p[k]))+TOLERANCE.point);
+    const faces=solid.triangles.map(t=>t.map(i=>solid.vertices[i]));
+    const winding=Math.sign(faces.reduce((sum,[a,b,c])=>sum+a[0]*(b[1]*c[2]-b[2]*c[1])+a[1]*(b[2]*c[0]-b[0]*c[2])+a[2]*(b[0]*c[1]-b[1]*c[0]),0));
+    const upward=([a,b,c])=>winding*((b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]))>0;
+    const meets=face=>[0,1].every(k=>Math.min(...face.map(p=>p[k]))<=hi[k]&&Math.max(...face.map(p=>p[k]))>=lo[k]);
+    const low=faces.reduce((low,face)=>upward(face)&&meets(face)?Math.min(low,face[0][2],face[1][2],face[2][2]):low,Infinity);
+    if(low<Infinity)floor=low;
+  }else if(solid.kind!=='boolean'){
+    for(const patch of solid.patches??[])if(patchCoversChart(patch,points)){
+      let low=Infinity;for(let i=0;i<patch.cp.length;i+=4)low=Math.min(low,patch.cp[i+2]/patch.cp[i+3]);
+      floor=Math.max(floor,low);
+    }
+  }
+  return [Math.max(bounds.min[2],floor),bounds.max[2]];
 }
 
 // Area-weighted normal projection over the complete reference footprint.
