@@ -10,6 +10,6 @@ The builder verifies official Node or platform-checked `--node PATH` plus LICENS
 
 1. Fetch/integrate history and push release work explicitly to `origin/codex/remettub-dev-branch`, preserving existing commits.
 2. Verify three ZIPs/sidecars, embedded manifests and runtime architectures, installer permissions and archived bytes. Run isolated Windows install, generation, Studio/Wing and repair checks; record Mac acceptance limits. Never replace a user's installation as a test.
-3. With release authorization create `vVERSION` at the exact source SHA in [SAAM Releases](https://github.com/Struder-AI/SAAM/releases); upload three ZIPs, three checksums and `INSTALL.md`. Guide-only corrections need not rebuild unchanged archives.
+3. With release authorization create `vVERSION` at the exact source SHA in [SAAM Releases](https://github.com/Struder-AI/SAAM/releases); upload three ZIPs, three checksums and `INSTALL.md`; the notes' first line tells agents to follow that release's `INSTALL.md` for exactly that version. Guide-only corrections need not rebuild unchanged archives.
 4. Verify public hashes, assets, tag and stable guide before updating all three relay `LATEST_RELEASE` entries and deploying the existing service.
 5. Verify authenticated `/device/release` offers without exposing credentials and the isolated Update/restart path with data preserved. Commit/push corrections to the same release branch and state native verification limits. A local ZIP or draft is not a published update.
