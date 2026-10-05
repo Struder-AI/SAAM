@@ -29,7 +29,8 @@ import {fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';
 import {parse} from 'acorn';
 import {pairArrowsOf} from './derive.mjs';
-import {readPlacement,pageIdentities,placePages} from './placement.mjs';
+import {readPlacement,pageIdentities,placePages,leafIdentities,readLayoutFile,writeLayout} from './placement.mjs';
+import {assignIdentities,storedClusters,layoutClusters,renameLayout,isCluster,isLegacy,nodeOf} from './cluster-identity.mjs';
 import {setFile,setName,setDir,mapSet} from '../lib/map-set.mjs';
 
 const repo=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
@@ -163,6 +164,66 @@ function modeArgument(fn) {
   return mode;
 }
 
+// ---- cluster identities ---------------------------------------------------------------------
+// Each solved cluster's identity (cluster-identity.mjs), matched against what came before: the
+// clusters of the stored model being replaced, by their leaves; layout.json's clusters that model
+// lacks, by the signatures layout.json keeps; and layout.json keys of the solver's old numbering
+// (`NODE/3`), through the earlier model's solver ids or, without an earlier model, this solve's
+// numbering. Returns the identities, the retired ones with why (this run's, and earlier ones
+// layout.json still names), the report, and the layout.json update to make once the model is
+// written: keys migrated, signatures refreshed.
+function identities({clusters,leafRow,leavesUnder}) {
+  const leafIdent=leafIdentities({leaves:Object.fromEntries(leafRow)});
+  const now=clusters.filter(c=>isCluster(c.id)).map(c=>({id:c.id,node:nodeOf(c.id),parent:c.parent,library:!!c.library,
+    members:new Set(leavesUnder(c.id).map(l=>leafIdent.get(l)??l))}));
+  let prev=null;
+  try{prev=JSON.parse(readFileSync(here('store/model.json'),'utf8'));}catch{}
+  const earlier=prev?.pages&&prev?.leaves?storedClusters(prev,leafIdentities(prev)):new Map();
+  const layoutFile=here('layout.json'),layout=readLayoutFile(layoutFile),referenced=layoutClusters(layout.maps);
+  const before=[],alias=new Map();
+  for(const c of earlier.values()) {
+    if(c.library){if(isLegacy(c.identity))alias.set(c.identity,`${c.node}/library`);continue;}
+    before.push({identity:c.identity,node:c.node,members:c.members});
+    if(c.solverId!==c.identity)alias.set(c.solverId,c.identity);
+  }
+  const numbered=new Map(now.map(c=>[c.id,c]));
+  for(const id of referenced) {
+    if(earlier.has(id)||alias.has(id))continue;
+    const sig=layout.clusters[id],at=numbered.get(id);
+    if(sig?.minhash&&!isLegacy(id))before.push({identity:id,node:nodeOf(id),signature:sig});
+    else if(isLegacy(id)&&!prev&&at){if(at.library)alias.set(id,`${at.node}/library`);else before.push({identity:id,node:at.node,members:at.members});}
+  }
+  const a=assignIdentities({now,before}),current=new Set(a.identity.values()),renamed=new Map(a.renamed);
+  for(const [key,was] of alias){const to=current.has(was)?was:a.renamed.get(was);if(to&&to!==key)renamed.set(key,to);}
+  const retired=Object.fromEntries(a.retired);
+  for(const id of referenced) {
+    if(current.has(id)||renamed.has(id)||retired[id])continue;
+    const why=prev?.identity?.retired?.[id]??(alias.has(id)?retired[alias.get(id)]:null);
+    if(why)retired[id]=why;
+  }
+  const {maps}=renameLayout(layout.maps,renamed),named=layoutClusters(maps);
+  const {migrated,...report}=a.report;
+  Object.assign(report,{migratedClusters:migrated.length,layout:{
+    migrated:[...referenced].filter(id=>renamed.has(id)).sort(order).map(id=>({from:id,to:renamed.get(id)})),
+    retired:[...named].filter(id=>!current.has(id)).sort(order).map(id=>({identity:id,why:retired[id]??'not a cluster of this model'}))}});
+  // Applied to layout.json as it is when the model is written, so a drop saved meanwhile stays.
+  const update=()=>{
+    if(!existsSync(layoutFile))return false;
+    const fresh=readLayoutFile(layoutFile),{maps}=renameLayout(fresh.maps,renamed),sigs={};
+    for(const id of [...layoutClusters(maps)].sort(order)){const s=a.signatures.get(id)??fresh.clusters[id];if(s?.minhash)sigs[id]={leaves:s.leaves,minhash:s.minhash};}
+    return writeLayout(layoutFile,maps,sigs);
+  };
+  return {identity:a.identity,signatures:a.signatures,retired,report,writeLayout:update};
+}
+// The signature of each cluster in the stored model, by identity (layout.json keeps the ones it
+// places: placement.mjs).
+let signatureIndex=null;
+export function clusterSignatures() {
+  const m=stored();
+  if(signatureIndex?.model!==m)signatureIndex={model:m,map:new Map(m.pages.filter(p=>p.signature).map(p=>[p.path.slice(9),p.signature]))};
+  return signatureIndex.map;
+}
+
 // ---- writing --------------------------------------------------------------------------------
 // The stored model: every map as a page the viewer draws and `read` projects, every placed leaf
 // as a source page, and the leaf arrows each drawn arrow carries.
@@ -237,10 +298,16 @@ export async function writeModel({log=()=>{},prep=null,entries=null}={}) {
       folded:l.folded.map(k=>{const s=shapes.get(k);return {key:k,file:fileOf(k),...(s?{line:s.line,endLine:s.endLine}:{})};})});
   }
 
+  // Identities (cluster-identity.mjs): each solved cluster's, carried from the stored model this
+  // one replaces (or, without it, from the signatures layout.json keeps) by leaf overlap. The
+  // owner's layout.json follows: keys of the solver's old numbering migrate, signatures refresh.
+  const leavesUnder=id=>cluster.has(id)?childrenOf(id).flatMap(leavesUnder):[id];
+  const ident=identities({clusters,leafRow,leavesUnder});
+  const pathOf=id=>`@cluster/${ident.identity.get(id)??id}`;
+
   // Labels. A cluster is named after the file holding most of its leaves and its best-connected
   // leaves there: provisional, mechanical, never authored.
   const degree=new Map();for(const a of model.arrows)for(const e of [a.from,a.to])degree.set(e,(degree.get(e)??0)+1);
-  const leavesUnder=id=>cluster.has(id)?childrenOf(id).flatMap(leavesUnder):[id];
   const base=file=>basename(file).replace(/\.m?js$/,'');
   const nameOf=new Map();
   for(const c of clusters) {
@@ -266,16 +333,19 @@ export async function writeModel({log=()=>{},prep=null,entries=null}={}) {
     const idx=index.get(m.id);if(idx===undefined)continue;
     const box=id=>id.startsWith('boundary:')?`b:${index.get(id.slice(9))}`:index.get(id);
     const components=m.members.map(id=>cluster.has(id)
-      ?{index:index.get(id),kind:'group',path:`@cluster/${id}`,count:nested.get(id),...nameOf.get(id)}
+      ?{index:index.get(id),kind:'group',path:pathOf(id),count:nested.get(id),...nameOf.get(id)}
       :(({key,label,role,file,line,endLine,uniform,possiblyCallerDependent,placementNotSolved})=>({index:index.get(id),kind:'leaf',path:key,
         label,role,file,line,endLine,...(uniform?{uniform}:{}),...(possiblyCallerDependent?{possiblyCallerDependent}:{}),...(placementNotSolved?{placementNotSolved}:{})}))(leafRow.get(id)))
       .sort((a,b)=>order(a.index,b.index));
     const ports=m.boundary.map(id=>({port:`b:${index.get(id)}`,mechanism:'boundary',index:index.get(id),label:boxLabel(id),
-      path:cluster.has(id)?`@cluster/${id}`:id}));
+      path:cluster.has(id)?pathOf(id):id}));
     const wires=m.arrows.map(a=>({from:box(a.from),to:box(a.to),ends:a.ends,count:a.leafArrows.length,kinds:kindCount(a.leafArrows),leafArrows:a.leafArrows}));
     const unlinked=cluster.get(m.id)?.unlinked;
-    pages.push({index:idx,path:m.id===TOP?'0':`@cluster/${m.id}`,kind:m.id===TOP?'root':'group',
-      label:m.id===TOP?spec.title:boxLabel(m.id),...(nameOf.get(m.id)??{}),
+    // A solved cluster's page keeps its solver id (this solve's numbering, which a layout key
+    // from before identities names) and its signature.
+    const sig=isCluster(m.id)?ident.signatures.get(ident.identity.get(m.id)):null;
+    pages.push({index:idx,path:m.id===TOP?'0':pathOf(m.id),kind:m.id===TOP?'root':'group',
+      label:m.id===TOP?spec.title:boxLabel(m.id),...(nameOf.get(m.id)??{}),...(sig?{solverId:m.id,signature:sig}:{}),
       parent:m.id===TOP?null:index.get(parentOf.get(m.id)),destination:'graph',leaves:m.nested,
       ...(m.score!==undefined?{score:m.score}:{}),components,ports,wires,...(unlinked?.length?{unlinked:[...unlinked].sort(keyOrder)}:{})});
   }
@@ -310,14 +380,17 @@ export async function writeModel({log=()=>{},prep=null,entries=null}={}) {
     inputs:{analysis:paths.analysis,authored:paths.authored,sourceRoots:paths.roots},sourceChanged:changed,
     summary:{leaves:model.leaves.length,merged:model.merged,sharedNames:model.sharedNames,arrows:model.arrows.length,drawn:model.leaves.length-unlinked.length,
       unlinked:unlinked.length,unowned:unowned.length,uniform:uniform.size,possiblyCallerDependent:[...leafRow.values()].filter(r=>r.possiblyCallerDependent).length,
-      maps:pages.filter(p=>p.destination==='graph').length,rangeUnknown,placementNotSolved:placedLeaves.size,solverMismatch,solved:summaries,
+      maps:pages.filter(p=>p.destination==='graph').length,rangeUnknown,placementNotSolved:placedLeaves.size,solverMismatch,solved:summaries,clusterIdentity:ident.report,
       ...(model.channels?{channels:{...model.channels.summary,stateNodes:[...leafRow.values()].filter(r=>r.state).length,crossOwnerState:crossOwnerState.length}}:{})},
-    arrows:model.arrows,leaves:Object.fromEntries(leafRow),pages,sources,sourceInfo};
+    identity:{retired:ident.retired},arrows:model.arrows,leaves:Object.fromEntries(leafRow),pages,sources,sourceInfo};
   stored.snapshotId=sha(JSON.stringify([stored.summary,pages.length,model.arrows.length,Object.values(sourceInfo).map(s=>s.sourceSha256)]));
   stored.checks=verify(stored);
   mkdirSync(here('store'),{recursive:true});
   writeFileSync(here('store/model.json'),JSON.stringify(stored));
   log(`wrote ${here('store/model.json')}: ${stored.summary.maps} maps, ${stored.summary.drawn} drawn leaves`);
+  const r=ident.report,layoutChanged=ident.writeLayout();
+  log(`cluster identities: ${r.kept} kept, ${r.rematched.length} rematched, ${r.split.length} split, ${r.merged.length} merged, ${r.retired.length} retired, ${r.new.length} new${r.migratedClusters?`, ${r.migratedClusters} migrated from solver numbering`:''}`
+    +`${r.layout.migrated.length?`; layout.json keys migrated: ${r.layout.migrated.length}`:''}${r.layout.retired.length?`; layout.json names retired clusters: ${r.layout.retired.map(x=>x.identity).join(', ')}`:''}${layoutChanged?' (layout.json updated)':''}`);
   return stored;
 }
 
@@ -426,6 +499,13 @@ export function solvedModel() {
   // Positions whose map or box is no longer drawn stay in their file; map 0 lists them.
   const graph=pages.filter(p=>p.destination==='graph'),root=graph.find(p=>p.index===TOP);
   const {positions,missing,applied}=placePages(graph,placement.maps,placement.unknown);
+  // A position on a retired cluster says what became of it (cluster-identity.mjs).
+  const retired=m.identity?.retired??{};
+  for(const x of missing) {
+    const key=(x.why==='map not drawn'?x.map:x.box)?.replace(/^b:/,''),id=key?.startsWith('@cluster/')?key.slice(9):null;
+    if(id&&retired[id])x.why+=`: cluster ${id} retired, ${retired[id]}`;
+    else if(id&&isLegacy(id))x.why+=`: ${id} is the solver's old numbering; regenerate migrates it`;
+  }
   if(missing.length) {
     const id='list:authored-missing';
     lists['authored-missing']={title:'authored positions whose box is no longer drawn: kept in their file until moved again or removed',
@@ -490,7 +570,7 @@ function mapRead(m,page) {
   const boxes=Object.fromEntries([...page.components].sort(byIndex)
     .map(c=>[c.index,c.kind==='leaf'?leaf(c.path):`${c.label} · ${c.count} ${c.count===1?'leaf':'leaves'}`]));
   const top=page.index===TOP,unlinked=m.summary.unlinked,unowned=m.summary.unowned;
-  return {index:page.index,label:page.label,...(top&&m.notice?{preview:m.notice}:{}),boxes,
+  return {index:page.index,label:page.label,...(top?{}:{address:page.path}),...(top&&m.notice?{preview:m.notice}:{}),boxes,
     ...(page.ports.length?{boundary:Object.fromEntries(page.ports.map(p=>[p.port,names.get(p.path)??p.label]))}:{}),
     ...(page.wires.length?{arrows:Object.fromEntries(page.wires.map(w=>[`${w.from} ${ARROW[w.ends]} ${w.to}`,w.count])),link:`@link/${page.index}/FROM/TO`}:{}),
     ...(top&&page.notAnalysed?.length?{notAnalysed:page.notAnalysed}:{}),...(top&&m.sourceChanged?.length?{sourceChanged:m.sourceChanged}:{}),

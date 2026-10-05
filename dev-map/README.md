@@ -48,8 +48,10 @@ node dev-map/cli.mjs --set NAME serve [--port N] | import-layout FILE   # author
 
 Read map 0, then a box, then `@link/MAP/FROM/TO` for the leaf arrows behind an arrow, then the
 source at `file:lines` with ordinary file tools. Addresses are map indexes, `@cluster/NODE-ID` for
-an authored node, `@link/MAP/FROM/TO`, `@unlinked` and `@unowned`. A leaf is not a map: read its
-source.
+an authored node, `@cluster/IDENTITY` for a solved cluster (a map read gives it as `address`),
+`@link/MAP/FROM/TO`, `@unlinked` and `@unowned`. Indexes are renumbered by any re-solve; a
+cluster's identity is not ([cluster identity](#cluster-identity)), so keep that to refer to a
+cluster across regenerations. A leaf is not a map: read its source.
 
 A map `read` is its drawing: `boxes` (a cluster's label and leaf count; a leaf as
 `NAME FILE:LINES`, marked only `command` or `command returning data`, outside `folded` ranges,
@@ -122,8 +124,9 @@ every box moved this session. Positions persist as authored data
 - Map 0's nodes and actors: `030-architecture/architecture.json` `layout["0"].positions` (only that
   block is rewritten; the architecture viewer uses the same positions).
 - Every other box: `sets/030-influence/layout.json`, `maps[MAP PATH][BOX]` = `{x,y}`. A box is named
-  by identity, never index: `@cluster/ID` for a cluster, `FILE::NAME[ #K]` for a leaf,
-  `b:IDENTITY` for a boundary box, `list:NAME` for a marker.
+  by identity, never index: `@cluster/IDENTITY` for a cluster, `FILE::NAME[ #K]` for a leaf,
+  `b:IDENTITY` for a boundary box, `list:NAME` for a marker. Its `clusters` keeps each named
+  cluster's signature (below).
 
 `build` and `regenerate` draw authored positions over solved ones; a box without one keeps its
 solved place, and only arrows touching a placed box are re-routed. A re-routed arrow (and every
@@ -131,8 +134,34 @@ arrow on map 0) meets each box where the line between the two box centres leaves
 side are spread along it in that order (12 px apart, a full side passing its outermost round the
 corner) and leave and enter square to the side (`leveled.py direct_routes`; the live drag runs a
 line-for-line copy, so a rebuild draws what the drag showed, within 0.1 px). A position whose map or box is
-no longer drawn (a re-solve renumbered clusters, a leaf was renamed) stays in its file and is
-reported by `build`, `regenerate` and `check` (`placement.missing`) and listed on map 0.
+no longer drawn (its cluster retired, a leaf was renamed) stays in its file and is
+reported by `build`, `regenerate` and `check` (`placement.missing`, saying what became of a
+retired cluster) and listed on map 0.
+
+### Cluster identity
+
+The solver numbers clusters afresh on every solve, so pages and positions name a solved cluster by
+an identity carried by content instead ([cluster-identity.mjs](influence/cluster-identity.mjs)):
+`NODE/~HEX` (HEX from a hash of its leaves when first seen) or `NODE/library`. Each `regenerate`
+matches the clusters it solved to those of the stored model it replaces, node by node, by the
+Jaccard overlap of all their leaves (by leaf identity): best pairs first, one to one, at overlap
+0.25 or more (below 0.5 reported `weak`: a full re-solve after a one-leaf change can reshuffle a
+node, and the best successors of its top clusters then overlap them by about 0.3; `"solve":"place"`
+keeps them whole). A matched cluster keeps its identity; when one splits, the best-overlapping part
+inherits it (and its positions) and the other parts are new and solver-placed; when clusters
+merge, the best-overlapping one's identity goes on and the others retire. The stored model keeps
+each cluster page's identity (its `path`), this solve's `solverId` and `signature` (leaf count and
+a MinHash of its leaves), and `summary.clusterIdentity` reports the run: `kept`, `rematched`
+(overlap, leaves before and now), `split`, `merged`, `retired`, `new`, and for layout.json the keys
+`migrated` and the named clusters now `retired`. `regenerate` prints one line of it; `check`
+repeats it.
+
+`regenerate` also brings layout.json along: keys of the solver's old numbering (`@cluster/NODE/3`,
+from before identities) are migrated to the identity of the cluster that numbering named, and
+`clusters` is refreshed with the current signature of every cluster the maps name (the authoring
+server adds one with each drop). Without an earlier stored model (a fresh checkout, a deleted
+store) those signatures still match the owner's placed clusters to the new solve, by estimated
+overlap (about ±0.09); unplaced clusters then get new identities.
 
 Opened any other way (a file, the static `influence-map` server), **Arrange** keeps moves in the
 browser; **Export layout** writes them to a file and

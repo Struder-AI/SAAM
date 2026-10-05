@@ -24,6 +24,9 @@ const LIMIT=1<<20;
 export async function serve({port=8768,files,view,set,log=console.error}) {
   const rel=file=>relative(files.repo,file).replaceAll('\\','/');
   const {buildGeneratedView}=await import('../lib/generated-view.mjs');
+  // A placed cluster's signature goes into layout.json with its position (placement.mjs).
+  const {clusterSignatures}=await import('./solved-set.mjs');
+  const signatureOf=id=>clusterSignatures().get(id);
   // Redraws run one at a time; a request arriving during one waits for the next.
   let drawing=Promise.resolve(),last=null;
   const redraw=()=>drawing=drawing.catch(()=>{}).then(async()=>{
@@ -58,7 +61,7 @@ export async function serve({port=8768,files,view,set,log=console.error}) {
       if(!/^application\/json\b/.test(req.headers['content-type']??''))return send(res,415,{error:'send application/json'});
       const input=await body(req);
       if(path==='/api/positions') {
-        const wrote=await exclusive(()=>writePositions({...files,map:input.map,set:input.set}));
+        const wrote=await exclusive(()=>writePositions({...files,map:input.map,set:input.set,signatureOf}));
         log(`placed on ${input.map}: ${Object.entries(input.set).map(([box,p])=>`${box} ${p?`(${p.x}, ${p.y})`:'→ solved'}`).join('; ')} → ${wrote.join(', ')}`);
         return send(res,200,{ok:true,wrote,...layout()});
       }
