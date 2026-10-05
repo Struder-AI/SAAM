@@ -178,7 +178,7 @@ export async function createReleaseService({serviceUrl,statePath,version='develo
     async report({description,studio={}}={}){
       const text=String(description??'').trim();
       if(!text)throw Error('Describe what went wrong.');
-      if(text.length>2000)throw Error('Shorten the report to 2000 characters.');
+      if(text.length>1000)throw Error('Shorten the report to 1000 characters.');
       if(!url||!state.device)throw Error('Bug reports travel through the alpha service. Enter an alpha invite in Connect to send one, or describe the problem to your agent.');
       const receipt=await emit({...studio,kind:'bug-report',description:text},{source:'bug-report'});
       if(receipt?.received!==true)throw Error('The report was not received: '+(diagnostics.lastFailure?.error??'the release service did not answer.'));

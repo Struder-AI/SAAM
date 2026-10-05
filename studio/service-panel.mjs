@@ -31,7 +31,7 @@ export function createServicePanel({token,available:hasService=true}){
   };
   function message(value){$('service-message').textContent=value??'';}
   function reportMessage(value,failed=false){$('report-message').textContent=value;$('report-message').classList.toggle('error',failed);}
-  const countReport=()=>{$('report-count').textContent=$('report-text').value.length+' / 2000';};
+  const countReport=()=>{$('report-count').textContent=$('report-text').value.length+' / 1000';};
   async function sendReport(){
     const text=$('report-text').value.trim(),button=$('report-send');
     if(!text){$('report-text').focus();return;}
