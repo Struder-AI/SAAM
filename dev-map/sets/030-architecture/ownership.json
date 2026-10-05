@@ -10298,6 +10298,10 @@
       "owner": "application",
       "reason": "Explicit blob authoring command/defaults construct a supplied Geometry proposal and submit it through Bundle acceptance; no Bundle-owned compilation."
     },
+    "core/agent/blob-field.mjs::prepareRequest": {
+      "owner": "application",
+      "reason": "Validates a blob request and runs its preparation as an application computation job; shared by compile and bundle authoring."
+    },
     "core/agent/blob-field.mjs::compileRequest": {
       "owner": "application",
       "reason": "Explicit blob authoring command/defaults construct a supplied Geometry proposal and submit it through Bundle acceptance; no Bundle-owned compilation."
@@ -11551,6 +11555,10 @@
     "skills/wave-overhangs/scripts/canopy-example.mjs::state": {
       "owner": "extensions"
     },
+    "scripts/dev-instance.mjs::@module": {
+      "owner": "development",
+      "reason": "Development tool: runs saam against a background instance of this checkout."
+    },
     "scripts/check-repo.mjs::@module": {
       "owner": "development"
     },
@@ -12206,6 +12214,10 @@
       "owner": "application",
       "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
     },
+    "core/application/diagnostics.mjs::retainFailedImport": {
+      "owner": "application",
+      "reason": "Diagnostics retention: keeps the latest failed import's bytes in the home tmp folder."
+    },
     "core/application/diagnostics.mjs::isNetworkFailure": {
       "owner": "application",
       "reason": "Coder-assigned 0.3.3 diagnostics retention and consented reporting owner; anonymous bodies inherit the nearest stable declaration."
@@ -12839,6 +12851,10 @@
     "workspaces/server.mjs::startWorkspace::shutdown::<callable@151:36>::ended": {
       "owner": "workspace"
     },
+    "core/application/runtime-selection.mjs::@module": {
+      "owner": "application",
+      "reason": "Selects the orchestrator and code-root runtime identities."
+    },
     "core/application/runtime-selection.mjs::execute": {
       "owner": "application"
     },
@@ -12877,6 +12893,10 @@
     },
     "core/application/runtime-selection.mjs::selectRuntime::name": {
       "owner": "application"
+    },
+    "packaging/runtime-host.mjs::@module": {
+      "owner": "application",
+      "reason": "Child runtime host: runs one code root's application operations and Studios for the orchestrator."
     },
     "packaging/runtime-host.mjs::pending": {
       "owner": "application"
@@ -12973,6 +12993,10 @@
     },
     "packaging/runtime-host.mjs::<callback@78:25>::waiter": {
       "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::@module": {
+      "owner": "application",
+      "reason": "Orchestrator supervision of selected runtimes."
     },
     "packaging/runtime-registry.mjs::createRuntimeRegistry": {
       "owner": "application"
@@ -13115,6 +13139,10 @@
     "packaging/runtime-registry.mjs::createRuntimeRegistry::observeOperations::<return@100:72>": {
       "owner": "application"
     },
+    "packaging/runtime-state.mjs::@module": {
+      "owner": "application",
+      "reason": "Migrates installed runtime private state into its runtime folder."
+    },
     "packaging/runtime-state.mjs::exists": {
       "owner": "application"
     },
@@ -13150,6 +13178,10 @@
     },
     "packaging/runtime-state.mjs::restoreRuntimeState::entry": {
       "owner": "application"
+    },
+    "packaging/studio-windows.mjs::@module": {
+      "owner": "application",
+      "reason": "Orchestrator-owned stable Studio window addresses across runtime restarts."
     },
     "packaging/studio-windows.mjs::createStudioWindows": {
       "owner": "application"
@@ -13237,6 +13269,10 @@
     },
     "packaging/studio-windows.mjs::createStudioWindows::runtimeFor": {
       "owner": "application"
+    },
+    "workspaces/export-publication.mjs::@module": {
+      "owner": "workspace",
+      "reason": "Workspace export sets: complete publication before the predecessor retires."
     },
     "workspaces/export-publication.mjs::safeName": {
       "owner": "workspace"
