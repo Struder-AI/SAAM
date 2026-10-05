@@ -1,9 +1,14 @@
-# Installer scripts run on their own platform whatever checkout builds the package.
-packaging/macos/*.sh text eol=lf
-packaging/macos/*.command text eol=lf
-packaging/macos/README.txt text eol=lf
+# Checkouts hold the committed LF bytes whatever core.autocrlf says: releases copy the
+# working tree, and hashed data (airfoils, stroke fonts, fixtures) must match its records.
+* text=auto eol=lf
+# Windows installer scripts run as CRLF whatever checkout builds the package.
 packaging/windows/*.cmd text eol=crlf
 packaging/windows/*.ps1 text eol=crlf
 packaging/windows/*.vbs text eol=crlf
-# Airfoil integrity hashes cover canonical LF bytes on every platform.
-workspaces/wing/data/*.dat text eol=lf
+# Byte-exact meshes and binary assets.
+*.stl -text
+*.3mf binary
+*.png binary
+*.ico binary
+*.icns binary
+*.ttf binary
