@@ -28,7 +28,7 @@ main() {
   bundle="$HOME/Applications/SAAM.app"
   shortcut="$HOME/Desktop/SAAM.app"
   [ -d "$target" ] || fail "SAAM is not installed in $target."
-  if saam_running; then fail 'SAAM is running. Choose Quit from the tray menu, then uninstall again.'; fi
+  if saam_running; then fail 'SAAM is running. Choose Quit in Studio or the SAAM menu, then uninstall again.'; fi
   if [ "${1:-}" != '--yes' ]; then
     echo "This removes SAAM from $target, $bundle and its desktop shortcut."
     echo "Your prints and settings in $(data_folder) are kept."

@@ -382,7 +382,7 @@ LAUNCHER
   echo
   echo "SAAM ${version} is installed."
   echo 'Start it from the SAAM desktop shortcut or ~/Applications/SAAM.app,'
-  echo 'and stop it with Quit in its tray menu. Restart clients to discover saam.'
+  echo 'and stop it with Quit in Studio or the SAAM menu. Restart clients to discover saam.'
   echo "Your prints and settings stay in $(data_folder)."
   # Startup removes the completed workspace; SAAM owns first-run evidence from here.
   workspace_owner complete
