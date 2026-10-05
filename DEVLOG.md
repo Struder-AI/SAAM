@@ -5,6 +5,7 @@
 - Regression from window reuse (d90d5935): `start_tour` reaching the chat's own window failed with "A bundle operation is running", because `assertStudioIdle` counted the caller's own `start_tour` as other work. The viewing chat's own operations are now excluded when it reuses its own window; other chats' work and all job checks still block.
 - `scripts/dev-instance.mjs --visible`: the development instance's orchestrator opens Studio in the default browser (still its own home, no tray); `SAAM_DEV_INSTANCE` replaces `SAAM_BACKGROUND` as the signal for the dev-instance source command, which carries `--visible`.
 - Verified on a visible dev instance (own home; orchestrator and runtime both this checkout, contract 1): start-tour failed twice before the fix, opened the tour in the same window after `reload`. studio-open 7/7, studio-tour-lifetime 1/1, studio-lifetime 6/6. Not yet observed: the fresh-home first call (expected same cause; window stress test).
+- Phase colours left Studio blank (grey connection lights, no content): `studio/app.mjs` imports `core/print/phase-colours.mjs`, which the Studio server's browser module allowlist did not serve (404 stops the whole module graph). Added to the allowlist; a probe of the served page now loads all 31 modules. Workers verifying without a browser cannot see this class of failure.
 
 ## 2026-10-05 — Runtime model implemented
 
