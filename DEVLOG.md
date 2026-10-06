@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-05 — Dev-map reads: areas, node ids, compact change warnings
+
+- Worker: `developer-onboarding --area AREA` gives a developer the maps of the map-0 boxes owning the area's code, through a new `@path/FILE-OR-FOLDER` read; setup and tests, which no map covers, give their manuals (developer `--area application|skills|core/agent` now returns maps, not those manuals). Map reads accept bare node ids (`export`). An unknown address fails in one line listing the set's addresses (030-deployment has maps 0, 1 and 3–7). Reads count changed files in `stale` and list them at `@stale`: about 150 characters instead of ~1k per read. The suspected-imprecision marking was already gone (3762fb04).
+- Verified: every offered area for both roles; `check` reads ok (199 maps). `check` still exits 1 on 1,244 code-check errors from the analysis, unrelated to this change. Not run: suite, regenerate.
+
 ## 2026-10-05 — C1: one generation owner
 
 - Worker: `generateBundle` reuses or promotes a current program, else runs Bundle's generation worker (`runComputationJob`, moved to core/print), which commits under the caller's held reservation (`heldBundleInstance`). Studio keeps one `generationRun` for person, tour and agent runs; agents call `server.generate` inside their held edit and cancel by `studioInstanceId`. Removed `PreparedGenerationJob`, generation-control, program-handoff, Studio's generation worker, `dispatchComputation`, preparation reuse, `setGenerationActivity`/`externalGeneration` and Application's `generations`, plus their tests (+153/−844). A failed preparation is recomputed on retry; status keeps only `generating`. Evidence paths in architecture.json updated to the moved worker (path only).
