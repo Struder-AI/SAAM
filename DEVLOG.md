@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-05 — Machine adapters steps 1–2: adapters return bytes and a report
+
+- Worker: `core/export/gcode-motion.mjs` (`gcodeMotion`, formerly Griffin's `exportMotion`) returns its lines and the totals of what it wrote; Bambu's header, slice info, layer lists and thumbnails use them instead of re-reading the body; the body Z re-parse is gone (`checkContext`'s shutdown guard kept). `exportProgram` prepares the path once and every adapter returns `{bytes, report}`. The short-travel advisory runs on the prepared path at 5 line widths (process scale; 2 mm at 0.4 mm). `exportAndDecodeProgram` remains until Studio draws the path. Export README 101 → 98, DEVELOP 47 → 50 lines.
+- Verified (worker): exports byte-identical to 5d06fbf0 on both H2D hardware fixtures, h2d-mixed, H2D/X1/S5 boxes, the starter and Dobot; report seconds equal the decoded totals. After merge: bambu 19/19, export 4/4, dobot 8/8. `bambu-hardware-regression` fails (executable hash) on 5d06fbf0 too: predates this work. Not run: remaining examples byte comparison (in progress), Studio, whole suite. Remaining steps 3–5 in .local/team/fix-machine-adapters.md.
+
 ## 2026-10-05 — update waits; Quit during a start; bug report text optional
 
 - Owner: `saam update` waits without a limit (its answer follows a 44–49 MB download, checksum, unpack and installer start); `open`, `status`, `quit`, `stop-runtime` and `reload-runtime` keep 35 s. Quit and Update no longer ask a starting runtime to stop (it held nothing and exits when the orchestrator disconnects), the defect `status` had. `report_bug` takes optional text and no reason (owner: "Report bug can be an empty field"); Studio's route accepts an empty report too; operator `reports` no longer prints a reason.
