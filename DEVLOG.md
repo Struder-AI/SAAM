@@ -1,5 +1,9 @@
 # Development log
 
+## 2026-10-05 — Machine adapter design for owner review
+
+- Worker (design only; .local/team/adapter-design.md): a new machine today needs about ten core edits (profile and MACHINE_IDS, exporter and player, registry row, `readProgramSources`/`decodeSource` branches, Studio module list, `validateSetup`/`mergeSetup`, machine-id branches in prepare-path and presentation, Studio settings rows); nothing can come from an extension folder. Proposed: a `kind: "machine"` extension whose adapter returns `{bytes, report}` from the prepared path and settings, with a debug-only `machine-verify` entry; Studio draws the path; players and decode routes go (about 1,550 runtime lines). 14 links into or out of Export besides SAAMpath and settings listed for owner approval, four of them not drawn by the maps (plan field reads, `setup.bambu` read by Toolpath and Studio, Studio's string module list). Standards S1–S10, S3 waiting on scale-derived program resolution. Not run: tests, Bambu byte-identity from the path.
+
 ## 2026-10-05 — Advanced vase tiles keep their size
 
 - Worker: a sleeve pattern may be `{paths, tileWidthMm, riseMm, turns}`, points as [arc mm from the course start, height above the rising turn]. Each turn holds the whole number of courses nearest its centerline perimeter, spaced evenly from the seam; a turn whose count changes re-spaces its courses, shifting them against the turn below by up to half a tile; the report lists each change (`sizedCourses`). Sized turns compile into the same course stack as turns patterns (`patternStack`), so level and spiral endings are shared. Minimum layer time now applies per repeat (identical for single-path tiles).
