@@ -1,12 +1,12 @@
 import {PROGRAM_DECIMALS} from '../dimensions.mjs';
 import {distance,requireThat} from '../private/export/numeric.mjs';
-import {prepareExportPath} from './prepare-path.mjs';
 import {gcodeMotion} from './gcode-motion.mjs';
 
 const fmt=(n,d=PROGRAM_DECIMALS)=>Number(n.toFixed(d)).toString();
+// Writes a prepared path. The header's estimates are the path's; the report's
+// are the written commands'.
 export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
-  path=prepareExportPath(path,plan,machine);
-  const motionLines=gcodeMotion(path,plan).lines;
+  const {lines:motionLines,tally}=gcodeMotion(path,plan);
   requireThat(machine.outputs.some(o=>o.id===plan.output && o.flavor==='Griffin'),'Machine does not declare Griffin export.');
   const s=plan.setup, area=Math.PI*(s.filamentMm/2)**2, tool=s.tool;
   const startupZ=machine.startup.zAfterStartupMm;
@@ -37,5 +37,6 @@ export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
   // Large paths exceed the engine's argument limit when spread into push().
   for(const line of motionLines)lines.push(line);
   for(const line of render(envelope.end))lines.push(line);
-  return lines.join('\n')+'\n';
+  return {bytes:lines.join('\n')+'\n',report:{seconds:tally.seconds,volumeMm3:tally.volumeMm3,
+    notice:'Firmware startup and heating time are not simulated; this export does not request routine bed leveling.'}};
 }

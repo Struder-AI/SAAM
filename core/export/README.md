@@ -24,18 +24,18 @@ limitations are reported at export; catalog presence is not export support.
 
 ### Short-travel advisory
 
-Shared export/interpretation attaches `summary.shortTravel` to every program,
-including saved programs reopened in Studio. A travel is a maximal sequence of
+Export attaches `shortTravel` to every program's report, computed on the
+prepared path Studio draws. A travel is a maximal sequence of
 non-depositing moves: lifts, traverses, descents, detours and sampled robot moves
 remain one trip. Process-only events do not split it; stationary deposition does.
 The check flags straight-line XYZ distance
-between trip endpoints **at or below 2 mm**, including coincident endpoints,
+between trip endpoints **at or below 5 line widths** (process scale; 2 mm at
+0.4 mm), including coincident endpoints,
 regardless of the distance traveled along the route. Required transitions are
 counted as travels but never flagged: the approach before the first deposition,
 the departure after the last, and a travel between depositions with different
-known layer labels, where a nearby start is the intended path. A segment of at
-most 0.001 mm inside a stroke, whose filament amount rounded to nothing in the
-written program, is not a travel.
+known layer labels, where a nearby start is the intended path. A segment within
+print resolution inside a stroke is not a travel.
 
 Producers [connect nearby strokes by deposition](../path/README.md#whole-plan-travel-requirement),
 so an ordinary print reports nothing. A finding is a bad-path report, not a
@@ -43,16 +43,13 @@ validity gate or automatic repair, and the agent tells the person about it. The
 report includes total/count, `liftedCount` (trips that rose above both
 endpoints because the producer found the direct line blocked, such as a gap
 between neighboring islands), operation counts and up to 20 examples with
-endpoints, the lifted flag and source file/line, phase, layer and adjacent
+endpoints, the lifted flag and prepared-path action index, phase, layer and adjacent
 operation labels. Missing labels remain unknown; recipe skills alone do not prove
-which producer caused a travel. The check is one linear scan of interpreted moves,
-cached with the owning program.
+which producer caused a travel. The check is one linear scan of the prepared path.
 Generation records it as
 `plan.json` → `bundle.review.generation.checks.shortTravel`; `saam` print state
 exposes it. Review, approvals, delivery and emitted bytes are unchanged
 by the finding. Browser playback does not rerun the check.
-Studio's read-only machine-study adapter applies the same advisory to its authored
-motion and caches it by source text.
 
 ### Output compatibility
 

@@ -1,6 +1,5 @@
 import {PROGRAM_DECIMALS} from '../dimensions.mjs';
 import {requireThat} from '../private/export/numeric.mjs';
-import {prepareExportPath} from './prepare-path.mjs';
 // Bounded Bambu output (H2D, X1 Carbon). Firmware service commands come from
 // the pinned envelope in the machine file, which also owns every model-specific fact.
 import {createHash} from 'node:crypto';
@@ -117,7 +116,6 @@ function configBlock(settings){
 // Package totals, layer lists and thumbnails come from what the body writer
 // wrote; the body is never read back.
 export function exportBambu(path,plan,machine,release){
-  path=prepareExportPath(path,plan,machine);
   const output=configuration(plan,machine);
   const filamentSequence=[plan.setup.bambu?.filament,...path.actions.filter(a=>a.kind==='toolChange').map(a=>a.filament)];
   const job=resolveBambuJob(plan,machine,output,{filamentSequence});

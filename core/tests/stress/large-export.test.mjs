@@ -2,7 +2,7 @@ import '../temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { exportGriffin } from '../../export/griffin.mjs';
+import { exportProgram } from '../../export/registry.mjs';
 import { interpretGriffin } from '../../export/griffin-player.mjs';
 import { defaults, VERSION, BUILD_DATE } from '../../print/plan.mjs';
 
@@ -17,7 +17,7 @@ test('large Griffin toolpaths export and replay every move without overflowing t
   for(let i=0;i<count;i++)path.actions.push({
     kind:'move',phase:'draped-skin',layer:1,to:[i%2===0?101:100,100,1],speedMmS:10,volumeMm3:0.04
   });
-  const code=exportGriffin(path,plan,machine,{generatorVersion:VERSION,buildDate:BUILD_DATE});
+  const code=exportProgram(path,plan,machine,{generatorVersion:VERSION,buildDate:BUILD_DATE}).bytes;
   const program=interpretGriffin(code,plan,machine);
   const deposition=program.moves.filter(move=>move.extruding);
   assert.equal(deposition.length,count);

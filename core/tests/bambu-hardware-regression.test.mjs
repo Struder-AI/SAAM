@@ -12,7 +12,7 @@ import {unpackZip} from '../export/zip.mjs';
 test('fresh H2D generation preserves physically accepted colour and dual executables and project metadata',async()=>{
   for(const [make,record]of [[h2dColourFixture,facts.generatedSameNozzle],[dualNozzleVerificationFixture,facts.generatedDualNozzle]]){
     const {plan,machine}=make(),path=await generatePath(plan,machine);
-    const bytes=exportProgram(path,plan,machine,{generatorVersion:'test',buildDate:facts.date});
+    const bytes=exportProgram(path,plan,machine,{generatorVersion:'test',buildDate:facts.date}).bytes;
     const program=decodeProgram(bytes,plan,machine);
     const executable=program.code.slice(program.code.indexOf('; EXECUTABLE_BLOCK_START'));
     assert.equal(createHash('sha256').update(executable).digest('hex'),record.executableSha256,

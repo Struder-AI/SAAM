@@ -47,7 +47,7 @@ async function skillTrial(mode, geometry) {
       mode==='planar'?a:{...a,fillDensity:1})}};
   if(mode==='draped')plan.slices.assignments.push(skinAssignment({id:'draped-skin'}));
   const start=performance.now(),c={value:await generatePath(plan,machine)},time={sliceMs:performance.now()-start};
-  const e=measure(()=>exportProgram(c.value,plan,machine,{generatorVersion:VERSION,buildDate:BUILD_DATE}));time.exportMs=e.ms;
+  const e=measure(()=>exportProgram(c.value,plan,machine,{generatorVersion:VERSION,buildDate:BUILD_DATE}).bytes);time.exportMs=e.ms;
   const k=measure(()=>decodeProgram(e.value,plan,machine));time.interpretMs=k.ms;
   return {time,actions:c.value.actions.length,depositedMm3:c.value.actions.reduce((v,a)=>v+(a.volumeMm3??0),0),
     operations:c.value.summary.composition.operationOrder.length,exportBytes:Buffer.byteLength(e.value),

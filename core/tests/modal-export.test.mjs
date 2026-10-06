@@ -25,7 +25,7 @@ test('modal fields retain exact machine moves across speed, travel, retract and 
     plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:.6});
     plan.process.maxCombMm=0;plan.process.minimumLayerSeconds=0;
     const path=await generatePath(plan,machine);
-    const code=exportProgram(path,plan,machine,{generatorVersion:'test',buildDate:'2026-09-09'});
+    const code=exportProgram(path,plan,machine,{generatorVersion:'test',buildDate:'2026-09-09'}).bytes;
     const actual=decodeProgram(code,plan,machine),expected=prepareExportPath(path,plan,machine).actions.filter(a=>a.kind==='move');
     assert.equal(actual.moves.length,expected.length);
     expected.forEach((a,i)=>{
