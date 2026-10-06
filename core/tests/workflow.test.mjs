@@ -24,6 +24,7 @@ import { createStudio } from '../../studio/server.mjs';
 import { approvedReview, machineChangedReview } from '../print/workflow.mjs';
 
 import {splineBlock,splineBox} from './fixtures/spline-shapes.mjs';
+import {createChatChannel} from '../application/chat-requests.mjs';
 const ACTOR = 'SYNTHETIC TEST REVIEWER — not a real approval';
 const clone = value => structuredClone(value);
 
@@ -295,7 +296,7 @@ test('selecting one skill still produces one program from one plan', async t => 
 test('Studio reviews a shell print and delivers it under its own export name', async t => {
   const dir = await fixture(t);
   await generateBundle(dir, { development: true });
-  const server = createStudio(dir,{libraryRoot:home});
+  const server = createStudio(dir,{libraryRoot:home,chat:createChatChannel(home,{ownerId:'studio:test'}).binding});
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise(done => server.close(done)));
   const origin = `http://127.0.0.1:${server.address().port}`;

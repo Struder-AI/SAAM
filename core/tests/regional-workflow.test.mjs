@@ -8,6 +8,7 @@ import {regionalStackPlan} from './fixtures/regional-stack.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {initBundle,loadBundle,approve,generateBundle,deliver,adjustBundle} from '../print/bundle.mjs';
 import {createStudio} from '../../studio/server.mjs';
+import {createChatChannel} from '../application/chat-requests.mjs';
 
 test('the complete regional stack uses native geometry, final confirmation, shared Studio and unchanged delivery',async t=>{
   const directory=await mkdtemp(join(tmpdir(),'saam-regional-workflow-'));t.after(()=>rm(directory,{recursive:true,force:true}));
@@ -29,7 +30,7 @@ test('the complete regional stack uses native geometry, final confirmation, shar
   assert.deepEqual(await readFile(await deliver(directory)),bytes);
   assert.deepEqual(await readFile(nativeFile),native);
 
-  const server=createStudio(directory,{libraryRoot:directory});await new Promise(done=>server.listen(0,'127.0.0.1',done));
+  const server=createStudio(directory,{libraryRoot:directory,chat:createChatChannel(directory,{ownerId:'studio:test'}).binding});await new Promise(done=>server.listen(0,'127.0.0.1',done));
   t.after(()=>server.shutdown());
   const origin=`http://127.0.0.1:${server.address().port}`;
   const reviewed=await(await fetch(origin+'/api/state')).json();

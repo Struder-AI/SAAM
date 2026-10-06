@@ -9,10 +9,11 @@ import http from 'node:http';
 import net from 'node:net';
 import {createStudio} from '../../studio/server.mjs';
 import {viewerLifetime} from '../../studio/lifetime.mjs';
+import {createChatChannel} from '../application/chat-requests.mjs';
 
 // No geometry creation, interpretation or slicing: only sockets and timers.
 async function fixture(t,options={}){
-  const server=createStudio('missing-synthetic-lifetime-bundle',{libraryRoot:home,...options});
+  const server=createStudio('missing-synthetic-lifetime-bundle',{libraryRoot:home,chat:createChatChannel(home,{ownerId:'studio:test'}).binding,...options});
   t.after(()=>server.shutdown());
   server.listen(0,'127.0.0.1');await once(server,'listening');
   const url=`http://127.0.0.1:${server.address().port}`;
@@ -31,7 +32,7 @@ async function fixture(t,options={}){
 
 test('Studio waits indefinitely before the first browser requests a page',async t=>{
   t.mock.timers.enable({apis:['setTimeout']});
-  const server=createStudio('missing-synthetic-lifetime-bundle',{libraryRoot:home});
+  const server=createStudio('missing-synthetic-lifetime-bundle',{libraryRoot:home,chat:createChatChannel(home,{ownerId:'studio:test'}).binding});
   t.after(()=>server.shutdown());
   server.listen(0,'127.0.0.1');await once(server,'listening');
   t.mock.timers.tick(24*60*60*1000);

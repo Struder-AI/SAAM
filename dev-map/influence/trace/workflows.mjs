@@ -5,6 +5,7 @@
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
+import {createChatChannel} from '../../../core/application/chat-requests.mjs';
 
 const ACTOR='SYNTHETIC TRACE REVIEWER - not a real approval';
 const core=path=>import(new URL(`../../../core/${path}`,import.meta.url).href);
@@ -59,7 +60,7 @@ export const workflows={
     const {createStudio}=await import(new URL('../../../studio/server.mjs',import.meta.url).href);
     const root=join(home,'Prints'),directory=join(root,'studio-part');
     await initBundle(directory,starterPlan(),{machineId:'ultimaker-s5'});
-    const server=createStudio(directory,{libraryRoot:root});
+    const server=createStudio(directory,{libraryRoot:root,chat:createChatChannel(root,{ownerId:'studio:test'}).binding});
     try {
       await server.ready?.();
       await new Promise(done=>server.listen(0,'127.0.0.1',done));

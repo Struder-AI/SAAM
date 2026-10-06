@@ -671,17 +671,17 @@
       "owner": "studio",
       "reason": "Studio transport/request endpoint; createStudio currently mixes bundle commands, UI serving and agent delivery."
     },
-    "studio/agent-requests.mjs": {
-      "owner": "studio",
-      "reason": "Agent request lifecycle and indexing."
+    "core/application/chat-requests.mjs": {
+      "owner": "application",
+      "reason": "Chat channel owned by the Application: request ledger, its index and the event log (C2)."
     },
-    "studio/request-index.mjs": {
-      "owner": "studio",
-      "reason": "Agent request lifecycle and indexing."
+    "core/application/chat-request-index.mjs": {
+      "owner": "application",
+      "reason": "Chat channel owned by the Application: request ledger, its index and the event log (C2)."
     },
-    "studio/studio-events.mjs": {
-      "owner": "studio",
-      "reason": "Priority event queue."
+    "core/application/chat-events.mjs": {
+      "owner": "application",
+      "reason": "Chat channel owned by the Application: request ledger, its index and the event log (C2)."
     },
     "studio/tour.mjs": {
       "owner": "studio",
@@ -6219,101 +6219,89 @@
     "studio/adapter-resolution.mjs::bundles.saam-shell-plan/1": {
       "owner": "studio"
     },
-    "studio/agent-requests.mjs::@module": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::@module": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::accept": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::accept": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::accept::edit": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::accept::edit": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::activity": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::activity": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::begin": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::begin": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::cancelFor": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::cancelFor": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::cancelScope": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::cancelScope": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::close": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::close": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::disconnect": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::file": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::endSession": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::get": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::file": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::index.onHint": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::get": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::latestKey": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::index.onHint": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::list": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::latestKey": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::notify": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::list": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::presented": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::normalized": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::printId": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::notify": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::query": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::presented": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::save": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::printId": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::settleWaiter": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::query": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::subscribe": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::save": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::subscribe::unsubscribe": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::selectQueued": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::unfinished": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::settleWaiter": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::update": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::subscribe": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::visible": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::subscribe::unsubscribe": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::wait": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::unfinished": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::createChatRequests::wake": {
+      "owner": "application"
     },
-    "studio/agent-requests.mjs::createAgentRequests::update": {
-      "owner": "studio"
-    },
-    "studio/agent-requests.mjs::createAgentRequests::visible": {
-      "owner": "studio"
-    },
-    "studio/agent-requests.mjs::createAgentRequests::wait": {
-      "owner": "studio"
-    },
-    "studio/agent-requests.mjs::createAgentRequests::wake": {
-      "owner": "studio"
-    },
-    "studio/agent-requests.mjs::snapshot": {
-      "owner": "studio"
+    "core/application/chat-requests.mjs::workEvidence": {
+      "owner": "application"
     },
     "studio/agent-ui.mjs::@module": {
       "owner": "studio"
@@ -7338,47 +7326,47 @@
     "studio/refresh-plan.mjs::outputView": {
       "owner": "studio"
     },
-    "studio/request-index.mjs::@module": {
-      "owner": "studio"
+    "core/application/chat-request-index.mjs::@module": {
+      "owner": "application"
     },
-    "studio/request-index.mjs::createRequestIndex": {
-      "owner": "studio"
+    "core/application/chat-request-index.mjs::createRequestIndex": {
+      "owner": "application"
     },
-    "studio/request-index.mjs::createRequestIndex::@default/onChange": {
-      "owner": "studio"
+    "core/application/chat-request-index.mjs::createRequestIndex::@default/onChange": {
+      "owner": "application"
     },
-    "studio/request-index.mjs::createRequestIndex::@default/onHint": {
-      "owner": "studio"
+    "core/application/chat-request-index.mjs::createRequestIndex::@default/onHint": {
+      "owner": "application"
     },
-    "studio/request-index.mjs::createRequestIndex::changed": {
-      "owner": "studio"
+    "core/application/chat-request-index.mjs::createRequestIndex::changed": {
+      "owner": "application"
     },
-    "studio/request-index.mjs::createRequestIndex::close": {
-      "owner": "studio"
+    "core/application/chat-request-index.mjs::createRequestIndex::close": {
+      "owner": "application"
     },
-    "studio/request-index.mjs::createRequestIndex::drop": {
-      "owner": "studio"
+    "core/application/chat-request-index.mjs::createRequestIndex::drop": {
+      "owner": "application"
     },
-    "studio/request-index.mjs::createRequestIndex::read": {
-      "owner": "studio"
+    "core/application/chat-request-index.mjs::createRequestIndex::read": {
+      "owner": "application"
     },
-    "studio/request-index.mjs::createRequestIndex::reconcileRecords": {
-      "owner": "studio"
+    "core/application/chat-request-index.mjs::createRequestIndex::reconcileRecords": {
+      "owner": "application"
     },
-    "studio/request-index.mjs::createRequestIndex::refresh": {
-      "owner": "studio"
+    "core/application/chat-request-index.mjs::createRequestIndex::refresh": {
+      "owner": "application"
     },
-    "studio/request-index.mjs::createRequestIndex::releaseLater": {
-      "owner": "studio"
+    "core/application/chat-request-index.mjs::createRequestIndex::releaseLater": {
+      "owner": "application"
     },
-    "studio/request-index.mjs::createRequestIndex::retain": {
-      "owner": "studio"
+    "core/application/chat-request-index.mjs::createRequestIndex::retain": {
+      "owner": "application"
     },
-    "studio/request-index.mjs::createRequestIndex::stopWatching": {
-      "owner": "studio"
+    "core/application/chat-request-index.mjs::createRequestIndex::stopWatching": {
+      "owner": "application"
     },
-    "studio/request-index.mjs::valid": {
-      "owner": "studio"
+    "core/application/chat-request-index.mjs::valid": {
+      "owner": "application"
     },
     "studio/server.mjs::@module": {
       "owner": "studio"
@@ -7599,50 +7587,35 @@
     "studio/studio-controls.mjs::studioControls": {
       "owner": "studio"
     },
-    "studio/studio-events.mjs::@module": {
-      "owner": "studio"
+    "core/application/chat-events.mjs::@module": {
+      "owner": "application"
     },
-    "studio/studio-events.mjs::clone": {
-      "owner": "studio"
+    "core/application/chat-events.mjs::clone": {
+      "owner": "application"
     },
-    "studio/studio-events.mjs::createStudioEvents": {
-      "owner": "studio"
+    "core/application/chat-events.mjs::createChatEvents": {
+      "owner": "application"
     },
-    "studio/studio-events.mjs::createStudioEvents::close": {
-      "owner": "studio"
+    "core/application/chat-events.mjs::createChatEvents::close": {
+      "owner": "application"
     },
-    "studio/studio-events.mjs::createStudioEvents::drain": {
-      "owner": "studio"
+    "core/application/chat-events.mjs::createChatEvents::drain": {
+      "owner": "application"
     },
-    "studio/studio-events.mjs::createStudioEvents::history": {
-      "owner": "studio"
+    "core/application/chat-events.mjs::createChatEvents::history": {
+      "owner": "application"
     },
-    "studio/studio-events.mjs::createStudioEvents::observe": {
-      "owner": "studio"
+    "core/application/chat-events.mjs::createChatEvents::observe": {
+      "owner": "application"
     },
-    "studio/studio-events.mjs::createStudioEvents::peek": {
-      "owner": "studio"
+    "core/application/chat-events.mjs::createChatEvents::pendingDelivery": {
+      "owner": "application"
     },
-    "studio/studio-events.mjs::createStudioEvents::pendingDelivery": {
-      "owner": "studio"
+    "core/application/chat-events.mjs::createChatEvents::record": {
+      "owner": "application"
     },
-    "studio/studio-events.mjs::createStudioEvents::record": {
-      "owner": "studio"
-    },
-    "studio/studio-events.mjs::createStudioEvents::settleWaiter": {
-      "owner": "studio"
-    },
-    "studio/studio-events.mjs::createStudioEvents::size": {
-      "owner": "studio"
-    },
-    "studio/studio-events.mjs::createStudioEvents::subscribe": {
-      "owner": "studio"
-    },
-    "studio/studio-events.mjs::createStudioEvents::wait": {
-      "owner": "studio"
-    },
-    "studio/studio-events.mjs::createStudioEvents::wake": {
-      "owner": "studio"
+    "core/application/chat-events.mjs::createChatEvents::subscribe": {
+      "owner": "application"
     },
     "studio/studio-state.mjs::@module": {
       "owner": "studio"
@@ -11944,8 +11917,8 @@
       "owner": "bundle",
       "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
     },
-    "studio/agent-requests.mjs::currentBaseline": {
-      "owner": "studio",
+    "core/application/chat-requests.mjs::currentBaseline": {
+      "owner": "application",
       "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
     },
     "core/application/runtime.mjs::createLocalRuntime::createChat::invoke::execute::performAndCapture": {
@@ -13284,6 +13257,60 @@
     },
     "workspaces/export-publication.mjs::finishWorkspaceExport": {
       "owner": "workspace"
+    },
+    "core/application/chat-requests.mjs::requestPrintId": {
+      "owner": "application"
+    },
+    "core/application/chat-requests.mjs::chatBinding": {
+      "owner": "application"
+    },
+    "core/application/chat-requests.mjs::createChatRequests::startWork": {
+      "owner": "application"
+    },
+    "core/application/chat-requests.mjs::createChatRequests::startHandback": {
+      "owner": "application"
+    },
+    "core/application/chat-requests.mjs::createChatRequests::finishHandback": {
+      "owner": "application"
+    },
+    "core/application/chat-requests.mjs::createChatRequests::handBack": {
+      "owner": "application"
+    },
+    "core/application/chat-requests.mjs::createChatRequests::underway": {
+      "owner": "application"
+    },
+    "core/application/chat-requests.mjs::createChatRequests::beginOperation": {
+      "owner": "application"
+    },
+    "core/application/chat-requests.mjs::createChatRequests::saved": {
+      "owner": "application"
+    },
+    "core/application/chat-requests.mjs::createChatRequests::settle": {
+      "owner": "application"
+    },
+    "core/application/chat-requests.mjs::createChatRequests::interrupt": {
+      "owner": "application"
+    },
+    "core/application/chat-requests.mjs::createChatRequests::owner": {
+      "owner": "application"
+    },
+    "core/application/chat-requests.mjs::createChatRequests::foreign": {
+      "owner": "application"
+    },
+    "core/application/chat-requests.mjs::createChatRequests::printIdOf": {
+      "owner": "application"
+    },
+    "studio/tour.mjs::tourStatus": {
+      "owner": "studio"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::requestOwner": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::setTourStartAt": {
+      "owner": "application"
+    },
+    "core/application/chat-requests.mjs::createChatChannel": {
+      "owner": "application"
     }
   },
   "retiredAssignments": [
@@ -13829,8 +13856,8 @@
     "studio/relay-panel.mjs::createRelayPanel::update",
     "studio/relay-panel.mjs::describeRelay",
     "studio/relay-panel.mjs::relayActionNeeded",
-    "studio/request-index.mjs::createRequestIndex::retain::<return@57:23>",
-    "studio/request-index.mjs::createRequestIndex::retain::<return@59:13>",
+    "core/application/chat-request-index.mjs::createRequestIndex::retain::<return@57:23>",
+    "core/application/chat-request-index.mjs::createRequestIndex::retain::<return@59:13>",
     "studio/server.mjs::createStudio::<callable@339:11>",
     "studio/server.mjs::createStudio::<callable@404:15>",
     "studio/server.mjs::createStudio::approvePrint",
@@ -13838,8 +13865,8 @@
     "studio/server.mjs::importMachines",
     "studio/server.mjs::relayView",
     "studio/source-player.mjs::decodeSource::moves.get::<return@13:12>",
-    "studio/studio-events.mjs::createStudioEvents::observe::<return@41:135>",
-    "studio/studio-events.mjs::createStudioEvents::subscribe::<return@40:137>",
+    "core/application/chat-events.mjs::createChatEvents::observe::<return@41:135>",
+    "core/application/chat-events.mjs::createChatEvents::subscribe::<return@40:137>",
     "studio/toolpath-view.mjs::buildToolpathView::<callable@79:77>",
     "studio/tour-ui.mjs::createTourUI::attempt::<return@17:21>",
     "studio/tour-ui.mjs::createTourUI::onpointerenter",
@@ -13995,8 +14022,8 @@
     "core/export/griffin-player.mjs::validateGcodeCompletion",
     "core/export/griffin-player.mjs::temperatureWaitError",
     "core/export/griffin-player.mjs::number",
-    "studio/agent-requests.mjs::workSnapshot",
-    "studio/agent-requests.mjs::workSnapshot::hash",
+    "core/application/chat-requests.mjs::workSnapshot",
+    "core/application/chat-requests.mjs::workSnapshot::hash",
     "core/machine/bundle-settings.mjs::rememberSetup",
     "core/print/completed-output.mjs::readCompletedPath",
     "core/print/portable.mjs::cleanupScratch",

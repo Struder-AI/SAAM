@@ -6,7 +6,7 @@ import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
 import * as bundle from '../print/bundle.mjs';
 import {createStudio} from '../../studio/server.mjs';
-import {createAgentRequests} from '../../studio/agent-requests.mjs';
+import {createChatChannel,requestPrintId} from '../application/chat-requests.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 
 async function fixture(t){
@@ -15,13 +15,14 @@ async function fixture(t){
   const plan=await bundle.proposedPlan('ultimaker-s5');plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:1});
   plan.process.minimumLayerSeconds=0;
   await bundle.initBundle(dir,plan,{machineId:'ultimaker-s5'});
-  const server=createStudio(dir,{libraryRoot:root});t.after(()=>server.shutdown());
+  const channel=createChatChannel(root,{ownerId:'studio:test'});
+  const server=createStudio(dir,{libraryRoot:root,chat:channel.binding});t.after(()=>server.shutdown());
   await server.ready();
   await new Promise(done=>server.listen(0,'127.0.0.1',done));
   const url='http://127.0.0.1:'+server.address().port,token=/name="saam-token" content="([^"]+)"/.exec(await(await fetch(url)).text())[1];
   const get=async path=>await(await fetch(url+'/api/'+path)).json();
   const post=(path,data,auth=token)=>fetch(url+'/api/'+path,{method:'POST',headers:{Origin:url,'X-SAAM-Token':auth,'Content-Type':'application/json'},body:JSON.stringify(data)});
-  return {root,dir,server,url,token,get,post};
+  return {root,dir,server,url,token,get,post,channel};
 }
 
 test('viewer progress carries the same identity and cancellation contract as preparation status',async t=>{
@@ -40,8 +41,8 @@ test('viewer progress carries the same identity and cancellation contract as pre
   }
   assert.ok(update);assert.equal(update.status.studioInstanceId,state.instanceId);assert.equal(update.status.printId,state.printId);
   assert.equal(update.status.generationHash,state.generationHash);assert.equal(update.status.cancellable,true);
-  const requestStore=createAgentRequests(root),agentProgress=server.generationStatus();t.after(()=>requestStore.close());
-  assert.equal(agentProgress.printId,requestStore.printId(dir));
+  const agentProgress=server.generationStatus();
+  assert.equal(agentProgress.printId,requestPrintId(root,dir));
   assert.notEqual(agentProgress.printId,update.status.printId,'agent and viewer identities retain their existing scopes');
   const fallback=await get('preparation');
   for(const key of ['studioInstanceId','printId','generationHash','status','cancellable','progress'])assert.ok(Object.hasOwn(fallback,key),key);
@@ -49,7 +50,7 @@ test('viewer progress carries the same identity and cancellation contract as pre
 });
 
 test('Studio cancellation bypasses the generation queue, stops its worker and permits retry without a repair request',async t=>{
-  const {root,dir,get,post}=await fixture(t),state=await get('state');
+  const {dir,get,post,channel}=await fixture(t),state=await get('state');
   assert.equal((await post('cancel-generation',{printId:state.printId},'invalid')).status,403);
   assert.equal((await post('cancel-generation',{printId:'stale'})).status,400);
   const generating=post('generate',{printId:state.printId,generationHash:state.generationHash,development:true});
@@ -60,7 +61,7 @@ test('Studio cancellation bypasses the generation queue, stops its worker and pe
   const original=await generating;assert.equal((await original.json()).code,'GENERATION_CANCELLED');
   assert.equal((await bundle.loadBundle(dir,{program:false})).review.generation,null,'cancelled calculations write no generation record');
   assert.equal((await get('state')).generationCancelled,true);
-  assert.equal((await createAgentRequests(root).wait({waitMs:0})).requests.length,0,'cancellation does not ask the agent to repair a generator failure');
+  assert.equal((await channel.requests.wait({waitMs:0})).requests.length,0,'cancellation does not ask the agent to repair a generator failure');
   const retry=await post('generate',{printId:state.printId,development:true});assert.equal(retry.status,200,await retry.text());
   const completed=await get('state');assert.ok(completed.program);assert.equal(completed.generationCancelled,false);
 });

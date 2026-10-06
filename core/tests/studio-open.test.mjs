@@ -12,7 +12,7 @@ import {loadMachine} from '../machine/profile.mjs';
 const boxPlan=(machine=loadMachine())=>{const p=defaults(machine);p.geometry=splineBox({runMm:10,widthMm:10,heightMm:2});p.process.minimumLayerSeconds=0;return p;};
 import workerThreads from 'node:worker_threads';
 import {syncBuiltinESMExports} from 'node:module';
-import {createAgentRequests} from '../../studio/agent-requests.mjs';
+import {createChatChannel} from '../application/chat-requests.mjs';
 import {summarizeWork} from '../../studio/work-state.mjs';
 
 import {splineBox} from './fixtures/spline-shapes.mjs';
@@ -31,7 +31,7 @@ test('an explicit scratch resolver follows Studio opening and listing without ch
     supplied.set(dir,state);
     return {bundleFingerprints:async()=>({source:dir,presentation:dir}),loadBundle:async()=>{bundleLoads++;return state;}};
   };
-  const server=createStudio(join(library,'first'),{libraryRoot:library,resolveBundle:resolver});
+  const server=createStudio(join(library,'first'),{libraryRoot:library,resolveBundle:resolver,chat:createChatChannel(library,{ownerId:'studio:test'}).binding});
   await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
   const origin=`http://127.0.0.1:${server.address().port}`;
   const html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
@@ -75,7 +75,7 @@ test('Studio reopens saved exports without creating or rewriting approvals',asyn
   await shell.initBundle(ready,gapped,{machineId:'bambu-h2d'});
   await shell.generateBundle(ready);
   const original=await readFile(join(ready,'plan.json'));
-  const server=createStudio(geometry,{libraryRoot:library});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
+  const channel=createChatChannel(library,{ownerId:'studio:test'}),server=createStudio(geometry,{libraryRoot:library,chat:channel.binding});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
   const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
   const get=async()=>await(await fetch(origin+'/api/state')).json();
   const post=(route,data,authorized=true)=>fetch(origin+'/api/'+route,{method:'POST',headers:{Origin:authorized?origin:'http://evil.invalid','X-SAAM-Token':token},body:JSON.stringify(data)});
@@ -86,13 +86,13 @@ test('Studio reopens saved exports without creating or rewriting approvals',asyn
   assert.equal((await post('open',{path:archive,printId:first.printId})).status,200);
   state=await get();assert.ok(state.program.summary.moves);assert.equal(state.program.moves,undefined);assert.equal(state.toolpathApproved,false);
   assert.notEqual(state.printId,first.printId);assert.notEqual(state.fingerprint,first.fingerprint);
-  const requests=createAgentRequests(library,{ownerId:server.agentSession().ownerId});
+  const requests=channel.requests;
   const shown={stage:'toolpath',revision:state.revision,exportHash:state.exportHash};
   assert.equal((await post('view-ready',{...shown,exportHash:'stale'})).status,200);
   assert.equal((await requests.list()).length,0,'stale displayed data creates no advisory');
   assert.equal((await post('view-ready',shown)).status,200);
   assert.equal((await post('view-ready',shown)).status,200);
-  const pending=await requests.wait({waitMs:0,claim:true});
+  const pending=await requests.wait({waitMs:0});
   assert.equal(pending.requests.length,1);assert.equal(pending.requests[0].kind,'advisory');
   assert.equal(pending.requests[0].evidence.exportHash,state.exportHash);
   assert.deepEqual(pending.requests[0].evidence.shortTravel,state.program.summary.shortTravel);
@@ -100,7 +100,6 @@ test('Studio reopens saved exports without creating or rewriting approvals',asyn
   assert.match(pending.requests[0].instruction,/Tell the person[\s\S]*Mention this finding to the person in your next reply/);
   assert.equal(summarizeWork(pending.requests,{now:Date.now()+3600000}).active,false);
   assert.equal(summarizeWork(pending.requests,{now:Date.now()+3600000}).message,'');
-  assert.equal((await createAgentRequests(library,{now:()=>Date.now()+3600000}).list())[0].status,'working');
   await requests.update(pending.requests[0].id,{status:'completed'});
   await post('view-ready',shown);
   assert.equal((await requests.wait({waitMs:0})).requests.length,0,'acknowledged export is not requeued');
@@ -119,7 +118,7 @@ test('Studio reopens saved exports without creating or rewriting approvals',asyn
 test('final approval rejects a saved export whose bytes changed',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-approval-export-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   await shell.initBundle(dir,boxPlan(),{machineId:'ultimaker-s5'});await shell.generateBundle(dir,{development:false});
-  const server=createStudio(dir,{libraryRoot:home});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>server.shutdown());
+  const server=createStudio(dir,{libraryRoot:home,chat:createChatChannel(home,{ownerId:'studio:test'}).binding});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>server.shutdown());
   const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
   const state=await(await fetch(origin+'/api/state')).json();assert.ok(state.program);
   const file=join(dir,(await shell.loadBundle(dir)).review.generation.file);await writeFile(file,(await readFile(file,'utf8'))+'; changed after viewing\n');
@@ -140,7 +139,7 @@ test('ordinary review does not slice; explicit generation retries a failed worke
   };
   syncBuiltinESMExports();
   t.after(()=>{workerThreads.Worker=OriginalWorker;syncBuiltinESMExports();});
-  const server=createStudio(dir,{libraryRoot:home});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>server.shutdown());
+  const server=createStudio(dir,{libraryRoot:home,chat:createChatChannel(home,{ownerId:'studio:test'}).binding});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>server.shutdown());
   const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
   const get=async()=>await(await fetch(origin+'/api/state')).json();
   const post=(route,data)=>fetch(origin+'/api/'+route,{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify(data)});
