@@ -3,6 +3,7 @@ import {decodeSTL,makeMesh,parseSTL} from './mesh.mjs';
 import {checkAdjacentContacts} from './mesh-spatial.mjs';
 import {subtract as sub,cross,dot,requireThat} from './tolerance.mjs';
 import {checkMeshCapacity} from './mesh-capacity.mjs';
+import {NUMERIC_MM} from '../dimensions.mjs';
 
 export function cleanTriangleSoup(input,{mergeToleranceMm=0}={}) {
   requireThat(Array.isArray(input.vertices)&&Array.isArray(input.triangles),'Repair needs vertices and triangles.');
@@ -26,7 +27,7 @@ export function cleanTriangleSoup(input,{mergeToleranceMm=0}={}) {
   const stitching=degenerate?stitchCollapsedEdges(vertices,triangles):{triangles,stitchedEdges:0,addedTriangles:0};
   const compact=compactMesh(vertices,stitching.triangles);
   return {...compact,...(mergeToleranceMm>0?{merge}:{}),removed:{degenerate,duplicates,unusedOrDuplicateVertices:input.vertices.length-compact.vertices.length},
-    stitching:{edges:stitching.stitchedEdges,addedTriangles:stitching.addedTriangles,toleranceMm:1e-9}};
+    stitching:{edges:stitching.stitchedEdges,addedTriangles:stitching.addedTriangles,toleranceMm:NUMERIC_MM}};
 }
 
 // Retained representatives never move: every snap is measured directly, not
@@ -88,14 +89,14 @@ function stitchCollapsedEdges(vertices,triangles) {
   const splits=new Map();let stitchedEdges=0,addedTriangles=0;
   for(const edge of boundary){
     const a=vertices[edge.a],b=vertices[edge.b],ab=sub(b,a),length=Math.hypot(...ab);
-    if(length<=1e-9)continue;
+    if(length<=NUMERIC_MM)continue;
     const direction=ab.map(v=>v/length),chain=[edge.b];let at=edge.b,previous=length;
     const visited=new Set(chain);
     while(at!==edge.a){
       const next=(outgoing.get(at)??[]).filter(e=>{
         if(e===edge||visited.has(e.b))return false;
         const offset=sub(vertices[e.b],a),position=dot(offset,direction);
-        return position>=-1e-9&&position<previous&&Math.hypot(...cross(offset,direction))<=1e-9;
+        return position>=-NUMERIC_MM&&position<previous&&Math.hypot(...cross(offset,direction))<=NUMERIC_MM;
       });
       if(next.length!==1)break;
       at=next[0].b;chain.push(at);visited.add(at);previous=dot(sub(vertices[at],a),direction);

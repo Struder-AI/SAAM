@@ -1,3 +1,4 @@
+import {PROGRAM_DECIMALS} from '../dimensions.mjs';
 import {distance,requireThat} from '../private/export/numeric.mjs';
 import {prepareExportPath} from './prepare-path.mjs';
 
@@ -6,7 +7,7 @@ import {prepareExportPath} from './prepare-path.mjs';
 import {DWELL_COMMAND_MS} from './griffin-player.mjs';
 export {interpretGriffin,interpretMotion,interpretMotionChunk} from './griffin-player.mjs';
 
-const fmt=(n,d=5)=>Number(n.toFixed(d)).toString();
+const fmt=(n,d=PROGRAM_DECIMALS)=>Number(n.toFixed(d)).toString();
 export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
   path=prepareExportPath(path,plan,machine);
   const motionLines=exportMotion(path,plan);
@@ -76,15 +77,15 @@ export function exportMotion(path,plan,{extrusionMode='absolute',travelCommand='
     if(a.kind==='move') {
       // Quantize once: command text, flow calculation and following position
       // must all use these same written coordinates and extrusion value.
-      const target=a.to.map(v=>Number(v.toFixed(5)));
+      const target=a.to.map(v=>Number(v.toFixed(PROGRAM_DECIMALS)));
       if(a.volumeMm3>0){
         // Relative amounts carry their rounding remainder forward, as absolute
         // E does by construction, so many equal short segments keep their total.
         // A remainder never erases a segment that is writable on its own.
         const ownMm=a.volumeMm3/area,filamentMm=ownMm+(relativeE?residualE:0);
         if(!relativeE)e+=filamentMm;
-        let nextE=Number((relativeE?filamentMm:e).toFixed(5));
-        if(relativeE){if(!(nextE>0))nextE=Number(ownMm.toFixed(5));residualE=filamentMm-nextE;}
+        let nextE=Number((relativeE?filamentMm:e).toFixed(PROGRAM_DECIMALS));
+        if(relativeE){if(!(nextE>0))nextE=Number(ownMm.toFixed(PROGRAM_DECIMALS));residualE=filamentMm-nextE;}
         const length=distance(writtenPosition,target),de=relativeE?nextE:nextE-writtenE;
         requireThat(length>0, 'A deposition move collapsed at export precision.');
         const speed=a.speedMmS;
@@ -98,7 +99,7 @@ export function exportMotion(path,plan,{extrusionMode='absolute',travelCommand='
     } else if(a.kind==='extrude') {
       const filamentMm=a.volumeMm3/area;
       if(!relativeE)e+=filamentMm;
-      const nextE=Number((relativeE?filamentMm:e).toFixed(5));
+      const nextE=Number((relativeE?filamentMm:e).toFixed(PROGRAM_DECIMALS));
       const de=relativeE?nextE:nextE-writtenE;
       requireThat(de>0,'Stationary extrusion collapsed at export precision.');
       const feed=Math.floor(a.flowMm3S/area*60*1000)/1000;
@@ -110,7 +111,7 @@ export function exportMotion(path,plan,{extrusionMode='absolute',travelCommand='
     } else if(a.kind==='retract'||a.kind==='recover') {
       const filamentMm=(a.kind==='retract'?-1:1)*a.filamentMm;
       if(!relativeE)e+=filamentMm;
-      const nextE=Number((relativeE?filamentMm:e).toFixed(5));
+      const nextE=Number((relativeE?filamentMm:e).toFixed(PROGRAM_DECIMALS));
       motion('G1',null,nextE,a.speedMmS*60);
       if(!relativeE)writtenE=nextE;
     } else if(a.kind==='fan') lines.push(a.percent===0?'M107':`M106 S${Math.round(a.percent*255/100)}`);

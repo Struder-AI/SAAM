@@ -1,9 +1,10 @@
+import {PROGRAM_DECIMALS} from '../dimensions.mjs';
 import {requireThat} from '../private/export/numeric.mjs';
 
 import {toolBounds,validateSetup,sameNozzleMaterialChanges} from '../machine/rules.mjs';
 import {checkedFilamentPlan as filamentPlan} from '../machine/filaments.mjs';
 
-const n=value=>Number(value.toFixed(5));
+const n=value=>Number(value.toFixed(PROGRAM_DECIMALS));
 
 // Authored X1 PLA change recipe, cross-referenced to the installed X1 template.
 // Loading/cutting and chute service are firmware operations, not body geometry.

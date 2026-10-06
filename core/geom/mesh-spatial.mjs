@@ -1,6 +1,7 @@
 // Geometry-only triangle index shared by explicit mesh repair and its checks.
 import {subtract as sub,dot,cross} from './tolerance.mjs';
 import {separatedTriangles} from './mesh.mjs';
+import {NUMERIC_MM} from '../dimensions.mjs';
 
 export function closestTrianglePoint(p,a,b,c) {
   const ab=sub(b,a),ac=sub(c,a),ap=sub(p,a),d1=dot(ab,ap),d2=dot(ac,ap);
@@ -24,7 +25,7 @@ export function closestTrianglePoint(p,a,b,c) {
 // Coplanar overlap uses projected segment and containment tests.
 export function trianglesContact(pa,pb,sharedPoints=[]) {
   if(!sharedPoints.length)return !separatedTriangles(pa,pb);
-  const eps=1e-9,n=cross(sub(pa[1],pa[0]),sub(pa[2],pa[0])),length=Math.hypot(...n);
+  const eps=NUMERIC_MM,n=cross(sub(pa[1],pa[0]),sub(pa[2],pa[0])),length=Math.hypot(...n);
   if(length<1e-12)return true;
   const normal=n.map(v=>v/length),dist=pb.map(p=>dot(sub(p,pa[0]),normal));
   if(dist.every(d=>d>eps)||dist.every(d=>d< -eps))return false;

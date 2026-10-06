@@ -1,3 +1,4 @@
+import {PROGRAM_DECIMALS} from '../dimensions.mjs';
 import {requireThat} from '../private/export/numeric.mjs';
 import {exportMotion} from './griffin.mjs';
 import {checkedFilamentPlan as filamentPlan} from '../machine/filaments.mjs';
@@ -31,7 +32,7 @@ export function exportBambuBody(path,plan,machine){
       continue;
     }
     actions.push(action);
-    if(action.kind==='move')position=action.to.map(v=>Number(v.toFixed(5)));
+    if(action.kind==='move')position=action.to.map(v=>Number(v.toFixed(PROGRAM_DECIMALS)));
     if(action.kind==='retract')debt[selected.setup.tool]=(debt[selected.setup.tool]??0)+action.filamentMm;
     if(action.kind==='recover')debt[selected.setup.tool]=Math.max(0,(debt[selected.setup.tool]??0)-action.filamentMm);
     if(action.kind==='fan')fan=Math.round(action.percent*255/100);

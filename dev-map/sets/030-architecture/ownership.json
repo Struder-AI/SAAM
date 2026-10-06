@@ -151,6 +151,10 @@
       "owner": "geometry",
       "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
+    "core/dimensions.mjs": {
+      "owner": "geometry",
+      "reason": "Tolerance classes derived from SAAM's dimensions; Geometry owns numerical representation, Toolpath and Export import the classes."
+    },
     "core/geom/tolerance.mjs": {
       "owner": "geometry",
       "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."

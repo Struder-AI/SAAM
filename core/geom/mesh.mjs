@@ -1,5 +1,6 @@
 // Indexed triangle backend. No CAD kernel or display proxy participates in slicing.
 import { requireThat, cross } from './tolerance.mjs';
+import { NUMERIC_MM } from '../dimensions.mjs';
 import { orientLoops } from './shell.mjs';
 import { cleanPlanarLoop } from './polyline.mjs';
 import {createHash} from 'node:crypto';
@@ -86,7 +87,7 @@ function rejectIntersections(vertices,triangles,normals){
   const tree=triangleBVH(vertices,triangles);
   for(let i=0;i<triangles.length;i++){const ta=triangles[i],pa=ta.map(v=>vertices[v]),min=[0,1,2].map(k=>Math.min(pa[0][k],pa[1][k],pa[2][k])),max=[0,1,2].map(k=>Math.max(pa[0][k],pa[1][k],pa[2][k]));
     const inspectCandidate=j=>{if(j<=i)return;const tb=triangles[j];if(ta.some(v=>tb.includes(v)))return;
-      const pb=tb.map(v=>vertices[v]);if([0,1,2].some(k=>Math.max(pb[0][k],pb[1][k],pb[2][k])<min[k]-1e-9||Math.min(pb[0][k],pb[1][k],pb[2][k])>max[k]+1e-9))return;
+      const pb=tb.map(v=>vertices[v]);if([0,1,2].some(k=>Math.max(pb[0][k],pb[1][k],pb[2][k])<min[k]-NUMERIC_MM||Math.min(pb[0][k],pb[1][k],pb[2][k])>max[k]+NUMERIC_MM))return;
       if(!separatedTriangles(pa,pb,normals.subarray(i*3,i*3+3),normals.subarray(j*3,j*3+3))){try{requireMeshInput(false,'Intersecting or touching nonadjacent mesh triangles; repair the source before importing.');}catch(error){error.meshDiagnostic={kind:'triangle-intersection',indices:[i,j],points:[pa,pb]};throw error;}}
     };
     tree.query(min,max,inspectCandidate);
@@ -102,7 +103,7 @@ export function separatedTriangles(pa,pb,normalA,normalB) {
   return axes.some(axis=>{
     const length=Math.hypot(...axis);if(length<1e-12)return false;
     const unit=axis.map(v=>v/length),aa=pa.map(p=>dot(p,unit)),bb=pb.map(p=>dot(p,unit));
-    return Math.max(...aa)<Math.min(...bb)-1e-9||Math.max(...bb)<Math.min(...aa)-1e-9;
+    return Math.max(...aa)<Math.min(...bb)-NUMERIC_MM||Math.max(...bb)<Math.min(...aa)-NUMERIC_MM;
   });
 }
 

@@ -1,3 +1,4 @@
+import {PROGRAM_DECIMALS} from '../dimensions.mjs';
 import {requireThat} from '../private/export/numeric.mjs';
 import {prepareExportPath} from './prepare-path.mjs';
 // Bounded Bambu output (H2D, X1 Carbon), not an interpreter for arbitrary
@@ -15,7 +16,7 @@ import {validateSetup,toolBounds,startupPosition} from '../machine/rules.mjs';
 import {resolveBambuJob} from './bambu-job.mjs';
 import {materializeBambuProject,serializeBambuProject} from './bambu-project.mjs';
 const digest=(bytes,algorithm='sha256')=>createHash(algorithm).update(bytes).digest('hex');
-const fmt=(n,d=5)=>Number(n.toFixed(d));
+const fmt=(n,d=PROGRAM_DECIMALS)=>Number(n.toFixed(d));
 const json=value=>JSON.stringify(value)+'\n';
 const xml=value=>String(value).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;');
 const meta=values=>Object.entries(values).map(([k,v])=>`    <metadata key="${k}" value="${xml(v)}"/>`).join('\n');

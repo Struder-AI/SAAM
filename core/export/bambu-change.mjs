@@ -1,3 +1,4 @@
+import {PROGRAM_DECIMALS} from '../dimensions.mjs';
 import {requireThat} from '../private/export/numeric.mjs';
 
 import {toolBounds,validateSetup,sameNozzleMaterialChanges} from '../machine/rules.mjs';
@@ -5,7 +6,7 @@ import {checkedFilamentPlan as filamentPlan} from '../machine/filaments.mjs';
 import {renderX1MaterialChange} from './bambu-x1-change.mjs';
 
 export const CHANGE_BEGIN=';SAAM_TOOL_CHANGE ',CHANGE_END=';SAAM_TOOL_CHANGE_END\n';
-const n=value=>Number(value.toFixed(5));
+const n=value=>Number(value.toFixed(PROGRAM_DECIMALS));
 
 // SAAM-authored, tower-free H2D service recipe. Coordinates are service motions,
 // not simulated deposition. The caller restores the checked body position.
