@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-05 — C1: one generation owner
+
+- Worker: `generateBundle` reuses or promotes a current program, else runs Bundle's generation worker (`runComputationJob`, moved to core/print), which commits under the caller's held reservation (`heldBundleInstance`). Studio keeps one `generationRun` for person, tour and agent runs; agents call `server.generate` inside their held edit and cancel by `studioInstanceId`. Removed `PreparedGenerationJob`, generation-control, program-handoff, Studio's generation worker, `dispatchComputation`, preparation reuse, `setGenerationActivity`/`externalGeneration` and Application's `generations`, plus their tests (+153/−844). A failed preparation is recomputed on retry; status keeps only `generating`. Evidence paths in architecture.json updated to the moved worker (path only).
+- Verified (worker): studio-session and agent-session parity (same request records, event-kind sequences and export hashes; agent events now carry `studioInstanceId`, no `jobId`); cancel before/after commit; agent cancel and retry; agent failure gives an event without a request; dev-instance generation; targeted tests. After merge: studio-generation-control 3/3, studio-open 5/5, studio-lifetime 6/6. Not run: whole suite, tour lesson auto-generation, on-screen progress, trace instrumentation (the `agent-session` trace workflow was already broken: `createLocalRuntime` now takes `paths`), map regenerate.
+
 ## 2026-10-05 — Cluster label pass
 
 - Worker, after the a1f21d56 regenerate: 59 generated labels authored (Studio 33, Application 16, Export 6, Toolpath 3, Bundle 1); 26 authored labels replaced where a kept identity's members had moved (e.g. Geometry "mesh repair jobs" → "repair jobs, surface evaluation"; Export "Dobot kinematics" was Denso); 62 retired-cluster labels removed. Hand-back, endTurn and mesh validity can now be found from the maps. `build`: 177 labels applied, 0 missing; positions untouched. 51 of 177 clusters hold unrelated members (Studio worst, mixing server, page and worker code); a label cannot fix that (.local/team/labels-036.md lists them). Owner review of the labels pending.
