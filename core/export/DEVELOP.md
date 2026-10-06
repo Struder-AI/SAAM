@@ -1,50 +1,19 @@
 # Exporter implementation
 
-Code structure of the exporters: the machine-output dialects that turn a
-SAAMpath into a machine program, each with the interpreter that reads that
-program back for review. [The export manual](README.md) owns shared output
-semantics; each dialect contract ([Griffin](../../machines/ultimaker/SKILL.md), [Bambu](../../machines/bambu/SKILL.md),
-[Dobot](../../machines/dobot/SKILL.md), [DENSO](../../machines/denso/SKILL.md)) owns what its output must contain and
-the vendor and measured evidence behind it.
+The core side of the machine plug. [Adding a machine](../../machines/README.md#adding-a-machine)
+owns the adapter interface and standards; [the export manual](README.md) owns shared
+output semantics; each machine's `SKILL.md` owns its dialect and evidence.
 
-## The adapter interface
+- `registry.mjs`: `Export`, the operations offered to adapters; `machineAdapter` loads
+  the selected output's adapter from the machine extension shipping the profile
+  (`machineCatalog`, `core/extensions/library.mjs`); `exportProgram` prepares the path
+  once, calls `export` and completes the report (move count, path totals as fallback
+  estimates, short-travel advisory); `preparePath` gives Studio the same prepared path;
+  `settingsRows` gives Studio the adapter's rows.
+- `prepare-path.mjs`: `validateSetup` (common setup, logical materials, then the
+  adapter's `validate`), pose refusal by the adapter's `poses`, startup, priming,
+  material changes by the output's `materialChangeMode`, axis-feed limits.
+- `gcode-motion.mjs`, `zip.mjs`, `travel-advisory.mjs`: shared writer, archive codec and advisory.
 
-`registry.mjs` holds one entry per machine output id (`machine.outputs[].id`):
-
-- `export(prepared, plan, machine, release)` writes the prepared path and returns
-  `{bytes, report}`: `notice`, `limitations` and, where the writer knows them,
-  `seconds` and `volumeMm3` of what it wrote;
-- `interpret(bytes, plan, machine)` returns the program Studio plays: `moves`,
-  `events`, `seconds`, `volumeMm3`, `summary` and dialect fields.
-
-`exportProgram` prepares the path once (`prepare-path.mjs`, which rejects
-pose-bearing paths for every output but DENSO), calls `export` and adds the
-[short-travel advisory](README.md#short-travel-advisory) on the prepared path to
-the report. G-code writers share `gcodeMotion` (`gcode-motion.mjs`): lines
-plus the totals of what it wrote.
-`core/print/workflow.mjs` reaches exporters only through it.
-`studio/source-player.mjs::decodeSource` calls each dialect's source
-interpreter directly on the checked source files, so Studio plays the same
-interpreter the export check ran.
-
-## Files by dialect
-
-| Output id | Export | Interpret | Shared |
-|---|---|---|---|
-| `griffin-gcode` | `griffin.mjs` | `griffin-player.mjs` | `gcode-motion.mjs`, `gcode-lines.mjs` |
-| `bambu-gcode` | `bambu.mjs` package; `bambu-body.mjs`, `bambu-change.mjs`, `bambu-x1-change.mjs`, `bambu-job.mjs`, `bambu-project.mjs` with `bambu-project-fields.json` | `bambu-player.mjs` (`interpretBambuSource`) | `gcode-motion.mjs`, `zip.mjs` |
-| `dobot-lua` | `dobot.mjs` | `dobot-player.mjs` on `dobot-lua-subset.mjs` | `zip.mjs` |
-| `denso-pacscript` | `denso.mjs` | `denso-player.mjs` | `zip.mjs` |
-
-`dobot-lua-subset.mjs` is a Lua tokenizer, parser and runtime; `LuaRuntime` is
-the approved stateful boundary of
-[D-036](../../DECISIONS.md#d-036--explicit-planning-stages-and-state-in-the-path-planning-pilot).
-
-## Adding or changing a dialect
-
-Declare the output in the machine file, add its registry entry and its branch in
-`decodeSource`, and write its contract beside the others. Record vendor facts
-and measurements in that contract. Write numbers at a
-[program resolution](../README.md#dimensions-and-tolerances) below print resolution. Tests are
-`core/tests/<dialect>*.test.mjs`, with `export.test.mjs` and
-`modal-export.test.mjs` across dialects.
+`core/print/workflow.mjs` reaches adapters only through the registry. Tests are
+`core/tests/<dialect>*.test.mjs`, with `export.test.mjs` and `modal-export.test.mjs` across dialects.

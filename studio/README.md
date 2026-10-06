@@ -79,11 +79,9 @@ A matching toolpath view queues one [short-travel advisory](../core/export/READM
 per export. Acknowledge it and describe the findings; it neither blocks review
 nor requests repair. Reopening an acknowledged export does not resend it.
 
-Production review requires the selected export interpreter and installation
-state. Unsupported commands or missing helpers remain errors. The S5 interpreter
-checks actual bytes; external Griffin startup motions are not simulated. Unknown
-firmware version uses the displayed standard-profile assumption. Development
-preview supplies no confirmation or authority to deliver.
+The toolpath view draws the completed output's prepared path; the adapter's stored
+report supplies notice, estimates and limitations, and its settings rows follow the
+common settings. Development preview supplies no confirmation or authority to deliver.
 
 ## Opening local prints in Studio
 
@@ -229,7 +227,7 @@ download bytes. Reopening separately validates stored artifacts.
 `at()` returns an independent row (rows have no index properties; readers use `at()`,
 which plain move arrays share); `reader()` reuses scratch values which must be
 copied if retained. `push()` passes each row through the store's `annotate` stage,
-which source decoding uses to add Slice family, index and modulation identity. Snapshots are transport storage, not manufacturing data.
+which path loading uses to add Slice family, index and modulation identity. Snapshots are transport storage, not manufacturing data.
 [playback.mjs](playback.mjs) closes encoded frames, uses deterministic 30 fps source
 time with a final hold, bounds encoder backlog and supports cancellation. Its
 WebM writer has one VP8/VP9 track without audio.

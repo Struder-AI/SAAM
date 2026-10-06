@@ -152,7 +152,7 @@ changing; read the maps for what it affects and what affects it.
 | Print lifecycle and persistence | [core/print/README.md](core/print/README.md) |
 | Regions, offsets and intersections | [core/region/README.md](core/region/README.md) |
 | Development tests | [core/tests/README.md](core/tests/README.md) |
-| Machine files | [machines/README.md](machines/README.md) |
+| Machine extensions and [adding a machine](machines/README.md#adding-a-machine) | [machines/README.md](machines/README.md) |
 | Benchmarks and kernel provenance | [scripts/bench/README.md](scripts/bench/README.md) and [region-reference.md](scripts/bench/region-reference.md) |
 | Studio | [studio/README.md](studio/README.md), with [kinematics](studio/KINEMATICS.md) and [rendering](studio/RENDERING.md) |
 
@@ -310,7 +310,7 @@ guidance is needed when developing or exercising the maker-facing workflow.
 | Skill operations, scheduling or travel | [Skill composition and travel](core/path/README.md), then the relevant [skill](skills/DIGEST.md); `read-map @cluster/toolpath` for influence |
 | Plans, validation, persistence, generation or delivery | [Print lifecycle](core/print/README.md); `read-map @cluster/bundle` and `@cluster/toolpath` for influence |
 | Using shared print commands or changing their task guidance | [Print tools](core/print/USAGE.md) |
-| Machine capabilities, emission or interpretation | [Machine interfaces and program output](core/export/README.md), [machine presentation models](core/machine/README.md) and [machine files](machines/README.md); `read-map @cluster/export` and `@cluster/settings` for influence |
+| Machine capabilities, emission or interpretation | [Machine interfaces and program output](core/export/README.md), [machine presentation models](core/machine/README.md) and [adding a machine](machines/README.md#adding-a-machine); `read-map @cluster/export` and `@cluster/settings` for influence |
 | Studio interaction, lifetime or rendering | [Studio](studio/README.md), [kinematics](studio/KINEMATICS.md) and [rendering](studio/RENDERING.md); `read-map @cluster/studio` for influence |
 | Chat-client commands and attachment | [Application](core/application/README.md) |
 | Performance measurement | [Slicing benchmarks](scripts/bench/README.md) and [region kernel verification](scripts/bench/region-reference.md) |

@@ -1,23 +1,9 @@
 # Machine interfaces and program output
 
-Read the output contract for machine behavior and exporter/interpreter responsibilities:
-
-| Output | Contract |
-|---|---|
-| UltiMaker S5 / Griffin G-code | [Griffin](../../machines/ultimaker/SKILL.md) |
-| Bambu H2D and X1 Carbon / sliced 3MF | [Bambu](../../machines/bambu/SKILL.md) |
-| Dobot MG400 / Lua source ZIP | [Dobot](../../machines/dobot/SKILL.md) |
-| DENSO VS-068A4 / RC8A PacScript ZIP | [DENSO](../../machines/denso/SKILL.md) |
-
-[Machine files](../../machines/README.md) hold capabilities and setup declarations.
+[Machines](../../machines/README.md) lists each machine extension, its output contract
+and [how to add one](../../machines/README.md#adding-a-machine).
 [Print lifecycle](../print/README.md) owns review and delivery of the checked output.
-
-Ultimaker 2 Extended and Ultimaker 3 have
-[geometry/setup profiles](../../machines/README.md#profiles-for-geometry-and-setup-review),
-but no implemented output contract. X1 Carbon shares the H2D exporter with its
-own pinned envelope; the H2D envelope does not apply to it. S5 startup is not
-assumed for UM3. UM2 Extended uses volumetric UltiGCode rather
-than the filament-length extrusion used by Griffin. Their declared output
+X1 Carbon shares the H2D adapter with its own pinned envelope. Declared output
 limitations are reported at export; catalog presence is not export support.
 
 ## Machine interoperability design
@@ -61,8 +47,8 @@ can vary either enabled output. Missing orientation implies ordinary print-Z ali
 
 [Export preparation](./prepare-path.mjs) adds installation startup and priming,
 material-change clearance and axis-feed limits without mutating the authored path.
-Only exporters enforce installed nozzle/material compatibility and required setup.
-Interpreters decode the exact emitted program; Studio reviews those same bytes.
+Only adapters enforce installed nozzle/material compatibility and required setup.
+Studio draws the prepared path; the adapter's report states what it does not show.
 Unsupported output errors occur after SAAMpath construction and carry `stage: export`.
 
 | Action | Implemented outputs |
@@ -87,8 +73,7 @@ every nozzle, plate or feed configuration. The Bambu contract
 owns the startup duplication inventory, actual installed-nozzle declarations and
 the distinction between logical filament IDs and physical AMS tray intent.
 
-Preserve units, transforms, feature and material identity at every output boundary;
-new dialects need explicit adapters.
+Preserve units, transforms, feature and material identity at every output boundary.
 
 ### Stationary extrusion and nozzle control
 

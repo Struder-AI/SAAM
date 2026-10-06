@@ -10,7 +10,7 @@ See [the recorded direction](../DECISIONS.md#d-028--simple-machine-ghost-and-mac
 This document owns the boundary between incremental machine models and Studio.
 It does not prescribe a kinematic solver or a general machine-description format.
 [Rendering](./RENDERING.md) owns existing toolpath appearance;
-[machine output](../core/export/README.md) owns source interpretation;
+[path preview](./path-preview.mjs) owns the drawn path;
 [print lifecycle](../core/print/README.md) owns review and delivery.
 
 ## Responsibilities and independent work
@@ -19,7 +19,7 @@ It does not prescribe a kinematic solver or a general machine-description format
 |---|---|---|
 | Kinematic-model task | A presentation provider: stable component IDs, simple local geometry, resolved world transforms at source time, availability and diagnostics | Camera, theme colors, transparency, UI or an alternative toolpath renderer |
 | Studio task | Provider registration/transport, primitive drawing, ghost/Machine switch, camera and visibility behavior, synchronized playback and movies | Link lengths, joint coupling, IK branches, guessed frames or machine-specific motion equations |
-| Shared source/playback owner | Interpretation of checked export bytes and the command-time interpolation used by both views | Motion reconstructed from comments or a separately replanned path |
+| Shared path/playback owner | The drawn path (prepared path, saved SAAMpath or study) and the path-time interpolation (`core/machine/path-time.mjs`) used by both views | Motion decoded from program bytes or a separately replanned path |
 
 **Studio delivers the complete presentation upgrade as one work package:**
 ghost/Machine switching, camera behavior, links, rails and print carriages,
@@ -100,12 +100,12 @@ and verify an explicit compositing strategy rather than assuming one exists.
 
 ### Implemented consumer
 
-[source-worker.mjs](./source-worker.mjs) decodes source once and retains compact
+[source-worker.mjs](./source-worker.mjs) reads the drawn path once and retains compact
 motion for the provider. [machine-session.mjs](./machine-session.mjs) owns bounded
 requests, cancellation, stale-response rejection and the current-time cache.
 Descriptor validation and primitive compilation happen once on receipt; poses
 are validated in the worker. Invalid or unsupported model data disables its
-overlay while preserving the decoded toolpath.
+overlay while preserving the drawn toolpath.
 
 [machine-view.mjs](./machine-view.mjs) compiles every v1 primitive, applies resolved
 frames and supplies both WebGL and Canvas drawing. WebGL primitives share the
@@ -236,9 +236,9 @@ type Provider = {
 The creation boundary is
 `createMachinePresentation({ program, machine, setup, sourceIdentity, signal })`.
 It returns `Promise<Provider | null>`; `null` means no registered model.
-`program` is the existing immutable interpreted export with its move/event access,
-not generated SAAMpath or a new serialized trajectory. Explicitly read-only
-[machine studies](../tools/kinematics/README.md) also supply decoded authored
+`program` is the drawn path's preview with its move/event access and, when posed,
+its declared `rotaryCenterMm`. Explicitly read-only
+[machine studies](../tools/kinematics/README.md) supply authored
 motion; these are labeled simulation and
 cannot authorize machine delivery. `machine` and `setup` are
 the resolved existing profile and job installation. `sourceIdentity` supplies
@@ -273,7 +273,7 @@ in orthonormality/determinant; this is not a mechanical tolerance.
 and mounting transforms, including ceiling-mounted robots. It supplies:
 
 - `world`: identity.
-- `part`: world transform of the exact coordinate frame used by interpreted
+- `part`: world transform of the exact coordinate frame used by drawn
   toolpath points, including configured placement/rotary motion exactly once.
   Do not reinterpret these points as raw CAD coordinates or reapply placement.
 - `tcp`: nozzle-tip origin. For this **presentation** frame, local -Z points

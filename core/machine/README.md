@@ -26,8 +26,8 @@ frames and declares the missing arm. Nominal setup in a study is synthetic,
 not installation calibration. Non-unit Dobot design scaling cannot be represented
 by a rigid physical overlay and leaves the arm unavailable.
 
-The provider's `part` transform maps interpreted source points into the room.
-It includes a printer's descending bed or the source's rotary angle exactly once.
+The provider's `part` transform maps drawn path points into the room.
+It includes a printer's descending bed or the path's rotary angle (about its declared centre) exactly once.
 Following the plate applies its inverse to the entire scene. S5/H2D models show
 schematic travel centerlines from the profile bounds, an XY carriage and a Z bed;
 they omit housings, belts and parked tools. Tool shapes are schematic: a short

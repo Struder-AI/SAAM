@@ -21,7 +21,7 @@ An extension is a folder `<SAAM home>/local/extensions/ID/` holding `extension.j
 `SKILL.md`, scripts and assets. Its manifest declares `schema: "saam-extension/1"`,
 a lowercase hyphenated `id`, `dependencies`, `entries`, `license` and `provenance`.
 Missing dependencies and cycles stop execution. Entries name `.mjs` functions for
-geometry, deposition, record or resource operations. Runtime factories receive named
+geometry, deposition, record or resource operations; machine extensions follow [adding a machine](../machines/README.md#adding-a-machine). Runtime factories receive named
 public Geometry and Toolpath operations; private core imports are not a portable
 interface. Extension code uses its operations' tolerances or a [tolerance class](../core/README.md#dimensions-and-tolerances)
 and adds no fixed budget ([limits](../core/README.md#limits-that-adapt-and-limits-that-are-kept)).
