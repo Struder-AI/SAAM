@@ -3,12 +3,13 @@ import {renderX1MaterialChange} from './bambu-x1-change.mjs';
 
 export const CHANGE_BEGIN=';SAAM_TOOL_CHANGE ',CHANGE_END=';SAAM_TOOL_CHANGE_END\n';
 
-// SAAM-authored, tower-free H2D service recipe. Coordinates are service motions,
-// not simulated deposition. The caller restores the checked body position.
+// SAAM-authored, tower-free dual-nozzle (H2D) service recipe; a single-nozzle
+// profile (X1 Carbon) uses the AMS chute recipe. Coordinates are service
+// motions, not simulated deposition. The caller restores the checked body position.
 export function renderBambuChange(plan,machine,{from,to,position,incomingDebt,knownOutgoing,fan,count},Export){
-  if(machine.id==='bambu-x1-carbon')return renderX1MaterialChange(plan,machine,{from,to,position,incomingDebt,fan,count},Export);
+  if(machine.tools.length===1)return renderX1MaterialChange(plan,machine,{from,to,position,incomingDebt,fan,count},Export);
   const n=Export.number;
-  requireThat(machine.id==='bambu-h2d'&&Number.isInteger(count)&&count>0,'No tool-change contract for this machine.');
+  requireThat(Number.isInteger(count)&&count>0,'Invalid tool-change sequence.');
   const old=filamentPlan(plan,machine,from),next=filamentPlan(plan,machine,to);
   const sameNozzle=old.setup.tool===next.setup.tool;
   requireThat(from!==to,'A material change requires distinct logical filaments.');

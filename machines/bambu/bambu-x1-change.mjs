@@ -4,7 +4,7 @@ import {requireThat,toolBounds,sameNozzleMaterialChanges,checkedFilamentPlan as 
 // Loading/cutting and chute service are firmware operations, not body geometry.
 export function renderX1MaterialChange(plan,machine,{from,to,position,incomingDebt,fan,count},Export){
   const n=Export.number;
-  requireThat(machine.id==='bambu-x1-carbon'&&sameNozzleMaterialChanges(machine),'No single-nozzle AMS change contract.');
+  requireThat(sameNozzleMaterialChanges(machine),'No single-nozzle AMS change contract.');
   requireThat(Number.isInteger(count)&&count>0&&from!==to,'Invalid AMS change sequence.');
   const old=filamentPlan(plan,machine,from),next=filamentPlan(plan,machine,to);
   for(const p of [old,next]){

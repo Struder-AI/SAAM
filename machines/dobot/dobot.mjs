@@ -30,7 +30,7 @@ export function motionProfile(lengthMm,speedMmS,accelMmS2){
 }
 
 export function config(plan,machine){
-  requireThat(machine.id==='dobot-mg400'&&plan.output==='dobot-lua','Incompatible Dobot output.');
+  requireThat(plan.output==='dobot-lua','Incompatible Dobot output.');
   return plan.setup.dobot;
 }
 
