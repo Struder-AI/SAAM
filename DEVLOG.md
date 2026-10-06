@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-05 — Blob field lands; one canonical JSON serializer
+
+- Blob field (worker): cherry-picked b1539395 (Geometry-owned marching tetrahedra, `saam/blob-marching-tetrahedra/1`). Full brain at 0.8 mm: 542,042 triangles, one component, valid mesh (59 s); blob-field 6/6.
+- `core/canonical-json.mjs` is the one canonical JSON serializer, replacing eight replacer copies (workflow, revisions, plan, private geometry/studio hash, path dependencies, extension library, blob field record). Byte-identical on 6,012 JSON files (4.5 GB), the brain geometry and edge cases; identity hashes unchanged. Brain 0.8 mm bundle: create 4.5→2.8 s, load 13.6→8.4 s, placement edit 28.1→18.6 s; the rest is the 26 MB geometry text produced about 11 times per load and 18 per edit (owner question). Extension skills (gridfinity, heat-set-inserts, text) keep their own digests.
+- Tests: blob-field, workflow, workflow-manifest, legacy-migration, mesh-large, mesh-repair, review-state (worker); blob-field rerun after merge. Not run: whole suite, dev-instance blob_field trial, macOS, map regenerate (heavy job held).
+
 ## 2026-10-05 — Open 0.3.6; tray waits for SAAM; turn end un-dims Studio
 
 - Owner: approved 0.3.4/0.3.5 rows ship in 0.3.6; new rows "Use SAAM, else an extension" (a tester's agent built a vase program outside SAAM; building outside extensions is a bug the agent reports through a `saam` command) and "Dimensions and tolerances" (no 1e-9 mm work; tolerances derive from the dimensions SAAM deals with).
