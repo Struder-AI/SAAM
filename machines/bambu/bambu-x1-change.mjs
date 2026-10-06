@@ -1,19 +1,13 @@
-import {PROGRAM_DECIMALS} from '../dimensions.mjs';
-import {requireThat} from '../private/export/numeric.mjs';
-
-import {toolBounds,validateSetup,sameNozzleMaterialChanges} from '../machine/rules.mjs';
-import {checkedFilamentPlan as filamentPlan} from '../machine/filaments.mjs';
-
-const n=value=>Number(value.toFixed(PROGRAM_DECIMALS));
+import {requireThat,toolBounds,sameNozzleMaterialChanges,checkedFilamentPlan as filamentPlan} from './filaments.mjs';
 
 // Authored X1 PLA change recipe, cross-referenced to the installed X1 template.
 // Loading/cutting and chute service are firmware operations, not body geometry.
-export function renderX1MaterialChange(plan,machine,{from,to,position,incomingDebt,fan,count}){
+export function renderX1MaterialChange(plan,machine,{from,to,position,incomingDebt,fan,count},Export){
+  const n=Export.number;
   requireThat(machine.id==='bambu-x1-carbon'&&sameNozzleMaterialChanges(machine),'No single-nozzle AMS change contract.');
   requireThat(Number.isInteger(count)&&count>0&&from!==to,'Invalid AMS change sequence.');
   const old=filamentPlan(plan,machine,from),next=filamentPlan(plan,machine,to);
   for(const p of [old,next]){
-    validateSetup(p,machine);
     requireThat(p.setup.tool===0&&p.setup.material==='PLA'&&p.setup.nozzleMm===0.4,'X1 AMS changes require the 0.4 mm PLA contract.');
     requireThat(p.setup.bambu.filaments?.[p.setup.bambu.filament]?.source?.type!=='external','Automatic X1 material changes require AMS feeds, not an external spool.');
   }

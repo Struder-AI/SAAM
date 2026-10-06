@@ -1,7 +1,7 @@
 import {requireThat,distance} from '../private/export/numeric.mjs';
 import {AdaptationMotion,machinePriming} from '../private/export/adaptation-motion.mjs';
-import {validateSetup,toolBounds,startupPosition,startupRetracted,sameNozzleMaterialChanges} from '../machine/rules.mjs';
-import {checkedFilamentPlan} from '../machine/filaments.mjs';
+import {validateSetup,toolBounds,startupPosition,startupRetracted} from '../machine/rules.mjs';
+import {filamentPlan} from '../machine/filaments.mjs';
 import {contextualActions} from '../path/action-context.mjs';
 
 export const PREPARED_PATH_CONTRACT='saam-export-prepared/1';
@@ -10,7 +10,7 @@ const upright=pose=>!pose||Math.abs(pose.rotaryDeg)<1e-9&&
   pose.toolAxis.every((v,i)=>Math.abs(v-[0,0,-1][i])<1e-9)&&
   pose.toolUp.every((v,i)=>Math.abs(v-[0,1,0][i])<1e-9);
 const selection=(plan,machine,index)=>{
-  const selected=checkedFilamentPlan(plan,machine,index);
+  const selected=filamentPlan(plan,machine,index);
   return {plan:selected,filament:index,tool:selected.setup.tool,process:selected.process,bounds:toolBounds(machine,selected.setup.tool)};
 };
 function hasPrime(path){
@@ -43,18 +43,20 @@ function limitedFeed(start,actions,machine){
 }
 
 // The saved SAAMpath is independent of machine/output. This ephemeral path is
-// the exact selected-machine motion sent into the program writer.
-export function prepareExportPath(path,plan,machine){
+// the exact selected-machine motion sent into the program writer. The adapter
+// declares whether it writes poses; its setup block may state the start pose
+// and posed-travel motion (retreatMm, transitionSeconds, rotaryCenterMm).
+export function prepareExportPath(path,plan,machine,adapter){
   requireThat(path?.schema==='saampath/1'&&path.completion?.contract===NEUTRAL_PATH_CONTRACT,
     'Export requires a current neutral SAAMpath. Generate the toolpath first.');
-  validateSetup(plan,machine,{required:true});
-  const oriented=plan.output==='denso-pacscript';
+  validateSetup(plan,machine,{required:true,adapter});
+  const oriented=adapter.poses===true,block=plan.setup[adapter.settings?.key];
   requireThat(oriented||[path.initialPose,...path.actions.map(a=>a.pose)].every(upright),
     'Selected output cannot represent non-upright orientation or rotary motion.');
   const bounds=toolBounds(machine,plan.setup.tool);
   let selected={plan,tool:plan.setup.tool,process:plan.process,bounds};
-  const start=startupPosition(machine,plan),motion=new AdaptationMotion({start,process:plan.process,
-    retracted:startupRetracted(machine,plan),pose:plan.setup.denso?.initialPose??null,motion:plan.setup.denso??null});
+  const start=startupPosition(machine,plan,block),motion=new AdaptationMotion({start,process:plan.process,
+    retracted:startupRetracted(machine,plan),pose:block?.initialPose??null,motion:oriented?block:null});
   const deposited=depositionBounds(path,plan),model=path.summary?.boundsMm;
   const geometryBounds=model&&deposited?{min:model.min.map((v,i)=>Math.min(v,deposited.min[i])),
     max:model.max.map((v,i)=>Math.max(v,deposited.max[i]))}:model??deposited;
@@ -72,10 +74,11 @@ export function prepareExportPath(path,plan,machine){
       requireThat(!Object.hasOwn(original,'tool'),
         'Neutral material changes must not select a physical tool.');
       const incoming=selection(plan,machine,original.filament);
-      const sameNozzle=sameNozzleMaterialChanges(machine)&&incoming.tool===selected.tool;
-      requireThat(sameNozzle||machine.id==='bambu-h2d'&&incoming.tool!==selected.tool,
+      // A same-nozzle change needs the output's declared mode; a change to another tool is a tool swap.
+      const constraints=machine.outputs.find(o=>o.id===plan.output)?.constraints,sameNozzle=incoming.tool===selected.tool;
+      requireThat(!sameNozzle||constraints?.materialChangeMode==='single-nozzle-ams',
         'Selected output has no contract for this material change.');
-      const lift=machine.outputs.find(o=>o.id===plan.output)?.constraints?.toolChangeLiftMm;
+      const lift=constraints?.toolChangeLiftMm;
       requireThat(Number.isFinite(lift)&&lift>0,'Selected output has no material-change clearance contract.');
       motion.retract();debts.set(selected.tool,motion.retracted?selected.process.retractMm:0);
       const lo=bounds.min.map((_,i)=>Math.max(selected.bounds.min[i],incoming.bounds.min[i]));
@@ -112,7 +115,7 @@ export function prepareExportPath(path,plan,machine){
   }
   if(relocating)motion.travel(neutralFrom);
   const prepared={...path,completion:{contract:PREPARED_PATH_CONTRACT},
-    initialPosition:start,...(plan.setup.denso?{initialPose:plan.setup.denso.initialPose}:{}),
+    initialPosition:start,...(block?.initialPose?{initialPose:block.initialPose}:{}),
     actions:limitedFeed(start,motion.actions,machine),summary:{...path.summary,boundsMm:geometryBounds}};
   if(!oriented)delete prepared.initialPose;
   return prepared;

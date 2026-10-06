@@ -4,35 +4,35 @@ import assert from 'node:assert/strict';
 import {mkdtemp,rm,access} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {MACHINE_IDS,loadMachine} from '../machine/profile.mjs';
+import {machineIds,loadMachine} from '../machine/profile.mjs';
 import {validateSetup} from '../machine/rules.mjs';
 import {defaults,validatePlan} from '../print/plan.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
-import {outputAdapter} from '../export/registry.mjs';
+import {machineAdapter} from '../export/registry.mjs';
 import {initBundle,loadBundle,adjustBundle,generateBundle,proposedPlan} from '../print/bundle.mjs';
 
 const ids=['bambu-x1-carbon','ultimaker-2-extended','ultimaker-3'];
 const authoredPlan=machine=>({...defaults(machine),geometry:splineBox({runMm:12,widthMm:10,heightMm:1})});
 
-test('new printer profiles provide valid planar defaults and distinguish hardware/output contracts',()=>{
+test('new printer profiles provide valid planar defaults and distinguish hardware/output contracts',async()=>{
   for(const id of ids){
-    assert.ok(MACHINE_IDS.includes(id));
+    assert.ok(machineIds().includes(id));
     const machine=loadMachine(id),plan=authoredPlan(machine);
     if(id==='bambu-x1-carbon')plan.slices.assignments.push(skinAssignment({id:'skin'}));
     validatePlan(plan,machine);
     assert.equal(plan.setup.material,'PLA');
     if(id==='bambu-x1-carbon'){
-      assert.ok(outputAdapter(plan,machine).export,'X1 Carbon uses the shared Bambu adapter');
+      assert.ok((await machineAdapter(plan,machine)).export,'X1 Carbon uses the shared Bambu adapter');
       assert.equal(machine.nonplanar.maxAngleDeg,10,'X1 Carbon declares the experimental 10 degree nonplanar limit');
       assert.equal(machine.nonplanar.experimental,true);
       assert.ok(plan.slices.assignments.some(a=>a.surface?.kind==='roof'));
       continue;
     }
     assert.ok(!plan.slices.assignments.some(a=>a.surface?.kind==='roof'));
-    assert.throws(()=>outputAdapter(plan,machine),/export is not implemented/);
+    await assert.rejects(()=>machineAdapter(plan,machine),/export is not implemented/);
     const nonplanar=structuredClone(plan);nonplanar.slices.assignments.push(skinAssignment({id:'skin'}));
-    validatePlan(nonplanar,machine);assert.throws(()=>outputAdapter(nonplanar,machine),/export is not implemented/);
+    validatePlan(nonplanar,machine);await assert.rejects(()=>machineAdapter(nonplanar,machine),/export is not implemented/);
   }
   const x1=loadMachine(ids[0]),um2=loadMachine(ids[1]),um3=loadMachine(ids[2]);
   assert.deepEqual(x1.bounds.max,[256,256,256]);assert.equal(x1.filamentDiameterMm,1.75);
@@ -45,7 +45,7 @@ test('new printer profiles provide valid planar defaults and distinguish hardwar
   right.setup.core='BB 0.4';validatePlan(right,um3);assert.throws(()=>validateSetup(right,um3),/Nozzle\/core/);
 });
 
-test('material changes use their own process limits instead of locking the X1 to PLA',()=>{
+test('material changes use their own process limits instead of locking the X1 to PLA',async()=>{
   const machine=loadMachine('bambu-x1-carbon');
   for(const [material,nozzleC,bedC,maxFlowMm3S] of [
     ['PETG',250,70,4],['ABS',250,95,4],['ASA',260,95,4],['PC',280,100,4],['TPU',230,40,2]

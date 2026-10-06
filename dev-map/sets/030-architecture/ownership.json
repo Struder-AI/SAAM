@@ -379,10 +379,6 @@
       "owner": "export",
       "reason": "Machine feasibility/kinematics and dialect preparation; rules currently mix setup and path checks."
     },
-    "core/machine/denso.mjs": {
-      "owner": "export",
-      "reason": "Machine feasibility/kinematics and dialect preparation; rules currently mix setup and path checks."
-    },
     "core/machine/rules.mjs": {
       "owner": "export",
       "reason": "Machine feasibility/kinematics and dialect preparation; rules currently mix setup and path checks."
@@ -535,51 +531,51 @@
       "owner": "export",
       "reason": "Shared G-code motion writer offered to machine adapters."
     },
-    "core/export/griffin.mjs": {
+    "machines/ultimaker/griffin.mjs": {
       "owner": "export",
       "reason": "Machine dialect export and interpretation."
     },
-    "core/export/bambu.mjs": {
+    "machines/bambu/bambu.mjs": {
       "owner": "export",
       "reason": "Machine dialect export and interpretation."
     },
-    "core/export/bambu-body.mjs": {
+    "machines/bambu/bambu-body.mjs": {
       "owner": "export",
       "reason": "Machine dialect export and interpretation."
     },
-    "core/export/bambu-change.mjs": {
+    "machines/bambu/bambu-change.mjs": {
       "owner": "export",
       "reason": "Machine dialect export and interpretation."
     },
-    "core/export/bambu-job.mjs": {
+    "machines/bambu/bambu-job.mjs": {
       "owner": "export",
       "reason": "Machine dialect export and interpretation."
     },
-    "core/export/bambu-project.mjs": {
+    "machines/bambu/bambu-project.mjs": {
       "owner": "export",
       "reason": "Machine dialect export and interpretation."
     },
-    "core/export/bambu-x1-change.mjs": {
+    "machines/bambu/bambu-x1-change.mjs": {
       "owner": "export",
       "reason": "Machine dialect export and interpretation."
     },
-    "core/export/dobot.mjs": {
+    "machines/dobot/dobot.mjs": {
       "owner": "export",
       "reason": "Machine dialect export and interpretation."
     },
-    "core/export/dobot-player.mjs": {
+    "machines/dobot/debug/verify.mjs": {
       "owner": "export",
       "reason": "Machine dialect export and interpretation."
     },
-    "core/export/dobot-lua-subset.mjs": {
+    "machines/dobot/debug/dobot-lua-subset.mjs": {
       "owner": "export",
       "reason": "Machine dialect export and interpretation."
     },
-    "core/export/denso.mjs": {
+    "machines/denso/denso.mjs": {
       "owner": "export",
       "reason": "Machine dialect export and interpretation."
     },
-    "core/export/denso-player.mjs": {
+    "machines/denso/debug/verify.mjs": {
       "owner": "export",
       "reason": "Machine dialect export and interpretation."
     },
@@ -999,19 +995,19 @@
       "owner": "context",
       "reason": "Maker-facing guidance, regardless of physical directory."
     },
-    "core/export/griffin.md": {
+    "machines/ultimaker/SKILL.md": {
       "owner": "context",
       "reason": "Maker-facing guidance, regardless of physical directory."
     },
-    "core/export/bambu.md": {
+    "machines/bambu/SKILL.md": {
       "owner": "context",
       "reason": "Maker-facing guidance, regardless of physical directory."
     },
-    "core/export/dobot.md": {
+    "machines/dobot/SKILL.md": {
       "owner": "context",
       "reason": "Maker-facing guidance, regardless of physical directory."
     },
-    "core/export/denso.md": {
+    "machines/denso/SKILL.md": {
       "owner": "context",
       "reason": "Maker-facing guidance, regardless of physical directory."
     },
@@ -1502,6 +1498,10 @@
     "studio/path-preview.mjs": {
       "owner": "studio",
       "reason": "Studio draws a path: the prepared path, the saved SAAMpath or a study motion."
+    },
+    "machines/bambu/filaments.mjs": {
+      "owner": "export",
+      "reason": "Bambu adapter: logical filament selection and feed checks."
     }
   },
   "leaves": {
@@ -1630,457 +1630,442 @@
       "owner": "development",
       "reason": "Development tooling (map read/regenerate, sync status, context measurement). Owner decision 2026-10-04: owned by map-0 node 11 Development tooling at declaration level; the file is shared with Maker context onboarding, no file split."
     },
-    "core/export/bambu-body.mjs::@module": {
+    "machines/bambu/bambu-body.mjs::@module": {
       "owner": "export"
     },
-    "core/export/bambu-body.mjs::prelude": {
+    "machines/bambu/bambu-body.mjs::prelude": {
       "owner": "export"
     },
-    "core/export/bambu-body.mjs::exportBambuBody": {
+    "machines/bambu/bambu-body.mjs::exportBambuBody": {
       "owner": "export"
     },
-    "core/export/bambu-body.mjs::exportBambuBody::flush": {
+    "machines/bambu/bambu-body.mjs::exportBambuBody::flush": {
       "owner": "export"
     },
-    "core/export/bambu-change.mjs::@module": {
+    "machines/bambu/bambu-change.mjs::@module": {
       "owner": "export"
     },
-    "core/export/bambu-change.mjs::n": {
+    "machines/bambu/bambu-change.mjs::renderBambuChange": {
       "owner": "export"
     },
-    "core/export/bambu-change.mjs::renderBambuChange": {
+    "machines/bambu/bambu-job.mjs::@module": {
       "owner": "export"
     },
-    "core/export/bambu-job.mjs::@module": {
+    "machines/bambu/bambu-job.mjs::resolveBambuJob": {
       "owner": "export"
     },
-    "core/export/bambu-job.mjs::resolveBambuJob": {
+    "machines/bambu/bambu-job.mjs::resolveBambuJob::perFilament": {
       "owner": "export"
     },
-    "core/export/bambu-job.mjs::resolveBambuJob::perFilament": {
+    "machines/bambu/bambu-job.mjs::resolveBambuJob::perTool": {
       "owner": "export"
     },
-    "core/export/bambu-job.mjs::resolveBambuJob::perTool": {
+    "machines/bambu/bambu-job.mjs::round": {
       "owner": "export"
     },
-    "core/export/bambu-job.mjs::round": {
+    "machines/bambu/bambu-project.mjs::@module": {
       "owner": "export"
     },
-    "core/export/bambu-project.mjs::@module": {
+    "machines/bambu/bambu-project.mjs::materializeBambuProject": {
       "owner": "export"
     },
-    "core/export/bambu-project.mjs::materializeBambuProject": {
+    "machines/bambu/bambu-project.mjs::resolveBambuProject": {
       "owner": "export"
     },
-    "core/export/bambu-project.mjs::resolveBambuProject": {
+    "machines/bambu/bambu-project.mjs::resolveBambuProject::perFilament": {
       "owner": "export"
     },
-    "core/export/bambu-project.mjs::resolveBambuProject::perFilament": {
+    "machines/bambu/bambu-project.mjs::resolveBambuProject::perTool": {
       "owner": "export"
     },
-    "core/export/bambu-project.mjs::resolveBambuProject::perTool": {
+    "machines/bambu/bambu-project.mjs::resolveBambuProject::rectangle": {
       "owner": "export"
     },
-    "core/export/bambu-project.mjs::resolveBambuProject::rectangle": {
+    "machines/bambu/bambu-project.mjs::resolveBambuProject::repeat": {
       "owner": "export"
     },
-    "core/export/bambu-project.mjs::resolveBambuProject::repeat": {
+    "machines/bambu/bambu-project.mjs::resolveBambuProject::selectedForTool": {
       "owner": "export"
     },
-    "core/export/bambu-project.mjs::resolveBambuProject::selectedForTool": {
+    "machines/bambu/bambu-project.mjs::serializeBambuProject": {
       "owner": "export"
     },
-    "core/export/bambu-project.mjs::serializeBambuProject": {
+    "machines/bambu/bambu-x1-change.mjs::@module": {
       "owner": "export"
     },
-    "core/export/bambu-x1-change.mjs::@module": {
+    "machines/bambu/bambu-x1-change.mjs::renderX1MaterialChange": {
       "owner": "export"
     },
-    "core/export/bambu-x1-change.mjs::n": {
+    "machines/bambu/bambu.mjs::@module": {
       "owner": "export"
     },
-    "core/export/bambu-x1-change.mjs::renderX1MaterialChange": {
+    "machines/bambu/bambu.mjs::checkContext": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::@module": {
+    "machines/bambu/bambu.mjs::configBlock": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::checkContext": {
+    "machines/bambu/bambu.mjs::configBlock::render": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::completeProgram": {
+    "machines/bambu/bambu.mjs::configuration": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::configBlock": {
+    "machines/bambu/bambu.mjs::contextFor": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::configBlock::render": {
+    "machines/bambu/bambu.mjs::digest": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::configuration": {
+    "machines/bambu/bambu.mjs::exportBambu": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::contextFor": {
+    "machines/bambu/bambu.mjs::fmt": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::digest": {
+    "machines/bambu/bambu.mjs::header": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::exportAndInterpretBambu": {
+    "machines/bambu/bambu.mjs::header::perUsed": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::exportBambu": {
+    "machines/bambu/bambu.mjs::json": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::fmt": {
+    "machines/bambu/bambu.mjs::meta": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::header": {
+    "machines/bambu/bambu.mjs::packageEntries": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::header::perUsed": {
+    "machines/bambu/bambu.mjs::sections": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::json": {
+    "machines/bambu/bambu.mjs::sections::render": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::meta": {
+    "machines/bambu/bambu.mjs::thumbnail": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::packageEntries": {
+    "machines/bambu/bambu.mjs::thumbnail::chunk": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::sections": {
+    "machines/bambu/bambu.mjs::thumbnail::project": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::sections::render": {
+    "machines/bambu/bambu.mjs::xml": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::thumbnail": {
+    "machines/denso/debug/verify.mjs::@module": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::thumbnail::chunk": {
+    "machines/denso/debug/verify.mjs::interpretDensoFiles": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::thumbnail::project": {
+    "machines/denso/debug/verify.mjs::interpretDensoFiles::execute": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::xml": {
+    "machines/denso/debug/verify.mjs::interpretDensoFiles::execute::need": {
       "owner": "export"
     },
-    "core/export/denso-player.mjs::@module": {
+    "machines/denso/debug/verify.mjs::interpretDensoFiles::load": {
       "owner": "export"
     },
-    "core/export/denso-player.mjs::fromWork": {
+    "machines/denso/debug/verify.mjs::toWork": {
       "owner": "export"
     },
-    "core/export/denso-player.mjs::interpretDensoFiles": {
+    "machines/denso/denso.mjs::@module": {
       "owner": "export"
     },
-    "core/export/denso-player.mjs::interpretDensoFiles::execute": {
+    "machines/denso/denso.mjs::digest": {
       "owner": "export"
     },
-    "core/export/denso-player.mjs::interpretDensoFiles::execute::need": {
+    "machines/denso/denso.mjs::exportDenso": {
       "owner": "export"
     },
-    "core/export/denso-player.mjs::interpretDensoFiles::load": {
+    "machines/denso/denso.mjs::num": {
       "owner": "export"
     },
-    "core/export/denso-player.mjs::toWork": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::@module": {
       "owner": "export"
     },
-    "core/export/denso.mjs::@module": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::calleeName": {
       "owner": "export"
     },
-    "core/export/denso.mjs::digest": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::countNewlines": {
       "owner": "export"
     },
-    "core/export/denso.mjs::exportDenso": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::formatLuaNumber": {
       "owner": "export"
     },
-    "core/export/denso.mjs::num": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::luaEquals": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::@module": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaRuntime": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::calleeName": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaRuntime::assign": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::countNewlines": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaRuntime::compare": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::formatLuaNumber": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaRuntime::contextWithStack": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::luaEquals": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaRuntime::enter": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaRuntime": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaRuntime::eval": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaRuntime::assign": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaRuntime::evalBinary": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaRuntime::compare": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaRuntime::evalCall": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaRuntime::contextWithStack": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaRuntime::evalList": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaRuntime::enter": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaRuntime::evalMulti": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaRuntime::eval": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaRuntime::evalUnary": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaRuntime::evalBinary": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaRuntime::execBlock": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaRuntime::evalCall": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaRuntime::execStatement": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaRuntime::evalList": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaRuntime::invoke": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaRuntime::evalMulti": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaRuntime::load": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaRuntime::evalUnary": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaRuntime::makeClosure": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaRuntime::execBlock": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaRuntime::makeClosure::call": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaRuntime::execStatement": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaRuntime::number": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaRuntime::invoke": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaRuntime::stringify": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaRuntime::load": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaRuntime::tick": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaRuntime::makeClosure": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaSubsetError": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaRuntime::makeClosure::call": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaTable": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaRuntime::number": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaTable::@static/from": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaRuntime::stringify": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaTable::get": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaRuntime::tick": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaTable::length": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaSubsetError": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaTable::set": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaTable": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::LuaTable::toArray": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaTable::@static/from": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::luaTypeName": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaTable::get": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::matchLongBracket": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaTable::length": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::nodeCount": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaTable::set": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::normalizeReturn": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::LuaTable::toArray": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::parse": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::luaTypeName": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::parse::accept": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::matchLongBracket": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::parse::check": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::nodeCount": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::parse::expect": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::normalizeReturn": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::parse::fail": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::parse": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::parse::parseBlock": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::parse::accept": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::parse::parseCallArgs": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::parse::check": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::parse::parseExpr": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::parse::expect": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::parse::parseFor": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::parse::fail": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::parse::parseFunctionBody": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::parse::parseBlock": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::parse::parseFunctionStatement": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::parse::parseCallArgs": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::parse::parseIf": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::parse::parseExpr": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::parse::parseLocal": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::parse::parseFor": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::parse::parsePrimary": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::parse::parseFunctionBody": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::parse::parseSimple": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::parse::parseFunctionStatement": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::parse::parseStatement": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::parse::parseIf": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::parse::parseSuffixed": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::parse::parseLocal": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::parse::parseTable": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::parse::parsePrimary": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::parse::parseWhile": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::parse::parseSimple": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::parse::peek": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::parse::parseStatement": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::Scope": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::parse::parseSuffixed": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::Scope::assign": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::parse::parseTable": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::Scope::declare": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::parse::parseWhile": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::Scope::get": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::parse::peek": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::Scope::has": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::Scope": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::standardLibrary": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::Scope::assign": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::standardLibrary::ipairs": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::Scope::declare": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::standardLibrary::ipairs::__pairs": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::Scope::get": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::standardLibrary::pairs": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::Scope::has": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::standardLibrary::pairs::__pairs": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::standardLibrary": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::standardLibrary::tonumber": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::standardLibrary::ipairs": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::standardLibrary::tostring": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::standardLibrary::ipairs::__pairs": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::standardLibrary::type": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::standardLibrary::pairs": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::tokenize": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::standardLibrary::pairs::__pairs": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::tokenize::fail": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::standardLibrary::tonumber": {
+    "machines/dobot/debug/dobot-lua-subset.mjs::truthy": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::standardLibrary::tostring": {
+    "machines/dobot/debug/verify.mjs::@module": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::standardLibrary::type": {
+    "machines/dobot/debug/verify.mjs::config": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::tokenize": {
+    "machines/dobot/debug/verify.mjs::equal": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::tokenize::fail": {
+    "machines/dobot/debug/verify.mjs::inside": {
       "owner": "export"
     },
-    "core/export/dobot-lua-subset.mjs::truthy": {
+    "machines/dobot/debug/verify.mjs::interpretDobotFiles": {
       "owner": "export"
     },
-    "core/export/dobot-player.mjs::@module": {
+    "machines/dobot/debug/verify.mjs::interpretDobotFiles::fail": {
       "owner": "export"
     },
-    "core/export/dobot-player.mjs::config": {
+    "machines/dobot/debug/verify.mjs::interpretDobotFiles::host.DO": {
       "owner": "export"
     },
-    "core/export/dobot-player.mjs::equal": {
+    "machines/dobot/debug/verify.mjs::interpretDobotFiles::host.MovL": {
       "owner": "export"
     },
-    "core/export/dobot-player.mjs::inside": {
+    "machines/dobot/debug/verify.mjs::interpretDobotFiles::host.Sync": {
       "owner": "export"
     },
-    "core/export/dobot-player.mjs::interpretDobotFiles": {
+    "machines/dobot/debug/verify.mjs::interpretDobotFiles::host.Wait": {
       "owner": "export"
     },
-    "core/export/dobot-player.mjs::interpretDobotFiles::fail": {
+    "machines/dobot/debug/verify.mjs::interpretDobotFiles::need": {
       "owner": "export"
     },
-    "core/export/dobot-player.mjs::interpretDobotFiles::host.DO": {
+    "machines/dobot/debug/verify.mjs::inverse": {
       "owner": "export"
     },
-    "core/export/dobot-player.mjs::interpretDobotFiles::host.MovL": {
+    "machines/dobot/debug/verify.mjs::motionProfile": {
       "owner": "export"
     },
-    "core/export/dobot-player.mjs::interpretDobotFiles::host.Sync": {
+    "machines/dobot/debug/verify.mjs::num": {
       "owner": "export"
     },
-    "core/export/dobot-player.mjs::interpretDobotFiles::host.Wait": {
+    "machines/dobot/debug/verify.mjs::transform": {
       "owner": "export"
     },
-    "core/export/dobot-player.mjs::interpretDobotFiles::need": {
+    "machines/dobot/dobot.mjs::@module": {
       "owner": "export"
     },
-    "core/export/dobot-player.mjs::inverse": {
+    "machines/dobot/dobot.mjs::digest": {
       "owner": "export"
     },
-    "core/export/dobot-player.mjs::motionProfile": {
+    "machines/dobot/dobot.mjs::exportDobot": {
       "owner": "export"
     },
-    "core/export/dobot-player.mjs::num": {
+    "machines/dobot/dobot.mjs::exportDobot::switchRelay": {
       "owner": "export"
     },
-    "core/export/dobot-player.mjs::transform": {
+    "machines/ultimaker/griffin.mjs::@module": {
       "owner": "export"
     },
-    "core/export/dobot.mjs::@module": {
+    "machines/ultimaker/griffin.mjs::exportGriffin": {
       "owner": "export"
     },
-    "core/export/dobot.mjs::digest": {
-      "owner": "export"
-    },
-    "core/export/dobot.mjs::exportDobot": {
-      "owner": "export"
-    },
-    "core/export/dobot.mjs::exportDobot::switchRelay": {
-      "owner": "export"
-    },
-    "core/export/griffin.mjs::@module": {
-      "owner": "export"
-    },
-    "core/export/griffin.mjs::exportGriffin": {
-      "owner": "export"
-    },
-    "core/export/griffin.mjs::exportGriffin::render": {
+    "machines/ultimaker/griffin.mjs::exportGriffin::render": {
       "owner": "export"
     },
     "core/export/gcode-motion.mjs::gcodeMotion": {
@@ -2104,10 +2089,7 @@
     "core/export/travel-advisory.mjs::preparedTravelAdvisory": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::report": {
-      "owner": "export"
-    },
-    "core/export/griffin.mjs::fmt": {
+    "machines/bambu/bambu.mjs::report": {
       "owner": "export"
     },
     "core/export/prepare-path.mjs::@module": {
@@ -2117,9 +2099,6 @@
       "owner": "export"
     },
     "core/export/registry.mjs::exportProgram": {
-      "owner": "export"
-    },
-    "core/export/registry.mjs::outputAdapter": {
       "owner": "export"
     },
     "core/export/travel-advisory.mjs::@module": {
@@ -3690,12 +3669,6 @@
     "core/machine/denso-kinematics.mjs::rotationError": {
       "owner": "export"
     },
-    "core/machine/denso.mjs::@module": {
-      "owner": "export"
-    },
-    "core/machine/denso.mjs::validateDensoConfiguration": {
-      "owner": "export"
-    },
     "core/machine/dobot-kinematics.mjs::@module": {
       "owner": "export"
     },
@@ -3720,19 +3693,11 @@
     "core/machine/filaments.mjs::assignedFilaments": {
       "owner": "toolpath"
     },
-    "core/machine/filaments.mjs::checkedFilamentPlan": {
-      "owner": "export",
-      "reason": "Output-specific Bambu installation/feeder compatibility; only exporter declarations call this function."
-    },
     "core/machine/filaments.mjs::filamentPlan": {
       "owner": "toolpath"
     },
     "core/machine/filaments.mjs::filamentSelection": {
       "owner": "toolpath"
-    },
-    "core/machine/filaments.mjs::validateBambuConnections": {
-      "owner": "export",
-      "reason": "Output-specific Bambu installation/feeder compatibility; only exporter declarations call this function."
     },
     "core/machine/jog.mjs::@module": {
       "owner": "studio"
@@ -3823,19 +3788,7 @@
     "core/machine/rules.mjs::@module": {
       "owner": "export"
     },
-    "core/machine/rules.mjs::centeredPlacement": {
-      "owner": "export"
-    },
-    "core/machine/rules.mjs::feederSelector": {
-      "owner": "export"
-    },
     "core/machine/rules.mjs::planarWallTolerance": {
-      "owner": "export"
-    },
-    "core/machine/rules.mjs::requireMachine": {
-      "owner": "export"
-    },
-    "core/machine/rules.mjs::sameNozzleMaterialChanges": {
       "owner": "export"
     },
     "core/machine/rules.mjs::startupPosition": {
@@ -3848,9 +3801,6 @@
       "owner": "export"
     },
     "core/machine/rules.mjs::toolFor": {
-      "owner": "export"
-    },
-    "core/machine/rules.mjs::validateDobotConfiguration": {
       "owner": "export"
     },
     "core/machine/rules.mjs::validateSetup": {
@@ -11571,9 +11521,6 @@
       "owner": "application",
       "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
     },
-    "core/export/registry.mjs::readProgramSources::source": {
-      "owner": "export"
-    },
     "core/application/local-agent-notes.mjs::@module": {
       "owner": "application"
     },
@@ -13158,10 +13105,91 @@
     "core/print/workflow.mjs::createBundleWorkflow::readDrawnPath": {
       "owner": "bundle"
     },
-    "core/export/dobot-player.mjs::verify": {
+    "machines/dobot/debug/verify.mjs::verify": {
       "owner": "export"
     },
-    "core/export/denso-player.mjs::verify": {
+    "machines/denso/debug/verify.mjs::verify": {
+      "owner": "export"
+    },
+    "core/extensions/library.mjs::bundledDirectory": {
+      "owner": "extensions"
+    },
+    "core/extensions/library.mjs::machineCatalog": {
+      "owner": "extensions"
+    },
+    "core/machine/profile.mjs::machineIds": {
+      "owner": "settings"
+    },
+    "core/export/registry.mjs::Export": {
+      "owner": "export"
+    },
+    "core/export/registry.mjs::machineAdapter": {
+      "owner": "export"
+    },
+    "core/export/registry.mjs::preparePath": {
+      "owner": "export"
+    },
+    "machines/bambu/bambu.mjs::createAdapter": {
+      "owner": "export"
+    },
+    "machines/dobot/dobot.mjs::requireThat": {
+      "owner": "export"
+    },
+    "machines/dobot/dobot.mjs::distance": {
+      "owner": "export"
+    },
+    "machines/dobot/dobot.mjs::validate": {
+      "owner": "export"
+    },
+    "machines/dobot/dobot.mjs::createAdapter": {
+      "owner": "export"
+    },
+    "machines/denso/denso.mjs::requireThat": {
+      "owner": "export"
+    },
+    "machines/denso/denso.mjs::distance": {
+      "owner": "export"
+    },
+    "machines/denso/denso.mjs::validateDensoConfiguration": {
+      "owner": "export"
+    },
+    "machines/denso/denso.mjs::createAdapter": {
+      "owner": "export"
+    },
+    "machines/ultimaker/griffin.mjs::requireThat": {
+      "owner": "export"
+    },
+    "machines/ultimaker/griffin.mjs::distance": {
+      "owner": "export"
+    },
+    "machines/ultimaker/griffin.mjs::createAdapter": {
+      "owner": "export"
+    },
+    "machines/bambu/filaments.mjs::@module": {
+      "owner": "export"
+    },
+    "machines/bambu/filaments.mjs::requireThat": {
+      "owner": "export"
+    },
+    "machines/bambu/filaments.mjs::toolFor": {
+      "owner": "export"
+    },
+    "machines/bambu/filaments.mjs::toolBounds": {
+      "owner": "export"
+    },
+    "machines/bambu/filaments.mjs::sameNozzleMaterialChanges": {
+      "owner": "export"
+    },
+    "machines/bambu/filaments.mjs::startupPosition": {
+      "owner": "export"
+    },
+    "machines/bambu/filaments.mjs::feederSelector": {
+      "owner": "export"
+    },
+    "machines/bambu/filaments.mjs::validateBambuConnections": {
+      "owner": "export"
+    },
+    "machines/bambu/filaments.mjs::checkedFilamentPlan": {
       "owner": "export"
     }
   },

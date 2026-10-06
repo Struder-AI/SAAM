@@ -1,6 +1,13 @@
+---
+name: ultimaker
+description: UltiMaker S5 Griffin output contract; UltiMaker 2 Extended and 3 review profiles
+metadata:
+  saam-kind: machine
+---
+
 # Griffin output
 
-The S5 output contract and current verification limits. See the [shared machine interface](./README.md) for common motion semantics.
+The S5 output contract and current verification limits. See the [shared machine interface](../../core/export/README.md) for common motion semantics.
 
 ## S5 setup and troubleshooting
 
@@ -12,7 +19,7 @@ about the discrepancy. An About-screen version or the actual exported file is
 useful when it resolves a concrete compatibility question.
 
 Record user-reported findings separately from assumptions and physical
-verification, and [remember the setup](../print/USAGE.md#remember-machine-setup)
+verification, and [remember the setup](../../core/print/USAGE.md#remember-machine-setup)
 for subsequent jobs. The linked devlog observations identify their export and
 behavior; they do not establish the behavior of every S5 installation.
 
@@ -22,8 +29,8 @@ physically verify the result.
 
 ## Machine program templates and S5 observations
 
-`core/export/griffin.mjs` owns the S5 dialect and the shared motion emitter/modal
-interpreter. `core/export/bambu.mjs` adds the H2D envelope and sliced-3MF package.
+`machines/ultimaker/griffin.mjs` owns the S5 dialect and the shared motion emitter/modal
+interpreter. `machines/bambu/bambu.mjs` adds the H2D envelope and sliced-3MF package.
 The selected machine output's `program.header`, `program.start` and
 `program.end` arrays contain literal lines with named value substitutions.
 Values come from the locked setup, release metadata and path totals/bounds;

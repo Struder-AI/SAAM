@@ -17,7 +17,7 @@ import {randomUUID} from 'node:crypto';
 import {runPortableBundleJob} from './portable-bundle-job.mjs';
 import {changeMachine,adjustSettings,recordExtensionDependency} from '../machine/bundle-settings.mjs';
 import {SETTINGS_FIELDS} from '../machine/settings.mjs';
-import { MACHINE_IDS, loadMachine } from '../machine/profile.mjs';
+import { machineIds, loadMachine } from '../machine/profile.mjs';
 import { createStudio, listPrints } from '../../studio/server.mjs';
 import { bundleFor } from '../../studio/adapter-resolution.mjs';
 import {tourStatus,tourExample} from '../../studio/tour.mjs';
@@ -318,7 +318,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     }
     for(const extension of await listExtensions({appRoot:root})){
       const {text:manual}=await readGuidance(root,`extensions/${extension.id}/SKILL.md`);
-      found.push({...skillMetadata(extension.id,manual),...(extension.manifest.kind==='workspace'?{kind:'workspace'}:{}),layer:'extension',origin:extension.origin,
+      found.push({...skillMetadata(extension.id,manual),...(extension.manifest.kind&&extension.manifest.kind!=='skill'?{kind:extension.manifest.kind}:{}),layer:'extension',origin:extension.origin,
         digest:extension.digest,manualTool:'read_skill'});
     }
     found.push(...await localExtension.skills?.()??[]);
@@ -548,7 +548,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     return relay.report({description,context:{reporter:'agent',client,printId:printId??null,runtimeId:application.runtime?.id??null,runtimeLabel:application.runtime?.label??null}});
   }
   operation('list_machines','List installed machine profiles and declared outputs. Catalog presence is not proof that a particular recipe is supported.',{});
-  async function listMachines(){return MACHINE_IDS.map(id => {
+  async function listMachines(){return machineIds().map(id => {
     const m = loadMachine(id);
     return { id, name: m.name, capabilities: m.capabilities, tools: m.tools, materials: m.materials,
       outputs: m.outputs.map(({ id, extension, flavor, implemented, experimental, constraints, reason }) => ({ id, extension, flavor, implemented: implemented !== false, experimental, constraints, reason })),

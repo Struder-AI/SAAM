@@ -82,7 +82,7 @@ try {
 // tolerance that does not name its class (core/README.md#dimensions-and-tolerances).
 // Counts per file may only fall; --write-tolerance-baseline records lower counts.
 const toleranceLiteral = /(?<![\w.])(?:\d+(?:\.\d+)?e-\d+|0?\.00\d+)(?![\w.])|Number\.EPSILON/g;
-const toleranceFiles = tracked.filter(path => /^(core|studio|skills|packaging)\/.*\.(mjs|js|cpp)$/.test(path)
+const toleranceFiles = tracked.filter(path => /^(core|studio|skills|packaging|machines)\/.*\.(mjs|js|cpp)$/.test(path)
   && !/(^|\/)tests?\/|\.test\.mjs$/.test(path) && path !== 'core/dimensions.mjs');
 const toleranceCounts = {};
 for (const path of toleranceFiles) {

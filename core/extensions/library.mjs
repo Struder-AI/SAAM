@@ -3,6 +3,7 @@ import {homePaths} from '../application/home.mjs';
 // user's copies live beside prints and survive installation updates.
 import {createHash,randomUUID} from 'node:crypto';
 import {access,lstat,mkdir,cp,readFile,readdir,rename,rm,writeFile} from 'node:fs/promises';
+import {existsSync,readdirSync,readFileSync} from 'node:fs';
 import {createTemporaryWorkspace} from '../application/temporary-workspace.mjs';
 import {canonicalJson,canonicalHash} from '../canonical-json.mjs';
 import {dirname,relative,resolve,sep} from 'node:path';
@@ -17,7 +18,7 @@ const loadedDigests=new Map();
 const sha256=bytes=>createHash('sha256').update(bytes).digest('hex');
 
 export function extensionRoots({appRoot=applicationRoot,dataRoot}={}){
-  return {bundled:resolve(appRoot,'skills'),local:homePaths(dataRoot).extensions};
+  return {bundled:resolve(appRoot,'skills'),machines:resolve(appRoot,'machines'),local:homePaths(dataRoot).extensions};
 }
 
 export function relativeExtensionFile(name){
@@ -47,7 +48,13 @@ function manifestValue(raw,id){
     if(!entry.file.endsWith('.mjs'))throw Error(`Entry ${name} in ${id} must name an .mjs file.`);
   }
   const kind=raw.kind??'skill';
-  if(!['skill','workspace'].includes(kind))throw Error(`Invalid extension kind: ${kind}.`);
+  if(!['skill','workspace','machine'].includes(kind))throw Error(`Invalid extension kind: ${kind}.`);
+  // A machine extension ships profiles, each named <profile id>.json, and the adapter writing their outputs.
+  if(kind==='machine'){
+    if(!entries['machine-adapter']||!Array.isArray(raw.machines)||!raw.machines.length
+      ||raw.machines.some(name=>!/^[a-z][a-z0-9-]*\.json$/.test(relativeFile(name).split('/').at(-1))))
+      throw Error(`Machine extension ${id} needs a machine-adapter entry and its profile files.`);
+  }else if(raw.machines||entries['machine-adapter'])throw Error(`Extension ${id} must declare kind machine.`);
   if(kind==='workspace'){
     if(!entries['workspace-runtime'])throw Error(`Workspace ${id} needs a workspace-runtime entry.`);
     if(!raw.workspace||Object.keys(raw.workspace).join()!=='ui')throw Error(`Workspace ${id} needs a UI directory.`);
@@ -79,6 +86,7 @@ async function extensionAt(directory,id){
   for(const entry of Object.values(manifest.entries))if(!names.includes(entry.file))
     throw Error(`Extension ${id} entry ${entry.file} is absent.`);
   if(manifest.kind==='workspace'&&!names.includes(manifest.workspace.ui+'/index.html'))throw Error(`Workspace ${id} has no UI index.html.`);
+  for(const name of manifest.machines??[])if(!names.includes(name))throw Error(`Machine extension ${id} profile ${name} is absent.`);
   const files=await Promise.all(names.map(async path=>({path,bytes:await readFile(resolve(directory,path))})));
   const digest=canonicalHash(files.map(({path,bytes})=>({path,sha256:sha256(bytes)})));
   return {id,directory,manifest,digest,files};
@@ -86,12 +94,37 @@ async function extensionAt(directory,id){
 
 async function exists(path){try{await access(path);return true;}catch(error){if(error.code==='ENOENT')return false;throw error;}}
 
+// Release defaults live in skills/<id> or machines/<id>.
+const bundledDirectory=(roots,id)=>[roots.bundled,roots.machines].map(root=>resolve(root,id))
+  .find(directory=>existsSync(resolve(directory,'extension.json')));
+
 export async function readExtension(id,options={}){
   if(!ID.test(id))throw Error(`Invalid extension id: ${id}.`);
-  const roots=extensionRoots(options),local=resolve(roots.local,id),bundled=resolve(roots.bundled,id);
+  const roots=extensionRoots(options),local=resolve(roots.local,id),bundled=bundledDirectory(roots,id);
   if(await exists(local))return {...await extensionAt(local,id),origin:'local'};
-  if(await exists(resolve(bundled,'extension.json')))return {...await extensionAt(bundled,id),origin:'bundled'};
+  if(bundled)return {...await extensionAt(bundled,id),origin:'bundled'};
   return null;
+}
+
+// Profile id -> the machine extension shipping it. Profiles are chosen by
+// synchronous callers, so this reads manifests only; a local copy wins.
+export function machineCatalog(options={}){
+  const roots=extensionRoots(options),profiles=new Map(),seen=new Set();
+  for(const folder of [roots.local,roots.machines]){
+    if(!existsSync(folder))continue;
+    for(const item of readdirSync(folder,{withFileTypes:true}).sort((a,b)=>a.name<b.name?-1:a.name>b.name?1:0)){
+      const file=resolve(folder,item.name,'extension.json');
+      if(!item.isDirectory()||!ID.test(item.name)||seen.has(item.name)||!existsSync(file))continue;
+      seen.add(item.name);
+      const manifest=manifestValue(JSON.parse(readFileSync(file,'utf8')),item.name);
+      for(const name of manifest.kind==='machine'?manifest.machines:[]){
+        const id=name.split('/').at(-1).slice(0,-'.json'.length);
+        if(profiles.has(id))throw Error(`Machine profile ${id} is declared by ${profiles.get(id).extension} and ${item.name}.`);
+        profiles.set(id,{extension:item.name,file:resolve(folder,item.name,name)});
+      }
+    }
+  }
+  return profiles;
 }
 
 export async function listExtensions(options={}){
@@ -192,6 +225,7 @@ export async function importExtension(packageFile,options={}){
     throw Error(`Extension ${id} package manifest or guidance is missing.`);
   for(const entry of Object.values(manifest.entries))if(!names.has(entry.file))throw Error(`Extension ${id} entry ${entry.file} is absent.`);
   if(manifest.kind==='workspace'&&!names.has(manifest.workspace.ui+'/index.html'))throw Error(`Workspace ${id} has no UI index.html.`);
+  for(const name of manifest.machines??[])if(!names.has(name))throw Error(`Machine extension ${id} profile ${name} is absent.`);
   const digest=canonicalHash(files.map(({path,bytes})=>({path,sha256:sha256(bytes)})));
   if(digest!==document.digest)throw Error(`Extension ${id} package digest changed.`);
   const installed=await installFiles(id,files,options);
@@ -201,13 +235,13 @@ export async function importExtension(packageFile,options={}){
 // Builders edit this user-owned copy. Subsequent release updates replace only
 // the bundled directory, so local changes remain selected.
 export async function checkoutExtension(id,options={}){
-  const roots=extensionRoots(options),bundled=resolve(roots.bundled,id);
+  const roots=extensionRoots(options),bundled=bundledDirectory(roots,id);
   const local=resolve(roots.local,id);
   if(await exists(local)){
     const selected=await extensionAt(local,id);
     return {id,digest:selected.digest,directory:selected.directory,alreadyLocal:true};
   }
-  if(!await exists(resolve(bundled,'extension.json')))throw Error(`Bundled extension ${id} is missing.`);
+  if(!bundled)throw Error(`Bundled extension ${id} is missing.`);
   const entry=await extensionAt(bundled,id);
   const installed=await installFiles(id,entry.files,options);
   return {id,digest:installed.digest,directory:installed.directory,alreadyLocal:false};

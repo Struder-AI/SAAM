@@ -8,7 +8,7 @@ import {loadMachine} from '../machine/profile.mjs';
 export function generationWorkflow(events=[],onGenerate=()=>{}){
   let generateHook;const machine=loadMachine('ultimaker-s5');
   const api=createBundleWorkflow({kind:'stage-fixture',defaults,version:'fixture',buildDate:'2026-09-19',exportName:'part.gcode',
-    machineFile:'machines/ultimaker-s5.json',limitations:()=>['fixture limitation'],validatePlan:plan=>plan,
+    machineFile:'machines/ultimaker/ultimaker-s5.json',limitations:()=>['fixture limitation'],validatePlan:plan=>plan,
     createGeometry:async parameters=>({bytes:Buffer.from(JSON.stringify(parameters)),descriptor:{nativeFile:'model.mesh.json',parameters}}),
     async generatePath(plan){
       events.push('generate');onGenerate();await generateHook?.();

@@ -1,4 +1,4 @@
-import {requireThat} from '../private/export/numeric.mjs';
+import {requireThat} from './filaments.mjs';
 import fields from './bambu-project-fields.json' with {type:'json'};
 
 

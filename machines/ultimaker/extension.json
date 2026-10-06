@@ -1,0 +1,1 @@
+{"schema":"saam-extension/1","id":"ultimaker","kind":"machine","machines":["ultimaker-s5.json","ultimaker-3.json","ultimaker-2-extended.json"],"entries":{"machine-adapter":{"file":"griffin.mjs","export":"createAdapter"}},"license":"Apache-2.0","provenance":"SAAM release"}

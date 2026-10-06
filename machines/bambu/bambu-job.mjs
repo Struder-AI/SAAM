@@ -1,9 +1,7 @@
-import {requireThat} from '../private/export/numeric.mjs';
 // SAAM's job description. All repeated firmware/package declarations are
 // projections of this record. A logical filament is never a physical AMS tray.
 
-import {feederSelector,toolFor} from '../machine/rules.mjs';
-import {checkedFilamentPlan as filamentPlan,validateBambuConnections} from '../machine/filaments.mjs';
+import {requireThat,feederSelector,toolFor,checkedFilamentPlan as filamentPlan,validateBambuConnections} from './filaments.mjs';
 import {resolveBambuProject} from './bambu-project.mjs';
 
 const PLATES={

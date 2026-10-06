@@ -1,22 +1,17 @@
-import {PROGRAM_DECIMALS} from '../dimensions.mjs';
-import {requireThat} from '../private/export/numeric.mjs';
-import {gcodeMotion} from './gcode-motion.mjs';
-import {checkedFilamentPlan as filamentPlan} from '../machine/filaments.mjs';
+import {requireThat,checkedFilamentPlan as filamentPlan,sameNozzleMaterialChanges} from './filaments.mjs';
 import {renderBambuChange} from './bambu-change.mjs';
-
-import {sameNozzleMaterialChanges} from '../machine/rules.mjs';
 
 // Explicit modal and temperature state at the start of each body segment.
 const prelude=plan=>`G90\nG21\nM83\nG92 E0\nM190 S${plan.setup.bedC}\nM109 S${plan.setup.nozzleC}\n`;
 // Returns the body text and, per material segment, what its commands deposit.
-export function exportBambuBody(path,plan,machine){
+export function exportBambuBody(path,plan,machine,Export){
   const travelCommand=machine.outputs.find(o=>o.id===plan.output).constraints.bodyTravelCommand;
   requireThat(travelCommand==='G1','Bambu body requires coordinated G1 travel.');
   let filament=plan.setup.bambu.filament,selected=filamentPlan(plan,machine,filament),position=[...path.initialPosition],start=[...position],fan=0,count=0;
   const debt={},lines=[],segments=[],usedTools=new Map([[selected.setup.tool,filament]]);let actions=[];
   const flush=()=>{
     lines.push(prelude(selected).trimEnd());
-    const written=gcodeMotion({...path,initialPosition:start,actions},selected,{extrusionMode:'relative',travelCommand});
+    const written=Export.gcodeMotion({...path,initialPosition:start,actions},selected,{extrusionMode:'relative',travelCommand});
     for(const line of written.lines)lines.push(line==='M107'?'M106 S0':line);
     segments.push({filament,tool:selected.setup.tool,tally:written.tally});
     actions=[];
@@ -29,13 +24,13 @@ export function exportBambuBody(path,plan,machine){
       requireThat(sameNozzle||!usedTools.has(incoming.setup.tool)||usedTools.get(incoming.setup.tool)===action.filament,'Changing material within one nozzle requires a separate flushing contract.');
       const incomingDebt=sameNozzle?incoming.process.retractMm:debt[incoming.setup.tool]??0;
       lines.push(renderBambuChange(plan,machine,{from:filament,to:action.filament,position,
-        incomingDebt,knownOutgoing:count>0,fan,count:++count}).trimEnd());
+        incomingDebt,knownOutgoing:count>0,fan,count:++count},Export).trimEnd());
       if(sameNozzle)debt[incoming.setup.tool]=incomingDebt;
       selected=incoming;filament=action.filament;usedTools.set(incoming.setup.tool,filament);start=[...position];
       continue;
     }
     actions.push(action);
-    if(action.kind==='move')position=action.to.map(v=>Number(v.toFixed(PROGRAM_DECIMALS)));
+    if(action.kind==='move')position=action.to.map(Export.number);
     if(action.kind==='retract')debt[selected.setup.tool]=(debt[selected.setup.tool]??0)+action.filamentMm;
     if(action.kind==='recover')debt[selected.setup.tool]=Math.max(0,(debt[selected.setup.tool]??0)-action.filamentMm);
     if(action.kind==='fan')fan=Math.round(action.percent*255/100);

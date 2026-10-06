@@ -12,29 +12,12 @@ export const SETTINGS_FIELDS=Object.freeze(['setup','process','output','placemen
 
 const settingsRecord=value=>value&&typeof value==='object'&&!Array.isArray(value);
 
+// Setup records, including any adapter block, merge field by field at every
+// depth; arrays and scalars replace.
 function mergeSetup(previous,changes){
   if(!settingsRecord(changes))return structuredClone(changes);
-  const setup={...previous,...structuredClone(changes)};
-  if(settingsRecord(changes.ams))setup.ams={...previous?.ams,...structuredClone(changes.ams)};
-  if(settingsRecord(changes.bambu)){
-    setup.bambu={...previous?.bambu,...structuredClone(changes.bambu)};
-    if(settingsRecord(changes.bambu.startup))
-      setup.bambu.startup={...previous?.bambu?.startup,...structuredClone(changes.bambu.startup)};
-  }
-  if(settingsRecord(changes.dobot))setup.dobot={...previous?.dobot,...structuredClone(changes.dobot)};
-  if(settingsRecord(changes.denso)){
-    setup.denso={...previous?.denso,...structuredClone(changes.denso)};
-    if(settingsRecord(changes.denso.initialPose))
-      setup.denso.initialPose={...previous?.denso?.initialPose,...structuredClone(changes.denso.initialPose)};
-  }
-  if(settingsRecord(changes.kinematicModel)){
-    setup.kinematicModel={...previous?.kinematicModel,...structuredClone(changes.kinematicModel)};
-    if(settingsRecord(changes.kinematicModel.worldFromBase))
-      setup.kinematicModel.worldFromBase={...previous?.kinematicModel?.worldFromBase,...structuredClone(changes.kinematicModel.worldFromBase)};
-    if(settingsRecord(changes.kinematicModel.flangeFromTool))
-      setup.kinematicModel.flangeFromTool={...previous?.kinematicModel?.flangeFromTool,...structuredClone(changes.kinematicModel.flangeFromTool)};
-  }
-  return setup;
+  return Object.fromEntries([...Object.entries(settingsRecord(previous)?previous:{}),
+    ...Object.entries(changes).map(([key,value])=>[key,mergeSetup(previous?.[key],value)])]);
 }
 
 export function resolveSettingsPatch(previous,patch){

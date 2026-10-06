@@ -17,18 +17,18 @@ function fixture(id){
     ]}};
 }
 
-test('H2D exports a body beyond 25 MB',()=>{
+test('H2D exports a body beyond 25 MB',async()=>{
   const {machine,plan,path}=fixture('bambu-h2d');
   // Legal operation comments exercise a large real package without allocating
   // hundreds of thousands of retained motion objects in the unit-test worker.
   path.actions[1].operation='large-test-'+'.'.repeat(25_000_001);
-  const {bytes,report}=exportProgram(path,plan,machine,release);
+  const {bytes,report}=(await exportProgram(path,plan,machine,release));
   const entries=unpackZip(bytes);
   assert.ok(entries.get('Metadata/plate_1.gcode').length>25_000_000);
   assert.equal(report.moves,2);assert.ok(Math.abs(report.volumeMm3-0.04)<0.0001);
 });
 
-test('ZIP32 round-trips a member above the former 64 MB policy without relaxing integrity checks',()=>{
+test('ZIP32 round-trips a member above the former 64 MB policy without relaxing integrity checks',async()=>{
   const input=Buffer.alloc(64_000_001,65);input[input.length-1]=66;
   const archive=packZip(new Map([['large.gcode',input]]));
   assert.deepEqual(unpackZip(archive).get('large.gcode'),input);

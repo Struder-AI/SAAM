@@ -2,8 +2,8 @@ import './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {h2dColourFixture} from './fixtures/bambu-h2d-colours.mjs';
-import {resolveBambuJob} from '../export/bambu-job.mjs';
-import {serializeBambuProject} from '../export/bambu-project.mjs';
+import {resolveBambuJob} from '../../machines/bambu/bambu-job.mjs';
+import {serializeBambuProject} from '../../machines/bambu/bambu-project.mjs';
 
 test('H2D project fields follow job values and explicit array roles for one, two and three filaments',()=>{
   for(const count of [1,2,3]){

@@ -1,28 +1,25 @@
-import {rotateZ,rotatePointZ as bedPoint,interpolateDirectionPair,validateDirectionPair} from '../geom/frame.mjs';
-import {requireThat,distance} from '../private/export/numeric.mjs';
 // A deliberately bounded PacScript interpreter. Executes the delivered source,
 // including helper calls and actual T/EX/TIME/IO fields. Annotations supply only
 // process intent and labels, never playback coordinates or rotary motion.
 
-import {validateDensoConfiguration} from '../machine/denso.mjs';
-import {DENSO_LIMITATIONS} from './denso.mjs';
+import {requireThat,distance,validateDensoConfiguration,DENSO_LIMITATIONS} from '../denso.mjs';
 import {createHash} from 'node:crypto';
-import {unpackZip} from './zip.mjs';
 // Debug-only machine verification (machine-verify): executes the written
 // PacScript subset. Generation, reopen, Studio and delivery never load it;
 // scripts/machine-verify.mjs runs it. Delete it after a physical trial.
 const digest=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
-export function verify(bytes,plan,machine){
-  const entries=unpackZip(bytes);requireThat(entries.has('manifest.json'),'Missing DENSO manifest.');
+export function verify(bytes,plan,machine,Export){
+  const entries=Export.unpackZip(bytes);requireThat(entries.has('manifest.json'),'Missing DENSO manifest.');
   const m=JSON.parse(entries.get('manifest.json').toString('utf8'));
   requireThat(m.schema==='saam-denso-program/1'&&m.entry==='main.pcs'&&m.machineHash===digest(machine)&&m.setupHash===digest(plan.setup),'DENSO setup/machine identity differs.');
   requireThat(Array.isArray(m.sourceFiles)&&[...entries.keys()].filter(k=>k!=='manifest.json').sort().join()===m.sourceFiles.slice().sort().join(),'DENSO source inventory differs.');
-  return interpretDensoFiles(Object.fromEntries(m.sourceFiles.map(n=>[n,entries.get(n).toString('utf8')])),plan,machine);
+  return interpretDensoFiles(Object.fromEntries(m.sourceFiles.map(n=>[n,entries.get(n).toString('utf8')])),plan,machine,Export.frame);
 }
-export const fromWork=(point,c)=>rotateZ(point.map((v,i)=>v-c.workOffsetMm[i]),-c.workYawDeg);
-export function interpretDensoFiles(files,plan,machine,{moves=[]}={}){
+function interpretDensoFiles(files,plan,machine,frame,moves=[]){
+  const {rotateZ,rotatePointZ:bedPoint,interpolateDirectionPair,validateDirectionPair}=frame;
+  const fromWork=(point,c)=>rotateZ(point.map((v,i)=>v-c.workOffsetMm[i]),-c.workYawDeg);
   requireThat(machine.id==='denso-vs068a4-rc8a'&&plan.output==='denso-pacscript','Incompatible DENSO output.');
-  validateDensoConfiguration(plan,{required:true});const c=plan.setup.denso;
+  validateDensoConfiguration(plan,{required:true},validateDirectionPair);const c=plan.setup.denso;
   requireThat(files['main.pcs']&&Object.values(files).every(x=>typeof x==='string'),'Missing PacScript entry.');
   const functions=new Map(),visited=new Set();
   // Finite straight-line bodies and the active-call set establish termination.

@@ -39,7 +39,7 @@ tree supports; any authored assignment ID or `plastic-weld:SITE_ID` can be targe
 Priority: print assignment route, assignment's explicit filament, exact part route,
 parent component route, print setup. `part:null` names the single geometry part.
 Trace/Inject `part` associates material ownership; XYZ still uses print placement.
-Filament entries own nozzle/process mapping ([Bambu](../export/bambu.md)); every
+Filament entries own nozzle/process mapping ([Bambu](../../machines/bambu/SKILL.md)); every
 route uses the same generation/export/review. Existing recipes need explicit
 migration for `composition.filaments` and Trace/Inject `part`, then regeneration.
 
@@ -84,7 +84,7 @@ lessons Studio generates, so don't start another. A check reports
 
 A successful export remembers its exact artifact's setup in `<SAAM home>/local/machine-setups/`; new prints on that machine reuse it. Edits leave defaults unchanged.
 `set_deferred_setup_save` takes `bundleId`, current `expectedRevision` and `defer:true` to skip saves for that bundle until cleared with `false`; it changes no manufacturing identity.
-Only setup is remembered; existing prints keep their snapshots. Bambu needs its [maker setup](../export/bambu.md#maker-setup); each [machine contract](../export/README.md) owns setup questions.
+Only setup is remembered; existing prints keep their snapshots. Bambu needs its [maker setup](../../machines/bambu/SKILL.md#maker-setup); each [machine contract](../export/README.md) owns setup questions.
 
 ## Phase colours
 

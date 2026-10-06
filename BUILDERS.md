@@ -145,7 +145,7 @@ changing; read the maps for what it affects and what affects it.
 |---|---|
 | Core architecture and shared boundaries | [core/README.md](core/README.md) |
 | Agent CLI toolkit | [core/agent/README.md](core/agent/README.md) |
-| Machine interfaces and program output | [core/export/README.md](core/export/README.md), with [Bambu](core/export/bambu.md), [DENSO](core/export/denso.md), [Dobot](core/export/dobot.md), [Griffin](core/export/griffin.md) and the [exporter implementation](core/export/DEVELOP.md), which is off the map |
+| Machine interfaces and program output | [core/export/README.md](core/export/README.md), with [Bambu](machines/bambu/SKILL.md), [DENSO](machines/denso/SKILL.md), [Dobot](machines/dobot/SKILL.md), [Griffin](machines/ultimaker/SKILL.md) and the [exporter implementation](core/export/DEVELOP.md), which is off the map |
 | Geometry and numerical contracts | [core/geom/README.md](core/geom/README.md), with [native mesh repair](core/geom/native/README.md) |
 | Machine presentation models | [core/machine/README.md](core/machine/README.md) |
 | Skill composition and travel | [core/path/README.md](core/path/README.md), with the [collision-planning proposal](core/path/collision-proposal.md) |
@@ -245,7 +245,7 @@ A developmental preview is an ordinary `saam` bundle, created and generated
 in development mode. Robot parts still need explicit command settings; for a
 new provisional part use the reusable setup instructions for
 [DENSO](skills/pipe-cladding/SKILL.md#contact-and-pose) or
-[Dobot](core/export/dobot.md#dobot-output-contract), independently of its shape.
+[Dobot](machines/dobot/SKILL.md#dobot-output-contract), independently of its shape.
 
 ## Documentation maintenance
 

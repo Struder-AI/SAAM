@@ -1,12 +1,19 @@
+---
+name: denso
+description: DENSO VS-068A4 with RC8A PacScript output contract
+metadata:
+  saam-kind: machine
+---
+
 # DENSO RC8A output
 
-The experimental PacScript output contract and unresolved installation requirements. See the [shared machine interface](./README.md) for common motion semantics.
+The experimental PacScript output contract and unresolved installation requirements. See the [shared machine interface](../../core/export/README.md) for common motion semantics.
 
 ### DENSO RC8A output contract
 
 The [pipe-cladding implementation](../../skills/pipe-cladding/SKILL.md) targets RC8A;
 [BR-033](../../DEVLOG.md#br-033--denso-rc8-rotary-pipe-demo) records the user's scope.
-The [VS-068A4 profile](../../machines/denso-vs068a4-rc8a.json) represents
+The [VS-068A4 profile](denso-vs068a4-rc8a.json) represents
 a six-joint arm plus one external rotary; the printing task's position/direction
 control is not a claim that the robot has only five joints. Ceiling mounting
 with J1 coaxial with the rotary is provisional. At a chosen outward radius the
@@ -18,7 +25,7 @@ inaccessible or singular. No single cylindrical reach envelope establishes
 feasibility. Operator judgment and the configured RC8A handle these limitations
 for production output; SAAM does not use IK to validate export, check
 reach/joint/motion limits or avoid collisions. A separate
-[nominal presentation model](../machine/README.md#denso-vs-068a4) supplies
+[nominal presentation model](../../core/machine/README.md#denso-vs-068a4) supplies
 drawing-based FK/seeded IK when its display installation is explicit; it does
 not establish the RC8A encoder/FIG mapping or authorize output.
 Profile bounds are display/design coordinates, not enforced robot reach.
@@ -56,7 +63,7 @@ into source blocks of at most 2,000 statements each, called in order, which
 changes no motion; installed compiler/project limits are not verified. The current source ZIP must be imported into a correctly configured WINCAPS III
 RC8A project for vendor verification. Direct USB program import through a
 controller-created project is a scoped candidate, not an implemented SAAM
-export; see the [USB/project assessment](./denso-usb-assessment.md).
+export; see the [USB/project assessment](denso-usb-assessment.md).
 RC8A solves Cartesian IK using its installed tool/work definitions and figure.
 
 All installation selectors start unresolved. The implemented rotary interface
@@ -92,9 +99,9 @@ Interoperability is shared at geometry storage, ordinary section/offset/boolean
 tools, substrate generation, operations, motion, output registry, exact-source
 Studio, cold reopening and delivery. Cladding accepts a periodic native
 spline patch or mapped native triangle strip through
-[surface-region](../geom/surface-region.mjs); inward radial material-region
+[surface-region](../../core/geom/surface-region.mjs); inward radial material-region
 interfaces are not implemented. Shared
-[normal-surface](../region/normal-surface.mjs) operations evaluate outward normal
+[normal-surface](../../core/region/normal-surface.mjs) operations evaluate outward normal
 offsets and refine curves; they do not use the intrinsic boundary-offset tool.
 The selected surface describes the substrate, and cladding adds outside it.
 The [wavy DENSO](../../examples/prints/wavy-denso/README.md) tube is a periodic 16-by-8 spline exterior in native 3DM;
