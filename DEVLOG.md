@@ -1,5 +1,9 @@
 # Development log
 
+## 2026-10-05 — Stale notice on map 0 only
+
+- Owner: "stale files should only show in map 0 read, make it so. Same for human viewer." Worker: influence and design reads carry `stale` (count, `@stale`, regenerate) only on map 0; `@stale` still lists the files and `check` still reports them. The influence viewer marks the changed files as a list box on map 0; the design viewer draws its STALE banner on map 0 only. Removed the viewer's dead live-freshness poll (`freshness.js` was retired with the old scanner) and the notices it put on every page and in the source pane (including the design viewer's "AUTHORED · conformance unchecked" bar; legend and subtitles still say it). README 164 → 164 lines. Verified with a copied store: reads of 0, a box, a cluster, a link, `@path` and `@stale` via CLI, toolkit and onboarding; both built viewers. Not run: regenerate, browser.
+
 ## 2026-10-05 — Traces against the maps: 1196 of 1208 observed calls drawn
 
 - Trace workflows (worker): `agent-session` passes the home's `paths` and `stateRoot` to `createLocalRuntime`; comments follow C1. All six workflows trace (15 threads); `agent-toolkit`'s `context-budget` step fails on a product bug, `core/agent/layers.mjs:75` lacks `stateRoot` (so `agent-toolkit context-budget` itself fails).
