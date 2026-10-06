@@ -14,8 +14,8 @@ above it, extrude for volume/flow seconds, then hold. Dependencies name part
 prerequisites or exact operation IDs; injection IDs are `assignmentId:index`.
 
 Inherit [print/part nozzle selection](../../core/print/USAGE.md#nozzle-selection), override common process values (including fan), or
-set an operation `nozzleC` restored afterward. Bounds, temperature and material
-flow limits apply. Stationary injection requires a supported filament-axis
+set an operation `nozzleC` restored afterward. The temperature ceiling applies.
+Stationary injection requires a supported filament-axis
 G-code output; robot outputs reject it. World-frame flow modulation scales volume
 and rate together, retaining extrusion duration and hold; moving-path channels
 reject stationary points. Approach strokes carry zero material and no effects.

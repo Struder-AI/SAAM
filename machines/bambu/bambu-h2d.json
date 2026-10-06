@@ -81,20 +81,6 @@
         0.6,
         0.8
       ],
-      "layerHeightMm": [
-        0.08,
-        0.6
-      ],
-      "experimentalPlanar": {
-        "layerHeightMm": [
-          0.08,
-          1
-        ],
-        "lineWidthMm": [
-          0.3,
-          2
-        ]
-      },
       "physicalExtruder": 1
     },
     {
@@ -126,20 +112,6 @@
         0.6,
         0.8
       ],
-      "layerHeightMm": [
-        0.08,
-        0.6
-      ],
-      "experimentalPlanar": {
-        "layerHeightMm": [
-          0.08,
-          1
-        ],
-        "lineWidthMm": [
-          0.3,
-          2
-        ]
-      },
       "physicalExtruder": 0
     }
   ],

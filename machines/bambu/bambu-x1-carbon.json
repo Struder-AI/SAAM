@@ -72,10 +72,6 @@
       "nozzleDiametersMm": [
         0.4
       ],
-      "layerHeightMm": [
-        0.08,
-        0.28
-      ],
       "startupXY": [
         100,
         100

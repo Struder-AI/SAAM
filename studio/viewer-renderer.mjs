@@ -36,8 +36,8 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
     hasGeometry:Boolean(geometryScene),
     groups:pathView?.groups??[],moves:pathView?.moves??[],hasSelectedEdge:id=>geometryScene?.edgeFeatures.has(id)??false,
     edge:id=>geometryScene?.edgeFeatures.get(id),solid:Boolean(materialScene&&materialRenderer)});
-  function publishGeometry({geometry,featureEdges=[]}) {
-    geometryScene=geometry?buildGeometry(geometry,35,featureEdges):null;picking.project=null;geometryError='';
+  function publishGeometry({geometry}) {
+    geometryScene=geometry?buildGeometry(geometry,35):null;picking.project=null;geometryError='';
     if(!geometry)return sceneState();
     try{geometryRenderer??=createGeometry();if(!geometryRenderer)geometryError='Shading needs WebGL2; showing flat surfaces.';}
     catch(error){geometryError='Shading unavailable: '+error.message;}

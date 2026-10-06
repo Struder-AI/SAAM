@@ -6,7 +6,7 @@ a weighted solid foot and three curved contact-skin layers belong to one
 continuous object. The component meshes and explicit operation dependency show
 why different toolpath skills can be useful in the same part.
 
-Choose this example from the tour. Your copy is saved automatically.
+Outside the [guided tour](../README.md): create a copy from its recipe.
 
 Inspect each material region and the transition from the spiral wall into the
 foot. Ask the agent to explain the mass distribution, change the lip reinforcement,

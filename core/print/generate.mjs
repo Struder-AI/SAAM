@@ -89,7 +89,7 @@ export async function generateModelResults(plan,{placed,componentShells,shells,v
   const contexts=depositionAssignments(plan).filter(assignment=>assignment.construction||assignment.join).map(assignment=>{
     const shell=shells.find(([part])=>part===(assignment.part??null))?.[1],selected=assignmentPlan(plan,assignment);
     if(ASSIGNMENT_RECORDS[assignment.construction]?.requiresComponent)requireThat(shell,'A surface family needs selected geometry.');
-    return {assignment,shell,process:selected.process,maxBeadHeightMm:Infinity};
+    return {assignment,shell,process:selected.process};
   });
   const extensions=await extensionDeposition({plan,placed,componentShells,shells,volumes,contexts,onProgress,engines:extensionEngines,
     processForAssignment:assignment=>assignmentPlan(plan,assignment).process});

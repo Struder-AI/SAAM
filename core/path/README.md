@@ -216,7 +216,7 @@ Lifted traverses use `max(depositedMaxZ + process.liftMm, fromZ, toZ)`.
 Future strokes and unselected geometry do not raise current travel. The endpoint
 floor avoids descending before traversing from a higher startup/park position or
 toward a higher destination. Cooling and final SAAMpath parking use the same
-height calculation. Exporters check selected tool bounds. Existing recipes
+height calculation. Existing recipes
 retain their explicit locked clearance value.
 Compose all results together so planning state carries chronology across skills.
 Machine firmware service routines (including H2D shutdown) retain their separate

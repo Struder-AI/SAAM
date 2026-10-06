@@ -26,5 +26,5 @@ export function planRefreshNavigation(previous,next,{follow,tab,seconds,duration
   if(next.completedOutput&& !completedOutputState(next).available)nextTab='geometry';
   const resetSelection=resetView||!selected||!next.geometry?.labels?.includes(selected)&&!next.geometry?.features?.some(feature=>feature.id===selected)&&(!hasSelectedEdge||previous?.geometryId!==next.geometryId);
   return {resetExport,resetView,tab:nextTab,seconds:resetExport||resetView?duration:seconds,resetSelection,
-    restoreSavedView:resetView&&!next.tourExample,surfaceDrape:resetView&&next.tourExample?.id==='surface-drape',notice};
+    restoreSavedView:resetView&&!next.tourExample,notice};
 }

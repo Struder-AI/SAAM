@@ -4,7 +4,7 @@ A 32 mm tall spline tube with a 16 mm bore receives a solid sliced substrate and
 alternating axial/helical cladding shells. Its [recipe](recipe.json) holds the
 deterministic wavy control net.
 
-Choose this example from the tour. Your copy is saved automatically.
+Outside the [guided tour](../README.md): create a copy from its recipe.
 
 Inspect the substrate and successive cladding shells, show travel, and compare
 the oriented toolpath with the part. Try fewer shells or a changed cladding angle.

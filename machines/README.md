@@ -19,10 +19,10 @@ A review-only output declares `implemented: false`; generation names the missing
 contract before building a toolpath. The original UM2 Extended needs volumetric UltiGCode,
 the standard UM3 its own Griffin startup (one selected AA core; no BB core or tool
 changes); neither inherits the S5 startup. X1 Carbon PETG, ABS, ASA, PC and TPU are
-setup-review materials; only PLA has an output contract. Profile layer-height ranges
-suggest standard printing; material selection retunes nothing and neither is an export
-limit. Tool bounds are conservative rectangles (X1 cutter strip, UltiMaker glass clips)
-with sources in each profile; arm display bounds are not reach limits. No nonplanar
+setup-review materials; only PLA has an output contract; material selection retunes nothing.
+Tool bounds are conservative rectangles (X1 cutter strip, UltiMaker glass clips) with
+sources in each profile, used for placement, priming and material-change handoff; arm
+display bounds are not reach limits. No nonplanar
 clearance is rated: the X1 (10°) and H2D (15°) limits are user-chosen and experimental.
 [Machine presentation models](../core/machine/README.md) draw each machine.
 
@@ -65,7 +65,7 @@ clearance is rated: the X1 (10°) and H2D (15°) limits are user-chosen and expe
 | S1 | Use only the prepared path, settings and `Export`. |
 | S2 | Write every action kind or reject it at export with a named error; drop none. |
 | S3 | Write coordinates and amounts at program resolution (`PROGRAM_DECIMALS`, [core/dimensions.mjs](../core/dimensions.mjs), through `Export.number`); quantize once and derive later values from written ones; a deposition that collapses is an error naming the move. |
-| S4 | Enforce physical limits from settings: workspace and tool bounds, axis feed, temperature ceiling, park and material-change clearance. |
+| S4 | Enforce physical limits from settings: workspace, axis feed, temperature ceiling, park and material-change clearance. |
 | S5 | Unresolved installation values block export and are named. |
 | S6 | The same prepared path, settings and adapter give identical bytes; dates come from `release`. |
 | S7 | The report states what the drawn path does not show (firmware blocks, purge, park, external start or heating) and the time and material estimates with their model. |

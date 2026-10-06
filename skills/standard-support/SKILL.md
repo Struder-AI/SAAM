@@ -20,7 +20,7 @@ Small patches and short parallel lines may perform poorly; roughly 8 mm is an ob
 `apply_extension` with `extensionId:"standard-support"` adds an authored support contribution. Supply `bundleId`, `expectedEditRevision` from current `editRevision`, and a request, for example:
 
 ```json
-{"id":"underside-support","part":null,"roof":{"vertices":[[4,0,4],[16,0,4],[16,12,4],[4,12,4]],"triangles":[[0,2,1],[0,3,2]]},"gapMm":0.1,"fillDensity":0.2,"angleDeg":0,"baseLayers":2,"reason":"Broad accessible underside needs support."}
+{"id":"underside-support","part":null,"roof":{"vertices":[[4,0,4],[16,0,4],[16,12,4],[4,12,4]],"triangles":[[0,2,1],[0,3,2]]},"gapMm":0.15,"fillDensity":0.2,"angleDeg":0,"baseLayers":2,"reason":"Broad accessible underside needs support."}
 ```
 
 The example's coordinates are illustrative. Supply either `roof` (a copied open triangle patch in component coordinates) or `triangleIndices` (distinct zero-based face ids in the current component's manufacturing mesh, including saved blob fields). Boolean/native components need an explicit copied roof. For assemblies name `part`, otherwise use `null`. No areas are inferred and no Studio face picker is provided. Existing geometry/assignments survive; use a new unique `id`.
@@ -29,7 +29,7 @@ The example's coordinates are illustrative. Supply either `roof` (a copied open 
 |---|---|
 | `id`, `roof` or `triangleIndices`, `reason` | Assignment name, selected patch and its purpose (default “Authored underside support.”). |
 | `part` | Component id or `null`; original placement survives. |
-| `gapMm` | Nonnegative vertical roof separation, initially 0.1 mm; actual sliced gap can be larger. |
+| `gapMm` | Nonnegative vertical roof separation, initially 0.15 mm; actual sliced gap can be larger. |
 | `fillDensity`, `angleDeg` | Density 0–1, initially 0.2; fixed XY row direction initially 0°. Full fill is allowed. |
 | `baseLayers` | Dense bottom courses initially 2, zero loops throughout; zero explicitly omits the base. |
 

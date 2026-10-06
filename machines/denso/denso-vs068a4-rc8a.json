@@ -8,7 +8,7 @@
   "maxFeedMmS":{"x":100,"y":100,"z":100,"e":45},
   "temperatureLimitsC":{"nozzle":[0,280],"bed":[0,120],"chamberMax":0},
   "filamentDiameterMm":1.75,
-  "tools":[{"index":0,"label":"External relay extruder","cores":["external 0.4"],"nozzleDiametersMm":[0.4],"layerHeightMm":[0.06,0.3],"startupXY":[30,0]}],
+  "tools":[{"index":0,"label":"External relay extruder","cores":["external 0.4"],"nozzleDiametersMm":[0.4],"startupXY":[30,0]}],
   "capabilities":["xyz-extrusion","planar","nonplanar","tool-orientation","coordinated-rotary","relay-extrusion"],
   "materials":{"PLA":{"maxFlowMm3S":4,"maxRetractMm":0,"nozzleC":[0,230],"bedC":[0,70]}},
   "outputs":[{"id":"denso-pacscript","extension":".zip","implemented":true,"experimental":true,"flavor":"RC8A Cartesian T poses, relative EX and TIME; bounded source subset","extrusionUnits":"relay-on-off; volume is intent"}],

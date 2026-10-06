@@ -228,7 +228,7 @@ geometry and quality choices explicit. For count, size and elapsed-time limits, 
 ## Reproducible examples
 
 A skill's [example recipes](skills/AUTHORING.md) are static references and the
-[tour examples](examples/prints/README.md) Studio's tour content. Make an example's
+[print examples](examples/prints/README.md) the tour's fin block and gallery recipes. Make an example's
 setup, assets and recipe assumptions reachable from its skill manual or packaged
 tools for a fresh part, not from the originating conversation.
 

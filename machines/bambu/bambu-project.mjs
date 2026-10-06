@@ -32,7 +32,6 @@ export function resolveBambuProject(plan,machine,output,settings,selections){
     extruder_variant_list:perTool(()=>'Direct Drive Standard'),
     nozzle_volume:perTool(t=>t.physicalExtruder===0?145:130),
     default_nozzle_volume_type:[...settings.nozzle_volume_type],
-    min_layer_height:perTool(t=>t.layerHeightMm[0]),max_layer_height:perTool(t=>t.layerHeightMm[1]),
     filament_settings_id:perFilament((selection,i)=>`SAAM ${selection.setup.material} ${settings.filament_ids[i]}`),
     filament_multi_colour:[...settings.filament_colour],default_filament_colour:[...settings.filament_colour],
     default_filament_profile:['SAAM PLA'],print_compatible_printers:[settings.printer_settings_id],upward_compatible_machine:[],

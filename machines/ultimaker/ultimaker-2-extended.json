@@ -14,7 +14,7 @@
   "tools": [{
     "index": 0, "label": "Single nozzle",
     "bounds": {"min": [0, 10, 0], "max": [223, 212, 305]},
-    "cores": ["Standard 0.4"], "nozzleDiametersMm": [0.4], "layerHeightMm": [0.06, 0.2]
+    "cores": ["Standard 0.4"], "nozzleDiametersMm": [0.4]
   }],
   "materials": {
     "PLA": {"nozzleC": [180, 230], "bedC": [0, 70], "maxFlowMm3S": 4, "maxRetractMm": 10},

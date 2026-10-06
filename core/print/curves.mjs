@@ -71,7 +71,7 @@ function requireCurveContact(curve,segments,heightMm,id){
   }
 }
 
-export function authoredCurveResult(assignment,{plan,process=plan.process,bounds=null,references={},modelResults=[]}) {
+export function authoredCurveResult(assignment,{plan,process=plan.process,references={},modelResults=[]}) {
   const family=assignment.repeat?.family?references[`slice:${assignment.repeat.family}`]:null;
   requireThat(!assignment.repeat?.family||family?.layers?.length,'Curve repeat needs an available named slice family.');
   const indices=family?(assignment.repeat.indices??family.layers.map(l=>l.index)):null;
@@ -100,26 +100,23 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,bounds
       regionId:assignment.id,travel:{kind:'auto'},...(Object.hasOwn(assignment.process??{},'fanPercent')||course===1?{fanPercent:process.fanPercent}:{}),...(assignment.sequence?{join:{mode:'ordered'}}:{})};
     courses.push(spec);
     if(finalizeInside){const previous=(assignment.sequence?parts.at(-1)?.operations.map(o=>o.id):null)??assignment.after;
-      const raw=traceResult({...assignment,after:previous},{courses:[spec],process,bounds,report:{construction:'curves'}}),result=finalizeDepositionResult(raw,plan);
+      const raw=traceResult({...assignment,after:previous},{courses:[spec],process,report:{construction:'curves'}}),result=finalizeDepositionResult(raw,plan);
       for(const op of result.operations)for(const stroke of op.strokes)requireCurveContact(stroke,supportSegments,heightMm,assignment.id);
       if(assignment.maxExcursionMm!==null){const heights=result.operations.flatMap(o=>o.strokes.flatMap(c=>c.points.map(p=>p[2])));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+1e-8,'Final Trace course exceeds its authored Z excursion limit.');}
       parts.push(result);for(const op of result.operations)for(const segment of depositedCurveSegments([{...op,strokes:op.strokes.filter(s=>!s.depositionAction)}],{widthMm:process.lineWidthMm,source:op.id}))supportSegments.push(segment);
     }
   }
   if(finalizeInside)return combineFinalizedResults({id:assignment.id,report:{construction:'curves',depositionFamily:'trace',courses:count}},parts);
-  return traceResult(assignment,{courses,process,bounds,sequential:false,report:{construction:'curves',courses:count}});
+  return traceResult(assignment,{courses,process,sequential:false,report:{construction:'curves',courses:count}});
 }
 
 // Authored and skill-mapped centerlines share bead calculation, joining,
-// travel packaging, bounds and aggregate measures. Extensions supply geometry
+// travel packaging and aggregate measures. Extensions supply geometry
 // and course data; they do not assemble a separate deposition result.
-export function traceResult(assignment,{courses,process,bounds=null,sequential=true,report={}}){
+export function traceResult(assignment,{courses,process,sequential=true,report={}}){
   const operations=depositCurveCourses({id:assignment.id,courses,process,after:assignment.after,filament:assignment.filament,sequential});
   let lengthMm=0,strokeCount=0,volumeMm3=0;
   for(const operation of operations)for(const stroke of operation.strokes){
-    const width=(stroke.segmentMetadata??[]).reduce((width,m)=>Math.max(width,m.beadWidthMm??0),stroke.beadWidthMm??process.lineWidthMm);
-    if(bounds)requireThat(stroke.points.every(p=>p.every((v,i)=>v>=(i===2?bounds.min[i]:bounds.min[i]+width/2)-1e-8&&v<=(i===2?bounds.max[i]:bounds.max[i]-width/2)+1e-8)),
-      `Curve assignment ${assignment.id} exceeds selected tool bounds on course ${operation.layer}.`);
     const length=curveLength(stroke.points);lengthMm+=length;strokeCount++;
     const closing=stroke.closed?distance(stroke.points.at(-1),stroke.points[0]):0;
     volumeMm3+=stroke.volumesMm3?stroke.volumesMm3.reduce((sum,v)=>sum+v,0):(length+closing)*stroke.beadAreaMm2;
@@ -129,7 +126,7 @@ export function traceResult(assignment,{courses,process,bounds=null,sequential=t
 
 // Construct a selected trace from finalized predecessors. Dependent courses
 // finalize their internal sequence before subsequent contact checks.
-export function curveAssignmentResult(assignment,{plan,modelResults,bounds=null,references={}}) {
+export function curveAssignmentResult(assignment,{plan,modelResults,references={}}) {
   validateCurveAssignment(assignment);
   const selected=assignmentPlan(plan,assignment);
   return authoredCurveResult(assignment,{plan,process:selected.process,references,modelResults});

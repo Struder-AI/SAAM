@@ -12,8 +12,8 @@
   "temperatureLimitsC": {"nozzle": [180, 280], "bed": [0, 100], "chamberMax": 0},
   "filamentDiameterMm": 2.85,
   "tools": [
-    {"index": 0, "label": "Left nozzle (#1)", "nominalOffsetMm": [0, 0], "bounds": {"min": [18, 10, 0], "max": [208, 207, 200]}, "cores": ["AA 0.4"], "nozzleDiametersMm": [0.4], "layerHeightMm": [0.06, 0.2]},
-    {"index": 1, "label": "Right nozzle (#2)", "nominalOffsetMm": [18, 0], "bounds": {"min": [18, 10, 0], "max": [208, 207, 200]}, "cores": ["AA 0.4"], "nozzleDiametersMm": [0.4], "layerHeightMm": [0.06, 0.2]}
+    {"index": 0, "label": "Left nozzle (#1)", "nominalOffsetMm": [0, 0], "bounds": {"min": [18, 10, 0], "max": [208, 207, 200]}, "cores": ["AA 0.4"], "nozzleDiametersMm": [0.4]},
+    {"index": 1, "label": "Right nozzle (#2)", "nominalOffsetMm": [18, 0], "bounds": {"min": [18, 10, 0], "max": [208, 207, 200]}, "cores": ["AA 0.4"], "nozzleDiametersMm": [0.4]}
   ],
   "materials": {
     "PLA": {"nozzleC": [180, 230], "bedC": [0, 70], "maxFlowMm3S": 4, "maxRetractMm": 10},
