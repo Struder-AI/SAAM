@@ -424,7 +424,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
       // The drawn path: a completed output's prepared path, else the saved SAAMpath.
       if(req.method==='GET'&&url.pathname==='/api/path'){
         const {state}=await bundle.loadBundleSnapshot(readDir,{program:true}),output=state.completedOutput;
-        if(readDir!==dir||url.searchParams.get('printId')!==readId||url.searchParams.get('revision')!==String(state.revision)
+        if(readDir!==dir||url.searchParams.get('printId')!==readId||url.searchParams.get('revision')!==(output?output.id:String(state.revision))
           ||url.searchParams.get('id')!==(output?output.id:state.review?.path?.id)||output&&!completedOutputState(state).available)
           throw Error('The displayed path changed. Reload before viewing.');
         const bytes=await bundle.readDrawnPath(state);

@@ -165,7 +165,8 @@ test('selecting one skill still produces one program from one plan', async t => 
   await generateBundle(dir, { development: true });
   const state = await loadBundle(dir);
   assert.deepEqual(state.skills, ['slice']);
-  assert.ok(!state.program.moves.some(move => move.operation?.startsWith('skin:')), 'no skin is printed when it is not selected');
+  const {pathPreview}=await import('../../studio/path-preview.mjs'),{readToolpath}=await import('../print/bundle.mjs');
+  assert.ok(!pathPreview(JSON.parse(await readToolpath(state))).moves.some(move => move.operation?.startsWith('skin:')), 'no skin is printed when it is not selected');
   assert.equal(state.pathSummary.surfaceDomain, undefined);
 });
 

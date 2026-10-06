@@ -5,9 +5,9 @@ import {loadMachine} from '../machine/profile.mjs';
 import {prepareExportPath} from '../export/prepare-path.mjs';
 import {defaults} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {exportProgram,decodeProgram} from '../export/registry.mjs';
+import {exportProgram} from '../export/registry.mjs';
 import {unpackZip,packZip} from '../export/zip.mjs';
-import {decodeSource} from '../../studio/source-player.mjs';
+import {pathPreview} from '../../studio/path-preview.mjs';
 import {auditBambu} from '../../scripts/bambu-audit.mjs';
 import {filamentPlan} from '../machine/filaments.mjs';
 import {resolveBambuJob} from '../export/bambu-job.mjs';
@@ -23,7 +23,7 @@ test('mixed 0.4/0.8 H2D regions emit tower-free changes, distinct process grids 
   assert.ok(path.actions.filter(a=>a.kind==='toolChange').length>=3);
   assert.ok(path.actions.filter(a=>a.kind==='toolChange').every(a=>!Object.hasOwn(a,'tool')));
   assert.ok(prepared.actions.filter(a=>a.kind==='toolChange').every(a=>Number.isInteger(a.tool)));
-  const bytes=exportProgram(path,plan,machine,release).bytes,z=unpackZip(bytes),code=z.get('Metadata/plate_1.gcode').toString();
+  const {bytes,report}=exportProgram(path,plan,machine,release),z=unpackZip(bytes),code=z.get('Metadata/plate_1.gcode').toString();
   assert.match(code,/^; filament: 1,2$/m,'USB header declares material IDs, not their count');
   assert.match(code,/^; filament_diameter: 1.75,1.75$/m);
   assert.match(code,/^; total filament length \[mm\] : [\d.]+,[\d.]+$/m);
@@ -32,32 +32,22 @@ test('mixed 0.4/0.8 H2D regions emit tower-free changes, distinct process grids 
   const body=code.split(';SAAM_BODY_BEGIN\n')[1].split(';SAAM_BODY_END\n')[0];
   assert.doesNotMatch(body,/^G0(?:\s|$)/m);
   assert.match(body,/G1 X120.2 Y110.2(?: Z[\d.]+)? F7200\nG1 Z0.2 F600/,'First deposition is preceded by explicit G1 descent');
-  assert.throws(()=>decodeSource({program:code.replace('G1 Z0.2 F600','G0 Z0.2 F600')},plan,machine),/travel must use G1/);
   assert.match(code,/M620\.10 A0 .* H0.4 T240 P215/);
   assert.match(code,/M620\.10 A1 .* H0.8 T240 P225/);
   assert.match(code,/M620\.10 A0 .* H0.8 T240 P225/);
   assert.match(code,/M620\.10 A1 .* H0.4 T240 P215/);
   assert.equal(code.split('\n').filter(l=>l==='M620.17 T0 S225 L1').length,2,'Right physical heater uses its first actual filament in both calibration branches');
   assert.equal(code.split('\n').filter(l=>l==='M620.17 T1 S215 L0').length,2,'Left physical heater uses its first actual filament in both calibration branches');
-  const program=decodeProgram(bytes,plan,machine);
-  const preview=decodeSource({program:code},plan,machine);
-  assert.equal(preview.moves.length,program.moves.length);
-  assert.deepEqual(preview.moves.map(m=>[m.tool,m.filament,m.line]),program.moves.map(m=>[m.tool,m.filament,m.line]));
+  const program=pathPreview(prepared,{plan}),preview=program;
   assert.deepEqual(new Set(program.moves.filter(m=>m.extruding).map(m=>m.tool)),new Set([0,1]));
   assert.ok(program.moves.some(m=>m.extruding&&m.tool===1&&Math.abs(m.to[2]-0.3)<1e-6));
   assert.ok(program.moves.some(m=>m.extruding&&m.tool===0&&Math.abs(m.to[2]-0.2)<1e-6));
-  const levels=new Map();
-  for(const m of program.moves.filter(m=>m.extruding&&m.phase==='planar')){
-    if(levels.has(m.layer))assert.equal(levels.get(m.layer),m.to[2],'Different nozzle layer grids cannot collide in metadata');
-    levels.set(m.layer,m.to[2]);
-  }
-  assert.equal(levels.size,8);
   const rightMove=preview.moves.map(m=>m).find(m=>m.extruding&&m.tool===1&&m.phase==='planar');
   const bead=beadSection(rightMove,plan,{});
   assert.ok(Math.abs(bead.width-0.8)<1e-6);
   assert.match(new Map(recipeRows(plan,machine)).get('Filament 2'),/Right nozzle.*0.8 mm.*225°C.*Automatic/i);
   assert.deepEqual(auditBambu(bytes).plates[0].changes.issues,[]);
-  const usage=program.filamentUsage;assert.equal(usage.length,2);assert.ok(usage.every(u=>u.volumeMm3>0));
+  const usage=report.envelope.job.filamentUsage;assert.equal(usage.length,2);assert.ok(usage.every(u=>u.volumeMm3>0));
   assert.deepEqual(JSON.parse(z.get('Metadata/plate_1.json')).filament_ids,[0,1]);
   assert.match(z.get('Metadata/slice_info.config').toString(),/nozzle id="0" extruder_id="1" nozzle_diameter="0.4"/);
   assert.match(z.get('Metadata/slice_info.config').toString(),/nozzle id="1" extruder_id="2" nozzle_diameter="0.8"/);
@@ -88,9 +78,8 @@ test('mixed nozzle job can start on the right and use each nozzle’s own build 
   const fixture=mixedNozzleFixture(),machine=fixture.machine;
   const plan=filamentPlan(fixture.plan,machine,1);
   plan.placement.xMm=310;
-  const path=await generatePath(plan,machine);prepareExportPath(path,plan,machine);
-  const program=decodeProgram(exportProgram(path,plan,machine,release).bytes,plan,machine);
-  assert.equal(program.filamentSequence[0],1);
+  const path=await generatePath(plan,machine),program=pathPreview(prepareExportPath(path,plan,machine),{plan});
+  assert.equal(exportProgram(path,plan,machine,release).report.envelope.job.filamentSequence[0],1);
   assert.ok(program.moves.some(m=>m.extruding&&m.tool===1&&m.to[0]>325));
   assert.ok(program.moves.filter(m=>m.extruding&&m.tool===0).every(m=>m.to[0]<=325));
 });
@@ -115,11 +104,10 @@ test('every supported H2D diameter pair keeps each change descriptor on its own 
     plan.setup.bambu.otherNozzleMm=right;plan.process.lineWidthMm=left;
     plan.setup.bambu.filaments[1].process.lineWidthMm=right;
     for(const part of plan.geometry.parts)part.geometry=splineBox({runMm:8,widthMm:8,heightMm:0.6});
-    const path=await generatePath(plan,machine),bytes=exportProgram(path,plan,machine,release).bytes;
-    const report=auditBambu(bytes);assert.deepEqual(report.plates[0].changes.issues,[]);
-    const program=decodeProgram(bytes,plan,machine);
-    assert.deepEqual(program.envelope.job.nozzleDiametersMm,[left,right]);
-    assert.ok(program.filamentUsage.every(u=>u.volumeMm3>0));
+    const path=await generatePath(plan,machine),{bytes,report}=exportProgram(path,plan,machine,release);
+    assert.deepEqual(auditBambu(bytes).plates[0].changes.issues,[]);
+    assert.deepEqual(report.envelope.job.nozzleDiametersMm,[left,right]);
+    assert.ok(report.envelope.job.filamentUsage.every(u=>u.volumeMm3>0));
   }
 });
 

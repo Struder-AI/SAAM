@@ -8,15 +8,17 @@ export async function loadPathPreview(state,{id,moves=[]}={},fetcher=fetch){
   const response=await fetcher('/api/path?'+query);
   if(!response.ok)throw Error((await response.json()).error);
   const path=JSON.parse(new TextDecoder().decode(await response.arrayBuffer()));
-  return path?.schema==='saam-machine-study-source/1'?studyPreview(path,{moves}):pathPreview(path,{moves,tool:state.plan?.setup?.tool,rotaryCenterMm:state.plan?.setup?.denso?.rotaryCenterMm});
+  return path?.schema==='saam-machine-study-source/1'?studyPreview(path,{moves}):pathPreview(path,{moves,plan:state.plan});
 }
 export const loadSavedPath=state=>state.artifacts?.path==='current'&&state.review?.path?loadPathPreview(state,{id:state.review.path.id}).then(p=>({...p,neutral:true,
   notice:'Saved SAAMpath preview. Select a printer and generate a checked machine file before exporting.'})):null;
 
 const UPRIGHT={rotaryDeg:0,toolAxis:[0,0,-1],toolUp:[0,1,0]};
-export function pathPreview(path,{moves=[],tool=null,rotaryCenterMm=[0,0,0]}={}){
+// A move without its own line width has its material's (a filament process override), else the recipe's.
+export function pathPreview(path,{moves=[],plan=null}={}){
   if(path?.schema!=='saampath/1'||!Array.isArray(path.actions)||!Array.isArray(path.initialPosition))throw Error('Invalid saved SAAMpath.');
-  const events=[];let position=path.initialPosition,pose=path.initialPose??null,time=0,filament=null,fan=0,volumeMm3=0;
+  const rotaryCenterMm=plan?.setup?.denso?.rotaryCenterMm??[0,0,0],width=(action,filament)=>action.lineWidthMm??plan?.setup?.bambu?.filaments?.[filament]?.process?.lineWidthMm??null;
+  const events=[];let position=path.initialPosition,pose=path.initialPose??null,time=0,filament=plan?.setup?.bambu?.filament??null,fan=0,volumeMm3=0,tool=plan?.setup?.tool??null;
   const posed=Boolean(pose)||path.actions.some(a=>a.pose);
   for(const {action,context,index:line} of contextualActions(path)){
     if(action.kind==='toolChange'){filament=action.filament;tool=action.tool??tool;continue;}
@@ -25,7 +27,7 @@ export function pathPreview(path,{moves=[],tool=null,rotaryCenterMm=[0,0,0]}={})
     const row={line:line+1,phase:context.phase,layer:context.layer,operation:context.operation??'',fan,filament,...(Number.isInteger(tool)?{tool}:{}),startSeconds:time};
     if(action.kind==='extrude'){
       const durationSeconds=action.volumeMm3/action.flowMm3S;
-      moves.push({...row,from:position,to:position,extruding:true,volumeMm3:action.volumeMm3,speedMmS:0,durationSeconds,lineWidthMm:action.lineWidthMm??null});
+      moves.push({...row,from:position,to:position,extruding:true,volumeMm3:action.volumeMm3,speedMmS:0,durationSeconds,lineWidthMm:width(action,filament)});
       events.push({line:line+1,kind:'injection',positionMm:position,volumeMm3:action.volumeMm3,
         nozzleC:action.nozzleC??0,phase:context.phase,layer:context.layer,operation:context.operation??'',startSeconds:time,seconds:durationSeconds});
       volumeMm3+=action.volumeMm3;time+=durationSeconds;continue;
@@ -35,7 +37,7 @@ export function pathPreview(path,{moves=[],tool=null,rotaryCenterMm=[0,0,0]}={})
     const durationSeconds=action.durationSeconds??distance/action.speedMmS;
     if(!Number.isFinite(durationSeconds)||durationSeconds<0)throw Error('Invalid saved SAAMpath motion.');
     const from=pose??UPRIGHT,next=action.pose??UPRIGHT;
-    moves.push({...row,from:position,to,extruding:action.volumeMm3>0,volumeMm3:action.volumeMm3,speedMmS:action.speedMmS,durationSeconds,lineWidthMm:action.lineWidthMm??null,
+    moves.push({...row,from:position,to,extruding:action.volumeMm3>0,volumeMm3:action.volumeMm3,speedMmS:action.speedMmS,durationSeconds,lineWidthMm:width(action,filament),
       ...(posed?{rotaryFromDeg:from.rotaryDeg,rotaryToDeg:next.rotaryDeg,toolAxisFrom:from.toolAxis,toolAxisTo:next.toolAxis,toolUpFrom:from.toolUp,toolUpTo:next.toolUp,rotaryCenterMm}:{})});
     volumeMm3+=action.volumeMm3;position=to;pose=action.pose??pose;time+=durationSeconds;
   }

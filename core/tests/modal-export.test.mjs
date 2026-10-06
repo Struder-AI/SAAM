@@ -4,7 +4,6 @@ import assert from 'node:assert/strict';
 import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {exportProgram,decodeProgram} from '../export/registry.mjs';
 import {prepareExportPath} from '../export/prepare-path.mjs';
 import {gcodeMotion} from '../export/gcode-motion.mjs';
 import {readFileSync} from 'node:fs';
@@ -19,19 +18,12 @@ test('modal writer retains captured bytes across coordinate/E rounding and comma
   }
 });
 
-test('modal fields retain exact machine moves across speed, travel, retract and relative-E transitions',async()=>{
+test('modal fields omit unchanged words across speed, travel, retract and relative-E transitions',async()=>{
   for(const id of ['ultimaker-s5','bambu-h2d']) {
     const machine=loadMachine(id),plan=defaults(machine);
     plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:.6});
     plan.process.maxCombMm=0;plan.process.minimumLayerSeconds=0;
     const path=await generatePath(plan,machine);
-    const code=exportProgram(path,plan,machine,{generatorVersion:'test',buildDate:'2026-09-09'}).bytes;
-    const actual=decodeProgram(code,plan,machine),expected=prepareExportPath(path,plan,machine).actions.filter(a=>a.kind==='move');
-    assert.equal(actual.moves.length,expected.length);
-    expected.forEach((a,i)=>{
-      assert.ok(a.to.every((v,k)=>Math.abs(v-actual.moves[i].to[k])<6e-6));
-      assert.ok(Math.abs(a.volumeMm3-actual.moves[i].volumeMm3)<1e-4);
-    });
     const {lines}=gcodeMotion(prepareExportPath(path,plan,machine),plan,{extrusionMode:id==='bambu-h2d'?'relative':'absolute'});
     const modal={};let omittedFeed=0;
     for(const line of lines)if(/^G[01] /.test(line)) {

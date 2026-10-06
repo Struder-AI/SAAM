@@ -177,7 +177,7 @@ test('Bambu selected nozzle, other nozzle, plate and temperature stay coherent a
     const {machine,plan}=fixture(tool,diameter);
     plan.setup.bambu.otherNozzleMm=0.6;plan.setup.bambu.plate=plate;
     plan.setup.nozzleC=225;plan.setup.bedC=65;
-    const bytes=exportProgram(await generatePath(plan,machine),plan,machine,release).bytes,z=unpackZip(bytes);
+    const {bytes,report}=exportProgram(await generatePath(plan,machine),plan,machine,release),z=unpackZip(bytes);
     const code=z.get(GCODE).toString(),p=JSON.parse(z.get('Metadata/project_settings.config'));
     assert.equal(p.machine_start_gcode,code.split('; EXECUTABLE_BLOCK_START\n')[1].split(';SAAM_BODY_BEGIN\n')[0]);
     assert.equal(p.machine_end_gcode,code.split(';SAAM_BODY_END\n')[1].split('; EXECUTABLE_BLOCK_END\n')[0]);
@@ -198,7 +198,7 @@ test('Bambu selected nozzle, other nozzle, plate and temperature stay coherent a
     assert.ok(code.includes(plate==='textured_plate'?'G29.1 Z-0.02':'G29.1 Z0'));
     assert.ok(code.includes(plate==='textured_plate'?'M972 S26 P0 C0':'M972 S36 P0 C0 X1'));
     assert.doesNotMatch(code,plate==='textured_plate'?/M972 S36/:/M972 S26|G29\.1 Z-0\.02/);
-    assert.equal(exportProgram(path,plan,machine,release).report.envelope.simulation,'not simulated');
+    assert.equal(report.envelope.simulation,'not simulated');
   }
 });
 

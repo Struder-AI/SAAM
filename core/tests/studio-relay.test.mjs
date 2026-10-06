@@ -18,7 +18,7 @@ test('Studio without a print serves the library, refuses print work and opens a 
   await writeFile(join(root,'first','machine.json'),JSON.stringify({name:'Synthetic scratch machine'}));
   const resolver=async dir=>{
     const state=Object.freeze({kind:'shell',marker:dir,review:Object.freeze({approvals:Object.freeze({})})});
-    return {bundleFingerprints:async()=>({source:dir,presentation:dir}),loadBundle:async()=>state};
+    return {loadBundleSnapshot:async()=>({state,fingerprint:dir,presentationFingerprint:dir}),loadBundle:async()=>state};
   };
   const server=createStudio(null,{libraryRoot:root,chat:createChatChannel(root,{ownerId:'studio:test'}).binding,resolveBundle:resolver}),origin=await serve(t,server);
   const {token}=await page(origin);

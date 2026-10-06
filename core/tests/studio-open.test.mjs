@@ -27,9 +27,9 @@ test('an explicit scratch resolver follows Studio opening and listing without ch
   const supplied=new Map();let bundleLoads=0;
   const resolver=async dir=>{
     assert.equal(JSON.parse(await readFile(join(dir,'plan.json'),'utf8')).schema,'scratch-test/1');
-    const state=Object.freeze({kind:'shell',marker:dir,code:'adapter-only',dir,review:Object.freeze({})});
+    const state=Object.freeze({kind:'shell',marker:dir,dir,review:Object.freeze({})});
     supplied.set(dir,state);
-    return {bundleFingerprints:async()=>({source:dir,presentation:dir}),loadBundle:async()=>{bundleLoads++;return state;}};
+    return {loadBundleSnapshot:async()=>{bundleLoads++;return {state,fingerprint:dir,presentationFingerprint:dir};}};
   };
   const server=createStudio(join(library,'first'),{libraryRoot:library,resolveBundle:resolver,chat:createChatChannel(library,{ownerId:'studio:test'}).binding});
   await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
@@ -45,9 +45,9 @@ test('an explicit scratch resolver follows Studio opening and listing without ch
   assert.equal(await reviewModule.text(),await readFile(new URL('../print/review-state.mjs',import.meta.url),'utf8'));
   const firstResponse=await fetch(origin+'/api/state'),first=await firstResponse.json(),firstTag=firstResponse.headers.get('etag');
   assert.match(firstTag,/^W\/"[A-Za-z0-9_-]+"$/);
-  assert.equal(first.marker,join(library,'first'));assert.equal(first.code,undefined);assert.equal(first.dir,undefined);
+  assert.equal(first.marker,join(library,'first'));assert.equal(first.dir,undefined);
   assert.equal(first.printName,'first');assert.equal(first.downloadName,'first');assert.equal(first.work.snapshot.studioInstanceId,first.instanceId);
-  assert.equal(supplied.get(join(library,'first')).code,'adapter-only');assert.equal(supplied.get(join(library,'first')).tour,undefined);
+  assert.equal(supplied.get(join(library,'first')).tour,undefined);
   const loaded=bundleLoads,unchanged=await fetch(origin+'/api/state',{headers:{'If-None-Match':'"different", '+firstTag.slice(2)}});
   assert.equal(unchanged.status,304);assert.equal(await unchanged.text(),'');
   assert.equal(bundleLoads,loaded+1,'a conditional state read uses one coherent legacy snapshot');
@@ -84,7 +84,7 @@ test('Studio reopens saved exports without rewriting them',async t=>{
   assert.equal((await post('open',{path:ready},false)).status,403);
   const archive=join(ready,(await shell.loadBundle(ready)).review.generation.file);
   assert.equal((await post('open',{path:archive,printId:first.printId})).status,200);
-  state=await get();assert.ok(state.program.summary.moves);assert.equal(state.program.moves,undefined);
+  state=await get();assert.ok(state.program.moves>0,'the stored report counts moves; no move rows are sent');
   assert.notEqual(state.printId,first.printId);assert.notEqual(state.fingerprint,first.fingerprint);
   const requests=channel.requests;
   const shown={stage:'toolpath',revision:state.revision,outputId:state.outputId};
@@ -95,7 +95,7 @@ test('Studio reopens saved exports without rewriting them',async t=>{
   const pending=await requests.wait({waitMs:0});
   assert.equal(pending.requests.length,1);assert.equal(pending.requests[0].kind,'advisory');
   assert.equal(pending.requests[0].evidence.outputId,state.outputId);
-  assert.deepEqual(pending.requests[0].evidence.shortTravel,state.program.summary.shortTravel);
+  assert.deepEqual(pending.requests[0].evidence.shortTravel,state.program.shortTravel);
   assert.ok(pending.requests[0].evidence.shortTravel.count>0);
   assert.match(pending.requests[0].instruction,/Tell the person[\s\S]*Mention this finding to the person in your next reply/);
   assert.equal(summarizeWork(pending.requests,{now:Date.now()+3600000}).active,false);
@@ -138,12 +138,4 @@ test('ordinary review does not slice; explicit generation retries a failed worke
   assert.equal((await post('generate',{})).status,200);
   state=await get();assert.ok(state.program);assert.equal(state.review.generation.mode,'production');
   assert.equal(attempts,2,'explicit retry starts exactly one replacement worker');
-});
-
-test('Studio opening retries a read spanning a multi-file edit but preserves persistent validation errors',async()=>{
-  const {readStableBundle}=await import('../../studio/adapter-resolution.mjs');let reads=0;
-  const adapter={bundleFingerprints:async()=>({source:'current',presentation:'current'}),loadBundle:async()=>{if(reads++===0)throw Error('Plan and geometry disagree. Ask the agent to recreate the geometry.');return {revision:'updated'};}};
-  assert.equal((await readStableBundle(adapter,'synthetic',{program:false})).state.revision,'updated');assert.equal(reads,2);
-  reads=0;adapter.loadBundle=async()=>{reads++;throw Error('Unconfigured machine');};
-  await assert.rejects(readStableBundle(adapter,'synthetic',{}),/Unconfigured machine/);assert.equal(reads,1);
 });

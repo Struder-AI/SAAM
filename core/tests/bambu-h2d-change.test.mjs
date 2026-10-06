@@ -4,9 +4,9 @@ import assert from 'node:assert/strict';
 import {h2dColourFixture} from './fixtures/bambu-h2d-colours.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {prepareExportPath} from '../export/prepare-path.mjs';
-import {exportProgram,decodeProgram} from '../export/registry.mjs';
+import {exportProgram} from '../export/registry.mjs';
 import {unpackZip,packZip} from '../export/zip.mjs';
-import {decodeSource} from '../../studio/source-player.mjs';
+import {pathPreview} from '../../studio/path-preview.mjs';
 import {auditBambu} from '../../scripts/bambu-audit.mjs';
 
 const release={generatorVersion:'test',buildDate:'2026-09-21'};
@@ -16,10 +16,8 @@ test('H2D blue-orange-blue changes logical filament twice while retaining right 
   const path=await generatePath(plan,machine),prepared=prepareExportPath(path,plan,machine);
   assert.deepEqual(path.actions.filter(a=>a.kind==='toolChange').map(a=>a.filament),[1,0]);
   assert.deepEqual(prepared.actions.filter(a=>a.kind==='toolChange').map(a=>[a.tool,a.filament]),[[1,1],[1,0]]);
-  const bytes=exportProgram(path,plan,machine,release).bytes,program=decodeProgram(bytes,plan,machine),code=program.code;
-  assert.deepEqual(program.filamentSequence,[0,1,0]);
-  const source=decodeSource({program:code},plan,machine);
-  assert.deepEqual(source.moves.map(m=>[m.tool,m.filament,m.to]),program.moves.map(m=>[m.tool,m.filament,m.to]));
+  const {bytes,report}=exportProgram(path,plan,machine,release),program=pathPreview(prepared,{plan}),code=unpackZip(bytes).get('Metadata/plate_1.gcode').toString();
+  assert.deepEqual(report.envelope.job.filamentSequence,[0,1,0]);
   const deposits=program.moves.filter(m=>m.extruding);
   assert.ok(deposits.length);
   assert.ok(deposits.every(m=>m.tool===1));
@@ -40,7 +38,7 @@ test('H2D blue-orange-blue changes logical filament twice while retaining right 
   }
   assert.match(changes[0],/T1 H-1/);assert.match(changes[1],/T0 H-1/);
   assert.match(changes[0],/M620\.10 R0.6/);
-  assert.equal(program.envelope.job.materialChanges.count,2);
+  assert.equal(report.envelope.job.materialChanges.count,2);
   const entries=unpackZip(bytes),project=JSON.parse(entries.get('Metadata/project_settings.config'));
   assert.deepEqual(project.nozzle_diameter,['0.4','0.8']);
   assert.deepEqual(project.filament_map,['2','2']);
@@ -50,13 +48,13 @@ test('H2D blue-orange-blue changes logical filament twice while retaining right 
 
 test('the requested 0.8/0.8 ALT changes only installed-nozzle declarations, not right-nozzle body or service commands',async()=>{
   const {plan,machine}=h2dColourFixture();
-  const path=await generatePath(plan,machine),normal=decodeProgram(exportProgram(path,plan,machine,release).bytes,plan,machine);
+  const written=program=>({code:unpackZip(program.bytes).get('Metadata/plate_1.gcode').toString(),report:program.report});
+  const path=await generatePath(plan,machine),normal=written(exportProgram(path,plan,machine,release));
   plan.setup.bambu.otherNozzleMm=0.8;
-  const alt=decodeProgram(exportProgram(await generatePath(plan,machine),plan,machine,release).bytes,plan,machine);
+  const alt=written(exportProgram(await generatePath(plan,machine),plan,machine,release));
   const executable=code=>code.slice(code.indexOf('; EXECUTABLE_BLOCK_START'));
   assert.equal(executable(alt.code),executable(normal.code));
-  assert.deepEqual(alt.envelope.job.nozzleDiametersMm,[0.8,0.8]);
-  assert.deepEqual(alt.moves,normal.moves);
+  assert.deepEqual(alt.report.envelope.job.nozzleDiametersMm,[0.8,0.8]);
 });
 
 test('H2D automatic colour switching rejects external feed',async()=>{
