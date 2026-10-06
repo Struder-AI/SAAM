@@ -10,8 +10,6 @@ import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 // A small planar box keeps these Studio-lifecycle tests fast and machine-neutral.
 const boxPlan=(machine=loadMachine())=>{const p=defaults(machine);p.geometry=splineBox({runMm:10,widthMm:10,heightMm:2});p.process.minimumLayerSeconds=0;return p;};
-import {Worker} from 'node:worker_threads';
-import {once} from 'node:events';
 import workerThreads from 'node:worker_threads';
 import {syncBuiltinESMExports} from 'node:module';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
@@ -118,24 +116,6 @@ test('Studio reopens saved exports without creating or rewriting approvals',asyn
   assert.equal((await get()).toolpathApproved,false);
 });
 
-test('background preparation leaves review writable and persists only a currently approved generation',async t=>{
-  const dir=await mkdtemp(join(tmpdir(),'saam-studio-preparation-'));t.after(()=>rm(dir,{recursive:true,force:true}));
-  await shell.initBundle(dir,boxPlan(),{machineId:'ultimaker-s5'});
-  const initial=await shell.loadBundle(dir,{program:false}),original=await readFile(join(dir,'plan.json'));
-  const worker=new Worker(new URL('../../studio/generation-worker.mjs',import.meta.url),{workerData:{directory:dir,generationHash:initial.generationHash}});
-  t.after(()=>worker.terminate());
-  const [prepared]=await once(worker,'message');assert.equal(prepared.type,'prepared');assert.equal(prepared.error,undefined);
-  assert.deepEqual(await readFile(join(dir,'plan.json')),original);
-  const request=async()=>{const reply=once(worker,'message');worker.postMessage({type:'generate'});return (await reply)[0];};
-  const generated=await request();assert.equal(generated.error,undefined);assert.equal(generated.checks.mode,'production');
-  assert.ok(generated.source.metadata);assert.equal(generated.source.metadata.moves,undefined);assert.equal(generated.source.metadata.events,undefined);
-  assert.equal((await shell.loadBundle(dir)).toolpathApproved,false);
-  const generatedState=await shell.loadBundle(dir),exportFile=join(dir,generatedState.review.generation.file),exportBefore=await readFile(exportFile);
-  const plan=JSON.parse(await readFile(join(dir,'plan.json'),'utf8'));plan.process.layerMm=.1;await writeFile(join(dir,'plan.json'),JSON.stringify(plan));
-  assert.match((await request()).error,/print changed during generation/);
-  assert.deepEqual(await readFile(exportFile),exportBefore);
-});
-
 test('final approval rejects a saved export whose bytes changed',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-approval-export-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   await shell.initBundle(dir,boxPlan(),{machineId:'ultimaker-s5'});await shell.generateBundle(dir,{development:false});
@@ -175,38 +155,6 @@ test('ordinary review does not slice; explicit generation retries a failed worke
   state=await get();assert.ok(state.program);assert.equal(state.review.generation.mode,'production');
   assert.equal(state.toolpathApproved,false);assert.equal(attempts,2,'explicit retry starts exactly one replacement worker');
 });
-
-test('preparation diagnostics stay actionable until explicit retry; state polling never restarts them',async t=>{
-  const library=await mkdtemp(join(tmpdir(),'saam-preparation-diagnostic-')),dir=join(library,'part');
-  t.after(()=>rm(library,{recursive:true,force:true}));await shell.initBundle(dir,boxPlan(),{machineId:'ultimaker-s5'});
-  const OriginalWorker=workerThreads.Worker;let attempts=0,reported;
-  const diagnostic=new Promise(resolve=>{reported=resolve;});
-  workerThreads.Worker=class extends OriginalWorker{
-    constructor(url,options){
-      const fail=++attempts===1;
-      super(fail?"const {parentPort}=require('node:worker_threads');parentPort.on('message',()=>parentPort.postMessage({type:'generated',error:'SYNTHETIC completed diagnostic'}));parentPort.postMessage({type:'prepared',error:'SYNTHETIC completed diagnostic'});":url,fail?{eval:true}:options);
-      if(fail)this.once('message',reported);
-    }
-  };
-  syncBuiltinESMExports();t.after(()=>{workerThreads.Worker=OriginalWorker;syncBuiltinESMExports();});
-  const server=createStudio(dir,{libraryRoot:library});
-  await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>server.shutdown());
-  const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
-  const get=async()=>await(await fetch(origin+'/api/state')).json();
-  const post=(route,data)=>fetch(origin+'/api/'+route,{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify(data)});
-  let state=await get();assert.equal(attempts,0);
-  const first=await post('generate',{});assert.equal(first.status,400);
-  assert.equal((await diagnostic).error,'SYNTHETIC completed diagnostic');
-  assert.equal((await first.json()).error,'SYNTHETIC completed diagnostic');
-  assert.equal(attempts,1,'the first explicit request reports the completed diagnostic without recalculating');
-  state=await get();assert.equal(state.generationError,'SYNTHETIC completed diagnostic');
-  await get();assert.equal(attempts,1,'polling after a surfaced diagnostic still cannot retry it');
-  const retry=await post('generate',{});assert.equal(retry.status,200);
-  assert.equal(attempts,2,'a subsequent explicit request starts exactly one real worker');
-  state=await get();assert.ok(state.program);assert.equal(state.review.generation.mode,'production');
-  assert.equal(state.toolpathApproved,false);assert.equal(attempts,2,'approved generation reuses the recovered candidate');
-});
-
 
 test('Studio opening retries a read spanning a multi-file edit but preserves persistent validation errors',async()=>{
   const {readStableBundle}=await import('../../studio/adapter-resolution.mjs');let reads=0;

@@ -1,4 +1,4 @@
-import {runComputationJob} from '../application/computation-job.mjs';
+import {runComputationJob} from '../print/computation-job.mjs';
 import {BLOB_FIELD_SCHEMA,BLOB_FIELD_THRESHOLD} from '../geom/blob-field.mjs';
 import {initBundle,loadBundle,updatePlan} from '../print/bundle.mjs';
 import {requireEditRevision} from '../print/edit-identity.mjs';

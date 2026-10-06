@@ -101,7 +101,7 @@
     {"id":"bundle-patch","index":"5.6","label":"resolvePlanPatch","description":"Merge and resolve authored recipe changes.","type":"component","source":{"file":"core/print/resolve-plan.mjs","declaration":"resolvePlanPatch"}},
     {"id":"bundle-setup","index":"5.7","label":"applySettingsSnapshot","description":"Commit supplied machine/settings values at the expected revision.","type":"component","source":{"file":"core/print/workflow.mjs","declaration":"applySettingsSnapshot"}},
     {"id":"bundle-schema","index":"5.8","label":"Recipe & machine settings","description":"Validate/resolve saved recipe, machine setup and migration; no engine execution.","type":"component","source":{"file":"core/print/plan.mjs"}},
-    {"id":"build-jobs","index":"5.9","label":"Generation jobs","description":"Bundle-owned worker/cancellation and acceptance lifecycle; engine 3 makes SAAMpath.","type":"component","source":{"file":"studio/generation-worker.mjs"}},
+    {"id":"build-jobs","index":"5.9","label":"Generation jobs","description":"Bundle-owned worker/cancellation and acceptance lifecycle; engine 3 makes SAAMpath.","type":"component","source":{"file":"core/print/generation-worker.mjs"}},
     {"id":"studio","index":"6","label":"Studio","description":"Owns UI state exclusively; accesses part state through 5.","type":"component","notes":["Existing call/file boundaries are shown alongside target bundle/export contracts. The current source-player decodes exported programs; a SAAMpath preview path is still required before the Export action."]},
     {"id":"studio-ui","index":"6.1","label":"Studio UI controller","description":"Actions, current view and private interaction state.","type":"component","source":{"file":"studio/app.mjs"}},
     {"id":"studio-projection","index":"6.2","label":"Viewer renderer","description":"Geometry, path and material scene presentation.","type":"component","source":{"file":"studio/viewer-renderer.mjs","declaration":"createViewerRenderer"}},
@@ -1336,7 +1336,7 @@
       ],
       "evidence": [
         "studio/server.mjs",
-        "studio/generation-worker.mjs",
+        "core/print/generation-worker.mjs",
         "core/print/workflow.mjs"
       ],
       "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
@@ -4034,7 +4034,7 @@
       "failure": "Cancellation/failure preserves last valid artifacts.",
       "excludes": "No separate generation engine or export.",
       "evidence": [
-        "studio/generation-worker.mjs",
+        "core/print/generation-worker.mjs",
         "core/print/bundle.mjs"
       ],
       "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",

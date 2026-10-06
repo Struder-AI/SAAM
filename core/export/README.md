@@ -46,7 +46,7 @@ between neighboring islands), operation counts and up to 20 examples with
 endpoints, the lifted flag and source file/line, phase, layer and adjacent
 operation labels. Missing labels remain unknown; recipe skills alone do not prove
 which producer caused a travel. The check is one linear scan of interpreted moves,
-cached with the owning program and included in source-only worker handoff.
+cached with the owning program.
 Generation records it as
 `plan.json` → `bundle.review.generation.checks.shortTravel`; `saam` print state
 exposes it. Review, approvals, delivery and emitted bytes are unchanged

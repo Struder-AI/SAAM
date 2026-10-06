@@ -101,8 +101,7 @@ lesson opens. Outside tours, a fresh bundle starts in geometry view.
 An obsolete calculation is cancelled when its inputs change. While replacing a
 toolpath, the previous source remains faded; when none exists, faded part
 geometry occupies the pane. Failed generation remains actionable until inputs
-change or an explicit retry succeeds. Ordinary reads never start speculative
-slicing. A preparation candidate is reused only for its matching input identity.
+change or an explicit retry succeeds. Ordinary reads never start slicing.
 
 Tour Next unlocks from exact displayed result evidence: changed geometry, Play,
 and the participant-requested printing change at their respective lessons.
@@ -204,20 +203,15 @@ print/revision/export; pose caching adds time/manual coordinates. A retained
 successful pose does not prove a later solve succeeded. Rebinding clears it.
 Missing model data may stop its worker while source motion remains available.
 
-### Preparation, generation and cancellation
+### Generation and cancellation
 
-[server.mjs](server.mjs) owns the prepared job's directory and generation hash.
-It uses the shared [prepare/commit lifecycle](../core/print/README.md#generation-and-review),
-never a second persistence path. Explicit generate permits commit. Obsolete
-workers cannot publish through stale attachments.
-
-[generation-control.mjs](../core/print/generation-control.mjs) arbitrates working,
-cancelled and committing with one shared atomic integer. Cancellation before
-commit prevents saving; once commit wins, immutable output and atomic manifest
-replacement finish. [program-handoff.mjs](../core/print/program-handoff.mjs) accepts
-only the prepared worker's matching checked result and opaque single-use ticket.
-Reuse still hashes actual current bytes; caller-supplied payloads cannot donate
-checked output. Resource cleanup remains distinct from job duration policy.
+[server.mjs](server.mjs) runs the one generation job for the bundle it shows, for
+the person, a tour step or an agent (`server.generate`, inside the agent's held
+edit). Bundle's `generateBundle` reuses a current checked program or runs the
+[generation worker](../core/print/generation-worker.mjs) under that reservation.
+Cancellation stops the worker until its commit is acknowledged; then immutable
+output and atomic manifest replacement finish. A person's failed generation
+becomes an agent request; an agent's is that agent's error outcome and an event.
 
 ### Request completion and display
 

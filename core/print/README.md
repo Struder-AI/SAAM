@@ -84,9 +84,9 @@ history, review and checked program with source/presentation fingerprints.
 `bundleFingerprints` exposes those fingerprints; `bundleFingerprint` exposes source.
 Presentation excludes approval, delivery history and mode; source includes them.
 Studio owns polling, pending requests and job progress separately; no subscription
-API or click-time Export gate is implied. Generation accepts `beforeCommit` for
-an owning worker to arbitrate cancellation before any output/check/review writes;
-once commit begins, cancellation must let the sequence finish.
+API or click-time Export gate is implied. `generateBundle` runs the generation
+worker under the caller's reservation; its `signal` cancels before any output,
+check or review write, until `beforeCommit` is acknowledged; then commit finishes.
 
 Generation uses the plan's explicit choices, settings and versions for repeatability.
 There is no mandatory seed field; seeds belong only to skills that randomize results.

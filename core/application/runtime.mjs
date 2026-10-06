@@ -14,8 +14,6 @@ import { resolve, dirname, relative, isAbsolute, sep, basename } from 'node:path
 import { fileURLToPath } from 'node:url';
 import {openBrowser} from '../../studio/browser.mjs';
 import {randomUUID} from 'node:crypto';
-import {Worker} from 'node:worker_threads';
-import {PreparedGenerationJob} from '../../studio/prepared-generation-job.mjs';
 import {runPortableBundleJob} from './portable-bundle-job.mjs';
 import {changeMachine,adjustSettings,recordExtensionDependency} from '../machine/bundle-settings.mjs';
 import {SETTINGS_FIELDS} from '../machine/settings.mjs';
@@ -139,7 +137,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     search:async args=>(await getResourceClient()).search(args),
     download:async(fileId,options)=>(await getResourceClient()).download(fileId,options)
   };
-  const app={closing:null},chats=new Map(),allStudios=new Map(),workspaceSessions=new Map(),imports=new Map(),generations=new Map(),calculations=new Map();
+  const app={closing:null},chats=new Map(),allStudios=new Map(),workspaceSessions=new Map(),imports=new Map(),calculations=new Map();
   const work={tails:new Map(),pending:new Set()},operationObservers=new Set(),eventObservers=new Set(),activeOperations=new Map(),transferringStudios=new Set();
   function observeEvent(event){for(const observer of eventObservers)try{observer(agentEvent(structuredClone(event)));}catch{/* Diagnostics never fail work. */}}
   function createChat(ownerId,{name=ownerId,client=null}={}){
@@ -148,8 +146,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   const tour=createTour(libraryRoot,{ownerId,agentRequests});
   const studioSessions=new Map(),preferredStudioByPrint=new Map(),creationViews=new Set(),activity={calls:0};
   const generationStatus=()=>[...[...calculations.values()].filter(job=>job.ownerId===ownerId).map(({controller,printId,...job})=>({...job,bundleId:printId,cancellable:job.status!=='committing'&&!controller.signal.aborted,elapsedMs:Date.now()-job.startedAt,estimatedRemainingMs:null})),...[...studioSessions.values()].map(({server:studio})=>agentStudioJob(studio.generationStatus())).filter(Boolean),
-    ...[...imports.values()].filter(job=>job.ownerId===ownerId).map(({controller,printId,...job})=>({...job,bundleId:printId,cancellable:job.status!=='committing'&&!controller.signal.aborted,elapsedMs:Date.now()-job.startedAt,estimatedRemainingMs:null})),
-    ...[...generations.values()].filter(job=>job.ownerId===ownerId).map(({job,printId,...identity})=>({...identity,bundleId:printId,studioInstanceId:null,status:job.status,cancellable:job.cancellable,progress:job.progress,elapsedMs:Date.now()-identity.startedAt}))];
+    ...[...imports.values()].filter(job=>job.ownerId===ownerId).map(({controller,printId,...job})=>({...job,bundleId:printId,cancellable:job.status!=='committing'&&!controller.signal.aborted,elapsedMs:Date.now()-job.startedAt,estimatedRemainingMs:null}))];
   async function calculateGeometry(bundleId,action){
     const jobId=randomUUID(),controller=new AbortController();
     const job={ownerId,jobId,printId:bundleId,studioInstanceId:null,status:'constructing',startedAt:Date.now(),controller,progress:{stage:'Extracting geometry'}};
@@ -860,7 +857,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   async function getStudioRequests({bundleId,...options}){return {requests:(await agentRequests.query({...options,printId:bundleId})).map(agentRequest)};}
   operation('get_studio_sessions','List live Studio instances owned exclusively by this agent. One agent may own several instances; print bundles remain shareable across agents.',{});
   async function getStudioSessions(){return {sessions:[...studioSessions.values()].map(({server:studio,url})=>({...agentStudioSession(studio.agentSession()),url}))};}
-  operation('cancel_studio_calculation','Cancel a live geometry, import/automatic repair or toolpath calculation. Supply studioInstanceId for Studio work; omit it for a tool geometry calculation, import or generation. First read get_studio_events for its identity, elapsedMs and actual progress; pass the geometry/import jobId or Studio toolpath generationHash; direct tool generation requires both jobId and generationHash. Repairs have no reliable remaining-time estimate and continue unless cancelled. Explain your decision to the person. Cancellation interrupts work and cleans incomplete imports; it does not change the previously open print.',{studioInstanceId:z.string().optional(),jobId:z.string().optional(),generationHash:z.string().optional()},false);
+  operation('cancel_studio_calculation','Cancel a live geometry, import/automatic repair or toolpath calculation. Supply studioInstanceId for Studio work, including toolpath generation; omit it for a tool geometry calculation or import. First read get_studio_events for its identity, elapsedMs and actual progress; pass the geometry/import jobId or the toolpath generationHash. Repairs have no reliable remaining-time estimate and continue unless cancelled. Explain your decision to the person. Cancellation interrupts work and cleans incomplete imports; it does not change the previously open print.',{studioInstanceId:z.string().optional(),jobId:z.string().optional(),generationHash:z.string().optional()},false);
   async function cancelStudioCalculation({studioInstanceId,...identity}){
       if(!studioInstanceId){
         const calculation=calculations.get(identity.jobId);
@@ -871,15 +868,10 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
           return {cancelled:true,kind:'geometry',jobId:identity.jobId};
         }
         const imported=imports.get(identity.jobId);
-        if(imported&&imported.ownerId===ownerId){
-          if(imported.status==='committing')return {cancelled:false,committing:true,kind:imported.kind??'import',jobId:identity.jobId};
-          imported.controller.abort(Object.assign(Error('Import cancelled.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));
-          return {cancelled:true,kind:imported.kind??'import',jobId:identity.jobId};
-        }
-        const generation=generations.get(identity.jobId);
-        if(!generation||generation.ownerId!==ownerId||identity.generationHash!==generation.generationHash)throw Error('Read the active jobId and generationHash before cancelling.');
-        const result=generation.job.cancel();await result.done;
-        return {cancelled:result.cancelled,committing:result.committing,kind:'generation',jobId:identity.jobId};
+        if(!imported||imported.ownerId!==ownerId)throw Error('Read the active jobId before cancelling; toolpath generation is cancelled through its studioInstanceId.');
+        if(imported.status==='committing')return {cancelled:false,committing:true,kind:imported.kind??'import',jobId:identity.jobId};
+        imported.controller.abort(Object.assign(Error('Import cancelled.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));
+        return {cancelled:true,kind:imported.kind??'import',jobId:identity.jobId};
       }
       const session=studioSessions.get(studioInstanceId);if(!session)throw Error('Choose a live Studio instance owned by this agent.');
       return session.server.cancelCalculation({...identity,reason:'agent'});
@@ -943,29 +935,13 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     const result=session.server.agentSession();await session.server.shutdown();return {...agentStudioSession(result),connected:false};
   }
   operation('generate_toolpath','Generate and check the declared export from the current geometry and complete settings, including during the tour. This is reviewable output, not approval.',{ bundleId: bundleIdSchema },false);
-  async function generateToolpath({ bundleId },_session,instance){
+  // Runs inside the displaying Studio's held edit (invoke); that Studio owns the job.
+  async function generateToolpath({ bundleId }){
     const { dir, bundle } = await locate(bundleId);
-    const activity={generationHash:null};
-    const publishGeneration=active=>{for(const session of studioSessions.values())if(session.server.currentPrint()===dir)session.server.setGenerationActivity({generationHash:activity.generationHash,active});};
-    try{
-    const checks=await bundle.generateBundle(dir,{dispatchComputation:async({directory,generationHash})=>{
-      const jobId=randomUUID(),startedAt=Date.now();
-      const job=new PreparedGenerationJob({key:directory+':'+generationHash,directory,generationHash,
-        createWorker:cancellation=>new Worker(new URL('../../studio/generation-worker.mjs',import.meta.url),{workerData:{directory,generationHash,progress:true,cancellation}})});
-      job.worker?.ref();
-      generations.set(jobId,{ownerId,jobId,printId:bundleId,generationHash,startedAt,job});
-      activity.generationHash=generationHash;publishGeneration(true);
-      studioEvents.record('generation-started',{jobId,printId:bundleId,generationHash,trigger:'agent'});
-      try{
-        const result=await job.generate(false,instance);
-        studioEvents.record('generation-finished',{jobId,printId:bundleId,generationHash,durationMs:Date.now()-startedAt});
-        return result;
-      }catch(error){
-        studioEvents.record(error.code==='GENERATION_CANCELLED'?'generation-cancelled':'generation-failed',{jobId,printId:bundleId,generationHash,error:error.message,stage:error.stage??'generation'});throw error;
-      }finally{generations.delete(jobId);await job.dispose();}
-    }});
+    const studio=[...studioSessions.values()].find(session=>session.server.currentPrint()===dir);
+    if(!studio)throw Error('Show the bundle in Studio before generating.');
+    const checks=await studio.server.generate({trigger:'agent'});
     return { ...summary(bundleId, await bundle.loadBundle(dir)), checks };
-    }finally{if(activity.generationHash)publishGeneration(false);}
   }
   operation('deliver_toolpath','Copy the exact current human-reviewed export bytes into the bundle delivery folder. Fails without current toolpath approval. Does not run hardware.',{ bundleId: bundleIdSchema },false);
   async function deliverToolpath({ bundleId }){
@@ -1042,7 +1018,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       case 'capture_bundle':return captureBundleOperation(input);
       case 'request_review':return requestReview(input);
       case 'close_studio_session':return closeStudioSession(input);
-      case 'generate_toolpath':return generateToolpath(input,session,instance);
+      case 'generate_toolpath':return generateToolpath(input);
       case 'deliver_toolpath':return deliverToolpath(input);
       default:throw new Error(`Operation ${name} has a definition but no entry in perform().`);
     }
@@ -1166,7 +1142,6 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       throw Error('A bundle operation is running. Wait for it to finish before capturing or re-pairing.');
     for(const job of calculations.values())if(directory&&resolve(libraryRoot,job.printId)===directory)throw Error('A geometry calculation is running for this bundle.');
     for(const job of imports.values())if(directory&&resolve(libraryRoot,job.printId)===directory)throw Error('An import is running for this bundle.');
-    for(const job of generations.values())if(directory&&resolve(libraryRoot,job.printId)===directory)throw Error('A generation is running for this bundle.');
   }
   async function cancelOldRequests(session){
     const chat=chats.get(session.ownerId),instanceId=session.server.agentSession().instanceId;
@@ -1245,7 +1220,6 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   function jobs(){
     return [...[...calculations.values()].map(({controller,...job})=>job),...[...allStudios.values()].map(({server})=>server.generationStatus()).filter(Boolean),
       ...[...imports.values()].map(({controller,...job})=>job),
-      ...[...generations.values()].map(({job,...identity})=>({...identity,status:job.status})),
       ...[...workspaceSessions.values()].map(session=>({workspaceInstanceId:session.workspaceInstanceId,inspect:session.inspect}))];
   }
   async function runningJobs(){
@@ -1255,7 +1229,6 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   function close(){return app.closing??=(async()=>{
     for(const job of calculations.values())if(job.status!=='committing')job.controller.abort(Object.assign(Error('SAAM is quitting.'),{name:'AbortError',code:'GEOMETRY_CANCELLED'}));
     for(const job of imports.values())if(job.status!=='committing')job.controller.abort(Object.assign(Error('SAAM is quitting.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));
-    await Promise.all([...generations.values()].map(({job})=>job.cancel().done));
     // Stop existing Studio workers before draining work; no queued operation may start after closing.
     await Promise.all([...allStudios.values()].map(({server})=>server.shutdown()));
     await Promise.all([...work.pending]);await attachments.tail;

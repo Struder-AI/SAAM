@@ -17,7 +17,7 @@ async function snapshot(root,at=root,result={}){
   return result;
 }
 async function legacy(f,{unknown=true}={}){
-  let state=await f.api.generateBundle(f.directory),approved=await f.api.approve(f.directory,{actor:'migration test',revision:(await f.api.loadBundle(f.directory)).revision});
+  let state=await f.api.commitGeneration(f.directory,await f.api.prepareGeneration(f.directory)),approved=await f.api.approve(f.directory,{actor:'migration test',revision:(await f.api.loadBundle(f.directory)).revision});
   const manifest=JSON.parse(await f.read('plan.json')),{bundle,...plan}=manifest,native=bundle.geometry.descriptor.nativeFile??'model.3dm';
   const oldGeometry=`geometry/${native}`,oldExport=`exports/${plan.output}/part.gcode`;
   await mkdir(dirname(join(f.directory,oldExport)),{recursive:true});
