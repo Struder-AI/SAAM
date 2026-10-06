@@ -115,6 +115,8 @@ export function summary(bundleId, state) {
 
 export const LOCAL_LISTEN=Object.freeze({defaultMs:25000,maxMs:25000}),LISTEN_LIMIT_MS=30*60*1000;
 const CLAUDE_LISTEN=Object.freeze({defaultMs:LISTEN_LIMIT_MS,maxMs:LISTEN_LIMIT_MS});
+// Why a client event put the agent with the person: the hand-back message for each reason.
+const counterMessages=Object.freeze({turn:'The agent ended its turn.',message:'The person sent a message.',interrupt:'The person interrupted the agent.',closed:'The chat closed.'});
 const expectedStudioSchema=z.object({studioInstanceId:z.string(),bundleId:bundleIdSchema.nullable()}).strict();
 
 export const instructions = 'Use saam help for operations and saam help OP for complete input schemas. Call saam call OP with --input FILE, --stdin or named flags. Result-changing work establishes Studio context automatically. Hand back once with respond_to_studio_request using workRequest.id, including when a new user message interrupts work. Start tours with saam start-tour. Use maker_onboarding once per chat and read individual manuals as needed. A person confirms exact settings and toolpath together in Studio before export. Commands and waits do not own application lifetime. Claude Code may monitor the Studio queue with saam wait for 30 minutes; quiet expiry is normal, renew while work or tour participation continues or let an idle monitor lapse. Codex reads the queue explicitly; automatic wakeup is unverified. Carry the expected Studio/bundle association on the first necessary operation; a stale target is rejected before effects. Return chatId with --chat-id if the command environment has no session ID. No operation grants hardware operation or final approval.';
@@ -435,11 +437,12 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       const handed=[];for(const id of pending.handbackIds??[requestId])handed.push(await agentRequests.finishHandback(id,response,last?last.snapshot:pending.lastSaved));
       return handed.find(r=>r.id===requestId)??handed[0];
   }
-  // The client reports this chat's turn ended: the agent now waits for the person, so
-  // each active episode hands back as the agent's own waiting hand-back would.
-  async function endTurn(){
+  // The client reports the agent is with the person (`reason`): each active episode
+  // hands back as the agent's own waiting hand-back would.
+  async function endTurn(reason){
+    const message=counterMessages[reason];if(!message)throw Error('Unknown turn end reason '+reason+'.');
     const episodes=new Set((await agentRequests.query()).filter(r=>r.ownerId===ownerId&&r.workActive).map(r=>r.episodeId??r.id));
-    await Promise.all([...episodes].map(id=>handBackRequest(id,{status:'waiting',message:'The agent ended its turn.'})));
+    await Promise.all([...episodes].map(id=>handBackRequest(id,{status:'waiting',message})));
     return {handedBack:episodes.size};
   }
   // Runs one operation to its result and throws its failure; the transport
@@ -1285,7 +1288,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     return {completed:true};
   }
   // A turn end reaches only a chat this runtime holds; it never starts or attaches one.
-  async function endTurn(chatId){const chat=chats.get(chatId);return chat&&chat!==lobby?chat.endTurn():{handedBack:0};}
+  async function endTurn(chatId,reason){const chat=chats.get(chatId);return chat&&chat!==lobby?chat.endTurn(reason):{handedBack:0};}
   return {beginSession,connectChat,endTurn,openStudio,notifyStopping,runningJobs,close,restoreStudios,releaseStudio,activeCount:()=>activeOperations.size+work.pending.size+transferringStudios.size,
     operations:lobby.operations,
     observeEvents(observer){eventObservers.add(observer);return()=>eventObservers.delete(observer);},

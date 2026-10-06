@@ -37,20 +37,27 @@ export function commandInput(args,environment=process.env){
   return {...parsed,chatId:chatId??randomUUID(),fallbackChatId:!chatId,
     client:environment.CLAUDE_CODE_SESSION_ID?'claude':environment.CODEX_SESSION_ID?'codex':null};
 }
-// Claude Code's Stop hook (client setup registers it) reports the chat's turn ended,
-// naming the session on stdin. It reaches only a running SAAM and prints nothing,
-// because the client reads hook output.
-async function turnEnded(parsed,input){
+// Client hooks (client setup registers them) report events as JSON on stdin. The agent is
+// with the person after a turn ends, the person writes or interrupts, or the chat closes;
+// a subagent's events (agent_id) and other notifications mean nothing here.
+const counterReasons={Stop:'turn',StopFailure:'turn',Interrupt:'interrupt',UserPromptSubmit:'message',SessionEnd:'closed'};
+function counterReason(event){
+  if(event.agent_id)return null;
+  if(event.hook_event_name==='Notification')return event.notification_type==='idle_prompt'?'turn':null;
+  return counterReasons[event.hook_event_name]??null;
+}
+// Reaches only a running SAAM and prints nothing, because the client reads hook output.
+async function clientEvent(input){
   const chunks=[];if(!input.isTTY)for await(const chunk of input)chunks.push(Buffer.from(chunk));
-  const text=Buffer.concat(chunks).toString('utf8').trim(),chatId=(text?JSON.parse(text).session_id:null)??(parsed.fallbackChatId?null:parsed.chatId);
-  const instance=chatId?await readInstance():null;
+  const text=Buffer.concat(chunks).toString('utf8').trim(),event=text?JSON.parse(text):{},reason=counterReason(event);
+  const instance=reason&&event.session_id?await readInstance():null;
   if(!instance)return;
-  try{await controlRequest(instance,{command:'turn-ended',chatId});}
+  try{await controlRequest(instance,{command:'end-turn',chatId:event.session_id,reason});}
   catch(error){if(error.result)throw error;/* No SAAM answers at its record: nothing is attached. */}
 }
 export async function runSaam(args=process.argv.slice(2),{input=process.stdin,write=value=>console.log(JSON.stringify(value))}={}){
   const parsed=commandInput(args);
-  if(parsed.command==='turn-ended')return turnEnded(parsed,input);
+  if(parsed.command==='client-event')return clientEvent(input);
   const identity=!['help','status','diagnostics','open','update','quit'].includes(parsed.command)
     ?{chatId:parsed.chatId,...(parsed.fallbackChatId?{nextCommand:'Pass --chat-id '+parsed.chatId+' on every later saam command in this chat.'}:{})}:{};
   const selection={runtime:null};

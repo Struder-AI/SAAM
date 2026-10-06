@@ -48,7 +48,8 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     if(problem)throw problem;
     const child=spawn(selected.node,[resolve(selected.codeRoot,'packaging/runtime-host.mjs')],{cwd:selected.codeRoot,windowsHide:true,
       stdio:['ignore','pipe','pipe','ipc'],env:{...process.env,SAAM_DATA:paths.home,SAAM_BACKGROUND:'1',SAAM_RUNTIME:JSON.stringify(identity(selected))}});
-    const runtime={...selected,child,pending:new Map(),sequence:0,active:0,stderr:''};runtimes.set(runtime.id,runtime);
+    // A runtime is starting until its start answers; until then it holds no Studio, job or chat.
+    const runtime={...selected,child,pending:new Map(),sequence:0,active:0,stderr:'',starting:true};runtimes.set(runtime.id,runtime);
     child.stdout.on('data',()=>{});child.stderr.on('data',bytes=>{runtime.stderr=(runtime.stderr+bytes.toString()).slice(-8192);});
     child.on('message',message=>{
       if(message.reply){const waiter=runtime.pending.get(message.id);if(!waiter)return;runtime.pending.delete(message.id);if(message.ok)waiter.done(message.result);else waiter.fail(Object.assign(Error(message.error),message.detail));return;}
@@ -63,7 +64,7 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     function failed(error){for(const waiter of runtime.pending.values())waiter.fail(error);runtime.pending.clear();if(runtimes.get(runtime.id)===runtime){runtimes.delete(runtime.id);windows.detach(runtime.id);}}
     child.once('error',failed);child.once('exit',code=>failed(Error('Runtime '+runtime.label+' exited ('+code+'). '+runtime.stderr)));
     try{await rpc(runtime,'start',{orchestrator:orchestrator(),autoOpen,openOnStart,service:services.status(),
-      stateRoot:resolve(paths.state,'runtimes',runtime.id.replace(':','-')),windows:windows.restore(runtime.id)});return runtime;}
+      stateRoot:resolve(paths.state,'runtimes',runtime.id.replace(':','-')),windows:windows.restore(runtime.id)});runtime.starting=false;return runtime;}
     catch(error){child.kill();throw error;}
   }
   const fallback=await selectRuntime(codeRoot);
@@ -162,15 +163,14 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     }finally{runtime.active--;if(runtime.child.connected)await sync(runtime);}
   }
   async function status(){
-    const states=await Promise.all([...runtimes.values()].map(async runtime=>({runtime,status:await sync(runtime)})));
-    return {runtimes:states.map(({runtime})=>({id:runtime.id,label:runtime.label,codeRoot:runtime.codeRoot,pid:runtime.child.pid})),
+    const states=await Promise.all([...runtimes.values()].map(async runtime=>({runtime,status:runtime.starting?{jobs:[],studios:[]}:await sync(runtime)})));
+    return {runtimes:states.map(({runtime})=>({id:runtime.id,label:runtime.label,codeRoot:runtime.codeRoot,pid:runtime.child.pid,...(runtime.starting&&{starting:true})})),
       jobs:states.flatMap(({runtime,status})=>status.jobs.map(job=>({...job,runtimeId:runtime.id,runtimeLabel:runtime.label}))),
       studios:states.flatMap(({runtime,status})=>status.studios.map(studio=>({...studio,runtimeId:runtime.id,runtimeLabel:runtime.label})))};
   }
-  // A chat's turn end goes to every running runtime, since any may hold the chat; none is started.
-  async function endTurn(chatId){
-    const counts=await Promise.all([...runtimes.values()].map(runtime=>rpc(runtime,'turn-ended',{chatId})));
-    return {handedBack:counts.reduce((total,count)=>total+count.handedBack,0)};
+  // A chat's turn end goes to every started runtime, since any may hold the chat; none is started.
+  async function endTurn(chatId,reason){
+    await Promise.all([...runtimes.values()].filter(runtime=>!runtime.starting).map(runtime=>rpc(runtime,'end-turn',{chatId,reason})));
   }
   async function notifyStopping(reason){await Promise.all([...runtimes.values()].map(runtime=>rpc(runtime,'stopping',{reason})));}
   // Stops the runtime a message names; its windows keep their addresses for the next start.

@@ -218,6 +218,36 @@
     },
     "packaging/release-service.mjs::studioEvent": {
       "owner": "service"
+    },
+    "packaging/client-setup.mjs::script": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::foreground": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::claudeEvents": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::codexEvents": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::isClaudeHook": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::isCodexHook": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::commandLine": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::claudeGroups": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::codexGroups": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::replaceHooks": {
+      "owner": "installer"
     }
   }
 }
