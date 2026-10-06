@@ -22,7 +22,7 @@ import { createStudio, listPrints } from '../../studio/server.mjs';
 import { bundleFor } from '../../studio/adapter-resolution.mjs';
 import {tourStatus,tourExample} from '../../studio/tour.mjs';
 import {createChatChannel,requestPrintId,workEvidence} from './chat-requests.mjs';
-import {listExtensions,loadExtensionEntry,readExtension,checkoutExtension,exportExtension,importExtension} from '../extensions/library.mjs';
+import {listExtensions,loadExtensionEntry,readExtension,checkoutExtension,exportExtension,importExtension,machineCatalog} from '../extensions/library.mjs';
 import {createBlobFieldBundle,updateBlobFieldBundle} from '../agent/blob-field.mjs';
 import {applySlice} from '../print/slice-edit.mjs';
 import {applyModulation} from '../print/modulation.mjs';
@@ -316,7 +316,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
         found.push({ ...skillMetadata(id, manual), manualTool: 'read_skill' });
       } catch (error) { if (error.code !== 'ENOENT') throw error; }
     }
-    for(const extension of await listExtensions({appRoot:root})){
+    for(const extension of (await listExtensions({appRoot:root})).filter(extension=>extension.manifest.kind!=='machine')){
       const {text:manual}=await readGuidance(root,`extensions/${extension.id}/SKILL.md`);
       found.push({...skillMetadata(extension.id,manual),...(extension.manifest.kind&&extension.manifest.kind!=='skill'?{kind:extension.manifest.kind}:{}),layer:'extension',origin:extension.origin,
         digest:extension.digest,manualTool:'read_skill'});
@@ -547,10 +547,10 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     if(!relay)throw Error('Bug reports travel through the SAAM application.');
     return relay.report({description,context:{reporter:'agent',client,printId:printId??null,runtimeId:application.runtime?.id??null,runtimeLabel:application.runtime?.label??null}});
   }
-  operation('list_machines','List installed machine profiles and declared outputs. Catalog presence is not proof that a particular recipe is supported.',{});
-  async function listMachines(){return machineIds().map(id => {
+  operation('list_machines','List installed machine profiles, the machine extension providing each (its contract: read_skill with that id) and declared outputs. Catalog presence is not proof that a particular recipe is supported.',{});
+  async function listMachines(){const catalog=machineCatalog();return machineIds().map(id => {
     const m = loadMachine(id);
-    return { id, name: m.name, capabilities: m.capabilities, tools: m.tools, materials: m.materials,
+    return { id, name: m.name, extension: catalog.get(id).extension, capabilities: m.capabilities, tools: m.tools, materials: m.materials,
       outputs: m.outputs.map(({ id, extension, flavor, implemented, experimental, constraints, reason }) => ({ id, extension, flavor, implemented: implemented !== false, experimental, constraints, reason })),
       defaultSetup: m.defaultSetup };
   });}
