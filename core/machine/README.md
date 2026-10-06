@@ -11,10 +11,10 @@ nominal mechanisms in the same Studio.
 
 ## Source and installation
 
-[source-time.mjs](../export/source-time.mjs) evaluates one source time for both
-the toolpath and its machine. It preserves Dobot's interpreted acceleration,
-DENSO's nominal Cartesian/rotary interpolation, and study-specific Euler
-interpolation. Reverse seeks do not depend on previous screen frames.
+[path-time.mjs](path-time.mjs) evaluates one path time for both the drawn path
+and its machine: the path's requested timing, DENSO poses' Cartesian/rotary
+interpolation and studies' Euler interpolation. Reverse seeks do not depend on
+previous screen frames.
 Providers solve at the requested pose, not interpolated joint endpoints.
 
 `machine.kinematicModel` owns dimensions and optional installation data in the

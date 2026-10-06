@@ -7,17 +7,17 @@ import {defaults} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {AdaptationMotion,machinePriming} from '../private/export/adaptation-motion.mjs';
 import {prepareExportPath} from '../export/prepare-path.mjs';
-import {exportProgram} from '../export/registry.mjs';
-import {interpretGriffin} from '../export/griffin-player.mjs';
+import {pathPreview} from '../../studio/path-preview.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 
-test('S5 shell exports recover, sacrificial strokes, then the part on either nozzle',async()=>{
+test('S5 prepared paths recover, sacrificial strokes, then the part on either nozzle',async()=>{
   for(const tool of [0,1])for(const retractMm of [0,6.5]){
     const machine=loadMachine(),plan=defaults(machine);
     plan.setup.tool=tool;plan.process.retractMm=retractMm;plan.process.minimumLayerSeconds=0;
     plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:.6});
     const path=await generatePath(plan,machine);
-    const program=interpretGriffin(exportProgram(path,plan,machine,{generatorVersion:'test',buildDate:'2026-09-16'}).bytes,plan,machine);
+    const prepared=prepareExportPath(path,plan,machine),program={moves:pathPreview(prepared,{plan}).moves,
+      events:prepared.actions.map((a,i)=>({...a,line:i+1})).filter(a=>['retract','recover'].includes(a.kind)).map((a,i,all)=>({...a,kind:a.kind==='recover'&&!all.slice(0,i).some(x=>x.kind==='retract')?'startup-recover':a.kind}))};
     const depositing=program.moves.filter(m=>m.extruding),prime=depositing.filter(m=>m.phase==='prime');
     assert.equal(prime.length,3,'two passes and their depositing connector');
     assert.deepEqual(depositing.slice(0,3),prime,'prime is before any model deposition');

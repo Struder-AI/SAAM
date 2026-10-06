@@ -6,7 +6,8 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {regionalStackPlan} from './fixtures/regional-stack.mjs';
 import {loadMachine} from '../machine/profile.mjs';
-import {initBundle,loadBundle,generateBundle,exportReviewed,adjustBundle} from '../print/bundle.mjs';
+import {initBundle,loadBundle,generateBundle,exportReviewed,adjustBundle,readDrawnPath} from '../print/bundle.mjs';
+import {pathPreview} from '../../studio/path-preview.mjs';
 import {createStudio} from '../../studio/server.mjs';
 import {createChatChannel} from '../application/chat-requests.mjs';
 
@@ -22,9 +23,10 @@ test('the complete regional stack uses native geometry, final confirmation, shar
   assert.equal(state.programError,undefined);
   assert.equal(state.pathSummary.vaseWall.instances.length+state.pathSummary.referenceFamilies.roof.length,2);
   assert.deepEqual(state.pathSummary.slices.instances.filter(i=>i.layers&&!i.referenceFamily&&!i.construction).map(i=>i.owner),['base','cap','roof-body','upper']);
-  assert.ok(state.program.moves.some(move=>move.phase==='vase-wall'&&move.extruding));
-  assert.ok(state.program.moves.some(move=>move.operation?.startsWith('roof:roof-finish:')&&move.extruding));
-  state=await loadBundle(directory,{program:'source'});const bytes=await readFile(join(directory,state.review.generation.file));
+  const {moves}=pathPreview(JSON.parse(await readDrawnPath(state)),{plan:state.plan});
+  assert.ok(moves.some(move=>move.phase==='vase-wall'&&move.extruding));
+  assert.ok(moves.some(move=>move.operation?.startsWith('roof:roof-finish:')&&move.extruding));
+  state=await loadBundle(directory,{program:true});const bytes=await readFile(join(directory,state.review.generation.file));
   assert.deepEqual(await readFile((await exportReviewed(state)).file),bytes);
   assert.deepEqual(await readFile(nativeFile),native);
 

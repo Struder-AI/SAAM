@@ -13,7 +13,8 @@ async function adoptProgramState(next,{presentation,decode,bind}){
       return {...next,program:presentation.program};
     }
     const decoded=await decode(shown);
-    return {...next,program:{...next.program,...decoded,summary:{...decoded.summary,...next.program.summary}}};
+    // The drawn path supplies motion and playback time; the stored report the machine facts.
+    return {...next,program:{...decoded,...next.program,summary:decoded.summary}};
   }catch(error){
     const {program,...withoutProgram}=next;
     return {...withoutProgram,programViewError:'Could not load the saved toolpath view: '+error.message};

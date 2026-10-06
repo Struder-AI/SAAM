@@ -12,7 +12,7 @@ import {planRefreshNavigation,outputView} from './refresh-plan.mjs';
 import {completedOutputState} from '../core/print/review-state.mjs';
 import {prepareStudioState,withoutPreviewMaterial} from './studio-state.mjs';
 import {studioControls} from './studio-controls.mjs';
-import {loadNeutralPath} from './neutral-path.mjs';
+import {loadSavedPath} from './path-preview.mjs';
 import {viewerConnected} from './viewer-session.mjs';
 import {createServicePanel} from './service-panel.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
@@ -153,9 +153,9 @@ const showingGeometry=()=>viewState.tab!=='toolpath'||!presentedState()?.program
 const duration=()=>presentedState()?.program?.summary.motionSeconds??0;
 const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 const round2=v=>Number(v).toFixed(2);
-const materialFact=program=>program.summary.materialModel==='relay-estimate'
-  ? ['Material estimate',round2(materialGrams(program.summary.estimatedRelayVolumeMm3))+' g from relay timing; unverified']
-  : [program.envelope?'Part material estimate':'Material estimate',round2(materialGrams(program.summary.volumeMm3??program.volumeMm3))+' g'];
+const materialFact=program=>program.materialModel==='relay-estimate'
+  ? ['Material estimate',round2(materialGrams(program.estimatedRelayVolumeMm3))+' g from relay timing; unverified']
+  : [program.envelope?'Part material estimate':'Material estimate',round2(materialGrams(program.volumeMm3))+' g'];
 const materialSetup=state=>state.plan.setup.dobot||state.plan.setup.denso
   ? ['Extrusion','External relay control · '+state.plan.setup.material]
   : ['Material',state.plan.setup.material+' · '+state.plan.setup.nozzleC+'°C'+(state.plan.setup.filamentColor?' · '+state.plan.setup.filamentColor:'')+(state.plan.setup.ams?' · intended AMS '+state.plan.setup.ams.unit+' slot '+state.plan.setup.ams.slot:'')];
@@ -238,9 +238,9 @@ const views={
       if(!state.program)return [];
       const limit=state.pathSummary?.surfaceDomain;
       const rows=[...depositionFamilyRows(state.pathSummary?.inspection),
-        [state.program.envelope?'Printing motion':'Estimated motion',Math.round(duration()/60)+' min'],materialFact(state.program)];
+        [state.program.envelope?'Printing motion':'Estimated motion',Math.round((state.program.seconds??duration())/60)+' min'],materialFact(state.program)];
       for(const c of state.pathSummary?.curves??[])rows.push([c.id,c.strokes+' strokes · '+c.courses+' courses']);
-      if(state.program.summary?.materialModel==='relay-estimate')rows.push(['Material intent',round2(materialGrams(state.program.volumeMm3))+' g; not metered']);
+      if(state.program.materialModel==='relay-estimate')rows.push(['Material intent',round2(materialGrams(state.program.volumeMm3))+' g; not metered']);
       if(hasConstruction(state.plan,'sleeve')){
         const selections=state.plan.slices.assignments.filter(a=>a.construction==='sleeve');
         rows.push(['Wall paths',selections.some(s=>s.pathMode==='segmented')?'Includes segmented paths with travel':selections.some(s=>s.pattern)?'Continuous pattern wrapped around the sleeve':'Continuous spiral within its assigned region']);
@@ -350,7 +350,7 @@ async function loadAndAdoptStudioState(follow=false,reopen=false,fetchedState=nu
   if(presentationChanged)clearManual();
   const scenes=viewer.sceneState();
   const adopted=await prepareStudioState(fetched,{previous,follow,presentation:viewState.activePresentation,
-    pathMoves:scenes.pathMoves,materialMoves:scenes.materialMoves,decode:decodeInWorker,decodeNeutral:loadNeutralPath,
+    pathMoves:scenes.pathMoves,materialMoves:scenes.materialMoves,decode:decodeInWorker,decodeNeutral:loadSavedPath,
     // Serializable metadata is bound before the proxy-backed cached move store is adopted.
     bind:bindCachedProgram});
   printSync.state=adopted.state;printSync.stateTag=fetchedTag;chatUI.reflect();
@@ -437,8 +437,7 @@ async function decodeInWorker(snapshot){
   machinePose.machineSession?.dispose();machinePose.requestingPose=null;
   machinePose.machineSession=sourceSession(new Worker('/studio/source-worker.mjs',{type:'module'}));
   return machinePose.machineSession.load({printId:snapshot.printId,revision:snapshot.revision,outputId:snapshot.outputId,
-    plan:snapshot.plan,machine:snapshot.machine,inspection:snapshot.pathSummary?.inspection,
-    program:{sources:snapshot.program.sources}});
+    plan:snapshot.plan,machine:snapshot.machine,inspection:snapshot.pathSummary?.inspection});
 }
 function bindCachedProgram(snapshot){return machinePose.machineSession?.bind(snapshot);}
 function table(entries) {

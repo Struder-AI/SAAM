@@ -5,15 +5,20 @@ import {requireThat,distance} from '../private/export/numeric.mjs';
 // process intent and labels, never playback coordinates or rotary motion.
 
 import {validateDensoConfiguration} from '../machine/denso.mjs';
-export const DENSO_LIMITATIONS=[
-  'RC8A is confirmed; mounting, calibration and rotary installation are stated setup assumptions, not measured facts.',
-  'Cartesian linear T poses, @0 endpoints, relative EX and TIME are interpreted. IK, reach, singularities, joint and motion limits and collisions are deferred to commissioning/controller behavior.',
-  'Playback assumes synchronized linear progress of Cartesian and rotary commands at external speed 100%. Actual acceleration, external-axis interpolation, override, endpoint stops, IO latency and controller acceptance remain unverified.',
-  'Relay volume is an estimate from requested duration and configured rate, not measured or metered extrusion. Continuous path geometry does not establish smooth deposition with @0 endpoint commands.',
-  'External positioning at the declared start, calibrated tool/work definitions, rotary zero and external heating are prerequisites. No heating, homing or startup positioning is inserted.',
-  'Delivery is a source ZIP for a WINCAPS III project. RC8A compilation/import and physical execution have not been validated.'
-];
-export const toWork=(point,c)=>rotateZ(point,c.workYawDeg).map((v,i)=>v+c.workOffsetMm[i]);
+import {DENSO_LIMITATIONS} from './denso.mjs';
+import {createHash} from 'node:crypto';
+import {unpackZip} from './zip.mjs';
+// Debug-only machine verification (machine-verify): executes the written
+// PacScript subset. Generation, reopen, Studio and delivery never load it;
+// scripts/machine-verify.mjs runs it. Delete it after a physical trial.
+const digest=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
+export function verify(bytes,plan,machine){
+  const entries=unpackZip(bytes);requireThat(entries.has('manifest.json'),'Missing DENSO manifest.');
+  const m=JSON.parse(entries.get('manifest.json').toString('utf8'));
+  requireThat(m.schema==='saam-denso-program/1'&&m.entry==='main.pcs'&&m.machineHash===digest(machine)&&m.setupHash===digest(plan.setup),'DENSO setup/machine identity differs.');
+  requireThat(Array.isArray(m.sourceFiles)&&[...entries.keys()].filter(k=>k!=='manifest.json').sort().join()===m.sourceFiles.slice().sort().join(),'DENSO source inventory differs.');
+  return interpretDensoFiles(Object.fromEntries(m.sourceFiles.map(n=>[n,entries.get(n).toString('utf8')])),plan,machine);
+}
 export const fromWork=(point,c)=>rotateZ(point.map((v,i)=>v-c.workOffsetMm[i]),-c.workYawDeg);
 export function interpretDensoFiles(files,plan,machine,{moves=[]}={}){
   requireThat(machine.id==='denso-vs068a4-rc8a'&&plan.output==='denso-pacscript','Incompatible DENSO output.');

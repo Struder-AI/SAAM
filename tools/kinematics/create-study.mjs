@@ -4,7 +4,7 @@ import {fileURLToPath} from 'node:url';
 import {loadMachine} from '../../core/machine/profile.mjs';
 import {densoGeometry,densoForward} from '../../core/machine/denso-kinematics.mjs';
 import {rigid} from '../../core/geom/frame.mjs';
-import {interpretMachineStudy} from '../../core/export/machine-study.mjs';
+import {studyPreview} from '../../studio/path-preview.mjs';
 
 const euler=r=>[Math.atan2(r[2][1],r[2][2]),Math.asin(Math.max(-1,Math.min(1,-r[2][0]))),Math.atan2(r[1][0],r[0][0])].map(v=>v*180/Math.PI);
 export async function createStudy(directory,machineId='ultimaker-s5',{source,model={}}={}){
@@ -25,7 +25,7 @@ export async function createStudy(directory,machineId='ultimaker-s5',{source,mod
       anglesDeg:angles,seconds:.5};});
     source={schema:'saam-machine-study-source/1',orientation:'euler-xyz',initial:{tcp:[center[0]+8,center[1],center[2]],anglesDeg:angles},moves};
   }
-  const program=interpretMachineStudy(source);
+  const program=studyPreview(source);
   const bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   for(const move of program.moves)for(const p of [move.from,move.to])for(let i=0;i<3;i++){bounds.min[i]=Math.min(bounds.min[i],p[i]-10);bounds.max[i]=Math.max(bounds.max[i],p[i]+10);}
   const plan={schema:'saam-machine-study/1',output:'machine-study',setup,placement:{xMm:0,yMm:0},studyBounds:bounds,

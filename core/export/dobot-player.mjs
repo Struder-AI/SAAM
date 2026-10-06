@@ -1,38 +1,21 @@
 import {requireThat,distance} from '../private/export/numeric.mjs';
+import {createHash} from 'node:crypto';
 import {LuaRuntime,LuaTable,LuaSubsetError} from './dobot-lua-subset.mjs';
-import {validateSetup} from '../machine/rules.mjs';
-
-
-export const DOBOT_LIMITATIONS=[
-  'Experimental stroke-stop-start-unblended relay policy: relay stays on through consecutive deposition moves, and is off during travel and dwell. This differs from the legacy continuous-through-travel reference.',
-  'Commanded volume is SAAMpath intent, not metered extrusion. Relay volume is an estimate from the configured external rate and modeled rest-to-rest timing; acceleration, pauses and relay lag can change the actual deposit.',
-  'Playback shows fixed-orientation Cartesian commands transformed back into the design frame. Robot joint solutions, reachability, singularities, link/fixture collisions and controller queue latency are not simulated.',
-  'No startup motion or heating commands are emitted. The configured initial pose and external nozzle/bed temperatures must already be established. No priming dwell is inserted.',
-  'Only linear MovL at CP=0, explicit fixed frame/orientation, DO, Sync and relay-off Wait are supported. Joint moves, arcs, orientation changes, tool changes, nonzero retraction and fan control are rejected. No physical validation has been performed.'
-];
-// The longest pause one Wait command can express, not a limit on how long a
-// path may pause; exportDobot splits a longer pause across commands.
-export const WAIT_COMMAND_MS=60000;
-const num=value=>{requireThat(Number.isFinite(value),'Nonfinite Dobot number.');return Number(value.toFixed(10));};
-const transform=(p,c)=>[p[0]*c.scaleX+c.offsetXMm,p[1]*c.scaleY+c.offsetYMm,p[2]+c.bedZMm];
-const inverse=(p,c)=>[(p[0]-c.offsetXMm)/c.scaleX,(p[1]-c.offsetYMm)/c.scaleY,p[2]-c.bedZMm];
-const inside=(p,c)=>requireThat(p.every((v,i)=>Number.isFinite(v)&&v>=c.workspaceMinMm[i]-1e-6&&v<=c.workspaceMaxMm[i]+1e-6),'Dobot command exceeds the configured Cartesian workspace (reachability is not checked).');
-const equal=(a,b)=>a.length===b.length&&a.every((v,i)=>Math.abs(v-b[i])<1e-6);
-
-// Adopted from the selected legacy motion-trace/trace-lib.mjs. No assumed
-// velocity or acceleration: both come from this instance's locked setup.
-export function motionProfile(lengthMm,speedMmS,accelMmS2){
-  const ramp=speedMmS*speedMmS/accelMmS2;
-  return ramp<=lengthMm
-    ?{durationS:2*speedMmS/accelMmS2+(lengthMm-ramp)/speedMmS,peakSpeedMmS:speedMmS}
-    :{durationS:2*Math.sqrt(lengthMm/accelMmS2),peakSpeedMmS:Math.sqrt(accelMmS2*lengthMm)};
+import {unpackZip} from './zip.mjs';
+import {config,transform,inverse,inside,equal,motionProfile,WAIT_COMMAND_MS,DOBOT_LIMITATIONS} from './dobot.mjs';
+// Debug-only machine verification (machine-verify): executes the written Lua in
+// a bounded subset runtime. Generation, reopen, Studio and delivery never load
+// it; scripts/machine-verify.mjs runs it. Delete it after a physical trial.
+const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
+export function verify(bytes,plan,machine){
+  const c=config(plan,machine),entries=unpackZip(bytes);
+  requireThat([...entries.keys()].sort().join()==='global.lua,manifest.json,src0.lua,src1.lua','Dobot bundle must contain exactly global.lua, src1.lua, src0.lua and manifest.json.');
+  const manifest=JSON.parse(entries.get('manifest.json').toString('utf8'));
+  requireThat(manifest.schema==='saam-dobot-program/1'&&manifest.machineId===machine.id&&manifest.entry==='src0.lua'&&manifest.setupHash===digest(plan.setup)&&manifest.machineHash===digest(machine),'Dobot manifest does not match the locked machine/setup.');
+  requireThat(equal(manifest.initialPositionMm??[],c.initialPositionMm)&&manifest.relayPolicy===c.relayPolicy,'Dobot manifest start/policy mismatch.');
+  return interpretDobotFiles(Object.fromEntries(['global.lua','src1.lua','src0.lua'].map(name=>[name,entries.get(name).toString('utf8')])),plan,machine);
 }
 
-function config(plan,machine){
-  requireThat(machine.id==='dobot-mg400'&&plan.output==='dobot-lua','Incompatible Dobot output.');
-  validateSetup(plan,machine,{required:true});
-  return plan.setup.dobot;
-}
 
 export function interpretDobotFiles(files,plan,machine,{moves=[]}={}) {
   const c=config(plan,machine);
@@ -96,5 +79,3 @@ export function interpretDobotFiles(files,plan,machine,{moves=[]}={}) {
       clearance:'Robot reachability, kinematics and collision clearance are not checked.'}};
 }
 
-// Shared exporter/reader setup helpers; one machine contract.
-export {config,num,transform,inside,equal};

@@ -1,5 +1,5 @@
 import {rigid,mv,mm,axisFrame,rodFrame,rotation,point,invert,compose,rotateZ,validateRigid,add,subtract as sub,scale,length as norm} from '../geom/frame.mjs';
-import {frameAtTime} from '../export/source-time.mjs';
+import {frameAtTime} from './path-time.mjs';
 
 import {densoGeometry,densoInverse,densoWristFromPose} from './denso-kinematics.mjs';
 import {dobotGeometry,dobotInverse} from './dobot-kinematics.mjs';
@@ -38,7 +38,7 @@ function buildMachineMechanism({program,machine,setup,config}){
     // separate; never infer a robot base from a print's bounding box.
     if(config.worldFromBase)validateRigid(config.worldFromBase);
     const dobot=machine.id==='dobot-mg400',model=dobot?dobotGeometry(config):densoGeometry(config);
-    const scaledDobot=dobot&&program.language==='dobot-lua'&&(setup.dobot?.scaleX!==1||setup.dobot?.scaleY!==1);
+    const scaledDobot=dobot&&(setup.dobot?.scaleX!==1||setup.dobot?.scaleY!==1);
     const aligned=config.worldFromBase&&(Number.isFinite(config.toolLengthMm)||(!dobot&&config.flangeFromTool))&&(dobot||Array.isArray(config.modelSeedDeg))&&!scaledDobot;
     limits.push(dobot?'Nominal MG400 linkage; calibrated user/tool orientation and coupled interference are unchecked.':'Nominal VS-068A4 drawing centerlines and seeded IK; model angles are not RC8A encoders or FIG.');
     const robotSourcePose=at=>{

@@ -523,21 +523,9 @@
       "owner": "export",
       "reason": "Export selection, checks and reporting."
     },
-    "core/export/machine-study.mjs": {
-      "owner": "export",
-      "reason": "Export selection, checks and reporting."
-    },
     "core/export/prepare-path.mjs": {
       "owner": "export",
       "reason": "Selected-machine output preparation, installation motion and checked-program interpretation."
-    },
-    "core/export/gcode-lines.mjs": {
-      "owner": "export",
-      "reason": "Common program text/time/container representation."
-    },
-    "core/export/source-time.mjs": {
-      "owner": "export",
-      "reason": "Common program text/time/container representation."
     },
     "core/export/zip.mjs": {
       "owner": "export",
@@ -550,10 +538,6 @@
     "core/export/griffin.mjs": {
       "owner": "export",
       "reason": "Machine dialect export and interpretation."
-    },
-    "core/export/griffin-player.mjs": {
-      "owner": "export",
-      "reason": "Selected-machine output preparation, installation motion and checked-program interpretation."
     },
     "core/export/bambu.mjs": {
       "owner": "export",
@@ -568,10 +552,6 @@
       "reason": "Machine dialect export and interpretation."
     },
     "core/export/bambu-job.mjs": {
-      "owner": "export",
-      "reason": "Machine dialect export and interpretation."
-    },
-    "core/export/bambu-player.mjs": {
       "owner": "export",
       "reason": "Machine dialect export and interpretation."
     },
@@ -648,10 +628,6 @@
       "reason": "Shared rendering and camera/performance preparation."
     },
     "studio/toolpath-view.mjs": {
-      "owner": "studio",
-      "reason": "Path visualization/playback; current dependency on exported-program parsers is intentionally exposed."
-    },
-    "studio/source-player.mjs": {
       "owner": "studio",
       "reason": "Path visualization/playback; current dependency on exported-program parsers is intentionally exposed."
     },
@@ -1271,10 +1247,6 @@
       "owner": "extensions",
       "reason": "Portable weld site policy, semantic validation and composition of public region/slice/injection operations."
     },
-    "studio/neutral-path.mjs": {
-      "owner": "studio",
-      "reason": "Studio job/channel, read-only saved-path display and private UI/service/tour state."
-    },
     "studio/service-panel.mjs": {
       "owner": "studio",
       "reason": "Studio job/channel, read-only saved-path display and private UI/service/tour state."
@@ -1522,6 +1494,14 @@
     "core/print/generation-worker.mjs": {
       "owner": "bundle",
       "reason": "Bundle generation worker: prepares and commits a generation off the main thread under the caller's reservation."
+    },
+    "core/machine/path-time.mjs": {
+      "owner": "studio",
+      "reason": "Path-time evaluation for playback and machine presentation."
+    },
+    "studio/path-preview.mjs": {
+      "owner": "studio",
+      "reason": "Studio draws a path: the prepared path, the saved SAAMpath or a study motion."
     }
   },
   "leaves": {
@@ -1686,24 +1666,6 @@
     "core/export/bambu-job.mjs::round": {
       "owner": "export"
     },
-    "core/export/bambu-player.mjs::@module": {
-      "owner": "export"
-    },
-    "core/export/bambu-player.mjs::interpretBambuSource": {
-      "owner": "export"
-    },
-    "core/export/bambu-player.mjs::interpretBody": {
-      "owner": "export"
-    },
-    "core/export/bambu-player.mjs::interpretMultiBody": {
-      "owner": "export"
-    },
-    "core/export/bambu-player.mjs::interpretMultiBody::sink.length": {
-      "owner": "export"
-    },
-    "core/export/bambu-player.mjs::interpretMultiBody::sink.push": {
-      "owner": "export"
-    },
     "core/export/bambu-project.mjs::@module": {
       "owner": "export"
     },
@@ -1779,9 +1741,6 @@
     "core/export/bambu.mjs::header::perUsed": {
       "owner": "export"
     },
-    "core/export/bambu.mjs::interpretBambu": {
-      "owner": "export"
-    },
     "core/export/bambu.mjs::json": {
       "owner": "export"
     },
@@ -1837,9 +1796,6 @@
       "owner": "export"
     },
     "core/export/denso.mjs::exportDenso": {
-      "owner": "export"
-    },
-    "core/export/denso.mjs::interpretDenso": {
       "owner": "export"
     },
     "core/export/denso.mjs::num": {
@@ -2118,51 +2074,6 @@
     "core/export/dobot.mjs::exportDobot::switchRelay": {
       "owner": "export"
     },
-    "core/export/dobot.mjs::interpretDobot": {
-      "owner": "export"
-    },
-    "core/export/gcode-lines.mjs::@module": {
-      "owner": "export"
-    },
-    "core/export/gcode-lines.mjs::gcodeLines": {
-      "owner": "export"
-    },
-    "core/export/griffin-player.mjs::@module": {
-      "owner": "export"
-    },
-    "core/export/griffin-player.mjs::applyGcodeCommand": {
-      "owner": "export"
-    },
-    "core/export/griffin-player.mjs::applyGcodeCommand::only": {
-      "owner": "export"
-    },
-    "core/export/griffin-player.mjs::gcodeProgram": {
-      "owner": "export"
-    },
-    "core/export/griffin-player.mjs::initializeGcodeInterpretation": {
-      "owner": "export"
-    },
-    "core/export/griffin-player.mjs::interpretGcode": {
-      "owner": "export"
-    },
-    "core/export/griffin-player.mjs::interpretGcodeLines": {
-      "owner": "export"
-    },
-    "core/export/griffin-player.mjs::interpretGriffin": {
-      "owner": "export"
-    },
-    "core/export/griffin-player.mjs::interpretMotion": {
-      "owner": "export"
-    },
-    "core/export/griffin-player.mjs::interpretMotionChunk": {
-      "owner": "export"
-    },
-    "core/export/griffin-player.mjs::parseGcodeCommand": {
-      "owner": "export"
-    },
-    "core/export/griffin-player.mjs::readGcodeLine": {
-      "owner": "export"
-    },
     "core/export/griffin.mjs::@module": {
       "owner": "export"
     },
@@ -2199,15 +2110,6 @@
     "core/export/griffin.mjs::fmt": {
       "owner": "export"
     },
-    "core/export/machine-study.mjs::@module": {
-      "owner": "export"
-    },
-    "core/export/machine-study.mjs::interpretMachineStudy": {
-      "owner": "export"
-    },
-    "core/export/machine-study.mjs::interpretMachineStudy::vector": {
-      "owner": "export"
-    },
     "core/export/prepare-path.mjs::@module": {
       "owner": "export"
     },
@@ -2218,12 +2120,6 @@
       "owner": "export"
     },
     "core/export/registry.mjs::outputAdapter": {
-      "owner": "export"
-    },
-    "core/export/source-time.mjs::@module": {
-      "owner": "export"
-    },
-    "core/export/source-time.mjs::frameAtTime": {
       "owner": "export"
     },
     "core/export/travel-advisory.mjs::@module": {
@@ -5315,10 +5211,6 @@
       "owner": "bundle",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
-    "core/print/workflow.mjs::programCacheEntry": {
-      "owner": "bundle",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
     "core/print/workflow.mjs::save": {
       "owner": "bundle"
     },
@@ -6177,9 +6069,6 @@
     "studio/adapter-resolution.mjs::bundles::saam-shell-plan/1": {
       "owner": "studio"
     },
-    "studio/adapter-resolution.mjs::readStableBundle": {
-      "owner": "studio"
-    },
     "studio/adapter-resolution.mjs::supportsBundleSchema": {
       "owner": "studio"
     },
@@ -6900,12 +6789,6 @@
     "studio/machine-study.mjs::@module": {
       "owner": "studio"
     },
-    "studio/machine-study.mjs::bundleFingerprint": {
-      "owner": "studio"
-    },
-    "studio/machine-study.mjs::bundleFingerprints": {
-      "owner": "studio"
-    },
     "studio/machine-study.mjs::files": {
       "owner": "studio"
     },
@@ -7519,21 +7402,6 @@
       "owner": "studio"
     },
     "studio/settings.mjs::spatialRecord": {
-      "owner": "studio"
-    },
-    "studio/source-player.mjs::@module": {
-      "owner": "studio"
-    },
-    "studio/source-player.mjs::decodeSource": {
-      "owner": "studio"
-    },
-    "studio/source-player.mjs::decodeSource::moves.get": {
-      "owner": "studio"
-    },
-    "studio/source-player.mjs::fetchSources": {
-      "owner": "studio"
-    },
-    "studio/source-player.mjs::fetchSources::accept": {
       "owner": "studio"
     },
     "studio/source-worker.mjs::@handler/self.onmessage": {
@@ -9695,15 +9563,6 @@
     "skills/vase-wall/scripts/runtime.mjs::vaseWallRuntime::standardVaseResult": {
       "owner": "extensions"
     },
-    "studio/neutral-path.mjs::@module": {
-      "owner": "studio"
-    },
-    "studio/neutral-path.mjs::loadNeutralPath": {
-      "owner": "studio"
-    },
-    "studio/neutral-path.mjs::neutralPathPreview": {
-      "owner": "studio"
-    },
     "studio/service-panel.mjs::@module": {
       "owner": "studio"
     },
@@ -11712,15 +11571,6 @@
       "owner": "application",
       "reason": "Explicit owned record projection or section merge; owner-approved passthrough walker removal (2026-10-04)."
     },
-    "core/export/registry.mjs::decodeProgram": {
-      "owner": "export"
-    },
-    "core/export/registry.mjs::exportAndDecodeProgram": {
-      "owner": "export"
-    },
-    "core/export/registry.mjs::readProgramSources": {
-      "owner": "export"
-    },
     "core/export/registry.mjs::readProgramSources::source": {
       "owner": "export"
     },
@@ -13271,6 +13121,48 @@
     },
     "workspaces/export-worker.mjs::createWorkspaceBundles::initialRevision": {
       "owner": "workspace"
+    },
+    "core/machine/path-time.mjs::@module": {
+      "owner": "studio"
+    },
+    "core/machine/path-time.mjs::frameAtTime": {
+      "owner": "studio"
+    },
+    "studio/path-preview.mjs::@module": {
+      "owner": "studio"
+    },
+    "studio/path-preview.mjs::loadPathPreview": {
+      "owner": "studio"
+    },
+    "studio/path-preview.mjs::loadSavedPath": {
+      "owner": "studio"
+    },
+    "studio/path-preview.mjs::pathPreview": {
+      "owner": "studio"
+    },
+    "studio/path-preview.mjs::studyPreview": {
+      "owner": "studio"
+    },
+    "studio/machine-study.mjs::loadBundleSnapshot": {
+      "owner": "studio"
+    },
+    "studio/machine-study.mjs::readDrawnPath": {
+      "owner": "studio"
+    },
+    "core/export/registry.mjs::pathTotals": {
+      "owner": "export"
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::storedReport": {
+      "owner": "bundle"
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::readDrawnPath": {
+      "owner": "bundle"
+    },
+    "core/export/dobot-player.mjs::verify": {
+      "owner": "export"
+    },
+    "core/export/denso-player.mjs::verify": {
+      "owner": "export"
     }
   },
   "retiredAssignments": [
