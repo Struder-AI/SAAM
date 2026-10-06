@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-05 — Mesh contact facts: the brains' failures come from their cut caps
+
+- Worker (branch worktree-agent-ab4c1cfba796ff7bd, b15043c3 = `cgal-solid-repair/2` cherry-picked; not merged, waits for scale-derived tolerances): Thingi10K 44374/44375 are halves of one brain cut by a plane; the modeller capped the outer surface and each ventricle separately, 1e-5 to 6e-5 mm apart and crossing (the source self-intersections). Exact reconstruction correctly leaves sub-resolution films whose knife edges fail the 1e-9 mm adjacent-contact rule (188/93 pairs at 1e-12 to 3.8e-10 mm, plus 46/19 folds), all within 6.4e-5 mm of the bed; no print effect.
+- Scratch print-scale merge (vertices within 1e-4 mm of the cut plane snapped to it) passes makeMesh, contact and exact STL reimport on both; ventricles keep their volume, those reaching the cut become pockets open to the bed. Raising the current rule's margin to 1e-3 mm rejects both merged brains (204/336 pairs) and the duck 75443 (4.5 µm near T-junction): a print-scale rule must measure separation between sheets, not near-touching neighbours. Not run: tests, slicing, Mac helper build, moon input (unavailable).
+
 ## 2026-10-05 — Use SAAM, else an extension; agents file bug reports
 
 - Use SAAM, else an extension (worker): `MAKERS.md#working-boundaries` owns the owner's route ("If saam can do it, use saam. If it can't, build an extension that can."). Geometry and programs for a printer come only from SAAM operations and extensions; scripts compute inputs only; work the extension interface cannot express is a SAAM bug filed with `saam call report_bug`. AGENTS (the client skill), BUILDERS, AUTHORING (extension code uses its operations' tolerances, no fixed budgets), GEOMETRY scripts (stale command names corrected) and both onboarding next steps point to it; touched docs end equal in length.
