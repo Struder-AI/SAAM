@@ -11,14 +11,17 @@ the vendor and measured evidence behind it.
 
 `registry.mjs` holds one entry per machine output id (`machine.outputs[].id`):
 
-- `export(path, plan, machine, release)` returns the program bytes;
+- `export(prepared, plan, machine, release)` writes the prepared path and returns
+  `{bytes, report}`: `notice`, `limitations` and, where the writer knows them,
+  `seconds` and `volumeMm3` of what it wrote;
 - `interpret(bytes, plan, machine)` returns the program Studio plays: `moves`,
-  `events`, `seconds`, `volumeMm3`, `summary` and dialect fields;
-- `exportAndInterpret`, optional, returns `{bytes, program}` when exporting
-  already interprets (Bambu), so the lifecycle reuses that result.
+  `events`, `seconds`, `volumeMm3`, `summary` and dialect fields.
 
-The registry rejects pose-bearing paths for every output but DENSO and adds the
-[short-travel advisory](README.md#short-travel-advisory) to each program.
+`exportProgram` prepares the path once (`prepare-path.mjs`, which rejects
+pose-bearing paths for every output but DENSO), calls `export` and adds the
+[short-travel advisory](README.md#short-travel-advisory) on the prepared path to
+the report. G-code writers share `gcodeMotion` (`gcode-motion.mjs`): lines
+plus the totals of what it wrote.
 `core/print/workflow.mjs` reaches exporters only through it.
 `studio/source-player.mjs::decodeSource` calls each dialect's source
 interpreter directly on the checked source files, so Studio plays the same
@@ -28,9 +31,9 @@ interpreter the export check ran.
 
 | Output id | Export | Interpret | Shared |
 |---|---|---|---|
-| `griffin-gcode` | `griffin.mjs` (`exportGriffin`, `exportMotion`, `validatePath`) | `griffin.mjs` (`interpretGriffin`, `interpretMotion`, `interpretMotionChunk`) | `gcode-lines.mjs` |
-| `bambu-gcode` | `bambu.mjs` package; `bambu-body.mjs`, `bambu-change.mjs`, `bambu-x1-change.mjs`, `bambu-job.mjs`, `bambu-project.mjs` with `bambu-project-fields.json` | `bambu-player.mjs` (`interpretBambuSource`) | Griffin motion, `gcode-lines.mjs`, `zip.mjs` |
-| `dobot-lua` | `dobot.mjs` | `dobot-player.mjs` on `dobot-lua-subset.mjs` | Griffin `validatePath`, `zip.mjs` |
+| `griffin-gcode` | `griffin.mjs` | `griffin-player.mjs` | `gcode-motion.mjs`, `gcode-lines.mjs` |
+| `bambu-gcode` | `bambu.mjs` package; `bambu-body.mjs`, `bambu-change.mjs`, `bambu-x1-change.mjs`, `bambu-job.mjs`, `bambu-project.mjs` with `bambu-project-fields.json` | `bambu-player.mjs` (`interpretBambuSource`) | `gcode-motion.mjs`, `zip.mjs` |
+| `dobot-lua` | `dobot.mjs` | `dobot-player.mjs` on `dobot-lua-subset.mjs` | `zip.mjs` |
 | `denso-pacscript` | `denso.mjs` | `denso-player.mjs` | `zip.mjs` |
 
 `dobot-lua-subset.mjs` is a Lua tokenizer, parser and runtime; `LuaRuntime` is

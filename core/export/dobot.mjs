@@ -1,5 +1,4 @@
 import {requireThat,distance} from '../private/export/numeric.mjs';
-import {prepareExportPath} from './prepare-path.mjs';
 // Bounded Dobot adapter, sharing SAAMpath, ZIP integrity and bundle lifecycle.
 // The adopted Lua runtime executes the actual delivered helper/entry/body files.
 // Cartesian command space only: this is not robot IK or a measured flow model.
@@ -13,7 +12,6 @@ export {motionProfile,DOBOT_LIMITATIONS} from './dobot-player.mjs';
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
 export function exportDobot(path,plan,machine,release={}){
-  path=prepareExportPath(path,plan,machine);
   const c=config(plan,machine);
   requireThat(equal(path.initialPosition,c.initialPositionMm),'Dobot initial position differs from the locked external start pose.');
   inside(transform(path.initialPosition,c),c);
@@ -45,7 +43,8 @@ export function exportDobot(path,plan,machine,release={}){
   const manifest={schema:'saam-dobot-program/1',machineId:machine.id,setupHash:digest(plan.setup),machineHash:digest(machine),
     entry:'src0.lua',initialPositionMm:path.initialPosition,coordinateFrame:'SAAM design XYZ; P maps to configured tool/user frame',
     relayPolicy:c.relayPolicy,volumeModel:'SAAM commanded intent plus independent relay-rate estimate',release,limitations:DOBOT_LIMITATIONS};
-  return packZip(new Map([['global.lua',global],['src1.lua',lines.join('\n')],['src0.lua','-- Entry tab: definitions must be loaded first.\nRunPlan()\n'],['manifest.json',JSON.stringify(manifest,null,2)+'\n']]));
+  return {bytes:packZip(new Map([['global.lua',global],['src1.lua',lines.join('\n')],['src0.lua','-- Entry tab: definitions must be loaded first.\nRunPlan()\n'],['manifest.json',JSON.stringify(manifest,null,2)+'\n']])),
+    report:{limitations:DOBOT_LIMITATIONS}};
 }
 
 export function interpretDobot(bytes,plan,machine){

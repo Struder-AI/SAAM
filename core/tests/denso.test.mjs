@@ -44,10 +44,10 @@ test('DENSO setup is unresolved by default; tube geometry uses the shared native
   const native=await createGeometry(plan.geometry);await verifyGeometry(native.bytes,native.descriptor);
   assert.equal(native.descriptor.nativeFile,undefined);
   const s5=loadMachine(),old=defaults(s5);old.geometry=plan.geometry;old.placement={xMm:100,yMm:100};
-  const path=await generatePath(old,s5);assert.ok(decodeProgram(exportProgram(path,old,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),old,s5).moves.some(m=>m.extruding));
+  const path=await generatePath(old,s5);assert.ok(decodeProgram(exportProgram(path,old,s5,{generatorVersion:'test',buildDate:'2026-09-10'}).bytes,old,s5).moves.some(m=>m.extruding));
   old.slices.assignments.push(structuredClone(plan.slices.assignments.find(a=>a.stack?.direction==='normal')));validatePlan(old,s5);
   const oriented=await generatePath(old,s5);assert.ok(oriented.actions.some(action=>action.pose),'derived poses survive machine-independent generation');
-  assert.throws(()=>exportProgram(oriented,old,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),/cannot represent non-upright orientation or rotary motion/);
+  assert.throws(()=>exportProgram(oriented,old,s5,{generatorVersion:'test',buildDate:'2026-09-10'}).bytes,/cannot represent non-upright orientation or rotary motion/);
 });
 
 test('same-height cylindrical shells retain explicit prerequisites in the existing scheduler',async()=>{
@@ -66,7 +66,7 @@ test('same-height cylindrical shells retain explicit prerequisites in the existi
 test('existing mesh/spline regional skills use RC8A at fixed orientation',async()=>{
   for(const backend of ['mesh','spline']) {
     const plan=regionalStackPlan(machine,backend);plan.setup=small().setup;
-    const path=await generatePath(plan,machine),program=decodeProgram(exportProgram(path,plan,machine),plan,machine);
+    const path=await generatePath(plan,machine),program=decodeProgram(exportProgram(path,plan,machine).bytes,plan,machine);
     for(const phase of ['planar','vase-wall'])assert.ok(program.moves.some(m=>m.extruding&&m.phase===phase),phase);
     assert.ok(program.moves.some(m=>m.extruding&&m.operation?.startsWith('roof:roof-finish:')),'roof Slice deposition survives export');
     assert.ok(program.moves.every(m=>m.rotaryToDeg===0&&m.toolAxisTo[2]===-1));
@@ -82,14 +82,14 @@ test('oriented motion preserves pose-only actions and unsupported outputs reject
   const actions=[...contextualActions(path)].map(({action})=>action);
   assert.equal(actions.length,2);assert.equal(actions[0].pose.rotaryDeg,720);
   const s5=loadMachine(),unsupported=defaults(s5);
-  assert.throws(()=>exportProgram(path,unsupported,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),/cannot represent non-upright orientation or rotary motion/);
+  assert.throws(()=>exportProgram(path,unsupported,s5,{generatorVersion:'test',buildDate:'2026-09-10'}).bytes,/cannot represent non-upright orientation or rotary motion/);
   assert.throws(()=>exportAndDecodeProgram(path,unsupported,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),/cannot represent non-upright orientation or rotary motion/);
 });
 
 test('actual T/EX commands reconstruct fixed-room rotary deposition across multiple turns',()=>{
   const plan=small(),c=plan.setup.denso;c.initialPositionMm=[10,0,1];c.workOffsetMm=[15,-8,12];c.workYawDeg=37;c.rotarySign=-1;c.rotaryZeroDeg=20;
   const path={schema:'saampath/1',completion:{contract:'saam-neutral-motion/1'},initialPosition:c.initialPositionMm,initialPose:c.initialPose,actions:[{kind:'move',to:[10,0,1],pose:{...uprightPose(),rotaryDeg:720},durationSeconds:4,speedMmS:10,volumeMm3:8,phase:'hoop',layer:0}]};
-  const bytes=exportProgram(path,plan,machine),program=decodeProgram(bytes,plan,machine),moves=program.moves;
+  const bytes=exportProgram(path,plan,machine).bytes,program=decodeProgram(bytes,plan,machine),moves=program.moves;
   const deposition=moves.filter(m=>m.extruding);
   near(deposition.reduce((seconds,m)=>seconds+m.durationSeconds,0),4);near(program.volumeMm3,8);near(moves.at(-1).rotaryToDeg,720);near(program.summary.estimatedRelayVolumeMm3,2.56);
   let length=0;for(const m of deposition){length+=Math.hypot(...m.to.map((v,i)=>v-m.from[i]));const p=bedPoint(m.to,m.rotaryToDeg,c.rotaryCenterMm);p.forEach((v,i)=>near(v,[10,0,1][i]));}
@@ -107,7 +107,7 @@ test('actual T/EX commands reconstruct fixed-room rotary deposition across multi
 });
 
 test('tube export retains the substrate and normal-aligned axial/hoop shells outside it',async()=>{
-  const plan=small(),path=await generatePath(plan,machine),program=decodeProgram(exportProgram(path,plan,machine),plan,machine);
+  const plan=small(),path=await generatePath(plan,machine),program=decodeProgram(exportProgram(path,plan,machine).bytes,plan,machine);
   const order=path.summary.composition.operationOrder;assert.deepEqual(order.slice(-2),['pipe-cladding:0:fill','pipe-cladding:1:fill']);
   const body=program.moves.filter(m=>m.extruding&&m.phase==='planar'),clad=program.moves.filter(m=>m.extruding&&m.operation?.startsWith('pipe-cladding:'));
   assert.ok(body.length&&clad.length);

@@ -18,7 +18,7 @@ function fixture(id){
 }
 
 test('Griffin accepts more than 25 MB and still rejects a bad command after that boundary',()=>{
-  const {machine,plan,path}=fixture('ultimaker-s5'),base=exportProgram(path,plan,machine,release);
+  const {machine,plan,path}=fixture('ultimaker-s5'),base=exportProgram(path,plan,machine,release).bytes;
   const padding=(';'+'.'.repeat(998)+'\n').repeat(25_001);
   const end=base.indexOf('M400'),code=base.slice(0,end)+padding+base.slice(end);
   assert.ok(code.length>25_000_000);
@@ -34,7 +34,7 @@ test('H2D exports and checks a body beyond 25 MB through the shared interpreter'
   // Legal operation comments exercise a large real package without allocating
   // hundreds of thousands of retained motion objects in the unit-test worker.
   path.actions[1].operation='large-test-'+'.'.repeat(25_000_001);
-  const bytes=exportProgram(path,plan,machine,release);
+  const bytes=exportProgram(path,plan,machine,release).bytes;
   const entries=unpackZip(bytes);
   assert.ok(entries.get('Metadata/plate_1.gcode').length>25_000_000);
   const program=decodeProgram(bytes,plan,machine);

@@ -1,10 +1,7 @@
 import {PROGRAM_DECIMALS} from '../dimensions.mjs';
 import {requireThat} from '../private/export/numeric.mjs';
-import {prepareExportPath} from './prepare-path.mjs';
-// Bounded Bambu output (H2D, X1 Carbon), not an interpreter for arbitrary
-// Bambu Studio jobs. Firmware service commands come from the pinned
-// envelope in the machine file, which also owns every model-specific fact.
-// The intervening print body is reconstructed by the shared modal interpreter.
+// Bounded Bambu output (H2D, X1 Carbon). Firmware service commands come from
+// the pinned envelope in the machine file, which also owns every model-specific fact.
 import {createHash} from 'node:crypto';
 import {deflateSync} from 'node:zlib';
 import {exportBambuBody} from './bambu-body.mjs';
@@ -116,26 +113,24 @@ function configBlock(settings){
     .map(([key,value])=>'; '+key+' = '+render(key,value)),'; CONFIG_BLOCK_END'];
 }
 
+// Package totals, layer lists and thumbnails come from what the body writer
+// wrote; the body is never read back.
 export function exportBambu(path,plan,machine,release){
-  return exportAndInterpretBambu(path,plan,machine,release).bytes;
-}
-
-// The body must be interpreted to populate package totals and thumbnails. Keep
-// that result with the exact bytes assembled from it instead of parsing the
-// same million-command body again immediately after packaging. Imported bytes
-// enter through interpretBambu.
-export function exportAndInterpretBambu(path,plan,machine,release){
-  path=prepareExportPath(path,plan,machine);
   const output=configuration(plan,machine);
   const filamentSequence=[plan.setup.bambu?.filament,...path.actions.filter(a=>a.kind==='toolChange').map(a=>a.filament)];
   const job=resolveBambuJob(plan,machine,output,{filamentSequence});
-  const body=exportBambuBody(path,plan,machine);
-  const program=interpretBody(body,plan,machine);
-  requireThat(JSON.stringify(program.filamentSequence)===JSON.stringify(filamentSequence),'Bambu interpreted filament order differs from startup calibration.');
+  const {body,segments}=exportBambuBody(path,plan,machine);
+  const usage=new Map(),layerUse=new Map();let volumeMm3=0,seconds=0;
+  for(const {filament,tool,tally} of segments){
+    volumeMm3+=tally.volumeMm3;seconds+=tally.seconds;
+    usage.set(filament,{filament,tool,volumeMm3:(usage.get(filament)?.volumeMm3??0)+tally.volumeMm3});
+    for(const key of tally.layers){if(!layerUse.has(key))layerUse.set(key,new Set());layerUse.get(key).add(filament);}
+  }
+  const written={filamentSequence,filamentUsage:[...usage.values()].filter(u=>u.volumeMm3>0),volumeMm3,seconds,layerUse,
+    strokes:segments.flatMap(segment=>segment.tally.strokes)};
   const c=contextFor(path,plan,machine,release),s=sections(c,job,output);
-  const code=header(c,program,job)+s.start+BEGIN+body+END+s.end+'; EXECUTABLE_BLOCK_END\n';
-  const bytes=packZip(packageEntries(code,c,program,plan,output,job,s));
-  return {bytes,program:completeProgram(program,code,c,s,job)};
+  const code=header(c,written,job)+s.start+BEGIN+body+END+s.end+'; EXECUTABLE_BLOCK_END\n';
+  return {bytes:packZip(packageEntries(code,c,written,plan,output,job,s)),report:report(written,c,s,job)};
 }
 export function interpretBambu(bytes,plan,machine,options={}){
   validateSetup(plan,machine);
@@ -147,46 +142,43 @@ export function interpretBambu(bytes,plan,machine,options={}){
   const body=code.slice(begin+BEGIN.length,end),program=interpretBody(body,plan,machine,options);
   const job=resolveBambuJob(plan,machine,output,{filamentSequence:program.filamentSequence});
   checkContext(c,plan,machine,program.filamentSequence.map(filament=>job.selections[filament].setup.tool));
-  return completeProgram(program,code,c,sections(c,job,output),job);
+  let prefixLines=-1;for(const _line of gcodeLines(code.slice(0,begin+BEGIN.length)))prefixLines++;
+  const r=report(program,c,sections(c,job,output),job);
+  return {...program,checks:[...(program.checks??[]),'fixed-firmware-envelope'],
+    moves:program.moves.map(move=>({...move,line:move.line+prefixLines})),
+    events:program.events.map(event=>({...event,line:event.line+prefixLines})),
+    summary:{...program.summary,startup:r.notice,clearance:r.limitations[0]},code,envelope:r.envelope};
 }
 
-function completeProgram(program,code,c,s,job){
-  const begin=code.indexOf(BEGIN);
-  requireThat(program.moves.every(m=>m.to[2]<=c.pathMaxZ+1e-5),'Bambu body exceeds declared shutdown clearance.');
-  let prefixLines=-1;for(const _line of gcodeLines(code.slice(0,begin+BEGIN.length)))prefixLines++;
+// What the person confirms beyond the drawn path: firmware service, feed mapping, estimates.
+function report(written,c,s,job){
   const notice='Firmware probing, wiping, calibration, purge, tool changes and unload follow bounded service recipes; they are not simulated. Playback and timing cover body motion only.';
   const tray=job.requestedTray;
   const mapping=tray?`Requested AMS ${tray.unit}, slot ${tray.slot}: confirm the printer maps this job's filament to that tray before starting.`:
     'Material and colour are supplied for automatic matching; review the printer’s proposed feed mapping before starting.';
-  const materialChangeCount=program.filamentSequence.slice(1).filter((id,i)=>job.selections[id].setup.tool===job.selections[program.filamentSequence[i]].setup.tool).length;
+  const materialChangeCount=written.filamentSequence.slice(1).filter((id,i)=>job.selections[id].setup.tool===job.selections[written.filamentSequence[i]].setup.tool).length;
   const materialChanges=job.materialChange&&materialChangeCount?{...job.materialChange,count:materialChangeCount}:null;
   const envelope={contract:c.contract,simulation:'not simulated',initialPosition:c.initialPosition,endClearanceZ:s.endClearanceZ,notice,
     job:{tool:job.tool,fast_start:job.fastStart,nozzleMm:job.nozzle,nozzleDiametersMm:job.nozzles.map(Number),plate:job.plate.name,
       logicalFilament:job.used,filamentColor:job.color,requestedTray:tray,amsConnections:job.amsConnections,
-      filamentUsage:program.filamentUsage,filamentSequence:program.filamentSequence,
+      filamentUsage:written.filamentUsage,filamentSequence:written.filamentSequence,
       feeds:job.filaments.map((f,i)=>({filament:i,tool:job.selections[i].setup.tool,material:job.material,colour:f.colour,source:f.source??(job.selections[i].setup.ams?{type:'ams',...job.selections[i].setup.ams}:{type:'auto'})})),
       ...(materialChanges?{materialChanges}:{})}};
   const startup=(job.fastStart?'Fast startup: optional calibration, scans and vibration tests skipped. Homing, temperature waits, loading, wiping and priming remain. ':'')+notice+' '+mapping
     +(materialChanges?` Each same-nozzle AMS change requests ${job.materialChange.flushMm3} mm³ of chute flushing${job.nozzles.length===1?' plus 2 mm of filament for priming':''}; firmware loading/priming and service material/time are additional to the part totals.`:'');
-  return {...program,
-    checks:[...(program.checks??[]),'fixed-firmware-envelope'],
-    moves:program.moves.map(move=>({...move,line:move.line+prefixLines})),
-    events:program.events.map(event=>({...event,line:event.line+prefixLines})),
-    summary:{...program.summary,startup,clearance:'Deposited-height travel checked; physical head clearance is not modeled.'},
-    code,envelope};
+  return {notice:startup,seconds:written.seconds,volumeMm3:written.volumeMm3,
+    limitations:['Deposited-height travel checked; physical head clearance is not modeled.'],envelope};
 }
 
 function packageEntries(code,c,program,plan,output,job,s){
   const {tool,map,nozzle,nozzles,color,used,count:declared,declaredMaps,limitMaps:usedFlags,settings,toolZeros}=job;
-  const usedTray=job.filaments[used],volume=program.volumeMm3,filament=program.summary.filamentMm,weight=volume/1000*job.density;
+  const volume=program.volumeMm3,weight=volume/1000*job.density;
   const usage=program.filamentUsage.slice().sort((a,b)=>a.filament-b.filament),area=Math.PI*(job.filamentMm/2)**2;
   const usedNozzles=[...new Set(usage.map(u=>u.tool))].sort();
-  const layerUse=new Map();
-  for(const move of program.moves)if(move.extruding){const key=`${move.phase}:${move.layer}`;if(!layerUse.has(key))layerUse.set(key,new Set());layerUse.get(key).add(move.filament??used);}
   const filamentXml=usage.map(u=>`    <filament id="${u.filament+1}" tray_info_idx="${xml(job.filaments[u.filament].id)}" type="${xml(job.material)}" color="${xml(job.filaments[u.filament].colour)}" used_m="${fmt(u.volumeMm3/area/1000,4)}" used_g="${fmt(u.volumeMm3/1000*job.density,3)}" group_id="${u.tool}" nozzle_diameter="${Number(nozzles[u.tool]).toFixed(2)}" volume_type="${job.volumeType}" used_for_object="true" used_for_support="false" total_load_time="26.00" total_unload_time="0.00"/>`).join('\n');
   const nozzleXml=usedNozzles.map(t=>`    <nozzle id="${t}" extruder_id="${t+1}" nozzle_diameter="${nozzles[t]}" volume_type="${job.volumeType}"/>`).join('\n');
   const layerXml=program.filamentSequence.length===1?`      <layer_filament_list filament_list="${used}" layer_ranges="0 ${c.layers-1}" />`:
-    [...layerUse.values()].map((ids,i)=>`      <layer_filament_list filament_list="${[...ids].sort().join(' ')}" layer_ranges="${i} ${i}" />`).join('\n');
+    [...program.layerUse.values()].map((ids,i)=>`      <layer_filament_list filament_list="${[...ids].sort().join(' ')}" layer_ranges="${i} ${i}" />`).join('\n');
   const seconds=Math.ceil(program.seconds),bbox=[c.bounds.min[0],c.bounds.min[1],c.bounds.max[0],c.bounds.max[1]];
   const plate={bbox_all:bbox,bbox_objects:[{area:(bbox[2]-bbox[0])*(bbox[3]-bbox[1]),bbox,id:1,layer_height:plan.process.layerMm,name:'SAAM part'}],
     bed_type:job.plate.id,filament_colors:usage.map(u=>job.filaments[u.filament].colour),filament_ids:usage.map(u=>u.filament),first_extruder:used,first_layer_time:0,is_seq_print:false,nozzle_diameter:nozzle,version:2};
@@ -204,19 +196,19 @@ function packageEntries(code,c,program,plan,output,job,s){
   ]);
   const thumbnails=new Map();
   for(const [name,size] of [['plate_1',256],['plate_1_small',128],['plate_no_light_1',256],['top_1',256],['pick_1',256]]){
-    if(!thumbnails.has(size))thumbnails.set(size,thumbnail(program.moves,c.bounds,size));
+    if(!thumbnails.has(size))thumbnails.set(size,thumbnail(program.strokes,c.bounds,size));
     entries.set(`Metadata/${name}.png`,thumbnails.get(size));
   }
   return entries;
 }
 
-// Fresh toolpath thumbnail from the interpreted output, never the user's
+// Fresh toolpath thumbnail from the written depositions, never the user's
 // reference object's thumbnail. This is a schematic top view, not geometry.
-function thumbnail(moves,bounds,size){
+function thumbnail(strokes,bounds,size){
   const pixels=Buffer.alloc(size*size*4);for(let i=0;i<pixels.length;i+=4){pixels[i]=24;pixels[i+1]=30;pixels[i+2]=35;pixels[i+3]=255;}
   const span=Math.max(bounds.max[0]-bounds.min[0],bounds.max[1]-bounds.min[1]),scale=(size-20)/span;
   const project=p=>[Math.round(10+(p[0]-bounds.min[0])*scale),Math.round(size-11-(p[1]-bounds.min[1])*scale)];
-  for(const m of moves){if(!m.extruding)continue;const a=project(m.from),b=project(m.to),n=Math.max(1,Math.abs(b[0]-a[0]),Math.abs(b[1]-a[1]));for(let j=0;j<=n;j++){
+  for(const [from,to] of strokes){const a=project(from),b=project(to),n=Math.max(1,Math.abs(b[0]-a[0]),Math.abs(b[1]-a[1]));for(let j=0;j<=n;j++){
     const x=Math.round(a[0]+(b[0]-a[0])*j/n),y=Math.round(a[1]+(b[1]-a[1])*j/n);if(x<0||y<0||x>=size||y>=size)continue;
     const k=(y*size+x)*4;pixels[k]=40;pixels[k+1]=160;pixels[k+2]=144;
   }}

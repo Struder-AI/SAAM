@@ -1,6 +1,6 @@
 import {PROGRAM_DECIMALS} from '../dimensions.mjs';
 import {requireThat} from '../private/export/numeric.mjs';
-import {exportMotion} from './griffin.mjs';
+import {gcodeMotion} from './gcode-motion.mjs';
 import {checkedFilamentPlan as filamentPlan} from '../machine/filaments.mjs';
 import {renderBambuChange} from './bambu-change.mjs';
 
@@ -8,14 +8,17 @@ import {sameNozzleMaterialChanges} from '../machine/rules.mjs';
 
 // Explicit modal and temperature state at the start of each body segment.
 const prelude=plan=>`G90\nG21\nM83\nG92 E0\nM190 S${plan.setup.bedC}\nM109 S${plan.setup.nozzleC}\n`;
+// Returns the body text and, per material segment, what its commands deposit.
 export function exportBambuBody(path,plan,machine){
   const travelCommand=machine.outputs.find(o=>o.id===plan.output).constraints.bodyTravelCommand;
   requireThat(travelCommand==='G1','Bambu body requires coordinated G1 travel.');
   let filament=plan.setup.bambu.filament,selected=filamentPlan(plan,machine,filament),position=[...path.initialPosition],start=[...position],fan=0,count=0;
-  const debt={},lines=[],usedTools=new Map([[selected.setup.tool,filament]]);let actions=[];
+  const debt={},lines=[],segments=[],usedTools=new Map([[selected.setup.tool,filament]]);let actions=[];
   const flush=()=>{
     lines.push(prelude(selected).trimEnd());
-    for(const line of exportMotion({...path,initialPosition:start,actions},selected,{extrusionMode:'relative',travelCommand}))lines.push(line==='M107'?'M106 S0':line);
+    const written=gcodeMotion({...path,initialPosition:start,actions},selected,{extrusionMode:'relative',travelCommand});
+    for(const line of written.lines)lines.push(line==='M107'?'M106 S0':line);
+    segments.push({filament,tool:selected.setup.tool,tally:written.tally});
     actions=[];
   };
   for(const action of path.actions){
@@ -37,5 +40,5 @@ export function exportBambuBody(path,plan,machine){
     if(action.kind==='recover')debt[selected.setup.tool]=Math.max(0,(debt[selected.setup.tool]??0)-action.filamentMm);
     if(action.kind==='fan')fan=Math.round(action.percent*255/100);
   }
-  flush();return lines.join('\n')+'\n';
+  flush();return {body:lines.join('\n')+'\n',segments};
 }

@@ -2,7 +2,7 @@ import './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {gcodeLines} from '../export/gcode-lines.mjs';
-import {interpretMotion} from '../export/griffin.mjs';
+import {interpretMotion} from '../export/griffin-player.mjs';
 import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 

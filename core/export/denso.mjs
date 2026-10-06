@@ -1,6 +1,5 @@
 import {requireThat,distance} from '../private/export/numeric.mjs';
 import {rotateZ,rotatePointZ as bedPoint,validateDirectionPair} from '../geom/frame.mjs';
-import {prepareExportPath} from './prepare-path.mjs';
 import {createHash} from 'node:crypto';
 import {packZip,unpackZip} from './zip.mjs';
 import {interpretDensoFiles,toWork,DENSO_LIMITATIONS} from './denso-player.mjs';
@@ -9,7 +8,6 @@ import {validateDensoConfiguration} from '../machine/denso.mjs';
 const digest=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
 const num=x=>{requireThat(Number.isFinite(x),'Nonfinite PacScript number.');return Number(x.toFixed(8));};
 export function exportDenso(path,plan,machine,release={}){
-  path=prepareExportPath(path,plan,machine);
   validateDensoConfiguration(plan,{required:true});const c=plan.setup.denso;
   requireThat(distance(path.initialPosition,c.initialPositionMm)<1e-8,'DENSO initial position differs from setup.');
   const defaultPose={rotaryDeg:0,toolAxis:[0,0,-1],toolUp:[0,1,0]},initial=path.initialPose??defaultPose;
@@ -41,7 +39,7 @@ export function exportDenso(path,plan,machine,release={}){
   files.set('main.pcs',[...names.map(n=>`#Include "${n}.pcs"`),"' SAAM experimental RC8A; external start/heat and rotary setup required.",'Sub Main',`  TakeArm ${c.armGroup} Keep = 0`,`  ChangeTool ${c.toolFrame}`,`  ChangeWork ${c.workFrame}`,`  Reset IO[${c.extrusionOutput}]`,...names.map(n=>'  Call '+n),`  Reset IO[${c.extrusionOutput}]`,'End Sub',''].join('\n'));
   files.set('manifest.json',JSON.stringify({schema:'saam-denso-program/1',entry:'main.pcs',machineHash:digest(machine),setupHash:digest(plan.setup),release,limitations:DENSO_LIMITATIONS,
     initialRotaryControllerDeg:c.rotaryZeroDeg+c.initialPose.rotaryDeg*c.rotarySign,sourceFiles:[...files.keys()]},null,2)+'\n');
-  return packZip(files);
+  return {bytes:packZip(files),report:{limitations:DENSO_LIMITATIONS}};
 }
 export function interpretDenso(bytes,plan,machine){
   const entries=unpackZip(bytes);requireThat(entries.has('manifest.json'),'Missing DENSO manifest.');

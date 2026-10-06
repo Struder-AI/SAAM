@@ -3,7 +3,6 @@ import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createHash} from 'node:crypto';
 import {interpretMachineStudy} from '../core/export/machine-study.mjs';
-import {withTravelAdvisory} from '../core/export/travel-advisory.mjs';
 import {createFileSnapshot} from '../core/print/file-snapshot.mjs';
 const checked={study:null};
 const hash=s=>createHash('sha256').update(s).digest('hex');
@@ -21,7 +20,7 @@ export async function loadBundle(dir,{program=true,allSources=false}={}){
   const [planText,machineText,source]=await files(dir,program||allSources),plan=JSON.parse(planText),machine=JSON.parse(machineText);
   if(plan.schema!=='saam-machine-study/1'||plan.output!=='machine-study')throw Error('Invalid machine study plan');
   const name='motion.json';
-  if(source!==undefined&&checked.study?.source!==source)checked.study={source,program:withTravelAdvisory(interpretMachineStudy(source))};
+  if(source!==undefined&&checked.study?.source!==source)checked.study={source,program:interpretMachineStudy(source)};
   const decoded=source===undefined?null:checked.study.program,revision=hash(planText+machineText),outputId=source===undefined?undefined:hash(source),bounds=plan.studyBounds;
   if(!bounds||!['min','max'].every(k=>bounds[k]?.length===3&&bounds[k].every(Number.isFinite)))throw Error('Study needs finite display bounds');
   const sources=source===undefined?[]:[{name,sha256:outputId}];

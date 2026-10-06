@@ -35,8 +35,8 @@ test('Dobot unconfigured profile is discoverable and allows geometry review, but
 });
 test('Dobot executes actual archived Lua, preserves three skill paths and reports relay estimates separately',async()=>{
   const {machine,plan}=fixture(),path=await generatePath(plan,machine);
-  const bytes=exportProgram(path,plan,machine,release),program=decodeProgram(bytes,plan,machine);
-  assert.deepEqual(bytes,exportProgram(path,plan,machine,release));
+  const bytes=exportProgram(path,plan,machine,release).bytes,program=decodeProgram(bytes,plan,machine);
+  assert.deepEqual(bytes,exportProgram(path,plan,machine,release).bytes);
   const expected=prepareExportPath(path,plan,machine).actions.filter(a=>a.kind==='move');assert.equal(program.moves.length,expected.length);
   expected.forEach((m,i)=>{m.to.forEach((v,k)=>assert.ok(Math.abs(v-program.moves[i].to[k])<6e-6));assert.equal(m.volumeMm3,program.moves[i].volumeMm3);});
   assert.ok(program.moves.some(m=>/^body:\d+:fill$/.test(m.operation)),'solid top and bottom layers');
@@ -48,7 +48,7 @@ test('Dobot executes actual archived Lua, preserves three skill paths and report
   assert.ok(program.moves.every(m=>m.durationSeconds>0&&m.interpolation==='rest-to-rest-linear'));
 });
 test('Dobot Lua interpreter rejects missing helpers, unsupported commands, altered frames, blending and relay state',async()=>{
-  const {machine,plan}=fixture(),path=await generatePath(plan,machine),bytes=exportProgram(path,plan,machine,release);
+  const {machine,plan}=fixture(),path=await generatePath(plan,machine),bytes=exportProgram(path,plan,machine,release).bytes;
   const change=(file,before,after)=>{const e=unpackZip(bytes);e.set(file,Buffer.from(e.get(file).toString().replace(before,after)));return packZip(e);};
   const e=unpackZip(bytes);e.delete('global.lua');assert.throws(()=>decodeProgram(packZip(e),plan,machine),/must contain exactly/);
   assert.throws(()=>decodeProgram(change('src1.lua','  MovL(','  MovJ('),plan,machine),/MovJ/);
@@ -75,10 +75,10 @@ test('the Lua reader stops a program that commands nothing, not one that keeps c
 test('Dobot rejects invalid instance/unsupported process and checks calibrated workspace and feed',async()=>{
   const {machine,plan}=fixture(),path=await generatePath(plan,machine);
   for(const [key,value,pattern] of [['scaleX',0,/scaleX/],['relayPolicy','continuous',/relay policy/],['temperatureControl',null,/unconfigured/],['workspaceMaxMm',[0,0,1],/workspace/],['maxLinearSpeedMmS',1,/linear speed/]]){
-    const p=structuredClone(plan);p.setup.dobot[key]=value;assert.throws(()=>exportProgram(path,p,machine,release),pattern);
+    const p=structuredClone(plan);p.setup.dobot[key]=value;assert.throws(()=>exportProgram(path,p,machine,release).bytes,pattern);
   }
-  const p=structuredClone(plan);p.process.retractMm=1;assert.throws(()=>exportProgram(path,p,machine,release),/cannot retract/);
-  const fan=structuredClone(path);fan.actions.push({kind:'fan',percent:50,phase:'test',layer:0});assert.throws(()=>exportProgram(fan,plan,machine,release),/fan control/);
+  const p=structuredClone(plan);p.process.retractMm=1;assert.throws(()=>exportProgram(path,p,machine,release).bytes,/cannot retract/);
+  const fan=structuredClone(path);fan.actions.push({kind:'fan',percent:50,phase:'test',layer:0});assert.throws(()=>exportProgram(fan,plan,machine,release).bytes,/fan control/);
 });
 test('Dobot relay policy keeps adjacent print moves on, turns off for travel/dwell and adds no priming wait',()=>{
   const {machine,plan}=fixture(),action=(to,volumeMm3)=>({kind:'move',to,speedMmS:10,volumeMm3,phase:'test',layer:0});
@@ -86,7 +86,7 @@ test('Dobot relay policy keeps adjacent print moves on, turns off for travel/dwe
     action([190,180,20],0),action([180,180,20],0.8),action([170,180,20],0.8),
     {kind:'dwell',seconds:0.5,phase:'test',layer:0},action([160,180,20],0),action([150,180,20],0.8)
   ]};
-  const bytes=exportProgram(path,plan,machine,release),program=decodeProgram(bytes,plan,machine);
+  const bytes=exportProgram(path,plan,machine,release).bytes,program=decodeProgram(bytes,plan,machine);
   assert.deepEqual(program.moves.map(m=>m.extruding),[false,true,true,false,true]);
   assert.equal(program.events.filter(e=>e.kind==='extrusion-on').length,2);
   const dwells=program.events.filter(e=>e.kind==='dwell');assert.equal(dwells.length,1);assert.equal(dwells[0].seconds,0.5);
@@ -100,7 +100,7 @@ test('a pause longer than one Wait command is split, not refused',()=>{
   const program=seconds=>{
     const path={schema:'saampath/1',completion:{contract:'saam-neutral-motion/1'},initialPosition:[200,180,20],actions:[
       action([190,180,20],0),{kind:'dwell',seconds,phase:'test',layer:0},action([180,180,20],0.8)]};
-    const bytes=exportProgram(path,plan,machine,release);
+    const bytes=exportProgram(path,plan,machine,release).bytes;
     return {body:unpackZip(bytes).get('src1.lua').toString(),read:decodeProgram(bytes,plan,machine)};
   };
   const short=program(12);

@@ -1,15 +1,17 @@
 import {requireThat} from '../private/export/numeric.mjs';
-import {exportGriffin,interpretGriffin} from './griffin.mjs';
-import {exportBambu,interpretBambu,exportAndInterpretBambu} from './bambu.mjs';
+import {exportGriffin} from './griffin.mjs';
+import {interpretGriffin} from './griffin-player.mjs';
+import {exportBambu,interpretBambu} from './bambu.mjs';
 import {exportDobot,interpretDobot} from './dobot.mjs';
 import {exportDenso,interpretDenso} from './denso.mjs';
-
-import {withTravelAdvisory} from './travel-advisory.mjs';
+import {prepareExportPath} from './prepare-path.mjs';
+import {shortTravelAdvisory,preparedTravelAdvisory} from './travel-advisory.mjs';
 import {unpackZip} from './zip.mjs';
+// Each adapter writes a prepared path and returns {bytes, report}.
 const adapters={
   'denso-pacscript':{export:exportDenso,interpret:interpretDenso},
   'griffin-gcode':{export:exportGriffin,interpret:(bytes,plan,machine,options)=>interpretGriffin(Buffer.isBuffer(bytes)?bytes.toString('utf8'):bytes,plan,machine,options)},
-  'bambu-gcode':{export:exportBambu,interpret:interpretBambu,exportAndInterpret:exportAndInterpretBambu},
+  'bambu-gcode':{export:exportBambu,interpret:interpretBambu},
   'dobot-lua':{export:exportDobot,interpret:interpretDobot}
 };
 export function outputAdapter(plan,machine){
@@ -18,21 +20,23 @@ export function outputAdapter(plan,machine){
   requireThat(declaration.implemented!==false&&adapters[declaration.id],declaration.reason??`No exporter/interpreter for ${declaration.id}.`);
   return adapters[declaration.id];
 }
-export const exportProgram=(path,plan,machine,release)=>{
-  return outputAdapter(plan,machine).export(path,plan,machine,release);
-};
-export const decodeProgram=(code,plan,machine,options={})=>withTravelAdvisory(outputAdapter(plan,machine).interpret(code,plan,machine,options));
+// Prepares the path once, writes it, and adds the short-travel advisory on
+// the prepared path to the adapter's report.
+export function exportProgram(path,plan,machine,release){
+  const adapter=outputAdapter(plan,machine),prepared=prepareExportPath(path,plan,machine);
+  const {bytes,report}=adapter.export(prepared,plan,machine,release);
+  return {bytes,report:{...report,shortTravel:preparedTravelAdvisory(prepared,plan)}};
+}
+export function decodeProgram(code,plan,machine,options={}){
+  const program=outputAdapter(plan,machine).interpret(code,plan,machine,options);
+  return {...program,summary:{...program.summary,shortTravel:shortTravelAdvisory(program.moves,plan.process.lineWidthMm)}};
+}
 
-// Generation decodes the emitted commands for summaries and display. Source
-// loading extracts text without replaying motion or auditing the writer.
+// Generation still decodes the written program for Studio playback; its
+// advisory is the prepared path's.
 export function exportAndDecodeProgram(path,plan,machine,release){
-  const adapter=outputAdapter(plan,machine);
-  if(adapter.exportAndInterpret){
-    const result=adapter.exportAndInterpret(path,plan,machine,release);
-    return {...result,program:withTravelAdvisory(result.program)};
-  }
-  const bytes=adapter.export(path,plan,machine,release);
-  return {bytes,program:withTravelAdvisory(adapter.interpret(bytes,plan,machine))};
+  const {bytes,report}=exportProgram(path,plan,machine,release),program=outputAdapter(plan,machine).interpret(bytes,plan,machine);
+  return {bytes,report,program:{...program,summary:{...program.summary,shortTravel:report.shortTravel}}};
 }
 
 // Bundle already owns the exact artifact hash and locked settings. Extract the

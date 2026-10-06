@@ -543,6 +543,10 @@
       "owner": "export",
       "reason": "Common program text/time/container representation."
     },
+    "core/export/gcode-motion.mjs": {
+      "owner": "export",
+      "reason": "Shared G-code motion writer offered to machine adapters."
+    },
     "core/export/griffin.mjs": {
       "owner": "export",
       "reason": "Machine dialect export and interpretation."
@@ -2168,13 +2172,28 @@
     "core/export/griffin.mjs::exportGriffin::render": {
       "owner": "export"
     },
-    "core/export/griffin.mjs::exportMotion": {
+    "core/export/gcode-motion.mjs::gcodeMotion": {
       "owner": "export"
     },
-    "core/export/griffin.mjs::exportMotion::field": {
+    "core/export/gcode-motion.mjs::gcodeMotion::field": {
       "owner": "export"
     },
-    "core/export/griffin.mjs::exportMotion::motion": {
+    "core/export/gcode-motion.mjs::gcodeMotion::motion": {
+      "owner": "export"
+    },
+    "core/export/gcode-motion.mjs::gcodeMotion::deposit": {
+      "owner": "export"
+    },
+    "core/export/gcode-motion.mjs::@module": {
+      "owner": "export"
+    },
+    "core/export/gcode-motion.mjs::fmt": {
+      "owner": "export"
+    },
+    "core/export/travel-advisory.mjs::preparedTravelAdvisory": {
+      "owner": "export"
+    },
+    "core/export/bambu.mjs::report": {
       "owner": "export"
     },
     "core/export/griffin.mjs::fmt": {
