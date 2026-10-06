@@ -578,10 +578,12 @@ export function solvedModel() {
 // leaf-arrow count, each read in full at `link` with FROM and TO filled in. Map 0 alone adds the
 // preview note, `notAnalysed` files, changed sources and the `lists` addresses with their counts.
 // A link read is that one arrow's leaf arrows, `FROM → TO KIND ×N` grouped by box direction;
-// `@unlinked` and `@unowned` are the lists. Leaves are not maps.
+// `@unlinked` and `@unowned` are the lists; `@path/PATH` the map-0 boxes owning leaves in a file
+// or folder; `@stale` the files changed since the analysis, which every other read counts.
+// Leaves are not maps.
 const range=(a,b)=>a===b?`${a}`:`${a}-${b}`;
 const ARROW={one:'→',ack:'•→',both:'↔'};
-const LIST_UNLINKED='@unlinked',LIST_UNOWNED='@unowned',LIST_SHARED='@cross-owner-state',LIST_CHANNELS='@unresolved-channels';
+const LIST_UNLINKED='@unlinked',LIST_UNOWNED='@unowned',LIST_SHARED='@cross-owner-state',LIST_CHANNELS='@unresolved-channels',LIST_STALE='@stale',PATH='@path/';
 const byKey=(a,b)=>order(fileOf(a),fileOf(b))||keyParts(a).offset-keyParts(b).offset;
 const named=new WeakMap();
 function leafNames(m) {
@@ -593,9 +595,12 @@ function leafNames(m) {
     .forEach((key,k)=>names.set(key,keys.length>1?`${name} #${k+1}`:name));
   named.set(m,names);return names;
 }
+// A cluster address may drop its `@cluster/` prefix: `export` is the Export node's map.
 function pageOf(m,key) {
-  const page=m.pages.find(p=>p.index===key||p.path===key||p.key===key)??(m.leaves[key]?.index?m.pages.find(p=>p.index===m.leaves[key].index):null);
-  if(!page)throw Error(`No map ${key}. Read 0 for the top map.`);
+  const page=m.pages.find(p=>p.index===key||p.path===key||p.path===`@cluster/${key}`||p.key===key)??(m.leaves[key]?.index?m.pages.find(p=>p.index===m.leaves[key].index):null);
+  if(!page)throw Error(`No map ${key}. Addresses: a map index (0 is the top map), a node or cluster (${m.pages.find(p=>p.index===TOP).components
+    .filter(c=>c.path?.startsWith('@cluster/')).map(c=>c.path.slice(9)).join(', ')}, or @cluster/IDENTITY), @link/MAP/FROM/TO, ${PATH}FILE-OR-FOLDER, `
+    +`${[LIST_UNLINKED,LIST_UNOWNED,LIST_SHARED,LIST_CHANNELS,LIST_STALE].join(', ')}.`);
   if(page.destination==='code')throw Error(`Source leaf ${key} is not a map. Use normal file tools at the source ranges shown on its containing map.`);
   return page;
 }
@@ -671,12 +676,23 @@ function listRead(m,address) {
   return {unlinked:groups};
 }
 
+// The map-0 boxes owning leaves in a file or folder, by index: where to start reading it.
+function pathRead(m,address) {
+  const path=address.slice(PATH.length).replaceAll('\\','/').replace(/\/+$/,''),pages=new Map(m.pages.map(p=>[p.path,p])),counts=new Map();
+  for(const r of Object.values(m.leaves))if(r.file===path||r.file?.startsWith(`${path}/`))counts.set(r.owner??UNOWNED,(counts.get(r.owner??UNOWNED)??0)+1);
+  return {path,owners:Object.fromEntries([...counts].map(([owner,n])=>{const p=pages.get(`@cluster/${owner}`);
+    return [p?.index??owner,`${p?.label??owner} · ${n} ${n===1?'leaf':'leaves'}`];}))};
+}
+
+// A read after source changed counts the changed files; `@stale` lists them.
 export function readSolved(address='0') {
   const m=stored(),key=String(address),stale=staleness(m);
+  if(key===LIST_STALE)return {changed:stale?.files??[],regenerate:m.regenerate};
   const root=m.pages.find(p=>p.index===TOP);
   const result=key.startsWith('@link/')?linkRead(m,key):key===LIST_UNLINKED||key===LIST_UNOWNED?listRead(m,key)
-    :key===LIST_SHARED?{crossOwnerState:root.crossOwnerState??[]}:key===LIST_CHANNELS?{unresolvedChannels:root.channels?.unresolved??{}}:mapRead(m,pageOf(m,key));
-  return {...result,...(stale?{stale}:{})};
+    :key===LIST_SHARED?{crossOwnerState:root.crossOwnerState??[]}:key===LIST_CHANNELS?{unresolvedChannels:root.channels?.unresolved??{}}
+    :key.startsWith(PATH)?pathRead(m,key):mapRead(m,pageOf(m,key));
+  return {...result,...(stale?{stale:{reason:stale.reason,files:stale.files.length,list:LIST_STALE,regenerate:stale.regenerate}}:{})};
 }
 
 // Each map read presents the drawing's picture: its arrows are the drawn pairs (same boxes,

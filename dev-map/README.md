@@ -45,19 +45,19 @@ node dev-map/cli.mjs --set NAME serve [--port N] | import-layout FILE   # author
 ```
 
 Read map 0, then a box, then `@link/MAP/FROM/TO` for the leaf arrows behind an arrow, then the
-source at `file:lines` with ordinary file tools. Addresses are map indexes, `@cluster/NODE-ID` for
-an authored node, `@cluster/IDENTITY` for a solved cluster (a map read gives it as `address`),
-`@link/MAP/FROM/TO`, `@unlinked` and `@unowned`. Indexes are renumbered by any re-solve; a
-cluster's identity is not ([cluster identity](#cluster-identity)), so keep that to refer to a
-cluster across regenerations. A leaf is not a map: read its source.
+source at `file:lines` with ordinary file tools. Addresses are map indexes, `[@cluster/]NODE-ID`
+for an authored node, `@cluster/IDENTITY` for a solved cluster (a map read gives it as `address`),
+`@link/MAP/FROM/TO`, `@path/FILE-OR-FOLDER` (the map-0 boxes owning its leaves), `@unlinked`,
+`@unowned` and `@stale`; an unknown address lists them. Indexes change with any re-solve; cluster
+identities do not ([cluster identity](#cluster-identity)). A leaf is not a map: read its source.
 
 A map `read` is its drawing: `boxes` (a cluster's label and leaf count; a leaf as
 `NAME FILE:LINES`, marked only `command` or `command returning data`, outside `folded` ranges,
 `possibly caller-dependent`), `boundary` names, and `arrows`, each drawn pair (`→`, `•→`, `↔`) with
 its leaf-arrow count, read whole at `@link/MAP/FROM/TO` as `FROM → TO KIND ×N` by direction. Map 0
 adds the preview note, `notAnalysed` and counts for `@unlinked` and `@unowned`, whose reads list
-those leaves. Reads never return code or solve. A read made after source changed reports
-the changed files and the regenerate command; a missing store fails.
+those leaves. Reads never return code or solve. A read made after source changed counts the
+changed files (`@stale` lists them) and gives the regenerate command; a missing store fails.
 
 **Replacement contract:** a change to a reader or integration preserves this read on the direct
 CLI, toolkit and onboarding routes: every drawn relationship, exact source ranges and change
