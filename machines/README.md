@@ -34,7 +34,8 @@ clearance is rated: the X1 (10°) and H2D (15°) limits are user-chosen and expe
    block's template; `null` marks installation values the person must supply) and
    `outputs[]`: `id`, `implemented`, vendor-fixed `program` blocks and `constraints`
    (`materialChangeMode` `tool-swap` or `single-nozzle-ams` with `toolChangeLiftMm`
-   permit material changes).
+   permit material changes). Studio draws a gantry
+   (`kinematics: "cartesian-fixed-vertical-nozzle"`) from the profile; an arm model is core code.
 2. **Adapter.** `createAdapter(Export)` returns
    `{output, poses, settings:{key, validate, rows}, export(prepared, settings) → {bytes, report}}`.
    - `output` is the profile's `outputs[].id`. `poses: true` only when the program writes tool
