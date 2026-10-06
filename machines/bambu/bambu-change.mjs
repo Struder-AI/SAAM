@@ -1,20 +1,15 @@
-import {PROGRAM_DECIMALS,PROGRAM_SLACK_MM} from '../dimensions.mjs';
-import {requireThat} from '../private/export/numeric.mjs';
-
-import {toolBounds,validateSetup,sameNozzleMaterialChanges} from '../machine/rules.mjs';
-import {checkedFilamentPlan as filamentPlan} from '../machine/filaments.mjs';
+import {requireThat,toolBounds,sameNozzleMaterialChanges,checkedFilamentPlan as filamentPlan} from './filaments.mjs';
 import {renderX1MaterialChange} from './bambu-x1-change.mjs';
 
 export const CHANGE_BEGIN=';SAAM_TOOL_CHANGE ',CHANGE_END=';SAAM_TOOL_CHANGE_END\n';
-const n=value=>Number(value.toFixed(PROGRAM_DECIMALS));
 
 // SAAM-authored, tower-free H2D service recipe. Coordinates are service motions,
 // not simulated deposition. The caller restores the checked body position.
-export function renderBambuChange(plan,machine,{from,to,position,incomingDebt,knownOutgoing,fan,count}){
-  if(machine.id==='bambu-x1-carbon')return renderX1MaterialChange(plan,machine,{from,to,position,incomingDebt,fan,count});
+export function renderBambuChange(plan,machine,{from,to,position,incomingDebt,knownOutgoing,fan,count},Export){
+  if(machine.id==='bambu-x1-carbon')return renderX1MaterialChange(plan,machine,{from,to,position,incomingDebt,fan,count},Export);
+  const n=Export.number;
   requireThat(machine.id==='bambu-h2d'&&Number.isInteger(count)&&count>0,'No tool-change contract for this machine.');
   const old=filamentPlan(plan,machine,from),next=filamentPlan(plan,machine,to);
-  validateSetup(old,machine);validateSetup(next,machine);
   const sameNozzle=old.setup.tool===next.setup.tool;
   requireThat(from!==to,'A material change requires distinct logical filaments.');
   if(sameNozzle){
@@ -23,7 +18,7 @@ export function renderBambuChange(plan,machine,{from,to,position,incomingDebt,kn
       'Automatic H2D material changes require AMS feeds, not an external spool.');
     requireThat(Math.abs(incomingDebt-next.process.retractMm)<1e-6,'AMS change must hand off the new filament retracted.');
   }
-  requireThat(Number.isFinite(incomingDebt)&&incomingDebt>=0&&incomingDebt<=next.process.retractMm+PROGRAM_SLACK_MM,'Invalid incoming nozzle retraction.');
+  requireThat(Number.isFinite(incomingDebt)&&incomingDebt>=0&&incomingDebt<=next.process.retractMm+Export.slackMm,'Invalid incoming nozzle retraction.');
   requireThat(Number.isFinite(fan)&&fan>=0&&fan<=255,'Invalid changeover fan state.');
   for(const selected of [old,next]){
     const b=toolBounds(machine,selected.setup.tool);

@@ -9,15 +9,15 @@ The following profiles are selectable through the shared machine catalog. They
 support planar geometry/setup review; their output declarations have
 `implemented: false`. Generation reports the missing machine contract before
 constructing a toolpath. They do not inherit another printer's startup sequence.
-The [Bambu X1 Carbon](./bambu-x1-carbon.json) profile (single
+The [Bambu X1 Carbon](bambu/bambu-x1-carbon.json) profile (single
 hardened 0.4 mm nozzle, conservative bounds excluding the cutter strip) has an
-experimental PLA [output contract](../core/export/bambu.md#x1-carbon-output-contract); its
+experimental PLA [output contract](bambu/SKILL.md#x1-carbon-output-contract); its
 PETG, ABS, ASA, PC and TPU entries remain setup-review material profiles.
 
 | Profile | Installed nozzle assumption | Default / other declared materials | Output still needed |
 |---|---|---|---|
-| [Ultimaker 2 Extended](./ultimaker-2-extended.json) | Original single 0.4 mm nozzle, 2.85 mm filament; 305 mm height | PLA / ABS | UltiGCode, with volumetric extrusion and firmware-owned material/startup settings |
-| [Ultimaker 3](./ultimaker-3.json) | One selected AA 0.4 core, 2.85 mm filament; 200 mm height | PLA / ABS | UM3-specific Griffin startup and shutdown |
+| [Ultimaker 2 Extended](ultimaker/ultimaker-2-extended.json) | Original single 0.4 mm nozzle, 2.85 mm filament; 305 mm height | PLA / ABS | UltiGCode, with volumetric extrusion and firmware-owned material/startup settings |
+| [Ultimaker 3](ultimaker/ultimaker-3.json) | One selected AA 0.4 core, 2.85 mm filament; 200 mm height | PLA / ABS | UM3-specific Griffin startup and shutdown |
 
 Profile layer-height ranges (S5 AA 0.4: 0.06–0.3 mm) are suggestions for standard
 printing, not physical or export limits. Author thicker single-pass Trace beads
@@ -42,7 +42,7 @@ The [model reference](../core/machine/README.md) describes the implemented
 providers and their nominal/installation limits. [Studio studies](../tools/kinematics/README.md)
 provide a read-only route for machines without controller output.
 
-[ultimaker-s5.json](./ultimaker-s5.json) defines the first machine and its
+[ultimaker-s5.json](ultimaker/ultimaker-s5.json) defines the first machine and its
 `griffin-gcode` output. It contains nominal motion limits, tool offsets and the
 startup contract. The locked plan selects the installed tool and material.
 Exporting introduces no new process choices. Physical clearance is delegated
@@ -50,11 +50,11 @@ to the operator; no general 15° clearance rating is claimed.
 
 Standard S5 startup is assumed; firmware is optional. Physical printing remains unvalidated.
 
-[denso-vs068a4-rc8a.json](./denso-vs068a4-rc8a.json) describes the six-axis VS-068A4 with
+[denso-vs068a4-rc8a.json](denso/denso-vs068a4-rc8a.json) describes the six-axis VS-068A4 with
 RC8A and an external rotary for the [pipe demo](../skills/pipe-cladding/SKILL.md).
 Installation fields start unresolved. Its experimental PacScript source ZIP uses
 the shared Studio/review/delivery pipeline. The profile's display bounds are not
 robot reach limits; production kinematic validation, motion limits and collisions
 remain deferred. Its nominal presentation model does not establish RC8A branch parity.
-See the [RC8A contract](../core/export/denso.md#denso-rc8a-output-contract) for calibration,
+See the [RC8A contract](denso/SKILL.md#denso-rc8a-output-contract) for calibration,
 rotary assumptions, relay behavior and unverified vendor execution.

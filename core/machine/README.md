@@ -96,7 +96,7 @@ the opposite elbow/wrist seed branch; previous rendering order is irrelevant.
 Nonconvergence is visible. This models one nominal solution, not the RC8A's
 trajectory, joint limits, winding policy or commissioning. Matching RC8A arm
 motion requires verified installation transforms and an encoder/FIG mapping;
-the [production output contract](../export/denso.md) remains unchanged.
+the [production output contract](../../machines/denso/SKILL.md) remains unchanged.
 
 ## Verification
 

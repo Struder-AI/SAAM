@@ -2,7 +2,7 @@
 
 Assessment date: 2026-09-22. Direct native-project/USB export is scoped here;
 SAAM currently emits the experimental PacScript source ZIP described in
-[denso.md](./denso.md).
+[denso.md](SKILL.md).
 
 ## Update: passing reference-point spiral demo
 
@@ -108,7 +108,7 @@ jobs against the corrected target. The old ID is no longer a selectable profile.
 Nominal display geometry uses VS-068 dimensions: shoulder height 395 mm, radial
 shoulder offset 30 mm, upper/forearm 340 mm each, elbow offset 20 mm and standard
 flange length 80 mm. The supplied WINCAPS model pivots corroborate these dimensions.
-See the [presentation model](../machine/README.md#denso-vs-068a4) for its limits.
+See the [presentation model](../../core/machine/README.md#denso-vs-068a4) for its limits.
 Tool length and installation transforms remain explicit display inputs. Display
 bounds are not a reach envelope. Tool/work frames, figure, rotary connection and
 extruder IO remain unresolved; the model correction does not fill them with guesses.

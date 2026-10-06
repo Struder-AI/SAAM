@@ -1,9 +1,8 @@
-import {requireThat,distance} from '../private/export/numeric.mjs';
 // Bounded Dobot adapter: fixed-orientation Cartesian MovL at CP=0 with a stroke
 // relay. Cartesian command space only: this is not robot IK or a measured flow model.
 import {createHash} from 'node:crypto';
-import {packZip} from './zip.mjs';
-import {validateSetup} from '../machine/rules.mjs';
+export const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
+export const distance=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
 
 export const DOBOT_LIMITATIONS=[
   'Experimental stroke-stop-start-unblended relay policy: relay stays on through consecutive deposition moves, and is off during travel and dwell. This differs from the legacy continuous-through-travel reference.',
@@ -32,13 +31,37 @@ export function motionProfile(lengthMm,speedMmS,accelMmS2){
 
 export function config(plan,machine){
   requireThat(machine.id==='dobot-mg400'&&plan.output==='dobot-lua','Incompatible Dobot output.');
-  validateSetup(plan,machine,{required:true});
   return plan.setup.dobot;
 }
 
+// Machine-instance values in setup.dobot. Null means unresolved, permitting
+// geometry review but never machine export.
+function validate(plan,{required=false}={}){
+  const c=plan.setup.dobot,template=plan.machine.defaultSetup.dobot;
+  requireThat(Object.keys(c).sort().join()===Object.keys(template).sort().join(),'Invalid Dobot instance configuration fields.');
+  const missing=Object.keys(template).filter(k=>c[k]===null);
+  for(const key of ['toolFrame','userFrame'])if(c[key]!==null)requireThat(Number.isInteger(c[key])&&c[key]>=0&&c[key]<=50,`Invalid Dobot ${key}.`);
+  for(const key of ['scaleX','scaleY','maxLinearSpeedMmS','maxLinearAccelMmS2','accelerationPercent','extrusionRateMm3S'])if(c[key]!==null)requireThat(Number.isFinite(c[key])&&c[key]>0,`Invalid Dobot ${key}.`);
+  if(c.accelerationPercent!==null)requireThat(c.accelerationPercent<=100,'Dobot acceleration percent exceeds 100.');
+  for(const key of ['offsetXMm','offsetYMm','bedZMm','rDeg'])if(c[key]!==null)requireThat(Number.isFinite(c[key]),`Invalid Dobot ${key}.`);
+  for(const key of ['initialPositionMm','workspaceMinMm','workspaceMaxMm'])if(c[key]!==null)requireThat(Array.isArray(c[key])&&c[key].length===3&&c[key].every(Number.isFinite),`Invalid Dobot ${key}.`);
+  if(c.workspaceMinMm&&c.workspaceMaxMm)requireThat(c.workspaceMinMm.every((v,i)=>v<c.workspaceMaxMm[i]),'Invalid Dobot configured workspace.');
+  if(c.configurationSource!==null)requireThat(typeof c.configurationSource==='string'&&c.configurationSource.trim().length>0&&c.configurationSource.length<=1000,'Dobot configuration needs its source.');
+  if(c.extrusionOutput!==null)requireThat(typeof c.extrusionOutput==='string'&&/^[A-Za-z0-9_]{1,40}$/.test(c.extrusionOutput),'Invalid Dobot relay output.');
+  if(c.relayPolicy!==null)requireThat(c.relayPolicy==='stroke-stop-start-unblended','Unsupported Dobot relay policy. Explicitly select experimental stroke-stop-start-unblended.');
+  if(c.temperatureControl!==null)requireThat(c.temperatureControl==='external-preheated','Dobot requires explicit external-preheated temperature control.');
+  if(required){
+    requireThat(missing.length===0,`Dobot installation is unconfigured; supply ${missing.join(', ')} before export.`);
+    requireThat(plan.setup.nozzleC>0,'Supply the externally controlled Dobot nozzle temperature before export.');
+  }
+  requireThat(plan.process.retractMm===0&&plan.process.fanPercent===0,'Dobot relay output cannot retract or control a fan; set retractMm and fanPercent to zero.');
+}
+export const createAdapter=Export=>({output:'dobot-lua',poses:false,settings:{key:'dobot',validate},
+  export:(prepared,settings)=>exportDobot(prepared,settings,settings.machine,settings.release,Export.packZip)});
+
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
-export function exportDobot(path,plan,machine,release={}){
+function exportDobot(path,plan,machine,release,packZip){
   const c=config(plan,machine);
   requireThat(equal(path.initialPosition,c.initialPositionMm),'Dobot initial position differs from the locked external start pose.');
   inside(transform(path.initialPosition,c),c);

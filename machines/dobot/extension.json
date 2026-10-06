@@ -1,0 +1,1 @@
+{"schema":"saam-extension/1","id":"dobot","kind":"machine","machines":["dobot-mg400.json"],"entries":{"machine-adapter":{"file":"dobot.mjs","export":"createAdapter"},"machine-verify":{"file":"debug/verify.mjs","export":"verify"}},"license":"Apache-2.0","provenance":"SAAM release"}

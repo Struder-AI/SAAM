@@ -5,7 +5,7 @@ import { readFile, access } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { gatedSections, readManual, machineOpens } from './manuals.mjs';
 import { SKILL_IDS, GUIDANCE_IDS, EXTENSION_IDS } from '../../skills/catalog.mjs';
-import { MACHINE_IDS } from '../machine/profile.mjs';
+import { machineIds as catalogIds } from '../machine/profile.mjs';
 import {listExtensions} from '../extensions/library.mjs';
 import {z} from 'zod';
 
@@ -23,7 +23,7 @@ export async function extensionDiscovery(root,{readTool,openTool}){
   const selected=(await listExtensions({appRoot:root})).filter(item=>item.origin==='local'||item.manifest.kind==='workspace');
   if(!selected.length)return null;
   return {guidanceId:'extensions',path:'extensions',
-    text:'Selected extensions: '+selected.map(item=>item.id+' ('+(item.manifest.kind==='workspace'?'workspace':'skill')+', '+item.origin+')').join(', ')+'. Read each manual by ID with '+readTool+'. Open a workspace by extension ID with '+openTool+'; its new bundles return to Studio for review.'};
+    text:'Selected extensions: '+selected.map(item=>item.id+' ('+(item.manifest.kind??'skill')+', '+item.origin+')').join(', ')+'. Read each manual by ID with '+readTool+'. Open a workspace by extension ID with '+openTool+'; its new bundles return to Studio for review.'};
 }
 
 export async function onboardingSources(root, context) {
@@ -58,7 +58,7 @@ export async function machineHint(root, { from = null, to }) {
 
 // Bytes of each layer per machine. Layers are cumulative reads, so each is the
 // difference between the read that opens it and the one before.
-export async function contextBudget(root, { machineIds = MACHINE_IDS } = {}) {
+export async function contextBudget(root, { machineIds = catalogIds() } = {}) {
   const size = text => Buffer.byteLength(text, 'utf8');
   const read = async (id, context) => size((await readManual(root, id, context)).text);
   const manuals = async context => {

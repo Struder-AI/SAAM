@@ -3,8 +3,8 @@
 Code structure of the exporters: the machine-output dialects that turn a
 SAAMpath into a machine program, each with the interpreter that reads that
 program back for review. [The export manual](README.md) owns shared output
-semantics; each dialect contract ([Griffin](griffin.md), [Bambu](bambu.md),
-[Dobot](dobot.md), [DENSO](denso.md)) owns what its output must contain and
+semantics; each dialect contract ([Griffin](../../machines/ultimaker/SKILL.md), [Bambu](../../machines/bambu/SKILL.md),
+[Dobot](../../machines/dobot/SKILL.md), [DENSO](../../machines/denso/SKILL.md)) owns what its output must contain and
 the vendor and measured evidence behind it.
 
 ## The adapter interface

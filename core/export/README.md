@@ -4,10 +4,10 @@ Read the output contract for machine behavior and exporter/interpreter responsib
 
 | Output | Contract |
 |---|---|
-| UltiMaker S5 / Griffin G-code | [Griffin](./griffin.md) |
-| Bambu H2D and X1 Carbon / sliced 3MF | [Bambu](./bambu.md) |
-| Dobot MG400 / Lua source ZIP | [Dobot](./dobot.md) |
-| DENSO VS-068A4 / RC8A PacScript ZIP | [DENSO](./denso.md) |
+| UltiMaker S5 / Griffin G-code | [Griffin](../../machines/ultimaker/SKILL.md) |
+| Bambu H2D and X1 Carbon / sliced 3MF | [Bambu](../../machines/bambu/SKILL.md) |
+| Dobot MG400 / Lua source ZIP | [Dobot](../../machines/dobot/SKILL.md) |
+| DENSO VS-068A4 / RC8A PacScript ZIP | [DENSO](../../machines/denso/SKILL.md) |
 
 [Machine files](../../machines/README.md) hold capabilities and setup declarations.
 [Print lifecycle](../print/README.md) owns review and delivery of the checked output.
@@ -79,7 +79,7 @@ The user selected H2D left 0.4 mm nozzle, 1.75 mm PLA and experimental 15°
 non-planar limit. The profile records official hardware/slicer sources, separate
 nozzle work areas and conservative PLA settings. The inherited left-tool height
 is 320 mm; the advertised overall height is 325 mm. The supplied left/right
-Bambu Studio exports establish the bounded [H2D output contract](./bambu.md#h2d-output-contract).
+Bambu Studio exports establish the bounded [H2D output contract](../../machines/bambu/SKILL.md#h2d-output-contract).
 Ordinary generated H2D v13 AMS-19 and DUAL-20 physically passed same-nozzle
 AMS colours and left 0.4/right 0.8/left nozzle changes, with PLA, Textured PEI
 and fast startup. X1 AMS remains unresolved; the H2D passes do not validate

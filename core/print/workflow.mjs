@@ -8,8 +8,7 @@ import { readFile, mkdir, access, copyFile,readdir } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { exportProgram, outputAdapter } from '../export/registry.mjs';
-import { prepareExportPath } from '../export/prepare-path.mjs';
+import { exportProgram, machineAdapter, preparePath } from '../export/registry.mjs';
 import { loadMachine } from '../machine/profile.mjs';
 import {runComputationJob} from './computation-job.mjs';
 import {heldBundleInstance} from './studio-ownership.mjs';
@@ -339,7 +338,7 @@ async function prepareGeneration(directory,{onProgress}={}){
   const state=await loadBundle(directory,{program:false}),source=await generationSource(state.plan);
   requireThat(state.machine,'Supply a machine, material and toolpath recipe before generation.');
   // A profile without an output contract refuses before geometry or motion is built.
-  outputAdapter(state.plan,state.machine);
+  await machineAdapter(state.plan,state.machine);
   const key=JSON.stringify([state.dir,state.editRevision,source.release,source.hash??state.review.path?.source?.hash]);
   if(preparation?.key!==key)preparation={key};
   const candidate=preparation;
@@ -347,7 +346,7 @@ async function prepareGeneration(directory,{onProgress}={}){
     onProgress?.({stage:'Preparing geometry'});
     const {path,artifact}=await prepareToolpath(state,{onProgress,source});
     onProgress?.({stage:'Writing machine commands'});
-    try{return {pathArtifact:artifact,summary:path.summary,...exportProgram(path,state.plan,state.machine,{generatorVersion:VERSION,buildDate:BUILD_DATE})};}
+    try{return {pathArtifact:artifact,summary:path.summary,...await exportProgram(path,state.plan,state.machine,{generatorVersion:VERSION,buildDate:BUILD_DATE})};}
     catch(error){error.stage='export';throw error;}
   }).catch(error=>{candidate.result=null;throw error;});
   const result=await candidate.result;
@@ -433,7 +432,7 @@ async function readToolpath(state){
 async function readDrawnPath(state){
   const output=state.completedOutput;
   if(!output)return readToolpath(state);
-  return Buffer.from(JSON.stringify(prepareExportPath(await readPathArtifact(state.dir,output.path),output.plan,output.machine)));
+  return Buffer.from(JSON.stringify(await preparePath(await readPathArtifact(state.dir,output.path),output.plan,output.machine)));
 }
 
 // Authored SAAMpath can be saved before choosing a machine-program output.

@@ -1,16 +1,23 @@
+---
+name: dobot
+description: Dobot MG400 relay Lua output contract
+metadata:
+  saam-kind: machine
+---
+
 # Dobot MG400 output
 
-The configured-installation Lua output contract. See the [shared machine interface](./README.md) for common motion semantics.
+The configured-installation Lua output contract. See the [shared machine interface](../../core/export/README.md) for common motion semantics.
 
-The [shared Studio provider](../machine/README.md#dobot) supplies the nominal
+The [shared Studio provider](../../core/machine/README.md#dobot) supplies the nominal
 four-axis MG400 model when its installation is explicit, and otherwise declares
 bed/tool-only scope. [Machine studies](../../tools/kinematics/README.md) use the
 same Studio viewer for synthetic model inspection.
 
 ### Dobot output contract
 
-`machines/dobot-mg400.json` declares experimental `dobot-lua` output through
-`core/export/dobot.mjs`. `core/export/dobot-lua-subset.mjs` adopts the selected
+`machines/dobot/dobot-mg400.json` declares experimental `dobot-lua` output through
+`machines/dobot/dobot.mjs`. `machines/dobot/debug/dobot-lua-subset.mjs` adopts the selected
 legacy Lua runtime; export, inspection and delivery use the existing SAAMpath
 and print lifecycle. Geometry can be reviewed with the default
 profile, but its installation fields are null and generation refuses an
@@ -21,7 +28,7 @@ Never substitute synthetic fixture numbers for actual installation values.
 
 For a provisional software demo of any shape, create the selected machine's
 complete plan, apply `syntheticDobotSetup(plan)` from the packaged
-[fixture](../tests/fixtures/dobot.mjs), then initialize a new bundle and use
+[fixture](../../core/tests/fixtures/dobot.mjs), then initialize a new bundle and use
 development generation; keep its labeled settings out of remembered setup.
 
 The ZIP contains `global.lua`, `src1.lua`, `src0.lua` and `manifest.json`.

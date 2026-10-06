@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {prepareExportPath} from '../export/prepare-path.mjs';
+import {preparePath} from '../export/registry.mjs';
 import {gcodeMotion} from '../export/gcode-motion.mjs';
 import {readFileSync} from 'node:fs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
@@ -24,7 +24,7 @@ test('modal fields omit unchanged words across speed, travel, retract and relati
     plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:.6});
     plan.process.maxCombMm=0;plan.process.minimumLayerSeconds=0;
     const path=await generatePath(plan,machine);
-    const {lines}=gcodeMotion(prepareExportPath(path,plan,machine),plan,{extrusionMode:id==='bambu-h2d'?'relative':'absolute'});
+    const {lines}=gcodeMotion((await preparePath(path,plan,machine)),plan,{extrusionMode:id==='bambu-h2d'?'relative':'absolute'});
     const modal={};let omittedFeed=0;
     for(const line of lines)if(/^G[01] /.test(line)) {
       const args=line.split(' ').slice(1);if(!args.some(a=>a.startsWith('F')))omittedFeed++;

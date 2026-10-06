@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SKILL_IDS, GUIDANCE_IDS, EXTENSION_IDS, BUILDER_IDS, skillMetadata } from '../skills/catalog.mjs';
 import { gatedIndex, indexLine } from '../core/agent/layers.mjs';
-import { MACHINE_IDS, loadMachine } from '../core/machine/profile.mjs';
+import { machineIds, loadMachine } from '../core/machine/profile.mjs';
 
 const start = '<!-- BEGIN GENERATED SKILL DIGEST -->';
 const end = '<!-- END GENERATED SKILL DIGEST -->';
@@ -41,7 +41,7 @@ export async function updatedSkillIndex(repoRoot) {
   // sections are not capabilities of their own: a script client reads them anyway, and a
   // web read lists them as omitted.
   const gated = await gatedIndex(repoRoot);
-  const known = new Set(MACHINE_IDS.flatMap(id => loadMachine(id).capabilities ?? []));
+  const known = new Set(machineIds().flatMap(id => loadMachine(id).capabilities ?? []));
   for (const section of gated) for (const token of section.requires)
     if (!known.has(token.split('>=')[0])) throw new Error(`${section.guidanceId}: no machine declares the capability ${token}.`);
   const advanced = gated.filter(section => section.layer === 'advanced');

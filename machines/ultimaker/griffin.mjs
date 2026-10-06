@@ -1,12 +1,13 @@
-import {PROGRAM_DECIMALS} from '../dimensions.mjs';
-import {distance,requireThat} from '../private/export/numeric.mjs';
-import {gcodeMotion} from './gcode-motion.mjs';
-
-const fmt=(n,d=PROGRAM_DECIMALS)=>Number(n.toFixed(d)).toString();
+const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
+const distance=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
+// The Griffin adapter (UltiMaker S5); it has no installation block.
+export const createAdapter=Export=>({output:'griffin-gcode',poses:false,
+  settings:{validate:({setup})=>requireThat(/^[a-f0-9-]{36}$/i.test(setup.materialGuid),'A material GUID is required for Griffin.')},
+  export:(prepared,settings)=>exportGriffin(prepared,settings,settings.machine,settings.release,Export)});
 // Writes a prepared path. The header's estimates are the path's; the report's
 // are the written commands'.
-export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
-  const {lines:motionLines,tally}=gcodeMotion(path,plan);
+function exportGriffin(path,plan,machine,{generatorVersion,buildDate},Export) {
+  const {lines:motionLines,tally}=Export.gcodeMotion(path,plan),fmt=n=>String(Export.number(n));
   requireThat(machine.outputs.some(o=>o.id===plan.output && o.flavor==='Griffin'),'Machine does not declare Griffin export.');
   const s=plan.setup, area=Math.PI*(s.filamentMm/2)**2, tool=s.tool;
   const startupZ=machine.startup.zAfterStartupMm;

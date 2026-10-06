@@ -20,7 +20,7 @@ export function skillMetadata(id, manual) {
     id,
     layer:EXTENSION_IDS.includes(id)?'extension':GUIDANCE_IDS.includes(id)?'guidance':BUILDER_IDS.includes(id)?'builder':'core',
     // Hybrid skills change the geometry and deposit their own toolpath.
-    kind: /^[ \t]+saam-kind:[ \t]*(geometry|hybrid|guidance|extension|workspace)[ \t]*\r?$/m.exec(metadata)?.[1] ?? 'toolpath',
+    kind: /^[ \t]+saam-kind:[ \t]*(geometry|hybrid|guidance|extension|workspace|machine)[ \t]*\r?$/m.exec(metadata)?.[1] ?? 'toolpath',
     description: frontmatter.match(/^description:[ \t]*(.*)$/m)?.[1]?.trim() ?? ''
   };
 }

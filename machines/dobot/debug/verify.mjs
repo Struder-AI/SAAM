@@ -1,14 +1,12 @@
-import {requireThat,distance} from '../private/export/numeric.mjs';
 import {createHash} from 'node:crypto';
 import {LuaRuntime,LuaTable,LuaSubsetError} from './dobot-lua-subset.mjs';
-import {unpackZip} from './zip.mjs';
-import {config,transform,inverse,inside,equal,motionProfile,WAIT_COMMAND_MS,DOBOT_LIMITATIONS} from './dobot.mjs';
+import {requireThat,distance,config,transform,inverse,inside,equal,motionProfile,WAIT_COMMAND_MS,DOBOT_LIMITATIONS} from '../dobot.mjs';
 // Debug-only machine verification (machine-verify): executes the written Lua in
 // a bounded subset runtime. Generation, reopen, Studio and delivery never load
 // it; scripts/machine-verify.mjs runs it. Delete it after a physical trial.
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
-export function verify(bytes,plan,machine){
-  const c=config(plan,machine),entries=unpackZip(bytes);
+export function verify(bytes,plan,machine,Export){
+  const c=config(plan,machine),entries=Export.unpackZip(bytes);
   requireThat([...entries.keys()].sort().join()==='global.lua,manifest.json,src0.lua,src1.lua','Dobot bundle must contain exactly global.lua, src1.lua, src0.lua and manifest.json.');
   const manifest=JSON.parse(entries.get('manifest.json').toString('utf8'));
   requireThat(manifest.schema==='saam-dobot-program/1'&&manifest.machineId===machine.id&&manifest.entry==='src0.lua'&&manifest.setupHash===digest(plan.setup)&&manifest.machineHash===digest(machine),'Dobot manifest does not match the locked machine/setup.');
@@ -17,7 +15,7 @@ export function verify(bytes,plan,machine){
 }
 
 
-export function interpretDobotFiles(files,plan,machine,{moves=[]}={}) {
+function interpretDobotFiles(files,plan,machine,moves=[]) {
   const c=config(plan,machine);
   requireThat(Object.keys(files).sort().join()==='global.lua,src0.lua,src1.lua'&&Object.values(files).every(s=>typeof s==='string'),'Missing Dobot Lua source files.');
   const sourceLines=Object.fromEntries(Object.entries(files).map(([name,text])=>[name,text.split(/\r?\n/)]));

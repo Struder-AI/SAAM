@@ -34,7 +34,7 @@ vase walls, bridges and rivets use or combine these families; their manuals expl
 current options and limits. Reason from geometry about transitions and print order.
 Usually omit support; where needed use [standard support](skills/standard-support/SKILL.md#choose-the-patches).
 Software checks alone do not establish printability; read the machine's [contract](core/export/README.md#machine-interoperability-design) before setup questions.
-For Bambu, read [Choosing the spool](core/export/bambu.md#choosing-the-spool) first: material and colour suffice for automatic matching; ask for a physical slot only for a requested or necessary route. Confirm mapping at the printer.
+For Bambu, read [Choosing the spool](machines/bambu/SKILL.md#choosing-the-spool) first: material and colour suffice for automatic matching; ask for a physical slot only for a requested or necessary route. Confirm mapping at the printer.
 
 ## Maker interaction flow
 

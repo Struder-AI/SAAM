@@ -1,0 +1,1 @@
+{"schema":"saam-extension/1","id":"bambu","kind":"machine","machines":["bambu-h2d.json","bambu-x1-carbon.json"],"entries":{"machine-adapter":{"file":"bambu.mjs","export":"createAdapter"}},"license":"Apache-2.0","provenance":"SAAM release"}

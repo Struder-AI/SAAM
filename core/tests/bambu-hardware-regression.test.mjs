@@ -7,14 +7,14 @@ import {dualNozzleVerificationFixture} from './fixtures/bambu-dual.mjs';
 import {h2dColourFixture} from './fixtures/bambu-h2d-colours.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {exportProgram} from '../export/registry.mjs';
-import {prepareExportPath} from '../export/prepare-path.mjs';
+import {preparePath} from '../export/registry.mjs';
 import {pathPreview} from '../../studio/path-preview.mjs';
 import {unpackZip} from '../export/zip.mjs';
 
 test('fresh H2D generation preserves physically accepted colour and dual executables and project metadata',async()=>{
   for(const [make,record]of [[h2dColourFixture,facts.generatedSameNozzle],[dualNozzleVerificationFixture,facts.generatedDualNozzle]]){
     const {plan,machine}=make(),path=await generatePath(plan,machine);
-    const {bytes,report}=exportProgram(path,plan,machine,{generatorVersion:'test',buildDate:facts.date});
+    const {bytes,report}=(await exportProgram(path,plan,machine,{generatorVersion:'test',buildDate:facts.date}));
     const code=unpackZip(bytes).get('Metadata/plate_1.gcode').toString(),executable=code.slice(code.indexOf('; EXECUTABLE_BLOCK_START'));
     assert.equal(createHash('sha256').update(executable).digest('hex'),record.executableSha256,
       'Executable differs from the physically tested file; review the change and its hardware-evidence implications');
@@ -24,7 +24,7 @@ test('fresh H2D generation preserves physically accepted colour and dual executa
       'Generated project differs from the physically accepted archive; unchanged commands alone do not preserve Bambu hardware evidence');
     if(record.depositionStages){
       const stages=[];
-      for(const move of pathPreview(prepareExportPath(path,plan,machine),{plan}).moves.filter(m=>m.extruding)){
+      for(const move of pathPreview((await preparePath(path,plan,machine)),{plan}).moves.filter(m=>m.extruding)){
         const stage=stages.at(-1);
         if(!stage||stage.tool!==move.tool||Math.abs(stage.zMm-move.to[2])>1e-6)stages.push({tool:move.tool,zMm:move.to[2]});
       }

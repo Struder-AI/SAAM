@@ -1,3 +1,10 @@
+---
+name: bambu
+description: Bambu Lab H2D and X1 Carbon output contract
+metadata:
+  saam-kind: machine
+---
+
 # Bambu H2D and X1 Carbon output
 
 SAAM authors its job description, G-code configuration comments and sliced-3MF
@@ -121,7 +128,7 @@ temperature waits to make a stalled print appear to proceed. Service durations
 are not simulated; no measured startup-time saving is claimed yet.
 
 Use normal `adjust` / `adjust_print`, regenerate, and review the new artifact.
-[Remember setup](../print/USAGE.md#remember-machine-setup) after the installation
+[Remember setup](../../core/print/USAGE.md#remember-machine-setup) after the installation
 facts are correct. Never repair a mismatch by editing a delivered G-code comment,
 XML entry or checksum. A changed setting invalidates the old generated program.
 Old snapshots without these setup fields or with retired envelope IDs must be
@@ -155,7 +162,7 @@ For example, `[{"id":"GFA00","colour":"#00AE42","tool":1},
 entries on different nozzles across every generated mapping. An omitted `tool`
 uses `setup.tool` for compatibility with existing single-tool jobs. The selected
 entry must agree with `setup.tool`; contradictory declarations are rejected.
-Print setup applies to every producer; [print/part/assignment routing](../print/USAGE.md#nozzle-selection)
+Print setup applies to every producer; [print/part/assignment routing](../../core/print/USAGE.md#nozzle-selection)
 selects exceptions. H2D supports different nozzle diameters and same-nozzle AMS
 PLA changes. X1 implements single-nozzle AMS changes, still physically unresolved.
 
