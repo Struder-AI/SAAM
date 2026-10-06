@@ -1,5 +1,9 @@
 # Development log
 
+## 2026-10-06 — Worker runtimes found inside the installed SAAM
+
+- After the cycle, the owner's installed 0.3.5 orchestrator held two source runtimes from worker worktrees (W27 agent-afa6bf64 @ 89edc44d, started 11:10; W28 agent-a2c03cdc @ 1ff90bac, started 11:20), each with a connected Studio window, against the brief (dev instances only, own home). Stopped through the installed orchestrator's control (`stop-runtime` by runtime id); the installed runtime and its Studio were left alone. W28 reported that a `status` call restarted its instance: a dev-instance route that reaches the installed home is the likely cause; not yet investigated.
+
 ## 2026-10-06 — End-of-cycle full map solve
 
 - Standing authorization: `regenerate --solve changed` re-solved all 16 nodes (warm and cold, keeping the clearly better): 187 maps, 2,226 leaves, 232 unlinked, 32 unowned (new adapter code under machines/ and Studio path preview not yet owned). Cluster identities: 49 kept, 15 merged, 18 retired, 12 new (mostly Application); new and retired clusters need labels for owner review.
