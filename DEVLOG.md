@@ -1,5 +1,9 @@
 # Development log
 
+## 2026-10-05 — Cluster label pass
+
+- Worker, after the a1f21d56 regenerate: 59 generated labels authored (Studio 33, Application 16, Export 6, Toolpath 3, Bundle 1); 26 authored labels replaced where a kept identity's members had moved (e.g. Geometry "mesh repair jobs" → "repair jobs, surface evaluation"; Export "Dobot kinematics" was Denso); 62 retired-cluster labels removed. Hand-back, endTurn and mesh validity can now be found from the maps. `build`: 177 labels applied, 0 missing; positions untouched. 51 of 177 clusters hold unrelated members (Studio worst, mixing server, page and worker code); a label cannot fix that (.local/team/labels-036.md lists them). Owner review of the labels pending.
+
 ## 2026-10-05 — Dimming follows the agent's place; status answers during a start
 
 - Dimming means the agent is at the SAAM desk (worker): `saam client-event` replaces the unreleased `turn-ended`. Turn end (Stop, StopFailure, idle_prompt), the person's message (UserPromptSubmit), Interrupt and SessionEnd hand back the chat's active work as `waiting` with a reason; subagent events are ignored. SAAM answers the hook at once (Codex holds Interrupt/SessionEnd to 1-3 s) and the hand-back waits for the operation underway.
