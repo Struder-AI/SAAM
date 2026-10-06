@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-05 — Advanced vase tiles keep their size
+
+- Worker: a sleeve pattern may be `{paths, tileWidthMm, riseMm, turns}`, points as [arc mm from the course start, height above the rising turn]. Each turn holds the whole number of courses nearest its centerline perimeter, spaced evenly from the seam; a turn whose count changes re-spaces its courses, shifting them against the turn below by up to half a tile; the report lists each change (`sizedCourses`). Sized turns compile into the same course stack as turns patterns (`patternStack`), so level and spiral endings are shared. Minimum layer time now applies per repeat (identical for single-path tiles).
+- Verified on a dev instance: irregular-loop-sleeve export unchanged (2359e376…); new `flared-sized-loops` example grows from 15 to 30 courses per turn over 20 mm (2,236 courses, 91,841 moves, 10 s). vase-wall paths.test rerun after merge. Not run: whole suite, Studio on screen, physical print, macOS.
+
 ## 2026-10-05 — Mesh contact facts: the brains' failures come from their cut caps
 
 - Worker (branch worktree-agent-ab4c1cfba796ff7bd, b15043c3 = `cgal-solid-repair/2` cherry-picked; not merged, waits for scale-derived tolerances): Thingi10K 44374/44375 are halves of one brain cut by a plane; the modeller capped the outer surface and each ventricle separately, 1e-5 to 6e-5 mm apart and crossing (the source self-intersections). Exact reconstruction correctly leaves sub-resolution films whose knife edges fail the 1e-9 mm adjacent-contact rule (188/93 pairs at 1e-12 to 3.8e-10 mm, plus 46/19 folds), all within 6.4e-5 mm of the bed; no print effect.
