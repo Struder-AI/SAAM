@@ -1,4 +1,4 @@
-// Read-only adapter into the existing Studio, with no approval or delivery path.
+// Read-only adapter into the existing Studio, with no delivery path.
 import {authoredWorkIdentity,preparedWorkEvidence} from '../core/print/work-evidence.mjs';
 import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
@@ -30,16 +30,16 @@ export async function loadBundle(dir,{program=true,allSources=false}={}){
   const geometry={geometryVersion:revision,boundsMm:bounds,vertices,faces:[],labels:[],edges:[],roof:null};
   const geometryHash=hash(JSON.stringify(bounds));
   const state={kind:'wedge',plan,machine,revision,generationHash:revision,exportHash,geometry,geometryHash,geometryInputHash:geometryHash,pathSummary:{planarLayers:0},
-    toolpathApproved:false,outputAvailability:'Simulation only; machine output is unavailable.',
-    review:{generation:{mode:'development',generationHash:revision,exportHash},approvals:{}},
+    outputAvailability:'Simulation only; machine output is unavailable.',
+    review:{generation:{mode:'development',generationHash:revision,exportHash}},
     inspection:{title:machine.name,description:'Nominal mechanism study · inspect source motion and machine geometry.',
       facts:[['Machine',machine.name],...(decoded?[['Motion',decoded.seconds+' seconds']]:[]),['Source','Authored mechanism study']],settings:[['Model',machine.kinematicModel?.basis??'Nominal profile']],
-      note:'Simulation only. No print approvals, machine delivery or hardware execution.'}};
+      note:'Simulation only. No machine delivery or hardware execution.'}};
   state.workEvidence=preparedWorkEvidence(authoredWorkIdentity(plan,machine),revision,state.review.generation);
   if(decoded)state.completedOutput={id:hash(JSON.stringify([revision,exportHash])),current:true,plan,machine,geometry,geometryHash,geometryInputHash:geometryHash,
     generationHash:revision,exportHash,review:state.review,exportName:name,limitations:[]};
   if(program)state.program=structuredClone(program==='source'?{sources,summary:decoded.summary,notice:decoded.notice}:{...decoded,sources});
   if(allSources)state.sources={[name]:source};return state;
 }
-const unavailable=()=>{throw Error('Machine studies do not support manufacturing approval, generation or delivery');};
-export const approve=unavailable,generateBundle=unavailable,deliver=unavailable,updatePlan=unavailable;
+const unavailable=()=>{throw Error('Machine studies do not support generation or delivery');};
+export const generateBundle=unavailable,updatePlan=unavailable;

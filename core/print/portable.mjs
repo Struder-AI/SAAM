@@ -235,7 +235,7 @@ export async function importBundle(packageFile,directory,options={}){
     const state=await loadBundle(target,{program:false});
     destination.completed=true;
     return {directory:target,revision:state.revision,editRevision:state.editRevision,files:[...files.keys()].filter(name=>name!=='package.json'),
-      extensions:selectedExtensions,artifacts:state.artifacts,toolpathApproved:state.toolpathApproved,
+      extensions:selectedExtensions,artifacts:state.artifacts,
       next:'Open this directory in Studio; edit and regenerate before review/export.'};
   }catch(error){
     // Exact validated library copies remain useful even if publication fails;

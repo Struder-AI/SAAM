@@ -24,7 +24,7 @@ failure/cancel restores it when geometry still matches. Agent activity never gat
 `workflow.mjs` owns snapshots, integrity, revisions, regeneration and delivery;
 `review-state.mjs` supplies the shared eligibility/phase selector. Completed
 identity guards source/display/export; edit identity guards authored changes,
-with full-document CAS retained. Non-Studio approval/delivery remains current-only.
+with full-document CAS retained.
 Geometry includes solids, curves and points; recipe/machine may be incomplete.
 Operations report missing prerequisites; opening/retry never generates ordinary output.
 
@@ -51,10 +51,10 @@ Geometry, completed SAAMpath and program have separate identities. Toolpath owns
 export-only setup fields, selected machine/output and disabled optional skills reuse it. Authored motion remains a path dependency. `generationHash` binds the complete
 recipe, machine, geometry and generation contract to the checked program.
 `state.artifacts` distinguishes current, retained stale and absent results.
-Edits retain artifacts and clear approvals; old bytes never become current by omission.
+Edits retain artifacts; old bytes never become current by omission.
 
 `restoreRevision(directory,{direction,expectedRevision})` restores history at a fresh
-revision, clearing approval; new edits clear redo. Immutable records share large
+revision; new edits clear redo. Immutable records share large
 artifacts.
 
 `shareBundle(directory,newZip)` packages current recipe, machine/settings,
@@ -160,7 +160,7 @@ Prints/<name>/
 ```
 
 `plan.json` owns the recipe, locked machine, review and immutable artifact references.
-It is the only mutable commit point; `delivery/` follows approval and delivery.
+It is the only mutable commit point; `delivery/` holds what the person exported.
 Ordinary reads of the previous parallel-file layout are effect-free and return
 an actionable migration-required error. `saam call migrate_bundle` explicitly
 preflights and converts one bundle. Migration atomically replaces only `plan.json`, retains the
@@ -180,7 +180,7 @@ are shared; the shell plan/geometry schemas are in [Formats](#formats) below:
   speed in mm/s and deposited volume in mm³. Retraction/recovery uses filament
   millimeters; fan and dwell actions are explicit. Phase/layer labels describe
   the move without determining its geometry.
-- `saam-review/1`: the manifest's exact-version final approval record, history,
+- `saam-review/1`: the manifest's history,
   generation/export hashes and a small generation summary for display (never
   playback geometry). Its generation record owns `saam-checks/1` software
   checks and limitations.
@@ -192,8 +192,8 @@ checked by source-consuming operations, not by every view. These local records
 are integrity evidence, not authentication of files or human statements.
 
 The adapter caches checked interpretations by recipe/machine/geometry and export hash.
-Reopening interprets saved commands on a miss; it never regenerates. Delivery hashes
-and copies reviewed bytes; changed output cannot inherit approval. These records
+Reopening interprets saved commands on a miss; it never regenerates. Export copies
+the displayed bytes. These records
 detect changed content rather than authenticating files or human statements.
 Use `examples/prints/` only for explicitly curated examples.
 

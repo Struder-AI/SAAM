@@ -23,7 +23,6 @@ export function planRefreshNavigation(previous,next,{follow,tab,seconds,duration
   let nextTab=tab,notice=null;
   if(resetView)nextTab=next.tourExample?(tourInitialTab??'geometry'):next.program||next.neutralProgram?'toolpath':'geometry';
   else if(follow&&previous.generationHash!==next.generationHash){nextTab=(previous.geometryInputHash??previous.geometryHash)!==(next.geometryInputHash??next.geometryHash)?'geometry':'toolpath';notice='Updated from chat.';}
-  else if(follow&&next.toolpathApproved&&!previous.program&&next.program)nextTab='toolpath';
   if(next.completedOutput&& !completedOutputState(next).available)nextTab='geometry';
   const resetSelection=resetView||!selected||!next.geometry?.labels?.includes(selected)&&!next.geometry?.features?.some(feature=>feature.id===selected)&&(!hasSelectedEdge||previous?.geometry?.geometryVersion!==next.geometry?.geometryVersion);
   return {resetExport,resetView,tab:nextTab,seconds:resetExport||resetView?duration:seconds,resetSelection,

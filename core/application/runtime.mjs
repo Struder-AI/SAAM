@@ -57,7 +57,7 @@ function noApprovalFields(value) {
   if (!value || typeof value !== 'object') return;
   for (const [key, child] of Object.entries(value)) {
     if (/approval|approved|^review$|^actor$|^generation$|^history$|^__proto__$|^constructor$|^prototype$/i.test(key))
-      throw new Error(`Field ${key} is not an agent-editable recipe setting. Final settings/toolpath approval belongs to the person in Studio.`);
+      throw new Error(`Field ${key} is not an agent-editable recipe setting; review state belongs to Bundle and the person exports from Studio.`);
     noApprovalFields(child);
   }
 }
@@ -98,7 +98,6 @@ export function summary(bundleId, state) {
   return {
     bundleId, kind: state.kind, revision: state.revision, editRevision:state.editRevision, geometryHash:state.geometryHash,
     machineId: state.machine?.id??null, output: state.plan.output, skills: state.skills,
-    toolpathApproved: lifecycle.toolpathApproved,
     programChecked,deferRememberSetup:state.deferRememberSetup===true,phaseColours:state.phaseColours??null,
     generation: state.review.generation ? { mode: state.review.generation.mode, current: lifecycle.current } : null,
     programError: state.programError ?? null, exportHash: state.exportHash ?? null,
@@ -106,7 +105,7 @@ export function summary(bundleId, state) {
     outputAvailability: state.outputAvailability, limitations: state.limitations,
     nextStep: !state.machine?'Supply the machine, material and recipe components needed for the requested operation.':lifecycle.action==='check'?'Open Studio or check_bundle to check the current export.'
       : lifecycle.action==='generate'?'Generate the toolpath from the complete settings.'
-      : lifecycle.action==='review'?'Review settings and the exact toolpath together in Studio.':'Deliver the reviewed export.'
+      : 'Review settings and the exact toolpath together in Studio; the person exports from Studio.'
   };
 }
 
@@ -185,7 +184,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
         phase='cleanup';
       }finally{await releaseSTLImport(candidate);}
       studioEvents.record('import-completed',{jobId,printId:bundleId,importDiagnostic:candidate.importDiagnostic});
-      return downloaded?{...downloaded,...committed,imported:true,nextStep:'Show the imported geometry in Studio with its dimensions. Nothing is approved.'}:committed;
+      return downloaded?{...downloaded,...committed,imported:true,nextStep:'Show the imported geometry in Studio with its dimensions. Export happens only from Studio.'}:committed;
     }catch(error){
       const importDiagnostic=error.importDiagnostic??{...candidate?.importDiagnostic,stage:phase,
         ...(downloaded?{sourceSha256:downloaded.attribution.sha256,dataset:{provider:downloaded.attribution.provider,fileId:downloaded.attribution.fileId,revision:downloaded.attribution.revision}}:{}),
@@ -332,7 +331,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   function operation(name, description, shape, readOnly = true, openWorld = false) {
     extensionActions.delete(name);
     const tracked=Boolean(shape.bundleId)&&!immediateTools.has(name);
-    const resultChanging=tracked&&!readOnly&&!['request_review','set_deferred_setup_save','set_phase_colours','deliver_toolpath'].includes(name);
+    const resultChanging=tracked&&!readOnly&&!['request_review','set_deferred_setup_save','set_phase_colours'].includes(name);
     const instanceScope=tracked&&!readOnly&&!['request_review','create_bundle','import_bundle','import_stl_bundle','import_thingi10k_bundle','migrate_bundle'].includes(name);
     // The full strict schema makes unexpected top-level approval data an error
     // instead of letting Zod silently discard it.
@@ -499,7 +498,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
         const result=call.result;
         if(started!==null)reportOperation({kind:'operation',name,status:'completed',durationMs:Date.now()-started,readOnly:definition.readOnly,
           parameters:diagnosticFields(input,['bundleId','kind','machineId','units','action','expectedRevision','skillId','extensionId','workspaceInstanceId']),
-          result:diagnosticFields(result,['revision','geometryHash','generationHash','exportHash','toolpathApproved','programChecked','imported','status','workspaceInstanceId','jobId'])});
+          result:diagnosticFields(result,['revision','geometryHash','generationHash','exportHash','programChecked','imported','status','workspaceInstanceId','jobId'])});
         if(result&&typeof result==='object'&&!Array.isArray(result)&&!['get_studio_events','wait_for_studio_request'].includes(name)){
           if(!definition.immediate){const pending=await agentRequests.query({status:'queued'});if(pending.length)call.result={...call.result,studioRequests:pending.map(agentRequest)};}
           // Delivered events push at once; every tool result also carries whatever is still queued.
@@ -555,7 +554,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       defaultSetup: m.defaultSetup };
   });}
   operation('list_skills','List core skills, guidance and skill/workspace extension manuals. Catalog membership does not establish recipe compatibility.',{});
-  operation('list_workspaces','Discover selected workspace extensions and their manuals. Workspace designs create new, unapproved print bundles for ordinary Studio review.',{});
+  operation('list_workspaces','Discover selected workspace extensions and their manuals. Workspace designs create new print bundles for ordinary Studio review.',{});
   async function listWorkspacesOperation(){
     const {listWorkspaces}=await import('../extensions/workspaces.mjs');
     return {workspaces:await listWorkspaces({appRoot:root})};
@@ -576,7 +575,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       await workspaceSession(workspaceInstanceId).shutdown();
       return {workspaceInstanceId,closed:true};
     }
-  operation('update_workspace','Save a complete workspace design atomically and return its normalized state. Construction remains unapproved until reviewed in Studio.',{workspaceInstanceId:workspaceIdSchema,design:objectSchema},false);
+  operation('update_workspace','Save a complete workspace design atomically and return its normalized state. Construction is reviewed in Studio.',{workspaceInstanceId:workspaceIdSchema,design:objectSchema},false);
   async function updateWorkspace({workspaceInstanceId,design}){return {workspaceInstanceId,...await workspaceSession(workspaceInstanceId).updateDesign(design)};}
   operation('create_workspace_bundles','Replace the current exported set from the supplied or saved design; complete the new set first and retain independently edited parts. Read get_workspace for progress; review each resulting bundle in Studio.',{workspaceInstanceId:workspaceIdSchema,design:objectSchema.optional()},false);
   async function createWorkspaceBundles({workspaceInstanceId,design}){
@@ -599,7 +598,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   operation('get_recipe_defaults','Get process, setup and common assignment defaults, including remembered setup. Supply geometry or standalone Trace/Inject assignments before create_bundle. Defaults never confer job approval.',{ kind: kindSchema, machineId: z.string() });
   async function getRecipeDefaults({ kind, machineId }){return { kind, machineId,
       plan: await (await bundleModule()).proposedPlan(machineId, { machineSetups: await machineSetupStore() }) };}
-  operation('list_bundles','Discover saved print names, machines and modification times. Export and approval status are unchecked; use get_bundle or check_bundle for validated status.',{});
+  operation('list_bundles','Discover saved print names, machines and modification times. Export status is unchecked; use get_bundle or check_bundle for validated status.',{});
   async function listBundles(){
     const result = [];
     let base;
@@ -622,7 +621,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       ...(!includeGeometry&&state.geometry ? { geometry: { omitted: true, shape: state.plan.geometry?.shape ?? 'unknown',
         nativeFile: state.geometry.nativeFile, boundsMm: state.geometry.boundsMm } } : {}) };
   }
-  operation('create_bundle','Create an unapproved bundle with authored/imported geometry or standalone Trace/Inject assignments. Defaults alone are incomplete. Then request_review.',{ bundleId: bundleIdSchema, kind: kindSchema, machineId: z.string(), plan: objectSchema },false);
+  operation('create_bundle','Create a bundle with authored/imported geometry or standalone Trace/Inject assignments. Defaults alone are incomplete. Then request_review.',{ bundleId: bundleIdSchema, kind: kindSchema, machineId: z.string(), plan: objectSchema },false);
   async function createBundle({ bundleId, kind, machineId, plan }){
       noApprovalFields(plan);
       const machine = loadMachine(machineId), recipe = await recipeModule();
@@ -665,7 +664,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     if(action==='export')return exportExtension(extensionId,packageFile,{appRoot:root});
     return importExtension(packageFile,{appRoot:root});
   }
-  operation('share_bundle','Package current editable bundle inputs and selected extensions into a new portable ZIP. Toolpaths, programs, approvals and history are excluded; recipient imports, edits and regenerates. Existing package files are never overwritten.',{bundleId:bundleIdSchema,packageFile:z.string()},true,true);
+  operation('share_bundle','Package current editable bundle inputs and selected extensions into a new portable ZIP. Toolpaths, programs and history are excluded; recipient imports, edits and regenerates. Existing package files are never overwritten.',{bundleId:bundleIdSchema,packageFile:z.string()},true,true);
   async function shareBundle({bundleId,packageFile}){
       if(!isAbsolute(packageFile)||!/\.zip$/i.test(packageFile))throw Error('Choose an absolute path for a new .zip package.');
       return exchangeBundle('share',bundleId,await directory(bundleId),packageFile);
@@ -688,7 +687,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     }
   operation('search_thingi10k','Find meshes by descriptive keywords (such as bunny), numeric file ID or a Thingiverse thing URL. Reads the Thingi10K mirror index; returns per-file source and license links. Prefer making tailored geometry when attractive. Read the thingi10k skill manual.',{query:z.string().min(1),limit:z.number().int().min(1).default(10),offset:z.number().int().min(0).default(0)},true,true);
   async function searchThingi10k(args){return meshLibrary.search(args);}
-  operation('import_thingi10k_bundle','Download a selected Thingi10K STL file ID on the SAAM host and import an unapproved print. ALWAYS give its license link in chat and briefly identify the source unless obvious. Recognized defects receive automatic repair; returns attribution even if import fails, with the failed download kept as diagnostics evidence. Review geometry with request_review after successful import.',{bundleId:bundleIdSchema,fileId:z.string().regex(/^[1-9][0-9]{0,11}$/),machineId:z.string(),units:z.enum(['auto','mm','inch']).default('auto')},false,true);
+  operation('import_thingi10k_bundle','Download a selected Thingi10K STL file ID on the SAAM host and import it as a print. ALWAYS give its license link in chat and briefly identify the source unless obvious. Recognized defects receive automatic repair; returns attribution even if import fails, with the failed download kept as diagnostics evidence. Review geometry with request_review after successful import.',{bundleId:bundleIdSchema,fileId:z.string().regex(/^[1-9][0-9]{0,11}$/),machineId:z.string(),units:z.enum(['auto','mm','inch']).default('auto')},false,true);
   async function importThingi10kBundle({bundleId,fileId,machineId,units}){
       const dir=await directory(bundleId,{create:true});
       loadMachine(machineId);const machineSetups=await machineSetupStore();
@@ -769,7 +768,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
         ?await adjustSettings(dir,patch,options):await bundle.adjustBundle(dir,patch,options);
       return summary(bundleId, next);
     }
-  operation('check_bundle','Validate saved native geometry, recipe and any exact generated export using the shared bundle checks. Does not generate or approve.',{ bundleId: bundleIdSchema });
+  operation('check_bundle','Validate saved native geometry, recipe and any exact generated export using the shared bundle checks. Does not generate.',{ bundleId: bundleIdSchema });
   async function checkBundle({ bundleId }){
     const { state } = await read(bundleId);
     if (state.programError) throw new Error(state.programError);
@@ -779,7 +778,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   async function restoreRevision({bundleId,expectedRevision,direction}){
       const {dir,bundle}=await locate(bundleId);return summary(bundleId,await bundle.restoreRevision(dir,{direction,expectedRevision}));
     }
-  operation('check_path','Check path feasibility using the same generator, without approvals or persisted SAAMpath/export artifacts. Reports software checks only; production generation and exact-export review remain required.',{ bundleId: bundleIdSchema });
+  operation('check_path','Check path feasibility using the same generator, without persisted SAAMpath/export artifacts. Reports software checks only; production generation and exact-export review remain required.',{ bundleId: bundleIdSchema });
   async function checkPath({ bundleId }){
     const { dir, bundle } = await locate(bundleId);
     return { bundleId, ...await bundle.checkPathBundle(dir), physicalValidation: 'not performed' };
@@ -795,8 +794,6 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   async function setPhaseColoursOperation({bundleId,expectedRevision,phaseColours}){
     const {dir,bundle}=await locate(bundleId);return {bundleId,...await bundle.setPhaseColours(dir,{phaseColours,expectedRevision})};
   }
-  operation('get_approval_status','Read the fresh hash-bound final settings/toolpath approval from the saved bundle. Caller-provided approvals are never accepted.',{ bundleId: bundleIdSchema });
-  async function getApprovalStatus({ bundleId }){return summary(bundleId, (await read(bundleId)).state);}
   operation('begin_studio_work','Optionally establish or claim work context before editing. Ordinary result-changing operations establish context automatically. Pass Studio requestIds on the operation; identify the Studio instance when ambiguous. Begin alone does not dim the view. Hand back once with respond_to_studio_request.',{bundleId:bundleIdSchema.optional(),studioInstanceId:z.string().optional(),instruction:z.string().min(1),requestId:z.string().optional(),kind:z.enum(['edit','guidance']).default('edit')},false);
   async function beginStudioWork({bundleId,studioInstanceId,instruction,requestId,kind}){
       const record=requestId?await agentRequests.get(requestId):null;
@@ -934,13 +931,6 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     const checks=await studio.server.generate({trigger:'agent'});
     return { ...summary(bundleId, await bundle.loadBundle(dir)), checks };
   }
-  operation('deliver_toolpath','Copy the exact current human-reviewed export bytes into the bundle delivery folder. Fails without current toolpath approval. Does not run hardware.',{ bundleId: bundleIdSchema },false);
-  async function deliverToolpath({ bundleId }){
-    const { dir, bundle } = await locate(bundleId);
-    if(await tourExample(dir))throw Error('Exit the tour before confirming a real print.');
-    const file = await bundle.deliver(dir,{machineSetups:paths.machineSetups}), state = await bundle.loadBundle(dir);
-    return { ...summary(bundleId, state), file, exportHash: state.exportHash };
-  }
   // Runs the named operation's entry with validated input. Each case names the
   // function it calls, so every operation's effects and result stay its own.
   function perform(name,input,session,instance){
@@ -994,7 +984,6 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       case 'record_extension_dependency':return recordExtensionDependencyOperation(input);
       case 'set_deferred_setup_save':return setDeferredSetupSaveOperation(input);
       case 'set_phase_colours':return setPhaseColoursOperation(input);
-      case 'get_approval_status':return getApprovalStatus(input);
       case 'begin_studio_work':return beginStudioWork(input);
       case 'respond_to_studio_request':return respondToStudioRequest(input);
       case 'wait_for_studio_request':return waitForStudioRequest(input,session);
@@ -1010,7 +999,6 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       case 'request_review':return requestReview(input);
       case 'close_studio_session':return closeStudioSession(input);
       case 'generate_toolpath':return generateToolpath(input);
-      case 'deliver_toolpath':return deliverToolpath(input);
       default:throw new Error(`Operation ${name} has a definition but no entry in perform().`);
     }
     throw Error(`Unknown SAAM operation ${name}.`);

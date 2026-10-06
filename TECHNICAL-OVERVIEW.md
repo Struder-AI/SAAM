@@ -152,8 +152,6 @@ Schemas describe routine fields; manuals describe judgment and limitations.
 | t25 | `check_path` | Feasibility through the shared generator without saved production output. |
 | t26 | `generate_toolpath` | Generate/check the composed path and machine program. |
 | t27 | `request_review` | Show geometry or generated output in Studio. |
-| t28 | `get_approval_status` | Read exact settings/toolpath confirmation. |
-| t29 | `deliver_toolpath` | Deliver confirmed machine-specific program/package bytes. |
 | t30 | `begin_studio_work` | Claim edit/guidance scope. |
 | t31 | `respond_to_studio_request` | Publish result/progress/wait/completion/failure. |
 | t32 | `wait_for_studio_request` | Listen during an active agent session. |

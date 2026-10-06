@@ -16,7 +16,7 @@ async function adoptProgramState(next,{presentation,decode,bind}){
     return {...next,program:{...next.program,...decoded,summary:{...decoded.summary,...next.program.summary}}};
   }catch(error){
     const {program,...withoutProgram}=next;
-    return {...withoutProgram,programViewError:'Could not load the saved toolpath view: '+error.message,toolpathApproved:false};
+    return {...withoutProgram,programViewError:'Could not load the saved toolpath view: '+error.message};
   }
 }
 

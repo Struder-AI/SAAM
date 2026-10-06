@@ -19,7 +19,7 @@ Capture cancels prior unfinished requests and rejects old writes. Studio-first r
 
 Connect says “Mention SAAM in your chat client.” Installed guidance handles attachment. `repair_client_setup` repairs registration; existing clients may need restarting.
 The consented release service observes startup from the home lease, operations, Studio/workspace events and installer stages once; offline, only first-run evidence and the latest network issue wait in `tmp/`. `saam diagnostics` waits for sends and returns the last receipt. Connect's Report a bug and an agent's `report_bug` (with its reason) send the text with window or client, print and runtime as one event the relay must acknowledge.
-[The service](../../packaging/release-service.mjs) owns consent/redaction; Bundle owns revisions, confirmation and exact-byte delivery.
+[The service](../../packaging/release-service.mjs) owns consent/redaction; Bundle owns revisions and exact-byte export.
 
 ## Local agent notes
 

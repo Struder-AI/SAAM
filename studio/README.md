@@ -24,7 +24,7 @@ when attaching or using `capture_bundle`. Never borrow another chat's ID.
 State responses identify their server instance. A restarted page reloads for new
 credentials; old credentials cannot acknowledge a result. Restart source runs
 after changing imported code so servers and workers use the same snapshot. A code
-change alone does not invalidate confirmation of unchanged checked bytes.
+change alone does not make unchanged checked bytes stale.
 
 For downloads, distinguish an HTTP response from a saved file. Use the browser's
 supported download action, or return browser control for the person's click;
@@ -91,7 +91,7 @@ Open lists the SAAM home's saved bundles (three directory levels), or accepts a
 bundle folder, `plan.json` or a file inside it. Standalone machine-program import
 is not implemented. One Studio owns each open bundle. Changing the selected
 bundle changes all tabs of that Studio; mutation requests carry print identity
-so an old tab cannot approve or deliver a newly selected print.
+so an old tab cannot export a newly selected print.
 
 Opening checks saved artifacts without regenerating current files. A current
 saved SAAMpath with no checked machine program is labeled as neutral source and
@@ -219,8 +219,8 @@ becomes an agent request; an agent's is that agent's error outcome and an event.
 [agent-ui.mjs](agent-ui.mjs) reports rendering and ignores obsolete responses.
 Durable request records and live event queues cannot substitute for rendering.
 
-Export captures the exact displayed checked program. It does not regenerate,
-promote approval or reinterpret current files; later edits cannot change captured
+Export captures the exact displayed checked program. It does not regenerate
+or reinterpret current files; later edits cannot change captured
 download bytes. Reopening separately validates stored artifacts.
 
 ### Playback storage and movie resources

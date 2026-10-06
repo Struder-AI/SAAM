@@ -1,5 +1,5 @@
 // Runtime check shared by checkouts, release builds and each installed version's first start.
-// No Git, regression suite, slicing or job approvals.
+// No Git, regression suite, slicing or machine actions.
 import assert from 'node:assert/strict';
 import {readFile,access} from 'node:fs/promises';
 import {resolve} from 'node:path';
@@ -57,7 +57,7 @@ export async function checkSetup({log=console.log}={}) {
       assert.equal(page.status,200);assert.match(await page.text(),/saam-token/);
       const response=await fetch(origin+'/api/state',{signal:AbortSignal.timeout(10000)});
       const state=await response.json();assert.equal(response.status,200,state.error);
-      assert.ok(state.geometry);assert.equal(state.toolpathApproved,false);
+      assert.ok(state.geometry);
       assert.equal(state.program,undefined);
     }finally{
       if(server?.listening)await server.shutdown();
@@ -65,7 +65,7 @@ export async function checkSetup({log=console.log}={}) {
     }
   });
   const result={node:process.version,platform:process.platform,arch:process.arch,stagesMs:stages,totalMs:Math.round(performance.now()-started)};
-  log(`SAAM is ready (${(result.totalMs/1000).toFixed(2)}s). No print approvals or machine actions were created.`);
+  log(`SAAM is ready (${(result.totalMs/1000).toFixed(2)}s). No machine actions were created.`);
   return result;
 }
 

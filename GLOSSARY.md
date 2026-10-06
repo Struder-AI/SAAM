@@ -6,7 +6,7 @@ Terminology: [architecture](TECHNICAL-OVERVIEW.md), [release scope](plans/0.2.0.
 |---|---|
 | Bundle | Saved geometry, recipe, review records and checked machine program for a fabrication task, possibly containing several parts. A print bundle is a bundle used for printing. |
 | Recipe | Authored geometry, skill assignments, process settings, machine and setup, stored as `plan.json`. Defaults do not supply a shape. |
-| Confirmation | The person's single approval of current settings and the exact toolpath in Studio before delivery. Geometry review is advisory. |
+| Confirmation | The person's Export in Studio: it writes the current settings' exact toolpath as shown. Nothing else is recorded or re-checked. Geometry review is advisory. |
 | SAAMpath | SAAM's one machine-independent toolpath: moves with deposition volume, speed and context, plus process actions. The composer builds it from skill results; each machine's exporter translates it into that machine's program. Completed motion is saved in the print bundle and reused when its inputs match. |
 | Machine program | Machine-specific commands/package exported from SAAMpath, checked and delivered unchanged after confirmation. |
 | Toolpath skill | Constructs deposition/process operations through shared core capabilities; named techniques may be configurations of the same skill. |

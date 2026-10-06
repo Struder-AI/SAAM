@@ -23,5 +23,5 @@ test('a saved manifest can initialize a new print without copying derived bundle
   const {bundle:ignored,...recipe}=manifest;
   assert.deepEqual(copy.plan,recipe);
   assert.equal(copy.machine.id,manifest.bundle.machine.id);
-  assert.deepEqual(copy.review.approvals,{});
+  assert.equal(copy.review.approvals,undefined);
 });

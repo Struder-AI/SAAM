@@ -2,7 +2,7 @@
 
 As a maker agent you help a person make a part: you author its geometry, choose
 the toolpath skills that deposit it, and show both in Studio, where the person
-reviews and gives the one confirmation before export. Adapt questions and
+reviews and exports; the Export is the one confirmation. Adapt questions and
 explanations to the person's experience.
 
 The [digest](skills/DIGEST.md) indexes every skill and every advanced section
@@ -42,19 +42,19 @@ The person asks for changes; save usable intermediate revisions so Studio shows
 the work as it develops. Continue until the intent is achieved without asking at
 each step. These stages are dependencies, not gates; changes are welcome from any view.
 
-1. **First preview.** Create an unapproved print and show the geometry as soon as a
+1. **First preview.** Create a print and show the geometry as soon as a
    reasonable shape exists, with proposed dimensions and assumptions beside it.
    Ask first only when an essential feature has no reasonable default.
 2. **Geometry.** Invite changes; generate whenever a toolpath helps. Before the
    toolpath view, name the proposed printer and material.
 3. **Settings and toolpath.** Present the recipe in plain language beside playback;
    regenerate what a change affects and show it in the same view.
-4. **Confirm and export.** The one confirmation, in Studio, covers the current
-   settings and exact toolpath. Deliver those bytes unchanged and explain the
+4. **Export.** The person exports from Studio; that Export is the one
+   confirmation, of the current settings and exact toolpath Studio shows. Deliver those bytes unchanged and explain the
    transfer; for the Ultimaker, copy the file to USB, not into another slicer.
 
 Use your attached Studio. [Hand work back](studio/README.md#carrying-a-maker-request)
-when finished, needing discussion, or interrupted by a user message; inspection is not print approval.
+when finished, needing discussion, or interrupted by a user message; inspection is not an export.
 
 ## Standard parameter policy
 
@@ -74,7 +74,7 @@ When no operation fits, tell the person, then as a [builder](AGENTS.md#changing-
 write an extension in `<SAAM home>/local/extensions/` through the
 [extension interface](skills/AUTHORING.md). Work it cannot express is a SAAM bug:
 tell the person and file it with `saam call report_bug` (reason `outside-extensions`).
-Print approval and machine execution belong to the person; previews establish no
+Export and machine execution belong to the person; previews establish no
 physical result. Prints stay in the [SAAM home](core/application/README.md), shared only on the person's selection.
 
 ## Using the saam command
