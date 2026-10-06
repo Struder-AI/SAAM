@@ -49,7 +49,8 @@ export async function checkSetup({log=console.log}={}) {
       const plan=defaults();plan.geometry=box;
       await initBundle(directory,plan,{machineId:'ultimaker-s5'});
       const {createStudio}=await import('../studio/server.mjs');
-      server=createStudio(directory,{libraryRoot:workspace.directory});
+      const {createChatChannel}=await import('../core/application/chat-requests.mjs');
+      server=createStudio(directory,{libraryRoot:workspace.directory,chat:createChatChannel(workspace.directory,{ownerId:'setup-check'}).binding});
       await new Promise((done,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',done);});
       const origin=`http://127.0.0.1:${server.address().port}`;
       const page=await fetch(origin,{signal:AbortSignal.timeout(10000)});

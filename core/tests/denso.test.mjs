@@ -30,6 +30,7 @@ import {decodeSource,fetchSources} from '../../studio/source-player.mjs';
 import {createStudio} from '../../studio/server.mjs';
 import {outputView} from '../../studio/refresh-plan.mjs';
 import {regionalStackPlan} from './fixtures/regional-stack.mjs';
+import {createChatChannel} from '../application/chat-requests.mjs';
 const machine=loadMachine('denso-vs068a4-rc8a'),near=(a,b,t=1e-6)=>assert.ok(Math.abs(a-b)<t,`${a} != ${b}`);
 // The pipe-cladding example recipe on a 1.2 mm tube.
 const densoTube=JSON.parse(readFileSync(new URL('../../skills/pipe-cladding/examples/denso-tube.json',import.meta.url),'utf8')).plan;
@@ -122,7 +123,7 @@ test('RC8A uses the public bundle, exact browser source and cold reopen without 
   const dir=await mkdtemp(join(tmpdir(),'saam-denso-'));t.after(()=>rm(dir,{recursive:true,force:true}));const plan=small();
   await initBundle(dir,plan,{machineId:machine.id});const checks=await generateBundle(dir,{development:true});assert.equal(checks.mode,'development');
   const state=await loadBundle(dir);assert.equal(state.programError,undefined);assert.deepEqual(state.review.approvals,{});await assert.rejects(()=>deliver(dir),/approv/);
-  const server=createStudio(dir,{libraryRoot:home});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>server.shutdown());
+  const server=createStudio(dir,{libraryRoot:home,chat:createChatChannel(home,{ownerId:'studio:test'}).binding});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>server.shutdown());
   const origin=`http://127.0.0.1:${server.address().port}`,fetcher=(url,...args)=>fetch(origin+url,...args),remote=outputView(await(await fetcher('/api/state')).json());
   assert.equal(remote.program.moves,undefined);
   const files=await fetchSources(remote,fetcher),decoded=decodeSource(files,remote.plan,remote.machine);

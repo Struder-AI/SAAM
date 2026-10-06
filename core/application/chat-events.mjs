@@ -1,4 +1,4 @@
-// One agent-owned queue of Studio observations, shared by that agent's Studio
+// One chat's queue of Studio observations, shared by that agent's Studio
 // instances. Held kinds wait until the agent reads; delivered kinds push at once
 // and carry everything held with them. Reads drain the queue; pushes do not, so
 // a client that never surfaces a push still receives the batch on its next read.
@@ -10,12 +10,8 @@ export const HELD_KINDS=new Set(['viewer-opened','viewer-closed','view-presented
 export const EVENT_KINDS=[...DELIVERED_KINDS,...HELD_KINDS];
 const clone=({key,...event})=>structuredClone(event);
 
-export function createStudioEvents({now=Date.now,limit=200,historyLimit=100}={}){
-  const queued=[],recent=[],listeners=new Set(),observers=new Set(),waiters=new Set();let seq=0,closed=false;
-  // One record per pending wait owns that wait's timer, abort listener and
-  // resolver, so waking a waiter is a named step rather than a stored callback.
-  const wake=()=>{for(const waiter of [...waiters])settleWaiter(waiter);};
-  function settleWaiter(waiter){clearTimeout(waiter.timer);waiters.delete(waiter);waiter.signal?.removeEventListener('abort',waiter.done);waiter.resolve(pendingDelivery());}
+export function createChatEvents({now=Date.now,limit=200,historyLimit=100}={}){
+  const queued=[],recent=[],listeners=new Set(),observers=new Set();let seq=0,closed=false;
   const pendingDelivery=()=>queued.some(event=>event.delivery==='delivered');
   function record(kind,detail={}){
     if(closed)return null;
@@ -28,27 +24,15 @@ export function createStudioEvents({now=Date.now,limit=200,historyLimit=100}={})
     if(queued.length>limit)recent.push(...queued.splice(0,queued.length-limit).map(clone));
     if(recent.length>historyLimit)recent.splice(0,recent.length-historyLimit);
     for(const observer of [...observers])observer(clone(event));
-    if(event.delivery==='delivered'){const batch=queued.map(clone);for(const listener of [...listeners])listener(batch);wake();}
+    if(event.delivery==='delivered'){const batch=queued.map(clone);for(const listener of [...listeners])listener(batch);}
     return clone(event);
   }
   return {
     record,pendingDelivery,
-    get size(){return queued.length;},
-    peek(){return queued.map(clone);},
     drain(){const batch=queued.splice(0).map(clone);recent.push(...batch);if(recent.length>historyLimit)recent.splice(0,recent.length-historyLimit);return batch;},
     history(){return recent.map(event=>structuredClone(event));},
     subscribe(listener){if(typeof listener!=='function')throw Error('Event listener must be a function.');listeners.add(listener);return()=>{listeners.delete(listener);};},
     observe(observer){if(typeof observer!=='function')throw Error('Event observer must be a function.');observers.add(observer);return()=>{observers.delete(observer);};},
-    // Resolves when a delivered-class event is queued, on timeout, on close or
-    // when the signal aborts. The caller drains; held events never wake a wait.
-    wait({waitMs=25000,signal}={}){
-      const remaining=Math.min(25000,Math.max(0,waitMs));
-      if(closed||pendingDelivery()||remaining<=0||signal?.aborted)return Promise.resolve(pendingDelivery());
-      return new Promise(resolve=>{
-        const waiter={timer:null,signal,resolve,done:null};waiter.done=()=>settleWaiter(waiter);
-        waiters.add(waiter);waiter.timer=setTimeout(waiter.done,remaining);waiter.timer.unref?.();signal?.addEventListener('abort',waiter.done,{once:true});
-      });
-    },
-    close(){closed=true;listeners.clear();observers.clear();wake();}
+    close(){closed=true;listeners.clear();observers.clear();}
   };
 }

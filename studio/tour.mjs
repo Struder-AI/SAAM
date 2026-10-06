@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {randomUUID} from 'node:crypto';
 import {TOUR_VERSION,TOUR_DECK_VERSION,TOUR_DEMOS,TOUR_STEPS,TOUR_LESSONS as L,tourAgentInstruction} from './tour-catalog.mjs';
 
-import {createAgentRequests} from './agent-requests.mjs';
+import {requestPrintId} from '../core/application/chat-requests.mjs';
 import {bundleFor,readStableBundle} from './adapter-resolution.mjs';
 import {requestReceiptState} from './work-state.mjs';
 
@@ -24,9 +24,10 @@ function demo(id){if(!TOUR_DEMOS.some(d=>d.id===id))throw Error('Unknown tour ex
 const validPath=name=>typeof name==='string'&&!name.includes('\\')&&!name.includes(':')&&!name.startsWith('/')&&name.split('/').every(p=>p&&p!=='.'&&p!=='..');
 export async function tourExample(directory){const marker=await optional(resolve(directory,'.tour-reference.json'));return marker?.version===TOUR_VERSION&&TOUR_DEMOS.some(d=>d.id===marker.id)?{id:marker.id,version:marker.version}:null;}
 export async function useExample(directory){try{await unlink(resolve(directory,'.tour-reference.json'));}catch(e){if(e.code!=='ENOENT')throw e;}}
-export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentRequests}={}){
+// The tour as one chat binding sees it; studioId names the Studio running it (none for a status read).
+export function createTour(libraryRoot,{now=Date.now,studioId,chat}){
   const library=resolve(libraryRoot),progress=resolve(library,'.tour-progress.json'),base=resolve(library,'tour');
-  const requests=agentRequests??createAgentRequests(library,{now,ownerId}),ownsRequests=!agentRequests;
+  const printIdOf=directory=>requestPrintId(library,directory);
   const initial=()=>({version:TOUR_VERSION,deckVersion:TOUR_DECK_VERSION,runId:null,lessonId:null,step:0,active:false,completed:false,copies:{},selected:null,gates:{},baseline:null,startAt:null});
   async function read(){const value=await optional(progress);return value?.deckVersion===TOUR_DECK_VERSION&&value.runId?{...initial(),...value}:initial();}
   const scope=data=>({runId:data.runId,lessonId:data.lessonId});
@@ -56,12 +57,12 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
     return data.step===L.geometry?state.workEvidence.geometryKey:state.workEvidence.inputKey;
   }
   async function editLessonBaseline(data,state){
-    const printId=requests.printId(await confined(data.selected));
+    const directory=await confined(data.selected),printId=printIdOf(directory);
     if(data.editLesson?.printId===printId)return false;
     // Read the print's whole request history, not this owner's share of it: a
     // Studio relaunch may carry a different agent owner, and a record made
     // before the lesson must still count as prior work.
-    const records=await requests.list({printId,anyOwner:true});
+    const records=await chat.requestsFor(directory,studioId,{history:true});
     data.editLesson={printId,inputKey:await signature({...data,step:L.settings},state),
       priorRequestIds:records.filter(r=>r.printId===printId).map(r=>r.id)};
     data.baseline=data.editLesson.inputKey;
@@ -79,31 +80,30 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
   async function describe(data,records){
     const gate=TOUR_STEPS[data.step]?.gate;
     const directory=(data.active||data.completed)&&data.selected?await confined(data.selected):null;
-    const waiting=data.active&&[L.geometry,L.settings,L.setup,L.export].includes(data.step)&&directory&&(records??await requests.query({printId:requests.printId(directory)})).some(r=>
-      ['queued','working'].includes(requestReceiptState(r,{now:now(),view:{printId:requests.printId(directory),ready:true,snapshot:data.viewWork}}).activity));
+    const waiting=data.active&&[L.geometry,L.settings,L.setup,L.export].includes(data.step)&&directory&&(records??await chat.requestsFor(directory,studioId)).some(r=>
+      ['queued','working'].includes(requestReceiptState(r,{now:now(),view:{printId:printIdOf(directory),ready:true,snapshot:data.viewWork}}).activity));
     return {...data,directory,canNext:!waiting&&(!gate||data.gates[data.step]===true),agentInstruction:tourAgentInstruction(data)};
   }
   async function enter(data,index){
-    if(data.lessonId)await requests.cancelScope(scope(data));
+    if(data.lessonId)await chat.withdraw({scope:scope(data)});
     const step=TOUR_STEPS[index];data.lessonId=randomUUID();data.step=index;data.active=true;data.completed=false;data.dismissed=false;
     if(step.demo){await ensure(step.demo,data);data.selected=data.copies[step.demo];}
     if(index===L.geometry&&!data.gates[index])data.baseline=await signature(data);
     if(index===L.settings){
       data.editLesson=null;data.gates[index]=false;
       await editLessonBaseline(data);data.baseline=data.editLesson.inputKey;
-      await requests.begin({directory:await confined(data.selected),source:'studio',kind:'guidance',scope:scope(data),key:'tour-change:'+data.lessonId,studioInstanceId:studioId,instruction:tourAgentInstruction(data)});
+      await chat.ask({directory:await confined(data.selected),kind:'guidance',scope:scope(data),key:'tour-change:'+data.lessonId,studioInstanceId:studioId,instruction:tourAgentInstruction(data)});
     }
     if(index===L.setup||index===L.export)data.gates[index]=data.viewSignature===await signature(data);
   }
   return {
-    close(){if(ownsRequests)requests.close();},
     async info({records,state}={}){return describe(await observed(state),records);},
     async attachStudio(directory){
       if(!studioId)return;
       const data=await read();
       if(!data.active||data.studioOwner||!data.selected||await confined(data.selected)!==resolve(directory))return;
       data.studioOwner=studioOwner();data.lessonId=randomUUID();await save(progress,data);
-      if(data.step===L.settings&&!data.gates[L.settings])await requests.begin({directory,source:'studio',kind:'guidance',
+      if(data.step===L.settings&&!data.gates[L.settings])await chat.ask({directory,kind:'guidance',
         scope:scope(data),key:'tour-change:'+data.lessonId,studioInstanceId:studioId,instruction:tourAgentInstruction(data)});
     },
     async closeStudio(){
@@ -112,8 +112,8 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
       // Release only this Studio's ownership; the saved print can resume the
       // same lesson in a later Studio instance.
       data.studioOwner=null;await save(progress,data);
-      await requests.cancelScope({runId:data.runId});
-      for(const name of Object.values(data.copies))await requests.cancelFor(await confined(name));
+      await chat.withdraw({scope:{runId:data.runId}});
+      for(const name of Object.values(data.copies))await chat.withdraw({directory:await confined(name)});
     },
     async downloaded(exportHash){const data=await read();if(!data.active||data.step!==L.export)throw Error('Reach the final tour lesson before exporting.');data.downloadedHash=exportHash;await save(progress,data);},
     async acknowledgeView(directory,seen,state){
@@ -125,7 +125,7 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
         // A current lesson request or a new agent edit must publish the changed
         // inputs actually drawn. Old lessons and automatic generation cannot
         // supply that request target. History survives a change of chat owner.
-        const requested=(await requests.list({printId:baseline.printId,anyOwner:true})).some(r=>
+        const requested=(await chat.requestsFor(directory,studioId,{history:true})).some(r=>
           (r.source==='agent'&&r.kind==='edit'||r.source==='studio'&&r.scope?.runId===data.runId&&r.scope?.lessonId===data.lessonId)
           &&!baseline.priorRequestIds.includes(r.id)&&['working','waiting','completed'].includes(r.status)
           &&r.baseline?.inputKey!==shown.inputKey&&requestReceiptState({...r,presented:false},{view:{ready:true,snapshot:shown}}).receipt);
@@ -156,17 +156,17 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
     },
     async action(action,step){
       let data=await observed();
-      if(action==='exit'||action==='cancel'){data.active=false;data.dismissed=true;for(const name of Object.values(data.copies)){await useExample(await confined(name));await requests.cancelFor(await confined(name));}if(data.runId)await requests.cancelScope({runId:data.runId});if(!data.completed)data=initial();}
+      if(action==='exit'||action==='cancel'){data.active=false;data.dismissed=true;for(const name of Object.values(data.copies)){await useExample(await confined(name));await chat.withdraw({directory:await confined(name)});}if(data.runId)await chat.withdraw({scope:{runId:data.runId}});if(!data.completed)data=initial();}
       else if(action==='finish'||action==='finish-view'){
         if(!data.active||data.step!==L.export||!data.gates[L.export]||await signature(data)!==data.viewSignature)
           throw Error('Review the current toolpath before finishing.');
         if(action==='finish'&&!data.downloadedHash)throw Error('Download the print file to complete the tour.');
         data.active=false;data.completed=true;data.completion=action==='finish'?'download':'view';
-        for(const name of Object.values(data.copies)){await useExample(await confined(name));await requests.cancelFor(await confined(name));}
-        await requests.begin({directory:await confined(data.selected),source:'studio',kind:'guidance',scope:{runId:data.runId},
+        for(const name of Object.values(data.copies)){await useExample(await confined(name));await chat.withdraw({directory:await confined(name)});}
+        await chat.ask({directory:await confined(data.selected),kind:'guidance',scope:{runId:data.runId},
           key:'tour-finish:'+data.runId,studioInstanceId:studioId,instruction:tourAgentInstruction(data)});
       }
-      else if(action==='fresh'){for(const name of Object.values(data.copies)){await useExample(await confined(name));await requests.cancelFor(await confined(name));}if(data.runId)await requests.cancelScope({runId:data.runId});data={...initial(),runId:randomUUID(),studioOwner:studioOwner()};await enter(data,0);}
+      else if(action==='fresh'){for(const name of Object.values(data.copies)){await useExample(await confined(name));await chat.withdraw({directory:await confined(name)});}if(data.runId)await chat.withdraw({scope:{runId:data.runId}});data={...initial(),runId:randomUUID(),studioOwner:studioOwner()};await enter(data,0);}
       else if(action==='step'){
         if(!data.active)throw Error('Start a new tour first.');
         if(!Number.isInteger(step)||!TOUR_STEPS[step])throw Error('Unknown tour step');
@@ -178,3 +178,5 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
     }
   };
 }
+// The tour status for a chat outside any Studio (the agent's get_tour).
+export const tourStatus=(libraryRoot,chat)=>createTour(libraryRoot,{chat}).info();
