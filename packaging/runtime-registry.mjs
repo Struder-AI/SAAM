@@ -172,7 +172,8 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
   async function endTurn(chatId,reason){
     await Promise.all([...runtimes.values()].filter(runtime=>!runtime.starting).map(runtime=>rpc(runtime,'end-turn',{chatId,reason})));
   }
-  async function notifyStopping(reason){await Promise.all([...runtimes.values()].map(runtime=>rpc(runtime,'stopping',{reason})));}
+  // A starting runtime holds nothing to warn; it exits when the orchestrator disconnects.
+  async function notifyStopping(reason){await Promise.all([...runtimes.values()].filter(runtime=>!runtime.starting).map(runtime=>rpc(runtime,'stopping',{reason})));}
   // Stops the runtime a message names; its windows keep their addresses for the next start.
   // Closing waits for the runtime's Studios, which may themselves be asking to start a runtime.
   async function halt(message,reason){
