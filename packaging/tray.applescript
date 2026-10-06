@@ -10,6 +10,7 @@ property updateItem : missing value
 property newInstanceItem : missing value
 property endItem : missing value
 property raiseScript : missing value
+property appPid : missing value
 
 on callControl(commandName, forceQuit)
   return my sendControl("{\"command\":\"" & commandName & "\",\"force\":" & forceQuit & "}")
@@ -104,6 +105,13 @@ end addEntry
 -- One flat menu: each runtime's Studios, after a separator, between New Instance
 -- and Update. A source runtime also has its own open and stop items.
 on refreshMenu_(sender)
+  -- The tray ends with the SAAM process it serves (tray.mjs).
+  try
+    do shell script "kill -0 " & appPid
+  on error
+    current application's NSApp's terminate:me
+    return
+  end try
   set firstIndex to (trayMenu's indexOfItem:newInstanceItem) + 1
   repeat while (trayMenu's indexOfItem:endItem) > firstIndex
     trayMenu's removeItemAtIndex:firstIndex
@@ -187,6 +195,7 @@ end quitApp_
 on run argv
   set controlPort to item 1 of argv
   set controlToken to item 2 of argv
+  set appPid to item 3 of argv
   set raiseScript to item 4 of argv
   -- AppleScript terms (app, run, count, null, button) are not variable names; Cocoa methods with those names are piped.
   set sharedApp to current application's NSApplication's sharedApplication()

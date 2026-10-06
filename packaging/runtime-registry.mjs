@@ -143,8 +143,11 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
   }
   // display:'caller' marks the person's own launch or tray click: the answer says how
   // that caller shows the window (studio-windows display), and nothing here opens a browser.
+  // Only an open or an operation starts a runtime. saam answers help without SAAM, so a
+  // help reaching here comes from a checkout older than this orchestrator.
   async function command(message){
     const opening=message.command==='open'||message.command==='new-instance',callerShows=opening&&message.display==='caller';
+    if(!opening&&!['call','wait','start-tour'].includes(message.command))throw Error('Unknown SAAM command '+message.command+'. Use saam help; a checkout older than the running SAAM merges the current source first.');
     const named=message.studioInstanceId||message.args?.studioInstanceId||undefined;
     const recent=opening&&!message.runtimeId&&!named&&!message.runtime?await recentWindow():{};
     const target=message.runtimeId??(message.studioInstanceId?windows.runtimeFor(message.studioInstanceId):null);

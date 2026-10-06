@@ -24,5 +24,7 @@ export async function startTray({port,token,pid=process.pid}={}){
       child.once('exit',code=>{clearTimeout(timer);fail(Error(output.problem??'The SAAM tray exited ('+code+').'));});
     });
   }catch(error){return {problem:error.message,stop(){}};}
-  return {problem:null,stop(){child.kill();}};
+  // The tray removes its icon itself when this process ends (it watches pid): a tray ended
+  // from here leaves Windows showing a dead process's icon until the pointer passes over it.
+  return {problem:null,stop(){child.stdout.destroy();child.stderr.destroy();child.unref();}};
 }

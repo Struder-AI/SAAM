@@ -45,14 +45,19 @@ export async function leaseHolder(port){
     return response.statusCode===403&&value.error==='Invalid local control request.'?'saam':'other';
   }catch(error){return error.code==='ECONNREFUSED'?'none':error instanceof SyntaxError?'other':'busy';}
 }
-export async function readyInstance(){
-  const paths=homePaths();await mkdir(paths.state,{recursive:true});
+// The home's application when its record answers; null when none runs (or one is still starting).
+export async function runningInstance(){
   const existing=await readInstance();
-  if(existing){
-    if(existing.user&&existing.user!==userInfo().username)throw Error('SAAM is running for '+existing.user+'.');
-    try{await controlRequest(existing,{command:'status'},{waitMs:3000});return existing;}
-    catch{/* The OS control listener decides whether a new application can own this home. */}
-  }
+  if(!existing)return null;
+  if(existing.user&&existing.user!==userInfo().username)throw Error('SAAM is running for '+existing.user+'.');
+  try{await controlRequest(existing,{command:'status'},{waitMs:3000});return existing;}
+  catch{return null;}
+}
+export async function readyInstance(){
+  const running=await runningInstance();
+  if(running)return running;
+  // The OS control listener decides whether a new application can own this home.
+  const paths=homePaths();await mkdir(paths.state,{recursive:true});
   const root=await orchestratorRoot(paths);
   const node=root===paths.app?resolve(root,'runtime',process.platform==='win32'?'node.exe':'node'):process.execPath;
   // The launched process tells its startup failure over IPC; waiting lasts while it lives.

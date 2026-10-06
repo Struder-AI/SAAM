@@ -2,7 +2,7 @@
 import {mkdir,readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {z} from 'zod';
-import {createLocalRuntime,instructions} from '../core/application/runtime.mjs';
+import {createLocalRuntime} from '../core/application/runtime.mjs';
 import {homePaths} from '../core/application/home.mjs';
 import {orchestratorContract,codeStamp,contractProblem} from '../core/application/runtime-selection.mjs';
 import {processRuntime} from '../core/print/bundle-runtime.mjs';
@@ -30,22 +30,31 @@ const relay={
   quit:async options=>request('service',{method:'quit',options}),
   report:async report=>request('service',{method:'report',report})
 };
+// A named flag arrives as text; the operation's input schema gives its type.
+function flagValue(value,schema={}){
+  const types=[schema.type,...(schema.anyOf??[]).map(item=>item.type)];
+  if(types.includes('boolean')){
+    if(value===true||value==='true')return true;if(value===false||value==='false')return false;
+    throw Error('Boolean flags accept true or false.');
+  }
+  if(types.includes('number')||types.includes('integer')){const number=Number(value);if(!Number.isFinite(number))throw Error('Numeric flags need a finite number.');return number;}
+  if(types.includes('null')&&value==='null')return null;
+  if(value===true)throw Error('Supply a value for this flag. Use --input for arrays and objects.');
+  return String(value);
+}
+// saam answers help itself (scripts/saam.mjs); a runtime runs operations.
 async function command(message){
   const runtime=host.runtime;
-  if(message.command==='help'){
-    const operation=message.operation?runtime.operations.find(value=>value.name===message.operation):null;
-    if(message.operation&&!operation)throw Error('Unknown SAAM operation '+message.operation+'.');
-    return {ok:true,instructions,commands:['open','help [OP]','call OP --input FILE|--stdin|--flags','wait','start-tour','status','reload-runtime','stop-runtime','update','quit'],
-      operations:(operation?[operation]:runtime.operations).map(value=>({name:value.name,description:value.description,readOnly:value.readOnly,
-        ...(operation?{input:z.toJSONSchema(value.schema,{target:'draft-7',io:'input'})}:{})}))};
-  }
   const operationName=message.command==='wait'?'wait_for_studio_request':message.command==='start-tour'?'start_tour':message.command==='call'?message.operation:null;
   const definition=runtime.operations.find(value=>value.name===operationName);
   if(!definition)throw Error('Use saam help to choose a command or operation.');
-  definition.schema.parse(message.args??{});
+  const properties=z.toJSONSchema(definition.schema,{target:'draft-7',io:'input'}).properties??{},args={...message.args};
+  for(const [key,value] of Object.entries(message.flags??{}))args[key]=flagValue(value,properties[key]);
+  if(message.command==='call'&&properties.bundleId&&message.bundleId!==undefined)args.bundleId??=String(message.bundleId);
+  definition.schema.parse(args);
   const chat=await runtime.connectChat({id:message.chatId,name:message.chatName??(message.client?message.client+' '+message.chatId.slice(0,8):message.chatId),client:message.client,
-    bundleId:message.operation==='capture_bundle'?undefined:message.bundleId,operation:operationName,args:message.args??{}});
-  return {ok:true,result:await chat.invoke(operationName,message.args??{})};
+    bundleId:message.operation==='capture_bundle'?undefined:message.bundleId??args.bundleId,operation:operationName,args});
+  return {ok:true,result:await chat.invoke(operationName,args)};
 }
 async function start(args){
   const paths=homePaths(),stateRoot=args.stateRoot,runtime=processRuntime();

@@ -10956,6 +10956,9 @@
     "core/application/control.mjs::readInstance": {
       "owner": "application"
     },
+    "core/application/control.mjs::runningInstance": {
+      "owner": "application"
+    },
     "core/application/control.mjs::readyInstance": {
       "owner": "application"
     },
@@ -11007,7 +11010,13 @@
     "scripts/saam.mjs::enabled": {
       "owner": "application"
     },
-    "scripts/saam.mjs::flagValue": {
+    "scripts/saam.mjs::startsSaam": {
+      "owner": "application"
+    },
+    "scripts/saam.mjs::runningOnly": {
+      "owner": "application"
+    },
+    "scripts/saam.mjs::help": {
       "owner": "application"
     },
     "scripts/saam.mjs::runSaam": {
@@ -12518,6 +12527,9 @@
       "owner": "application"
     },
     "packaging/runtime-host.mjs::relay.report": {
+      "owner": "application"
+    },
+    "packaging/runtime-host.mjs::flagValue": {
       "owner": "application"
     },
     "packaging/runtime-host.mjs::command": {

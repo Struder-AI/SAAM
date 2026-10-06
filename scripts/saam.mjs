@@ -3,24 +3,17 @@ import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {readInstance,readyInstance,controlRequest} from '../core/application/control.mjs';
+import {readInstance,runningInstance,readyInstance,controlRequest} from '../core/application/control.mjs';
 import {selectRuntime,contractProblem} from '../core/application/runtime-selection.mjs';
+import {homePaths} from '../core/application/home.mjs';
 
+// help answers from this code alone; status, quit and stop-runtime reach a running SAAM
+// only; the other commands start SAAM when none runs.
+const startsSaam=new Set(['open','call','wait','start-tour','reload-runtime','update','diagnostics']),runningOnly=new Set(['status','quit','stop-runtime']);
 const camel=name=>name.replace(/-([a-z])/g,(_match,letter)=>letter.toUpperCase());
-function flagValue(value,schema={}){
-  const types=[schema.type,...(schema.anyOf??[]).map(item=>item.type)];
-  if(types.includes('boolean')){
-    if(value===true||value==='true')return true;if(value===false||value==='false')return false;
-    throw Error('Boolean flags accept true or false.');
-  }
-  if(types.includes('number')||types.includes('integer')){const number=Number(value);if(!Number.isFinite(number))throw Error('Numeric flags need a finite number.');return number;}
-  if(types.includes('null')&&value==='null')return null;
-  if(value===true)throw Error('Supply a value for this flag. Use --input for arrays and objects.');
-  return String(value);
-}
 function enabled(value){return value===true||value==='true';}
 export function commandInput(args,environment=process.env){
-  const parsed={command:args[0]??'help',operation:null,flags:{},options:{},index:1};
+  const parsed={command:['--help','-h'].includes(args[0])?'help':args[0]??'help',operation:null,flags:{},options:{},index:1};
   if(parsed.command==='call'||parsed.command==='help'){
     if(args[parsed.index]&&!args[parsed.index].startsWith('--'))parsed.operation=args[parsed.index++];
   }
@@ -55,6 +48,20 @@ async function clientEvent(input){
   try{await controlRequest(instance,{command:'end-turn',chatId:event.session_id,reason});}
   catch(error){if(error.result)throw error;/* No SAAM answers at its record: nothing is attached. */}
 }
+// Help describes the operations of the code this command runs, which a runtime started
+// from it would offer, without starting an orchestrator, runtime or window.
+async function help(runtime,operationName){
+  const [{createLocalRuntime,instructions},{z}]=await Promise.all([import('../core/application/runtime.mjs'),import('zod')]);
+  const paths=homePaths(),local=createLocalRuntime({paths,stateRoot:resolve(paths.state,'runtimes',runtime.id.replace(':','-')),autoOpen:false});
+  try{
+    const operation=operationName?local.operations.find(value=>value.name===operationName):null;
+    if(operationName&&!operation)throw Error('Unknown SAAM operation '+operationName+'.');
+    return {ok:true,instructions,commands:['open','help [OP]','call OP --input FILE|--stdin|--flags','wait','start-tour','status','reload-runtime','stop-runtime','update','quit'],
+      operations:(operation?[operation]:local.operations).map(value=>({name:value.name,description:value.description,readOnly:value.readOnly,
+        ...(operation?{input:z.toJSONSchema(value.schema,{target:'draft-7',io:'input'})}:{})})),
+      runtime:{id:runtime.id,label:runtime.label}};
+  }finally{await local.close();}
+}
 export async function runSaam(args=process.argv.slice(2),{input=process.stdin,write=value=>console.log(JSON.stringify(value))}={}){
   const parsed=commandInput(args);
   if(parsed.command==='client-event')return clientEvent(input);
@@ -62,23 +69,22 @@ export async function runSaam(args=process.argv.slice(2),{input=process.stdin,wr
     ?{chatId:parsed.chatId,...(parsed.fallbackChatId?{nextCommand:'Pass --chat-id '+parsed.chatId+' on every later saam command in this chat.'}:{})}:{};
   const selection={runtime:null};
   try{
+    if(parsed.command!=='help'&&!startsSaam.has(parsed.command)&&!runningOnly.has(parsed.command))throw Error('Unknown command '+parsed.command+'. Use saam help.');
     const runtime=selection.runtime=await selectRuntime();
+    if(parsed.command==='help'){const result=await help(runtime,parsed.operation);write(result);return result;}
     const fields={};
     if(parsed.options.input&&enabled(parsed.options.stdin))throw Error('Choose --input FILE or --stdin.');
     if(parsed.options.input===true)throw Error('Supply the input filename.');
     if(parsed.options.input)Object.assign(fields,JSON.parse(await readFile(resolve(String(parsed.options.input)),'utf8')));
     if(enabled(parsed.options.stdin)){const chunks=[];for await(const chunk of input)chunks.push(Buffer.from(chunk));Object.assign(fields,JSON.parse(Buffer.concat(chunks).toString('utf8')));}
-    const instance=await readyInstance();
+    const instance=runningOnly.has(parsed.command)?await runningInstance():await readyInstance();
+    if(!instance){const result={ok:true,running:false,home:homePaths().home,runtime:{id:runtime.id,label:runtime.label}};write({...result,...identity});return result;}
     const problem=contractProblem({contract:instance.contract,label:'the running SAAM ('+instance.version+')'},runtime);
     if(problem)throw problem;
-    const operation=parsed.command==='call'?parsed.operation:parsed.command==='wait'?'wait_for_studio_request':parsed.command==='start-tour'?'start_tour':null;
-    if(operation){
-      const help=await controlRequest(instance,{command:'help',operation,runtime});
-      const properties=help.operations[0].input.properties??{};
-      for(const [key,value] of Object.entries(parsed.flags))fields[key]=flagValue(value,properties[key]);
-      if(parsed.command==='call'&&properties.bundleId&&parsed.options.bundleId!==undefined)fields.bundleId??=String(parsed.options.bundleId);
-    }else for(const [key,value] of Object.entries(parsed.flags))fields[key]=value;
-    const message={runtime,command:parsed.command,operation:parsed.operation,args:fields,chatId:parsed.chatId,client:parsed.client,
+    // An operation's runtime types its named flags from the operation's schema (runtime-host.mjs).
+    const operation=['call','wait','start-tour'].includes(parsed.command);
+    if(!operation)Object.assign(fields,parsed.flags);
+    const message={runtime,command:parsed.command,operation:parsed.operation,args:fields,...(operation&&{flags:parsed.flags}),chatId:parsed.chatId,client:parsed.client,
       chatName:parsed.options.chatName,bundleId:parsed.options.bundleId??fields.bundleId,force:enabled(parsed.options.force)};
     const result=await controlRequest(instance,message,['call','start-tour','wait','update'].includes(parsed.command)?{}:{waitMs:35000});
     write({...result,...identity});return result;
