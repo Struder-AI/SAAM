@@ -40,15 +40,15 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
     if(key==='spacingFactor'&&v===1)continue;
     if(key==='pattern'&&name==='vase-wall'){
       if(v){
-        const paths=v.paths;
+        const paths=v.paths,sized=Object.hasOwn(v,'tileWidthMm');
         rows.push([prefix+' · Pattern','Repeated tile on the selected solid or sleeve'],
           [prefix+' · Deposition','Pattern strokes only; the sleeve is not printed'],
-          [prefix+' · Repetitions',String(v.repeats)],
-          [prefix+' · Advance',v.advance[0]+' perimeter turns / '+v.advance[1]+' mm rise'],
+          ...(sized?[[prefix+' · Turns',String(v.turns)],[prefix+' · Tile width',v.tileWidthMm+' mm of perimeter; each turn holds the nearest whole number of tiles'],[prefix+' · Rise',v.riseMm+' mm per turn']]
+            :[[prefix+' · Repetitions',String(v.repeats)],[prefix+' · Advance',v.advance[0]+' perimeter turns / '+v.advance[1]+' mm rise']]),
           [prefix+' · Mapping',settings.meshSleeve?'Smooth fitted sleeve, followed by one-sided mesh contact':'Actual inset contour at each height; fraction of perimeter length']);
         for(const [i,path] of paths.entries())rows.push(
           [prefix+' · Pattern path '+(i+1),path.points.length+' points'],
-          [prefix+' · Start / end '+(i+1),path.points[0].join(', ')+' → '+path.points.at(-1).join(', ')+' (turns, mm)'],
+          [prefix+' · Start / end '+(i+1),path.points[0].join(', ')+' → '+path.points.at(-1).join(', ')+(sized?' (arc mm, mm above the turn)':' (turns, mm)')],
           [prefix+' · Bead height '+(i+1),Array.isArray(path.beadHeightMm)?path.beadHeightMm.join(', ')+' mm':path.beadHeightMm+' mm']);
         for(const [i,path] of paths.entries())if(path.offsetMm!==undefined){
           const values=Array.isArray(path.offsetMm)?path.offsetMm:[path.offsetMm];

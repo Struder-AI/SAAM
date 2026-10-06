@@ -9575,10 +9575,25 @@
     "skills/advanced-vase-wall/scripts/runtime.mjs::advancedVaseRuntime::mappedSleevePatternCurves::emitPath::samples.at": {
       "owner": "extensions"
     },
+    "skills/advanced-vase-wall/scripts/runtime.mjs::advancedVaseRuntime::mappedSleevePatternCurves::micro": {
+      "owner": "extensions"
+    },
+    "skills/advanced-vase-wall/scripts/runtime.mjs::advancedVaseRuntime::mappedSleevePatternCurves::perimeterAt": {
+      "owner": "extensions"
+    },
+    "skills/advanced-vase-wall/scripts/runtime.mjs::advancedVaseRuntime::mappedSleevePatternCurves::perimeterAt::at": {
+      "owner": "extensions"
+    },
     "skills/advanced-vase-wall/scripts/runtime.mjs::advancedVaseRuntime::patternCourses": {
       "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/runtime.mjs::advancedVaseRuntime::patternCourses::height": {
+      "owner": "extensions"
+    },
+    "skills/advanced-vase-wall/scripts/runtime.mjs::advancedVaseRuntime::patternCourses::progressOf": {
+      "owner": "extensions"
+    },
+    "skills/advanced-vase-wall/scripts/runtime.mjs::advancedVaseRuntime::patternStack": {
       "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/runtime.mjs::advancedVaseRuntime::requireThat": {
