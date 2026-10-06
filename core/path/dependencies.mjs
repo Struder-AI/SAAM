@@ -1,4 +1,4 @@
-import {createHash} from 'node:crypto';
+import {canonicalHash} from '../canonical-json.mjs';
 import {resolveSpatialPlan} from '../print/spatial-inputs.mjs';
 
 export const PATH_CONTRACT='saam-deposition/13';
@@ -15,6 +15,5 @@ export function pathDependencies(plan){
   return {plan:{...authored,skills,materialIntent},contract:PATH_CONTRACT,completion:NEUTRAL_PATH_CONTRACT};
 }
 export function pathInputHash(plan){
-  const canonical=JSON.stringify(pathDependencies(plan),function(key,value){return value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.keys(value).sort().map(k=>[k,value[k]])):value;});
-  return createHash('sha256').update(canonical).digest('hex');
+  return canonicalHash(pathDependencies(plan));
 }

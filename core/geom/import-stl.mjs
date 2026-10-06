@@ -1,5 +1,5 @@
 // Geometry converts acquired STL bytes and provenance into an authored geometry record.
-import {hash} from '../private/geometry/hash.mjs';
+import {canonicalHash} from '../canonical-json.mjs';
 import {parseSTL,makeMesh} from './mesh.mjs';
 import {decodeSTLFile} from './stl-file.mjs';
 import {createGeometry} from '../print/geometry.mjs';
@@ -97,7 +97,7 @@ export async function prepareImportedGeometry(sourceBytes,{units='auto',bounds,d
   const file=Boolean(decodedSource),mesh=decodedSource??parseSTL(sourceBytes,{units:'mm'}),inferred=units==='auto';
   if(file)makeMesh(mesh.vertices,mesh.triangles);
   if(inferred)units=inferSTLUnits(mesh,bounds);
-  geometry=geometryFromSTL(file?mesh.sha256:hash(sourceBytes),units,mesh,inferred);
+  geometry=geometryFromSTL(file?mesh.sha256:canonicalHash(sourceBytes),units,mesh,inferred);
   if(attribution){
     if(attribution.sha256!==(repairReport?.sourceSha256??geometry.source.sha256)||repairReport&&repairReport.repairedSha256!==geometry.source.sha256)throw Error('Mesh attribution does not match the downloaded source hash or verified repair.');
     geometry.source.attribution=structuredClone(attribution);

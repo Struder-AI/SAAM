@@ -23,7 +23,8 @@ const validatedMeshes=new Map();
 function requireMeshInput(condition,message) {
   if(!condition)throw meshInputError(message);
 }
-export function meshInputError(message){return new Error(`${message} Import through Studio or the normal import tool to attempt repair; malformed input needs a corrected source.`);}
+// `reason` keeps the finding without the import advice for callers that made the mesh.
+export function meshInputError(message){return Object.assign(new Error(`${message} Import through Studio or the normal import tool to attempt repair; malformed input needs a corrected source.`),{reason:message});}
 
 function meshResult(vertices,triangles,name,derived){
   // Each record owns its copy of the cached normals.
