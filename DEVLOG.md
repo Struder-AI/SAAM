@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-05 — Use SAAM, else an extension; agents file bug reports
+
+- Use SAAM, else an extension (worker): `MAKERS.md#working-boundaries` owns the owner's route ("If saam can do it, use saam. If it can't, build an extension that can."). Geometry and programs for a printer come only from SAAM operations and extensions; scripts compute inputs only; work the extension interface cannot express is a SAAM bug filed with `saam call report_bug`. AGENTS (the client skill), BUILDERS, AUTHORING (extension code uses its operations' tolerances, no fixed budgets), GEOMETRY scripts (stale command names corrected) and both onboarding next steps point to it; touched docs end equal in length.
+- `report_bug` (description up to 1000 characters, reason `outside-extensions`/`defect`, optional printId) uses Studio Report a bug's route to the release service's one `bug-report` event, failing unless the relay acknowledges it; the event carries reporter, client and runtime; operator `reports` shows agent reports. Verified with a dev instance against a loopback stand-in relay: refused before activation, received after with fields and scrubbing intact, Studio route unchanged, failure with the relay down. Not run: suites, operator against the real relay, macOS, map regenerate.
+- Owner redefined dimming: dimmed means the agent is working at the SAAM desk, not interacting with the person; un-dimmed means it is interacting, or has and nothing changed since. Best signal per provider (Claude Code, Codex) to be designed and confirmed before final approval; the merged Stop hook stands until then.
+
 ## 2026-10-05 — Blob field lands; one canonical JSON serializer
 
 - Blob field (worker): cherry-picked b1539395 (Geometry-owned marching tetrahedra, `saam/blob-marching-tetrahedra/1`). Full brain at 0.8 mm: 542,042 triangles, one component, valid mesh (59 s); blob-field 6/6.
