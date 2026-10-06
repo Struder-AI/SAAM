@@ -167,6 +167,11 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
       jobs:states.flatMap(({runtime,status})=>status.jobs.map(job=>({...job,runtimeId:runtime.id,runtimeLabel:runtime.label}))),
       studios:states.flatMap(({runtime,status})=>status.studios.map(studio=>({...studio,runtimeId:runtime.id,runtimeLabel:runtime.label})))};
   }
+  // A chat's turn end goes to every running runtime, since any may hold the chat; none is started.
+  async function endTurn(chatId){
+    const counts=await Promise.all([...runtimes.values()].map(runtime=>rpc(runtime,'turn-ended',{chatId})));
+    return {handedBack:counts.reduce((total,count)=>total+count.handedBack,0)};
+  }
   async function notifyStopping(reason){await Promise.all([...runtimes.values()].map(runtime=>rpc(runtime,'stopping',{reason})));}
   // Stops the runtime a message names; its windows keep their addresses for the next start.
   // Closing waits for the runtime's Studios, which may themselves be asking to start a runtime.
@@ -196,7 +201,7 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     return {reloaded:true,runtime:{id:runtime.id,label:runtime.label}};
   }
   async function close(){selection.closing=true;await selection.tail;await Promise.all([...runtimes.values()].map(async runtime=>{try{await rpc(runtime,'close');}finally{if(runtime.child.connected)runtime.child.disconnect();}}));await windows.close();runtimes.clear();}
-  return {command,identify,status,stopRuntime,reloadRuntime,notifyStopping,close,runningJobs:async()=>(await status()).jobs,
+  return {command,identify,status,endTurn,stopRuntime,reloadRuntime,notifyStopping,close,runningJobs:async()=>(await status()).jobs,
     observeEvents(observer){eventObservers.add(observer);return()=>eventObservers.delete(observer);},
     observeOperations(observer){operationObservers.add(observer);return()=>operationObservers.delete(observer);}};
 }

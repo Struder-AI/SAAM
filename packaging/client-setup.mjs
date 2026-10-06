@@ -14,6 +14,14 @@ async function atomicWrite(path,text){
 async function optionalRead(path){try{return await readFile(path,'utf8');}catch(error){if(error.code==='ENOENT')return null;throw error;}}
 const marker='<!-- Managed by SAAM application -->',ruleMarker='# Managed by SAAM application';
 const claudePermissions=['Bash(saam *)','PowerShell(saam *)'];
+// Claude Code's Stop hook reports each turn end to the home's SAAM (`saam turn-ended`),
+// spawned directly by this program's node (exec form, no shell) in the background.
+const isTurnHook=hook=>Array.isArray(hook?.args)&&hook.args.at(-1)==='turn-ended'&&/[\\/]scripts[\\/]saam\.mjs$/.test(hook.args[0]??'');
+const withoutTurnHook=groups=>groups.flatMap(group=>{
+  if(!Array.isArray(group?.hooks)||!group.hooks.some(isTurnHook))return [group];
+  const hooks=group.hooks.filter(hook=>!isTurnHook(hook));
+  return hooks.length?[{...group,hooks}]:[];
+});
 // Client configuration folders; their environment overrides apply only to the real home.
 function clientFolders(clientHome){
   const real=clientHome===homedir();
@@ -52,7 +60,10 @@ async function registerClaude(clientHome,home){
   settings.permissions??={};settings.permissions.allow??=[];
   if(!Array.isArray(settings.permissions.allow))throw Error('Claude permissions.allow must be an array.');
   for(const permission of claudePermissions)if(!settings.permissions.allow.includes(permission))settings.permissions.allow.push(permission);
-  await atomicWrite(settingsFile,JSON.stringify(settings,null,2)+'\n');return {skill,permissions:settingsFile,restartRequired:true};
+  settings.hooks??={};
+  if(typeof settings.hooks!=='object'||Array.isArray(settings.hooks)||!Array.isArray(settings.hooks.Stop??[]))throw Error('Claude hooks.Stop must be an array.');
+  settings.hooks.Stop=[...withoutTurnHook(settings.hooks.Stop??[]),{hooks:[{type:'command',command:process.execPath,args:[join(programRoot,'scripts','saam.mjs'),'turn-ended'],async:true}]}];
+  await atomicWrite(settingsFile,JSON.stringify(settings,null,2)+'\n');return {skill,permissions:settingsFile,turnHook:settingsFile+'#hooks.Stop',restartRequired:true};
 }
 // Each removal returns the paths it removed; unmarked files are someone else's and stay.
 async function unregisterSkill(directory){
@@ -71,12 +82,16 @@ async function unregisterCodex(options){
 async function unregisterClaude(options){
   const directory=clientFolders(options.clientHome).claude,settingsFile=join(directory,'settings.json');
   const removed=[...await retireClaude(options),...await unregisterSkill(join(directory,'skills'))];
-  const text=await optionalRead(settingsFile),settings=text===null?null:JSON.parse(text),allow=settings?.permissions?.allow;
+  const text=await optionalRead(settingsFile),settings=text===null?null:JSON.parse(text),allow=settings?.permissions?.allow,stop=settings?.hooks?.Stop;
+  const changed=[];
   if(Array.isArray(allow)&&claudePermissions.some(permission=>allow.includes(permission))){
-    settings.permissions.allow=allow.filter(permission=>!claudePermissions.includes(permission));
-    await atomicWrite(settingsFile,JSON.stringify(settings,null,2)+'\n');removed.push(settingsFile+'#permissions.allow');
+    settings.permissions.allow=allow.filter(permission=>!claudePermissions.includes(permission));changed.push(settingsFile+'#permissions.allow');
   }
-  return removed;
+  if(Array.isArray(stop)&&stop.some(group=>Array.isArray(group?.hooks)&&group.hooks.some(isTurnHook))){
+    settings.hooks.Stop=withoutTurnHook(stop);if(!settings.hooks.Stop.length)delete settings.hooks.Stop;changed.push(settingsFile+'#hooks.Stop');
+  }
+  if(changed.length)await atomicWrite(settingsFile,JSON.stringify(settings,null,2)+'\n');
+  return [...removed,...changed];
 }
 
 function installedProgram(path,{home,clientHome,platform}){

@@ -3,7 +3,7 @@ import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {readyInstance,controlRequest} from '../core/application/control.mjs';
+import {readInstance,readyInstance,controlRequest} from '../core/application/control.mjs';
 import {selectRuntime,contractProblem} from '../core/application/runtime-selection.mjs';
 
 const camel=name=>name.replace(/-([a-z])/g,(_match,letter)=>letter.toUpperCase());
@@ -37,8 +37,20 @@ export function commandInput(args,environment=process.env){
   return {...parsed,chatId:chatId??randomUUID(),fallbackChatId:!chatId,
     client:environment.CLAUDE_CODE_SESSION_ID?'claude':environment.CODEX_SESSION_ID?'codex':null};
 }
+// Claude Code's Stop hook (client setup registers it) reports the chat's turn ended,
+// naming the session on stdin. It reaches only a running SAAM and prints nothing,
+// because the client reads hook output.
+async function turnEnded(parsed,input){
+  const chunks=[];if(!input.isTTY)for await(const chunk of input)chunks.push(Buffer.from(chunk));
+  const text=Buffer.concat(chunks).toString('utf8').trim(),chatId=(text?JSON.parse(text).session_id:null)??(parsed.fallbackChatId?null:parsed.chatId);
+  const instance=chatId?await readInstance():null;
+  if(!instance)return;
+  try{await controlRequest(instance,{command:'turn-ended',chatId});}
+  catch(error){if(error.result)throw error;/* No SAAM answers at its record: nothing is attached. */}
+}
 export async function runSaam(args=process.argv.slice(2),{input=process.stdin,write=value=>console.log(JSON.stringify(value))}={}){
   const parsed=commandInput(args);
+  if(parsed.command==='turn-ended')return turnEnded(parsed,input);
   const identity=!['help','status','diagnostics','open','update','quit'].includes(parsed.command)
     ?{chatId:parsed.chatId,...(parsed.fallbackChatId?{nextCommand:'Pass --chat-id '+parsed.chatId+' on every later saam command in this chat.'}:{})}:{};
   const selection={runtime:null};

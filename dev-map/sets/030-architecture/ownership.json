@@ -10987,6 +10987,12 @@
     "core/application/runtime.mjs::createLocalRuntime::beginSession": {
       "owner": "application"
     },
+    "core/application/runtime.mjs::createLocalRuntime::endTurn": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::endTurn": {
+      "owner": "application"
+    },
     "core/application/runtime.mjs::createLocalRuntime::createChat::sessionInvoke": {
       "owner": "application"
     },
@@ -11465,6 +11471,9 @@
       "owner": "application"
     },
     "scripts/saam.mjs::runSaam": {
+      "owner": "application"
+    },
+    "scripts/saam.mjs::turnEnded": {
       "owner": "application"
     },
     "skills/advanced-vase-wall/scripts/irregular-demo.mjs::@module": {
@@ -13164,6 +13173,9 @@
       "owner": "application"
     },
     "packaging/runtime-registry.mjs::createRuntimeRegistry::notifyStopping": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::endTurn": {
       "owner": "application"
     },
     "packaging/runtime-registry.mjs::createRuntimeRegistry::stopRuntime": {

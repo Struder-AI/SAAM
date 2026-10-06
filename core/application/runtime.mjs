@@ -435,6 +435,13 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       const handed=[];for(const id of pending.handbackIds??[requestId])handed.push(await agentRequests.finishHandback(id,response,last?last.snapshot:pending.lastSaved));
       return handed.find(r=>r.id===requestId)??handed[0];
   }
+  // The client reports this chat's turn ended: the agent now waits for the person, so
+  // each active episode hands back as the agent's own waiting hand-back would.
+  async function endTurn(){
+    const episodes=new Set((await agentRequests.query()).filter(r=>r.ownerId===ownerId&&r.workActive).map(r=>r.episodeId??r.id));
+    await Promise.all([...episodes].map(id=>handBackRequest(id,{status:'waiting',message:'The agent ended its turn.'})));
+    return {handedBack:episodes.size};
+  }
   // Runs one operation to its result and throws its failure; the transport
   // decides how either reaches the agent.
   // `session` carries per-session limits, such as how long this client may listen.
@@ -1086,7 +1093,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   }
   return {id:ownerId,name,client,requests:agentRequests,events:studioEvents,
     operations:[...operations.values()].map(({action,...definition})=>definition),
-    invoke:sessionInvoke,validateTarget,openStudio,startStudio,
+    invoke:sessionInvoke,endTurn,validateTarget,openStudio,startStudio,
     releaseStudio(id){studioSessions.delete(id);for(const [bundle,idValue] of preferredStudioByPrint)if(idValue===id)preferredStudioByPrint.delete(bundle);},
     ownStudio(id,session){studioSessions.set(id,session);},
     ownsStudio(id){return studioSessions.has(id);},
@@ -1268,7 +1275,9 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     await cancelOldRequests(session);await session.server.shutdown();
     return {completed:true};
   }
-  return {beginSession,connectChat,openStudio,notifyStopping,runningJobs,close,restoreStudios,releaseStudio,activeCount:()=>activeOperations.size+work.pending.size+transferringStudios.size,
+  // A turn end reaches only a chat this runtime holds; it never starts or attaches one.
+  async function endTurn(chatId){const chat=chats.get(chatId);return chat&&chat!==lobby?chat.endTurn():{handedBack:0};}
+  return {beginSession,connectChat,endTurn,openStudio,notifyStopping,runningJobs,close,restoreStudios,releaseStudio,activeCount:()=>activeOperations.size+work.pending.size+transferringStudios.size,
     operations:lobby.operations,
     observeEvents(observer){eventObservers.add(observer);return()=>eventObservers.delete(observer);},
     observeOperations(observer){operationObservers.add(observer);return()=>operationObservers.delete(observer);},

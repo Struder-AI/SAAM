@@ -150,9 +150,9 @@ identity with edits; an unchecked program summary is not a failed check.
 | Tour toolpath lesson | Generate in Studio; retain the lesson's exact-result requirement. |
 
 Hand-back needs no `resultStage` unless a particular view is required. Studio
-requests initiate it directly. External chat messages are not automatically
-visible to SAAM: the agent signals hand-back when it receives an interjection.
-Do not claim immediate detection or substitute a timer.
+requests initiate it directly. When Claude Code reports a turn ended (its Stop
+hook runs `saam turn-ended`), the chat's active work hands back as `waiting`.
+Chat messages mid-turn are not visible to SAAM: the agent hands back on an interjection.
 
 Follow [client queue monitoring](../core/application/README.md#client-queue-monitoring)
 after acknowledging completed work; quiet expiry preserves attachment and work.
