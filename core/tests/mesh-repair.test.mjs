@@ -71,7 +71,7 @@ test('native repair closes only holes within both explicit bounds',native,async(
   await assert.rejects(repairSTL(bytes,{units:'mm'}),/Open boundaries/);
   await assert.rejects(repairSTL(bytes,{units:'mm',maxHoleEdges:3,maxHoleDiameterMm:1}),/Open boundaries/);
   const {repairedBytes,report}=await repairSTL(bytes,{units:'mm',maxHoleEdges:3,maxHoleDiameterMm:3});
-  assert.equal(report.method,'cgal-solid-repair/2');assert.equal(report.holesFilled,1);assert.equal(report.holeTrianglesAdded,1);
+  assert.equal(report.method,'cgal-solid-repair/3');assert.equal(report.holesFilled,1);assert.equal(report.holeTrianglesAdded,1);
   assert.equal(report.unchangedSourceFaces,11);assert.ok(Math.abs(volume(parseSTL(repairedBytes,{units:'mm'}))-8)<1e-12);
 });
 test('native solid repair resolves a penetrating fold and retains remote facets',native,async()=>{

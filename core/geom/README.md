@@ -67,18 +67,17 @@ Tolerance classes and values belong to [Dimensions and tolerances](../README.md#
 Within Geometry, keep separate budgets for coordinate quantization (Clipper2 grids, a planar offset's
 `precisionMm`: kernel arithmetic; use a local origin), shape approximation (chord error from the source
 curve, independent of coordinate storage; coverage expansion and its predicates must agree), sampling
-steps (not a certified surface-error bound) and predicate slack (numeric conditioning only). A
-determinant of two length vectors is in mm²; UV tolerances map to millimetres through surface
-derivatives and can differ in U and V; a normal dot product is dimensionless. Report mesh repair shape
-changes separately from numerical precision.
+steps (not a certified surface-error bound) and predicate slack (numeric conditioning only). A determinant of two
+length vectors is in mm²; UV tolerances map to millimetres through surface derivatives and can differ
+in U and V; a normal dot product is dimensionless.
 
 Short segments can cross rounding boundaries. When removing points, preserve or recompute subsequent
 starts, volume integrals, gaps, widths and pose; quantize each output field once and reuse it for text,
 flow and modal state. `cleanPlanarLoop` removes numerical seams; it is not process-resolution
 simplification. Measure elapsed time, point counts and geometric change on the same recipe against
 independent references (translated geometry, corners, holes, thin walls, variable extrusion), and fix
-physical-invariant failures rather than loosening checks. The [precision history](../../DEVLOG.md#br-040--dimension-aware-precision-audit-and-developer-guidance)
-records earlier corrections. [Formats](../print/README.md#formats) specifies current XYZ behavior.
+physical-invariant failures rather than loosening checks.
+[Formats](../print/README.md#formats) specifies current XYZ behavior.
 
 ### Geometry query boundary
 
@@ -439,17 +438,18 @@ An explicit positive tolerance snaps each point to its nearest retained vertex
 within that Euclidean distance in mm; input order breaks ties. Representatives
 never move, repeated coordinates share a decision, and neighbours do not chain.
 Spatial buckets only find candidates; they never round accepted coordinates.
-Collapsed-face stitching uses existing collinear boundary vertices (1e-9 mm),
-without guessing branches or filling holes. Ordinary imports remain exact-only.
-
-Repair reports include merge counts and maximum vertex displacement; shape-change
-evidence includes the merge. Tolerance bounds this stage, not later native repair.
-[CGAL](./native/README.md) orients/stitches, fills holes only within explicit edge
-and diameter limits, and replaces a self-crossing surface by its solid's boundary.
+Collapsed-face stitching uses existing collinear boundary vertices (numeric
+conditioning), without guessing branches or filling holes. Ordinary imports remain
+exact-only. Reports include merge counts and maximum displacement; shape-change
+evidence includes the merge. [CGAL](./native/README.md) orients/stitches, fills holes
+only within explicit limits, closes opposed sheets within print resolution and
+replaces a self-crossing surface by its solid's boundary; reports give the closing,
+cancelled area and inward/outward shells before and after (fewer inward shells:
+cavities opened).
 
 Final checks use shared mesh topology/intersection checks, adjacent-contact checks
-and reimport of the exact decimal ASCII STL. Contact tolerance is 1e-9 mm;
-this is not an exact-arithmetic validity proof. Reports count unchanged/changed/new
+and reimport of the exact decimal ASCII STL. Non-intersection is certified at the
+numeric conditioning margin, not proved exactly. Reports count unchanged/changed/new
 faces and sample at most 10,000 vertices/centroids per direction, without claiming
 a certified surface-error bound. Identical geometry needs no sampling. The optional
 sampled-distance limit rejects measured excess; geometry still needs review and

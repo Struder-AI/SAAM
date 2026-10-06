@@ -3,20 +3,21 @@
 The shared adapter runs unmodified **CGAL 6.2.1** in a child process. It orients
 triangle soup, stitches compatible borders and fills holes only within both an
 edge-count limit and a boundary bounding-box diagonal in millimeters. A closed
-surface that crosses itself is replaced by the boundary of its solid: exact
-autorefinement splits faces along every crossing, and each refined face is kept,
-facing outward, where the winding number is positive on exactly one side.
-Overlapping shells unite; inward-facing shells stay cavities; an inside-out file
-is reversed first. Constructed points are then snap-rounded to doubles and
-triangles below SAAM's minimum area lose an edge with a constructed end.
-Unchanged faces keep their exact source coordinates. A result that touches itself
-(non-manifold), stays open or still intersects is refused; partial output is never
-accepted.
+surface that crosses itself is replaced by the boundary of its solid. Opposed sheets
+closer than [print resolution](../../README.md#dimensions-and-tolerances) (passed by
+the adapter), such as a cut cap over a cavity floor, are first projected exactly onto
+one fitted plane per group, so they cancel instead of leaving a film. Exact
+autorefinement then splits faces along every crossing; a refined face is kept, facing
+outward, where the winding number is positive on exactly one side. Overlapping shells
+unite, inward shells stay cavities, inside-out files are reversed. Constructed points
+are snap-rounded to doubles; triangles below SAAM's minimum area lose an edge with a
+constructed end. Other faces keep their source coordinates. A non-manifold, open or
+still intersecting result is refused; partial output is never accepted.
 
 ## Stage reporting and how long a repair may take
 
 The helper writes one JSON line to stderr as it enters each stage (`orient`,
-`boundaries`, `intersections`, `refine`, `classify`, `round`,
+`boundaries`, `intersections`, `close`, `refine`, `classify`, `round`,
 `native-validation`) and one JSON line of counts to stdout at the end. Nothing is
 written while a stage runs, so no elapsed time refuses a repair: the child ends when
 it finishes, fails or the caller cancels. Periodic output from inside a stage would

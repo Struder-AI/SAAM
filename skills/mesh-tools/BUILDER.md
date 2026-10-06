@@ -47,7 +47,7 @@ units **mm** and review it; repair and import create no approvals.
 
 [The repair entry](../../core/print/repair-stl.mjs) owns orchestration and files;
 [the geometry reference](../../core/geom/README.md#explicit-mesh-repair) owns the
-cleanup, stitching (1e-9 mm line tolerance), CGAL 6.2.1 solid reconstruction
+cleanup, stitching, CGAL 6.2.1 solid reconstruction and sheet closing
 and the [memory contract](../../core/geom/README.md#memory-files-and-progress).
 
 `repairSTLFiles(directory, source, options)` takes an STL path or bytes; prefer

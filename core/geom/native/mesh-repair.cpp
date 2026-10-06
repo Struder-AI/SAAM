@@ -93,6 +93,92 @@ Collapse collapseTinyTriangles(Mesh& mesh,std::vector<K::Point_3> source){
  return out;
 }
 
+// Opposed sheets of the source closer than closeMm (print resolution), in any
+// orientation, would reconstruct as a film below print resolution that thins to
+// knife edges: a cut cap over a cavity floor a few micrometres away. Faces that
+// face each other or away, lie within closeMm of each other's planes and come
+// within closeMm form groups, joined through shared vertices of seeded faces that
+// are coplanar within closeMm. Each group's vertices are projected exactly onto a
+// plane fitted to its seeds, so refinement makes the sheets coincide and opposed
+// copies cancel. A vertex moves at most closeMm and only for its largest group.
+struct Closing{std::size_t groups=0,faces=0,moved=0,unmoved=0;double maxMoveMm=0;};
+Closing closeOpposedSheets(const Mesh& mesh,std::vector<EK::Point_3>& points,double closeMm){
+ Closing out;if(!(closeMm>0))return out;
+ const std::size_t n=mesh.number_of_faces();
+ std::vector<Triangle> tri(n);std::vector<K::Triangle_3> shape(n);std::vector<K::Vector_3> normal(n);std::vector<double> area(n);std::vector<CGAL::Bbox_3> boxes(n);
+ std::vector<std::vector<std::size_t>> incident(mesh.number_of_vertices());
+ std::size_t i=0;
+ for(auto f:mesh.faces()){
+  const auto h=mesh.halfedge(f);tri[i]={mesh.source(h).idx(),mesh.target(h).idx(),mesh.target(mesh.next(h)).idx()};
+  const auto& a=mesh.point(Mesh::Vertex_index(tri[i][0]));const auto& b=mesh.point(Mesh::Vertex_index(tri[i][1]));const auto& c=mesh.point(Mesh::Vertex_index(tri[i][2]));
+  const K::Vector_3 v=CGAL::cross_product(b-a,c-a);const double l=std::sqrt(v.squared_length());
+  shape[i]=K::Triangle_3(a,b,c);normal[i]=l>0?v/l:v;area[i]=l/2;
+  const auto box=a.bbox()+b.bbox()+c.bbox();
+  boxes[i]=CGAL::Bbox_3(box.xmin()-closeMm,box.ymin()-closeMm,box.zmin()-closeMm,box.xmax()+closeMm,box.ymax()+closeMm,box.zmax()+closeMm);
+  for(auto v:tri[i])incident[v].push_back(i);++i;
+ }
+ const auto withinPlane=[&](std::size_t f,std::size_t g){
+  for(auto [p,q]:{std::pair{f,g},std::pair{g,f}})for(auto v:tri[q])
+   if(std::abs(normal[p]*(mesh.point(Mesh::Vertex_index(v))-shape[p][0]))>closeMm)return false;
+  return true;
+ };
+ Bvh bvh;bvh.order.resize(n);std::iota(bvh.order.begin(),bvh.order.end(),0);if(n)bvh.build(boxes,0,n);
+ std::vector<std::size_t> parent(n);std::iota(parent.begin(),parent.end(),0);
+ const auto root=[&](std::size_t x){while(parent[x]!=x)x=parent[x]=parent[parent[x]];return x;};
+ std::vector<char> seeded(n,0);
+ for(std::size_t f=0;f<n;++f){
+  std::vector<std::size_t> stack{0};
+  while(!stack.empty()){
+   const Node& node=bvh.nodes[stack.back()];stack.pop_back();
+   if(!CGAL::do_overlap(node.box,boxes[f]))continue;
+   if(node.count==0){stack.push_back(node.left);stack.push_back(node.right);continue;}
+   for(std::size_t k=node.first;k<node.first+node.count;++k){
+    const std::size_t g=bvh.order[k];
+    if(g<=f||normal[f]*normal[g]>=0||!CGAL::do_overlap(boxes[f],boxes[g]))continue;
+    if(std::any_of(tri[f].begin(),tri[f].end(),[&](std::size_t v){return std::find(tri[g].begin(),tri[g].end(),v)!=tri[g].end();}))continue;
+    if(!withinPlane(f,g)||CGAL::squared_distance(shape[f],shape[g])>closeMm*closeMm)continue;
+    parent[root(f)]=root(g);seeded[f]=seeded[g]=1;
+   }
+  }
+ }
+ for(const auto& faces:incident)for(std::size_t a=0;a<faces.size();++a)for(std::size_t b=a+1;b<faces.size();++b)
+  if(seeded[faces[a]]&&seeded[faces[b]]&&withinPlane(faces[a],faces[b]))parent[root(faces[a])]=root(faces[b]);
+ std::vector<std::vector<std::size_t>> groups(n);std::vector<double> groupArea(n,0);
+ for(std::size_t f=0;f<n;++f)if(seeded[f]){groups[root(f)].push_back(f);groupArea[root(f)]+=area[f];}
+ std::vector<std::size_t> order;for(std::size_t r=0;r<n;++r)if(!groups[r].empty())order.push_back(r);
+ std::sort(order.begin(),order.end(),[&](std::size_t a,std::size_t b){return groupArea[a]!=groupArea[b]?groupArea[a]>groupArea[b]:a<b;});
+ // Largest group first, each grows from its seeds over vertex-sharing faces lying
+ // within closeMm of its plane (fitted to its seeds, from unmoved points),
+ // so a sheet near one plane, such as a whole cut face, closes onto one plane.
+ std::vector<long> owner(n,-1);std::vector<EK::Plane_3> planes;
+ for(auto r:order){
+  const std::size_t best=*std::max_element(groups[r].begin(),groups[r].end(),[&](std::size_t a,std::size_t b){return area[a]<area[b];});
+  // The plane fits the seeds (area-weighted normal and centroid); its double
+  // coefficients make it exact, so projections onto it are exactly coplanar.
+  K::Vector_3 sum(0,0,0),centre(0,0,0);double weight=0;
+  for(auto f:groups[r]){sum=sum+(normal[f]*normal[best]>=0?area[f]:-area[f])*normal[f];
+   centre=centre+area[f]*((shape[f][0]-CGAL::ORIGIN)+(shape[f][1]-CGAL::ORIGIN)+(shape[f][2]-CGAL::ORIGIN))/3;weight+=area[f];}
+  const K::Vector_3 unit=sum/std::sqrt(sum.squared_length());const K::Point_3 at=CGAL::ORIGIN+centre/weight;
+  const long k=long(planes.size());planes.emplace_back(unit.x(),unit.y(),unit.z(),-(unit*(at-CGAL::ORIGIN)));
+  const auto near=[&](std::size_t g){for(auto v:tri[g])if(std::abs(unit*(mesh.point(Mesh::Vertex_index(v))-at))>closeMm)return false;return true;};
+  std::vector<std::size_t> queue;
+  for(auto f:groups[r])if(owner[f]<0&&near(f)){owner[f]=k;queue.push_back(f);}
+  if(queue.empty())continue;
+  ++out.groups;
+  while(!queue.empty()){const auto f=queue.back();queue.pop_back();++out.faces;
+   for(auto v:tri[f])for(auto g:incident[v])if(owner[g]<0&&near(g)){owner[g]=k;queue.push_back(g);}}
+ }
+ std::vector<long> vertexGroup(points.size(),-1);
+ for(std::size_t f=0;f<n;++f)if(owner[f]>=0)for(auto v:tri[f])if(vertexGroup[v]<0||owner[f]<vertexGroup[v])vertexGroup[v]=owner[f];
+ for(std::size_t v=0;v<points.size();++v)if(vertexGroup[v]>=0){
+  const auto& plane=planes[vertexGroup[v]];
+  const double move=std::sqrt(CGAL::to_double(CGAL::squared_distance(points[v],plane)));
+  if(move>closeMm){++out.unmoved;continue;}
+  if(move>0){points[v]=plane.projection(points[v]);++out.moved;out.maxMoveMm=std::max(out.maxMoveMm,move);}
+ }
+ return out;
+}
+
 // Replaces a closed oriented surface that crosses itself by the boundary of
 // its solid and returns the report. Exact autorefinement splits triangles along
 // every crossing, so refined triangles meet only at shared edges and vertices.
@@ -100,11 +186,16 @@ Collapse collapseTinyTriangles(Mesh& mesh,std::vector<K::Point_3> source){
 // unite, inward-facing shells keep their cavities. A refined triangle is kept,
 // facing w<=0, exactly when w>0 on one side only. Rounding to doubles follows
 // classification because coincident refined triangles carry winding weight.
-std::string reconstruct(Mesh& mesh){
- std::size_t coincident=0,cancelled=0,patches=0,rays=0,retries=0,interior=0;
+std::string reconstruct(Mesh& mesh,double closeMm){
+ std::size_t coincident=0,cancelled=0,patches=0,rays=0,retries=0,interior=0;double cancelledArea=0;
  std::vector<K::Point_3> source(mesh.points().begin(),mesh.points().end());
  std::vector<EK::Point_3> points;points.reserve(source.size());
  for(const auto& p:source)points.emplace_back(p.x(),p.y(),p.z());
+ stage("close");
+ const Closing closing=closeOpposedSheets(mesh,points,closeMm);
+ // Moved vertices are no longer source coordinates for the collapse below.
+ if(closing.moved){std::vector<K::Point_3> kept;for(std::size_t v=0;v<source.size();++v)
+  if(points[v]==EK::Point_3(source[v].x(),source[v].y(),source[v].z()))kept.push_back(source[v]);source.swap(kept);}
  // An inside-out file encloses negative volume; reversing it keeps the solid w>0.
  const bool reversed=PMP::volume(mesh)<0;
  std::vector<Triangle> soup;soup.reserve(mesh.number_of_faces());
@@ -130,7 +221,8 @@ std::string reconstruct(Mesh& mesh){
   std::size_t j=i;int net=0;while(j<keyed.size()&&keyed[j].first==keyed[i].first)net+=keyed[j++].second;
   if(j-i>1)++coincident;
   const Triangle& s=keyed[i].first;
-  if(net>0)faces.push_back({s,net});else if(net<0)faces.push_back({{s[0],s[2],s[1]},-net});else cancelled+=j-i;
+  if(net>0)faces.push_back({s,net});else if(net<0)faces.push_back({{s[0],s[2],s[1]},-net});
+  else{cancelled+=j-i;cancelledArea+=double(j-i)*std::sqrt(CGAL::to_double(CGAL::squared_area(points[s[0]],points[s[1]],points[s[2]])));}
   i=j;
  }
  keyed.clear();keyed.shrink_to_fit();
@@ -229,8 +321,10 @@ std::string reconstruct(Mesh& mesh){
  const Collapse collapse=collapseTinyTriangles(mesh,std::move(source));
  if(collapse.remaining)throw std::runtime_error(std::to_string(collapse.remaining)+" reconstructed triangles stay below SAAM's minimum area and cannot be collapsed; no result accepted");
  std::ostringstream report;
- report<<"{\"reversedOrientation\":"<<(reversed?"true":"false")<<",\"refinedTriangles\":"<<refined<<",\"coincidentGroups\":"<<coincident
-  <<",\"cancelledTriangles\":"<<cancelled<<",\"patches\":"<<patches<<",\"rays\":"<<rays<<",\"rayRetries\":"<<retries
+ report<<"{\"closing\":{\"method\":\"opposed-sheet-plane/1\",\"toleranceMm\":"<<closeMm<<",\"groups\":"<<closing.groups<<",\"faces\":"<<closing.faces
+  <<",\"movedVertices\":"<<closing.moved<<",\"unmovedVertices\":"<<closing.unmoved<<",\"maxDisplacementMm\":"<<closing.maxMoveMm<<"}"
+  <<",\"reversedOrientation\":"<<(reversed?"true":"false")<<",\"refinedTriangles\":"<<refined<<",\"coincidentGroups\":"<<coincident
+  <<",\"cancelledTriangles\":"<<cancelled<<",\"cancelledAreaMm2\":"<<cancelledArea<<",\"patches\":"<<patches<<",\"rays\":"<<rays<<",\"rayRetries\":"<<retries
   <<",\"boundaryTriangles\":"<<boundary<<",\"interiorTriangles\":"<<interior<<",\"collapsedEdges\":"<<collapse.edges<<",\"maxCollapseMm\":"<<collapse.maxMoveMm<<"}";
  return report.str();
 }
@@ -238,10 +332,11 @@ std::string reconstruct(Mesh& mesh){
 int main(int argc,char** argv){
  try{
   if(argc==2&&std::string(argv[1])=="--version"){std::cout<<"saam-cgal-mesh-repair/1 CGAL "<<CGAL_VERSION_STR<<"\n";return 0;}
-  if(argc!=5)throw std::runtime_error("Expected input.off output.off maxHoleEdges maxHoleDiameterMm");
+  if(argc!=6)throw std::runtime_error("Expected input.off output.off maxHoleEdges maxHoleDiameterMm closeMm");
   const auto started=std::chrono::steady_clock::now();
-  const auto max_edges=std::stoull(argv[3]);const double max_diameter=std::stod(argv[4]);
+  const auto max_edges=std::stoull(argv[3]);const double max_diameter=std::stod(argv[4]),close_mm=std::stod(argv[5]);
   if(!std::isfinite(max_diameter)||max_diameter<0)throw std::runtime_error("Invalid hole limits");
+  if(!std::isfinite(close_mm)||close_mm<0)throw std::runtime_error("Invalid closing distance");
   stage("orient");
   std::vector<K::Point_3> points;std::vector<std::vector<std::size_t>> faces;
   if(!CGAL::IO::read_polygon_soup(argv[1],points,faces))throw std::runtime_error("Cannot read repair input");
@@ -269,7 +364,7 @@ int main(int argc,char** argv){
   mesh.collect_garbage();
   stage("intersections");
   const bool intersected=PMP::does_self_intersect(mesh);
-  const std::string reconstruction=intersected?reconstruct(mesh):"null";
+  const std::string reconstruction=intersected?reconstruct(mesh,close_mm):"null";
   stage("native-validation");
   if(!CGAL::is_closed(mesh))throw std::runtime_error("Repair output is not closed; no result accepted");
   if(PMP::does_self_intersect(mesh))throw std::runtime_error("CGAL output still intersects; no result accepted");
@@ -278,7 +373,7 @@ int main(int argc,char** argv){
   for(auto v:mesh.vertices())output<<mesh.point(v)<<'\n';
   for(auto f:mesh.faces()){auto h=mesh.halfedge(f);output<<"3 "<<mesh.target(h).idx()<<' '<<mesh.target(mesh.next(h)).idx()<<' '<<mesh.target(mesh.next(mesh.next(h))).idx()<<'\n';}
   output.close();if(!output)throw std::runtime_error("Cannot write repair output");
-  std::cout<<"{\"backend\":\"CGAL "<<CGAL_VERSION_STR<<"\",\"method\":\"cgal-solid-repair/2\",\"inputTriangles\":"<<before_faces
+  std::cout<<"{\"backend\":\"CGAL "<<CGAL_VERSION_STR<<"\",\"method\":\"cgal-solid-repair/3\",\"inputTriangles\":"<<before_faces
    <<",\"orientReturned\":"<<(oriented?"true":"false")<<",\"splitVertices\":"<<split_vertices<<",\"stitchedPairs\":"<<stitched
    <<",\"holesFilled\":"<<filled<<",\"holeTrianglesAdded\":"<<added<<",\"holesSkipped\":"<<skipped
    <<",\"selfIntersectionsRepaired\":"<<(intersected?"true":"false")<<",\"reconstruction\":"<<reconstruction
