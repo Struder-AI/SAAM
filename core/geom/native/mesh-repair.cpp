@@ -193,7 +193,7 @@ Closing closeOpposedSheets(const Mesh& mesh,std::vector<EK::Point_3>& points,dou
   double x[3];x[plane.k]=0;
   const auto onGrid=[&](int c,long long s,double y){if(s==0){x[c]=p[c];return 0LL;}const long long m=std::llround(std::ldexp(y,grid));x[c]=std::ldexp(double(m),-grid);return m;};
   const long long mi=onGrid(plane.i,plane.si,p[plane.i]+off*si),mj=onGrid(plane.j,plane.sj,p[plane.j]+off*sj);
-  x[plane.k]=std::ldexp(double(__int128(plane.si)*mi+__int128(plane.sj)*mj+plane.t),-grid-q);
+  x[plane.k]=std::ldexp(double(plane.si*mi+plane.sj*mj+plane.t),-grid-q);
   const double move=std::sqrt((x[0]-p[0])*(x[0]-p[0])+(x[1]-p[1])*(x[1]-p[1])+(x[2]-p[2])*(x[2]-p[2]));
   if(move>closeMm){++out.unmoved;continue;}
   if(move>0){points[v]=EK::Point_3(x[0],x[1],x[2]);++out.moved;out.maxMoveMm=std::max(out.maxMoveMm,move);}
