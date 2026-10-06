@@ -40,7 +40,7 @@ there is no separate settings confirmation.
 
 The viewer stream sends ordered changes and progress. State changes coalesce
 into one conditional `/api/state` read of a coherent bundle snapshot; worker
-progress updates current controls directly. A matching fingerprint returns no
+progress updates current controls directly. A matching state tag returns no
 body. Tags include request, tour, import-repair, generation failure and
 cancellation metadata. While connected there is no state/progress poll. Stream
 failure enables fallback polling (state every 15 seconds); reconnect and page
@@ -120,7 +120,7 @@ renderable revision reaches Studio immediately; neither checks nor further edits
 require withholding it. Working dots and the affected view's 28% fade persist
 through the agent's uninterrupted editing sequence, including between commands.
 
-Hand-back means ready for inspection or discussion, not approval. It captures
+Hand-back means ready for inspection or discussion. It captures
 the operation already underway and binds its resulting saved revision after it
 settles. Studio undims when that revision is displayed; a failure shows the last
 usable result with the error. Future work has a new identity, so delayed replies
@@ -183,7 +183,7 @@ reads; no reliable repair ETA is inferred.
 Import uses the [shared lifecycle](../core/print/USAGE.md#import-an-stl) and current
 printer/setup. Browser uploads have a 64 MiB HTTP input boundary; local paths
 stream. Finish or exit the tour before another import. A worker validates,
-repairs recognized defects and creates unapproved geometry, retaining repair
+repairs recognized defects and creates geometry, retaining repair
 evidence. Cancel interrupts it and cleans only the incomplete new bundle.
 
 Read `get_studio_events`, then pass the observed job identity to

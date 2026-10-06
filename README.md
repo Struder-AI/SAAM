@@ -1,7 +1,7 @@
 # SAAM — Struder Agentic Additive Manufacturing
 
-SAAM lets you describe a part to an AI agent, inspect the toolpath it proposes,
-approve it, and get a file your machine can run.
+SAAM lets you describe a part to an AI agent, inspect the toolpath it proposes
+and export a file your machine can run.
 
 SAAM lowers the barrier to 3D printing. You should be able to point your agent
 at this repository, describe what you want to make, and receive guidance suited
@@ -15,7 +15,7 @@ for review. You confirm the geometry, then settings and toolpath together. SAAM
 then delivers the same machine-program bytes you reviewed.
 
 Your agent handles the tools and settings; you guide the result. See the
-[maker workflow](MAKERS.md#maker-interaction-flow) for how revisions and approvals
+[maker workflow](MAKERS.md#maker-interaction-flow) for how revisions and export
 work.
 
 ## Project direction
@@ -55,8 +55,8 @@ Give your agent this repository and describe what you want to make. Agents start
 at [AGENTS.md](AGENTS.md), which routes making, development and setup work.
 
 For a manual development trial, follow [setup and checks](SETUP.md) and create a
-preview from a skill recipe. It produces a development preview; human job approval
-remains separate.
+preview from a skill recipe. It produces a development preview, not an exportable
+program.
 
 Ask your agent to **open the SAAM tour**, or launch Studio after setup:
 
@@ -67,7 +67,7 @@ node scripts/saam.mjs start-tour
 The [guided tour](examples/prints/README.md) uses one editable fin block in the
 same Studio used for your parts. Your copy and lesson survive restarts in the
 SAAM home. Explore geometry, playback, chat edits, setup and export; software
-examples grant no physical qualification or printing approval.
+examples grant no physical qualification.
 
 ## Reading and contributing
 

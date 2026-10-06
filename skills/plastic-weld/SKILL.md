@@ -131,7 +131,7 @@ weld command or artifact format exists. Disable draped-skin in a plain coupon
 recipe. A reproducible trial is a 24 × 16 × 9 mm solid coupon (slice
 `fillDensity: 1`) with the two staggered sites of one column, one row and two
 levels at 12 mm pitch from X 6, Y 8 mm; keep the default slice for the
-sealed-envelope infill variant. Generation creates no human approval.
+sealed-envelope infill variant.
 
 In Studio, inspect the empty basin and shaft before each weld layer, the solid
 floor and envelope, then the stationary injection marker. The marker shows the

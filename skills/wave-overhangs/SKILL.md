@@ -17,7 +17,7 @@ cooling and thermal warping need judgment and physical trials.
 an ordinary assignment: a surface-domain owned volume, `fillOrder:{kind:'fronts',...}`,
 shared process overrides and dependencies. Persist that expanded record in
 `plan.slices.assignments`; legacy `construction:'fronts'` requires migration.
-There is no separate wave producer or extra approval stage.
+There is no separate wave producer.
 
 ## Author the region and seed
 

@@ -113,6 +113,6 @@ boolean references run with:
 node --test skills/wave-overhangs/tests/wave.test.mjs core/tests/intersection.test.mjs
 ```
 
-Software fixtures and synthetic approvals establish no physical result. The
+Software fixtures establish no physical result. The
 user has Grasshopper available as an optional future comparison host; no
 comparison result or physical validation is claimed.

@@ -76,7 +76,7 @@ Pose output is optional. `toolPose:{}` derives upright poses; use
 `toolPose:{alignToSliceNormal:true}` to follow the surface normal. Field `tilt`
 modulation can vary either mode. SAAMpath keeps these derived poses independent of
 the machine; its exporter handles their representation. The [DENSO tube example](examples/denso-tube.json)
-uses normal alignment and synthetic setup, not installation calibration or approval.
+uses normal alignment and synthetic setup, not installation calibration.
 
 No physical cladding print is qualified. Inspect adhesion, transitions,
 clearance and motion with the person through the ordinary Studio review.

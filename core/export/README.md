@@ -48,8 +48,8 @@ operation labels. Missing labels remain unknown; recipe skills alone do not prov
 which producer caused a travel. The check is one linear scan of the prepared path.
 Generation records it as
 `plan.json` → `bundle.review.generation.checks.shortTravel`; `saam` print state
-exposes it. Review, approvals, delivery and emitted bytes are unchanged
-by the finding. Browser playback does not rerun the check.
+exposes it. Review, delivery and emitted bytes are unchanged by the
+finding. Browser playback does not rerun the check.
 
 ### Output compatibility
 

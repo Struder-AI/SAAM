@@ -61,7 +61,7 @@ operations use ascending maximum actual deposition Z. Rank breaks ties within a 
 height group. This preference never splits atomic continuous operations. Explicit ordering
 and dependencies can interleave operations within a layer. They cannot remove a
 skill's prerequisites. Old batchLayers recipes require explicit migration and regeneration;
-generation executes the locked rules without a new planning or approval stage.
+generation executes the locked rules without a new planning stage.
 
 `scheduleOperations` exposes validation, priority preparation, dependency
 preparation and topological ordering as separate stages. Their returned records

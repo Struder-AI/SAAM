@@ -153,7 +153,7 @@ SAAMpath retains the explicit spatial paths. Export checks the selected
 representation; slope reports do not establish clearance. Dobot relay output stops at segment boundaries and does not establish
 continuous robot motion or calibrated variable flow. The user reports advanced
 vase walls demonstrated in physical prints (2026-09-24); software generation,
-review and export do not approve hardware.
+review and export validate no hardware.
 
 ### Script interface
 

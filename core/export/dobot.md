@@ -11,8 +11,8 @@ same Studio viewer for synthetic model inspection.
 
 `machines/dobot-mg400.json` declares experimental `dobot-lua` output through
 `core/export/dobot.mjs`. `core/export/dobot-lua-subset.mjs` adopts the selected
-legacy Lua runtime; export, inspection, hashing, approvals and delivery use the
-existing SAAMpath and print lifecycle. Geometry can be reviewed with the default
+legacy Lua runtime; export, inspection and delivery use the existing SAAMpath
+and print lifecycle. Geometry can be reviewed with the default
 profile, but its installation fields are null and generation refuses an
 unconfigured installation. The locked setup must supply frame IDs, XY calibration
 and offsets, bed Z, fixed orientation, initial position, Cartesian workspace,

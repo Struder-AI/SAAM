@@ -12,8 +12,8 @@ work; the person need not request it separately:
 2. Run `npm ci` from the repository root unless `node_modules/` is already
    present, as in a packaged download.
 3. Run `npm run setup:check` to verify dependency loading, geometry kernels and
-   an unapproved geometry preview served by Studio. This short check creates no
-   toolpath or manufacturing approval. Do not run the
+   a geometry preview served by Studio. This short check creates no toolpath.
+   Do not run the
    full regression suite as maker onboarding.
 4. Apply [Studio agent permissions](studio/README.md#studio-agent-permissions): project trust,
    the shared launcher permission and browser access.

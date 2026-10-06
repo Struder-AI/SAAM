@@ -76,12 +76,12 @@ presentation. Both starting shapes initialize from source recipes and show
 geometry before toolpath generation. At toolpath review, the normal worker and
 source interpreter supply playback and material instances. Generated display
 caches and machine programs are not bundled in the repository.
-The browser owns one presentation model keyed by `printId`, `geometryHash`,
-`generationHash` and `exportHash`. `planPresentation(previous, response)` returns
+The browser owns one presentation model keyed by `printId`, `geometryId`,
+`editRevision`, `outputId` and path id. `planPresentation(previous, response)` returns
 that model plus explicit program effects: replace, retain or clear. A tour may
 therefore return to geometry-only lessons while retaining one decoded playback
 and material scene, then reuse those buffers when the identity matches. Changed
-identity replaces or clears them; approval-only metadata rebinds the machine
+identity replaces or clears them; metadata-only changes rebind the machine
 session. This does not skip the server's current-source checks or fetch program
 data during an initial geometry lesson.
 
@@ -136,7 +136,7 @@ compressed frames remain in memory until download. Progress and cancellation
 keep the page usable, while view controls are locked for consistent frames.
 Canvas dimensions and device-pixel ratio at export start determine resolution.
 The shared renderer preserves Studio's appearance. Same-tab view settings survive
-refresh. Movie export neither generates machine code nor approves or edits a bundle.
+refresh. Movie export neither generates machine code nor edits a bundle.
 
 S5 and H2D profiles supply new shell plans with 40/20/24 mm/s
 planar/skin/first-layer targets, 120 mm/s XY travel and 10 mm/s Z travel.
@@ -165,10 +165,9 @@ display only: source coordinates, tessellation and manufacturing data remain
 unchanged. Without WebGL2, Studio labels its flat-surface fallback. Toolpath view
 draws no part mesh or outline; the current phase/layer is darker, opaque and
 drawn after the faded prior layers. At shutdown it retains emphasis on the last
-deposition layer. Source geometry, output and approval data are unchanged.
+deposition layer. Source geometry and output are unchanged.
 
 Studio uses the shared [bundle identity and reuse contract](../core/print/README.md#print-bundle-and-current-formats).
-Its display cache does not replace source verification or approval identity.
 
 Studio's state response contains geometry, review records and a small program
 summary/source manifest, never move/event arrays. It fetches the checked machine

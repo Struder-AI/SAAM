@@ -19,7 +19,7 @@ reasoning from the code at the time of need. Three things qualify:
 1. **The oracle lives outside the repository** — a physical machine, firmware,
    a controller constraint or an upstream reference. Archive layout, byte
    headers, acceptance envelopes and reference facts cannot be re-derived here.
-2. **A safety invariant with no local trigger** — approval invalidation, stale
+2. **A safety invariant with no local trigger** — stale
    view/program rejection, byte-identical delivery, manifest honesty,
    cancellation boundaries, lifetime and shutdown isolation. Nobody editing
    nearby would think to ask, so the test has to.
@@ -44,7 +44,7 @@ All file names in the core column are relative to `core/tests/`.
 | Dobot Lua and DENSO RC8A controller facts; S5 priming; refusal of unavailable machine output | 1 | [dobot.test.mjs](./dobot.test.mjs), [denso.test.mjs](./denso.test.mjs), [prime.test.mjs](./prime.test.mjs), [printer-profiles.test.mjs](./printer-profiles.test.mjs) |
 | Upstream planar-boolean reference data | 1 | [intersection.test.mjs](./intersection.test.mjs) |
 | Bundle lifecycle: edits leave programs stale, stale revisions, exact-byte export, saved-manifest reuse | 2 | [workflow.test.mjs](./workflow.test.mjs), [regional-workflow.test.mjs](./regional-workflow.test.mjs), [workflow-manifest.test.mjs](./workflow-manifest.test.mjs) |
-| Studio safety: saved-export approval, cancellation before commit, viewer and owner lifetime, shutdown isolation, protection of existing work | 2 | [studio-open.test.mjs](./studio-open.test.mjs), [studio-generation-control.test.mjs](./studio-generation-control.test.mjs), [studio-lifetime.test.mjs](./studio-lifetime.test.mjs), [studio-tour-lifetime.test.mjs](./studio-tour-lifetime.test.mjs), [demos.test.mjs](./demos.test.mjs) |
+| Studio safety: saved-export reopening, cancellation before commit, viewer and owner lifetime, shutdown isolation, protection of existing work | 2 | [studio-open.test.mjs](./studio-open.test.mjs), [studio-generation-control.test.mjs](./studio-generation-control.test.mjs), [studio-lifetime.test.mjs](./studio-lifetime.test.mjs), [studio-tour-lifetime.test.mjs](./studio-tour-lifetime.test.mjs), [demos.test.mjs](./demos.test.mjs) |
 | Observed offset, contour and mesh defects on their minimal fixtures | 3 | [offset-remnants.test.mjs](./offset-remnants.test.mjs), [offset-junctions.test.mjs](./offset-junctions.test.mjs), [contour-cleanup.test.mjs](./contour-cleanup.test.mjs), [mesh-repair.test.mjs](./mesh-repair.test.mjs), [mesh-boundary.test.mjs](./mesh-boundary.test.mjs), [mesh-large.test.mjs](./mesh-large.test.mjs) |
 | Windows file-sharing conflict retries; source moves with no across-path surface frame | 3 | [file-write.test.mjs](./file-write.test.mjs), [studio-material.test.mjs](./studio-material.test.mjs) |
 | Large move counts and G-code/ZIP size boundaries (explicit stress run) | 3 | [stress/large-export.test.mjs](./stress/large-export.test.mjs), [stress/large-program.test.mjs](./stress/large-program.test.mjs) |

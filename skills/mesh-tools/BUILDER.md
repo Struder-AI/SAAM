@@ -43,7 +43,7 @@ and percentage; `cancel_studio_calculation` cancels it; there is no time limit.
 Compare source and result and inspect changed faces: the report counts
 exactly unchanged faces and samples distances both ways, and a clean intersection
 check alone doesn't show the shape was preserved. Import `repaired.stl` with
-units **mm** and review it; repair and import create no approvals.
+units **mm** and review it.
 
 [The repair entry](../../core/print/repair-stl.mjs) owns orchestration and files;
 [the geometry reference](../../core/geom/README.md#explicit-mesh-repair) owns the

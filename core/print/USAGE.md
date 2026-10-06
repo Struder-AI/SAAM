@@ -71,7 +71,7 @@ Single-wall sleeve spirals use their course pitch instead.
 When a toolpath's [short-travel advisory](../export/README.md#short-travel-advisory)
 (`shortTravel`) count is nonzero, tell the person how many travels, which
 operations, and whether they were lifted over a blocked line or moved directly;
-it asks for no repair or approval. Acknowledge a Studio advisory as completed.
+it asks for no repair. Acknowledge a Studio advisory as completed.
 
 The final confirmation happens in Studio, which can also generate and export.
 Delivery copies the exact checked export into `delivery/` and sends nothing to

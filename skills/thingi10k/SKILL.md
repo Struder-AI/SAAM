@@ -56,8 +56,8 @@ program.
 
 On `imported: true`, call `request_review` and follow the
 [STL workflow](../../core/print/USAGE.md#import-an-stl): show dimensions and
-assumptions, choose toolpath skills and review in Studio. Import creates no
-approvals and never silently repairs, simplifies or rescales the model.
+assumptions, choose toolpath skills and review in Studio. Import never
+silently repairs, simplifies or rescales the model.
 
 On `imported: false`, the result has the error, attribution, chat notice and
 `sourcePath`: the downloaded original, kept as diagnostics evidence until another

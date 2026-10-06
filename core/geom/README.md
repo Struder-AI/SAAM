@@ -138,8 +138,7 @@ facet. Drape requires a continuous accessible roof; discontinuities or sampled
 segments above its angle limit are rejected. Sampling and bead-width limits remain.
 
 Equivalent mesh/spline fixtures and mixed assemblies exercise shared skills,
-regions, machine checks, native-file integrity, approvals and exact-byte S5
-export delivery. Add equivalent backend tests for each general skill.
+regions, machine checks and exact-byte S5 export delivery. Add equivalent backend tests for each general skill.
 
 ### Prepared contour mapping
 
@@ -377,15 +376,14 @@ The 1e-7 mm welding grid differs from the 0.02 mm default approximation target. 
 Input solids require positive material volume. Ordinary native spline slicing introduces no conversion.
 
 The text result is a `shape: text` recipe inside the existing native mesh bundle:
-original base, editable features, quality controls, output vertices/triangles and
-a digest binding construction inputs to that output. The actual persisted mesh
-is the reviewed and sliced geometry; reopening validates its bytes and descriptor
-without rerunning font shaping or booleans. Text edits rebuild through
-[the preparation entry](../print/text.mjs), then the normal bundle update invalidates
-affected reviews. Text's original STL source hash remains checked. Assembly edits
-retain the selected component id and other components' representations.
+original base, editable features, quality controls and output vertices/triangles.
+The persisted mesh is the reviewed and sliced geometry; reopening uses it without
+rerunning font shaping or booleans. Text edits rebuild through
+[the preparation entry](../print/text.mjs), then the normal bundle update leaves
+the program stale. Assembly edits retain the selected component id and other
+components' representations.
 
-Text records save digest-bound `materialParts`: `base` and
+Text records save `materialParts`: `base` and
 `text/<feature-id>`. Raised additions exclude existing material; later recessed
 cuts subtract from every partition. Empty partitions are omitted. An uncut base
 uses `geometry: null` to retain the original native geometry and its queries;
@@ -452,8 +450,7 @@ and reimport of the exact decimal ASCII STL. Non-intersection is certified at th
 numeric conditioning margin, not proved exactly. Reports count unchanged/changed/new
 faces and sample at most 10,000 vertices/centroids per direction, without claiming
 a certified surface-error bound. Identical geometry needs no sampling. The optional
-sampled-distance limit rejects measured excess; geometry still needs review and
-successful processing creates no manufacturing approval.
+sampled-distance limit rejects measured excess; geometry still needs review.
 
 ### Memory, files and progress
 

@@ -14,7 +14,7 @@ frontmatter is intentional: shared discovery contains only the name.
 
 ## Create and edit
 
-The `gridfinity` tool creates an unapproved print:
+The `gridfinity` tool creates a print:
 
 ```json
 {

@@ -90,7 +90,7 @@ printing remain open commissioning work.
 
 Interoperability is shared at geometry storage, ordinary section/offset/boolean
 tools, substrate generation, operations, motion, output registry, exact-source
-Studio, approvals, cold reopening and delivery. Cladding accepts a periodic native
+Studio, cold reopening and delivery. Cladding accepts a periodic native
 spline patch or mapped native triangle strip through
 [surface-region](../geom/surface-region.mjs); inward radial material-region
 interfaces are not implemented. Shared
@@ -102,7 +102,7 @@ slices consume its real sections with three loops. Arc-length cells
 create partial axial passes as local area varies. Scope, mesh normal
 interpolation, sampled coverage, unsupported topology and normal-field limits are
 owned by the [cladding manual](../../skills/pipe-cladding/SKILL.md#contact-and-pose).
-The producer uses the same composer, oriented travel, RC8A export and approval
+The producer uses the same composer, oriented travel, RC8A export and review
 workflow. General inward reservations, arbitrary chart unwrapping and multi-patch
 cladding remain unimplemented.
 Tests include the existing mesh/spline base-vase-cap-infill-drape stack at fixed
@@ -112,8 +112,8 @@ Large RC8A programs can exceed 64 helper files. Shared ZIP output uses the
 ZIP32 non-sentinel entry limit of 65,534 while retaining CRC, path, size, overlap
 and inventory checks. Studio streams the exact checked source inventory in one
 NDJSON response instead of reloading the archive per helper. The browser still
-checks every file hash and the server binds the stream to print/revision/export
-identity. This changes transport, not interpretation or approval requirements.
+checks every file hash and the server binds the stream to print, revision and
+output id. This changes transport, not interpretation.
 
 Primary technical references used for this experimental command contract:
 

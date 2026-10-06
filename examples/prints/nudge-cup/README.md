@@ -14,7 +14,7 @@ or compare a heavier upper wall. The cup component is a solid guide; its printin
 recipe creates the open interior. The foot mesh contains its own narrowing cavity.
 
 [recipe.mjs](recipe.mjs) reproduces the original Nudge Cup geometry and composition
-using current S5 defaults, with no saved personal setup or approvals. The underlying
+using current S5 defaults, with no saved personal setup. The underlying
 skills are [vase wall](../../../skills/vase-wall/SKILL.md),
 [slices](../../../skills/slice/SKILL.md) and [draped skin](../../../skills/draped-skin/SKILL.md).
 
