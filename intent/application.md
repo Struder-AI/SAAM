@@ -13,6 +13,15 @@ Summary: one SAAM orchestrator runs, shown as the only tray icon, and coordinate
 
 Sources: [0.3.3 "One SAAM orchestrator per OS"](../plans/0.3.3.md); [0.3.2 SAAM application](../plans/0.3.2.md#saam-application-chats-and-folders); Claude 764ea5bb 21:00 ("Pretty sure I just saw two in the system tray just now"); Claude c6c50c08 18:13 ("It needs to be in the tray").
 
+## One orchestrator coordinates every session
+> "I don't want separate SAAM orchestrators. I was led to believe a single SAAM orchestrator could run and coordinate visible studio sessions, hidden background sessions (that I can still see in the tray), as well as both of these for source checkouts (all able to connect to relay and beam the diag telemetry)." — owner, 2026-10-06 (Claude 3594b461)
+>
+> "I want background instances to still show up on the tray, even though no studio window is visible." — owner, 2026-10-06 (Claude 3594b461)
+
+Summary: the home's one orchestrator runs visible and background (windowless, listed in the tray) Studio sessions for the installed code and for source checkouts; every session reports to the relay. No second orchestrator is started for development.
+
+Sources: Claude 3594b461 (2026-10-06); replaces the runtime-model line "dev-instance runs the checkout's own orchestrator in the background on a temporary home" (agent wording in a summary answered "Great, I think that all works, right?", 2026-10-05; no specific owner agreement).
+
 ## Everyone uses the installed release, on one home
 > "Installed release is supposed to be what everyone uses, even if you also have a source checkout on your system." — owner, 2026-10-05 (Claude 98e25b54 04:02)
 >

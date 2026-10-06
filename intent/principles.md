@@ -71,6 +71,13 @@ Summary: every tolerance in SAAM and its extensions comes from the dimensions SA
 
 Sources: [0.3.6 "Dimensions and tolerances"](../plans/0.3.6.md); [DEVELOPER-CONTEXT code shape 6](../DEVELOPER-CONTEXT.md#code-shape) (agent wording); [core/README dimensions and tolerances](../core/README.md#dimensions-and-tolerances); `.local/team/questions-036.md` #38; Claude 3594b461 10-06 19:11 (queued: "tolerances were supposed to be completed by the last orchestrator").
 
+## Memory limits adapt to the system
+> "memory limits must be adaptive and appropriately sized for the system." — owner, 2026-10-06 (Claude 3594b461)
+
+Summary: memory limits are derived from the machine SAAM runs on, not fixed numbers.
+
+Sources: Claude 3594b461 (2026-10-06); tester incident 2026-10-06 (an agent's script added "an arbitrary ram check that was way too conservative for his system"); brain 44375 generation exhausting the default worker heap (DEVLOG 2026-10-06).
+
 ## Limits and checks must earn their place
 > "No it is not our job to limit flow. The machine generally will do that anyway. Judgement is required to choose fields that don't result in excessive flow, and when that fails, the machine already catches it. If for some crazy reason we did need to cap it, the appropriate place for that cap would be in that specific machine's exporter." — owner, 2026-10-01 (Codex 01a0f6ac 09:14)
 >
