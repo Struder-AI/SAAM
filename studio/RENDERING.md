@@ -90,7 +90,7 @@ data during an initial geometry lesson.
 Lines, material, partial moves, movies, legend and pipe-view sample buttons draw
 the Studio state's resolved `phasePalette` ([choice and precedence](../core/print/USAGE.md#phase-colours));
 multi-material moves show their filament colour. [`phase-colours.mjs`](../core/print/phase-colours.mjs)
-owns the defaults and their contrast and colour-vision check.
+owns the defaults.
 
 ### Material geometry and playback
 

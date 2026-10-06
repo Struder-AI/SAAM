@@ -2,16 +2,14 @@
 // phase the generator and exporters emit; a print's choice (bundle field
 // `phaseColours`) and the home's local preference (`local/phase-colours.json`)
 // override it, the print first. Colours never enter recipe, path or program identity.
-// Deposition hues were checked on Studio's background (#eaf0e0-#f8faf1): contrast
-// >= 3:1 and all-pairs OKLab dE >= 8 under protan/deutan simulation. Travel is
-// a neutral thin line, so width also separates it.
-const body='#3e8cc9',surface='#c65b19',service='#802e53';
+// The defaults are Studio's colours before 0.3.3 (owner, 2026-10-06): sky blue
+// body, orange vase walls, lavender modulation, rust injection markers.
+const skyBlue='#5b9fd3',orange='#c65b19';
 export const DEFAULT_PHASE_COLOURS=Object.freeze({
-  travel:'#7a7a7a',deposition:body,modulated:'#8244ba',
-  planar:body,spiral:body,study:body,'plastic-weld':body,
-  curves:surface,'vase-wall':surface,'segmented-paths':surface,inject:surface,
-  supports:'#0c7b60',
-  prime:service,start:service,startup:service,finish:service
+  travel:'#657fa3',deposition:skyBlue,modulated:'#a799dc',
+  planar:skyBlue,spiral:skyBlue,study:skyBlue,'plastic-weld':skyBlue,curves:skyBlue,supports:skyBlue,
+  'vase-wall':orange,'segmented-paths':orange,inject:'#b85c28',
+  prime:'#5b92a3',start:skyBlue,startup:skyBlue,finish:skyBlue
 });
 
 // A partial {phase: '#rrggbb'} record; null when empty.
