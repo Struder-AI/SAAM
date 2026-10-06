@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-06 — Neutral materials; list_skills lists skills only
+
+- Worker W26: logical materials are neutral settings (`setup.filaments`, `setup.filament`); `setup.bambu` keeps plate, other nozzle, AMS connections and startup. Core `validateSetup` checks each material (declared tool, temperature, process keys) once; Bambu's copies and core `filamentPlan` (it read the Bambu other nozzle) are gone. `neutralMaterials` moves the old fields when a saved print, a history or completed-output snapshot, or a remembered setup is read. `list_skills` lists skills only; `list_machines` names each profile's machine extension. The Bambu change recipe follows the profile's nozzle count; X1 and Dobot machine-id re-checks are gone. No adapter recipe dependency: with fingerprints gone nothing would compare it.
+- Verified: 16/16 saved cases byte-identical after each commit; 25 test files on their own (worker); after merge workflow, bambu, legacy-migration, studio-open, printer-profiles pass. Not run: whole suite, browser, a real old-shape print opened in Studio.
+
 ## 2026-10-06 — Machine adapters step 4, part 1: built-ins are machine extensions
 
 - Worker W25: built-in adapters are bundled machine extensions under `machines/<id>/` (ultimaker, bambu, dobot, denso): profiles, adapter, contract as SKILL.md, Dobot/DENSO debug `machine-verify`. Extension kind `machine`; `machineCatalog` replaces MACHINE_IDS (local copies win). Adapters are `createAdapter(Export)` factories receiving program-resolution numbers, gcodeMotion, ZIP, the temperature ceiling and stateless frame math, and import no core module; each declares output, poses and settings {key, validate}. `validateSetup` and `mergeSetup` are generic; preparation reads poses and the start pose from the declaration and the adapter's block; material changes follow the output's mode. Removed: registry table, `outputAdapter`, `core/machine/denso.mjs`, rules id branches, dead helpers. `exportProgram` is async. Plan links to the Bambu contract moved to `machines/bambu/SKILL.md`.
