@@ -92,7 +92,7 @@
  "core/region/surface-curves.mjs": 2,
  "core/region/surface-offset.mjs": 6,
  "skills/advanced-vase-wall/scripts/prepare-mesh.mjs": 7,
- "skills/advanced-vase-wall/scripts/record.mjs": 3,
+ "skills/advanced-vase-wall/scripts/record.mjs": 2,
  "skills/advanced-vase-wall/scripts/runtime.mjs": 8,
  "skills/bridging/scripts/attachment-curves.mjs": 1,
  "skills/heat-set-inserts/scripts/slices.mjs": 1,

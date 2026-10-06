@@ -5,9 +5,11 @@ export function advancedVaseRecordRuntime(){
   const distance=(a,b)=>Math.hypot(...a.map((v,i)=>v-b[i]));// Patterns use sleeve coordinates, never independent world XYZ.
 
 // A turns pattern's perimeter position is periodic; a sized pattern's arc is not.
-const sameSurfacePoint=(a,b,period)=>{const du=a[0]-b[0];return Math.abs(period?du-Math.round(du):du)<=(period?1e-10:1e-9)&&Math.abs(a[1]-b[1])<=1e-9;};
+// Numeric conditioning (core/dimensions.mjs NUMERIC_MM); record runtimes are self-contained.
+const NUMERIC_MM=1e-9;
+const sameSurfacePoint=(a,b,period)=>{const du=a[0]-b[0];return Math.abs(period?du-Math.round(du):du)<=(period?1e-10:NUMERIC_MM)&&Math.abs(a[1]-b[1])<=NUMERIC_MM;};
 const offsetAt=(path,i)=>Array.isArray(path.offsetMm)?path.offsetMm.at(i):(path.offsetMm??0);
-const joined=(a,b,period)=>sameSurfacePoint(a.points.at(-1),b.points[0],period)&&Math.abs(offsetAt(a,-1)-offsetAt(b,0))<=1e-9;
+const joined=(a,b,period)=>sameSurfacePoint(a.points.at(-1),b.points[0],period)&&Math.abs(offsetAt(a,-1)-offsetAt(b,0))<=NUMERIC_MM;
 
 // Turns patterns repeat by a fixed advance in perimeter turns; sized patterns
 // repeat a tile of fixed arc width, as many times per turn as the perimeter holds.
