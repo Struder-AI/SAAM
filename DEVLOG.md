@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-10-05 — Dimming follows the agent's place; status answers during a start
+
+- Dimming means the agent is at the SAAM desk (worker): `saam client-event` replaces the unreleased `turn-ended`. Turn end (Stop, StopFailure, idle_prompt), the person's message (UserPromptSubmit), Interrupt and SessionEnd hand back the chat's active work as `waiting` with a reason; subagent events are ignored. SAAM answers the hook at once (Codex holds Interrupt/SessionEnd to 1-3 s) and the hand-back waits for the operation underway.
+- Client setup registers SAAM's hooks in `~/.claude/settings.json` (5 events, exec form) and `~/.codex/hooks.json` (4 events, after the person's); repair replaces them, uninstall removes only them. SAAM never writes Codex trust or `notify`; setup reports `trustRequired` and the sentence to relay. Installed paths are written unquoted so they read the same in sh, cmd and PowerShell.
+- `saam status` answers while a runtime starts: the registry reports it as `starting` without asking it. Same defect remains in `notifyStopping` (Quit or Update during a runtime start; from source, not run).
+- Verified in temporary client homes, under three shells, and on a dev instance with HTTP probes (every event, ignored events, unknown chat, mid-operation interjection, SAAM absent; about 100 ms per hook); review-state rerun after merge. Not run: real client hooks (owner checks listed in the worker notes), whole suite, macOS, map regenerate.
+
 ## 2026-10-05 — Machine adapter design for owner review
 
 - Worker (design only; .local/team/adapter-design.md): a new machine today needs about ten core edits (profile and MACHINE_IDS, exporter and player, registry row, `readProgramSources`/`decodeSource` branches, Studio module list, `validateSetup`/`mergeSetup`, machine-id branches in prepare-path and presentation, Studio settings rows); nothing can come from an extension folder. Proposed: a `kind: "machine"` extension whose adapter returns `{bytes, report}` from the prepared path and settings, with a debug-only `machine-verify` entry; Studio draws the path; players and decode routes go (about 1,550 runtime lines). 14 links into or out of Export besides SAAMpath and settings listed for owner approval, four of them not drawn by the maps (plan field reads, `setup.bambu` read by Toolpath and Studio, Studio's string module list). Standards S1–S10, S3 waiting on scale-derived program resolution. Not run: tests, Bambu byte-identity from the path.
