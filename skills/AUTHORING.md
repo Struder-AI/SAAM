@@ -1,8 +1,8 @@
 # Skill and extension authoring
 
-Builders compose published interfaces into guidance, recipes, assets or
-workspaces. Core/shared changes require the developer
-role. Read [builder orientation](../BUILDERS.md) and the consumed contracts.
+Builders compose published interfaces into guidance, recipes, assets, workspaces and
+extensions, which do what SAAM's operations do not ([working boundaries](../MAKERS.md#working-boundaries)).
+Core/shared changes require the developer role. Read [builder orientation](../BUILDERS.md) and the consumed contracts.
 
 `SKILL.md` owns maker operations, settings, limits and recovery; optional
 `BUILDER.md`/`DEVELOPER.md` own author guidance. Mark machine-specific sections
@@ -17,12 +17,14 @@ Descriptions guide selection; prefix unvalidated techniques with “Experimental
 Keyword descriptions contain only that keyword. [catalog.mjs](catalog.mjs) orders built-ins;
 refresh with `node scripts/skill-digest.mjs` after description/catalog/gate edits.
 
-An extension contains `extension.json`, `SKILL.md`, scripts and assets. Its
-manifest declares `schema: "saam-extension/1"`, a lowercase hyphenated `id`,
-`dependencies`, `entries`, `license` and `provenance`. Missing dependencies and
-cycles stop execution. Entries name `.mjs` functions for geometry, deposition,
-record or resource operations. Runtime factories receive named public Geometry
-and Toolpath operations; private core imports are not a portable interface.
+An extension is a folder `<SAAM home>/local/extensions/ID/` holding `extension.json`,
+`SKILL.md`, scripts and assets. Its manifest declares `schema: "saam-extension/1"`,
+a lowercase hyphenated `id`, `dependencies`, `entries`, `license` and `provenance`.
+Missing dependencies and cycles stop execution. Entries name `.mjs` functions for
+geometry, deposition, record or resource operations. Runtime factories receive named
+public Geometry and Toolpath operations; private core imports are not a portable
+interface. Extension code uses the tolerances of the operations it calls and adds no
+fixed memory or resource budget ([limits](../core/README.md#limits-that-adapt-and-limits-that-are-kept)).
 
 Workspace extensions declare `kind: "workspace"`, `workspace: {"ui":"ui"}` and a
 `workspace-runtime` factory receiving `Geometry.loftPolygons`,
@@ -33,11 +35,9 @@ The [host](../workspaces/server.mjs) saves designs and self-contained Bundles wi
 source/requirements provenance. Ordinary sessions edit, generate and share parts using
 current recipe dependencies. Extensions own construction/UI, not Bundle authority.
 
-`saam call extension_library` manages the shared library; `list_skills` lists it.
-`checkout` creates an editable user copy in `<SAAM home>/local/extensions/`; it
-overrides release defaults and survives updates. `export` packages manifest, manuals,
-scripts, assets and hashes; `import` validates without executing code or replacing
-changed copies. Share explicitly; release promotion needs review.
-
-Document resource identity, provenance and license; callers save assets. Extensions have no technical sandbox or automatic I/O permission.
-Follow [parameter policy](../MAKERS.md#standard-parameter-policy) and [verification guidance](../BUILDERS.md#avoid-check-spirals).
+`saam call extension_library` manages the library (`list_skills` lists it): `checkout`
+copies a release default into the local folder as an editable override that survives
+updates; `export` packages manifest, manuals, scripts, assets and hashes; `import`
+validates without executing code or replacing changed copies. Share explicitly; release
+promotion needs review. Document resource identity, provenance and license; callers save
+assets. Extensions have no technical sandbox or automatic I/O permission. Follow [parameter policy](../MAKERS.md#standard-parameter-policy) and [verification guidance](../BUILDERS.md#avoid-check-spirals).

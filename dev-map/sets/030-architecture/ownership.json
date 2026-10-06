@@ -12419,6 +12419,10 @@
       "owner": "application",
       "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."
     },
+    "core/application/runtime.mjs::createLocalRuntime::createChat::reportBug": {
+      "owner": "application",
+      "reason": "0.3.6 agent bug report: the chat's report_bug operation hands text and context to the runtime host's release-service route shared with Studio Report a bug."
+    },
     "core/application/runtime.mjs::createLocalRuntime::createChat::migrateBundleOperation": {
       "owner": "application",
       "reason": "0.3.3 Application-owned saved draft creation/view handoff; coder assigned from current declaration inventory."

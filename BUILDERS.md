@@ -13,12 +13,10 @@ read individual manuals only as needed.
 
 **Builders inherit maker responsibilities.** Builder onboarding includes
 [MAKERS.md](MAKERS.md) for the person-facing workflow being extended and exercised.
-Developers orient by the map and DEVELOPER-CONTEXT.md, and load this file, maker
-workflow or skill authoring when their task needs it. Reuse prior reads.
-Read consumed [component contracts](#implementation-reference); use the
-[map](#maps-and-local-documentation) when investigating structure. Reading an
-implementation does not authorize changing it or require a role change.
-Guidance helpers need their consumed contracts, not an automatic map read.
+Developers orient by the map and DEVELOPER-CONTEXT.md, loading this file, maker
+workflow or skill authoring as needed. Read consumed [component contracts](#implementation-reference);
+use the [map](#maps-and-local-documentation) when investigating structure. Reading
+an implementation does not authorize changing it or require a role change.
 When a session grows past roughly 250k tokens and the request substantially
 changes, suggest a fresh chat.
 
@@ -40,9 +38,11 @@ change both together.
 
 ## Design direction
 
-Core skills expose shared geometry and deposition capabilities. Guidance teaches
-their composition, adding no deposition family or parallel recipe representation.
-Builders may package existing operations; a missing capability goes to developers.
+Core skills expose shared geometry and deposition capabilities; guidance and
+extensions compose them, adding no deposition family or parallel recipe
+representation. Work the [extension interface](skills/AUTHORING.md) cannot express
+is a SAAM bug for `saam call report_bug` ([working boundaries](MAKERS.md#working-boundaries));
+a missing core capability goes to developers.
 
 Composition is the central architectural requirement. Combining a wall, infill
 and roof requires material ownership, operation dependencies, compatible geometry

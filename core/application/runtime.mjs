@@ -553,9 +553,17 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       ...(application.runtime&&{runtime:{id:application.runtime.id,label:application.runtime.label,command:application.runtime.command,
         note:'This chat uses this runtime; every result names it. Run each saam command for this chat with runtime.command.'}}),notes:await readLocalAgentNotes(paths),
       sources: await onboardingSources(root,await manualContext({machineId,bundleId})),
-      nextStep: 'Reuse these sources for the conversation. Read skill manuals (read_skill) and linked references (read_guidance) when a task needs them. Authoring guidance uses builder onboarding in the local toolkit; core implementation requires explicit developer authorization.' };}
+      nextStep: 'Reuse these sources for the conversation. Read skill manuals (read_skill) and linked references (read_guidance) when a task needs them. If no operation fits, build an extension (MAKERS.md#working-boundaries); work an extension cannot express is a SAAM bug: tell the person and call report_bug. Core implementation requires explicit developer authorization.' };}
   operation('repair_client_setup','Refresh SAAM command discovery and permissions in Codex and Claude Code. Preserves unrelated settings and reports registration errors.',{},false);
   async function repairClientSetup(){if(!application.retryClients)throw Error('Client setup is available through the SAAM application.');return application.retryClients();}
+  operation('report_bug','File a bug report with the SAAM developers through the alpha service, the route of Studio Report a bug; fails unless the relay acknowledges it. reason outside-extensions: the work needed code outside SAAM operations and extensions; defect: SAAM misbehaved. Tell the person what you reported. Without an activated installation it says so: describe the problem to the person instead.',
+    {description:z.string().trim().min(1).max(1000).describe('What was asked, what SAAM could not do or did wrong, and what you did instead; at most 1000 characters.'),
+      reason:z.enum(['outside-extensions','defect']),printId:bundleIdSchema.optional().describe('bundleId of the print concerned, when there is one.')},false,true);
+  // One route with Studio's Report a bug: the release service sends it and waits for the relay.
+  async function reportBug({description,reason,printId}){
+    if(!relay)throw Error('Bug reports travel through the SAAM application.');
+    return relay.report({description,context:{reporter:'agent',reason,client,printId:printId??null,runtimeId:application.runtime?.id??null,runtimeLabel:application.runtime?.label??null}});
+  }
   operation('list_machines','List installed machine profiles and declared outputs. Catalog presence is not proof that a particular recipe is supported.',{});
   async function listMachines(){return MACHINE_IDS.map(id => {
     const m = loadMachine(id);
@@ -976,6 +984,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       case 'update_local_agent_notes':return updateLocalAgentNotes(paths,input);
       case 'maker_onboarding':return makerOnboarding(input);
       case 'repair_client_setup':return repairClientSetup();
+      case 'report_bug':return reportBug(input);
       case 'list_machines':return listMachines();
       case 'list_skills':return skills();
       case 'list_workspaces':return listWorkspacesOperation();
