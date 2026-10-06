@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-06 — Machine adapters finished: adapter settings rows; adding a machine
+
+- Worker W27: adapters give their own Studio settings rows (`settings.rows`: Bambu startup, purge and declared materials; DENSO and Dobot installation), kept in bundle state and the completed output (`settingsRows`). Studio keys relay settings off `relay-extrusion` and the rotary view off `coordinated-rotary`, and reads no adapter setup block; a posed prepared path declares its `rotaryCenterMm`, read by path preview, viewer and machine presentation. Removed `robotRows`, the Bambu block in `recipeRows` and the `setup.denso` centre reads. Kept: the presentation arm registry and the Bambu project H2D check.
+- `machines/README.md` "Adding a machine" (profile, `createAdapter(Export)` plug, debug `machine-verify`, standards S1–S10), linked from BUILDERS and AUTHORING; DEVELOP, the export README, KINEMATICS and the Studio README follow the plug. Edited docs 1330 → 1296 lines; across the adapter work docs end 15 lines shorter.
+- Verified: 16/16 saved cases byte-identical; 13 test files on their own; background dev instance on H2D, S5, Dobot, DENSO rotary and a study (rows, report facts, `/api/path`, 37 modules served) (worker); after merge workflow, bambu-dual, denso, studio-open pass. Not run: whole suite, browser.
+
 ## 2026-10-06 — Neutral materials; list_skills lists skills only
 
 - Worker W26: logical materials are neutral settings (`setup.filaments`, `setup.filament`); `setup.bambu` keeps plate, other nozzle, AMS connections and startup. Core `validateSetup` checks each material (declared tool, temperature, process keys) once; Bambu's copies and core `filamentPlan` (it read the Bambu other nozzle) are gone. `neutralMaterials` moves the old fields when a saved print, a history or completed-output snapshot, or a remembered setup is read. `list_skills` lists skills only; `list_machines` names each profile's machine extension. The Bambu change recipe follows the profile's nozzle count; X1 and Dobot machine-id re-checks are gone. No adapter recipe dependency: with fingerprints gone nothing would compare it.
