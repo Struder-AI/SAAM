@@ -988,8 +988,6 @@ body.noside #side{display:none}
 #legendpane .r span{font-size:12.5px;line-height:1.5;color:#334155}
 #legendpane .r b{color:#0f172a}
 #crumb span.up{color:#0369a1;cursor:pointer}
-#stale{font-size:11.5px;color:#9f1239;background:#fee2e2;border-radius:5px;padding:2px 8px}
-#stale:empty{display:none}
 #score{order:9;flex:1 0 100%;font-size:11.5px;color:#334155;background:#f1f5f9;border-radius:5px;padding:2px 8px;font-variant-numeric:tabular-nums}
 #score:empty{display:none}
 #score[hidden]{display:none}
@@ -1103,36 +1101,6 @@ const FAR=0.5;
 let pinId=null,peerAt=-1,jumped=[];
 const visits=[],visitSession=Date.now()+'-'+Math.random();
 let visitAt=-1,showVersion=0,sourceVersion=0;
-let liveFreshness=null;
-function freshnessMessage(now=Date.now()){
-  if(location.protocol==='file:')return {warning:'Saved map · snapshot source',source:'Source captured when this map was generated'};
-  if(DESIGN)return {warning:'AUTHORED · conformance unchecked',source:'Source snapshot captured at build · check the design to verify freshness'};
-  const status=liveFreshness,checked=status&&Date.parse(status.checkedAt);
-  if(!status||!Number.isFinite(checked)||now<checked||now-checked>Math.min(status.validForMs||0,10000))
-    return {warning:'Live freshness unavailable',source:'Snapshot source · live freshness unavailable'};
-  if(status.snapshotId!==SNAPSHOT_ID)
-    return {warning:'Map generation changed; waiting for its drawing',source:'Previous snapshot source · generation changed'};
-  if(status.state==='current')return {warning:'',source:'Snapshot source · current with checked code'};
-  if(status.state==='stale'){
-    const instruction='regenerate '+(status.stale?.regenerate||'0');
-    return {warning:'STALE · '+instruction,source:'STALE snapshot source · '+instruction};
-  }
-  return {warning:'Freshness '+status.state+' · snapshot remains readable',source:'Snapshot source · freshness '+status.state};
-}
-function updateFreshness(){
-  const message=freshnessMessage(),drawn=PAGES[cur]?.x;
-  document.getElementById('freshness-status').textContent=message.warning||'Live check: current with the code.';
-  document.getElementById('stale').textContent=message.warning||(drawn?'Stale at drawing time; live check is current':'');
-  const sourceStatus=document.getElementById('source-freshness');
-  if(sourceStatus)sourceStatus.textContent=message.source;
-}
-function freshnessAt(status){liveFreshness=status;updateFreshness();}
-function pollFreshness(){
-  updateFreshness();
-  if(DESIGN||location.protocol==='file:')return;
-  const script=document.createElement('script');script.src='freshness.js?'+Date.now();
-  script.onload=script.onerror=()=>{script.remove();updateFreshness();};document.head.appendChild(script);
-}
 function remember(entry,push){
   if(JSON.stringify(visits[visitAt])===JSON.stringify(entry))return;
   visits.splice(visitAt+1);visits.push(entry);visitAt=visits.length-1;
@@ -1245,8 +1213,6 @@ function show(key,push,restore){const p=PAGES[key];if(!p)return false;
     if(AUTHORING)authorShow();
     document.getElementById('fit-all').hidden=!PAGES[drawing].focus;
     crumb.innerHTML=trail(drawing);showScore(PAGES[drawing].sc);
-    const mapped=PAGES[drawing];
-    updateFreshness();
     reveal(drawing);paint();
     document.querySelectorAll('#tree a.on').forEach(a=>a.classList.remove('on'));
     const row=document.querySelector(`#tree a[data-key="${CSS.escape(drawing)}"]`);
@@ -1387,7 +1353,6 @@ function navigationKey(state,hash){
 function stampAt(v){if(v!==BUILT)location.reload();}
 setInterval(()=>{const s=document.createElement('script');s.src='stamp.js?'+Date.now();
   s.onload=s.onerror=()=>s.remove();document.head.appendChild(s);},3000);
-pollFreshness();setInterval(pollFreshness,3000);
 function shut(key){for(let p=PAGES[key].p;p!=null&&PAGES[p];p=PAGES[p].p)if(collapsed.has(p))return true;return false;}
 function paint(){const q=filter.value.trim().toLowerCase();
   for(const a of ROWS){const k=a.dataset.key;
@@ -1438,7 +1403,6 @@ function openCode(ref,key){const cut=ref.lastIndexOf(':'),file=ref.slice(0,cut),
     const paint=()=>{if(version!==sourceVersion)return;
       codePane.innerHTML=`<div class="ch"><span class="x" onclick="dismissCode()">&times;</span>`+
         `<div class="num">${page?esc(page.t)+' · ':''}${esc(file)}</div><h3>lines ${a}–${b}</h3>`+
-        `<div id="source-freshness">${esc(freshnessMessage().source)}</div>`+
         `<button onclick="copy('${esc(file)}:${a}')">Copy path:line</button></div>`+
         `<div class="cb">${body}</div>`;
       codePane.classList.add('on');};
@@ -1878,7 +1842,6 @@ def emit(out, model, pages, svgs, links=None):
   {f'<div class="sub" style="color:#fca5a5;font-weight:600">{escape(model["notice"])}</div>' if model.get("notice") else ''}
   <div class="sub">{'' if model.get('influence') else f"{len(svgs)} graph pages · {sum(p['destination']=='contents' for p in pages.values())} contents pages · {sum(p['destination']=='code' for p in pages.values())} source destinations, "}stored {escape(model["generated"][:16].replace("T", " "))}, drawn
     {escape(model.get("built", "")[:16].replace("T", " "))} UTC.
-    <span id="freshness-status">Live freshness unavailable; snapshot remains readable.</span>
     {'' if model.get('influence') else 'Redrawn by every <code>regenerate</code>; this page reloads itself.'}</div>
   <input id="filter" placeholder="index or declaration path…" autocomplete="off">
   <div id="tree">{''.join(rows)}</div>
@@ -1888,7 +1851,6 @@ def emit(out, model, pages, svgs, links=None):
     <button id="back" onclick="goBack()" disabled title="return to the previous map">&#8592; Back</button>
     <button onclick="document.body.classList.toggle('noside');overview()" title="show or hide the index">&#9776;</button>
     <div id="crumb"></div>
-    <span id="stale"></span>
     <span id="score" hidden title="Map score: 0 is ideal, each part is a penalty from 0 to -1. See scores.html for every map."></span>
     <button onclick="toggleLegend()">Legend</button>
     <button onclick="const s=document.getElementById('score');s.hidden=!s.hidden;overview()">Score</button>
@@ -1916,7 +1878,6 @@ def emit(out, model, pages, svgs, links=None):
 <script>
 const PAGES={page_data};
 const BUILT={json.dumps(model.get("built", ""))};
-const SNAPSHOT_ID={json.dumps(model.get("snapshotId"))};
 const DESIGN={json.dumps(model.get("design", False))};
 const LISTS={lists_data};
 const AUTHORING={authoring_data};
@@ -1965,7 +1926,6 @@ def build(model, out):
                     break
             if parent is None and index != "0":
                 parent = "0"
-        stale = model["stale"].get(index)
         destination = p.get("destination", "graph")
         source_span = p.get("sourceSpan")
         if source_span:
@@ -1973,8 +1933,7 @@ def build(model, out):
         # A leaf opens as its source alone; the shell holds the index and the way in, not the
         # pages themselves.
         pages[index] = dict(t=title, s=sub, find=f'{index} {detail}'.strip(), d=detail, r=ref, k=kind, p=parent,
-                            destination=destination,
-                            x=(stale["regenerate"] if stale else ""))
+                            destination=destination)
         if p.get("aliasOf"):
             pages[index]["aliasOf"] = p["aliasOf"]
         if destination == "contents":

@@ -80,7 +80,7 @@ async function main(){
     for(const report of reports){
       const {event={},about={}}=report.body??{};
       console.log(`\n${time(report.at)} UTC  ${labels.get(report.device)??'(removed installation)'} (${report.device})\n  SAAM ${about.version} · ${about.platform??'unknown platform'} · ${event.runtimeLabel??'installed'}`
-        +`\n  ${event.reporter==='agent'?`Agent (${event.client??'unknown client'}) · ${event.reason}`:`Studio ${event.studioInstanceId}`} · print ${event.printId??'(none open)'} · ${event.stage??'unknown stage'}\n\n  ${String(event.description).split('\n').join('\n  ')}\n`);
+        +`\n  ${event.reporter==='agent'?`Agent (${event.client??'unknown client'})`:`Studio ${event.studioInstanceId}`} · print ${event.printId??'(none open)'} · ${event.stage??'unknown stage'}\n\n  ${String(event.description).split('\n').join('\n  ')}\n`);
       const before=records.filter(record=>record.device===report.device&&record.id<report.id&&record.at>=report.at-CONTEXT_MS);
       console.log(`  Preceding records (${CONTEXT_MS/60_000} min): ${before.length}${before.length>CONTEXT_ROWS?`, last ${CONTEXT_ROWS} shown; pull --device ${report.device} for all`:''}`);
       for(const record of before.slice(-CONTEXT_ROWS)){

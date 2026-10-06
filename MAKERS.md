@@ -73,7 +73,7 @@ operations, extensions included; scripts compute only their [inputs](GEOMETRY.md
 When no operation fits, tell the person, then as a [builder](AGENTS.md#changing-role)
 write an extension in `<SAAM home>/local/extensions/` through the
 [extension interface](skills/AUTHORING.md). Work it cannot express is a SAAM bug:
-tell the person and file it with `saam call report_bug` (reason `outside-extensions`).
+tell the person and file it with `saam call report_bug`.
 Export and machine execution belong to the person; previews establish no
 physical result. Prints stay in the [SAAM home](core/application/README.md), shared only on the person's selection.
 

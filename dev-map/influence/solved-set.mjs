@@ -508,7 +508,7 @@ function authoringFolder() {
 // draw is a count that opens its list: a badge on the box whose map holds the list, and a marker
 // box on that map; files the analysis did not read are a marked list on map 0.
 export function solvedModel() {
-  const m=stored(),lists={},pages=m.pages.map(p=>p.destination==='graph'?{...p}:p);
+  const m=stored(),stale=staleness(m),lists={},pages=m.pages.map(p=>p.destination==='graph'?{...p}:p);
   const byIndex=new Map(pages.map(p=>[p.index,p]));
   const item=(key,note)=>{const r=m.leaves[key];
     return {t:r.label,ref:`${r.file}:${r.line}-${r.endLine}`,...(r.index?{go:r.index}:{}),...(note?{n:note}:{})};};
@@ -540,6 +540,7 @@ export function solvedModel() {
         return {t:`${k}: ${x.url??x.route??x.entry??x.kind??''}`,...(at?{ref:`${at[1]}:${at[2]}-${at[2]}`}:{}),...(n?{n}:{})};})));}
     if(p.notAnalysed)listMarker('not-analysed',`not analysed · ${p.notAnalysed.length} files`,'not analysed: in-scope files the analysis did not read',p.notAnalysed.map(f=>({t:f})));
     if(p.index===TOP&&m.sourceChanged?.length)listMarker('source-moved',`source moved since the analysis · ${m.sourceChanged.length} files`,'source moved since the analysis',m.sourceChanged.map(f=>({t:f})));
+    if(p.index===TOP&&stale)listMarker('stale',`${stale.reason} · ${stale.files.length} files`,`${stale.reason}: ${stale.regenerate}`,stale.files.map(f=>({t:f})));
     Object.assign(p,{badges,markers,links:viewerLinks(m,p),idents:pageIdentities(m,p,markers)});
   }
   // Positions whose map or box is no longer drawn stay in their file; map 0 lists them.
@@ -576,10 +577,11 @@ export function solvedModel() {
 // outside its own, `possibly caller-dependent`, `range unknown`), `boundary` names by `b:` box,
 // and `arrows`: the drawn pairs, `FROM → TO` (`•→` a dot at the tail, `↔` two heads) to their
 // leaf-arrow count, each read in full at `link` with FROM and TO filled in. Map 0 alone adds the
-// preview note, `notAnalysed` files, changed sources and the `lists` addresses with their counts.
+// preview note, `notAnalysed` files, moved sources, the `lists` addresses with their counts and
+// the count of files changed since the analysis.
 // A link read is that one arrow's leaf arrows, `FROM → TO KIND ×N` grouped by box direction;
 // `@unlinked` and `@unowned` are the lists; `@path/PATH` the map-0 boxes owning leaves in a file
-// or folder; `@stale` the files changed since the analysis, which every other read counts.
+// or folder; `@stale` the files changed since the analysis.
 // Leaves are not maps.
 const range=(a,b)=>a===b?`${a}`:`${a}-${b}`;
 const ARROW={one:'→',ack:'•→',both:'↔'};
@@ -621,13 +623,14 @@ function mapRead(m,page) {
     for(let k=0;k<Math.min(x.length,y.length);k++)if(x[k]!==y[k])return x[k]-y[k];return x.length-y.length;};
   const boxes=Object.fromEntries([...page.components].sort(byIndex)
     .map(c=>[c.index,c.kind==='leaf'?leaf(c.path):`${c.label} · ${c.count} ${c.count===1?'leaf':'leaves'}`]));
-  const top=page.index===TOP,unlinked=m.summary.unlinked,unowned=m.summary.unowned;
+  const top=page.index===TOP,unlinked=m.summary.unlinked,unowned=m.summary.unowned,stale=top&&staleness(m);
   return {index:page.index,label:page.label,...(top?{}:{address:page.path}),...(top&&m.notice?{preview:m.notice}:{}),boxes,
     ...(page.ports.length?{boundary:Object.fromEntries(page.ports.map(p=>[p.port,names.get(p.path)??p.label]))}:{}),
     ...(page.wires.length?{arrows:Object.fromEntries(page.wires.map(w=>[`${w.from} ${ARROW[w.ends]} ${w.to}`,w.count])),link:`@link/${page.index}/FROM/TO`}:{}),
     ...(top&&page.notAnalysed?.length?{notAnalysed:page.notAnalysed}:{}),...(top&&m.sourceChanged?.length?{sourceChanged:m.sourceChanged}:{}),
     ...(top&&(unlinked||unowned||page.crossOwnerState||page.channels)?{lists:{...(unlinked?{[LIST_UNLINKED]:unlinked}:{}),...(unowned?{[LIST_UNOWNED]:unowned}:{}),
-      ...(page.crossOwnerState?{[LIST_SHARED]:page.crossOwnerState.length}:{}),...(page.channels?{[LIST_CHANNELS]:Object.values(page.channels.unresolved).reduce((t,l)=>t+l.length,0)}:{})}}:{})};
+      ...(page.crossOwnerState?{[LIST_SHARED]:page.crossOwnerState.length}:{}),...(page.channels?{[LIST_CHANNELS]:Object.values(page.channels.unresolved).reduce((t,l)=>t+l.length,0)}:{})}}:{}),
+    ...(stale?{stale:{reason:stale.reason,files:stale.files.length,list:LIST_STALE,regenerate:stale.regenerate}}:{})};
 }
 
 // One drawn arrow's leaf arrows, as indexes into the stored arrows grouped `FROM → TO` by the
@@ -684,15 +687,13 @@ function pathRead(m,address) {
     return [p?.index??owner,`${p?.label??owner} · ${n} ${n===1?'leaf':'leaves'}`];}))};
 }
 
-// A read after source changed counts the changed files; `@stale` lists them.
 export function readSolved(address='0') {
-  const m=stored(),key=String(address),stale=staleness(m);
-  if(key===LIST_STALE)return {changed:stale?.files??[],regenerate:m.regenerate};
+  const m=stored(),key=String(address);
+  if(key===LIST_STALE)return {changed:staleness(m)?.files??[],regenerate:m.regenerate};
   const root=m.pages.find(p=>p.index===TOP);
-  const result=key.startsWith('@link/')?linkRead(m,key):key===LIST_UNLINKED||key===LIST_UNOWNED?listRead(m,key)
+  return key.startsWith('@link/')?linkRead(m,key):key===LIST_UNLINKED||key===LIST_UNOWNED?listRead(m,key)
     :key===LIST_SHARED?{crossOwnerState:root.crossOwnerState??[]}:key===LIST_CHANNELS?{unresolvedChannels:root.channels?.unresolved??{}}
     :key.startsWith(PATH)?pathRead(m,key):mapRead(m,pageOf(m,key));
-  return {...result,...(stale?{stale:{reason:stale.reason,files:stale.files.length,list:LIST_STALE,regenerate:stale.regenerate}}:{})};
 }
 
 // Each map read presents the drawing's picture: its arrows are the drawn pairs (same boxes,

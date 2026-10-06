@@ -32,7 +32,7 @@ function designPath(model,pages,path) {
     .map(p=>[p.index,p.label]))};
 }
 
-// A read after an input changed counts the changed inputs; `@stale` lists them.
+// Map 0's read after an input changed counts the changed inputs; `@stale` lists them.
 export async function readMap(address,{repo}) {
   if(mapSet?.mode==='influence')return (await import('../influence/solved-set.mjs')).readSolved(address);
   const model=await designModel({repo}),pages=new Map(model.pages.map(p=>[p.index,p]));
@@ -49,6 +49,6 @@ export async function readMap(address,{repo}) {
   const result=path!==null?designPath(model,pages,path):contract?designContract(contract):page?designPage(page,pages):link?
     {address:link.address,from:link.from,to:link.to,label:link.label,contracts:link.contracts.map(designContract)}:
     {index:component.index,path:component.path,label:component.label,type:component.type,description:component.description};
-  return {...result,...(model.changedInputs.length?{stale:{reason:'inputs changed since the build',files:model.changedInputs.length,
+  return {...result,...(path===null&&!contract&&page?.index==='0'&&model.changedInputs.length?{stale:{reason:'inputs changed since the build',files:model.changedInputs.length,
     list:'@stale',regenerate:model.regenerate}}:{})};
 }

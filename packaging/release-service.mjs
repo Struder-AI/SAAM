@@ -178,7 +178,6 @@ export async function createReleaseService({serviceUrl,statePath,version='develo
     // diagnostic() keeps strings to 2048 characters.
     async report({description,context={}}={}){
       const text=String(description??'').trim();
-      if(!text)throw Error('Describe what went wrong.');
       if(text.length>1000)throw Error('Shorten the report to 1000 characters.');
       if(!url||!state.device)throw Error('Bug reports travel through the alpha service, which this installation has not joined: enter an alpha invite in Connect to send one, or describe the problem in chat.');
       const receipt=await emit({...context,kind:'bug-report',description:text},{source:'bug-report'});
