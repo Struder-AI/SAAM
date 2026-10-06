@@ -56,7 +56,19 @@ function validate(plan,{required=false}={}){
   }
   requireThat(plan.process.retractMm===0&&plan.process.fanPercent===0,'Dobot relay output cannot retract or control a fan; set retractMm and fanPercent to zero.');
 }
-export const createAdapter=Export=>({output:'dobot-lua',poses:false,settings:{key:'dobot',validate},
+const value=v=>v===null||v===undefined?'Not set':Array.isArray(v)?v.join(', '):String(v);
+// Studio settings rows: the installation as configured.
+const rows=({setup})=>{const d=setup.dobot;return [
+  ['Robot setup',d.configurationSource??'Not configured; supply installation settings through chat'],
+  ['Tool / user frame',value(d.toolFrame)+' / '+value(d.userFrame)],['Nozzle orientation',value(d.rDeg)+'° fixed'],
+  ['XY calibration scale',value(d.scaleX)+' / '+value(d.scaleY)],['XY calibration offset',value(d.offsetXMm)+' / '+value(d.offsetYMm)+' mm'],
+  ['Bed Z offset',value(d.bedZMm)+' mm'],['External starting position',value(d.initialPositionMm)+' mm in design coordinates'],
+  ['Controller workspace minimum',value(d.workspaceMinMm)+' mm'],['Controller workspace maximum',value(d.workspaceMaxMm)+' mm'],
+  ['Controller linear speed limit',value(d.maxLinearSpeedMmS)+' mm/s'],['Controller acceleration limit',value(d.maxLinearAccelMmS2)+' mm/s²'],
+  ['Commanded acceleration',value(d.accelerationPercent)+'%'],['Extrusion output',value(d.extrusionOutput)],
+  ['Extrusion policy',value(d.relayPolicy)],['External extrusion rate',value(d.extrusionRateMm3S)+' mm³/s; estimate only'],
+  ['Thermal control',value(d.temperatureControl)],['Externally established nozzle / bed temperature',setup.nozzleC+' / '+setup.bedC+'°C']];};
+export const createAdapter=Export=>({output:'dobot-lua',poses:false,settings:{key:'dobot',validate,rows},
   export:(prepared,settings)=>exportDobot(prepared,settings,settings.machine,settings.release,Export.packZip)});
 
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');

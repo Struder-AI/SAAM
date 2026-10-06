@@ -7330,9 +7330,6 @@
     "studio/settings.mjs::recipeRows": {
       "owner": "studio"
     },
-    "studio/settings.mjs::robotRows": {
-      "owner": "studio"
-    },
     "studio/settings.mjs::skillName": {
       "owner": "studio"
     },
@@ -13135,6 +13132,27 @@
     },
     "core/export/registry.mjs::preparePath": {
       "owner": "export"
+    },
+    "core/export/registry.mjs::settingsRows": {
+      "owner": "export"
+    },
+    "machines/bambu/bambu.mjs::rows": {
+      "owner": "export"
+    },
+    "machines/denso/denso.mjs::rows": {
+      "owner": "export"
+    },
+    "machines/denso/denso.mjs::value": {
+      "owner": "export"
+    },
+    "machines/dobot/dobot.mjs::rows": {
+      "owner": "export"
+    },
+    "machines/dobot/dobot.mjs::value": {
+      "owner": "export"
+    },
+    "studio/app.mjs::relay": {
+      "owner": "studio"
     },
     "machines/bambu/bambu.mjs::createAdapter": {
       "owner": "export"

@@ -8,7 +8,7 @@ import { readFile, mkdir, access, copyFile,readdir } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { exportProgram, machineAdapter, preparePath } from '../export/registry.mjs';
+import { exportProgram, machineAdapter, preparePath, settingsRows } from '../export/registry.mjs';
 import { loadMachine } from '../machine/profile.mjs';
 import {runComputationJob} from './computation-job.mjs';
 import {heldBundleInstance} from './studio-ownership.mjs';
@@ -277,7 +277,7 @@ async function describeBundle(input,program) {
   Object.defineProperty(state,'geometryArtifact',{value:geometryArtifact,enumerable:false});
   if(!machine)return Object.assign(state,{programChecked:false,exportName:null,limitations:[],skills:[],setupBasis:null,outputAvailability:'Ask the agent to supply a printer, material and toolpath recipe.'});
   return Object.assign(state,{programChecked:Boolean(program&&review.generation),
-    exportName: exportName(plan,machine), limitations: limitationsFor(plan, machine),
+    exportName: exportName(plan,machine), limitations: limitationsFor(plan, machine), settingsRows: await settingsRows(plan,machine),
     outputAvailability:machine.outputs.find(o=>o.id===plan.output)?.implemented===false?`Machine-file export for ${machine.name} is not available yet; geometry and settings can be reviewed.`:null,
     skills: [...new Set((plan.slices?.assignments??[]).map(assignment=>assignment.construction==='sleeve'
       ?'trace':ordinaryAssignmentFamily(assignment))),
@@ -308,7 +308,7 @@ async function restoreBundleProgram(input,program) {
     state.completedOutput={id:output.id,current:state.artifacts.program==='current'&&canonicalJson(review.path)===canonicalJson(output.path),
       plan:output.plan,machine:output.machine,geometry:output.geometry,geometryId:output.geometryId,geometryInputId:output.geometryInputId,editRevision:output.generation.editRevision,
       outputId:output.id,inputRevision:output.generation.inputRevision??null,exportName:exportName(output.plan,output.machine),review:{generation:output.generation},
-      limitations:limitationsFor(output.plan,output.machine),path:output.path,pathId:output.path?.id??null};
+      limitations:limitationsFor(output.plan,output.machine),settingsRows:await settingsRows(output.plan,output.machine),path:output.path,pathId:output.path?.id??null};
     state.exportName=state.completedOutput.exportName;
     Object.defineProperty(state,'checkedBytes',{value:output.bytes,enumerable:false});
   } catch (error) { state.programError = error.message; }

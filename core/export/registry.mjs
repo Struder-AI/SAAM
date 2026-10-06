@@ -28,6 +28,13 @@ export async function machineAdapter(plan,machine,options){
   requireThat(adapter?.output===declaration.id&&typeof adapter.export==='function',`No exporter for ${declaration.id}.`);
   return adapter;
 }
+// What the adapter's setup block configures, as Studio settings rows; none
+// while the output has no exporter.
+export async function settingsRows(plan,machine){
+  if(machine.outputs.find(o=>o.id===plan.output)?.implemented===false)return [];
+  const {settings}=await machineAdapter(plan,machine);
+  return settings?.rows?.({machine,setup:plan.setup,process:plan.process,output:plan.output})??[];
+}
 // The exact selected-machine motion the adapter writes (and Studio draws).
 export async function preparePath(path,plan,machine){
   return prepareExportPath(path,plan,machine,await machineAdapter(plan,machine));

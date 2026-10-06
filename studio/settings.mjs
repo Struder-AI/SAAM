@@ -166,27 +166,9 @@ function curveAssignmentRows(a,plan){
   if(a.maxExcursionMm!==null)rows.push([a.id+' · Maximum vertical excursion',a.maxExcursionMm+' mm']);
   return rows;
 }
-export function recipeRows(plan,machine){
+export function recipeRows(plan){
   const composition=plan.composition,rows=[];
   rows.push(['Experimental substrate adaptation',plan.experimental?.substrateAdaptation?'On · final deposited contact sets gap and volume; surface-following constructions may change placement':'Off · nominal reference geometry and bead rules']);
-  if(plan.setup.bambu){
-    rows.push(['Bambu startup',plan.setup.bambu.fast_start?'Fast — reuse calibration; skip optional scans and vibration tests':'Full — calibration follows startup controls / printer choices']);
-    const used=[...new Set([plan.setup.filament,
-      ...(plan.slices?.assignments??[]).map(a=>a.filament),
-      ...(plan.composition?.filaments??[]).map(route=>route.filament)].filter(i=>i!==undefined&&i!==null))];
-    const change=machine.outputs.find(o=>o.id===plan.output)?.constraints;
-    if(used.length>1&&change?.materialChangeMode==='single-nozzle-ams')rows.push(['AMS colour changes',`${change.materialChangeFlushMm3} mm³ purged into the rear chute per change, plus priming. No tower; service time/material are additional to part totals.`]);
-    for(const id of used){
-      const entry=plan.setup.filaments?.[id],tool=entry?.tool??plan.setup.tool;
-      const nozzleMm=tool===plan.setup.tool?plan.setup.nozzleMm:plan.setup.bambu.otherNozzleMm;
-      const p={...plan.process,...entry?.process};
-      const ams=entry?.source?.type==='ams'?{unit:entry.source.unit,slot:entry.source.slot}:
-        entry?.source?.type==='external'?null:id===plan.setup.filament?plan.setup.ams:null;
-      const source=entry?.source?.type==='external'?'External spool':entry?.source?.type==='ams-ht'?`Requested AMS HT ${entry.source.unit}`:ams?`Requested AMS ${ams.unit}, slot ${ams.slot}`:'Automatic material/colour matching';
-      rows.push([`Filament ${id+1}`,`${machine.tools.find(t=>t.index===tool)?.label??`Tool ${tool}`} · ${nozzleMm} mm nozzle · ${plan.setup.material} ${entry?.colour??plan.setup.filamentColor??''} · ${entry?.nozzleC??plan.setup.nozzleC}°C · ${source}`],
-        [`Filament ${id+1} · Process`,`${p.lineWidthMm} mm bead · ${p.layerMm} mm layers`]);
-    }
-  }
   rows.push(['Process · Planar wall tolerance',plan.process.planarWallToleranceMm+' mm'],...sliceRows(plan));
   for(const m of plan.modulations?.modifiers??[])rows.push([m.id+' · Modulation',m.channel+' · '+m.field.kind+' field · amplitude '+m.amplitude+(m.channel==='displacement'?' mm':m.channel==='tilt'?'°':'')],
     [m.id+' · Applies to',(m.assignments?.join(', ')??'All assignments')+' · '+(m.roles?.join(', ')??'All stroke roles')],
@@ -204,40 +186,6 @@ export function recipeRows(plan,machine){
     }
   }
   return rows;
-}
-export function robotRows(plan,machine){
-  const c=plan.setup.denso;
-  if(c)return [
-    ['Robot / controller',machine?.name??'DENSO / RC8A'],['Installation basis',c.configurationSource??'Not configured'],['Mounting',c.mounting],
-    ['Tool / work frame',value(c.toolFrame)+' / '+value(c.workFrame)],['Arm group / figure',value(c.armGroup)+' / '+value(c.figure)],
-    ['Rotary interface',c.rotaryInterface??'Not confirmed'],['External axis',c.rotaryAxis+' · sign '+c.rotarySign+' · zero '+c.rotaryZeroDeg+'°'],
-    ['Rotary center',value(c.rotaryCenterMm)+' mm'],['Work offset / yaw',value(c.workOffsetMm)+' mm / '+c.workYawDeg+'°'],
-    ['External starting point',value(c.initialPositionMm)+' mm'],['Starting bed angle',c.initialPose.rotaryDeg+'°'],
-    ['Starting tool direction',value(c.initialPose.toolAxis)],['Starting tool up',value(c.initialPose.toolUp)],
-    ['Relay output / rate',value(c.extrusionOutput)+' / '+value(c.extrusionRateMm3S)+' mm³/s; estimate'],
-    ['Transition retreat / time',c.retreatMm+' mm / '+c.transitionSeconds+' s'],['Heating',c.temperatureControl+' · '+plan.setup.nozzleC+' / '+plan.setup.bedC+'°C'],
-    ['Motion interpretation','Nominal Cartesian / rotary progress; controller IK; robot feasibility deferred']
-  ];
-  const d=plan.setup.dobot;if(!d)return [];
-  return [
-    ['Robot setup',d.configurationSource??'Not configured; supply installation settings through chat'],
-    ['Tool / user frame',value(d.toolFrame)+' / '+value(d.userFrame)],
-    ['Nozzle orientation',value(d.rDeg)+'° fixed'],
-    ['XY calibration scale',value(d.scaleX)+' / '+value(d.scaleY)],
-    ['XY calibration offset',value(d.offsetXMm)+' / '+value(d.offsetYMm)+' mm'],
-    ['Bed Z offset',value(d.bedZMm)+' mm'],
-    ['External starting position',value(d.initialPositionMm)+' mm in design coordinates'],
-    ['Controller workspace minimum',value(d.workspaceMinMm)+' mm'],
-    ['Controller workspace maximum',value(d.workspaceMaxMm)+' mm'],
-    ['Controller linear speed limit',value(d.maxLinearSpeedMmS)+' mm/s'],
-    ['Controller acceleration limit',value(d.maxLinearAccelMmS2)+' mm/s²'],
-    ['Commanded acceleration',value(d.accelerationPercent)+'%'],
-    ['Extrusion output',value(d.extrusionOutput)],
-    ['Extrusion policy',value(d.relayPolicy)],
-    ['External extrusion rate',value(d.extrusionRateMm3S)+' mm³/s; estimate only'],
-    ['Thermal control',value(d.temperatureControl)],
-    ['Externally established nozzle / bed temperature',plan.setup.nozzleC+' / '+plan.setup.bedC+'°C']
-  ];
 }
 // User-selected display estimate: 1.2 g/cm³, shared by all materials/machines.
 export const materialGrams=volumeMm3=>volumeMm3*1.2/1000;

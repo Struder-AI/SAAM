@@ -113,8 +113,26 @@ export function createAdapter(Export){
   return {output:'bambu-gcode',poses:false,
     settings:{key:'bambu',validate(plan){
       feederSelector(plan,plan.machine);validateBambuConnections(plan.setup.bambu.amsConnections??null,plan.machine);
-    }},
+    },rows},
     export:(prepared,settings)=>exportBambu(prepared,settings,settings.machine,settings.release,Export)};
+}
+// Studio settings rows: startup, the colour-change purge and each declared material's nozzle and feed.
+function rows({machine,setup,process,output}){
+  const result=[['Bambu startup',setup.bambu.fast_start?'Fast — reuse calibration; skip optional scans and vibration tests':'Full — calibration follows startup controls / printer choices']];
+  const declared=[...new Set([setup.filament,...(setup.filaments??[]).keys()])].filter(i=>i!==undefined&&i!==null);
+  const change=machine.outputs.find(o=>o.id===output)?.constraints;
+  if(declared.length>1&&change?.materialChangeMode==='single-nozzle-ams')result.push(['AMS colour changes',`${change.materialChangeFlushMm3} mm³ purged into the rear chute per change, plus priming. No tower; service time/material are additional to part totals.`]);
+  for(const id of declared){
+    const entry=setup.filaments?.[id],tool=entry?.tool??setup.tool;
+    const nozzleMm=tool===setup.tool?setup.nozzleMm:setup.bambu.otherNozzleMm;
+    const p={...process,...entry?.process};
+    const ams=entry?.source?.type==='ams'?{unit:entry.source.unit,slot:entry.source.slot}:
+      entry?.source?.type==='external'?null:id===setup.filament?setup.ams:null;
+    const source=entry?.source?.type==='external'?'External spool':entry?.source?.type==='ams-ht'?`Requested AMS HT ${entry.source.unit}`:ams?`Requested AMS ${ams.unit}, slot ${ams.slot}`:'Automatic material/colour matching';
+    result.push([`Filament ${id+1}`,`${machine.tools.find(t=>t.index===tool)?.label??`Tool ${tool}`} · ${nozzleMm} mm nozzle · ${setup.material} ${entry?.colour??setup.filamentColor??''} · ${entry?.nozzleC??setup.nozzleC}°C · ${source}`],
+      [`Filament ${id+1} · Process`,`${p.lineWidthMm} mm bead · ${p.layerMm} mm layers`]);
+  }
+  return result;
 }
 // Package totals, layer lists and thumbnails come from what the body writer
 // wrote; the body is never read back.

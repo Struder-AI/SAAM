@@ -45,7 +45,8 @@ function limitedFeed(start,actions,machine){
 // The saved SAAMpath is independent of machine/output. This ephemeral path is
 // the exact selected-machine motion sent into the program writer. The adapter
 // declares whether it writes poses; its setup block may state the start pose
-// and posed-travel motion (retreatMm, transitionSeconds, rotaryCenterMm).
+// and posed-travel motion (retreatMm, transitionSeconds, rotaryCenterMm). A posed
+// prepared path declares the rotary centre it moved about, for Studio to draw.
 export function prepareExportPath(path,plan,machine,adapter){
   requireThat(path?.schema==='saampath/1'&&path.completion?.contract===NEUTRAL_PATH_CONTRACT,
     'Export requires a current neutral SAAMpath. Generate the toolpath first.');
@@ -116,6 +117,7 @@ export function prepareExportPath(path,plan,machine,adapter){
   if(relocating)motion.travel(neutralFrom);
   const prepared={...path,completion:{contract:PREPARED_PATH_CONTRACT},
     initialPosition:start,...(block?.initialPose?{initialPose:block.initialPose}:{}),
+    ...(oriented?{rotaryCenterMm:motion.motion.rotaryCenterMm}:{}),
     actions:limitedFeed(start,motion.actions,machine),summary:{...path.summary,boundsMm:geometryBounds}};
   if(!oriented)delete prepared.initialPose;
   return prepared;

@@ -4,7 +4,7 @@ import {createTourUI,needsTourToolpath} from './tour-ui.mjs';
 import { advancePlayback, exportMovie } from './playback.mjs';
 import { createLayerFade, layerEndSeconds, layerIndexAt, representativeLayer, stepLayerIndex } from './toolpath-view.mjs';
 import {DEFAULT_PHASE_COLOURS} from '../core/print/phase-colours.mjs';
-import {hasConstruction,sliceSummary,recipeRows,robotRows,materialGrams,nextExportName,depositionFamilyRows} from './settings.mjs';
+import {hasConstruction,sliceSummary,recipeRows,materialGrams,nextExportName,depositionFamilyRows} from './settings.mjs';
 import {sourceSession,machineCameras} from './studio/machine-session.mjs';
 import {machineFitBounds,boundsCorners,machinePalette} from './machine-view.mjs';
 import {createViewerRenderer} from './viewer-renderer.mjs';
@@ -157,7 +157,9 @@ const round2=v=>Number(v).toFixed(2);
 const materialFact=program=>program.materialModel==='relay-estimate'
   ? ['Material estimate',round2(materialGrams(program.estimatedRelayVolumeMm3))+' g from relay timing; unverified']
   : [program.envelope?'Part material estimate':'Material estimate',round2(materialGrams(program.volumeMm3))+' g'];
-const materialSetup=state=>state.plan.setup.dobot||state.plan.setup.denso
+// A relay-extrusion machine feeds material by external control; it has no filament, bed or fan settings.
+const relay=state=>state.machine?.capabilities?.includes('relay-extrusion');
+const materialSetup=state=>relay(state)
   ? ['Extrusion','External relay control · '+state.plan.setup.material]
   : ['Material',state.plan.setup.material+' · '+state.plan.setup.nozzleC+'°C'+(state.plan.setup.filamentColor?' · '+state.plan.setup.filamentColor:'')+(state.plan.setup.ams?' · intended AMS '+state.plan.setup.ams.unit+' slot '+state.plan.setup.ams.slot:'')];
 const vaseSettings=state=>{
@@ -168,11 +170,10 @@ const vaseSettings=state=>{
     ['Path sampling',vase.sampleStepMm+' mm maximum step'+(vase.pattern?'':' · '+vase.toleranceMm+' mm tolerance')]
   ]);
 };
+// The adapter's rows (computed by the server) follow the common settings.
 function machineSettings(state,rows){
-  const d=state.plan.setup.dobot??state.plan.setup.denso;
-  if(!d)return rows;
-  const omitted=new Set(['Bed temperature','Build volume temperature','Retraction','Cooling fan','Filament diameter','Material flow limit']);
-  return [...rows.filter(([name])=>!omitted.has(name)),...robotRows(state.plan,state.machine)];
+  const omitted=new Set(relay(state)?['Bed temperature','Build volume temperature','Retraction','Cooling fan','Filament diameter','Material flow limit']:[]);
+  return [...rows.filter(([name])=>!omitted.has(name)),...state.settingsRows??[]];
 }
 function stop(){if(playState.playing)void studioWork.tourUI?.playback('pause');playState.playing=false;playState.playbackEpoch++;playState.lastFrame=0;cancelAnimationFrame(playState.frame);$('#play').textContent='Play';}
 function activity(text='',fraction=null){
@@ -465,7 +466,7 @@ function selectStudioPresentation(state,tab,{facts,settings}){
 function render() {
   const shown=viewState.tab==='toolpath'?outputView(printSync.state):printSync.state,output=completedOutputState(printSync.state,{generating:generationPending()});
   const presentation=selectStudioPresentation(shown,viewState.tab,{facts:()=>view().facts(shown,viewState.tab),
-    settings:()=>[...view().facts(shown,'plan'),...machineSettings(shown,view().settings(shown)),...recipeRows(shown.plan,shown.machine)]});
+    settings:()=>[...view().facts(shown,'plan'),...machineSettings(shown,view().settings(shown)),...recipeRows(shown.plan)]});
   if(viewState.tab==='toolpath'&&output.previous)presentation.reviewNote='Previous toolpath — recent edits are not included. '+(presentation.reviewNote??'');
   if(output.phase==='generating')presentation.guidance='Preparing your toolpath…';
   if(!studioWork.busy)activity(output.phase==='generating'?'Preparing your toolpath…':'');
@@ -522,7 +523,7 @@ function render() {
   $('#selection').hidden=controls.selection.hidden;
   canvas.setAttribute('aria-label',controls.canvas.label);canvas.classList.toggle('stale-toolpath',controls.canvas.stale);
   $('#scrub').max=duration();$('#scrub').value=playState.seconds;
-  $('#rotary-view').hidden=!machinePose.machineSession?.scene&&!printSync.state.plan.setup?.denso;
+  $('#rotary-view').hidden=!machinePose.machineSession?.scene&&!printSync.state.machine?.capabilities?.includes('coordinated-rotary');
   $('#fit-program').hidden=controls.fitProgram.hidden;
   updateMachineStatus();
   // Keep the tabs live during a toolpath generation: the geometry pane stays

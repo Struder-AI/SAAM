@@ -32,8 +32,20 @@ export function validateDensoConfiguration(plan,{required=false}={},validateDire
   requireThat(plan.process.retractMm===0&&plan.process.fanPercent===0,'Relay output cannot retract or control a fan.');
   return {configured:!missing.length,missing};
 }
+const value=v=>v===null||v===undefined?'Not set':Array.isArray(v)?v.join(', '):String(v);
+// Studio settings rows: the installation as configured.
+const rows=({machine,setup})=>{const c=setup.denso;return [
+  ['Robot / controller',machine.name],['Installation basis',c.configurationSource??'Not configured'],['Mounting',c.mounting],
+  ['Tool / work frame',value(c.toolFrame)+' / '+value(c.workFrame)],['Arm group / figure',value(c.armGroup)+' / '+value(c.figure)],
+  ['Rotary interface',c.rotaryInterface??'Not confirmed'],['External axis',c.rotaryAxis+' · sign '+c.rotarySign+' · zero '+c.rotaryZeroDeg+'°'],
+  ['Rotary center',value(c.rotaryCenterMm)+' mm'],['Work offset / yaw',value(c.workOffsetMm)+' mm / '+c.workYawDeg+'°'],
+  ['External starting point',value(c.initialPositionMm)+' mm'],['Starting bed angle',c.initialPose.rotaryDeg+'°'],
+  ['Starting tool direction',value(c.initialPose.toolAxis)],['Starting tool up',value(c.initialPose.toolUp)],
+  ['Relay output / rate',value(c.extrusionOutput)+' / '+value(c.extrusionRateMm3S)+' mm³/s; estimate'],
+  ['Transition retreat / time',c.retreatMm+' mm / '+c.transitionSeconds+' s'],['Heating',c.temperatureControl+' · '+setup.nozzleC+' / '+setup.bedC+'°C'],
+  ['Motion interpretation','Nominal Cartesian / rotary progress; controller IK; robot feasibility deferred']];};
 export const createAdapter=Export=>({output:'denso-pacscript',poses:true,
-  settings:{key:'denso',validate:(settings,options)=>validateDensoConfiguration(settings,options,Export.frame.validateDirectionPair)},
+  settings:{key:'denso',validate:(settings,options)=>validateDensoConfiguration(settings,options,Export.frame.validateDirectionPair),rows},
   export:(prepared,settings)=>exportDenso(prepared,settings,settings.machine,settings.release,Export)});
 const digest=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
 const num=x=>{requireThat(Number.isFinite(x),'Nonfinite PacScript number.');return Number(x.toFixed(8));};

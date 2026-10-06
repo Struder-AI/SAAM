@@ -42,7 +42,7 @@ function buildMachineMechanism({program,machine,setup,config}){
     const aligned=config.worldFromBase&&(Number.isFinite(config.toolLengthMm)||(!dobot&&config.flangeFromTool))&&(dobot||Array.isArray(config.modelSeedDeg))&&!scaledDobot;
     limits.push(dobot?'Nominal MG400 linkage; calibrated user/tool orientation and coupled interference are unchecked.':'Nominal VS-068A4 drawing centerlines and seeded IK; model angles are not RC8A encoders or FIG.');
     const robotSourcePose=at=>{
-      const center=setup.denso?.rotaryCenterMm??[0,0,0],a=at.rotaryDeg??0,R=rotation([0,0,1],a*Math.PI/180),part=rigid(sub(center,mv(R,center)),R);
+      const center=program.rotaryCenterMm??[0,0,0],a=at.rotaryDeg??0,R=rotation([0,0,1],a*Math.PI/180),part=rigid(sub(center,mv(R,center)),R);
       const tcp=point(part,at.point),axis=rotateZ(at.toolAxis??[0,0,-1],a),up=rotateZ(at.toolUp??[0,1,0],a);
       return {part,tcp:rigid(tcp,axisFrame(scale(axis,-1),up))};
     };
@@ -57,7 +57,7 @@ function buildMachineMechanism({program,machine,setup,config}){
       }
       const baseCenter=point(config.worldFromBase,dobot?model.baseOriginMm:[0,0,model.shoulderHeightMm]);
       const radius=dobot?norm(model.shoulderMm)+model.l1+model.l2+norm(model.wristMm)+model.toolLengthMm:model.shoulderOffsetMm+model.upperMm+Math.hypot(model.forearmMm,model.elbowOffsetMm)+model.flangeMm+model.toolReachMm;
-      const center=setup.denso?.rotaryCenterMm??[0,0,0],radial=radius+Math.hypot(baseCenter[0]-center[0],baseCenter[1]-center[1]);
+      const center=program.rotaryCenterMm??[0,0,0],radial=radius+Math.hypot(baseCenter[0]-center[0],baseCenter[1]-center[1]);
       const armCoordinateBounds={min:[center[0]-radial,center[1]-radial,baseCenter[2]-radius],max:[center[0]+radial,center[1]+radial,baseCenter[2]+radius]};
       const armAngularLever=dobot?model.toolLengthMm:model.flangeMm+model.toolReachMm;
       const lengths=dobot?[Math.abs(model.baseOriginMm[2]),norm(model.shoulderMm),norm(model.upperMm),norm(model.forearmMm),norm(model.wristMm),model.toolLengthMm]
