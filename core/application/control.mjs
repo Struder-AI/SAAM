@@ -17,13 +17,13 @@ export async function readInstance(){
   try{return JSON.parse(await readFile(resolve(homePaths().state,'instance.json'),'utf8'));}
   catch(error){if(error.code==='ENOENT'||error instanceof SyntaxError)return null;throw Error('The SAAM instance record cannot be read.',{cause:error});}
 }
-export async function controlRequest(instance,body,{waitMs=35000}={}){
-  // Native HTTP has no implicit five-minute fetch header/body deadline.
-  // Operation waits own their duration; bounded control commands retain theirs.
+export async function controlRequest(instance,body,{waitMs}={}){
+  // A request waits while SAAM works on it (native HTTP has no implicit fetch deadline)
+  // and fails when SAAM answers a failure or drops the connection; liveness probes pass waitMs.
   const response=await new Promise((received,failed)=>{
     const command=request({hostname:'127.0.0.1',port:instance.port,path:'/control',method:'POST',agent:false,timeout:0,
       headers:{'Content-Type':'application/json','X-SAAM-Control':instance.token},
-      ...(waitMs===null?{}:{signal:AbortSignal.timeout(waitMs)})},received);
+      ...(waitMs===undefined?{}:{signal:AbortSignal.timeout(waitMs)})},received);
     command.once('error',failed);command.end(JSON.stringify(body));
   });
   const chunks=[];for await(const chunk of response)chunks.push(Buffer.from(chunk));

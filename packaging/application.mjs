@@ -100,7 +100,7 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
       for(;;){
         const running=await readInstance();
         if(running){
-          try{const answer=await controlRequest(running,opening,{waitMs:null});return {existing:true,opened:openOnStart?answer:null};}
+          try{const answer=await controlRequest(running,opening);return {existing:true,opened:openOnStart?answer:null};}
           catch(failure){if(failure.result&&failure.status!==403)throw failure;/* A record from before the holder's start. */}
         }
         const holder=await leaseHolder(applicationPort(paths.home));

@@ -4,7 +4,15 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 function Invoke-Control([string]$Command,[bool]$Force=$false,[string]$StudioInstanceId='',[string]$RuntimeId='',[string]$Display='') {
   $body = @{command=$Command;force=$Force;studioInstanceId=$StudioInstanceId;runtimeId=$RuntimeId;display=$Display} | ConvertTo-Json -Compress
-  Invoke-RestMethod -Uri "http://127.0.0.1:$Port/control" -Method Post -Headers @{'X-SAAM-Control'=$Token} -ContentType 'application/json' -Body $body -TimeoutSec 35
+  # Without -TimeoutSec the request waits while SAAM works on it, such as an open that
+  # starts a runtime. A failure throws SAAM's error (its 400 body), else the HTTP error.
+  try { Invoke-RestMethod -Uri "http://127.0.0.1:$Port/control" -Method Post -Headers @{'X-SAAM-Control'=$Token} -ContentType 'application/json' -Body $body }
+  catch {
+    $problem = $_
+    $failure = try { (New-Object System.IO.StreamReader($problem.Exception.Response.GetResponseStream())).ReadToEnd() | ConvertFrom-Json } catch { $null }
+    if ($failure.error) { throw [string]$failure.error }
+    throw $problem
+  }
 }
 function Show-Problem($Problem) { [System.Windows.Forms.MessageBox]::Show([string]$Problem,'SAAM') | Out-Null }
 # A click opens Studio and this process, which received it, shows the window

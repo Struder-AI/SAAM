@@ -13,8 +13,16 @@ property raiseScript : missing value
 on callControl(commandName, forceQuit)
   return my sendControl("{\"command\":\"" & commandName & "\",\"force\":" & forceQuit & "}")
 end callControl
+-- The request waits while SAAM works on it, such as an open that starts a runtime;
+-- SAAM's failure answer (ok false) or curl's connection error is raised to the caller.
 on sendControl(payload)
-  set resultText to do shell script "/usr/bin/curl --fail --silent --show-error --max-time 35 -H " & quoted form of ("X-SAAM-Control: " & controlToken) & " -H 'Content-Type: application/json' --data " & quoted form of payload & " " & quoted form of ("http://127.0.0.1:" & controlPort & "/control")
+  set resultText to do shell script "/usr/bin/curl --silent --show-error -H " & quoted form of ("X-SAAM-Control: " & controlToken) & " -H 'Content-Type: application/json' --data " & quoted form of payload & " " & quoted form of ("http://127.0.0.1:" & controlPort & "/control")
+  set resultData to (current application's NSString's stringWithString:resultText)'s dataUsingEncoding:(current application's NSUTF8StringEncoding)
+  set controlReply to current application's NSJSONSerialization's JSONObjectWithData:resultData options:0 |error|:(missing value)
+  if controlReply is not missing value then
+    set succeeded to controlReply's objectForKey:"ok"
+    if succeeded is not missing value and not (succeeded's boolValue()) then error ((controlReply's objectForKey:"error") as text)
+  end if
   return resultText
 end sendControl
 -- A confirmation lists each running job with its runtime, activity and duration.
