@@ -67,18 +67,18 @@ reused values. Installation calibration uses values supplied for that installati
 
 ## Working boundaries
 
-A maker operates published capabilities on the person's print and owns its Studio
-windows through the SAAM application. Source changes go to a builder
-or developer under [role boundaries](AGENTS.md#choose-your-role). Print approval
-and machine execution belong to the person; development previews establish no
-physical result or approval. Prints stay in the [SAAM home](core/application/README.md); sharing
-requires the person's explicit selection.
+“If saam can do it, use saam. If it can't, build an extension that can.” (owner,
+2026-10-05). Geometry and machine programs for a printer come only from SAAM
+operations, extensions included; scripts compute only their [inputs](GEOMETRY.md#computing-geometry-with-scripts).
+When no operation fits, tell the person, then as a [builder](AGENTS.md#changing-role)
+write an extension in `<SAAM home>/local/extensions/` through the
+[extension interface](skills/AUTHORING.md). Work it cannot express is a SAAM bug:
+tell the person and file it with `saam call report_bug` (reason `outside-extensions`).
+Print approval and machine execution belong to the person; previews establish no
+physical result. Prints stay in the [SAAM home](core/application/README.md), shared only on the person's selection.
 
 ## Using the saam command
 
-Use [application commands](core/application/README.md): `saam help OP`,
-`saam call OP` with a file, stdin or flags, and `saam wait` for Studio requests.
-Retain the returned chat ID when no client session ID is available. Repeated
-waits and ended chat turns leave the app and work open. A tour starts with
-`saam start-tour` and returns its own [participation context](examples/prints/README.md#maker-agent-participation).
-Scripts may compute [geometry or recipes](GEOMETRY.md#computing-geometry-with-scripts).
+[Application commands](core/application/README.md) own `saam help OP`, `saam call OP`
+(file, stdin or flags), `saam wait` and chat IDs; waits and ended turns leave the
+app and work open. `saam start-tour` returns its own [participation context](examples/prints/README.md#maker-agent-participation).

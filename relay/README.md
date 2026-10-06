@@ -46,8 +46,8 @@ node relay/scripts/operator.mjs reports [--device ID] [--since 7d]
 ```
 
 The CLI reads `SAAM_RELAY_URL` or `--relay URL`, otherwise the deployed origin.
-`pull` writes JSONL under `.local/relay-records/`; `reports` prints Studio bug
-reports, each with its installation's records from the 30 minutes before.
+`pull` writes JSONL under `.local/relay-records/`; `reports` prints Studio and agent
+bug reports, each with its installation's records from the 30 minutes before.
 Removing a device invalidates its credential, not its retained records. Routes:
 `GET/POST /operator/invites`, `DELETE /operator/invites/:id`, `GET /operator/devices`,
 `DELETE /operator/devices/:id`, paged `GET /records?device=&since=&until=&after=`.

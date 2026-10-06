@@ -426,8 +426,8 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
         if(action==='report'){
           // The report names the window and print it came from; the person's text is all it adds.
           const {description,stage}=await serviceInput(req);
-          const studio={studioInstanceId:instanceId,printId:workIdFor(dir),runtimeId:runtimeId??null,runtimeLabel:runtimeLabel??null,stage:['geometry','toolpath'].includes(stage)?stage:null};
-          try{send(await relay.report({description:String(description??''),studio}));}catch(error){send({error:error.message},400);}
+          const context={reporter:'studio',studioInstanceId:instanceId,printId:workIdFor(dir),runtimeId:runtimeId??null,runtimeLabel:runtimeLabel??null,stage:['geometry','toolpath'].includes(stage)?stage:null};
+          try{send(await relay.report({description:String(description??''),context}));}catch(error){send({error:error.message},400);}
           return;
         }
         if(action==='dismiss'){try{send(await relay.dismissFirstRun());}catch(error){send({error:error.message},500);}return;}

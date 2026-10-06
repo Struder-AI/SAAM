@@ -147,8 +147,8 @@ Validation names what failed; `request_review` shows the result in Studio, and
 
 ## Computing geometry with scripts
 
-For large or repetitive geometry, compute the recipe in a Node script and pass the
-file to `init`, `adjust`, `blob-field-create` or `combine` ([command line](core/print/USAGE.md#command-line)).
-Run it from the repository root; on Windows, import SAAM modules with `file:///`
-URLs. `circlePoints` in [cylinder.mjs](core/geom/cylinder.mjs) gives a circle's
-points for a mesh prism.
+A script computes only an operation's input, such as a large, repetitive or
+formula-driven recipe, passed by file to `create_bundle`, `adjust_recipe`, `blob_field`
+or `combine_geometry` ([command line](core/print/USAGE.md#command-line)); SAAM makes the
+geometry and program ([working boundaries](MAKERS.md#working-boundaries)). On Windows, import
+SAAM modules with `file:///` URLs; [`circlePoints`](core/geom/cylinder.mjs) gives a mesh prism's circle.

@@ -14,21 +14,20 @@ and developers also read `.local/DEVELOPMENT.md`. For tours, read notes after la
 
 ## Choose your role
 
-Choose from the request; default to maker. Builder and developer work needs a
-source checkout.
+Choose from the request; default to maker. Developer work, and builder work other
+than extensions in the home's extensions folder, needs a source checkout.
 
 | Request | First action |
 |---|---|
 | A tour | `saam start-tour`, before any other read |
 | Edit an existing Studio print | Use its bundle/request identity on the first needed operation; load missing context as needed |
 | Make a part, printing advice, operate Studio (**maker**) | `saam call maker_onboarding` |
-| Author guidance, recipe helpers, assets or examples through existing interfaces (**builder**) | `node scripts/agent-toolkit.mjs builder-onboarding [--area AREA]` |
+| Author extensions, guidance, recipe helpers, assets or examples through existing interfaces (**builder**) | `node scripts/agent-toolkit.mjs builder-onboarding [--area AREA]` |
 | Change a core skill, core capability, Studio or shared interface (**developer**) | `node scripts/agent-toolkit.mjs developer-onboarding [--area AREA]` |
 | An unused checkout | [SETUP.md](SETUP.md) once, then reuse it |
 
-Onboarding supplies the whole starting context; it is generally needed only once
-per session. Without commands, read [MAKERS.md](MAKERS.md), [BUILDERS.md](BUILDERS.md)
-or [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md) directly.
+Onboarding supplies the whole starting context, once per session. Without commands,
+read [MAKERS.md](MAKERS.md), [BUILDERS.md](BUILDERS.md) or [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md).
 
 ## Using the saam command
 
@@ -46,17 +45,18 @@ Bundle reservations and request IDs. Show intermediate edits; use the returned
 a user interjection.
 
 Follow [client queue monitoring](core/application/README.md#client-queue-monitoring)
-and a tour's returned participation context. Carry the expected Studio/bundle
-identity on the first needed operation. Commands ending and browser tabs closing
-do not stop SAAM; Quit does.
+and a tour's returned participation context. Commands ending and browser tabs
+closing do not stop SAAM; Quit does.
 
 If client registration needs repair, run `saam call repair_client_setup` and
-handle its reported errors; the person may need to restart the client to reload
-permissions.
+handle its errors; the person may need to restart the client to reload permissions.
 
 ## Changing role
 
-Makers may become builders for guidance or extensions using existing
-interfaces. Changing core or shared code requires the developer role and the
-person's authorization; without it, explain the change and ask. Announce a role
-change; it carries only the original request's authorization.
+“If saam can do it, use saam. If it can't, build an extension that can.” (owner,
+2026-10-05): makers become builders for extensions or guidance using existing
+interfaces ([working boundaries](MAKERS.md#working-boundaries)); work those cannot
+express is a SAAM bug to file with `saam call report_bug`. Changing core or shared
+code requires the developer role and the person's authorization; without it,
+explain the change and ask. Announce a role change; it carries only the original
+request's authorization.
