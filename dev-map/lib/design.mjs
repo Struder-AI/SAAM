@@ -98,7 +98,7 @@ export async function designModel({repo}) {
       return createHash('sha256').update(text).digest('hex')===hash?null:file;
     }));
     model.changedInputs=changed.filter(Boolean);
-    if(model.changedInputs.length)model.stale=Object.fromEntries(model.pages.map(p=>[p.index,{inputs:model.changedInputs,regenerate:model.regenerate}]));
+    if(model.changedInputs.length)model.stale={0:{inputs:model.changedInputs,regenerate:model.regenerate}};
     return model;
   }
   catch(error) {if(error.code==='ENOENT')throw Error('No stored design. Run node dev-map/cli.mjs regenerate --set '+setName);throw error;}
