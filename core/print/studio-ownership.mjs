@@ -59,6 +59,12 @@ export function withBundleInstance(directory,record,action){
   return instanceContext.run({directory:resolve(directory),record},action);
 }
 
+// The reservation the caller holds for this bundle, carried into a worker's writes.
+export function heldBundleInstance(directory){
+  const context=instanceContext.getStore();
+  return context?.directory===resolve(directory)?context.record:null;
+}
+
 export async function requireBundleInstance(directory){
   const current=await bundleInstance(directory);
   const context=instanceContext.getStore();

@@ -423,10 +423,6 @@
       "owner": "bundle",
       "reason": "Declarative recipe patch resolution."
     },
-    "core/print/program-handoff.mjs": {
-      "owner": "bundle",
-      "reason": "Bundle review identities and checked-program handoff."
-    },
     "core/print/review-state.mjs": {
       "owner": "bundle",
       "reason": "Bundle review identities and checked-program handoff."
@@ -450,10 +446,6 @@
     "core/print/deposition-diagnostics.mjs": {
       "owner": "bundle",
       "reason": "Bundle generation entry/diagnostics; computational declarations are overridden into engine buckets."
-    },
-    "core/print/generation-control.mjs": {
-      "owner": "bundle",
-      "reason": "Job cancellation/control lifecycle owned by the bundle."
     },
     "core/print/geometry.mjs": {
       "owner": "geometry",
@@ -742,14 +734,6 @@
     "studio/work-state.mjs": {
       "owner": "studio",
       "reason": "Studio-private state/presentation adaptation; bundle accesses must remain explicit."
-    },
-    "studio/generation-worker.mjs": {
-      "owner": "studio",
-      "reason": "Studio job/channel, read-only saved-path display and private UI/service/tour state."
-    },
-    "studio/prepared-generation-job.mjs": {
-      "owner": "bundle",
-      "reason": "Generation worker/job execution belongs to bundle job handling, not a second toolpath engine."
     },
     "core/agent/manuals.mjs": {
       "owner": "context",
@@ -1431,9 +1415,9 @@
       "owner": "application",
       "reason": "Extension command entry: lists and validates extensions through the application."
     },
-    "core/application/computation-job.mjs": {
-      "owner": "application",
-      "reason": "Application computation jobs: runs an operation in a worker and publishes its outcome."
+    "core/print/computation-job.mjs": {
+      "owner": "bundle",
+      "reason": "Bundle computation jobs: run work in a worker, cancellable until its publication is acknowledged."
     },
     "core/agent/blob-field-worker.mjs": {
       "owner": "application",
@@ -1530,6 +1514,10 @@
     "workspaces/export-publication.mjs": {
       "owner": "workspace",
       "reason": "Owns selected runtime/window lifecycle or complete workspace export publication."
+    },
+    "core/print/generation-worker.mjs": {
+      "owner": "bundle",
+      "reason": "Bundle generation worker: prepares and commits a generation off the main thread under the caller's reservation."
     }
   },
   "leaves": {
@@ -4715,30 +4703,6 @@
     "core/print/generate.mjs::summarizeGeneratedPath": {
       "owner": "toolpath"
     },
-    "core/print/generation-control.mjs::@module": {
-      "owner": "bundle"
-    },
-    "core/print/generation-control.mjs::generationControl": {
-      "owner": "bundle"
-    },
-    "core/print/generation-control.mjs::generationControl::beforeCommit": {
-      "owner": "bundle"
-    },
-    "core/print/generation-control.mjs::generationControl::cancel": {
-      "owner": "bundle"
-    },
-    "core/print/generation-control.mjs::generationControl::cancelled": {
-      "owner": "bundle"
-    },
-    "core/print/generation-control.mjs::generationControl::check": {
-      "owner": "bundle"
-    },
-    "core/print/generation-control.mjs::generationControl::committing": {
-      "owner": "bundle"
-    },
-    "core/print/generation-control.mjs::generationControl::error": {
-      "owner": "bundle"
-    },
     "core/print/geometry-tools.mjs::@module": {
       "owner": "application",
       "reason": "Hosts agent request composition and mixed-owner numerical/query helpers; module body is not proof that all nested operations share one responsibility."
@@ -4935,36 +4899,6 @@
     "core/print/plan.mjs::validatePlanSelections": {
       "owner": "toolpath",
       "reason": "Toolpath engine owns deposition recipe defaults, assignments and extension process interpretation."
-    },
-    "core/print/program-handoff.mjs::@module": {
-      "owner": "bundle"
-    },
-    "core/print/program-handoff.mjs::consumeCheckedProgram": {
-      "owner": "bundle"
-    },
-    "core/print/program-handoff.mjs::createCheckedProgramHandoff": {
-      "owner": "bundle"
-    },
-    "core/print/program-handoff.mjs::createCheckedProgramHandoff::dispose": {
-      "owner": "bundle"
-    },
-    "core/print/program-handoff.mjs::createCheckedProgramHandoff::onMessage": {
-      "owner": "bundle"
-    },
-    "core/print/program-handoff.mjs::createPendingCheckedProgramStore": {
-      "owner": "bundle"
-    },
-    "core/print/program-handoff.mjs::createPendingCheckedProgramStore::remove": {
-      "owner": "bundle"
-    },
-    "core/print/program-handoff.mjs::createPendingCheckedProgramStore::retain": {
-      "owner": "bundle"
-    },
-    "core/print/program-handoff.mjs::createPendingCheckedProgramStore::size": {
-      "owner": "bundle"
-    },
-    "core/print/program-handoff.mjs::createPendingCheckedProgramStore::take": {
-      "owner": "bundle"
     },
     "core/print/recipe-migration.mjs::@module": {
       "owner": "toolpath"
@@ -6867,27 +6801,6 @@
     "studio/changes.mjs::watchStudioChanges": {
       "owner": "studio"
     },
-    "studio/generation-worker.mjs::@module": {
-      "owner": "bundle"
-    },
-    "studio/generation-worker.mjs::createProgressReporter": {
-      "owner": "bundle"
-    },
-    "studio/generation-worker.mjs::generateMessage": {
-      "owner": "bundle"
-    },
-    "studio/generation-worker.mjs::loadGeneratedResponse": {
-      "owner": "bundle"
-    },
-    "studio/generation-worker.mjs::prepareGeneration": {
-      "owner": "bundle"
-    },
-    "studio/generation-worker.mjs::runPreparedGeneration": {
-      "owner": "bundle"
-    },
-    "studio/generation-worker.mjs::startGenerationWorker": {
-      "owner": "bundle"
-    },
     "studio/import-stl.mjs::@module": {
       "owner": "studio"
     },
@@ -7395,54 +7308,6 @@
     "studio/playback.mjs::movieTimeline::frame": {
       "owner": "studio"
     },
-    "studio/prepared-generation-job.mjs::@module": {
-      "owner": "bundle"
-    },
-    "studio/prepared-generation-job.mjs::asError": {
-      "owner": "bundle"
-    },
-    "studio/prepared-generation-job.mjs::PreparedGenerationJob": {
-      "owner": "bundle"
-    },
-    "studio/prepared-generation-job.mjs::PreparedGenerationJob::cancel": {
-      "owner": "bundle"
-    },
-    "studio/prepared-generation-job.mjs::PreparedGenerationJob::cancellable": {
-      "owner": "bundle"
-    },
-    "studio/prepared-generation-job.mjs::PreparedGenerationJob::constructor::@default/onUpdate": {
-      "owner": "bundle"
-    },
-    "studio/prepared-generation-job.mjs::PreparedGenerationJob::constructor::onError": {
-      "owner": "bundle"
-    },
-    "studio/prepared-generation-job.mjs::PreparedGenerationJob::constructor::onExit": {
-      "owner": "bundle"
-    },
-    "studio/prepared-generation-job.mjs::PreparedGenerationJob::dispose": {
-      "owner": "bundle"
-    },
-    "studio/prepared-generation-job.mjs::PreparedGenerationJob::disposeHandoff": {
-      "owner": "bundle"
-    },
-    "studio/prepared-generation-job.mjs::PreparedGenerationJob::error": {
-      "owner": "bundle"
-    },
-    "studio/prepared-generation-job.mjs::PreparedGenerationJob::fail": {
-      "owner": "bundle"
-    },
-    "studio/prepared-generation-job.mjs::PreparedGenerationJob::generate": {
-      "owner": "bundle"
-    },
-    "studio/prepared-generation-job.mjs::PreparedGenerationJob::receive": {
-      "owner": "bundle"
-    },
-    "studio/prepared-generation-job.mjs::PreparedGenerationJob::stopListening": {
-      "owner": "bundle"
-    },
-    "studio/prepared-generation-job.mjs::PreparedGenerationJob::terminate": {
-      "owner": "bundle"
-    },
     "studio/print-name.mjs::@module": {
       "owner": "studio"
     },
@@ -7524,9 +7389,6 @@
     "studio/server.mjs::createStudio": {
       "owner": "studio"
     },
-    "studio/server.mjs::createStudio::activePreparationStatus": {
-      "owner": "studio"
-    },
     "studio/server.mjs::createStudio::agentDisconnected": {
       "owner": "studio"
     },
@@ -7536,9 +7398,6 @@
     "studio/server.mjs::createStudio::agentWorking": {
       "owner": "studio"
     },
-    "studio/server.mjs::createStudio::beginGeneration": {
-      "owner": "studio"
-    },
     "studio/server.mjs::createStudio::cancelCalculation": {
       "owner": "studio"
     },
@@ -7546,21 +7405,6 @@
       "owner": "studio"
     },
     "studio/server.mjs::createStudio::currentPrint": {
-      "owner": "studio"
-    },
-    "studio/server.mjs::createStudio::discardPreparation": {
-      "owner": "studio"
-    },
-    "studio/server.mjs::createStudio::executeGeneration": {
-      "owner": "studio"
-    },
-    "studio/server.mjs::createStudio::executeGeneration::checks.onProgress": {
-      "owner": "studio"
-    },
-    "studio/server.mjs::createStudio::executeGeneration::dispatchComputation": {
-      "owner": "studio"
-    },
-    "studio/server.mjs::createStudio::executeGeneration::markCalculation": {
       "owner": "studio"
     },
     "studio/server.mjs::createStudio::generate": {
@@ -7593,25 +7437,10 @@
     "studio/server.mjs::createStudio::planPreparation": {
       "owner": "studio"
     },
-    "studio/server.mjs::createStudio::preparationStatus": {
-      "owner": "studio"
-    },
-    "studio/server.mjs::createStudio::prepare": {
-      "owner": "studio"
-    },
-    "studio/server.mjs::createStudio::prepare::createWorker": {
-      "owner": "studio"
-    },
-    "studio/server.mjs::createStudio::prepare::onUpdate": {
-      "owner": "studio"
-    },
     "studio/server.mjs::createStudio::printId": {
       "owner": "studio"
     },
     "studio/server.mjs::createStudio::printIdFor": {
-      "owner": "studio"
-    },
-    "studio/server.mjs::createStudio::publishGeneration": {
       "owner": "studio"
     },
     "studio/server.mjs::createStudio::publishGenerationFailure": {
@@ -9953,9 +9782,6 @@
     "skills/vase-wall/scripts/runtime.mjs::vaseWallRuntime::standardVaseResult": {
       "owner": "extensions"
     },
-    "studio/generation-worker.mjs::runPreparedGeneration::commit": {
-      "owner": "studio"
-    },
     "studio/neutral-path.mjs::@module": {
       "owner": "studio"
     },
@@ -11397,12 +11223,6 @@
       "owner": "application"
     },
     "core/agent/blob-field-worker.mjs::source": {
-      "owner": "application"
-    },
-    "core/application/computation-job.mjs::@module": {
-      "owner": "application"
-    },
-    "core/application/computation-job.mjs::runComputationJob": {
       "owner": "application"
     },
     "core/application/control.mjs::@module": {

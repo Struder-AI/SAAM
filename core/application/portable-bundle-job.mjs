@@ -1,6 +1,6 @@
 import {resolve} from 'node:path';
 import {createTemporaryWorkspace} from './temporary-workspace.mjs';
-import {runComputationJob} from './computation-job.mjs';
+import {runComputationJob} from '../print/computation-job.mjs';
 
 // The caller owns this private workspace even if a native worker is terminated.
 // Prepared input data lives in the home; publication belongs to the destination.

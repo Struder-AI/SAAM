@@ -13,7 +13,8 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { exportAndDecodeProgram, decodeProgram, readProgramSources, outputAdapter } from '../export/registry.mjs';
 import { loadMachine } from '../machine/profile.mjs';
-import {consumeCheckedProgram,createPendingCheckedProgramStore} from './program-handoff.mjs';
+import {runComputationJob} from './computation-job.mjs';
+import {heldBundleInstance} from './studio-ownership.mjs';
 import {replaceFile} from '../file-write.mjs';
 import {canonicalJson,canonicalHash} from '../canonical-json.mjs';
 import {resolvePlanPatch} from './resolve-plan.mjs';
@@ -111,7 +112,6 @@ export function createBundleWorkflow(adapter) {
   // actual file bytes, not mtimes or editable review claims. Approval state is
   // always read afresh; callers receive copies so they cannot alter this cache.
   let verifiedProgram;
-  const pendingCheckedPrograms=createPendingCheckedProgramStore();
   let inputCache={};
   // One preparation serves checking and saving unchanged inputs.
   let preparation, pathPreparation;
@@ -371,9 +371,7 @@ async function restoreBundleProgram(input,program,allSources,previousProgram) {
       if(cachedProgram?.key!==key||(program!=='source'&&!cachedProgram.program)) {
         // Source viewing extracts checked artifact bytes without motion decoding.
         // Metadata is descriptive; only full-motion callers execute the player.
-        const source=program==='source'?pendingCheckedPrograms.take(key):null;
-        if(source)cachedProgram={key,...source,bytes:code,program:null};
-        else if(program==='source'){
+        if(program==='source'){
           const sources=readProgramSources(code,output.plan,output.machine);
           const metadata=output.generation.programMetadata??{summary:{shortTravel:output.generation.checks.shortTravel,
             volumeMm3:output.generation.checks.volumeMm3,estimatedMinutes:output.generation.checks.estimatedMinutes},
@@ -605,8 +603,11 @@ async function persistPlanUpdate(state,plan,geometry,review) {
 
 // Generation performs the calculations the locked plan specifies. Both modes
 // may be inspected freely; development output is recorded as a preview and can
-// never satisfy the final reviewed-export delivery gate.
-async function generateBundle(directory, { development = false, onProgress, beforeCommit, dispatchComputation } = {}) {
+// never satisfy the final reviewed-export delivery gate. A current checked
+// program is reused (and promoted for production); otherwise the generation
+// worker computes and commits under the caller's held reservation. The signal
+// cancels until beforeCommit is acknowledged.
+async function generateBundle(directory, { development = false, signal, onProgress, beforeCommit } = {}) {
   const {state,source} = await activeGenerationState(directory);
   const current=await currentGenerationCandidate(directory,state);
   if(current){
@@ -622,18 +623,9 @@ async function generateBundle(directory, { development = false, onProgress, befo
     'The reviewed export changed before promotion. Generate it again.');
     return promoteReviewedGeneration(state.dir,confirmed);
   }
-  if(dispatchComputation){
-    const computed=await dispatchComputation({directory:state.dir,generationHash:state.generationHash});
-    if(computed!==null){
-      const checks=computed?.checks,source=consumeCheckedProgram(computed?.checkedProgram,
-        checks?.generationHash,checks?.exportHash);
-      requireThat(checks&&source,'The generation worker returned unchecked machine source.');
-      pendingCheckedPrograms.retain(programKey(checks.generationHash,checks.exportHash),source);
-      return checks;
-    }
-  }
-  const prepared=await prepareGeneration(directory,{onProgress});
-  return commitGeneration(directory,prepared,{development,onProgress,beforeCommit});
+  return runComputationJob(new URL('./generation-worker.mjs',import.meta.url),
+    {directory:state.dir,generationHash:state.generationHash,development,instance:heldBundleInstance(state.dir)},
+    {signal,progress:onProgress,beforeCommit:beforeCommit??(()=>{})});
 }
 
 async function commitGeneration(directory,prepared,{development=false,onProgress,beforeCommit}={}){

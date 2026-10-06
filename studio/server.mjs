@@ -14,8 +14,6 @@ import { readFile, readdir, stat, realpath, mkdir } from 'node:fs/promises';
 import { resolve, dirname, basename, isAbsolute, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes, createHash } from 'node:crypto';
-import { Worker } from 'node:worker_threads';
-import {PreparedGenerationJob} from './prepared-generation-job.mjs';
 import {claimBundleInstance,releaseBundleInstance,reassignBundleInstance,withBundleInstance,bundleInstance} from '../core/print/studio-ownership.mjs';
 import { viewerLifetime } from './lifetime.mjs';
 
@@ -186,7 +184,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
       if(dir&&dir!==selected){
         if(operations.active||(await chat.current.tour.info()).active)throw Error('The Studio changed before bundle creation.');
         if(reservation&&reservedDirectory===dir){await releaseBundleInstance(dir,reservation);reservation=null;reservedDirectory=null;}
-        discardPreparation();dir=null;opened=Promise.resolve(null);lifetime.notify('studio-update',{kind:'state',kinds:['print']});
+        dir=null;opened=Promise.resolve(null);lifetime.notify('studio-update',{kind:'state',kinds:['print']});
       }
       const previous=reservation&&reservedDirectory===selected?await bundleInstance(selected):null;
       if(previous?.token!==reservation?.token){reservation=null;reservedDirectory=null;}
@@ -206,26 +204,23 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
     return run;
   };
   const displayedResults=new Map();
-  // Speculation never enters the HTTP mutation queue or the browser's busy
-  // state. Keep one worker/candidate, replacing it when the reviewed plan changes.
-  let preparation,generationFailure,generationCancelled,importProgress,importController,generationRun=null,externalGeneration=null,closed=false;
-  const outputGenerating=()=>Boolean(generationRun?.directory===dir||externalGeneration?.directory===dir);
+  // The one generation this Studio runs for the bundle it shows, whoever asked
+  // (person, tour step or agent). It is cancellable until its commit begins.
+  let generationRun=null,generationFailure,generationCancelled,importProgress,importController,closed=false;
+  const outputGenerating=()=>generationRun?.calculated===true&&generationRun.directory===dir;
   const stateTag=(fingerprint,guide,failure=generationFailure,cancelled=generationCancelled,records=[],importRepair=null)=>
     'W/"'+createHash('sha256').update(JSON.stringify([instanceId,fingerprint,guide,failure,cancelled,records,importRepair])).digest('base64url')+'"';
   const matchesStateTag=(header,tag)=>typeof header==='string'&&header.split(',').some(value=>{
     const candidate=value.trim();return candidate==='*'||candidate.replace(/^W\//,'')===tag.replace(/^W\//,'');
   });
-  const discardPreparation=(error=new Error('The prepared print changed.'))=>{
-    const previous=preparation;preparation=null;
-    return previous?.dispose(error);
-  };
+  const cancelledGeneration=()=>Object.assign(new Error('Toolpath calculation cancelled.'),{code:'GENERATION_CANCELLED'});
   const cancelGeneration=async(reason='person')=>{
-    const job=preparation;if(!job)return {cancelled:false,committing:false};
-    const result=job.cancel();if(!result.cancelled)return {cancelled:false,committing:result.committing};
-    generationCancelled={directory:job.directory,generationHash:job.generationHash};
-    note('generation-cancelled',{generationHash:job.generationHash,reason});
-    if(preparation===job)preparation=null;
-    await result.done;return {cancelled:true,committing:false};
+    const run=generationRun;
+    if(!run?.calculated||run.committing||run.controller.signal.aborted)return {cancelled:false,committing:Boolean(run?.committing)};
+    generationCancelled={directory:run.directory,generationHash:run.generationHash};
+    note('generation-cancelled',{generationHash:run.generationHash,reason});
+    run.controller.abort(cancelledGeneration());
+    await run.finished;return {cancelled:true,committing:false};
   };
   const cancelCalculation=async({jobId,generationHash,reason='person'}={})=>{
     if(importProgress){
@@ -233,38 +228,27 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
       importController.abort(Object.assign(new Error('Import cancelled.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));
       publishProgress();return {cancelled:true,kind:'import',jobId};
     }
-    if(jobId||!generationHash||generationHash!==preparation?.generationHash)throw Error('The calculation changed. Read its current identity before cancelling.');
+    if(jobId||!generationHash||generationHash!==generationRun?.generationHash)throw Error('The calculation changed. Read its current identity before cancelling.');
     return {...await cancelGeneration(reason),kind:'generation'};
   };
-  const prepare=(state,readDir)=>{
-    if(closed||resolveBundle!==bundleFor)return null;
-    const key=readDir+':'+state.generationHash+':'+state.revision;
-    if(preparation?.key===key)return preparation;
-    discardPreparation();
-    return preparation=new PreparedGenerationJob({key,directory:readDir,generationHash:state.generationHash,
-      createWorker:cancellation=>new Worker(new URL('./generation-worker.mjs',import.meta.url),
-        {workerData:{directory:readDir,generationHash:state.generationHash,progress:true,cancellation}}),onUpdate:()=>publishProgress()});
-  };
-  // Only a real calculation is an event; a mode transition of a valid saved
+  // Only a real calculation is reported; reusing or promoting a valid saved
   // program starts nothing the person or agent would wait on.
-  const preparationStatus=()=>{
+  const calculationStatus=()=>{
     if(importProgress)return {...importProgress,cancellable:!importController.signal.aborted,elapsedMs:Date.now()-importProgress.startedAt,estimatedRemainingMs:null};
-    const job=preparation,run=generationRun;
-    const progress=job?.progress??null,percent=progress?.total>0?Math.floor(100*progress.completed/progress.total):null;
-    const directory=run?.directory??job?.directory??dir;
-    return {studioInstanceId:instanceId,printId:directory&&printIdFor(directory),directory,generationHash:run?.generationHash??job?.generationHash??null,
-      status:run?(job?.status==='preparing'?'preparing':'generating'):(job?.status??'idle'),cancellable:Boolean(job?.cancellable),error:job?.error??null,
-      requested:Boolean(run),trigger:run?.trigger??null,startedAt:run?.startedAt??null,
-      elapsedMs:run?Date.now()-run.startedAt:null,progress:progress?{...progress,percent}:null};
+    const run=generationRun?.calculated?generationRun:null;
+    const progress=run?.progress??null,percent=progress?.total>0?Math.floor(100*progress.completed/progress.total):null;
+    const directory=run?.directory??dir;
+    return {studioInstanceId:instanceId,printId:directory&&printIdFor(directory),directory,generationHash:run?.generationHash??null,
+      status:run?'generating':'idle',cancellable:Boolean(run&&!run.committing&&!run.controller.signal.aborted),
+      trigger:run?.trigger??null,startedAt:run?.startedAt??null,elapsedMs:run?Date.now()-run.startedAt:null,progress:progress?{...progress,percent}:null};
   };
-  const activePreparationStatus=()=>{const status=preparationStatus();return status.requested||['preparing','generating','importing'].includes(status.status)?status:null;};
-  const generationStatus=()=>{const status=activePreparationStatus();return status?{...status,printId:status.directory?chat.current.requests.printId(status.directory,{optional:true}):null}:null;};
-  const publishProgress=(status=activePreparationStatus())=>lifetime.notify('studio-update',{kind:'progress',status});
+  const activeCalculationStatus=()=>{const status=calculationStatus();return ['generating','importing'].includes(status.status)?status:null;};
+  const generationStatus=()=>{const status=activeCalculationStatus();return status?{...status,printId:status.directory?chat.current.requests.printId(status.directory,{optional:true}):null}:null;};
+  const publishProgress=(status=activeCalculationStatus())=>lifetime.notify('studio-update',{kind:'progress',status});
   const runImport=async(source,{name,units,directory,signal}={})=>{
     signal?.throwIfAborted();
     if(closed)throw Error('Studio is closing. Reopen it before importing.');
     if((await chat.current.tour.info()).active)throw Error('Import STL is available after you finish or exit the tour.');
-    await discardPreparation();
     signal?.throwIfAborted();
     importController=new AbortController();
     const controller=importController,abort=()=>controller.abort(signal.reason);
@@ -289,37 +273,6 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
     if(state.inspection)throw Error('This inspection does not support print generation.');
     return {directory,state};
   };
-  const beginGeneration=(snapshot,development,trigger)=>{
-    if(generationRun)return;
-    generationRun={directory:snapshot.directory,generationHash:snapshot.state.generationHash,trigger,development,startedAt:Date.now()};
-    note('generation-started',{generationHash:snapshot.state.generationHash,development,trigger});
-    publishProgress();
-  };
-  const executeGeneration=async(current,snapshot,development,trigger)=>{
-    const {directory:generationDir,state}=snapshot;
-    let calculated=false;
-    const markCalculation=()=>{if(!calculated){calculated=true;beginGeneration(snapshot,development,trigger);}};
-    async function dispatchComputation({directory:executionDir,generationHash}){
-      // A stopped worker needs restarting; a completed preparation diagnostic
-      // is already useful and need not be recomputed on the first Continue.
-      if(preparation?.status==='failed'&&(!preparation.worker||generationFailure?.directory===executionDir&&generationFailure.generationHash===generationHash))await discardPreparation();
-      const executionState=(await readStableBundle(current,executionDir,{program:false})).state;
-      const job=prepare(executionState,executionDir);
-      if(!job)return null;
-      if(job.status==='preparing')markCalculation();
-      const checked=await job.generate(development,reservation);
-      if(preparation===job)preparation=null;
-      return checked;
-    }
-    const checks=await current.generateBundle(dir,{development,
-      dispatchComputation:resolveBundle===bundleFor?dispatchComputation:undefined,
-      onProgress:progress=>{if(progress.stage==='Preparing geometry')markCalculation();}});
-    return {directory:generationDir,generationHash:state.generationHash,calculated,checks};
-  };
-  const publishGeneration=async(outcome,development,trigger)=>{
-    generationFailure=null;
-    if(outcome.calculated)note('generation-finished',{generationHash:outcome.generationHash,development,trigger,durationMs:Date.now()-generationRun.startedAt});
-  };
   const publishGenerationFailure=async(error,snapshot,trigger)=>{
       const {directory:generationDir,state}=snapshot;
       if(error.code==='GENERATION_CANCELLED')throw error;
@@ -328,23 +281,40 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
       await noteSourceSkew(error);
       const reported=reportedMessage(error);
       generationFailure={directory:generationDir,generationHash:state.generationHash,message:reported,stage:error.stage??'generation'};
-      try{const record=await chat.current.requests.begin({directory:generationDir,source:'studio',studioInstanceId:instanceId,
+      // A person's failed generation asks the agent to diagnose it; an agent's is its own error outcome.
+      try{const record=trigger==='agent'?null:await chat.current.requests.begin({directory:generationDir,source:'studio',studioInstanceId:instanceId,
         key:'generation-failure:'+generationDir+':'+state.generationHash+':'+reported,
         instruction:(error.stage==='export'?'SAAMpath construction succeeded; machine export failed. Inspect the selected exporter and its representation requirements. Error: ':'Toolpath generation failed for this print. Inspect the current recipe and deposition inputs. Error: ')+reported+
           '\nDiagnose the cause before regenerating. Do not blindly retry unchanged inputs or relax quality limits to hide the failure. Explain material process changes to the maker, then verify the current result is displayed in Studio. Resolve this request after recovery, or report the concrete blocker.'});
-        note('generation-failed',{generationHash:state.generationHash,trigger,error:reported,stage:error.stage??'generation',requestId:record.id});}
+        note('generation-failed',{generationHash:state.generationHash,trigger,error:reported,stage:error.stage??'generation',...(record?{requestId:record.id}:{})});}
       finally{throw error;} // A notification failure must not hide the generation error.
   };
-  const generate=async(current,development,trigger='generate')=>{
-    const snapshot=await readGeneration(current);
+  // Callers hold this Studio's bundle edit (runBundleEdit), so the worker
+  // commits under its reservation.
+  const generate=async(current,{development=false,trigger='generate'}={})=>{
+    const snapshot=await readGeneration(current),{state}=snapshot,finished=Promise.withResolvers();
+    const run=generationRun={directory:snapshot.directory,generationHash:state.generationHash,trigger,controller:new AbortController(),
+      finished:finished.promise,calculated:false,committing:false,progress:null,startedAt:null};
+    const calculating=()=>{
+      if(run.calculated)return;
+      run.calculated=true;run.startedAt=Date.now();
+      note('generation-started',{generationHash:run.generationHash,development,trigger});
+      lifetime.notify('studio-update',{kind:'state',kinds:['generation']});
+    };
     try{
-      const outcome=await executeGeneration(current,snapshot,development,trigger);
-      await publishGeneration(outcome,development,trigger);
+      const checks=await current.generateBundle(run.directory,{development,signal:run.controller.signal,
+        onProgress:progress=>{calculating();run.progress=progress;publishProgress();},
+        beforeCommit:()=>{run.committing=true;publishProgress();}});
+      generationFailure=null;
+      if(run.calculated)note('generation-finished',{generationHash:run.generationHash,development,trigger,durationMs:Date.now()-run.startedAt});
+      return checks;
     }catch(error){await publishGenerationFailure(error,snapshot,trigger);}
     finally{
-      const finished=generationRun;generationRun=null;
-      publishProgress(finished?{studioInstanceId:instanceId,printId:printIdFor(finished.directory),
-        directory:finished.directory,generationHash:finished.generationHash,status:'idle',cancellable:false,progress:null}:null);
+      generationRun=null;finished.resolve();
+      if(run.calculated){
+        publishProgress({studioInstanceId:instanceId,printId:printIdFor(run.directory),directory:run.directory,generationHash:run.generationHash,status:'idle',cancellable:false,progress:null});
+        lifetime.notify('studio-update',{kind:'state',kinds:['generation']});
+      }
     }
   };
   const exportPrint=async(current,state,data,progress)=>{
@@ -359,11 +329,11 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
     await opened;
     const next=await printDirectory(input,resolveBundle),adapter=await resolveBundle(next);
     await readStableBundle(adapter,next,{program:false});
-    if(next!==dir&&reservation&&reservedDirectory===next){discardPreparation();dir=next;opened=Promise.resolve(adapter);return;}
+    if(next!==dir&&reservation&&reservedDirectory===next){dir=next;opened=Promise.resolve(adapter);return;}
     if(next!==dir){
       const claim=await claimBundleInstance(next,{instanceId,ownerId:chat.current.ownerId,restoring,runtimeId,runtimeLabel});
       switching=true;
-      try{await releaseInstance();discardPreparation();dir=next;reservation=claim;reservedDirectory=next;opened=Promise.resolve(adapter);}
+      try{await releaseInstance();dir=next;reservation=claim;reservedDirectory=next;opened=Promise.resolve(adapter);}
       catch(error){await releaseBundleInstance(next,claim);throw error;}
       finally{switching=false;}
     }else opened=Promise.resolve(adapter);
@@ -446,7 +416,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
         send({requests:records.filter(record=>!record.studioInstanceId||record.studioInstanceId===instanceId)});return;
       }
       if(req.method==='GET'&&url.pathname==='/api/preparation'){
-        send(preparationStatus());return;
+        send(calculationStatus());return;
       }
       if(req.method==='GET'&&url.pathname==='/api/prints'){
         const p=await chat.current.tour.info(),prints=p.active
@@ -526,7 +496,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
       // Browser-measured view bursts, kept in memory for an agent to read.
       if(url.pathname==='/api/view-performance'){viewPerformance.push({receivedAt:new Date().toISOString(),...data});viewPerformance.splice(0,viewPerformance.length-20);send({ok:true});return;}
       if(url.pathname==='/api/cancel-generation'){
-        if(data.printId!==printId()||!data.generationHash||data.generationHash!==preparation?.generationHash)throw Error('The calculation changed. Refresh before cancelling.');
+        if(data.printId!==printId()||!data.generationHash||data.generationHash!==generationRun?.generationHash)throw Error('The calculation changed. Refresh before cancelling.');
         send(await cancelGeneration());return;
       }
       if(url.pathname==='/api/cancel-calculation'){
@@ -600,7 +570,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
              active:result.data.active,completed:result.data.completed,canNext:result.data.canNext,agentInstruction:result.data.agentInstruction??null});
           if(result.directory&&result.data.active&&TOUR_STEPS[result.data.step].tab==='toolpath'){
             const adapter=await opened,state=(await readStableBundle(adapter,dir,{program:'source'})).state;
-            if(!state.program||state.programError)await runBundleEdit(dir,()=>generate(adapter,false,'tour-step'));
+            if(!state.program||state.programError)await runBundleEdit(dir,()=>generate(adapter,{trigger:'tour-step'}));
           }
         }
         else if(url.pathname==='/api/use-example'){
@@ -633,7 +603,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
         }
         else if(url.pathname==='/api/generate'){
           if(data.generationHash&&((await readStableBundle(current,dir,{program:false})).state).generationHash!==data.generationHash)throw Error('The print changed before generation. Review the updated print.');
-          await runBundleEdit(dir,()=>generate(current,data.development===true));
+          await runBundleEdit(dir,()=>generate(current,{development:data.development===true}));
         }
         else throw new Error('Unknown operation.');
         send({ok:true});
@@ -663,14 +633,12 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
   server.setStartAt=startAt=>chat.current.tour.setStartAt(startAt);
   server.currentPrint=()=>dir;
   server.inTour=async()=>{const guide=await chat.current.tour.info();return Boolean(guide.active&&dir&&guide.directory===dir);};
-  server.setGenerationActivity=({generationHash,active})=>{
-    if(active)externalGeneration={generationHash,directory:dir};
-    else if(externalGeneration?.generationHash===generationHash)externalGeneration=null;
-    lifetime.notify('studio-update',{kind:'state',kinds:['generation']});
-  };
+  // An agent generates through the edit it already holds on this Studio's print.
+  server.generate=async({development=false,trigger='agent'}={})=>generate(await opened,{development,trigger});
   server.applicationStopping=reason=>lifetime.notify('studio-update',{kind:'application-stopping',reason});
   const lifetime=viewerLifetime(server,{onViewers:count=>note(count?'viewer-opened':'viewer-closed',{viewers:count}),onClosing:()=>{
     closed=true;importController?.abort(Object.assign(Error('Import cancelled because Studio closed.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));
+    if(!generationRun?.committing)generationRun?.controller.abort(cancelledGeneration());
   },
     onShutdown:async()=>{try{importController?.abort(Object.assign(Error('Import cancelled because Studio closed.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));await opened.catch(()=>{});await queue;await releaseInstance();await chat.current.tour.closeStudio();}finally{chat.current.tour.close();for(const store of ownedRequests)store.close();for(const store of ownedEvents)store.close();}}});
   function observeRequest(record){
@@ -714,20 +682,20 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
     return replaceAttachment(next);
   };
   server.attachment=()=>chat.current.attached;
-  server.attachmentBusy=(ownOperations=0)=>operations.active>ownOperations||Boolean(importProgress)||['preparing','generating'].includes(generationStatus()?.status);
+  server.attachmentBusy=(ownOperations=0)=>operations.active>ownOperations||Boolean(importProgress)||generationStatus()?.status==='generating';
   let checkingGeneration=false;
   const stopWatching=watchStudioChanges(libraryRoot,kinds=>{
     const external=kinds.filter(kind=>kind!=='requests');
     if(external.length)lifetime.notify('studio-update',{kind:'state',kinds:external});
-    const job=preparation;
-    if(kinds.includes('print')&&job?.cancellable&&!checkingGeneration){
+    const run=generationRun;
+    if(kinds.includes('print')&&run?.calculated&&!run.committing&&!checkingGeneration){
       checkingGeneration=true;
-      void resolveBundle(job.directory).then(adapter=>readStableBundle(adapter,job.directory,{program:false})).then(({state})=>{
-        if(preparation===job&&state.generationHash!==job.generationHash)return cancelGeneration('inputs-changed');
+      void resolveBundle(run.directory).then(adapter=>readStableBundle(adapter,run.directory,{program:false})).then(({state})=>{
+        if(generationRun===run&&state.generationHash!==run.generationHash)return cancelGeneration('inputs-changed');
       }).catch(()=>{/* A partial external write will be rechecked at commit. */}).finally(()=>{checkingGeneration=false;});
     }
   });
-  server.once('close',()=>{closed=true;stopWatching();chat.stopRequestFeed();discardPreparation();void releaseInstance().catch(error=>note('instance-release-failed',{error:error.message}));});
+  server.once('close',()=>{closed=true;stopWatching();chat.stopRequestFeed();if(!generationRun?.committing)generationRun?.controller.abort(cancelledGeneration());void releaseInstance().catch(error=>note('instance-release-failed',{error:error.message}));});
   server.sessionToken=()=>token;
   server.shutdown=lifetime.shutdown;server.viewerCount=lifetime.viewers;
   Object.defineProperty(server,'studioEvents',{get(){return chat.current.events;}});server.generationStatus=generationStatus;
