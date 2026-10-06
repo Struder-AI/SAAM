@@ -52,7 +52,7 @@ Report against the obligation, not the work. State what the general operation no
 
 #### Intent and rules
 
-State intent positively, at its one owner: what SAAM does, not what must never happen again. A ban outlives the situation it was written for and has to be remembered and revoked; a statement of current intent already excludes the alternatives and stays true until someone edits it. When direction changes, edit the owner, and nothing else needs revoking. The owner, 2026-10-06: "The versioned intent docs essentially define the spec unless something overrides it." Read them in order; a later statement overrides an earlier one only where they conflict. History (DECISIONS, DEVLOG) is reference, never authority.
+State intent positively, at its one owner: what SAAM does, not what must never happen again. A ban outlives the situation it was written for and has to be remembered and revoked; a statement of current intent already excludes the alternatives and stays true until someone edits it. When direction changes, edit the owner, and nothing else needs revoking. The owner, 2026-10-06: "The versioned intent docs essentially define the spec unless something overrides it." Read them in order; a later statement overrides an earlier one only where they conflict. Read future versions' intent too, so current work does not contradict what is planned (owner, 2026-10-06). History (DECISIONS, DEVLOG) is reference, never authority.
 
 ## Rules
 

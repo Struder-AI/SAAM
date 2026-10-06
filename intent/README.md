@@ -14,7 +14,9 @@ Each leaf is one current intent:
 
 The tree holds intent only. Status, evidence and scheduling stay in the [release plans](../plans/) and [DEVLOG](../DEVLOG.md). Mechanism appears only where the owner asked for it.
 
-**Resolution rule** (owner, 2026-10-06): the versioned plans define the spec cumulatively, read in order 0.2.0, 0.3.0, 0.3.1, 0.3.2 … 0.3.6, then 0.4.0 and 0.5.0 (future intent, labelled with their version). A later statement overrides an earlier one only where they actually conflict. [DECISIONS](../DECISIONS.md) is history but holds many exact owner quotes.
+**Resolution rule** (owner, 2026-10-06): the versioned plans define the spec cumulatively, read in order 0.2.0, 0.3.0, 0.3.1, 0.3.2 … 0.3.6, then 0.4.0 and 0.5.0 (future intent, labelled with their version). A later statement overrides an earlier one only where they actually conflict.
+
+**Forward intent** (owner, 2026-10-06: "Did we not also institute forward intent reading? That's a part of the tree everyone should know about too."): future versions' intent (0.4.0, 0.5.0) is read too, so work done now does not contradict or block what is already planned. [DECISIONS](../DECISIONS.md) is history but holds many exact owner quotes.
 
 **Source notation.** Plan rows are named by file and row title. Chat sources are `Claude <id>` (Claude Code session, first 8 characters) or `Codex <id>` (Codex session), with the transcript's UTC time; plan dates are Pacific, so "owner, 2026-10-04" in a plan can be a 10-05 UTC message. `queued` marks a message typed while the agent was mid-turn.
 
