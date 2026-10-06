@@ -130,11 +130,11 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
   // Authenticated delivery issues a bounded, short-lived read-only capability.
   // Its HTTP attachment avoids browser-specific blob URL download handling.
   const downloadLinks=new Map();
-  const stageDownload=({name,bytes,exportHash})=>{
+  const stageDownload=({name,bytes,outputId})=>{
     const now=Date.now();for(const [key,value] of downloadLinks)if(value.expiresAt<=now)downloadLinks.delete(key);
     if(downloadLinks.size>=16)downloadLinks.delete(downloadLinks.keys().next().value);
     const key=randomBytes(24).toString('hex'),expiresAt=now+10*60*1000;
-    downloadLinks.set(key,{bytes,name,exportHash,expiresAt});return {url:'/api/download/'+key,name,exportHash,expiresAt};
+    downloadLinks.set(key,{bytes,name,outputId,expiresAt});return {url:'/api/download/'+key,name,outputId,expiresAt};
   };
   const printIdFor=directory=>createHash('sha256').update(resolve(directory)).digest('hex');
   const printId=()=>printIdFor(dir);
@@ -210,18 +210,18 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
   const cancelGeneration=async(reason='person')=>{
     const run=generationRun;
     if(!run?.calculated||run.committing||run.controller.signal.aborted)return {cancelled:false,committing:Boolean(run?.committing)};
-    generationCancelled={directory:run.directory,generationHash:run.generationHash};
-    note('generation-cancelled',{generationHash:run.generationHash,reason});
+    generationCancelled={directory:run.directory,editRevision:run.editRevision};
+    note('generation-cancelled',{editRevision:run.editRevision,reason});
     run.controller.abort(cancelledGeneration());
     await run.finished;return {cancelled:true,committing:false};
   };
-  const cancelCalculation=async({jobId,generationHash,reason='person'}={})=>{
+  const cancelCalculation=async({jobId,editRevision,reason='person'}={})=>{
     if(importProgress){
       if(jobId!==importProgress.jobId)throw Error('The import changed. Read its current jobId before cancelling.');
       importController.abort(Object.assign(new Error('Import cancelled.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));
       publishProgress();return {cancelled:true,kind:'import',jobId};
     }
-    if(jobId||!generationHash||generationHash!==generationRun?.generationHash)throw Error('The calculation changed. Read its current identity before cancelling.');
+    if(jobId||!editRevision||editRevision!==generationRun?.editRevision)throw Error('The calculation changed. Read its current identity before cancelling.');
     return {...await cancelGeneration(reason),kind:'generation'};
   };
   // Only a real calculation is reported; reusing or promoting a valid saved
@@ -231,7 +231,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
     const run=generationRun?.calculated?generationRun:null;
     const progress=run?.progress??null,percent=progress?.total>0?Math.floor(100*progress.completed/progress.total):null;
     const directory=run?.directory??dir;
-    return {studioInstanceId:instanceId,printId:directory&&printIdFor(directory),directory,generationHash:run?.generationHash??null,
+    return {studioInstanceId:instanceId,printId:directory&&printIdFor(directory),directory,editRevision:run?.editRevision??null,
       status:run?'generating':'idle',cancellable:Boolean(run&&!run.committing&&!run.controller.signal.aborted),
       trigger:run?.trigger??null,startedAt:run?.startedAt??null,elapsedMs:run?Date.now()-run.startedAt:null,progress:progress?{...progress,percent}:null};
   };
@@ -246,7 +246,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
     importController=new AbortController();
     const controller=importController,abort=()=>controller.abort(signal.reason);
     signal?.addEventListener('abort',abort,{once:true});
-    importProgress={studioInstanceId:instanceId,printId:dir?printId():null,directory:dir??null,jobId:randomBytes(16).toString('hex'),name:name??null,generationHash:null,status:'importing',startedAt:Date.now(),progress:{stage:'Checking your STL',phase:'import'}};publishProgress();
+    importProgress={studioInstanceId:instanceId,printId:dir?printId():null,directory:dir??null,jobId:randomBytes(16).toString('hex'),name:name??null,editRevision:null,status:'importing',startedAt:Date.now(),progress:{stage:'Checking your STL',phase:'import'}};publishProgress();
     note('import-started',{jobId:importProgress.jobId,name:name??null,units:units??null});
     let imported;
     try{imported=await importStudioSTL(libraryRoot,source,{name,units,directory,signal:importController.signal,
@@ -273,25 +273,25 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
       // request, say whether this process is behind the files the worker read.
       await noteSourceSkew(error);
       const reported=reportedMessage(error);
-      generationFailure={directory:generationDir,generationHash:state.generationHash,message:reported,stage:error.stage??'generation'};
+      generationFailure={directory:generationDir,editRevision:state.editRevision,message:reported,stage:error.stage??'generation'};
       // A person's failed generation asks the agent to diagnose it; an agent's is its own error outcome.
       try{const record=trigger==='agent'?null:await chat.current.binding.ask({directory:generationDir,studioInstanceId:instanceId,
-        key:'generation-failure:'+generationDir+':'+state.generationHash+':'+reported,
+        key:'generation-failure:'+generationDir+':'+state.editRevision+':'+reported,
         instruction:(error.stage==='export'?'SAAMpath construction succeeded; machine export failed. Inspect the selected exporter and its representation requirements. Error: ':'Toolpath generation failed for this print. Inspect the current recipe and deposition inputs. Error: ')+reported+
           '\nDiagnose the cause before regenerating. Do not blindly retry unchanged inputs or relax quality limits to hide the failure. Explain material process changes to the maker, then verify the current result is displayed in Studio. Resolve this request after recovery, or report the concrete blocker.'});
-        note('generation-failed',{generationHash:state.generationHash,trigger,error:reported,stage:error.stage??'generation',...(record?{requestId:record.id}:{})});}
+        note('generation-failed',{editRevision:state.editRevision,trigger,error:reported,stage:error.stage??'generation',...(record?{requestId:record.id}:{})});}
       finally{throw error;} // A notification failure must not hide the generation error.
   };
   // Callers hold this Studio's bundle edit (runBundleEdit), so the worker
   // commits under its reservation.
   const generate=async(current,{development=false,trigger='generate'}={})=>{
     const snapshot=await readGeneration(current),{state}=snapshot,finished=Promise.withResolvers();
-    const run=generationRun={directory:snapshot.directory,generationHash:state.generationHash,trigger,controller:new AbortController(),
+    const run=generationRun={directory:snapshot.directory,editRevision:state.editRevision,trigger,controller:new AbortController(),
       finished:finished.promise,calculated:false,committing:false,progress:null,startedAt:null};
     const calculating=()=>{
       if(run.calculated)return;
       run.calculated=true;run.startedAt=Date.now();
-      note('generation-started',{generationHash:run.generationHash,development,trigger});
+      note('generation-started',{editRevision:run.editRevision,development,trigger});
       lifetime.notify('studio-update',{kind:'state',kinds:['generation']});
     };
     try{
@@ -299,13 +299,13 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
         onProgress:progress=>{calculating();run.progress=progress;publishProgress();},
         beforeCommit:()=>{run.committing=true;publishProgress();}});
       generationFailure=null;
-      if(run.calculated)note('generation-finished',{generationHash:run.generationHash,development,trigger,durationMs:Date.now()-run.startedAt});
+      if(run.calculated)note('generation-finished',{editRevision:run.editRevision,development,trigger,durationMs:Date.now()-run.startedAt});
       return checks;
     }catch(error){await publishGenerationFailure(error,snapshot,trigger);}
     finally{
       generationRun=null;finished.resolve();
       if(run.calculated){
-        publishProgress({studioInstanceId:instanceId,printId:printIdFor(run.directory),directory:run.directory,generationHash:run.generationHash,status:'idle',cancellable:false,progress:null});
+        publishProgress({studioInstanceId:instanceId,printId:printIdFor(run.directory),directory:run.directory,editRevision:run.editRevision,status:'idle',cancellable:false,progress:null});
         lifetime.notify('studio-update',{kind:'state',kinds:['generation']});
       }
     }
@@ -314,8 +314,8 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
     const name=requestedDownloadName(data.name,await printName(state.dir,state.plan),state.exportName);
     const delivered=await runBundleEdit(state.dir,()=>current.exportReviewed(state,{machineSetups}));
     const inTour=progress.active&&progress.directory===state.dir;
-    if(inTour)await chat.current.tour.downloaded(delivered.exportHash);
-    note('export-delivered',{tour:inTour,name,exportHash:delivered.exportHash});
+    if(inTour)await chat.current.tour.downloaded(delivered.outputId);
+    note('export-delivered',{tour:inTour,name,outputId:delivered.outputId});
     return {...delivered,name};
   };
   const openPrint=async input=>{
@@ -334,7 +334,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
   // Called only by a human Studio action choosing the geometry to print.
   const validateGeometrySelection=async(adapter,seen)=>{
     const state=(await readStableBundle(adapter,dir,{program:false,live:true})).state;
-    if(seen&&(seen.revision!==state.revision||seen.geometryHash!==state.geometryHash))throw Error('The geometry changed. Review the current shape before confirming.');
+    if(seen&&(seen.revision!==state.revision||seen.geometryId!==state.geometryId))throw Error('The geometry changed. Review the current shape before confirming.');
   };
   const server=http.createServer(async(req,res)=>{
     const host=req.headers.host;
@@ -428,7 +428,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
         const {state}=await readStableBundle(bundle,readDir,{program:false});
         const artifact=state.review?.path;
         if(readDir!==dir||url.searchParams.get('printId')!==readId||url.searchParams.get('revision')!==String(state.revision)
-          ||state.artifacts.path!=='current'||!artifact||url.searchParams.get('pathHash')!==artifact.hash)
+          ||state.artifacts.path!=='current'||!artifact||url.searchParams.get('pathId')!==artifact.id)
           throw Error('The saved SAAMpath changed. Reload before viewing.');
         const bytes=await bundle.readToolpath(state);
         res.writeHead(200,{'Content-Type':'application/json','Content-Length':bytes.length});res.end(bytes);return;
@@ -455,7 +455,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
           const {dir,checkedBytes}=state;
           for(const key of displayedResults.keys())if(key!==snapshot)displayedResults.delete(key);
           displayedResults.set(snapshot,{bundle,state:{dir,plan:output.plan,machine:output.machine,revision:output.id,completedOutput:output,
-            exportName:output.exportName,exportHash:output.exportHash,checkedBytes}});
+            exportName:output.exportName,outputId:output.outputId,checkedBytes}});
           assembled.exportSnapshot=snapshot;
         }
         res.setHeader('ETag',tag);
@@ -465,7 +465,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
       if(req.method==='GET'&&url.pathname==='/api/sources'){
         const {state}=await readStableBundle(bundle,readDir,{program:'source',allSources:true});
         if(readDir!==dir)throw new Error('The print is being updated.');
-        for(const [key,value] of [['printId',readId],['revision',state.completedOutput?.id],['exportHash',state.exportHash]])
+        for(const [key,value] of [['printId',readId],['revision',state.completedOutput?.id],['outputId',state.outputId]])
           if(url.searchParams.get(key)!==value)throw new Error('The reviewed program changed. Reload before continuing.');
         if(!completedOutputState(state).available)throw new Error(state.programError??'Generate the program first.');
         res.writeHead(200,{'Content-Type':'application/x-ndjson; charset=utf-8'});
@@ -488,7 +488,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
       // Browser-measured view bursts, kept in memory for an agent to read.
       if(url.pathname==='/api/view-performance'){viewPerformance.push({receivedAt:new Date().toISOString(),...data});viewPerformance.splice(0,viewPerformance.length-20);send({ok:true});return;}
       if(url.pathname==='/api/cancel-generation'){
-        if(data.printId!==printId()||!data.generationHash||data.generationHash!==generationRun?.generationHash)throw Error('The calculation changed. Refresh before cancelling.');
+        if(data.printId!==printId()||!data.editRevision||data.editRevision!==generationRun?.editRevision)throw Error('The calculation changed. Refresh before cancelling.');
         send(await cancelGeneration());return;
       }
       if(url.pathname==='/api/cancel-calculation'){
@@ -524,16 +524,16 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
           const receiptable=stage==='geometry'||completedOutputState(state,{generating:outputGenerating()}).receipt;
           const inspectable=stage==='geometry'||completedOutputState(state,{generating:outputGenerating()}).available;
           const renderError=typeof data.renderError==='string'?data.renderError.slice(0,2000):null;
-          if(data.revision===state.revision&&(inspectable||renderError)&&(stage==='geometry'||data.exportHash===state.exportHash)){
+          if(data.revision===state.revision&&(inspectable||renderError)&&(stage==='geometry'||data.outputId===state.outputId)){
             presentedRequests=await chat.current.binding.presented(dir,{...state.workEvidence,stage,studioInstanceId:instanceId,deliverable:receiptable&&!renderError,renderError});
-            note(renderError?'view-failed':'view-presented',{...(renderError?{error:renderError}:{}),stage,revision:state.revision,exportHash:stage==='toolpath'?state.exportHash??null:null,presentedRequestIds:presentedRequests.map(record=>record.id)});
+            note(renderError?'view-failed':'view-presented',{...(renderError?{error:renderError}:{}),stage,revision:state.revision,outputId:stage==='toolpath'?state.outputId??null:null,presentedRequestIds:presentedRequests.map(record=>record.id)});
             for(const record of presentedRequests)if(!record.inspectionFailed)note('request-presented',{requestId:record.id,requestKind:record.kind,stage});
             const advisory=state.program?.summary?.shortTravel;
             if(!renderError&&stage==='toolpath'&&advisory?.count&&workIdFor(dir))
               await chat.current.binding.ask({directory:dir,kind:'advisory',studioInstanceId:instanceId,
-                key:`short-travel:${dir}:${state.exportHash}`,
-                evidence:{exportHash:state.exportHash,generationHash:state.generationHash,skills:state.skills,shortTravel:advisory},
-                instruction:`Toolpath quality advisory for export ${state.exportHash}: ${advisory.message}\n`+
+                key:`short-travel:${dir}:${state.outputId}`,
+                evidence:{outputId:state.outputId,editRevision:state.editRevision,skills:state.skills,shortTravel:advisory},
+                instruction:`Toolpath quality advisory for export ${state.outputId}: ${advisory.message}\n`+
                   `Affected recipe skills: ${(state.skills??[]).join(', ')}. This notification preserves source locations and operation counts in evidence.shortTravel. `+
                   'Mention this finding to the person in your next reply, then acknowledge this advisory as completed and continue the current user task; no repair or new approval is required.'});
           }
@@ -593,7 +593,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
           note('plan-updated',{revision:updated.revision,changes});
         }
         else if(url.pathname==='/api/generate'){
-          if(data.generationHash&&((await readStableBundle(current,dir,{program:false})).state).generationHash!==data.generationHash)throw Error('The print changed before generation. Review the updated print.');
+          if(data.editRevision&&((await readStableBundle(current,dir,{program:false})).state).editRevision!==data.editRevision)throw Error('The print changed before generation. Review the updated print.');
           await runBundleEdit(dir,()=>generate(current,{development:data.development===true}));
         }
         else throw new Error('Unknown operation.');
@@ -669,7 +669,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
     if(kinds.includes('print')&&run?.calculated&&!run.committing&&!checkingGeneration){
       checkingGeneration=true;
       void resolveBundle(run.directory).then(adapter=>readStableBundle(adapter,run.directory,{program:false})).then(({state})=>{
-        if(generationRun===run&&state.generationHash!==run.generationHash)return cancelGeneration('inputs-changed');
+        if(generationRun===run&&state.editRevision!==run.editRevision)return cancelGeneration('inputs-changed');
       }).catch(()=>{/* A partial external write will be rechecked at commit. */}).finally(()=>{checkingGeneration=false;});
     }
   });

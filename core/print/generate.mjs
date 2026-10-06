@@ -6,7 +6,7 @@ import {extensionDeposition,extensionResultDependencies,extensionSummary} from '
 // Ownership precedes construction; one dependency graph schedules shared courses
 // and their finalized-material consumers.
 
-import {PATH_CONTRACT,NEUTRAL_PATH_CONTRACT,pathInputHash} from '../path/dependencies.mjs';
+import {PATH_CONTRACT,NEUTRAL_PATH_CONTRACT} from '../path/dependencies.mjs';
 import {saamPath} from '../path/saampath.mjs';
 export {pathDependencies} from '../path/dependencies.mjs';
 import {planFinishing} from '../path/toolpath.mjs';
@@ -228,5 +228,5 @@ export async function generatePath(plan, {onProgress,modulations,modulationPrepa
   const path=planningPath(finished.state,[started.actions,startup.actions,execution.actions,finished.actions],{...summary,composition:{...execution.summary,operationOrder:order}});
   for(const action of path.actions)if(action.kind==='temperature')
     requireThat(authoredTemperatures.has(action.targetC),'Unplanned operation temperature.');
-  return saamPath({...path,completion:{contract:NEUTRAL_PATH_CONTRACT,inputHash:pathInputHash(plan)}});
+  return saamPath({...path,completion:{contract:NEUTRAL_PATH_CONTRACT}});
 }

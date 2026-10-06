@@ -1,15 +1,13 @@
 import {contextualActions} from '../core/path/action-context.mjs';
 // Read a saved, machine-independent SAAMpath for display only. This projection
 // never becomes a checked machine program or a manufacturing approval.
-export async function loadNeutralPath(state,fetcher=fetch,cryptoApi=globalThis.crypto){
+export async function loadNeutralPath(state,fetcher=fetch){
   const reference=state.review?.path;
   if(state.artifacts?.path!=='current'||!reference)return null;
-  const query=new URLSearchParams({printId:state.printId,revision:state.revision,pathHash:reference.hash});
+  const query=new URLSearchParams({printId:state.printId,revision:state.revision,pathId:reference.id});
   const response=await fetcher('/api/neutral-path?'+query);
   if(!response.ok)throw Error((await response.json()).error);
   const bytes=await response.arrayBuffer();
-  const actual=Array.from(new Uint8Array(await cryptoApi.subtle.digest('SHA-256',bytes)),v=>v.toString(16).padStart(2,'0')).join('');
-  if(actual!==reference.hash)throw Error('Saved SAAMpath changed while loading. Reload before reviewing.');
   return neutralPathPreview(JSON.parse(new TextDecoder().decode(bytes)));
 }
 

@@ -115,12 +115,12 @@ export function createTour(libraryRoot,{now=Date.now,studioId,chat}){
       await chat.withdraw({scope:{runId:data.runId}});
       for(const name of Object.values(data.copies))await chat.withdraw({directory:await confined(name)});
     },
-    async downloaded(exportHash){const data=await read();if(!data.active||data.step!==L.export)throw Error('Reach the final tour lesson before exporting.');data.downloadedHash=exportHash;await save(progress,data);},
+    async downloaded(outputId){const data=await read();if(!data.active||data.step!==L.export)throw Error('Reach the final tour lesson before exporting.');data.downloadedHash=outputId;await save(progress,data);},
     async acknowledgeView(directory,seen,state){
       const data=await observed(state);
       if(!data.active||await confined(data.selected)!==resolve(directory)||seen.revision!==state.revision)return describe(data);
       if(data.step===L.settings){
-        if(seen.stage!=='toolpath'||!state.program||state.programError||!seen.exportHash||seen.exportHash!==state.exportHash)return describe(data);
+        if(seen.stage!=='toolpath'||!state.program||state.programError||!seen.outputId||seen.outputId!==state.outputId)return describe(data);
         const shown={...state.workEvidence,stage:'toolpath',studioInstanceId:studioId},baseline=data.editLesson;
         // A current lesson request or a new agent edit must publish the changed
         // inputs actually drawn. Old lessons and automatic generation cannot
@@ -132,7 +132,7 @@ export function createTour(libraryRoot,{now=Date.now,studioId,chat}){
         if(!requested)return describe(data);
       }
       if([L.setup,L.export].includes(data.step)){
-        if(seen.stage!=='toolpath'||!state.program||state.programError||!seen.exportHash||seen.exportHash!==state.exportHash)return describe(data);
+        if(seen.stage!=='toolpath'||!state.program||state.programError||!seen.outputId||seen.outputId!==state.outputId)return describe(data);
         data.gates[data.step]=true;data.viewSignature=state.workEvidence.inputKey;await save(progress,data);
       }
       if([L.geometry,L.settings].includes(data.step)){

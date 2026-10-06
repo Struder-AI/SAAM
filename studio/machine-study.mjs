@@ -1,5 +1,4 @@
 // Read-only adapter into the existing Studio, with no delivery path.
-import {authoredWorkIdentity,preparedWorkEvidence} from '../core/print/work-evidence.mjs';
 import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createHash} from 'node:crypto';
@@ -23,21 +22,21 @@ export async function loadBundle(dir,{program=true,allSources=false}={}){
   if(plan.schema!=='saam-machine-study/1'||plan.output!=='machine-study')throw Error('Invalid machine study plan');
   const name='motion.json';
   if(source!==undefined&&checked.study?.source!==source)checked.study={source,program:withTravelAdvisory(interpretMachineStudy(source))};
-  const decoded=source===undefined?null:checked.study.program,revision=hash(planText+machineText),exportHash=source===undefined?undefined:hash(source),bounds=plan.studyBounds;
+  const decoded=source===undefined?null:checked.study.program,revision=hash(planText+machineText),outputId=source===undefined?undefined:hash(source),bounds=plan.studyBounds;
   if(!bounds||!['min','max'].every(k=>bounds[k]?.length===3&&bounds[k].every(Number.isFinite)))throw Error('Study needs finite display bounds');
-  const sources=source===undefined?[]:[{name,sha256:exportHash}];
+  const sources=source===undefined?[]:[{name,sha256:outputId}];
   const vertices=Array.from({length:8},(_,i)=>[0,1,2].map(j=>bounds[(i>>j)&1?'max':'min'][j]));
   const geometry={geometryVersion:revision,boundsMm:bounds,vertices,faces:[],labels:[],edges:[],roof:null};
-  const geometryHash=hash(JSON.stringify(bounds));
-  const state={kind:'wedge',plan,machine,revision,generationHash:revision,exportHash,geometry,geometryHash,geometryInputHash:geometryHash,pathSummary:{planarLayers:0},
+  const geometryId=hash(JSON.stringify(bounds));
+  const state={kind:'wedge',plan,machine,revision,editRevision:revision,outputId,geometry,geometryId,geometryInputId:geometryId,pathSummary:{planarLayers:0},
     outputAvailability:'Simulation only; machine output is unavailable.',
-    review:{generation:{mode:'development',generationHash:revision,exportHash}},
+    review:{generation:{id:outputId,mode:'development',editRevision:revision}},
     inspection:{title:machine.name,description:'Nominal mechanism study · inspect source motion and machine geometry.',
       facts:[['Machine',machine.name],...(decoded?[['Motion',decoded.seconds+' seconds']]:[]),['Source','Authored mechanism study']],settings:[['Model',machine.kinematicModel?.basis??'Nominal profile']],
       note:'Simulation only. No machine delivery or hardware execution.'}};
-  state.workEvidence=preparedWorkEvidence(authoredWorkIdentity(plan,machine),revision,state.review.generation);
-  if(decoded)state.completedOutput={id:hash(JSON.stringify([revision,exportHash])),current:true,plan,machine,geometry,geometryHash,geometryInputHash:geometryHash,
-    generationHash:revision,exportHash,review:state.review,exportName:name,limitations:[]};
+  state.workEvidence={schema:'saam-work-evidence/1',revision,inputKey:revision,geometryKey:geometryId,generationKey:outputId??null,editRevision:revision};
+  if(decoded)state.completedOutput={id:outputId,current:true,plan,machine,geometry,geometryId,geometryInputId:geometryId,
+    editRevision:revision,outputId,review:state.review,exportName:name,limitations:[]};
   if(program)state.program=structuredClone(program==='source'?{sources,summary:decoded.summary,notice:decoded.notice}:{...decoded,sources});
   if(allSources)state.sources={[name]:source};return state;
 }

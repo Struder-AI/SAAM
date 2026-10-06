@@ -10,7 +10,7 @@ async function bind(state){
   worker.provider?.dispose();worker.provider=null;
   try{
     worker.provider=await createMachinePresentation({program:worker.program,machine:state.machine,setup:state.plan.setup,
-      sourceIdentity:{printId:state.printId,revision:String(state.revision),exportHash:state.exportHash}});
+      sourceIdentity:{printId:state.printId,revision:String(state.revision),outputId:state.outputId}});
     return {descriptor:worker.provider?.descriptor??null};
   }catch(error){worker.provider?.dispose();worker.provider=null;return {descriptor:null,machineError:error.message};}
 }

@@ -16,9 +16,9 @@ function reportProgress(progress){
   parentPort.postMessage({type:'progress',value:progress});
 }
 try{
-  const {directory,generationHash,development,instance}=workerData;
+  const {directory,editRevision,development,instance}=workerData;
   const prepared=await prepareGeneration(directory,{onProgress:reportProgress});
-  if(prepared.generationHash!==generationHash)throw Error('The prepared print changed. Reload before generating.');
+  if(prepared.editRevision!==editRevision)throw Error('The prepared print changed. Reload before generating.');
   const commit=()=>commitGeneration(directory,prepared,{development,onProgress:reportProgress,beforeCommit});
   const value=instance?await withBundleInstance(directory,instance,commit):await commit();
   parentPort.postMessage({type:'result',value});

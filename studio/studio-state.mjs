@@ -5,8 +5,8 @@ async function adoptProgramState(next,{presentation,decode,bind}){
   if(!next.program)return next;
   if(!completedOutputState(next).available)return {...next,program:null};
   const identity=presentationIdentity(next),shown=outputView(next);
-  const reusable=presentation?.identity.printId===identity.printId&&presentation.identity.exportHash===identity.exportHash
-    &&presentation.identity.generationHash===identity.generationHash&&presentation.program;
+  const reusable=presentation?.identity.printId===identity.printId&&presentation.identity.outputId===identity.outputId
+    &&presentation.identity.editRevision===identity.editRevision&&presentation.program;
   try{
     if(reusable){
       await bind?.(shown);
@@ -23,7 +23,7 @@ async function adoptProgramState(next,{presentation,decode,bind}){
 async function adoptNeutralPath(next,{presentation,decodeNeutral}){
   if(next.completedOutput||next.program||next.programViewError||next.artifacts?.path!=='current'||!next.review?.path)return next;
   const reusable=presentation?.identity.printId===next.printId
-    &&presentation.identity.pathHash===next.review.path.hash&&presentation.program?.neutral;
+    &&presentation.identity.pathId===next.review.path.id&&presentation.program?.neutral;
   if(reusable)return {...next,neutralProgram:presentation.program};
   try{return {...next,neutralProgram:await decodeNeutral(next)};}
   catch(error){return {...next,neutralPathError:error.message};}

@@ -1,4 +1,3 @@
-import {canonicalHash} from '../canonical-json.mjs';
 import {resolveSpatialPlan} from '../print/spatial-inputs.mjs';
 
 export const PATH_CONTRACT='saam-deposition/13';
@@ -13,7 +12,4 @@ export function pathDependencies(plan){
     filaments:setup?.bambu?.filaments?.map(entry=>entry?{nozzleC:entry.nozzleC??null,process:entry.process??{}}:null)??null};
   const skills=Object.fromEntries(Object.entries(plan.skills??{}).filter(([id,config])=>!['supports','plastic-weld'].includes(id)||config?.enabled));
   return {plan:{...authored,skills,materialIntent},contract:PATH_CONTRACT,completion:NEUTRAL_PATH_CONTRACT};
-}
-export function pathInputHash(plan){
-  return canonicalHash(pathDependencies(plan));
 }

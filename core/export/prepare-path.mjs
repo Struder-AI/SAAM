@@ -111,7 +111,7 @@ export function prepareExportPath(path,plan,machine){
     motion.actions.push(action);
   }
   if(relocating)motion.travel(neutralFrom);
-  const prepared={...path,completion:{contract:PREPARED_PATH_CONTRACT,sourceHash:path.completion.inputHash},
+  const prepared={...path,completion:{contract:PREPARED_PATH_CONTRACT},
     initialPosition:start,...(plan.setup.denso?{initialPose:plan.setup.denso.initialPose}:{}),
     actions:limitedFeed(start,motion.actions,machine),summary:{...path.summary,boundsMm:geometryBounds}};
   if(!oriented)delete prepared.initialPose;

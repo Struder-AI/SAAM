@@ -71,7 +71,7 @@ export const workflows={
       const post=async(path,body)=>{const r=await fetch(origin+'/api/'+path,{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token,'Content-Type':'application/json'},body:JSON.stringify(body)});return {status:r.status,text:await r.text()};};
       let state=await get('state');
       await fetch(origin+'/studio/app.mjs');
-      const generated=await post('generate',{printId:state.printId,generationHash:state.generationHash});
+      const generated=await post('generate',{printId:state.printId,editRevision:state.editRevision});
       if(generated.status!==200)throw Error('Studio generation failed: '+generated.text);
       state=await get('state');
       await get('preparation');

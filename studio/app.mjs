@@ -23,7 +23,7 @@ const NO_PRINT='Open a print, import STL or ask your agent to make a part.';
 const studioTitle=printName=>'SAAM Studio '+location.port+(printName?' · '+printName:'');
 document.title=document.title.replace('SAAM Studio',studioTitle());
 const exportedThisSession=new Set();
-const exportKey=()=>printSync.state?.printId+':'+printSync.state?.exportHash;
+const exportKey=()=>printSync.state?.printId+':'+printSync.state?.outputId;
 // Page state, one record per owner: the print and its server sync, Studio-run
 // work, what the view shows, the orbit camera, playback, and the machine pose.
 const printSync={state:undefined,stateTag:null,stateUpdate:0,loadedUpdate:0,polling:false,reconnecting:false,changeTimer:undefined,stateFallbackTimer:undefined,progressFallbackTimer:undefined,progressPolling:false};
@@ -107,7 +107,7 @@ function requestMachinePose(){
 const viewStorageKey=()=> 'saam-view:'+printSync.state?.printId;
 function saveView(){
   if(!printSync.state||playState.movieController)return;
-  try{sessionStorage.setItem(viewStorageKey(),JSON.stringify({exportHash:printSync.state.exportHash,yaw:orbitView.yaw,tilt:orbitView.tilt,zoom:orbitView.zoom,pan:orbitView.pan,fitBounds:orbitView.fitBounds,seconds:playState.seconds,tab:viewState.tab,
+  try{sessionStorage.setItem(viewStorageKey(),JSON.stringify({outputId:printSync.state.outputId,yaw:orbitView.yaw,tilt:orbitView.tilt,zoom:orbitView.zoom,pan:orbitView.pan,fitBounds:orbitView.fitBounds,seconds:playState.seconds,tab:viewState.tab,
     speed:Number($('#playback-speed').value),previousLayerOpacity:Number($('#previous-layer-opacity').value),travel:$('#travel').checked,followPlate:$('#follow-plate').checked,machineCameras:cameras.snapshot(cameraState())}));}catch{}
 }
 function restoreView(){
@@ -120,7 +120,7 @@ function restoreView(){
     if(Number.isFinite(saved.previousLayerOpacity))$('#previous-layer-opacity').value=saved.previousLayerOpacity;
     $('#previous-layer-opacity-label').value=$('#previous-layer-opacity').value+'%';
     $('#travel').checked=saved.travel===true;$('#follow-plate').checked=saved.followPlate!==false;
-    if(saved.exportHash===printSync.state.exportHash){
+    if(saved.outputId===printSync.state.outputId){
       if(Number.isFinite(saved.seconds))playState.seconds=Math.max(0,Math.min(duration(),saved.seconds));
       if(saved.fitBounds?.min?.length===3&&saved.fitBounds?.max?.length===3&&[...saved.fitBounds.min,...saved.fitBounds.max].every(Number.isFinite))orbitView.fitBounds=saved.fitBounds;
       if(['geometry','toolpath'].includes(saved.tab)&&(saved.tab!=='toolpath'||printSync.state.program||printSync.state.neutralProgram))viewState.tab=saved.tab;
@@ -293,7 +293,7 @@ function partBounds() {
 
 async function api(route,data) {
   const target=(route==='generate'||route==='tour'&&!['finish','finish-view'].includes(data?.action)&&(data?.step??printSync.state?.tour?.step)>=L.playback)
-    ?{printId:printSync.state?.printId,generationHash:route==='generate'?data?.generationHash:null}:null;
+    ?{printId:printSync.state?.printId,editRevision:route==='generate'?data?.editRevision:null}:null;
   if(target)studioWork.generationTarget=target;
   try{
     const response=await fetch('/api/'+route,{method:'POST',headers:{'Content-Type':'application/json','X-SAAM-Token':token},body:JSON.stringify({...data,printId:printSync.state?.printId})});
@@ -313,8 +313,8 @@ async function pollPreparation(){
 function applyProgress(job,target=studioWork.generationTarget){
   if(printSync.state&&job?.printId===printSync.state.printId){printSync.state.outputGenerating=['preparing','generating'].includes(job.status);render();}
   if(!target||studioWork.generationTarget!==target||!job||job.studioInstanceId&&printSync.state&&job.studioInstanceId!==printSync.state.instanceId
-    ||job.printId!==target.printId||target.generationHash&&job.generationHash!==target.generationHash)return;
-  target.generationHash??=job.generationHash;
+    ||job.printId!==target.printId||target.editRevision&&job.editRevision!==target.editRevision)return;
+  target.editRevision??=job.editRevision;
   target.jobId??=job.jobId;
   $('#cancel-generation').hidden=!job.cancellable;
   clearInterval(studioWork.importElapsedTimer);studioWork.importElapsedTimer=null;
@@ -330,7 +330,7 @@ function applyProgress(job,target=studioWork.generationTarget){
 $('#cancel-generation').onclick=async()=>{
   const target=studioWork.generationTarget;if(!target)return;
   $('#cancel-generation').disabled=true;
-  try{const result=await(await api('cancel-calculation',{jobId:target.jobId,generationHash:target.generationHash})).json();
+  try{const result=await(await api('cancel-calculation',{jobId:target.jobId,editRevision:target.editRevision})).json();
     if(result.cancelled){if(printSync.state&&result.kind==='generation')printSync.state.generationCancelled=true;message(result.kind==='import'?'Cancelling import…':'Toolpath calculation cancelled.');}
     else if(result.committing)message('The calculation finished; saving its checked file.');
   }catch(error){message(error.message,true);}finally{$('#cancel-generation').disabled=false;}
@@ -345,7 +345,7 @@ async function loadAndAdoptStudioState(follow=false,reopen=false,fetchedState=nu
   }
   const loaded=printSync.state?.printId===fetched.printId?printSync.state:null,previous=!reopen?loaded:null;
   agentUI.received(fetched.work);
-  const presentationChanged=!previous||previous.generationHash!==fetched.generationHash||previous.exportHash!==fetched.exportHash
+  const presentationChanged=!previous||previous.editRevision!==fetched.editRevision||previous.outputId!==fetched.outputId
     ||previous.geometry?.geometryVersion!==fetched.geometry?.geometryVersion;
   if(presentationChanged)clearManual();
   const scenes=viewer.sceneState();
@@ -386,7 +386,7 @@ async function ensureTourGeneration(follow=false){
   if(needsTourToolpath(printSync.state)){
     activity('Preparing your toolpath…');
     try{
-      await api('generate',{development:false,generationHash:printSync.state.generationHash});
+      await api('generate',{development:false,editRevision:printSync.state.editRevision});
       await presentStudioState(await loadAndAdoptStudioState(follow));
     }
     catch(error){printSync.state.generationError=error.message;message(error.message,true);render();}
@@ -437,7 +437,7 @@ async function decodeInWorker(snapshot){
   activity('Loading your toolpath…');
   machinePose.machineSession?.dispose();machinePose.requestingPose=null;
   machinePose.machineSession=sourceSession(new Worker('/studio/source-worker.mjs',{type:'module'}));
-  return machinePose.machineSession.load({printId:snapshot.printId,revision:snapshot.revision,exportHash:snapshot.exportHash,
+  return machinePose.machineSession.load({printId:snapshot.printId,revision:snapshot.revision,outputId:snapshot.outputId,
     plan:snapshot.plan,machine:snapshot.machine,inspection:snapshot.pathSummary?.inspection,
     program:{sources:snapshot.program.sources}});
 }
@@ -710,7 +710,7 @@ $('#stl-file').onchange=async()=>{
   if(file.size>64*1024*1024){message('Choose an STL file up to 64 MiB.',true);return;}
   try{await working('Importing your STL…',async()=>{
     const query=new URLSearchParams({name:file.name,...(printSync.state?{printId:printSync.state.printId}:{})});
-    const target={printId:printSync.state?.printId??null,generationHash:null};studioWork.generationTarget=target;
+    const target={printId:printSync.state?.printId??null,editRevision:null};studioWork.generationTarget=target;
     let response;
     try{response=await fetch('/api/import-stl?'+query,{method:'POST',headers:{'X-SAAM-Token':token,'Content-Type':'application/octet-stream'},body:file});}
     finally{if(studioWork.generationTarget===target){studioWork.generationTarget=null;$('#cancel-generation').hidden=true;}}

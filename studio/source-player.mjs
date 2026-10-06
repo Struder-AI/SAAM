@@ -25,7 +25,7 @@ export function decodeSource(sources,plan,machine,{inspection=null}={}) {
 
 export async function fetchSources(state,fetcher=fetch,cryptoApi=globalThis.crypto) {
   const sources={};
-  const query=new URLSearchParams({printId:state.printId,revision:state.revision,exportHash:state.exportHash});
+  const query=new URLSearchParams({printId:state.printId,revision:state.revision,outputId:state.outputId});
   const response=await fetcher('/api/sources?'+query);
   if(!response.ok)throw new Error((await response.json()).error);
   const expected=new Map(state.program.sources.map(s=>[s.name,s.sha256])),decoder=new TextDecoder('utf-8',{fatal:true});

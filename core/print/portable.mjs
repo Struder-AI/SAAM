@@ -6,7 +6,7 @@ import {createTemporaryWorkspace} from '../application/temporary-workspace.mjs';
 import {dirname,resolve} from 'node:path';
 import {packZip,unpackZip} from '../export/zip.mjs';
 import {writeNewFile} from '../file-write.mjs';
-import {initBundle,loadBundle,bundleFingerprint} from './bundle.mjs';
+import {initBundle,loadBundle} from './bundle.mjs';
 import {withBundleInstance,requireBundleInstance} from './studio-ownership.mjs';
 import {recordBundleRuntime} from './bundle-runtime.mjs';
 import {requiredExtensionIds} from '../path/extension-dependencies.mjs';
@@ -74,13 +74,11 @@ function checkSources(document,files){
   const sources=sourceRecords(document.geometry);
   if(new Set(sources.map(source=>source.sha256)).size>1)
     throw Error('This bundle records multiple distinct STL sources, but retains only geometry/source.stl. Supply a self-contained source recipe before sharing.');
-  for(const source of sources)if(hash(files.get('geometry/source.stl'))!==source.sha256)
-    throw Error('Retained original STL differs from the recipe source.');
 }
 
 export async function shareBundle(directory,packageFile,options={}){
   options.progress?.({stage:'Reading editable bundle inputs'});
-  const state=await loadBundle(directory,{program:false}),before=state.fingerprints.source;
+  const state=await loadBundle(directory,{program:false}),before=state.revision;
   const document={...state.plan,bundle:{schema:'saam-print-bundle/2',machine:state.machine}};
   const files=new Map([['plan.json',json(document)]]);
   for(const name of inputNames(document).slice(1))files.set(name,await readInput(state.dir,name));
@@ -103,7 +101,7 @@ export async function shareBundle(directory,packageFile,options={}){
       validateExtensionPaths(record);
       files.set(name,bytes);
     }
-    if(await bundleFingerprint(directory,{program:false})!==before)throw Error('The bundle changed during sharing. Retry with the current revision.');
+    if((await loadBundle(directory,{program:false})).revision!==before)throw Error('The bundle changed during sharing. Retry with the current revision.');
     const inventory=[...files].map(([path,bytes])=>({path,sha256:hash(bytes),bytes:bytes.length}));
     const metadata={schema:SCHEMA,extensions:extensions.map(({id,digest,manifest})=>({id,digest,
       version:manifest.version??null,file:`extensions/${id}.json`})),files:inventory};

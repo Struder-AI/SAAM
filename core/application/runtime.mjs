@@ -96,11 +96,11 @@ export function summary(bundleId, state) {
   const programChecked=state.programChecked!==false;
   const lifecycle=lifecycleReview(state,{programChecked});
   return {
-    bundleId, kind: state.kind, revision: state.revision, editRevision:state.editRevision, geometryHash:state.geometryHash,
+    bundleId, kind: state.kind, revision: state.revision, editRevision:state.editRevision, geometryId:state.geometryId,
     machineId: state.machine?.id??null, output: state.plan.output, skills: state.skills,
     programChecked,deferRememberSetup:state.deferRememberSetup===true,phaseColours:state.phaseColours??null,
     generation: state.review.generation ? { mode: state.review.generation.mode, current: lifecycle.current } : null,
-    programError: state.programError ?? null, exportHash: state.exportHash ?? null,
+    programError: state.programError ?? null, outputId: state.outputId ?? null,
     shortTravel: state.program?.summary?.shortTravel ?? null,
     outputAvailability: state.outputAvailability, limitations: state.limitations,
     nextStep: !state.machine?'Supply the machine, material and recipe components needed for the requested operation.':lifecycle.action==='check'?'Open Studio or check_bundle to check the current export.'
@@ -498,7 +498,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
         const result=call.result;
         if(started!==null)reportOperation({kind:'operation',name,status:'completed',durationMs:Date.now()-started,readOnly:definition.readOnly,
           parameters:diagnosticFields(input,['bundleId','kind','machineId','units','action','expectedRevision','skillId','extensionId','workspaceInstanceId']),
-          result:diagnosticFields(result,['revision','geometryHash','generationHash','exportHash','programChecked','imported','status','workspaceInstanceId','jobId'])});
+          result:diagnosticFields(result,['revision','geometryId','editRevision','outputId','programChecked','imported','status','workspaceInstanceId','jobId'])});
         if(result&&typeof result==='object'&&!Array.isArray(result)&&!['get_studio_events','wait_for_studio_request'].includes(name)){
           if(!definition.immediate){const pending=await agentRequests.query({status:'queued'});if(pending.length)call.result={...call.result,studioRequests:pending.map(agentRequest)};}
           // Delivered events push at once; every tool result also carries whatever is still queued.
@@ -840,7 +840,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   async function getStudioRequests({bundleId,...options}){return {requests:(await agentRequests.query({...options,printId:bundleId})).map(agentRequest)};}
   operation('get_studio_sessions','List live Studio instances owned exclusively by this agent. One agent may own several instances; print bundles remain shareable across agents.',{});
   async function getStudioSessions(){return {sessions:[...studioSessions.values()].map(({server:studio,url})=>({...agentStudioSession(studio.agentSession()),url}))};}
-  operation('cancel_studio_calculation','Cancel a live geometry, import/automatic repair or toolpath calculation. Supply studioInstanceId for Studio work, including toolpath generation; omit it for a tool geometry calculation or import. First read get_studio_events for its identity, elapsedMs and actual progress; pass the geometry/import jobId or the toolpath generationHash. Repairs have no reliable remaining-time estimate and continue unless cancelled. Explain your decision to the person. Cancellation interrupts work and cleans incomplete imports; it does not change the previously open print.',{studioInstanceId:z.string().optional(),jobId:z.string().optional(),generationHash:z.string().optional()},false);
+  operation('cancel_studio_calculation','Cancel a live geometry, import/automatic repair or toolpath calculation. Supply studioInstanceId for Studio work, including toolpath generation; omit it for a tool geometry calculation or import. First read get_studio_events for its identity, elapsedMs and actual progress; pass the geometry/import jobId or the toolpath editRevision. Repairs have no reliable remaining-time estimate and continue unless cancelled. Explain your decision to the person. Cancellation interrupts work and cleans incomplete imports; it does not change the previously open print.',{studioInstanceId:z.string().optional(),jobId:z.string().optional(),editRevision:z.string().optional()},false);
   async function cancelStudioCalculation({studioInstanceId,...identity}){
       if(!studioInstanceId){
         const calculation=calculations.get(identity.jobId);

@@ -1475,10 +1475,6 @@
       "owner": "development",
       "reason": "Release build packaging of the native mesh repair helper (source identity and target architecture checks); build tooling."
     },
-    "core/print/work-evidence.mjs": {
-      "owner": "bundle",
-      "reason": "Prepared authored-input and retained output identity evidence owned by Bundle."
-    },
     "core/application/local-agent-notes.mjs": {
       "owner": "application",
       "reason": "Shared local agent notes for all roles belong to the selected SAAM home; Application owns concurrent Markdown update identity."
@@ -5151,10 +5147,6 @@
       "owner": "bundle",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
-    "core/print/workflow.mjs::approvedReview": {
-      "owner": "bundle",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
     "core/print/workflow.mjs::createBundleWorkflow": {
       "owner": "bundle"
     },
@@ -5162,19 +5154,7 @@
       "owner": "bundle",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
-    "core/print/workflow.mjs::createBundleWorkflow::approve": {
-      "owner": "bundle",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
     "core/print/workflow.mjs::createBundleWorkflow::bundleFiles": {
-      "owner": "bundle",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
-    "core/print/workflow.mjs::createBundleWorkflow::bundleFingerprint": {
-      "owner": "bundle",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
-    "core/print/workflow.mjs::createBundleWorkflow::bundleFingerprints": {
       "owner": "bundle",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
@@ -5187,10 +5167,6 @@
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
     "core/print/workflow.mjs::createBundleWorkflow::currentGenerationCandidate": {
-      "owner": "bundle",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
-    "core/print/workflow.mjs::createBundleWorkflow::deliver": {
       "owner": "bundle",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
@@ -5258,10 +5234,6 @@
       "owner": "bundle",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
-    "core/print/workflow.mjs::createBundleWorkflow::programKey": {
-      "owner": "bundle",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
     "core/print/workflow.mjs::createBundleWorkflow::promoteReviewedGeneration": {
       "owner": "bundle",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
@@ -5294,10 +5266,6 @@
       "owner": "bundle",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
-    "core/print/workflow.mjs::createBundleWorkflow::validateBundleInput": {
-      "owner": "bundle",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
     "core/print/workflow.mjs::createBundleWorkflow::validatePlanUpdate": {
       "owner": "bundle",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
@@ -5314,18 +5282,6 @@
       "owner": "bundle"
     },
     "core/print/workflow.mjs::machineChangedReview": {
-      "owner": "bundle",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
-    "core/print/workflow.mjs::migrateChecks": {
-      "owner": "bundle",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
-    "core/print/workflow.mjs::migratedIdentity": {
-      "owner": "bundle",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
-    "core/print/workflow.mjs::migrateReview": {
       "owner": "bundle",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
@@ -8424,9 +8380,6 @@
     "core/print/import-stl.mjs::commitSTLImport": {
       "owner": "bundle"
     },
-    "core/print/workflow.mjs::hashFile": {
-      "owner": "bundle"
-    },
     "core/print/extension-edits.mjs::prepareExtensionEdit": {
       "owner": "bundle",
       "reason": "Dispatches engine preparation and accepts one revisioned proposal; geometry-only results bypass Toolpath."
@@ -8529,27 +8482,11 @@
       "owner": "bundle",
       "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
     },
-    "core/print/revisions.mjs::digest": {
-      "owner": "bundle",
-      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
-    },
-    "core/print/revisions.mjs::readRecord": {
-      "owner": "bundle",
-      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
-    },
     "core/print/revisions.mjs::restoreContent": {
       "owner": "bundle",
       "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
     },
     "core/print/revisions.mjs::retainContent": {
-      "owner": "bundle",
-      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
-    },
-    "core/print/revisions.mjs::revisionOf": {
-      "owner": "bundle",
-      "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
-    },
-    "core/print/revisions.mjs::storeRecord": {
       "owner": "bundle",
       "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
     },
@@ -11156,9 +11093,6 @@
     "core/print/spatial-inputs.mjs::curveKeys": {
       "owner": "bundle"
     },
-    "core/print/spatial-inputs.mjs::geometryInput": {
-      "owner": "bundle"
-    },
     "core/print/spatial-inputs.mjs::normalizeSpatialPlan": {
       "owner": "bundle"
     },
@@ -11791,23 +11725,8 @@
     "core/export/registry.mjs::readProgramSources::source": {
       "owner": "export"
     },
-    "core/print/work-evidence.mjs::@module": {
-      "owner": "bundle"
-    },
     "core/application/local-agent-notes.mjs::@module": {
       "owner": "application"
-    },
-    "core/print/work-evidence.mjs::authoredWorkIdentity": {
-      "owner": "bundle",
-      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
-    },
-    "core/print/work-evidence.mjs::completedOutputIdentity": {
-      "owner": "bundle",
-      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
-    },
-    "core/print/work-evidence.mjs::preparedWorkEvidence": {
-      "owner": "bundle",
-      "reason": "Coder-assigned Map0 owner for Bundle evidence, shared home notes or last-export setup (2026-10-04); anonymous bodies inherit their nearest stable declaration."
     },
     "core/application/local-agent-notes.mjs::notesRevision": {
       "owner": "application",
@@ -13311,6 +13230,33 @@
     },
     "core/application/chat-requests.mjs::createChatChannel": {
       "owner": "application"
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::inputIds": {
+      "owner": "bundle"
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::savedBundle": {
+      "owner": "bundle"
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::pathInput": {
+      "owner": "bundle"
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::placementKey": {
+      "owner": "bundle"
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::stateIds": {
+      "owner": "bundle"
+    },
+    "core/print/revisions.mjs::exists": {
+      "owner": "bundle"
+    },
+    "core/print/revisions.mjs::descriptorFile": {
+      "owner": "bundle"
+    },
+    "core/print/revisions.mjs::saveDescriptor": {
+      "owner": "bundle"
+    },
+    "core/print/spatial-inputs.mjs::placementInput": {
+      "owner": "bundle"
     }
   },
   "retiredAssignments": [

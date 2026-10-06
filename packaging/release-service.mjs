@@ -39,7 +39,7 @@ const newer=(candidate,current)=>{
 };
 const errorMessage=error=>String(error?.message??error);
 const studioEvent=event=>{
-  const keys=['kind','seq','at','delivery','studioInstanceId','workspaceInstanceId','extensionId','extensionDigest','printId','bundleId','jobId','generationHash','exportHash','stage','phase','elapsedMs','durationMs','error','cancelled','importDiagnostic','runtimeId','runtimeLabel'];
+  const keys=['kind','seq','at','delivery','studioInstanceId','workspaceInstanceId','extensionId','extensionDigest','printId','bundleId','jobId','editRevision','outputId','stage','phase','elapsedMs','durationMs','error','cancelled','importDiagnostic','runtimeId','runtimeLabel'];
   return Object.fromEntries(keys.filter(key=>Object.hasOwn(event,key)).map(key=>[key,event[key]]));
 };
 function serviceOrigin(value){

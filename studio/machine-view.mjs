@@ -3,14 +3,14 @@ import {dot,cross,invert,point} from '../core/geom/frame.mjs';
 
 const roles=new Set(['structure','rail','link','carriage','joint','bed','tool']);
 const vector=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite);
-export const bindingKey=b=>JSON.stringify([b?.printId,b?.revision,b?.exportHash,b?.modelKey]);
+export const bindingKey=b=>JSON.stringify([b?.printId,b?.revision,b?.outputId,b?.modelKey]);
 function require(value,message){if(!value)throw Error('Machine presentation: '+message);}
 function validatePresentationRigid(t){
   require(t&&vector(t.translationMm)&&Array.isArray(t.rotation)&&t.rotation.length===3&&t.rotation.every(vector),'invalid rigid frame');
   const r=t.rotation;
   require(r.every((row,i)=>r.every((other,j)=>Math.abs(dot(row,other)-(i===j?1:0))<=1e-6))&&Math.abs(dot(r[0],cross(r[1],r[2]))-1)<=1e-6,'frame must be a right-handed rotation');
 }
-function binding(b){require(b&&['printId','revision','exportHash','modelKey'].every(k=>typeof b[k]==='string'),'missing model/source identity');}
+function binding(b){require(b&&['printId','revision','outputId','modelKey'].every(k=>typeof b[k]==='string'),'missing model/source identity');}
 // Whether a component shape is a supported primitive with valid dimensions.
 function validPrimitive(s){
   const positive=v=>Number.isFinite(v)&&v>0,nonnegative=v=>Number.isFinite(v)&&v>=0;

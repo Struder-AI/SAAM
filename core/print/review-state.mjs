@@ -2,7 +2,7 @@
 // the bundle workflow. This projection never validates output or grants approval.
 export function completedOutputState(state,{generating=state.outputGenerating===true}={}){
   const output=state.completedOutput;
-  const geometryMatches=Boolean(output)&&(state.geometryInputHash??state.geometryHash??null)===(output.geometryInputHash??output.geometryHash??null);
+  const geometryMatches=Boolean(output)&&state.geometryInputId===output.geometryInputId;
   const available=geometryMatches&&Boolean(state.program)&&!state.programError&&!state.programViewError;
   const current=available&&output.current;
   const phase=generating?'generating':!geometryMatches&&output?'geometry-changed':available?(current?'current':'previous'):'empty';

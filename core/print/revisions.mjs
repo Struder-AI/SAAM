@@ -1,49 +1,46 @@
 // Bundle-owned immutable records and the single manifest commit boundary.
-import {readFile} from 'node:fs/promises';
+import {readFile,access} from 'node:fs/promises';
 import {resolve} from 'node:path';
-import {createHash,randomUUID} from 'node:crypto';
+import {randomUUID} from 'node:crypto';
 import {replaceFile} from '../file-write.mjs';
-import {canonicalJson} from '../canonical-json.mjs';
 import {requireBundleInstance} from './studio-ownership.mjs';
 import {withBundleWriteLock} from './bundle-lock.mjs';
 import {recordBundleRuntime} from './bundle-runtime.mjs';
 
-export const digest=value=>createHash('sha256').update(typeof value==='string'||value instanceof Uint8Array?value:JSON.stringify(value)).digest('hex');
-export async function storeRecord(dir,value){
-  const bytes=JSON.stringify(value),id=digest(bytes),file=resolve(dir,`history/${id}.json`);
-  try{if(digest(await readFile(file))!==id)throw Error('Bundle history record changed.');}
-  catch(error){if(error.code!=='ENOENT')throw error;await replaceFile(file,bytes);}
+const exists=file=>access(file).then(()=>true,error=>{if(error.code==='ENOENT')return false;throw error;});
+// A geometry artifact's descriptor, written once beside it, so history refers to
+// the artifact instead of copying its mesh.
+export const descriptorFile=geometry=>geometry.file.replace(/\.(?:3dm|mesh\.json)$/,'.descriptor.json');
+export async function saveDescriptor(dir,geometry){
+  const file=resolve(dir,descriptorFile(geometry));
+  if(!await exists(file))await replaceFile(file,JSON.stringify(geometry.descriptor));
+}
+
+// One history record per snapshot: the recipe without its shape, the machine,
+// a reference to the geometry artifact, the path and program, and the input ids.
+export async function retainContent(dir,{plan,machine,geometry,review,ids}){
+  const {geometry:_shape,...recipe}=plan,id=randomUUID();
+  if(geometry)await saveDescriptor(dir,geometry);
+  await replaceFile(resolve(dir,`history/${id}.json`),JSON.stringify({recipe,machine,
+    geometry:geometry?{id:geometry.id,file:geometry.file}:null,path:review.path??null,generation:review.generation??null,ids}));
   return id;
 }
-export async function readRecord(dir,id){
-  if(!/^[a-f0-9]{64}$/.test(id))throw Error('Invalid bundle history reference.');
-  const bytes=await readFile(resolve(dir,`history/${id}.json`));
-  if(digest(bytes)!==id)throw Error('Bundle history record changed.');
-  return JSON.parse(bytes);
-}
-export async function retainContent(dir,{plan,machine,geometry,review}){
-  const {geometry:shape,...recipe}=plan;
-  return storeRecord(dir,{recipe:await storeRecord(dir,recipe),shape:shape?await storeRecord(dir,shape):null,
-    machine:machine?await storeRecord(dir,machine):null,geometry:geometry?await storeRecord(dir,geometry):null,
-    path:review.path??null,generation:review.generation?await storeRecord(dir,review.generation):null});
-}
-export async function restoreContent(dir,id){
-  const saved=await readRecord(dir,id),plan=await readRecord(dir,saved.recipe);
-  if(saved.shape)plan.geometry=await readRecord(dir,saved.shape);
-  return {...saved,plan,machine:saved.machine?await readRecord(dir,saved.machine):null,
-    geometry:saved.geometry?await readRecord(dir,saved.geometry):null,generation:saved.generation?await readRecord(dir,saved.generation):null};
-}
-export function revisionOf(document){
-  return digest(canonicalJson(document));
+// current: the bundle's geometry artifact, reused when the snapshot refers to it.
+export async function restoreContent(dir,id,current){
+  const saved=JSON.parse(await readFile(resolve(dir,`history/${id}.json`),'utf8'));
+  const geometry=!saved.geometry?null:saved.geometry.id===current?.id?current
+    :{...saved.geometry,descriptor:JSON.parse(await readFile(resolve(dir,descriptorFile(saved.geometry)),'utf8'))};
+  return {...saved,plan:geometry?{...saved.recipe,geometry:geometry.descriptor.parameters}:saved.recipe,geometry};
 }
 // Fail closed on a competing/crashed writer. The lock records its process for
 // explicit recovery; never guess that a slow live writer has expired.
+// expected: the revision the change was made from, or null to create the print.
 export async function commitManifest(dir,document,expected){
   return withBundleWriteLock(dir,async()=>{
     await requireBundleInstance(dir);
     let current=null;
     try{current=JSON.parse(await readFile(resolve(dir,'plan.json'),'utf8'));}catch(error){if(error.code!=='ENOENT')throw error;}
-    if(expected===null?current!==null:!current||revisionOf(current)!==expected)throw Error('This revision is stale. Reload before changing the print.');
+    if(expected===null?current!==null:!current||current.bundle?.revision!==expected)throw Error('This revision is stale. Reload before changing the print.');
     const next={...document,bundle:{...document.bundle,revision:randomUUID()}};
     await replaceFile(resolve(dir,'plan.json'),JSON.stringify(next)+'\n');
     await recordBundleRuntime(dir);

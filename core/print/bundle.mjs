@@ -6,7 +6,7 @@ import {resolvePlanPatch} from './resolve-plan.mjs';
 import {requireGenerationExtensions} from '../path/extension-dependencies.mjs';
 import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
-import {normalizeSpatialPlan,geometryInput} from './spatial-inputs.mjs';
+import {normalizeSpatialPlan,placementInput} from './spatial-inputs.mjs';
 
 const defaults=async machine=>(await import('./plan.mjs')).defaults(machine);
 const createGeometry=async parameters=>(await import('./geometry.mjs')).createGeometry(parameters);
@@ -57,8 +57,8 @@ export async function pathSource(plan){
   } catch(error){if(error.code!=='EXTENSION_MISSING')throw error;return {release:version,hash:null,missing:error};}
 }
 
-export const {root, EXPORT_NAME, atomicManifest, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, bundleFingerprint, bundleFingerprints, migrateBundle, readToolpath, prepareGeneration, commitGeneration, generateToolpath, restoreRevision, checkPathBundle, adjustBundle, updatePlan, generateBundle, exportReviewed, setDeferredSetupSave, setPhaseColours, applySettingsSnapshot}=createBundleWorkflow({
-  kind:'shell',defaults,patchPlan,createGeometry,normalizePlan:normalizeSpatialPlan,geometryInput,presentGeometry,
+export const {root, EXPORT_NAME, atomicManifest, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, migrateBundle, readToolpath, prepareGeneration, commitGeneration, generateToolpath, restoreRevision, checkPathBundle, adjustBundle, updatePlan, generateBundle, exportReviewed, setDeferredSetupSave, setPhaseColours, applySettingsSnapshot}=createBundleWorkflow({
+  kind:'shell',defaults,patchPlan,createGeometry,normalizePlan:normalizeSpatialPlan,placementInput,presentGeometry,
   generatePath:generatePreparedPath,pathDependencies,pathSource,generationContract:PATH_CONTRACT,completionContract:NEUTRAL_PATH_CONTRACT,
   version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode',
   limitations:limitationsFor
