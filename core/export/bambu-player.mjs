@@ -1,4 +1,5 @@
 import {requireThat} from '../private/export/numeric.mjs';
+import {PROGRAM_STEP_MM,PROGRAM_SLACK_MM} from '../dimensions.mjs';
 import {interpretMotion,interpretMotionChunk} from './griffin-player.mjs';
 import {gcodeLines} from './gcode-lines.mjs';
 import {toolBounds} from '../machine/rules.mjs';
@@ -13,7 +14,7 @@ export function interpretBody(body,plan,machine,options={}){
   // Physical T selectors and firmware macros belong only to the pinned envelope.
   for(const line of gcodeLines(body))requireThat(!/^T\d/.test(line.trim()),'Bambu body cannot change the selected tool.');
   const bounds=toolBounds(machine,plan.setup.tool),start=[...machine.tools[plan.setup.tool].startupXY,machine.startup.zAfterStartupMm];
-  requireThat(start.every((v,i)=>v>=bounds.min[i]-1e-5&&v<=bounds.max[i]+1e-5),'Bambu body exceeds selected nozzle area.');
+  requireThat(start.every((v,i)=>v>=bounds.min[i]-PROGRAM_STEP_MM&&v<=bounds.max[i]+PROGRAM_STEP_MM),'Bambu body exceeds selected nozzle area.');
   const program=interpretMotion(body,plan,machine,{...options,extrusionMode:'relative'});
   program.filamentSequence=[plan.setup.bambu.filament];
   program.filamentUsage=[{filament:plan.setup.bambu.filament,tool:plan.setup.tool,volumeMm3:program.volumeMm3}];
@@ -53,8 +54,8 @@ export function interpretMultiBody(body,plan,machine,{moves=[]}={}){
     const sameNozzle=sameNozzleMaterialChanges(machine)&&next.setup.tool===selected.setup.tool;
     requireThat(sameNozzle||!usedTools.has(next.setup.tool)||usedTools.get(next.setup.tool)===incoming,'Changing material within one nozzle requires a separate flushing contract.');
     const lift=machine.outputs.find(o=>o.id==='bambu-gcode').constraints.toolChangeLiftMm;
-    requireThat(position[2]>=maxDepositedZ+lift-1e-5,'Tool change has insufficient deposited-height clearance.');
-    requireThat(Math.abs(result.state.debt-selected.process.retractMm)<1e-4,'Outgoing nozzle must be retracted before tool change.');
+    requireThat(position[2]>=maxDepositedZ+lift-PROGRAM_STEP_MM,'Tool change has insufficient deposited-height clearance.');
+    requireThat(Math.abs(result.state.debt-selected.process.retractMm)<PROGRAM_SLACK_MM,'Outgoing nozzle must be retracted before tool change.');
     const incomingDebt=sameNozzle?next.process.retractMm:debt[next.setup.tool]??0;
     // Service blocks are not simulated; decoding resumes after the delimiter.
     const blockEnd=body.indexOf(CHANGE_END,marker),following=body.indexOf(CHANGE_BEGIN,marker+1);

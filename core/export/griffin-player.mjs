@@ -1,4 +1,5 @@
 import {distance,requireThat} from '../private/export/numeric.mjs';
+import {PROGRAM_SLACK_MM} from '../dimensions.mjs';
 // Shared browser/server decoder. This module never imports path generation.
 
 import {gcodeLines} from './gcode-lines.mjs';
@@ -143,7 +144,7 @@ function applyGcodeCommand(previousState,record,context,source) {
         const startupRecovery=de>0&&debt===0&&startupRecoveryPending;
         const recovered=de>0?Math.min(de,startupRecovery?plan.process.retractMm:debt):0;
         debt=de<0?debt-de:Math.max(0,debt-recovered);
-        if(debt<1e-4)debt=0;
+        if(debt<PROGRAM_SLACK_MM)debt=0;
         if(startupRecovery)startupRecoveryPending=false;
         const withdrawn=de<0?-de:recovered;
         if(withdrawn>0){

@@ -5,12 +5,12 @@ triangle soup, stitches compatible borders and fills holes only within both an
 edge-count limit and a boundary bounding-box diagonal in millimeters. A closed
 surface that crosses itself is replaced by the boundary of its solid. Opposed sheets
 closer than [print resolution](../../README.md#dimensions-and-tolerances) (passed by
-the adapter), such as a cut cap over a cavity floor, are first projected exactly onto
-one fitted plane per group, so they cancel instead of leaving a film. Exact
+the adapter), such as a cut cap over a cavity floor, first move onto one plane per
+group, whose moved points are exact doubles, so they cancel instead of leaving a film. Exact
 autorefinement then splits faces along every crossing; a refined face is kept, facing
 outward, where the winding number is positive on exactly one side. Overlapping shells
 unite, inward shells stay cavities, inside-out files are reversed. Constructed points
-are snap-rounded to doubles; triangles below SAAM's minimum area lose an edge with a
+are snap-rounded to doubles; triangles below SAAM's minimum height lose an edge with a
 constructed end. Other faces keep their source coordinates. A non-manifold, open or
 still intersecting result is refused; partial output is never accepted.
 

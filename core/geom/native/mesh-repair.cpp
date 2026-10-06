@@ -60,8 +60,9 @@ bool segmentMeetsBox(const double a[3],const double b[3],const CGAL::Bbox_3& box
  return true;
 }
 
-// SAAM's mesh contract (core/geom/mesh.mjs) needs |(b-a)x(c-a)| > 1e-10 mm^2.
-// Arrangement corners can leave smaller triangles: each loses its shortest edge
+// SAAM's mesh contract (core/geom/mesh.mjs triangleNormal) needs every triangle's
+// smallest height above numeric conditioning, 1e-9 mm (core/dimensions.mjs).
+// Arrangement corners can leave flatter triangles: each loses its shortest edge
 // with a constructed end, which moves onto the other end. Source vertices stay.
 struct Collapse{std::size_t edges=0,remaining=0;double maxMoveMm=0;};
 Collapse collapseTinyTriangles(Mesh& mesh,std::vector<K::Point_3> source){
@@ -70,7 +71,8 @@ Collapse collapseTinyTriangles(Mesh& mesh,std::vector<K::Point_3> source){
  const auto tiny=[&](Mesh::Face_index f){
   const auto h=mesh.halfedge(f);const auto& a=mesh.point(mesh.source(h));const auto& b=mesh.point(mesh.target(h));const auto& c=mesh.point(mesh.target(mesh.next(h)));
   const double u[3]={b.x()-a.x(),b.y()-a.y(),b.z()-a.z()},v[3]={c.x()-a.x(),c.y()-a.y(),c.z()-a.z()};
-  return std::hypot(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])<=1e-10;
+  const double w[3]={c.x()-b.x(),c.y()-b.y(),c.z()-b.z()},longest=std::sqrt(std::max({u[0]*u[0]+u[1]*u[1]+u[2]*u[2],v[0]*v[0]+v[1]*v[1]+v[2]*v[2],w[0]*w[0]+w[1]*w[1]+w[2]*w[2]}));
+  return std::hypot(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])<=1e-9*longest;
  };
  Collapse out;
  for(bool changed=true;changed;){
@@ -98,10 +100,16 @@ Collapse collapseTinyTriangles(Mesh& mesh,std::vector<K::Point_3> source){
 // knife edges: a cut cap over a cavity floor a few micrometres away. Faces that
 // face each other or away, lie within closeMm of each other's planes and come
 // within closeMm form groups, joined through shared vertices of seeded faces that
-// are coplanar within closeMm. Each group's vertices are projected exactly onto a
-// plane fitted to its seeds, so refinement makes the sheets coincide and opposed
+// are coplanar within closeMm. Each group's vertices move onto one plane near the
+// one fitted to its seeds, so refinement makes the sheets coincide and opposed
 // copies cancel. A vertex moves at most closeMm and only for its largest group.
+// The plane is x[k] = (si*x[i] + sj*x[j] + t) / 2^q with integers si, sj, t and k
+// the normal's dominant axis; a moved vertex has x[i], x[j] on a 2^-grid lattice (where
+// its slope is not zero), so x[k] is a double: moved points stay exactly coplanar
+// doubles and refinement constructs from source-precision coordinates. A plane
+// within closeMm/16 of an axis plane over the part is that axis plane.
 struct Closing{std::size_t groups=0,faces=0,moved=0,unmoved=0;double maxMoveMm=0;};
+struct GridPlane{int k,i,j;long long si,sj,t;};
 Closing closeOpposedSheets(const Mesh& mesh,std::vector<EK::Point_3>& points,double closeMm){
  Closing out;if(!(closeMm>0))return out;
  const std::size_t n=mesh.number_of_faces();
@@ -150,16 +158,23 @@ Closing closeOpposedSheets(const Mesh& mesh,std::vector<EK::Point_3>& points,dou
  // Largest group first, each grows from its seeds over vertex-sharing faces lying
  // within closeMm of its plane (fitted to its seeds, from unmoved points),
  // so a sheet near one plane, such as a whole cut face, closes onto one plane.
- std::vector<long> owner(n,-1);std::vector<EK::Plane_3> planes;
+ std::vector<long> owner(n,-1);std::vector<GridPlane> planes;
+ // |x| < 2^e over the part. Slopes resolve 2^-q, so a plane strays at most
+ // closeMm/16 across the part; |si*mi|, |sj*mj|, |t| < 2^(e+grid+q) = 2^50 keep x[k] exact.
+ double reach=0;for(auto v:mesh.vertices())for(int c=0;c<3;++c)reach=std::max(reach,std::abs(mesh.point(v)[c]));
+ const int e=reach>0?std::ilogb(reach)+1:0,q=e+5+int(std::ceil(std::log2(1/closeMm))),grid=50-e-q;
  for(auto r:order){
   const std::size_t best=*std::max_element(groups[r].begin(),groups[r].end(),[&](std::size_t a,std::size_t b){return area[a]<area[b];});
-  // The plane fits the seeds (area-weighted normal and centroid); its double
-  // coefficients make it exact, so projections onto it are exactly coplanar.
+  // The plane fits the seeds (area-weighted normal and centroid).
   K::Vector_3 sum(0,0,0),centre(0,0,0);double weight=0;
   for(auto f:groups[r]){sum=sum+(normal[f]*normal[best]>=0?area[f]:-area[f])*normal[f];
    centre=centre+area[f]*((shape[f][0]-CGAL::ORIGIN)+(shape[f][1]-CGAL::ORIGIN)+(shape[f][2]-CGAL::ORIGIN))/3;weight+=area[f];}
   const K::Vector_3 unit=sum/std::sqrt(sum.squared_length());const K::Point_3 at=CGAL::ORIGIN+centre/weight;
-  const long k=long(planes.size());planes.emplace_back(unit.x(),unit.y(),unit.z(),-(unit*(at-CGAL::ORIGIN)));
+  const int a=std::abs(unit.x())>=std::abs(unit.y())&&std::abs(unit.x())>=std::abs(unit.z())?0:std::abs(unit.y())>=std::abs(unit.z())?1:2;
+  GridPlane plane{a,(a+1)%3,(a+2)%3,0,0,0};
+  plane.si=std::llround(std::ldexp(-unit[plane.i]/unit[a],q));plane.sj=std::llround(std::ldexp(-unit[plane.j]/unit[a],q));
+  plane.t=std::llround(std::ldexp(at[a]-std::ldexp(double(plane.si),-q)*at[plane.i]-std::ldexp(double(plane.sj),-q)*at[plane.j],grid+q));
+  const long k=long(planes.size());planes.push_back(plane);
   const auto near=[&](std::size_t g){for(auto v:tri[g])if(std::abs(unit*(mesh.point(Mesh::Vertex_index(v))-at))>closeMm)return false;return true;};
   std::vector<std::size_t> queue;
   for(auto f:groups[r])if(owner[f]<0&&near(f)){owner[f]=k;queue.push_back(f);}
@@ -171,10 +186,17 @@ Closing closeOpposedSheets(const Mesh& mesh,std::vector<EK::Point_3>& points,dou
  std::vector<long> vertexGroup(points.size(),-1);
  for(std::size_t f=0;f<n;++f)if(owner[f]>=0)for(auto v:tri[f])if(vertexGroup[v]<0||owner[f]<vertexGroup[v])vertexGroup[v]=owner[f];
  for(std::size_t v=0;v<points.size();++v)if(vertexGroup[v]>=0){
-  const auto& plane=planes[vertexGroup[v]];
-  const double move=std::sqrt(CGAL::to_double(CGAL::squared_distance(points[v],plane)));
+  const auto& plane=planes[vertexGroup[v]];const auto& p=mesh.point(Mesh::Vertex_index(v));
+  // Orthogonal projection (in doubles), then the grid and the exact x[k].
+  const double si=std::ldexp(double(plane.si),-q),sj=std::ldexp(double(plane.sj),-q);
+  const double off=(p[plane.k]-si*p[plane.i]-sj*p[plane.j]-std::ldexp(double(plane.t),-grid-q))/(1+si*si+sj*sj);
+  double x[3];x[plane.k]=0;
+  const auto onGrid=[&](int c,long long s,double y){if(s==0){x[c]=p[c];return 0LL;}const long long m=std::llround(std::ldexp(y,grid));x[c]=std::ldexp(double(m),-grid);return m;};
+  const long long mi=onGrid(plane.i,plane.si,p[plane.i]+off*si),mj=onGrid(plane.j,plane.sj,p[plane.j]+off*sj);
+  x[plane.k]=std::ldexp(double(__int128(plane.si)*mi+__int128(plane.sj)*mj+plane.t),-grid-q);
+  const double move=std::sqrt((x[0]-p[0])*(x[0]-p[0])+(x[1]-p[1])*(x[1]-p[1])+(x[2]-p[2])*(x[2]-p[2]));
   if(move>closeMm){++out.unmoved;continue;}
-  if(move>0){points[v]=plane.projection(points[v]);++out.moved;out.maxMoveMm=std::max(out.maxMoveMm,move);}
+  if(move>0){points[v]=EK::Point_3(x[0],x[1],x[2]);++out.moved;out.maxMoveMm=std::max(out.maxMoveMm,move);}
  }
  return out;
 }
@@ -319,7 +341,7 @@ std::string reconstruct(Mesh& mesh,double closeMm){
  if(!PMP::is_polygon_soup_a_polygon_mesh(kept))throw std::runtime_error("The reconstructed solid touches itself along an edge or at a vertex, so its boundary is not a manifold; no result accepted");
  mesh.clear();PMP::polygon_soup_to_polygon_mesh(rounded,kept,mesh);
  const Collapse collapse=collapseTinyTriangles(mesh,std::move(source));
- if(collapse.remaining)throw std::runtime_error(std::to_string(collapse.remaining)+" reconstructed triangles stay below SAAM's minimum area and cannot be collapsed; no result accepted");
+ if(collapse.remaining)throw std::runtime_error(std::to_string(collapse.remaining)+" reconstructed triangles stay below SAAM's minimum height and cannot be collapsed; no result accepted");
  std::ostringstream report;
  report<<"{\"closing\":{\"method\":\"opposed-sheet-plane/1\",\"toleranceMm\":"<<closeMm<<",\"groups\":"<<closing.groups<<",\"faces\":"<<closing.faces
   <<",\"movedVertices\":"<<closing.moved<<",\"unmovedVertices\":"<<closing.unmoved<<",\"maxDisplacementMm\":"<<closing.maxMoveMm<<"}"

@@ -1,4 +1,4 @@
-import {PROGRAM_DECIMALS} from '../dimensions.mjs';
+import {PROGRAM_DECIMALS,PROGRAM_STEP_MM} from '../dimensions.mjs';
 import {requireThat} from '../private/export/numeric.mjs';
 import {prepareExportPath} from './prepare-path.mjs';
 // Bounded Bambu output (H2D, X1 Carbon), not an interpreter for arbitrary
@@ -152,7 +152,7 @@ export function interpretBambu(bytes,plan,machine,options={}){
 
 function completeProgram(program,code,c,s,job){
   const begin=code.indexOf(BEGIN);
-  requireThat(program.moves.every(m=>m.to[2]<=c.pathMaxZ+1e-5),'Bambu body exceeds declared shutdown clearance.');
+  requireThat(program.moves.every(m=>m.to[2]<=c.pathMaxZ+PROGRAM_STEP_MM),'Bambu body exceeds declared shutdown clearance.');
   let prefixLines=-1;for(const _line of gcodeLines(code.slice(0,begin+BEGIN.length)))prefixLines++;
   const notice='Firmware probing, wiping, calibration, purge, tool changes and unload follow bounded service recipes; they are not simulated. Playback and timing cover body motion only.';
   const tray=job.requestedTray;
