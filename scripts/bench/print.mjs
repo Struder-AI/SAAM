@@ -50,13 +50,13 @@ try{
   // this cold cost separate from generation after geometry is already loaded.
   await stage('geometry-and-plan',()=>planning.validatePlan(plan,machine));
   const toolpath=await stage('generate',()=>{generationStart=performance.now();return generation.generatePreparedPath(plan,{onProgress});});
-  const {bytes,program}=await stage('export-and-interpret',()=>exports.exportAndDecodeProgram(toolpath,plan,machine,
+  const {bytes,report:program}=await stage('export',()=>exports.exportProgram(toolpath,plan,machine,
     {generatorVersion:planning.VERSION,buildDate:planning.BUILD_DATE}));
-  report.afterLoadMs=report.stagesMs.generate+report.stagesMs['export-and-interpret'];
-  report.result={actions:toolpath.actions.length,moves:program.moves.length,exportBytes:Buffer.byteLength(bytes),exportSha256:digest(bytes),travel:toolpath.summary.travel};
+  report.afterLoadMs=report.stagesMs.generate+report.stagesMs.export;
+  report.result={actions:toolpath.actions.length,moves:program.moves,exportBytes:Buffer.byteLength(bytes),exportSha256:digest(bytes),travel:toolpath.summary.travel};
   report.qualification='Shared prepared generation (including native runtime and modulation fields) and checked export; no Studio transport/rendering, delivery or physical execution. CPU profiling adds overhead. Compare identical input hashes and comparable machine load.';
   await writeFile(path.join(output,'timing.json'),JSON.stringify(report,null,2)+'\n');
-  console.log(`After geometry load: ${(report.afterLoadMs/1000).toFixed(3)} s; ${program.moves.length} moves`);
+  console.log(`After geometry load: ${(report.afterLoadMs/1000).toFixed(3)} s; ${program.moves} moves`);
 }catch(error){
   report.error={message:error.message,stack:error.stack};
   await writeFile(path.join(output,'timing.json'),JSON.stringify(report,null,2)+'\n');

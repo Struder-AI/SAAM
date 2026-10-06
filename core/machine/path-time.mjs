@@ -1,5 +1,5 @@
 import {rotation,mm,mv,rotatePointZ as bedPoint,rotateZ,interpolateDirectionPair} from '../geom/frame.mjs';
-// One command-time evaluator for source playback and machine presentation.
+// One path-time evaluator for playback and machine presentation.
 
 export function frameAtTime(moves, seconds) {
   if(!moves.length)return {completed:0,active:-1,fraction:0,point:null};

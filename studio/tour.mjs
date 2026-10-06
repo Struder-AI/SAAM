@@ -6,7 +6,7 @@ import {randomUUID} from 'node:crypto';
 import {TOUR_VERSION,TOUR_DECK_VERSION,TOUR_DEMOS,TOUR_STEPS,TOUR_LESSONS as L,tourAgentInstruction} from './tour-catalog.mjs';
 
 import {requestPrintId} from '../core/application/chat-requests.mjs';
-import {bundleFor,readStableBundle} from './adapter-resolution.mjs';
+import {bundleFor} from './adapter-resolution.mjs';
 import {requestReceiptState} from './work-state.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..'),packages=resolve(root,'examples/prints');
@@ -53,7 +53,7 @@ export function createTour(libraryRoot,{now=Date.now,studioId,chat}){
   }
   async function signature(data,shown){
     if(!data.selected)return null;
-    const dir=await confined(data.selected),state=shown?.dir===dir?shown:(await readStableBundle(await bundleFor(dir),dir,{program:false})).state;
+    const dir=await confined(data.selected),state=shown?.dir===dir?shown:(await (await bundleFor(dir)).loadBundleSnapshot(dir,{program:false})).state;
     return data.step===L.geometry?state.workEvidence.geometryKey:state.workEvidence.inputKey;
   }
   async function editLessonBaseline(data,state){

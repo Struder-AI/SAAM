@@ -5,11 +5,9 @@ import {requireThat} from '../private/export/numeric.mjs';
 import {createHash} from 'node:crypto';
 import {deflateSync} from 'node:zlib';
 import {exportBambuBody} from './bambu-body.mjs';
-import {interpretBody} from './bambu-player.mjs';
-import {gcodeLines} from './gcode-lines.mjs';
-import {packZip,unpackZip,crc32} from './zip.mjs';
+import {packZip,crc32} from './zip.mjs';
 
-import {validateSetup,toolBounds,startupPosition} from '../machine/rules.mjs';
+import {toolBounds,startupPosition} from '../machine/rules.mjs';
 import {resolveBambuJob} from './bambu-job.mjs';
 import {materializeBambuProject,serializeBambuProject} from './bambu-project.mjs';
 const digest=(bytes,algorithm='sha256')=>createHash(algorithm).update(bytes).digest('hex');
@@ -132,24 +130,6 @@ export function exportBambu(path,plan,machine,release){
   const code=header(c,written,job)+s.start+BEGIN+body+END+s.end+'; EXECUTABLE_BLOCK_END\n';
   return {bytes:packZip(packageEntries(code,c,written,plan,output,job,s)),report:report(written,c,s,job)};
 }
-export function interpretBambu(bytes,plan,machine,options={}){
-  validateSetup(plan,machine);
-  const output=configuration(plan,machine),entries=unpackZip(bytes);
-  const c=JSON.parse(entries.get('Metadata/saam.json')?.toString()??'null');
-  const code=entries.get(GCODE)?.toString('utf8');requireThat(typeof code==='string','Missing Bambu G-code.');
-  const begin=code.indexOf(BEGIN),end=code.indexOf(END);
-  requireThat(begin>=0&&end>begin&&code.indexOf(BEGIN,begin+BEGIN.length)===-1&&code.indexOf(END,end+END.length)===-1,'Invalid Bambu body boundary.');
-  const body=code.slice(begin+BEGIN.length,end),program=interpretBody(body,plan,machine,options);
-  const job=resolveBambuJob(plan,machine,output,{filamentSequence:program.filamentSequence});
-  checkContext(c,plan,machine,program.filamentSequence.map(filament=>job.selections[filament].setup.tool));
-  let prefixLines=-1;for(const _line of gcodeLines(code.slice(0,begin+BEGIN.length)))prefixLines++;
-  const r=report(program,c,sections(c,job,output),job);
-  return {...program,checks:[...(program.checks??[]),'fixed-firmware-envelope'],
-    moves:program.moves.map(move=>({...move,line:move.line+prefixLines})),
-    events:program.events.map(event=>({...event,line:event.line+prefixLines})),
-    summary:{...program.summary,startup:r.notice,clearance:r.limitations[0]},code,envelope:r.envelope};
-}
-
 // What the person confirms beyond the drawn path: firmware service, feed mapping, estimates.
 function report(written,c,s,job){
   const notice='Firmware probing, wiping, calibration, purge, tool changes and unload follow bounded service recipes; they are not simulated. Playback and timing cover body motion only.';

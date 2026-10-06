@@ -1,58 +1,39 @@
-import {requireThat} from '../private/export/numeric.mjs';
+import {requireThat,distance} from '../private/export/numeric.mjs';
 import {exportGriffin} from './griffin.mjs';
-import {interpretGriffin} from './griffin-player.mjs';
-import {exportBambu,interpretBambu} from './bambu.mjs';
-import {exportDobot,interpretDobot} from './dobot.mjs';
-import {exportDenso,interpretDenso} from './denso.mjs';
+import {exportBambu} from './bambu.mjs';
+import {exportDobot} from './dobot.mjs';
+import {exportDenso} from './denso.mjs';
 import {prepareExportPath} from './prepare-path.mjs';
-import {shortTravelAdvisory,preparedTravelAdvisory} from './travel-advisory.mjs';
-import {unpackZip} from './zip.mjs';
+import {preparedTravelAdvisory} from './travel-advisory.mjs';
 // Each adapter writes a prepared path and returns {bytes, report}.
 const adapters={
-  'denso-pacscript':{export:exportDenso,interpret:interpretDenso},
-  'griffin-gcode':{export:exportGriffin,interpret:(bytes,plan,machine,options)=>interpretGriffin(Buffer.isBuffer(bytes)?bytes.toString('utf8'):bytes,plan,machine,options)},
-  'bambu-gcode':{export:exportBambu,interpret:interpretBambu},
-  'dobot-lua':{export:exportDobot,interpret:interpretDobot}
+  'denso-pacscript':exportDenso,
+  'griffin-gcode':exportGriffin,
+  'bambu-gcode':exportBambu,
+  'dobot-lua':exportDobot
 };
 export function outputAdapter(plan,machine){
   const declaration=machine.outputs.find(o=>o.id===plan.output);
   requireThat(declaration,'Machine does not declare the requested output.');
-  requireThat(declaration.implemented!==false&&adapters[declaration.id],declaration.reason??`No exporter/interpreter for ${declaration.id}.`);
+  requireThat(declaration.implemented!==false&&adapters[declaration.id],declaration.reason??`No exporter for ${declaration.id}.`);
   return adapters[declaration.id];
 }
-// Prepares the path once, writes it, and adds the short-travel advisory on
-// the prepared path to the adapter's report.
-export function exportProgram(path,plan,machine,release){
-  const adapter=outputAdapter(plan,machine),prepared=prepareExportPath(path,plan,machine);
-  const {bytes,report}=adapter.export(prepared,plan,machine,release);
-  return {bytes,report:{...report,shortTravel:preparedTravelAdvisory(prepared,plan)}};
-}
-export function decodeProgram(code,plan,machine,options={}){
-  const program=outputAdapter(plan,machine).interpret(code,plan,machine,options);
-  return {...program,summary:{...program.summary,shortTravel:shortTravelAdvisory(program.moves,plan.process.lineWidthMm)}};
-}
-
-// Generation still decodes the written program for Studio playback; its
-// advisory is the prepared path's.
-export function exportAndDecodeProgram(path,plan,machine,release){
-  const {bytes,report}=exportProgram(path,plan,machine,release),program=outputAdapter(plan,machine).interpret(bytes,plan,machine);
-  return {bytes,report,program:{...program,summary:{...program.summary,shortTravel:report.shortTravel}}};
-}
-
-// Bundle already owns the exact artifact hash and locked settings. Extract the
-// source inventory without executing a machine-language decoder.
-export function readProgramSources(bytes,plan,machine){
-  outputAdapter(plan,machine);
-  if(plan.output==='griffin-gcode')return {program:typeof bytes==='string'?bytes:Buffer.from(bytes).toString('utf8')};
-  const entries=unpackZip(bytes);
-  const source=name=>{const value=entries.get(name);requireThat(value,'Missing program source: '+name);return value.toString('utf8');};
-  if(plan.output==='bambu-gcode')return {program:source('Metadata/plate_1.gcode')};
-  if(plan.output==='dobot-lua')return {'global.lua':source('global.lua'),'src1.lua':source('src1.lua'),'src0.lua':source('src0.lua')};
-  if(plan.output==='denso-pacscript'){
-    const manifest=JSON.parse(source('manifest.json'));
-    requireThat(manifest.schema==='saam-denso-program/1'&&manifest.entry==='main.pcs'&&Array.isArray(manifest.sourceFiles),
-      'Unsupported DENSO source inventory.');
-    return Object.fromEntries(manifest.sourceFiles.map(name=>[name,source(name)]));
+// The prepared path's own totals: requested timing and commanded volume.
+function pathTotals(prepared){
+  let from=prepared.initialPosition,moves=0,seconds=0,volumeMm3=0;
+  for(const action of prepared.actions){
+    if(action.kind==='move'){moves++;seconds+=action.durationSeconds??distance(from,action.to)/action.speedMmS;volumeMm3+=action.volumeMm3;from=action.to;}
+    else if(action.kind==='extrude'){seconds+=action.volumeMm3/action.flowMm3S;volumeMm3+=action.volumeMm3;}
+    else if(action.kind==='dwell')seconds+=action.seconds;
   }
-  throw Error('Unsupported program source output: '+plan.output);
+  return {moves,seconds,volumeMm3};
+}
+// Prepares the path once and writes it. The report is what Bundle stores:
+// the adapter's notice, limitations and estimates (the path's own totals when
+// the adapter gives none), the move count and the short-travel advisory.
+export function exportProgram(path,plan,machine,release){
+  const write=outputAdapter(plan,machine),prepared=prepareExportPath(path,plan,machine);
+  const {bytes,report}=write(prepared,plan,machine,release),totals=pathTotals(prepared);
+  return {bytes,report:{limitations:[],...report,moves:totals.moves,seconds:report.seconds??totals.seconds,
+    volumeMm3:report.volumeMm3??totals.volumeMm3,shortTravel:preparedTravelAdvisory(prepared,plan)}};
 }

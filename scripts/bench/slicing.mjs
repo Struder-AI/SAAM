@@ -17,7 +17,7 @@ import { generatePath } from '../../core/print/generate.mjs';
 import { defaults, VERSION, BUILD_DATE } from '../../core/print/plan.mjs';
 import { loadMachine } from '../../core/machine/profile.mjs';
 import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
-import { exportProgram, decodeProgram } from '../../core/export/registry.mjs';
+import { exportProgram } from '../../core/export/registry.mjs';
 
 const args = process.argv.slice(2), arg = (name, fallback) => args.includes(name) ? args[args.indexOf(name) + 1] : fallback;
 const sha = value => createHash('sha256').update(typeof value === 'string' || Buffer.isBuffer(value) ? value : JSON.stringify(value)).digest('hex');
@@ -48,7 +48,6 @@ async function skillTrial(mode, geometry) {
   if(mode==='draped')plan.slices.assignments.push(skinAssignment({id:'draped-skin'}));
   const start=performance.now(),c={value:await generatePath(plan,machine)},time={sliceMs:performance.now()-start};
   const e=measure(()=>exportProgram(c.value,plan,machine,{generatorVersion:VERSION,buildDate:BUILD_DATE}).bytes);time.exportMs=e.ms;
-  const k=measure(()=>decodeProgram(e.value,plan,machine));time.interpretMs=k.ms;
   return {time,actions:c.value.actions.length,depositedMm3:c.value.actions.reduce((v,a)=>v+(a.volumeMm3??0),0),
     operations:c.value.summary.composition.operationOrder.length,exportBytes:Buffer.byteLength(e.value),
     pathHash:sha(c.value),exportHash:sha(e.value),summary:c.value.summary};

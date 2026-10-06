@@ -40,7 +40,7 @@ All file names in the core column are relative to `core/tests/`.
 | Area | Criterion | Tests |
 |---|---|---|
 | Bambu archive, H2D/X1 profiles, ZIP output, dual material, filament change, reference audit | 1 | [bambu.test.mjs](./bambu.test.mjs), [bambu-dual.test.mjs](./bambu-dual.test.mjs), [bambu-x1-change.test.mjs](./bambu-x1-change.test.mjs), [bambu-audit.test.mjs](./bambu-audit.test.mjs) |
-| Griffin/S5 last-working envelope, strict G-code rejection, modal fields, streamed lines and chunk boundaries | 1 | [export.test.mjs](./export.test.mjs), [modal-export.test.mjs](./modal-export.test.mjs), [gcode-stream.test.mjs](./gcode-stream.test.mjs) |
+| Griffin/S5 last-working envelope and modal fields | 1 | [export.test.mjs](./export.test.mjs), [modal-export.test.mjs](./modal-export.test.mjs) |
 | Dobot Lua and DENSO RC8A controller facts; S5 priming; refusal of unavailable machine output | 1 | [dobot.test.mjs](./dobot.test.mjs), [denso.test.mjs](./denso.test.mjs), [prime.test.mjs](./prime.test.mjs), [printer-profiles.test.mjs](./printer-profiles.test.mjs) |
 | Upstream planar-boolean reference data | 1 | [intersection.test.mjs](./intersection.test.mjs) |
 | Bundle lifecycle: edits leave programs stale, stale revisions, exact-byte export, saved-manifest reuse | 2 | [workflow.test.mjs](./workflow.test.mjs), [regional-workflow.test.mjs](./regional-workflow.test.mjs), [workflow-manifest.test.mjs](./workflow-manifest.test.mjs) |

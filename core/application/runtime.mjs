@@ -102,7 +102,7 @@ export function summary(bundleId, state) {
     programChecked,deferRememberSetup:state.deferRememberSetup===true,phaseColours:state.phaseColours??null,
     generation: state.review.generation ? { mode: state.review.generation.mode, current: lifecycle.current } : null,
     programError: state.programError ?? null, outputId: state.outputId ?? null,
-    shortTravel: state.program?.summary?.shortTravel ?? null,
+    shortTravel: state.program?.shortTravel ?? null,
     outputAvailability: state.outputAvailability, limitations: state.limitations,
     nextStep: !state.machine?'Supply the machine, material and recipe components needed for the requested operation.':lifecycle.action==='check'?'Open Studio or check_bundle to check the current export.'
       : lifecycle.action==='generate'?'Generate the toolpath from the complete settings.'

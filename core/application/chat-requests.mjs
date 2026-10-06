@@ -6,7 +6,7 @@ import {createHash,randomUUID} from 'node:crypto';
 import {requestReceiptState,isEditRequest} from '../../studio/work-state.mjs';
 import {createRequestIndex} from './chat-request-index.mjs';
 import {createChatEvents} from './chat-events.mjs';
-import {bundleFor,readStableBundle} from '../../studio/adapter-resolution.mjs';
+import {bundleFor} from '../../studio/adapter-resolution.mjs';
 
 // A request's print: its library-relative folder name.
 export function requestPrintId(libraryRoot,directory,{optional=false}={}){
@@ -18,7 +18,7 @@ export function requestPrintId(libraryRoot,directory,{optional=false}={}){
 export async function workEvidence(directory){
   const adapter=await bundleFor(directory).catch(error=>{if(error.code==='ENOENT')return null;throw error;});
   if(!adapter)return null;
-  return {...(await readStableBundle(adapter,directory,{program:false})).state.workEvidence};
+  return {...(await adapter.loadBundleSnapshot(directory,{program:false})).state.workEvidence};
 }
 // Old requests retain their authored baseline. An explicit new work episode
 // captures the current output before editing; the old event hash cannot prove bytes.
