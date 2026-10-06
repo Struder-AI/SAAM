@@ -24,3 +24,7 @@ export const NUMERIC_RELATIVE = NUMERIC_MM / BUILD_SCALE_MM;
 // this many decimals (1e-5 mm), 100x below print resolution, so rounding the
 // program never changes the print.
 export const PROGRAM_DECIMALS = 5;
+// One step of program resolution, and the slack for a value that passed through a
+// few rounded program numbers (a retraction and its recovery, a written bound).
+export const PROGRAM_STEP_MM = 10 ** -PROGRAM_DECIMALS;
+export const PROGRAM_SLACK_MM = 10 * PROGRAM_STEP_MM;

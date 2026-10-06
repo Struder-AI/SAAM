@@ -1,4 +1,4 @@
-import {PROGRAM_DECIMALS} from '../dimensions.mjs';
+import {PROGRAM_DECIMALS,PROGRAM_SLACK_MM} from '../dimensions.mjs';
 import {requireThat} from '../private/export/numeric.mjs';
 
 import {toolBounds,validateSetup,sameNozzleMaterialChanges} from '../machine/rules.mjs';
@@ -23,7 +23,7 @@ export function renderBambuChange(plan,machine,{from,to,position,incomingDebt,kn
       'Automatic H2D material changes require AMS feeds, not an external spool.');
     requireThat(Math.abs(incomingDebt-next.process.retractMm)<1e-6,'AMS change must hand off the new filament retracted.');
   }
-  requireThat(Number.isFinite(incomingDebt)&&incomingDebt>=0&&incomingDebt<=next.process.retractMm+1e-4,'Invalid incoming nozzle retraction.');
+  requireThat(Number.isFinite(incomingDebt)&&incomingDebt>=0&&incomingDebt<=next.process.retractMm+PROGRAM_SLACK_MM,'Invalid incoming nozzle retraction.');
   requireThat(Number.isFinite(fan)&&fan>=0&&fan<=255,'Invalid changeover fan state.');
   for(const selected of [old,next]){
     const b=toolBounds(machine,selected.setup.tool);
