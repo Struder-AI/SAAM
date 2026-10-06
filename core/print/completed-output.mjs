@@ -3,7 +3,7 @@
 import {completedOutputIdentity} from './work-evidence.mjs';
 import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
-import {hash} from '../private/geometry/hash.mjs';
+import {canonicalHash} from '../canonical-json.mjs';
 import {requireThat} from '../private/bundle/numeric.mjs';
 import {retainContent,restoreContent} from './revisions.mjs';
 
@@ -25,23 +25,23 @@ export async function readCompletedOutput(state,geometryInput,presentGeometry){
   if(geometryArtifact){
     requireThat(/^[a-f0-9]{64}$/.test(geometryArtifact.hash)&&new RegExp(`^geometry/${geometryArtifact.hash}\\.(?:3dm|mesh\\.json)$`).test(geometryArtifact.file),'Invalid completed geometry reference.');
     const bytes=await readFile(resolve(state.dir,geometryArtifact.file));
-    requireThat(hash({file:hash(bytes),descriptor:geometryArtifact.descriptor})===geometryArtifact.hash,'Completed output geometry changed.');
-    requireThat(hash(plan.geometry)===hash(geometryArtifact.descriptor.parameters),'Completed output geometry and settings disagree.');
+    requireThat(canonicalHash({file:canonicalHash(bytes),descriptor:geometryArtifact.descriptor})===geometryArtifact.hash,'Completed output geometry changed.');
+    requireThat(canonicalHash(plan.geometry)===canonicalHash(geometryArtifact.descriptor.parameters),'Completed output geometry and settings disagree.');
   }
   const pathReference=input?input.path:state.review.path;
   if(pathReference)await verifyCompletedPath(state.dir,pathReference);
   requireThat(/^[a-f0-9]{64}$/.test(generation.exportHash)&&new RegExp(`^exports/[a-z0-9-]+/${generation.exportHash}-[a-z0-9.-]+$`).test(generation.file),'Invalid completed program reference.');
   const bytes=await readFile(resolve(state.dir,generation.file));
-  requireThat(hash(bytes)===generation.exportHash,'Generated files changed; regenerate and review again.');
+  requireThat(canonicalHash(bytes)===generation.exportHash,'Generated files changed; regenerate and review again.');
   const checks=generation.checks;
   requireThat(checks?.schema==='saam-checks/1'&&checks.result==='pass'&&checks.generationHash===generation.generationHash
     &&checks.exportHash===generation.exportHash&&checks.mode===generation.mode,'Saved checks do not match the completed export.');
   return {id:completedOutputIdentity(generation),
-    plan,machine,geometry:presentGeometry?await presentGeometry(plan,geometryArtifact?.descriptor??null):geometryArtifact?.descriptor??null,geometryHash:geometryArtifact?.hash??hash(null),geometryInputHash:geometryInput?hash(geometryInput(plan)):geometryArtifact?.hash??hash(null),path:pathReference,generation,bytes};
+    plan,machine,geometry:presentGeometry?await presentGeometry(plan,geometryArtifact?.descriptor??null):geometryArtifact?.descriptor??null,geometryHash:geometryArtifact?.hash??canonicalHash(null),geometryInputHash:geometryInput?canonicalHash(geometryInput(plan)):geometryArtifact?.hash??canonicalHash(null),path:pathReference,generation,bytes};
 }
 
 async function verifyCompletedPath(dir,artifact){
   requireThat(/^[a-f0-9]{64}$/.test(artifact.hash)&&artifact.file===`paths/${artifact.hash}.json`,'Invalid completed SAAMpath reference.');
   const bytes=await readFile(resolve(dir,artifact.file));
-  requireThat(hash(bytes)===artifact.hash,'Completed SAAMpath changed.');
+  requireThat(canonicalHash(bytes)===artifact.hash,'Completed SAAMpath changed.');
 }

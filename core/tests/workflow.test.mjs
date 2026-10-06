@@ -11,7 +11,8 @@ import assert from 'node:assert/strict';
 import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { defaults, hash } from '../print/plan.mjs';
+import { defaults } from '../print/plan.mjs';
+import { canonicalHash as hash } from '../canonical-json.mjs';
 import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
 import { createGeometry, verifyGeometry } from '../print/geometry.mjs';
 import {

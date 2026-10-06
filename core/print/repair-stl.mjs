@@ -1,4 +1,4 @@
-import {hash} from '../private/geometry/hash.mjs';
+import {canonicalHash} from '../canonical-json.mjs';
 // Explicit mesh preparation. Accepted output returns to normal import and review.
 import {mkdir,writeFile,access,mkdtemp,rm,copyFile,rename} from 'node:fs/promises';
 import {createWriteStream,createReadStream} from 'node:fs';
@@ -31,7 +31,7 @@ async function prepare(source,options){
   if(options.maxSampledDistanceMm!==undefined&&(!Number.isFinite(options.maxSampledDistanceMm)||options.maxSampledDistanceMm<0))throw Error('maxSampledDistanceMm must be nonnegative.');
   progress({stage:'read-source'});const input=typeof source==='string'?await decodeSTLFile(source,{units,signal,progress}):decodeSTL(source,{units});
   progress({stage:'cleanup'});
-  const sourceHash=input.sha256??hash(source),clean=cleanTriangleSoup(input,{mergeToleranceMm:options.mergeToleranceMm});
+  const sourceHash=input.sha256??canonicalHash(source),clean=cleanTriangleSoup(input,{mergeToleranceMm:options.mergeToleranceMm});
   // Shape-change evidence must include requested vertex motion, not compare
   // the snapped surface only with itself. Exact-only callers keep one value.
   const comparison=clean.merge?cleanTriangleSoup(input):clean;
@@ -57,7 +57,7 @@ async function emitGeometry(result,{onGeometry,progress=()=>{},signal}){
 }
 export async function repairSTL(sourceBytes,options={}){
   if(isMainThread)return runRepairJob('bytes',null,sourceBytes,options);
-  const {result,report,start}=await prepare(sourceBytes,options),repairedBytes=validateRepair(result);report.repairedSha256=hash(repairedBytes);
+  const {result,report,start}=await prepare(sourceBytes,options),repairedBytes=validateRepair(result);report.repairedSha256=canonicalHash(repairedBytes);
   await emitGeometry(result,options);report.elapsedSeconds=(performance.now()-start)/1000;options.progress?.({stage:'complete',percent:100});return {repairedBytes,report};
 }
 export async function repairSTLFiles(directory,source,options={}){

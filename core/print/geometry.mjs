@@ -1,4 +1,4 @@
-import {hash} from '../private/geometry/hash.mjs';
+import {canonicalHash} from '../canonical-json.mjs';
 // Native geometry for a shell print: the 3DM the maker's part is stored as.
 //
 // Spline shells require a different representation from an indexed mesh:
@@ -26,7 +26,7 @@ const proxySteps = (knots, order, count) => Math.min(PROXY_STEPS_MAX, PROXY_STEP
 
 // Control nets are compared through a rounded hash: 3DM stores doubles, and a
 // nanometre is nine orders below the tolerances the process works at.
-const netHash = patches => hash(patches.map(patch => [patch.name, patch.nu, patch.nv, patch.orderU, patch.orderV,
+const netHash = patches => canonicalHash(patches.map(patch => [patch.name, patch.nu, patch.nv, patch.orderU, patch.orderV,
   [...patch.knotsU].map(round), [...patch.knotsV].map(round), [...patch.cp].map(round)]));
 const round = value => Number(value.toFixed(9));
 
@@ -41,7 +41,7 @@ export async function createGeometry(parameters) {
   doc.applicationName = 'SAAM';
   doc.applicationDetails = 'Shell pipeline (slices, draped-skin)';
   doc.settings().modelUnitSystem = r.UnitSystem.Millimeters;
-  const geometryVersion = hash(parameters);
+  const geometryVersion = canonicalHash(parameters);
   const features = [];
   for (const [index, entry] of shell.surfaces.entries()) {
     const attributes = new r.ObjectAttributes();
@@ -57,7 +57,7 @@ export async function createGeometry(parameters) {
     schema: 'saam-shell-geometry/1',
     parameters,
     geometryVersion,
-    fileHash: hash(bytes),
+    fileHash: canonicalHash(bytes),
     nativeForm: 'named untrimmed NURBS surfaces; closure verified numerically, not a Rhino solid',
     patchHash: netHash(shell.patches),
     features,
@@ -74,7 +74,7 @@ export async function createGeometry(parameters) {
 // outside SAAM fails here rather than being sliced as something else.
 const verifiedGeometry=new Map();
 export async function verifyGeometry(bytes,descriptor){
-  const identity=hash({bytes:hash(bytes),descriptor});
+  const identity=canonicalHash({bytes:canonicalHash(bytes),descriptor});
   if(verifiedGeometry.has(identity))return verifiedGeometry.get(identity);
   await inspectGeometry(bytes,descriptor);
   const evidence=Object.freeze({identity,checks:Object.freeze(['native-geometry-identity','native-geometry-round-trip'])});
@@ -82,13 +82,13 @@ export async function verifyGeometry(bytes,descriptor){
   verifiedGeometry.set(identity,evidence);return evidence;
 }
 async function inspectGeometry(bytes, descriptor) {
-  requireThat(hash(bytes) === descriptor.fileHash, 'Geometry file changed; reload the current geometry.');
+  requireThat(canonicalHash(bytes) === descriptor.fileHash, 'Geometry file changed; reload the current geometry.');
   if(descriptor.nativeFile==='model.mesh.json') {
     const saved=JSON.parse(Buffer.from(bytes).toString('utf8'));
-    requireThat(saved.schema==='saam-native-geometry/1'&&hash(saved.geometry)===hash(descriptor.parameters),'Native mesh differs from reviewed geometry.');
+    requireThat(saved.schema==='saam-native-geometry/1'&&canonicalHash(saved.geometry)===canonicalHash(descriptor.parameters),'Native mesh differs from reviewed geometry.');
     const expected=(await createGeometry(saved.geometry)).descriptor;
     for(const key of ['vertices','faces','labels','features','boundsMm','geometryVersion','curves','points'])
-      requireThat(hash(descriptor[key]??null)===hash(expected[key]??null),'Mesh display/identity differs from the native reviewed geometry.');
+      requireThat(canonicalHash(descriptor[key]??null)===canonicalHash(expected[key]??null),'Mesh display/identity differs from the native reviewed geometry.');
     return;
   }
   const r = await rhino();
@@ -119,7 +119,7 @@ export async function createSpatialGeometry(parameters,solidDescriptor){
   for(const p of preview.points)include(p.point);
   if(!Number.isFinite(bounds.min[0])){bounds.min=[0,0,0];bounds.max=[0,0,0];}
   const bytes=Buffer.from(JSON.stringify({schema:'saam-native-geometry/1',units:'mm',geometry:parameters}));
-  return {bytes,descriptor:{schema:'saam-shell-geometry/1',nativeFile:'model.mesh.json',parameters,geometryVersion:hash(parameters),fileHash:hash(bytes),
+  return {bytes,descriptor:{schema:'saam-shell-geometry/1',nativeFile:'model.mesh.json',parameters,geometryVersion:canonicalHash(parameters),fileHash:canonicalHash(bytes),
     nativeForm:'authored solid, curves and points',vertices,faces,labels,features:[...features,...preview.curves.map(c=>({id:c.id,kind:'curve'})),...preview.points.map(p=>({id:p.id,kind:'point'}))],boundsMm:bounds,...preview}};
 }
 
@@ -157,11 +157,11 @@ async function createMeshGeometry(r,parameters) {
     for(const f of proxy.faces)faces.push(f.map(v=>v+offset));
     for(const _label of proxy.labels)labels.push(id||'mesh');
     // STL supplies no semantic CAD faces. Select the imported component as a whole.
-    features.push({id:id||'mesh',objectId:hash({geometry,id}).slice(0,32)});
+    features.push({id:id||'mesh',objectId:canonicalHash({geometry,id}).slice(0,32)});
   };
   if(parameters.shape==='assembly')for(const part of parameters.parts)await append(part.geometry,part.id,[part.xMm,part.yMm,part.zMm]);
   else await append(parameters,'');
   const bytes=Buffer.from(JSON.stringify({schema:'saam-native-geometry/1',units:'mm',geometry:parameters}));
-  return {bytes,descriptor:{schema:'saam-shell-geometry/1',nativeFile:'model.mesh.json',parameters,geometryVersion:hash(parameters),fileHash:hash(bytes),
+  return {bytes,descriptor:{schema:'saam-shell-geometry/1',nativeFile:'model.mesh.json',parameters,geometryVersion:canonicalHash(parameters),fileHash:canonicalHash(bytes),
     nativeForm:'indexed manufacturing mesh; procedural components retain their source recipes and extraction settings',features,boundsMm:shell.bounds,vertices,faces,labels}};
 }

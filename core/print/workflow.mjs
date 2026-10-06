@@ -15,6 +15,7 @@ import { exportAndDecodeProgram, decodeProgram, readProgramSources, outputAdapte
 import { loadMachine } from '../machine/profile.mjs';
 import {consumeCheckedProgram,createPendingCheckedProgramStore} from './program-handoff.mjs';
 import {replaceFile} from '../file-write.mjs';
+import {canonicalJson,canonicalHash} from '../canonical-json.mjs';
 import {resolvePlanPatch} from './resolve-plan.mjs';
 import {selectSettings,saveSetup,withMachineSetupExport} from '../machine/settings.mjs';
 import {assignmentFamily as ordinaryAssignmentFamily} from './slice-settings.mjs';
@@ -23,8 +24,6 @@ import {commitManifest,revisionOf,retainContent,restoreContent,recordDelivery} f
 export const root=resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const BUNDLE_SCHEMA='saam-print-bundle/2';
 const nativeSuffix=geometry=>{const name=geometry.nativeFile??'model.3dm';requireThat(['model.3dm','model.mesh.json'].includes(name),'Unsupported native geometry file.');return name==='model.3dm'?'.3dm':'.mesh.json';};
-const canonical=value=>JSON.stringify(value,function(_key,item){return item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.keys(item).sort().map(k=>[k,item[k]])):item;});
-const hash=value=>createHash('sha256').update(typeof value==='string'||value instanceof Uint8Array?value:canonical(value)).digest('hex');
 const json=async file=>JSON.parse(await readFile(file,'utf8'));
 function migratedIdentity(record,newName,oldName,scope) {
   if(!record||typeof record!=='object')return record;
@@ -56,7 +55,7 @@ export function programCacheEntry(key,program,code) {
   const text=sourceText??code.toString('utf8');
   const sources=sourceFiles??{program:text};
   const {moves,events,...metadata}=motion;
-  const sourceInfo=Object.entries(sources).map(([name,source])=>({name,sha256:hash(source)}));
+  const sourceInfo=Object.entries(sources).map(([name,source])=>({name,sha256:canonicalHash(source)}));
   return {key,bytes:Buffer.from(code),program:motion,code:text,sources,metadata:{...metadata,sources:sourceInfo}};
 }
 
@@ -79,7 +78,7 @@ export function planChanges(before, after, path = []) {
     return [...new Set([...Object.keys(before),...Object.keys(after)])].sort()
       .filter(key=>!(path.length===0&&key==='geometry'))
       .flatMap(key=>planChanges(before[key],after[key],[...path,key]));
-  return canonical(before)===canonical(after)?[]:[{path:path.join('.'),before:before??null,after:after??null}];
+  return canonicalJson(before)===canonicalJson(after)?[]:[{path:path.join('.'),before:before??null,after:after??null}];
 }
 
 function invalidateReview(review,event) {
@@ -116,7 +115,7 @@ export function createBundleWorkflow(adapter) {
   let inputCache={};
   // One preparation serves checking and saving unchanged inputs.
   let preparation, pathPreparation;
-  const programKey=(generationHash,exportHash)=>hash([generationHash,exportHash]);
+  const programKey=(generationHash,exportHash)=>canonicalHash([generationHash,exportHash]);
 async function proposedPlan(machineId, options={}) {
   const {machine,settings}=await selectSettings(machineId,options);
   return {...await defaults(machine),...settings};
@@ -148,7 +147,7 @@ async function initBundle(directory, plan = {schema:'saam-shell-plan/1'}, { mach
     if(sourcePath){
       const target=resolve(dir,'geometry/source.stl'),temporary=target+'.tmp';await mkdir(dirname(target),{recursive:true});
       try{await copyFile(sourcePath,temporary);requireThat(await hashFile(temporary)===originalSource(plan.geometry).sha256,'STL source changed during import.');await rename(temporary,target);}finally{await rm(temporary,{force:true});}
-    }else{requireThat(sourceBytes&&hash(sourceBytes)===originalSource(plan.geometry).sha256,'STL source bytes are required; use import-stl.');await save(resolve(dir,'geometry/source.stl'),sourceBytes);}
+    }else{requireThat(sourceBytes&&canonicalHash(sourceBytes)===originalSource(plan.geometry).sha256,'STL source bytes are required; use import-stl.');await save(resolve(dir,'geometry/source.stl'),sourceBytes);}
   }
   const geometryArtifact=await saveGeometry(dir,geometry);
   const review={schema:'saam-review/1',approvals:{},history:[],generation:null};
@@ -157,11 +156,11 @@ async function initBundle(directory, plan = {schema:'saam-shell-plan/1'}, { mach
 }
 
 function requirePreparedGeometry(parameters,geometry){
-  requireThat(hash(geometry.descriptor.parameters)===hash(parameters)&&hash(geometry.bytes)===geometry.descriptor.fileHash,'Prepared geometry does not match the bundle recipe.');
+  requireThat(canonicalHash(geometry.descriptor.parameters)===canonicalHash(parameters)&&canonicalHash(geometry.bytes)===geometry.descriptor.fileHash,'Prepared geometry does not match the bundle recipe.');
 }
 async function saveGeometry(dir, geometry) {
   if(!geometry)return null;
-  const geometryHash=hash({file:hash(geometry.bytes),descriptor:geometry.descriptor});
+  const geometryHash=canonicalHash({file:canonicalHash(geometry.bytes),descriptor:geometry.descriptor});
   const file=`geometry/${geometryHash}${nativeSuffix(geometry.descriptor)}`;
   try{await access(resolve(dir,file));}catch(error){if(error.code!=='ENOENT')throw error;await save(resolve(dir,file),geometry.bytes);}
   return {hash:geometryHash,file,descriptor:geometry.descriptor};
@@ -219,12 +218,12 @@ async function prepareLegacyMigration(dir,document,planText){
   if(checksBytes)inputs.set('checks.json',checksBytes);
   else inputs.set('checks.json',null);
   const review=migrateReview(storedReview),legacyFile=nativeSuffix(descriptor)==='.3dm'?'geometry/model.3dm':'geometry/model.mesh.json';
-  const bytes=await readFile(resolve(dir,legacyFile)),geometryHash=hash({file:hash(bytes),descriptor});
+  const bytes=await readFile(resolve(dir,legacyFile)),geometryHash=canonicalHash({file:canonicalHash(bytes),descriptor});
   inputs.set(legacyFile,bytes);
   const geometry={hash:geometryHash,file:`geometry/${geometryHash}${nativeSuffix(descriptor)}`,descriptor};
   const artifacts=new Map([[geometry.file,bytes]]);let programBytes=null;
   if(review.generation){
-    const oldProgram=resolve(dir,legacyExportPath(document,machine)),code=await readFile(oldProgram),exportHash=hash(code);
+    const oldProgram=resolve(dir,legacyExportPath(document,machine)),code=await readFile(oldProgram),exportHash=canonicalHash(code);
     inputs.set(legacyExportPath(document,machine),code);programBytes=code;
     requireThat(exportHash===review.generation.exportHash,'Legacy generated files changed; regenerate before migration.');
     const file=exportArtifactPath(document,machine,exportHash);artifacts.set(file,code);
@@ -234,7 +233,7 @@ async function prepareLegacyMigration(dir,document,planText){
   const manifest=manifestDocument(state),preflight=await validateBundleInput({dir,planText:JSON.stringify(manifest),...state,bytes},{});
   if(preflight.error)throw preflight.error;
   const source=originalSource(document.geometry);
-  if(source){const sourceBytes=await readFile(resolve(dir,'geometry/source.stl'));inputs.set('geometry/source.stl',sourceBytes);requireThat(hash(sourceBytes)===source.sha256,'Imported STL source changed; repair it before migration.');}
+  if(source){const sourceBytes=await readFile(resolve(dir,'geometry/source.stl'));inputs.set('geometry/source.stl',sourceBytes);requireThat(canonicalHash(sourceBytes)===source.sha256,'Imported STL source changed; repair it before migration.');}
   const programStatus=!review.generation?'none':review.generation.generationHash===preflight.identity.generationHash?'current':'stale';
   if(programStatus==='current')decodeProgram(programBytes,document,machine);
   return {state,manifest,artifacts,planText,inputs,programStatus};
@@ -281,7 +280,7 @@ async function migrateCurrentRecipe(dir,document,planText,before,{beforeCommit})
   const checked=await validateBundleInput({dir,planText:JSON.stringify(manifest),...state,bytes},{});
   if(checked.error)throw checked.error;
   const inputs=new Map([['plan.json',Buffer.from(planText)],...(geometry?[[geometry.file,bytes]]:[])]),source=originalSource(plan.geometry);
-  if(source){const sourceBytes=await readFile(resolve(dir,'geometry/source.stl'));requireThat(hash(sourceBytes)===source.sha256,'Imported source changed; repair it before recipe migration.');inputs.set('geometry/source.stl',sourceBytes);}
+  if(source){const sourceBytes=await readFile(resolve(dir,'geometry/source.stl'));requireThat(canonicalHash(sourceBytes)===source.sha256,'Imported source changed; repair it before recipe migration.');inputs.set('geometry/source.stl',sourceBytes);}
   await beforeCommit?.();await requireLegacyCurrent(dir,inputs);
   await commitState({dir,plan:previous,machine,geometryArtifact:geometry,review:migrateReview(bundle.review),revision:revisionOf(document)},state,{edit:true});
   const reopened=await loadBundle(dir,{program:false});
@@ -315,16 +314,16 @@ async function validateBundleInput(input,previousCache) {
     // Read current bytes at every boundary, but canonicalize large mesh/plan
     // trees only when those bytes change. Keep the established semantic hashes
     // so formatting alone does not invalidate a person's recorded approval.
-    const fileHash=hash(bytes),identityKey=hash([hash(planText),fileHash]);
+    const fileHash=canonicalHash(bytes),identityKey=canonicalHash([canonicalHash(planText),fileHash]);
     let identity=cache.identity;
     if(identity?.key!==identityKey){
-      const geometryHash=geometry?hash({file:fileHash,descriptor:geometry.descriptor}):hash(null);
+      const geometryHash=geometry?canonicalHash({file:fileHash,descriptor:geometry.descriptor}):canonicalHash(null);
       requireThat(!geometry||geometryHash===geometry.hash,'Saved geometry artifact changed; rebuild the print geometry.');
       requireThat(!geometry||geometry.file===`geometry/${geometry.hash}${nativeSuffix(geometry.descriptor)}`,'Invalid geometry artifact reference.');
       if(review.generation)requireThat(/^[a-f0-9]{64}$/.test(review.generation.exportHash)&&new RegExp(`^exports/[a-z0-9-]+/${review.generation.exportHash}-[a-z0-9.-]+$`).test(review.generation.file),
         'Invalid generated program reference. Regenerate the print.');
-      requireThat(canonical(plan.geometry)===canonical(geometry?.descriptor.parameters),'Plan and geometry disagree. Rebuild the print geometry.');
-      identity={key:identityKey,...authoredWorkIdentity(plan,machine),geometryHash,geometryInputHash:adapter.geometryInput?hash(adapter.geometryInput(plan)):geometryHash,editRevision:hash({plan,machine,geometryHash}),pathHash:hash(adapter.pathDependencies?adapter.pathDependencies(plan,machine):{plan,machine}),generationHash:hash({plan,machine,geometryHash,...(adapter.generationContract?{generationContract:adapter.generationContract}:{})})};
+      requireThat(canonicalJson(plan.geometry)===canonicalJson(geometry?.descriptor.parameters),'Plan and geometry disagree. Rebuild the print geometry.');
+      identity={key:identityKey,...authoredWorkIdentity(plan,machine),geometryHash,geometryInputHash:adapter.geometryInput?canonicalHash(adapter.geometryInput(plan)):geometryHash,editRevision:canonicalHash({plan,machine,geometryHash}),pathHash:canonicalHash(adapter.pathDependencies?adapter.pathDependencies(plan,machine):{plan,machine}),generationHash:canonicalHash({plan,machine,geometryHash,...(adapter.generationContract?{generationContract:adapter.generationContract}:{})})};
       cache.identity=identity;
     }
     return {dir,plan,machine,geometry:geometry?.descriptor??null,geometryArtifact:geometry,geometryChecks:[],review,identity,cache,revision,deferRememberSetup,phaseColours};
@@ -380,7 +379,7 @@ async function restoreBundleProgram(input,program,allSources,previousProgram) {
             volumeMm3:output.generation.checks.volumeMm3,estimatedMinutes:output.generation.checks.estimatedMinutes},
             limitations:output.generation.checks.limitations??[]};
           cachedProgram={key,bytes:Buffer.from(code),program:null,code:sources.program??Object.values(sources)[0],sources,
-            metadata:{...metadata,sources:Object.entries(sources).map(([name,text])=>({name,sha256:hash(text)}))}};
+            metadata:{...metadata,sources:Object.entries(sources).map(([name,text])=>({name,sha256:canonicalHash(text)}))}};
         }else cachedProgram=programCacheEntry(key,decodeProgram(code,output.plan,output.machine),code);
       }
       state.programChecked=true;
@@ -388,7 +387,7 @@ async function restoreBundleProgram(input,program,allSources,previousProgram) {
       state.limitations=[...new Set([...state.limitations,...(state.program.limitations??[])])];
       state.pathSummary = structuredClone(review.generation.summary??{});
       state.exportHash = exportHash;
-      state.completedOutput={id:output.id,current:review.generation.generationHash===generationHash&&canonical(review.path)===canonical(output.path),
+      state.completedOutput={id:output.id,current:review.generation.generationHash===generationHash&&canonicalJson(review.path)===canonicalJson(output.path),
         plan:output.plan,machine:output.machine,geometry:output.geometry,geometryHash:output.geometryHash,geometryInputHash:output.geometryInputHash,generationHash:output.generation.generationHash,
         exportHash,inputRevision:output.generation.inputRevision??null,exportName:exportName(output.plan,output.machine),review:{generation:output.generation,approvals:{}},
         limitations:limitationsFor(output.plan,output.machine),pathHash:output.path?.inputHash??null};
@@ -414,9 +413,9 @@ async function loadBundle(directory, { program = true, allSources=false } = {}) 
   const restored=await restoreBundleProgram(described,program,allSources,verifiedProgram);
   verifiedProgram=restored.cachedProgram;
   const {review,machine,plan,geometry}=validated;
-  const fingerprints={source:hash([hash(input.planText),validated.identity.geometryHash,
+  const fingerprints={source:canonicalHash([canonicalHash(input.planText),validated.identity.geometryHash,
       originalSource(plan.geometry)?.sha256??null,program?restored.observedExportHash:null]),
-    presentation:hash([['plan',hash(plan)],['machine',hash(machine)],['geometry',validated.identity.geometryHash],
+    presentation:canonicalHash([['plan',canonicalHash(plan)],['machine',canonicalHash(machine)],['geometry',validated.identity.geometryHash],
       ['generation',review.generation?{generationHash:review.generation.generationHash,exportHash:review.generation.exportHash,
         summary:review.generation.summary,version:review.generation.version,file:review.generation.file,
         checks:review.generation.checks?Object.fromEntries(Object.entries(review.generation.checks).filter(([key])=>key!=='mode')):null}:null]])};
@@ -456,7 +455,7 @@ async function prepareGeneration(directory,{onProgress}={}){
   requireThat(state.machine,'Supply a machine, material and toolpath recipe before generation.');
   // A profile without an output contract refuses before geometry or motion is built.
   outputAdapter(state.plan,state.machine);
-  const key=hash([state.dir,state.generationHash,source.release,source.hash??state.review.path?.source?.hash]);
+  const key=canonicalHash([state.dir,state.generationHash,source.release,source.hash??state.review.path?.source?.hash]);
   if(preparation?.key!==key)preparation={key};
   const candidate=preparation;
   if(!candidate.result)candidate.result=Promise.resolve().then(async()=>{
@@ -508,7 +507,7 @@ async function requireGenerationSource(state,expected){
 }
 
 async function prepareToolpath(state,{onProgress,source}={}){
-  const key=hash([state.dir,state.pathHash,source.release,source.hash??state.review.path?.source?.hash]);
+  const key=canonicalHash([state.dir,state.pathHash,source.release,source.hash??state.review.path?.source?.hash]);
   if(pathPreparation?.key===key){onProgress?.({stage:'Reusing neutral SAAMpath'});return pathPreparation.result;}
   const result=(async()=>{
     const saved=state.review.path;
@@ -521,7 +520,7 @@ async function prepareToolpath(state,{onProgress,source}={}){
     if(source.missing)throw source.missing;
     const path=await generatePath(state.plan,{onProgress}).catch(error=>requireMigrated(state,error));
     requireThat(!adapter.completionContract||path.completion?.contract===adapter.completionContract&&path.completion.inputHash===state.pathHash,'Generated SAAMpath completion does not match its inputs.');
-    const bytes=JSON.stringify(path),contentHash=hash(bytes),file=`paths/${contentHash}.json`;
+    const bytes=JSON.stringify(path),contentHash=canonicalHash(bytes),file=`paths/${contentHash}.json`;
     await save(resolve(state.dir,file),bytes);
     return {path,artifact:{inputHash:state.pathHash,hash:contentHash,file,...(source.hash!==null?{source:{release:source.release,hash:source.hash}}:{})}};
   })();
@@ -541,7 +540,7 @@ async function requireMigrated(state,error){
 async function readPathBytes(dir,artifact){
   requireThat(/^[a-f0-9]{64}$/.test(artifact.hash)&&artifact.file===`paths/${artifact.hash}.json`,'Invalid SAAMpath reference.');
   const bytes=await readFile(resolve(dir,artifact.file));
-  requireThat(hash(bytes)===artifact.hash,'Saved SAAMpath changed; regenerate it.');
+  requireThat(canonicalHash(bytes)===artifact.hash,'Saved SAAMpath changed; regenerate it.');
   return bytes;
 }
 async function readPathArtifact(dir,artifact){return JSON.parse(await readPathBytes(dir,artifact));}
@@ -557,7 +556,7 @@ async function generateToolpath(directory,{onProgress,beforeCommit}={}){
   await beforeCommit?.();
   await readPathArtifact(state.dir,artifact);
   await requireGenerationSource(state,source);
-  const review=canonical(artifact)===canonical(state.review.path)?state.review:{...state.review,approvals:{}};
+  const review=canonicalJson(artifact)===canonicalJson(state.review.path)?state.review:{...state.review,approvals:{}};
   await commitState(state,{review:{...review,path:artifact}});
   return loadBundle(directory,{program:false});
 }
@@ -594,8 +593,8 @@ async function updatePlan(directory, plan, revision, {preparedGeometry,expectedE
 function validatePlanUpdate(state, candidate) {
   const plan = structuredClone(candidate);
   requireThat(plan&&typeof plan==='object'&&!Array.isArray(plan),'Bundle contents must be a record.');
-  const changed = canonical(plan) !== canonical(state.plan);
-  const geometryChanged = changed && canonical(plan.geometry) !== canonical(state.plan.geometry);
+  const changed = canonicalJson(plan) !== canonicalJson(state.plan);
+  const geometryChanged = changed && canonicalJson(plan.geometry) !== canonicalJson(state.plan.geometry);
   return {plan, changed, geometryChanged};
 }
 
@@ -674,7 +673,7 @@ function generationChecks(state,prepared,development){
   const {bytes:code,program,summary}=prepared;
   return {
     schema: 'saam-checks/1', result: 'pass', mode: development ? 'development' : 'production',
-    generatorVersion: VERSION, generationHash: state.generationHash, exportHash: hash(code),
+    generatorVersion: VERSION, generationHash: state.generationHash, exportHash: canonicalHash(code),
     moves: program.moves.length,
     volumeMm3: Number(program.volumeMm3.toFixed(3)),
     estimatedMinutes: Number((program.seconds / 60).toFixed(1)),
@@ -725,7 +724,7 @@ async function approve(directory, { actor, revision, program = true }) {
 async function exportReviewed(state,{machineSetups}={}){
   const live=await loadBundle(state.dir,{program:'source'});
   requireThat(completedOutputState(live).exportable&&state.completedOutput?.id===live.completedOutput.id
-    &&state.checkedBytes&&hash(state.checkedBytes)===live.exportHash,'The displayed program changed. Reload before exporting.');
+    &&state.checkedBytes&&canonicalHash(state.checkedBytes)===live.exportHash,'The displayed program changed. Reload before exporting.');
   return writeDelivery({...state,checkedBytes:state.checkedBytes,plan:live.completedOutput.plan,machine:live.completedOutput.machine,
     exportName:live.completedOutput.exportName,exportHash:live.exportHash,deferRememberSetup:live.deferRememberSetup},true,machineSetups);
 }
@@ -778,7 +777,7 @@ async function setDeferredSetupSave(directory,{defer,expectedRevision}){
 async function setPhaseColours(directory,{phaseColours,expectedRevision}){
   const choice=checkedPhaseColours(phaseColours),state=await loadBundle(directory,{program:false});
   requireThat(expectedRevision===state.revision,'This revision is stale. Reload before changing phase colours.');
-  if(canonical(choice)===canonical(state.phaseColours))return {directory:state.dir,revision:state.revision,phaseColours:choice};
+  if(canonicalJson(choice)===canonicalJson(state.phaseColours))return {directory:state.dir,revision:state.revision,phaseColours:choice};
   const committed=await saveManifest(state.dir,{plan:state.plan,machine:state.machine,geometry:state.geometryArtifact,review:state.review,deferRememberSetup:state.deferRememberSetup,phaseColours:choice},state.revision);
   return {directory:state.dir,revision:revisionOf(committed),phaseColours:choice};
 }
@@ -792,9 +791,9 @@ async function applySettingsSnapshot(directory,selection,expectedRevision,{expec
     &&Object.keys(settings).every(k=>['setup','process','output','placement','skills'].includes(k)),'Invalid selected settings snapshot.');
   const plan={...state.plan,...settings};
   const source=await generationSource(plan),sourceChanged=staleGenerationSource(state,source);
-  if(canonical(machine)===canonical(state.machine)&&canonical(plan)===canonical(state.plan)&&!sourceChanged)return state;
+  if(canonicalJson(machine)===canonicalJson(state.machine)&&canonicalJson(plan)===canonicalJson(state.plan)&&!sourceChanged)return state;
   const previousReview=sourceChanged?sourceInvalidatedReview(state.review):state.review;
-  const review=canonical(machine)===canonical(state.machine)
+  const review=canonicalJson(machine)===canonicalJson(state.machine)
     ?editedPlanReview(previousReview,state.generationHash,false,planChanges(state.plan,plan))
     :machineChangedReview(previousReview,state.machine?.id??null,machine?.id??null);
   await commitState(state,{plan,machine,review},{edit:true});

@@ -515,6 +515,10 @@
       "owner": "bundle",
       "reason": "Atomic persistence helper; other owners using it reveal a shared IO ownership decision."
     },
+    "core/canonical-json.mjs": {
+      "owner": "bundle",
+      "reason": "Canonical JSON identity serializer shared by Bundle, Geometry, path and extension hashes."
+    },
     "core/export/registry.mjs": {
       "owner": "export",
       "reason": "Export selection, checks and reporting."
@@ -939,15 +943,7 @@
       "owner": "extensions",
       "reason": "Private utility implementation; no cross-bucket imports or re-exports."
     },
-    "core/private/geometry/hash.mjs": {
-      "owner": "geometry",
-      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
-    },
     "core/private/studio/file-write.mjs": {
-      "owner": "studio",
-      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
-    },
-    "core/private/studio/hash.mjs": {
       "owner": "studio",
       "reason": "Private utility implementation; no cross-bucket imports or re-exports."
     },
@@ -2263,6 +2259,27 @@
       "owner": "bundle"
     },
     "core/file-write.mjs::writeNewFile": {
+      "owner": "bundle"
+    },
+    "core/canonical-json.mjs::@module": {
+      "owner": "bundle"
+    },
+    "core/canonical-json.mjs::canonicalJson": {
+      "owner": "bundle"
+    },
+    "core/canonical-json.mjs::canonicalHash": {
+      "owner": "bundle"
+    },
+    "core/canonical-json.mjs::INDEX_KEY": {
+      "owner": "bundle"
+    },
+    "core/canonical-json.mjs::indexKey": {
+      "owner": "bundle"
+    },
+    "core/canonical-json.mjs::serialize": {
+      "owner": "bundle"
+    },
+    "core/canonical-json.mjs::primitiveArray": {
       "owner": "bundle"
     },
     "core/geom/blob-field-compile.mjs::@module": {
@@ -4870,10 +4887,6 @@
     "core/print/plan.mjs::authoredBounds": {
       "owner": "geometry-leaf-5c6e843f9a65"
     },
-    "core/print/plan.mjs::canonical": {
-      "owner": "toolpath",
-      "reason": "Private neutral construction-identity serialization/hash helper; raw Bundle STL verification uses its own byte hash."
-    },
     "core/print/plan.mjs::defaults": {
       "owner": "bundle",
       "reason": "Combines Toolpath recipe structure and Settings selections as an explicit new-recipe proposal."
@@ -4884,10 +4897,6 @@
     },
     "core/print/plan.mjs::geometryTemplate": {
       "owner": "geometry-leaf-65a24fc862d6"
-    },
-    "core/print/plan.mjs::hash": {
-      "owner": "toolpath",
-      "reason": "Private neutral construction-identity serialization/hash helper; raw Bundle STL verification uses its own byte hash."
     },
     "core/print/plan.mjs::keys": {
       "owner": "toolpath",
@@ -5208,10 +5217,6 @@
       "owner": "bundle",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
-    "core/print/workflow.mjs::canonical": {
-      "owner": "bundle",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
     "core/print/workflow.mjs::createBundleWorkflow": {
       "owner": "bundle"
     },
@@ -5360,10 +5365,6 @@
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
     "core/print/workflow.mjs::editedPlanReview": {
-      "owner": "bundle",
-      "reason": "Declaration-level responsibility override; containing module has mixed owners."
-    },
-    "core/print/workflow.mjs::hash": {
       "owner": "bundle",
       "reason": "Declaration-level responsibility override; containing module has mixed owners."
     },
@@ -8420,25 +8421,10 @@
     "core/private/extensions/numeric.mjs::requireThat": {
       "owner": "extensions"
     },
-    "core/private/geometry/hash.mjs::@module": {
-      "owner": "geometry-leaf-e3fb231f03f6"
-    },
-    "core/private/geometry/hash.mjs::canonical": {
-      "owner": "geometry-leaf-2ae1f91498c3"
-    },
-    "core/private/geometry/hash.mjs::hash": {
-      "owner": "geometry-leaf-4bc740f092e6"
-    },
     "core/private/studio/file-write.mjs::@module": {
       "owner": "studio"
     },
     "core/private/studio/file-write.mjs::replaceFile": {
-      "owner": "studio"
-    },
-    "core/private/studio/hash.mjs::@module": {
-      "owner": "studio"
-    },
-    "core/private/studio/hash.mjs::canonical": {
       "owner": "studio"
     },
     "core/private/studio/numeric.mjs::@module": {
@@ -9088,9 +9074,6 @@
       "owner": "export"
     },
     "core/extensions/library.mjs::@module": {
-      "owner": "extensions"
-    },
-    "core/extensions/library.mjs::canonical": {
       "owner": "extensions"
     },
     "core/extensions/library.mjs::checkoutExtension": {
@@ -14156,7 +14139,17 @@
     "studio/agent-requests.mjs::workSnapshot::hash",
     "core/machine/bundle-settings.mjs::rememberSetup",
     "core/print/completed-output.mjs::readCompletedPath",
-    "core/print/portable.mjs::cleanupScratch"
+    "core/print/portable.mjs::cleanupScratch",
+    "core/print/plan.mjs::canonical",
+    "core/print/plan.mjs::hash",
+    "core/print/workflow.mjs::canonical",
+    "core/print/workflow.mjs::hash",
+    "core/extensions/library.mjs::canonical",
+    "core/private/geometry/hash.mjs::@module",
+    "core/private/geometry/hash.mjs::canonical",
+    "core/private/geometry/hash.mjs::hash",
+    "core/private/studio/hash.mjs::@module",
+    "core/private/studio/hash.mjs::canonical"
   ],
   "scope": "Exact root responsibilities plus evidenced operation homes; unresolved submap containment remains explicit."
 }

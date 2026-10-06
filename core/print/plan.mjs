@@ -8,7 +8,6 @@ import {ASSIGNMENT_RECORDS,GEOMETRY_RECORDS,extensionSettings,validateExtensionR
 // defaulted at generation time, which is what keeps a regenerated path
 // identical to the reviewed one.
 
-import { createHash } from 'node:crypto';
 import {requireThat} from '../geom/tolerance.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {settingsDefaults} from '../machine/settings.mjs';
@@ -28,13 +27,6 @@ import {materialProcess} from '../machine/filaments.mjs';
 // Fixed release metadata, so regenerating a reviewed plan is byte-identical.
 import {VERSION} from './version.mjs';
 export {VERSION,BUILD_DATE} from './version.mjs';
-
-export const canonical = value => JSON.stringify(value, function (_key, item) {
-  if (item && typeof item === 'object' && !Array.isArray(item)) return Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]]));
-  return item;
-});
-export const hash = value => createHash('sha256')
-  .update(typeof value === 'string' || Buffer.isBuffer(value) || value instanceof Uint8Array ? value : canonical(value)).digest('hex');
 
 export function defaults(machine=loadMachine()) {
   return {...recipeDefaults(),...settingsDefaults(machine)};

@@ -3,6 +3,7 @@ import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
 import {replaceFile} from '../file-write.mjs';
+import {canonicalJson} from '../canonical-json.mjs';
 import {requireBundleInstance} from './studio-ownership.mjs';
 import {withBundleWriteLock} from './bundle-lock.mjs';
 import {recordBundleRuntime} from './bundle-runtime.mjs';
@@ -33,7 +34,7 @@ export async function restoreContent(dir,id){
     geometry:saved.geometry?await readRecord(dir,saved.geometry):null,generation:saved.generation?await readRecord(dir,saved.generation):null};
 }
 export function revisionOf(document){
-  return digest(JSON.stringify(document,function(key,value){return value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.keys(value).sort().map(k=>[k,value[k]])):value;}));
+  return digest(canonicalJson(document));
 }
 // Fail closed on a competing/crashed writer. The lock records its process for
 // explicit recovery; never guess that a slow live writer has expired.

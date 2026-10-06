@@ -4,6 +4,7 @@ import {homePaths} from '../application/home.mjs';
 import {createHash,randomUUID} from 'node:crypto';
 import {access,lstat,mkdir,cp,readFile,readdir,rename,rm,writeFile} from 'node:fs/promises';
 import {createTemporaryWorkspace} from '../application/temporary-workspace.mjs';
+import {canonicalJson,canonicalHash} from '../canonical-json.mjs';
 import {dirname,relative,resolve,sep} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 
@@ -14,8 +15,6 @@ const PACKAGE_SCHEMA='saam-extension-package/1';
 const MANIFEST_SCHEMA='saam-extension/1';
 const loadedDigests=new Map();
 const sha256=bytes=>createHash('sha256').update(bytes).digest('hex');
-const canonical=value=>JSON.stringify(value,(_key,item)=>item&&typeof item==='object'&&!Array.isArray(item)
-  ?Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])):item);
 
 export function extensionRoots({appRoot=applicationRoot,dataRoot}={}){
   return {bundled:resolve(appRoot,'skills'),local:homePaths(dataRoot).extensions};
@@ -81,7 +80,7 @@ async function extensionAt(directory,id){
     throw Error(`Extension ${id} entry ${entry.file} is absent.`);
   if(manifest.kind==='workspace'&&!names.includes(manifest.workspace.ui+'/index.html'))throw Error(`Workspace ${id} has no UI index.html.`);
   const files=await Promise.all(names.map(async path=>({path,bytes:await readFile(resolve(directory,path))})));
-  const digest=sha256(canonical(files.map(({path,bytes})=>({path,sha256:sha256(bytes)}))));
+  const digest=canonicalHash(files.map(({path,bytes})=>({path,sha256:sha256(bytes)})));
   return {id,directory,manifest,digest,files};
 }
 
@@ -143,7 +142,7 @@ export async function exportExtension(id,packageFile,options={}){
   if(!entry)throw Error(`Extension ${id} is missing.`);
   const document={schema:PACKAGE_SCHEMA,manifest:entry.manifest,digest:entry.digest,
     files:entry.files.map(({path,bytes})=>({path,sha256:sha256(bytes),base64:bytes.toString('base64')}))};
-  await writeFile(packageFile,canonical(document)+'\n',{flag:'wx'});
+  await writeFile(packageFile,canonicalJson(document)+'\n',{flag:'wx'});
   return {id,digest:entry.digest,file:resolve(packageFile),files:document.files.length};
 }
 
@@ -151,7 +150,7 @@ async function installFiles(id,files,options){
   const destination=resolve(extensionRoots(options).local,id);
   if(await exists(destination)){
     const installed=await extensionAt(destination,id);
-    const digest=sha256(canonical(files.map(({path,bytes})=>({path,sha256:sha256(bytes)}))));
+    const digest=canonicalHash(files.map(({path,bytes})=>({path,sha256:sha256(bytes)})));
     if(installed.digest===digest)return {...installed,origin:'local',unchanged:true};
     throw Error(`Local extension ${id} has changes. Keep it, or move it aside before importing another copy.`);
   }
@@ -189,11 +188,11 @@ export async function importExtension(packageFile,options={}){
   }
   files.sort((a,b)=>a.path<b.path?-1:a.path>b.path?1:0);
   if(!names.has('SKILL.md')||!names.has('extension.json')
-    ||canonical(manifestValue(JSON.parse(files.find(file=>file.path==='extension.json').bytes.toString('utf8')),id))!==canonical(manifest))
+    ||canonicalJson(manifestValue(JSON.parse(files.find(file=>file.path==='extension.json').bytes.toString('utf8')),id))!==canonicalJson(manifest))
     throw Error(`Extension ${id} package manifest or guidance is missing.`);
   for(const entry of Object.values(manifest.entries))if(!names.has(entry.file))throw Error(`Extension ${id} entry ${entry.file} is absent.`);
   if(manifest.kind==='workspace'&&!names.has(manifest.workspace.ui+'/index.html'))throw Error(`Workspace ${id} has no UI index.html.`);
-  const digest=sha256(canonical(files.map(({path,bytes})=>({path,sha256:sha256(bytes)}))));
+  const digest=canonicalHash(files.map(({path,bytes})=>({path,sha256:sha256(bytes)})));
   if(digest!==document.digest)throw Error(`Extension ${id} package digest changed.`);
   const installed=await installFiles(id,files,options);
   return {id,digest,origin:installed.origin,unchanged:installed.unchanged};
