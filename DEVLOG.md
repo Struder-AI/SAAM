@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-06 — Machine adapters step 4, part 1: built-ins are machine extensions
+
+- Worker W25: built-in adapters are bundled machine extensions under `machines/<id>/` (ultimaker, bambu, dobot, denso): profiles, adapter, contract as SKILL.md, Dobot/DENSO debug `machine-verify`. Extension kind `machine`; `machineCatalog` replaces MACHINE_IDS (local copies win). Adapters are `createAdapter(Export)` factories receiving program-resolution numbers, gcodeMotion, ZIP, the temperature ceiling and stateless frame math, and import no core module; each declares output, poses and settings {key, validate}. `validateSetup` and `mergeSetup` are generic; preparation reads poses and the start pose from the declaration and the adapter's block; material changes follow the output's mode. Removed: registry table, `outputAdapter`, `core/machine/denso.mjs`, rules id branches, dead helpers. `exportProgram` is async. Plan links to the Bambu contract moved to `machines/bambu/SKILL.md`.
+- Verified: 16/16 saved cases byte-identical, 22 affected test files on their own (worker); after merge workflow, bambu, export, denso, printer-profiles, studio-open pass. Not run: whole suite, browser, dev instance. Remaining: neutral materials (A5), presentation and Studio adapter blocks, Bambu-internal model branches, recipe dependency on the adapter, dev-instance probe, builder guide and docs.
+
 ## 2026-10-06 — Flat tray menu; Studio titles start "SAAM Studio"
 
 - Owner: tray instances on the first menu with no submenus; the tab title must start "SAAM Studio <version>". Worker: the tray is one flat menu on Windows and macOS: Open Studio and New Instance; each runtime's Studios after a separator (print or "Empty Studio", plus the chat; no instance ids), a source runtime's open and stop items beside them; Update and Quit. Opens still go through control `open` with `display:'caller'`. Studio's title is the runtime's `studioTitle` ("SAAM Studio 0.3.6", or "SAAM Studio source" for a checkout), then the print name, then the port (unique per window, needed by Windows raising, dropped first by truncation); `raise-window.ps1` matches "SAAM Studio … · <port>".
