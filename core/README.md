@@ -93,12 +93,10 @@ coordination timers and display budgets. These limits are kept:
 
 ## Dimensions and tolerances
 
-SAAM makes parts within build volumes of hundreds of millimetres (beds up to
-350 mm, the Denso arm 500 mm), from lines of tenths of a millimetre (0.4 to 0.8 mm
-nozzles), in layers of hundredths (0.06 to 0.6 mm). Machines repeat to about
-0.01 mm; G-code programs write 1e-5 mm. Every tolerance belongs to one class in
-[dimensions.mjs](./dimensions.mjs), imports it or derives it from the print's
-own dimensions, and says which:
+SAAM prints in build volumes of hundreds of millimetres, with lines of tenths
+(0.4 to 0.8 mm) and layers of hundredths (0.06 to 0.6 mm); machines repeat to
+about 0.01 mm. Every tolerance imports a class from [dimensions.mjs](./dimensions.mjs)
+or derives from the print's own dimensions, and says which:
 
 | Class | Value | What it protects |
 |---|---|---|
@@ -107,13 +105,11 @@ own dimensions, and says which:
 | Program resolution, `PROGRAM_DECIMALS` | 5 decimals (1e-5 mm) | What an exporter can express; it stays below print resolution, so rounding the program never changes the print. |
 | Numeric conditioning, `NUMERIC_MM`, `NUMERIC_RELATIVE` | 1e-9 mm, 1e-12 | float64 safety at `BUILD_SCALE_MM` (1000 mm, where one ulp is 1.1e-13 mm): degeneracy guards and predicate certification. Never used to judge shape. |
 
-Display budgets (Studio tessellation, picking) are visual and never reach geometry
-or programs. Areas compare to areas, lengths to lengths; a dimensionless
-quantity (cosine, parameter fraction) uses `NUMERIC_RELATIVE` or its own scale.
-A feature far below print resolution that an operation produces (a repair film,
-a sliver) is closed and reported, not rejected. `node scripts/check-repo.mjs`
-counts raw tolerance literals per file against
-[its baseline](../scripts/tolerance-literals.json); a new one fails.
+Display budgets are visual and never reach geometry or programs. Areas compare to
+areas; dimensionless quantities use `NUMERIC_RELATIVE` or their own scale. A feature
+far below print resolution that an operation produces is closed and reported, not
+rejected. `scripts/check-repo.mjs` fails a file whose raw tolerance literals exceed
+[its baseline](../scripts/tolerance-literals.json).
 
 Developer experiments use these same components; [historical inspection](../studio/README.md#historical-toolpath-inspection)
 is a scoped example. A proposed parallel pipeline needs a reason the shared

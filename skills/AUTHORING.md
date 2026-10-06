@@ -23,9 +23,8 @@ a lowercase hyphenated `id`, `dependencies`, `entries`, `license` and `provenanc
 Missing dependencies and cycles stop execution. Entries name `.mjs` functions for
 geometry, deposition, record or resource operations. Runtime factories receive named
 public Geometry and Toolpath operations; private core imports are not a portable
-interface. Extension code uses the tolerances of the operations it calls or a
-[tolerance class](../core/README.md#dimensions-and-tolerances), and adds no fixed
-memory or resource budget ([limits](../core/README.md#limits-that-adapt-and-limits-that-are-kept)).
+interface. Extension code uses its operations' tolerances or a [tolerance class](../core/README.md#dimensions-and-tolerances)
+and adds no fixed budget ([limits](../core/README.md#limits-that-adapt-and-limits-that-are-kept)).
 
 Workspace extensions declare `kind: "workspace"`, `workspace: {"ui":"ui"}` and a
 `workspace-runtime` factory receiving `Geometry.loftPolygons`,
