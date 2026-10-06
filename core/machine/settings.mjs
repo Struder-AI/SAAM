@@ -20,6 +20,14 @@ function mergeSetup(previous,changes){
     ...Object.entries(changes).map(([key,value])=>[key,mergeSetup(previous?.[key],value)])]);
 }
 
+// Logical materials are neutral settings (setup.filaments, setup.filament);
+// setups saved before SAAM 0.3.6 kept them in the Bambu block.
+export function neutralMaterials(setup){
+  if(!settingsRecord(setup?.bambu)||!['filaments','filament'].some(key=>Object.hasOwn(setup.bambu,key)))return setup;
+  const {filaments,filament,...bambu}=setup.bambu;
+  return {...setup,...filaments!==undefined&&{filaments},...filament!==undefined&&{filament},bambu};
+}
+
 export function resolveSettingsPatch(previous,patch){
   requireThat(patch&&typeof patch==='object'&&!Array.isArray(patch)&&Object.keys(patch).every(k=>SETTINGS_FIELDS.includes(k)),'Settings edits accept setup, process, output and placement only.');
   const settings={};
@@ -64,7 +72,7 @@ export async function selectSettings(machineId,{machineSetups}={}){
   catch(error){if(error.code!=='ENOENT')throw error;}
   if(saved){
     requireThat(saved.schema==='saam-machine-setup/1'&&saved.machineId===machine.id,'Saved machine setup is incompatible.');
-    const remembered=Object.fromEntries(Object.entries(saved.setup??{}).filter(([key])=>Object.hasOwn(settings.setup,key)));
+    const remembered=Object.fromEntries(Object.entries(neutralMaterials(saved.setup)??{}).filter(([key])=>Object.hasOwn(settings.setup,key)));
     settings.setup={...settings.setup,...remembered,materialGuid:remembered.materialGuid||settings.setup.materialGuid};
   }
   return {machine,settings};

@@ -171,17 +171,17 @@ export function recipeRows(plan,machine){
   rows.push(['Experimental substrate adaptation',plan.experimental?.substrateAdaptation?'On · final deposited contact sets gap and volume; surface-following constructions may change placement':'Off · nominal reference geometry and bead rules']);
   if(plan.setup.bambu){
     rows.push(['Bambu startup',plan.setup.bambu.fast_start?'Fast — reuse calibration; skip optional scans and vibration tests':'Full — calibration follows startup controls / printer choices']);
-    const used=[...new Set([plan.setup.bambu.filament,
+    const used=[...new Set([plan.setup.filament,
       ...(plan.slices?.assignments??[]).map(a=>a.filament),
       ...(plan.composition?.filaments??[]).map(route=>route.filament)].filter(i=>i!==undefined&&i!==null))];
     const change=machine.outputs.find(o=>o.id===plan.output)?.constraints;
     if(used.length>1&&change?.materialChangeMode==='single-nozzle-ams')rows.push(['AMS colour changes',`${change.materialChangeFlushMm3} mm³ purged into the rear chute per change, plus priming. No tower; service time/material are additional to part totals.`]);
     for(const id of used){
-      const entry=plan.setup.bambu.filaments?.[id],tool=entry?.tool??plan.setup.tool;
+      const entry=plan.setup.filaments?.[id],tool=entry?.tool??plan.setup.tool;
       const nozzleMm=tool===plan.setup.tool?plan.setup.nozzleMm:plan.setup.bambu.otherNozzleMm;
       const p={...plan.process,...entry?.process};
       const ams=entry?.source?.type==='ams'?{unit:entry.source.unit,slot:entry.source.slot}:
-        entry?.source?.type==='external'?null:id===plan.setup.bambu.filament?plan.setup.ams:null;
+        entry?.source?.type==='external'?null:id===plan.setup.filament?plan.setup.ams:null;
       const source=entry?.source?.type==='external'?'External spool':entry?.source?.type==='ams-ht'?`Requested AMS HT ${entry.source.unit}`:ams?`Requested AMS ${ams.unit}, slot ${ams.slot}`:'Automatic material/colour matching';
       rows.push([`Filament ${id+1}`,`${machine.tools.find(t=>t.index===tool)?.label??`Tool ${tool}`} · ${nozzleMm} mm nozzle · ${plan.setup.material} ${entry?.colour??plan.setup.filamentColor??''} · ${entry?.nozzleC??plan.setup.nozzleC}°C · ${source}`],
         [`Filament ${id+1} · Process`,`${p.lineWidthMm} mm bead · ${p.layerMm} mm layers`]);

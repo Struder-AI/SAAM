@@ -12,7 +12,7 @@ import {auditBambu} from '../../scripts/bambu-audit.mjs';
 const release={generatorVersion:'test',buildDate:'2026-09-21'};
 test('H2D blue-orange-blue changes logical filament twice while retaining right 0.8 and checked layer heights',async()=>{
   const {plan,machine}=h2dColourFixture();
-  plan.setup.bambu.filaments[1].process={retractMm:0.6};
+  plan.setup.filaments[1].process={retractMm:0.6};
   const path=await generatePath(plan,machine),prepared=(await preparePath(path,plan,machine));
   assert.deepEqual(path.actions.filter(a=>a.kind==='toolChange').map(a=>a.filament),[1,0]);
   assert.deepEqual(prepared.actions.filter(a=>a.kind==='toolChange').map(a=>[a.tool,a.filament]),[[1,1],[1,0]]);
@@ -59,6 +59,6 @@ test('the requested 0.8/0.8 ALT changes only installed-nozzle declarations, not 
 
 test('H2D automatic colour switching rejects external feed',async()=>{
   const {plan,machine}=h2dColourFixture(),path=await generatePath(plan,machine);
-  plan.setup.bambu.filaments[1].source={type:'external'};
+  plan.setup.filaments[1].source={type:'external'};
   await assert.rejects(()=>exportProgram(path,plan,machine,release),/require AMS feeds/);
 });

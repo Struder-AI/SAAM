@@ -14,7 +14,7 @@ export function renderBambuChange(plan,machine,{from,to,position,incomingDebt,kn
   requireThat(from!==to,'A material change requires distinct logical filaments.');
   if(sameNozzle){
     requireThat(sameNozzleMaterialChanges(machine),'Same-nozzle material changes require a separate flushing contract.');
-    for(const p of [old,next])requireThat(p.setup.bambu.filaments[p.setup.bambu.filament].source?.type!=='external',
+    for(const p of [old,next])requireThat(p.setup.filaments[p.setup.filament].source?.type!=='external',
       'Automatic H2D material changes require AMS feeds, not an external spool.');
     requireThat(Math.abs(incomingDebt-next.process.retractMm)<1e-6,'AMS change must hand off the new filament retracted.');
   }

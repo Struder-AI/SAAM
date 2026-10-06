@@ -204,8 +204,8 @@ test('Bambu selected nozzle, other nozzle, plate and temperature stay coherent a
 
 test('logical filament selection reaches both load blocks, detection and every package reference independently of AMS tray',async()=>{
   const {machine,plan}=fixture(1,0.8);plan.setup.ams={unit:2,slot:4};
-  plan.setup.bambu.filaments=[{id:'GFA00',colour:'#111111'},{id:'GFA01',colour:'#222222'},{id:'GFA00',colour:'#AABBCC'}];
-  plan.setup.bambu.filament=2;plan.setup.filamentColor='#AABBCC';
+  plan.setup.filaments=[{id:'GFA00',colour:'#111111'},{id:'GFA01',colour:'#222222'},{id:'GFA00',colour:'#AABBCC'}];
+  plan.setup.filament=2;plan.setup.filamentColor='#AABBCC';
   const z=unpackZip((await exportProgram(await generatePath(plan,machine),plan,machine,release)).bytes);
   const code=z.get(GCODE).toString(),slice=z.get('Metadata/slice_info.config').toString();
   for(const command of ['M620 S2A H-1','T2 H-1','M621 S2A'])assert.equal(code.split('\n').filter(l=>l===command).length,2);
@@ -232,9 +232,9 @@ test('Bambu rejects conflicting declarations and unsupported settings before pro
     [{core:'Hardened steel 0.8'},/core and selected nozzle/],
     [{bambu:{...plan.setup.bambu,plate:'unknown'}},/build plate/],
     [{bambu:{...plan.setup.bambu,otherNozzleMm:null}},/other installed/],
-    [{bambu:{...plan.setup.bambu,filament:1}},/filament index/],
+    [{filament:1},/filament index/],
     [{bambu:{...plan.setup.bambu,startup:{bedLeveling:'maybe'}}},/printer, on or off/],
-    [{filamentColor:'#FFFFFF',bambu:{...plan.setup.bambu,filaments:[{id:'GFA00',colour:'#000000'}]}},/colour disagrees/],
+    [{filamentColor:'#FFFFFF',filaments:[{id:'GFA00',colour:'#000000'}]},/colour disagrees/],
   ]){const p=structuredClone(plan);Object.assign(p.setup,patch);await assert.rejects(()=>exportProgram(path,p,machine,release),message);}
   const old=structuredClone(plan);delete old.setup.bambu;await assert.rejects(()=>exportProgram(path,old,machine,release),/Invalid bambu configuration/);
   for(const key of ['nozzle_diameter','filament_map','curr_bed_type','nozzle_type']){
@@ -291,8 +291,8 @@ test('declared logical filaments preserve independent nozzle assignments on ever
   for(const tool of [0,1]){
     const {plan,machine}=fixture(tool,tool===0?0.4:0.8);
     plan.setup.bambu.otherNozzleMm=tool===0?0.8:0.4;
-    plan.setup.bambu.filaments=[{id:'GFA00',colour:'#00AE42',tool:1},{id:'GFA00',colour:'#FFFF00',tool:0}];
-    plan.setup.bambu.filament=1-tool;
+    plan.setup.filaments=[{id:'GFA00',colour:'#00AE42',tool:1},{id:'GFA00',colour:'#FFFF00',tool:0}];
+    plan.setup.filament=1-tool;
     const path=await generatePath(plan,machine),bytes=(await exportProgram(path,plan,machine,release)).bytes,z=unpackZip(bytes);
     const settings=JSON.parse(z.get('Metadata/project_settings.config')),code=z.get(GCODE).toString();
     for(const key of ['filament_map','filament_map_2','filament_nozzle_map']){
@@ -304,7 +304,7 @@ test('declared logical filaments preserve independent nozzle assignments on ever
     for(const name of ['Metadata/model_settings.config','Metadata/slice_info.config'])assert.match(z.get(name).toString(),/key="filament_maps" value="2 1"/);
     assert.deepEqual(JSON.parse(z.get('Metadata/filament_sequence.json')).plate_1,{nozzle_sequence:[tool],sequence:[2-tool]},'declaring both nozzles does not claim both are used');
     assert.equal((await exportProgram(path,plan,machine,release)).report.envelope.job.tool,tool);
-    plan.setup.bambu.filament=tool;
+    plan.setup.filament=tool;
     await assert.rejects(()=>exportProgram(path,plan,machine,release),/nozzle disagrees/);
   }
 });
@@ -366,8 +366,8 @@ test('fast_start skips optional checks, keeps startup handoff and rejects contra
 
 test('single used filament with a nonzero logical ID remains that ID in the USB header',async()=>{
   const {machine,plan}=fixture(1,0.8);
-  plan.setup.bambu.filaments=[{id:'GFA00',colour:'#808080',tool:0},{id:'GFA00',colour:'#0000FF',tool:1}];
-  plan.setup.bambu.filament=1;
+  plan.setup.filaments=[{id:'GFA00',colour:'#808080',tool:0},{id:'GFA00',colour:'#0000FF',tool:1}];
+  plan.setup.filament=1;
   const path=await generatePath(plan,machine),bytes=(await exportProgram(path,plan,machine,release)).bytes,entries=unpackZip(bytes);
   assert.match(entries.get(GCODE).toString(),/^; filament: 2$/m);
   assert.match(entries.get('Metadata/slice_info.config').toString(),/<filament id="2"/);

@@ -1,7 +1,7 @@
 import {requireThat,distance} from '../private/export/numeric.mjs';
 import {AdaptationMotion,machinePriming} from '../private/export/adaptation-motion.mjs';
 import {validateSetup,toolBounds,startupPosition,startupRetracted} from '../machine/rules.mjs';
-import {filamentPlan} from '../machine/filaments.mjs';
+import {materialProcess,materialTool} from '../machine/filaments.mjs';
 import {contextualActions} from '../path/action-context.mjs';
 
 export const PREPARED_PATH_CONTRACT='saam-export-prepared/1';
@@ -10,8 +10,8 @@ const upright=pose=>!pose||Math.abs(pose.rotaryDeg)<1e-9&&
   pose.toolAxis.every((v,i)=>Math.abs(v-[0,0,-1][i])<1e-9)&&
   pose.toolUp.every((v,i)=>Math.abs(v-[0,1,0][i])<1e-9);
 const selection=(plan,machine,index)=>{
-  const selected=filamentPlan(plan,machine,index);
-  return {plan:selected,filament:index,tool:selected.setup.tool,process:selected.process,bounds:toolBounds(machine,selected.setup.tool)};
+  const tool=materialTool(plan,index);
+  return {filament:index,tool,process:materialProcess(plan,index),bounds:toolBounds(machine,tool)};
 };
 function hasPrime(path){
   for(const {context} of contextualActions(path))if(context.phase==='prime')return true;

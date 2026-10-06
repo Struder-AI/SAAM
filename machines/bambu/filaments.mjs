@@ -1,7 +1,6 @@
 // Bambu logical filament selection: the installed nozzle, feed source and AMS
 // connections each filament uses. Core has already validated common setup.
 export const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
-const PROCESS_FIELDS=['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','skinSpeedMmS','firstLayerSpeedMmS','maxFlowMm3S','retractMm','retractSpeedMmS'];
 export const toolFor=(machine,index)=>{
   const tool=machine.tools.find(t=>t.index===index);
   requireThat(tool,'Selected tool is not declared by this machine.');return tool;
@@ -42,8 +41,8 @@ export function validateBambuConnections(connections,machine){
 // No device/tray number is ever substituted for the logical filament index.
 export function checkedFilamentPlan(plan,machine,index){
   requireThat(plan.output==='bambu-gcode','This output has no logical filament-selection adapter.');
-  const b=plan.setup.bambu,entry=b?.filaments?.[index];
-  requireThat(Number.isInteger(index)&&index>=0&&(entry||index===0&&b?.filaments===null),'Unknown logical filament selection.');
+  const b=plan.setup.bambu,entry=plan.setup.filaments?.[index];
+  requireThat(Number.isInteger(index)&&index>=0&&(entry||index===0&&plan.setup.filaments==null),'Unknown logical filament selection.');
   const tool=entry?.tool??plan.setup.tool,t=toolFor(machine,tool);
   const nozzleMm=tool===plan.setup.tool?plan.setup.nozzleMm:b.otherNozzleMm;
   const source=entry?.source;
@@ -52,21 +51,17 @@ export function checkedFilamentPlan(plan,machine,index){
     requireThat(source&&typeof source==='object'&&
       (['external','auto'].includes(source.type)&&Object.keys(source).join()==='type'||source.type==='ams'&&Object.keys(source).sort().join()==='slot,type,unit'||source.type==='ams-ht'&&Object.keys(source).sort().join()==='type,unit'),
     'A filament source must be auto, external, AMS with one-based unit/slot, or AMS HT with one-based unit.');
-    if(index===b.filament&&plan.setup.ams!==null)requireThat(source.type==='ams'&&source.unit===plan.setup.ams.unit&&source.slot===plan.setup.ams.slot,'Selected filament source contradicts setup.ams.');
+    if(index===plan.setup.filament&&plan.setup.ams!==null)requireThat(source.type==='ams'&&source.unit===plan.setup.ams.unit&&source.slot===plan.setup.ams.slot,'Selected filament source contradicts setup.ams.');
   }
   if(source?.type==='ams-ht'){
     requireThat(Number.isInteger(source.unit)&&source.unit>=1&&source.unit<=(machine.ams?.htUnits??0),'AMS HT unit exceeds machine capacity.');
     if(b.amsConnections!==null)requireThat(b.amsConnections.some(c=>c.type==='ams-ht'&&c.unit===source.unit&&c.tool===tool),'Requested AMS HT unit is not connected to the selected Bambu nozzle.');
   }
-  const ams=source?.type==='ams'?{unit:source.unit,slot:source.slot}:source?.type==='external'?null:index===b.filament?plan.setup.ams:null;
-  const process=entry?.process??{};
-  requireThat(process&&typeof process==='object'&&!Array.isArray(process)&&Object.keys(process).every(k=>
-    PROCESS_FIELDS.includes(k)&&Number.isFinite(process[k])),
-  'Unsupported filament process override.');
+  const ams=source?.type==='ams'?{unit:source.unit,slot:source.slot}:source?.type==='external'?null:index===plan.setup.filament?plan.setup.ams:null;
   const setup={...plan.setup,tool,nozzleMm,core:`Hardened steel ${nozzleMm}`,nozzleC:entry?.nozzleC??plan.setup.nozzleC,
-    filamentColor:entry?.colour??plan.setup.filamentColor,ams,
-    bambu:{...b,filament:index,otherNozzleMm:machine.tools.length===1?null:tool===plan.setup.tool?b.otherNozzleMm:plan.setup.nozzleMm}};
-  const selected={...plan,setup,process:{...plan.process,...process}};
+    filamentColor:entry?.colour??plan.setup.filamentColor,ams,filament:index,
+    bambu:{...b,otherNozzleMm:machine.tools.length===1?null:tool===plan.setup.tool?b.otherNozzleMm:plan.setup.nozzleMm}};
+  const selected={...plan,setup,process:{...plan.process,...entry?.process}};
   requireThat(t.nozzleDiametersMm.includes(nozzleMm),'Filament selects an unsupported installed nozzle.');
   if(ams){feederSelector(selected,machine);if(b.amsConnections!==null)requireThat(b.amsConnections.some(c=>(c.type??'ams')==='ams'&&c.unit===ams.unit&&c.tool===tool),'Requested AMS unit is not connected to the selected Bambu nozzle.');}
   return selected;

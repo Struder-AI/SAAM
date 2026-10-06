@@ -172,12 +172,12 @@
     "materialGuid": null,
     "firmwareVersion": "",
     "startupVerified": false,
+    "filaments": null,
+    "filament": 0,
     "bambu": {
       "plate": "textured_plate",
       "otherNozzleMm": 0.4,
       "amsConnections": null,
-      "filaments": null,
-      "filament": 0,
       "startup": {
         "bedLeveling": "printer",
         "flowCalibration": "printer",

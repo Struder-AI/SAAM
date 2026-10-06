@@ -12,8 +12,8 @@ import {auditBambu} from '../../scripts/bambu-audit.mjs';
 const release={generatorVersion:'test',buildDate:'2026-09-21'};
 test('X1 white-grey-black makes exactly two same-nozzle AMS changes, with checked retraction and three colour bands',async()=>{
   const {plan,machine}=x1ColourFixture();
-  plan.setup.bambu.filaments[1].process={retractMm:0.6};
-  plan.setup.bambu.filaments[2].process={retractMm:1};
+  plan.setup.filaments[1].process={retractMm:0.6};
+  plan.setup.filaments[2].process={retractMm:1};
   const path=await generatePath(plan,machine),prepared=(await preparePath(path,plan,machine));
   assert.deepEqual(path.actions.filter(a=>a.kind==='toolChange').map(a=>a.filament),[1,2]);
   assert.deepEqual(prepared.actions.filter(a=>a.kind==='toolChange').map(a=>[a.tool,a.filament]),[[0,1],[0,2]]);
@@ -41,9 +41,9 @@ test('X1 white-grey-black makes exactly two same-nozzle AMS changes, with checke
 
 test('X1 automatic changes reject external feed and missing clearance contract',async()=>{
   const {plan,machine}=x1ColourFixture(),path=await generatePath(plan,machine);
-  plan.setup.bambu.filaments[1].source={type:'external'};
+  plan.setup.filaments[1].source={type:'external'};
   await assert.rejects(()=>exportProgram(path,plan,machine,release),/require AMS feeds/);
-  plan.setup.bambu.filaments[1].source={type:'auto'};
+  plan.setup.filaments[1].source={type:'auto'};
   const unsupported=structuredClone(machine);
   unsupported.outputs.find(o=>o.id===plan.output).constraints.toolChangeLiftMm=0;
   await assert.rejects(()=>exportProgram(path,plan,unsupported,release),/clearance contract/);

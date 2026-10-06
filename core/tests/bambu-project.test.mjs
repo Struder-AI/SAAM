@@ -9,7 +9,7 @@ test('H2D project fields follow job values and explicit array roles for one, two
   for(const count of [1,2,3]){
     const {plan,machine}=h2dColourFixture();
     plan.setup.bambu.plate='hot_plate';plan.setup.bedC=60;
-    plan.setup.bambu.filaments=Array.from({length:count},(_,i)=>({id:'GFA00',colour:['#123456','#ABCDEF','#654321'][i],
+    plan.setup.filaments=Array.from({length:count},(_,i)=>({id:'GFA00',colour:['#123456','#ABCDEF','#654321'][i],
       tool:i===2?0:1,source:{type:'auto'},nozzleC:i?210:225}));
     const job=resolveBambuJob(plan,machine,machine.outputs[0]),p=job.projectSettings;
     for(const [key,value]of Object.entries(job.settings)){

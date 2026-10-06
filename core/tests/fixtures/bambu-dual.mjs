@@ -7,7 +7,8 @@ import {splineBox} from './spline-shapes.mjs';
 export function mixedNozzleFixture(){
   const machine=loadMachine('bambu-h2d'),plan=defaults(machine);
   Object.assign(plan.setup,{tool:0,nozzleMm:0.4,core:'Hardened steel 0.4',nozzleC:215,ams:null});
-  Object.assign(plan.setup.bambu,{otherNozzleMm:0.8,filament:0,amsConnections:[{unit:1,tool:1}],filaments:[
+  Object.assign(plan.setup.bambu,{otherNozzleMm:0.8,amsConnections:[{unit:1,tool:1}]});
+  Object.assign(plan.setup,{filament:0,filaments:[
     {id:'GFA00',colour:'#FFFF00',tool:0,source:{type:'external'}},
     {id:'GFA00',colour:'#00AE42',tool:1,source:{type:'auto'},nozzleC:225,process:{lineWidthMm:0.8,firstLayerMm:0.3,layerMm:0.3}},
   ]});
@@ -23,8 +24,8 @@ export function mixedNozzleFixture(){
 export function dualNozzleVerificationFixture(){
   const fixture=mixedNozzleFixture(),{plan}=fixture;
   plan.setup.bambu.fast_start=true;
-  plan.setup.bambu.filaments[0].colour='#808080'; // display placeholder, external PLA
-  plan.setup.bambu.filaments[1].colour='#0000FF';
+  plan.setup.filaments[0].colour='#808080'; // display placeholder, external PLA
+  plan.setup.filaments[1].colour='#0000FF';
   plan.placement={xMm:169,yMm:154};
   for(const [i,part]of plan.geometry.parts.entries()){
     part.xMm=i*60;part.geometry=boxMesh(12,12,i?0.3:0.4);

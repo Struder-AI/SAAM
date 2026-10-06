@@ -9,7 +9,7 @@ export function renderX1MaterialChange(plan,machine,{from,to,position,incomingDe
   const old=filamentPlan(plan,machine,from),next=filamentPlan(plan,machine,to);
   for(const p of [old,next]){
     requireThat(p.setup.tool===0&&p.setup.material==='PLA'&&p.setup.nozzleMm===0.4,'X1 AMS changes require the 0.4 mm PLA contract.');
-    requireThat(p.setup.bambu.filaments?.[p.setup.bambu.filament]?.source?.type!=='external','Automatic X1 material changes require AMS feeds, not an external spool.');
+    requireThat(p.setup.filaments?.[p.setup.filament]?.source?.type!=='external','Automatic X1 material changes require AMS feeds, not an external spool.');
   }
   const bounds=toolBounds(machine,0),k=machine.outputs.find(o=>o.id==='bambu-gcode').constraints;
   requireThat(position.every((v,i)=>Number.isFinite(v)&&v>=bounds.min[i]&&v<=bounds.max[i]),'AMS change handoff exceeds nozzle bounds.');

@@ -202,7 +202,7 @@ export async function generatePath(plan, {onProgress,modulations,modulationPrepa
   await validateSelectedExtensionRecipe(plan,assignment=>assignmentPlan(plan,assignment).process);
   const prepared=await preparePathGeometry(plan);
   const evaluated=modulations?{...plan,modulations}:plan;
-  const materialAssignments=assignedFilaments(plan),defaultFilament=plan.setup.bambu?.filament??materialAssignments[0]??null;
+  const materialAssignments=assignedFilaments(plan),defaultFilament=plan.setup.filament??materialAssignments[0]??null;
   const assigned=[...new Set([defaultFilament,...materialAssignments].filter(v=>v!==null&&v!==undefined))];
   const selections=materialAssignments.length?Object.fromEntries(assigned.map(i=>[i,filamentSelection(plan,i)])):null;
   const start=[plan.placement.xMm,plan.placement.yMm,(prepared.placed?.bounds.max[2]??0)+plan.process.liftMm];

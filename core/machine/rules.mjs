@@ -1,6 +1,7 @@
 import {requireThat} from '../private/export/numeric.mjs';
 
 import {validateTemperatureC} from '../private/export/temperature.mjs';
+import {materialProcess} from './filaments.mjs';
 
 export const toolFor=(machine,index)=>{
   const tool=machine.tools.find(t=>t.index===index);
@@ -10,15 +11,15 @@ export const toolBounds=(machine,index)=>toolFor(machine,index).bounds??machine.
 // Read the approved default without changing saved machine snapshot identity.
 export const planarWallTolerance=machine=>machine?.planarWallToleranceMm===undefined?0.01:machine.planarWallToleranceMm;
 
-// Common setup fields, then the selected adapter's own block (plan.setup[settings.key])
-// through its settings.validate. Null installation fields permit geometry
+// Common setup fields and logical materials, then the selected adapter's own
+// block (plan.setup[settings.key]) through its settings.validate. Null installation fields permit geometry
 // review; required (export) makes the adapter name what is missing.
 export function validateSetup(plan,machine,{required=false,adapter={}}={}) {
   requireThat(machine.schema==='saam-machine/1'&&machine.units==='mm','Unsupported machine schema or units.');
   requireThat(Number.isFinite(planarWallTolerance(machine))&&planarWallTolerance(machine)>=0,'Machine planar wall tolerance must be finite and nonnegative.');
   const s=plan.setup,key=adapter.settings?.key;
   const common=['tool','core','material','firmwareVersion','nozzleMm','filamentMm','nozzleC','bedC','buildVolumeC','startupVerified','materialGuid'];
-  const allowed=[...common,'filamentColor','ams',...key?[key]:[]];
+  const allowed=[...common,'filamentColor','ams','filaments','filament',...key?[key]:[]];
   requireThat(s&&typeof s==='object'&&!Array.isArray(s)&&common.every(k=>Object.hasOwn(s,k))&&Object.keys(s).every(k=>allowed.includes(k)),'Invalid export setup fields.');
   requireThat(typeof s.material==='string'&&typeof s.firmwareVersion==='string','Material and firmware version must be text.');
   requireThat(typeof s.startupVerified==='boolean','Startup verification must be a boolean.');
@@ -33,6 +34,14 @@ export function validateSetup(plan,machine,{required=false,adapter={}}={}) {
   if(output.constraints?.chamberC!==undefined)requireThat(s.buildVolumeC===output.constraints.chamberC,'This output profile requires no chamber heating (buildVolumeC: 0).');
   requireThat(s.materialGuid===null||typeof s.materialGuid==='string','Invalid material identity.');
   requireThat(s.filamentColor==null||/^#[0-9a-f]{6}$/i.test(s.filamentColor),'Filament color must be a six-digit hex color such as #28A090.');
+  const list=s.filaments??null;
+  requireThat(list===null||Array.isArray(list)&&list.length>0&&list.every(entry=>entry&&typeof entry==='object'&&!Array.isArray(entry)),'Logical filaments must be a non-empty list of records.');
+  requireThat(s.filament===undefined||Number.isInteger(s.filament)&&s.filament>=0&&s.filament<(list?.length??1),'The filament index is outside the logical filament list.');
+  for(const [index,entry] of (list??[]).entries()){
+    requireThat(entry.tool===undefined||machine.tools.some(t=>t.index===entry.tool),'A logical filament names a tool this machine does not declare.');
+    if(entry.nozzleC!==undefined)validateTemperatureC(entry.nozzleC);
+    materialProcess(plan,index);
+  }
   adapter.settings?.validate?.({machine,setup:s,process:plan.process,output:plan.output},{required});
 }
 

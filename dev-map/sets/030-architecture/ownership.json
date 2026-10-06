@@ -3693,7 +3693,10 @@
     "core/machine/filaments.mjs::assignedFilaments": {
       "owner": "toolpath"
     },
-    "core/machine/filaments.mjs::filamentPlan": {
+    "core/machine/filaments.mjs::material": {
+      "owner": "toolpath"
+    },
+    "core/machine/filaments.mjs::materialTool": {
       "owner": "toolpath"
     },
     "core/machine/filaments.mjs::filamentSelection": {
@@ -8220,6 +8223,10 @@
     "core/machine/settings.mjs::@module": {
       "owner": "settings",
       "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
+    },
+    "core/machine/settings.mjs::neutralMaterials": {
+      "owner": "settings",
+      "reason": "Reads setups saved before logical materials became neutral settings."
     },
     "core/machine/settings.mjs::resolveMachineSettings": {
       "owner": "settings",

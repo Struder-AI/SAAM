@@ -15,7 +15,7 @@ import {heldBundleInstance} from './studio-ownership.mjs';
 import {replaceFile} from '../file-write.mjs';
 import {canonicalJson} from '../canonical-json.mjs';
 import {resolvePlanPatch} from './resolve-plan.mjs';
-import {selectSettings,saveSetup,withMachineSetupExport} from '../machine/settings.mjs';
+import {selectSettings,saveSetup,withMachineSetupExport,neutralMaterials} from '../machine/settings.mjs';
 import {assignmentFamily as ordinaryAssignmentFamily} from './slice-settings.mjs';
 import {commitManifest,retainContent,restoreContent,recordDelivery,saveDescriptor} from './revisions.mjs';
 import {geometryTree} from '../../skills/records.mjs';
@@ -257,6 +257,7 @@ async function readBundleInput(directory) {
   const {bundle:saved,...plan}=document,bundle=savedBundle(saved);
   // Compiled records of older prints carried a digest of their own mesh.
   if(!saved.editRevision)for(const geometry of geometryTree(plan.geometry))delete geometry.compiledHash;
+  if(plan.setup)plan.setup=neutralMaterials(plan.setup);
   requireThat(bundle.deferRememberSetup===undefined||typeof bundle.deferRememberSetup==='boolean','Invalid bundle setup remembering preference.');
   return {dir,plan,machine:bundle.machine,review:bundle.review,geometryArtifact:bundle.geometry,revision:bundle.revision,
     editRevision:bundle.editRevision,geometryInputId:bundle.geometryInputId,pathInputId:bundle.pathInputId,deferRememberSetup:bundle.deferRememberSetup===true,

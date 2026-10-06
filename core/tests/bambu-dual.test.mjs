@@ -9,7 +9,7 @@ import {exportProgram} from '../export/registry.mjs';
 import {unpackZip,packZip} from '../export/zip.mjs';
 import {pathPreview} from '../../studio/path-preview.mjs';
 import {auditBambu} from '../../scripts/bambu-audit.mjs';
-import {filamentPlan} from '../machine/filaments.mjs';
+import {checkedFilamentPlan as filamentPlan} from '../../machines/bambu/filaments.mjs';
 import {resolveBambuJob} from '../../machines/bambu/bambu-job.mjs';
 import {recipeRows} from '../../studio/settings.mjs';
 import {beadSection} from '../../studio/material-view.mjs';
@@ -57,7 +57,7 @@ test('feed intentions are independent of logical filament and nozzle identities'
   for(const left of ['auto','external','ams'])for(const right of ['auto','external','ams']){
     const {plan,machine}=mixedNozzleFixture();
     plan.setup.bambu.amsConnections=[{unit:1,tool:0},{unit:2,tool:1}];
-    for(const [i,type] of [left,right].entries())plan.setup.bambu.filaments[i].source=type==='ams'?{type,unit:i+1,slot:4}:{type};
+    for(const [i,type] of [left,right].entries())plan.setup.filaments[i].source=type==='ams'?{type,unit:i+1,slot:4}:{type};
     const job=resolveBambuJob(plan,machine,machine.outputs[0]);
     assert.deepEqual(job.settings.filament_map,['1','2']);
     assert.deepEqual(job.settings.nozzle_diameter,['0.4','0.8']);
@@ -67,9 +67,9 @@ test('feed intentions are independent of logical filament and nozzle identities'
     assert.equal(job.selections[1].setup.ams?.unit??null,right==='ams'?2:null);
   }
   const {plan,machine}=mixedNozzleFixture();
-  plan.setup.bambu.filaments[0].source={type:'ams',unit:1,slot:1};
+  plan.setup.filaments[0].source={type:'ams',unit:1,slot:1};
   assert.throws(()=>resolveBambuJob(plan,machine,machine.outputs[0]),/not connected/);
-  plan.setup.bambu.filaments[0].source={type:'external'};
+  plan.setup.filaments[0].source={type:'external'};
   plan.setup.ams={unit:1,slot:1};
   assert.throws(()=>resolveBambuJob(plan,machine,machine.outputs[0]),/contradicts/);
 });
@@ -92,7 +92,7 @@ test('unsafe handoffs and automatic external-spool changes fail before packaging
   const unret=structuredClone(path);let i=first-1;while(unret.actions[i].kind!=='retract')i--;
   unret.actions.splice(i,1);
   await assert.rejects(()=>exportProgram(unret,plan,machine,release),/retract|withdrawal|recover/i);
-  plan.setup.bambu.filaments[1].tool=0;
+  plan.setup.filaments[1].tool=0;
   const same=await generatePath(plan,machine);
   await assert.rejects(()=>exportProgram(same,plan,machine,release),/require AMS feeds/);
 });
@@ -102,7 +102,7 @@ test('every supported H2D diameter pair keeps each change descriptor on its own 
     const {plan,machine}=mixedNozzleFixture();
     Object.assign(plan.setup,{nozzleMm:left,core:`Hardened steel ${left}`});
     plan.setup.bambu.otherNozzleMm=right;plan.process.lineWidthMm=left;
-    plan.setup.bambu.filaments[1].process.lineWidthMm=right;
+    plan.setup.filaments[1].process.lineWidthMm=right;
     for(const part of plan.geometry.parts)part.geometry=splineBox({runMm:8,widthMm:8,heightMm:0.6});
     const path=await generatePath(plan,machine),{bytes,report}=(await exportProgram(path,plan,machine,release));
     assert.deepEqual(auditBambu(bytes).plates[0].changes.issues,[]);
@@ -115,20 +115,20 @@ test('four-slot AMS and single-slot HT units have independent capacities, connec
   const {plan,machine}=mixedNozzleFixture(),b=plan.setup.bambu;
   b.amsConnections=[...Array.from({length:4},(_,i)=>({unit:i+1,tool:1})),
     ...Array.from({length:8},(_,i)=>({type:'ams-ht',unit:i+1,tool:i%2}))];
-  b.filaments[0].source={type:'ams-ht',unit:1};b.filaments[1].source={type:'ams',unit:4,slot:4};
+  plan.setup.filaments[0].source={type:'ams-ht',unit:1};plan.setup.filaments[1].source={type:'ams',unit:4,slot:4};
   const job=resolveBambuJob(plan,machine,machine.outputs[0]);
   assert.deepEqual(job.settings.extruder_ams_count,['1#4|4#0','1#4|4#4']);
   assert.deepEqual(job.settings.filament_map,['1','2']);
   assert.equal(job.requestedTray,null,'An HT device must not fabricate a four-slot physical tray index');
   assert.match(new Map(recipeRows(plan,machine)).get('Filament 1'),/Requested AMS HT 1/);
-  b.filaments[0].source.unit=2;
+  plan.setup.filaments[0].source.unit=2;
   assert.throws(()=>resolveBambuJob(plan,machine,machine.outputs[0]),/not connected/);
-  b.filaments[0].source.unit=9;
+  plan.setup.filaments[0].source.unit=9;
   assert.throws(()=>resolveBambuJob(plan,machine,machine.outputs[0]),/capacity/);
-  b.filaments[0].source.unit=1;b.amsConnections.push({type:'ams-ht',unit:1,tool:1});
+  plan.setup.filaments[0].source.unit=1;b.amsConnections.push({type:'ams-ht',unit:1,tool:1});
   assert.throws(()=>resolveBambuJob(plan,machine,machine.outputs[0]),/unique units/);
   const x1=loadMachine('bambu-x1-carbon'),single=defaults(x1);
-  single.setup.bambu.filaments=[{id:'GFA00',colour:'#0000FF',source:{type:'ams-ht',unit:4}}];
+  single.setup.filaments=[{id:'GFA00',colour:'#0000FF',source:{type:'ams-ht',unit:4}}];
   single.setup.bambu.amsConnections=Array.from({length:4},(_,i)=>({type:'ams-ht',unit:i+1,tool:0}));
   assert.deepEqual(resolveBambuJob(single,x1,x1.outputs[0]).settings.extruder_ams_count,['1#4|4#0']);
   single.setup.bambu.amsConnections.push({unit:1,tool:0});

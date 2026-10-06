@@ -68,12 +68,12 @@ Example: H2D right 0.8 mm, left 0.4 mm, textured plate, one brown PLA filament:
   "material": "PLA",
   "filamentColor": "#8B5A2B",
   "ams": null,
+  "filaments": [{"id": "GFA01", "colour": "#8B5A2B", "tool": 1, "source": {"type": "auto"}}],
+  "filament": 0,
   "bambu": {
     "plate": "textured_plate",
     "otherNozzleMm": 0.4,
     "amsConnections": [{"unit": 1, "tool": 1}],
-    "filaments": [{"id": "GFA01", "colour": "#8B5A2B", "tool": 1, "source": {"type": "auto"}}],
-    "filament": 0,
     "startup": {
       "bedLeveling": "printer",
       "flowCalibration": "printer",
@@ -142,7 +142,7 @@ There are three different number systems:
 | Setting | Meaning | Example |
 |---|---|---|
 | `setup.tool` | Logical nozzle, zero-based | H2D 0 left, 1 right |
-| `setup.bambu.filament` | Index in this job's logical filament list, zero-based | One-filament job uses 0, regardless of tray |
+| `setup.filament` | Index in this job's logical filament list, zero-based | One-filament job uses 0, regardless of tray |
 | `setup.ams` | Requested physical unit/slot, one-based | Unit 1 slot 4 is operator intent, not `T3` |
 
 H2D physical heater selectors reverse the logical nozzle order: left uses 1,
@@ -186,12 +186,12 @@ Zero AMS connection counts describe topology, not that filament's launch route.
 
 For the reported left 0.4 / right 0.8 installation, set the startup setup to
 left 0.4, 215 C, `ams: null`, and `otherNozzleMm: 0.8`. The base process must
-match that initial filament. Merge this logical list into `setup.bambu`:
+match that initial filament. Merge this logical list into `setup`:
 
 ```json
 {
   "filament": 0,
-  "amsConnections": [{"unit": 1, "tool": 1}],
+  "bambu": {"amsConnections": [{"unit": 1, "tool": 1}]},
   "filaments": [
     {"id": "GFA00", "colour": "#FFFF00", "tool": 0, "source": {"type": "external"}},
     {"id": "GFA00", "colour": "#00AE42", "tool": 1, "source": {"type": "auto"},
@@ -299,10 +299,10 @@ Numbers with different meanings are intentionally not unified.
 | Stored startup/shutdown: one rendered `sections()` result | Executable prefix/suffix and H2D project `machine_start_gcode`/`machine_end_gcode` receive identical strings. Full/fast selection, nozzle/filament/temperature/plate values and shutdown bounds are resolved before this duplication. Other stored template fields remain empty in the physically accepted v13 jobs. |
 | Selected diameter: `setup.nozzleMm` | CONFIG/project `printer_settings_id` and `nozzle_diameter`; plate JSON `nozzle_diameter`; slice `nozzle_diameters`, filament `nozzle_diameter`, nozzle `nozzle_diameter`; H2D both `M620.10 H`, `M1015.4 H`; SAAM job summary. Fixed 0.4 command literals were replaced. |
 | Other installed diameter: `bambu.otherNozzleMm` | Other element of CONFIG/project `nozzle_diameter`, slice `nozzle_diameters`, job summary; when used, its own filament/nozzle records and changeover H values. Never independently defaulted inside each writer. |
-| Nozzle side: `setup.tool`, each `bambu.filaments[].tool` + machine `physicalExtruder` | CONFIG/project `filament_map`, `filament_nozzle_map`, `physical_extruder_map`; slice CONFIG `filament_map_2`; model/slice `filament_maps`; slice filament `group_id`, nozzle `id`/`extruder_id`; sequence `nozzle_sequence`; H2D `M104 T` and `G151 P`. The selected filament must agree with setup.tool. No profile settings spread can overwrite them. |
+| Nozzle side: `setup.tool`, each `filaments[].tool` + machine `physicalExtruder` | CONFIG/project `filament_map`, `filament_nozzle_map`, `physical_extruder_map`; slice CONFIG `filament_map_2`; model/slice `filament_maps`; slice filament `group_id`, nozzle `id`/`extruder_id`; sequence `nozzle_sequence`; H2D `M104 T` and `G151 P`. The selected filament must agree with setup.tool. No profile settings spread can overwrite them. |
 | Nozzle type / volume: supported standard hardened contract | CONFIG/project `nozzle_type`, `nozzle_volume_type`; model `filament_volume_maps`; slice `extruder_type`, `nozzle_volume_type`, filament/nozzle `volume_type`. Cardinality follows actual tools or declared filaments. X1 no longer inherits a two-nozzle type list. |
-| Logical filament: `bambu.filament` and interpreted usage | Both H2D load triplets (one on X1); H2D `M620.6 I`; header `filament` (comma-separated one-based IDs, **never a count**); plate `filament_ids` and `first_extruder` (zero-based); slice filament `id` (one-based), `layer_filament_lists` (zero-based); sequence `sequence` (one-based); job summary. |
-| Logical list: `bambu.filaments` | CONFIG/project filament IDs, colours, self indices, types, temperatures, diameter, density, flow ratio and maps; model/slice map cardinality. Only actually consumed filaments appear in consumed slice records and plate colours. `limit_filament_maps` remains the reference's zero restriction values; it is not a used-filament bit mask. |
+| Logical filament: `setup.filament` and interpreted usage | Both H2D load triplets (one on X1); H2D `M620.6 I`; header `filament` (comma-separated one-based IDs, **never a count**); plate `filament_ids` and `first_extruder` (zero-based); slice filament `id` (one-based), `layer_filament_lists` (zero-based); sequence `sequence` (one-based); job summary. |
+| Logical list: `setup.filaments` | CONFIG/project filament IDs, colours, self indices, types, temperatures, diameter, density, flow ratio and maps; model/slice map cardinality. Only actually consumed filaments appear in consumed slice records and plate colours. `limit_filament_maps` remains the reference's zero restriction values; it is not a used-filament bit mask. |
 | Feed intent: `filaments[].source`, legacy `setup.ams` | SAAM job manifest and review summary only: auto/external or an optional AMS unit/slot. It never manufactures logical entries or changes logical G-code selectors. Dispatch mapping / physical confirmation remains separate. |
 | Material / colour | CONFIG/project `filament_type`, `filament_ids`, `filament_colour`; slice `type`, `tray_info_idx`, `color`; plate `filament_colors`; fixed PLA firmware `set_filament_type` stages. UNKNOWN is an intentional transient loading state. Non-PLA output is rejected. |
 | Filament diameter / density | Header filament diameter, CONFIG/project filament diameter/density, interpreted extrusion conversion, slice used weight and plate weight. Output constrains 1.75 mm PLA; service feed conversion retains the vendor recipe's 2.4053 constant. |
@@ -371,7 +371,7 @@ or certification of other untested installations.
    source. Set per-filament `nozzleC` and process overrides for a different
    nozzle/process. Same-nozzle colours can share a tool; different tools do not
    have to share a diameter or layer grid.
-3. Assign each part/region its logical `filament` index. `bambu.filament` selects
+3. Assign each part/region its logical `filament` index. `setup.filament` selects
    the initial entry, which must agree with `setup.tool`. Reuse that entry when
    returning to the original material/nozzle. Do not express a physical nozzle
    switch by changing temperatures or by adding raw G-code.
@@ -395,10 +395,8 @@ line width 0.4 and first/subsequent layers 0.2):
 
 ```json
 {
-  "plate": "textured_plate",
-  "otherNozzleMm": 0.8,
+  "bambu": {"plate": "textured_plate", "otherNozzleMm": 0.8, "amsConnections": [{"unit": 1, "tool": 1}]},
   "filament": 0,
-  "amsConnections": [{"unit": 1, "tool": 1}],
   "filaments": [
     {"id": "GFA00", "colour": "#808080", "tool": 0, "source": {"type": "external"}},
     {"id": "GFA00", "colour": "#0000FF", "tool": 1, "source": {"type": "auto"},
@@ -407,7 +405,7 @@ line width 0.4 and first/subsequent layers 0.2):
 }
 ```
 
-This is `setup.bambu` input, not a complete plan. Colours, PLA Basic IDs,
+This is `setup` input, not a complete plan. Colours, PLA Basic IDs,
 temperatures and the unit number are example values; confirm the actual job.
 For independent STLs, put them in separate assembly parts and give each part's
 [slice assignment](../../skills/slice/SKILL.md) (or region) the corresponding
@@ -419,7 +417,7 @@ and the other part its own assignment with `filament: 1`. Do not copy the verifi
 
 ## Making an H2D two-colour print
 
-For the accepted right-0.8 example, merge the following into `setup.bambu` of a
+For the accepted right-0.8 example, merge the following into `setup` of a
 complete recipe. Set `setup.tool: 1`, `nozzleMm: 0.8`, matching `core`,
 `nozzleC: 225`, `ams: null`, `filamentColor: null` (or blue), and process
 `lineWidthMm: 0.8`, `firstLayerMm: 0.3`, `layerMm: 0.3`. These are the test's
@@ -427,11 +425,8 @@ values, not defaults to substitute for a user's material or installation.
 
 ```json
 {
-  "plate": "textured_plate",
-  "otherNozzleMm": 0.4,
+  "bambu": {"plate": "textured_plate", "otherNozzleMm": 0.4, "fast_start": true, "amsConnections": [{"unit": 1, "tool": 1}]},
   "filament": 0,
-  "fast_start": true,
-  "amsConnections": [{"unit": 1, "tool": 1}],
   "filaments": [
     {"id": "GFA00", "colour": "#0000FF", "tool": 1, "source": {"type": "auto"}},
     {"id": "GFA00", "colour": "#FF8000", "tool": 1, "source": {"type": "auto"}}
@@ -442,11 +437,11 @@ values, not defaults to substitute for a user's material or installation.
 1. Establish the actual installed diameters, selected nozzle, plate, PLA identities
    and colours. Set `setup.tool`, `nozzleMm`, matching `core`, temperature and
    `bambu.otherNozzleMm`; do not substitute equal diameters to match a reference.
-2. Declare two `setup.bambu.filaments` entries with the **same tool**, their actual
+2. Declare two `setup.filaments` entries with the **same tool**, their actual
    material IDs/colours and `source: {"type":"auto"}`. Leave `setup.ams` null for
    automatic matching. Declare known AMS connections independently. A colour is
    not a slot number; `GFA00` is PLA Basic, not an arbitrary PLA identity.
-3. Set startup `bambu.filament: 0`, and assign regions to filament indices
+3. Set startup `setup.filament: 0`, and assign regions to filament indices
    `0, 1, 0` for colour A → B → A. Use the existing region/path workflow for the
    desired part. The return to A reuses its entry. Both colour-change feeds must
    be AMS feeds; external-spool automatic colour changes are rejected.

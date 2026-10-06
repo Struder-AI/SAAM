@@ -11,10 +11,10 @@ const PLATES={
 const FLAGS={bedLeveling:'g29_before_print_flag',flowCalibration:'extrude_cali_flag',plateDetection:'build_plate_detect_flag',toolOffsetCalibration:'auto_cali_toolhead_offset_flag'};
 const round=(value,digits)=>Number(value.toFixed(digits));
 
-export function resolveBambuJob(plan,machine,output,{filamentSequence=[plan.setup.bambu.filament]}={}){
+export function resolveBambuJob(plan,machine,output,{filamentSequence=[plan.setup.filament]}={}){
   const s=plan.setup,b=s.bambu;
-  requireThat(b&&Object.keys(b).every(k=>['plate','otherNozzleMm','filaments','filament','startup','amsConnections','fast_start'].includes(k)),
-    'Bambu setup needs plate, otherNozzleMm, filaments, filament and startup fields; recreate an older setup before export.');
+  requireThat(b&&Object.keys(b).every(k=>['plate','otherNozzleMm','startup','amsConnections','fast_start'].includes(k)),
+    'Bambu setup needs plate, otherNozzleMm and startup fields; recreate an older setup before export.');
   const plate=PLATES[b.plate];
   requireThat(plate&&output.constraints.plates.includes(b.plate),'Unsupported Bambu build plate.');
   requireThat(s.core===`Hardened steel ${s.nozzleMm}`,'Bambu core and selected nozzle diameter disagree.');
@@ -26,12 +26,11 @@ export function resolveBambuJob(plan,machine,output,{filamentSequence=[plan.setu
   });
   if(machine.tools.length===1)requireThat(b.otherNozzleMm===null,'A single-nozzle Bambu has no other nozzle.');
   const color=s.filamentColor??output.defaultFilamentColor;
-  const filaments=b.filaments??[{id:'GFA00',colour:color}];
+  const filaments=s.filaments??[{id:'GFA00',colour:color}];
   requireThat(Array.isArray(filaments)&&filaments.length>0&&filaments.length<=16&&filaments.every(f=>
-    f&&Object.keys(f).every(k=>['id','colour','tool','source','nozzleC','process'].includes(k))&&typeof f.id==='string'&&/^[A-Za-z0-9_-]{1,40}$/.test(f.id)&&typeof f.colour==='string'&&/^#[0-9a-f]{6}$/i.test(f.colour)&&
-    (f.tool===undefined||Number.isInteger(f.tool)&&machine.tools.some(t=>t.index===f.tool))),
+    f&&Object.keys(f).every(k=>['id','colour','tool','source','nozzleC','process'].includes(k))&&typeof f.id==='string'&&/^[A-Za-z0-9_-]{1,40}$/.test(f.id)&&typeof f.colour==='string'&&/^#[0-9a-f]{6}$/i.test(f.colour)),
     'Bambu logical filaments need a material preset id and six-digit hex colour; they are not an AMS inventory.');
-  const used=b.filament;
+  const used=s.filament;
   requireThat(Number.isInteger(used)&&used>=0&&used<filaments.length,'Bambu filament index is outside the declared logical filament list.');
   const filamentTools=filaments.map(f=>f.tool??tool);
   requireThat(filamentTools[used]===tool,'Selected logical filament nozzle disagrees with setup.tool.');

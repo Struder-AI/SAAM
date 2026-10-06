@@ -8,8 +8,8 @@ export function pathDependencies(plan){
   plan=resolveSpatialPlan(plan);
   const {output,setup,...authored}=plan;
   const materialIntent={nozzleC:setup?.nozzleC,
-    defaultFilament:setup?.bambu?.filament??null,
-    filaments:setup?.bambu?.filaments?.map(entry=>entry?{nozzleC:entry.nozzleC??null,process:entry.process??{}}:null)??null};
+    defaultFilament:setup?.filament??null,
+    filaments:setup?.filaments?.map(entry=>entry?{nozzleC:entry.nozzleC??null,process:entry.process??{}}:null)??null};
   const skills=Object.fromEntries(Object.entries(plan.skills??{}).filter(([id,config])=>!['supports','plastic-weld'].includes(id)||config?.enabled));
   return {plan:{...authored,skills,materialIntent},contract:PATH_CONTRACT,completion:NEUTRAL_PATH_CONTRACT};
 }

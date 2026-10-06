@@ -17,8 +17,8 @@ const UPRIGHT={rotaryDeg:0,toolAxis:[0,0,-1],toolUp:[0,1,0]};
 // A move without its own line width has its material's (a filament process override), else the recipe's.
 export function pathPreview(path,{moves=[],plan=null}={}){
   if(path?.schema!=='saampath/1'||!Array.isArray(path.actions)||!Array.isArray(path.initialPosition))throw Error('Invalid saved SAAMpath.');
-  const rotaryCenterMm=plan?.setup?.denso?.rotaryCenterMm??[0,0,0],width=(action,filament)=>action.lineWidthMm??plan?.setup?.bambu?.filaments?.[filament]?.process?.lineWidthMm??null;
-  const events=[];let position=path.initialPosition,pose=path.initialPose??null,time=0,filament=plan?.setup?.bambu?.filament??null,fan=0,volumeMm3=0,tool=plan?.setup?.tool??null;
+  const rotaryCenterMm=plan?.setup?.denso?.rotaryCenterMm??[0,0,0],width=(action,filament)=>action.lineWidthMm??plan?.setup?.filaments?.[filament]?.process?.lineWidthMm??null;
+  const events=[];let position=path.initialPosition,pose=path.initialPose??null,time=0,filament=plan?.setup?.filament??null,fan=0,volumeMm3=0,tool=plan?.setup?.tool??null;
   const posed=Boolean(pose)||path.actions.some(a=>a.pose);
   for(const {action,context,index:line} of contextualActions(path)){
     if(action.kind==='toolChange'){filament=action.filament;tool=action.tool??tool;continue;}

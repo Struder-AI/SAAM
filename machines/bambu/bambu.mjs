@@ -108,12 +108,11 @@ function configBlock(settings){
 }
 
 // The Bambu adapter: setup.bambu holds the installation (plate, other nozzle,
-// AMS connections, startup controls) and logical filaments.
+// AMS connections, startup controls); logical filaments are neutral setup.
 export function createAdapter(Export){
   return {output:'bambu-gcode',poses:false,
     settings:{key:'bambu',validate(plan){
       feederSelector(plan,plan.machine);validateBambuConnections(plan.setup.bambu.amsConnections??null,plan.machine);
-      for(const entry of plan.setup.bambu.filaments??[])if(entry?.nozzleC!==undefined)Export.temperatureC(entry.nozzleC);
     }},
     export:(prepared,settings)=>exportBambu(prepared,settings,settings.machine,settings.release,Export)};
 }
@@ -121,7 +120,7 @@ export function createAdapter(Export){
 // wrote; the body is never read back.
 function exportBambu(path,plan,machine,release,Export){
   const output=configuration(plan,machine);
-  const filamentSequence=[plan.setup.bambu?.filament,...path.actions.filter(a=>a.kind==='toolChange').map(a=>a.filament)];
+  const filamentSequence=[plan.setup.filament,...path.actions.filter(a=>a.kind==='toolChange').map(a=>a.filament)];
   const job=resolveBambuJob(plan,machine,output,{filamentSequence});
   const {body,segments}=exportBambuBody(path,plan,machine,Export);
   const usage=new Map(),layerUse=new Map();let volumeMm3=0,seconds=0;

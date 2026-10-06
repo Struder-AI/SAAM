@@ -20,7 +20,7 @@ export function resolveBambuProject(plan,machine,output,settings,selections){
   Object.assign(p,structuredClone(settings));delete p.filament_map_2;
   const perFilament=fn=>selections.map((selection,i)=>String(fn(selection,i)));
   const perTool=fn=>machine.tools.map(t=>String(fn(t)));
-  const selectedForTool=t=>selections.find(selection=>selection.setup.tool===t.index)??selections[plan.setup.bambu.filament];
+  const selectedForTool=t=>selections.find(selection=>selection.setup.tool===t.index)??selections[plan.setup.filament];
   const rectangle=b=>[`${b.min[0]}x${b.min[1]}`,`${b.max[0]}x${b.min[1]}`,`${b.max[0]}x${b.max[1]}`,`${b.min[0]}x${b.max[1]}`];
   Object.assign(p,{
     name:'project_settings',from:'project',version:output.package.clientVersion,

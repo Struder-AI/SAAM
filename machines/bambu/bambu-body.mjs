@@ -7,7 +7,7 @@ const prelude=plan=>`G90\nG21\nM83\nG92 E0\nM190 S${plan.setup.bedC}\nM109 S${pl
 export function exportBambuBody(path,plan,machine,Export){
   const travelCommand=machine.outputs.find(o=>o.id===plan.output).constraints.bodyTravelCommand;
   requireThat(travelCommand==='G1','Bambu body requires coordinated G1 travel.');
-  let filament=plan.setup.bambu.filament,selected=filamentPlan(plan,machine,filament),position=[...path.initialPosition],start=[...position],fan=0,count=0;
+  let filament=plan.setup.filament,selected=filamentPlan(plan,machine,filament),position=[...path.initialPosition],start=[...position],fan=0,count=0;
   const debt={},lines=[],segments=[],usedTools=new Map([[selected.setup.tool,filament]]);let actions=[];
   const flush=()=>{
     lines.push(prelude(selected).trimEnd());
