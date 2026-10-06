@@ -32,8 +32,8 @@ Map 0 draws the authored nodes at their authored positions. Each node opens into
 middle-out solver groups its leaves into, nested down to leaves, which open as source. A cluster
 shows its [authored label](#authored-placement), else one generated from its leaves (`≈`); a node's
 library (shared queries treating every caller alike) is one `library ·` box. Pages carry no prose:
-unlinked and unowned leaves are counts on boxes and marker boxes that open their lists, and files
-not analysed a marked list on map 0. The viewer is `sets/030-influence/view/index.html`.
+unlinked and unowned leaves are counts on boxes and marker boxes that open their lists; files not
+analysed or changed since the analysis are marked lists on map 0 alone. The viewer is `sets/030-influence/view/index.html`.
 
 ## Commands
 
@@ -55,13 +55,13 @@ A map `read` is its drawing: `boxes` (a cluster's label and leaf count; a leaf a
 `NAME FILE:LINES`, marked only `command` or `command returning data`, outside `folded` ranges,
 `possibly caller-dependent`), `boundary` names, and `arrows`, each drawn pair (`→`, `•→`, `↔`) with
 its leaf-arrow count, read whole at `@link/MAP/FROM/TO` as `FROM → TO KIND ×N` by direction. Map 0
-adds the preview note, `notAnalysed` and counts for `@unlinked` and `@unowned`, whose reads list
-those leaves. Reads never return code or solve. A read made after source changed counts the
-changed files (`@stale` lists them) and gives the regenerate command; a missing store fails.
+alone adds the preview note, `notAnalysed`, counts for `@unlinked` and `@unowned` (whose reads list
+those leaves) and, after source changed, `stale`: how many files changed (`@stale` lists them) and
+the regenerate command. Reads never return code or solve; a missing store fails.
 
 **Replacement contract:** a change to a reader or integration preserves this read on the direct
-CLI, toolkit and onboarding routes: every drawn relationship, exact source ranges and change
-warnings. Do not bypass it with a raw snapshot or another serializer. `check` and every
+CLI, toolkit and onboarding routes: every drawn relationship, exact source ranges and map 0's
+change warning. Do not bypass it with a raw snapshot or another serializer. `check` and every
 `regenerate` prove the reads match the drawings.
 
 ## Regenerate
