@@ -68,7 +68,7 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     catch(error){child.kill();throw error;}
   }
   const fallback=await selectRuntime(codeRoot);
-  const identity=({id,label,command,codeRoot})=>({id,label,command,codeRoot});
+  const identity=({id,label,studioTitle,command,codeRoot})=>({id,label,studioTitle,command,codeRoot});
   // Names the runtime a control message reaches: the running one, else the one it would start.
   async function identify(message){
     const target=message.runtimeId??(message.studioInstanceId?windows.runtimeFor(message.studioInstanceId):null);

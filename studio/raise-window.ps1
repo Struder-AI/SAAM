@@ -1,9 +1,9 @@
 # Brings the browser window and tab showing the Studio at -Port to the front.
 # Only the person's own launch or tray click runs this, from the process that
 # input started or reached; Windows decides whether it may take the foreground.
-# Studio titles itself "SAAM Studio <port>" (studio/app.mjs). A window whose
-# title has it shows Studio in its active tab; otherwise the default browser's
-# tab strip is searched through UI Automation and the matching tab selected.
+# Studio's title begins "SAAM Studio" and ends with a middle dot and the port
+# (studio/app.mjs). A window whose title has it shows Studio in its active tab;
+# otherwise the default browser's tabs are searched (UI Automation) and it is selected.
 # Prints raised, found (Windows kept the foreground elsewhere) or not-found.
 param([Parameter(Mandatory)][int]$Port)
 $ErrorActionPreference = 'Stop'
@@ -45,7 +45,7 @@ public static class SaamWindows {
   }
 }
 '@
-$title = "SAAM Studio $Port(\D|$)"
+$title = "SAAM Studio .*\u00B7 $Port(\D|$)"
 function Find-Studio {
   $windows = [SaamWindows]::Visible()
   foreach ($window in $windows) { if ($window.Title -match $title) { return @{ Handle = $window.Handle; Tab = $null } } }

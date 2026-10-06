@@ -31,43 +31,44 @@ $notify.Text = 'SAAM'
 $menu = New-Object System.Windows.Forms.ContextMenuStrip
 $open = $menu.Items.Add('Open Studio')
 $open.add_Click({ try { Show-Studio 'open' } catch { Show-Problem $_.Exception.Message } })
-$runtimes = $menu.Items.Add('Studios')
 $newInstance = $menu.Items.Add('New Instance')
 $newInstance.add_Click({ try { Show-Studio 'new-instance' } catch { Show-Problem $_.Exception.Message } })
+$end = New-Object System.Windows.Forms.ToolStripSeparator
+[void]$menu.Items.Add($end)
 $update = $menu.Items.Add('Update')
 $update.Visible = $false
-function Refresh-Menu {
-  try {
-    $status = Invoke-Control 'status'
-    $update.Visible = [bool]$status.service.activated -and [bool]$status.service.update
-    $runtimes.DropDownItems.Clear()
-    foreach ($runtime in $status.runtimes) {
-      $group = $runtimes.DropDownItems.Add($runtime.label)
-      $show = $group.DropDownItems.Add('Open Studio')
-      $show.Tag = $runtime.id
-      $show.add_Click({ param($sender,$eventArgs) try { Show-Studio 'open' '' $sender.Tag } catch { Show-Problem $_.Exception.Message } })
-      foreach ($studio in $status.studios | Where-Object { $_.runtimeId -eq $runtime.id }) {
-        $part = if ($studio.printId) { $studio.printId } else { 'Empty Studio' }
-        $chat = if ($studio.attachment) { $studio.attachment.name } else { 'No chat attached' }
-        $item = $group.DropDownItems.Add("$part - $chat [$($studio.instanceId)]")
-        $item.Tag = $studio.instanceId
-        $item.add_Click({ param($sender,$eventArgs) try { Show-Studio 'open' $sender.Tag } catch { Show-Problem $_.Exception.Message } })
-      }
-      if ($runtime.id -ne 'installed') {
-        $stop = $group.DropDownItems.Add('Stop runtime')
-        $stop.Tag = $runtime.id
-        $stop.add_Click({ param($sender,$eventArgs) try {
-          $result = Invoke-Control 'stop-runtime' $false '' $sender.Tag
-          if ($result.confirmationRequired) {
-            $answer = [System.Windows.Forms.MessageBox]::Show("$($result.message)`nContinue?",'SAAM',[System.Windows.Forms.MessageBoxButtons]::YesNo)
-            if ($answer -eq [System.Windows.Forms.DialogResult]::Yes) { Invoke-Control 'stop-runtime' $true '' $sender.Tag | Out-Null }
-          }
-        } catch { Show-Problem $_.Exception.Message } })
-      }
-    }
-    $runtimes.Enabled = $runtimes.DropDownItems.Count -gt 0
-  } catch { $update.Visible = $false;$runtimes.Enabled = $false }
+function Add-Entry($Item,[string]$Tag='',[scriptblock]$Click) {
+  $Item.Tag = $Tag
+  if ($Click) { $Item.add_Click($Click) }
+  $menu.Items.Insert($menu.Items.IndexOf($end), $Item)
 }
+# One flat menu: each runtime's Studios, after a separator, between New Instance
+# and Update. A source runtime also has its own open and stop items.
+function Build-Menu($Status) {
+  $update.Visible = [bool]$Status.service.activated -and [bool]$Status.service.update
+  $first = $menu.Items.IndexOf($newInstance) + 1
+  while ($menu.Items[$first] -ne $end) { $menu.Items.RemoveAt($first) }
+  foreach ($runtime in $Status.runtimes) {
+    $source = $runtime.id -ne 'installed'
+    $studios = @($Status.studios | Where-Object { $_.runtimeId -eq $runtime.id })
+    if (-not $source -and -not $studios.Count) { continue }
+    Add-Entry (New-Object System.Windows.Forms.ToolStripSeparator)
+    if ($source) { Add-Entry (New-Object System.Windows.Forms.ToolStripMenuItem "Open Studio ($($runtime.label))") $runtime.id { param($sender,$eventArgs) try { Show-Studio 'open' '' $sender.Tag } catch { Show-Problem $_.Exception.Message } } }
+    foreach ($studio in $studios) {
+      $label = if ($studio.printId) { $studio.printId } else { 'Empty Studio' }
+      if ($studio.attachment) { $label += " - $($studio.attachment.name)" }
+      Add-Entry (New-Object System.Windows.Forms.ToolStripMenuItem $label) $studio.instanceId { param($sender,$eventArgs) try { Show-Studio 'open' $sender.Tag } catch { Show-Problem $_.Exception.Message } }
+    }
+    if ($source) { Add-Entry (New-Object System.Windows.Forms.ToolStripMenuItem "Stop $($runtime.label)") $runtime.id { param($sender,$eventArgs) try {
+      $result = Invoke-Control 'stop-runtime' $false '' $sender.Tag
+      if ($result.confirmationRequired) {
+        $answer = [System.Windows.Forms.MessageBox]::Show("$($result.message)`nContinue?",'SAAM',[System.Windows.Forms.MessageBoxButtons]::YesNo)
+        if ($answer -eq [System.Windows.Forms.DialogResult]::Yes) { Invoke-Control 'stop-runtime' $true '' $sender.Tag | Out-Null }
+      }
+    } catch { Show-Problem $_.Exception.Message } } }
+  }
+}
+function Refresh-Menu { try { Build-Menu (Invoke-Control 'status') } catch { Build-Menu $null } }
 $menu.add_Opening({ Refresh-Menu })
 $update.add_Click({
   try {

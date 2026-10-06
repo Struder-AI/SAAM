@@ -34,6 +34,7 @@ function sourceCommand(root,paths){
   const dev=process.env.SAAM_DATA&&process.env.SAAM_DEV_INSTANCE;
   return dev?'node "'+resolve(root,'scripts/dev-instance.mjs')+'" --home "'+paths.home+'"'+(dev==='visible'?' --visible':''):'node "'+resolve(root,'scripts/saam.mjs')+'"';
 }
+// studioTitle begins each of the runtime's Studio page titles (studio/app.mjs).
 export async function selectRuntime(codeRoot=invocationRoot){
   const root=await realpath(codeRoot),paths=homePaths();
   if(process.platform==='win32'&&root.startsWith('\\\\'))throw Error('SAAM source runtimes must use a local disk.');
@@ -43,10 +44,10 @@ export async function selectRuntime(codeRoot=invocationRoot){
   const installed=resolve(root).toLowerCase()===resolve(paths.app).toLowerCase();
   const release=await readFile(resolve(root,'release.json'),'utf8').then(JSON.parse).catch(error=>{if(error.code!=='ENOENT')throw error;return null;});
   const contract=manifest.saam?.contract;
-  if(installed)return {id:'installed',codeRoot:root,node:process.execPath,contract,label:'Installed '+(release?.version??'SAAM'),command:'saam'};
+  if(installed)return {id:'installed',codeRoot:root,node:process.execPath,contract,label:'Installed '+(release?.version??'SAAM'),studioTitle:'SAAM Studio '+(release?.version??'installed'),command:'saam'};
   const head=await gitHead(root);
   return {id:'src:'+createHash('sha256').update(process.platform==='win32'?root.toLowerCase():root).digest('hex').slice(0,12),codeRoot:root,node:process.execPath,contract,
-    label:'Source '+basename(root)+' @ '+head.slice(0,8),command:sourceCommand(root,paths)};
+    label:'Source '+basename(root)+' @ '+head.slice(0,8),studioTitle:'SAAM Studio source',command:sourceCommand(root,paths)};
 }
 const gitHead=root=>execute('git',['rev-parse','HEAD'],{cwd:root,windowsHide:true}).then(result=>result.stdout.trim());
 // A cheap identity of the code at root: the release version, or a checkout's commit and newest

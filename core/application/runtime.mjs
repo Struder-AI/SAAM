@@ -220,7 +220,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   // Every runtime-owned Studio instance starts here, showing dir or no print.
   async function startStudio(dir,{instanceId,sessionToken,restoring=false}={}){
     if(app.closing)throw Error('The SAAM application is quitting.');
-    const studio = createStudio(dir, { libraryRoot,machineSetups:paths.machineSetups,localPhaseColours:()=>readLocalPhaseColours(paths),chat:binding,relay,instanceId,sessionToken,restoring,runtimeId:application.runtime?.id,runtimeLabel:application.runtime?.label,fingerprint:application.fingerprint,
+    const studio = createStudio(dir, { libraryRoot,machineSetups:paths.machineSetups,localPhaseColours:()=>readLocalPhaseColours(paths),chat:binding,relay,instanceId,sessionToken,restoring,runtimeId:application.runtime?.id,runtimeLabel:application.runtime?.label,studioTitle:application.runtime?.studioTitle,fingerprint:application.fingerprint,
       routeStudio:target=>routeWindow(allStudios.get(studio.agentSession().instanceId),target) });
     try{await studio.ready();}catch(error){await studio.shutdown().catch(()=>{});throw error;}
     try{await new Promise((resolveListen, reject) => { studio.once('error', reject); studio.listen(0, '127.0.0.1', resolveListen); });}

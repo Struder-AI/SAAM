@@ -115,7 +115,7 @@ const printFreeRoutes=new Set(['/api/open','/api/tour','/api/view-performance','
 // The owner supplies libraryRoot and, to remember exported setups, machineSetups;
 // localPhaseColours reads the home's phase-colour preference. chat is the Application's
 // binding for the attached chat (or the lobby); attachChat replaces it.
-export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColours=async()=>null,resolveBundle=bundleFor,chat:binding,relay,instanceId=randomBytes(16).toString('hex'),sessionToken,restoring=false,runtimeId,runtimeLabel,fingerprint,routeStudio}) {
+export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColours=async()=>null,resolveBundle=bundleFor,chat:binding,relay,instanceId=randomBytes(16).toString('hex'),sessionToken,restoring=false,runtimeId,runtimeLabel,studioTitle='SAAM Studio',fingerprint,routeStudio}) {
   const attachedTo=next=>({binding:next,tour:createTour(libraryRoot,{studioId:instanceId,chat:next})});
   const chat={current:attachedTo(binding),stopRequestFeed:null};
   const geometryOnly=guide=>guide.active&&guide.directory===dir&&guide.step<L.playback;
@@ -361,7 +361,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
         return;
       }
       if(req.method==='GET'&&url.pathname==='/') {
-        const html=(await readFile(resolve(here,'index.html'),'utf8')).replace('__CSRF__',token).replace('__SERVICE__',relay?'on':'').replace('</head>', '<meta name="saam-runtime" content="'+encodeURIComponent(fingerprint??'')+'"></head>').replace('<title>', '<title>'+ (runtimeLabel?escapeTitle(runtimeLabel)+' · ':''));
+        const html=(await readFile(resolve(here,'index.html'),'utf8')).replace('__CSRF__',token).replace('__SERVICE__',relay?'on':'').replace('</head>', '<meta name="saam-runtime" content="'+encodeURIComponent(fingerprint??'')+'"></head>').replace('<title>SAAM Studio</title>','<title>'+escapeTitle(studioTitle)+'</title>');
         res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end(html);return;
       }
       if(req.method==='GET'&&['/work-state.mjs','/agent-ui.mjs','/chat-ui.mjs','/tour-ui.mjs','/tour-catalog.mjs','/viewer-session.mjs','/view-performance.mjs','/refresh-plan.mjs','/viewer-renderer.mjs','/studio-state.mjs','/studio-controls.mjs','/neutral-path.mjs','/service-panel.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/machine-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
