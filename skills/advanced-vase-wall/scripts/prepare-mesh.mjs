@@ -50,22 +50,23 @@ export async function prepareMeshVase(source,options={}, {Geometry,Toolpath}){
   let authoredPoints=0;
   const endTransition=options.endTransition??(existing.length?wall.endTransition:'level');
   requireThat(['level','spiral'].includes(endTransition),'endTransition must be level or spiral.');
+  // A sized pattern's turn rises riseMm across its tiles; its course count follows the sleeve.
+  const sized=Boolean(pattern&&Object.hasOwn(pattern,'tileWidthMm')),repeats=sized?pattern.turns:pattern?.repeats;
   if(pattern){
-    const expanded=pattern;
     let minimum=Infinity,maximum=-Infinity;
-    for(const path of expanded.paths)for(const p of path.points){minimum=Math.min(minimum,p[1]);maximum=Math.max(maximum,p[1]);}
+    for(const path of pattern.paths)for(const p of path.points){minimum=Math.min(minimum,p[1]);maximum=Math.max(maximum,p[1]);}
     requireThat(minimum>=-1e-9,'The authored pattern descends below its first bead; revise the explicit path heights.');
-    requireThat(maximum+(pattern.repeats-1)*expanded.advance[1]<=span+1e-9,
+    requireThat(maximum+(sized?repeats*pattern.riseMm:(repeats-1)*pattern.advance[1])<=span+1e-9,
       'The requested complete pattern courses exceed the detected sleeve interval. Revise repeats or the selected interval explicitly; no path was trimmed.');
-    authoredPoints=expanded.paths.reduce((n,p)=>n+p.points.length,0)*(pattern.repeats+(endTransition==='level'?2:0));
-    requireThat(Number.isSafeInteger(authoredPoints),'The authored pattern point count exceeds the safe integer range.');
+    authoredPoints=sized?null:pattern.paths.reduce((n,p)=>n+p.points.length,0)*(repeats+(endTransition==='level'?2:0));
+    requireThat(sized||Number.isSafeInteger(authoredPoints),'The authored pattern point count exceeds the safe integer range.');
   }
   const settings=depositionAssignment({...wall,zStartMm:baseHeight,zEndMm:end-low,endTransition,pathMode:'continuous',pattern,meshSleeve});
   // Slices own the base below the wall; a wall without a base leaves none.
   const slices={version:plan.slices.version,assignments:[...(baseHeight>0?(body.length?body:initial.slices.assignments):[]),settings]};
   return {assignments:slices.assignments,
     report:{detectedSleeve:detected,baseHeightMm:baseHeight,wallRangeMm:[start,end],
-      bodyCourses:pattern?.repeats??null,boundaryCourses:pattern&&endTransition==='level'?2:0,authoredPoints,
+      bodyCourses:repeats??null,boundaryCourses:pattern&&endTransition==='level'?2:0,authoredPoints,
       baseEnabled:baseHeight>0,sourceGeometryChanged:false,
       nextStep:'Review the recipe and use the normal check-path/Studio generation workflow; preparation creates no machine program or approval.'}};
 }
