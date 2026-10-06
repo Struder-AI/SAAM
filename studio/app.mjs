@@ -19,9 +19,10 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const token=$('meta[name="saam-token"]').content;
 createServicePanel({token,available:$('meta[name="saam-service"]').content==='on'});
 const NO_PRINT='Open a print, import STL or ask your agent to make a part.';
-// The title names this window's address, by which opening SAAM again finds it (studio/raise-window.ps1).
-const studioTitle=printName=>'SAAM Studio '+location.port+(printName?' · '+printName:'');
-document.title=document.title.replace('SAAM Studio',studioTitle());
+// Title: the server's runtime name ("SAAM Studio 0.3.6" or "SAAM Studio source"), the print, then the port,
+// which alone tells every window apart and by which opening SAAM again finds it (studio/raise-window.ps1).
+const studioName=document.title,studioTitle=printName=>[studioName,printName,location.port].filter(Boolean).join(' · ');
+document.title=studioTitle();
 const exportedThisSession=new Set();
 const exportKey=()=>printSync.state?.printId+':'+printSync.state?.outputId;
 // Page state, one record per owner: the print and its server sync, Studio-run

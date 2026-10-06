@@ -7,7 +7,8 @@ property controlPort : missing value
 property controlToken : missing value
 property trayMenu : missing value
 property updateItem : missing value
-property runtimeItem : missing value
+property newInstanceItem : missing value
+property endItem : missing value
 property raiseScript : missing value
 
 on callControl(commandName, forceQuit)
@@ -89,7 +90,24 @@ on stopSelectedRuntime_(sender)
     if errorNumber is not -128 then display alert "SAAM" message problem
   end try
 end stopSelectedRuntime_
+-- Inserts an item before endItem; no action makes a separator.
+on addEntry(entryTitle, entryAction, identity)
+  if entryAction is missing value then
+    set newItem to current application's NSMenuItem's separatorItem()
+  else
+    set newItem to current application's NSMenuItem's alloc()'s initWithTitle:entryTitle action:entryAction keyEquivalent:""
+    newItem's setTarget:me
+    newItem's setRepresentedObject:identity
+  end if
+  trayMenu's insertItem:newItem atIndex:(trayMenu's indexOfItem:endItem)
+end addEntry
+-- One flat menu: each runtime's Studios, after a separator, between New Instance
+-- and Update. A source runtime also has its own open and stop items.
 on refreshMenu_(sender)
+  set firstIndex to (trayMenu's indexOfItem:newInstanceItem) + 1
+  repeat while (trayMenu's indexOfItem:endItem) > firstIndex
+    trayMenu's removeItemAtIndex:firstIndex
+  end repeat
   try
     set statusText to my callControl("status", "false")
     set statusData to (current application's NSString's stringWithString:statusText)'s dataUsingEncoding:(current application's NSUTF8StringEncoding)
@@ -98,48 +116,36 @@ on refreshMenu_(sender)
     set paired to (serviceStatus's objectForKey:"activated")'s boolValue()
     set offer to serviceStatus's objectForKey:"update"
     updateItem's setHidden:(not (paired and offer is not missing value and offer is not current application's NSNull's |null|()))
-    set runtimeMenu to runtimeItem's submenu()
-    runtimeMenu's removeAllItems()
     set runtimeList to appStatus's objectForKey:"runtimes"
     set studioList to appStatus's objectForKey:"studios"
     repeat with runtimeIndex from 0 to ((runtimeList's |count|()) - 1)
       set runtime to runtimeList's objectAtIndex:runtimeIndex
-      set runtimeId to runtime's objectForKey:"id"
-      set runtimeEntry to current application's NSMenuItem's alloc()'s initWithTitle:(runtime's objectForKey:"label") action:"" keyEquivalent:""
-      set children to current application's NSMenu's alloc()'s initWithTitle:"Runtime"
-      children's setAutoenablesItems:false
-      runtimeEntry's setSubmenu:children
-      runtimeMenu's addItem:runtimeEntry
-      set showItem to current application's NSMenuItem's alloc()'s initWithTitle:"Open Studio" action:"openSelectedRuntime:" keyEquivalent:""
-      showItem's setTarget:me
-      showItem's setRepresentedObject:runtimeId
-      children's addItem:showItem
+      set runtimeId to (runtime's objectForKey:"id") as text
+      set runtimeLabel to (runtime's objectForKey:"label") as text
+      set isSource to runtimeId is not "installed"
+      set studioEntries to {}
       repeat with studioIndex from 0 to ((studioList's |count|()) - 1)
         set studio to studioList's objectAtIndex:studioIndex
-        if (studio's objectForKey:"runtimeId") as text is runtimeId as text then
-          set identity to studio's objectForKey:"instanceId"
+        if (studio's objectForKey:"runtimeId") as text is runtimeId then
           set partName to studio's objectForKey:"printId"
           if partName is missing value or partName is current application's NSNull's |null|() then set partName to "Empty Studio"
+          set studioLabel to partName as text
           set chatAttachment to studio's objectForKey:"attachment"
-          set chatName to "No chat attached"
-          if chatAttachment is not missing value and chatAttachment is not current application's NSNull's |null|() then set chatName to chatAttachment's objectForKey:"name"
-          set studioEntry to current application's NSMenuItem's alloc()'s initWithTitle:((partName as text) & " — " & (chatName as text) & " [" & (identity as text) & "]") action:"openRuntime:" keyEquivalent:""
-          studioEntry's setTarget:me
-          studioEntry's setRepresentedObject:identity
-          children's addItem:studioEntry
+          if chatAttachment is not missing value and chatAttachment is not current application's NSNull's |null|() then set studioLabel to studioLabel & " — " & ((chatAttachment's objectForKey:"name") as text)
+          set end of studioEntries to {studioLabel, (studio's objectForKey:"instanceId") as text}
         end if
       end repeat
-      if runtimeId as text is not "installed" then
-        set stopItem to current application's NSMenuItem's alloc()'s initWithTitle:"Stop runtime" action:"stopSelectedRuntime:" keyEquivalent:""
-        stopItem's setTarget:me
-        stopItem's setRepresentedObject:runtimeId
-        children's addItem:stopItem
+      if isSource or (count of studioEntries) > 0 then
+        my addEntry("", missing value, missing value)
+        if isSource then my addEntry("Open Studio (" & runtimeLabel & ")", "openSelectedRuntime:", runtimeId)
+        repeat with studioEntry in studioEntries
+          my addEntry(item 1 of studioEntry, "openRuntime:", item 2 of studioEntry)
+        end repeat
+        if isSource then my addEntry("Stop " & runtimeLabel, "stopSelectedRuntime:", runtimeId)
       end if
     end repeat
-    runtimeItem's setEnabled:((runtimeMenu's numberOfItems()) > 0)
   on error
     updateItem's setHidden:true
-    runtimeItem's setEnabled:false
   end try
 end refreshMenu_
 on menuNeedsUpdate_(sender)
@@ -190,15 +196,18 @@ on run argv
   set trayMenu to current application's NSMenu's alloc()'s initWithTitle:"SAAM"
   trayMenu's setAutoenablesItems:false
   trayMenu's setDelegate:me
-  repeat with menuEntry in {{"Open Studio", "openStudio:"}, {"Studios", ""}, {"New Instance", "newInstance:"}, {"Update", "updateApp:"}, {"Quit", "quitApp:"}}
+  -- The empty entry is endItem, the separator Studios are inserted before.
+  repeat with menuEntry in {{"Open Studio", "openStudio:"}, {"New Instance", "newInstance:"}, {"", ""}, {"Update", "updateApp:"}, {"Quit", "quitApp:"}}
     set entryTitle to item 1 of menuEntry
-    set menuItem to current application's NSMenuItem's alloc()'s initWithTitle:entryTitle action:(item 2 of menuEntry) keyEquivalent:""
-    menuItem's setTarget:me
-    trayMenu's addItem:menuItem
-    if entryTitle is "Studios" then
-      set runtimeItem to menuItem
-      menuItem's setSubmenu:(current application's NSMenu's alloc()'s initWithTitle:"Studios")
+    if entryTitle is "" then
+      set menuItem to current application's NSMenuItem's separatorItem()
+      set endItem to menuItem
+    else
+      set menuItem to current application's NSMenuItem's alloc()'s initWithTitle:entryTitle action:(item 2 of menuEntry) keyEquivalent:""
+      menuItem's setTarget:me
     end if
+    trayMenu's addItem:menuItem
+    if entryTitle is "New Instance" then set newInstanceItem to menuItem
     if entryTitle is "Update" then
       set updateItem to menuItem
       menuItem's setHidden:true
