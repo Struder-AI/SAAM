@@ -78,6 +78,29 @@ try {
 } catch (error) {
   if (error.status !== 1) errors.push('Could not check curated-example visibility.');
 }
+// Tolerance literals: a raw small number in code outside core/dimensions.mjs is a
+// tolerance that does not name its class (core/README.md#dimensions-and-tolerances).
+// Counts per file may only fall; --write-tolerance-baseline records lower counts.
+const toleranceLiteral = /(?<![\w.])(?:\d+(?:\.\d+)?e-\d+|0?\.00\d+)(?![\w.])|Number\.EPSILON/g;
+const toleranceFiles = tracked.filter(path => /^(core|studio|skills|packaging)\/.*\.(mjs|js|cpp)$/.test(path)
+  && !/(^|\/)tests?\/|\.test\.mjs$/.test(path) && path !== 'core/dimensions.mjs');
+const toleranceCounts = {};
+for (const path of toleranceFiles) {
+  const code = (await readFile(resolve(root, path), 'utf8')).replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
+  const count = code.match(toleranceLiteral)?.length ?? 0;
+  if (count) toleranceCounts[path] = count;
+}
+const toleranceBaselinePath = resolve(root, 'scripts/tolerance-literals.json');
+if (process.argv.includes('--write-tolerance-baseline')) {
+  const { writeFile } = await import('node:fs/promises');
+  await writeFile(toleranceBaselinePath, JSON.stringify(toleranceCounts, null, 1) + '\n');
+} else {
+  const baseline = JSON.parse(await readFile(toleranceBaselinePath, 'utf8'));
+  for (const [path, count] of Object.entries(toleranceCounts)) if (count > (baseline[path] ?? 0))
+    errors.push(`Raw tolerance literal in ${path} (${count} > baseline ${baseline[path] ?? 0}): use a class from core/dimensions.mjs or derive it from the print's dimensions.`);
+  for (const [path, count] of Object.entries(baseline)) if ((toleranceCounts[path] ?? 0) < count)
+    errors.push(`Tolerance literals in ${path} fell to ${toleranceCounts[path] ?? 0}; run node scripts/check-repo.mjs --write-tolerance-baseline.`);
+}
 if (errors.length) {
   console.error(errors.join('\n'));
   process.exitCode = 1;

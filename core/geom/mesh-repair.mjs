@@ -3,24 +3,31 @@ import {decodeSTL,makeMesh,parseSTL} from './mesh.mjs';
 import {checkAdjacentContacts} from './mesh-spatial.mjs';
 import {subtract as sub,cross,dot,requireThat} from './tolerance.mjs';
 import {checkMeshCapacity} from './mesh-capacity.mjs';
+import {NUMERIC_MM} from '../dimensions.mjs';
 
 export function cleanTriangleSoup(input,{mergeToleranceMm=0}={}) {
   requireThat(Array.isArray(input.vertices)&&Array.isArray(input.triangles),'Repair needs vertices and triangles.');
   requireThat(Number.isFinite(mergeToleranceMm)&&mergeToleranceMm>=0,'mergeToleranceMm must be a finite nonnegative distance in millimetres.');
   checkMeshCapacity(input.vertices.length,input.triangles.length);
   const {vertices,mapping,merge}=indexRepairVertices(input.vertices,mergeToleranceMm);
-  const triangles=[],seen=new Set();let degenerate=0,duplicates=0;
+  // Coincident triangles keep one copy facing their net orientation; an
+  // opposed pair is a zero-thickness wall and cancels, so the surface stays closed.
+  const kept=[],groups=new Map();let degenerate=0;
   for(const face of input.triangles){
     requireThat(Array.isArray(face)&&face.length===3&&face.every(i=>Number.isInteger(i)&&i>=0&&i<mapping.length),'Invalid repair triangle indices.');
     const t=face.map(i=>mapping[i]),n=cross(sub(vertices[t[1]],vertices[t[0]]),sub(vertices[t[2]],vertices[t[0]]));
     if(new Set(t).size!==3||Math.hypot(...n)<=1e-10){degenerate++;continue;}
-    const key=[...t].sort((a,b)=>a-b).join(',');if(seen.has(key)){duplicates++;continue;}seen.add(key);triangles.push(t);
+    const s=[...t].sort((a,b)=>a-b),key=s.join(','),sign=(s.indexOf(t[1])-s.indexOf(t[0])+3)%3===1?1:-1;
+    const group=groups.get(key);if(group)group.net+=sign;else{groups.set(key,{triangle:t,sign,net:sign});kept.push(key);}
   }
+  const triangles=[];
+  for(const key of kept){const {triangle:t,sign,net}=groups.get(key);if(net)triangles.push(Math.sign(net)===sign?t:[t[0],t[2],t[1]]);}
+  const duplicates=input.triangles.length-degenerate-triangles.length;
   requireThat(triangles.length>=4,'Repair has no usable solid surface.');
   const stitching=degenerate?stitchCollapsedEdges(vertices,triangles):{triangles,stitchedEdges:0,addedTriangles:0};
   const compact=compactMesh(vertices,stitching.triangles);
   return {...compact,...(mergeToleranceMm>0?{merge}:{}),removed:{degenerate,duplicates,unusedOrDuplicateVertices:input.vertices.length-compact.vertices.length},
-    stitching:{edges:stitching.stitchedEdges,addedTriangles:stitching.addedTriangles,toleranceMm:1e-9}};
+    stitching:{edges:stitching.stitchedEdges,addedTriangles:stitching.addedTriangles,toleranceMm:NUMERIC_MM}};
 }
 
 // Retained representatives never move: every snap is measured directly, not
@@ -82,14 +89,14 @@ function stitchCollapsedEdges(vertices,triangles) {
   const splits=new Map();let stitchedEdges=0,addedTriangles=0;
   for(const edge of boundary){
     const a=vertices[edge.a],b=vertices[edge.b],ab=sub(b,a),length=Math.hypot(...ab);
-    if(length<=1e-9)continue;
+    if(length<=NUMERIC_MM)continue;
     const direction=ab.map(v=>v/length),chain=[edge.b];let at=edge.b,previous=length;
     const visited=new Set(chain);
     while(at!==edge.a){
       const next=(outgoing.get(at)??[]).filter(e=>{
         if(e===edge||visited.has(e.b))return false;
         const offset=sub(vertices[e.b],a),position=dot(offset,direction);
-        return position>=-1e-9&&position<previous&&Math.hypot(...cross(offset,direction))<=1e-9;
+        return position>=-NUMERIC_MM&&position<previous&&Math.hypot(...cross(offset,direction))<=NUMERIC_MM;
       });
       if(next.length!==1)break;
       at=next[0].b;chain.push(at);visited.add(at);previous=dot(sub(vertices[at],a),direction);

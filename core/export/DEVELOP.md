@@ -41,6 +41,7 @@ the approved stateful boundary of
 
 Declare the output in the machine file, add its registry entry and its branch in
 `decodeSource`, and write its contract beside the others. Record vendor facts
-and measurements in that contract. Tests are
+and measurements in that contract. Write numbers at a
+[program resolution](../README.md#dimensions-and-tolerances) below print resolution. Tests are
 `core/tests/<dialect>*.test.mjs`, with `export.test.mjs` and
 `modal-export.test.mjs` across dialects.

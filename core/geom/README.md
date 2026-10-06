@@ -63,37 +63,21 @@ evaluations instead of repeatedly flattening and inverse-projecting geometry.
 
 ### Precision belongs to a quantity and an operation
 
-Choose precision by quantity, units, construction stage and consumer. More decimals do not establish
-accuracy; coordinate grids, chord error, parameter increments and volume allowances need separate budgets.
+Tolerance classes and values belong to [Dimensions and tolerances](../README.md#dimensions-and-tolerances).
+Within Geometry, keep separate budgets for coordinate quantization (Clipper2 grids, a planar offset's
+`precisionMm`: kernel arithmetic; use a local origin), shape approximation (chord error from the source
+curve, independent of coordinate storage; coverage expansion and its predicates must agree), sampling
+steps (not a certified surface-error bound) and predicate slack (numeric conditioning only). A determinant of two
+length vectors is in mm²; UV tolerances map to millimetres through surface derivatives and can differ
+in U and V; a normal dot product is dimensionless.
 
-| Dimension | Current examples | Developer guidance |
-|---|---|---|
-| Coordinate quantization, mm | Planar offset `precisionMm`; Clipper2 boolean grid `1e-9` mm | This rounds coordinates for kernel arithmetic. Use a local origin and account for repeated conversions. A grid step does not bound all later outline displacement or remove excess contour vertices. Measure the actual kernel cost before keeping extreme precision. |
-| Shape approximation, mm | Native section chord `0.001` mm; offset arcs `0.02` mm; coverage arcs `0.001` mm | Bound perpendicular deviation from the source curve independently of coordinate storage. Sample long, nearly straight spans economically; preserve cumulative curvature and topology. Coverage expansion and its consuming predicates must agree about approximation error. |
-| Sampling distance and feature size, mm | Surface stroke steps `0.2` mm; rim sampling `0.5` mm and error `0.01` mm | A step size is not a certified surface-error bound. Report mesh repair shape changes separately from numerical precision. |
-| Coincidence/predicate slack, mm or derived units | Point `1e-6` mm, plane `1e-7` mm; mesh separation `1e-9` mm | Keep numerical degeneracy handling separate from intentional shape simplification. A determinant from two length vectors has units mm²; compare to an area quantity or normalize it to distance/relative conditioning. Do not use a length tolerance as an area cutoff. |
-| Solver parameters and angles | `TOLERANCE.parameter=1e-9` in native UV parameter units; surface `precisionUv=1e-10`; angles in degrees/radians | UV precision maps to physical displacement through surface derivatives and can differ in U and V. A normal dot product is dimensionless. Neither uses an XYZ millimetre tolerance. Record units at conversions and use scale-aware conditioning for singularity decisions. |
-| Machine command quantization | S5/H2D XYZ and filament E currently five decimals; feed three decimals in mm/min; dwell integer milliseconds; Dobot ten decimals and RC8A eight | XYZ, filament length, volume, feed, time and pose need independent error budgets even when a formatter currently shares digits. Relative-E rounding can accumulate per move; absolute E has different accumulation. Reconcile final endpoints, length, volume and duration when removing or coalescing points. |
-| Display approximation | Studio bead tessellation, float buffers and distance-based detail | Display budgets are visual only. They must not alter the saved program, geometry identity, deposition volume or machine checks. Printed-looking colors and shading do not establish geometric accuracy. |
-
-Short segments can cross rounding boundaries; length alone cannot predict their disappearance.
-When removing points, preserve/recompute subsequent starts, volume integrals, gaps, widths and pose.
-Simplify before dependent data where practical. `cleanPlanarLoop` removes numerical seams using plane
-tolerance; it is not process-resolution simplification. Quantize each output field once and reuse it
-for text, flow and modal state instead of repeated formatting/parsing.
-
-For ordinary FFF experiments, start with micrometre grids and hundredths-of-a-millimetre deviation,
-then measure against feature size, bead dimensions, material interfaces and actual output. These are
-not new defaults or permission to erase narrow regions; predicates may need tighter precision than contours.
-The [external inspection](../../DEVLOG.md#2026-09-11--external-precision-reference-inspection) separates these
-budgets but establishes neither effective user settings nor speed. Deviation limits can retain short segments.
-
-Measure elapsed time, point counts and geometric change on the same recipe. Include affected translated/scaled
-geometry, corners, holes, thin walls, repeated operations and variable extrusion. Compare areas in mm² and
-distances in mm against independent references; fix physical-invariant failures rather than loosening checks.
-This is development guidance, not a runtime sweep or approval gate. The [precision history](../../DEVLOG.md#br-040--dimension-aware-precision-audit-and-developer-guidance)
-records corrections/follow-ups; the [provenance audit](../../DEVLOG.md#2026-09-14--build-request-provenance-audit)
-does not authorize every finding. [Formats](../print/README.md#formats) specifies current XYZ behavior.
+Short segments can cross rounding boundaries. When removing points, preserve or recompute subsequent
+starts, volume integrals, gaps, widths and pose; quantize each output field once and reuse it for text,
+flow and modal state. `cleanPlanarLoop` removes numerical seams; it is not process-resolution
+simplification. Measure elapsed time, point counts and geometric change on the same recipe against
+independent references (translated geometry, corners, holes, thin walls, variable extrusion), and fix
+physical-invariant failures rather than loosening checks.
+[Formats](../print/README.md#formats) specifies current XYZ behavior.
 
 ### Geometry query boundary
 
@@ -447,24 +431,25 @@ when cleanup alone does not yield a valid mesh. Studio and agent imports
 attempt it for recognized defects, then present geometry for review. Invalid
 formats retain their diagnostics; repair never fills holes without explicit bounds.
 
-[Cleanup](./mesh-repair.mjs) removes duplicate/degenerate faces and unused vertices.
+[Cleanup](./mesh-repair.mjs) removes degenerate faces and unused vertices; coincident
+faces keep one copy facing their net orientation (an opposed pair cancels).
 `cleanTriangleSoup(input,{mergeToleranceMm:0})` defaults to identical coordinates.
 An explicit positive tolerance snaps each point to its nearest retained vertex
 within that Euclidean distance in mm; input order breaks ties. Representatives
 never move, repeated coordinates share a decision, and neighbours do not chain.
 Spatial buckets only find candidates; they never round accepted coordinates.
-Collapsed-face stitching uses existing collinear boundary vertices (1e-9 mm),
-without guessing branches or filling holes. Ordinary imports remain exact-only.
-
-Repair reports include merge counts and maximum vertex displacement; shape-change
-evidence includes the merge. Tolerance bounds this stage, not later native repair.
-[CGAL](./native/README.md) orients/stitches and attempts local patch repair with
-smoothing off and genus preservation requested. Hole filling needs explicit edge
-and physical diameter limits; unresolved boundaries/intersections reject output.
+Collapsed-face stitching uses existing collinear boundary vertices (numeric
+conditioning), without guessing branches or filling holes. Ordinary imports remain
+exact-only. Reports include merge counts and maximum displacement; shape-change
+evidence includes the merge. [CGAL](./native/README.md) orients/stitches, fills holes
+only within explicit limits, closes opposed sheets within print resolution and
+replaces a self-crossing surface by its solid's boundary; reports give the closing,
+cancelled area and inward/outward shells before and after (fewer inward shells:
+cavities opened).
 
 Final checks use shared mesh topology/intersection checks, adjacent-contact checks
-and reimport of the exact decimal ASCII STL. Contact tolerance is 1e-9 mm;
-this is not an exact-arithmetic validity proof. Reports count unchanged/changed/new
+and reimport of the exact decimal ASCII STL. Non-intersection is certified at the
+numeric conditioning margin, not proved exactly. Reports count unchanged/changed/new
 faces and sample at most 10,000 vertices/centroids per direction, without claiming
 a certified surface-error bound. Identical geometry needs no sampling. The optional
 sampled-distance limit rejects measured excess; geometry still needs review and

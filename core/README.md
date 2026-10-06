@@ -91,6 +91,26 @@ coordination timers and display budgets. These limits are kept:
 | Malformed-file guards: STL header and token length, non-finite values, OFF header shape | [stl-file.mjs](./geom/stl-file.mjs), [mesh.mjs](./geom/mesh.mjs), [mesh-native.mjs](./geom/mesh-native.mjs) | The parsers | They detect a file that is not what it claims to be, before any work is attempted |
 | Download size, timeout and redirect count | [library.mjs](../skills/thingi10k/scripts/library.mjs) | An external HTTP boundary | Input safety on somebody else's server, the same class as the upload limit |
 
+## Dimensions and tolerances
+
+SAAM prints in build volumes of hundreds of millimetres, with lines of tenths
+(0.4 to 0.8 mm) and layers of hundredths (0.06 to 0.6 mm); machines repeat to
+about 0.01 mm. Every tolerance imports a class from [dimensions.mjs](./dimensions.mjs)
+or derives from the print's own dimensions, and says which:
+
+| Class | Value | What it protects |
+|---|---|---|
+| Print resolution, `PRINT_RESOLUTION_MM` | 1e-3 mm | Geometry differences below it cannot change a print. Shape judgements (coincident, touching, too thin, closed) use it. |
+| Process scale | the print's `lineWidthMm`, `layerMm`, or an operation's chord or sampling tolerance chosen from them | Construction accuracy that matters to one print: chord error, sampling steps, wall merging (`planarWallToleranceMm`). |
+| Program resolution, `PROGRAM_DECIMALS` | 5 decimals (1e-5 mm) | What an exporter can express; it stays below print resolution, so rounding the program never changes the print. |
+| Numeric conditioning, `NUMERIC_MM`, `NUMERIC_RELATIVE` | 1e-9 mm, 1e-12 | float64 safety at `BUILD_SCALE_MM` (1000 mm, where one ulp is 1.1e-13 mm): degeneracy guards and predicate certification. Never used to judge shape. |
+
+Display budgets are visual and never reach geometry or programs. Areas compare to
+areas; dimensionless quantities use `NUMERIC_RELATIVE` or their own scale. A feature
+far below print resolution that an operation produces is closed and reported, not
+rejected. `scripts/check-repo.mjs` fails a file whose raw tolerance literals exceed
+[its baseline](../scripts/tolerance-literals.json).
+
 Developer experiments use these same components; [historical inspection](../studio/README.md#historical-toolpath-inspection)
 is a scoped example. A proposed parallel pipeline needs a reason the shared
 extension cannot serve the task and normally a discussion before building it;

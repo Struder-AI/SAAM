@@ -12,7 +12,8 @@ export async function loadStudioImportRepair(directory){
   const distance=Math.max(report.sampledDistanceMm.sourceToResult,report.sampledDistanceMm.resultToSource);
   const changes=[removed?`${removed} duplicate or degenerate faces removed`:null,
     report.changedSourceFaces?`${report.changedSourceFaces} source faces changed`:null,
-    report.newOutputFaces?`${report.newOutputFaces} output faces added`:null].filter(Boolean);
+    report.newOutputFaces?`${report.newOutputFaces} output faces added`:null,
+    report.reconstruction?.interiorTriangles?`${report.reconstruction.interiorTriangles} interior faces removed`:null].filter(Boolean);
   return `Mesh repaired${changes.length?': '+changes.join(','):'. Face orientation or connections corrected'}. `+
     `Maximum sampled surface change: ${Number(distance.toPrecision(4))} mm. `+
     `Source units interpreted as ${report.sourceUnits}.`;
@@ -20,7 +21,7 @@ export async function loadStudioImportRepair(directory){
 
 // Browser progress labels for the core import job's stages and repair steps.
 const importStages={import:'Checking your STL',repair:'Repairing your STL','import-repaired':'Opening repaired geometry'};
-const repairSteps={'read-source':'Reading your STL',cleanup:'Cleaning mesh faces',orient:'Orienting mesh faces',patch:'Repairing mesh intersections',boundaries:'Checking mesh boundaries','native-validation':'Checking repaired topology','read-result':'Reading repaired geometry','measure-changes':'Measuring repaired geometry',validate:'Checking repaired geometry',complete:'Mesh repair complete'};
+const repairSteps={'read-source':'Reading your STL',cleanup:'Cleaning mesh faces',orient:'Orienting mesh faces',boundaries:'Checking mesh boundaries',intersections:'Finding mesh intersections',close:'Closing sheets below print resolution',refine:'Splitting intersecting faces',classify:'Finding the solid boundary',round:'Rounding repaired geometry','native-validation':'Checking repaired topology','read-result':'Reading repaired geometry','measure-changes':'Measuring repaired geometry',validate:'Checking repaired geometry',complete:'Mesh repair complete'};
 
 export async function importStudioSTL(library,bytes,{name,units,directory:destination,onProgress,signal}={}){
   signal?.throwIfAborted();

@@ -8,6 +8,7 @@ import {join,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {checkMeshCapacity} from './mesh-capacity.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
 const root=fileURLToPath(new URL('../../',import.meta.url));
 export const nativeMeshExecutable=join(root,'build','mesh-repair','saam-mesh-repair'+(process.platform==='win32'?'.exe':''));
@@ -51,7 +52,7 @@ export async function repairMeshNative(mesh,{maxHoleEdges=0,maxHoleDiameterMm=0,
 export async function runNativeMeshRepair(input,output,{maxHoleEdges=0,maxHoleDiameterMm=0,signal,progress=()=>{},temporaryWorkspace}={}){
   await temporaryWorkspace?.prepareChild();
   return new Promise((yes,no)=>{
-      const child=spawn(nativeMeshExecutable,[input,output,String(maxHoleEdges),String(maxHoleDiameterMm)],{windowsHide:true,stdio:['ignore','pipe','pipe'],signal});
+      const child=spawn(nativeMeshExecutable,[input,output,String(maxHoleEdges),String(maxHoleDiameterMm),String(PRINT_RESOLUTION_MM)],{windowsHide:true,stdio:['ignore','pipe','pipe'],signal});
       let stdout='',stderr='',lines='',failed;const lifecycle={ownership:null};
       child.once('spawn',()=>{lifecycle.ownership=temporaryWorkspace?.childStarted(child.pid).catch(error=>{failed=error;child.kill();});});const nativeDiagnostic={stage:null,counts:null};
       child.stdout.on('data',data=>{stdout+=data;if(stdout.length>65536){failed=Error('Native repair report is not this helper\'s single line of counts; no result accepted');child.kill();}});

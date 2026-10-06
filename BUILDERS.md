@@ -83,9 +83,9 @@ it removes, including the obligations it creates for collaborators.
 
 Use established numerical methods through small shared interfaces. Preserve
 their preconditions, topology and tolerance semantics, and evaluate adaptations
-against reference behavior. Precision belongs to a quantity and an operation;
-accuracy, supported geometry and cost should be explicit enough to assess a
-tradeoff. The [geometry reference](core/geom/README.md) defines these contracts.
+against reference behavior. Every tolerance names its class, derived from the
+dimensions SAAM works at ([dimensions and tolerances](core/README.md#dimensions-and-tolerances));
+the [geometry reference](core/geom/README.md) defines operation contracts.
 
 Measure performance from a user action to the useful result, with stage timings
 that identify the responsible work. Examine whether a computation is necessary,
