@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-06 — Older default phase colours
+
+- Owner: "We have feedback that the older default colors were better." Worker W28: `DEFAULT_PHASE_COLOURS` is again Studio's pre-0.3.3 colouring (TOOLPATH_COLORS and skinPhase before edfc997b): body phases, curves, supports, start/startup/finish and the deposition fallback sky blue #5b9fd3; vase-wall and segmented-paths orange #c65b19; modulated lavender #a799dc; travel #657fa3; prime #5b92a3; inject #b85c28 (the old injection marker). Print choice, local preference and validation unchanged; earlier-layer shades still mixed from the phase colour. Curves are sky blue as before 0.3.3 (the 0.3.3 palette had them orange): one value if wanted otherwise.
+- Verified: module check; studio-material 1/1, studio-open 3/3; dev-instance `phasePalette` equals the restored defaults and print > local > default holds (worker); studio-material after merge. Not run: whole suite, on-screen look.
+
 ## 2026-10-06 — Machine adapters finished: adapter settings rows; adding a machine
 
 - Worker W27: adapters give their own Studio settings rows (`settings.rows`: Bambu startup, purge and declared materials; DENSO and Dobot installation), kept in bundle state and the completed output (`settingsRows`). Studio keys relay settings off `relay-extrusion` and the rotary view off `coordinated-rotary`, and reads no adapter setup block; a posed prepared path declares its `rotaryCenterMm`, read by path preview, viewer and machine presentation. Removed `robotRows`, the Bambu block in `recipeRows` and the `setup.denso` centre reads. Kept: the presentation arm registry and the Bambu project H2D check.
