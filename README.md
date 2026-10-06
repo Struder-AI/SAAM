@@ -78,7 +78,7 @@ the source; agents walk them from map `0` with `read-map ADDRESS` through the
 agent toolkit.
 Use the [technical overview](TECHNICAL-OVERVIEW.md) and [0.2.0 plan](plans/0.2.0.md)
 for architecture and build scope, [GLOSSARY.md](GLOSSARY.md) for terms, the
-current release intent in [plans](plans/) for direction and outstanding work,
+versioned intent docs in [plans](plans/) for direction and outstanding work,
 [DECISIONS.md](DECISIONS.md) for decision history, and [DEVLOG.md](DEVLOG.md)
 for dated work and evidence.
 

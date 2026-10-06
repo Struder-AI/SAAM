@@ -2,7 +2,7 @@
 
 ## Orientation
 
-Developers own core skills, core capabilities, Studio and shared interfaces; builders compose existing interfaces ([role boundaries](AGENTS.md#choose-your-role)). Read [0.3.4 intent](plans/0.3.4.md) (bug fixes; features in [0.3.5](plans/0.3.5.md)), [0.3.3 scope/evidence](plans/0.3.3.md) and [retained contracts](plans/0.3.1.md) for the work you undertake. Onboarding supplies shared terms and this whole document; read map `0` yourself before editing.
+Developers own core skills, core capabilities, Studio and shared interfaces; builders compose existing interfaces ([role boundaries](AGENTS.md#choose-your-role)). The versioned intent docs in [plans](plans/) are the spec ([intent and rules](#intent-and-rules)); the [intent tree](intent/README.md) indexes current intent by area in the owner's words. Read the parts that bear on your work. The newest version's plan holds scheduled work. Onboarding supplies shared terms and this whole document; read map `0` yourself before editing.
 
 ### Working with dev maps
 
@@ -40,7 +40,7 @@ Consolidation is done when consumers use the general operation and the old route
 
 **Local completion reported as end-to-end.** An agent-originated test for a Studio-originated route. A bundled extension for an independent local one. Example parity for lifecycle consolidation. Focused evidence was honest, but it was treated as wider than it was.
 
-**Restoring history.** The mirror failure matters just as much: bringing something back because an old decision, plan or note describes it. Current intent lives in the current release intent and the component manuals; anything they do not describe is absent by choice, not a regression.
+**Restoring history.** The mirror failure matters just as much: bringing something back because a superseded decision, an overridden plan statement or an old note describes it. Current intent is the versioned plans read cumulatively, and the component manuals; anything they do not describe is absent by choice, not a regression.
 
 #### What success has looked like
 
@@ -52,7 +52,7 @@ Report against the obligation, not the work. State what the general operation no
 
 #### Intent and rules
 
-State intent positively, at its one owner: what SAAM does, not what must never happen again. A ban outlives the situation it was written for and has to be remembered and revoked; a statement of current intent already excludes the alternatives and stays true until someone edits it. When direction changes, edit the owner, and nothing else needs revoking. History (DECISIONS, DEVLOG, older plans) is reference, never authority.
+State intent positively, at its one owner: what SAAM does, not what must never happen again. A ban outlives the situation it was written for and has to be remembered and revoked; a statement of current intent already excludes the alternatives and stays true until someone edits it. When direction changes, edit the owner, and nothing else needs revoking. The owner, 2026-10-06: "The versioned intent docs essentially define the spec unless something overrides it." Read them in order; a later statement overrides an earlier one only where they conflict. History (DECISIONS, DEVLOG) is reference, never authority.
 
 ## Rules
 

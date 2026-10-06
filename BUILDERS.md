@@ -99,8 +99,8 @@ decisions that require domain judgment.
 
 ## Working context
 
-Use source to establish current behavior, the current release intent to establish
-agreed direction, and evidence to evaluate a proposed change. Keep assumptions and
+Use source to establish current behavior, the versioned intent docs in [plans](plans/)
+(the spec, read cumulatively) to establish agreed direction, and evidence to evaluate a proposed change. Keep assumptions and
 unresolved questions explicit. Software tests, benchmarks, vendor-tool results
 and physical prints establish different things; report the scope actually checked.
 
@@ -116,7 +116,7 @@ The influence maps show what code affects what ([dev maps intent](plans/dev-maps
 the [map guide](dev-map/README.md) owns their commands. Builders may inspect the code
 behind consumed interfaces alongside its manual; makers need no maps. What code
 cannot state belongs where it is owned: a measurement in [DEVLOG.md](DEVLOG.md),
-an agreed direction in the current release intent, and a user-facing limit in
+an agreed direction in the release intent that schedules it, and a user-facing limit in
 the manual that owns the behaviour.
 
 Add a docstring or comment only for local value, such as a subtle precondition,
@@ -189,9 +189,10 @@ and remote activity.
 
 ## Context and selective adoption
 
-The current checkout's instructions, the current release intent, shared
-contracts and the user's authorization govern development. Older repositories,
-transcripts, saved branches, older plans and decision records are reference
+The current checkout's instructions, the versioned intent docs ([read
+cumulatively](DEVELOPER-CONTEXT.md#intent-and-rules)), shared contracts and the
+user's authorization govern development. Older repositories, transcripts, saved
+branches and decision records are reference
 material, never authority; where they differ from current intent, current
 intent wins.
 
@@ -273,7 +274,7 @@ retains superseded source. No separate documentation closeout gate is needed.
 | Developer entry instructions | [Developer context](DEVELOPER-CONTEXT.md); the influence maps own technical navigation |
 | Documentation navigation for each role (human reference) | `maker-context-map.html` and `builder-context-map.html` |
 | Shared terms | [GLOSSARY.md](GLOSSARY.md) |
-| Current direction, scheduled and outstanding work | The current release intent in [plans](plans/) |
+| Current direction, scheduled and outstanding work | The [intent tree](intent/README.md) and the versioned intent docs in [plans](plans/); the newest holds scheduled work |
 | Dated decision history | [DECISIONS.md](DECISIONS.md) |
 | Completed work and dated evidence | [DEVLOG.md](DEVLOG.md) |
 
@@ -316,4 +317,4 @@ guidance is needed when developing or exercising the maker-facing workflow.
 | Performance measurement | [Slicing benchmarks](scripts/bench/README.md) and [region kernel verification](scripts/bench/region-reference.md) |
 | Maker-facing behavior or end-to-end use | [MAKERS](MAKERS.md) and [development testing](#testing-through-the-use-context) |
 | Documentation | [Ownership and maintenance](#documentation-maintenance) |
-| Project direction, outstanding work, history or terminology | The current release intent in [plans](plans/), [devlog](DEVLOG.md), [decision history](DECISIONS.md) or [terms](GLOSSARY.md) |
+| Project direction, outstanding work, history or terminology | The versioned intent docs in [plans](plans/), [devlog](DEVLOG.md), [decision history](DECISIONS.md) or [terms](GLOSSARY.md) |

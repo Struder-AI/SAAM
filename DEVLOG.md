@@ -1,5 +1,9 @@
 # Development log
 
+## 2026-10-06 — Intent tree; versioned plans are the spec
+
+- Owner: "I want an intent tree. The versioned intent docs essentially define the spec unless something overrides it." Worker W1: `intent/` (14 files, 132 leaves by map-0 area plus Deployment, Development, Principles): each leaf the owner's exact words with source, then a marked agent summary; leaves resting only on an "owner confirmed" stamp say "agent wording, no specific owner agreement found"; 11 conflicts left as owner questions. Guidance drops "current release intent" as the only authority (2026-10-03, 5dead786) and the hand-kept version list (DEVELOPER-CONTEXT, BUILDERS, README, onboarding next step, worker brief). Eight stale plan status cells corrected. Owner preferences recorded in both notes files: one question at a time; "Rubber stamp confirmation systems don't work." Checks: link check (worker), `node --check` toolkit, developer onboarding next step read back.
+
 ## 2026-10-06 — Worker runtimes found inside the installed SAAM
 
 - After the cycle, the owner's installed 0.3.5 orchestrator held two source runtimes from worker worktrees (W27 agent-afa6bf64 @ 89edc44d, started 11:10; W28 agent-a2c03cdc @ 1ff90bac, started 11:20), each with a connected Studio window, against the brief (dev instances only, own home). Stopped through the installed orchestrator's control (`stop-runtime` by runtime id); the installed runtime and its Studio were left alone. W28 reported that a `status` call restarted its instance: a dev-instance route that reaches the installed home is the likely cause; not yet investigated.
