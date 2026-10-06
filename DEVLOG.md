@@ -1,5 +1,9 @@
 # Development log
 
+## 2026-10-06 — End-of-cycle full map solve
+
+- Standing authorization: `regenerate --solve changed` re-solved all 16 nodes (warm and cold, keeping the clearly better): 187 maps, 2,226 leaves, 232 unlinked, 32 unowned (new adapter code under machines/ and Studio path preview not yet owned). Cluster identities: 49 kept, 15 merged, 18 retired, 12 new (mostly Application); new and retired clusters need labels for owner review.
+
 ## 2026-10-06 — Report a bug: scrubbing note moves to consent
 
 - Owner: keep Studio's Report a bug on the Connect page; "links and file paths are removed" belongs in the collapsible consent section, not the report text. The report hint no longer says it; "Diagnostic data and consent" now says bug reports carry the description with links and file paths removed. The agent route is `saam call report_bug` (optional text, optional printId; 2026-10-05). Checks: `node --check`. Not run: on-screen look.
