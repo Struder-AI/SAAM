@@ -1,5 +1,9 @@
 # Development log
 
+## 2026-10-06 — Report a bug: scrubbing note moves to consent
+
+- Owner: keep Studio's Report a bug on the Connect page; "links and file paths are removed" belongs in the collapsible consent section, not the report text. The report hint no longer says it; "Diagnostic data and consent" now says bug reports carry the description with links and file paths removed. The agent route is `saam call report_bug` (optional text, optional printId; 2026-10-05). Checks: `node --check`. Not run: on-screen look.
+
 ## 2026-10-06 — Older default phase colours
 
 - Owner: "We have feedback that the older default colors were better." Worker W28: `DEFAULT_PHASE_COLOURS` is again Studio's pre-0.3.3 colouring (TOOLPATH_COLORS and skinPhase before edfc997b): body phases, curves, supports, start/startup/finish and the deposition fallback sky blue #5b9fd3; vase-wall and segmented-paths orange #c65b19; modulated lavender #a799dc; travel #657fa3; prime #5b92a3; inject #b85c28 (the old injection marker). Print choice, local preference and validation unchanged; earlier-layer shades still mixed from the phase colour. Curves are sky blue as before 0.3.3 (the 0.3.3 palette had them orange): one value if wanted otherwise.

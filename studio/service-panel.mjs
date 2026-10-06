@@ -53,7 +53,7 @@ export function createServicePanel({token,available:hasService=true}){
     $('service-toggle').hidden=false;
     // Reports travel only through an activated connection; otherwise the section says how to report.
     $('report-section').hidden=false;$('report-form').hidden=!status?.activated;
-    $('report-hint').textContent=status?.activated?'Sends your description with the SAAM version, platform, this window and its print; diagnostics SAAM already sent give the context. Links and file paths are removed.'
+    $('report-hint').textContent=status?.activated?'Sends your description with the SAAM version, platform, this window and its print; diagnostics SAAM already sent give the context.'
       :available?'Bug reports travel through the alpha service: enter an alpha invite above to send one, or describe the problem to your agent.'
       :'This installation has no alpha service: describe the problem to your agent.';
     $('service-consent').hidden=!available;
