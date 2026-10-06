@@ -7615,9 +7615,6 @@
     "studio/tour.mjs::createTour::studioOwner": {
       "owner": "studio"
     },
-    "studio/tour.mjs::demo": {
-      "owner": "studio"
-    },
     "studio/tour.mjs::hash": {
       "owner": "studio"
     },
@@ -7628,6 +7625,9 @@
       "owner": "studio"
     },
     "studio/tour.mjs::save": {
+      "owner": "studio"
+    },
+    "studio/tour.mjs::starterRecipe": {
       "owner": "studio"
     },
     "studio/tour.mjs::tourExample": {

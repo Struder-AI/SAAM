@@ -152,14 +152,14 @@ function mappedSleevePatternCurves({settings,process,base,start,end,firstHeight,
 // Trace receives only resolved spatial curves and their deposition settings.
 
 
-function advancedVaseResult({shell,assignment,process,geometry,after=assignment.after,zStartMm=null,zEndMm=null,foundationSegments=[],maxBeadHeightMm=Infinity,substrateAdaptation=false,onProgress}){
+function advancedVaseResult({shell,assignment,process,geometry,after=assignment.after,zStartMm=null,zEndMm=null,foundationSegments=[],substrateAdaptation=false,onProgress}){
   requireThat(assignment.pattern!==null,'Advanced vase requires an authored repeated pattern.');
   const reference=geometry??vase.prepareSleeveGeometry({shell,assignment,process,zStartMm,zEndMm,onProgress});
   const {base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm}=reference;
   const mapped=mappedSleevePatternCurves({settings:assignment,process,base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm,onProgress});
   const parts=[];
   for(const {layerIdSuffix,...source} of mapped.courses){
-    const curves=substrateAdaptation&&foundationSegments.length?contactCurveGaps(source.curves,{segments:foundationSegments,maxHeightMm:maxBeadHeightMm}):source.curves;
+    const curves=substrateAdaptation&&foundationSegments.length?contactCurveGaps(source.curves,{segments:foundationSegments}):source.curves;
     const course={...source,curves,layerId:assignment.id+layerIdSuffix};
     parts.push(traceResult({id:assignment.id,filament:assignment.filament,after:parts.at(-1)?.operations.map(op=>op.id)??after},{courses:[course],process}));
   }

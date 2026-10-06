@@ -8,7 +8,7 @@
   "maxFeedMmS":{"x":100,"y":100,"z":20,"e":45},
   "temperatureLimitsC":{"nozzle":[0,280],"bed":[0,120],"chamberMax":0},
   "filamentDiameterMm":1.75,
-  "tools":[{"index":0,"label":"Fixed external relay extruder (proposed 0.4 mm setup)","cores":["external 0.4"],"nozzleDiametersMm":[0.4],"layerHeightMm":[0.06,0.3],"startupXY":[200,180]}],
+  "tools":[{"index":0,"label":"Fixed external relay extruder (proposed 0.4 mm setup)","cores":["external 0.4"],"nozzleDiametersMm":[0.4],"startupXY":[200,180]}],
   "capabilities":["xyz-extrusion","planar","nonplanar","relay-extrusion"],
   "materials":{"PLA":{"maxFlowMm3S":4,"maxRetractMm":0,"nozzleC":[0,230],"bedC":[0,70]}},
   "outputs":[{"id":"dobot-lua","extension":".zip","flavor":"DobotStudio Pro bounded Lua","implemented":true,"extrusionUnits":"relay-on-off; commanded volume is intent only","experimental":true}],

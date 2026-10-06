@@ -5,7 +5,7 @@ const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 export async function editStandardSupport(source,request,{buildGeometry,constructSolids,closeMeshPatchToPlane}){
   requireThat(request&&typeof request==='object'&&!Array.isArray(request),'Standard support needs a request.');
   requireThat(Object.keys(request).every(key=>['id','part','roof','triangleIndices','gapMm','fillDensity','angleDeg','baseLayers','reason'].includes(key)),'Unknown standard-support request field.');
-  const {id,part=null,roof,triangleIndices,gapMm=.1,fillDensity=.2,angleDeg=0,baseLayers=2,reason='Authored underside support.'}=request;
+  const {id,part=null,roof,triangleIndices,gapMm=.15,fillDensity=.2,angleDeg=0,baseLayers=2,reason='Authored underside support.'}=request;
   requireThat(typeof id==='string'&&/^[a-z][a-z0-9-]*$/.test(id),'Standard support needs a stable assignment id.');
   requireThat(typeof reason==='string'&&reason.trim().length>0,'Record why these underside patches need support.');
   const geometry=structuredClone(source.geometry),assignments=structuredClone(source.slices?.assignments??[]);

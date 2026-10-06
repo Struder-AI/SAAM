@@ -172,7 +172,7 @@ const vaseSettings=state=>{
 };
 // The adapter's rows (computed by the server) follow the common settings.
 function machineSettings(state,rows){
-  const omitted=new Set(relay(state)?['Bed temperature','Build volume temperature','Retraction','Cooling fan','Filament diameter','Material flow limit']:[]);
+  const omitted=new Set(relay(state)?['Bed temperature','Build volume temperature','Retraction','Cooling fan','Filament diameter']:[]);
   return [...rows.filter(([name])=>!omitted.has(name)),...state.settingsRows??[]];
 }
 function stop(){if(playState.playing)void studioWork.tourUI?.playback('pause');playState.playing=false;playState.playbackEpoch++;playState.lastFrame=0;cancelAnimationFrame(playState.frame);$('#play').textContent='Play';}
@@ -368,7 +368,7 @@ async function presentStudioState({adopted,loaded,previous,presentationChanged,f
   // Geometry keys off the previously loaded state's geometry id (none on a
   // print switch), so a different print always rebuilds.
   if(!viewer.sceneState().hasGeometry||!loaded||loaded.geometryId!==printSync.state.geometryId)
-    viewer.publishGeometry({geometry:printSync.state.geometry,featureEdges:printSync.state.tourExample?.id==='surface-drape'?['top']:[]});
+    viewer.publishGeometry({geometry:printSync.state.geometry});
   const presentation=await applyProgramPresentation(adopted.presentation,printSync.state);printSync.state=presentation.state;
   if(presentationChanged)layerFade.reset();
   const navigation=planRefreshNavigation(previous,printSync.state,{follow,tab:viewState.tab,seconds:playState.seconds,duration:presentation.duration,selected:viewState.selected,
@@ -416,7 +416,6 @@ function applyRefreshNavigation(decision){
   if(decision.resetView) {
     stop();viewState.selected=null;orbitView.fitBounds=null;orbitView.zoom=1;orbitView.pan=[0,0];playState.seconds=decision.seconds;
     cameras.reset();$('#follow-plate').checked=true;
-    if(decision.surfaceDrape){orbitView.yaw=-.45;orbitView.tilt=.52;orbitView.zoom=1.25;}
   }
   viewState.tab=decision.tab;
   if(decision.notice)message(decision.notice);

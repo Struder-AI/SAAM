@@ -74,7 +74,7 @@ values and adjust after a small coupon trial:
 | `floorMm` | 0.8 | Solid floor below the blind cavity |
 | `seatDepthMm` | 0 | Nozzle tip at the opening plane; nonnegative insertion remaining within the shaft |
 | `volumeFactor` | 1 | Multiplier on the reserved, stepped cavity volume |
-| `flowMm3S` | 0.5 | Injection flow, capped by the normal process flow limit |
+| `flowMm3S` | 0.5 | Injection flow |
 | `holdSeconds` | 1 | Stationary hold after injecting, before withdrawal |
 | `nozzleC` | null | Use normal temperature; a numeric value requests an operation temperature |
 

@@ -72,7 +72,7 @@ This is a nominal display cross-section, not measured filament spread.
 ### Tour previews
 
 The [guided tour](../examples/prints/README.md) uses this same renderer and machine
-presentation. Both starting shapes initialize from source recipes and show
+presentation. Its fin block initializes from its source recipe and shows
 geometry before toolpath generation. At toolpath review, the normal worker and
 source interpreter supply playback and material instances. Generated display
 caches and machine programs are not bundled in the repository.
@@ -140,8 +140,8 @@ refresh. Movie export neither generates machine code nor edits a bundle.
 
 S5 and H2D profiles supply new shell plans with 40/20/24 mm/s
 planar/skin/first-layer targets, 120 mm/s XY travel and 10 mm/s Z travel.
-Existing locked plans, material flow limits, retraction and firmware service
-speeds are unchanged; actual deposition remains capped by flow and axis limits.
+Existing locked plans, retraction and firmware service
+speeds are unchanged; actual deposition remains capped by axis feed limits.
 
 Geometry view uses opaque, depth-tested WebGL2 sky-blue surfaces, camera-relative
 lighting and a subtle blurred ground shadow projected from the actual mesh.

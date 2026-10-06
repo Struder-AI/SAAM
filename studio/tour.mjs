@@ -1,28 +1,20 @@
 import {replaceFile} from '../core/private/studio/file-write.mjs';
 import {readFile,mkdir,stat,realpath,unlink} from 'node:fs/promises';
-import {resolve,dirname,sep} from 'node:path';
-import {fileURLToPath} from 'node:url';
+import {resolve,sep} from 'node:path';
 import {randomUUID} from 'node:crypto';
-import {TOUR_VERSION,TOUR_DECK_VERSION,TOUR_DEMOS,TOUR_STEPS,TOUR_LESSONS as L,tourAgentInstruction} from './tour-catalog.mjs';
+import {TOUR_VERSION,TOUR_DECK_VERSION,TOUR_EXAMPLE,TOUR_STEPS,TOUR_LESSONS as L,tourAgentInstruction} from './tour-catalog.mjs';
 
 import {requestPrintId} from '../core/application/chat-requests.mjs';
 import {bundleFor} from './adapter-resolution.mjs';
 import {requestReceiptState} from './work-state.mjs';
 
-const root=resolve(dirname(fileURLToPath(import.meta.url)),'..'),packages=resolve(root,'examples/prints');
-// Tour content: each lesson example's {machineId, plan}, copied into the tour folder when a lesson needs it.
-const recipes=Object.freeze({
-  starter:async()=>({machineId:'ultimaker-s5',plan:(await import('../examples/prints/starter/recipe.mjs')).starterPlan()}),
-  'surface-drape':async()=>({machineId:'ultimaker-s5',plan:(await import('../examples/prints/surface-drape/recipe.mjs')).surfaceDrapePlan()}),
-  'wavy-denso':async()=>json(resolve(packages,'wavy-denso/recipe.json')),
-  'nudge-cup':async()=>({machineId:'ultimaker-s5',plan:(await import('../examples/prints/nudge-cup/recipe.mjs')).nudgeCupPlan()})
-});
+// Tour content: the example's {machineId, plan}, copied into the tour folder when a lesson needs it.
+const starterRecipe=async()=>({machineId:'ultimaker-s5',plan:(await import('../examples/prints/starter/recipe.mjs')).starterPlan()});
 const json=async file=>JSON.parse(await readFile(file,'utf8'));
 async function optional(file){try{return await json(file);}catch(e){if(e.code==='ENOENT')return null;throw e;}}
 async function save(file,value){await replaceFile(file,JSON.stringify(value,null,2)+'\n');}
-function demo(id){if(!TOUR_DEMOS.some(d=>d.id===id))throw Error('Unknown tour example');return resolve(packages,id);}
 const validPath=name=>typeof name==='string'&&!name.includes('\\')&&!name.includes(':')&&!name.startsWith('/')&&name.split('/').every(p=>p&&p!=='.'&&p!=='..');
-export async function tourExample(directory){const marker=await optional(resolve(directory,'.tour-reference.json'));return marker?.version===TOUR_VERSION&&TOUR_DEMOS.some(d=>d.id===marker.id)?{id:marker.id,version:marker.version}:null;}
+export async function tourExample(directory){const marker=await optional(resolve(directory,'.tour-reference.json'));return marker?.version===TOUR_VERSION&&marker.id===TOUR_EXAMPLE?{id:marker.id,version:marker.version}:null;}
 export async function useExample(directory){try{await unlink(resolve(directory,'.tour-reference.json'));}catch(e){if(e.code!=='ENOENT')throw e;}}
 // The tour as one chat binding sees it; studioId names the Studio running it (none for a status read).
 export function createTour(libraryRoot,{now=Date.now,studioId,chat}){
@@ -38,15 +30,15 @@ export function createTour(libraryRoot,{now=Date.now,studioId,chat}){
     if(!target.startsWith(realBase+sep))throw Error('The saved example must stay inside the tour folder.');
     return target;
   }
-  async function ensure(id,data){
-    demo(id);await mkdir(base,{recursive:true});
+  async function ensure(data){
+    const id=TOUR_EXAMPLE;await mkdir(base,{recursive:true});
     const [realBase,realLibrary]=await Promise.all([realpath(base),realpath(library)]);
     if(!realBase.startsWith(realLibrary+sep))throw Error('The tour folder must stay inside the Prints library.');
     if(data.copies[id])try{const existing=await confined(data.copies[id]);await stat(resolve(existing,'plan.json'));return existing;}catch(e){if(e.code!=='ENOENT')throw e;}
-    const title=id==='starter'?'handle':id==='surface-drape'?'wavy-roof':id;
+    const title='handle';
     let name=title,index=1,directory;
     for(;;){directory=resolve(base,name);try{await mkdir(directory);break;}catch(e){if(e.code!=='EEXIST')throw e;name=title+'-'+(++index);}}
-    const {machineId,plan}=await recipes[id]();
+    const {machineId,plan}=await starterRecipe();
     const {initBundle}=await import('../core/print/bundle.mjs');
     await initBundle(directory,plan,{machineId});
     await save(resolve(directory,'.tour-reference.json'),{id,version:TOUR_VERSION});data.copies[id]=name;return directory;
@@ -87,7 +79,7 @@ export function createTour(libraryRoot,{now=Date.now,studioId,chat}){
   async function enter(data,index){
     if(data.lessonId)await chat.withdraw({scope:scope(data)});
     const step=TOUR_STEPS[index];data.lessonId=randomUUID();data.step=index;data.active=true;data.completed=false;data.dismissed=false;
-    if(step.demo){await ensure(step.demo,data);data.selected=data.copies[step.demo];}
+    if(step.example){await ensure(data);data.selected=data.copies[TOUR_EXAMPLE];}
     if(index===L.geometry&&!data.gates[index])data.baseline=await signature(data);
     if(index===L.settings){
       data.editLesson=null;data.gates[index]=false;
@@ -141,7 +133,7 @@ export function createTour(libraryRoot,{now=Date.now,studioId,chat}){
       }
       return describe(data);
     },
-    async landing(){const data=await read();if(!data.selected){await ensure('starter',data);data.selected=data.copies.starter;}await save(progress,data);return confined(data.selected);},
+    async landing(){const data=await read();if(!data.selected){await ensure(data);data.selected=data.copies[TOUR_EXAMPLE];}await save(progress,data);return confined(data.selected);},
     async setStartAt(startAt,expected){
       if(!Number.isInteger(startAt?.layer)||startAt.layer<1)throw Error('startAt.layer must be a deposited layer after the first.');
       const data=await read();

@@ -16,13 +16,13 @@ export function vaseWallRuntime({Geometry,Toolpath}) {
   const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
   const {spiralFamilyCurve,traceResult,contactCurveGaps,maximumPathAngle,strokeRange,publishFinishedBoundary,depositedBeadSegments}=Toolpath;
 
-function standardVaseResult({assignment:settings,process,shell,geometry,after=settings.after,maxBeadHeightMm=Infinity},{foundationSegments=[],substrateAdaptation=false}={}){
+function standardVaseResult({assignment:settings,process,shell,geometry,after=settings.after},{foundationSegments=[],substrateAdaptation=false}={}){
   const family=geometry.family();
   const curve=spiralFamilyCurve({family,firstHeightMm:geometry.firstHeight,widthMm:process.lineWidthMm,
     levelEnd:settings.endTransition==='level',sampleStepMm:settings.sampleStepMm,toleranceMm:settings.toleranceMm,
     speedMmS:geometry.speedMmS??Math.min(process.planarSpeedMmS,process.firstLayerSpeedMmS),minimumTurnSeconds:geometry.minimumTurnSeconds??process.minimumLayerSeconds,role:geometry.role??'vase-wall'});
   const {profile,...centerline}=curve;
-  const curves=substrateAdaptation&&foundationSegments.length?contactCurveGaps([centerline],{segments:foundationSegments,maxHeightMm:maxBeadHeightMm}):[centerline];
+  const curves=substrateAdaptation&&foundationSegments.length?contactCurveGaps([centerline],{segments:foundationSegments}):[centerline];
   const traced=traceResult({id:settings.id,filament:settings.filament,after},{process,courses:[{
     key:'wall',curves,join:{mode:'ordered'},layerId:settings.id+':continuous',phase:'vase-wall',layer:0,rank:geometry.start,
     ...(geometry.course??{}),fanPercent:process.fanPercent,trimEnd:settings.endTransition==='level',travel:{kind:'clearance',clearanceZ:geometry.end+process.liftMm}}]});

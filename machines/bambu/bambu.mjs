@@ -3,7 +3,7 @@
 import {createHash} from 'node:crypto';
 import {deflateSync} from 'node:zlib';
 import {exportBambuBody} from './bambu-body.mjs';
-import {requireThat,toolBounds,startupPosition,feederSelector,validateBambuConnections} from './filaments.mjs';
+import {requireThat,startupPosition,feederSelector,validateBambuConnections} from './filaments.mjs';
 import {resolveBambuJob} from './bambu-job.mjs';
 import {materializeBambuProject,serializeBambuProject} from './bambu-project.mjs';
 const digest=(bytes,algorithm='sha256')=>createHash(algorithm).update(bytes).digest('hex');
@@ -38,20 +38,17 @@ function contextFor(path,plan,machine,release){
   const layers=new Set(deposits.map(m=>`${m.phase}:${m.layer}`));
   const context={schema:'saam-bambu-artifact/1',contract:machine.outputs.find(o=>o.id===plan.output).program.contract,release,bounds,initialPosition:path.initialPosition,
     pathMaxZ:points.reduce((maximum,p)=>Math.max(maximum,p[2]),-Infinity),layers:layers.size};
-  checkContext(context,plan,machine,[plan.setup.tool,...path.actions.filter(a=>a.kind==='toolChange').map(a=>a.tool)]);return context;
+  checkContext(context,plan,machine);return context;
 }
-function checkContext(c,plan,machine,tools){
-  const areas=[...new Set(tools)].map(tool=>toolBounds(machine,tool));
-  const b={min:[0,1,2].map(i=>Math.min(...areas.map(a=>a.min[i]))),max:[0,1,2].map(i=>Math.max(...areas.map(a=>a.max[i])))};
+function checkContext(c,plan,machine){
   const output=machine.outputs.find(o=>o.id===plan.output),k=output.constraints;
   requireThat(c?.schema==='saam-bambu-artifact/1'&&c.contract===output.program.contract&&JSON.stringify(c.initialPosition)===JSON.stringify(startupPosition(machine,plan)),'Invalid Bambu artifact context.');
-  requireThat(c.bounds&&['min','max'].every(side=>Array.isArray(c.bounds[side])&&c.bounds[side].length===3&&c.bounds[side].every(Number.isFinite)),'Missing Bambu geometry bounds.');
-  requireThat(c.bounds.min.every((v,i)=>v>=b.min[i]&&v<c.bounds.max[i])&&c.bounds.max.every((v,i)=>v<=b.max[i]),'Bambu geometry bounds exceed selected nozzle area.');
+  requireThat(c.bounds&&['min','max'].every(side=>Array.isArray(c.bounds[side])&&c.bounds[side].length===3&&c.bounds[side].every(Number.isFinite))
+    &&c.bounds.min.every((v,i)=>v<c.bounds.max[i]),'Missing Bambu geometry bounds.');
   // Actual travel may stay below unprinted geometry. Shutdown still uses the
   // fixed firmware contract's geometry bound independently of print-body Z.
-  requireThat(Number.isFinite(c.pathMaxZ)&&c.pathMaxZ>=c.initialPosition[2]&&c.pathMaxZ<=b.max[2]&&Math.max(c.pathMaxZ,c.bounds.max[2]+k.endLiftMm)<=Math.min(k.parkLimitMm,b.max[2]),'Bambu shutdown clearance exceeds machine bounds.');
-  // A shape check on the recorded count, not a ceiling: the layer total follows
-  // the part and its layer height, both already bounded by the machine.
+  requireThat(Number.isFinite(c.pathMaxZ)&&c.pathMaxZ>=c.initialPosition[2]&&Math.max(c.pathMaxZ,c.bounds.max[2]+k.endLiftMm)<=k.parkLimitMm,'Bambu shutdown clearance exceeds the park limit.');
+  // A shape check on the recorded count, not a ceiling.
   requireThat(Number.isInteger(c.layers)&&c.layers>0,'Invalid Bambu layer count.');
   requireThat(c.release&&/^[a-zA-Z0-9.+-]{1,40}$/.test(c.release.generatorVersion)&&/^\d{4}-\d{2}-\d{2}$/.test(c.release.buildDate),'Invalid Bambu release metadata.');
 }
