@@ -52,8 +52,9 @@ export const workflows={
     await initBundle(directory,plan,{machineId});
     return generateAndExport(directory);
   },
-  // Studio's Node side driven over HTTP as the browser would: page, state, generation in the
-  // generation worker, synthetic confirmation and delivery. (The browser code itself is not run.)
+  // Studio's Node side driven over HTTP as the browser would: page, state, generation (Studio's
+  // job running Bundle's generation worker), synthetic confirmation and delivery. (The browser
+  // code itself is not run.)
   async 'studio-session'(home) {
     const {initBundle}=await core('print/bundle.mjs');
     const {starterPlan}=await example('starter/recipe.mjs');
@@ -86,11 +87,14 @@ export const workflows={
     }
   },
   // The application's agent operations (what `saam call OP` invokes), in-process: defaults,
-  // create, generate (generation worker), check, change printer, STL import (computation worker).
+  // create, generate (through a Studio session, Bundle's generation worker), check, change
+  // printer, STL import (mesh repair worker).
   async 'agent-session'(home) {
     const {createLocalRuntime}=await core('application/runtime.mjs');
+    const {homePaths}=await core('application/home.mjs');
     const {starterPlan}=await example('starter/recipe.mjs');
-    const runtime=createLocalRuntime({printsRoot:join(home,'Prints'),stateRoot:join(home,'state'),autoOpen:false,localExtension:{}});
+    const paths=homePaths(home);
+    const runtime=createLocalRuntime({paths,stateRoot:paths.state,autoOpen:false,localExtension:{}});
     const session=runtime.beginSession({id:'synthetic-trace-chat'});
     const results={};
     const call=async(name,args)=>{try{const r=await session.invoke(name,args);results[name]=(results[name]??'')+'ok ';return r;}catch(error){results[name]=(results[name]??'')+'error: '+error.message.slice(0,120)+' ';return null;}};
