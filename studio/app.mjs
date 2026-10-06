@@ -346,7 +346,7 @@ async function loadAndAdoptStudioState(follow=false,reopen=false,fetchedState=nu
   const loaded=printSync.state?.printId===fetched.printId?printSync.state:null,previous=!reopen?loaded:null;
   agentUI.received(fetched.work);
   const presentationChanged=!previous||previous.editRevision!==fetched.editRevision||previous.outputId!==fetched.outputId
-    ||previous.geometry?.geometryVersion!==fetched.geometry?.geometryVersion;
+    ||previous.geometryId!==fetched.geometryId;
   if(presentationChanged)clearManual();
   const scenes=viewer.sceneState();
   const adopted=await prepareStudioState(fetched,{previous,follow,presentation:viewState.activePresentation,
@@ -363,10 +363,9 @@ async function presentStudioState({adopted,loaded,previous,presentationChanged,f
     :(completedOutputState(printSync.state).previous?'Previous toolpath · ':outputState.review.generation?.mode==='development'?'Development preview · ':'')+(outputState.machine?.name??'No printer selected');
   document.title=studioTitle(printSync.state.printName);
   $('#open-print').title='Open print: '+printSync.state.printName;
-  // Geometry keys off the previously loaded state's version (null on a print
-  // switch), not a value stored on geometryScene, so a different print always
-  // rebuilds even when the two share a geometryVersion counter.
-  if(!viewer.sceneState().hasGeometry||!loaded||loaded.geometry?.geometryVersion!==printSync.state.geometry?.geometryVersion)
+  // Geometry keys off the previously loaded state's geometry id (none on a
+  // print switch), so a different print always rebuilds.
+  if(!viewer.sceneState().hasGeometry||!loaded||loaded.geometryId!==printSync.state.geometryId)
     viewer.publishGeometry({geometry:printSync.state.geometry,featureEdges:printSync.state.tourExample?.id==='surface-drape'?['top']:[]});
   const presentation=await applyProgramPresentation(adopted.presentation,printSync.state);printSync.state=presentation.state;
   if(presentationChanged)layerFade.reset();

@@ -25,7 +25,7 @@ export async function loadBundle(dir,{program=true,allSources=false}={}){
   if(!bounds||!['min','max'].every(k=>bounds[k]?.length===3&&bounds[k].every(Number.isFinite)))throw Error('Study needs finite display bounds');
   const sources=source===undefined?[]:[{name,sha256:outputId}];
   const vertices=Array.from({length:8},(_,i)=>[0,1,2].map(j=>bounds[(i>>j)&1?'max':'min'][j]));
-  const geometry={geometryVersion:revision,boundsMm:bounds,vertices,faces:[],labels:[],edges:[],roof:null};
+  const geometry={boundsMm:bounds,vertices,faces:[],labels:[],edges:[],roof:null};
   const geometryId=hash(JSON.stringify(bounds));
   const state={kind:'wedge',plan,machine,revision,editRevision:revision,outputId,geometry,geometryId,geometryInputId:geometryId,pathSummary:{planarLayers:0},
     outputAvailability:'Simulation only; machine output is unavailable.',

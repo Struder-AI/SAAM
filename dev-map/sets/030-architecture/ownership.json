@@ -2301,9 +2301,6 @@
     "core/geom/blob-field-record.mjs::@module": {
       "owner": "geometry-leaf-b9bc1dee2ebb"
     },
-    "core/geom/blob-field-record.mjs::blobFieldDigest": {
-      "owner": "geometry-leaf-20854f6cbcc9"
-    },
     "core/geom/blob-field-record.mjs::blobFieldTemplate": {
       "owner": "geometry-leaf-0ae4a0c0eed2"
     },
@@ -4777,9 +4774,6 @@
     "core/print/geometry.mjs::spans": {
       "owner": "geometry-leaf-73564ff373e6"
     },
-    "core/print/geometry.mjs::verifyGeometry": {
-      "owner": "geometry-leaf-2abb9412bf70"
-    },
     "core/print/import-stl.mjs::@module": {
       "owner": "application",
       "reason": "Agent command coordinates direct Geometry preparation and Bundle persistence."
@@ -5892,9 +5886,6 @@
     "skills/gridfinity/scripts/record.mjs::@module": {
       "owner": "extensions"
     },
-    "skills/gridfinity/scripts/record.mjs::gridfinityDigest": {
-      "owner": "extensions"
-    },
     "skills/gridfinity/scripts/record.mjs::gridfinityTemplate": {
       "owner": "extensions"
     },
@@ -5935,9 +5926,6 @@
       "owner": "extensions"
     },
     "skills/heat-set-inserts/scripts/feature.mjs::heatSetAssignmentId": {
-      "owner": "extensions"
-    },
-    "skills/heat-set-inserts/scripts/feature.mjs::heatSetDigest": {
       "owner": "extensions"
     },
     "skills/heat-set-inserts/scripts/feature.mjs::heatSetFeature": {
@@ -8064,10 +8052,6 @@
       "owner": "extensions",
       "reason": "Reviewed extension construction/registration logic; bundle/engine bypasses remain findings."
     },
-    "skills/text/scripts/record.mjs::textDigest": {
-      "owner": "extensions",
-      "reason": "Reviewed extension construction/registration logic; bundle/engine bypasses remain findings."
-    },
     "skills/text/scripts/record.mjs::textTemplate": {
       "owner": "extensions",
       "reason": "Reviewed extension construction/registration logic; bundle/engine bypasses remain findings."
@@ -8344,9 +8328,6 @@
     "core/path/saampath.mjs::saamPath": {
       "owner": "toolpath",
       "reason": "Reviewed checks-refactor declaration: SAAMpath admission/process semantics."
-    },
-    "core/print/geometry.mjs::inspectGeometry": {
-      "owner": "geometry-leaf-95d2b56f203c"
     },
     "core/print/geometry.mjs::createSpatialGeometry": {
       "owner": "geometry"
@@ -9818,10 +9799,6 @@
       "reason": "Host-owned saved geometry representation schema; selected technique validation remains in its extension."
     },
     "skills/records.mjs::validateSelectedExtensionRecipe": {
-      "owner": "toolpath",
-      "reason": "Host-owned neutral recipe structure, construction family or generation prerequisite dispatch; actual selected semantic check remains Extensions."
-    },
-    "skills/records.mjs::validateSelectedExtensionRecipe::visit": {
       "owner": "toolpath",
       "reason": "Host-owned neutral recipe structure, construction family or generation prerequisite dispatch; actual selected semantic check remains Extensions."
     },
@@ -12554,12 +12531,6 @@
     "workspaces/export-worker.mjs::createWorkspaceBundles::@scope/forof-1/block-1::prior": {
       "owner": "workspace"
     },
-    "workspaces/export-worker.mjs::createWorkspaceBundles::manifest": {
-      "owner": "workspace"
-    },
-    "workspaces/export-worker.mjs::createWorkspaceBundles::initialManifestSha256": {
-      "owner": "workspace"
-    },
     "workspaces/export-worker.mjs::createWorkspaceBundles::retained": {
       "owner": "workspace"
     },
@@ -13276,6 +13247,27 @@
     },
     "core/print/spatial-inputs.mjs::placementInput": {
       "owner": "bundle"
+    },
+    "core/print/geometry.mjs::reopenShell": {
+      "owner": "geometry-leaf-95d2b56f203c"
+    },
+    "skills/records.mjs::geometryTree": {
+      "owner": "geometry",
+      "reason": "Host-owned saved geometry representation schema: the nested geometry records of one recipe."
+    },
+    "skills/records.mjs::geometryTree::visit": {
+      "owner": "geometry",
+      "reason": "Host-owned saved geometry representation schema: the nested geometry records of one recipe."
+    },
+    "skills/records.mjs::COMPILED_GEOMETRY_TOOLS": {
+      "owner": "geometry",
+      "reason": "Host-owned saved geometry representation schema: which tool compiles each compiled record."
+    },
+    "workspaces/export-worker.mjs::savedRevision": {
+      "owner": "workspace"
+    },
+    "workspaces/export-worker.mjs::createWorkspaceBundles::initialRevision": {
+      "owner": "workspace"
     }
   },
   "retiredAssignments": [

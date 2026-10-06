@@ -7,6 +7,7 @@ import {dirname,resolve} from 'node:path';
 import {packZip,unpackZip} from '../export/zip.mjs';
 import {writeNewFile} from '../file-write.mjs';
 import {initBundle,loadBundle} from './bundle.mjs';
+import {geometryTree} from '../../skills/records.mjs';
 import {withBundleInstance,requireBundleInstance} from './studio-ownership.mjs';
 import {recordBundleRuntime} from './bundle-runtime.mjs';
 import {requiredExtensionIds} from '../path/extension-dependencies.mjs';
@@ -209,6 +210,7 @@ export async function importBundle(packageFile,directory,options={}){
     // Geometry owns reconstruction from saved ordinary recipes, including inline
     // compiled extension meshes. This does not load selected extension scripts.
     options.progress?.({stage:'Reconstructing bundle geometry'});
+    for(const geometry of geometryTree(document.geometry))delete geometry.compiledHash;
     await initBundle(staging,document,{sourceBytes:files.get('geometry/source.stl')});
     await loadBundle(staging,{program:false});
     await options.beforeCommit?.();

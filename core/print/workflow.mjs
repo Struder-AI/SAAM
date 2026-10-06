@@ -18,6 +18,7 @@ import {resolvePlanPatch} from './resolve-plan.mjs';
 import {selectSettings,saveSetup,withMachineSetupExport} from '../machine/settings.mjs';
 import {assignmentFamily as ordinaryAssignmentFamily} from './slice-settings.mjs';
 import {commitManifest,retainContent,restoreContent,recordDelivery,saveDescriptor} from './revisions.mjs';
+import {geometryTree} from '../../skills/records.mjs';
 
 export const root=resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const BUNDLE_SCHEMA='saam-print-bundle/2';
@@ -268,6 +269,8 @@ async function readBundleInput(directory) {
   if(document.bundle?.schema!==BUNDLE_SCHEMA)
     throw Error(`Legacy split-file bundle requires explicit migration. Use saam call migrate_bundle with the bundleId, or offline source maintenance; see core/application/README.md#offline-maintenance.`);
   const {bundle:saved,...plan}=document,bundle=savedBundle(saved);
+  // Compiled records of older prints carried a digest of their own mesh.
+  if(!saved.editRevision)for(const geometry of geometryTree(plan.geometry))delete geometry.compiledHash;
   requireThat(bundle.deferRememberSetup===undefined||typeof bundle.deferRememberSetup==='boolean','Invalid bundle setup remembering preference.');
   return {dir,plan,machine:bundle.machine,review:bundle.review,geometryArtifact:bundle.geometry,revision:bundle.revision,
     editRevision:bundle.editRevision,geometryInputId:bundle.geometryInputId,pathInputId:bundle.pathInputId,deferRememberSetup:bundle.deferRememberSetup===true,

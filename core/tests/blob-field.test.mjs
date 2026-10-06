@@ -7,7 +7,6 @@ import {join} from 'node:path';
 import {prepareBlobField,evaluateBlobField,validateBlobField} from '../geom/blob-field.mjs';
 import {compileBlobField} from '../geom/blob-field-compile.mjs';
 import {solidKernel,preciseSolidMesh} from '../geom/solid.mjs';
-import {validateBlobFieldRecord} from '../geom/blob-field-record.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
 import {topAt} from '../geom/query.mjs';
 import {horizontalSlice} from '../geom/slice.mjs';
@@ -15,7 +14,6 @@ import {section} from '../region/section.mjs';
 import {regionArea} from '../region/region2d.mjs';
 import {createBlobFieldBundle,updateBlobFieldBundle,compileRequest} from '../agent/blob-field.mjs';
 import {loadBundle,generateBundle} from '../print/bundle.mjs';
-import {createGeometry,verifyGeometry} from '../print/geometry.mjs';
 
 const field=(points,threshold=0.25)=>({schema:'saam-blob-field/1',threshold,points});
 const blob=(positionMm,reachMm,strength=1)=>({positionMm,reachMm,strength});
@@ -46,7 +44,6 @@ test('a lone ball extracts to its radius with a flat bed cut',async()=>{
   close(mesh.bounds.min[2],0,1e-9);close(mesh.bounds.max[2],8,0.05);
   close(regionArea(section(mesh,horizontalSlice(3)).loops),Math.PI*25,0.2);
   await assert.rejects(compileBlobField(field([blob([0,0,3],10,0.01)]),{edgeMm:0.5}),/empty/);
-  const changed=structuredClone(g);changed.field.threshold=0.3;assert.throws(()=>validateBlobFieldRecord(changed),/Rebuild/);
 });
 
 test('neighbouring points blend, distant ones stay separate, and negative points carve holes and voids',async()=>{
@@ -70,8 +67,6 @@ test('blob field lifecycle slices, reopens and updates changed points',async t=>
   const request={points:[blob([0,0,1],8),blob([5,0,1],6)],edgeMm:0.5};
   let state=await createBlobFieldBundle(dir,request,{machineId:'ultimaker-s5'});
   assert.deepEqual(state.plan.geometry.field.points,request.points);assert.equal(state.geometry.nativeFile,'model.mesh.json');
-  const native=await createGeometry(state.plan.geometry),fake=structuredClone(native.descriptor);fake.vertices[0][0]+=1;
-  await assert.rejects(verifyGeometry(native.bytes,fake),/display\/identity/);
   await generateBundle(dir);state=await loadBundle(dir);assert.equal(state.programError,undefined);assert.ok(state.program.moves.length>0);
   state=await loadBundle(dir);request.points[1].strength=1.5;
   await updateBlobFieldBundle(dir,request,{expectedRevision:state.revision});

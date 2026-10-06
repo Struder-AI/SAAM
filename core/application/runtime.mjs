@@ -32,6 +32,7 @@ import {lifecycleReview} from '../print/review-state.mjs';
 import { readGuidance, readManual } from '../agent/manuals.mjs';
 import { onboardingSources, machineHint } from '../agent/layers.mjs';
 import { SKILL_IDS, GUIDANCE_IDS, EXTENSION_IDS, skillMetadata } from '../../skills/catalog.mjs';
+import {geometryTree,COMPILED_GEOMETRY_TOOLS} from '../../skills/records.mjs';
 import {slicePatchSchema,modulationPatchSchema,geometrySchema,patchSchema,draftFamilySchema} from './deposition-schemas.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -763,6 +764,9 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   async function adjustRecipe({ bundleId, expectedRevision,expectedEditRevision, patch }){
       noApprovalFields(patch);
       const { dir, bundle, state } = await read(bundleId,{program:false});
+      // A patch may replace compiled geometry with another shape, not edit it.
+      const compiled=patch.geometry&&(patch.geometry.shape??state.plan.geometry?.shape)===state.plan.geometry?.shape&&geometryTree(state.plan.geometry).find(geometry=>COMPILED_GEOMETRY_TOOLS[geometry.shape]);
+      if(compiled)throw new Error(`This print's ${compiled.shape} geometry changes only through ${COMPILED_GEOMETRY_TOOLS[compiled.shape]}.`);
       const options={expectedRevision,expectedEditRevision};
       const next=Object.keys(patch).every(key=>SETTINGS_FIELDS.includes(key))
         ?await adjustSettings(dir,patch,options):await bundle.adjustBundle(dir,patch,options);

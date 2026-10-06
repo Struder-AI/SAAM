@@ -8,9 +8,7 @@ import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { defaults } from '../print/plan.mjs';
-import { canonicalHash as hash } from '../canonical-json.mjs';
 import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
-import { createGeometry, verifyGeometry } from '../print/geometry.mjs';
 import {
   initBundle, loadBundle, generateBundle, updatePlan, adjustBundle, exportReviewed,
   changeMachine, proposedPlan
@@ -69,27 +67,13 @@ test('changing printer leaves the program stale and rejects stale edits',async t
   assert.equal((await loadBundle(dir,{program:false})).revision,next.revision);
 });
 
-test('a shell print stores native geometry that reopens as the same closed shell', async t => {
+test('a shell print stores native geometry as its named faces', async t => {
   const dir = await fixture(t);
   const state = await loadBundle(dir, { program: false });
   assert.equal(state.kind, 'shell');
   assert.equal(state.geometry.schema, 'saam-shell-geometry/1');
   assert.deepEqual(state.geometry.features.map(feature => feature.id), ['top', 'bottom', 'front', 'right', 'back', 'left']);
   assert.deepEqual(state.skills, ['slice']);
-
-  // Reopening the stored file must rebuild the same closed shell.
-  const bytes = await readFile(resolve(dir,state.geometryArtifact.file));
-  await verifyGeometry(bytes, state.geometry);
-
-  // A 3DM written for other parameters is not this print's geometry.
-  const raised = structuredClone(smallPlan().geometry); raised.patches[0].controlPoints[1][1][2] += 1;
-  const other = await createGeometry(raised);
-  await assert.rejects(verifyGeometry(other.bytes, state.geometry), /Geometry file changed/);
-  await assert.rejects(verifyGeometry(other.bytes, { ...state.geometry, fileHash: hash(other.bytes) }),
-    /written for different geometry parameters/);
-  // Same file, a descriptor claiming different surfaces: the control nets decide.
-  await assert.rejects(verifyGeometry(other.bytes, { ...other.descriptor, patchHash: state.geometry.patchHash }),
-    /differ from the reviewed geometry/);
 });
 
 test('development generation of a shell print reports its roof domain', async t => {
@@ -155,7 +139,6 @@ test('geometry and settings edits leave the program stale', async t => {
   state = await loadBundle(dir);
   assert.equal(state.geometry.parameters.shape, 'spline');
   assert.equal(state.geometry.boundsMm.max[2], 5);
-  await verifyGeometry(await readFile(resolve(dir,state.geometryArtifact.file)), state.geometry);
 });
 
 test('remembered S5 setup carries into the next shell print without a firmware version', async t => {

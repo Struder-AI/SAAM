@@ -1,4 +1,3 @@
-import {gridfinityDigest} from './record.mjs';
 
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
@@ -116,6 +115,5 @@ export async function compileGridfinity(input={}, {constructSolids}={}){
     }
     const [mesh]=await constructSolids([solid],{toleranceMm:p.toleranceMm});
     requireThat(mesh,'Gridfinity construction failed to produce a solid.');
-    const record={shape:'gridfinity',parameters:p,vertices:mesh.vertices,triangles:mesh.triangles};
-    return {...record,compiledHash:gridfinityDigest(record)};
+    return {shape:'gridfinity',parameters:p,vertices:mesh.vertices,triangles:mesh.triangles};
 }

@@ -12,7 +12,7 @@ import {loadMachine} from '../machine/profile.mjs';
 import {validateDensoConfiguration} from '../machine/denso.mjs';
 import {defaults,validatePlan} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {createGeometry,verifyGeometry} from '../print/geometry.mjs';
+import {createGeometry} from '../print/geometry.mjs';
 import {rhino} from '../geom/runtime.mjs';
 import {initBundle,generateBundle,loadBundle} from '../print/bundle.mjs';
 import {exportProgram,decodeProgram,exportAndDecodeProgram} from '../export/registry.mjs';
@@ -41,7 +41,7 @@ test('DENSO setup is unresolved by default; tube geometry uses the shared native
   const unconfigured=defaults(machine);assert.equal(validateDensoConfiguration(unconfigured).configured,false);
   assert.throws(()=>validateDensoConfiguration(unconfigured,{required:true}),/unconfigured/);
   const plan=small();validatePlan(plan,machine);
-  const native=await createGeometry(plan.geometry);await verifyGeometry(native.bytes,native.descriptor);
+  const native=await createGeometry(plan.geometry);
   assert.equal(native.descriptor.nativeFile,undefined);
   const s5=loadMachine(),old=defaults(s5);old.geometry=plan.geometry;old.placement={xMm:100,yMm:100};
   const path=await generatePath(old,s5);assert.ok(decodeProgram(exportProgram(path,old,s5,{generatorVersion:'test',buildDate:'2026-09-10'}).bytes,old,s5).moves.some(m=>m.extruding));

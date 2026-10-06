@@ -24,7 +24,7 @@ export function planRefreshNavigation(previous,next,{follow,tab,seconds,duration
   if(resetView)nextTab=next.tourExample?(tourInitialTab??'geometry'):next.program||next.neutralProgram?'toolpath':'geometry';
   else if(follow&&previous.editRevision!==next.editRevision){nextTab=previous.geometryInputId!==next.geometryInputId?'geometry':'toolpath';notice='Updated from chat.';}
   if(next.completedOutput&& !completedOutputState(next).available)nextTab='geometry';
-  const resetSelection=resetView||!selected||!next.geometry?.labels?.includes(selected)&&!next.geometry?.features?.some(feature=>feature.id===selected)&&(!hasSelectedEdge||previous?.geometry?.geometryVersion!==next.geometry?.geometryVersion);
+  const resetSelection=resetView||!selected||!next.geometry?.labels?.includes(selected)&&!next.geometry?.features?.some(feature=>feature.id===selected)&&(!hasSelectedEdge||previous?.geometryId!==next.geometryId);
   return {resetExport,resetView,tab:nextTab,seconds:resetExport||resetView?duration:seconds,resetSelection,
     restoreSavedView:resetView&&!next.tourExample,surfaceDrape:resetView&&next.tourExample?.id==='surface-drape',notice};
 }

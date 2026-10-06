@@ -1,4 +1,4 @@
-import {textTemplate,textDigest} from "./record.mjs";
+import {textTemplate} from "./record.mjs";
 
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
@@ -43,5 +43,5 @@ export async function compileText(base,features,{buildGeometry,constructSolids,m
   const record={...textTemplate(),base:structuredClone(base),features:normalized,toleranceMm,maxEdgeMm,vertices:mesh.vertices,triangles:mesh.triangles};
   record.materialParts=[...materials.keys()].flatMap((id,i)=>!parts[i]?[]:[{id,geometry:id==='base'&&baseUncut?null:{shape:'mesh',source:null,vertices:parts[i].vertices,triangles:parts[i].triangles}}]);
   if(standalone)record.standalone=true;
-  record.compiledHash=textDigest(record);return record;
+  return record;
 }

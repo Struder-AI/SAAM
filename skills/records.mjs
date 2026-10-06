@@ -19,15 +19,28 @@ export const ASSIGNMENT_RECORDS=Object.freeze({
 });
 
 const textTemplate=(record={})=>({shape:'text',base:null,features:[],toleranceMm:0.02,maxEdgeMm:1,
-  vertices:[],triangles:[],compiledHash:'',materialParts:[],...(Object.hasOwn(record,'standalone')?{standalone:false}:{})});
-const gridfinityTemplate=()=>({shape:'gridfinity',parameters:null,vertices:[],triangles:[],compiledHash:''});
-const heatSetTemplate=()=>({shape:'heat-set',base:null,features:[],toleranceMm:0.01,vertices:[],triangles:[],compiledHash:''});
+  vertices:[],triangles:[],materialParts:[],...(Object.hasOwn(record,'standalone')?{standalone:false}:{})});
+const gridfinityTemplate=()=>({shape:'gridfinity',parameters:null,vertices:[],triangles:[]});
+const heatSetTemplate=()=>({shape:'heat-set',base:null,features:[],toleranceMm:0.01,vertices:[],triangles:[]});
 const meshRecord=(record,template)=>{
   if(!record||typeof record!=='object'||Array.isArray(record)||Object.keys(record).sort().join()!==Object.keys(template(record)).sort().join())
     throw Error(`Unexpected ${record?.shape} geometry fields.`);
-  if(!Array.isArray(record.vertices)||!Array.isArray(record.triangles)||typeof record.compiledHash!=='string')
+  if(!Array.isArray(record.vertices)||!Array.isArray(record.triangles))
     throw Error(`Invalid ${record.shape} saved geometry record.`);
 };
+// Every geometry in a recipe tree: the root, bases, solids, parts and operands.
+export function geometryTree(geometry){
+  const geometries=[];
+  const visit=node=>{
+    if(!node||typeof node!=='object')return;
+    geometries.push(node);visit(node.base);visit(node.solid);
+    for(const part of node.parts??[])visit(part.geometry);
+    for(const operand of node.operands??[])visit(operand);
+  };
+  visit(geometry);return geometries;
+}
+// Compiled geometry changes only through the tool that compiles it.
+export const COMPILED_GEOMETRY_TOOLS=Object.freeze({'blob-field':'blob_field',gridfinity:'gridfinity',text:'apply_text','heat-set':'apply_heat_set'});
 export const GEOMETRY_RECORDS=Object.freeze({
   text:{extension:'text',template:textTemplate,validate:record=>meshRecord(record,textTemplate)},
   gridfinity:{extension:'gridfinity',template:gridfinityTemplate,validate:record=>meshRecord(record,gridfinityTemplate)},
@@ -60,18 +73,8 @@ export function validateExtensionAssignment(assignment,options){
 // The selected copy validates technique semantics only when construction is
 // requested. Opening a saved bundle never evaluates extension code.
 export async function validateSelectedExtensionRecipe(plan,processForAssignment){
-  const geometries=[];
-  const visit=geometry=>{
-    if(!geometry||typeof geometry!=='object')return;
-    geometries.push(geometry);
-    visit(geometry.base);
-    visit(geometry.solid);
-    for(const part of geometry.parts??[])visit(part.geometry);
-    for(const operand of geometry.operands??[])visit(operand);
-  };
-  visit(plan.geometry);
   let heatSet=false;const runtimes=new Map();
-  for(const geometry of geometries){
+  for(const geometry of geometryTree(plan.geometry)){
     const record=GEOMETRY_RECORDS[geometry.shape];if(!record)continue;
     if(!runtimes.has(record.extension))runtimes.set(record.extension,(await loadExtensionEntry(record.extension,'record-runtime'))());
     const runtime=runtimes.get(record.extension);

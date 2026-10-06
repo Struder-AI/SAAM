@@ -2,7 +2,7 @@
 import {solidKernel,solidFromMesh,preciseSolidMesh} from './solid.mjs';
 import {makeMesh} from './mesh.mjs';
 import {prepareBlobField,evaluateBlobField,blobFieldBounds} from './blob-field.mjs';
-import {BLOB_FIELD_COMPILER,validateBlobFieldExtraction,blobFieldDigest} from './blob-field-record.mjs';
+import {BLOB_FIELD_COMPILER,validateBlobFieldExtraction} from './blob-field-record.mjs';
 import {requireThat,cross} from './tolerance.mjs';
 
 // The extraction lattice follows edgeMm and the points' extent; there is no
@@ -21,8 +21,7 @@ export async function compileBlobField(field,{edgeMm}={}){
     const {vertices,triangles}=preciseSolidMesh(solid);
     try{makeMesh(vertices,triangles);}
     catch(error){throw Object.assign(new Error(`Blob field extraction made an invalid mesh (${error.reason??error.message}). This is a SAAM defect, not a fault in the field or an STL to import or repair; report it with the request. A different edgeMm may avoid it.`),{meshDiagnostic:error.meshDiagnostic});}
-    const record={shape:'blob-field',field,extraction,vertices,triangles};
-    return {...record,compiledHash:blobFieldDigest(record)};
+    return {shape:'blob-field',field,extraction,vertices,triangles};
   }finally{solid?.delete();whole?.delete();}
 }
 

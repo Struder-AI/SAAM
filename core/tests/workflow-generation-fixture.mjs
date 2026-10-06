@@ -10,7 +10,6 @@ export function generationWorkflow(events=[],onGenerate=()=>{}){
   const api=createBundleWorkflow({kind:'stage-fixture',defaults,version:'fixture',buildDate:'2026-09-19',exportName:'part.gcode',
     machineFile:'machines/ultimaker-s5.json',limitations:()=>['fixture limitation'],validatePlan:plan=>plan,
     createGeometry:async parameters=>({bytes:Buffer.from(JSON.stringify(parameters)),descriptor:{nativeFile:'model.mesh.json',parameters}}),
-    verifyGeometry:async()=>{},
     async generatePath(plan){
       events.push('generate');onGenerate();await generateHook?.();
       return {schema:'saampath/1',completion:{contract:'saam-neutral-motion/1'},initialPosition:[...machine.tools[plan.setup.tool].startupXY,machine.startup.zAfterStartupMm],

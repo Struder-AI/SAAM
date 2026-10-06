@@ -1,10 +1,10 @@
 import {parentPort,workerData} from 'node:worker_threads';
 import {mkdir,writeFile,readFile,rm,cp,lstat} from 'node:fs/promises';
-import {createHash} from 'node:crypto';
 import {join} from 'node:path';
 import {loadWorkspaceRuntime,workspacePieces} from '../core/extensions/workspaces.mjs';
 import {initBundle} from '../core/print/bundle.mjs';
 import {replaceFile} from '../core/file-write.mjs';
+const savedRevision=async dir=>JSON.parse(await readFile(join(dir,'plan.json'),'utf8')).bundle.revision;
 
 // One handoff operation for every workspace. Only Bundle persists part state.
 export async function createWorkspaceBundles({extensionId,extension,design,directory,appRoot,dataRoot,previous},progress=()=>{}){
@@ -29,10 +29,9 @@ export async function createWorkspaceBundles({extensionId,extension,design,direc
       const workspace={schema:'saam-workspace-source/1',extension,source:constructionSource,requirements};
       await initBundle(join(directory,piece.id),{...plan,workspace});
       const prior=previous?.record.bundles.find(entry=>entry.id===piece.id);
-      const manifest=await readFile(join(directory,piece.id,'plan.json'));
-      const initialManifestSha256=createHash('sha256').update(manifest).digest('hex');
+      const initialRevision=await savedRevision(join(directory,piece.id));
       const retained=prior?await retainEditedBundle(previous,prior,join(directory,piece.id)):false;
-      created.push(retained?{...prior,retained:true,requestedPiece:piece}:{id:piece.id,path:piece.id,piece,initialManifestSha256,
+      created.push(retained?{...prior,retained:true,requestedPiece:piece}:{id:piece.id,path:piece.id,piece,initialRevision,
         ...(report===undefined?{}:{report})});
       await record();
       progress({stage:'created',piece:piece.id,completed:created.length,total:pieces.length,bundles:[...created]});
@@ -45,9 +44,9 @@ export async function createWorkspaceBundles({extensionId,extension,design,direc
 }
 
 async function retainEditedBundle(previous,entry,target){
-  const source=join(previous.directory,entry.path),bytes=await readFile(join(source,'plan.json'));
-  // A legacy set has no baseline. Retain it conservatively rather than infer that it is unedited.
-  if(entry.initialManifestSha256&&createHash('sha256').update(bytes).digest('hex')===entry.initialManifestSha256)return false;
+  const source=join(previous.directory,entry.path);
+  // An earlier set has no creation revision. Retain it rather than infer that it is unedited.
+  if(entry.initialRevision&&await savedRevision(source)===entry.initialRevision)return false;
   await rm(target,{recursive:true,force:true});
   await cp(source,target,{recursive:true,filter:async path=>{
     if((await lstat(path)).isSymbolicLink())throw Error('Workspace bundles cannot contain linked files.');

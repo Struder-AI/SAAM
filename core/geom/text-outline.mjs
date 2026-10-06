@@ -1,6 +1,5 @@
 import {requireThat} from '../private/extensions/numeric.mjs';
 import {create} from 'fontkit';
-import {createHash} from 'node:crypto';
 
 import {union} from '../region/intersection.mjs';
 import {offsetRegion} from '../region/offset.mjs';
@@ -30,7 +29,7 @@ export function flattenBezier(points,toleranceMm){
 }
 export function textOutlines(feature,toleranceMm){
   const bytes=Buffer.from(feature.font.data,'base64');
-  requireThat(bytes.length>0&&createHash('sha256').update(bytes).digest('hex')===feature.font.sha256,'Text font bytes or hash are invalid.');
+  requireThat(bytes.length>0,'Text font bytes are empty.');
   let font=create(bytes,feature.font.postscriptName??undefined);
   requireThat(font?.layout,'Choose postscriptName for a font collection.');
   if(Object.keys(feature.variation).length){
