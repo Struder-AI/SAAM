@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-05 — Open 0.3.6; tray waits for SAAM; turn end un-dims Studio
+
+- Owner: approved 0.3.4/0.3.5 rows ship in 0.3.6; new rows "Use SAAM, else an extension" (a tester's agent built a vase program outside SAAM; building outside extensions is a bug the agent reports through a `saam` command) and "Dimensions and tolerances" (no 1e-9 mm work; tolerances derive from the dimensions SAAM deals with).
+- Tray open without a fixed timeout (worker): both trays' control requests wait while SAAM works and show SAAM's failure text (Windows reads the 400 body; macOS raises `ok:false`, which a failed open had silently ignored). `controlRequest` has no default deadline, so saam's open/status/stop/reload/update/quit lose their 35 s; liveness probes keep explicit bounds. Verified: PS 5.1 `Invoke-Control` received a 130 s answer, reported a 50 s failure and a 40 s drop; dev-instance probes. Not run: AppleScript compile, on-screen tray.
+- Dimming by client turn-end signal (worker): client setup registers a Claude Code Stop hook (exec form, async) running `saam turn-ended`, which reaches only a running SAAM; each runtime's chat with that session hands back its active episodes as `waiting` through `handBackRequest`. Verified on a dev instance via Studio's `/api/agent-requests` and viewer stream (un-dims, re-dims next turn, other chats untouched) and in a temporary client home (idempotent, other hooks kept, uninstall removes it). Codex not covered. Not run: a real Stop hook, whole suite, map regenerate (heavy job held).
+
 ## 2026-10-05 — Publish SAAM 0.3.5 (Update verification)
 
 - Owner: "Gatekeeper compatibility confirmed. Now we need to confirm the update button, so release 0.3.5". Published v0.3.5 at source 090d1ca259148ccf5a10b5983951318454857b21 (0.3.4 plus the install guide's quit/uninstall line), same build procedure and Windows mesh helper as 0.3.4. Windows 43,956,286 bytes, 8a042c2935a8dc190237cfbd81a9d4dcceedf817b1c78eaf4253ad3379b41298; arm64 Mac 47,847,366 bytes, 86de0a2c66ab36da57c622758cb5fa40f26b5ab44fbfc678d2af52529ae0e7f9; Intel Mac 49,196,945 bytes, 11aa2c30a876d7c99633ccf9810d99e1466406544cec5d9d0a064a617aa98beb. Setup checks passed; public assets, sidecars, tag and stable/latest status verified by download. Relay deployed (c4928de0-67b0-479e-a45f-4005bc53d9b7); the authenticated offer returns 0.3.5.
