@@ -33,6 +33,14 @@ function meshResult(vertices,triangles,name,derived){
     bounds:{min:[...derived.bounds.min],max:[...derived.bounds.max]},faceNormals:derived.normals.slice()};
 }
 
+// Unit normal of triangle abc, or null when its smallest height is within
+// numeric conditioning (NUMERIC_MM), where the normal is not determined. Scale-free:
+// a long sliver and a micro triangle are judged by the same height.
+export function triangleNormal(a,b,c){
+  const n=cross(sub(b,a),sub(c,a)),length=Math.hypot(...n);
+  return length>NUMERIC_MM*Math.sqrt(Math.max(dot(sub(b,a),sub(b,a)),dot(sub(c,b),sub(c,b)),dot(sub(a,c),sub(a,c))))?n.map(v=>v/length):null;
+}
+
 // Unit normal of triangle i as validated at ingestion (packed xyz per triangle).
 export function meshFaceNormal(mesh,i){
   return Array.from(mesh.faceNormals.subarray(i*3,i*3+3));
@@ -66,7 +74,7 @@ function meshFaceGeometry({vertices,triangles}){
   const counts=[vertices.length,triangles.length];
   const normals=meshAllocation('Mesh face normals',...counts,()=>new Float64Array(triangles.length*3)),bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   for(const p of vertices)for(let k=0;k<3;k++){bounds.min[k]=Math.min(bounds.min[k],p[k]);bounds.max[k]=Math.max(bounds.max[k],p[k]);}
-  for(let i=0;i<triangles.length;i++){const t=triangles[i],n=cross(sub(vertices[t[1]],vertices[t[0]]),sub(vertices[t[2]],vertices[t[0]])),length=Math.hypot(...n);requireMeshInput(length>1e-10,'Degenerate mesh triangle.');for(let k=0;k<3;k++)normals[i*3+k]=n[k]/length;}
+  for(let i=0;i<triangles.length;i++){const t=triangles[i],n=triangleNormal(vertices[t[0]],vertices[t[1]],vertices[t[2]]);requireMeshInput(n,'Degenerate mesh triangle.');normals.set(n,i*3);}
   return {normals,bounds};
 }
 

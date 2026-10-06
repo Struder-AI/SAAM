@@ -1,5 +1,5 @@
 // Exact triangle cleanup and output validation shared by import and native repair.
-import {decodeSTL,makeMesh,parseSTL} from './mesh.mjs';
+import {decodeSTL,makeMesh,parseSTL,triangleNormal} from './mesh.mjs';
 import {checkAdjacentContacts} from './mesh-spatial.mjs';
 import {subtract as sub,cross,dot,requireThat} from './tolerance.mjs';
 import {checkMeshCapacity} from './mesh-capacity.mjs';
@@ -15,8 +15,8 @@ export function cleanTriangleSoup(input,{mergeToleranceMm=0}={}) {
   const kept=[],groups=new Map();let degenerate=0;
   for(const face of input.triangles){
     requireThat(Array.isArray(face)&&face.length===3&&face.every(i=>Number.isInteger(i)&&i>=0&&i<mapping.length),'Invalid repair triangle indices.');
-    const t=face.map(i=>mapping[i]),n=cross(sub(vertices[t[1]],vertices[t[0]]),sub(vertices[t[2]],vertices[t[0]]));
-    if(new Set(t).size!==3||Math.hypot(...n)<=1e-10){degenerate++;continue;}
+    const t=face.map(i=>mapping[i]);
+    if(new Set(t).size!==3||!triangleNormal(...t.map(i=>vertices[i]))){degenerate++;continue;}
     const s=[...t].sort((a,b)=>a-b),key=s.join(','),sign=(s.indexOf(t[1])-s.indexOf(t[0])+3)%3===1?1:-1;
     const group=groups.get(key);if(group)group.net+=sign;else{groups.set(key,{triangle:t,sign,net:sign});kept.push(key);}
   }
@@ -132,7 +132,7 @@ export function encodeRepairSTL(mesh) {
 
 export function* encodeRepairSTLChunks(mesh){
   let chunk='solid saam_repaired\n';
-  for(const t of mesh.triangles){const [a,b,c]=t.map(i=>mesh.vertices[i]),n=cross(sub(b,a),sub(c,a)),length=Math.hypot(...n);requireThat(length>1e-10,'Repair produced a degenerate triangle.');chunk+=`facet normal ${n.map(v=>v/length).join(' ')}\nouter loop\n`+t.map(i=>`vertex ${mesh.vertices[i].join(' ')}\n`).join('')+'endloop\nendfacet\n';if(chunk.length>=65536){yield chunk;chunk='';}}
+  for(const t of mesh.triangles){const n=triangleNormal(...t.map(i=>mesh.vertices[i]));requireThat(n,'Repair produced a degenerate triangle.');chunk+=`facet normal ${n.join(' ')}\nouter loop\n`+t.map(i=>`vertex ${mesh.vertices[i].join(' ')}\n`).join('')+'endloop\nendfacet\n';if(chunk.length>=65536){yield chunk;chunk='';}}
   yield chunk+'endsolid saam_repaired\n';
 }
 
